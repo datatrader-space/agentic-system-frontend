@@ -3,6 +3,10 @@ import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import './style.css'
 import api from './services/api'
+import axios from 'axios'
+
+// Set global axios defaults
+axios.defaults.withCredentials = true
 
 // Import views
 import SystemList from './views/SystemList.vue'
@@ -85,27 +89,31 @@ const router = createRouter({
 
 // Route guards
 router.beforeEach(async (to, from, next) => {
-  // Check authentication status
-  try {
-    const response = await api.checkAuth()
-    const isAuthenticated = response.data.authenticated
+  const localUser = localStorage.getItem('user')
+  let isAuthenticated = !!localUser
 
-    if (to.meta.requiresAuth && !isAuthenticated) {
-      // Redirect to login if route requires auth
-      next('/login')
-    } else if (to.meta.requiresGuest && isAuthenticated) {
-      // Redirect to home if already logged in
-      next('/')
-    } else {
-      next()
+  // For routes requiring auth, verify with server if not already verified in this session
+  // Or if we need to be absolutely sure. For now, trust localStorage for redirection
+  // and let individual components handle unauthorized errors.
+  
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    // Double check with server if we think we're not authenticated
+    try {
+      const response = await api.checkAuth()
+      if (response.data.authenticated) {
+        isAuthenticated = true
+      }
+    } catch (error) {
+      isAuthenticated = false
     }
-  } catch (error) {
-    // If auth check fails, redirect to login for protected routes
-    if (to.meta.requiresAuth) {
-      next('/login')
-    } else {
-      next()
-    }
+  }
+
+  if (to.meta.requiresAuth && !isAuthenticated) {
+    next('/login')
+  } else if (to.meta.requiresGuest && isAuthenticated) {
+    next('/')
+  } else {
+    next()
   }
 })
 

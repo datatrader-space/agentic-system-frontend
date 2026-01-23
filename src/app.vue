@@ -55,7 +55,7 @@
               </router-link>
 
               <a
-                href="http://localhost:8000/admin"
+                href="https://mazily-nippy-dionna.ngrok-free.dev/admin"
                 target="_blank"
                 class="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 hover:text-gray-700"
               >
@@ -169,7 +169,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, provide, computed } from 'vue'
+import { ref, onMounted, provide, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from './services/api'
 
@@ -231,6 +231,13 @@ onMounted(async () => {
     llmHealth.value = response.data
   } catch (error) {
     console.error('Failed to check LLM health:', error)
+  }
+})
+
+// Watch for route changes to reload user if needed
+watch(() => route.path, async (newPath) => {
+  if (newPath !== '/login' && !currentUser.value) {
+    await loadCurrentUser()
   }
 })
 

@@ -7,7 +7,7 @@ import axios from 'axios'
 
 // Create axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: '/api',  // Use relative path - goes through Vite proxy
   timeout: 30000,
   withCredentials: true,
   headers: {
@@ -253,4 +253,7 @@ export default {
 
   // New Agent Knowledge
   analyzeContextFile: (fileId) => api.post(`/context_files/${fileId}/analyze/`),
+
+  // Session Reconnection
+  getSessionEvents: (sessionId) => api.get(`/agent/sessions/${sessionId}/events/`),
 }
