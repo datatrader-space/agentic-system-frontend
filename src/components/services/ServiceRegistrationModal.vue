@@ -1,34 +1,30 @@
 <template>
-  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-      <!-- Header -->
-      <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <h2 class="text-xl font-bold">Register New Service</h2>
-            <p class="text-sm text-white/80 mt-1">{{ stepDescriptions[currentStep] }}</p>
-          </div>
-          <button
-            @click="$emit('close')"
-            class="text-white/80 hover:text-white text-2xl leading-none"
-          >
-            ×
-          </button>
-        </div>
-
-        <!-- Progress Steps -->
-        <div class="flex items-center gap-2 mt-4">
-          <div
-            v-for="(step, index) in steps"
-            :key="index"
-            class="flex-1 h-2 rounded-full transition"
-            :class="index <= currentStep ? 'bg-white' : 'bg-white/30'"
-          ></div>
-        </div>
+  <div class="w-full">
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 py-6 rounded-t-lg">
+      <div>
+        <h2 class="text-2xl font-bold">Register New Service</h2>
+        <p class="text-sm text-white/80 mt-1">{{ stepDescriptions[currentStep] }}</p>
       </div>
 
-      <!-- Content -->
-      <div class="flex-1 overflow-y-auto p-6">
+      <!-- Progress Steps -->
+      <div class="flex items-center gap-2 mt-6">
+        <div
+          v-for="(step, index) in steps"
+          :key="index"
+          class="flex-1"
+        >
+          <div
+            class="h-2 rounded-full transition"
+            :class="index <= currentStep ? 'bg-white' : 'bg-white/30'"
+          ></div>
+          <div class="text-xs text-white/70 mt-1 text-center font-medium">{{ step }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="p-8 min-h-[600px]">
         <!-- Step 1: Basic Info -->
         <div v-if="currentStep === 0">
           <div class="space-y-4">
@@ -266,68 +262,8 @@
           </div>
         </div>
 
-        <!-- Step 3: Authentication -->
+        <!-- Step 3: Select & Review Actions -->
         <div v-else-if="currentStep === 2">
-          <div class="space-y-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Authentication Type *</label>
-              <select
-                v-model="formData.auth_type"
-                class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="bearer">Bearer Token</option>
-                <option value="api_key">API Key</option>
-                <option value="oauth2">OAuth 2.0</option>
-                <option value="basic">Basic Auth</option>
-              </select>
-            </div>
-
-            <!-- Bearer Token -->
-            <div v-if="formData.auth_type === 'bearer'">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Bearer Token</label>
-              <input
-                v-model="formData.auth_config.token"
-                type="password"
-                placeholder="Enter token"
-                class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <!-- API Key -->
-            <div v-if="formData.auth_type === 'api_key'">
-              <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
-              <input
-                v-model="formData.auth_config.api_key"
-                type="password"
-                placeholder="Enter API key"
-                class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <!-- Basic Auth -->
-            <div v-if="formData.auth_type === 'basic'" class="space-y-3">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                <input
-                  v-model="formData.auth_config.username"
-                  type="text"
-                  class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                <input
-                  v-model="formData.auth_config.password"
-                  type="password"
-                  class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Step 4: Select Actions -->
-        <div v-else-if="currentStep === 3">
           <div v-if="!discoveredData" class="text-center py-8">
             <p class="text-gray-600">No actions discovered yet.</p>
             <p class="text-sm text-gray-500 mt-2">Go back and discover actions from API spec.</p>
@@ -335,43 +271,104 @@
 
           <div v-else>
             <div class="mb-4">
-              <h3 class="font-medium text-gray-900 mb-2">Select Action Categories</h3>
-              <p class="text-sm text-gray-600">Choose which categories of actions to enable</p>
+              <h3 class="font-medium text-gray-900 mb-2">Select & Review Actions</h3>
+              <p class="text-sm text-gray-600">Expand categories to view, edit, and approve individual actions</p>
             </div>
 
-            <div class="space-y-3">
+            <div class="space-y-3 max-h-96 overflow-y-auto">
               <div
                 v-for="(categoryData, categoryName) in discoveredData.categories"
                 :key="categoryName"
-                class="border rounded-lg p-4 hover:bg-gray-50 transition cursor-pointer"
-                :class="{ 'bg-blue-50 border-blue-300': selectedCategories.includes(categoryName) }"
-                @click="toggleCategory(categoryName)"
+                class="border rounded-lg"
               >
-                <div class="flex items-center justify-between">
-                  <div class="flex-1">
-                    <div class="flex items-center gap-2">
+                <!-- Category Header -->
+                <div
+                  class="p-4 cursor-pointer hover:bg-gray-50 transition"
+                  @click="toggleCategoryExpanded(categoryName)"
+                >
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 flex-1">
                       <input
                         type="checkbox"
                         :checked="selectedCategories.includes(categoryName)"
+                        @click.stop="toggleCategory(categoryName)"
                         class="rounded"
-                        @click.stop
                       />
+                      <span class="text-lg">{{ expandedCategories.includes(categoryName) ? '▼' : '▶' }}</span>
                       <h4 class="font-medium text-gray-900">{{ categoryData.name }}</h4>
                       <span class="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full">
-                        {{ categoryData.count }} actions
+                        {{ getSelectedActionsInCategory(categoryName).length }}/{{ categoryData.count }}
                       </span>
                     </div>
-                    <div class="text-sm text-gray-600 mt-1 ml-6">
-                      <span v-if="categoryData.actions.length > 0">
-                        {{ categoryData.actions.slice(0, 3).map(a => a.name).join(', ') }}
-                        <span v-if="categoryData.actions.length > 3">...</span>
+                    <div v-if="discoveredData.recommended_categories.includes(categoryName)" class="ml-2">
+                      <span class="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
+                        Recommended
                       </span>
                     </div>
                   </div>
-                  <div v-if="discoveredData.recommended_categories.includes(categoryName)" class="ml-2">
-                    <span class="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">
-                      Recommended
-                    </span>
+                </div>
+
+                <!-- Expanded Actions List -->
+                <div v-if="expandedCategories.includes(categoryName)" class="border-t bg-gray-50">
+                  <div class="p-3 space-y-2">
+                    <div
+                      v-for="(action, idx) in categoryData.actions"
+                      :key="idx"
+                      class="bg-white border rounded p-3"
+                    >
+                      <div class="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          :checked="isActionSelected(categoryName, action)"
+                          @change="toggleAction(categoryName, action)"
+                          class="mt-1 rounded"
+                        />
+                        <div class="flex-1 space-y-2">
+                          <!-- Action Header -->
+                          <div class="flex items-center gap-2">
+                            <span 
+                              class="px-2 py-0.5 text-xs font-mono rounded"
+                              :class="{
+                                'bg-green-100 text-green-700': action.http_method === 'GET',
+                                'bg-blue-100 text-blue-700': action.http_method === 'POST',
+                                'bg-yellow-100 text-yellow-700': action.http_method === 'PUT',
+                                'bg-red-100 text-red-700': action.http_method === 'DELETE'
+                              }"
+                            >
+                              {{ action.http_method }}
+                            </span>
+                            <span class="text-sm text-gray-500 font-mono">{{ action.endpoint_path }}</span>
+                          </div>
+
+                          <!-- Editable Name -->
+                          <div>
+                            <label class="text-xs text-gray-600">Action Name</label>
+                            <input
+                              v-model="action.name"
+                              type="text"
+                              class="w-full px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-blue-500"
+                              @click.stop
+                            />
+                          </div>
+
+                          <!-- Editable Description -->
+                          <div>
+                            <label class="text-xs text-gray-600">Description</label>
+                            <textarea
+                              v-model="action.description"
+                              rows="2"
+                              class="w-full px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-blue-500"
+                              @click.stop
+                            ></textarea>
+                          </div>
+
+                          <!-- Parameter Count -->
+                          <div class="text-xs text-gray-500">
+                            {{ action.parameters?.length || 0 }} parameters
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -379,8 +376,106 @@
 
             <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
               <div class="text-sm text-blue-700">
-                <strong>{{ getTotalSelectedActions() }} actions</strong> will be created
+                <strong>{{ getTotalSelectedActions() }} actions</strong> selected
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Schema Review (NEW) -->
+        <div v-else-if="currentStep === 3">
+          <div v-if="!discoveredData || selectedCategories.length === 0" class="text-center py-8">
+            <p class="text-gray-600">No actions selected.</p>
+            <p class="text-sm text-gray-500 mt-2">Go back and select action categories.</p>
+          </div>
+
+          <div v-else>
+            <div class="mb-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h3 class="font-medium text-gray-900">Review Parameters & Examples</h3>
+                  <p class="text-sm text-gray-600">Review parameter examples, edit as needed</p>
+                </div>
+                <button
+                  @click="enrichWithAI"
+                  :disabled="enriching"
+                  class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition disabled:opacity-50 text-sm"
+                >
+                  {{ enriching ? 'Enriching...' : '✨ Enhance with AI' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Action Parameters List -->
+            <div class="space-y-4 max-h-96 overflow-y-auto">
+              <div
+                v-for="action in getSelectedActions()"
+                :key="action.name"
+                class="border rounded-lg p-4"
+              >
+                <div class="flex items-center gap-2 mb-3">
+                  <span class="px-2 py-0.5 text-xs font-mono rounded" 
+                    :class="{
+                      'bg-green-100 text-green-700': action.http_method === 'GET',
+                      'bg-blue-100 text-blue-700': action.http_method === 'POST',
+                      'bg-yellow-100 text-yellow-700': action.http_method === 'PUT',
+                      'bg-red-100 text-red-700': action.http_method === 'DELETE'
+                    }"
+                  >
+                    {{ action.http_method }}
+                  </span>
+                  <span class="font-medium text-gray-900">{{ action.name }}</span>
+                  <span class="text-sm text-gray-500 font-mono">{{ action.endpoint_path }}</span>
+                </div>
+
+                <!-- Parameters -->
+                <div v-if="action.parameters && action.parameters.length > 0" class="space-y-2">
+                  <div
+                    v-for="(param, pIdx) in action.parameters.slice(0, 5)"
+                    :key="pIdx"
+                    class="flex items-center gap-3 text-sm bg-gray-50 rounded p-2"
+                  >
+                    <div class="flex-1">
+                      <div class="flex items-center gap-2">
+                        <span class="font-mono text-gray-800">{{ param.name }}</span>
+                        <span class="text-xs text-gray-500">({{ param.type }})</span>
+                        <span v-if="param.required" class="text-xs text-red-500">*</span>
+                        <span 
+                          v-if="param.example_source" 
+                          class="text-xs px-1 rounded"
+                          :class="{
+                            'bg-green-100 text-green-700': param.example_source === 'spec',
+                            'bg-purple-100 text-purple-700': param.example_source === 'llm',
+                            'bg-blue-100 text-blue-700': param.example_source === 'user'
+                          }"
+                        >
+                          {{ param.example_source === 'spec' ? '📄' : param.example_source === 'llm' ? '🤖' : '👤' }}
+                        </span>
+                      </div>
+                      <div class="text-xs text-gray-500 truncate">{{ param.description || 'No description' }}</div>
+                    </div>
+                    <input
+                      v-model="param.example"
+                      type="text"
+                      :placeholder="param.example || 'Add example...'"
+                      class="w-32 px-2 py-1 text-xs border rounded focus:ring-1 focus:ring-blue-500"
+                      @input="param.example_source = 'user'"
+                    />
+                  </div>
+                  <div v-if="action.parameters.length > 5" class="text-xs text-gray-500 text-center">
+                    +{{ action.parameters.length - 5 }} more parameters
+                  </div>
+                </div>
+                <div v-else class="text-sm text-gray-500 italic">
+                  No parameters
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+              <p class="text-sm text-yellow-800">
+                💡 Examples help the AI understand how to use these actions. You can edit them now or later.
+              </p>
             </div>
           </div>
         </div>
@@ -433,11 +528,11 @@
       </div>
 
       <!-- Footer -->
-      <div class="border-t border-gray-200 px-6 py-4 bg-gray-50 flex justify-between">
+      <div class="border-t border-gray-200 px-8 py-6 bg-gray-50 flex justify-between rounded-b-lg">
         <button
           v-if="currentStep > 0"
           @click="currentStep--"
-          class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded transition"
+          class="px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 rounded transition"
         >
           ← Back
         </button>
@@ -445,16 +540,10 @@
 
         <div class="flex gap-3">
           <button
-            @click="$emit('close')"
-            class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded transition"
-          >
-            Cancel
-          </button>
-          <button
             v-if="currentStep < steps.length - 1"
             @click="nextStep"
             :disabled="!canProceed"
-            class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+            class="px-6 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Next →
           </button>
@@ -462,14 +551,14 @@
             v-else
             @click="registerService"
             :disabled="registering || !canProceed"
-            class="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded transition disabled:opacity-50"
+            class="px-6 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded transition disabled:opacity-50"
           >
             {{ registering ? 'Registering...' : 'Register Service' }}
           </button>
         </div>
       </div>
     </div>
-  </div>
+  
 </template>
 
 <script>
@@ -477,19 +566,20 @@ import { ref, computed } from 'vue'
 import api from '../../services/api'
 
 export default {
-  name: 'ServiceRegistrationModal',
-  emits: ['close', 'registered'],
+  name: 'ServiceRegistrationWizard',
+  emits: ['registered'],
   setup(props, { emit }) {
     const currentStep = ref(0)
     const discovering = ref(false)
     const registering = ref(false)
+    const enriching = ref(false)
 
-    const steps = ['Basic Info', 'API Config', 'Authentication', 'Select Actions', 'Review']
+    const steps = ['Basic Info', 'API Config', 'Select Actions', 'Schema Review', 'Review']
     const stepDescriptions = [
       'Basic service information',
       'API endpoint and spec configuration',
-      'Authentication credentials',
       'Choose which action categories to enable',
+      'Review parameters, add examples, optionally enhance with AI',
       'Review and confirm'
     ]
 
@@ -507,6 +597,8 @@ export default {
 
     const discoveredData = ref(null)
     const selectedCategories = ref([])
+    const expandedCategories = ref([])
+    const selectedActions = ref({}) // { categoryName: [action1, action2, ...] }
     const postmanCollection = ref(null)
     const openAPISpec = ref(null)
     const graphQLSchema = ref(null)
@@ -519,12 +611,12 @@ export default {
       if (currentStep.value === 1) {
         return formData.value.base_url
       }
+      // Step 2: Select Actions - need at least one action selected
       if (currentStep.value === 2) {
-        return formData.value.auth_type
+        return getTotalSelectedActions() > 0
       }
-      if (currentStep.value === 3) {
-        return selectedCategories.value.length > 0
-      }
+      // Step 3: Schema Review - always can proceed
+      // Step 4: Review - always can proceed
       return true
     })
 
@@ -664,17 +756,117 @@ export default {
     const toggleCategory = (categoryName) => {
       const index = selectedCategories.value.indexOf(categoryName)
       if (index > -1) {
+        // Deselecting category - remove it
         selectedCategories.value.splice(index, 1)
+        // Also deselect all actions in this category
+        delete selectedActions.value[categoryName]
       } else {
+        // Selecting category - add it and select all actions
         selectedCategories.value.push(categoryName)
+        if (discoveredData.value && discoveredData.value.categories[categoryName]) {
+          selectedActions.value[categoryName] = [...discoveredData.value.categories[categoryName].actions]
+        }
       }
     }
 
+    const toggleCategoryExpanded = (categoryName) => {
+      const index = expandedCategories.value.indexOf(categoryName)
+      if (index > -1) {
+        expandedCategories.value.splice(index, 1)
+      } else {
+        expandedCategories.value.push(categoryName)
+      }
+    }
+
+    const isActionSelected = (categoryName, action) => {
+      if (!selectedActions.value[categoryName]) return false
+      return selectedActions.value[categoryName].some(a => a.name === action.name)
+    }
+
+    const toggleAction = (categoryName, action) => {
+      if (!selectedActions.value[categoryName]) {
+        selectedActions.value[categoryName] = []
+      }
+      
+      const idx = selectedActions.value[categoryName].findIndex(a => a.name === action.name)
+      if (idx > -1) {
+        // Deselect action
+        selectedActions.value[categoryName].splice(idx, 1)
+        // If no actions left in category, remove from selectedCategories
+        if (selectedActions.value[categoryName].length === 0) {
+          const catIdx = selectedCategories.value.indexOf(categoryName)
+          if (catIdx > -1) {
+            selectedCategories.value.splice(catIdx, 1)
+          }
+        }
+      } else {
+        // Select action
+        selectedActions.value[categoryName].push(action)
+        // Add category to selectedCategories if not already there
+        if (!selectedCategories.value.includes(categoryName)) {
+          selectedCategories.value.push(categoryName)
+        }
+      }
+    }
+
+    const getSelectedActionsInCategory = (categoryName) => {
+      return selectedActions.value[categoryName] || []
+    }
+
     const getTotalSelectedActions = () => {
-      if (!discoveredData.value) return 0
-      return selectedCategories.value.reduce((total, catName) => {
-        return total + (discoveredData.value.categories[catName]?.count || 0)
-      }, 0)
+      let total = 0
+      Object.values(selectedActions.value).forEach(actions => {
+        total += actions.length
+      })
+      return total
+    }
+
+    const getSelectedActions = () => {
+      const actions = []
+      Object.values(selectedActions.value).forEach(categoryActions => {
+        actions.push(...categoryActions)
+      })
+      return actions
+    }
+
+    const enrichWithAI = async () => {
+      enriching.value = true
+      try {
+        const actions = getSelectedActions()
+        
+        // Get OpenAPI doc for enrichment (if available)
+        const openAPIDoc = openAPISpec.value || null
+        
+        const response = await api.enrichSchemas({
+          actions: actions,
+          openapi_doc: openAPIDoc,
+          service_type: formData.value.name.toLowerCase()
+        })
+
+        // Update the discovered data with enriched schemas
+        if (response.data && response.data.enriched_actions) {
+          // Map enriched actions back to categories
+          response.data.enriched_actions.forEach(enrichedAction => {
+            selectedCategories.value.forEach(catName => {
+              const category = discoveredData.value.categories[catName]
+              if (category && category.actions) {
+                const idx = category.actions.findIndex(a => a.name === enrichedAction.name)
+                if (idx > -1) {
+                  // Update with enriched data
+                  category.actions[idx] = { ...category.actions[idx], ...enrichedAction }
+                }
+              }
+            })
+          })
+        }
+        
+        alert('✨ Schemas enriched with AI! Check the updated examples.')
+      } catch (error) {
+        console.error('Failed to enrich schemas:', error)
+        alert('Failed to enrich schemas: ' + (error.response?.data?.error || error.message))
+      } finally {
+        enriching.value = false
+      }
     }
 
     const nextStep = () => {
@@ -741,11 +933,14 @@ export default {
       currentStep,
       discovering,
       registering,
+      enriching,
       steps,
       stepDescriptions,
       formData,
       discoveredData,
       selectedCategories,
+      expandedCategories,
+      selectedActions,
       postmanCollection,
       openAPISpec,
       graphQLSchema,
@@ -757,7 +952,13 @@ export default {
       handleHTMLDocsUpload,
       discoverActions,
       toggleCategory,
+      toggleCategoryExpanded,
+      isActionSelected,
+      toggleAction,
+      getSelectedActionsInCategory,
       getTotalSelectedActions,
+      getSelectedActions,
+      enrichWithAI,
       nextStep,
       registerService
     }

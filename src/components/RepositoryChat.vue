@@ -468,17 +468,40 @@ const handleWebSocketMessage = (data) => {
       }
       break
 
-    case 'error':
-      console.error('Chat error:', data.error)
-      // Show error message
-      messages.value.push({
-        role: 'system',
-        content: `Error: ${data.error}`
-      })
-      break
-
     case 'pong':
       // Heartbeat response
+      break
+    
+    case 'agent_event':
+      // AgentRunner events
+      console.log('[AGENT]', data.event, data.data)
+      if (data.event === 'session_start') {
+        isTyping.value = true
+      } else if (data.event === 'session_complete') {
+        isTyping.value = false
+      } else if (data.event === 'tool_call') {
+        const lastMsg = messages.value[messages.value.length - 1]
+        if (lastMsg && lastMsg.role === 'assistant') {
+          if (!lastMsg.toolResults) lastMsg.toolResults = []
+          lastMsg.toolResults.push({
+            tool: data.data?.tool_name || 'Tool',
+            result: data.data?.output || JSON.stringify(data.data)
+          })
+        }
+      }
+      scrollToBottom()
+      break
+    
+    case 'tool_call':
+      const toolMsg = messages.value[messages.value.length - 1]
+      if (toolMsg && toolMsg.role === 'assistant') {
+        if (!toolMsg.toolResults) toolMsg.toolResults = []
+        toolMsg.toolResults.push({
+          tool: data.tool_name,
+          result: data.output || JSON.stringify(data)
+        })
+      }
+      scrollToBottom()
       break
 
     default:

@@ -17,13 +17,70 @@ import LLMSettings from './views/LLMSettings.vue'
 import Benchmarks from './views/Benchmarks.vue'
 import ToolRegistry from './views/ToolRegistry.vue'
 import Services from './views/Services.vue'
+import MCPServers from './views/MCPServers.vue'
 import AgentLibrary from './views/AgentLibrary.vue'
 import AgentPlayground from './views/AgentPlayground.vue'
+import LandingPage from './views/LandingPage.vue'
+import Features from './views/Features.vue'
+import HowItWorks from './views/HowItWorks.vue'
+import Blog from './views/Blog.vue'
+import BlogPost from './views/BlogPost.vue'
+import Pricing from './views/Pricing.vue'
+import About from './views/About.vue'
+import Contact from './views/Contact.vue'
 
 // Create router
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    {
+      path: '/',
+      name: 'landing',
+      component: LandingPage,
+      meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/features',
+      name: 'features',
+      component: Features,
+      meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/how-it-works',
+      name: 'how-it-works',
+      component: HowItWorks,
+      meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/blog',
+      name: 'blog',
+      component: Blog,
+      meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/blog/:slug',
+      name: 'blog-post',
+      component: BlogPost,
+      meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/pricing',
+      name: 'pricing',
+      component: Pricing,
+      meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/about',
+      name: 'about',
+      component: About,
+      meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/contact',
+      name: 'contact',
+      component: Contact,
+      meta: { requiresAuth: false, public: true }
+    },
     {
       path: '/login',
       name: 'login',
@@ -31,8 +88,8 @@ const router = createRouter({
       meta: { requiresGuest: true }
     },
     {
-      path: '/',
-      name: 'home',
+      path: '/dashboard',
+      name: 'dashboard',
       component: SystemList,
       meta: { requiresAuth: true }
     },
@@ -73,6 +130,12 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/mcp',
+      name: 'mcp-servers',
+      component: MCPServers,
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/agents',
       name: 'agent-library',
       component: AgentLibrary,
@@ -95,7 +158,7 @@ router.beforeEach(async (to, from, next) => {
   // For routes requiring auth, verify with server if not already verified in this session
   // Or if we need to be absolutely sure. For now, trust localStorage for redirection
   // and let individual components handle unauthorized errors.
-  
+
   if (to.meta.requiresAuth && !isAuthenticated) {
     // Double check with server if we think we're not authenticated
     try {

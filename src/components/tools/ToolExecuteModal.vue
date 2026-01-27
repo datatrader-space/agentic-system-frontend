@@ -15,14 +15,13 @@
         <!-- Repository Selection -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">
-            Repository <span class="text-red-500">*</span>
+            Repository <span class="text-gray-400 text-xs">(optional - uses agent workspace if not specified)</span>
           </label>
           <select
             v-model="selectedRepositoryId"
             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
           >
-            <option value="">Select repository...</option>
+            <option value="">Agent Workspace (default)</option>
             <option v-for="repo in repositories" :key="repo.id" :value="repo.id">
               {{ repo.name }} ({{ repo.system_name || 'System' }})
             </option>
@@ -201,9 +200,7 @@ export default {
     }, { immediate: true })
 
     const canExecute = computed(() => {
-      if (!selectedRepositoryId.value) return false
-
-      // Check required parameters
+      // Check required parameters only
       for (const param of props.tool.parameters) {
         if (param.required && !parameterValues.value[param.name]) {
           return false
@@ -225,12 +222,22 @@ export default {
         }
       }
 
-      emit('execute', {
+      const executionData = {
         tool: props.tool,
-        repository_id: selectedRepositoryId.value,
-        session_id: sessionId.value || undefined,
         parameters: processedParams
-      })
+      }
+
+      // Only include repository_id if specified
+      if (selectedRepositoryId.value) {
+        executionData.repository_id = selectedRepositoryId.value
+      }
+
+      // Only include session_id if specified
+      if (sessionId.value) {
+        executionData.session_id = sessionId.value
+      }
+
+      emit('execute', executionData)
     }
 
     return {

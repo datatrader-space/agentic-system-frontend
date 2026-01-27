@@ -7,19 +7,54 @@
           <div class="flex">
             <!-- Logo -->
             <div class="flex-shrink-0 flex items-center">
-              <router-link to="/" class="text-2xl font-bold text-blue-600">
+              <router-link :to="currentUser ? '/dashboard' : '/'" class="text-2xl font-bold text-blue-600">
                 🤖 Auto Code Generator
               </router-link>
             </div>
 
-            <!-- Navigation Links -->
-            <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+            <!-- Navigation Links - Public -->
+            <div v-if="!currentUser" class="hidden sm:ml-6 sm:flex sm:space-x-8">
               <router-link
                 to="/"
-                class="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 border-b-2"
-                :class="$route.path === '/' ? 'border-blue-500' : 'border-transparent hover:border-gray-300'"
+                class="inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2"
+                :class="$route.path === '/' ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300'"
               >
-                Systems
+                Home
+              </router-link>
+
+              <router-link
+                to="/features"
+                class="inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2"
+                :class="$route.path === '/features' ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300'"
+              >
+                Features
+              </router-link>
+
+              <router-link
+                to="/pricing"
+                class="inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2"
+                :class="$route.path === '/pricing' ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300'"
+              >
+                Pricing
+              </router-link>
+
+              <router-link
+                to="/blog"
+                class="inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2"
+                :class="$route.path.startsWith('/blog') ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300'"
+              >
+                Blog
+              </router-link>
+            </div>
+
+            <!-- Navigation Links - Authenticated -->
+            <div v-if="currentUser" class="hidden sm:ml-6 sm:flex sm:space-x-8">
+              <router-link
+                to="/dashboard"
+                class="inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2"
+                :class="$route.path === '/dashboard' ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300'"
+              >
+                Dashboard
               </router-link>
 
               <router-link
@@ -54,6 +89,14 @@
                 🌐 Services
               </router-link>
 
+              <router-link
+                to="/mcp"
+                class="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 border-b-2"
+                :class="$route.path === '/mcp' ? 'border-purple-500 text-gray-900' : 'border-transparent hover:border-gray-300'"
+              >
+                🔌 MCP
+              </router-link>
+
               <a
                 href="https://mazily-nippy-dionna.ngrok-free.dev/admin"
                 target="_blank"
@@ -66,66 +109,79 @@
 
           <!-- Right side -->
           <div class="flex items-center space-x-4">
-            <!-- LLM Status -->
-            <div v-if="llmHealth" class="flex items-center space-x-2">
+            <!-- Login/Signup for public users -->
+            <div v-if="!currentUser" class="flex items-center space-x-3">
+              <router-link to="/login" class="text-sm font-medium text-gray-700 hover:text-gray-900">
+                Log In
+              </router-link>
+              <router-link to="/login" class="btn-primary-small">
+                Get Started
+              </router-link>
+            </div>
+
+            <!-- User info for authenticated users -->
+            <div v-if="currentUser" class="flex items-center space-x-4">
+              <!-- LLM Status -->
+              <div v-if="llmHealth" class="flex items-center space-x-2">
+                <div class="flex items-center">
+                  <div
+                    class="w-2 h-2 rounded-full mr-2"
+                    :class="llmHealth.local?.available ? 'bg-green-500' : 'bg-gray-300'"
+                  ></div>
+                  <span class="text-xs text-gray-600">Local LLM</span>
+                </div>
+
+                <div class="flex items-center">
+                  <div
+                    class="w-2 h-2 rounded-full mr-2"
+                    :class="llmHealth.cloud?.available ? 'bg-green-500' : 'bg-gray-300'"
+                  ></div>
+                  <span class="text-xs text-gray-600">Cloud LLM</span>
+                </div>
+              </div>
+
+              <!-- GitHub Status -->
               <div class="flex items-center">
                 <div
                   class="w-2 h-2 rounded-full mr-2"
-                  :class="llmHealth.local?.available ? 'bg-green-500' : 'bg-gray-300'"
+                  :class="currentUser.github_username ? 'bg-green-500' : 'bg-gray-300'"
                 ></div>
-                <span class="text-xs text-gray-600">Local LLM</span>
+                <span class="text-xs text-gray-600">
+                  {{ currentUser.github_username ? `GitHub: ${currentUser.github_username}` : 'GitHub Not Connected' }}
+                </span>
               </div>
 
-              <div class="flex items-center">
+              <!-- User Menu -->
+              <div class="relative">
+                <button
+                  @click="showUserMenu = !showUserMenu"
+                  class="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900"
+                >
+                  <span>👤 {{ currentUser.username }}</span>
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </button>
+
+                <!-- Dropdown Menu -->
                 <div
-                  class="w-2 h-2 rounded-full mr-2"
-                  :class="llmHealth.cloud?.available ? 'bg-green-500' : 'bg-gray-300'"
-                ></div>
-                <span class="text-xs text-gray-600">Cloud LLM</span>
-              </div>
-            </div>
-
-            <!-- GitHub Status -->
-            <div v-if="currentUser" class="flex items-center">
-              <div
-                class="w-2 h-2 rounded-full mr-2"
-                :class="currentUser.github_username ? 'bg-green-500' : 'bg-gray-300'"
-              ></div>
-              <span class="text-xs text-gray-600">
-                {{ currentUser.github_username ? `GitHub: ${currentUser.github_username}` : 'GitHub Not Connected' }}
-              </span>
-            </div>
-
-            <!-- User Menu -->
-            <div v-if="currentUser" class="relative">
-              <button
-                @click="showUserMenu = !showUserMenu"
-                class="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900"
-              >
-                <span>👤 {{ currentUser.username }}</span>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                </svg>
-              </button>
-
-              <!-- Dropdown Menu -->
-              <div
-                v-if="showUserMenu"
-                class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50"
-              >
-                <a
-                  v-if="!currentUser.github_username"
-                  @click="connectGitHub"
-                  class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+                  v-if="showUserMenu"
+                  class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50"
                 >
-                  Connect GitHub
-                </a>
-                <a
-                  @click="handleLogout"
-                  class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100 cursor-pointer"
-                >
-                  Logout
-                </a>
+                  <a
+                    v-if="!currentUser.github_username"
+                    @click="connectGitHub"
+                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
+                  >
+                    Connect GitHub
+                  </a>
+                  <a
+                    @click="handleLogout"
+                    class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100 cursor-pointer"
+                  >
+                    Logout
+                  </a>
+                </div>
               </div>
             </div>
           </div>
@@ -330,4 +386,22 @@ body {
 * {
   box-sizing: border-box;
 }
+
+.btn-primary-small {
+  padding: 0.5rem 1rem;
+  background: #667eea;
+  color: white;
+  border-radius: 0.375rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.btn-primary-small:hover {
+  background: #5a67d8;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
 </style>

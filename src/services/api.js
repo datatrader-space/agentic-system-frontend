@@ -118,6 +118,20 @@ export default {
   deleteService: (id) => api.post(`/services/${id}/delete/`),
   createServiceActions: (id, data) => api.post(`/services/${id}/actions/create/`, data),
   discoverServiceActions: (data) => api.post('/services/discover/', data),
+  enrichSchemas: (data) => api.post('/services/enrich-schemas/', data),
+  validateActions: (data) => api.post('/services/validate-actions/', data),
+
+  // MCP Server Management
+  getMCPServers: () => api.get('/mcp/servers/'),
+  getMCPServer: (id) => api.get(`/mcp/servers/${id}/`),
+  createMCPServer: (data) => api.post('/mcp/servers/create/', data),
+  updateMCPServer: (id, data) => api.post(`/mcp/servers/${id}/update/`, data),
+  deleteMCPServer: (id) => api.post(`/mcp/servers/${id}/delete/`),
+  refreshMCPTools: (id) => api.post(`/mcp/servers/${id}/refresh-tools/`),
+  resetMCPCircuitBreaker: (id) => api.post(`/mcp/servers/${id}/reset-circuit-breaker/`),
+  testMCPConnection: (id) => api.post(`/mcp/servers/${id}/test/`),
+  executeMCPTool: (serverId, toolName, args) => api.post(`/mcp/servers/${serverId}/execute/`, { tool_name: toolName, arguments: args }),
+  getMCPSessions: () => api.get('/mcp/sessions/'),
 
 
   // Repository Files
@@ -172,10 +186,27 @@ export default {
 
   // CRS outputs
   runCrs: (systemId, repoId) => api.post(`/systems/${systemId}/repositories/${repoId}/crs/run/`),
+  enrichCrs: (systemId, repoId, opts = {}) => api.post(`/systems/${systemId}/repositories/${repoId}/crs/enrich/`, opts),
   getCrsSummary: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/summary/`),
   getCrsBlueprints: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/blueprints/`),
   getCrsArtifacts: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/artifacts/`),
   getCrsRelationships: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/relationships/`),
+
+  // Combined CRS payloads
+  getCRSPayloads: async (systemId, repoId) => {
+    const [blueprints, artifacts, relationships] = await Promise.all([
+      api.get(`/systems/${systemId}/repositories/${repoId}/crs/blueprints/`),
+      api.get(`/systems/${systemId}/repositories/${repoId}/crs/artifacts/`),
+      api.get(`/systems/${systemId}/repositories/${repoId}/crs/relationships/`)
+    ])
+    return {
+      data: {
+        blueprints: blueprints.data,
+        artifacts: artifacts.data.artifacts || [],
+        relationships: relationships.data.relationships || []
+      }
+    }
+  },
 
   // Benchmarks
   getBenchmarkReports: () => api.get('/benchmarks/reports/'),

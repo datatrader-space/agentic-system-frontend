@@ -209,41 +209,77 @@
                 </div>
               </div>
               
-              <div class="ml-4">
+              <div class="ml-4 flex gap-2">
+                <!-- Run CRS (fresh or not started) -->
                 <button
-                  v-if="repo.status === 'pending'"
-                  @click.stop="analyzeRepo(repo)"
-                  class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-                >
-                  Analyze
-                </button>
-                <button
-                  v-else-if="repo.status === 'questions_generated'"
-                  @click.stop="answerQuestions(repo)"
-                  class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-                >
-                  Answer Questions
-                </button>
-                <button
-                  v-else-if="repo.status === 'questions_answered'"
+                  v-if="!repo.crs_status || repo.crs_status === 'not_started'"
                   @click.stop="runCrs(repo)"
                   class="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700"
                 >
-                  Run CRS
+                  Run CRS Analysis
                 </button>
+                
+                <!-- CRS Running -->
                 <button
-                  v-else-if="repo.status === 'crs_running'"
+                  v-if="repo.crs_status === 'running'"
                   disabled
                   class="px-3 py-1 bg-gray-200 text-gray-500 rounded text-sm"
                 >
-                  CRS Running
+                  CRS Running...
                 </button>
+                
+                <!-- Re-run CRS (if failed) -->
                 <button
-                  v-else-if="repo.status === 'crs_ready' || repo.status === 'ready' || repo.crs_status === 'ready'"
+                  v-if="repo.crs_status === 'error' || repo.crs_status === 'failed'"
+                  @click.stop="runCrs(repo)"
+                  class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                >
+                  Re-run CRS
+                </button>
+                
+                <!-- View CRS (when ready) -->
+                <button
+                  v-if="repo.crs_status === 'ready'"
                   @click.stop="openCrsModal(repo)"
                   class="px-3 py-1 bg-gray-900 text-white rounded text-sm hover:bg-black"
                 >
                   View CRS
+                </button>
+                
+                <!-- Enrich CRS (after CRS ready, before enrichment) -->
+                <button
+                  v-if="repo.crs_status === 'ready' && (!repo.enrichment_status || repo.enrichment_status === 'not_started')"
+                  @click.stop="enrichCrs(repo)"
+                  class="px-3 py-1 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700"
+                >
+                  Enrich CRS
+                </button>
+                
+                <!-- Enrichment Running -->
+                <button
+                  v-if="repo.enrichment_status === 'running'"
+                  disabled
+                  class="px-3 py-1 bg-gray-200 text-gray-500 rounded text-sm"
+                >
+                  Enriching...
+                </button>
+                
+                <!-- Re-enrich (if failed) -->
+                <button
+                  v-if="repo.enrichment_status === 'error'"
+                  @click.stop="enrichCrs(repo, true)"
+                  class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                >
+                  Re-enrich
+                </button>
+                
+                <!-- Re-run Enrichment (if already complete) -->
+                <button
+                  v-if="repo.enrichment_status === 'ready'"
+                  @click.stop="enrichCrs(repo, true)"
+                  class="px-3 py-1 bg-amber-600 text-white rounded text-sm hover:bg-amber-700"
+                >
+                  Re-run Enrichment
                 </button>
               </div>
             </div>
@@ -1173,6 +1209,18 @@ const runCrs = async (repo) => {
     await loadSystem()
   } catch (error) {
     notify('Failed to run CRS pipeline', 'error')
+    console.error(error)
+  }
+}
+
+const enrichCrs = async (repo, force = false) => {
+  try {
+    notify(force ? 'Re-running CRS enrichment...' : 'Running CRS enrichment...', 'info')
+    await api.enrichCrs(systemId, repo.id, { force })
+    notify('CRS enrichment complete!', 'success')
+    await loadSystem()
+  } catch (error) {
+    notify('Failed to enrich CRS', 'error')
     console.error(error)
   }
 }

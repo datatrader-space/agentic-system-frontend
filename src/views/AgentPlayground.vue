@@ -61,6 +61,10 @@
                         :class="activeTab === 'trace' ? 'text-blue-600 font-bold border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'">
                         TRACE
                     </button>
+                    <button @click="activeTab = 'tools'"
+                        :class="activeTab === 'tools' ? 'text-blue-600 font-bold border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'">
+                        🔧 TOOLS
+                    </button>
                 </div>
 
                 <!-- Trace Tab -->
@@ -70,6 +74,16 @@
                     <div v-else class="text-gray-400">
                         <div class="text-4xl mb-2 text-center">🔍</div>
                         <p>Start a session to view trace details.</p>
+                    </div>
+                </div>
+
+                <!-- Tools Tab -->
+                <div v-if="activeTab === 'tools'" class="flex-1 overflow-hidden flex flex-col">
+                    <ToolsPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
+                    <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
+                        <div class="text-5xl mb-3">🔧</div>
+                        <p class="text-lg font-medium">Tools Operations Panel</p>
+                        <p class="text-sm mt-1">Save the agent to access tool management features</p>
                     </div>
                 </div>
 
@@ -605,6 +619,7 @@ import AgentBuilder from '../components/AgentBuilder.vue';
 import SessionTrace from '../components/SessionTrace.vue';
 import PromptBuilder from '../components/PromptBuilder.vue';
 import FileViewer from '../components/FileViewer.vue';
+import ToolsPanel from '../components/tools/ToolsPanel.vue';
 
 const route = useRoute();
 const router = useRouter();
