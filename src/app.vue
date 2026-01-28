@@ -1,196 +1,17 @@
 <template>
-  <div id="app" class="min-h-screen bg-gray-50">
-    <!-- Navigation (hide on login page) -->
-    <nav v-if="$route.path !== '/login'" class="bg-white shadow-sm border-b">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-          <div class="flex">
-            <!-- Logo -->
-            <div class="flex-shrink-0 flex items-center">
-              <router-link :to="currentUser ? '/dashboard' : '/'" class="text-2xl font-bold text-blue-600">
-                🤖 Auto Code Generator
-              </router-link>
-            </div>
+  <div id="app" class="min-h-screen" :class="appBackgroundClass">
+    <!-- Header Component -->
+    <AppHeader
+      :current-user="currentUser"
+      :llm-health="llmHealth"
+      :theme="theme"
+      @logout="handleLogout"
+      @connect-github="connectGitHub"
+      @toggle-theme="toggleTheme"
+    />
 
-            <!-- Navigation Links - Public -->
-            <div v-if="!currentUser" class="hidden sm:ml-6 sm:flex sm:space-x-8">
-              <router-link
-                to="/"
-                class="inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2"
-                :class="$route.path === '/' ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300'"
-              >
-                Home
-              </router-link>
-
-              <router-link
-                to="/features"
-                class="inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2"
-                :class="$route.path === '/features' ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300'"
-              >
-                Features
-              </router-link>
-
-              <router-link
-                to="/pricing"
-                class="inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2"
-                :class="$route.path === '/pricing' ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300'"
-              >
-                Pricing
-              </router-link>
-
-              <router-link
-                to="/blog"
-                class="inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2"
-                :class="$route.path.startsWith('/blog') ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300'"
-              >
-                Blog
-              </router-link>
-            </div>
-
-            <!-- Navigation Links - Authenticated -->
-            <div v-if="currentUser" class="hidden sm:ml-6 sm:flex sm:space-x-8">
-              <router-link
-                to="/dashboard"
-                class="inline-flex items-center px-1 pt-1 text-sm font-medium border-b-2"
-                :class="$route.path === '/dashboard' ? 'border-blue-500 text-gray-900' : 'border-transparent text-gray-500 hover:border-gray-300'"
-              >
-                Dashboard
-              </router-link>
-
-              <router-link
-                to="/ai-settings"
-                class="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 border-b-2"
-                :class="$route.path === '/ai-settings' ? 'border-blue-500 text-gray-900' : 'border-transparent hover:border-gray-300'"
-              >
-                AI Providers
-              </router-link>
-
-              <router-link
-                to="/benchmarks"
-                class="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 border-b-2"
-                :class="$route.path === '/benchmarks' ? 'border-blue-500 text-gray-900' : 'border-transparent hover:border-gray-300'"
-              >
-                Benchmarks
-              </router-link>
-
-              <router-link
-                to="/tools"
-                class="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 border-b-2"
-                :class="$route.path === '/tools' ? 'border-blue-500 text-gray-900' : 'border-transparent hover:border-gray-300'"
-              >
-                🛠️ Tools
-              </router-link>
-
-              <router-link
-                to="/services"
-                class="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 border-b-2"
-                :class="$route.path === '/services' ? 'border-blue-500 text-gray-900' : 'border-transparent hover:border-gray-300'"
-              >
-                🌐 Services
-              </router-link>
-
-              <router-link
-                to="/mcp"
-                class="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 border-b-2"
-                :class="$route.path === '/mcp' ? 'border-purple-500 text-gray-900' : 'border-transparent hover:border-gray-300'"
-              >
-                🔌 MCP
-              </router-link>
-
-              <a
-                href="https://mazily-nippy-dionna.ngrok-free.dev/admin"
-                target="_blank"
-                class="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 hover:text-gray-700"
-              >
-                Admin Panel
-              </a>
-            </div>
-          </div>
-
-          <!-- Right side -->
-          <div class="flex items-center space-x-4">
-            <!-- Login/Signup for public users -->
-            <div v-if="!currentUser" class="flex items-center space-x-3">
-              <router-link to="/login" class="text-sm font-medium text-gray-700 hover:text-gray-900">
-                Log In
-              </router-link>
-              <router-link to="/login" class="btn-primary-small">
-                Get Started
-              </router-link>
-            </div>
-
-            <!-- User info for authenticated users -->
-            <div v-if="currentUser" class="flex items-center space-x-4">
-              <!-- LLM Status -->
-              <div v-if="llmHealth" class="flex items-center space-x-2">
-                <div class="flex items-center">
-                  <div
-                    class="w-2 h-2 rounded-full mr-2"
-                    :class="llmHealth.local?.available ? 'bg-green-500' : 'bg-gray-300'"
-                  ></div>
-                  <span class="text-xs text-gray-600">Local LLM</span>
-                </div>
-
-                <div class="flex items-center">
-                  <div
-                    class="w-2 h-2 rounded-full mr-2"
-                    :class="llmHealth.cloud?.available ? 'bg-green-500' : 'bg-gray-300'"
-                  ></div>
-                  <span class="text-xs text-gray-600">Cloud LLM</span>
-                </div>
-              </div>
-
-              <!-- GitHub Status -->
-              <div class="flex items-center">
-                <div
-                  class="w-2 h-2 rounded-full mr-2"
-                  :class="currentUser.github_username ? 'bg-green-500' : 'bg-gray-300'"
-                ></div>
-                <span class="text-xs text-gray-600">
-                  {{ currentUser.github_username ? `GitHub: ${currentUser.github_username}` : 'GitHub Not Connected' }}
-                </span>
-              </div>
-
-              <!-- User Menu -->
-              <div class="relative">
-                <button
-                  @click="showUserMenu = !showUserMenu"
-                  class="flex items-center space-x-2 text-sm text-gray-700 hover:text-gray-900"
-                >
-                  <span>👤 {{ currentUser.username }}</span>
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                  </svg>
-                </button>
-
-                <!-- Dropdown Menu -->
-                <div
-                  v-if="showUserMenu"
-                  class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-1 z-50"
-                >
-                  <a
-                    v-if="!currentUser.github_username"
-                    @click="connectGitHub"
-                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer"
-                  >
-                    Connect GitHub
-                  </a>
-                  <a
-                    @click="handleLogout"
-                    class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100 cursor-pointer"
-                  >
-                    Logout
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </nav>
-    
     <!-- Main Content -->
-    <main :class="isFullScreen ? 'h-[calc(100vh-64px)]' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'">
+    <main :class="mainContentClass">
       <router-view />
     </main>
     
@@ -228,14 +49,44 @@
 import { ref, onMounted, provide, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from './services/api'
+import AppHeader from './components/layout/AppHeader.vue'
+import { useTheme } from './composables/useTheme'
 
 const router = useRouter()
 const route = useRoute()
 const llmHealth = ref(null)
 
+// Initialize theme system
+const { theme, toggleTheme, isDark } = useTheme()
+
+// Layout computed properties
 const isFullScreen = computed(() => route.name === 'repository-detail' || route.name === 'agent-playground')
+
+// Public pages that need full-width dark layout
+const isPublicPage = computed(() => {
+  return !!route.meta.public
+})
+
+// Background class based on page type
+const appBackgroundClass = computed(() => {
+  if (isPublicPage.value) {
+    return 'app-dark-theme'
+  }
+  return 'bg-gray-50'
+})
+
+// Main content class based on page type
+const mainContentClass = computed(() => {
+  if (isFullScreen.value) {
+    return 'h-[calc(100vh-64px)]'
+  }
+  if (isPublicPage.value) {
+    return '' // Full width for public pages
+  }
+  return 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'
+})
+
 const currentUser = ref(null)
-const showUserMenu = ref(false)
 const notifications = ref([])
 
 // Load current user
@@ -303,7 +154,6 @@ const handleLogout = async () => {
     await api.logout()
     currentUser.value = null
     localStorage.removeItem('user')
-    showUserMenu.value = false
     router.push('/login')
     addNotification('Logged out successfully', 'success')
   } catch (error) {
@@ -314,7 +164,6 @@ const handleLogout = async () => {
 
 // Connect GitHub
 const connectGitHub = () => {
-  showUserMenu.value = false
   const state = (typeof crypto !== 'undefined' && crypto.randomUUID)
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2)
@@ -337,15 +186,6 @@ const connectGitHub = () => {
         'error'
       )
     })
-}
-
-// Close user menu when clicking outside
-if (typeof window !== 'undefined') {
-  window.addEventListener('click', (e) => {
-    if (!e.target.closest('.relative')) {
-      showUserMenu.value = false
-    }
-  })
 }
 
 // Notification system
@@ -376,7 +216,7 @@ provide('notify', addNotification)
 /* Global styles */
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -385,6 +225,16 @@ body {
 
 * {
   box-sizing: border-box;
+}
+
+/* Dark theme for public/landing pages */
+.app-dark-theme {
+  background: #030712;
+}
+
+/* Light theme background */
+.bg-gray-50 {
+  background-color: #f9fafb;
 }
 
 .btn-primary-small {
@@ -403,5 +253,4 @@ body {
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
-
 </style>

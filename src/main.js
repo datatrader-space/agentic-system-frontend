@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
-import App from './App.vue'
+// import App from './App.vue'
+import App from './app.vue'
 import './style.css'
 import api from './services/api'
 import axios from 'axios'
@@ -85,7 +86,7 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: Login,
-      meta: { requiresGuest: true }
+      meta: { requiresGuest: true, public: true }
     },
     {
       path: '/dashboard',

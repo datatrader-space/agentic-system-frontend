@@ -2,20 +2,117 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   THEME SYSTEM - CSS VARIABLES
+   ============================================
+   Default theme is DARK (as per existing design)
+   Light theme overrides are defined below
+   
+   Usage: color: var(--text-primary);
+   ============================================ */
+
+:root {
+  /* Default: Dark Theme */
+  --bg-body: #030712;
+  --bg-surface: #111827;
+  --bg-card: rgba(31, 41, 55, 0.5);
+  --bg-card-solid: #1f2937;
+  --bg-elevated: #1f2937;
+  --bg-overlay: rgba(0, 0, 0, 0.4);
+  
+  --text-primary: #f9fafb;
+  --text-secondary: #e5e7eb;
+  --text-muted: #9ca3af;
+  --text-inverse: #111827;
+  
+  --primary: #8b5cf6;
+  --primary-light: rgba(139, 92, 246, 0.1);
+  --primary-glow: rgba(139, 92, 246, 0.3);
+  --accent: #ec4899;
+  --accent-light: rgba(236, 72, 153, 0.1);
+  
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
+  
+  --border: rgba(255, 255, 255, 0.1);
+  --border-light: rgba(255, 255, 255, 0.05);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+  
+  --glass-bg: rgba(17, 24, 39, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+  --gradient-surface: linear-gradient(180deg, #030712 0%, #0a0f1a 100%);
+  --gradient-text: linear-gradient(135deg, #fff 0%, #c4b5fd 100%);
+}
+
+/* Light Theme Overrides */
+[data-theme="light"] {
+  --bg-body: #ffffff;
+  --bg-surface: #f9fafb;
+  --bg-card: rgba(249, 250, 251, 0.8);
+  --bg-card-solid: #f3f4f6;
+  --bg-elevated: #ffffff;
+  --bg-overlay: rgba(0, 0, 0, 0.1);
+  
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-muted: #6b7280;
+  --text-inverse: #ffffff;
+  
+  --primary: #7c3aed;
+  --primary-light: rgba(124, 58, 237, 0.1);
+  --primary-glow: rgba(124, 58, 237, 0.2);
+  --accent: #db2777;
+  --accent-light: rgba(219, 39, 119, 0.1);
+  
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --info: #2563eb;
+  
+  --border: rgba(0, 0, 0, 0.1);
+  --border-light: rgba(0, 0, 0, 0.05);
+  --border-strong: rgba(0, 0, 0, 0.15);
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.15);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+  
+  --glass-bg: rgba(255, 255, 255, 0.6);
+  --glass-border: rgba(0, 0, 0, 0.1);
+  
+  /* Gradients for light mode */
+  --gradient-primary: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
+  --gradient-surface: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+  --gradient-text: linear-gradient(135deg, #111827 0%, #7c3aed 100%);
+}
+
 /* Custom styles */
 body {
   margin: 0;
   padding: 0;
+  background-color: var(--bg-body);
+  color: var(--text-primary);
 }
 
 #app {
   min-height: 100vh;
 }
 
-/* Smooth transitions */
+/* Smooth theme transitions */
 * {
-  transition-property: color, background-color, border-color;
-  transition-duration: 150ms;
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-duration: 200ms;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -31,4 +128,33 @@ body {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Additional animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.slide-in-right {
+  animation: slideInRight 0.6s ease-out;
 }

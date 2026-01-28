@@ -12,6 +12,7 @@
             Transform your development workflow with intelligent agents that understand your codebase,
             automate repetitive tasks, and accelerate delivery for developers, businesses, and enterprises.
           </p>
+          
           <div class="cta-buttons">
             <router-link to="/login" class="btn btn-primary">
               Get Started Free
@@ -20,6 +21,7 @@
               See How It Works
             </router-link>
           </div>
+          
           <p class="trust-badge">
             <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -27,18 +29,32 @@
             Trusted by developers, businesses, enterprises, and marketing agencies
           </p>
         </div>
+
         <div class="hero-visual">
-          <div class="visual-placeholder">
-            <!-- Placeholder for AI-generated hero image/video -->
-            <div class="animated-gradient"></div>
-            <div class="floating-elements">
-              <div class="code-snippet">
-                <span class="comment">// AI analyzes your code</span><br>
-                <span class="keyword">agent</span>.<span class="method">generate</span>(<span class="string">"feature"</span>)
+          <!-- AI Terminal Animation -->
+          <div class="terminal-window">
+            <div class="ai-badge">
+              <div class="ai-status"></div>
+              <span>AI Agent Working...</span>
+            </div>
+            <div class="terminal-header">
+              <div class="dots">
+                <div class="dot red"></div>
+                <div class="dot yellow"></div>
+                <div class="dot green"></div>
               </div>
-              <div class="ai-indicator">
-                <div class="pulse"></div>
-                <span>AI Working</span>
+              <div class="terminal-title">agent.js — readonly</div>
+            </div>
+            <div class="terminal-body">
+              <div 
+                v-for="(line, index) in terminalLines" 
+                :key="index" 
+                class="code-line" 
+                :class="{ visible: line.visible }"
+              >
+                <span class="line-num">{{ index + 1 }}</span>
+                <span v-html="line.html"></span>
+                <span v-if="index === terminalLines.length - 1 && isTyping" class="cursor"></span>
               </div>
             </div>
           </div>
@@ -46,118 +62,121 @@
       </div>
     </section>
 
-    <!-- Features Overview -->
+    <!-- Features Overview (Bento Grid) -->
     <section class="features-section">
-      <div class="section-header">
-        <h2>Everything You Need to Build Faster</h2>
-        <p>Powerful AI agents with deep code understanding and seamless workflow integration</p>
-      </div>
-      
-      <div class="features-grid">
-        <div class="feature-card" v-for="feature in features" :key="feature.title">
-          <div class="feature-icon" v-html="feature.icon"></div>
-          <h3>{{ feature.title }}</h3>
-          <p>{{ feature.description }}</p>
+      <div class="container">
+        <div class="section-header">
+          <h2>Everything You Need to Build Faster</h2>
+          <p>Powerful AI agents with deep code understanding and seamless workflow integration</p>
         </div>
-      </div>
+        
+        <div class="bento-grid">
+          <div 
+            v-for="(feature, index) in features" 
+            :key="feature.title" 
+            class="bento-card"
+            :class="{ 
+              'bento-large': index === 0, 
+              'bento-tall': index === 2 || index === 5 
+            }"
+          >
+            <div class="feature-icon" v-html="feature.icon"></div>
+            <div>
+              <h3>{{ feature.title }}</h3>
+              <p>{{ feature.description }}</p>
+            </div>
+            <div class="card-visual"></div>
+          </div>
+        </div>
 
-      <div class="cta-center">
-        <router-link to="/features" class="btn btn-outline">
-          Explore All Features →
-        </router-link>
+        <div class="cta-center">
+          <router-link to="/features" class="btn btn-outline">
+            Explore All Features →
+          </router-link>
+        </div>
       </div>
     </section>
 
-    <!-- Use Cases -->
+    <!-- Use Cases (Tabs) -->
     <section class="use-cases-section">
-      <div class="section-header">
-        <h2>Built for Every Team</h2>
-        <p>From solo developers to enterprise teams</p>
-      </div>
-
-      <div class="use-cases-grid">
-        <div class="use-case-card">
-          <div class="use-case-badge">Developers</div>
-          <h3>Ship Features Faster</h3>
-          <p>Automate boilerplate, generate tests, and refactor code with AI assistance.</p>
-          <ul>
-            <li>Intelligent code completion</li>
-            <li>Automated test generation</li>
-            <li>Smart refactoring suggestions</li>
-          </ul>
+      <div class="container">
+        <div class="section-header">
+          <h2>Built for Every Team</h2>
+          <p>From solo developers to enterprise teams</p>
         </div>
 
-        <div class="use-case-card">
-          <div class="use-case-badge">Businesses</div>
-          <h3>Scale Development</h3>
-          <p>Reduce development costs and accelerate time-to-market with AI-powered automation.</p>
-          <ul>
-            <li>Faster feature delivery</li>
-            <li>Reduced technical debt</li>
-            <li>Consistent code quality</li>
-          </ul>
+        <div class="tabs">
+          <button 
+            v-for="tab in useCases" 
+            :key="tab.badge"
+            class="tab-btn"
+            :class="{ active: activeTab === tab.badge }"
+            @click="activeTab = tab.badge"
+          >
+            {{ tab.badge }}
+          </button>
         </div>
 
-        <div class="use-case-card">
-          <div class="use-case-badge">Enterprises</div>
-          <h3>Enterprise-Grade Control</h3>
-          <p>Deploy AI agents with security, compliance, and custom integrations.</p>
-          <ul>
-            <li>On-premise deployment</li>
-            <li>Custom tool integration</li>
-            <li>Advanced security controls</li>
-          </ul>
-        </div>
-
-        <div class="use-case-card">
-          <div class="use-case-badge">Agencies</div>
-          <h3>Deliver More Projects</h3>
-          <p>Handle multiple client projects efficiently with intelligent automation.</p>
-          <ul>
-            <li>Multi-project management</li>
-            <li>Rapid prototyping</li>
-            <li>Client-ready documentation</li>
-          </ul>
+        <div class="tab-content active">
+          <div class="use-case-card">
+            <div class="use-case-badge">{{ activeTabContent.badge }}</div>
+            <h3>{{ activeTabContent.title }}</h3>
+            <p>{{ activeTabContent.desc }}</p>
+            <ul>
+              <li v-for="item in activeTabContent.items" :key="item">
+                <span class="check-icon">✓</span> {{ item }}
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </section>
 
     <!-- Social Proof / Stats -->
     <section class="stats-section">
-      <div class="stats-grid">
-        <div class="stat">
-          <div class="stat-number">10x</div>
-          <div class="stat-label">Faster Development</div>
-        </div>
-        <div class="stat">
-          <div class="stat-number">95%</div>
-          <div class="stat-label">Code Quality Score</div>
-        </div>
-        <div class="stat">
-          <div class="stat-number">50+</div>
-          <div class="stat-label">Built-in Tools</div>
-        </div>
-        <div class="stat">
-          <div class="stat-number">24/7</div>
-          <div class="stat-label">AI Availability</div>
+      <div class="container">
+        <div class="stats-grid">
+          <div class="stat">
+            <div class="stat-number">10x</div>
+            <div class="stat-label">Faster Development</div>
+          </div>
+          <div class="stat">
+            <div class="stat-number">95%</div>
+            <div class="stat-label">Code Quality Score</div>
+          </div>
+          <div class="stat">
+            <div class="stat-number">50+</div>
+            <div class="stat-label">Built-in Tools</div>
+          </div>
+          <div class="stat">
+            <div class="stat-number">24/7</div>
+            <div class="stat-label">AI Availability</div>
+          </div>
         </div>
       </div>
     </section>
 
     <!-- Final CTA -->
     <section class="final-cta-section">
-      <h2>Ready to Transform Your Workflow?</h2>
-      <p>Join developers and teams already building with AI agents</p>
-      <router-link to="/login" class="btn btn-primary btn-large">
-        Start Building Now
-      </router-link>
+      <div class="container">
+        <div class="cta-box">
+          <div class="cta-content">
+            <h2>Ready to Transform Your Workflow?</h2>
+            <p>Join developers and teams already building with AI agents</p>
+            <router-link to="/login" class="btn btn-primary btn-large">
+              Start Building Now
+            </router-link>
+          </div>
+        </div>
+      </div>
     </section>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
+// --- Original Features Data ---
 const features = ref([
   {
     title: 'Intelligent Code Analysis',
@@ -190,216 +209,375 @@ const features = ref([
     icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>'
   }
 ])
+
+// --- Use Cases Data (Refactored from original HTML to Tabs) ---
+const activeTab = ref('Developers')
+
+const useCases = ref([
+  {
+    badge: 'Developers',
+    title: 'Ship Features Faster',
+    desc: 'Automate boilerplate, generate tests, and refactor code with AI assistance.',
+    items: ['Intelligent code completion', 'Automated test generation', 'Smart refactoring suggestions']
+  },
+  {
+    badge: 'Businesses',
+    title: 'Scale Development',
+    desc: 'Reduce development costs and accelerate time-to-market with AI-powered automation.',
+    items: ['Faster feature delivery', 'Reduced technical debt', 'Consistent code quality']
+  },
+  {
+    badge: 'Enterprises',
+    title: 'Enterprise-Grade Control',
+    desc: 'Deploy AI agents with security, compliance, and custom integrations.',
+    items: ['On-premise deployment', 'Custom tool integration', 'Advanced security controls']
+  },
+  {
+    badge: 'Agencies',
+    title: 'Deliver More Projects',
+    desc: 'Handle multiple client projects efficiently with intelligent automation.',
+    items: ['Multi-project management', 'Rapid prototyping', 'Client-ready documentation']
+  }
+])
+
+const activeTabContent = computed(() => {
+  return useCases.value.find(c => c.badge === activeTab.value) || useCases.value[0]
+})
+
+// --- Terminal Animation Logic ---
+const terminalLines = ref([
+  { html: '', visible: false }
+])
+const isTyping = ref(true)
+
+const codeSequence = [
+  { html: '<span class="c-purple">const</span> <span class="c-blue">agent</span> = <span class="c-yellow">new</span> <span class="c-blue">AutoAgent</span>();', delay: 100 },
+  { html: '<span class="c-gray">// Initializing neural context...</span>', delay: 800 },
+  { html: '<span class="c-purple">await</span> agent.<span class="c-green">analyzeProject</span>(<span class="c-blue">"./src"</span>);', delay: 1600 },
+  { html: '<span class="c-purple">const</span> <span class="c-blue">feature</span> = <span class="c-green">"user-authentication"</span>;', delay: 2400 },
+  { html: '<span class="c-gray">// Generating secure endpoints...</span>', delay: 3200 },
+  { html: '<span class="c-purple">const</span> <span class="c-blue">result</span> = <span class="c-purple">await</span> agent.<span class="c-green">generate</span>(feature);', delay: 4000 },
+  { html: '<span class="c-green">console</span>.<span class="c-green">log</span>(<span class="c-blue">result</span>.status);', delay: 5000 },
+  { html: '<span class="c-gray">// Output: "Success - 100% Coverage"</span>', delay: 5800 },
+]
+
+let currentTime = 0
+
+onMounted(() => {
+  // Run terminal sequence
+  codeSequence.forEach((line, index) => {
+    setTimeout(() => {
+      terminalLines.value.push({ html: line.html, visible: true })
+      // Auto scroll
+      const body = document.querySelector('.terminal-body')
+      if(body) body.scrollTop = body.scrollHeight
+    }, currentTime + line.delay)
+    currentTime += line.delay
+  })
+
+  // Reset loop
+  setTimeout(() => {
+    isTyping.value = false
+    setTimeout(() => {
+      terminalLines.value = [{ html: '', visible: false }]
+      isTyping.value = true
+      onMounted() // Restart
+    }, 3000)
+  }, currentTime + 2000)
+})
+
 </script>
 
 <style scoped>
+/* --- 1. CORE VARIABLES --- */
 .landing-page {
+  /* Most variables are now global in style.css */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
   width: 100%;
   overflow-x: hidden;
+  color: var(--text-primary);
+  background: var(--bg-body);
+  min-height: 100vh;
 }
 
-/* Hero Section */
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* --- 2. HERO SECTION --- */
 .hero-section {
-  min-height: 90vh;
-  display: flex;
-  align-items: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 4rem 2rem;
   position: relative;
+  padding: 80px 24px 100px;
   overflow: hidden;
+  background: var(--gradient-surface);
 }
 
+/* Background Effects */
 .hero-section::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: url('data:image/svg+xml,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" stroke-width="0.5" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
-  opacity: 0.3;
+  top: -200px;
+  right: -200px;
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.hero-section::after {
+  content: '';
+  position: absolute;
+  bottom: -300px;
+  left: -200px;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.1) 0%, transparent 70%);
+  pointer-events: none;
 }
 
 .hero-content {
   max-width: 1400px;
   margin: 0 auto;
+  padding: 0 24px;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4rem;
+  gap: 5rem;
   align-items: center;
   position: relative;
   z-index: 1;
 }
 
+.hero-text {
+  max-width: 600px;
+}
+
 .hero-title {
-  font-size: 3.5rem;
+  font-size: clamp(2.5rem, 5vw, 4rem);
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1.1;
   margin-bottom: 1.5rem;
-  animation: fadeInUp 0.8s ease-out;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
 }
 
 .gradient-text {
-  background: linear-gradient(to right, #fbbf24, #f59e0b);
+  display: block;
+  background: var(--gradient-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .hero-subtitle {
-  font-size: 1.25rem;
-  line-height: 1.8;
-  margin-bottom: 2rem;
-  opacity: 0.95;
-  animation: fadeInUp 0.8s ease-out 0.2s backwards;
+  font-size: 1.125rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  margin-bottom: 2.5rem;
+  max-width: 95%;
 }
 
 .cta-buttons {
   display: flex;
   gap: 1rem;
-  margin-bottom: 2rem;
-  animation: fadeInUp 0.8s ease-out 0.4s backwards;
+  margin-bottom: 2.5rem;
+  flex-wrap: wrap;
 }
 
 .btn {
-  padding: 1rem 2rem;
-  border-radius: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.875rem 1.75rem;
+  border-radius: 10px;
   font-weight: 600;
+  font-size: 0.9375rem;
   text-decoration: none;
-  transition: all 0.3s ease;
-  display: inline-block;
+  transition: all 0.25s ease;
+  border: 1px solid transparent;
+  cursor: pointer;
 }
 
 .btn-primary {
-  background: white;
-  color: #667eea;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 30px rgba(139, 92, 246, 0.5);
 }
 
 .btn-secondary {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
+  background: var(--glass-bg);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
+  background: var(--bg-surface);
+  border-color: var(--border-strong);
 }
 
 .btn-large {
-  padding: 1.25rem 2.5rem;
-  font-size: 1.125rem;
-}
-
-.btn-outline {
-  background: transparent;
-  color: #667eea;
-  border: 2px solid #667eea;
-}
-
-.btn-outline:hover {
-  background: #667eea;
-  color: white;
+  padding: 1.125rem 2.25rem;
+  font-size: 1rem;
 }
 
 .trust-badge {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  opacity: 0.9;
+  color: var(--text-muted);
   font-size: 0.875rem;
-  animation: fadeInUp 0.8s ease-out 0.6s backwards;
 }
-
 .trust-badge .icon {
   width: 1.25rem;
   height: 1.25rem;
+  color: #10b981;
 }
 
+/* --- 3. TERMINAL ANIMATION --- */
 .hero-visual {
   position: relative;
-  height: 500px;
+  perspective: 1000px;
 }
 
-.visual-placeholder {
-  width: 100%;
-  height: 100%;
-  border-radius: 1rem;
+.terminal-window {
+  background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 25px 60px -15px rgba(0, 0, 0, 0.6),
+    0 0 40px rgba(139, 92, 246, 0.1);
+  font-family: var(--font-mono);
   overflow: hidden;
   position: relative;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  height: 380px;
+  transform: rotateY(-2deg) rotateX(2deg);
+  transition: transform 0.3s ease;
 }
 
-.animated-gradient {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(45deg, #4f46e5, #7c3aed, #db2777, #f59e0b);
-  background-size: 400% 400%;
-  animation: gradientShift 15s ease infinite;
+.terminal-window:hover {
+  transform: rotateY(0) rotateX(0);
 }
 
-.floating-elements {
+.ai-badge {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 2rem;
-  padding: 2rem;
-}
-
-.code-snippet {
-  background: rgba(0, 0, 0, 0.8);
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-  font-family: 'Courier New', monospace;
-  font-size: 1rem;
-  line-height: 1.6;
-  animation: float 3s ease-in-out infinite;
-}
-
-.comment { color: #6b7280; }
-.keyword { color: #a78bfa; }
-.method { color: #34d399; }
-.string { color: #fbbf24; }
-
-.ai-indicator {
+  top: -16px;
+  right: 24px;
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  padding: 0.5rem 1.25rem;
+  border-radius: 50px;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 0.75rem 1.5rem;
-  border-radius: 2rem;
+  gap: 0.625rem;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.4),
+    0 0 20px rgba(139, 92, 246, 0.15);
+  z-index: 10;
+  animation: float 4s ease-in-out infinite;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: #1f2937;
-  animation: float 3s ease-in-out infinite 1.5s;
+  color: #e5e7eb;
 }
 
-.pulse {
+.ai-status {
+  width: 8px;
+  height: 8px;
+  background: #8b5cf6;
+  border-radius: 50%;
+  box-shadow: 0 0 12px #8b5cf6;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 12px #8b5cf6; }
+  50% { box-shadow: 0 0 20px #8b5cf6, 0 0 30px rgba(139, 92, 246, 0.5); }
+}
+
+.terminal-header {
+  background: rgba(22, 27, 34, 0.8);
+  padding: 0.875rem 1.25rem;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dots {
+  display: flex;
+  gap: 8px;
+}
+
+.dot {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #10b981;
-  animation: pulse 2s ease-in-out infinite;
 }
 
-/* Features Section */
-.features-section, .use-cases-section {
-  padding: 5rem 2rem;
-  max-width: 1400px;
-  margin: 0 auto;
+.red { background: #ff5f56; }
+.yellow { background: #ffbd2e; }
+.green { background: #27c93f; }
+
+.terminal-title {
+  margin-left: 1rem;
+  font-size: 0.8125rem;
+  color: #6b7280;
+  flex-grow: 1;
+  text-align: center;
+}
+
+.terminal-body {
+  padding: 1.5rem;
+  font-size: 0.9rem;
+  color: #e6edf3;
+  overflow-y: auto;
+  height: calc(100% - 40px);
+}
+
+.code-line {
+  display: flex;
+  margin-bottom: 0.25rem;
+  opacity: 0;
+  transform: translateX(-5px);
+  transition: opacity 0.2s, transform 0.2s;
+}
+.code-line.visible { opacity: 1; transform: translateX(0); }
+.line-num {
+  color: #484f58;
+  margin-right: 1.5rem;
+  user-select: none;
+  text-align: right;
+  min-width: 20px;
+}
+.c-purple { color: #d2a8ff; }
+.c-blue { color: #a5d6ff; }
+.c-green { color: #7ee787; }
+.c-yellow { color: #e3b341; }
+.c-gray { color: #8b949e; }
+.cursor {
+  display: inline-block;
+  width: 8px; height: 16px;
+  background: var(--primary);
+  animation: blink 1s step-end infinite;
+  vertical-align: middle;
+}
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* --- 4. FEATURES (BENTO GRID) --- */
+.features-section {
+  padding: 100px 24px;
+  background: var(--bg-body);
 }
 
 .section-header {
@@ -408,217 +586,365 @@ const features = ref([
 }
 
 .section-header h2 {
-  font-size: 2.5rem;
+  font-size: clamp(2rem, 4vw, 2.75rem);
   font-weight: 700;
-  color: #1f2937;
   margin-bottom: 1rem;
+  color: var(--text-primary);
 }
 
 .section-header p {
-  font-size: 1.25rem;
-  color: #6b7280;
+  color: var(--text-muted);
+  font-size: 1.125rem;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
-.features-grid {
+.bento-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 2rem;
-  margin-bottom: 3rem;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 260px);
+  gap: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-.feature-card {
-  background: white;
+.bento-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
   padding: 2rem;
-  border-radius: 1rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
   transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(10px);
 }
 
-.feature-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 12px 24px rgba(102, 126, 234, 0.2);
+.bento-card:hover {
+  border-color: var(--primary-glow);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
 }
+
+.bento-large { grid-column: span 2; }
+.bento-tall { grid-row: span 2; }
 
 .feature-icon {
-  color: #667eea;
-  margin-bottom: 1rem;
+  color: var(--primary);
+  margin-bottom: 1.25rem;
+  width: 48px;
+  height: 48px;
 }
 
-.feature-card h3 {
-  font-size: 1.5rem;
+.bento-card h3 {
+  font-size: 1.25rem;
   font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.625rem;
+  color: var(--text-primary);
 }
 
-.feature-card p {
-  color: #6b7280;
+.bento-card p {
+  color: var(--text-muted);
+  font-size: 0.9375rem;
   line-height: 1.6;
+}
+
+.card-visual {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 50%;
+  height: 50%;
+  background: radial-gradient(circle at bottom right, rgba(139, 92, 246, 0.08), transparent);
+  pointer-events: none;
 }
 
 .cta-center {
   text-align: center;
-  margin-top: 3rem;
+  margin-top: 3.5rem;
 }
 
-/* Use Cases */
+.btn-outline {
+  background: transparent;
+  color: var(--primary);
+  border: 2px solid var(--primary-glow);
+  padding: 0.875rem 1.75rem;
+}
+
+.btn-outline:hover {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+/* --- 5. USE CASES (TABS) --- */
 .use-cases-section {
-  background: #f9fafb;
+  padding: 100px 24px;
+  background: var(--bg-surface);
 }
 
-.use-cases-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 2rem;
+.tabs {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 3rem;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 0.75rem 1.5rem;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.tab-btn.active,
+.tab-btn:hover {
+  background: var(--gradient-primary);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
+}
+
+.tab-content {
+  max-width: 800px;
+  margin: 0 auto;
+  animation: fadeUp 0.4s ease-out;
 }
 
 .use-case-card {
-  background: white;
-  padding: 2rem;
-  border-radius: 1rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  background: var(--bg-card);
+  padding: 3rem;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  text-align: center;
+  backdrop-filter: blur(10px);
 }
 
 .use-case-badge {
   display: inline-block;
-  padding: 0.25rem 0.75rem;
-  background: #ede9fe;
-  color: #7c3aed;
-  border-radius: 0.25rem;
+  padding: 0.375rem 1rem;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 50px;
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
-  margin-bottom: 1rem;
+  letter-spacing: 0.5px;
+  margin-bottom: 1.25rem;
 }
 
 .use-case-card h3 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 0.75rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
 }
 
 .use-case-card p {
-  color: #6b7280;
-  margin-bottom: 1.5rem;
+  color: var(--text-muted);
+  margin-bottom: 2rem;
+  font-size: 1.0625rem;
   line-height: 1.6;
 }
 
 .use-case-card ul {
   list-style: none;
   padding: 0;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.875rem;
 }
 
 .use-case-card li {
-  padding: 0.5rem 0;
-  color: #4b5563;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.625rem;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
 }
 
-.use-case-card li::before {
-  content: '✓';
-  color: #10b981;
-  font-weight: 700;
+.check-icon {
+  color: var(--primary);
+  font-weight: bold;
 }
 
-/* Stats Section */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- 6. STATS --- */
 .stats-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 4rem 2rem;
+  padding: 100px 24px;
+  text-align: center;
+  background: var(--bg-body);
 }
 
 .stats-grid {
-  max-width: 1200px;
-  margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 3rem;
-  text-align: center;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 2.5rem;
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
 .stat-number {
-  font-size: 3.5rem;
+  font-size: clamp(2.5rem, 5vw, 3.5rem);
   font-weight: 800;
   margin-bottom: 0.5rem;
+  background: var(--gradient-text);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .stat-label {
-  font-size: 1.125rem;
-  opacity: 0.9;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-size: 0.8125rem;
+  font-weight: 500;
 }
 
-/* Final CTA */
+/* --- 7. FINAL CTA --- */
 .final-cta-section {
-  padding: 6rem 2rem;
+  padding: 100px 24px;
   text-align: center;
-  background: #1f2937;
-  color: white;
+  background: var(--bg-body);
 }
 
-.final-cta-section h2 {
-  font-size: 2.5rem;
+.cta-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  padding: 5rem 2.5rem;
+  max-width: 1000px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at top left, rgba(236, 72, 153, 0.15), transparent 50%),
+              radial-gradient(circle at bottom right, rgba(139, 92, 246, 0.15), transparent 50%);
+  pointer-events: none;
+}
+
+.cta-content {
+  position: relative;
+  z-index: 2;
+}
+
+.cta-content h2 {
+  font-size: clamp(2rem, 5vw, 3rem);
   font-weight: 700;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
+  color: var(--text-primary);
 }
 
-.final-cta-section p {
-  font-size: 1.25rem;
-  opacity: 0.9;
-  margin-bottom: 2rem;
+.cta-content p {
+  color: var(--text-secondary);
+  font-size: 1.125rem;
+  margin-bottom: 2.5rem;
 }
 
-/* Animations */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes gradientShift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-20px); }
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.1); }
-}
-
-/* Responsive */
-@media (max-width: 768px) {
+/* --- RESPONSIVE --- */
+@media (max-width: 1024px) {
   .hero-content {
     grid-template-columns: 1fr;
     text-align: center;
+    gap: 3rem;
   }
-  
-  .hero-title {
-    font-size: 2.5rem;
+
+  .hero-text {
+    max-width: 100%;
   }
-  
+
+  .hero-subtitle {
+    margin: 0 auto 2rem;
+    max-width: 100%;
+  }
+
+  .cta-buttons {
+    justify-content: center;
+  }
+
+  .trust-badge {
+    justify-content: center;
+  }
+
+  .bento-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+
+  .bento-large,
+  .bento-tall {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-section {
+    padding: 60px 16px 80px;
+  }
+
+  .terminal-window {
+    height: 300px;
+    transform: none;
+  }
+
+  .terminal-window:hover {
+    transform: none;
+  }
+
+  .ai-badge {
+    font-size: 0.75rem;
+    padding: 0.375rem 0.875rem;
+  }
+
+  .cta-box {
+    padding: 3.5rem 1.5rem;
+    border-radius: 20px;
+  }
+
+  .btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 480px) {
   .cta-buttons {
     flex-direction: column;
-    align-items: center;
   }
-  
-  .hero-visual {
-    height: 300px;
+
+  .btn {
+    width: 100%;
   }
-  
-  .section-header h2 {
-    font-size: 2rem;
+
+  .tabs {
+    gap: 0.5rem;
+  }
+
+  .tab-btn {
+    padding: 0.625rem 1rem;
+    font-size: 0.8125rem;
   }
 }
 </style>

@@ -614,6 +614,8 @@
 import { ref, onMounted, nextTick, onBeforeUnmount, watch, computed } from 'vue';
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router';
 import { marked } from 'marked';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/github-dark.css'; // Or any other style
 import api from '../services/api';
 import AgentBuilder from '../components/AgentBuilder.vue';
 import SessionTrace from '../components/SessionTrace.vue';
@@ -1149,6 +1151,192 @@ const saveAgent = async (agentData) => {
     }
 };
 
+// Custom renderer for code blocks
+const renderer = new marked.Renderer();
+
+// Helper to unescape HTML entities if content seems double-escaped
+const unescapeHTML = (str) => {
+    const p = document.createElement('p');
+    p.innerHTML = str;
+    return p.textContent || p.innerText || str;
+};
+
+const parseWireframe = (text) => {
+    // Clean box drawing characters
+    const cleanLines = text.split('\n')
+        .map(line => line.replace(/[┌┐└┘├┤─│•]/g, '').trim())
+        .filter(line => line.length > 0);
+
+    const data = {
+        intent: '',
+        steps: [],
+        final: ''
+    };
+
+    let currentSection = '';
+    
+    cleanLines.forEach(line => {
+        const lowerLine = line.toLowerCase();
+        
+        if (lowerLine.includes('user intent')) {
+            currentSection = 'intent';
+            return;
+        }
+        if (lowerLine.includes('execution steps') || lowerLine.includes('tool call summary')) {
+            currentSection = 'steps';
+            return;
+        }
+        if (lowerLine.includes('final output sources') || lowerLine.includes('final result')) {
+            currentSection = 'final';
+            return;
+        }
+        if (lowerLine.includes('agent execution wireframe') || lowerLine.includes('tools selected')) {
+            return;
+        }
+
+        if (currentSection === 'intent') {
+            data.intent += (data.intent ? ' ' : '') + line;
+        } else if (currentSection === 'steps') {
+            // Check if line indicates a new step (starts with a number or bullet)
+            if (/^\d+/.test(line) || line.startsWith('Tool:') || line.startsWith('Step')) {
+                data.steps.push({ title: line, details: [] });
+            } else if (data.steps.length > 0) {
+                data.steps[data.steps.length - 1].details.push(line);
+            } else {
+                 data.intent += (data.intent ? ' ' : '') + line;
+            }
+        } else if (currentSection === 'final') {
+            data.final += (data.final ? ' ' : '') + line;
+        }
+    });
+
+    return data;
+};
+
+const renderWireframeUI = (text) => {
+    const data = parseWireframe(text);
+    
+    let stepsHtml = data.steps.map((step, idx) => `
+        <div class="relative pl-8 pb-8 last:pb-0">
+            <!-- Timeline Line -->
+            ${idx < data.steps.length - 1 ? '<div class="absolute left-[11px] top-6 bottom-0 w-0.5 bg-slate-200"></div>' : ''}
+            
+            <!-- Timeline Dot -->
+            <div class="absolute left-0 top-1 w-6 h-6 rounded-full border-2 border-blue-500 bg-white flex items-center justify-center z-10 shadow-sm">
+                <span class="text-[10px] font-bold text-blue-600">${idx + 1}</span>
+            </div>
+            
+            <!-- Step Card -->
+            <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 hover:border-blue-300 transition-colors shadow-sm">
+                <h4 class="text-sm font-bold text-slate-800 mb-2 font-sans">${step.title}</h4>
+                <div class="space-y-1.5 font-sans">
+                    ${step.details.map(d => `
+                        <p class="text-[12px] text-slate-600 font-medium leading-relaxed">
+                            ${d.includes(':') ? `<span class="text-slate-400 font-mono text-[9px] uppercase font-bold mr-2 tracking-wider">${d.split(':')[0]}:</span>${d.split(':').slice(1).join(':')}` : d}
+                        </p>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    return `
+        <div class="workflow-visualizer my-12 font-sans max-w-2xl mx-auto selection:bg-blue-100">
+            <div class="bg-white rounded-3xl border border-slate-200 shadow-[0_20px_50px_rgba(0,0,0,0.05)] overflow-hidden">
+                <!-- Header -->
+                <div class="bg-slate-900 px-6 py-5 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-blue-500 rounded-xl shadow-lg shadow-blue-500/20">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        </div>
+                        <div>
+                            <h2 class="text-xs font-black text-white tracking-[0.2em] uppercase">Execution Flow</h2>
+                            <p class="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Real-time Agent Trace</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Content Area -->
+                <div class="p-8 space-y-8 bg-gradient-to-b from-white to-slate-50/30">
+                    <!-- User Intent Node -->
+                    <div class="relative pl-8">
+                        <div class="absolute left-[11px] top-8 bottom-0 w-0.5 bg-blue-100/50"></div>
+                        <div class="absolute left-0 top-1 w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center z-10 shadow-[0_0_15px_rgba(37,99,235,0.4)]">
+                            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        </div>
+                        <div class="bg-[#1e1e1e] rounded-2xl p-6 text-white shadow-2xl">
+                            <span class="text-[9px] font-black text-blue-400 uppercase tracking-[0.2em] mb-2 block">Objectives</span>
+                            <p class="text-[13px] font-medium leading-relaxed text-slate-100">${data.intent || 'Analyzing requirements...'}</p>
+                        </div>
+                    </div>
+
+                    <!-- Steps Timeline -->
+                    <div class="ml-1">${stepsHtml}</div>
+
+                    <!-- Final Node -->
+                    <div class="relative pl-8 pt-4">
+                        <div class="absolute left-0 top-5 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center z-10 shadow-[0_0_15px_rgba(16,185,129,0.4)]">
+                            <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        </div>
+                        <div class="bg-emerald-50 rounded-2xl p-6 border border-emerald-100">
+                             <span class="text-[9px] font-black text-emerald-600 uppercase tracking-[0.2em] mb-2 block">Resolution</span>
+                             <p class="text-[13px] font-bold text-slate-800 leading-relaxed">${data.final || 'Task completed successfully.'}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+renderer.code = function ({ text, lang }) {
+    const language = lang?.toLowerCase() || 'plaintext';
+    
+    // Wireframe Detection (Box-drawing characters)
+    const isWireframe = /[\u2500-\u257F]/.test(text);
+    
+    if (isWireframe) {
+        return renderWireframeUI(text);
+    }
+
+    // Regular Code Block
+    let unescapedText = text;
+    // If we see double escaping like &lt;span, try to unescape once
+    if (text.includes('&lt;span') || text.includes('&amp;lt;')) {
+        unescapedText = unescapeHTML(text);
+    }
+
+    let highlightedCode;
+    try {
+        const hljsLang = hljs.getLanguage(language) ? language : 'plaintext';
+        highlightedCode = hljs.highlight(unescapedText, { language: hljsLang }).value;
+    } catch (e) {
+        highlightedCode = unescapedText;
+    }
+
+    return `
+        <div class="code-block-container my-6 rounded-xl overflow-hidden bg-[#0d1117] border border-[#30363d] shadow-2xl group/code">
+            <div class="flex items-center justify-between px-4 py-2 bg-[#161b22] border-b border-[#30363d]">
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-bold text-gray-500 uppercase tracking-[0.1em] font-mono">${language}</span>
+                </div>
+                <button 
+                    class="copy-code-btn flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-gray-400 hover:text-white transition-all duration-200 rounded-md hover:bg-[#30363d] active:scale-95"
+                    data-code="${encodeURIComponent(unescapedText)}"
+                    title="Copy to clipboard"
+                >
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    <span class="min-w-[40px] text-right">Copy</span>
+                </button>
+            </div>
+            <pre class="p-5 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent selection:bg-blue-500/30"><code class="hljs language-${language} leading-relaxed font-mono text-[13px]">${highlightedCode}</code></pre>
+        </div>
+    `;
+};
+marked.setOptions({ renderer });
+
 const formatMarkdown = (text) => marked(text || '');
 const formatToolResult = (result) => {
     if (typeof result === 'object') return JSON.stringify(result, null, 2);
@@ -1244,18 +1432,13 @@ const connectWebSocket = (repoId) => {
             if (chatEvents.value.length > 0 && chatEvents.value[chatEvents.value.length - 1].type === 'assistant') {
                 chatEvents.value[chatEvents.value.length - 1].content += data.chunk;
             } else {
-                // Only create assistant message if it's NOT a workflow response (like "Pong!")
-                // Check if message looks like it's part of initial greeting
-                const isGreeting = data.session_id && chatEvents.value.length < 3;
-
-                if (isGreeting || data.chunk.startsWith('DONE:')) {
-                    chatEvents.value.push({
-                        id: Date.now(),
-                        type: 'assistant',
-                        content: data.chunk,
-                        data
-                    });
-                }
+                // If not following an assistant message, create a new one
+                chatEvents.value.push({
+                    id: Date.now(),
+                    type: 'assistant',
+                    content: data.chunk,
+                    data
+                });
             }
             scrollToBottom();
         } else if (data.type === 'assistant_message_complete') {
@@ -1284,6 +1467,7 @@ const connectWebSocket = (repoId) => {
             // Finalize the assistant message
             isTyping.value = false;
             isProcessing.value = false;
+            isAgentSessionActive.value = false; // Disable stop button
             scrollToBottom();
         } else if (data.type === 'chat_response') {
             // Check ignore flag
@@ -1650,19 +1834,43 @@ const resetTextareaHeight = () => {
 };
 
 // Message Action Functions
-const copyToClipboard = async (text) => {
-    try {
-        // Strip HTML tags for clean copy
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = text;
-        const cleanText = tempDiv.textContent || tempDiv.innerText || '';
-
-        await navigator.clipboard.writeText(cleanText);
-        console.log('Copied to clipboard');
-        // Could add a toast notification here
-    } catch (err) {
-        console.error('Failed to copy:', err);
+const copyTextToClipboard = async (text) => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch (err) {
+            console.warn('Navigator clipboard failed, falling back', err);
+        }
     }
+    
+    // Fallback: Use a hidden textarea
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    
+    try {
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        return successful;
+    } catch (err) {
+        console.error('Fallback copy failed', err);
+        document.body.removeChild(textarea);
+        return false;
+    }
+};
+
+const copyToClipboard = async (text) => {
+    // Strip HTML tags for clean copy
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = text;
+    const cleanText = tempDiv.textContent || tempDiv.innerText || '';
+    await copyTextToClipboard(cleanText);
 };
 
 const retryUserMessage = (userEvent) => {
@@ -1799,18 +2007,50 @@ onBeforeRouteLeave((to, from, next) => {
     next();
 });
 
+// Global click handler for copy buttons (delegation)
+const handleGlobalClick = (e) => {
+    const copyBtn = e.target.closest('.copy-code-btn');
+    if (copyBtn) {
+        const code = decodeURIComponent(copyBtn.dataset.code);
+        copyTextToClipboard(code).then((success) => {
+            if (!success) return;
+            const span = copyBtn.querySelector('span');
+            const svg = copyBtn.querySelector('svg');
+            const originalText = span.textContent;
+            
+            // Success state
+            span.textContent = 'Copied!';
+            copyBtn.classList.add('text-green-400', 'bg-green-400/10');
+            copyBtn.classList.remove('text-gray-400');
+            
+            // Temporary SVG change (Checkmark)
+            const originalPath = svg.innerHTML;
+            svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />';
+            
+            setTimeout(() => {
+                span.textContent = originalText;
+                svg.innerHTML = originalPath;
+                copyBtn.classList.remove('text-green-400', 'bg-green-400/10');
+                copyBtn.classList.add('text-gray-400');
+            }, 2000);
+        });
+    }
+};
+
+onMounted(() => {
+    window.addEventListener('click', handleGlobalClick);
+    fetchContextData();
+    if (route.params.id && route.params.id !== 'new') {
+        fetchAgent(route.params.id);
+    }
+});
+
 onBeforeUnmount(() => {
+    window.removeEventListener('click', handleGlobalClick);
     if (ws.value) {
         console.log('[Playground] Cleaning up WebSocket on unmount');
         ws.value.close();
         ws.value = null;
-    }
-});
-
-onMounted(() => {
-    fetchContextData();
-    if (route.params.id && route.params.id !== 'new') {
-        fetchAgent(route.params.id);
     }
 });
 </script>
@@ -1859,5 +2099,122 @@ kbd {
 
 .group:hover .group-hover\:shadow-xl {
     transition: all 0.2s ease-in-out;
+}
+
+/* Markdown and Syntax Highlighting Professional Overrides */
+:deep(.prose) {
+    color: #374151;
+    max-width: none;
+}
+
+:deep(.code-block-container pre) {
+    margin: 0;
+    scrollbar-width: thin;
+    scrollbar-color: #30363d transparent;
+}
+
+:deep(.code-block-container pre::-webkit-scrollbar) {
+    height: 8px;
+}
+
+:deep(.code-block-container pre::-webkit-scrollbar-track) {
+    background: transparent;
+}
+
+:deep(.code-block-container pre::-webkit-scrollbar-thumb) {
+    background: #30363d;
+    border-radius: 4px;
+}
+
+:deep(.hljs) {
+    background: transparent !important;
+    padding: 0 !important;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+
+:deep(.prose code:not(.hljs)) {
+    background-color: #f3f4f6;
+    color: #2563eb;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+    font-weight: 500;
+}
+
+:deep(.prose code::before), :deep(.prose code::after) {
+    content: "" !important;
+}
+
+/* Professional Table Styling */
+:deep(.prose table) {
+    width: 100%;
+    min-width: 600px; /* Ensure table doesn't get too squished */
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    text-align: left;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.8rem;
+    overflow: hidden;
+    display: table; /* Use table layout for better alignment */
+}
+
+/* Wrapper for horizontal scroll */
+:deep(.prose) {
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #e5e7eb transparent;
+}
+
+:deep(.prose::-webkit-scrollbar) {
+    height: 6px;
+}
+
+:deep(.prose::-webkit-scrollbar-thumb) {
+    background-color: #e5e7eb;
+    border-radius: 3px;
+}
+
+:deep(.prose thead) {
+    background-color: #f8fafc;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+:deep(.prose th) {
+    padding: 1rem 1.25rem;
+    font-weight: 600;
+    color: #1e293b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+:deep(.prose td) {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #475569;
+    vertical-align: top;
+    min-width: 150px;
+}
+
+:deep(.prose tr:last-child td) {
+    border-bottom: none;
+}
+
+:deep(.prose tr:nth-child(even)) {
+    background-color: #f8fafc;
+}
+
+:deep(.prose tr:hover) {
+    background-color: #f1f5f9;
+}
+
+/* Ensure table container doesn't break layout */
+:deep(.prose) {
+    overflow-wrap: break-word;
 }
 </style>
