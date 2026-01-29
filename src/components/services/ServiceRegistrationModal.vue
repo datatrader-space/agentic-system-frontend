@@ -834,13 +834,21 @@ export default {
       try {
         const actions = getSelectedActions()
         
+        // Warn if too many actions
+        if (actions.length > 20) {
+          if (!confirm(`⚠️ You have ${actions.length} selected actions. Only the first 20 will be enriched to prevent timeout. Continue?`)) {
+            enriching.value = false
+            return
+          }
+        }
+        
         // Get OpenAPI doc for enrichment (if available)
         const openAPIDoc = openAPISpec.value || null
         
         const response = await api.enrichSchemas({
+          service_name: formData.value.name,
           actions: actions,
-          openapi_doc: openAPIDoc,
-          service_type: formData.value.name.toLowerCase()
+          openapi_doc: openAPIDoc
         })
 
         // Update the discovered data with enriched schemas
@@ -858,12 +866,32 @@ export default {
               }
             })
           })
+          
+          // Show detailed success message
+          const stats = response.data.stats
+          let message = `✨ Enrichment complete!\n\n`
+          message += `✅ Enriched: ${stats.enriched}/${stats.total}\n`
+          if (stats.validated > 0) {
+            message += `✓ Validated: ${stats.validated}\n`
+          }
+          if (stats.repaired > 0) {
+            message += `🔧 Auto-repaired: ${stats.repaired}\n`
+          }
+          if (stats.skipped > 0) {
+            message += `⚠️ Skipped (errors): ${stats.skipped}\n`
+          }
+          message += `\nCheck the updated parameter examples!`
+          
+          alert(message)
         }
         
-        alert('✨ Schemas enriched with AI! Check the updated examples.')
       } catch (error) {
         console.error('Failed to enrich schemas:', error)
-        alert('Failed to enrich schemas: ' + (error.response?.data?.error || error.message))
+        if (error.code === 'ECONNABORTED') {
+          alert('⏱️ Request timed out. Try selecting fewer actions (max 20 recommended).')
+        } else {
+          alert('Failed to enrich schemas: ' + (error.response?.data?.error || error.message))
+        }
       } finally {
         enriching.value = false
       }

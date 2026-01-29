@@ -33,9 +33,9 @@
         <div class="flex-1 flex h-0">
 
             <!-- Left: Builder (MODAL OVERLAY) -->
-            <div v-if="showBuilder" class="fixed inset-0 z-40 bg-black/50 flex justify-end"
+            <div v-if="showBuilder" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
                 @click.self="showBuilder = false">
-                <div class="h-full w-[500px] bg-white shadow-2xl animate-in slide-in-from-right duration-200">
+                <div class="h-full w-[500px] bg-white shadow-2xl animate-in slide-in-from-right duration-200 overflow-y-auto">
                     <AgentBuilder v-if="agent" v-model:agent="agent" :isSaving="saving" @save="saveAgent" />
                 </div>
             </div>
@@ -1746,7 +1746,9 @@ const sendMessage = () => {
         ws.value.send(JSON.stringify({
             type: 'chat_message',
             message: content,
-            conversation_id: activeSessionId.value // Must match the one created by start_chat
+            conversation_id: activeSessionId.value, // Must match the one created by start_chat
+            agentId: agent.value?.id || null, // Link conversation to agent profile for model config
+            model_id: selectedContext.value.model || agent.value?.default_model || null // Use selected or agent's default model
         }));
     } else {
         alert("Connection lost. Please restart session.");

@@ -41,6 +41,13 @@
             >
               {{ system.status }}
             </span>
+            <button
+              @click="showDeleteConfirm = true"
+              class="px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 border border-red-300 rounded-lg transition-colors"
+              title="Delete System"
+            >
+              Delete
+            </button>
           </div>
         </div>
       </div>
@@ -982,6 +989,30 @@
       </div>
     </div>
   </div>
+  
+  <!-- Delete Confirmation Modal -->
+  <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md mx-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-2">Delete System?</h3>
+      <p class="text-gray-600 mb-6">
+        This will permanently delete <strong>{{ system.name }}</strong> and all its repositories, including agent workspaces and CRS data. This cannot be undone.
+      </p>
+      <div class="flex gap-3 justify-end">
+        <button
+          @click="showDeleteConfirm = false"
+          class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          @click="deleteSystem"
+          class="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+        >
+          Delete System
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -1013,6 +1044,7 @@ const showIntentModal = ref(false)
 const showCrsModal = ref(false)
 const showPlannerChat = ref(false)
 const showRepositoryPanel = ref(false)
+const showDeleteConfirm = ref(false)
 const repoTab = ref('knowledge')
 const adding = ref(false)
 const loadingQuestions = ref(false)
@@ -1137,6 +1169,20 @@ const addRepository = async () => {
     console.error(error)
   } finally {
     adding.value = false
+  }
+}
+
+// Delete system
+const deleteSystem = async () =>{
+  try {
+    await api.deleteSystem(systemId)
+    notify('System deleted successfully', 'success')
+    router.push('/')
+  } catch (error) {
+    notify('Failed to delete system', 'error')
+    console.error(error)
+  } finally {
+    showDeleteConfirm.value = false
   }
 }
 

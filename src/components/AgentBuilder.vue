@@ -1,20 +1,21 @@
 <template>
   <div class="agent-builder flex flex-col h-full bg-white w-full">
-    <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
-      <h2 class="font-bold text-gray-800">Agent Configuration</h2>
-      <div class="flex gap-2">
+    <div class="relative z-10 p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
+      <h2 class="font-bold text-gray-800 flex-shrink-0 max-w-[300px] truncate">Agent Configuration</h2>
+      <div class="flex gap-2 flex-shrink-0 min-w-[120px] ml-4">
         <button 
             @click="save" 
             :disabled="isSaving"
-            class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50"
+            class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50 min-w-[100px]"
         >
             {{ isSaving ? 'Saving...' : 'Save Agent' }}
         </button>
       </div>
     </div>
 
+
     <!-- Tabs Header -->
-    <div class="flex border-b border-gray-200 px-4 shrink-0">
+    <div class="flex border-b border-gray-200 px-4 shrink-0 bg-white">
         <button 
             v-for="tab in ['General', 'Knowledge', 'Tools']" 
             :key="tab"

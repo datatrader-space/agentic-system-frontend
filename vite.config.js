@@ -8,13 +8,13 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://192.168.2.11:8000',  // Backend IP
+        target: 'http://localhost:8000',  // Backend IP
         changeOrigin: true,
         secure: false,
         ws: true
       },
       '/ws': {
-        target: 'ws://192.168.2.11:8000',  // Backend IP for WebSocket
+        target: 'ws://localhost:8000',  // Backend IP for WebSocket
         changeOrigin: true,
         ws: true
       }

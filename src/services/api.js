@@ -7,7 +7,7 @@ import axios from 'axios'
 
 // Create axios instance
 const api = axios.create({
-  baseURL: '/api',  // Use relative path - goes through Vite proxy
+  baseURL: 'http://localhost:8000/api',  // Direct connection to Django backend
   timeout: 30000,
   withCredentials: true,
   headers: {
@@ -118,7 +118,7 @@ export default {
   deleteService: (id) => api.post(`/services/${id}/delete/`),
   createServiceActions: (id, data) => api.post(`/services/${id}/actions/create/`, data),
   discoverServiceActions: (data) => api.post('/services/discover/', data),
-  enrichSchemas: (data) => api.post('/services/enrich-schemas/', data),
+  enrichSchemas: (data) => api.post('/services/enrich-schemas/', data, { timeout: 300000 }),  // 5 min timeout for LLM enrichment
   validateActions: (data) => api.post('/services/validate-actions/', data),
 
   // MCP Server Management
