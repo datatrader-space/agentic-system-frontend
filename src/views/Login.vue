@@ -81,6 +81,14 @@
       <!-- Right Side - Form -->
       <div class="form-section">
         <div class="form-card">
+          <!-- Back Link -->
+          <router-link to="/" class="back-link">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 12H5M12 19l-7-7 7-7"/>
+            </svg>
+            Back to Home
+          </router-link>
+
           <!-- Form Header -->
           <div class="form-header">
             <h2 class="form-title">{{ isLogin ? 'Welcome back' : 'Create account' }}</h2>
@@ -613,6 +621,28 @@ watch(() => formData.value.password, () => {
   border: 1px solid var(--border);
   border-radius: 24px;
   padding: 40px;
+  position: relative;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: 24px;
+  transition: color var(--transition);
+}
+
+.back-link:hover {
+  color: var(--text-primary);
+}
+
+.back-link svg {
+  width: 16px;
+  height: 16px;
 }
 
 .form-header {
