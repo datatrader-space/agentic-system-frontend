@@ -1,5 +1,5 @@
 <template>
-  <div class="agent-builder flex flex-col h-full bg-white w-full">
+  <div class="agent-builder flex flex-col h-full bg-white w-full pt-16">
     <div class="relative z-10 p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
       <h2 class="font-bold text-gray-800 flex-shrink-0 max-w-[300px] truncate">Agent Configuration</h2>
       <div class="flex gap-2 flex-shrink-0 min-w-[120px] ml-4">

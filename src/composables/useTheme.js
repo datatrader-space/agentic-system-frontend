@@ -1,7 +1,7 @@
 import { ref, watch } from 'vue'
 
 // Theme state - shared across all components
-const currentTheme = ref('dark')
+const currentTheme = ref('light')
 const isInitialized = ref(false)
 
 /**
@@ -67,9 +67,8 @@ function initializeTheme() {
   if (savedTheme && (savedTheme === 'light' || savedTheme === 'dark')) {
     currentTheme.value = savedTheme
   } else {
-    // Detect system preference
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    currentTheme.value = prefersDark ? 'dark' : 'light'
+    // Default to light theme
+    currentTheme.value = 'light'
   }
   
   applyTheme(currentTheme.value)

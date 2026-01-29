@@ -7,7 +7,7 @@
       :theme="theme"
       @logout="handleLogout"
       @connect-github="connectGitHub"
-      @toggle-theme="toggleTheme"
+      @toggle-theme="handleToggleTheme"
     />
 
     <!-- Main Content -->
@@ -58,6 +58,13 @@ const llmHealth = ref(null)
 
 // Initialize theme system
 const { theme, toggleTheme, isDark } = useTheme()
+
+const handleToggleTheme = () => {
+  toggleTheme()
+  if (theme.value === 'dark') {
+    addNotification('Note: Dark theme is currently in beta. You may see some inconsistencies.', 'info')
+  }
+}
 
 // Layout computed properties
 const isFullScreen = computed(() => route.name === 'repository-detail' || route.name === 'agent-playground')

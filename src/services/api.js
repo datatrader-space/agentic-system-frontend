@@ -7,7 +7,7 @@ import axios from 'axios'
 
 // Create axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',  // Direct connection to Django backend
+  baseURL: '/api',
   timeout: 30000,
   withCredentials: true,
   headers: {
