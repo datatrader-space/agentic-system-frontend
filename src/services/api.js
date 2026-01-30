@@ -8,7 +8,7 @@ import axios from 'axios'
 // Create axios instance
 const api = axios.create({
   baseURL: '/api',
-  timeout: 30000,
+  timeout: 120000,  // 2 minutes - needed for LLM enrichment, service discovery, etc.
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
@@ -118,7 +118,30 @@ export default {
   deleteService: (id) => api.post(`/services/${id}/delete/`),
   createServiceActions: (id, data) => api.post(`/services/${id}/actions/create/`, data),
   discoverServiceActions: (data) => api.post('/services/discover/', data),
-  enrichSchemas: (data) => api.post('/services/enrich-schemas/', data, { timeout: 300000 }),  // 5 min timeout for LLM enrichment
+  enrichSchemas: (data, config) => {
+    return api.post('/services/enrich-schemas/', data, config)
+  },
+
+  // Service Draft Management
+  saveDraft: (data) => {
+    return api.post('/services/save-draft/', data)
+  },
+
+  loadDraft: (serviceId) => {
+    return api.get(`/services/draft/${serviceId}/`)
+  },
+
+  listDrafts: () => {
+    return api.get('/services/drafts/')
+  },
+
+  completeService: (serviceId) => {
+    return api.post(`/services/${serviceId}/complete/`)
+  },
+
+  activateService: (serviceId) => {
+    return api.post(`/services/${serviceId}/activate/`)
+  },
   validateActions: (data) => api.post('/services/validate-actions/', data),
 
   // MCP Server Management
@@ -162,6 +185,7 @@ export default {
   updateLlmProvider: (id, data) => api.put(`/llm/providers/${id}/`, data),
   deleteLlmProvider: (id) => api.delete(`/llm/providers/${id}/`),
   syncOllamaModels: (id) => api.post(`/llm/providers/${id}/sync_ollama_models/`),
+  syncOpenRouterModels: (id) => api.post(`/llm/providers/${id}/sync_openrouter_models/`),
   getLlmModels: (params = {}) => api.get('/llm/models/', { params }),
   createLlmModel: (data) => api.post('/llm/models/', data),
   updateLlmModel: (id, data) => api.put(`/llm/models/${id}/`, data),
@@ -287,4 +311,29 @@ export default {
 
   // Session Reconnection
   getSessionEvents: (sessionId) => api.get(`/agent/sessions/${sessionId}/events/`),
+
+  // Services
+  discoverActions: (data) => {
+    const formData = new FormData()
+    if (data.specFile) {
+      formData.append('spec_file', data.specFile)
+    }
+    if (data.specUrl) {
+      formData.append('api_spec_url', data.specUrl)
+    }
+    formData.append('base_url', data.baseUrl)
+    formData.append('discovery_method', data.discoveryMethod || 'openapi')
+
+    return api.post('/services/discover/', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+
+  enrichActions: (serviceId, actions) => {
+    return api.post(`/services/${serviceId}/enrich/`, { actions })
+  },
+
+  registerService: (data) => {
+    return api.post('/services/register/', data)
+  },
 }

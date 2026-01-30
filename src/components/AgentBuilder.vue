@@ -17,7 +17,7 @@
     <!-- Tabs Header -->
     <div class="flex border-b border-gray-200 px-4 shrink-0 bg-white">
         <button 
-            v-for="tab in ['General', 'Knowledge', 'Tools']" 
+            v-for="tab in ['General', 'Knowledge', 'Tools', 'Credentials']" 
             :key="tab"
             @click="activeTab = tab"
             :class="['px-4 py-3 text-sm font-medium border-b-2 transition-colors', activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
@@ -201,7 +201,34 @@
       <div>
         <div class="flex justify-between items-center mb-2">
              <label class="block text-sm font-medium text-gray-700">Capabilities (Tools)</label>
-             <span class="text-xs text-gray-500">{{ selectedToolsCount }} selected</span>
+             <div class="flex items-center gap-3">
+               <span class="text-xs text-gray-500">{{ selectedToolsCount }} selected</span>
+               <!-- View Mode Toggle -->
+               <div class="flex gap-1 bg-gray-100 rounded p-0.5">
+                 <button
+                   @click="toolsViewMode = 'category'"
+                   :class="[
+                     'px-2 py-1 text-xs font-medium rounded transition',
+                     toolsViewMode === 'category' 
+                       ? 'bg-white text-indigo-700 shadow-sm' 
+                       : 'text-gray-600 hover:text-gray-800'
+                   ]"
+                 >
+                   By Category
+                 </button>
+                 <button
+                   @click="toolsViewMode = 'service'"
+                   :class="[
+                     'px-2 py-1 text-xs font-medium rounded transition',
+                     toolsViewMode === 'service' 
+                       ? 'bg-white text-indigo-700 shadow-sm' 
+                       : 'text-gray-600 hover:text-gray-800'
+                   ]"
+                 >
+                   By Service
+                 </button>
+               </div>
+             </div>
         </div>
 
         <!-- Search Box -->
@@ -217,8 +244,66 @@
         <div class="border border-gray-200 rounded-lg max-h-96 overflow-y-auto">
             <div v-if="loadingTools" class="p-4 text-center text-sm text-gray-500">Loading tools...</div>
 
-            <!-- Tools organized by category -->
-            <div v-else-if="Object.keys(groupedFilteredTools).length > 0">
+            <!-- SERVICE VIEW -->
+            <div v-else-if="toolsViewMode === 'service' && groupedFilteredToolsByService.length > 0">
+              <div v-for="service in groupedFilteredToolsByService" :key="service.id" class="border-b border-gray-100 last:border-b-0">
+                <!-- Service Header -->
+                <div class="bg-gray-50 px-3 py-2 sticky top-0 z-10 border-b border-gray-200">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-semibold text-gray-700">{{ service.name }}</span>
+                      <!-- Credential Badge -->
+                      <span
+                        v-if="service.hasCredentials"
+                        class="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-medium"
+                        title="Has valid credentials"
+                      >
+                        ✓ Credentials
+                      </span>
+                      <span
+                        v-else
+                        class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium"
+                        title="Missing credentials - add in Credentials tab"
+                      >
+                        ⚠ No Credentials
+                      </span>
+                      <button 
+                        @click.stop="toggleServiceTools(service.tools)" 
+                        class="text-[10px] text-indigo-600 hover:text-indigo-800 font-medium px-1.5 py-0.5 rounded hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition"
+                      >
+                        {{ areAllServiceToolsSelected(service.tools) ? 'Deselect All' : 'Add All Tools' }}
+                      </button>
+                    </div>
+                    <span class="text-xs text-gray-500">{{ service.tools.length }} tools</span>
+                  </div>
+                </div>
+
+                <!-- Tools in this service -->
+                <div class="divide-y divide-gray-100">
+                  <div
+                    v-for="tool in service.tools"
+                    :key="tool.id"
+                    class="flex items-start p-3 hover:bg-gray-50 cursor-pointer transition"
+                    @click="toggleTool(tool.id)"
+                  >
+                    <div class="flex items-center h-5">
+                      <input
+                        type="checkbox"
+                        :checked="internalAgent.tool_ids.includes(tool.id)"
+                        class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div class="ml-3 text-sm flex-1">
+                      <label class="font-medium text-gray-700 cursor-pointer block">{{ tool.name }}</label>
+                      <p class="text-gray-500 text-xs mt-0.5">{{ tool.description }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- CATEGORY VIEW -->
+            <div v-else-if="toolsViewMode === 'category' && Object.keys(groupedFilteredTools).length > 0">
                 <div v-for="(tools, category) in groupedFilteredTools" :key="category" class="border-b border-gray-100 last:border-b-0">
                     <!-- Category Header -->
                     <div class="bg-gray-50 px-3 py-2 sticky top-0 z-10 border-b border-gray-200">
@@ -261,13 +346,261 @@
             </div>
 
             <!-- No results -->
-            <div v-else class="p-4 text-center text-sm text-gray-500">
-                No tools found matching "{{ toolSearchQuery }}"
+            <div v-else class="p-8 text-center text-sm text-gray-500">
+                <div v-if="toolsViewMode === 'service'">
+                  <div class="text-3xl mb-3">🏢</div>
+                  <p class="font-medium text-gray-700 mb-2">Service grouping not available</p>
+                  <p class="text-xs mb-3">
+                    Tools loaded from the registry don't include service metadata yet.
+                  </p>
+                  <button
+                    @click="toolsViewMode = 'category'"
+                    class="px-4 py-2 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 font-medium"
+                  >
+                    Switch to Category View
+                  </button>
+                </div>
+                <div v-else>
+                  No tools found matching "{{ toolSearchQuery }}"
+                </div>
             </div>
         </div>
       </div>
 
       </div>
+
+      <!-- TAB: CREDENTIALS -->
+      <div v-if="activeTab === 'Credentials'" class="space-y-6">
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <label class="block text-sm font-medium text-gray-700">Service Credentials</label>
+            <button
+              @click="openAddCredentialModal()"
+              class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 font-medium"
+            >
+              + Add Credential
+            </button>
+          </div>
+          <p class="text-xs text-gray-500 mb-4">
+            Manage encrypted credentials for remote service tools. Each service can have multiple credentials (e.g., Production, Staging).
+          </p>
+
+          <!-- Loading State -->
+          <div v-if="loadingCredentials" class="text-center py-8 text-gray-500">
+            <div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent rounded-full mb-2"></div>
+            <p class="text-sm">Loading credentials...</p>
+          </div>
+
+          <!-- Credentials List Grouped by Service -->
+          <div v-else class="space-y-4">
+            <!-- Service Groups -->
+            <div v-for="service in credentialsByService" :key="service.id" class="border border-gray-200 rounded-lg overflow-hidden">
+              <div class="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                <div>
+                  <h3 class="font-medium text-gray-800">{{ service.name }}</h3>
+                  <p class="text-xs text-gray-500">{{ service.credentials.length }} credential(s)</p>
+                </div>
+                <button
+                  @click="openAddCredentialModal(service.id)"
+                  class="text-xs px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 font-medium"
+                >
+                  + Add Credential
+                </button>
+              </div>
+
+              <!-- Credentials for this service -->
+              <div class="divide-y divide-gray-100">
+                <div
+                  v-for="cred in service.credentials"
+                  :key="cred.id"
+                  class="p-4 hover:bg-gray-50 transition"
+                >
+                  <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                      <div class="flex items-center gap-2 mb-1">
+                        <span class="font-medium text-gray-800">{{ cred.credential_name }}</span>
+                        <span v-if="cred.is_default" class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">
+                          Default
+                        </span>
+                        <span
+                          :class="[
+                            'text-xs px-2 py-0.5 rounded font-medium',
+                            cred.is_valid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          ]"
+                        >
+                          {{ cred.is_valid ? '✓ Valid' : '✗ Invalid' }}
+                        </span>
+                      </div>
+                      <div class="flex gap-4 text-xs text-gray-500">
+                        <span>Auth: {{ cred.auth_type }}</span>
+                        <span v-if="cred.last_used_at">Last used: {{ formatDate(cred.last_used_at) }}</span>
+                        <span v-else>Never used</span>
+                      </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                      <button
+                        v-if="!cred.is_default"
+                        @click="setAsDefault(cred.id)"
+                        class="text-xs px-2 py-1 text-gray-600 hover:text-indigo-600 border border-gray-300 rounded hover:border-indigo-300"
+                        title="Set as default"
+                      >
+                        Set Default
+                      </button>
+                      <button
+                        @click="testCredential(cred.id)"
+                        class="text-xs px-2 py-1 text-gray-600 hover:text-green-600 border border-gray-300 rounded hover:border-green-300"
+                        title="Test credential"
+                      >
+                        Test
+                      </button>
+                      <button
+                        @click="deleteCredential(cred.id)"
+                        class="text-xs px-2 py-1 text-gray-600 hover:text-red-600 border border-gray-300 rounded hover:border-red-300"
+                        title="Delete credential"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- No Credentials -->
+            <div v-if="credentials.length === 0" class="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+              <div class="text-4xl mb-2">🔐</div>
+              <p class="text-gray-600 font-medium mb-1">No credentials configured</p>
+              <p class="text-xs text-gray-500 mb-4">Add credentials for remote service tools to enable them</p>
+              <button
+                @click="openAddCredentialModal()"
+                class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium"
+              >
+                Add Your First Credential
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add/Edit Credential Modal -->
+      <div v-if="showCredentialModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showCredentialModal = false">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md">
+          <div class="p-4 border-b border-gray-100 flex justify-between items-center">
+            <h3 class="font-bold text-gray-800">Add Credential</h3>
+            <button @click="showCredentialModal = false" class="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
+          </div>
+
+          <div class="p-6 space-y-4">
+            <!-- Service Selection -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Service</label>
+              <select
+                v-model="credentialForm.service_id"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-gray-900"
+              >
+                <option :value="null" class="text-gray-900">Select a service...</option>
+                <option v-for="svc in availableServices" :key="svc.id" :value="svc.id" class="text-gray-900">
+                  {{ svc.name }}
+                </option>
+              </select>
+            </div>
+
+            <!-- Credential Name -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <input
+                v-model="credentialForm.credential_name"
+                type="text"
+                placeholder="e.g., Production API Key"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              />
+            </div>
+
+            <!-- Auth Type -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Auth Type</label>
+              <select
+                v-model="credentialForm.auth_type"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              >
+                <option value="api_key">API Key</option>
+                <option value="bearer">Bearer Token</option>
+                <option value="basic">Basic Auth</option>
+                <option value="oauth">OAuth</option>
+              </select>
+            </div>
+
+            <!-- Dynamic fields based on auth type -->
+            <div v-if="credentialForm.auth_type === 'api_key'" class="space-y-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                <input
+                  v-model="credentialForm.api_key"
+                  type="password"
+                  placeholder="sk-..."
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Header Name</label>
+                <input
+                  v-model="credentialForm.header_name"
+                  type="text"
+                  placeholder="X-API-Key"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <div v-if="credentialForm.auth_type === 'bearer'">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Bearer Token</label>
+              <input
+                v-model="credentialForm.token"
+                type="password"
+                placeholder="eyJ..."
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono text-sm"
+              />
+            </div>
+
+            <div v-if="credentialForm.auth_type === 'basic'" class="space-y-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                <input
+                  v-model="credentialForm.username"
+                  type="text"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <input
+                  v-model="credentialForm.password"
+                  type="password"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="p-4 border-t border-gray-100 flex justify-end gap-2">
+            <button
+              @click="showCredentialModal = false"
+              class="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              @click="saveCredential"
+              :disabled="savingCredential"
+              class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {{ savingCredential ? 'Saving...' : 'Save Credential' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -309,6 +642,24 @@ const showAnalysisModal = ref(false);
 const selectedAnalysisFile = ref(null);
 const toolSearchQuery = ref('');
 const activeTab = ref('General');
+const toolsViewMode = ref('category'); // 'category' or 'service'
+
+// Credentials state
+const credentials = ref([]);
+const availableServices = ref([]);
+const loadingCredentials = ref(false);
+const showCredentialModal = ref(false);
+const savingCredential = ref(false);
+const credentialForm = ref({
+    service_id: null,
+    credential_name: '',
+    auth_type: 'api_key',
+    api_key: '',
+    header_name: 'X-API-Key',
+    token: '',
+    username: '',
+    password: ''
+});
 
 const scopes = [
     { value: 'system', label: 'Full System' },
@@ -327,6 +678,107 @@ const getScopeDescription = (scope) => {
 
 const selectedToolsCount = computed(() => {
     return internalAgent.value.tool_ids ? internalAgent.value.tool_ids.length : 0;
+});
+
+const credentialsByService = computed(() => {
+    const serviceMap = {};
+    
+    // Group credentials by service
+    credentials.value.forEach(cred=> {
+        if (!serviceMap[cred.service_id]) {
+            serviceMap[cred.service_id] = {
+                id: cred.service_id,
+                name: cred.service_name,
+                credentials: []
+            };
+        }
+        serviceMap[cred.service_id].credentials.push(cred);
+    });
+    
+    return Object.values(serviceMap);
+});
+
+// Group tools by service with credential status
+const groupedFilteredToolsByService = computed(() => {
+    const query = toolSearchQuery.value.toLowerCase().trim();
+    const filtered = query
+        ? availableTools.value.filter(tool =>
+            tool.name.toLowerCase().includes(query) ||
+            (tool.description && tool.description.toLowerCase().includes(query))
+        )
+        : availableTools.value;
+    
+    console.log('Tools available for service grouping:', filtered.length);
+    if (filtered.length > 0) {
+        console.log('Sample tool structure:', JSON.stringify(filtered[0], null, 2));
+    }
+    
+    // Group by service
+    const serviceMap = {};
+    
+    filtered.forEach(tool => {
+        // Check if this is a remote tool (multiple ways to identify)
+        const isRemoteTool = 
+            tool.tool_type === 'remote' || 
+            tool.type === 'remote' ||
+            tool.category === 'remote' ||
+            tool.service ||
+            tool.service_id ||
+            tool.service_name;
+        
+        if (isRemoteTool) {
+            // Handle different tool data structures
+            let serviceId = null;
+            let serviceName = 'Unknown Service';
+            
+            if (tool.service) {
+                // Check if service is an object or just an ID
+                if (typeof tool.service === 'object') {
+                    serviceId = tool.service.id;
+                    serviceName = tool.service.name || tool.service_name || 'Unknown Service';
+                } else {
+                    // service is just an ID
+                    serviceId = tool.service;
+                    serviceName = tool.service_name || `Service ${serviceId}`;
+                }
+            } else if (tool.service_id) {
+                serviceId = tool.service_id;
+                serviceName = tool.service_name || `Service ${serviceId}`;
+            }
+            
+            // Only add if we found a service
+            if (serviceId) {
+                if (!serviceMap[serviceId]) {
+                    // Check if we have credentials for this service
+                    const hasCredentials = credentials.value.some(
+                        cred => cred.service_id === serviceId && cred.is_valid
+                    );
+                    
+                    serviceMap[serviceId] = {
+                        id: serviceId,
+                        name: serviceName,
+                        tools: [],
+                        hasCredentials: hasCredentials
+                    };
+                }
+                serviceMap[serviceId].tools.push(tool);
+            } else {
+                console.warn('Remote tool has no service ID:', tool.name, tool);
+            }
+        }
+    });
+    
+    // Sort services alphabetically
+    const sortedServices = Object.values(serviceMap).sort((a, b) => 
+        a.name.localeCompare(b.name)
+    );
+    
+    console.log('Service grouped tools:', sortedServices.length, 'services found');
+    sortedServices.forEach(svc => {
+        console.log(`  - ${svc.name}: ${svc.tools.length} tools`);
+    });
+    
+    return sortedServices;
 });
 
 // Filter and group tools by category
@@ -480,6 +932,35 @@ const toggleCategory = (categoryName) => {
     }
 };
 
+const areAllServiceToolsSelected = (tools) => {
+    if (!tools || tools.length === 0) return false;
+    if (!internalAgent.value.tool_ids) return false;
+    return tools.every(t => internalAgent.value.tool_ids.includes(t.id));
+};
+
+const toggleServiceTools = (tools) => {
+    if (!internalAgent.value.tool_ids) {
+        internalAgent.value.tool_ids = [];
+    }
+
+    const allSelected = areAllServiceToolsSelected(tools);
+    
+    if (allSelected) {
+        // Deselect all tools in this service
+        tools.forEach(t => {
+            const idx = internalAgent.value.tool_ids.indexOf(t.id);
+            if (idx !== -1) internalAgent.value.tool_ids.splice(idx, 1);
+        });
+    } else {
+        // Select all tools in this service
+        tools.forEach(t => {
+            if (!internalAgent.value.tool_ids.includes(t.id)) {
+                internalAgent.value.tool_ids.push(t.id);
+            }
+        });
+    }
+};
+
 const save = () => {
     // Read the model selection directly from internalAgent which is now v-model bound
     const modelId = internalAgent.value.default_model;
@@ -565,6 +1046,143 @@ const reRunAnalysis = async () => {
         isReAnalyzing.value = false;
     }
 };
+
+//Credential Management Functions
+const fetchCredentials = async () => {
+    if (!internalAgent.value.id) return;
+    
+    try {
+        loadingCredentials.value = true;
+        const res = await api.get(`/agents/${internalAgent.value.id}/credentials/`);
+        credentials.value = res.data.credentials || [];
+    } catch (e) {
+        console.error('Failed to fetch credentials:', e);
+    } finally {
+        loadingCredentials.value = false;
+    }
+};
+
+const fetchServices = async () => {
+    try {
+        const res = await api.get('/services/');
+        availableServices.value = res.data.services || res.data.results || res.data;
+        console.log('Loaded services:', availableServices.value.length);
+    } catch (e) {
+        console.error('Failed to fetch services:', e);
+    }
+};
+
+const openAddCredentialModal = (serviceId = null) => {
+    credentialForm.value = {
+        service_id: serviceId,
+        credential_name: '',
+        auth_type: 'api_key',
+        api_key: '',
+        header_name: 'X-API-Key',
+        token: '',
+        username: '',
+        password: ''
+    };
+    showCredentialModal.value = true;
+};
+
+const saveCredential = async () => {
+    if (!internalAgent.value.id) {
+        alert('Please save the agent first');
+        return;
+    }
+    
+    if (!credentialForm.value.service_id) {
+        alert('Please select a service');
+        return;
+    }
+    
+    try {
+        savingCredential.value = true;
+        
+        // Build credentials object based on auth type
+        const credentials_data = {};
+        if (credentialForm.value.auth_type === 'api_key') {
+            credentials_data.api_key = credentialForm.value.api_key;
+            credentials_data.header_name = credentialForm.value.header_name;
+        } else if (credentialForm.value.auth_type === 'bearer') {
+            credentials_data.token = credentialForm.value.token;
+        } else if (credentialForm.value.auth_type === 'basic') {
+            credentials_data.username = credentialForm.value.username;
+            credentials_data.password = credentialForm.value.password;
+        }
+        
+        await api.post(`/agents/${internalAgent.value.id}/credentials/create/`, {
+            service_id: credentialForm.value.service_id,
+            credential_name: credentialForm.value.credential_name,
+            auth_type: credentialForm.value.auth_type,
+            credentials: credentials_data
+        });
+        
+        showCredentialModal.value = false;
+        await fetchCredentials();
+       
+    } catch (e) {
+        alert('Failed to save credential: ' + (e.response?.data?.error || e.message));
+    } finally {
+        savingCredential.value = false;
+    }
+};
+
+const setAsDefault = async (credentialId) => {
+    if (!internalAgent.value.id) return;
+    
+    try {
+        await api.post(`/agents/${internalAgent.value.id}/credentials/${credentialId}/set-default/`);
+        await fetchCredentials();
+    } catch (e) {
+        alert('Failed to set default: ' + (e.response?.data?.error || e.message));
+    }
+};
+
+const testCredential = async (credentialId) => {
+    if (!internalAgent.value.id) return;
+    
+    try {
+        const res = await api.post(`/agents/${internalAgent.value.id}/credentials/${credentialId}/test/`);
+        if (res.data.success) {
+            alert('✓ Credential test successful!');
+        } else {
+            alert('✗ Test failed: ' + (res.data.error || 'Unknown error'));
+        }
+    } catch (e) {
+        alert('✗ Test failed: ' + (e.response?.data?.error || e.message));
+    }
+};
+
+const deleteCredential = async (credentialId) => {
+    if (!confirm('Are you sure you want to delete this credential?')) return;
+    if (!internalAgent.value.id) return;
+    
+    try {
+        await api.delete(`/agents/${internalAgent.value.id}/credentials/${credentialId}/delete/`);
+        await fetchCredentials();
+    } catch (e) {
+        alert('Failed to delete credential: ' + (e.response?.data?.error || e.message));
+    }
+};
+
+const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleString();
+};
+
+// Watch activeTab to fetch credentials when tab is opened
+watch(() => activeTab.value, (newTab) => {
+    if (newTab === 'Credentials' && internalAgent.value.id) {
+        fetchCredentials();
+        fetchServices();
+    } else if (newTab === 'Tools' && internalAgent.value.id) {
+        // Fetch credentials for service view badges
+        fetchCredentials();
+    }
+});
 
 // Sync prop changes to internal
 watch(() => props.agent, (newVal) => {

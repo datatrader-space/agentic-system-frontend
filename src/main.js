@@ -29,6 +29,8 @@ import BlogPost from './views/BlogPost.vue'
 import Pricing from './views/Pricing.vue'
 import About from './views/About.vue'
 import Contact from './views/Contact.vue'
+import ServiceRegistrationV2 from './views/ServiceRegistrationV2.vue'
+import ServiceDrafts from './views/ServiceDrafts.vue'
 
 // Create router
 const router = createRouter({
@@ -146,6 +148,24 @@ const router = createRouter({
       path: '/agents/:id',
       name: 'agent-playground',
       component: AgentPlayground,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/services/register',
+      name: 'service-registration-v2',
+      component: ServiceRegistrationV2,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/services/wizard',
+      name: 'service-wizard',
+      component: ServiceRegistrationV2,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/services/drafts',
+      name: 'service-drafts',
+      component: ServiceDrafts,
       meta: { requiresAuth: true }
     }
   ]

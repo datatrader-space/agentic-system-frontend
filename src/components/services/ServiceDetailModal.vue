@@ -256,12 +256,21 @@
         </div>
       </div>
     </div>
+
+    <!-- Service Edit Modal -->
+    <ServiceEditModal
+      v-if="showEditModal"
+      :service="serviceDetail"
+      @close="showEditModal = false"
+      @updated="handleEditCompleted"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import api from '../../services/api'
+import ServiceEditModal from './ServiceEditModal.vue'
 
 const props = defineProps({
   service: {
@@ -280,6 +289,7 @@ const searchQuery = ref('')
 const filterGroup = ref('')
 const expandedGroups = ref([])
 const expandedActions = ref([])
+const showEditModal = ref(false)
 
 // Load service details
 const loadServiceDetails = async () => {
@@ -419,8 +429,14 @@ const handleDeleteService = async () => {
 }
 
 const handleEditService = () => {
-  // Could open an edit modal or switch to edit mode
-  alert('Edit functionality coming soon')
+  showEditModal.value = true
+}
+
+const handleEditCompleted = async () => {
+  // Reload service details after edit
+  await loadServiceDetails()
+  emit('updated')
+  showEditModal.value = false
 }
 
 // Utility functions

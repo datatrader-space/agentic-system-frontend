@@ -7,13 +7,29 @@
           <h1 class="text-3xl font-bold text-gray-900">🌐 Services</h1>
           <p class="text-gray-600 mt-1">Register external services and auto-discover their tools</p>
         </div>
-        <button
-          @click="showRegistrationModal = true"
-          class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium flex items-center gap-2"
-        >
-          <span class="text-xl">+</span>
-          Register Service
-        </button>
+        <div class="flex gap-2">
+          <router-link 
+            to="/services/drafts"
+            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-medium flex items-center gap-2"
+          >
+            <span class="text-xl">📝</span>
+            View Drafts
+          </router-link>
+          <router-link 
+            to="/services/register"
+            class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium flex items-center gap-2"
+          >
+            <span class="text-xl">✨</span>
+            New Wizard (Test)
+          </router-link>
+          <button
+            @click="showRegistrationModal = true"
+            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium flex items-center gap-2"
+          >
+            <span class="text-xl">+</span>
+            Register Service
+          </button>
+        </div>
       </div>
 
       <!-- Stats Cards -->

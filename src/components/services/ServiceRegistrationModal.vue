@@ -928,15 +928,23 @@ export default {
           selectedCategories.value.forEach(categoryName => {
             const category = discoveredData.value.categories[categoryName]
             if (category && category.actions) {
-              actionsToCreate.push(...category.actions.map(action => ({
-                name: action.name,
-                action_group: categoryName,
-                description: action.description,
-                endpoint_path: action.endpoint_path,
-                http_method: action.http_method,
-                parameters: action.parameters,
-                execution_pattern: action.execution_pattern || 'simple'
-              })))
+              category.actions.forEach(action => {
+                actionsToCreate.push({
+                  name: action.name,
+                  description: action.description,
+                  action_group: categoryName,
+                  endpoint_path: action.endpoint_path,
+                  http_method: action.http_method,
+                  parameters: action.parameters,
+                  request_body_schema: action.request_body_schema,
+                  response_schema: action.response_schema,
+                  // 🆕 Include enriched data if available
+                  invocation_schema: action.invocation_schema,
+                  llm_notes: action.llm_notes,
+                  risk_level: action.risk_level,
+                  execution_pattern: action.execution_pattern || 'simple'
+                })
+              })
             }
           })
 

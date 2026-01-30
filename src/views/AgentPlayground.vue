@@ -367,6 +367,14 @@
                                         <div class="flex-1 pt-1">
                                             <div class="text-sm font-semibold text-purple-900 mb-1">Tool Result: {{
                                                 event.data.tool_name }}</div>
+                                            
+                                            <!-- Media Renderer for artifacts -->
+                                            <MediaRenderer 
+                                                v-if="hasMediaArtifacts(event.data)" 
+                                                :artifacts="getMediaArtifacts(event.data)"
+                                                class="mb-3"
+                                            />
+                                            
                                             <div
                                                 class="font-mono text-xs text-purple-800 bg-white border border-purple-200 p-2 rounded max-h-40 overflow-y-auto">
                                                 {{ formatToolResult(event.data.result) }}</div>

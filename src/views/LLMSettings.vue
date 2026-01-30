@@ -11,7 +11,7 @@
       <div class="px-6 py-4 border-b flex items-center justify-between">
         <div>
           <h2 class="text-lg font-semibold text-gray-900">Providers</h2>
-          <p class="text-sm text-gray-500">Configure Ollama, Anthropic, OpenAI, Gemini, or custom endpoints.</p>
+          <p class="text-sm text-gray-500">Configure Ollama, Anthropic, OpenAI, OpenRouter, Gemini, or custom endpoints.</p>
         </div>
       </div>
       <div class="p-6 space-y-4">
@@ -49,6 +49,13 @@
                   Sync Ollama Models
                 </button>
                 <button
+                  v-if="provider.provider_type === 'openrouter'"
+                  @click="syncOpenRouter(provider)"
+                  class="text-xs px-3 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                >
+                  Sync OpenRouter Models
+                </button>
+                <button
                   @click="removeProvider(provider)"
                   class="text-xs px-3 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200"
                 >
@@ -73,6 +80,7 @@
               <option value="ollama">Ollama</option>
               <option value="anthropic">Anthropic</option>
               <option value="openai">OpenAI</option>
+              <option value="openrouter">OpenRouter</option>
               <option value="gemini">Gemini</option>
               <option value="custom">Custom</option>
             </select>
@@ -319,6 +327,12 @@ const removeModel = async (model) => {
 const syncOllama = async (provider) => {
   await api.syncOllamaModels(provider.id)
   notify('Ollama models synced', 'success')
+  await loadModels()
+}
+
+const syncOpenRouter = async (provider) => {
+  await api.syncOpenRouterModels(provider.id)
+  notify('OpenRouter models synced', 'success')
   await loadModels()
 }
 
