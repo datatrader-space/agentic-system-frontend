@@ -66,7 +66,17 @@
                 </option>
              </select>
 
-             <label class="block text-sm font-medium text-gray-700 mb-1">Default Model</label>
+             <label class="block text-sm font-medium text-gray-700 mb-1 mt-4">Default Model</label>
+             
+             <!-- Model Search -->
+             <input 
+                v-model="modelSearchQuery"
+                type="text"
+                placeholder="Search models by name..."
+                class="w-full px-3 py-2 mb-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+             />
+             
+             <!-- Model Dropdown -->
              <select 
                 ref="modelSelect"
                 :value="internalAgent.default_model || ''"
@@ -78,6 +88,35 @@
                     {{ m.name }}
                 </option>
              </select>
+             
+             <!-- Selected Model Info -->
+             <div v-if="selectedModelInfo" class="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div class="flex items-start justify-between mb-2">
+                    <div class="flex-1">
+                        <div class="text-xs font-medium text-gray-700 mb-1">{{ selectedModelInfo.name }}</div>
+                        <div class="text-xs text-gray-500">
+                            Context: {{ selectedModelInfo.context_window?.toLocaleString() || 'N/A' }} tokens
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Capabilities -->
+                <div v-if="selectedModelInfo.capabilities.length > 0" class="flex flex-wrap gap-1.5 mt-2">
+                    <span 
+                        v-for="cap in selectedModelInfo.capabilities" 
+                        :key="cap"
+                        :class="['text-xs px-2 py-0.5 rounded-full font-medium flex items-center gap-1', getCapabilityStyle(cap)]"
+                    >
+                        <span>{{ getCapabilityIcon(cap) }}</span>
+                        <span>{{ formatCapability(cap) }}</span>
+                    </span>
+                </div>
+                
+                <!-- Description (if available) -->
+                <div v-if="selectedModelInfo.description" class="text-xs text-gray-600 mt-2 line-clamp-2">
+                    {{ selectedModelInfo.description }}
+                </div>
+             </div>
         </div>
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -248,7 +287,7 @@
             <div v-else-if="toolsViewMode === 'service' && groupedFilteredToolsByService.length > 0">
               <div v-for="service in groupedFilteredToolsByService" :key="service.id" class="border-b border-gray-100 last:border-b-0">
                 <!-- Service Header -->
-                <div class="bg-gray-50 px-3 py-2 sticky top-0 z-10 border-b border-gray-200">
+                <div class="bg-gray-50 px-3 py-2 border-b border-gray-200">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                       <span class="text-xs font-semibold text-gray-700">{{ service.name }}</span>
@@ -306,7 +345,7 @@
             <div v-else-if="toolsViewMode === 'category' && Object.keys(groupedFilteredTools).length > 0">
                 <div v-for="(tools, category) in groupedFilteredTools" :key="category" class="border-b border-gray-100 last:border-b-0">
                     <!-- Category Header -->
-                    <div class="bg-gray-50 px-3 py-2 sticky top-0 z-10 border-b border-gray-200">
+                    <div class="bg-gray-50 px-3 py-2 border-b border-gray-200">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-2">
                                 <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">{{ category }}</span>
@@ -641,6 +680,7 @@ const modelSelect = ref(null);
 const showAnalysisModal = ref(false);
 const selectedAnalysisFile = ref(null);
 const toolSearchQuery = ref('');
+const modelSearchQuery = ref(''); // NEW: for model search
 const activeTab = ref('General');
 const toolsViewMode = ref('category'); // 'category' or 'service'
 
@@ -812,9 +852,72 @@ const groupedFilteredTools = computed(() => {
 });
 
 const filteredModels = computed(() => {
-    if (!selectedProviderId.value) return llmModels.value;
-    return llmModels.value.filter(m => m.provider === selectedProviderId.value);
+    let models = selectedProviderId.value 
+        ? llmModels.value.filter(m => m.provider === selectedProviderId.value)
+        : llmModels.value;
+    
+    // Apply search filter
+    const query = modelSearchQuery.value.toLowerCase().trim();
+    if (query) {
+        models = models.filter(m => 
+            m.name.toLowerCase().includes(query) ||
+            m.model_id.toLowerCase().includes(query) ||
+            (m.metadata?.description && m.metadata.description.toLowerCase().includes(query))
+        );
+    }
+    
+    return models;
 });
+
+// Get info about the currently selected model
+const selectedModelInfo = computed(() => {
+    if (!internalAgent.value.default_model) return null;
+    const model = llmModels.value.find(m => m.id === internalAgent.value.default_model);
+    if (!model) return null;
+    
+    return {
+        name: model.name,
+        context_window: model.context_window,
+        capabilities: model.metadata?.capabilities || [],
+        description: model.metadata?.description || '',
+        modality: model.metadata?.modality || 'text'
+    };
+});
+
+// Capability badge styling
+const getCapabilityStyle = (capability) => {
+    const styles = {
+        'image_input': 'bg-purple-100 text-purple-700',
+        'image_output': 'bg-pink-100 text-pink-700',
+        'video_input': 'bg-blue-100 text-blue-700',
+        'reasoning': 'bg-indigo-100 text-indigo-700',
+        'coding': 'bg-green-100 text-green-700',
+        'long_context': 'bg-orange-100 text-orange-700',
+        'fast': 'bg-yellow-100 text-yellow-700',
+        'free': 'bg-emerald-100 text-emerald-700'
+    };
+    return styles[capability] || 'bg-gray-100 text-gray-700';
+};
+
+// Capability emoji icons
+const getCapabilityIcon = (capability) => {
+    const icons = {
+        'image_input': '🖼️',
+        'image_output': '🎨',
+        'video_input': '🎥',
+        'reasoning': '🧠',
+        'coding': '💻',
+        'long_context': '📝',
+        'fast': '⚡',
+        'free': '💰'
+    };
+    return icons[capability] || '•';
+};
+
+// Format capability label
+const formatCapability = (capability) => {
+    return capability.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
 
 const fetchTools = async () => {
     try {

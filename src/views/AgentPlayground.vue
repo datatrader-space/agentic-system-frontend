@@ -178,10 +178,18 @@
                                                 <span>Generating...</span>
                                             </div>
 
+
                                             <!-- Content -->
                                             <div class="prose prose-sm prose-slate max-w-none prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-code:text-blue-600 prose-code:bg-blue-50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-a:text-blue-600 text-gray-800 leading-relaxed"
                                                 v-html="formatMarkdown(event.content)">
                                             </div>
+
+                                            <!-- Media Renderer for message artifacts (native generation) -->
+                                            <MediaRenderer 
+                                                v-if="hasMediaArtifacts(event.data)" 
+                                                :artifacts="getMediaArtifacts(event.data)"
+                                                class="mt-3"
+                                            />
 
                                             <!-- Action Buttons -->
                                             <div
@@ -630,6 +638,7 @@ import SessionTrace from '../components/SessionTrace.vue';
 import PromptBuilder from '../components/PromptBuilder.vue';
 import FileViewer from '../components/FileViewer.vue';
 import ToolsPanel from '../components/tools/ToolsPanel.vue';
+import MediaRenderer from '../components/MediaRenderer.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -1351,6 +1360,29 @@ const formatToolResult = (result) => {
     return result;
 };
 
+// Media Artifact Helper Functions
+const hasMediaArtifacts = (eventData) => {
+    return eventData?.media_artifacts && 
+           Array.isArray(eventData.media_artifacts) && 
+           eventData.media_artifacts.length > 0;
+};
+
+const getMediaArtifacts = (eventData) => {
+    // Transform backend format to MediaRenderer format
+    // Backend: { file_url, media_type, ... }
+    // MediaRenderer expects: { url, type, ... }
+    const artifacts = eventData?.media_artifacts || [];
+    return artifacts.map(artifact => ({
+        id: artifact.id,
+        url: artifact.file_url,
+        type: artifact.media_type,
+        title: artifact.title || artifact.description,
+        description: artifact.description,
+        filename: artifact.filename
+    }));
+};
+
+
 // WebSo
 const ws = ref(null);
 const reconnectAttempts = ref(0);
@@ -1490,6 +1522,52 @@ const connectWebSocket = (repoId) => {
                 data
             });
             isProcessing.value = false;
+        } else if (data.type === 'assistant') {
+            // Native assistant response (e.g., from native media generation)
+            if (ignoringMessages.value) {
+                console.log('[WS Message] IGNORING assistant due to stop');
+                return;
+            }
+            console.log('[ASSISTANT] Received assistant event:', data);
+            console.log('[ASSISTANT] media_artifacts:', data.media_artifacts);
+            
+            chatEvents.value.push({
+                id: Date.now(),
+                type: 'assistant',
+                content: data.content || data.message,
+                data: {
+                    ...data,
+                    media_artifacts: data.media_artifacts || []
+                }
+            });
+            isProcessing.value = false;
+            isTyping.value = false;
+            isAgentSessionActive.value = false;
+            scrollToBottom();
+        } else if (data.type === 'assistant_message') {
+            // Assistant message from consumer (native media generation or streaming complete)
+            if (ignoringMessages.value) {
+                console.log('[WS Message] IGNORING assistant_message due to stop');
+                return;
+            }
+            console.log('[ASSISTANT_MESSAGE] Received:', data);
+            
+            chatEvents.value.push({
+                id: Date.now(),
+                type: 'assistant',
+                content: data.content || data.message,
+                data: {
+                    ...data,
+                    media_artifacts: data.media_artifacts || []
+                }
+            });
+            isProcessing.value = false;
+            isTyping.value = false;
+            isAgentSessionActive.value = false;
+            scrollToBottom();
+        } else if (data.type === 'media_generated') {
+            // Media generated event (can be ignored as media is in assistant_message)
+            console.log('[MEDIA_GENERATED] Received:', data.media_artifacts);
         } else if (data.type === 'error') {
             // Extract the actual error message from various possible locations
             const errorMessage = data.error || data.message || 'An unknown error occurred';
@@ -1525,6 +1603,10 @@ const connectWebSocket = (repoId) => {
             scrollToBottom();
         } else if (data.type === 'tool_result') {
             // Tool result event
+            console.log('[MEDIA DEBUG] Received tool_result event:', data);
+            console.log('[MEDIA DEBUG] media_artifacts in data:', data.media_artifacts);
+            console.log('[MEDIA DEBUG] media_artifacts length:', data.media_artifacts?.length || 0);
+            
             chatEvents.value.push({
                 id: Date.now(),
                 type: 'tool_result',
@@ -1532,9 +1614,16 @@ const connectWebSocket = (repoId) => {
                 data: {
                     tool_name: data.tool_name,
                     result: data.result,
-                    success: data.success
+                    success: data.success,
+                    media_artifacts: data.media_artifacts || []
                 }
             });
+            
+            console.log('[MEDIA DEBUG] Added to chatEvents. Total events:', chatEvents.value.length);
+            const lastEvent = chatEvents.value[chatEvents.value.length - 1];
+            console.log('[MEDIA DEBUG] Last event data:', lastEvent.data);
+            console.log('[MEDIA DEBUG] hasMediaArtifacts check:', hasMediaArtifacts(lastEvent.data));
+            
             scrollToBottom();
         } else if (data.type === 'agent_session_created' || data.type === 'agent_event') {
             // Agent session started - enable stop button

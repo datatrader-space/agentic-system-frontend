@@ -42,7 +42,7 @@
                             muted
                             @click="openLightbox(artifact)"
                         />
-                        <div class="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity rounded"></div>
+                        <div class="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity rounded pointer-events-none"></div>
                     </div>
                 </div>
             </div>
@@ -76,7 +76,35 @@
                         <h3 v-if="selectedMedia.title" class="text-white font-semibold text-lg">{{ selectedMedia.title }}</h3>
                         <p v-if="selectedMedia.description" class="text-white/80 text-sm mt-1">{{ selectedMedia.description }}</p>
                     </div>
+                    
+                    <!-- Image Counter -->
+                    <div v-if="artifacts.length > 1" class="absolute top-4 left-4 bg-black/50 text-white px-3 py-1.5 rounded-full text-sm font-medium">
+                        {{ currentMediaIndex + 1 }} / {{ artifacts.length }}
+                    </div>
                 </div>
+                
+                <!-- Navigation Arrows (only show if more than 1 artifact) -->
+                <button 
+                    v-if="artifacts.length > 1"
+                    @click="previousMedia" 
+                    class="absolute left-4 top-1/2 -translate-y-1/2 text-white bg-black/50 hover:bg-black/70 rounded-full p-3 transition-all"
+                    aria-label="Previous"
+                >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                    </svg>
+                </button>
+                
+                <button 
+                    v-if="artifacts.length > 1"
+                    @click="nextMedia" 
+                    class="absolute right-4 top-1/2 -translate-y-1/2 text-white bg-black/50 hover:bg-black/70 rounded-full p-3 transition-all"
+                    aria-label="Next"
+                >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
                 
                 <!-- Close Button -->
                 <button 
@@ -109,6 +137,13 @@ const props = defineProps({
 const lightboxOpen = ref(false);
 const selectedMedia = ref(null);
 
+// Computed property for current media index
+import { computed } from 'vue';
+const currentMediaIndex = computed(() => {
+    if (!selectedMedia.value) return 0;
+    return props.artifacts.findIndex(a => a.id === selectedMedia.value.id);
+});
+
 const openLightbox = (artifact) => {
     selectedMedia.value = artifact;
     lightboxOpen.value = true;
@@ -123,13 +158,47 @@ const closeLightbox = () => {
     document.body.style.overflow = '';
 };
 
+const nextMedia = () => {
+    const currentIndex = props.artifacts.findIndex(a => a.id === selectedMedia.value.id);
+    const nextIndex = (currentIndex + 1) % props.artifacts.length;
+    selectedMedia.value = props.artifacts[nextIndex];
+};
+
+const previousMedia = () => {
+    const currentIndex = props.artifacts.findIndex(a => a.id === selectedMedia.value.id);
+    const prevIndex = (currentIndex - 1 + props.artifacts.length) % props.artifacts.length;
+    selectedMedia.value = props.artifacts[prevIndex];
+};
+
+
+
+// Keyboard navigation
+import { onMounted, onUnmounted } from 'vue';
+
+const handleKeydown = (e) => {
+    if (!lightboxOpen.value) return;
+    
+    if (e.key === 'ArrowRight') {
+        nextMedia();
+    } else if (e.key === 'ArrowLeft') {
+        previousMedia();
+    } else if (e.key === 'Escape') {
+        closeLightbox();
+    }
+};
+
+onMounted(() => {
+    window.addEventListener('keydown', handleKeydown);
+});
+
 // Cleanup on unmount
-import { onUnmounted } from 'vue';
 onUnmounted(() => {
+    window.removeEventListener('keydown', handleKeydown);
     if (lightboxOpen.value) {
         document.body.style.overflow = '';
     }
 });
+
 </script>
 
 <style scoped>

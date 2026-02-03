@@ -69,7 +69,7 @@
           </div>
 
           <!-- Footer / Actions -->
-          <div class="p-4 bg-gray-50 border-t border-gray-100 flex gap-3">
+          <div class="p-4 bg-gray-50 border-t border-gray-100 flex gap-2">
             <button
               @click="editAgent(agent.id)"
               class="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
@@ -81,6 +81,15 @@
                class="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
             >
                Deploy
+            </button>
+            <button
+              @click="confirmDelete(agent)"
+              class="px-3 py-2 bg-white border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition text-sm font-medium"
+              title="Delete agent"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
             </button>
           </div>
         </div>
@@ -121,6 +130,40 @@ const editAgent = (id) => {
 const launchSession = (agent) => {
     // TODO: Open a modal to select System/Repo before launching
     alert("Launch feature coming soon! Use 'Edit / Test' to run in Playground.");
+};
+
+const confirmDelete = async (agent) => {
+    const confirmed = confirm(
+        `⚠️ Delete "${agent.name}"?\n\n` +
+        `This will permanently delete:\n` +
+        `- The agent configuration\n` +
+        `- All conversations (${agent.conversation_count || 'unknown'} total)\n` +
+        `- All knowledge files\n` +
+        `- All related data\n\n` +
+        `This action cannot be undone.`
+    );
+    
+    if (confirmed) {
+        await deleteAgent(agent.id);
+    }
+};
+
+const deleteAgent = async (agentId) => {
+    try {
+        await api.delete(`/agents/${agentId}/`);
+        
+        // Remove from local state
+        agents.value = agents.value.filter(a => a.id !== agentId);
+        
+        // Show success message (you can use a toast notification library here)
+        alert('✅ Agent deleted successfully');
+    } catch (error) {
+        console.error('Failed to delete agent:', error);
+        alert(
+            '❌ Failed to delete agent\n\n' +
+            (error.response?.data?.error || error.message || 'Unknown error')
+        );
+    }
 };
 
 onMounted(() => {

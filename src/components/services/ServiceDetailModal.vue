@@ -66,10 +66,28 @@
               <p>{{ formatDate(serviceDetail.created_at) }}</p>
             </div>
             <div class="info-item">
-              <label>Status</label>
+              <label>Lifecycle Status</label>
+              <div class="flex items-center gap-2">
+                <!-- Status Badge -->
+                <span :class="getStatusBadgeClass(serviceDetail.status)">
+                  {{ formatStatus(serviceDetail.status) }}
+                </span>
+                
+                <!-- Activation Button for Draft and Complete Services -->
+                <button 
+                  v-if="serviceDetail.status === 'draft' || serviceDetail.status === 'complete'" 
+                  @click="activateService"
+                  class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition"
+                >
+                  🚀 Activate Service
+                </button>
+              </div>
+            </div>
+            <div class="info-item">
+              <label>Runtime Status</label>
               <div class="flex items-center gap-2">
                 <span :class="serviceDetail.enabled ? 'status-badge-active' : 'status-badge-inactive'">
-                  {{ serviceDetail.enabled ? '✓ Active' : '○ Inactive' }}
+                  {{ serviceDetail.enabled ? '✓ Enabled' : '○ Disabled' }}
                 </span>
                 <button @click="toggleServiceEnabled" class="btn-sm">
                   {{ serviceDetail.enabled ? 'Disable' : 'Enable' }}
@@ -427,6 +445,42 @@ const handleDeleteService = async () => {
     alert('Failed to delete service')
   }
 }
+
+const activateService = async () => {
+  const actionCount = serviceDetail.value.total_actions || 0
+  if (!confirm(`Activate "${serviceDetail.value.name}"? This will make ${actionCount} tools available to agents.`)) {
+    return
+  }
+
+  try {
+    await api.activateService(props.service.id)
+    await loadServiceDetails()
+    emit('updated')
+    alert('✅ Service activated! Tools are now available.')
+  } catch (err) {
+    console.error('Failed to activate service:', err)
+    alert('Failed to activate service: ' + (err.response?.data?.error || err.message))
+  }
+}
+
+const getStatusBadgeClass = (status) => {
+  const classes = {
+    'draft': 'px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs font-semibold',
+    'complete': 'px-2 py-1 bg-yellow-200 text-yellow-800 rounded text-xs font-semibold',
+    'active': 'px-2 py-1 bg-green-200 text-green-800 rounded text-xs font-semibold'
+  }
+  return classes[status] || classes['draft']
+}
+
+const formatStatus = (status) => {
+  const labels = {
+    'draft': '📝 Draft',
+    'complete': '✓ Complete',
+    'active': '🚀 Active'
+  }
+  return labels[status] || status
+}
+
 
 const handleEditService = () => {
   showEditModal.value = true
