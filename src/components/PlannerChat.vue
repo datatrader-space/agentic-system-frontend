@@ -237,7 +237,7 @@ const loadModels = async () => {
 // WebSocket connection
 const connectWebSocket = () => {
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsHost = import.meta.env.VITE_WS_HOST || 'localhost:8000'
+  const wsHost = import.meta.env.VITE_WS_HOST || window.location.host
   const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/planner/${props.systemId}/`
 
   ws = new WebSocket(wsUrl)

@@ -158,14 +158,35 @@ watch(() => route.path, async (newPath) => {
 // Logout
 const handleLogout = async () => {
   try {
+    // Call backend logout to clear session cookie
     await api.logout()
+    
+    // Clear all frontend state
     currentUser.value = null
-    localStorage.removeItem('user')
-    router.push('/login')
+    
+    // Clear ALL localStorage (not just 'user')
+    localStorage.clear()
+    
+    // Clear sessionStorage too (if any)
+    sessionStorage.clear()
+    
+    // Show success message
     addNotification('Logged out successfully', 'success')
+    
+    // Force a full page reload to clear any in-memory authentication state
+    // This ensures axios interceptors and all component states are reset
+    window.location.href = '/login'
+    
   } catch (error) {
     console.error('Logout failed:', error)
-    addNotification('Logout failed', 'error')
+    
+    // Even if backend logout fails, clear frontend state
+    currentUser.value = null
+    localStorage.clear()
+    sessionStorage.clear()
+    
+    // Still redirect and reload
+    window.location.href = '/login'
   }
 }
 

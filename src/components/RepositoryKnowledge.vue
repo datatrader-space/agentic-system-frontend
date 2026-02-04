@@ -196,7 +196,7 @@ export default {
       isExtracting: false,
       extractionEvents: [],
       ws: null,
-      apiBaseUrl: 'http://localhost:8000'
+      apiBaseUrl: import.meta.env.VITE_API_TARGET || window.location.origin
     };
   },
   computed: {
@@ -286,7 +286,9 @@ export default {
     },
 
     connectWebSocket() {
-      const wsUrl = `ws://localhost:8000/ws/knowledge/${this.repositoryId}/`;
+      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const host = import.meta.env.VITE_WS_HOST || window.location.host;
+      const wsUrl = `${protocol}://${host}/ws/knowledge/${this.repositoryId}/`;
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {

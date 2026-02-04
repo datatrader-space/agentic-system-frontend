@@ -330,7 +330,7 @@ const connectWebSocket = (repositoryId = props.repository.id) => {
   isConnecting = true
   autoReconnect = true
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const wsHost = import.meta.env.VITE_WS_HOST || 'localhost:8000'
+  const wsHost = import.meta.env.VITE_WS_HOST || window.location.host
   const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/repository/${repositoryId}/`
 
   ws = new WebSocket(wsUrl)

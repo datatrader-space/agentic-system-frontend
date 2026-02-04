@@ -173,31 +173,45 @@ const router = createRouter({
 
 // Route guards
 router.beforeEach(async (to, from, next) => {
-  const localUser = localStorage.getItem('user')
-  let isAuthenticated = !!localUser
-
-  // For routes requiring auth, verify with server if not already verified in this session
-  // Or if we need to be absolutely sure. For now, trust localStorage for redirection
-  // and let individual components handle unauthorized errors.
-
-  if (to.meta.requiresAuth && !isAuthenticated) {
-    // Double check with server if we think we're not authenticated
-    try {
-      const response = await api.checkAuth()
-      if (response.data.authenticated) {
-        isAuthenticated = true
+  // For routes that don't require auth, allow access immediately
+  if (!to.meta.requiresAuth) {
+    // If guest-only page (login) and user might be logged in, verify first
+    if (to.meta.requiresGuest) {
+      try {
+        const response = await api.checkAuth()
+        if (response.data.authenticated) {
+          return next('/dashboard') // Redirect to dashboard if already logged in
+        }
+      } catch (error) {
+        // Not authenticated, allow access to login page
       }
-    } catch (error) {
-      isAuthenticated = false
     }
+    return next()
   }
 
-  if (to.meta.requiresAuth && !isAuthenticated) {
+  // For routes requiring authentication, ALWAYS check with server
+  // Don't trust localStorage alone - verify session is valid
+  try {
+    const response = await api.checkAuth()
+    if (response.data.authenticated) {
+      // User is authenticated, allow access
+      next()
+    } else {
+      // Server says not authenticated, clear any stale local storage
+      localStorage.clear()
+      sessionStorage.clear()
+      next('/login')
+    }
+  } catch (error) {
+    // Auth check failed (network error, session expired, etc.)
+    console.error('Authentication check failed:', error)
+
+    // Clear stale authentication data
+    localStorage.clear()
+    sessionStorage.clear()
+
+    // Redirect to login
     next('/login')
-  } else if (to.meta.requiresGuest && isAuthenticated) {
-    next('/')
-  } else {
-    next()
   }
 })
 
