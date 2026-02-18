@@ -122,6 +122,12 @@ export default {
     return api.post('/services/enrich-schemas/', data, config)
   },
 
+  // Service Sharing
+  shareService: (serviceId, data) => api.post(`/services/${serviceId}/share/`, data),
+  listShares: (serviceId) => api.get(`/services/${serviceId}/shares/`),
+  revokeShare: (serviceId, shareId) => api.post(`/services/${serviceId}/shares/${shareId}/revoke/`),
+  getSharedWithMe: () => api.get('/services/shared-with-me/'),
+
   // Service Draft Management
   saveDraft: (data) => {
     return api.post('/services/save-draft/', data)
@@ -156,6 +162,12 @@ export default {
   executeMCPTool: (serverId, toolName, args) => api.post(`/mcp/servers/${serverId}/execute/`, { tool_name: toolName, arguments: args }),
   getMCPSessions: () => api.get('/mcp/sessions/'),
 
+  // MCP Credentials
+  getMCPCredentials: (serverId, agentProfileId) => api.get(`/mcp/servers/${serverId}/credentials/`, { params: { agent_profile_id: agentProfileId } }),
+  setMCPCredentials: (serverId, data) => api.post(`/mcp/servers/${serverId}/credentials/set/`, data),
+  deleteMCPCredential: (serverId, credentialId) => api.post(`/mcp/servers/${serverId}/credentials/${credentialId}/delete/`),
+
+
 
   // Repository Files
   getRepositoryFiles: (systemId, repoId) =>
@@ -179,7 +191,10 @@ export default {
 
   // LLM
   checkLLMHealth: () => api.get('/llm/health/'),
-  getLlmStats: () => api.get('/llm/stats/'),
+  getLlmStats: (params) => api.get('/llm/stats/', { params }),
+  getLlmUsage: (params) => api.get('/llm/usage/', { params }),
+  getLlmRequests: (params) => api.get('/llm/requests/', { params }),
+  getLlmAudit: (params) => api.get('/llm/audit/', { params }),
   getLlmProviders: () => api.get('/llm/providers/'),
   createLlmProvider: (data) => api.post('/llm/providers/', data),
   updateLlmProvider: (id, data) => api.put(`/llm/providers/${id}/`, data),
@@ -190,6 +205,9 @@ export default {
   createLlmModel: (data) => api.post('/llm/models/', data),
   updateLlmModel: (id, data) => api.put(`/llm/models/${id}/`, data),
   deleteLlmModel: (id) => api.delete(`/llm/models/${id}/`),
+
+  // Agents
+  getAgents: () => api.get('/agents/'),
 
   // Authentication
   register: (data) => api.post('/auth/register', data),
@@ -310,7 +328,7 @@ export default {
   analyzeContextFile: (fileId) => api.post(`/context_files/${fileId}/analyze/`),
 
   // Session Reconnection
-  getSessionEvents: (sessionId) => api.get(`/agent/sessions/${sessionId}/events/`),
+  getSessionEvents: (sessionId) => api.get(`/sessions/${sessionId}/events/`),
 
   // Services
   discoverActions: (data) => {
@@ -336,4 +354,9 @@ export default {
   registerService: (data) => {
     return api.post('/services/register/', data)
   },
+
+  // ── Agent Workspace ──
+  getAgentWorkspace: (agentId) => api.get(`/agents/${agentId}/workspace/`),
+  readWorkspaceFile: (agentId, path) => api.post(`/agents/${agentId}/workspace/read/`, { path }),
+  deleteWorkspaceFile: (agentId, path) => api.post(`/agents/${agentId}/workspace/delete/`, { path }),
 }

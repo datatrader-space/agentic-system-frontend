@@ -269,6 +269,7 @@
       <div class="modal-footer">
         <button @click="handleDeleteService" class="btn-danger">Delete Service</button>
         <div class="flex gap-2">
+          <button @click="showShareModal = true" class="btn-share">🔗 Share</button>
           <button @click="$emit('close')" class="btn-secondary">Close</button>
           <button @click="handleEditService" class="btn-primary">Edit Configuration</button>
         </div>
@@ -282,6 +283,14 @@
       @close="showEditModal = false"
       @updated="handleEditCompleted"
     />
+
+    <!-- Service Share Modal -->
+    <ServiceShareModal
+      v-if="showShareModal"
+      :service="serviceDetail"
+      @close="showShareModal = false"
+      @updated="loadServiceDetails"
+    />
   </div>
 </template>
 
@@ -289,6 +298,7 @@
 import { ref, computed, onMounted } from 'vue'
 import api from '../../services/api'
 import ServiceEditModal from './ServiceEditModal.vue'
+import ServiceShareModal from './ServiceShareModal.vue'
 
 const props = defineProps({
   service: {
@@ -308,6 +318,7 @@ const filterGroup = ref('')
 const expandedGroups = ref([])
 const expandedActions = ref([])
 const showEditModal = ref(false)
+const showShareModal = ref(false)
 
 // Load service details
 const loadServiceDetails = async () => {
@@ -1039,6 +1050,20 @@ const getActionSuccessRate = (action) => {
 
 .btn-danger:hover {
   background: #dc2626;
+}
+
+.btn-share {
+  background: #e0e7ff;
+  color: #4338ca;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-share:hover {
+  background: #c7d2fe;
 }
 
 .btn-sm {

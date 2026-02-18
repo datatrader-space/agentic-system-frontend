@@ -145,6 +145,43 @@
 
       <!-- Step 2: Discovery & Category Selection -->
       <div v-if="currentStep === 2" class="discovery-step">
+        <!-- GraphQL Detection Banner -->
+        <div v-if="graphqlHint" class="graphql-banner">
+          <div class="graphql-banner-icon">🔮</div>
+          <div class="graphql-banner-content">
+            <h3>GraphQL API Detected</h3>
+            <p>{{ graphqlHint.message }}</p>
+            <div class="graphql-rediscover">
+              <input
+                v-model="graphqlEndpointUrl"
+                type="url"
+                placeholder="https://your-store.myshopify.com/admin/api/2025-01/graphql.json"
+                class="graphql-endpoint-input"
+              />
+              <input
+                v-model="graphqlAuthToken"
+                type="password"
+                placeholder="Authentication token (optional, e.g. X-Shopify-Access-Token)"
+                class="graphql-auth-input"
+              />
+              <button
+                class="btn-graphql-rediscover"
+                @click="rediscoverGraphQL"
+                :disabled="!graphqlEndpointUrl || rediscoveringGraphQL"
+              >
+                <svg v-if="!rediscoveringGraphQL" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+                </svg>
+                <svg v-else viewBox="0 0 24 24" fill="currentColor" class="spin">
+                  <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+                </svg>
+                {{ rediscoveringGraphQL ? 'Introspecting...' : 'Re-discover via Introspection' }}
+              </button>
+            </div>
+            <button class="btn-dismiss-banner" @click="graphqlHint = null">Dismiss — use as-is</button>
+          </div>
+        </div>
+
         <div class="step-card">
           <div class="discovery-header">
             <div>
@@ -1092,6 +1129,12 @@ const discoveryView = ref('cards') // 'cards' or 'json'
 const discoveredActionsJSON = ref('')
 const jsonError = ref(null)
 
+// GraphQL detection
+const graphqlHint = ref(null)
+const graphqlEndpointUrl = ref('')
+const graphqlAuthToken = ref('')
+const rediscoveringGraphQL = ref(false)
+
 // Step 2: Discovery
 const categories = ref([]) // Real data from API discovery
 const actions = ref([]) // All actions (flat list for Step 3)
@@ -1290,6 +1333,18 @@ async function discoverActions() {
       selectedAction.value = firstActionWithExamples
     }
     
+    // Check for GraphQL hint
+    if (data.graphql_hint) {
+      graphqlHint.value = data.graphql_hint
+      // Pre-fill the endpoint URL from the detected base_url + endpoint path
+      const hint = data.graphql_hint
+      if (hint.base_url && hint.detected_endpoint) {
+        graphqlEndpointUrl.value = hint.base_url + hint.detected_endpoint
+      }
+    } else {
+      graphqlHint.value = null
+    }
+
     // Move to next step
     currentStep.value = 2
   } catch (error) {
@@ -1298,6 +1353,68 @@ async function discoverActions() {
     alert('Failed to discover actions: ' + discoveryError.value)
   } finally {
     discovering.value = false
+  }
+}
+
+async function rediscoverGraphQL() {
+  if (!graphqlEndpointUrl.value) return
+
+  rediscoveringGraphQL.value = true
+  discoveryError.value = null
+
+  try {
+    const requestData = new FormData()
+    requestData.append('graphql_endpoint', graphqlEndpointUrl.value)
+    requestData.append('base_url', formData.value?.baseUrl || graphqlEndpointUrl.value)
+    requestData.append('discovery_method', 'graphql')
+    
+    // Add auth header if provided (Shopify uses X-Shopify-Access-Token)
+    if (graphqlAuthToken.value) {
+      requestData.append('auth_header_X-Shopify-Access-Token', graphqlAuthToken.value)
+    }
+
+    const response = await api.post('/services/discover/', requestData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000
+    })
+
+    const data = response.data
+
+    // Re-populate wizard with GraphQL introspection results
+    const categoriesMap = {}
+    if (data.categories) {
+      Object.entries(data.categories).forEach(([catName, catData]) => {
+        categoriesMap[catName] = {
+          name: catName,
+          actions: catData.actions.map(action => ({
+            ...action,
+            exampleCount: (action.examples || []).length
+          }))
+        }
+      })
+    }
+
+    categories.value = Object.values(categoriesMap)
+    actions.value = categories.value.flatMap(cat => cat.actions)
+    discoveredActionsJSON.value = JSON.stringify(data, null, 2)
+    selectedCategories.value = categories.value.map(cat => cat.name)
+    expandedCategories.value = [categories.value[0]?.name].filter(Boolean)
+
+    // Update base URL if returned
+    if (data.base_url) {
+      formData.value.baseUrl = data.base_url
+    }
+
+    // Clear GraphQL hint — introspection was successful
+    graphqlHint.value = null
+
+    console.log(`GraphQL introspection discovered ${actions.value.length} actions`)
+  } catch (error) {
+    console.error('GraphQL introspection failed:', error)
+    alert('GraphQL introspection failed: ' + (error.response?.data?.error || error.message) + 
+          '\n\nMake sure the endpoint is accessible and supports introspection queries.')
+  } finally {
+    rediscoveringGraphQL.value = false
   }
 }
 
@@ -2061,6 +2178,143 @@ function registerAnother() {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+}
+
+/* GraphQL Detection Banner */
+.graphql-banner {
+  display: flex;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(168, 85, 247, 0.12));
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 12px;
+  margin-bottom: 1.5rem;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.graphql-banner-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.graphql-banner-content {
+  flex: 1;
+}
+
+.graphql-banner-content h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #8b5cf6;
+}
+
+.graphql-banner-content p {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.graphql-rediscover {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.graphql-endpoint-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-family: 'Fira Code', monospace;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.graphql-endpoint-input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
+}
+
+.graphql-endpoint-input::placeholder {
+  color: #64748b;
+}
+
+.graphql-auth-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 8px;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  font-family: 'Fira Code', monospace;
+  outline: none;
+  transition: border-color 0.2s;
+  margin-top: 0.5rem;
+}
+
+.graphql-auth-input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
+}
+
+.graphql-auth-input::placeholder {
+  color: #64748b;
+}
+
+.btn-graphql-rediscover {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #8b5cf6, #a855f7);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-graphql-rediscover:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.btn-graphql-rediscover:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-graphql-rediscover svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-dismiss-banner {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.2s;
+}
+
+.btn-dismiss-banner:hover {
+  color: #94a3b8;
 }
 
 /* Discovery Step */

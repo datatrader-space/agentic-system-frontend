@@ -83,6 +83,7 @@
           @click="viewService(service)"
           @delete="handleDeleteService"
           @toggle-enabled="handleToggleEnabled"
+          @share="handleShareService"
         />
       </div>
 
@@ -100,6 +101,14 @@
         @close="selectedService = null"
         @updated="loadServices"
       />
+
+      <!-- Service Share Modal -->
+      <ServiceShareModal
+        v-if="sharingService"
+        :service="sharingService"
+        @close="sharingService = null"
+        @updated="loadServices"
+      />
     </div>
   </div>
 </template>
@@ -110,19 +119,22 @@ import api from '../services/api'
 import ServiceCard from '../components/services/ServiceCard.vue'
 import ServiceRegistrationModal from '../components/services/ServiceRegistrationModal.vue'
 import ServiceDetailModal from '../components/services/ServiceDetailModal.vue'
+import ServiceShareModal from '../components/services/ServiceShareModal.vue'
 
 export default {
   name: 'Services',
   components: {
     ServiceCard,
     ServiceRegistrationModal,
-    ServiceDetailModal
+    ServiceDetailModal,
+    ServiceShareModal
   },
   setup() {
     const services = ref([])
     const loading = ref(false)
     const showRegistrationModal = ref(false)
     const selectedService = ref(null)
+    const sharingService = ref(null)
 
     // Computed stats
     const activeCount = computed(() => services.value.filter(s => s.enabled).length)
@@ -184,6 +196,10 @@ export default {
       }
     }
 
+    const handleShareService = (service) => {
+      sharingService.value = service
+    }
+
     onMounted(() => {
       loadServices()
     })
@@ -193,13 +209,15 @@ export default {
       loading,
       showRegistrationModal,
       selectedService,
+      sharingService,
       activeCount,
       totalActions,
       enabledActions,
       viewService,
       handleServiceRegistered,
       handleDeleteService,
-      handleToggleEnabled
+      handleToggleEnabled,
+      handleShareService
     }
   }
 }

@@ -77,6 +77,12 @@
         {{ service.enabled ? 'Disable' : 'Enable' }}
       </button>
       <button
+        @click="$emit('share', service)"
+        class="px-3 py-2 text-sm bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition"
+      >
+        🔗 Share
+      </button>
+      <button
         @click="$emit('delete', service.id)"
         class="px-3 py-2 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200 transition"
       >
@@ -95,7 +101,7 @@ export default {
       required: true
     }
   },
-  emits: ['click', 'delete', 'toggle-enabled'],
+  emits: ['click', 'delete', 'toggle-enabled', 'share'],
   setup() {
     const getServiceIcon = (category) => {
       const icons = {

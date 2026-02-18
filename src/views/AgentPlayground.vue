@@ -16,6 +16,24 @@
 
             <!-- Right: Actions -->
             <div class="flex items-center gap-3">
+                <button v-if="agent.id" @click="toggleWorkspace"
+                    class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 bg-white transition flex items-center gap-2"
+                    :class="{ 'border-blue-400 text-blue-600': showWorkspace }">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    Workspace
+                </button>
+                <button v-if="agent.id" @click="showScript = !showScript"
+                    class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 bg-white transition flex items-center gap-2"
+                    :class="{ 'border-indigo-400 text-indigo-600': showScript }">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <polyline points="4 17 10 11 4 5" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+                        <line x1="12" y1="19" x2="20" y2="19" stroke-linecap="round" stroke-width="2" />
+                    </svg>
+                    Script
+                </button>
                 <button @click="showBuilder = !showBuilder"
                     class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 bg-white transition flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -40,15 +58,113 @@
                 </div>
             </div>
 
+            <!-- Script Panel (slide-over) -->
+            <div v-if="showScript" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
+                @click.self="showScript = false">
+                <div class="h-full w-[560px] bg-gray-900 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+                    <ScriptPanel
+                        :repositoryId="selectedContext.repo?.id || '0'"
+                        :agentId="agent.id"
+                        :conversationId="activeSessionId"
+                        @close="showScript = false"
+                    />
+                </div>
+            </div>
+
+            <!-- Workspace Panel (slide-over) -->
+            <div v-if="showWorkspace" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
+                @click.self="showWorkspace = false">
+                <div class="h-full w-[520px] bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+                    <!-- Header -->
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 shrink-0">
+                        <div class="flex items-center gap-2">
+                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                            </svg>
+                            <h2 class="text-base font-bold text-gray-800">Agent Workspace</h2>
+                            <span v-if="wsFiles.length" class="text-xs text-gray-400 ml-1">({{ wsFormatSize(wsTotalSize) }})</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button @click="loadWorkspace" :disabled="wsLoading"
+                                class="p-1.5 hover:bg-gray-100 rounded text-gray-500 transition" title="Refresh">
+                                <svg class="w-4 h-4" :class="{ 'animate-spin': wsLoading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </button>
+                            <button @click="showWorkspace = false" class="p-1.5 hover:bg-gray-100 rounded text-gray-500 transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Content -->
+                    <div class="flex-1 overflow-y-auto">
+                        <!-- Loading -->
+                        <div v-if="wsLoading" class="flex items-center justify-center py-16">
+                            <div class="animate-spin w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full"></div>
+                        </div>
+
+                        <!-- Empty -->
+                        <div v-else-if="!wsFiles.length" class="flex flex-col items-center justify-center py-16 text-gray-400 gap-3">
+                            <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                            </svg>
+                            <p class="text-sm">Workspace is empty</p>
+                            <p class="text-xs text-gray-300">Files created by the agent will appear here</p>
+                        </div>
+
+                        <!-- File Tree (recursive component) -->
+                        <div v-else class="p-3">
+                            <WorkspaceTreeNode
+                                :entries="wsFiles"
+                                :expandedDirs="wsExpandedDirs"
+                                :previewPath="wsPreviewPath"
+                                :getFileIcon="getFileIcon"
+                                :formatSize="wsFormatSize"
+                                @toggle-dir="wsToggleDir"
+                                @read-file="wsReadFile"
+                                @delete="wsDeleteEntry"
+                            />
+                        </div>
+                    </div>
+
+                    <!-- File Preview -->
+                    <div v-if="wsPreviewContent !== null" class="border-t border-gray-200 shrink-0" style="max-height: 45%">
+                        <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
+                            <span class="text-xs font-mono text-gray-600 truncate">{{ wsPreviewPath }}</span>
+                            <div class="flex items-center gap-1">
+                                <button @click="wsDownloadFile" class="p-1 hover:bg-gray-200 rounded text-gray-500 transition" title="Download">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                </button>
+                                <button @click="wsPreviewContent = null; wsPreviewPath = null" class="p-1 hover:bg-gray-200 rounded text-gray-500 transition">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <pre class="p-4 text-xs font-mono text-gray-700 overflow-auto bg-white" style="max-height: calc(45vh - 40px)">{{ wsPreviewContent }}</pre>
+                    </div>
+                </div>
+            </div>
+
             <!-- Prompt Builder Modal -->
             <PromptBuilder ref="promptBuilder" @insert="insertPrompt" />
+
+            <!-- HITL Modal -->
+            <HITLModal
+                :requests="hitlRequests"
+                @respond="handleHitlRespond"
+                @dismiss="handleHitlDismiss"
+                @skip="handleHitlSkip"
+            />
 
             <!-- File Viewer Modal -->
             <FileViewer ref="fileViewer" :systemId="selectedContext.system" :repoId="selectedContext.repo || '0'" />
 
             <!-- Right: Preview / Chat -->
             <div class="flex-1 flex flex-col bg-white relative">
-                <div class="p-2 border-b border-gray-100 bg-gray-50 flex justify-center gap-4 text-xs font-mono">
+                <div class="p-2 border-b border-gray-100 bg-gray-50 flex items-center justify-between text-xs font-mono">
+                    <!-- Left: Tabs -->
+                    <div class="flex gap-4">
                     <button @click="activeTab = 'chat'"
                         :class="activeTab === 'chat' ? 'text-blue-600 font-bold border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'">
                         PREVIEW SESSION
@@ -65,6 +181,60 @@
                         :class="activeTab === 'tools' ? 'text-blue-600 font-bold border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'">
                         🔧 TOOLS
                     </button>
+                    <button @click="activeTab = 'automation'"
+                        :class="activeTab === 'automation' ? 'text-blue-600 font-bold border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'">
+                        ⚡ AUTOMATION
+                    </button>
+                    </div>
+
+                    <!-- Right: Conversation Switcher -->
+                    <div v-if="agent.id" class="relative" ref="convSwitcherRef">
+                        <button @click="showConvSwitcher = !showConvSwitcher"
+                            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition text-xs">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                            </svg>
+                            <span class="max-w-[140px] truncate">{{ currentConvTitle }}</span>
+                            <svg class="w-3 h-3" :class="{ 'rotate-180': showConvSwitcher }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+
+                        <!-- Dropdown -->
+                        <div v-if="showConvSwitcher"
+                            class="absolute right-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
+                            <!-- New Conversation -->
+                            <button @click="createNewConversation"
+                                class="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-blue-600 hover:bg-blue-50 border-b border-gray-100 font-medium">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                                </svg>
+                                New Conversation
+                            </button>
+                            <!-- Conversation List -->
+                            <div class="max-h-64 overflow-y-auto">
+                                <button v-for="conv in conversations" :key="conv.id"
+                                    @click="switchConversation(conv.id)"
+                                    class="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition border-b border-gray-50 last:border-0"
+                                    :class="{ 'bg-blue-50 border-l-2 border-l-blue-500': conv.id === activeSessionId }">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm font-medium text-gray-800 truncate max-w-[160px]">
+                                            {{ conv.title || 'Untitled' }}
+                                        </span>
+                                        <span class="text-[10px] text-gray-400 flex-shrink-0 ml-2">
+                                            {{ conv.message_count || 0 }} msgs
+                                        </span>
+                                    </div>
+                                    <div class="text-[10px] text-gray-400 mt-0.5">
+                                        {{ formatConvTime(conv.updated_at) }}
+                                    </div>
+                                </button>
+                                <div v-if="conversations.length === 0" class="px-3 py-4 text-center text-xs text-gray-400">
+                                    No conversations yet
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Trace Tab -->
@@ -84,6 +254,16 @@
                         <div class="text-5xl mb-3">🔧</div>
                         <p class="text-lg font-medium">Tools Operations Panel</p>
                         <p class="text-sm mt-1">Save the agent to access tool management features</p>
+                    </div>
+                </div>
+
+                <!-- Automation Tab -->
+                <div v-if="activeTab === 'automation'" class="flex-1 overflow-hidden flex flex-col">
+                    <AutomationPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
+                    <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
+                        <div class="text-5xl mb-3">⚡</div>
+                        <p class="text-lg font-medium">Automation Panel</p>
+                        <p class="text-sm mt-1">Save the agent to access workflows & scheduling</p>
                     </div>
                 </div>
 
@@ -123,6 +303,14 @@
                                             <div
                                                 class="bg-blue-600 text-white px-4 py-3 rounded-2xl rounded-br-md max-w-[85%] leading-relaxed whitespace-pre-wrap shadow-sm">
                                                 {{ event.content }}
+                                                <!-- Attached file badges -->
+                                                <div v-if="event.attachments && event.attachments.length" class="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-blue-500/30">
+                                                    <span v-for="(fname, fi) in event.attachments" :key="fi"
+                                                        class="inline-flex items-center gap-1 text-xs bg-blue-500/40 text-blue-100 px-2 py-0.5 rounded-full">
+                                                        <span>{{ getFileIcon(fname) }}</span>
+                                                        <span class="max-w-[120px] truncate">{{ fname }}</span>
+                                                    </span>
+                                                </div>
                                             </div>
                                             <!-- Action Buttons -->
                                             <div
@@ -179,9 +367,14 @@
                                             </div>
 
 
-                                            <!-- Content -->
-                                            <div class="prose prose-sm prose-slate max-w-none prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-code:text-blue-600 prose-code:bg-blue-50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-a:text-blue-600 text-gray-800 leading-relaxed"
-                                                v-html="formatMarkdown(event.content)">
+                                            <!-- Content: Show rendered HTML during streaming (throttled updates), final render on completion -->
+                                            <div v-if="event.streaming"
+                                                class="prose prose-sm prose-slate max-w-none prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-code:text-blue-600 prose-code:bg-blue-50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-a:text-blue-600 text-gray-800 leading-relaxed"
+                                                v-html="event.renderedHtml || event.content">
+                                            </div>
+                                            <div v-else
+                                                class="prose prose-sm prose-slate max-w-none prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-code:text-blue-600 prose-code:bg-blue-50 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-a:text-blue-600 text-gray-800 leading-relaxed"
+                                                v-html="event.renderedHtml || formatMarkdown(event.content)">
                                             </div>
 
                                             <!-- Media Renderer for message artifacts (native generation) -->
@@ -376,6 +569,22 @@
                                             <div class="text-sm font-semibold text-purple-900 mb-1">Tool Result: {{
                                                 event.data.tool_name }}</div>
                                             
+                                            <!-- Request URL (for remote tools) -->
+                                            <div v-if="event.data.request_url"
+                                                class="text-xs text-purple-600 mb-2 font-mono flex items-center gap-1.5">
+                                                <span class="px-1.5 py-0.5 rounded text-white text-[10px] font-bold uppercase"
+                                                    :class="{
+                                                        'bg-green-500': event.data.request_method === 'GET',
+                                                        'bg-blue-500': event.data.request_method === 'POST',
+                                                        'bg-amber-500': event.data.request_method === 'PATCH' || event.data.request_method === 'PUT',
+                                                        'bg-red-500': event.data.request_method === 'DELETE',
+                                                        'bg-gray-500': !['GET','POST','PATCH','PUT','DELETE'].includes(event.data.request_method)
+                                                    }">
+                                                    {{ event.data.request_method }}
+                                                </span>
+                                                <span class="truncate" :title="event.data.request_url">{{ event.data.request_url }}</span>
+                                            </div>
+                                            
                                             <!-- Media Renderer for artifacts -->
                                             <MediaRenderer 
                                                 v-if="hasMediaArtifacts(event.data)" 
@@ -458,18 +667,39 @@
                             <div class="relative group">
                                 <div
                                     class="relative bg-white border-2 border-gray-200 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-50">
+                                    <!-- Attachment Preview Strip -->
+                                    <div v-if="pendingFiles.length" class="px-3 pt-3 pb-0">
+                                        <div class="flex flex-wrap gap-2">
+                                            <div v-for="(file, idx) in pendingFiles" :key="idx"
+                                                class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-sm group/file hover:border-blue-300 transition-colors">
+                                                <span class="text-base">{{ getFileIcon(file.name) }}</span>
+                                                <span class="max-w-[150px] truncate text-gray-700 font-medium">{{ file.name }}</span>
+                                                <span class="text-gray-400 text-xs">{{ formatFileSize(file.size) }}</span>
+                                                <button @click="removePendingFile(idx)"
+                                                    class="ml-1 p-0.5 hover:bg-red-100 rounded text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover/file:opacity-100">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div class="flex items-end gap-2 p-3">
                                         <!-- Left Actions -->
                                         <div class="flex items-center gap-1 flex-shrink-0 pb-1">
-                                            <button
-                                                class="p-2 hover:bg-gray-100 rounded-xl transition-all duration-200 text-gray-500 hover:text-gray-700 active:scale-95"
+                                            <button @click="triggerFileInput"
+                                                class="relative p-2 hover:bg-gray-100 rounded-xl transition-all duration-200 text-gray-500 hover:text-gray-700 active:scale-95"
+                                                :class="{ 'text-blue-600 bg-blue-50': pendingFiles.length > 0 }"
                                                 title="Attach files">
                                                 <svg class="w-5 h-5" fill="none" stroke="currentColor"
                                                     viewBox="0 0 24 24" stroke-width="2">
                                                     <path stroke-linecap="round" stroke-linejoin="round"
                                                         d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                                                 </svg>
+                                                <span v-if="pendingFiles.length" class="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center font-bold">{{ pendingFiles.length }}</span>
                                             </button>
+                                            <input ref="fileInputRef" type="file" multiple :accept="ACCEPTED_EXTENSIONS"
+                                                class="hidden" @change="handleFilesSelected" />
                                         </div>
 
                                         <!-- Input Textarea -->
@@ -492,9 +722,9 @@
                                             </button>
 
                                             <!-- Send Button -->
-                                            <button v-else @click="sendMessage" :disabled="!userMessage.trim()" :class="[
+                                            <button v-else @click="sendMessage" :disabled="!userMessage.trim() && !pendingFiles.length" :class="[
                                                 'p-2.5 rounded-xl transition-all duration-200 active:scale-95 shadow-md',
-                                                userMessage.trim()
+                                                (userMessage.trim() || pendingFiles.length)
                                                     ? 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-lg'
                                                     : 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-60'
                                             ]" title="Send message">
@@ -639,6 +869,10 @@ import PromptBuilder from '../components/PromptBuilder.vue';
 import FileViewer from '../components/FileViewer.vue';
 import ToolsPanel from '../components/tools/ToolsPanel.vue';
 import MediaRenderer from '../components/MediaRenderer.vue';
+import WorkspaceTreeNode from '../components/WorkspaceTreeNode.vue';
+import ScriptPanel from '../components/ScriptPanel.vue';
+import HITLModal from '../components/HITLModal.vue';
+import AutomationPanel from '../components/AutomationPanel.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -659,6 +893,9 @@ const repositories = ref([]);
 const llmModels = ref([]);
 const selectedContext = ref({ system: null, repo: null, model: null });
 const activeSessionId = ref(null); // This is actually conversation_id in the new backend logic
+const conversations = ref([]); // All conversations for this agent
+const showConvSwitcher = ref(false); // Conversation dropdown toggle
+const convSwitcherRef = ref(null); // Ref for click-outside detection
 const chatEvents = ref([]);
 const userMessage = ref('');
 const isProcessing = ref(false);
@@ -667,6 +904,84 @@ const ignoringMessages = ref(false); // Flag to ignore messages after stop
 const isAgentSessionActive = ref(false); // Track if agent session is running (for stop button)
 const activeTab = ref('chat');
 const showBuilder = ref(false); // Default to false (modal hidden)
+const showWorkspace = ref(false);
+const showScript = ref(false);
+const wsFiles = ref([]);
+const wsTotalSize = ref(0);
+const wsLoading = ref(false);
+const wsExpandedDirs = ref({});
+const wsPreviewContent = ref(null);
+const wsPreviewPath = ref(null);
+
+// HITL state
+const hitlRequests = ref([]);
+
+const toggleWorkspace = () => {
+    showWorkspace.value = !showWorkspace.value;
+    if (showWorkspace.value) loadWorkspace();
+};
+
+const loadWorkspace = async () => {
+    if (!agent.value?.id) return;
+    wsLoading.value = true;
+    try {
+        const { data } = await api.getAgentWorkspace(agent.value.id);
+        wsFiles.value = data.files || [];
+        wsTotalSize.value = data.total_size || 0;
+    } catch (e) {
+        console.error('Failed to load workspace:', e);
+        wsFiles.value = [];
+    } finally {
+        wsLoading.value = false;
+    }
+};
+
+const wsToggleDir = (path) => {
+    wsExpandedDirs.value[path] = !wsExpandedDirs.value[path];
+};
+
+const wsReadFile = async (entry) => {
+    if (entry.is_dir) return;
+    try {
+        const { data } = await api.readWorkspaceFile(agent.value.id, entry.path);
+        wsPreviewContent.value = data.content;
+        wsPreviewPath.value = entry.path;
+    } catch (e) {
+        console.error('Failed to read file:', e);
+    }
+};
+
+const wsDeleteEntry = async (entry) => {
+    const label = entry.is_dir ? 'folder and all its contents' : 'file';
+    if (!confirm(`Delete this ${label}?\n${entry.path}`)) return;
+    try {
+        await api.deleteWorkspaceFile(agent.value.id, entry.path);
+        if (wsPreviewPath.value === entry.path) {
+            wsPreviewContent.value = null;
+            wsPreviewPath.value = null;
+        }
+        await loadWorkspace();
+    } catch (e) {
+        console.error('Delete failed:', e);
+    }
+};
+
+const wsDownloadFile = () => {
+    if (!wsPreviewContent.value || !wsPreviewPath.value) return;
+    const blob = new Blob([wsPreviewContent.value], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = wsPreviewPath.value.split('/').pop();
+    a.click();
+    URL.revokeObjectURL(url);
+};
+
+const wsFormatSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+};
 const knowledgeDocs = ref([]);
 const loadingDocs = ref(false);
 const selectedDoc = ref(null);
@@ -679,6 +994,80 @@ const fileViewer = ref(null);
 const showScrollTop = ref(false);
 const showScrollBottom = ref(false);
 const isRestoring = ref(false);
+
+// File upload state
+const pendingFiles = ref([]);
+const fileInputRef = ref(null);
+const uploadingFiles = ref(false);
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILES = 5;
+const ACCEPTED_EXTENSIONS = '.txt,.pdf,.docx,.csv,.json,.yaml,.yml,.md,.py,.js,.ts,.jsx,.tsx,.xlsx,.xls,.html,.xml,.log,.sql,.sh,.bat,.ps1,.cfg,.ini,.toml,.env,.gitignore,.css,.scss,.vue,.go,.rs,.java,.c,.cpp,.h,.rb,.php';
+
+const triggerFileInput = () => {
+    fileInputRef.value?.click();
+};
+
+const handleFilesSelected = (event) => {
+    const files = Array.from(event.target.files || []);
+    for (const file of files) {
+        if (pendingFiles.value.length >= MAX_FILES) {
+            alert(`Maximum ${MAX_FILES} files allowed per message.`);
+            break;
+        }
+        if (file.size > MAX_FILE_SIZE) {
+            alert(`File "${file.name}" exceeds 10MB limit.`);
+            continue;
+        }
+        pendingFiles.value.push(file);
+    }
+    // Reset input so same file can be re-selected
+    event.target.value = '';
+};
+
+const removePendingFile = (index) => {
+    pendingFiles.value.splice(index, 1);
+};
+
+const formatFileSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+};
+
+const getFileIcon = (filename) => {
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    const icons = {
+        pdf: '📄', docx: '📝', doc: '📝', xlsx: '📊', xls: '📊', csv: '📊',
+        json: '🔧', yaml: '🔧', yml: '🔧', toml: '🔧', xml: '🔧',
+        py: '🐍', js: '📜', ts: '📜', jsx: '📜', tsx: '📜', vue: '📜',
+        html: '🌐', css: '🎨', scss: '🎨',
+        md: '📖', txt: '📃', log: '📃',
+        sql: '🗃️', sh: '⚙️', bat: '⚙️', ps1: '⚙️',
+        go: '📜', rs: '📜', java: '📜', c: '📜', cpp: '📜', h: '📜', rb: '📜', php: '📜'
+    };
+    return icons[ext] || '📎';
+};
+
+const uploadPendingFiles = async () => {
+    if (!pendingFiles.value.length || !activeSessionId.value) return [];
+    uploadingFiles.value = true;
+    const uploadedNames = [];
+    try {
+        for (const file of pendingFiles.value) {
+            try {
+                await api.uploadConversationFile(activeSessionId.value, file);
+                uploadedNames.push(file.name);
+            } catch (err) {
+                console.error(`Failed to upload ${file.name}:`, err);
+            }
+        }
+        pendingFiles.value = [];
+    } finally {
+        uploadingFiles.value = false;
+    }
+    return uploadedNames;
+};
 
 const handleScroll = () => {
     if (!feed.value) return;
@@ -844,7 +1233,9 @@ const restoreSession = async (sessionId) => {
                     data: {
                         tool_name: eventWrapper.data.tool_name,
                         result: eventWrapper.data.result,
-                        success: eventWrapper.data.success
+                        success: eventWrapper.data.success,
+                        request_url: eventWrapper.data.request_url || '',
+                        request_method: eventWrapper.data.request_method || ''
                     }
                 });
             } else if (eventWrapper.event_type === 'agent_planning') {
@@ -915,6 +1306,44 @@ const restoreSession = async (sessionId) => {
     }
 };
 
+// Computed: current conversation title for switcher button
+const currentConvTitle = computed(() => {
+    const current = conversations.value.find(c => c.id === activeSessionId.value);
+    return current ? (current.title || 'Untitled') : 'Select Conversation';
+});
+
+// Format relative time for conversation list
+const formatConvTime = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+};
+
+// Fetch all conversations for this agent (for the switcher)
+const fetchConversations = async () => {
+    if (!agent.value.id) return;
+    try {
+        const res = await api.getConversations({
+            agent_profile_id: agent.value.id,
+            ordering: '-updated_at'
+        });
+        if (res.data.results) {
+            conversations.value = res.data.results;
+        }
+    } catch (e) {
+        console.error("Failed to fetch conversations", e);
+    }
+};
+
 const fetchLastConversation = async () => {
     if (!agent.value.id) return;
     try {
@@ -923,6 +1352,9 @@ const fetchLastConversation = async () => {
             ordering: '-updated_at',
             limit: 1
         });
+
+        // Also populate full conversation list for switcher
+        await fetchConversations();
 
         if (res.data.results && res.data.results.length > 0) {
             let lastConv = res.data.results[0];
@@ -987,6 +1419,71 @@ const fetchLastConversation = async () => {
     }
 };
 
+// Switch to a specific conversation
+const switchConversation = async (convId) => {
+    showConvSwitcher.value = false;
+    if (convId === activeSessionId.value) return;
+
+    try {
+        const detailRes = await api.getConversation(convId);
+        const conv = detailRes.data;
+
+        activeSessionId.value = conv.id;
+        chatEvents.value = [];
+
+        // Restore context
+        if (conv.system) {
+            selectedContext.value.system = conv.system;
+            await fetchRepositories(conv.system);
+            selectedContext.value.repo = conv.repository;
+        }
+        selectedContext.value.model = conv.llm_model;
+
+        // Load messages
+        if (conv.messages) {
+            chatEvents.value = conv.messages.map(msg => ({
+                id: msg.id,
+                type: msg.role === 'user' ? 'user' : 'assistant',
+                content: msg.content,
+                data: msg
+            }));
+
+            nextTick(() => {
+                if (feed.value) feed.value.scrollTop = feed.value.scrollHeight;
+            });
+        }
+
+        // Reconnect WS
+        const repoId = conv.repository || '0';
+        connectWebSocket(repoId);
+    } catch (e) {
+        console.error("Failed to switch conversation", e);
+    }
+};
+
+// Create a new conversation for this agent
+const createNewConversation = async () => {
+    showConvSwitcher.value = false;
+    try {
+        const res = await api.startAgentChat(agent.value.id, null);
+        activeSessionId.value = res.data.conversation_id;
+        chatEvents.value = []; // Clear chat
+        connectWebSocket(0);
+
+        // Refresh conversation list
+        await fetchConversations();
+    } catch (e) {
+        console.error('Failed to create new conversation:', e);
+    }
+};
+
+// Click-outside to close conversation switcher
+const handleClickOutside = (e) => {
+    if (convSwitcherRef.value && !convSwitcherRef.value.contains(e.target)) {
+        showConvSwitcher.value = false;
+    }
+};
+
 onMounted(async () => {
     const id = route.params.id;
     if (id !== 'new') {
@@ -1001,9 +1498,11 @@ onMounted(async () => {
             await restoreSession(savedSessionId);
 
             // Reconnect WebSocket after restoring session
-            // Use the repository from the restored conversation if available
             const repoId = selectedContext.value.repo || '0';
             connectWebSocket(repoId);
+
+            // Also load conversations list for switcher
+            await fetchConversations();
         } else {
             // No interrupted session, fetch last conversation normally
             await fetchLastConversation();
@@ -1016,6 +1515,13 @@ onMounted(async () => {
     } else {
         await fetchContextData();
     }
+
+    // Register click-outside handler
+    document.addEventListener('click', handleClickOutside);
+});
+
+onBeforeUnmount(() => {
+    document.removeEventListener('click', handleClickOutside);
 });
 
 const initChatSession = async () => {
@@ -1024,6 +1530,9 @@ const initChatSession = async () => {
         activeSessionId.value = res.data.conversation_id;
         // Use repository ID 0 for agent-only chat (no repo required)
         connectWebSocket(0);
+
+        // Refresh conversation list for switcher
+        await fetchConversations();
     } catch (e) {
         console.error('Failed to initialize chat:', e);
     }
@@ -1391,7 +1900,8 @@ const reconnectDelay = computed(() => Math.min(1000 * Math.pow(2, reconnectAttem
 
 const connectWebSocket = (repoId) => {
     const host = import.meta.env.VITE_WS_HOST || window.location.host;
-    const wsUrl = `ws://${host}/ws/chat/repository/${repoId || '0'}/`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${host}/ws/chat/repository/${repoId || '0'}/`;
 
     // Check if already connected to the same URL
     if (ws.value && ws.value.url === wsUrl && ws.value.readyState === WebSocket.OPEN) {
@@ -1470,17 +1980,38 @@ const connectWebSocket = (repoId) => {
 
             // Streaming: append chunk to last assistant message or create new one
             if (chatEvents.value.length > 0 && chatEvents.value[chatEvents.value.length - 1].type === 'assistant') {
-                chatEvents.value[chatEvents.value.length - 1].content += data.chunk;
+                const event = chatEvents.value[chatEvents.value.length - 1];
+                event.content += data.chunk;
+                event.streaming = true;
+
+                // Throttled render+scroll: at most once per 400ms using rAF
+                // Avoids blocking the event loop so incoming WS messages aren't queued up
+                const now = performance.now();
+                if (!event._nextRenderAt || now >= event._nextRenderAt) {
+                    event._nextRenderAt = now + 400;
+                    requestAnimationFrame(() => {
+                        event.renderedHtml = formatMarkdown(event.content);
+                        // Inline scroll — avoids nextTick() overhead
+                        if (feed.value) {
+                            const c = feed.value;
+                            if (c.scrollHeight - c.scrollTop - c.clientHeight < 150) {
+                                c.scrollTop = c.scrollHeight;
+                            }
+                        }
+                    });
+                }
             } else {
                 // If not following an assistant message, create a new one
                 chatEvents.value.push({
                     id: Date.now(),
                     type: 'assistant',
                     content: data.chunk,
+                    streaming: true,
+                    renderedHtml: null,
                     data
                 });
             }
-            scrollToBottom();
+            // Don't scrollToBottom() on every chunk — handled by the throttled rAF above
         } else if (data.type === 'assistant_message_complete') {
             // Check ignore flag before finalizing
             if (ignoringMessages.value) {
@@ -1502,6 +2033,14 @@ const connectWebSocket = (repoId) => {
                         data
                     });
                 }
+            }
+
+            // Finalize streaming: do final markdown render and clear streaming state
+            const streamingEvent = chatEvents.value.findLast(e => e.type === 'assistant');
+            if (streamingEvent) {
+                streamingEvent.streaming = false;
+                streamingEvent._nextRenderAt = null;  // Reset throttle
+                streamingEvent.renderedHtml = formatMarkdown(streamingEvent.content);
             }
 
             // Finalize the assistant message
@@ -1588,6 +2127,20 @@ const connectWebSocket = (repoId) => {
             localStorage.removeItem('agent_active_session_id');
         } else if (data.type === 'stop_acknowledged') {
             console.log('[STOP] Acknowledged by backend:', data.message);
+            // Reset ignore flag now that backend confirmed the stop
+            ignoringMessages.value = false;
+            isProcessing.value = false;
+            isTyping.value = false;
+            isAgentSessionActive.value = false;
+            // Finalize any in-progress streaming message
+            const lastEvent = chatEvents.value.findLast(e => e.type === 'assistant');
+            if (lastEvent && lastEvent.streaming) {
+                lastEvent._nextRenderAt = null;
+                lastEvent.content += '\n\n⏹️ _Stopped by user._';
+                lastEvent.streaming = false;
+                lastEvent.renderedHtml = formatMarkdown(lastEvent.content);
+            }
+            scrollToBottom();
         } else if (data.type === 'tool_call') {
             // Tool call event
             chatEvents.value.push({
@@ -1615,6 +2168,8 @@ const connectWebSocket = (repoId) => {
                     tool_name: data.tool_name,
                     result: data.result,
                     success: data.success,
+                    request_url: data.request_url || '',
+                    request_method: data.request_method || '',
                     media_artifacts: data.media_artifacts || []
                 }
             });
@@ -1718,6 +2273,25 @@ const connectWebSocket = (repoId) => {
             isTyping.value = false;
             // Clear persisted session since it's complete
             localStorage.removeItem('agent_active_session_id');
+        } else if (data.type === 'hitl_request') {
+            // HITL: agent is asking the user for input
+            console.log('[HITL] Received request:', data.request_id, data.interaction_type);
+            hitlRequests.value.push({
+                request_id: data.request_id,
+                interaction_type: data.interaction_type,
+                response_type: data.response_type,
+                summary: data.summary,
+                payload: data.payload || {},
+                options: data.options || [],
+                urgency: data.urgency || 'medium',
+                timeout_at: data.timeout_at || null
+            });
+        } else if (data.type === 'hitl_response_ack') {
+            // HITL: backend acknowledged our response — remove from queue
+            console.log('[HITL] Response acknowledged:', data.request_id);
+            hitlRequests.value = hitlRequests.value.filter(
+                r => r.request_id !== data.request_id
+            );
         } else if (['agent_start', 'thought', 'completion'].includes(data.type)) {
             chatEvents.value.push({
                 id: Date.now(),
@@ -1758,6 +2332,37 @@ const connectWebSocket = (repoId) => {
             });
         }
     };
+};
+
+// ── HITL Handlers ──
+const handleHitlRespond = ({ request_id, response_value, feedback }) => {
+    if (!ws.value || ws.value.readyState !== WebSocket.OPEN) {
+        console.error('[HITL] Cannot send response — WebSocket not connected');
+        return;
+    }
+    console.log('[HITL] Sending response for', request_id);
+    ws.value.send(JSON.stringify({
+        type: 'hitl_response',
+        request_id,
+        response_value,
+        feedback
+    }));
+    // Optimistically remove from local queue
+    hitlRequests.value = hitlRequests.value.filter(r => r.request_id !== request_id);
+};
+
+const handleHitlDismiss = (requestId) => {
+    // Remove notification-only requests from queue
+    hitlRequests.value = hitlRequests.value.filter(r => r.request_id !== requestId);
+};
+
+const handleHitlSkip = (requestId) => {
+    // Rotate: move current request to end of queue
+    const idx = hitlRequests.value.findIndex(r => r.request_id === requestId);
+    if (idx !== -1) {
+        const [skipped] = hitlRequests.value.splice(idx, 1);
+        hitlRequests.value.push(skipped);
+    }
 };
 
 const handleChatEvent = (data) => {
@@ -1815,11 +2420,13 @@ const handleChatEvent = (data) => {
     scrollToBottom();
 };
 
-const sendMessage = () => {
-    if (!userMessage.value.trim()) return;
+const sendMessage = async () => {
+    if (!userMessage.value.trim() && !pendingFiles.value.length) return;
 
-    const content = userMessage.value;
+    const content = userMessage.value || (pendingFiles.value.length ? `[Attached ${pendingFiles.value.length} file(s)]` : '');
+    const filesToUpload = [...pendingFiles.value];
     userMessage.value = '';
+    pendingFiles.value = [];
     resetTextareaHeight(); // Reset textarea to initial height
     isProcessing.value = true;
     isTyping.value = true;
@@ -1830,13 +2437,26 @@ const sendMessage = () => {
         localStorage.setItem('agent_active_session_id', activeSessionId.value);
     }
 
-    // Add user message to UI
+    // Add user message to UI (with attachment names)
+    const attachmentNames = filesToUpload.map(f => f.name);
     chatEvents.value.push({
         id: Date.now(),
         type: 'user',
-        content: content
+        content: content,
+        attachments: attachmentNames.length ? attachmentNames : undefined
     });
     scrollToBottom(true);
+
+    // Upload files via REST API before sending WebSocket message
+    if (filesToUpload.length && activeSessionId.value) {
+        try {
+            for (const file of filesToUpload) {
+                await api.uploadConversationFile(activeSessionId.value, file);
+            }
+        } catch (err) {
+            console.error('File upload failed:', err);
+        }
+    }
 
     // Send to WS
     if (ws.value && ws.value.readyState === WebSocket.OPEN) {
@@ -1888,11 +2508,16 @@ const stopExecution = () => {
     ws.value.send(JSON.stringify(stopMessage));
     console.log('[STOP] Stop message sent successfully');
 
-    // Reset the flag after 2 seconds (increased from 1 second)
+    // Reset the flag after 5 seconds as fallback (in case backend doesn't respond)
     setTimeout(() => {
-        ignoringMessages.value = false;
-        console.log('[STOP] Reset ignoringMessages = false after 2s timeout');
-    }, 2000);
+        if (ignoringMessages.value) {
+            ignoringMessages.value = false;
+            isProcessing.value = false;
+            isTyping.value = false;
+            isAgentSessionActive.value = false;
+            console.log('[STOP] Reset ignoringMessages = false after 5s fallback timeout');
+        }
+    }, 5000);
 };
 
 const retryLast = () => {

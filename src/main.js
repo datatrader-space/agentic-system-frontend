@@ -15,6 +15,7 @@ import SystemDetail from './views/SystemDetail.vue'
 import RepositoryPage from './views/RepositoryPage.vue'
 import Login from './views/Login.vue'
 import LLMSettings from './views/LLMSettings.vue'
+import LLMDashboard from './views/LLMDashboard.vue'
 import Benchmarks from './views/Benchmarks.vue'
 import ToolRegistry from './views/ToolRegistry.vue'
 import Services from './views/Services.vue'
@@ -112,6 +113,12 @@ const router = createRouter({
       path: '/ai-settings',
       name: 'ai-settings',
       component: LLMSettings,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/ai-dashboard',
+      name: 'ai-dashboard',
+      component: LLMDashboard,
       meta: { requiresAuth: true }
     },
     {

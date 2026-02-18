@@ -410,235 +410,112 @@
 
       <!-- TAB: CREDENTIALS -->
       <div v-if="activeTab === 'Credentials'" class="space-y-6">
-        <div>
+          <!-- Service & Built-in Tool Credentials -->
+          <div class="h-[600px] border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+            <!-- Reuse the standalone component which supports both Service and Built-in tools -->
+            <CredentialManager :agent-profile="internalAgent" />
+          </div>
+
+
+        <!-- MCP Server Credentials -->
+        <div class="mt-8 pt-6 border-t border-gray-200">
           <div class="flex justify-between items-center mb-2">
-            <label class="block text-sm font-medium text-gray-700">Service Credentials</label>
-            <button
-              @click="openAddCredentialModal()"
-              class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 font-medium"
-            >
-              + Add Credential
-            </button>
+            <label class="block text-sm font-medium text-gray-700">MCP Server Credentials</label>
           </div>
           <p class="text-xs text-gray-500 mb-4">
-            Manage encrypted credentials for remote service tools. Each service can have multiple credentials (e.g., Production, Staging).
+            Set environment variables for MCP servers. These are encrypted and injected when the server process starts.
           </p>
 
-          <!-- Loading State -->
-          <div v-if="loadingCredentials" class="text-center py-8 text-gray-500">
-            <div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent rounded-full mb-2"></div>
-            <p class="text-sm">Loading credentials...</p>
+          <!-- MCP Server Selector -->
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">MCP Server</label>
+            <select
+              v-model="selectedMcpServerId"
+              @change="loadMcpCredentials"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white"
+            >
+              <option value="">-- Select an MCP server --</option>
+              <option v-for="srv in mcpServers" :key="srv.id" :value="srv.id">
+                {{ srv.icon || '🔌' }} {{ srv.name }}
+              </option>
+            </select>
           </div>
 
-          <!-- Credentials List Grouped by Service -->
+          <div v-if="!selectedMcpServerId" class="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+            <div class="text-4xl mb-2">🔌</div>
+            <p class="text-gray-600 font-medium mb-1">Select an MCP server</p>
+            <p class="text-xs text-gray-500">Choose a server to configure its environment variables for this agent</p>
+          </div>
+
           <div v-else class="space-y-4">
-            <!-- Service Groups -->
-            <div v-for="service in credentialsByService" :key="service.id" class="border border-gray-200 rounded-lg overflow-hidden">
-              <div class="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-                <div>
-                  <h3 class="font-medium text-gray-800">{{ service.name }}</h3>
-                  <p class="text-xs text-gray-500">{{ service.credentials.length }} credential(s)</p>
+            <!-- Existing MCP Credentials -->
+            <div v-if="mcpCredentials.length" class="space-y-2">
+              <div v-for="cred in mcpCredentials" :key="cred.id" class="bg-gray-50 rounded-lg p-4">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="font-medium text-gray-800">{{ cred.name }}</span>
+                  <button
+                    @click="deleteMcpCredential(cred)"
+                    class="text-xs px-2 py-1 text-gray-600 hover:text-red-600 border border-gray-300 rounded hover:border-red-300"
+                  >
+                    Delete
+                  </button>
                 </div>
+                <div v-for="(val, key) in cred.env_vars" :key="key" class="flex gap-2 text-sm mb-1">
+                  <code class="bg-gray-200 px-2 py-0.5 rounded text-gray-800 text-xs">{{ key }}</code>
+                  <span class="text-gray-400 font-mono text-xs">{{ val }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Add / Edit MCP Env Vars -->
+            <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+              <h4 class="font-medium text-gray-900 mb-1">{{ mcpCredentials.length ? 'Update' : 'Set' }} Environment Variables</h4>
+              <p class="text-xs text-gray-500 mb-3">Values are encrypted at rest and injected as env vars when the server starts.</p>
+
+              <div v-for="(entry, index) in mcpCredentialEntries" :key="index" class="flex gap-2 mb-2">
+                <input
+                  v-model="entry.key"
+                  type="text"
+                  placeholder="VARIABLE_NAME"
+                  class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                >
+                <input
+                  v-model="entry.value"
+                  type="password"
+                  placeholder="secret_value"
+                  class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                >
                 <button
-                  @click="openAddCredentialModal(service.id)"
-                  class="text-xs px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 font-medium"
-                >
-                  + Add Credential
-                </button>
+                  @click="mcpCredentialEntries.splice(index, 1)"
+                  class="text-red-400 hover:text-red-600 px-2 text-lg"
+                >×</button>
               </div>
 
-              <!-- Credentials for this service -->
-              <div class="divide-y divide-gray-100">
-                <div
-                  v-for="cred in service.credentials"
-                  :key="cred.id"
-                  class="p-4 hover:bg-gray-50 transition"
-                >
-                  <div class="flex justify-between items-start">
-                    <div class="flex-1">
-                      <div class="flex items-center gap-2 mb-1">
-                        <span class="font-medium text-gray-800">{{ cred.credential_name }}</span>
-                        <span v-if="cred.is_default" class="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">
-                          Default
-                        </span>
-                        <span
-                          :class="[
-                            'text-xs px-2 py-0.5 rounded font-medium',
-                            cred.is_valid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                          ]"
-                        >
-                          {{ cred.is_valid ? '✓ Valid' : '✗ Invalid' }}
-                        </span>
-                      </div>
-                      <div class="flex gap-4 text-xs text-gray-500">
-                        <span>Auth: {{ cred.auth_type }}</span>
-                        <span v-if="cred.last_used_at">Last used: {{ formatDate(cred.last_used_at) }}</span>
-                        <span v-else>Never used</span>
-                      </div>
-                    </div>
-
-                    <div class="flex gap-2">
-                      <button
-                        v-if="!cred.is_default"
-                        @click="setAsDefault(cred.id)"
-                        class="text-xs px-2 py-1 text-gray-600 hover:text-indigo-600 border border-gray-300 rounded hover:border-indigo-300"
-                        title="Set as default"
-                      >
-                        Set Default
-                      </button>
-                      <button
-                        @click="testCredential(cred.id)"
-                        class="text-xs px-2 py-1 text-gray-600 hover:text-green-600 border border-gray-300 rounded hover:border-green-300"
-                        title="Test credential"
-                      >
-                        Test
-                      </button>
-                      <button
-                        @click="deleteCredential(cred.id)"
-                        class="text-xs px-2 py-1 text-gray-600 hover:text-red-600 border border-gray-300 rounded hover:border-red-300"
-                        title="Delete credential"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- No Credentials -->
-            <div v-if="credentials.length === 0" class="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-              <div class="text-4xl mb-2">🔐</div>
-              <p class="text-gray-600 font-medium mb-1">No credentials configured</p>
-              <p class="text-xs text-gray-500 mb-4">Add credentials for remote service tools to enable them</p>
               <button
-                @click="openAddCredentialModal()"
-                class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium"
+                @click="mcpCredentialEntries.push({ key: '', value: '' })"
+                class="text-sm text-indigo-600 hover:text-indigo-800 flex items-center gap-1 mb-3 font-medium"
               >
-                Add Your First Credential
+                <span>+</span> Add Variable
               </button>
+
+              <button
+                @click="saveMcpCredentials"
+                :disabled="savingMcpCredential || !mcpCredentialEntries.some(e => e.key && e.value)"
+                class="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <span v-if="savingMcpCredential" class="animate-spin">↻</span>
+                {{ savingMcpCredential ? 'Saving...' : 'Save MCP Credentials' }}
+              </button>
+
+              <div v-if="mcpCredentialMessage" class="mt-3 text-sm rounded-lg p-2 text-center" :class="mcpCredentialError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'">
+                {{ mcpCredentialMessage }}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Add/Edit Credential Modal -->
-      <div v-if="showCredentialModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showCredentialModal = false">
-        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md">
-          <div class="p-4 border-b border-gray-100 flex justify-between items-center">
-            <h3 class="font-bold text-gray-800">Add Credential</h3>
-            <button @click="showCredentialModal = false" class="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
-          </div>
 
-          <div class="p-6 space-y-4">
-            <!-- Service Selection -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Service</label>
-              <select
-                v-model="credentialForm.service_id"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-gray-900"
-              >
-                <option :value="null" class="text-gray-900">Select a service...</option>
-                <option v-for="svc in availableServices" :key="svc.id" :value="svc.id" class="text-gray-900">
-                  {{ svc.name }}
-                </option>
-              </select>
-            </div>
-
-            <!-- Credential Name -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
-              <input
-                v-model="credentialForm.credential_name"
-                type="text"
-                placeholder="e.g., Production API Key"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-              />
-            </div>
-
-            <!-- Auth Type -->
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Auth Type</label>
-              <select
-                v-model="credentialForm.auth_type"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-              >
-                <option value="api_key">API Key</option>
-                <option value="bearer">Bearer Token</option>
-                <option value="basic">Basic Auth</option>
-                <option value="oauth">OAuth</option>
-              </select>
-            </div>
-
-            <!-- Dynamic fields based on auth type -->
-            <div v-if="credentialForm.auth_type === 'api_key'" class="space-y-3">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
-                <input
-                  v-model="credentialForm.api_key"
-                  type="password"
-                  placeholder="sk-..."
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono text-sm"
-                />
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Header Name</label>
-                <input
-                  v-model="credentialForm.header_name"
-                  type="text"
-                  placeholder="X-API-Key"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div v-if="credentialForm.auth_type === 'bearer'">
-              <label class="block text-sm font-medium text-gray-700 mb-1">Bearer Token</label>
-              <input
-                v-model="credentialForm.token"
-                type="password"
-                placeholder="eyJ..."
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono text-sm"
-              />
-            </div>
-
-            <div v-if="credentialForm.auth_type === 'basic'" class="space-y-3">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                <input
-                  v-model="credentialForm.username"
-                  type="text"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                <input
-                  v-model="credentialForm.password"
-                  type="password"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div class="p-4 border-t border-gray-100 flex justify-end gap-2">
-            <button
-              @click="showCredentialModal = false"
-              class="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200"
-            >
-              Cancel
-            </button>
-            <button
-              @click="saveCredential"
-              :disabled="savingCredential"
-              class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {{ savingCredential ? 'Saving...' : 'Save Credential' }}
-            </button>
-          </div>
-        </div>
-      </div>
 
     </div>
   </div>
@@ -648,6 +525,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { marked } from 'marked';
 import api from '../services/api';
+import CredentialManager from './tools/CredentialManager.vue';
 
 const props = defineProps({
     agent: {
@@ -684,22 +562,17 @@ const modelSearchQuery = ref(''); // NEW: for model search
 const activeTab = ref('General');
 const toolsViewMode = ref('category'); // 'category' or 'service'
 
-// Credentials state
+// Credentials state (maintained for tool badges)
 const credentials = ref([]);
-const availableServices = ref([]);
-const loadingCredentials = ref(false);
-const showCredentialModal = ref(false);
-const savingCredential = ref(false);
-const credentialForm = ref({
-    service_id: null,
-    credential_name: '',
-    auth_type: 'api_key',
-    api_key: '',
-    header_name: 'X-API-Key',
-    token: '',
-    username: '',
-    password: ''
-});
+
+// MCP Credentials state
+const mcpServers = ref([]);
+const selectedMcpServerId = ref('');
+const mcpCredentials = ref([]);
+const mcpCredentialEntries = ref([{ key: '', value: '' }]);
+const savingMcpCredential = ref(false);
+const mcpCredentialMessage = ref('');
+const mcpCredentialError = ref(false);
 
 const scopes = [
     { value: 'system', label: 'Full System' },
@@ -720,23 +593,7 @@ const selectedToolsCount = computed(() => {
     return internalAgent.value.tool_ids ? internalAgent.value.tool_ids.length : 0;
 });
 
-const credentialsByService = computed(() => {
-    const serviceMap = {};
-    
-    // Group credentials by service
-    credentials.value.forEach(cred=> {
-        if (!serviceMap[cred.service_id]) {
-            serviceMap[cred.service_id] = {
-                id: cred.service_id,
-                name: cred.service_name,
-                credentials: []
-            };
-        }
-        serviceMap[cred.service_id].credentials.push(cred);
-    });
-    
-    return Object.values(serviceMap);
-});
+
 
 // Group tools by service with credential status
 const groupedFilteredToolsByService = computed(() => {
@@ -1150,137 +1007,102 @@ const reRunAnalysis = async () => {
     }
 };
 
-//Credential Management Functions
+// Credential fetching for tool badges
 const fetchCredentials = async () => {
     if (!internalAgent.value.id) return;
     
     try {
-        loadingCredentials.value = true;
         const res = await api.get(`/agents/${internalAgent.value.id}/credentials/`);
         credentials.value = res.data.credentials || [];
     } catch (e) {
         console.error('Failed to fetch credentials:', e);
-    } finally {
-        loadingCredentials.value = false;
     }
 };
 
-const fetchServices = async () => {
+// MCP Credential Management Functions
+const fetchMcpServers = async () => {
     try {
-        const res = await api.get('/services/');
-        availableServices.value = res.data.services || res.data.results || res.data;
-        console.log('Loaded services:', availableServices.value.length);
+        const res = await api.getMCPServers();
+        mcpServers.value = res.data.servers || res.data.results || res.data || [];
     } catch (e) {
-        console.error('Failed to fetch services:', e);
+        console.error('Failed to fetch MCP servers:', e);
     }
 };
 
-const openAddCredentialModal = (serviceId = null) => {
-    credentialForm.value = {
-        service_id: serviceId,
-        credential_name: '',
-        auth_type: 'api_key',
-        api_key: '',
-        header_name: 'X-API-Key',
-        token: '',
-        username: '',
-        password: ''
-    };
-    showCredentialModal.value = true;
+const loadMcpCredentials = async () => {
+    if (!selectedMcpServerId.value || !internalAgent.value.id) return;
+    mcpCredentialMessage.value = '';
+    try {
+        const res = await api.getMCPCredentials(selectedMcpServerId.value, internalAgent.value.id);
+        mcpCredentials.value = res.data.credentials || [];
+        // Pre-fill entries from existing credential keys
+        if (mcpCredentials.value.length) {
+            const cred = mcpCredentials.value[0];
+            mcpCredentialEntries.value = Object.keys(cred.env_vars || {}).map(key => ({ key, value: '' }));
+            if (!mcpCredentialEntries.value.length) mcpCredentialEntries.value = [{ key: '', value: '' }];
+        } else {
+            // Pre-fill from server env_config keys if available
+            const srv = mcpServers.value.find(s => s.id == selectedMcpServerId.value);
+            const envKeys = Object.keys(srv?.env_config || {});
+            if (envKeys.length) {
+                mcpCredentialEntries.value = envKeys.map(key => ({ key, value: '' }));
+            } else {
+                mcpCredentialEntries.value = [{ key: '', value: '' }];
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load MCP credentials:', e);
+    }
 };
 
-const saveCredential = async () => {
+const saveMcpCredentials = async () => {
     if (!internalAgent.value.id) {
         alert('Please save the agent first');
         return;
     }
-    
-    if (!credentialForm.value.service_id) {
-        alert('Please select a service');
-        return;
-    }
-    
+    savingMcpCredential.value = true;
+    mcpCredentialMessage.value = '';
+    mcpCredentialError.value = false;
+
+    const envVars = {};
+    mcpCredentialEntries.value.forEach(e => {
+        if (e.key && e.value) envVars[e.key] = e.value;
+    });
+
     try {
-        savingCredential.value = true;
-        
-        // Build credentials object based on auth type
-        const credentials_data = {};
-        if (credentialForm.value.auth_type === 'api_key') {
-            credentials_data.api_key = credentialForm.value.api_key;
-            credentials_data.header_name = credentialForm.value.header_name;
-        } else if (credentialForm.value.auth_type === 'bearer') {
-            credentials_data.token = credentialForm.value.token;
-        } else if (credentialForm.value.auth_type === 'basic') {
-            credentials_data.username = credentialForm.value.username;
-            credentials_data.password = credentialForm.value.password;
-        }
-        
-        await api.post(`/agents/${internalAgent.value.id}/credentials/create/`, {
-            service_id: credentialForm.value.service_id,
-            credential_name: credentialForm.value.credential_name,
-            auth_type: credentialForm.value.auth_type,
-            credentials: credentials_data
+        await api.setMCPCredentials(selectedMcpServerId.value, {
+            agent_profile_id: internalAgent.value.id,
+            env_vars: envVars
         });
-        
-        showCredentialModal.value = false;
-        await fetchCredentials();
-       
+        mcpCredentialMessage.value = 'Credentials saved successfully!';
+        loadMcpCredentials();
     } catch (e) {
-        alert('Failed to save credential: ' + (e.response?.data?.error || e.message));
+        mcpCredentialError.value = true;
+        mcpCredentialMessage.value = e.response?.data?.error || 'Failed to save credentials';
     } finally {
-        savingCredential.value = false;
+        savingMcpCredential.value = false;
     }
 };
 
-const setAsDefault = async (credentialId) => {
-    if (!internalAgent.value.id) return;
-    
+const deleteMcpCredential = async (cred) => {
+    if (!confirm(`Delete MCP credential "${cred.name}"?`)) return;
     try {
-        await api.post(`/agents/${internalAgent.value.id}/credentials/${credentialId}/set-default/`);
-        await fetchCredentials();
+        await api.deleteMCPCredential(selectedMcpServerId.value, cred.id);
+        mcpCredentialMessage.value = 'Credential deleted';
+        mcpCredentialError.value = false;
+        loadMcpCredentials();
     } catch (e) {
-        alert('Failed to set default: ' + (e.response?.data?.error || e.message));
+        mcpCredentialMessage.value = 'Failed to delete';
+        mcpCredentialError.value = true;
     }
 };
 
-const testCredential = async (credentialId) => {
-    if (!internalAgent.value.id) return;
-    
-    try {
-        const res = await api.post(`/agents/${internalAgent.value.id}/credentials/${credentialId}/test/`);
-        if (res.data.success) {
-            alert('✓ Credential test successful!');
-        } else {
-            alert('✗ Test failed: ' + (res.data.error || 'Unknown error'));
-        }
-    } catch (e) {
-        alert('✗ Test failed: ' + (e.response?.data?.error || e.message));
-    }
-};
 
-const deleteCredential = async (credentialId) => {
-    if (!confirm('Are you sure you want to delete this credential?')) return;
-    if (!internalAgent.value.id) return;
-    
-    try {
-        await api.delete(`/agents/${internalAgent.value.id}/credentials/${credentialId}/delete/`);
-        await fetchCredentials();
-    } catch (e) {
-        alert('Failed to delete credential: ' + (e.response?.data?.error || e.message));
-    }
-};
-
-const formatDate = (dateString) => {
-    if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleString();
-};
 
 // Watch activeTab to fetch credentials when tab is opened
 watch(() => activeTab.value, (newTab) => {
     if (newTab === 'Credentials' && internalAgent.value.id) {
-        fetchCredentials();
-        fetchServices();
+        fetchMcpServers();
     } else if (newTab === 'Tools' && internalAgent.value.id) {
         // Fetch credentials for service view badges
         fetchCredentials();

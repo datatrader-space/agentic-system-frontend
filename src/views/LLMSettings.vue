@@ -198,13 +198,14 @@
               <div
                 v-for="request in group.requests"
                 :key="request.created_at"
-                class="px-4 py-2 grid grid-cols-4 gap-2 items-center"
+                class="px-4 py-2 grid grid-cols-5 gap-2 items-center"
               >
                 <span :class="request.status === 'error' ? 'text-red-600' : 'text-green-600'">
                   {{ request.status }}
                 </span>
                 <span class="text-gray-500">{{ formatLatency(request.latency_ms) }}</span>
                 <span class="text-gray-500">{{ request.total_tokens ?? '—' }} tokens</span>
+                <span class="text-emerald-600 font-medium">${{ (request.cost_estimate || 0).toFixed(4) }}</span>
                 <span class="text-gray-400">{{ formatDate(request.created_at) }}</span>
               </div>
             </div>

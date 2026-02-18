@@ -639,6 +639,7 @@ const publicLinks = [
 const authLinks = [
   { to: '/dashboard', label: 'Dashboard', exact: true, iconComponent: DashboardIcon },
   { to: '/ai-settings', label: 'AI Providers', exact: true, iconComponent: AIIcon },
+  { to: '/ai-dashboard', label: 'AI Dashboard', exact: true, iconComponent: BenchmarkIcon },
   { to: '/benchmarks', label: 'Benchmarks', exact: true, iconComponent: BenchmarkIcon },
   { to: '/tools', label: 'Tools', exact: true, iconComponent: ToolsIcon },
   { to: '/services', label: 'Services', exact: true, iconComponent: ServicesIcon },

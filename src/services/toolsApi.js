@@ -7,7 +7,6 @@
 import axios from 'axios'
 
 const API_BASE = '/api/tools'
-const CREDENTIALS_BASE = '/api/credentials'
 
 export const toolsApi = {
     // ============================================================================
@@ -110,46 +109,47 @@ export const toolsApi = {
 
 export const credentialsApi = {
     // ============================================================================
-    // Credential Management
+    // Credential Management (agent-scoped)
     // ============================================================================
 
     /**
-     * List all credentials for the current user
+     * List credentials for an agent
      */
-    list: () =>
-        axios.get(`${CREDENTIALS_BASE}/`),
+    list: (agentId) =>
+        axios.get(`/api/agents/${agentId}/credentials/`),
 
     /**
-     * Create a new credential
-     * @param {Object} data - { name, agent_profile_id, credential_type, plaintext_value, metadata }
+     * Create a new credential for an agent
+     * @param {number} agentId
+     * @param {Object} data - For services: { service_id, credential_name, credentials: {...} }
+     *                        For built-in: { builtin_tool, credential_name, credentials: {...} }
      */
-    create: (data) =>
-        axios.post(`${CREDENTIALS_BASE}/`, data),
-
-    /**
-     * Get credential details
-     */
-    get: (id) =>
-        axios.get(`${CREDENTIALS_BASE}/${id}/`),
-
-    /**
-     * Update credential
-     * @param {Object} data - { name, metadata }
-     */
-    update: (id, data) =>
-        axios.patch(`${CREDENTIALS_BASE}/${id}/`, data),
+    create: (agentId, data) =>
+        axios.post(`/api/agents/${agentId}/credentials/create/`, data),
 
     /**
      * Delete credential
      */
-    delete: (id) =>
-        axios.delete(`${CREDENTIALS_BASE}/${id}/`),
+    delete: (agentId, credentialId) =>
+        axios.delete(`/api/agents/${agentId}/credentials/${credentialId}/delete/`),
 
     /**
-     * Test credential (verify it can be decrypted)
+     * Test credential (verify it works)
      */
-    test: (id) =>
-        axios.post(`${CREDENTIALS_BASE}/${id}/test/`),
+    test: (agentId, credentialId) =>
+        axios.post(`/api/agents/${agentId}/credentials/${credentialId}/test/`),
+
+    /**
+     * Set credential as default for its scope
+     */
+    setDefault: (agentId, credentialId) =>
+        axios.post(`/api/agents/${agentId}/credentials/${credentialId}/set-default/`),
+
+    /**
+     * Get available built-in tool credential scopes
+     */
+    getBuiltinScopes: () =>
+        axios.get(`/api/credentials/builtin-scopes/`),
 }
 
 export default {
