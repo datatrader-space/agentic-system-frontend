@@ -5,7 +5,7 @@
     class="group bg-white rounded-2xl shadow-sm border border-gray-200 hover:shadow-xl hover:border-blue-300 transition-all duration-300 overflow-hidden flex flex-col h-full transform hover:-translate-y-1"
   >
     <!-- Card Header with Gradient -->
-    <div class="relative bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-6 pb-8">
+    <div class="relative bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 p-4 sm:p-6 pb-6 sm:pb-8">
       <!-- Tool Type Badge (Phase A) -->
       <div class="absolute top-4 left-4">
         <span
@@ -33,12 +33,12 @@
       </div>
 
       <!-- Tool Icon/Avatar -->
-      <div class="w-16 h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center text-3xl shadow-lg mb-4">
+      <div class="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl shadow-lg mb-3 sm:mb-4">
         {{ getToolIcon(tool.category) }}
       </div>
 
       <!-- Tool Name -->
-      <h3 class="text-xl font-bold text-gray-900 mb-2 leading-tight">{{ tool.name }}</h3>
+      <h3 class="text-base sm:text-xl font-bold text-gray-900 mb-2 leading-tight">{{ tool.name }}</h3>
 
       <!-- Version Badge -->
       <div class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/70 backdrop-blur-sm rounded-lg text-xs font-medium text-gray-700">
@@ -50,7 +50,7 @@
     </div>
 
     <!-- Card Body -->
-    <div class="flex-1 p-6 pt-4 flex flex-col">
+    <div class="flex-1 p-4 sm:p-6 pt-3 sm:pt-4 flex flex-col">
       <!-- Description -->
       <p class="text-sm text-gray-600 leading-relaxed mb-4 line-clamp-3 flex-1">
         {{ tool.description }}
@@ -118,7 +118,7 @@
   <!-- List View -->
   <div
     v-else
-    class="group bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:border-blue-300 transition-all duration-300 p-6 flex items-start gap-6 transform hover:-translate-x-1"
+    class="group bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:border-blue-300 transition-all duration-300 p-3 sm:p-6 flex items-start gap-3 sm:gap-6 transform hover:-translate-x-1"
   >
     <!-- Left: Icon and Info -->
     <div class="flex-1 min-w-0">
@@ -276,6 +276,7 @@ export default {
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -283,6 +284,7 @@ export default {
 .line-clamp-3 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

@@ -3,65 +3,69 @@
 
         <!-- Top Bar: Agent Info -->
         <div
-            class="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 shrink-0 shadow-sm z-10">
-            <div class="flex items-center gap-4">
-                <button @click="$router.push('/agents')" class="text-gray-500 hover:text-gray-700">
-                    ← Back
+            class="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-3 md:px-4 shrink-0 shadow-sm z-10">
+            <div class="flex items-center gap-2 sm:gap-4 min-w-0">
+                <button @click="$router.push('/agents')" class="text-gray-500 hover:text-gray-700 flex-shrink-0 p-1.5 sm:p-0">
+                    <span class="hidden sm:inline">← Back</span>
+                    <svg class="w-5 h-5 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                <div class="h-6 w-px bg-gray-200"></div>
-                <h1 class="text-lg font-bold text-gray-800">
+                <div class="h-6 w-px bg-gray-200 hidden sm:block"></div>
+                <h1 class="text-sm sm:text-lg font-bold text-gray-800 truncate">
                     {{ agent.id ? agent.name || 'Edit Agent' : 'New Agent' }}
                 </h1>
             </div>
 
             <!-- Right: Actions -->
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
                 <button v-if="agent.id" @click="toggleWorkspace"
-                    class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 bg-white transition flex items-center gap-2"
-                    :class="{ 'border-blue-400 text-blue-600': showWorkspace }">
+                    class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
+                    :class="{ 'border-blue-400 text-blue-600': showWorkspace }"
+                    :title="'Workspace'">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                     </svg>
-                    Workspace
+                    <span class="hidden md:inline">Workspace</span>
                 </button>
                 <button v-if="agent.id" @click="showScript = !showScript"
-                    class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 bg-white transition flex items-center gap-2"
-                    :class="{ 'border-indigo-400 text-indigo-600': showScript }">
+                    class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
+                    :class="{ 'border-indigo-400 text-indigo-600': showScript }"
+                    :title="'Script'">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <polyline points="4 17 10 11 4 5" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
                         <line x1="12" y1="19" x2="20" y2="19" stroke-linecap="round" stroke-width="2" />
                     </svg>
-                    Script
+                    <span class="hidden md:inline">Script</span>
                 </button>
                 <button @click="showBuilder = !showBuilder"
-                    class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded px-3 py-1.5 bg-white transition flex items-center gap-2">
+                    class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
+                    :title="'Configure Agent'">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    Configure Agent
+                    <span class="hidden md:inline">Configure Agent</span>
                 </button>
             </div>
         </div>
 
         <!-- Main Workspace -->
-        <div class="flex-1 flex h-0">
+        <div class="flex-1 flex h-0 overflow-hidden">
 
             <!-- Left: Builder (MODAL OVERLAY) -->
             <div v-if="showBuilder" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
                 @click.self="showBuilder = false">
-                <div class="h-full w-[500px] bg-white shadow-2xl animate-in slide-in-from-right duration-200 overflow-y-auto">
-                    <AgentBuilder v-if="agent" v-model:agent="agent" :isSaving="saving" @save="saveAgent" />
+                <div class="h-full w-full sm:w-[500px] bg-white shadow-2xl animate-in slide-in-from-right duration-200 overflow-y-auto">
+                    <AgentBuilder v-if="agent" v-model:agent="agent" :isSaving="saving" @save="saveAgent" @close="showBuilder = false" />
                 </div>
             </div>
 
             <!-- Script Panel (slide-over) -->
             <div v-if="showScript" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
                 @click.self="showScript = false">
-                <div class="h-full w-[560px] bg-gray-900 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+                <div class="h-full w-full sm:w-[560px] bg-gray-900 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
                     <ScriptPanel
                         :repositoryId="selectedContext.repo?.id || '0'"
                         :agentId="agent.id"
@@ -74,14 +78,18 @@
             <!-- Workspace Panel (slide-over) -->
             <div v-if="showWorkspace" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
                 @click.self="showWorkspace = false">
-                <div class="h-full w-[520px] bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
+                <div class="h-full w-full sm:w-[520px] bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
                     <!-- Header -->
-                    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 shrink-0">
+                    <div class="flex items-center justify-between px-3 sm:px-5 py-3 sm:py-4 border-b border-gray-200 shrink-0">
                         <div class="flex items-center gap-2">
-                            <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <button @click="showWorkspace = false" class="flex sm:hidden items-center gap-1 text-gray-700 hover:text-gray-900 mr-1 min-h-[44px] min-w-[44px]">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                                <span class="text-sm font-medium">Back</span>
+                            </button>
+                            <svg class="w-5 h-5 text-blue-600 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                             </svg>
-                            <h2 class="text-base font-bold text-gray-800">Agent Workspace</h2>
+                            <h2 class="text-sm sm:text-base font-bold text-gray-800">Workspace</h2>
                             <span v-if="wsFiles.length" class="text-xs text-gray-400 ml-1">({{ wsFormatSize(wsTotalSize) }})</span>
                         </div>
                         <div class="flex items-center gap-2">
@@ -161,40 +169,41 @@
             <FileViewer ref="fileViewer" :systemId="selectedContext.system" :repoId="selectedContext.repo || '0'" />
 
             <!-- Right: Preview / Chat -->
-            <div class="flex-1 flex flex-col bg-white relative">
-                <div class="p-2 border-b border-gray-100 bg-gray-50 flex items-center justify-between text-xs font-mono">
+            <div class="flex-1 flex flex-col bg-white relative overflow-hidden">
+                <!-- Desktop Tabs (hidden on mobile, shown md+) -->
+                <div class="hidden md:flex p-2 border-b border-gray-100 bg-gray-50 items-center justify-between text-xs font-mono sticky top-0 z-20">
                     <!-- Left: Tabs -->
-                    <div class="flex gap-4">
+                    <div class="flex gap-4 overflow-x-auto scrollbar-hide">
                     <button @click="activeTab = 'chat'"
-                        :class="activeTab === 'chat' ? 'text-blue-600 font-bold border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'">
+                        :class="[tabClass('chat'), 'whitespace-nowrap py-1 px-1 transition-colors']">
                         PREVIEW SESSION
                     </button>
                     <button @click="activeTab = 'knowledge'"
-                        :class="activeTab === 'knowledge' ? 'text-blue-600 font-bold border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'">
+                        :class="[tabClass('knowledge'), 'whitespace-nowrap py-1 px-1 transition-colors']">
                         KNOWLEDGE CONTEXT
                     </button>
                     <button @click="activeTab = 'trace'"
-                        :class="activeTab === 'trace' ? 'text-blue-600 font-bold border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'">
+                        :class="[tabClass('trace'), 'whitespace-nowrap py-1 px-1 transition-colors']">
                         TRACE
                     </button>
                     <button @click="activeTab = 'tools'"
-                        :class="activeTab === 'tools' ? 'text-blue-600 font-bold border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'">
+                        :class="[tabClass('tools'), 'whitespace-nowrap py-1 px-1 transition-colors']">
                         🔧 TOOLS
                     </button>
                     <button @click="activeTab = 'automation'"
-                        :class="activeTab === 'automation' ? 'text-blue-600 font-bold border-b-2 border-blue-600' : 'text-gray-400 hover:text-gray-600'">
+                        :class="[tabClass('automation'), 'whitespace-nowrap py-1 px-1 transition-colors']">
                         ⚡ AUTOMATION
                     </button>
                     </div>
 
                     <!-- Right: Conversation Switcher -->
-                    <div v-if="agent.id" class="relative" ref="convSwitcherRef">
+                    <div v-if="agent.id" class="relative flex-shrink-0" ref="convSwitcherRef">
                         <button @click="showConvSwitcher = !showConvSwitcher"
                             class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition text-xs">
                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                             </svg>
-                            <span class="max-w-[140px] truncate">{{ currentConvTitle }}</span>
+                            <span class="max-w-[100px] sm:max-w-[140px] truncate">{{ currentConvTitle }}</span>
                             <svg class="w-3 h-3" :class="{ 'rotate-180': showConvSwitcher }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                             </svg>
@@ -202,7 +211,7 @@
 
                         <!-- Dropdown -->
                         <div v-if="showConvSwitcher"
-                            class="absolute right-0 top-full mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
+                            class="absolute right-0 top-full mt-1 w-[calc(100vw-2rem)] sm:w-72 max-w-sm bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden">
                             <!-- New Conversation -->
                             <button @click="createNewConversation"
                                 class="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-blue-600 hover:bg-blue-50 border-b border-gray-100 font-medium">
@@ -237,9 +246,26 @@
                     </div>
                 </div>
 
+                <!-- Mobile Tab Bar (visible on mobile, shown below conversation switcher) -->
+                <div class="flex md:hidden p-1.5 border-b border-gray-100 bg-gray-50 items-center text-xs font-mono sticky top-0 z-20 overflow-x-auto scrollbar-hide gap-1">
+                    <button v-if="agent.id" @click="showConvSwitcher = !showConvSwitcher"
+                        class="flex items-center gap-1 px-2 py-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition flex-shrink-0">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
+                        <span class="max-w-[80px] truncate">{{ currentConvTitle }}</span>
+                    </button>
+                    <div class="h-4 w-px bg-gray-200 flex-shrink-0"></div>
+                    <button v-for="tab in mobileTabItems" :key="tab.id" @click="activeTab = tab.id"
+                        :class="[tabClass(tab.id), 'whitespace-nowrap py-1.5 px-2 rounded-md transition-colors flex items-center gap-1 flex-shrink-0']">
+                        <span>{{ tab.icon }}</span>
+                        <span class="text-[10px]">{{ tab.shortLabel }}</span>
+                    </button>
+                </div>
+
                 <!-- Trace Tab -->
                 <div v-if="activeTab === 'trace'"
-                    class="flex-1 overflow-hidden flex flex-col items-center justify-center">
+                    class="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center">
                     <SessionTrace v-if="activeSessionId" :session-id="activeSessionId" class="w-full h-full" />
                     <div v-else class="text-gray-400">
                         <div class="text-4xl mb-2 text-center">🔍</div>
@@ -248,7 +274,7 @@
                 </div>
 
                 <!-- Tools Tab -->
-                <div v-if="activeTab === 'tools'" class="flex-1 overflow-hidden flex flex-col">
+                <div v-if="activeTab === 'tools'" class="flex-1 min-h-0 overflow-y-auto flex flex-col">
                     <ToolsPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
                     <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
                         <div class="text-5xl mb-3">🔧</div>
@@ -258,7 +284,7 @@
                 </div>
 
                 <!-- Automation Tab -->
-                <div v-if="activeTab === 'automation'" class="flex-1 overflow-hidden flex flex-col">
+                <div v-if="activeTab === 'automation'" class="flex-1 min-h-0 overflow-y-auto flex flex-col">
                     <AutomationPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
                     <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
                         <div class="text-5xl mb-3">⚡</div>
@@ -271,7 +297,7 @@
                 <!-- Chat Interface (Always Active) -->
                 <div v-if="activeTab === 'chat'" class="flex-1 flex flex-col overflow-hidden w-full bg-white">
                     <!-- Feed -->
-                    <div class="flex-1 overflow-y-auto pb-32 bg-white" ref="feed" @scroll="handleScroll">
+                    <div class="flex-1 overflow-y-auto overflow-x-hidden pb-36 md:pb-32 bg-white" ref="feed" @scroll="handleScroll">
                         <!-- Restoring Session Indicator -->
                         <div v-if="isRestoring"
                             class="flex flex-col items-center justify-center h-full text-blue-600">
@@ -297,11 +323,11 @@
                             class="w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <!-- User -->
                             <div v-if="event.type === 'user'" class="group hover:bg-gray-50/50 transition-colors">
-                                <div class="max-w-5xl mx-auto px-4 py-6">
-                                    <div class="flex items-start gap-4 justify-end">
+                                <div class="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+                                    <div class="flex items-start gap-2 sm:gap-4 justify-end">
                                         <div class="flex-1 pt-1 flex flex-col items-end">
                                             <div
-                                                class="bg-blue-600 text-white px-4 py-3 rounded-2xl rounded-br-md max-w-[85%] leading-relaxed whitespace-pre-wrap shadow-sm">
+                                                class="bg-blue-600 text-white px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl rounded-br-md max-w-[92%] sm:max-w-[85%] leading-relaxed whitespace-pre-wrap shadow-sm text-sm sm:text-base">
                                                 {{ event.content }}
                                                 <!-- Attached file badges -->
                                                 <div v-if="event.attachments && event.attachments.length" class="flex flex-wrap gap-1.5 mt-2 pt-2 border-t border-blue-500/30">
@@ -338,7 +364,7 @@
                                             </div>
                                         </div>
                                         <div
-                                            class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                                            class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs sm:text-sm font-semibold flex-shrink-0">
                                             U
                                         </div>
                                     </div>
@@ -348,14 +374,14 @@
                             <!-- Assistant -->
                             <div v-if="event.type === 'assistant'"
                                 class="group bg-gray-50/50 hover:bg-gray-50/70 transition-colors border-b border-gray-100/50">
-                                <div class="max-w-5xl mx-auto px-4 py-6">
-                                    <div class="flex items-start gap-4">
+                                <div class="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+                                    <div class="flex items-start gap-2 sm:gap-4">
                                         <!-- Avatar -->
                                         <div
-                                            class="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                                            class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-xs sm:text-sm font-semibold flex-shrink-0">
                                             AI
                                         </div>
-                                        <div class="flex-1 pt-1">
+                                        <div class="flex-1 pt-1 min-w-0">
                                             <!-- Streaming Indicator -->
                                             <div v-if="isProcessing && chatEvents[chatEvents.length - 1].id === event.id"
                                                 class="flex items-center gap-2 text-xs text-gray-500 mb-2">
@@ -416,15 +442,15 @@
                             <!-- Agent Planning -->
                             <div v-if="event.type === 'agent_planning'"
                                 class="group bg-indigo-50/40 border-b border-indigo-100/50">
-                                <div class="max-w-5xl mx-auto px-4 py-4">
+                                <div class="max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
                                     <button v-if="event.completed" @click="event.collapsed = !event.collapsed"
                                         class="w-full flex items-start gap-4 text-left hover:bg-indigo-50/60 transition-colors rounded p-2 -m-2">
                                         <div
-                                            class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm flex-shrink-0">
+                                            class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
                                             <span v-if="event.collapsed">🧠</span>
                                             <span v-else>✓</span>
                                         </div>
-                                        <div class="flex-1 pt-1">
+                                        <div class="flex-1 pt-1 min-w-0">
                                             <div
                                                 class="text-sm font-semibold text-indigo-900 mb-1 flex items-center gap-2">
                                                 <span>Planning Complete</span>
@@ -439,10 +465,10 @@
                                             </div>
                                         </div>
                                     </button>
-                                    <div v-else class="flex items-start gap-4">
+                                    <div v-else class="flex items-start gap-2 sm:gap-4">
                                         <div
-                                            class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm flex-shrink-0">
-                                            <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                            class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
+                                            <svg class="w-4 h-4 sm:w-5 sm:h-5 animate-spin" fill="none" viewBox="0 0 24 24">
                                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
                                                     stroke-width="4"></circle>
                                                 <path class="opacity-75" fill="currentColor"
@@ -450,10 +476,10 @@
                                                 </path>
                                             </svg>
                                         </div>
-                                        <div class="flex-1 pt-1">
-                                            <div class="text-sm font-semibold text-indigo-900 mb-1">Analyzing Request
+                                        <div class="flex-1 pt-1 min-w-0">
+                                            <div class="text-xs sm:text-sm font-semibold text-indigo-900 mb-1">Analyzing Request
                                             </div>
-                                            <div class="text-sm text-indigo-700">{{ event.data.message ||
+                                            <div class="text-xs sm:text-sm text-indigo-700 break-words">{{ event.data.message ||
                                                 event.data.status }}</div>
                                         </div>
                                     </div>
@@ -463,14 +489,14 @@
                             <!-- Agent Plan Generated -->
                             <div v-if="event.type === 'agent_plan_generated'"
                                 class="group bg-blue-50/40 border-b border-blue-100/50">
-                                <div class="max-w-5xl mx-auto px-4 py-4">
+                                <div class="max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
                                     <button @click="event.collapsed = !event.collapsed"
-                                        class="w-full flex items-start gap-4 text-left hover:bg-blue-50/60 transition-colors rounded p-2 -m-2">
+                                        class="w-full flex items-start gap-2 sm:gap-4 text-left hover:bg-blue-50/60 transition-colors rounded p-2 -m-2">
                                         <div
-                                            class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm flex-shrink-0">
+                                            class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
                                             📋
                                         </div>
-                                        <div class="flex-1 pt-1">
+                                        <div class="flex-1 pt-1 min-w-0">
                                             <div
                                                 class="text-sm font-semibold text-blue-900 mb-1 flex items-center gap-2">
                                                 <span>Execution Plan Generated</span>
@@ -491,8 +517,8 @@
                                                             <span
                                                                 class="text-xs font-bold text-blue-600 bg-blue-100 rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0">{{
                                                                     step.id }}</span>
-                                                            <div class="flex-1">
-                                                                <p class="text-sm text-blue-900">{{ step.description }}
+                                                            <div class="flex-1 min-w-0">
+                                                                <p class="text-xs sm:text-sm text-blue-900 break-words">{{ step.description }}
                                                                 </p>
                                                                 <span :class="['text-xs px-2 py-0.5 rounded inline-block mt-1',
                                                                     step.status === 'completed' ? 'bg-green-100 text-green-700' :
@@ -513,7 +539,7 @@
                             <!-- Agent Step (Hidden by default - just shows in execution flow) -->
                             <div v-if="event.type === 'agent_step' && !event.collapsed"
                                 class="group bg-teal-50/20 border-l-4 border-teal-400">
-                                <div class="max-w-5xl mx-auto px-4 py-2">
+                                <div class="max-w-5xl mx-auto px-3 sm:px-4 py-2">
                                     <div class="flex items-center gap-3">
                                         <div
                                             class="w-6 h-6 rounded-full bg-teal-500 flex items-center justify-center text-white text-xs flex-shrink-0">
@@ -530,16 +556,16 @@
                             <!-- Tool Call -->
                             <div v-if="event.type === 'tool_call'"
                                 class="group bg-amber-50/30 border-b border-amber-100/50">
-                                <div class="max-w-5xl mx-auto px-4 py-4">
-                                    <div class="flex items-start gap-4">
+                                <div class="max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+                                    <div class="flex items-start gap-2 sm:gap-4">
                                         <div
-                                            class="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-white text-sm flex-shrink-0">
+                                            class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
                                             🛠️
                                         </div>
-                                        <div class="flex-1 pt-1">
-                                            <div class="text-sm font-semibold text-amber-900 mb-1">Using Tool: {{
+                                        <div class="flex-1 pt-1 min-w-0">
+                                            <div class="text-xs sm:text-sm font-semibold text-amber-900 mb-1 break-words">Using Tool: {{
                                                 event.data.tool }}</div>
-                                            <div class="font-mono text-xs text-amber-800 bg-amber-50 p-2 rounded">{{
+                                            <div class="font-mono text-[10px] sm:text-xs text-amber-800 bg-amber-50 p-2 rounded overflow-x-auto max-w-full break-all">{{
                                                 event.data.params }}</div>
                                             <button v-if="getFileFromTool(event.data.tool, event.data.params)"
                                                 @click="openFileViewer(getFileFromTool(event.data.tool, event.data.params))"
@@ -559,20 +585,20 @@
                             <!-- Tool Result -->
                             <div v-if="event.type === 'tool_result'"
                                 class="group bg-purple-50/30 border-b border-purple-100/50">
-                                <div class="max-w-5xl mx-auto px-4 py-4">
-                                    <div class="flex items-start gap-4">
+                                <div class="max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+                                    <div class="flex items-start gap-2 sm:gap-4">
                                         <div
-                                            class="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-sm flex-shrink-0">
+                                            class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
                                             📄
                                         </div>
-                                        <div class="flex-1 pt-1">
-                                            <div class="text-sm font-semibold text-purple-900 mb-1">Tool Result: {{
+                                        <div class="flex-1 pt-1 min-w-0">
+                                            <div class="text-xs sm:text-sm font-semibold text-purple-900 mb-1 break-words">Tool Result: {{
                                                 event.data.tool_name }}</div>
                                             
                                             <!-- Request URL (for remote tools) -->
                                             <div v-if="event.data.request_url"
-                                                class="text-xs text-purple-600 mb-2 font-mono flex items-center gap-1.5">
-                                                <span class="px-1.5 py-0.5 rounded text-white text-[10px] font-bold uppercase"
+                                                class="text-xs text-purple-600 mb-2 font-mono flex items-center gap-1.5 min-w-0">
+                                                <span class="px-1.5 py-0.5 rounded text-white text-[10px] font-bold uppercase flex-shrink-0"
                                                     :class="{
                                                         'bg-green-500': event.data.request_method === 'GET',
                                                         'bg-blue-500': event.data.request_method === 'POST',
@@ -593,7 +619,7 @@
                                             />
                                             
                                             <div
-                                                class="font-mono text-xs text-purple-800 bg-white border border-purple-200 p-2 rounded max-h-40 overflow-y-auto">
+                                                class="font-mono text-[10px] sm:text-xs text-purple-800 bg-white border border-purple-200 p-2 rounded max-h-40 overflow-y-auto overflow-x-auto break-all">
                                                 {{ formatToolResult(event.data.result) }}</div>
                                         </div>
                                     </div>
@@ -603,13 +629,13 @@
                             <!-- Thought -->
                             <div v-if="event.type === 'thought'"
                                 class="group bg-purple-50/20 border-b border-purple-100/30">
-                                <div class="max-w-5xl mx-auto px-4 py-3">
-                                    <div class="flex items-start gap-4">
+                                <div class="max-w-5xl mx-auto px-3 sm:px-4 py-3">
+                                    <div class="flex items-start gap-2 sm:gap-4">
                                         <div
-                                            class="w-8 h-8 rounded-full bg-purple-400 flex items-center justify-center text-white text-sm flex-shrink-0">
+                                            class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-purple-400 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
                                             💭
                                         </div>
-                                        <div class="flex-1 pt-1 text-sm text-purple-700">
+                                        <div class="flex-1 pt-1 text-xs sm:text-sm text-purple-700 min-w-0 break-words">
                                             {{ event.content }}
                                         </div>
                                     </div>
@@ -618,15 +644,15 @@
 
                             <!-- Error -->
                             <div v-if="event.type === 'error'" class="group bg-red-50/30 border-b border-red-100/50">
-                                <div class="max-w-5xl mx-auto px-4 py-4">
-                                    <div class="flex items-start gap-4">
+                                <div class="max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+                                    <div class="flex items-start gap-2 sm:gap-4">
                                         <div
-                                            class="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-sm flex-shrink-0">
+                                            class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
                                             ❌
                                         </div>
-                                        <div class="flex-1 pt-1">
-                                            <div class="text-sm font-semibold text-red-900 mb-1">Error</div>
-                                            <div class="text-sm text-red-700 leading-relaxed">{{ event.content ||
+                                        <div class="flex-1 pt-1 min-w-0">
+                                            <div class="text-xs sm:text-sm font-semibold text-red-900 mb-1">Error</div>
+                                            <div class="text-xs sm:text-sm text-red-700 leading-relaxed break-words">{{ event.content ||
                                                 event.data?.message || event.data?.error || 'An unknown error occurred'
                                                 }}</div>
                                         </div>
@@ -638,7 +664,7 @@
                         <!-- Typing Indicator -->
                         <div v-if="isTyping"
                             class="bg-gray-50/30 border-b border-gray-100/50 animate-in fade-in duration-300">
-                            <div class="max-w-5xl mx-auto px-4 py-6">
+                            <div class="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
                                 <div class="flex items-start gap-4">
                                     <div
                                         class="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
@@ -661,8 +687,8 @@
 
                     <!-- Input (Professional Design) -->
                     <div
-                        class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/98 to-transparent pt-6 pb-3">
-                        <div class="max-w-5xl mx-auto px-4">
+                        class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/98 to-transparent pt-4 sm:pt-6 pb-2 sm:pb-3">
+                        <div class="max-w-5xl mx-auto px-2 sm:px-4">
                             <!-- Input Container -->
                             <div class="relative group">
                                 <div
@@ -746,7 +772,7 @@
                                 </div>
 
                                 <!-- Keyboard Shortcut Hint -->
-                                <div class="flex items-center justify-between mt-2 px-1">
+                                <div class="hidden sm:flex items-center justify-between mt-2 px-1">
                                     <p class="text-xs text-gray-500">
                                         Press <kbd
                                             class="px-1.5 py-0.5 text-xs font-semibold text-gray-600 bg-gray-100 border border-gray-300 rounded">Enter</kbd>
@@ -761,9 +787,9 @@
                     </div>
 
                     <!-- Floating Scroll Buttons -->
-                    <div class="absolute bottom-32 right-8 flex flex-col gap-2 z-30 pointer-events-none">
+                    <div class="absolute bottom-36 md:bottom-32 right-4 sm:right-8 flex flex-col gap-2 z-30 pointer-events-none">
                         <button v-if="showScrollTop" @click="scrollToTop"
-                            class="p-3 bg-white/90 backdrop-blur shadow-xl border border-gray-100 rounded-full text-blue-600 hover:text-blue-700 hover:scale-110 active:scale-95 transition-all duration-300 pointer-events-auto group"
+                            class="p-2.5 sm:p-3 bg-white/90 backdrop-blur shadow-xl border border-gray-100 rounded-full text-blue-600 hover:text-blue-700 hover:scale-110 active:scale-95 transition-all duration-300 pointer-events-auto group min-w-[44px] min-h-[44px] flex items-center justify-center"
                             title="Scroll to top">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
@@ -771,7 +797,7 @@
                             </svg>
                         </button>
                         <button v-if="showScrollBottom" @click="scrollToBottom(true)"
-                            class="p-3 bg-white/90 backdrop-blur shadow-xl border border-gray-100 rounded-full text-blue-600 hover:text-blue-700 hover:scale-110 active:scale-95 transition-all duration-300 pointer-events-auto"
+                            class="p-2.5 sm:p-3 bg-white/90 backdrop-blur shadow-xl border border-gray-100 rounded-full text-blue-600 hover:text-blue-700 hover:scale-110 active:scale-95 transition-all duration-300 pointer-events-auto min-w-[44px] min-h-[44px] flex items-center justify-center"
                             title="Scroll to bottom">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
@@ -782,9 +808,9 @@
                 </div>
 
                 <!-- Knowledge Interface -->
-                <div v-if="activeTab === 'knowledge'" class="flex-1 flex overflow-hidden">
+                <div v-if="activeTab === 'knowledge'" class="flex-1 flex flex-col md:flex-row overflow-hidden">
                     <!-- Doc List -->
-                    <div class="w-1/3 border-r border-gray-200 overflow-y-auto bg-gray-50">
+                    <div class="w-full md:w-1/3 border-b md:border-b-0 md:border-r border-gray-200 overflow-y-auto bg-gray-50 max-h-[40vh] md:max-h-none">
                         <div v-if="loadingDocs" class="p-4 text-center text-gray-500 text-sm">Loading docs...</div>
                         <div v-else-if="knowledgeDocs.length === 0" class="p-4 text-center text-gray-500 text-sm">
                             No knowledge documents found for this repository.
@@ -800,7 +826,7 @@
                     </div>
 
                     <!-- Doc View & Analysis -->
-                    <div class="flex-1 overflow-y-auto p-6">
+                    <div class="flex-1 overflow-y-auto p-3 sm:p-6">
                         <div v-if="!selectedDoc" class="flex items-center justify-center h-full text-gray-400">
                             <p>Select a document to view analysis.</p>
                         </div>
@@ -903,6 +929,21 @@ const isTyping = ref(false); // Typing indicator state
 const ignoringMessages = ref(false); // Flag to ignore messages after stop
 const isAgentSessionActive = ref(false); // Track if agent session is running (for stop button)
 const activeTab = ref('chat');
+
+// Tab helper for responsive tab bars
+const tabClass = (tabId) => activeTab.value === tabId
+    ? 'text-blue-600 font-bold border-b-2 border-blue-600'
+    : 'text-gray-400 hover:text-gray-600';
+
+// Mobile tab items with icons and short labels
+const mobileTabItems = [
+    { id: 'chat', icon: '💬', shortLabel: 'Chat' },
+    { id: 'knowledge', icon: '📚', shortLabel: 'Knowledge' },
+    { id: 'trace', icon: '🔍', shortLabel: 'Trace' },
+    { id: 'tools', icon: '🔧', shortLabel: 'Tools' },
+    { id: 'automation', icon: '⚡', shortLabel: 'Auto' },
+];
+
 const showBuilder = ref(false); // Default to false (modal hidden)
 const showWorkspace = ref(false);
 const showScript = ref(false);
@@ -1863,7 +1904,15 @@ renderer.code = function ({ text, lang }) {
 };
 marked.setOptions({ renderer });
 
-const formatMarkdown = (text) => marked(text || '');
+// Post-process: wrap <table> in scrollable container
+const wrapTablesInScroller = (html) => {
+    return html.replace(
+        /<table([^>]*)>(.*?)<\/table>/gs,
+        '<div class="table-scroll-wrapper"><table$1>$2</table></div>'
+    );
+};
+
+const formatMarkdown = (text) => wrapTablesInScroller(marked(text || ''));
 const formatToolResult = (result) => {
     if (typeof result === 'object') return JSON.stringify(result, null, 2);
     return result;
@@ -2937,8 +2986,146 @@ kbd {
     background-color: #f1f5f9;
 }
 
-/* Ensure table container doesn't break layout */
+/* Ensure text in prose wraps properly */
 :deep(.prose) {
     overflow-wrap: break-word;
+    word-wrap: break-word;
+}
+
+/* Table scroll wrapper — only the table scrolls, not the whole message */
+:deep(.table-scroll-wrapper) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 1rem 0;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+}
+
+:deep(.table-scroll-wrapper table) {
+    margin: 0 !important;
+    border: none !important;
+    min-width: 400px;
+    width: 100%;
+}
+
+:deep(.table-scroll-wrapper)::-webkit-scrollbar {
+    height: 6px;
+}
+
+:deep(.table-scroll-wrapper)::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+:deep(.table-scroll-wrapper)::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+}
+
+:deep(.table-scroll-wrapper)::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Scrollbar hide utility for mobile tab bar */
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+/* Global overflow containment for mobile */
+.agent-playground {
+    max-width: 100vw;
+    overflow-x: hidden;
+}
+
+/* Text wrapping for prose content — avoid break-all which breaks mid-word */
+:deep(.prose p),
+:deep(.prose li),
+:deep(.prose h1),
+:deep(.prose h2),
+:deep(.prose h3),
+:deep(.prose h4),
+:deep(.prose blockquote) {
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
+}
+
+/* Force monospace containers to break on mobile */
+.font-mono {
+    word-break: break-all;
+    overflow-wrap: anywhere;
+}
+
+/* Mobile responsive overrides */
+@media (max-width: 640px) {
+    /* Prose content */
+    :deep(.prose) {
+        font-size: 0.875rem;
+        line-height: 1.6;
+        max-width: 100% !important;
+        overflow-wrap: break-word;
+        word-break: break-word;
+    }
+
+    :deep(.prose pre) {
+        font-size: 0.7rem;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        margin-left: -0.25rem;
+        margin-right: -0.25rem;
+        max-width: calc(100vw - 3rem);
+    }
+
+    :deep(.prose code) {
+        font-size: 0.75rem;
+        word-break: break-all;
+    }
+
+    :deep(.table-scroll-wrapper) {
+        margin: 0.75rem 0;
+    }
+
+    :deep(.prose table) {
+        min-width: 300px;
+        font-size: 0.7rem;
+    }
+
+    :deep(.prose th) {
+        padding: 0.375rem 0.5rem;
+        font-size: 0.6rem;
+    }
+
+    :deep(.prose td) {
+        padding: 0.375rem 0.5rem;
+        min-width: 60px;
+    }
+
+    :deep(.prose img) {
+        border-radius: 0.5rem;
+        max-width: 100%;
+        height: auto;
+    }
+
+    :deep(.prose h1) { font-size: 1.15rem; }
+    :deep(.prose h2) { font-size: 1.05rem; }
+    :deep(.prose h3) { font-size: 0.95rem; }
+    :deep(.prose p) { font-size: 0.8125rem; }
+    :deep(.prose li) { font-size: 0.8125rem; }
+
+    /* Constrain all content containers */
+    .max-w-5xl {
+        max-width: 100% !important;
+    }
+}
+
+/* iOS safe area padding */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+    .agent-playground {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
 }
 </style>

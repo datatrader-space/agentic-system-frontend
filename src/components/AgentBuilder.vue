@@ -1,12 +1,17 @@
 <template>
-  <div class="agent-builder flex flex-col h-full bg-white w-full pt-16">
-    <div class="relative z-10 p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
-      <h2 class="font-bold text-gray-800 flex-shrink-0 max-w-[300px] truncate">Agent Configuration</h2>
-      <div class="flex gap-2 flex-shrink-0 min-w-[120px] ml-4">
+  <div class="agent-builder flex flex-col h-full bg-white w-full pt-14 sm:pt-16">
+    <div class="relative z-10 p-3 sm:p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
+      <div class="flex items-center gap-2 min-w-0">
+        <button @click="$emit('close')" class="sm:hidden flex items-center text-gray-500 hover:text-gray-700 flex-shrink-0 -ml-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+        </button>
+        <h2 class="font-bold text-gray-800 flex-shrink-0 text-sm sm:text-base truncate">Agent Configuration</h2>
+      </div>
+      <div class="flex gap-2 flex-shrink-0 ml-2 sm:ml-4">
         <button 
             @click="save" 
             :disabled="isSaving"
-            class="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50 min-w-[100px]"
+            class="px-2.5 sm:px-3 py-1.5 bg-indigo-600 text-white text-xs sm:text-sm rounded hover:bg-indigo-700 disabled:opacity-50 min-w-[80px] sm:min-w-[100px]"
         >
             {{ isSaving ? 'Saving...' : 'Save Agent' }}
         </button>
@@ -538,7 +543,7 @@ const props = defineProps({
     }
 });
 
-const emit = defineEmits(['update:agent', 'save']);
+const emit = defineEmits(['update:agent', 'save', 'close']);
 
 // Local copy for editing
 const internalAgent = ref({

@@ -1,13 +1,13 @@
 <template>
   <div class="metrics-dashboard h-full flex flex-col bg-white overflow-y-auto">
     <!-- Header -->
-    <div class="p-6 border-b border-gray-200">
+    <div class="p-3 sm:p-6 border-b border-gray-200 shrink-0">
       <div class="flex items-center justify-between">
-        <h2 class="text-2xl font-bold text-gray-900">Metrics Dashboard</h2>
+        <h2 class="text-lg sm:text-2xl font-bold text-gray-900">Metrics Dashboard</h2>
         <select
           v-model="timeRange"
           @change="loadMetrics"
-          class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          class="px-3 sm:px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
         >
           <option value="1h">Last Hour</option>
           <option value="24h">Last 24 Hours</option>
@@ -18,7 +18,7 @@
     </div>
 
     <!-- Content -->
-    <div class="flex-1 p-6">
+    <div class="flex-1 min-h-0 p-3 sm:p-6 overflow-y-auto">
       <div v-if="loading" class="flex items-center justify-center h-full">
         <div class="text-center">
           <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -28,50 +28,50 @@
 
       <div v-else>
         <!-- Summary Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-6 border border-blue-200">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
+          <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-3 sm:p-6 border border-blue-200">
             <div class="flex items-center justify-between mb-2">
               <span class="text-sm font-medium text-blue-600">Total Executions</span>
               <span class="text-2xl">📊</span>
             </div>
-            <div class="text-3xl font-bold text-blue-900">
+            <div class="text-xl sm:text-3xl font-bold text-blue-900">
               {{ metrics.summary?.total_executions || 0 }}
             </div>
           </div>
 
-          <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 border border-green-200">
+          <div class="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-3 sm:p-6 border border-green-200">
             <div class="flex items-center justify-between mb-2">
               <span class="text-sm font-medium text-green-600">Success Rate</span>
               <span class="text-2xl">✅</span>
             </div>
-            <div class="text-3xl font-bold text-green-900">
+            <div class="text-xl sm:text-3xl font-bold text-green-900">
               {{ metrics.summary?.success_rate || 0 }}%
             </div>
           </div>
 
-          <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-6 border border-purple-200">
+          <div class="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-3 sm:p-6 border border-purple-200">
             <div class="flex items-center justify-between mb-2">
               <span class="text-sm font-medium text-purple-600">Avg Duration</span>
               <span class="text-2xl">⚡</span>
             </div>
-            <div class="text-3xl font-bold text-purple-900">
+            <div class="text-xl sm:text-3xl font-bold text-purple-900">
               {{ Math.round(metrics.summary?.average_duration_ms || 0) }}ms
             </div>
           </div>
 
-          <div class="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-6 border border-red-200">
+          <div class="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-3 sm:p-6 border border-red-200">
             <div class="flex items-center justify-between mb-2">
               <span class="text-sm font-medium text-red-600">Failed</span>
               <span class="text-2xl">❌</span>
             </div>
-            <div class="text-3xl font-bold text-red-900">
+            <div class="text-xl sm:text-3xl font-bold text-red-900">
               {{ metrics.summary?.failed_executions || 0 }}
             </div>
           </div>
         </div>
 
         <!-- Top Tools -->
-        <div class="bg-white rounded-xl border border-gray-200 p-6 mb-8">
+        <div class="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 mb-6 sm:mb-8">
           <h3 class="text-lg font-bold text-gray-900 mb-4">Top Tools by Usage</h3>
           <div v-if="metrics.top_tools && metrics.top_tools.length > 0" class="space-y-3">
             <div
@@ -82,10 +82,10 @@
               <div class="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-sm">
                 {{ index + 1 }}
               </div>
-              <div class="flex-1">
-                <div class="flex items-center justify-between mb-1">
-                  <span class="font-medium text-gray-900">{{ tool.tool_name }}</span>
-                  <span class="text-sm text-gray-600">{{ tool.count }} executions</span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between mb-1 gap-2">
+                  <span class="font-medium text-gray-900 truncate" :title="tool.tool_name">{{ tool.tool_name }}</span>
+                  <span class="text-sm text-gray-600 whitespace-nowrap flex-shrink-0">{{ tool.count }} executions</span>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-2">
                   <div
@@ -102,7 +102,7 @@
         </div>
 
         <!-- Error Breakdown -->
-        <div class="bg-white rounded-xl border border-gray-200 p-6">
+        <div class="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
           <h3 class="text-lg font-bold text-gray-900 mb-4">Error Breakdown</h3>
           <div v-if="metrics.error_breakdown && metrics.error_breakdown.length > 0" class="space-y-2">
             <div

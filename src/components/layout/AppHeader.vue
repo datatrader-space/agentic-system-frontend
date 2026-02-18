@@ -434,6 +434,28 @@
                 </a>
               </div>
             </template>
+
+
+            <!-- Mobile System Status -->
+            <div class="mobile-divider"></div>
+            <div class="mobile-nav-section">
+              <div class="dropdown-label" style="padding-left: 12px; margin-bottom: 4px;">System Status</div>
+              <div class="mobile-status-item">
+                <span class="status-dot" :class="llmHealth?.local?.available ? 'online' : 'offline'"></span>
+                <span>Local LLM</span>
+                <span class="status-text">{{ llmHealth?.local?.available ? 'Online' : 'Offline' }}</span>
+              </div>
+              <div class="mobile-status-item">
+                <span class="status-dot" :class="llmHealth?.cloud?.available ? 'online' : 'offline'"></span>
+                <span>Cloud LLM</span>
+                <span class="status-text">{{ llmHealth?.cloud?.available ? 'Online' : 'Offline' }}</span>
+              </div>
+              <div class="mobile-status-item" v-if="currentUser">
+                <span class="status-dot" :class="currentUser?.github_username ? 'online' : 'offline'"></span>
+                <span>GitHub</span>
+                <span class="status-text">{{ currentUser?.github_username ? 'Linked' : 'Not Linked' }}</span>
+              </div>
+            </div>
           </div>
 
           <!-- Mobile Footer -->
@@ -844,7 +866,7 @@ onUnmounted(() => {
 .header-container {
   max-width: 1440px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 16px;
 }
 
 @media (min-width: 768px) {
@@ -856,14 +878,22 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   height: var(--header-height);
-  gap: 24px;
+  gap: 12px;
+}
+
+@media (min-width: 1280px) {
+  .header-content { gap: 24px; }
 }
 
 /* ===== Logo ===== */
 .header-left {
   display: flex;
   align-items: center;
-  gap: 32px;
+  gap: 16px;
+}
+
+@media (min-width: 1280px) {
+  .header-left { gap: 32px; }
 }
 
 .logo-link {
@@ -955,14 +985,23 @@ onUnmounted(() => {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  font-size: 0.875rem;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 0.8125rem;
   font-weight: 500;
   color: var(--text-secondary);
   text-decoration: none;
+  white-space: nowrap;
   border-radius: var(--radius-md);
   transition: all var(--transition-fast);
+}
+
+@media (min-width: 1280px) {
+  .nav-link {
+    gap: 8px;
+    padding: 8px 14px;
+    font-size: 0.875rem;
+  }
 }
 
 .nav-link:hover {
@@ -1306,6 +1345,11 @@ onUnmounted(() => {
 /* ===== User Menu ===== */
 .user-menu-container {
   position: relative;
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .user-menu-container { display: block; }
 }
 
 .user-menu-trigger {

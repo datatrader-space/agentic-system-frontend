@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="results.length > 0"
-    class="execution-results-panel fixed bottom-4 right-4 w-96 max-h-[600px] bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col z-40"
+    class="execution-results-panel fixed bottom-4 right-2 sm:right-4 w-[calc(100vw-1rem)] sm:w-96 max-h-[50vh] sm:max-h-[600px] bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col z-40"
   >
     <!-- Header -->
     <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-3 rounded-t-lg flex items-center justify-between">

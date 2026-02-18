@@ -1,25 +1,25 @@
 <template>
   <div class="tools-panel h-full flex flex-col bg-gray-50">
-    <!-- Sub-tabs Navigation -->
-    <div class="bg-white border-b border-gray-200 px-6 py-3 flex gap-6">
+    <!-- Sub-tabs Navigation (scrollable on mobile) -->
+    <div class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 flex gap-2 sm:gap-4 overflow-x-auto scrollbar-hide shrink-0">
       <button
         v-for="tab in tabs"
         :key="tab.id"
         @click="activeSubTab = tab.id"
         :class="[
-          'flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all',
+          'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg font-medium text-xs sm:text-sm transition-all whitespace-nowrap flex-shrink-0',
           activeSubTab === tab.id
             ? 'bg-blue-600 text-white shadow-md'
             : 'text-gray-600 hover:bg-gray-100'
         ]"
       >
-        <span class="text-lg">{{ tab.icon }}</span>
+        <span class="text-base sm:text-lg">{{ tab.icon }}</span>
         <span>{{ tab.label }}</span>
       </button>
     </div>
 
     <!-- Tab Content -->
-    <div class="flex-1 overflow-hidden">
+    <div class="flex-1 min-h-0 overflow-y-auto">
       <!-- Tool Catalog Tab -->
       <div v-if="activeSubTab === 'catalog'" class="h-full">
         <ToolCatalog :agent-profile="agentProfile" />

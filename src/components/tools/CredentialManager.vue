@@ -1,23 +1,24 @@
 <template>
   <div class="credential-manager h-full flex flex-col bg-white">
     <!-- Header -->
-    <div class="p-6 border-b border-gray-200">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-2xl font-bold text-gray-900">Credential Manager</h2>
+    <div class="p-3 sm:p-6 border-b border-gray-200 shrink-0">
+      <div class="flex items-center justify-between mb-3 sm:mb-4">
+        <h2 class="text-lg sm:text-2xl font-bold text-gray-900">Credential Manager</h2>
         <button
           @click="openAddModal"
-          class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+          class="px-3 sm:px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition flex items-center gap-1.5 sm:gap-2 whitespace-nowrap"
         >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
           </svg>
-          Add Credential
+          <span class="hidden sm:inline">Add Credential</span>
+          <span class="sm:hidden">Add</span>
         </button>
       </div>
     </div>
 
     <!-- Credentials Table -->
-    <div class="flex-1 overflow-y-auto">
+    <div class="flex-1 min-h-0 overflow-auto">
       <div v-if="loading" class="flex items-center justify-center h-full">
         <div class="text-center">
           <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -31,15 +32,15 @@
         <p class="text-sm mt-1">Add credentials to enable authenticated tool access</p>
       </div>
 
-      <table v-else class="w-full">
+      <table v-else class="w-full min-w-[600px]">
         <thead class="bg-gray-50 sticky top-0">
           <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Scope</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Used</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Scope</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Last Used</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -48,14 +49,14 @@
             :key="credential.id"
             class="hover:bg-gray-50"
           >
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">
               {{ credential.credential_name }}
               <span v-if="credential.is_default" class="ml-1 text-xs text-yellow-600">★ Default</span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
               {{ credential.service_name }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
               <span
                 :class="[
                   'px-2 py-1 rounded text-xs font-medium',
@@ -67,7 +68,7 @@
                 {{ credential.scope_type === 'builtin_tool' ? 'Built-in' : credential.auth_type }}
               </span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
               <span
                 :class="[
                   'px-2 py-1 text-xs font-semibold rounded-full',
@@ -79,10 +80,10 @@
                 {{ credential.is_valid ? 'Valid' : 'Invalid' }}
               </span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden sm:table-cell">
               {{ credential.last_used_at ? formatDate(credential.last_used_at) : 'Never' }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm space-x-2">
               <button
                 v-if="credential.scope_type === 'service'"
                 @click="testCredential(credential)"

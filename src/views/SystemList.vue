@@ -1,24 +1,24 @@
 <template>
   <div>
     <!-- Header -->
-    <div class="mb-8">
-      <h1 class="text-3xl font-bold text-gray-900">Your Systems</h1>
-      <p class="mt-2 text-gray-600">Manage your multi-repo agent systems</p>
+    <div class="mb-6 sm:mb-8">
+      <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">Your Systems</h1>
+      <p class="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">Manage your multi-repo agent systems</p>
     </div>
     
     <!-- Create System Button -->
     <div class="mb-6">
-      <div class="flex gap-4">
+      <div class="flex flex-col sm:flex-row gap-3 sm:gap-4">
         <router-link
           to="/agents"
-          class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+          class="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition w-full sm:w-auto"
         >
           <span class="mr-2">🤖</span>
           Agent Library
         </router-link>
         <button
           @click="showCreateModal = true"
-          class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          class="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition w-full sm:w-auto"
         >
           <span class="mr-2">+</span>
           Create New System
@@ -67,14 +67,14 @@
     </div>
     
     <!-- Systems Grid -->
-    <div v-else-if="systems.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div v-else-if="systems.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
       <div
         v-for="system in systems"
         :key="system.id"
         class="bg-white rounded-lg shadow hover:shadow-lg transition cursor-pointer"
         @click="goToSystem(system.id)"
       >
-        <div class="p-6">
+        <div class="p-4 sm:p-6">
           <!-- Status Badge -->
           <div class="flex items-start justify-between mb-4">
             <div>

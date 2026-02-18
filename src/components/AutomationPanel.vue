@@ -1,12 +1,12 @@
 <template>
-  <div class="automation-panel h-full flex flex-col bg-gray-50 overflow-hidden">
+  <div class="automation-panel h-full flex flex-col bg-gray-50">
     <!-- Sub-tabs -->
-    <div class="flex items-center gap-1 px-4 py-2 bg-white border-b border-gray-200 shrink-0">
+    <div class="flex items-center gap-1 px-3 sm:px-4 py-2 bg-white border-b border-gray-200 shrink-0 overflow-x-auto scrollbar-hide">
       <button
         v-for="tab in subTabs"
         :key="tab.key"
         @click="activeSubTab = tab.key"
-        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap flex-shrink-0"
         :class="activeSubTab === tab.key
           ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
           : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'"
@@ -49,7 +49,7 @@
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-hidden flex">
+    <div class="flex-1 min-h-0 overflow-hidden flex flex-col sm:flex-row">
 
       <!-- Main content area -->
       <div class="flex-1 overflow-y-auto p-4">
@@ -258,7 +258,7 @@
 
       <!-- Workspace Browser Sidebar (only on scripts tab) -->
       <div v-if="activeSubTab === 'scripts' && showWsBrowser"
-        class="w-72 border-l border-gray-200 bg-white flex flex-col shrink-0 overflow-hidden">
+        class="w-full sm:w-72 border-t sm:border-t-0 sm:border-l border-gray-200 bg-white flex flex-col shrink-0 overflow-hidden max-h-[40vh] sm:max-h-none">
         <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between bg-gray-50">
           <div class="flex items-center gap-1.5">
             <span class="text-yellow-500">📁</span>

@@ -1,20 +1,20 @@
 <template>
   <div class="execution-history h-full flex flex-col bg-white">
     <!-- Header -->
-    <div class="p-6 border-b border-gray-200">
-      <h2 class="text-2xl font-bold text-gray-900 mb-4">Execution History</h2>
+    <div class="p-3 sm:p-6 border-b border-gray-200 shrink-0">
+      <h2 class="text-lg sm:text-2xl font-bold text-gray-900 mb-3 sm:mb-4">Execution History</h2>
       
       <!-- Filters -->
-      <div class="flex gap-4">
+      <div class="flex flex-wrap gap-2 sm:gap-4">
         <input
           v-model="filters.tool_name"
           type="text"
           placeholder="Filter by tool name..."
-          class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          class="flex-1 min-w-0 px-3 sm:px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
         />
         <select
           v-model="filters.status"
-          class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+          class="px-3 sm:px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Status</option>
           <option value="success">Success</option>
@@ -22,7 +22,7 @@
         </select>
         <button
           @click="loadHistory"
-          class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          class="px-4 sm:px-6 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition whitespace-nowrap"
         >
           Refresh
         </button>
@@ -30,7 +30,7 @@
     </div>
 
     <!-- History Table -->
-    <div class="flex-1 overflow-y-auto">
+    <div class="flex-1 min-h-0 overflow-auto">
       <div v-if="loading" class="flex items-center justify-center h-full">
         <div class="text-center">
           <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -44,15 +44,15 @@
         <p class="text-sm mt-1">Tool executions will appear here</p>
       </div>
 
-      <table v-else class="w-full">
+      <table v-else class="w-full min-w-[600px]">
         <thead class="bg-gray-50 sticky top-0">
           <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tool</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trace ID</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tool</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Trace ID</th>
+            <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
@@ -62,13 +62,13 @@
             class="hover:bg-gray-50 cursor-pointer"
             @click="viewDetails(execution)"
           >
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
               {{ formatDate(execution.executed_at) }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">
               {{ execution.tool_name }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap">
+            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
               <span
                 :class="[
                   'px-2 py-1 text-xs font-semibold rounded-full',
@@ -80,13 +80,13 @@
                 {{ execution.success ? 'Success' : 'Error' }}
               </span>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
               {{ execution.duration_ms }}ms
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 font-mono hidden sm:table-cell">
               {{ execution.trace_id?.substring(0, 8) }}...
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
+            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
               <button
                 @click.stop="replay(execution)"
                 class="text-blue-600 hover:text-blue-800 font-medium"
@@ -100,21 +100,21 @@
     </div>
 
     <!-- Pagination -->
-    <div v-if="executions.length > 0" class="p-4 border-t border-gray-200 flex items-center justify-between">
-      <div class="text-sm text-gray-600">
+    <div v-if="executions.length > 0" class="p-3 sm:p-4 border-t border-gray-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+      <div class="text-xs sm:text-sm text-gray-600">
         Showing {{ executions.length }} results
       </div>
       <div class="flex gap-2">
         <button
           @click="previousPage"
           :disabled="currentPage === 1"
-          class="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          class="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Previous
         </button>
         <button
           @click="nextPage"
-          class="px-4 py-2 border border-gray-300 rounded-lg"
+          class="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-lg"
         >
           Next
         </button>

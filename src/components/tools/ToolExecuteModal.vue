@@ -1,17 +1,17 @@
 <template>
   <div class="modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click.self="$emit('close')">
-    <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+    <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-2xl mx-3 sm:mx-auto max-h-[90vh] overflow-y-auto">
       <!-- Header -->
-      <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4">
+      <div class="sticky top-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4">
         <div class="flex items-center justify-between">
-          <h2 class="text-2xl font-bold text-gray-900">Execute: {{ tool.name }}</h2>
-          <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600 text-2xl">×</button>
+          <h2 class="text-lg sm:text-2xl font-bold text-gray-900 truncate pr-2">Execute: {{ tool.name }}</h2>
+          <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600 text-2xl flex-shrink-0">×</button>
         </div>
-        <p class="text-sm text-gray-600 mt-1">{{ tool.description }}</p>
+        <p class="text-xs sm:text-sm text-gray-600 mt-1">{{ tool.description }}</p>
       </div>
 
       <!-- Form -->
-      <div class="px-6 py-4 space-y-4">
+      <div class="px-4 sm:px-6 py-3 sm:py-4 space-y-4">
         <!-- Repository Selection -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -148,7 +148,7 @@
       </div>
 
       <!-- Footer -->
-      <div class="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
+      <div class="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-4 sm:px-6 py-3 sm:py-4 flex justify-end gap-2 sm:gap-3">
         <button
           @click="$emit('close')"
           class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition"

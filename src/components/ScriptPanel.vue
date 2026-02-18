@@ -211,7 +211,7 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
     overflow: hidden;
     font-family: 'Inter', system-ui, sans-serif;
     color: #e5e7eb;
-    max-height: 600px;
+    max-height: 100%;
 }
 
 /* Header */
@@ -259,10 +259,15 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
     background: none;
     border: none;
     color: #9ca3af;
-    font-size: 20px;
+    font-size: 24px;
     cursor: pointer;
-    padding: 0 4px;
+    padding: 4px 8px;
     line-height: 1;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .sp-close-btn:hover { color: #f3f4f6; }

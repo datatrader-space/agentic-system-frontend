@@ -1,15 +1,15 @@
 <template>
-  <div class="agent-library-container p-6 bg-gray-50 min-h-screen">
+  <div class="agent-library-container p-4 sm:p-6 bg-gray-50 min-h-screen">
     <div class="max-w-7xl mx-auto">
       <!-- Header -->
-      <div class="flex justify-between items-center mb-8">
+      <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 class="text-3xl font-bold text-gray-900">🤖 Agent Library</h1>
-          <p class="text-gray-600 mt-1">Design, test, and deploy specialized AI agents</p>
+          <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">🤖 Agent Library</h1>
+          <p class="text-sm sm:text-base text-gray-600 mt-1">Design, test, and deploy specialized AI agents</p>
         </div>
         <button
           @click="createAgent"
-          class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium flex items-center gap-2 shadow-sm"
+          class="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium flex items-center justify-center gap-2 shadow-sm"
         >
           <span class="text-xl">+</span>
           Create New Agent
@@ -36,14 +36,14 @@
       </div>
 
       <!-- Agent Grid -->
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         <div 
           v-for="agent in agents" 
           :key="agent.id"
           class="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-300 flex flex-col overflow-hidden"
         >
           <!-- Card Header / Icon -->
-          <div class="p-6 pb-4 flex items-start justify-between bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
+          <div class="p-4 sm:p-6 pb-3 sm:pb-4 flex items-start justify-between bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
              <div class="w-12 h-12 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-2xl">
                🤖
              </div>
@@ -55,7 +55,7 @@
           </div>
           
           <!-- Content -->
-          <div class="p-6 pt-4 flex-1">
+          <div class="p-4 sm:p-6 pt-3 sm:pt-4 flex-1">
             <h3 class="text-lg font-bold text-gray-900 mb-2 truncate">{{ agent.name }}</h3>
             <p class="text-gray-500 text-sm line-clamp-3 mb-4">
               {{ agent.description || "No description provided." }}

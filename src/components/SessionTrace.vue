@@ -224,44 +224,92 @@ setInterval(loadSessions, 10000)
 
 <style scoped>
 .session-trace-viewer {
-  padding: 20px;
+  padding: 12px;
   max-width: 1200px;
   margin: 0 auto;
 }
 
+@media (min-width: 640px) {
+  .session-trace-viewer {
+    padding: 20px;
+  }
+}
+
 .header {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (min-width: 640px) {
+  .header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
 }
 
 .header h2 {
   margin: 0;
   color: #2c3e50;
+  font-size: 1.125rem;
+}
+
+@media (min-width: 640px) {
+  .header h2 {
+    font-size: 1.25rem;
+  }
 }
 
 .filters {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (min-width: 640px) {
+  .filters {
+    gap: 10px;
+  }
 }
 
 .filter-select {
-  padding: 8px 12px;
+  padding: 6px 10px;
   border: 1px solid #ddd;
-  border-radius: 4px;
+  border-radius: 6px;
   background: white;
   cursor: pointer;
+  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .filter-select {
+    padding: 8px 12px;
+    font-size: 14px;
+    flex: none;
+  }
 }
 
 .refresh-btn {
-  padding: 8px 16px;
+  padding: 6px 12px;
   background: #3498db;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .refresh-btn {
+    padding: 8px 16px;
+    font-size: 14px;
+  }
 }
 
 .refresh-btn:hover {
@@ -295,7 +343,8 @@ setInterval(loadSessions, 10000)
 
 .session-header {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
   align-items: center;
   margin-bottom: 12px;
 }
@@ -359,9 +408,16 @@ setInterval(loadSessions, 10000)
 
 .session-meta {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
   font-size: 12px;
   color: #7f8c8d;
+}
+
+@media (min-width: 640px) {
+  .session-meta {
+    gap: 16px;
+  }
 }
 
 .meta-item {

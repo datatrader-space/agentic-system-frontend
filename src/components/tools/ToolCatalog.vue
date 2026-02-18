@@ -1,9 +1,9 @@
 <template>
   <div class="tool-catalog h-full flex flex-col bg-white">
     <!-- Header with Search and Filters -->
-    <div class="p-6 border-b border-gray-200">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-2xl font-bold text-gray-900">Tool Catalog</h2>
+    <div class="p-3 sm:p-6 border-b border-gray-200 shrink-0">
+      <div class="flex items-center justify-between mb-3 sm:mb-4">
+        <h2 class="text-lg sm:text-2xl font-bold text-gray-900">Tool Catalog</h2>
         <div class="flex gap-2">
           <button
             @click="viewMode = 'grid'"
@@ -36,16 +36,16 @@
           v-model="searchQuery"
           type="text"
           placeholder="Search tools by name or description..."
-          class="w-full px-4 py-3 pl-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          class="w-full px-3 sm:px-4 py-2.5 sm:py-3 pl-10 sm:pl-12 text-sm border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
-        <svg class="w-5 h-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
       </div>
     </div>
 
     <!-- Tools Grid/List -->
-    <div class="flex-1 overflow-y-auto p-6">
+    <div class="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6">
       <div v-if="loading" class="flex items-center justify-center h-full">
         <div class="text-center">
           <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
