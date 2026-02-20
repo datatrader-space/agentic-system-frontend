@@ -330,6 +330,45 @@
               </select>
               <p v-if="wfForm.script_id" class="text-[10px] text-gray-400 mt-1">The workflow will run this script when triggered.</p>
             </div>
+            <!-- Dynamic Script Parameters -->
+            <div v-if="selectedScriptParams.length > 0" class="bg-indigo-50/50 border border-indigo-100 rounded-lg p-3 space-y-3">
+              <div class="flex items-center gap-1">
+                <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <span class="text-xs font-semibold text-indigo-700">Script Parameters</span>
+              </div>
+              <div v-for="p in selectedScriptParams" :key="p.name">
+                <label class="block text-xs font-medium text-gray-600 mb-1">
+                  {{ p.name }}
+                  <span v-if="p.required" class="text-red-400">*</span>
+                  <span v-if="p.description" class="text-gray-400 font-normal"> — {{ p.description }}</span>
+                </label>
+                <input
+                  v-if="p.type === 'string' || !p.type"
+                  v-model="wfForm.variables[p.name]"
+                  type="text"
+                  class="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+                  :placeholder="p.default != null ? String(p.default) : p.name"
+                />
+                <input
+                  v-else-if="p.type === 'integer' || p.type === 'number'"
+                  v-model.number="wfForm.variables[p.name]"
+                  type="number"
+                  class="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+                  :placeholder="p.default != null ? String(p.default) : '0'"
+                />
+                <div v-else-if="p.type === 'boolean'" class="flex items-center gap-2">
+                  <input type="checkbox" v-model="wfForm.variables[p.name]" class="accent-indigo-600" />
+                  <span class="text-xs text-gray-500">{{ p.name }}</span>
+                </div>
+                <input
+                  v-else
+                  v-model="wfForm.variables[p.name]"
+                  type="text"
+                  class="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none"
+                  :placeholder="p.name"
+                />
+              </div>
+            </div>
             <div v-if="!wfForm.script_id">
               <label class="block text-xs font-semibold text-gray-600 mb-1">Prompt</label>
               <textarea v-model="wfForm.prompt" rows="4" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 outline-none font-mono" placeholder="The prompt to send when this workflow runs."></textarea>
@@ -484,7 +523,22 @@ const scriptSearch = ref('')
 const expandedFolders = reactive({})
 
 // Workflow form
-const wfForm = reactive({ name: '', prompt: '', category: 'general', script_id: null, addSchedule: false, schedule: '', channel: 'log' })
+const wfForm = reactive({ name: '', prompt: '', category: 'general', script_id: null, variables: {}, addSchedule: false, schedule: '', channel: 'log' })
+
+// Computed: selected script's parameter definitions
+const selectedScriptParams = computed(() => {
+  if (!wfForm.script_id) return []
+  const script = scripts.value.find(s => s.id === wfForm.script_id)
+  if (!script || !script.parameters) return []
+  // parameters is {name: {type, required, default, description}}
+  return Object.entries(script.parameters).map(([name, def]) => ({
+    name,
+    type: def.type || 'string',
+    required: def.required || false,
+    default: def.default != null ? def.default : null,
+    description: def.description || '',
+  }))
+})
 
 // Workspace browser
 const showWsBrowser = ref(false)
@@ -637,7 +691,15 @@ const saveWorkflow = async () => {
       const profileId = props.agentProfile?.id
       if (!profileId) { alert('Save the agent first'); return }
       const payload = { name: wfForm.name, prompt: wfForm.prompt, category: wfForm.category, profile_id: profileId }
-      if (wfForm.script_id) payload.script_id = wfForm.script_id
+      if (wfForm.script_id) {
+        payload.script_id = wfForm.script_id
+        // Only include non-empty variable values
+        const vars = {}
+        for (const [k, v] of Object.entries(wfForm.variables)) {
+          if (v !== '' && v !== null && v !== undefined) vars[k] = v
+        }
+        if (Object.keys(vars).length > 0) payload.variables = vars
+      }
       const res = await api.post('/workflows/', payload)
       if (wfForm.addSchedule && wfForm.schedule) {
         await api.post('/schedules/', { template_id: res.data.id, profile_id: profileId, schedule: wfForm.schedule, channel: wfForm.channel })
@@ -645,7 +707,7 @@ const saveWorkflow = async () => {
     }
     showCreateModal.value = false
     editingWf.value = null
-    Object.assign(wfForm, { name: '', prompt: '', category: 'general', script_id: null, addSchedule: false, schedule: '', channel: 'log' })
+    Object.assign(wfForm, { name: '', prompt: '', category: 'general', script_id: null, variables: {}, addSchedule: false, schedule: '', channel: 'log' })
     loadWorkflows()
     loadSchedules()
   } catch (e) { alert(e.response?.data?.error || 'Failed to save') }
@@ -719,9 +781,19 @@ const viewExecution = async (ex) => {
 
 // --- Lifecycle ---
 const onScriptSelect = () => {
-  // Clear prompt when script is selected (they're mutually exclusive for now)
+  // Clear prompt when script is selected (they're mutually exclusive)
   if (wfForm.script_id) {
     wfForm.prompt = ''
+    // Pre-populate variables with defaults from script parameters
+    const script = scripts.value.find(s => s.id === wfForm.script_id)
+    wfForm.variables = {}
+    if (script && script.parameters) {
+      for (const [name, def] of Object.entries(script.parameters)) {
+        wfForm.variables[name] = def.default != null ? def.default : ''
+      }
+    }
+  } else {
+    wfForm.variables = {}
   }
 }
 
