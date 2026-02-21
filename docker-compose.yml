@@ -13,6 +13,6 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-80}:80"
+      - "${APP_PORT:-8002}:80"
     environment:
-      - BACKEND_URL=${BACKEND_URL:-localhost:8000}
+      - BACKEND_URL=${BACKEND_URL:-172.31.18.92:8001}
