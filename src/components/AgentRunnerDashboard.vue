@@ -250,7 +250,7 @@ export default {
     connectWebSocket() {
       // Changed to Repository Chat URL
       const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const host = import.meta.env.VITE_WS_HOST || window.location.host;
+      const host = window.location.host;
       const wsUrl = `${protocol}://${host}/ws/chat/repository/${this.repositoryId}/`
       this.ws = new WebSocket(wsUrl)
       

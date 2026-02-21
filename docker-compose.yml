@@ -1,4 +1,4 @@
-# Frontend Deployment — serves SPA, calls backend directly
+# Frontend Deployment — Nginx serves SPA + proxies API to backend
 # Usage: docker compose up -d --build
 
 version: '3.8'
@@ -11,5 +11,5 @@ services:
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8002}:80"
-    env_file:
-      - .env   # <-- inject .env variables at build/runtime
+    environment:
+      - BACKEND_URL=${BACKEND_URL:-172.31.18.92:8001}

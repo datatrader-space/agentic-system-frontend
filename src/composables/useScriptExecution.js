@@ -61,7 +61,7 @@ export function useScriptExecution() {
             return;
         }
 
-        const host = import.meta.env.VITE_WS_HOST || window.location.host;
+        const host = window.location.host;
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const url = `${protocol}//${host}/ws/script/${repositoryId}/`;
 

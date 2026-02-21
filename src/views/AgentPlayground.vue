@@ -1948,7 +1948,7 @@ const maxReconnectAttempts = 5;
 const reconnectDelay = computed(() => Math.min(1000 * Math.pow(2, reconnectAttempts.value), 5000)); // Exponential backoff: 1s, 2s, 4s, max 5s
 
 const connectWebSocket = (repoId) => {
-    const host = import.meta.env.VITE_WS_HOST || window.location.host;
+    const host = window.location.host;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${host}/ws/chat/repository/${repoId || '0'}/`;
 
