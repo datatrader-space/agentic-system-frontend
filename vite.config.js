@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
     plugins: [vue()],
     server: {
       host: '0.0.0.0',  // Listen on all network interfaces
-      port: 5173,
+      port: 8002,
       allowedHosts: ['mazily-nippy-dionna.ngrok-free.dev'],
       proxy: {
         '/api': {

@@ -7,7 +7,7 @@ import axios from 'axios'
 
 // Create axios instance
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 120000,  // 2 minutes - needed for LLM enrichment, service discovery, etc.
   withCredentials: true,
   headers: {

@@ -1,8 +1,5 @@
-# Frontend Deployment — runs on its own instance
+# Frontend Deployment — serves SPA, calls backend directly
 # Usage: docker compose up -d --build
-#
-# Set BACKEND_URL to your backend instance's IP:port or domain
-# Example: BACKEND_URL=api.yourdomain.com:8000
 
 version: '3.8'
 
@@ -14,5 +11,3 @@ services:
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8002}:80"
-    environment:
-      - BACKEND_URL=${BACKEND_URL:-172.31.18.92:8001}
