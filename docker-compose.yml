@@ -11,3 +11,5 @@ services:
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8002}:80"
+    env_file:
+      - .env   # <-- inject .env variables at build/runtime
