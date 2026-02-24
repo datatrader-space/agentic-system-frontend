@@ -255,14 +255,15 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import api from '../services/api'
 
 const router = useRouter()
+const route = useRoute()
 
 // State
-const isLogin = ref(true)
+const isLogin = ref(route.query.mode !== 'signup')
 const loading = ref(false)
 const error = ref(null)
 const success = ref(null)
@@ -390,7 +391,7 @@ const handleSubmit = async () => {
         localStorage.setItem('user', JSON.stringify(response.data.user))
 
         setTimeout(() => {
-          router.push('/dashboard')
+          router.push(route.query.next || '/dashboard')
         }, 800)
       }
     } else {
@@ -402,7 +403,7 @@ const handleSubmit = async () => {
         localStorage.setItem('user', JSON.stringify(response.data.user))
 
         setTimeout(() => {
-          router.push('/dashboard')
+          router.push(route.query.next || '/dashboard')
         }, 800)
       }
     }

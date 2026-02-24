@@ -1,10 +1,13 @@
 <template>
   <div class="space-y-8">
-    <div>
-      <h1 class="text-3xl font-bold text-gray-900">AI Providers</h1>
-      <p class="mt-2 text-gray-600">
-        Manage third-party AI APIs and local providers. Add models to make them available in chat.
-      </p>
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">AI Providers</h1>
+        <p class="mt-2 text-gray-600">
+          Manage third-party AI APIs and local providers. Add models to make them available in chat.
+        </p>
+      </div>
+      <OwnerFilter v-model="ownerFilter" @update:modelValue="reloadAll" />
     </div>
 
     <div class="bg-white rounded-lg shadow">
@@ -219,6 +222,7 @@
 <script setup>
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import api from '../services/api'
+import OwnerFilter from '../components/common/OwnerFilter.vue'
 
 const notify = inject('notify', () => {})
 
@@ -227,6 +231,7 @@ const models = ref([])
 const modelFilter = ref('')
 const stats = ref(null)
 const statsLoading = ref(false)
+const ownerFilter = ref('')
 
 const newProvider = ref({
   name: '',
@@ -245,17 +250,25 @@ const newModel = ref({
 })
 
 const loadProviders = async () => {
-  const response = await api.getLlmProviders()
+  const params = {}
+  if (ownerFilter.value) params.owner = ownerFilter.value
+  const response = await api.getLlmProviders(params)
   providers.value = response.data.results || response.data
 }
 
 const loadModels = async () => {
   const params = {}
+  if (ownerFilter.value) params.owner = ownerFilter.value
   if (modelFilter.value) {
     params.provider = modelFilter.value
   }
   const response = await api.getLlmModels(params)
   models.value = response.data.results || response.data
+}
+
+const reloadAll = async () => {
+  await loadProviders()
+  await loadModels()
 }
 
 const loadStats = async () => {

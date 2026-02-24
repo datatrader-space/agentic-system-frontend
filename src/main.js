@@ -32,6 +32,10 @@ import About from './views/About.vue'
 import Contact from './views/Contact.vue'
 import ServiceRegistrationV2 from './views/ServiceRegistrationV2.vue'
 import ServiceDrafts from './views/ServiceDrafts.vue'
+import WorkspaceHub from './views/WorkspaceHub.vue'
+import OrgSettings from './views/OrgSettings.vue'
+import WorkspaceDashboard from './views/WorkspaceDashboard.vue'
+import InviteAccept from './views/InviteAccept.vue'
 
 // Create router
 const router = createRouter({
@@ -174,6 +178,42 @@ const router = createRouter({
       name: 'service-drafts',
       component: ServiceDrafts,
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/workspaces',
+      name: 'workspace-hub',
+      component: WorkspaceHub,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/org/:orgSlug/settings',
+      name: 'org-settings',
+      component: OrgSettings,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/org/:orgSlug/settings/:tab',
+      name: 'org-settings-tab',
+      component: OrgSettings,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/workspace/:wsId',
+      name: 'workspace-dashboard',
+      component: WorkspaceDashboard,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/workspace/:wsId/:tab',
+      name: 'workspace-tab',
+      component: WorkspaceDashboard,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/invite/accept/:token',
+      name: 'invite-accept',
+      component: InviteAccept,
+      meta: { requiresAuth: false, public: true }
     }
   ]
 })
@@ -204,21 +244,26 @@ router.beforeEach(async (to, from, next) => {
       // User is authenticated, allow access
       next()
     } else {
-      // Server says not authenticated, clear any stale local storage
+      // Server explicitly says not authenticated
       localStorage.clear()
       sessionStorage.clear()
       next('/login')
     }
   } catch (error) {
-    // Auth check failed (network error, session expired, etc.)
-    console.error('Authentication check failed:', error)
-
-    // Clear stale authentication data
-    localStorage.clear()
-    sessionStorage.clear()
-
-    // Redirect to login
-    next('/login')
+    // Distinguish between auth failures and network errors
+    const status = error?.response?.status
+    if (status === 401 || status === 403) {
+      // Explicit auth rejection — clear state and redirect
+      console.warn('Authentication rejected (HTTP', status, ')')
+      localStorage.clear()
+      sessionStorage.clear()
+      next('/login')
+    } else {
+      // Network error, server restart, timeout, etc.
+      // Don't nuke the session — allow through and let the page try
+      console.warn('Auth check failed (network/server error), allowing through:', error?.message)
+      next()
+    }
   }
 })
 

@@ -15,6 +15,42 @@
           <span class="sm:hidden">Add</span>
         </button>
       </div>
+
+      <!-- Workspace Sharing Banner -->
+      <div v-if="workspaceLink && !isOwner && workspaceLink.share_credentials"
+        class="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+        <span class="text-amber-500 text-lg mt-0.5">🔗</span>
+        <div>
+          <p class="text-sm font-medium text-amber-800">Using owner's shared credentials</p>
+          <p class="text-xs text-amber-600 mt-0.5">
+            The agent owner is sharing their credentials with workspace members.
+            You can override by adding your own credentials above.
+          </p>
+        </div>
+      </div>
+
+      <!-- Owner: Share Credentials Toggle -->
+      <div v-if="workspaceLink && isOwner"
+        class="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-blue-500 text-lg">🔐</span>
+          <div>
+            <p class="text-sm font-medium text-blue-800">Share credentials with workspace</p>
+            <p class="text-xs text-blue-600 mt-0.5">
+              When enabled, workspace members who don't have their own credentials will use yours.
+            </p>
+          </div>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer ml-4 shrink-0">
+          <input
+            type="checkbox"
+            :checked="workspaceLink.share_credentials"
+            @change="toggleShareCredentials"
+            class="sr-only peer"
+          />
+          <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
+      </div>
     </div>
 
     <!-- Credentials Table -->
@@ -317,6 +353,8 @@ export default {
     const formError = ref('')
     const builtinScopes = ref([])
     const services = ref([])
+    const workspaceLink = ref(null)
+    const isOwner = ref(true)
 
     const form = ref({
       scopeType: 'builtin_tool',
@@ -361,6 +399,39 @@ export default {
         console.error('Failed to load credentials:', error)
       } finally {
         loading.value = false
+      }
+    }
+
+    const loadWorkspaceRouting = async () => {
+      if (!agentId.value) return
+      try {
+        const response = await credentialsApi.getWorkspaceRouting(agentId.value)
+        const data = response.data
+        isOwner.value = data.is_owner
+        // Use the first workspace link (or active workspace)
+        const activeWsId = localStorage.getItem('activeWorkspaceId')
+        if (data.workspace_links && data.workspace_links.length > 0) {
+          workspaceLink.value = activeWsId
+            ? data.workspace_links.find(l => String(l.workspace_id) === String(activeWsId)) || data.workspace_links[0]
+            : data.workspace_links[0]
+        }
+      } catch (error) {
+        // Not in a workspace context or no links — that's fine
+        console.debug('No workspace routing for this agent:', error.response?.status)
+      }
+    }
+
+    const toggleShareCredentials = async () => {
+      if (!workspaceLink.value) return
+      try {
+        const newValue = !workspaceLink.value.share_credentials
+        await credentialsApi.toggleShareCredentials(agentId.value, {
+          workspace_id: workspaceLink.value.workspace_id,
+          share_credentials: newValue
+        })
+        workspaceLink.value.share_credentials = newValue
+      } catch (error) {
+        alert('Failed to update sharing: ' + (error.response?.data?.error || error.message))
       }
     }
 
@@ -467,6 +538,7 @@ export default {
       loadCredentials()
       loadBuiltinScopes()
       loadServices()
+      loadWorkspaceRouting()
     })
 
     return {
@@ -479,11 +551,14 @@ export default {
       services,
       form,
       selectedScope,
+      workspaceLink,
+      isOwner,
       openAddModal,
       formatDate,
       submitCredential,
       testCredential,
-      deleteCredential
+      deleteCredential,
+      toggleShareCredentials
     }
   }
 }

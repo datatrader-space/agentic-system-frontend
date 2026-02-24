@@ -241,6 +241,44 @@
       <!-- TAB: TOOLS -->
       <div v-if="activeTab === 'Tools'" class="space-y-6">
 
+      <!-- Code Mode Toggle -->
+      <div class="bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200 rounded-xl p-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-violet-100 rounded-lg flex items-center justify-center text-lg">⚡</div>
+            <div>
+              <div class="text-sm font-semibold text-gray-800">Code Mode</div>
+              <div class="text-xs text-gray-500 mt-0.5">Replace individual API tools with search + execute meta-tools</div>
+            </div>
+          </div>
+          <button 
+            @click="internalAgent.code_mode_enabled = !internalAgent.code_mode_enabled"
+            :class="[
+              'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2',
+              internalAgent.code_mode_enabled ? 'bg-violet-600' : 'bg-gray-300'
+            ]"
+          >
+            <span
+              :class="[
+                'inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm',
+                internalAgent.code_mode_enabled ? 'translate-x-6' : 'translate-x-1'
+              ]"
+            />
+          </button>
+        </div>
+        
+        <!-- Expanded info when enabled -->
+        <div v-if="internalAgent.code_mode_enabled" class="mt-3 pt-3 border-t border-violet-200/60">
+          <div class="flex items-start gap-2 text-xs text-gray-600">
+            <span class="text-violet-500 mt-0.5">ℹ</span>
+            <div>
+              <p class="mb-1">When enabled, the agent uses <strong>CODE_MODE_SEARCH</strong> to discover API endpoints and <strong>CODE_MODE_EXECUTE</strong> to run authenticated Python code — instead of loading hundreds of individual tools.</p>
+              <p class="text-gray-400">Reduces context window usage by ~90%. Requires valid service credentials.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Tools -->
       <div>
         <div class="flex justify-between items-center mb-2">
@@ -548,6 +586,8 @@ const emit = defineEmits(['update:agent', 'save', 'close']);
 // Local copy for editing
 const internalAgent = ref({
     default_model: null,  // Ensure this property exists for Vue reactivity
+    code_mode_enabled: false,  // Code Mode: search+execute vs individual tools
+    code_mode_services: [],    // RemoteService IDs (empty = all credentialed)
     ...props.agent
 });
 const availableTools = ref([]);

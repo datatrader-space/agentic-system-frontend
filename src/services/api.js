@@ -40,6 +40,12 @@ api.interceptors.request.use(
     // Session-based auth (cookies are sent automatically with withCredentials: true)
     // No need to add Authorization header for session auth
 
+    // Workspace context — picked up by WorkspaceContextMiddleware on the server
+    const wsId = localStorage.getItem('activeWorkspaceId')
+    if (wsId) {
+      config.headers['X-Workspace-ID'] = wsId
+    }
+
     return config
   },
   (error) => {
@@ -111,7 +117,7 @@ export default {
     api.get(`/systems/${systemId}/repositories/${repoId}/requirements/`),
 
   // Service Management
-  getServices: () => api.get('/services/'),
+  getServices: (params) => api.get('/services/', { params }),
   getService: (id) => api.get(`/services/${id}/`),
   createService: (data) => api.post('/services/create/', data),
   updateService: (id, data) => api.post(`/services/${id}/update/`, data),
@@ -151,7 +157,7 @@ export default {
   validateActions: (data) => api.post('/services/validate-actions/', data),
 
   // MCP Server Management
-  getMCPServers: () => api.get('/mcp/servers/'),
+  getMCPServers: (params) => api.get('/mcp/servers/', { params }),
   getMCPServer: (id) => api.get(`/mcp/servers/${id}/`),
   createMCPServer: (data) => api.post('/mcp/servers/create/', data),
   updateMCPServer: (id, data) => api.post(`/mcp/servers/${id}/update/`, data),
@@ -195,7 +201,7 @@ export default {
   getLlmUsage: (params) => api.get('/llm/usage/', { params }),
   getLlmRequests: (params) => api.get('/llm/requests/', { params }),
   getLlmAudit: (params) => api.get('/llm/audit/', { params }),
-  getLlmProviders: () => api.get('/llm/providers/'),
+  getLlmProviders: (params) => api.get('/llm/providers/', { params }),
   createLlmProvider: (data) => api.post('/llm/providers/', data),
   updateLlmProvider: (id, data) => api.put(`/llm/providers/${id}/`, data),
   deleteLlmProvider: (id) => api.delete(`/llm/providers/${id}/`),
@@ -359,4 +365,20 @@ export default {
   getAgentWorkspace: (agentId) => api.get(`/agents/${agentId}/workspace/`),
   readWorkspaceFile: (agentId, path) => api.post(`/agents/${agentId}/workspace/read/`, { path }),
   deleteWorkspaceFile: (agentId, path) => api.post(`/agents/${agentId}/workspace/delete/`, { path }),
+
+  // ── Workspace Status (Live Polling) ──
+  getWorkspaceStatusList: () => api.get('/workspace-status/'),
+  getWorkspaceStatusDetail: (workspaceId) => api.get(`/workspace-status/${workspaceId}/`),
+  pingWorkspace: (workspaceId) => api.post(`/workspace-status/${workspaceId}/ping/`),
+  executeWorkspaceCommand: (workspaceId, command, timeout = 30) =>
+    api.post(`/workspace-status/${workspaceId}/execute/`, { command, timeout }),
+
+  // ── Agent Workspace Routing ──
+  getAgentWorkspaceRouting: (agentId, opts = {}) => {
+    const params = new URLSearchParams()
+    if (opts.files) params.set('files', 'true')
+    if (opts.path) params.set('path', opts.path)
+    const qs = params.toString()
+    return api.get(`/agents/${agentId}/workspace-routing/${qs ? '?' + qs : ''}`)
+  },
 }

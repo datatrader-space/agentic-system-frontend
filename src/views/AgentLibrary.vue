@@ -7,13 +7,16 @@
           <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">🤖 Agent Library</h1>
           <p class="text-sm sm:text-base text-gray-600 mt-1">Design, test, and deploy specialized AI agents</p>
         </div>
-        <button
-          @click="createAgent"
-          class="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium flex items-center justify-center gap-2 shadow-sm"
-        >
-          <span class="text-xl">+</span>
-          Create New Agent
-        </button>
+        <div class="flex items-center gap-3">
+          <OwnerFilter v-model="ownerFilter" @update:modelValue="fetchAgents" />
+          <button
+            @click="createAgent"
+            class="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium flex items-center justify-center gap-2 shadow-sm"
+          >
+            <span class="text-xl">+</span>
+            Create New Agent
+          </button>
+        </div>
       </div>
 
       <!-- Loading State -->
@@ -83,6 +86,7 @@
                Deploy
             </button>
             <button
+              v-if="agent.is_owner !== false"
               @click="confirmDelete(agent)"
               class="px-3 py-2 bg-white border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition text-sm font-medium"
               title="Delete agent"
@@ -102,15 +106,19 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '../services/api';
+import OwnerFilter from '../components/common/OwnerFilter.vue';
 
 const router = useRouter();
 const loading = ref(true);
 const agents = ref([]);
+const ownerFilter = ref('');
 
 const fetchAgents = async () => {
     try {
         loading.value = true;
-        const response = await api.get('/agents/');
+        const params = {};
+        if (ownerFilter.value) params.owner = ownerFilter.value;
+        const response = await api.get('/agents/', { params });
         agents.value = response.data.results || response.data;
     } catch (e) {
         console.error("Failed to fetch agents", e);

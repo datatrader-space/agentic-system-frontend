@@ -7,13 +7,16 @@
           <h1 class="text-3xl font-bold text-gray-900">🔌 MCP Servers</h1>
           <p class="text-gray-600 mt-1">Model Context Protocol servers for extended tool capabilities</p>
         </div>
-        <button
-          @click="showRegistrationModal = true"
-          class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium flex items-center gap-2"
-        >
-          <span class="text-xl">+</span>
-          Add MCP Server
-        </button>
+        <div class="flex items-center gap-2">
+          <OwnerFilter v-model="ownerFilter" @update:modelValue="loadServers" />
+          <button
+            @click="showRegistrationModal = true"
+            class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium flex items-center gap-2"
+          >
+            <span class="text-xl">+</span>
+            Add MCP Server
+          </button>
+        </div>
       </div>
 
       <!-- Stats Cards -->
@@ -99,13 +102,15 @@ import api from '../services/api'
 import MCPServerCard from '../components/mcp/MCPServerCard.vue'
 import MCPServerModal from '../components/mcp/MCPServerModal.vue'
 import MCPServerDetailModal from '../components/mcp/MCPServerDetailModal.vue'
+import OwnerFilter from '../components/common/OwnerFilter.vue'
 
 export default {
   name: 'MCPServers',
   components: {
     MCPServerCard,
     MCPServerModal,
-    MCPServerDetailModal
+    MCPServerDetailModal,
+    OwnerFilter
   },
   setup() {
     const servers = ref([])
@@ -114,6 +119,7 @@ export default {
     const showRegistrationModal = ref(false)
     const selectedServer = ref(null)
     const editingServer = ref(null)
+    const ownerFilter = ref('')
 
     // Computed stats
     const activeCount = computed(() => servers.value.filter(s => s.enabled).length)
@@ -124,7 +130,9 @@ export default {
     const loadServers = async () => {
       loading.value = true
       try {
-        const response = await api.getMCPServers()
+        const params = {}
+        if (ownerFilter.value) params.owner = ownerFilter.value
+        const response = await api.getMCPServers(params)
         servers.value = response.data.servers || []
       } catch (error) {
         console.error('Failed to load MCP servers:', error)
@@ -238,6 +246,7 @@ export default {
       showRegistrationModal,
       selectedServer,
       editingServer,
+      ownerFilter,
       activeCount,
       totalTools,
       sessionCount,

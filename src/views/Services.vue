@@ -7,7 +7,8 @@
           <h1 class="text-3xl font-bold text-gray-900">🌐 Services</h1>
           <p class="text-gray-600 mt-1">Register external services and auto-discover their tools</p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex items-center gap-2">
+          <OwnerFilter v-model="ownerFilter" @update:modelValue="loadServices" />
           <router-link 
             to="/services/drafts"
             class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-medium flex items-center gap-2"
@@ -120,6 +121,7 @@ import ServiceCard from '../components/services/ServiceCard.vue'
 import ServiceRegistrationModal from '../components/services/ServiceRegistrationModal.vue'
 import ServiceDetailModal from '../components/services/ServiceDetailModal.vue'
 import ServiceShareModal from '../components/services/ServiceShareModal.vue'
+import OwnerFilter from '../components/common/OwnerFilter.vue'
 
 export default {
   name: 'Services',
@@ -127,7 +129,8 @@ export default {
     ServiceCard,
     ServiceRegistrationModal,
     ServiceDetailModal,
-    ServiceShareModal
+    ServiceShareModal,
+    OwnerFilter
   },
   setup() {
     const services = ref([])
@@ -135,6 +138,7 @@ export default {
     const showRegistrationModal = ref(false)
     const selectedService = ref(null)
     const sharingService = ref(null)
+    const ownerFilter = ref('')
 
     // Computed stats
     const activeCount = computed(() => services.value.filter(s => s.enabled).length)
@@ -145,7 +149,9 @@ export default {
     const loadServices = async () => {
       loading.value = true
       try {
-        const response = await api.getServices()
+        const params = {}
+        if (ownerFilter.value) params.owner = ownerFilter.value
+        const response = await api.getServices(params)
         services.value = response.data.services || []
       } catch (error) {
         console.error('Failed to load services:', error)
@@ -210,6 +216,7 @@ export default {
       showRegistrationModal,
       selectedService,
       sharingService,
+      ownerFilter,
       activeCount,
       totalActions,
       enabledActions,

@@ -5,6 +5,7 @@
  */
 
 import axios from 'axios'
+import api from './api'
 
 const API_BASE = '/api/tools'
 
@@ -109,14 +110,14 @@ export const toolsApi = {
 
 export const credentialsApi = {
     // ============================================================================
-    // Credential Management (agent-scoped)
+    // Credential Management (agent-scoped, workspace-aware)
     // ============================================================================
 
     /**
-     * List credentials for an agent
+     * List credentials for an agent (returns per-user creds in workspace context)
      */
     list: (agentId) =>
-        axios.get(`/api/agents/${agentId}/credentials/`),
+        api.get(`/agents/${agentId}/credentials/`),
 
     /**
      * Create a new credential for an agent
@@ -125,31 +126,45 @@ export const credentialsApi = {
      *                        For built-in: { builtin_tool, credential_name, credentials: {...} }
      */
     create: (agentId, data) =>
-        axios.post(`/api/agents/${agentId}/credentials/create/`, data),
+        api.post(`/agents/${agentId}/credentials/create/`, data),
 
     /**
      * Delete credential
      */
     delete: (agentId, credentialId) =>
-        axios.delete(`/api/agents/${agentId}/credentials/${credentialId}/delete/`),
+        api.delete(`/agents/${agentId}/credentials/${credentialId}/delete/`),
 
     /**
      * Test credential (verify it works)
      */
     test: (agentId, credentialId) =>
-        axios.post(`/api/agents/${agentId}/credentials/${credentialId}/test/`),
+        api.post(`/agents/${agentId}/credentials/${credentialId}/test/`),
 
     /**
      * Set credential as default for its scope
      */
     setDefault: (agentId, credentialId) =>
-        axios.post(`/api/agents/${agentId}/credentials/${credentialId}/set-default/`),
+        api.post(`/agents/${agentId}/credentials/${credentialId}/set-default/`),
 
     /**
      * Get available built-in tool credential scopes
      */
     getBuiltinScopes: () =>
-        axios.get(`/api/credentials/builtin-scopes/`),
+        api.get(`/credentials/builtin-scopes/`),
+
+    /**
+     * Get workspace routing info for an agent
+     */
+    getWorkspaceRouting: (agentId) =>
+        api.get(`/agents/${agentId}/workspace-routing/`),
+
+    /**
+     * Toggle share_credentials for a workspace link
+     * @param {number} agentId
+     * @param {Object} data - { workspace_id, share_credentials: bool }
+     */
+    toggleShareCredentials: (agentId, data) =>
+        api.patch(`/agents/${agentId}/share-credentials/`, data),
 }
 
 export default {

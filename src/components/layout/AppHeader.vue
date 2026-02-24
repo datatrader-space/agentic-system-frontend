@@ -233,6 +233,9 @@
               </div>
             </div>
 
+            <!-- Workspace Switcher -->
+            <WorkspaceSwitcher class="header-workspace-switcher" />
+
             <!-- Separator -->
             <div class="header-separator"></div>
 
@@ -310,6 +313,19 @@
                       <span>Connect GitHub</span>
                       <span class="item-badge">New</span>
                     </button>
+
+                    <!-- Org Settings -->
+                    <router-link
+                      v-if="activeOrg"
+                      :to="`/org/${activeOrg.slug}/settings`"
+                      class="dropdown-item"
+                      @click="showUserMenu = false"
+                    >
+                      <svg class="item-icon" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd"/>
+                      </svg>
+                      <span>Organisation Settings</span>
+                    </router-link>
 
                     <div class="dropdown-divider"></div>
 
@@ -509,6 +525,10 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick, h } from 'vue'
 import { useRoute } from 'vue-router'
+import WorkspaceSwitcher from './WorkspaceSwitcher.vue'
+import { useWorkspace } from '../../composables/useWorkspace'
+
+const { activeOrg, activeOrgName } = useWorkspace()
 
 // Icon Components (inline SVG as render functions)
 const HomeIcon = {
@@ -665,7 +685,8 @@ const authLinks = [
   { to: '/benchmarks', label: 'Benchmarks', exact: true, iconComponent: BenchmarkIcon },
   { to: '/tools', label: 'Tools', exact: true, iconComponent: ToolsIcon },
   { to: '/services', label: 'Services', exact: true, iconComponent: ServicesIcon },
-  { to: '/mcp', label: 'MCP', exact: true, iconComponent: MCPIcon, highlight: true }
+  { to: '/mcp', label: 'MCP', exact: true, iconComponent: MCPIcon, highlight: true },
+  { to: '/workspaces', label: 'Workspaces', exact: true, iconComponent: MCPIcon, badge: 'New' }
 ]
 
 // Methods

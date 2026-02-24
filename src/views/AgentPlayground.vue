@@ -17,15 +17,26 @@
 
             <!-- Right: Actions -->
             <div class="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
-                <button v-if="agent.id" @click="toggleWorkspace"
-                    class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
-                    :class="{ 'border-blue-400 text-blue-600': showWorkspace }"
-                    :title="'Workspace'">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button v-if="agent.id && isOwner" @click="toggleWorkspace"
+                    class="text-sm font-medium border rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
+                    :class="showWorkspace ? 'border-blue-400 text-blue-600' : wsRouting?.routed ? 'border-green-400 text-green-700' : 'border-gray-300 text-gray-600 hover:text-gray-900'"
+                    :title="wsRouting?.routed ? `Routed → ${wsRouting.workspace.workspace_name}` : 'Workspace'">
+                    <span v-if="wsRouting?.routed" class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                     </svg>
-                    <span class="hidden md:inline">Workspace</span>
+                    <span class="hidden md:inline">{{ wsRouting?.routed ? wsRouting.workspace.workspace_name : 'Workspace' }}</span>
+                </button>
+                <button v-if="agent.id" @click="showCredentials = !showCredentials"
+                    class="text-sm font-medium border rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
+                    :class="showCredentials ? 'border-amber-400 text-amber-600' : 'border-gray-300 text-gray-600 hover:text-gray-900'"
+                    title="Credentials">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                    <span class="hidden md:inline">Credentials</span>
                 </button>
                 <button v-if="agent.id" @click="showScript = !showScript"
                     class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
@@ -37,7 +48,7 @@
                     </svg>
                     <span class="hidden md:inline">Script</span>
                 </button>
-                <button @click="showBuilder = !showBuilder"
+                <button v-if="isOwner" @click="showBuilder = !showBuilder"
                     class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
                     :title="'Configure Agent'">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -55,10 +66,26 @@
         <div class="flex-1 flex h-0 overflow-hidden">
 
             <!-- Left: Builder (MODAL OVERLAY) -->
-            <div v-if="showBuilder" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
+            <div v-if="showBuilder && isOwner" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
                 @click.self="showBuilder = false">
                 <div class="h-full w-full sm:w-[500px] bg-white shadow-2xl animate-in slide-in-from-right duration-200 overflow-y-auto">
                     <AgentBuilder v-if="agent" v-model:agent="agent" :isSaving="saving" @save="saveAgent" @close="showBuilder = false" />
+                </div>
+            </div>
+
+            <!-- Credentials Panel (slide-over, accessible to all users) -->
+            <div v-if="showCredentials" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
+                @click.self="showCredentials = false">
+                <div class="h-full w-full sm:w-[500px] bg-white shadow-2xl animate-in slide-in-from-right duration-200 flex flex-col">
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 shrink-0">
+                        <h2 class="text-base font-bold text-gray-800">🔑 Credentials</h2>
+                        <button @click="showCredentials = false" class="p-1.5 hover:bg-gray-100 rounded text-gray-500 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
+                    <div class="flex-1 overflow-y-auto">
+                        <CredentialManager v-if="agent.id" :agent-profile="agent" />
+                    </div>
                 </div>
             </div>
 
@@ -86,11 +113,11 @@
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
                                 <span class="text-sm font-medium">Back</span>
                             </button>
-                            <svg class="w-5 h-5 text-blue-600 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-5 h-5 hidden sm:block" :class="wsRouting?.routed ? 'text-green-600' : 'text-blue-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                             </svg>
-                            <h2 class="text-sm sm:text-base font-bold text-gray-800">Workspace</h2>
-                            <span v-if="wsFiles.length" class="text-xs text-gray-400 ml-1">({{ wsFormatSize(wsTotalSize) }})</span>
+                            <h2 class="text-sm sm:text-base font-bold text-gray-800">{{ wsRouting?.routed ? 'Remote Workspace' : 'Local Workspace' }}</h2>
+                            <span v-if="!wsRouting?.routed && wsFiles.length" class="text-xs text-gray-400 ml-1">({{ wsFormatSize(wsTotalSize) }})</span>
                         </div>
                         <div class="flex items-center gap-2">
                             <button @click="loadWorkspace" :disabled="wsLoading"
@@ -107,6 +134,21 @@
 
                     <!-- Content -->
                     <div class="flex-1 overflow-y-auto">
+                        <!-- Routing Status Banner -->
+                        <div v-if="wsRouting?.routed" class="mx-3 mt-3 mb-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                                <span class="text-sm font-semibold text-green-800">Remote Routing Active</span>
+                            </div>
+                            <p class="text-xs text-green-700 leading-relaxed">
+                                Tools execute on <strong>{{ wsRouting.workspace.workspace_name }}</strong>
+                                <span v-if="wsRouting.workspace.workspace_path"> · {{ wsRouting.workspace.workspace_path }}</span>
+                                <span v-if="wsRouting.workspace.agent_version"> · v{{ wsRouting.workspace.agent_version }}</span>
+                            </p>
+                        </div>
+                        <div v-else-if="wsRouting && !wsRouting.routed" class="mx-3 mt-3 mb-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <p class="text-xs text-gray-500">Tools execute locally on the server. Assign this agent to a workspace and enable routing to execute remotely.</p>
+                        </div>
                         <!-- Loading -->
                         <div v-if="wsLoading" class="flex items-center justify-center py-16">
                             <div class="animate-spin w-6 h-6 border-2 border-blue-500/30 border-t-blue-500 rounded-full"></div>
@@ -890,6 +932,7 @@ import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // Or any other style
 import api from '../services/api';
 import AgentBuilder from '../components/AgentBuilder.vue';
+import CredentialManager from '../components/tools/CredentialManager.vue';
 import SessionTrace from '../components/SessionTrace.vue';
 import PromptBuilder from '../components/PromptBuilder.vue';
 import FileViewer from '../components/FileViewer.vue';
@@ -947,34 +990,101 @@ const mobileTabItems = [
 const showBuilder = ref(false); // Default to false (modal hidden)
 const showWorkspace = ref(false);
 const showScript = ref(false);
+const showCredentials = ref(false);
+
+// Computed: is current user the agent owner?
+const isOwner = computed(() => agent.value?.is_owner !== false);
 const wsFiles = ref([]);
 const wsTotalSize = ref(0);
 const wsLoading = ref(false);
 const wsExpandedDirs = ref({});
 const wsPreviewContent = ref(null);
 const wsPreviewPath = ref(null);
+const wsRouting = ref(null); // { routed: true/false, workspace: {...} }
 
 // HITL state
 const hitlRequests = ref([]);
 
-const toggleWorkspace = () => {
+const checkWorkspaceRouting = async () => {
+    if (!agent.value?.id) return;
+    try {
+        const { data } = await api.getAgentWorkspaceRouting(agent.value.id);
+        wsRouting.value = data;
+    } catch (e) {
+        wsRouting.value = null;
+    }
+};
+
+const toggleWorkspace = async () => {
     showWorkspace.value = !showWorkspace.value;
-    if (showWorkspace.value) loadWorkspace();
+    if (showWorkspace.value) {
+        await checkWorkspaceRouting();
+        loadWorkspace();
+    }
 };
 
 const loadWorkspace = async () => {
     if (!agent.value?.id) return;
     wsLoading.value = true;
     try {
-        const { data } = await api.getAgentWorkspace(agent.value.id);
-        wsFiles.value = data.files || [];
-        wsTotalSize.value = data.total_size || 0;
+        // If routing is active, fetch remote files from workspace agent
+        if (wsRouting.value?.routed) {
+            const wsId = wsRouting.value.workspace.workspace_id;
+            // Cross-platform Python one-liner — works on Windows and Linux
+            const pyCmd = `python -c "import os,json;print(json.dumps([{'name':e,'type':'directory' if os.path.isdir(e) else 'file','size':os.path.getsize(e) if os.path.isfile(e) else 0} for e in sorted(os.listdir('.'))]))"`;
+            const { data } = await api.executeWorkspaceCommand(wsId, pyCmd, 10);
+            if (data.success && data.output) {
+                wsFiles.value = parseRemoteListing(data.output);
+                wsTotalSize.value = 0;
+            } else {
+                wsFiles.value = [];
+            }
+        } else {
+            // Local workspace files
+            const { data } = await api.getAgentWorkspace(agent.value.id);
+            wsFiles.value = data.files || [];
+            wsTotalSize.value = data.total_size || 0;
+        }
     } catch (e) {
         console.error('Failed to load workspace:', e);
         wsFiles.value = [];
     } finally {
         wsLoading.value = false;
     }
+};
+
+/**
+ * Parse remote file listing — expects JSON array from Python one-liner.
+ * Fallback: tries line-by-line parsing for non-JSON output.
+ */
+const parseRemoteListing = (output) => {
+    if (!output || typeof output !== 'string') return [];
+    // The output may have a command echo prefix — find the JSON array
+    const jsonStart = output.indexOf('[');
+    const jsonEnd = output.lastIndexOf(']');
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+        try {
+            const entries = JSON.parse(output.substring(jsonStart, jsonEnd + 1));
+            return entries.map(e => ({
+                name: e.name,
+                type: e.type || 'file',
+                size: e.size || 0,
+                children: e.type === 'directory' ? [] : undefined,
+            }));
+        } catch (e) {
+            // JSON parse failed, fall through to line-by-line
+        }
+    }
+    // Fallback: line-by-line
+    const entries = [];
+    for (const line of output.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('$') || trimmed.startsWith('total ')) continue;
+        if (trimmed.length < 256 && !trimmed.includes('  ')) {
+            entries.push({ name: trimmed, type: 'file', size: 0 });
+        }
+    }
+    return entries;
 };
 
 const wsToggleDir = (path) => {
@@ -1531,6 +1641,7 @@ onMounted(async () => {
         agent.value.id = id; // Set ID early
         await fetchAgent(id);
         await fetchContextData();
+        checkWorkspaceRouting(); // Check routing status for toolbar indicator
 
         // Check for interrupted session FIRST
         const savedSessionId = localStorage.getItem('agent_active_session_id');
@@ -1859,8 +1970,8 @@ const renderWireframeUI = (text) => {
 renderer.code = function ({ text, lang }) {
     const language = lang?.toLowerCase() || 'plaintext';
     
-    // Wireframe Detection (Box-drawing characters)
-    const isWireframe = /[\u2500-\u257F]/.test(text);
+    // Wireframe Detection — only for explicitly tagged blocks
+    const isWireframe = language === 'wireframe';
     
     if (isWireframe) {
         return renderWireframeUI(text);
@@ -1950,7 +2061,11 @@ const reconnectDelay = computed(() => Math.min(1000 * Math.pow(2, reconnectAttem
 const connectWebSocket = (repoId) => {
     const host = import.meta.env.VITE_WS_HOST || window.location.host;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${host}/ws/chat/repository/${repoId || '0'}/`;
+    let wsUrl = `${protocol}//${host}/ws/chat/repository/${repoId || '0'}/`;
+
+    // Tenancy: attach workspace context so consumer can bridge tool logs
+    const wsId = localStorage.getItem('activeWorkspaceId');
+    if (wsId) wsUrl += `?workspace_id=${wsId}`;
 
     // Check if already connected to the same URL
     if (ws.value && ws.value.url === wsUrl && ws.value.readyState === WebSocket.OPEN) {
