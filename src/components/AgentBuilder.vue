@@ -1069,6 +1069,9 @@ const groupedFilteredToolsByService = computed(() => {
         });
     }
     
+    // Build the final service map for grouping
+    const serviceMap = {};
+
     // Add MCP groups to serviceMap
     for (const [slug, group] of Object.entries(mcpGrouped)) {
         const serviceKey = `mcp_${slug}`;
