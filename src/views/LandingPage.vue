@@ -5,12 +5,12 @@
       <div class="hero-content">
         <div class="hero-text">
           <h1 class="hero-title">
-            AI-Powered Code Generation
-            <span class="gradient-text">Reimagined</span>
+            Build AI Agents That
+            <span class="gradient-text">Automate Everything</span>
           </h1>
           <p class="hero-subtitle">
-            Transform your development workflow with intelligent agents that understand your codebase,
-            automate repetitive tasks, and accelerate delivery for developers, businesses, and enterprises.
+            AADML is an AI Agent Development & Management Layer. Orchestrate autonomous agents
+            with 50+ tools, multi-LLM routing, event-driven signals, and enterprise-grade workspace management.
           </p>
           
           <div class="cta-buttons">
@@ -26,7 +26,7 @@
             <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
-            Trusted by developers, businesses, enterprises, and marketing agencies
+            Deploy agents that run SSH, browse the web, call APIs, execute scripts, and more
           </p>
         </div>
 
@@ -66,8 +66,8 @@
     <section class="features-section">
       <div class="container">
         <div class="section-header">
-          <h2>Everything You Need to Build Faster</h2>
-          <p>Powerful AI agents with deep code understanding and seamless workflow integration</p>
+          <h2>Everything You Need to Deploy Agents</h2>
+          <p>A complete platform for building, managing, and scaling AI agent workflows</p>
         </div>
         
         <div class="bento-grid">
@@ -137,20 +137,20 @@
       <div class="container">
         <div class="stats-grid">
           <div class="stat">
-            <div class="stat-number">10x</div>
-            <div class="stat-label">Faster Development</div>
-          </div>
-          <div class="stat">
-            <div class="stat-number">95%</div>
-            <div class="stat-label">Code Quality Score</div>
-          </div>
-          <div class="stat">
             <div class="stat-number">50+</div>
             <div class="stat-label">Built-in Tools</div>
           </div>
           <div class="stat">
+            <div class="stat-number">Multi</div>
+            <div class="stat-label">LLM Providers</div>
+          </div>
+          <div class="stat">
             <div class="stat-number">24/7</div>
-            <div class="stat-label">AI Availability</div>
+            <div class="stat-label">Signal-Driven Agents</div>
+          </div>
+          <div class="stat">
+            <div class="stat-number">Self</div>
+            <div class="stat-label">Hosted & Secure</div>
           </div>
         </div>
       </div>
@@ -161,8 +161,8 @@
       <div class="container">
         <div class="cta-box">
           <div class="cta-content">
-            <h2>Ready to Transform Your Workflow?</h2>
-            <p>Join developers and teams already building with AI agents</p>
+            <h2>Ready to Deploy Your First Agent?</h2>
+            <p>Self-host AADML in minutes with Docker, or get started on our cloud</p>
             <router-link to="/login" class="btn btn-primary btn-large">
               Start Building Now
             </router-link>
@@ -179,33 +179,33 @@ import { ref, computed, onMounted } from 'vue'
 // --- Original Features Data ---
 const features = ref([
   {
-    title: 'Intelligent Code Analysis',
-    description: 'Deep understanding of your codebase with relationship mapping and dependency tracking.',
-    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>'
-  },
-  {
-    title: 'Multi-Tool Integration',
-    description: 'Access 50+ built-in tools plus custom integrations for complete automation.',
+    title: 'Multi-Tool Agents',
+    description: '50+ built-in tools — SSH, browser automation, web search, email, AWS, scripts, and more. Agents pick the right tool for each task.',
     icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>'
   },
   {
-    title: 'Real-Time Collaboration',
-    description: 'Work alongside AI agents that understand context and maintain consistency.',
-    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>'
-  },
-  {
-    title: 'Automated Testing',
-    description: 'Generate comprehensive test suites automatically with intelligent coverage.',
-    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
-  },
-  {
-    title: 'Custom LLM Support',
-    description: 'Use your preferred AI models - from local Ollama to Claude and GPT.',
+    title: 'Signal System',
+    description: 'Event-driven agent triggers. Webhooks, schedules, and real-time signals fire agents automatically when conditions are met.',
     icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>'
   },
   {
-    title: 'Enterprise Security',
-    description: 'Built-in security controls, audit trails, and compliance-ready infrastructure.',
+    title: 'Multi-LLM Routing',
+    description: 'OpenRouter, OpenAI, Anthropic, Google, or local Ollama. Route each agent to the best model for the job.',
+    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>'
+  },
+  {
+    title: 'Workspace Teams',
+    description: 'Multi-tenant orgs, workspaces, role-based access, and team collaboration. Manage who accesses what.',
+    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>'
+  },
+  {
+    title: 'MCP Integration',
+    description: 'Connect any Model Context Protocol server. Extend agent capabilities with external tools and data sources.',
+    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>'
+  },
+  {
+    title: 'Enterprise Ready',
+    description: 'Audit trails, encrypted credential vaults, Docker deployment, and workspace-level access control.',
     icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>'
   }
 ])
@@ -216,27 +216,27 @@ const activeTab = ref('Developers')
 const useCases = ref([
   {
     badge: 'Developers',
-    title: 'Ship Features Faster',
-    desc: 'Automate boilerplate, generate tests, and refactor code with AI assistance.',
-    items: ['Intelligent code completion', 'Automated test generation', 'Smart refactoring suggestions']
+    title: 'Automate Your Workflow',
+    desc: 'Let agents handle SSH deployments, code generation, browser testing, and API calls while you focus on architecture.',
+    items: ['50+ tools at agent fingertips', 'Multi-LLM model routing', 'Real-time streaming responses']
   },
   {
-    badge: 'Businesses',
-    title: 'Scale Development',
-    desc: 'Reduce development costs and accelerate time-to-market with AI-powered automation.',
-    items: ['Faster feature delivery', 'Reduced technical debt', 'Consistent code quality']
-  },
-  {
-    badge: 'Enterprises',
-    title: 'Enterprise-Grade Control',
-    desc: 'Deploy AI agents with security, compliance, and custom integrations.',
-    items: ['On-premise deployment', 'Custom tool integration', 'Advanced security controls']
+    badge: 'DevOps',
+    title: 'Agents as Operators',
+    desc: 'Schedule agents to monitor, deploy, and respond to events. Signal-driven automation with webhook triggers.',
+    items: ['Cron-scheduled agent runs', 'Webhook-triggered workflows', 'SSH & AWS tool execution']
   },
   {
     badge: 'Agencies',
-    title: 'Deliver More Projects',
-    desc: 'Handle multiple client projects efficiently with intelligent automation.',
-    items: ['Multi-project management', 'Rapid prototyping', 'Client-ready documentation']
+    title: 'Manage Client Workspaces',
+    desc: 'Isolate client work in separate workspaces with their own agents, tools, and access controls.',
+    items: ['Multi-tenant workspaces', 'Per-client agent profiles', 'Encrypted credential vaults']
+  },
+  {
+    badge: 'Enterprises',
+    title: 'Self-Hosted & Secure',
+    desc: 'Deploy on your own infrastructure with Docker. Full audit trails, RBAC, and credential encryption.',
+    items: ['Docker Compose deployment', 'Workspace-level RBAC', 'Complete audit logging']
   }
 ])
 
@@ -251,14 +251,16 @@ const terminalLines = ref([
 const isTyping = ref(true)
 
 const codeSequence = [
-  { html: '<span class="c-purple">const</span> <span class="c-blue">agent</span> = <span class="c-yellow">new</span> <span class="c-blue">AutoAgent</span>();', delay: 100 },
-  { html: '<span class="c-gray">// Initializing neural context...</span>', delay: 800 },
-  { html: '<span class="c-purple">await</span> agent.<span class="c-green">analyzeProject</span>(<span class="c-blue">"./src"</span>);', delay: 1600 },
-  { html: '<span class="c-purple">const</span> <span class="c-blue">feature</span> = <span class="c-green">"user-authentication"</span>;', delay: 2400 },
-  { html: '<span class="c-gray">// Generating secure endpoints...</span>', delay: 3200 },
-  { html: '<span class="c-purple">const</span> <span class="c-blue">result</span> = <span class="c-purple">await</span> agent.<span class="c-green">generate</span>(feature);', delay: 4000 },
-  { html: '<span class="c-green">console</span>.<span class="c-green">log</span>(<span class="c-blue">result</span>.status);', delay: 5000 },
-  { html: '<span class="c-gray">// Output: "Success - 100% Coverage"</span>', delay: 5800 },
+  { html: '<span class="c-gray">// AADML Agent executing...</span>', delay: 100 },
+  { html: '<span class="c-purple">await</span> agent.<span class="c-green">useTool</span>(<span class="c-blue">"SSH_EXEC"</span>, {', delay: 800 },
+  { html: '  host: <span class="c-green">"prod-server"</span>,', delay: 1400 },
+  { html: '  command: <span class="c-green">"docker compose up -d"</span>', delay: 2000 },
+  { html: '});', delay: 2400 },
+  { html: '<span class="c-gray">// ✓ Deployed 3 containers</span>', delay: 3200 },
+  { html: '<span class="c-purple">await</span> agent.<span class="c-green">useTool</span>(<span class="c-blue">"WEB_SEARCH"</span>, {', delay: 4000 },
+  { html: '  query: <span class="c-green">"latest security patches"</span>', delay: 4600 },
+  { html: '});', delay: 5000 },
+  { html: '<span class="c-gray">// ✓ Found 2 relevant updates</span>', delay: 5800 },
 ]
 
 let currentTime = 0

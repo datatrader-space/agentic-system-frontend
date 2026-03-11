@@ -38,8 +38,7 @@
               </div>
             </div>
             <div class="logo-text">
-              <span class="logo-text-main">Agentic</span>
-              <span class="logo-text-sub">System</span>
+              <span class="logo-text-main">AADML</span>
             </div>
           </router-link>
 
@@ -378,7 +377,7 @@
                   </defs>
                 </svg>
               </div>
-              <span>Agentic System</span>
+              <span>AADML</span>
             </div>
             <button @click="closeMobileMenu" class="mobile-close">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
