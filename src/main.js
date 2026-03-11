@@ -36,6 +36,7 @@ import WorkspaceHub from './views/WorkspaceHub.vue'
 import OrgSettings from './views/OrgSettings.vue'
 import WorkspaceDashboard from './views/WorkspaceDashboard.vue'
 import InviteAccept from './views/InviteAccept.vue'
+import Connections from './views/Connections.vue'
 
 // Create router
 const router = createRouter({
@@ -214,6 +215,12 @@ const router = createRouter({
       name: 'invite-accept',
       component: InviteAccept,
       meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/connections',
+      name: 'connections',
+      component: Connections,
+      meta: { requiresAuth: true }
     }
   ]
 })

@@ -68,7 +68,13 @@
             <!-- Left: Builder (MODAL OVERLAY) -->
             <div v-if="showBuilder && isOwner" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
                 @click.self="showBuilder = false">
-                <div class="h-full w-full sm:w-[500px] bg-white shadow-2xl animate-in slide-in-from-right duration-200 overflow-y-auto">
+                <!-- Resize handle -->
+                <div class="h-full w-1.5 cursor-col-resize hover:bg-indigo-400 active:bg-indigo-500 transition-colors flex items-center justify-center group"
+                    @mousedown="startBuilderResize">
+                    <div class="w-0.5 h-8 bg-gray-400 group-hover:bg-white rounded-full"></div>
+                </div>
+                <div class="h-full bg-white shadow-2xl animate-in slide-in-from-right duration-200 overflow-y-auto"
+                    :style="{ width: builderWidth + 'px' }">
                     <AgentBuilder v-if="agent" v-model:agent="agent" :isSaving="saving" @save="saveAgent" @close="showBuilder = false" />
                 </div>
             </div>
@@ -264,22 +270,30 @@
                             </button>
                             <!-- Conversation List -->
                             <div class="max-h-64 overflow-y-auto">
-                                <button v-for="conv in conversations" :key="conv.id"
-                                    @click="switchConversation(conv.id)"
-                                    class="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition border-b border-gray-50 last:border-0"
+                                <div v-for="conv in conversations" :key="conv.id"
+                                    class="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition border-b border-gray-50 last:border-0 flex items-center group/conv"
                                     :class="{ 'bg-blue-50 border-l-2 border-l-blue-500': conv.id === activeSessionId }">
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-sm font-medium text-gray-800 truncate max-w-[160px]">
-                                            {{ conv.title || 'Untitled' }}
-                                        </span>
-                                        <span class="text-[10px] text-gray-400 flex-shrink-0 ml-2">
-                                            {{ conv.message_count || 0 }} msgs
-                                        </span>
-                                    </div>
-                                    <div class="text-[10px] text-gray-400 mt-0.5">
-                                        {{ formatConvTime(conv.updated_at) }}
-                                    </div>
-                                </button>
+                                    <button @click="switchConversation(conv.id)" class="flex-1 text-left min-w-0">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm font-medium text-gray-800 truncate max-w-[160px]">
+                                                {{ conv.title || 'Untitled' }}
+                                            </span>
+                                            <span class="text-[10px] text-gray-400 flex-shrink-0 ml-2">
+                                                {{ conv.message_count || 0 }} msgs
+                                            </span>
+                                        </div>
+                                        <div class="text-[10px] text-gray-400 mt-0.5">
+                                            {{ formatConvTime(conv.updated_at) }}
+                                        </div>
+                                    </button>
+                                    <button @click.stop="deleteConversation(conv.id)"
+                                        class="ml-2 p-1 rounded hover:bg-red-100 text-gray-300 hover:text-red-500 transition opacity-0 group-hover/conv:opacity-100 flex-shrink-0"
+                                        title="Delete conversation">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
                                 <div v-if="conversations.length === 0" class="px-3 py-4 text-center text-xs text-gray-400">
                                     No conversations yet
                                 </div>
@@ -950,9 +964,11 @@ const agent = ref({
     name: 'New Agent',
     description: '',
     system_prompt_template: 'You are a helpful AI assistant enabled with tools.',
+    prompt_mode: 'append',
     knowledge_scope: 'system',
     tool_ids: [],
-    temperature: 0.7
+    temperature: 0.7,
+    max_history_messages: 50
 });
 
 const saving = ref(false);
@@ -988,6 +1004,30 @@ const mobileTabItems = [
 ];
 
 const showBuilder = ref(false); // Default to false (modal hidden)
+const builderWidth = ref(700); // Default wider panel
+
+const startBuilderResize = (e) => {
+  e.preventDefault()
+  const startX = e.clientX
+  const startWidth = builderWidth.value
+
+  const onMouseMove = (moveEvent) => {
+    const delta = startX - moveEvent.clientX
+    builderWidth.value = Math.min(Math.max(startWidth + delta, 400), window.innerWidth * 0.9)
+  }
+
+  const onMouseUp = () => {
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
+
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
 const showWorkspace = ref(false);
 const showScript = ref(false);
 const showCredentials = ref(false);
@@ -1628,6 +1668,26 @@ const createNewConversation = async () => {
     }
 };
 
+// Delete a conversation
+const deleteConversation = async (convId) => {
+    if (!confirm('Delete this conversation? This cannot be undone.')) return;
+    try {
+        await api.delete(`/conversations/${convId}/`);
+        // Remove from local list
+        conversations.value = conversations.value.filter(c => c.id !== convId);
+        // If we deleted the active conversation, switch to another or create new
+        if (convId === activeSessionId.value) {
+            if (conversations.value.length > 0) {
+                switchConversation(conversations.value[0].id);
+            } else {
+                createNewConversation();
+            }
+        }
+    } catch (e) {
+        console.error('Failed to delete conversation:', e);
+    }
+};
+
 // Click-outside to close conversation switcher
 const handleClickOutside = (e) => {
     if (convSwitcherRef.value && !convSwitcherRef.value.contains(e.target)) {
@@ -2043,8 +2103,8 @@ const getMediaArtifacts = (eventData) => {
     const artifacts = eventData?.media_artifacts || [];
     return artifacts.map(artifact => ({
         id: artifact.id,
-        url: artifact.file_url,
-        type: artifact.media_type,
+        url: artifact.url,
+        type: artifact.type,
         title: artifact.title || artifact.description,
         description: artifact.description,
         filename: artifact.filename

@@ -22,7 +22,7 @@
     <!-- Tabs Header -->
     <div class="flex border-b border-gray-200 px-4 shrink-0 bg-white">
         <button 
-            v-for="tab in ['General', 'Knowledge', 'Tools', 'Credentials']" 
+            v-for="tab in ['General', 'Knowledge', 'Tools', 'Credentials', 'Signals', 'Schedules']" 
             :key="tab"
             @click="activeTab = tab"
             :class="['px-4 py-3 text-sm font-medium border-b-2 transition-colors', activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
@@ -123,18 +123,155 @@
                 </div>
              </div>
         </div>
+
+        <!-- Chat History Limit -->
+        <div class="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+                Chat History Limit
+                <span class="text-xs font-normal text-gray-500 ml-1">(messages sent as context)</span>
+            </label>
+            <div class="flex items-center gap-4">
+                <input
+                    type="range"
+                    v-model.number="internalAgent.max_history_messages"
+                    min="2"
+                    max="100"
+                    step="1"
+                    class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                >
+                <span class="text-sm font-mono font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg min-w-[4rem] text-center">
+                    {{ internalAgent.max_history_messages || 50 }}
+                </span>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">
+                How many recent messages to include when calling the LLM. Lower = fewer tokens & faster, higher = more conversation memory.
+            </p>
+        </div>
+
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
                 System Prompt
-                <span v-pre class="text-xs font-normal text-gray-500 ml-1">(Use {{tools}} for automatic injection)</span>
+                <span class="text-xs font-normal text-gray-500 ml-1">(Template with placeholders)</span>
             </label>
+            
+            <!-- Prompt Mode Toggle -->
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-xs text-gray-500">Mode:</span>
+              <div class="inline-flex rounded-md border border-gray-300 overflow-hidden">
+                <button
+                  @click="internalAgent.prompt_mode = 'append'"
+                  :class="[
+                    'text-xs px-3 py-1 transition',
+                    (internalAgent.prompt_mode || 'append') === 'append'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                  ]"
+                  title="Tool docs are appended after your prompt"
+                >
+                  Append
+                </button>
+                <button
+                  @click="internalAgent.prompt_mode = 'override'"
+                  :class="[
+                    'text-xs px-3 py-1 transition border-l border-gray-300',
+                    internalAgent.prompt_mode === 'override'
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                  ]"
+                  title="Your prompt is the complete system prompt. Use {{tool_protocol}} to place tool docs."
+                >
+                  Override
+                </button>
+              </div>
+              <span v-if="(internalAgent.prompt_mode || 'append') === 'append'" class="text-xs text-gray-400">
+                Tool docs appended after your prompt
+              </span>
+              <span v-else class="text-xs text-gray-400">
+                Your prompt IS the system prompt — use <code class="text-indigo-500">{<!-- -->{tool_protocol}}</code> for tool docs
+              </span>
+            </div>
+            
+            <!-- Placeholder Insertion Buttons -->
+            <div class="flex flex-wrap gap-1.5 mb-2">
+              <button
+                v-for="ph in placeholders"
+                :key="ph.tag"
+                @click="insertPlaceholder(ph.tag)"
+                :class="[
+                  'text-xs px-2 py-1 rounded-full border transition font-mono',
+                  internalAgent.system_prompt_template?.includes(ph.tag)
+                    ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
+                    : 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-indigo-50 hover:border-indigo-300 hover:text-indigo-600'
+                ]"
+                :title="ph.description"
+              >
+                {{ ph.tag }}
+                <span v-if="internalAgent.system_prompt_template?.includes(ph.tag)" class="ml-0.5">✓</span>
+              </button>
+              
+              <button
+                @click="previewPrompt"
+                :disabled="loadingPreview"
+                class="ml-auto text-xs px-3 py-1 rounded-full bg-violet-100 border border-violet-300 text-violet-700 hover:bg-violet-200 transition flex items-center gap-1"
+              >
+                <span v-if="loadingPreview" class="animate-spin">↻</span>
+                <span v-else>👁</span>
+                {{ loadingPreview ? 'Loading...' : 'Preview Full Prompt' }}
+              </button>
+            </div>
+            
         <div class="relative">
             <textarea 
+                ref="promptTextarea"
                 v-model="internalAgent.system_prompt_template"
-                rows="8"
+                rows="10"
                 class="w-full px-3 py-2 font-mono text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-gray-50"
                 placeholder="You are a helpful assistant..."
             ></textarea>
+            <div class="flex justify-between text-xs text-gray-400 mt-1 px-1">
+              <span>{{ (internalAgent.system_prompt_template || '').length }} chars (~{{ Math.round((internalAgent.system_prompt_template || '').length / 4) }} tokens)</span>
+              <span v-if="(internalAgent.prompt_mode || 'append') === 'append'">Tool docs auto-appended after your prompt</span>
+              <span v-else>Use <code class="text-indigo-500">{<!-- -->{tool_protocol}}</code> where you want tool docs injected</span>
+            </div>
+        </div>
+      </div>
+
+      <!-- Prompt Preview Modal -->
+      <div v-if="showPromptPreview" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showPromptPreview = false">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
+          <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+            <div>
+              <h3 class="font-bold text-gray-800 flex items-center gap-2">
+                👁 System Prompt Preview
+              </h3>
+              <div v-if="promptPreviewData" class="flex gap-3 mt-1">
+                <span class="text-xs text-gray-500">{{ promptPreviewData.char_count?.toLocaleString() }} chars</span>
+                <span class="text-xs text-gray-500">~{{ promptPreviewData.estimated_tokens?.toLocaleString() }} tokens</span>
+                <span v-for="(size, name) in promptPreviewData.sections" :key="name"
+                  class="text-xs px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded"
+                >
+                  {{ name }}: {{ (size / 1024).toFixed(1) }}KB
+                </span>
+              </div>
+            </div>
+            <button @click="showPromptPreview = false" class="text-gray-400 hover:text-gray-600 text-xl font-bold">×</button>
+          </div>
+          <div class="flex-1 overflow-y-auto p-4">
+            <pre v-if="promptPreviewData" class="whitespace-pre-wrap text-sm font-mono text-gray-800 leading-relaxed">{{ promptPreviewData.prompt }}</pre>
+            <div v-else class="text-center text-gray-400 py-8">Loading...</div>
+          </div>
+          <div class="p-3 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
+            <span class="text-xs text-gray-500">This is exactly what the LLM receives as the system message</span>
+            <div class="flex gap-2">
+              <button
+                @click="copyPromptPreview"
+                class="px-3 py-1.5 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition"
+              >
+                📋 Copy
+              </button>
+              <button @click="showPromptPreview = false" class="px-3 py-1.5 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition">Close</button>
+            </div>
+          </div>
         </div>
       </div>
       </div>
@@ -279,6 +416,44 @@
         </div>
       </div>
 
+      <!-- Builder Mode Toggle (Admin only) -->
+      <div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center text-lg">🏗️</div>
+            <div>
+              <div class="text-sm font-semibold text-gray-800">Builder Mode</div>
+              <div class="text-xs text-gray-500 mt-0.5">Agent can register OAuth providers during conversations</div>
+            </div>
+          </div>
+          <button 
+            @click="internalAgent.builder_mode_enabled = !internalAgent.builder_mode_enabled"
+            :class="[
+              'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2',
+              internalAgent.builder_mode_enabled ? 'bg-amber-600' : 'bg-gray-300'
+            ]"
+          >
+            <span
+              :class="[
+                'inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm',
+                internalAgent.builder_mode_enabled ? 'translate-x-6' : 'translate-x-1'
+              ]"
+            />
+          </button>
+        </div>
+        
+        <!-- Expanded info when enabled -->
+        <div v-if="internalAgent.builder_mode_enabled" class="mt-3 pt-3 border-t border-amber-200/60">
+          <div class="flex items-start gap-2 text-xs text-gray-600">
+            <span class="text-amber-500 mt-0.5">ℹ</span>
+            <div>
+              <p class="mb-1">When enabled, the agent gets the <strong>REGISTER_OAUTH_PROVIDER</strong> tool to configure new OAuth integrations during chat.</p>
+              <p class="text-gray-400">Requires staff/admin privileges. Providers are created disabled until client credentials are added.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Tools -->
       <div>
         <div class="flex justify-between items-center mb-2">
@@ -287,6 +462,17 @@
                <span class="text-xs text-gray-500">{{ selectedToolsCount }} selected</span>
                <!-- View Mode Toggle -->
                <div class="flex gap-1 bg-gray-100 rounded p-0.5">
+                 <button
+                   @click="toolsViewMode = 'selected'"
+                   :class="[
+                     'px-2 py-1 text-xs font-medium rounded transition',
+                     toolsViewMode === 'selected' 
+                       ? 'bg-white text-indigo-700 shadow-sm' 
+                       : 'text-gray-600 hover:text-gray-800'
+                   ]"
+                 >
+                   Selected ({{ selectedToolsCount }})
+                 </button>
                  <button
                    @click="toolsViewMode = 'category'"
                    :class="[
@@ -314,54 +500,141 @@
         </div>
 
         <!-- Search Box -->
-        <div class="mb-3">
+        <div class="mb-3 relative">
             <input
                 v-model="toolSearchQuery"
                 type="text"
-                placeholder="Search tools by name or description..."
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                :placeholder="toolsViewMode === 'selected' ? 'Search selected tools...' : 'Search tools by name or description...'"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none pr-8"
             />
+            <button 
+              v-if="toolSearchQuery" 
+              @click="toolSearchQuery = ''" 
+              class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg"
+            >×</button>
         </div>
 
-        <div class="border border-gray-200 rounded-lg max-h-96 overflow-y-auto">
+        <!-- Bulk Action Bar (appears when searching) -->
+        <div v-if="toolSearchQuery && !loadingTools" class="mb-2 flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2">
+          <span class="text-xs text-indigo-700">
+            {{ currentFilteredToolIds.length }} tools match "{{ toolSearchQuery }}"
+          </span>
+          <div class="flex gap-2">
+            <button
+              @click="selectAllFiltered"
+              class="text-xs px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition font-medium"
+            >
+              Select All {{ currentFilteredToolIds.length }}
+            </button>
+            <button
+              @click="deselectAllFiltered"
+              class="text-xs px-3 py-1 bg-white text-indigo-700 border border-indigo-300 rounded hover:bg-indigo-100 transition font-medium"
+            >
+              Deselect All {{ currentFilteredToolIds.length }}
+            </button>
+          </div>
+        </div>
+
+        <div class="border border-gray-200 rounded-lg max-h-[600px] overflow-y-auto">
             <div v-if="loadingTools" class="p-4 text-center text-sm text-gray-500">Loading tools...</div>
+
+            <!-- SELECTED VIEW -->
+            <div v-else-if="toolsViewMode === 'selected'">
+              <div v-if="selectedToolsList.length === 0" class="p-8 text-center">
+                <div class="text-3xl mb-3">🔧</div>
+                <p class="text-sm text-gray-600 font-medium mb-1">No tools assigned yet</p>
+                <p class="text-xs text-gray-500 mb-3">Switch to "By Category" or "By Service" to browse and add tools</p>
+                <button
+                  @click="toolsViewMode = 'category'"
+                  class="px-4 py-2 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700 font-medium"
+                >
+                  Browse Tools
+                </button>
+              </div>
+              <div v-else class="divide-y divide-gray-100">
+                <div
+                  v-for="tool in filteredSelectedTools"
+                  :key="tool.id"
+                  class="flex items-start p-3 hover:bg-red-50 cursor-pointer transition group"
+                  @click="toggleTool(tool.id)"
+                >
+                  <div class="flex items-center h-5">
+                    <input
+                      type="checkbox"
+                      :checked="true"
+                      class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div class="ml-3 text-sm flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <label class="font-medium text-gray-700 cursor-pointer truncate">{{ tool.name }}</label>
+                      <span v-if="tool.category" class="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded flex-shrink-0">{{ tool.category }}</span>
+                    </div>
+                    <p class="text-gray-500 text-xs mt-0.5 line-clamp-1">{{ tool.description }}</p>
+                  </div>
+                  <button
+                    class="text-xs text-red-400 opacity-0 group-hover:opacity-100 transition flex-shrink-0 ml-2 hover:text-red-600"
+                    title="Remove tool"
+                  >
+                    remove
+                  </button>
+                </div>
+              </div>
+            </div>
 
             <!-- SERVICE VIEW -->
             <div v-else-if="toolsViewMode === 'service' && groupedFilteredToolsByService.length > 0">
               <div v-for="service in groupedFilteredToolsByService" :key="service.id" class="border-b border-gray-100 last:border-b-0">
-                <!-- Service Header -->
-                <div class="bg-gray-50 px-3 py-2 border-b border-gray-200">
+                <!-- Service Header (clickable to expand/collapse) -->
+                <div
+                  class="bg-gray-50 px-3 py-2.5 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition select-none"
+                  @click="toggleServiceExpand(service.id)"
+                >
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
+                      <svg
+                        class="w-3.5 h-3.5 text-gray-400 transition-transform duration-200"
+                        :class="{ 'rotate-90': expandedServices[service.id] }"
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"
+                      >
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
                       <span class="text-xs font-semibold text-gray-700">{{ service.name }}</span>
+                      <!-- Selected count badge -->
+                      <span
+                        v-if="countSelectedInService(service.tools) > 0"
+                        class="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full font-medium"
+                      >
+                        {{ countSelectedInService(service.tools) }}/{{ service.tools.length }}
+                      </span>
                       <!-- Credential Badge -->
                       <span
-                        v-if="service.hasCredentials"
+                        v-if="service.hasCredentials && !service.isMcp && !service.isBuiltin"
                         class="text-[10px] px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-medium"
-                        title="Has valid credentials"
                       >
                         ✓ Credentials
                       </span>
                       <span
-                        v-else
+                        v-else-if="!service.hasCredentials && !service.isMcp && !service.isBuiltin"
                         class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-medium"
-                        title="Missing credentials - add in Credentials tab"
                       >
                         ⚠ No Credentials
                       </span>
+                    </div>
+                    <div class="flex items-center gap-2">
                       <button 
                         @click.stop="toggleServiceTools(service.tools)" 
                         class="text-[10px] text-indigo-600 hover:text-indigo-800 font-medium px-1.5 py-0.5 rounded hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition"
                       >
-                        {{ areAllServiceToolsSelected(service.tools) ? 'Deselect All' : 'Add All Tools' }}
+                        {{ areAllServiceToolsSelected(service.tools) ? 'Deselect All' : 'Add All' }}
                       </button>
+                      <span class="text-xs text-gray-400">{{ service.tools.length }}</span>
                     </div>
-                    <span class="text-xs text-gray-500">{{ service.tools.length }} tools</span>
                   </div>
                 </div>
 
-                <!-- Tools in this service -->
-                <div class="divide-y divide-gray-100">
+                <!-- Tools in this service (collapsible) -->
+                <div v-show="expandedServices[service.id]" class="divide-y divide-gray-100">
                   <div
                     v-for="tool in service.tools"
                     :key="tool.id"
@@ -388,7 +661,7 @@
             <div v-else-if="toolsViewMode === 'category' && Object.keys(groupedFilteredTools).length > 0">
                 <div v-for="(tools, category) in groupedFilteredTools" :key="category" class="border-b border-gray-100 last:border-b-0">
                     <!-- Category Header -->
-                    <div class="bg-gray-50 px-3 py-2 border-b border-gray-200">
+                    <div class="bg-gray-50 px-3 py-2 border-b border-gray-200 sticky top-0 z-10">
                         <div class="flex items-center justify-between">
                             <div class="flex items-center gap-2">
                                 <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">{{ category }}</span>
@@ -431,9 +704,9 @@
             <div v-else class="p-8 text-center text-sm text-gray-500">
                 <div v-if="toolsViewMode === 'service'">
                   <div class="text-3xl mb-3">🏢</div>
-                  <p class="font-medium text-gray-700 mb-2">Service grouping not available</p>
+                  <p class="font-medium text-gray-700 mb-2">No services found</p>
                   <p class="text-xs mb-3">
-                    Tools loaded from the registry don't include service metadata yet.
+                    Tools need service metadata. Try searching by category instead.
                   </p>
                   <button
                     @click="toolsViewMode = 'category'"
@@ -558,6 +831,16 @@
         </div>
       </div>
 
+      <!-- TAB: SIGNALS -->
+      <div v-if="activeTab === 'Signals'">
+        <SignalPanel :agent="internalAgent" />
+      </div>
+
+      <!-- TAB: SCHEDULES -->
+      <div v-if="activeTab === 'Schedules'">
+        <SchedulePanel :agent="internalAgent" />
+      </div>
+
 
 
     </div>
@@ -569,6 +852,8 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { marked } from 'marked';
 import api from '../services/api';
 import CredentialManager from './tools/CredentialManager.vue';
+import SignalPanel from './SignalPanel.vue';
+import SchedulePanel from './SchedulePanel.vue';
 
 const props = defineProps({
     agent: {
@@ -588,6 +873,7 @@ const internalAgent = ref({
     default_model: null,  // Ensure this property exists for Vue reactivity
     code_mode_enabled: false,  // Code Mode: search+execute vs individual tools
     code_mode_services: [],    // RemoteService IDs (empty = all credentialed)
+    builder_mode_enabled: false,  // Builder Mode: agent can register OAuth providers
     ...props.agent
 });
 const availableTools = ref([]);
@@ -605,7 +891,8 @@ const selectedAnalysisFile = ref(null);
 const toolSearchQuery = ref('');
 const modelSearchQuery = ref(''); // NEW: for model search
 const activeTab = ref('General');
-const toolsViewMode = ref('category'); // 'category' or 'service'
+const toolsViewMode = ref('selected'); // 'selected', 'category' or 'service'
+const expandedServices = ref({}); // Track which service groups are expanded
 
 // Credentials state (maintained for tool badges)
 const credentials = ref([]);
@@ -618,6 +905,18 @@ const mcpCredentialEntries = ref([{ key: '', value: '' }]);
 const savingMcpCredential = ref(false);
 const mcpCredentialMessage = ref('');
 const mcpCredentialError = ref(false);
+
+// Prompt preview state
+const promptTextarea = ref(null);
+const showPromptPreview = ref(false);
+const loadingPreview = ref(false);
+const promptPreviewData = ref(null);
+const placeholders = [
+    { tag: '{{tools}}', description: 'List of assigned tool names and descriptions' },
+    { tag: '{{knowledge}}', description: 'Knowledge context from uploaded files' },
+    { tag: '{{tool_protocol}}', description: 'Full tool call protocol and documentation' },
+    { tag: '{{code_mode}}', description: 'Code mode instructions (if enabled)' },
+];
 
 const scopes = [
     { value: 'system', label: 'Full System' },
@@ -638,6 +937,23 @@ const selectedToolsCount = computed(() => {
     return internalAgent.value.tool_ids ? internalAgent.value.tool_ids.length : 0;
 });
 
+// Selected tools list: tools that are currently assigned
+const selectedToolsList = computed(() => {
+    if (!internalAgent.value.tool_ids || internalAgent.value.tool_ids.length === 0) return [];
+    const ids = new Set(internalAgent.value.tool_ids);
+    return availableTools.value.filter(tool => ids.has(tool.id));
+});
+
+// Filtered selected tools (apply search to selected view)
+const filteredSelectedTools = computed(() => {
+    const query = toolSearchQuery.value.toLowerCase().trim();
+    if (!query) return selectedToolsList.value;
+    return selectedToolsList.value.filter(tool =>
+        tool.name.toLowerCase().includes(query) ||
+        (tool.description && tool.description.toLowerCase().includes(query))
+    );
+});
+
 
 
 // Group tools by service with credential status
@@ -650,16 +966,123 @@ const groupedFilteredToolsByService = computed(() => {
         )
         : availableTools.value;
     
-    console.log('Tools available for service grouping:', filtered.length);
-    if (filtered.length > 0) {
-        console.log('Sample tool structure:', JSON.stringify(filtered[0], null, 2));
+    // Pre-compute known MCP server prefixes from loaded mcpServers
+    const knownPrefixes = [];
+    for (const srv of mcpServers.value) {
+        if (srv.slug) {
+            const normalized = srv.slug.toUpperCase().replace(/-/g, '_').replace(/ /g, '_');
+            knownPrefixes.push({
+                prefix: normalized + '_',
+                name: srv.name || srv.slug,
+                slug: normalized,
+            });
+        }
     }
+    // Sort by longest prefix first for greedy matching
+    knownPrefixes.sort((a, b) => b.prefix.length - a.prefix.length);
     
-    // Group by service
-    const serviceMap = {};
+    // First pass: collect all MCP tools and group them
+    const mcpTools = [];
+    const nonMcpTools = [];
     
     filtered.forEach(tool => {
-        // Check if this is a remote tool (multiple ways to identify)
+        if (tool.name && tool.name.startsWith('MCP_')) {
+            mcpTools.push(tool);
+        } else {
+            nonMcpTools.push(tool);
+        }
+    });
+    
+    // For MCP tools: try known prefixes first, then auto-discover groups from shared prefixes
+    const mcpGrouped = {}; // prefix -> { name, tools }
+    const unmatched = [];  // tools that didn't match any known prefix
+    
+    mcpTools.forEach(tool => {
+        const suffix = tool.name.substring(4); // Remove "MCP_"
+        
+        // Try matching known server prefixes
+        let matched = false;
+        for (const kp of knownPrefixes) {
+            if (suffix.startsWith(kp.prefix)) {
+                if (!mcpGrouped[kp.slug]) {
+                    mcpGrouped[kp.slug] = { name: kp.name, tools: [] };
+                }
+                mcpGrouped[kp.slug].tools.push(tool);
+                matched = true;
+                break;
+            }
+        }
+        
+        if (!matched) {
+            unmatched.push(tool);
+        }
+    });
+    
+    // Auto-discover groups for unmatched MCP tools using shared prefix detection
+    if (unmatched.length > 0) {
+        // Extract all suffixes (after MCP_)
+        const suffixes = unmatched.map(t => t.name.substring(4));
+        
+        // Find common prefixes: for each pair, find the prefix they share up to an underscore boundary
+        const prefixCounts = {};
+        
+        suffixes.forEach(s => {
+            // Try progressively shorter prefixes (split by underscore)
+            const parts = s.split('_');
+            for (let i = 1; i < parts.length; i++) {
+                const prefix = parts.slice(0, i).join('_') + '_';
+                prefixCounts[prefix] = (prefixCounts[prefix] || 0) + 1;
+            }
+        });
+        
+        // Find the best prefix for each tool: the longest prefix that matches 2+ tools
+        // Sort prefixes by length descending
+        const validPrefixes = Object.entries(prefixCounts)
+            .filter(([, count]) => count >= 2)
+            .sort(([a], [b]) => b.length - a.length);
+        
+        unmatched.forEach(tool => {
+            const suffix = tool.name.substring(4);
+            let found = false;
+            
+            for (const [prefix] of validPrefixes) {
+                if (suffix.startsWith(prefix)) {
+                    const slug = prefix.slice(0, -1); // Remove trailing _
+                    if (!mcpGrouped[slug]) {
+                        const nameParts = slug.split('_').map(p => p.charAt(0) + p.slice(1).toLowerCase());
+                        mcpGrouped[slug] = { name: nameParts.join(' '), tools: [] };
+                    }
+                    mcpGrouped[slug].tools.push(tool);
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (!found) {
+                // Single tool — group by first part
+                const firstPart = suffix.split('_')[0];
+                if (!mcpGrouped[firstPart]) {
+                    mcpGrouped[firstPart] = { name: firstPart.charAt(0) + firstPart.slice(1).toLowerCase(), tools: [] };
+                }
+                mcpGrouped[firstPart].tools.push(tool);
+            }
+        });
+    }
+    
+    // Add MCP groups to serviceMap
+    for (const [slug, group] of Object.entries(mcpGrouped)) {
+        const serviceKey = `mcp_${slug}`;
+        serviceMap[serviceKey] = {
+            id: serviceKey,
+            name: `🔌 ${group.name}`,
+            tools: group.tools,
+            hasCredentials: true,
+            isMcp: true,
+        };
+    }
+    
+    // Process non-MCP tools
+    nonMcpTools.forEach(tool => {
         const isRemoteTool = 
             tool.tool_type === 'remote' || 
             tool.type === 'remote' ||
@@ -669,17 +1092,14 @@ const groupedFilteredToolsByService = computed(() => {
             tool.service_name;
         
         if (isRemoteTool) {
-            // Handle different tool data structures
             let serviceId = null;
             let serviceName = 'Unknown Service';
             
             if (tool.service) {
-                // Check if service is an object or just an ID
                 if (typeof tool.service === 'object') {
                     serviceId = tool.service.id;
                     serviceName = tool.service.name || tool.service_name || 'Unknown Service';
                 } else {
-                    // service is just an ID
                     serviceId = tool.service;
                     serviceName = tool.service_name || `Service ${serviceId}`;
                 }
@@ -688,10 +1108,8 @@ const groupedFilteredToolsByService = computed(() => {
                 serviceName = tool.service_name || `Service ${serviceId}`;
             }
             
-            // Only add if we found a service
             if (serviceId) {
                 if (!serviceMap[serviceId]) {
-                    // Check if we have credentials for this service
                     const hasCredentials = credentials.value.some(
                         cred => cred.service_id === serviceId && cred.is_valid
                     );
@@ -704,20 +1122,33 @@ const groupedFilteredToolsByService = computed(() => {
                     };
                 }
                 serviceMap[serviceId].tools.push(tool);
-            } else {
-                console.warn('Remote tool has no service ID:', tool.name, tool);
             }
+        }
+        
+        // 3. Group built-in tools by category as a fallback
+        else if (tool.category && tool.category !== 'mcp') {
+            const catKey = `builtin_${tool.category}`;
+            const catLabel = tool.category.charAt(0).toUpperCase() + tool.category.slice(1);
+            if (!serviceMap[catKey]) {
+                serviceMap[catKey] = {
+                    id: catKey,
+                    name: `⚙️ ${catLabel}`,
+                    tools: [],
+                    hasCredentials: true,
+                    isBuiltin: true,
+                };
+            }
+            serviceMap[catKey].tools.push(tool);
         }
     });
     
-    // Sort services alphabetically
-    const sortedServices = Object.values(serviceMap).sort((a, b) => 
-        a.name.localeCompare(b.name)
-    );
-    
-    console.log('Service grouped tools:', sortedServices.length, 'services found');
-    sortedServices.forEach(svc => {
-        console.log(`  - ${svc.name}: ${svc.tools.length} tools`);
+    // Sort: MCP first, then services, then built-in
+    const sortedServices = Object.values(serviceMap).sort((a, b) => {
+        if (a.isMcp && !b.isMcp) return -1;
+        if (!a.isMcp && b.isMcp) return 1;
+        if (a.isBuiltin && !b.isBuiltin) return 1;
+        if (!a.isBuiltin && b.isBuiltin) return -1;
+        return a.name.localeCompare(b.name);
     });
     
     return sortedServices;
@@ -904,6 +1335,31 @@ const toggleTool = (toolId) => {
     }
 };
 
+// IDs of tools matching the current search query (for bulk actions)
+const currentFilteredToolIds = computed(() => {
+    const query = toolSearchQuery.value.toLowerCase().trim();
+    if (!query) return [];
+    return availableTools.value
+        .filter(tool =>
+            tool.name.toLowerCase().includes(query) ||
+            (tool.description && tool.description.toLowerCase().includes(query))
+        )
+        .map(t => t.id);
+});
+
+const selectAllFiltered = () => {
+    if (!internalAgent.value.tool_ids) internalAgent.value.tool_ids = [];
+    const ids = new Set(internalAgent.value.tool_ids);
+    currentFilteredToolIds.value.forEach(id => ids.add(id));
+    internalAgent.value.tool_ids = [...ids];
+};
+
+const deselectAllFiltered = () => {
+    if (!internalAgent.value.tool_ids) return;
+    const toRemove = new Set(currentFilteredToolIds.value);
+    internalAgent.value.tool_ids = internalAgent.value.tool_ids.filter(id => !toRemove.has(id));
+};
+
 const areAllSelected = (categoryName) => {
     // If we're filtering, we only care about visible tools in this category
     const tools = groupedFilteredTools.value[categoryName] || [];
@@ -964,6 +1420,15 @@ const toggleServiceTools = (tools) => {
             }
         });
     }
+};
+
+const toggleServiceExpand = (serviceId) => {
+    expandedServices.value[serviceId] = !expandedServices.value[serviceId];
+};
+
+const countSelectedInService = (tools) => {
+    if (!internalAgent.value.tool_ids) return 0;
+    return tools.filter(t => internalAgent.value.tool_ids.includes(t.id)).length;
 };
 
 const save = () => {
@@ -1178,6 +1643,66 @@ watch(internalAgent, (newVal) => {
 watch(() => internalAgent.value.default_model, (newVal, oldVal) => {
     console.log('🔍 default_model changed from', oldVal, 'to', newVal);
 }, { immediate: true });
+
+// ── Prompt Preview Methods ──
+
+const insertPlaceholder = (tag) => {
+    const textarea = promptTextarea.value;
+    if (!textarea) {
+        // Fallback: just append
+        internalAgent.value.system_prompt_template = (internalAgent.value.system_prompt_template || '') + '\n' + tag;
+        return;
+    }
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = internalAgent.value.system_prompt_template || '';
+    internalAgent.value.system_prompt_template = text.substring(0, start) + tag + text.substring(end);
+    // Restore cursor position after the inserted tag
+    setTimeout(() => {
+        textarea.focus();
+        textarea.selectionStart = textarea.selectionEnd = start + tag.length;
+    }, 0);
+};
+
+const previewPrompt = async () => {
+    if (!internalAgent.value.id) {
+        alert('Save the agent first to preview the prompt');
+        return;
+    }
+    loadingPreview.value = true;
+    showPromptPreview.value = true;
+    promptPreviewData.value = null;
+    try {
+        const response = await api.previewAgentPrompt(internalAgent.value.id);
+        promptPreviewData.value = response.data;
+    } catch (err) {
+        console.error('Preview prompt failed:', err);
+        promptPreviewData.value = {
+            prompt: `Error loading preview: ${err.message || 'Unknown error'}`,
+            char_count: 0,
+            estimated_tokens: 0,
+            sections: {},
+        };
+    } finally {
+        loadingPreview.value = false;
+    }
+};
+
+const copyPromptPreview = async () => {
+    if (promptPreviewData.value?.prompt) {
+        try {
+            await navigator.clipboard.writeText(promptPreviewData.value.prompt);
+        } catch {
+            // Fallback
+            const ta = document.createElement('textarea');
+            ta.value = promptPreviewData.value.prompt;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+        }
+    }
+};
 
 onMounted(() => {
     fetchTools();

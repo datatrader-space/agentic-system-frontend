@@ -156,6 +156,11 @@ export default {
   },
   validateActions: (data) => api.post('/services/validate-actions/', data),
 
+  // OAuth Connection
+  getOAuthStatus: (serviceId) => api.get(`/oauth/status/${serviceId}/`),
+  startOAuth: (serviceId) => api.get(`/oauth/start/${serviceId}/`),
+  disconnectOAuth: (serviceId) => api.delete(`/oauth/disconnect/${serviceId}/`),
+
   // MCP Server Management
   getMCPServers: (params) => api.get('/mcp/servers/', { params }),
   getMCPServer: (id) => api.get(`/mcp/servers/${id}/`),
@@ -207,6 +212,7 @@ export default {
   deleteLlmProvider: (id) => api.delete(`/llm/providers/${id}/`),
   syncOllamaModels: (id) => api.post(`/llm/providers/${id}/sync_ollama_models/`),
   syncOpenRouterModels: (id) => api.post(`/llm/providers/${id}/sync_openrouter_models/`),
+  syncOpenAIModels: (id) => api.post(`/llm/providers/${id}/sync_openai_models/`),
   getLlmModels: (params = {}) => api.get('/llm/models/', { params }),
   createLlmModel: (data) => api.post('/llm/models/', data),
   updateLlmModel: (id, data) => api.put(`/llm/models/${id}/`, data),
@@ -365,6 +371,7 @@ export default {
   getAgentWorkspace: (agentId) => api.get(`/agents/${agentId}/workspace/`),
   readWorkspaceFile: (agentId, path) => api.post(`/agents/${agentId}/workspace/read/`, { path }),
   deleteWorkspaceFile: (agentId, path) => api.post(`/agents/${agentId}/workspace/delete/`, { path }),
+  previewAgentPrompt: (agentId) => api.get(`/agents/${agentId}/preview-prompt/`),
 
   // ── Workspace Status (Live Polling) ──
   getWorkspaceStatusList: () => api.get('/workspace-status/'),
@@ -381,4 +388,36 @@ export default {
     const qs = params.toString()
     return api.get(`/agents/${agentId}/workspace-routing/${qs ? '?' + qs : ''}`)
   },
+
+  // ── User Connections (OAuth Providers) ──
+  getConnectionProviders: () => api.get('/connections/providers/'),
+  getConnections: () => api.get('/connections/'),
+  startConnection: (providerSlug, opts = {}) => {
+    const params = new URLSearchParams()
+    if (opts.scopes) params.set('scopes', opts.scopes)
+    if (opts.owner) params.set('owner', opts.owner)
+    const qs = params.toString()
+    return api.get(`/connections/${providerSlug}/start/${qs ? '?' + qs : ''}`)
+  },
+  disconnectConnection: (providerSlug, opts = {}) => {
+    const params = new URLSearchParams()
+    if (opts.owner) params.set('owner', opts.owner)
+    const qs = params.toString()
+    return api.delete(`/connections/${providerSlug}/disconnect/${qs ? '?' + qs : ''}`)
+  },
+  configureProvider: (providerSlug, data) => api.post(`/connections/providers/${providerSlug}/configure/`, data),
+  getProviderConfig: (providerSlug) => api.get(`/connections/providers/${providerSlug}/configure/`),
+  createProvider: (data) => api.post('/connections/providers/create/', data),
+  updateProvider: (providerSlug, data) => api.patch(`/connections/providers/${providerSlug}/`, data),
+  deleteProvider: (providerSlug) => api.delete(`/connections/providers/${providerSlug}/delete/`),
+
+  // Signal System
+  getSignals: (agentId, params) => api.get(`/agents/${agentId}/signals/`, { params }),
+  getSignalStats: (agentId) => api.get(`/agents/${agentId}/signals/stats/`),
+  getSignalFlows: (agentId) => api.get(`/agents/${agentId}/signals/flows/`),
+  getDeadLetters: (agentId) => api.get(`/agents/${agentId}/signals/dead/`),
+  sendTestSignal: (agentId, data) => api.post(`/agents/${agentId}/signals/test/`, data),
+  rotateSignalApiKey: (agentId) => api.post(`/agents/${agentId}/signals/api-key/`),
+  cancelSignal: (agentId, signalId) => api.post(`/agents/${agentId}/signals/${signalId}/cancel/`),
+  retrySignal: (agentId, signalId) => api.post(`/agents/${agentId}/signals/${signalId}/retry/`),
 }

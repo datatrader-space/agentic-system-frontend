@@ -124,6 +124,21 @@
             </div>
           </div>
 
+          <!-- OAuth2 Configuration (shown when OAuth 2.0 selected) -->
+          <div v-if="formData.authType === 'oauth2'" class="form-section oauth-config-section">
+            <label>OAuth2 Configuration</label>
+            <div class="oauth-config-fields">
+              <input v-model="formData.oauthConfig.authorization_url" type="url" placeholder="Authorization URL *" />
+              <input v-model="formData.oauthConfig.token_url" type="url" placeholder="Token URL *" />
+              <div class="form-grid">
+                <input v-model="formData.oauthConfig.client_id" type="text" placeholder="Client ID *" />
+                <input v-model="formData.oauthConfig.client_secret" type="password" placeholder="Client Secret" />
+              </div>
+              <input v-model="formData.oauthConfig.scopes" type="text" placeholder="Scopes (space-separated, e.g. openid email)" />
+              <p class="field-hint">Redirect URI: <code>https://&lt;your-domain&gt;/api/oauth/callback/</code></p>
+            </div>
+          </div>
+
           <div class="form-section">
             <label>OpenAPI Specification *</label>
             <div class="upload-area" @click="$refs.fileInput.click()">
@@ -1108,6 +1123,13 @@ const formData = ref({
   category: '',
   baseUrl: '',
   authType: 'api-key',
+  oauthConfig: {
+    authorization_url: '',
+    token_url: '',
+    client_id: '',
+    client_secret: '',
+    scopes: ''
+  },
   specFile: null,
   specUrl: ''
 })
@@ -1667,7 +1689,8 @@ async function saveDraft(isAutoSave = false) {
         description: formData.value.description,
         category: formData.value.category,
         base_url: formData.value.baseUrl,
-        auth_type: formData.value.authType
+        auth_type: formData.value.authType,
+        auth_config: formData.value.authType === 'oauth2' ? formData.value.oauthConfig : {}
       }
     })
     
@@ -2030,6 +2053,13 @@ function registerAnother() {
     category: '',
     baseUrl: '',
     authType: 'api-key',
+    oauthConfig: {
+      authorization_url: '',
+      token_url: '',
+      client_id: '',
+      client_secret: '',
+      scopes: ''
+    },
     specFile: null,
     specUrl: ''
   }
@@ -2178,6 +2208,26 @@ function registerAnother() {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+}
+
+/* OAuth Config */
+.oauth-config-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.field-hint {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.field-hint code {
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
 }
 
 /* GraphQL Detection Banner */

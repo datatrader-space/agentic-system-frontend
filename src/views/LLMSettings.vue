@@ -59,6 +59,13 @@
                   Sync OpenRouter Models
                 </button>
                 <button
+                  v-if="provider.provider_type === 'openai'"
+                  @click="syncOpenAI(provider)"
+                  class="text-xs px-3 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200"
+                >
+                  Sync OpenAI Models
+                </button>
+                <button
                   @click="removeProvider(provider)"
                   class="text-xs px-3 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200"
                 >
@@ -85,6 +92,7 @@
               <option value="openai">OpenAI</option>
               <option value="openrouter">OpenRouter</option>
               <option value="gemini">Gemini</option>
+              <option value="xai">xAI (Grok)</option>
               <option value="custom">Custom</option>
             </select>
           </div>
@@ -348,6 +356,16 @@ const syncOpenRouter = async (provider) => {
   await api.syncOpenRouterModels(provider.id)
   notify('OpenRouter models synced', 'success')
   await loadModels()
+}
+
+const syncOpenAI = async (provider) => {
+  try {
+    const response = await api.syncOpenAIModels(provider.id)
+    notify(response.data.message || 'OpenAI models synced', 'success')
+    await loadModels()
+  } catch (error) {
+    notify('Failed to sync: ' + (error.response?.data?.error || error.message), 'error')
+  }
 }
 
 const filteredModels = computed(() => {

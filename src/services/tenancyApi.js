@@ -81,8 +81,8 @@ export default {
     getWSActivity: (wsId, params) => tenancyApi.get(`/workspaces/${wsId}/activity/`, { params }),
 
     // ── Workspace Resource Linking (CRUD via org/ws slug) ────────────────────
-    listWSAgents: (orgSlug, wsSlug) =>
-        tenancyApi.get(`/orgs/${orgSlug}/workspaces/${wsSlug}/agents/`),
+    listWSAgents: (orgSlug, wsSlug, params = {}) =>
+        tenancyApi.get(`/orgs/${orgSlug}/workspaces/${wsSlug}/agents/`, { params }),
     linkWSAgent: (orgSlug, wsSlug, data) =>
         tenancyApi.post(`/orgs/${orgSlug}/workspaces/${wsSlug}/agents/`, data),
     unlinkWSAgent: (orgSlug, wsSlug, bridgePk) =>

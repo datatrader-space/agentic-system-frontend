@@ -220,6 +220,7 @@ export default {
       activeCount,
       totalActions,
       enabledActions,
+      loadServices,
       viewService,
       handleServiceRegistered,
       handleDeleteService,

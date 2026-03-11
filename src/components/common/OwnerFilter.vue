@@ -62,10 +62,8 @@ const members = ref([])
 const currentUserId = ref(null)
 const myRole = ref(null)
 
-// Show filter only for org owners/admins
-const showFilter = computed(() => {
-  return activeOrg.value && ['owner', 'admin'].includes(myRole.value)
-})
+// Show filter for everyone so they can toggle All/Mine
+const showFilter = computed(() => true)
 
 // Other members to show in dropdown (excluding self)
 const otherMembers = computed(() => {
@@ -89,14 +87,20 @@ async function loadMembers() {
       const meRes = await api.getCurrentUser()
       currentUserId.value = meRes.data?.user?.id ?? meRes.data?.id ?? null
     }
+    
+    // Only fetch other members if we are an owner or admin (or we don't know yet)
+    // Actually, getOrgMembers requires owner/admin. Let's try it, and if it fails (403), we just catch it.
     const r = await tenancyApi.getOrgMembers(activeOrg.value.slug)
     const allMembers = r.data?.results ?? r.data ?? []
     members.value = allMembers
-    // Find current user's role in this org
+    
     const me = allMembers.find(m => m.user === currentUserId.value)
     myRole.value = me?.role ?? null
   } catch (e) {
-    console.error('Failed to load org members for filter', e)
+    // 403 Forbidden is expected for normal members
+    if (e.response && e.response.status !== 403) {
+      console.error('Failed to load org members for filter', e)
+    }
   }
 }
 

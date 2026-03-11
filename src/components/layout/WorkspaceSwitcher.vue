@@ -32,10 +32,10 @@
           <template v-else>
             <!-- No orgs -->
             <div v-if="!myOrgs.length" class="ws-empty">
-              <p>No organisations yet.</p>
-              <router-link to="/workspaces" @click="close" class="ws-create-link">
-                Go to Workspaces →
-              </router-link>
+              <p>You haven't created an organisation yet.</p>
+              <button class="ws-create-link" @click="openCreateOrg">
+                Create Organisation →
+              </button>
             </div>
 
             <!-- Org groups -->
@@ -110,6 +110,13 @@
                 </svg>
                 New Workspace
               </button>
+              <button class="ws-footer-link" @click="openCreateOrg">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 01-.553.894l-4 2A1 1 0 0111 18V6a1 1 0 00-1-1H4V4z" clip-rule="evenodd"/>
+                  <path fill-rule="evenodd" d="M2 7a1 1 0 011-1h4a1 1 0 011 1v10a1 1 0 01-.553.894l-4 2A1 1 0 012 19V7z" clip-rule="evenodd"/>
+                </svg>
+                New Organisation
+              </button>
             </div>
           </template>
         </div>
@@ -142,6 +149,34 @@
         </div>
       </transition>
     </Teleport>
+
+    <!-- Create Organisation Modal -->
+    <Teleport to="body">
+      <transition name="ws-modal">
+        <div v-if="showCreateOrgModal" class="ws-modal-backdrop" @click.self="showCreateOrgModal = false">
+          <div class="ws-modal">
+            <h3 class="ws-modal-title">Create Organisation</h3>
+            <div>
+              <div class="ws-form-group">
+                <label>Organisation Name</label>
+                <input v-model="newOrgName" placeholder="e.g. Acme Corp" class="ws-input" @keydown.enter="createOrg" autofocus />
+              </div>
+              <div class="ws-form-group">
+                <label>Slug <span style="color:#6b7280;font-weight:400">(used in URLs)</span></label>
+                <input v-model="newOrgSlug" placeholder="acme-corp" class="ws-input" />
+              </div>
+              <div v-if="createOrgError" class="ws-form-error">{{ createOrgError }}</div>
+              <div class="ws-modal-actions">
+                <button type="button" class="ws-btn-cancel" @click="showCreateOrgModal = false">Cancel</button>
+                <button type="button" class="ws-btn-create" :disabled="creatingOrg || !newOrgName.trim()" @click="createOrg">
+                  {{ creatingOrg ? 'Creating…' : 'Create' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
 
@@ -165,6 +200,13 @@ const showCreateModal = ref(false)
 const newWsName = ref('')
 const newWsSlug = ref('')
 const creating = ref(false)
+
+// Create Organisation state
+const showCreateOrgModal = ref(false)
+const newOrgName = ref('')
+const newOrgSlug = ref('')
+const creatingOrg = ref(false)
+const createOrgError = ref('')
 
 // Computed dropdown position (fixed, so it escapes header overflow:hidden)
 const dropdownStyle = ref({})
@@ -250,6 +292,46 @@ async function createWorkspace() {
     alert(err?.response?.data?.detail || err?.response?.data?.name?.[0] || 'Failed to create workspace')
   }
   creating.value = false
+}
+
+function openCreateOrg() {
+  close()
+  newOrgName.value = ''
+  newOrgSlug.value = ''
+  createOrgError.value = ''
+  showCreateOrgModal.value = true
+}
+
+watch(newOrgName, (val) => {
+  newOrgSlug.value = val.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+})
+
+async function createOrg() {
+  if (!newOrgName.value.trim()) return
+  creatingOrg.value = true
+  createOrgError.value = ''
+  try {
+    const res = await tenancyApi.createOrg({
+      name: newOrgName.value.trim(),
+      slug: newOrgSlug.value || undefined,
+    })
+    await loadMyOrgs()
+    // Auto-select the first workspace in the new org
+    const org = res.data
+    const firstWs = org.workspaces?.[0]
+    if (firstWs) {
+      switchWorkspace(firstWs, org)
+    }
+    showCreateOrgModal.value = false
+    router.push(firstWs ? `/workspace/${firstWs.id}` : '/')
+  } catch (err) {
+    if (err?.response?.status === 409) {
+      createOrgError.value = err.response.data?.detail || 'You can only own one organisation at this time.'
+    } else {
+      createOrgError.value = err?.response?.data?.slug?.[0] || err?.response?.data?.detail || 'Failed to create organisation.'
+    }
+  }
+  creatingOrg.value = false
 }
 
 // Close on outside click
@@ -480,4 +562,22 @@ onUnmounted(() => {
 }
 .ws-btn-create:disabled { opacity: 0.6; cursor: not-allowed; }
 .ws-btn-create:not(:disabled):hover { opacity: 0.9; }
+
+.ws-form-error {
+  color: #f87171;
+  font-size: 12px;
+  margin-top: -8px;
+  margin-bottom: 8px;
+}
+
+button.ws-create-link {
+  background: none;
+  border: none;
+  color: #8b5cf6;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+button.ws-create-link:hover { text-decoration: underline; }
 </style>

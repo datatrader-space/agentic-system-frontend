@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: '0.0.0.0',  // Listen on all network interfaces
       port: 5173,
-      allowedHosts: ['mazily-nippy-dionna.ngrok-free.dev'],
+      allowedHosts: true,
       proxy: {
         '/api': {
           target: env.VITE_API_TARGET || 'http://localhost:8000',

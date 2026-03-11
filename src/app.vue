@@ -139,13 +139,14 @@ onMounted(async () => {
     await loadCurrentUser()
   }
 
-  // Check LLM health
-  try {
-    const response = await api.get('/llm/health/')
-    llmHealth.value = response.data
-  } catch (error) {
-    console.error('Failed to check LLM health:', error)
-  }
+  // LLM health check disabled — it sends real paid API calls on every page load
+  // To re-enable, uncomment and switch to a lightweight /v1/models ping instead
+  // try {
+  //   const response = await api.get('/llm/health/')
+  //   llmHealth.value = response.data
+  // } catch (error) {
+  //   console.error('Failed to check LLM health:', error)
+  // }
 })
 
 // Watch for route changes to reload user if needed

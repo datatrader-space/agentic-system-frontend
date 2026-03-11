@@ -145,7 +145,7 @@
           <!-- Tabs -->
           <div class="panel-tabs">
             <button
-              v-for="tab in ['Setup', 'Agents', 'Activity', 'Credentials']"
+              v-for="tab in ['Setup', 'Agents', 'Bridges', 'Activity', 'Credentials']"
               :key="tab"
               :class="{ active: activeTab === tab }"
               @click="activeTab = tab; loadTabData(tab)"
@@ -295,6 +295,35 @@
             </div>
           </div>
 
+          <!-- Bridges Tab -->
+          <div v-if="activeTab === 'Bridges'" class="panel-section">
+            <div class="section-header">
+              <h4>Signal Bridges</h4>
+              <button class="btn-small" @click="loadTabData('Bridges')">
+                ↻ Refresh
+              </button>
+            </div>
+            <div v-if="bridgeList.length === 0" class="empty-inline">No active signal bridges. Enable signals on an agent with a Redis stream to start one.</div>
+            <div v-else class="bridge-list">
+              <div v-for="b in bridgeList" :key="b.bridge_id" class="bridge-item">
+                <div class="bridge-status-dot" :class="b.status"></div>
+                <div class="bridge-info">
+                  <span class="bridge-name">{{ b.agent_name || `Agent ${b.agent_id}` }}</span>
+                  <span class="bridge-meta">
+                    {{ b.stream_key || '—' }} · {{ formatBridgeUptime(b.uptime_seconds) }} · {{ b.signals_forwarded ?? 0 }} signals
+                    <span v-if="b.errors > 0" class="bridge-err">· {{ b.errors }} errors</span>
+                  </span>
+                </div>
+                <button v-if="b.status === 'running'" class="btn-remove" @click="stopOneBridge(b.bridge_id)" title="Stop bridge">
+                  ⏹
+                </button>
+              </div>
+            </div>
+            <button v-if="bridgeList.length > 0" class="btn-small" style="margin-top: 12px; color: #ef4444; border-color: rgba(239,68,68,0.3);" @click="stopAllBridges">
+              ⏹ Stop All Bridges
+            </button>
+          </div>
+
           <!-- Credentials Tab -->
           <div v-if="activeTab === 'Credentials'" class="panel-section">
             <h4>Credential Sync</h4>
@@ -391,6 +420,7 @@ const toast = ref(null)
 // Tab data
 const assignments = ref([])
 const activityLog = ref([])
+const bridgeList = ref([])
 const availableAgents = ref([])
 
 // Credential form
@@ -518,6 +548,11 @@ const loadTabData = async (tab) => {
       const profiles = profilesRes.data.results || profilesRes.data || []
       availableAgents.value = Array.isArray(profiles) ? profiles : []
     } catch (e) { console.error(e) }
+  } else if (tab === 'Bridges') {
+    try {
+      const res = await api.get(`/workspaces/${id}/bridges/`)
+      bridgeList.value = res.data?.bridges ?? res.data ?? []
+    } catch (e) { console.error(e); bridgeList.value = [] }
   } else if (tab === 'Activity') {
     try {
       const res = await api.get(`/workspaces/${id}/activity/?limit=30`)
@@ -611,6 +646,35 @@ const timeAgo = (dateStr) => {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   return `${days}d ago`
+}
+
+const formatBridgeUptime = (seconds) => {
+  if (!seconds) return '—'
+  if (seconds < 60) return `${seconds}s`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
+  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`
+}
+
+const stopOneBridge = async (bridgeId) => {
+  if (!selectedWorkspace.value) return
+  try {
+    await api.delete(`/workspaces/${selectedWorkspace.value.id}/bridges/`, { data: { bridge_id: bridgeId } })
+    showToast('Bridge stopped', 'success')
+    loadTabData('Bridges')
+  } catch (e) {
+    showToast('Failed to stop bridge', 'error')
+  }
+}
+
+const stopAllBridges = async () => {
+  if (!selectedWorkspace.value || !confirm('Stop all bridges?')) return
+  try {
+    await api.delete(`/workspaces/${selectedWorkspace.value.id}/bridges/`)
+    bridgeList.value = []
+    showToast('All bridges stopped', 'success')
+  } catch (e) {
+    showToast('Failed to stop bridges', 'error')
+  }
 }
 
 const showToast = (message, type = 'info') => {
@@ -919,6 +983,24 @@ onMounted(loadWorkspaces)
   transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 .btn-toggle.active .toggle-thumb { transform: translateX(16px); }
+
+/* ===== Bridges ===== */
+.bridge-list { display: flex; flex-direction: column; gap: 8px; }
+.bridge-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; background: #f8fafc; border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.bridge-status-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.bridge-status-dot.running { background: #10b981; box-shadow: 0 0 6px rgba(16,185,129,0.4); }
+.bridge-status-dot.stopped { background: #94a3b8; }
+.bridge-status-dot.error { background: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+.bridge-info { flex: 1; min-width: 0; }
+.bridge-name { font-weight: 600; font-size: 0.9rem; color: #0f172a; display: block; }
+.bridge-meta { display: block; font-size: 0.75rem; color: #94a3b8; margin-top: 2px; font-family: monospace; }
+.bridge-err { color: #ef4444; font-weight: 600; }
 
 /* ===== Activity ===== */
 .activity-list { display: flex; flex-direction: column; gap: 6px; }
