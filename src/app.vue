@@ -1,5 +1,5 @@
 <template>
-  <div id="app" class="min-h-screen" :class="appBackgroundClass">
+  <div id="app" class="h-screen flex flex-col overflow-hidden" :class="appBackgroundClass">
     <!-- Header Component -->
     <AppHeader
       :current-user="currentUser"
@@ -11,8 +11,10 @@
     />
 
     <!-- Main Content -->
-    <main :class="mainContentClass">
-      <router-view />
+    <main class="flex-1 overflow-y-auto">
+      <div :class="mainContentClass">
+        <router-view />
+      </div>
     </main>
     
     <!-- Toast Notifications (if any) -->
@@ -85,12 +87,12 @@ const appBackgroundClass = computed(() => {
 // Main content class based on page type
 const mainContentClass = computed(() => {
   if (isFullScreen.value) {
-    return 'h-[calc(100vh-64px)]'
+    return 'h-full overflow-hidden'
   }
   if (isPublicPage.value) {
     return '' // Full width for public pages
   }
-  return 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'
+  return 'w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8'
 })
 
 const currentUser = ref(null)

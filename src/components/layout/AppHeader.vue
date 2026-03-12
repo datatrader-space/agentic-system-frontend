@@ -79,22 +79,6 @@
                   <span v-if="link.badge" class="nav-badge">{{ link.badge }}</span>
                 </router-link>
               </div>
-
-              <!-- External Admin Link -->
-              <a
-                href="https://mazily-nippy-dionna.ngrok-free.dev/admin"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="nav-link nav-link-external"
-              >
-                <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                </svg>
-                <span>Admin</span>
-                <svg class="external-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
             </template>
           </nav>
         </div>
@@ -611,6 +595,14 @@ const ConnectionsIcon = {
   ])
 }
 
+const AgentLibraryIcon = {
+  render: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
+    h('path', { d: 'M12 2L2 7l10 5 10-5-10-5z' }),
+    h('path', { d: 'M2 17l10 5 10-5' }),
+    h('path', { d: 'M2 12l10 5 10-5' })
+  ])
+}
+
 // Props
 const props = defineProps({
   currentUser: {
@@ -688,8 +680,7 @@ const authLinks = [
   { to: '/dashboard', label: 'Dashboard', exact: true, iconComponent: DashboardIcon },
   { to: '/ai-settings', label: 'AI Providers', exact: true, iconComponent: AIIcon },
   { to: '/ai-dashboard', label: 'AI Dashboard', exact: true, iconComponent: BenchmarkIcon },
-  { to: '/benchmarks', label: 'Benchmarks', exact: true, iconComponent: BenchmarkIcon },
-  { to: '/tools', label: 'Tools', exact: true, iconComponent: ToolsIcon },
+  { to: '/agents', label: 'Agent Library', exact: true, iconComponent: AgentLibraryIcon },
   { to: '/services', label: 'Services', exact: true, iconComponent: ServicesIcon },
   { to: '/mcp', label: 'MCP', exact: true, iconComponent: MCPIcon, highlight: true },
   { to: '/connections', label: 'Connections', exact: true, iconComponent: ConnectionsIcon },
@@ -892,7 +883,7 @@ onUnmounted(() => {
 /* Removed .header-dark specific overrides as we now use CSS variables */
 
 .header-container {
-  max-width: 1440px;
+  max-width: 1536px;
   margin: 0 auto;
   padding: 0 16px;
 }
@@ -918,6 +909,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 @media (min-width: 1280px) {
