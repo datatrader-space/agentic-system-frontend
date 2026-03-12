@@ -371,6 +371,8 @@ export default {
   getAgentWorkspace: (agentId) => api.get(`/agents/${agentId}/workspace/`),
   readWorkspaceFile: (agentId, path) => api.post(`/agents/${agentId}/workspace/read/`, { path }),
   deleteWorkspaceFile: (agentId, path) => api.post(`/agents/${agentId}/workspace/delete/`, { path }),
+  bulkDeleteWorkspaceFiles: (agentId, paths) => api.post(`/agents/${agentId}/workspace/bulk-delete/`, { paths }),
+  downloadWorkspaceFile: (agentId, path) => api.post(`/agents/${agentId}/workspace/download/`, { path }, { responseType: 'blob' }),
   previewAgentPrompt: (agentId) => api.get(`/agents/${agentId}/preview-prompt/`),
 
   // ── Workspace Status (Live Polling) ──

@@ -169,17 +169,39 @@
                             <p class="text-xs text-gray-300">Files created by the agent will appear here</p>
                         </div>
 
+                        <!-- Selection Toolbar -->
+                        <div v-if="wsFiles.length" class="px-3 pt-2 flex items-center gap-2">
+                            <button v-if="!wsSelectionMode" @click="wsSelectionMode = true"
+                                class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition">
+                                Select
+                            </button>
+                            <template v-else>
+                                <button @click="wsBulkDelete" :disabled="!wsSelectedPaths.size"
+                                    class="text-xs px-2 py-1 rounded transition"
+                                    :class="wsSelectedPaths.size ? 'bg-red-100 hover:bg-red-200 text-red-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'">
+                                    🗑️ Delete ({{ wsSelectedPaths.size }})
+                                </button>
+                                <button @click="wsSelectionMode = false; wsSelectedPaths = new Set()"
+                                    class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition">
+                                    Cancel
+                                </button>
+                            </template>
+                        </div>
+                        
                         <!-- File Tree (recursive component) -->
-                        <div v-else class="p-3">
+                        <div v-if="wsFiles.length" class="p-3">
                             <WorkspaceTreeNode
                                 :entries="wsFiles"
                                 :expandedDirs="wsExpandedDirs"
                                 :previewPath="wsPreviewPath"
                                 :getFileIcon="getFileIcon"
                                 :formatSize="wsFormatSize"
+                                :selectionMode="wsSelectionMode"
+                                :selectedPaths="wsSelectedPaths"
                                 @toggle-dir="wsToggleDir"
                                 @read-file="wsReadFile"
                                 @delete="wsDeleteEntry"
+                                @toggle-select="wsToggleSelect"
                             />
                         </div>
                     </div>
@@ -204,6 +226,9 @@
 
             <!-- Prompt Builder Modal -->
             <PromptBuilder ref="promptBuilder" @insert="insertPrompt" />
+
+            <!-- File Viewer Modal (images, videos, code) -->
+            <FileViewer ref="fileViewer" :agentId="agent?.id" />
 
             <!-- HITL Modal -->
             <HITLModal
@@ -1041,6 +1066,8 @@ const wsExpandedDirs = ref({});
 const wsPreviewContent = ref(null);
 const wsPreviewPath = ref(null);
 const wsRouting = ref(null); // { routed: true/false, workspace: {...} }
+const wsSelectionMode = ref(false);
+const wsSelectedPaths = ref(new Set());
 
 // HITL state
 const hitlRequests = ref([]);
@@ -1131,8 +1158,16 @@ const wsToggleDir = (path) => {
     wsExpandedDirs.value[path] = !wsExpandedDirs.value[path];
 };
 
+const MEDIA_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'mp4', 'webm', 'ogg', 'mov', 'avi'];
+
 const wsReadFile = async (entry) => {
     if (entry.is_dir) return;
+    const ext = (entry.name || '').split('.').pop()?.toLowerCase();
+    if (MEDIA_EXTS.includes(ext)) {
+        // Open media files in the FileViewer modal (handles images/videos)
+        fileViewer.value?.open(entry, agent.value.id);
+        return;
+    }
     try {
         const { data } = await api.readWorkspaceFile(agent.value.id, entry.path);
         wsPreviewContent.value = data.content;
@@ -1151,21 +1186,51 @@ const wsDeleteEntry = async (entry) => {
             wsPreviewContent.value = null;
             wsPreviewPath.value = null;
         }
+        wsSelectedPaths.value.delete(entry.path);
         await loadWorkspace();
     } catch (e) {
         console.error('Delete failed:', e);
     }
 };
 
-const wsDownloadFile = () => {
-    if (!wsPreviewContent.value || !wsPreviewPath.value) return;
-    const blob = new Blob([wsPreviewContent.value], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = wsPreviewPath.value.split('/').pop();
-    a.click();
-    URL.revokeObjectURL(url);
+const wsDownloadFile = async () => {
+    if (!wsPreviewPath.value) return;
+    try {
+        const res = await api.downloadWorkspaceFile(agent.value.id, wsPreviewPath.value);
+        const url = URL.createObjectURL(res.data);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = wsPreviewPath.value.split('/').pop();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error('Download failed:', e);
+    }
+};
+
+const wsToggleSelect = (path) => {
+    const s = new Set(wsSelectedPaths.value);
+    if (s.has(path)) s.delete(path);
+    else s.add(path);
+    wsSelectedPaths.value = s;
+};
+
+const wsBulkDelete = async () => {
+    const count = wsSelectedPaths.value.size;
+    if (!count) return;
+    if (!confirm(`Delete ${count} selected item(s)?`)) return;
+    try {
+        await api.bulkDeleteWorkspaceFiles(agent.value.id, [...wsSelectedPaths.value]);
+        wsSelectedPaths.value = new Set();
+        wsSelectionMode.value = false;
+        wsPreviewContent.value = null;
+        wsPreviewPath.value = null;
+        await loadWorkspace();
+    } catch (e) {
+        console.error('Bulk delete failed:', e);
+    }
 };
 
 const wsFormatSize = (bytes) => {
@@ -2359,6 +2424,8 @@ const connectWebSocket = (repoId) => {
             isProcessing.value = false;
             isTyping.value = false;
             isAgentSessionActive.value = false;
+            // Clear persisted session so page reload doesn't try to restore a dead session
+            localStorage.removeItem('agent_active_session_id');
             // Finalize any in-progress streaming message
             const lastEvent = chatEvents.value.findLast(e => e.type === 'assistant');
             if (lastEvent && lastEvent.streaming) {
@@ -2550,13 +2617,10 @@ const connectWebSocket = (repoId) => {
                 connectWebSocket(repoId);
             }, delay);
         } else if (reconnectAttempts.value >= maxReconnectAttempts) {
-            console.error('[Playground] Max reconnection attempts reached');
-            chatEvents.value.push({
-                id: Date.now(),
-                type: 'error',
-                content: 'Connection lost. Please refresh the page to reconnect.',
-                data: { error: 'Max reconnection attempts reached' }
-            });
+            console.error('[Playground] Max reconnection attempts reached, reloading page...');
+            // Clear stale session state before reload
+            localStorage.removeItem('agent_active_session_id');
+            window.location.reload();
         }
     };
 };
