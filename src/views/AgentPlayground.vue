@@ -1,5 +1,5 @@
 <template>
-    <div class="agent-playground h-screen flex flex-col bg-gray-100">
+    <div class="agent-playground h-full flex flex-col bg-gray-100 overflow-hidden">
 
         <!-- Top Bar: Agent Info -->
         <div
@@ -2938,13 +2938,12 @@ const correctResponse = (event) => {
     alert('Feedback feature coming soon! This will allow you to suggest corrections to improve the agent.');
 };
 
-// Fix: Watch chatEvents to auto-scroll
+// Scroll when new events are added (e.g. user sends message, new tool call, etc.)
 watch(
-    () => chatEvents.value.length,  // Watch length instead of deep
+    () => chatEvents.value.length,
     () => {
-        // Use requestAnimationFrame for immediate scroll after render
         requestAnimationFrame(() => {
-            requestAnimationFrame(() => {  // Double RAF for reliability
+            requestAnimationFrame(() => {
                 if (feed.value) {
                     feed.value.scrollTop = feed.value.scrollHeight;
                 }
@@ -2952,6 +2951,62 @@ watch(
         });
     }
 );
+
+// ── Streaming auto-scroll ──
+// Auto-scrolls smoothly during streaming.
+// If the user manually scrolls, pauses for 2 seconds then auto-resumes.
+
+let streamScrollRafId = null;
+let streamScrollFrame = 0;
+let lastUserScrollTime = 0;
+const STREAM_SCROLL_PAUSE_MS = 2000;  // resume 2s after last manual scroll
+const SCROLL_THROTTLE_FRAMES = 8;     // run every 8 frames (~7fps) — smooth feel
+
+const handleFeedScroll = () => {
+    if (!isProcessing.value) return;
+    lastUserScrollTime = Date.now();
+};
+
+const startStreamScroll = () => {
+    streamScrollFrame = 0;
+    lastUserScrollTime = 0; // fresh start — immediately scroll on new message
+    const loop = () => {
+        if (!isProcessing.value) {
+            streamScrollRafId = null;
+            return;
+        }
+        streamScrollFrame++;
+        if (streamScrollFrame % SCROLL_THROTTLE_FRAMES === 0 && feed.value) {
+            const userJustScrolled = (Date.now() - lastUserScrollTime) < STREAM_SCROLL_PAUSE_MS;
+            if (!userJustScrolled) {
+                feed.value.scrollTo({ top: feed.value.scrollHeight, behavior: 'smooth' });
+            }
+        }
+        streamScrollRafId = requestAnimationFrame(loop);
+    };
+    if (!streamScrollRafId) {
+        streamScrollRafId = requestAnimationFrame(loop);
+    }
+};
+
+const stopStreamScroll = () => {
+    if (streamScrollRafId) {
+        cancelAnimationFrame(streamScrollRafId);
+        streamScrollRafId = null;
+    }
+    // Smooth scroll to bottom when streaming finishes
+    if (feed.value) {
+        feed.value.scrollTo({ top: feed.value.scrollHeight, behavior: 'smooth' });
+    }
+};
+
+watch(isProcessing, (streaming) => {
+    if (streaming) {
+        startStreamScroll();
+    } else {
+        stopStreamScroll();
+    }
+});
 
 const runAgent = async () => {
     if (agent.value.knowledge_scope === 'system' && !selectedContext.value.system) {
@@ -3060,8 +3115,19 @@ onMounted(() => {
     }
 });
 
+// Attach scroll listener to feed once the ref is populated
+watch(feed, (el) => {
+    if (el) {
+        el.addEventListener('scroll', handleFeedScroll, { passive: true });
+    }
+});
+
 onBeforeUnmount(() => {
     window.removeEventListener('click', handleGlobalClick);
+    if (feed.value) {
+        feed.value.removeEventListener('scroll', handleFeedScroll);
+    }
+    stopStreamScroll();
     if (ws.value) {
         console.log('[Playground] Cleaning up WebSocket on unmount');
         ws.value.close();
