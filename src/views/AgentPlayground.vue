@@ -1404,7 +1404,10 @@ const restoreSession = async (sessionId) => {
                     id: Date.now() + Math.random(),
                     type: 'assistant',
                     content: eventWrapper.data.content || eventWrapper.data.message,
-                    data: eventWrapper.data
+                    data: {
+                        ...eventWrapper.data,
+                        media_artifacts: eventWrapper.data.media_artifacts || []
+                    }
                 });
             } else if (eventWrapper.event_type === 'tool_call') {
                 chatEvents.value.push({
@@ -2103,8 +2106,8 @@ const getMediaArtifacts = (eventData) => {
     const artifacts = eventData?.media_artifacts || [];
     return artifacts.map(artifact => ({
         id: artifact.id,
-        url: artifact.url,
-        type: artifact.type,
+        url: artifact.url || artifact.file_url,
+        type: artifact.type || artifact.media_type,
         title: artifact.title || artifact.description,
         description: artifact.description,
         filename: artifact.filename
