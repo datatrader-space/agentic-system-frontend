@@ -152,6 +152,24 @@
                                 <span v-if="wsRouting.workspace.agent_version"> · v{{ wsRouting.workspace.agent_version }}</span>
                             </p>
                         </div>
+                        <!-- Antigravity Status Badge (always visible when workspace is routed) -->
+                        <div v-if="wsRouting?.routed" class="mx-3 mt-2 p-2.5 rounded-lg" :class="cascadeStatus?.available ? 'bg-purple-50 border border-purple-200' : 'bg-gray-50 border border-gray-200'">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm">✨</span>
+                                <span class="text-xs font-semibold" :class="cascadeStatus?.available ? 'text-purple-800' : 'text-gray-500'">Antigravity</span>
+                                <span v-if="cascadeStatus?.available" class="ml-auto text-[10px] text-purple-500 font-mono">port:{{ cascadeStatus.ls_port }}</span>
+                                <span v-else class="ml-auto flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                                    <span class="text-[10px] text-gray-400">Not detected</span>
+                                </span>
+                            </div>
+                            <p v-if="cascadeStatus?.available && cascadeSessions.length" class="text-[10px] text-purple-600 mt-1">
+                                {{ cascadeSessions.length }} session(s) available
+                            </p>
+                            <p v-else-if="!cascadeStatus?.available" class="text-[10px] text-gray-400 mt-1">
+                                Open Antigravity IDE on this workspace to enable
+                            </p>
+                        </div>
                         <div v-else-if="wsRouting && !wsRouting.routed" class="mx-3 mt-3 mb-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
                             <p class="text-xs text-gray-500">Tools execute locally on the server. Assign this agent to a workspace and enable routing to execute remotely.</p>
                         </div>
@@ -293,6 +311,15 @@
                                 </svg>
                                 New Conversation
                             </button>
+                            <!-- New AG Session -->
+                            <button v-if="wsRouting?.routed" @click="createNewCascadeSession"
+                                class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-purple-50 border-b border-gray-100 font-medium"
+                                :class="cascadeStatus?.available ? 'text-purple-600' : 'text-gray-400 cursor-not-allowed'"
+                                :disabled="!cascadeStatus?.available">
+                                <span class="text-sm">✨</span>
+                                New AG Session
+                                <span v-if="!cascadeStatus?.available" class="text-[10px] text-gray-400 ml-auto">(not connected)</span>
+                            </button>
                             <!-- Conversation List -->
                             <div class="max-h-64 overflow-y-auto">
                                 <div v-for="conv in conversations" :key="conv.id"
@@ -300,7 +327,8 @@
                                     :class="{ 'bg-blue-50 border-l-2 border-l-blue-500': conv.id === activeSessionId }">
                                     <button @click="switchConversation(conv.id)" class="flex-1 text-left min-w-0">
                                         <div class="flex items-center justify-between">
-                                            <span class="text-sm font-medium text-gray-800 truncate max-w-[160px]">
+                                            <span class="text-sm font-medium text-gray-800 truncate max-w-[160px] flex items-center gap-1">
+                                                <span v-if="conv._source === 'cascade'" title="Antigravity">✨</span>
                                                 {{ conv.title || 'Untitled' }}
                                             </span>
                                             <span class="text-[10px] text-gray-400 flex-shrink-0 ml-2">
@@ -1004,6 +1032,8 @@ const llmModels = ref([]);
 const selectedContext = ref({ system: null, repo: null, model: null });
 const activeSessionId = ref(null); // This is actually conversation_id in the new backend logic
 const conversations = ref([]); // All conversations for this agent
+const cascadeSessions = ref([]); // Antigravity cascade sessions
+const cascadeStatus = ref(null); // { available: bool, ls_port, ls_pid, ... }
 const showConvSwitcher = ref(false); // Conversation dropdown toggle
 const convSwitcherRef = ref(null); // Ref for click-outside detection
 const chatEvents = ref([]);
@@ -1087,6 +1117,7 @@ const toggleWorkspace = async () => {
     if (showWorkspace.value) {
         await checkWorkspaceRouting();
         loadWorkspace();
+        fetchCascadeStatus();
     }
 };
 
@@ -1596,10 +1627,56 @@ const fetchConversations = async () => {
             ordering: '-updated_at'
         });
         if (res.data.results) {
-            conversations.value = res.data.results;
+            // Tag AADML conversations
+            conversations.value = res.data.results.map(c => ({ ...c, _source: 'aadml' }));
         }
     } catch (e) {
         console.error("Failed to fetch conversations", e);
+    }
+
+    // Also fetch cascade sessions if workspace is routed
+    await fetchCascadeSessions();
+};
+
+// Fetch Antigravity cascade sessions from workspace
+const fetchCascadeSessions = async () => {
+    if (!wsRouting.value?.routed) return;
+    const wsId = wsRouting.value.workspace.workspace_id;
+    try {
+        const res = await api.get(`/cascade/sessions/?workspace_id=${wsId}`);
+        if (res.data.sessions) {
+            cascadeSessions.value = res.data.sessions.map(s => ({
+                id: `cascade:${s.cascadeId}`,
+                title: s.summary || `AG Session`,
+                message_count: s.stepCount,
+                updated_at: s.lastModifiedTime,
+                _source: 'cascade',
+                _cascadeId: s.cascadeId,
+            }));
+            // Merge into conversations list
+            const aadmlConvs = conversations.value.filter(c => c._source !== 'cascade');
+            conversations.value = [...aadmlConvs, ...cascadeSessions.value]
+                .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+            // Sessions loaded → AG is definitely available, refresh status
+            if (!cascadeStatus.value?.available) {
+                fetchCascadeStatus();
+            }
+        }
+    } catch (e) {
+        // Cascade not available — that's fine
+        console.debug('Cascade sessions unavailable:', e.message);
+    }
+};
+
+// Fetch cascade connection status
+const fetchCascadeStatus = async () => {
+    if (!wsRouting.value?.routed) return;
+    const wsId = wsRouting.value.workspace.workspace_id;
+    try {
+        const res = await api.get(`/cascade/status/?workspace_id=${wsId}`);
+        cascadeStatus.value = res.data;
+    } catch (e) {
+        cascadeStatus.value = null;
     }
 };
 
@@ -1683,6 +1760,18 @@ const switchConversation = async (convId) => {
     showConvSwitcher.value = false;
     if (convId === activeSessionId.value) return;
 
+    // Cascade session handling
+    if (convId?.startsWith?.('cascade:')) {
+        activeSessionId.value = convId;
+        chatEvents.value = [];
+        const cascadeId = convId.replace('cascade:', '');
+        const wsId = wsRouting.value?.workspace?.workspace_id;
+        if (wsId) {
+            await loadCascadeSteps(cascadeId, wsId);
+        }
+        return;
+    }
+
     try {
         const detailRes = await api.getConversation(convId);
         const conv = detailRes.data;
@@ -1720,6 +1809,86 @@ const switchConversation = async (convId) => {
     }
 };
 
+// Safely extract string content from a cascade step (some fields may be objects)
+const stepToString = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    // AG sometimes nests content as {text: '...'} or {message: '...'}
+    if (typeof val === 'object') return val.text || val.message || val.content || JSON.stringify(val);
+    return String(val);
+};
+
+// Load cascade steps and map to chat events
+const loadCascadeSteps = async (cascadeId, wsId) => {
+    try {
+        const res = await api.get(`/cascade/sessions/${cascadeId}/steps/?workspace_id=${wsId}`);
+        if (res.data.steps) {
+            chatEvents.value = res.data.steps
+                .filter(step => {
+                    const content = stepToString(step.plannerResponse) || stepToString(step.content) || stepToString(step.userMessage);
+                    return !!content;
+                })
+                .map((step, i) => ({
+                    id: `step-${i}`,
+                    type: mapStepType(step.type),
+                    content: stepToString(step.plannerResponse) || stepToString(step.content) || stepToString(step.userMessage) || '(empty step)',
+                    data: step,
+                }));
+            nextTick(() => {
+                if (feed.value) feed.value.scrollTop = feed.value.scrollHeight;
+            });
+        }
+    } catch (e) {
+        chatEvents.value.push({ id: Date.now(), type: 'assistant', content: `⚠️ Failed to load cascade steps: ${e.message}` });
+    }
+};
+
+// Map AG step type to chat event type
+const mapStepType = (stepType) => {
+    // Only 'user' and 'assistant' are safe — the chat feed has no template for other types
+    if (stepType === 'CORTEX_STEP_TYPE_USER_INPUT') return 'user';
+    return 'assistant'; // Everything else renders as assistant message
+};
+
+// Poll cascade steps until done
+let cascadePollTimer = null;
+const pollCascadeSteps = (cascadeId, wsId) => {
+    if (cascadePollTimer) clearInterval(cascadePollTimer);
+    cascadePollTimer = setInterval(async () => {
+        try {
+            const res = await api.get(`/cascade/sessions/${cascadeId}/steps/?workspace_id=${wsId}`);
+            if (res.data.steps) {
+                // Keep user messages, replace rest
+                const userEvents = chatEvents.value.filter(e => e.type === 'user');
+                const stepEvents = res.data.steps
+                    .filter(step => stepToString(step.plannerResponse) || stepToString(step.content) || stepToString(step.userMessage))
+                    .map((step, i) => ({
+                        id: `step-${i}`,
+                        type: mapStepType(step.type),
+                        content: stepToString(step.plannerResponse) || stepToString(step.content) || stepToString(step.userMessage) || '',
+                        data: step,
+                    }));
+                chatEvents.value = [...userEvents, ...stepEvents];
+                scrollToBottom();
+
+                // Check if all done
+                const running = res.data.steps.some(s => s.status === 'CORTEX_STEP_STATUS_RUNNING');
+                if (res.data.steps.length > 0 && !running) {
+                    clearInterval(cascadePollTimer);
+                    cascadePollTimer = null;
+                    isProcessing.value = false;
+                    isTyping.value = false;
+                    isAgentSessionActive.value = false;
+                }
+            }
+        } catch (e) {
+            clearInterval(cascadePollTimer);
+            cascadePollTimer = null;
+            isProcessing.value = false;
+        }
+    }, 2000);
+};
+
 // Create a new conversation for this agent
 const createNewConversation = async () => {
     showConvSwitcher.value = false;
@@ -1733,6 +1902,38 @@ const createNewConversation = async () => {
         await fetchConversations();
     } catch (e) {
         console.error('Failed to create new conversation:', e);
+    }
+};
+
+// Create a new Antigravity cascade session
+const createNewCascadeSession = async () => {
+    showConvSwitcher.value = false;
+    const prompt = window.prompt('Enter initial prompt for Antigravity:');
+    if (!prompt) return;
+
+    const wsId = wsRouting.value?.workspace?.workspace_id;
+    if (!wsId) {
+        alert('Workspace not connected');
+        return;
+    }
+
+    isProcessing.value = true;
+    chatEvents.value = [{ id: Date.now(), type: 'user', content: prompt }];
+
+    try {
+        const res = await api.post('/cascade/sessions/new/', {
+            prompt,
+            workspace_id: wsId,
+            model: selectedContext.value.model || 246,
+        });
+        if (res.data.cascade_id) {
+            activeSessionId.value = `cascade:${res.data.cascade_id}`;
+            pollCascadeSteps(res.data.cascade_id, wsId);
+            await fetchConversations();
+        }
+    } catch (err) {
+        chatEvents.value.push({ id: Date.now(), type: 'assistant', content: `⚠️ Failed: ${err.message}` });
+        isProcessing.value = false;
     }
 };
 
@@ -1770,6 +1971,7 @@ onMounted(async () => {
         await fetchAgent(id);
         await fetchContextData();
         checkWorkspaceRouting(); // Check routing status for toolbar indicator
+        fetchCascadeStatus(); // Check Antigravity connection for cascade features
 
         // Check for interrupted session FIRST
         const savedSessionId = localStorage.getItem('agent_active_session_id');
@@ -2749,8 +2951,30 @@ const sendMessage = async () => {
         }
     }
 
-    // Send to WS
-    if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+    // Send to WS (or cascade API for AG sessions)
+    const isCascadeSession = activeSessionId.value?.startsWith?.('cascade:');
+    if (isCascadeSession) {
+        const cascadeId = activeSessionId.value.replace('cascade:', '');
+        const wsId = wsRouting.value?.workspace?.workspace_id;
+        if (!wsId) {
+            chatEvents.value.push({ id: Date.now(), type: 'assistant', content: '⚠️ Workspace not connected' });
+            isProcessing.value = false;
+            return;
+        }
+        try {
+            await api.post(`/cascade/sessions/${cascadeId}/send/`, {
+                prompt: content,
+                workspace_id: wsId,
+                model: selectedContext.value.model || 246,
+            });
+            // Poll for steps
+            pollCascadeSteps(cascadeId, wsId);
+        } catch (err) {
+            chatEvents.value.push({ id: Date.now(), type: 'assistant', content: `⚠️ Cascade send failed: ${err.message}` });
+            isProcessing.value = false;
+            isAgentSessionActive.value = false;
+        }
+    } else if (ws.value && ws.value.readyState === WebSocket.OPEN) {
         ws.value.send(JSON.stringify({
             type: 'chat_message',
             message: content,
