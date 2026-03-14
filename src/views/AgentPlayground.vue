@@ -16,48 +16,38 @@
             </div>
 
             <!-- Right: Actions -->
-            <div class="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
+            <div class="flex items-center gap-2 flex-shrink-0">
                 <button v-if="agent.id && isOwner" @click="toggleWorkspace"
-                    class="text-sm font-medium border rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
-                    :class="showWorkspace ? 'border-blue-400 text-blue-600' : wsRouting?.routed ? 'border-green-400 text-green-700' : 'border-gray-300 text-gray-600 hover:text-gray-900'"
+                    class="h-9 px-3 rounded-lg border transition-all flex items-center gap-2 group text-xs font-semibold"
+                    :class="showWorkspace ? 'bg-blue-50 border-blue-200 text-blue-600' : wsRouting?.routed ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'"
                     :title="wsRouting?.routed ? `Routed → ${wsRouting.workspace.workspace_name}` : 'Workspace'">
-                    <span v-if="wsRouting?.routed" class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="w-4 h-4 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                     </svg>
-                    <span class="hidden md:inline">{{ wsRouting?.routed ? wsRouting.workspace.workspace_name : 'Workspace' }}</span>
+                    <span class="hidden lg:inline">{{ wsRouting?.routed ? wsRouting.workspace.workspace_name : 'Workspace' }}</span>
                 </button>
+                
                 <button v-if="agent.id" @click="showCredentials = !showCredentials"
-                    class="text-sm font-medium border rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
-                    :class="showCredentials ? 'border-amber-400 text-amber-600' : 'border-gray-300 text-gray-600 hover:text-gray-900'"
+                    class="h-9 px-3 rounded-lg border transition-all flex items-center gap-2 group text-xs font-semibold"
+                    :class="showCredentials ? 'bg-amber-50 border-amber-200 text-amber-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'"
                     title="Credentials">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                     </svg>
-                    <span class="hidden md:inline">Credentials</span>
+                    <span class="hidden lg:inline">Credentials</span>
                 </button>
-                <button v-if="agent.id" @click="showScript = !showScript"
-                    class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
-                    :class="{ 'border-indigo-400 text-indigo-600': showScript }"
-                    :title="'Script'">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <polyline points="4 17 10 11 4 5" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
-                        <line x1="12" y1="19" x2="20" y2="19" stroke-linecap="round" stroke-width="2" />
-                    </svg>
-                    <span class="hidden md:inline">Script</span>
-                </button>
+                
                 <button v-if="isOwner" @click="showBuilder = !showBuilder"
-                    class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
-                    :title="'Configure Agent'">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    class="h-9 px-3 rounded-lg border transition-all flex items-center gap-2 group text-xs font-semibold"
+                    :class="showBuilder ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'"
+                    title="Configure Agent">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                        <circle cx="12" cy="12" r="3" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
                     </svg>
-                    <span class="hidden md:inline">Configure Agent</span>
+                    <span class="hidden lg:inline">Configure</span>
                 </button>
             </div>
         </div>
@@ -95,18 +85,6 @@
                 </div>
             </div>
 
-            <!-- Script Panel (slide-over) -->
-            <div v-if="showScript" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
-                @click.self="showScript = false">
-                <div class="h-full w-full sm:w-[560px] bg-gray-900 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
-                    <ScriptPanel
-                        :repositoryId="selectedContext.repo?.id || '0'"
-                        :agentId="agent.id"
-                        :conversationId="activeSessionId"
-                        @close="showScript = false"
-                    />
-                </div>
-            </div>
 
             <!-- Workspace Panel (slide-over) -->
             <div v-if="showWorkspace" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
@@ -261,42 +239,73 @@
 
             <!-- Right: Preview / Chat -->
             <div class="flex-1 flex flex-col bg-white relative overflow-hidden">
-                <!-- Desktop Tabs (hidden on mobile, shown md+) -->
-                <div class="hidden md:flex p-2 border-b border-gray-100 bg-gray-50 items-center justify-between text-xs font-mono sticky top-0 z-20">
-                    <!-- Left: Tabs -->
-                    <div class="flex gap-4 overflow-x-auto scrollbar-hide">
-                    <button @click="activeTab = 'chat'"
-                        :class="[tabClass('chat'), 'whitespace-nowrap py-1 px-1 transition-colors']">
-                        PREVIEW SESSION
-                    </button>
-                    <button @click="activeTab = 'knowledge'"
-                        :class="[tabClass('knowledge'), 'whitespace-nowrap py-1 px-1 transition-colors']">
-                        KNOWLEDGE CONTEXT
-                    </button>
-                    <button @click="activeTab = 'trace'"
-                        :class="[tabClass('trace'), 'whitespace-nowrap py-1 px-1 transition-colors']">
-                        TRACE
-                    </button>
-                    <button @click="activeTab = 'tools'"
-                        :class="[tabClass('tools'), 'whitespace-nowrap py-1 px-1 transition-colors']">
-                        🔧 TOOLS
-                    </button>
-                    <button @click="activeTab = 'automation'"
-                        :class="[tabClass('automation'), 'whitespace-nowrap py-1 px-1 transition-colors']">
-                        ⚡ AUTOMATION
-                    </button>
+                <!-- Desktop Navigation (Focused Design) -->
+                <div class="hidden md:flex p-3 border-b border-gray-100 bg-white items-center justify-between sticky top-0 z-20">
+                    <!-- Left: Navigation Actions -->
+                    <div class="flex items-center gap-3">
+                        <!-- Back to Preview (Primary Action) -->
+                        <button v-if="activeTab !== 'chat'" @click="activeTab = 'chat'"
+                            class="bg-blue-600 text-white text-[10px] font-black tracking-widest px-5 py-2 rounded-full shadow-lg hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all duration-300 flex items-center gap-2 group">
+                            <svg class="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M11 19l-7-7 7-7" />
+                            </svg>
+                            BACK TO PREVIEW
+                        </button>
+
+                        <!-- Focused Tabs (Only in Chat Mode) -->
+                        <div v-else class="flex bg-gray-100/80 backdrop-blur-md rounded-full p-1 gap-1 shadow-inner border border-gray-200/50">
+                            <button v-for="tab in [
+                                { id: 'knowledge', label: 'KNOWLEDGE' },
+                                { id: 'automation', label: 'AUTOMATION' }
+                            ]" :key="tab.id" @click="activeTab = tab.id"
+                                class="text-[10px] font-black tracking-widest px-4 py-1.5 rounded-full text-gray-500 hover:text-gray-700 hover:bg-white/50 transition-all duration-300">
+                                {{ tab.label }}
+                            </button>
+                            
+                            <!-- More Dropdown (Icon Only) -->
+                            <div class="relative" ref="moreTabsRef">
+                                <button @click="showMoreTabs = !showMoreTabs"
+                                    class="text-gray-500 hover:text-gray-700 hover:bg-white/50 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300"
+                                    title="More Options">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 5v.01M12 12v.01M12 19v.01" />
+                                    </svg>
+                                </button>
+                                
+                                <transition enter-active-class="transition duration-100 ease-out"
+                                    enter-from-class="transform scale-95 opacity-0"
+                                    enter-to-class="transform scale-100 opacity-100"
+                                    leave-active-class="transition duration-75 ease-in"
+                                    leave-from-class="transform scale-100 opacity-100"
+                                    leave-to-class="transform scale-95 opacity-0">
+                                    <div v-if="showMoreTabs" class="absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-2xl shadow-2xl py-2 z-50 overflow-hidden">
+                                        <button @click="activeTab = 'trace'; showMoreTabs = false"
+                                            class="w-full text-left px-4 py-2 text-[10px] font-black tracking-widest text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors uppercase flex items-center gap-2">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> TRACE
+                                        </button>
+                                        <button @click="activeTab = 'tools'; showMoreTabs = false"
+                                            class="w-full text-left px-4 py-2 text-[10px] font-black tracking-widest text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors uppercase flex items-center gap-2">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span> TOOLS
+                                        </button>
+                                    </div>
+                                </transition>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Right: Conversation Switcher -->
                     <div v-if="agent.id" class="relative flex-shrink-0" ref="convSwitcherRef">
                         <button @click="showConvSwitcher = !showConvSwitcher"
-                            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition text-xs">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                            class="group flex items-center gap-2 h-9 px-3 rounded-lg border border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                            <div class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" v-if="isTyping"></div>
+                            <svg v-else class="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                             </svg>
-                            <span class="max-w-[100px] sm:max-w-[140px] truncate">{{ currentConvTitle }}</span>
-                            <svg class="w-3 h-3" :class="{ 'rotate-180': showConvSwitcher }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            <span class="text-xs font-semibold text-gray-700 truncate max-w-[100px] sm:max-w-[140px]">
+                                {{ currentConvTitle || 'Select Conversation' }}
+                            </span>
+                            <svg class="w-3 h-3 text-gray-400 group-hover:text-blue-500 transition-all duration-200" :class="{ 'rotate-180': showConvSwitcher }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
                             </svg>
                         </button>
 
@@ -355,21 +364,36 @@
                     </div>
                 </div>
 
-                <!-- Mobile Tab Bar (visible on mobile, shown below conversation switcher) -->
-                <div class="flex md:hidden p-1.5 border-b border-gray-100 bg-gray-50 items-center text-xs font-mono sticky top-0 z-20 overflow-x-auto scrollbar-hide gap-1">
-                    <button v-if="agent.id" @click="showConvSwitcher = !showConvSwitcher"
-                        class="flex items-center gap-1 px-2 py-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition flex-shrink-0">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                <!-- Mobile Navigation (Focused Design) -->
+                <div class="flex md:hidden p-3 border-b border-gray-100 bg-white items-center sticky top-0 z-20 gap-2">
+                    <!-- Back Button if active tab is NOT chat -->
+                    <button v-if="activeTab !== 'chat'" @click="activeTab = 'chat'"
+                        class="bg-blue-600 text-white text-[10px] font-black tracking-widest px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M11 19l-7-7 7-7" />
                         </svg>
-                        <span class="max-w-[80px] truncate">{{ currentConvTitle }}</span>
+                        BACK TO PREVIEW
                     </button>
-                    <div class="h-4 w-px bg-gray-200 flex-shrink-0"></div>
-                    <button v-for="tab in mobileTabItems" :key="tab.id" @click="activeTab = tab.id"
-                        :class="[tabClass(tab.id), 'whitespace-nowrap py-1.5 px-2 rounded-md transition-colors flex items-center gap-1 flex-shrink-0']">
-                        <span>{{ tab.icon }}</span>
-                        <span class="text-[10px]">{{ tab.shortLabel }}</span>
-                    </button>
+
+                    <!-- Main Mobile Tabs (Only in Chat Mode) -->
+                    <div v-else class="flex items-center gap-1.5 overflow-x-auto scrollbar-hide flex-1">
+                        <button v-for="tab in [
+                            { id: 'knowledge', icon: '📚', label: 'Context' },
+                            { id: 'automation', icon: '⚡', label: 'Auto' }
+                        ]" :key="tab.id" @click="activeTab = tab.id"
+                            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
+                            <span class="text-xs">{{ tab.icon }}</span>
+                            <span class="text-[10px] font-bold uppercase tracking-wider">{{ tab.label }}</span>
+                        </button>
+                        
+                        <!-- Mobile More Icon -->
+                        <button @click="showMoreTabs = !showMoreTabs"
+                            class="bg-gray-100 text-gray-500 w-8 h-8 rounded-full flex items-center justify-center border border-gray-200">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Trace Tab -->
@@ -794,14 +818,14 @@
                         </div>
                     </div>
 
-                    <!-- Input (Professional Design) -->
+                    <!-- Input (Glassmorphism Design) -->
                     <div
-                        class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/98 to-transparent pt-4 sm:pt-6 pb-2 sm:pb-3">
-                        <div class="max-w-5xl mx-auto px-2 sm:px-4">
+                        class="absolute bottom-0 left-0 right-0 bg-white/60 backdrop-blur-xl border-t border-white/20 pt-6 pb-4">
+                        <div class="max-w-5xl mx-auto px-4">
                             <!-- Input Container -->
                             <div class="relative group">
                                 <div
-                                    class="relative bg-white border-2 border-gray-200 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-50">
+                                    class="relative bg-white/80 backdrop-blur-sm border-2 border-gray-200/50 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 focus-within:border-blue-400 focus-within:ring-8 focus-within:ring-blue-500/10">
                                     <!-- Attachment Preview Strip -->
                                     <div v-if="pendingFiles.length" class="px-3 pt-3 pb-0">
                                         <div class="flex flex-wrap gap-2">
@@ -1006,7 +1030,6 @@ import FileViewer from '../components/FileViewer.vue';
 import ToolsPanel from '../components/tools/ToolsPanel.vue';
 import MediaRenderer from '../components/MediaRenderer.vue';
 import WorkspaceTreeNode from '../components/WorkspaceTreeNode.vue';
-import ScriptPanel from '../components/ScriptPanel.vue';
 import HITLModal from '../components/HITLModal.vue';
 import AutomationPanel from '../components/AutomationPanel.vue';
 
@@ -1035,7 +1058,9 @@ const conversations = ref([]); // All conversations for this agent
 const cascadeSessions = ref([]); // Antigravity cascade sessions
 const cascadeStatus = ref(null); // { available: bool, ls_port, ls_pid, ... }
 const showConvSwitcher = ref(false); // Conversation dropdown toggle
+const showMoreTabs = ref(false); // "More" tabs dropdown toggle
 const convSwitcherRef = ref(null); // Ref for click-outside detection
+const moreTabsRef = ref(null); // Ref for click-outside detection
 const chatEvents = ref([]);
 const userMessage = ref('');
 const isProcessing = ref(false);
@@ -1084,7 +1109,6 @@ const startBuilderResize = (e) => {
   document.addEventListener('mouseup', onMouseUp)
 }
 const showWorkspace = ref(false);
-const showScript = ref(false);
 const showCredentials = ref(false);
 
 // Computed: is current user the agent owner?
@@ -1962,6 +1986,9 @@ const handleClickOutside = (e) => {
     if (convSwitcherRef.value && !convSwitcherRef.value.contains(e.target)) {
         showConvSwitcher.value = false;
     }
+    if (moreTabsRef.value && !moreTabsRef.value.contains(e.target)) {
+        showMoreTabs.value = false;
+    }
 };
 
 onMounted(async () => {
@@ -2353,7 +2380,30 @@ const wrapTablesInScroller = (html) => {
     );
 };
 
-const formatMarkdown = (text) => wrapTablesInScroller(marked(text || ''));
+// Helper to identify and style "Data Blocks" in Markdown (e.g., Product details)
+const postProcessHtml = (html) => {
+    // 1. Wrap "Product Details" sequences (bold fields) in formatted cards
+    let processed = html.replace(
+        /(<p><strong>(Product|Handle|Product ID|Price|Vendor|Status):<\/strong>.*?<\/p>)+/g,
+        '<div class="data-card my-4 p-4 bg-gray-50 border border-gray-100 rounded-xl shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">$0</div>'
+    );
+
+    // 2. Identify "Success" messages and wrap them
+    processed = processed.replace(
+        /<p>(Task Completed Successfully|Success|Completed):?.*?<\/p>/gi,
+        '<div class="success-banner my-4 p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl flex items-center gap-3 font-bold text-sm"><span>✅</span>$0</div>'
+    );
+
+    // 3. Pattern: Detect prominent video generation prompts
+    processed = processed.replace(
+        /<blockquote>(.*?)<\/blockquote>/gs,
+        '<div class="prompt-container my-6 p-6 bg-slate-900 text-slate-100 rounded-2xl border-l-4 border-blue-500 shadow-2xl relative overflow-hidden"><div class="absolute top-0 right-0 p-2 text-[10px] font-black text-slate-700 uppercase tracking-widest">Generation Prompt</div>$1</div>'
+    );
+
+    return processed;
+};
+
+const formatMarkdown = (text) => postProcessHtml(wrapTablesInScroller(marked(text || '')));
 const formatToolResult = (result) => {
     if (typeof result === 'object') return JSON.stringify(result, null, 2);
     return result;
