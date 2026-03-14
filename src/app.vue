@@ -1,7 +1,19 @@
 <template>
-  <div id="app" class="h-screen flex flex-col overflow-hidden" :class="appBackgroundClass">
-    <!-- Header Component -->
+  <div id="app" class="h-screen overflow-hidden" :class="[appBackgroundClass, isPlayground ? 'flex flex-row' : 'flex flex-col']">
+
+    <!-- Sidebar: only on Agent Playground -->
+    <AppSidebar
+      v-if="isPlayground"
+      :current-user="currentUser"
+      :llm-health="llmHealth"
+      :theme="theme"
+      @logout="handleLogout"
+      @toggle-theme="handleToggleTheme"
+    />
+
+    <!-- Header: on all other pages -->
     <AppHeader
+      v-else
       :current-user="currentUser"
       :llm-health="llmHealth"
       :theme="theme"
@@ -11,7 +23,7 @@
     />
 
     <!-- Main Content -->
-    <main class="flex-1 overflow-y-auto">
+    <main :class="isPlayground ? 'flex-1 overflow-hidden' : 'flex-1 overflow-y-auto'">
       <div :class="mainContentClass">
         <router-view />
       </div>
@@ -52,6 +64,7 @@ import { ref, onMounted, provide, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from './services/api'
 import AppHeader from './components/layout/AppHeader.vue'
+import AppSidebar from './components/layout/AppSidebar.vue'
 import { useTheme } from './composables/useTheme'
 
 const router = useRouter()
@@ -70,6 +83,9 @@ const handleToggleTheme = () => {
 
 // Layout computed properties
 const isFullScreen = computed(() => route.name === 'repository-detail' || route.name === 'agent-playground')
+
+// Agent Playground uses sidebar instead of header
+const isPlayground = computed(() => route.name === 'agent-playground')
 
 // Public pages that need full-width dark layout
 const isPublicPage = computed(() => {
