@@ -3,8 +3,7 @@
     v-if="!isLoginPage"
     class="app-header"
     :class="{
-      'header-scrolled': isScrolled,
-      'header-dark': theme === 'dark'
+      'header-scrolled': isScrolled
     }"
   >
     <div class="header-container">
@@ -98,56 +97,11 @@
             </router-link>
           </div>
 
-          <!-- Theme Toggle (Always visible) -->
-          <button
-            class="action-btn theme-toggle"
-            :title="theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
-            @click="$emit('toggle-theme')"
-          >
-            <!-- Sun Icon (Light Mode) -->
-            <svg
-              v-if="theme === 'dark'"
-              class="theme-icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <circle cx="12" cy="12" r="5"/>
-              <line x1="12" y1="1" x2="12" y2="3"/>
-              <line x1="12" y1="21" x2="12" y2="23"/>
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-              <line x1="1" y1="12" x2="3" y2="12"/>
-              <line x1="21" y1="12" x2="23" y2="12"/>
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-            </svg>
-            <!-- Moon Icon (Dark Mode) -->
-            <svg
-              v-else
-              class="theme-icon"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-            </svg>
-          </button>
 
           <!-- Authenticated: Status + User -->
           <div v-if="currentUser" class="user-section">
             <!-- Quick Actions -->
             <div class="quick-actions">
-              <!-- Search Toggle -->
-              <button class="action-btn" title="Search (Ctrl+K)" @click="toggleSearch">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"/>
-                  <path d="m21 21-4.35-4.35"/>
-                </svg>
-                <kbd class="action-kbd">K</kbd>
-              </button>
 
               <!-- Status Popover -->
               <div class="status-popover-container" ref="statusRef">
@@ -363,11 +317,6 @@
               </div>
               <span>AADML</span>
             </div>
-            <button @click="closeMobileMenu" class="mobile-close">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-            </button>
           </div>
 
           <!-- Mobile Nav Content -->
@@ -438,7 +387,7 @@
             <!-- Mobile System Status -->
             <div class="mobile-divider"></div>
             <div class="mobile-nav-section">
-              <div class="dropdown-label" style="padding-left: 12px; margin-bottom: 4px;">System Status</div>
+              <div class="mobile-nav-label">System Status</div>
               <div class="mobile-status-item">
                 <span class="status-dot" :class="llmHealth?.local?.available ? 'online' : 'offline'"></span>
                 <span>Local LLM</span>
@@ -478,30 +427,6 @@
       </div>
     </Transition>
 
-    <!-- Search Modal (placeholder) -->
-    <Transition name="modal">
-      <div v-if="showSearch" class="search-overlay" @click.self="closeSearch">
-        <div class="search-modal">
-          <div class="search-input-wrapper">
-            <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="m21 21-4.35-4.35"/>
-            </svg>
-            <input
-              ref="searchInput"
-              type="text"
-              placeholder="Search anything..."
-              class="search-input"
-              @keydown.escape="closeSearch"
-            />
-            <kbd class="search-kbd">ESC</kbd>
-          </div>
-          <div class="search-hints">
-            <span>Type to search across projects, docs, and settings</span>
-          </div>
-        </div>
-      </div>
-    </Transition>
   </header>
 </template>
 
@@ -613,14 +538,10 @@ const props = defineProps({
     type: Object,
     default: null
   },
-  theme: {
-    type: String,
-    default: 'dark'
-  }
 })
 
 // Emits
-const emit = defineEmits(['logout', 'connect-github', 'toggle-theme'])
+const emit = defineEmits(['logout', 'connect-github'])
 
 // Route
 const route = useRoute()
@@ -628,11 +549,9 @@ const route = useRoute()
 // Refs
 const userMenuRef = ref(null)
 const statusRef = ref(null)
-const searchInput = ref(null)
 const showUserMenu = ref(false)
 const showMobileMenu = ref(false)
 const showStatusPopover = ref(false)
-const showSearch = ref(false)
 const isScrolled = ref(false)
 
 // Computed
@@ -708,17 +627,6 @@ const toggleMobileMenu = () => {
   document.body.style.overflow = showMobileMenu.value ? 'hidden' : ''
 }
 
-const toggleSearch = async () => {
-  showSearch.value = !showSearch.value
-  if (showSearch.value) {
-    await nextTick()
-    searchInput.value?.focus()
-  }
-}
-
-const closeSearch = () => {
-  showSearch.value = false
-}
 
 const closeMobileMenu = () => {
   showMobileMenu.value = false
@@ -766,12 +674,6 @@ const handleKeydown = (event) => {
     closeUserMenu()
     closeMobileMenu()
     closeStatusPopover()
-    closeSearch()
-  }
-  // Ctrl/Cmd + K for search
-  if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
-    event.preventDefault()
-    toggleSearch()
   }
 }
 
@@ -837,14 +739,11 @@ onUnmounted(() => {
   background: var(--header-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid transparent;
   transition: all var(--transition-normal);
 }
 
 .app-header.header-scrolled {
   background: var(--header-bg-solid);
-  border-bottom-color: var(--border);
-  box-shadow: var(--shadow-sm);
 }
 
 /* Dark theme for public pages */
@@ -883,13 +782,12 @@ onUnmounted(() => {
 /* Removed .header-dark specific overrides as we now use CSS variables */
 
 .header-container {
-  max-width: 1536px;
-  margin: 0 auto;
+  max-width: 100%;
   padding: 0 16px;
 }
 
 @media (min-width: 768px) {
-  .header-container { padding: 0 32px; }
+  .header-container { padding: 0 24px; }
 }
 
 .header-content {
@@ -986,7 +884,7 @@ onUnmounted(() => {
   gap: 4px;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1600px) {
   .desktop-nav { display: flex; }
 }
 
@@ -1516,13 +1414,19 @@ onUnmounted(() => {
   background: var(--border);
 }
 
-.dropdown-label {
+.dropdown-label,
+.mobile-nav-label {
   padding: 12px 16px 8px;
   font-size: 0.6875rem;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
+}
+
+.mobile-nav-label {
+  padding-left: 16px;
+  margin-top: 8px;
 }
 
 .mobile-status-section {
@@ -1626,7 +1530,7 @@ onUnmounted(() => {
   transition: all var(--transition-fast);
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1600px) {
   .mobile-toggle { display: none; }
 }
 
@@ -1660,10 +1564,10 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   top: var(--header-height);
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  z-index: 999;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 1001;
 }
 
 .mobile-drawer {
@@ -1672,11 +1576,11 @@ onUnmounted(() => {
   right: 0;
   width: 100%;
   max-width: 340px;
-  height: 100%;
-  background: white;
+  height: calc(100dvh - var(--header-height));
+  background: var(--header-bg-solid);
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow-xl);
+  box-shadow: -10px 10px 25px -5px rgba(0, 0, 0, 0.2);
 }
 
 .mobile-header {
@@ -1706,28 +1610,9 @@ onUnmounted(() => {
   height: 100%;
 }
 
-.mobile-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.mobile-close:hover {
-  background: var(--border-light);
-  color: var(--text-primary);
-}
-
-.mobile-close svg {
-  width: 20px;
-  height: 20px;
+.logo-icon-small svg {
+  width: 100%;
+  height: 100%;
 }
 
 .mobile-content {
@@ -1746,7 +1631,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 14px 16px;
   font-size: 0.9375rem;
   font-weight: 500;
   color: var(--text-secondary);
@@ -1778,7 +1663,7 @@ onUnmounted(() => {
   font-size: 0.625rem;
   font-weight: 600;
   color: white;
-  background: linear-gradient(135deg, var(--primary), var(--accent));
+  background: var(--gradient-primary);
   border-radius: 10px;
 }
 
@@ -1844,7 +1729,7 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 16px 20px;
   border-top: 1px solid var(--border);
-  background: var(--border-light);
+  background: var(--bg-surface);
 }
 
 .mobile-user {
