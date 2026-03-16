@@ -736,7 +736,8 @@ export default {
     const checkAdmin = async () => {
       try {
         const resp = await api.checkAuth()
-        isAdmin.value = resp.data?.user?.is_staff || false
+        const user = resp.data?.user
+        isAdmin.value = user?.is_staff || user?.is_org_admin || false
       } catch { isAdmin.value = false }
     }
 
