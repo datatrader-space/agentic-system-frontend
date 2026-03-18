@@ -23,7 +23,7 @@
     />
 
     <!-- Main Content -->
-    <main :class="isPlayground ? 'flex-1 overflow-hidden' : 'flex-1 overflow-y-auto'">
+    <main :class="isPlayground ? 'flex-1 overflow-hidden pb-14 md:pb-0' : 'flex-1 overflow-y-auto pb-14 md:pb-0'">
       <div :class="mainContentClass">
         <router-view />
       </div>
