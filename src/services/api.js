@@ -393,6 +393,7 @@ export default {
 
   // ── User Connections (OAuth Providers) ──
   getConnectionProviders: () => api.get('/connections/providers/'),
+  getConnectionPresets: () => api.get('/connections/presets/'),
   getConnections: () => api.get('/connections/'),
   startConnection: (providerSlug, opts = {}) => {
     const params = new URLSearchParams()

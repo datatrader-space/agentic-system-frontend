@@ -2827,6 +2827,7 @@ const connectWebSocket = (repoId) => {
                 interaction_type: data.interaction_type,
                 response_type: data.response_type,
                 summary: data.summary,
+                services: data.services || [],          // ← credential_setup rows
                 payload: data.payload || {},
                 options: data.options || [],
                 urgency: data.urgency || 'medium',

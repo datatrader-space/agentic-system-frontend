@@ -8,6 +8,12 @@
           <p class="text-gray-600 mt-1">Connect your accounts — agents will use them automatically</p>
         </div>
         <div class="flex items-center gap-3">
+          <router-link
+            to="/docs/connections"
+            class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium flex items-center gap-2 text-sm"
+          >
+            📖 Provider Docs
+          </router-link>
           <button
             v-if="isAdmin"
             @click="openCreateModal"
@@ -276,6 +282,24 @@
 
             <!-- Modal Body -->
             <div class="px-6 py-5 space-y-5">
+              <!-- Presets Selector -->
+              <div v-if="!editingProvider" class="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                <label class="block text-sm font-semibold text-blue-900 mb-2">✨ Start from a Preset (Optional)</label>
+                <select
+                  v-model="selectedPreset"
+                  @change="applyPreset"
+                  class="w-full form-input bg-white border-blue-200 focus:border-blue-500 focus:ring-blue-500 text-sm"
+                >
+                  <option value="">-- Start from scratch --</option>
+                  <option v-for="preset in presets" :key="preset.id" :value="preset.id">
+                    {{ preset.icon }} {{ preset.name }}
+                  </option>
+                </select>
+                <p class="text-xs text-blue-700 mt-2">
+                  Selecting a preset auto-fills the URLs and recommended scopes. You'll only need to provide the Client ID and Secret.
+                </p>
+              </div>
+
               <!-- Identity -->
               <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -648,6 +672,8 @@ export default {
     const isAdmin = ref(false)
 
     // Modal state
+    const presets = ref([])
+    const selectedPreset = ref('')
     const showModal = ref(false)
     const editingProvider = ref(null)
     const saving = ref(false)
@@ -741,6 +767,53 @@ export default {
       } catch { isAdmin.value = false }
     }
 
+    const loadPresets = async () => {
+      try {
+        const response = await api.getConnectionPresets()
+        presets.value = response.data || []
+      } catch (error) {
+        console.error('Failed to load presets:', error)
+      }
+    }
+
+    const applyPreset = () => {
+      if (!selectedPreset.value) return
+      const preset = presets.value.find(p => p.id === selectedPreset.value)
+      if (!preset) return
+
+      form.value = {
+        name: preset.name,
+        slug: preset.slug,
+        authorization_url: preset.authorization_url,
+        token_url: preset.token_url,
+        userinfo_url: preset.userinfo_url,
+        revocation_url: preset.revocation_url,
+        client_id: '',
+        client_secret: '',
+        icon: preset.icon,
+        color: preset.color,
+        category: preset.category,
+        resource_url: '',
+        api_base_template: ''
+      }
+
+      if (preset.extra_auth_params && Object.keys(preset.extra_auth_params).length > 0) {
+        extraParamsInput.value = JSON.stringify(preset.extra_auth_params, null, 2)
+      } else {
+        extraParamsInput.value = ''
+      }
+
+      availableScopes.value = preset.scopes.map(s => ({
+        scope: s.id,
+        label: s.label,
+        risk: s.risk
+      }))
+      
+      defaultScopeSet.value = new Set(
+        preset.scopes.filter(s => s.default).map(s => s.id)
+      )
+    }
+
     // ── Scope Builder (admin modal) ──
     const addScopeRow = () => {
       availableScopes.value.push({ scope: '', label: '', risk: 'read' })
@@ -802,6 +875,7 @@ export default {
     // ── Provider Create/Edit Modal ──
     const openCreateModal = () => {
       editingProvider.value = null
+      selectedPreset.value = ''
       form.value = emptyForm()
       availableScopes.value = []
       defaultScopeSet.value = new Set()
@@ -1044,10 +1118,12 @@ export default {
     onMounted(() => {
       checkAdmin()
       loadProviders()
+      loadPresets()
     })
 
     return {
       providers, orgData, loading, activeTab, actionLoading, toast, isAdmin,
+      presets, selectedPreset, applyPreset,
       showModal, editingProvider, saving, form, availableScopes, defaultScopeSet, extraParamsInput,
       showScopePicker, scopePickerProvider, pickerScopes, allPickerSelected,
       showConfigureModal, configureProvider, configureForm, savingConfigure,

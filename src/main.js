@@ -37,6 +37,7 @@ import OrgSettings from './views/OrgSettings.vue'
 import WorkspaceDashboard from './views/WorkspaceDashboard.vue'
 import InviteAccept from './views/InviteAccept.vue'
 import Connections from './views/Connections.vue'
+import ConnectionDocs from './views/ConnectionDocs.vue'
 
 // Create router
 const router = createRouter({
@@ -220,6 +221,12 @@ const router = createRouter({
       path: '/connections',
       name: 'connections',
       component: Connections,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/docs/connections',
+      name: 'connection-docs',
+      component: ConnectionDocs,
       meta: { requiresAuth: true }
     }
   ]
