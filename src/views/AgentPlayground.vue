@@ -330,7 +330,7 @@
                                 <span v-if="!cascadeStatus?.available" class="text-[10px] text-gray-400 ml-auto">(not connected)</span>
                             </button>
                             <!-- Conversation List -->
-                            <div class="max-h-64 overflow-y-auto">
+                            <div class="max-h-64 overflow-y-auto" @scroll="onConvListScroll">
                                 <div v-for="conv in conversations" :key="conv.id"
                                     class="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition border-b border-gray-50 last:border-0 flex items-center group/conv"
                                     :class="{ 'bg-blue-50 border-l-2 border-l-blue-500': conv.id === activeSessionId }">
@@ -1055,6 +1055,9 @@ const llmModels = ref([]);
 const selectedContext = ref({ system: null, repo: null, model: null });
 const activeSessionId = ref(null); // This is actually conversation_id in the new backend logic
 const conversations = ref([]); // All conversations for this agent
+  const convPage = ref(1);
+  const convTotalPages = ref(1);
+  const isLoadingMoreConvs = ref(false);
 const cascadeSessions = ref([]); // Antigravity cascade sessions
 const cascadeStatus = ref(null); // { available: bool, ls_port, ls_pid, ... }
 const showConvSwitcher = ref(false); // Conversation dropdown toggle
@@ -1643,16 +1646,26 @@ const formatConvTime = (dateStr) => {
 };
 
 // Fetch all conversations for this agent (for the switcher)
-const fetchConversations = async () => {
+const fetchConversations = async (reset = true) => {
     if (!agent.value.id) return;
     try {
+        if (reset) convPage.value = 1;
         const res = await api.getConversations({
             agent_profile_id: agent.value.id,
-            ordering: '-updated_at'
+            ordering: '-updated_at',
+            page: convPage.value
         });
+        const totalCount = res.data.count || 0;
+        const pageSize = 30;
+        convTotalPages.value = Math.ceil(totalCount / pageSize) || 1;
         if (res.data.results) {
-            // Tag AADML conversations
-            conversations.value = res.data.results.map(c => ({ ...c, _source: 'aadml' }));
+            const tagged = res.data.results.map(c => ({ ...c, _source: 'aadml' }));
+            if (reset) {
+                conversations.value = tagged;
+            } else {
+                const existingIds = new Set(conversations.value.map(c => c.id));
+                conversations.value.push(...tagged.filter(c => !existingIds.has(c.id)));
+            }
         }
     } catch (e) {
         console.error("Failed to fetch conversations", e);
@@ -1780,7 +1793,22 @@ const fetchLastConversation = async () => {
 };
 
 // Switch to a specific conversation
-const switchConversation = async (convId) => {
+const loadMoreConversations = async () => {
+    if (isLoadingMoreConvs.value || convPage.value >= convTotalPages.value) return;
+    isLoadingMoreConvs.value = true;
+    convPage.value++;
+    await fetchConversations(false);
+    isLoadingMoreConvs.value = false;
+  };
+
+  const onConvListScroll = (e) => {
+    const el = e.target;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
+        loadMoreConversations();
+    }
+  };
+
+  const switchConversation = async (convId) => {
     showConvSwitcher.value = false;
     if (convId === activeSessionId.value) return;
 
