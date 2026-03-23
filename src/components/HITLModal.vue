@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Teleport to="body">
     <Transition name="modal-fade">
       <div v-if="currentRequest" class="hitl-overlay" @click.self="handleOverlayClick">
@@ -16,7 +16,7 @@
               <span class="urgency-badge" :class="`urgency-${currentRequest.urgency}`">
                 {{ currentRequest.urgency }}
               </span>
-              <button v-if="currentRequest.response_type === 'none'" @click="dismiss" class="close-btn">×</button>
+              <button v-if="currentRequest.response_type === 'none' || currentRequest.interaction_type === 'credential_setup'" @click="dismiss" class="close-btn">Ã—</button>
             </div>
           </div>
 
@@ -34,11 +34,11 @@
             <div v-if="currentRequest.response_type === 'binary'" class="response-section">
               <div class="button-group">
                 <button @click="respond(true)" class="btn btn-approve">
-                  <span class="btn-icon">✓</span>
+                  <span class="btn-icon">âœ“</span>
                   Approve
                 </button>
                 <button @click="respond(false)" class="btn btn-reject">
-                  <span class="btn-icon">✗</span>
+                  <span class="btn-icon">âœ—</span>
                   Reject
                 </button>
               </div>
@@ -81,7 +81,7 @@
               </button>
             </div>
 
-            <!-- ── Credential Setup (per_item) ──────────────────────────────── -->
+            <!-- â”€â”€ Credential Setup (per_item) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
             <div v-else-if="currentRequest.interaction_type === 'credential_setup'" class="response-section cred-setup">
               <div
                 v-for="svc in credServices"
@@ -95,11 +95,11 @@
                 }"
               >
                 <div class="cred-row-left">
-                  <span class="cred-icon">{{ svc.icon || '🔗' }}</span>
+                  <span class="cred-icon">{{ svc.icon || 'ðŸ”—' }}</span>
                   <div class="cred-info">
                     <span class="cred-name">{{ svc.name }}</span>
                     <span v-if="svc.already_connected" class="cred-status cred-status--ok">Already connected</span>
-                    <span v-else-if="credState[svc.name] === 'connected'" class="cred-status cred-status--ok">✓ Connected</span>
+                    <span v-else-if="credState[svc.name] === 'connected'" class="cred-status cred-status--ok">âœ“ Connected</span>
                     <span v-else-if="credState[svc.name] === 'skipped'" class="cred-status cred-status--skip">Skipped</span>
                     <span v-else-if="credState[svc.name] === 'pending_confirm'" class="cred-status cred-status--pending">Did it work?</span>
                     <span v-else class="cred-reason">{{ svc.reason }}</span>
@@ -114,7 +114,7 @@
                     :disabled="connectingService === svc.name"
                     class="cred-btn cred-btn--reauth-small"
                     title="Re-authorize if this connection isn't working"
-                  >{{ connectingService === svc.name ? 'Opening…' : 'Re-auth' }}</button>
+                  >{{ connectingService === svc.name ? 'Openingâ€¦' : 'Re-auth' }}</button>
                 </div>
 
                 <!-- Not-yet-connected: connect / api-key / skip actions -->
@@ -122,8 +122,8 @@
                   <!-- OAuth -->
                   <template v-if="svc.auth_type === 'oauth2'">
                     <template v-if="credState[svc.name] === 'pending_confirm'">
-                      <button @click="confirmConnected(svc.name)" class="cred-btn cred-btn--confirm">✓ I connected it</button>
-                      <button @click="retryOAuth(svc)" class="cred-btn cred-btn--retry">↺ Retry</button>
+                      <button @click="confirmConnected(svc.name)" class="cred-btn cred-btn--confirm">âœ“ I connected it</button>
+                      <button @click="retryOAuth(svc)" class="cred-btn cred-btn--retry">â†º Retry</button>
                     </template>
                     <button
                       v-else-if="credState[svc.name] !== 'connected' && credState[svc.name] !== 'skipped'"
@@ -131,13 +131,13 @@
                       :disabled="connectingService === svc.name"
                       class="cred-btn cred-btn--connect"
                       :class="{ 'cred-btn--reauth': svc.needs_reauth }"
-                    >{{ connectingService === svc.name ? 'Opening…' : (svc.needs_reauth ? 'Re-authorize' : 'Connect') }}</button>
+                    >{{ connectingService === svc.name ? 'Openingâ€¦' : (svc.needs_reauth ? 'Re-authorize' : 'Connect') }}</button>
                     <button
                       v-else-if="credState[svc.name] === 'connected'"
                       @click="retryOAuth(svc)"
                       class="cred-btn cred-btn--retry-small"
                       title="Re-connect"
-                    >↺</button>
+                    >â†º</button>
                   </template><template v-else>
                     <!-- Existing creds: show as selectable rows, one per unique credential -->
                     <template v-if="svc.existing_creds_available && credState[svc.name] !== 'connected'">
@@ -149,7 +149,7 @@
                           @click="useExistingCred(svc.name, cred.name)"
                         >
                           <span class="picker-cred-name">{{ cred.name }}</span>
-                          <span v-if="cred.is_default" class="picker-badge picker-badge--default">★ Default</span>
+                          <span v-if="cred.is_default" class="picker-badge picker-badge--default">â˜… Default</span>
                           <span v-if="cred.agents?.length" class="picker-badge picker-badge--agent">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
                             {{ cred.agents.join(', ') }}
@@ -171,13 +171,13 @@
                     >Done</button>
                   </template>
 
-                  <!-- Skip × -->
+                  <!-- Skip Ã— -->
                   <button
                     v-if="credState[svc.name] !== 'connected' && credState[svc.name] !== 'skipped'"
                     @click="skipService(svc.name)"
                     class="cred-btn-skip"
                     title="Skip this service"
-                  >×</button>
+                  >Ã—</button>
                 </div>
               </div>
 
@@ -185,7 +185,7 @@
               <div v-if="expandedInstructions" class="instructions-box">
                 <pre>{{ getInstructions(expandedInstructions) }}</pre>
                 <div class="instructions-footer">
-                  💡 To add credentials directly: go to <strong>Settings → Agents → [this agent] → Credentials</strong> and add the API key there, then come back and click <em>Done</em>.
+                  ðŸ’¡ To add credentials directly: go to <strong>Settings â†’ Agents â†’ [this agent] â†’ Credentials</strong> and add the API key there, then come back and click <em>Done</em>.
                 </div>
               </div>
 
@@ -200,7 +200,7 @@
                 :disabled="!allServicesResolved"
                 class="btn btn-submit cred-done-btn"
               >
-                Done — resume agent
+                Done â€” resume agent
               </button>
             </div>
 
@@ -221,7 +221,7 @@
           <div class="modal-footer">
             <div class="footer-left">
               <span v-if="currentRequest.timeout_at" class="timeout-indicator" :class="{'timeout-warning': isNearTimeout}">
-                ⏱ {{ timeRemaining }}
+                â± {{ timeRemaining }}
               </span>
               <span v-if="pendingRequests.length > 1" class="queue-indicator">
                 {{ pendingRequests.length }} pending requests
@@ -294,21 +294,21 @@ const isNearTimeout = computed(() => {
 // Icon mapping
 const getIcon = (type) => {
   const icons = {
-    'approval': '✓',
-    'choice': '☰',
+    'approval': 'âœ“',
+    'choice': 'â˜°',
     'question': '?',
-    'clarification': '💬',
-    'validation': '✓',
-    'review': '👁',
-    'escalation': '⚠',
-    'alert': 'ℹ',
-    'progress': '⏳',
-    'collaboration': '👥',
-    'confirmation': '✓',
-    'preference': '⚙',
-    'credential_setup': '🔑',
+    'clarification': 'ðŸ’¬',
+    'validation': 'âœ“',
+    'review': 'ðŸ‘',
+    'escalation': 'âš ',
+    'alert': 'â„¹',
+    'progress': 'â³',
+    'collaboration': 'ðŸ‘¥',
+    'confirmation': 'âœ“',
+    'preference': 'âš™',
+    'credential_setup': 'ðŸ”‘',
   };
-  return icons[type] || '•';
+  return icons[type] || 'â€¢';
 };
 
 // Title mapping
@@ -359,9 +359,7 @@ const skip = () => {
 const handleOverlayClick = () => {
   // Don't close on overlay click for important requests
   if (currentRequest.value?.urgency === 'critical') return;
-  if (currentRequest.value?.response_type === 'none') {
-    dismiss();
-  }
+  if (currentRequest.value?.response_type === 'none' || currentRequest.value?.interaction_type === 'credential_setup') { dismiss(); }
 };
 
 // Timer for countdown
@@ -376,9 +374,9 @@ onUnmounted(() => {
   if (intervalId) clearInterval(intervalId);
 });
 
-// ── Credential Setup State ───────────────────────────────────────────────────
+// â”€â”€ Credential Setup State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// All services from payload — include both needs-setup and already-connected
+// All services from payload â€” include both needs-setup and already-connected
 const credServices = computed(() => {
   return currentRequest.value?.services ||
     currentRequest.value?.payload?.services || [];
@@ -430,7 +428,7 @@ const openOAuthPopup = async (svc) => {
     if (!popup || popup.closed) {
       clearInterval(poll);
       connectingService.value = null;
-      // Don't auto-mark connected — wait for explicit confirmation
+      // Don't auto-mark connected â€” wait for explicit confirmation
       if (credState.value[svc.name] !== 'connected') {
         credState.value = { ...credState.value, [svc.name]: 'pending_confirm' };
       }
@@ -898,7 +896,7 @@ watch(currentRequest, () => {
   opacity: 0;
 }
 
-/* ── Credential Setup ─── */
+/* â”€â”€ Credential Setup â”€â”€â”€ */
 .hitl-modal.type-credential_setup {
   max-width: 680px;
 }
@@ -1206,7 +1204,7 @@ watch(currentRequest, () => {
   margin-left: 2px;
 }
 
-/* Credential chip row — matches admin AgentCredential list style */
+/* Credential chip row â€” matches admin AgentCredential list style */
 .existing-cred-label {
   display: inline-flex;
   align-items: center;
@@ -1221,7 +1219,7 @@ watch(currentRequest, () => {
   white-space: nowrap;
 }
 
-/* "★ Default" accent badge inside the chip */
+/* "â˜… Default" accent badge inside the chip */
 .existing-cred-default {
   font-size: 10px;
   font-weight: 600;
@@ -1239,7 +1237,7 @@ watch(currentRequest, () => {
   border: 1px solid #c4b5fd;
 }
 
-/* Credential picker — replaces single Use Existing button */
+/* Credential picker â€” replaces single Use Existing button */
 .cred-picker {
   display: flex;
   flex-direction: column;

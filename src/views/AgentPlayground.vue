@@ -1,4 +1,4 @@
-<template>
+﻿<template>
     <div class="agent-playground h-full flex flex-col bg-gray-100 overflow-hidden">
 
         <!-- Top Bar: Agent Info -->
@@ -6,7 +6,7 @@
             class="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-3 md:px-4 shrink-0 shadow-sm z-10">
             <div class="flex items-center gap-2 sm:gap-4 min-w-0">
                 <button @click="$router.push('/agents')" class="text-gray-500 hover:text-gray-700 flex-shrink-0 p-1.5 sm:p-0">
-                    <span class="hidden sm:inline">← Back</span>
+                    <span class="hidden sm:inline">â† Back</span>
                     <svg class="w-5 h-5 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
                 </button>
                 <div class="h-6 w-px bg-gray-200 hidden sm:block"></div>
@@ -20,7 +20,7 @@
                 <button v-if="agent.id && isOwner" @click="toggleWorkspace"
                     class="h-9 px-3 rounded-lg border transition-all flex items-center gap-2 group text-xs font-semibold"
                     :class="showWorkspace ? 'bg-blue-50 border-blue-200 text-blue-600' : wsRouting?.routed ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'"
-                    :title="wsRouting?.routed ? `Routed → ${wsRouting.workspace.workspace_name}` : 'Workspace'">
+                    :title="wsRouting?.routed ? `Routed â†’ ${wsRouting.workspace.workspace_name}` : 'Workspace'">
                     <svg class="w-4 h-4 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -74,7 +74,7 @@
                 @click.self="showCredentials = false">
                 <div class="h-full w-full sm:w-[500px] bg-white shadow-2xl animate-in slide-in-from-right duration-200 flex flex-col">
                     <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 shrink-0">
-                        <h2 class="text-base font-bold text-gray-800">🔑 Credentials</h2>
+                        <h2 class="text-base font-bold text-gray-800">ðŸ”‘ Credentials</h2>
                         <button @click="showCredentials = false" class="p-1.5 hover:bg-gray-100 rounded text-gray-500 transition">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
@@ -126,14 +126,14 @@
                             </div>
                             <p class="text-xs text-green-700 leading-relaxed">
                                 Tools execute on <strong>{{ wsRouting.workspace.workspace_name }}</strong>
-                                <span v-if="wsRouting.workspace.workspace_path"> · {{ wsRouting.workspace.workspace_path }}</span>
-                                <span v-if="wsRouting.workspace.agent_version"> · v{{ wsRouting.workspace.agent_version }}</span>
+                                <span v-if="wsRouting.workspace.workspace_path"> Â· {{ wsRouting.workspace.workspace_path }}</span>
+                                <span v-if="wsRouting.workspace.agent_version"> Â· v{{ wsRouting.workspace.agent_version }}</span>
                             </p>
                         </div>
                         <!-- Antigravity Status Badge (always visible when workspace is routed) -->
                         <div v-if="wsRouting?.routed" class="mx-3 mt-2 p-2.5 rounded-lg" :class="cascadeStatus?.available ? 'bg-purple-50 border border-purple-200' : 'bg-gray-50 border border-gray-200'">
                             <div class="flex items-center gap-2">
-                                <span class="text-sm">✨</span>
+                                <span class="text-sm">âœ¨</span>
                                 <span class="text-xs font-semibold" :class="cascadeStatus?.available ? 'text-purple-800' : 'text-gray-500'">Antigravity</span>
                                 <span v-if="cascadeStatus?.available" class="ml-auto text-[10px] text-purple-500 font-mono">port:{{ cascadeStatus.ls_port }}</span>
                                 <span v-else class="ml-auto flex items-center gap-1">
@@ -175,7 +175,7 @@
                                 <button @click="wsBulkDelete" :disabled="!wsSelectedPaths.size"
                                     class="text-xs px-2 py-1 rounded transition"
                                     :class="wsSelectedPaths.size ? 'bg-red-100 hover:bg-red-200 text-red-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'">
-                                    🗑️ Delete ({{ wsSelectedPaths.size }})
+                                    ðŸ—‘ï¸ Delete ({{ wsSelectedPaths.size }})
                                 </button>
                                 <button @click="wsSelectionMode = false; wsSelectedPaths = new Set()"
                                     class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition">
@@ -325,7 +325,7 @@
                                 class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-purple-50 border-b border-gray-100 font-medium"
                                 :class="cascadeStatus?.available ? 'text-purple-600' : 'text-gray-400 cursor-not-allowed'"
                                 :disabled="!cascadeStatus?.available">
-                                <span class="text-sm">✨</span>
+                                <span class="text-sm">âœ¨</span>
                                 New AG Session
                                 <span v-if="!cascadeStatus?.available" class="text-[10px] text-gray-400 ml-auto">(not connected)</span>
                             </button>
@@ -337,7 +337,7 @@
                                     <button @click="switchConversation(conv.id)" class="flex-1 text-left min-w-0">
                                         <div class="flex items-center justify-between">
                                             <span class="text-sm font-medium text-gray-800 truncate max-w-[160px] flex items-center gap-1">
-                                                <span v-if="conv._source === 'cascade'" title="Antigravity">✨</span>
+                                                <span v-if="conv._source === 'cascade'" title="Antigravity">âœ¨</span>
                                                 {{ conv.title || 'Untitled' }}
                                             </span>
                                             <span class="text-[10px] text-gray-400 flex-shrink-0 ml-2">
@@ -378,8 +378,8 @@
                     <!-- Main Mobile Tabs (Only in Chat Mode) -->
                     <div v-else class="flex items-center gap-1.5 overflow-x-auto scrollbar-hide flex-1">
                         <button v-for="tab in [
-                            { id: 'knowledge', icon: '📚', label: 'Context' },
-                            { id: 'automation', icon: '⚡', label: 'Auto' }
+                            { id: 'knowledge', icon: 'ðŸ“š', label: 'Context' },
+                            { id: 'automation', icon: 'âš¡', label: 'Auto' }
                         ]" :key="tab.id" @click="activeTab = tab.id"
                             class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
                             <span class="text-xs">{{ tab.icon }}</span>
@@ -401,7 +401,7 @@
                     class="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center">
                     <SessionTrace v-if="activeSessionId" :session-id="activeSessionId" class="w-full h-full" />
                     <div v-else class="text-gray-400">
-                        <div class="text-4xl mb-2 text-center">🔍</div>
+                        <div class="text-4xl mb-2 text-center">ðŸ”</div>
                         <p>Start a session to view trace details.</p>
                     </div>
                 </div>
@@ -410,7 +410,7 @@
                 <div v-if="activeTab === 'tools'" class="flex-1 min-h-0 overflow-y-auto flex flex-col">
                     <ToolsPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
                     <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
-                        <div class="text-5xl mb-3">🔧</div>
+                        <div class="text-5xl mb-3">ðŸ”§</div>
                         <p class="text-lg font-medium">Tools Operations Panel</p>
                         <p class="text-sm mt-1">Save the agent to access tool management features</p>
                     </div>
@@ -420,7 +420,7 @@
                 <div v-if="activeTab === 'automation'" class="flex-1 min-h-0 overflow-y-auto flex flex-col">
                     <AutomationPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
                     <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
-                        <div class="text-5xl mb-3">⚡</div>
+                        <div class="text-5xl mb-3">âš¡</div>
                         <p class="text-lg font-medium">Automation Panel</p>
                         <p class="text-sm mt-1">Save the agent to access workflows & scheduling</p>
                     </div>
@@ -447,7 +447,7 @@
 
                         <div v-else-if="chatEvents.length === 0 && !isTyping"
                             class="flex flex-col items-center justify-center h-full text-gray-400">
-                            <div class="text-5xl mb-3">✨</div>
+                            <div class="text-5xl mb-3">âœ¨</div>
                             <p class="text-lg font-medium">Agent {{ agent.name }} is ready</p>
                             <p class="text-sm mt-1 text-gray-400">Start a conversation below</p>
                         </div>
@@ -580,8 +580,8 @@
                                         class="w-full flex items-start gap-4 text-left hover:bg-indigo-50/60 transition-colors rounded p-2 -m-2">
                                         <div
                                             class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
-                                            <span v-if="event.collapsed">🧠</span>
-                                            <span v-else>✓</span>
+                                            <span v-if="event.collapsed">ðŸ§ </span>
+                                            <span v-else>âœ“</span>
                                         </div>
                                         <div class="flex-1 pt-1 min-w-0">
                                             <div
@@ -627,7 +627,7 @@
                                         class="w-full flex items-start gap-2 sm:gap-4 text-left hover:bg-blue-50/60 transition-colors rounded p-2 -m-2">
                                         <div
                                             class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
-                                            📋
+                                            ðŸ“‹
                                         </div>
                                         <div class="flex-1 pt-1 min-w-0">
                                             <div
@@ -693,7 +693,7 @@
                                     <div class="flex items-start gap-2 sm:gap-4">
                                         <div
                                             class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
-                                            🛠️
+                                            ðŸ› ï¸
                                         </div>
                                         <div class="flex-1 pt-1 min-w-0">
                                             <div class="text-xs sm:text-sm font-semibold text-amber-900 mb-1 break-words">Using Tool: {{
@@ -722,7 +722,7 @@
                                     <div class="flex items-start gap-2 sm:gap-4">
                                         <div
                                             class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
-                                            📄
+                                            ðŸ“„
                                         </div>
                                         <div class="flex-1 pt-1 min-w-0">
                                             <div class="text-xs sm:text-sm font-semibold text-purple-900 mb-1 break-words">Tool Result: {{
@@ -766,7 +766,7 @@
                                     <div class="flex items-start gap-2 sm:gap-4">
                                         <div
                                             class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-purple-400 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
-                                            💭
+                                            ðŸ’­
                                         </div>
                                         <div class="flex-1 pt-1 text-xs sm:text-sm text-purple-700 min-w-0 break-words">
                                             {{ event.content }}
@@ -781,7 +781,7 @@
                                     <div class="flex items-start gap-2 sm:gap-4">
                                         <div
                                             class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
-                                            ❌
+                                            âŒ
                                         </div>
                                         <div class="flex-1 pt-1 min-w-0">
                                             <div class="text-xs sm:text-sm font-semibold text-red-900 mb-1">Error</div>
@@ -967,7 +967,7 @@
                             <!-- AI Analysis -->
                             <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-4">
                                 <h3 class="text-sm font-bold text-indigo-800 mb-2 flex items-center gap-2">
-                                    🤖 AI Analysis
+                                    ðŸ¤– AI Analysis
                                     <span v-if="analyzingDoc"
                                         class="text-xs font-normal text-indigo-500">(Generating...)</span>
                                 </h3>
@@ -981,11 +981,11 @@
                                     <div class="flex gap-2">
                                         <button @click="startChatWithContext"
                                             class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition">
-                                            💬 Chat with Context
+                                            ðŸ’¬ Chat with Context
                                         </button>
                                         <button @click="analyzeCurrentDoc"
                                             class="px-3 py-1 bg-indigo-100 text-indigo-700 rounded text-sm hover:bg-indigo-200 transition">
-                                            ↻ Re-Analyze
+                                            â†» Re-Analyze
                                         </button>
                                     </div>
                                 </div>
@@ -993,7 +993,7 @@
                                     <span class="text-sm text-gray-500 italic">No analysis generated yet.</span>
                                     <button @click="analyzeCurrentDoc"
                                         class="px-4 py-2 bg-indigo-600 text-white rounded shadow text-sm hover:bg-indigo-700 transition">
-                                        ⚡ Run AI Analysis
+                                        âš¡ Run AI Analysis
                                     </button>
                                 </div>
                             </div>
@@ -1076,11 +1076,11 @@ const tabClass = (tabId) => activeTab.value === tabId
 
 // Mobile tab items with icons and short labels
 const mobileTabItems = [
-    { id: 'chat', icon: '💬', shortLabel: 'Chat' },
-    { id: 'knowledge', icon: '📚', shortLabel: 'Knowledge' },
-    { id: 'trace', icon: '🔍', shortLabel: 'Trace' },
-    { id: 'tools', icon: '🔧', shortLabel: 'Tools' },
-    { id: 'automation', icon: '⚡', shortLabel: 'Auto' },
+    { id: 'chat', icon: 'ðŸ’¬', shortLabel: 'Chat' },
+    { id: 'knowledge', icon: 'ðŸ“š', shortLabel: 'Knowledge' },
+    { id: 'trace', icon: 'ðŸ”', shortLabel: 'Trace' },
+    { id: 'tools', icon: 'ðŸ”§', shortLabel: 'Tools' },
+    { id: 'automation', icon: 'âš¡', shortLabel: 'Auto' },
 ];
 
 const showBuilder = ref(false); // Default to false (modal hidden)
@@ -1152,7 +1152,7 @@ const loadWorkspace = async () => {
         // If routing is active, fetch remote files from workspace agent
         if (wsRouting.value?.routed) {
             const wsId = wsRouting.value.workspace.workspace_id;
-            // Cross-platform Python one-liner — works on Windows and Linux
+            // Cross-platform Python one-liner â€” works on Windows and Linux
             const pyCmd = `python -c "import os,json;print(json.dumps([{'name':e,'type':'directory' if os.path.isdir(e) else 'file','size':os.path.getsize(e) if os.path.isfile(e) else 0} for e in sorted(os.listdir('.'))]))"`;
             const { data } = await api.executeWorkspaceCommand(wsId, pyCmd, 10);
             if (data.success && data.output) {
@@ -1176,12 +1176,12 @@ const loadWorkspace = async () => {
 };
 
 /**
- * Parse remote file listing — expects JSON array from Python one-liner.
+ * Parse remote file listing â€” expects JSON array from Python one-liner.
  * Fallback: tries line-by-line parsing for non-JSON output.
  */
 const parseRemoteListing = (output) => {
     if (!output || typeof output !== 'string') return [];
-    // The output may have a command echo prefix — find the JSON array
+    // The output may have a command echo prefix â€” find the JSON array
     const jsonStart = output.indexOf('[');
     const jsonEnd = output.lastIndexOf(']');
     if (jsonStart !== -1 && jsonEnd !== -1) {
@@ -1349,15 +1349,15 @@ const formatFileSize = (bytes) => {
 const getFileIcon = (filename) => {
     const ext = filename.split('.').pop()?.toLowerCase() || '';
     const icons = {
-        pdf: '📄', docx: '📝', doc: '📝', xlsx: '📊', xls: '📊', csv: '📊',
-        json: '🔧', yaml: '🔧', yml: '🔧', toml: '🔧', xml: '🔧',
-        py: '🐍', js: '📜', ts: '📜', jsx: '📜', tsx: '📜', vue: '📜',
-        html: '🌐', css: '🎨', scss: '🎨',
-        md: '📖', txt: '📃', log: '📃',
-        sql: '🗃️', sh: '⚙️', bat: '⚙️', ps1: '⚙️',
-        go: '📜', rs: '📜', java: '📜', c: '📜', cpp: '📜', h: '📜', rb: '📜', php: '📜'
+        pdf: 'ðŸ“„', docx: 'ðŸ“', doc: 'ðŸ“', xlsx: 'ðŸ“Š', xls: 'ðŸ“Š', csv: 'ðŸ“Š',
+        json: 'ðŸ”§', yaml: 'ðŸ”§', yml: 'ðŸ”§', toml: 'ðŸ”§', xml: 'ðŸ”§',
+        py: 'ðŸ', js: 'ðŸ“œ', ts: 'ðŸ“œ', jsx: 'ðŸ“œ', tsx: 'ðŸ“œ', vue: 'ðŸ“œ',
+        html: 'ðŸŒ', css: 'ðŸŽ¨', scss: 'ðŸŽ¨',
+        md: 'ðŸ“–', txt: 'ðŸ“ƒ', log: 'ðŸ“ƒ',
+        sql: 'ðŸ—ƒï¸', sh: 'âš™ï¸', bat: 'âš™ï¸', ps1: 'âš™ï¸',
+        go: 'ðŸ“œ', rs: 'ðŸ“œ', java: 'ðŸ“œ', c: 'ðŸ“œ', cpp: 'ðŸ“œ', h: 'ðŸ“œ', rb: 'ðŸ“œ', php: 'ðŸ“œ'
     };
-    return icons[ext] || '📎';
+    return icons[ext] || 'ðŸ“Ž';
 };
 
 const uploadPendingFiles = async () => {
@@ -1681,13 +1681,13 @@ const fetchCascadeSessions = async () => {
             const aadmlConvs = conversations.value.filter(c => c._source !== 'cascade');
             conversations.value = [...aadmlConvs, ...cascadeSessions.value]
                 .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-            // Sessions loaded → AG is definitely available, refresh status
+            // Sessions loaded â†’ AG is definitely available, refresh status
             if (!cascadeStatus.value?.available) {
                 fetchCascadeStatus();
             }
         }
     } catch (e) {
-        // Cascade not available — that's fine
+        // Cascade not available â€” that's fine
         console.debug('Cascade sessions unavailable:', e.message);
     }
 };
@@ -1863,13 +1863,13 @@ const loadCascadeSteps = async (cascadeId, wsId) => {
             });
         }
     } catch (e) {
-        chatEvents.value.push({ id: Date.now(), type: 'assistant', content: `⚠️ Failed to load cascade steps: ${e.message}` });
+        chatEvents.value.push({ id: Date.now(), type: 'assistant', content: `âš ï¸ Failed to load cascade steps: ${e.message}` });
     }
 };
 
 // Map AG step type to chat event type
 const mapStepType = (stepType) => {
-    // Only 'user' and 'assistant' are safe — the chat feed has no template for other types
+    // Only 'user' and 'assistant' are safe â€” the chat feed has no template for other types
     if (stepType === 'CORTEX_STEP_TYPE_USER_INPUT') return 'user';
     return 'assistant'; // Everything else renders as assistant message
 };
@@ -1956,7 +1956,7 @@ const createNewCascadeSession = async () => {
             await fetchConversations();
         }
     } catch (err) {
-        chatEvents.value.push({ id: Date.now(), type: 'assistant', content: `⚠️ Failed: ${err.message}` });
+        chatEvents.value.push({ id: Date.now(), type: 'assistant', content: `âš ï¸ Failed: ${err.message}` });
         isProcessing.value = false;
     }
 };
@@ -2199,7 +2199,7 @@ const unescapeHTML = (str) => {
 const parseWireframe = (text) => {
     // Clean box drawing characters
     const cleanLines = text.split('\n')
-        .map(line => line.replace(/[┌┐└┘├┤─│•]/g, '').trim())
+        .map(line => line.replace(/[â”Œâ”â””â”˜â”œâ”¤â”€â”‚â€¢]/g, '').trim())
         .filter(line => line.length > 0);
 
     const data = {
@@ -2327,7 +2327,7 @@ const renderWireframeUI = (text) => {
 renderer.code = function ({ text, lang }) {
     const language = lang?.toLowerCase() || 'plaintext';
     
-    // Wireframe Detection — only for explicitly tagged blocks
+    // Wireframe Detection â€” only for explicitly tagged blocks
     const isWireframe = language === 'wireframe';
     
     if (isWireframe) {
@@ -2391,7 +2391,7 @@ const postProcessHtml = (html) => {
     // 2. Identify "Success" messages and wrap them
     processed = processed.replace(
         /<p>(Task Completed Successfully|Success|Completed):?.*?<\/p>/gi,
-        '<div class="success-banner my-4 p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl flex items-center gap-3 font-bold text-sm"><span>✅</span>$0</div>'
+        '<div class="success-banner my-4 p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl flex items-center gap-3 font-bold text-sm"><span>âœ…</span>$0</div>'
     );
 
     // 3. Pattern: Detect prominent video generation prompts
@@ -2535,7 +2535,7 @@ const connectWebSocket = (repoId) => {
                     event._nextRenderAt = now + 400;
                     requestAnimationFrame(() => {
                         event.renderedHtml = formatMarkdown(event.content);
-                        // Inline scroll — avoids nextTick() overhead
+                        // Inline scroll â€” avoids nextTick() overhead
                         if (feed.value) {
                             const c = feed.value;
                             if (c.scrollHeight - c.scrollTop - c.clientHeight < 150) {
@@ -2555,7 +2555,7 @@ const connectWebSocket = (repoId) => {
                     data
                 });
             }
-            // Don't scrollToBottom() on every chunk — handled by the throttled rAF above
+            // Don't scrollToBottom() on every chunk â€” handled by the throttled rAF above
         } else if (data.type === 'assistant_message_complete') {
             // Check ignore flag before finalizing
             if (ignoringMessages.value) {
@@ -2682,7 +2682,7 @@ const connectWebSocket = (repoId) => {
             const lastEvent = chatEvents.value.findLast(e => e.type === 'assistant');
             if (lastEvent && lastEvent.streaming) {
                 lastEvent._nextRenderAt = null;
-                lastEvent.content += '\n\n⏹️ _Stopped by user._';
+                lastEvent.content += '\n\nâ¹ï¸ _Stopped by user._';
                 lastEvent.streaming = false;
                 lastEvent.renderedHtml = formatMarkdown(lastEvent.content);
             }
@@ -2827,14 +2827,14 @@ const connectWebSocket = (repoId) => {
                 interaction_type: data.interaction_type,
                 response_type: data.response_type,
                 summary: data.summary,
-                services: data.services || [],          // ← credential_setup rows
+                services: data.services || [],          // â† credential_setup rows
                 payload: data.payload || {},
                 options: data.options || [],
                 urgency: data.urgency || 'medium',
                 timeout_at: data.timeout_at || null
             });
         } else if (data.type === 'hitl_response_ack') {
-            // HITL: backend acknowledged our response — remove from queue
+            // HITL: backend acknowledged our response â€” remove from queue
             console.log('[HITL] Response acknowledged:', data.request_id);
             hitlRequests.value = hitlRequests.value.filter(
                 r => r.request_id !== data.request_id
@@ -2878,10 +2878,10 @@ const connectWebSocket = (repoId) => {
     };
 };
 
-// ── HITL Handlers ──
+// â”€â”€ HITL Handlers â”€â”€
 const handleHitlRespond = ({ request_id, response_value, feedback }) => {
     if (!ws.value || ws.value.readyState !== WebSocket.OPEN) {
-        console.error('[HITL] Cannot send response — WebSocket not connected');
+        console.error('[HITL] Cannot send response â€” WebSocket not connected');
         return;
     }
     console.log('[HITL] Sending response for', request_id);
@@ -3008,7 +3008,7 @@ const sendMessage = async () => {
         const cascadeId = activeSessionId.value.replace('cascade:', '');
         const wsId = wsRouting.value?.workspace?.workspace_id;
         if (!wsId) {
-            chatEvents.value.push({ id: Date.now(), type: 'assistant', content: '⚠️ Workspace not connected' });
+            chatEvents.value.push({ id: Date.now(), type: 'assistant', content: 'âš ï¸ Workspace not connected' });
             isProcessing.value = false;
             return;
         }
@@ -3021,7 +3021,7 @@ const sendMessage = async () => {
             // Poll for steps
             pollCascadeSteps(cascadeId, wsId);
         } catch (err) {
-            chatEvents.value.push({ id: Date.now(), type: 'assistant', content: `⚠️ Cascade send failed: ${err.message}` });
+            chatEvents.value.push({ id: Date.now(), type: 'assistant', content: `âš ï¸ Cascade send failed: ${err.message}` });
             isProcessing.value = false;
             isAgentSessionActive.value = false;
         }
@@ -3227,7 +3227,7 @@ watch(
     }
 );
 
-// ── Streaming auto-scroll ──
+// â”€â”€ Streaming auto-scroll â”€â”€
 // Auto-scrolls smoothly during streaming.
 // If the user manually scrolls, pauses for 2 seconds then auto-resumes.
 
@@ -3235,7 +3235,7 @@ let streamScrollRafId = null;
 let streamScrollFrame = 0;
 let lastUserScrollTime = 0;
 const STREAM_SCROLL_PAUSE_MS = 2000;  // resume 2s after last manual scroll
-const SCROLL_THROTTLE_FRAMES = 8;     // run every 8 frames (~7fps) — smooth feel
+const SCROLL_THROTTLE_FRAMES = 8;     // run every 8 frames (~7fps) â€” smooth feel
 
 const handleFeedScroll = () => {
     if (!isProcessing.value) return;
@@ -3244,7 +3244,7 @@ const handleFeedScroll = () => {
 
 const startStreamScroll = () => {
     streamScrollFrame = 0;
-    lastUserScrollTime = 0; // fresh start — immediately scroll on new message
+    lastUserScrollTime = 0; // fresh start â€” immediately scroll on new message
     const loop = () => {
         if (!isProcessing.value) {
             streamScrollRafId = null;
@@ -3575,7 +3575,7 @@ kbd {
     word-wrap: break-word;
 }
 
-/* Table scroll wrapper — only the table scrolls, not the whole message */
+/* Table scroll wrapper â€” only the table scrolls, not the whole message */
 :deep(.table-scroll-wrapper) {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -3624,7 +3624,7 @@ kbd {
     overflow-x: hidden;
 }
 
-/* Text wrapping for prose content — avoid break-all which breaks mid-word */
+/* Text wrapping for prose content â€” avoid break-all which breaks mid-word */
 :deep(.prose p),
 :deep(.prose li),
 :deep(.prose h1),
