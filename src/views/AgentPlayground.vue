@@ -423,7 +423,7 @@
                 <!-- Chat Interface (Always Active) -->
                 <div v-if="activeTab === 'chat'" class="flex-1 flex flex-col overflow-hidden w-full bg-white">
                     <!-- Feed -->
-                    <div class="flex-1 overflow-y-auto overflow-x-hidden pb-36 md:pb-32 bg-white" ref="feed" @scroll="handleScroll">
+                    <div class="flex-1 overflow-y-auto overflow-x-hidden pb-52 md:pb-32 bg-white" ref="feed" @scroll="handleScroll">
                         <!-- Restoring Session Indicator -->
                         <div v-if="isRestoring"
                             class="flex flex-col items-center justify-center h-full text-blue-600">
@@ -879,7 +879,7 @@
 
                     <!-- Input (Glassmorphism Design) -->
                     <div
-                        class="absolute bottom-0 left-0 right-0 bg-white/60 backdrop-blur-xl border-t border-white/20 pt-6 pb-4">
+                        class="absolute bottom-14 md:bottom-0 left-0 right-0 bg-white/60 backdrop-blur-xl border-t border-white/20 pt-6 pb-4 md:pb-4">
                         <div class="max-w-5xl mx-auto px-4">
                             <!-- Input Container -->
                             <div class="relative group">
@@ -2075,26 +2075,17 @@ onMounted(async () => {
         checkWorkspaceRouting(); // Check routing status for toolbar indicator
         fetchCascadeStatus(); // Check Antigravity connection for cascade features
 
-        // Check for interrupted session FIRST
-        const savedSessionId = localStorage.getItem('agent_active_session_id');
-        if (savedSessionId) {
-            console.log(`[Restore] Found active session: ${savedSessionId}`);
-            await restoreSession(savedSessionId);
+        // Session restoration disabled — was causing "unknown message subscribe" errors
+        // and always failing to reconnect dead sessions
+        // TODO: Re-enable when backend supports WS subscribe message type
+        localStorage.removeItem('agent_active_session_id');
 
-            // Reconnect WebSocket after restoring session
-            const repoId = selectedContext.value.repo || '0';
-            connectWebSocket(repoId);
+        // Fetch last conversation normally
+        await fetchLastConversation();
 
-            // Also load conversations list for switcher
-            await fetchConversations();
-        } else {
-            // No interrupted session, fetch last conversation normally
-            await fetchLastConversation();
-
-            // Auto-init chat session if none exists
-            if (!activeSessionId.value && agent.value.id) {
-                await initChatSession();
-            }
+        // Auto-init chat session if none exists
+        if (!activeSessionId.value && agent.value.id) {
+            await initChatSession();
         }
     } else {
         await fetchContextData();
@@ -2541,14 +2532,10 @@ const connectWebSocket = (repoId) => {
         console.log('[Playground] WS Connected');
         reconnectAttempts.value = 0; // Reset on successful connection
 
-        // If we have an active session, subscribe to it
-        if (activeSessionId.value && isAgentSessionActive.value) {
-            console.log('[Playground] Subscribing to active session:', activeSessionId.value);
-            ws.value.send(JSON.stringify({
-                type: 'subscribe',
-                conversation_id: activeSessionId.value
-            }));
-        }
+        // Subscribe disabled — backend doesn't handle 'subscribe' message type
+        // if (activeSessionId.value && isAgentSessionActive.value) {
+        //     ws.value.send(JSON.stringify({ type: 'subscribe', conversation_id: activeSessionId.value }));
+        // }
     };
 
     ws.value.onmessage = (event) => {
