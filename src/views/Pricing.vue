@@ -107,100 +107,99 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useMeta } from '../composables/useMeta'
+import api from '../services/api'
 
-// --- 1. PRESERVED LOGIC (Prices & Data) ---
-const plans = ref([
+useMeta({
+  title: 'Pricing — AADML',
+  description: 'Simple, transparent pricing for AI agent automation. Start free.',
+})
+
+const billingCycle = ref('monthly')
+const isYearly = computed(() => billingCycle.value === 'yearly')
+
+// Static fallback plans
+const staticPlans = [
   {
-    name: 'Starter',
-    price: 0,
-    period: 'month',
+    name: 'Starter', price: 0, yearlyPrice: 0, period: 'month',
     description: 'Perfect for individual developers exploring AI agents',
-    cta: 'Start Free',
-    featured: false,
-    features: [
-      '1 active system',
-      '10 AI agent sessions/month',
-      'Access to 20+ built-in tools',
-      'Community support',
-      'Local LLM support (Ollama)'
-    ]
+    cta: 'Start Free', featured: false,
+    features: ['2 agents', '1 workspace', 'Access to built-in tools', 'Community support', 'Local LLM support (Ollama)']
   },
   {
-    name: 'Professional',
-    price: 49,
-    period: 'month',
+    name: 'Professional', price: 49, yearlyPrice: 39, period: 'month',
     description: 'For teams ready to scale their development',
-    cta: 'Start Free Trial',
-    featured: true,
-    features: [
-      'Unlimited systems',
-      'Unlimited AI agent sessions',
-      'Access to 50+ built-in tools',
-      'Priority email support',
-      'Cloud LLM integration (Claude, GPT)',
-      'Custom tool development',
-      'Advanced analytics',
-      'GitHub integration'
-    ]
+    cta: 'Start Free Trial', featured: true,
+    features: ['20 agents', '10 workspaces', '50 schedules', '140+ tools', 'Signals & webhooks',
+               'Dream pipeline', 'MCP servers', 'Priority support']
   },
   {
-    name: 'Team',
-    price: 199,
-    period: 'month',
-    description: 'Advanced features for growing development teams',
-    cta: 'Start Free Trial',
-    featured: false,
-    features: [
-      'Everything in Professional',
-      'Up to 10 team members',
-      'Role-based access control',
-      'Shared workspaces',
-      'Team analytics dashboard',
-      'SSO integration',
-      'Priority chat support',
-      'Training sessions'
-    ]
+    name: 'Team', price: 199, yearlyPrice: 166, period: 'month',
+    description: 'Advanced features for growing teams',
+    cta: 'Start Free Trial', featured: false,
+    features: ['Unlimited agents', 'Unlimited workspaces', 'Unlimited schedules',
+               'Everything in Pro', 'SSO integration', 'Audit log export', 'Priority support']
   }
-])
+]
+
+const plans = ref(staticPlans)
+
+// Try to fetch from API
+onMounted(async () => {
+  try {
+    const { data } = await api.get('/plans/')
+    if (data.plans && data.plans.length > 0) {
+      plans.value = data.plans.map((p, i) => ({
+        name: p.name,
+        price: Number(p.price_monthly_usd),
+        yearlyPrice: p.price_yearly_usd ? Math.round(Number(p.price_yearly_usd) / 12) : 0,
+        period: 'month',
+        description: p.description || staticPlans[i]?.description || '',
+        cta: p.tier === 'free' ? 'Start Free' : 'Start Free Trial',
+        featured: p.tier === 'pro',
+        features: buildFeatureList(p),
+      }))
+    }
+  } catch (e) {
+    console.debug('Pricing: using static fallback', e.message)
+  }
+})
+
+function buildFeatureList(plan) {
+  const features = []
+  if (plan.max_agents !== null) features.push(`${plan.max_agents} agents`)
+  else features.push('Unlimited agents')
+  if (plan.max_workspaces !== null) features.push(`${plan.max_workspaces} workspaces`)
+  else features.push('Unlimited workspaces')
+  if (plan.max_schedules !== null && plan.max_schedules > 0) features.push(`${plan.max_schedules} schedules`)
+  else if (plan.max_schedules === null) features.push('Unlimited schedules')
+  if (plan.max_members !== null) features.push(`${plan.max_members} team members`)
+  else features.push('Unlimited members')
+  if (plan.features?.dream) features.push('Dream pipeline')
+  if (plan.features?.signals) features.push('Signals & webhooks')
+  if (plan.features?.sso) features.push('SSO integration')
+  return features
+}
+
+const displayPrice = (plan) => {
+  return isYearly.value ? (plan.yearlyPrice || plan.price) : plan.price
+}
 
 const faqs = ref([
-  {
-    question: 'Can I change plans later?',
-    answer: 'Yes! You can upgrade or downgrade your plan at any time. Changes take effect immediately and we\'ll prorate your billing accordingly.'
-  },
-  {
-    question: 'What LLMs do you support?',
-    answer: 'We support local models via Ollama, and cloud providers including Claude (Anthropic), GPT (OpenAI), and custom API endpoints.'
-  },
-  {
-    question: 'Is there a free trial?',
-    answer: 'Yes, all paid plans come with a 14-day free trial. No credit card required to start.'
-  },
-  {
-    question: 'What happens if I exceed my usage limits?',
-    answer: 'For the Starter plan, sessions will be paused until the next billing cycle. Paid plans have no hard limits—we\'ll contact you to discuss upgrading if needed.'
-  },
-  {
-    question: 'Do you offer refunds?',
-    answer: 'Yes, we offer a 30-day money-back guarantee for all paid plans. If you\'re not satisfied, contact us for a full refund.'
-  },
-  {
-    question: 'Can I use my own LLM API keys?',
-    answer: 'Absolutely! You can bring your own API keys for Claude, GPT, or any compatible LLM provider.'
-  }
+  { question: 'Can I change plans later?', answer: 'Yes! You can upgrade or downgrade at any time. Changes take effect immediately.' },
+  { question: 'What LLMs do you support?', answer: 'Local models via Ollama, and cloud providers including OpenRouter (100+ models), OpenAI, Anthropic, and xAI.' },
+  { question: 'Is there a free trial?', answer: 'Yes, all paid plans come with a 14-day free trial. No credit card required.' },
+  { question: 'What happens if I exceed limits?', answer: 'Free plan pauses until next cycle. Paid plans have soft limits — we\'ll notify you to upgrade.' },
+  { question: 'Can I use my own LLM API keys?', answer: 'Absolutely! Bring your own keys for any supported provider.' },
 ])
 
-// --- 2. NEW UX LOGIC (Accordion) ---
 const activeFaq = ref(null)
 
 const toggleFaq = (index) => {
-  if (activeFaq.value === index) {
-    activeFaq.value = null
-  } else {
-    activeFaq.value = index
-  }
+  activeFaq.value = activeFaq.value === index ? null : index
 }
+
 </script>
 
 <style scoped>

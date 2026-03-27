@@ -9,8 +9,8 @@
             <span class="gradient-text">Automate Everything</span>
           </h1>
           <p class="hero-subtitle">
-            AADML is an AI Agent Development & Management Layer. Orchestrate autonomous agents
-            with 50+ tools, multi-LLM routing, event-driven signals, and enterprise-grade workspace management.
+            AADML is a full-stack AI agent platform. 140+ built-in tools, 6 LLM providers,
+            cron schedules, webhook triggers, MCP integration, and multi-tenant workspace management — all self-hosted.
           </p>
           
           <div class="cta-buttons">
@@ -26,7 +26,7 @@
             <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
-            Deploy agents that run SSH, browse the web, call APIs, execute scripts, and more
+            Agents run SSH, browse the web, call APIs, generate media, manage knowledge, and more
           </p>
         </div>
 
@@ -97,6 +97,21 @@
       </div>
     </section>
 
+    <!-- Provider Logos -->
+    <section class="logos-section">
+      <div class="container">
+        <p class="logos-label">Works with every major LLM provider</p>
+        <div class="logos-grid">
+          <div class="logo-item">OpenRouter</div>
+          <div class="logo-item">OpenAI</div>
+          <div class="logo-item">Anthropic</div>
+          <div class="logo-item">Google</div>
+          <div class="logo-item">xAI</div>
+          <div class="logo-item">Ollama</div>
+        </div>
+      </div>
+    </section>
+
     <!-- Use Cases (Tabs) -->
     <section class="use-cases-section">
       <div class="container">
@@ -132,25 +147,25 @@
       </div>
     </section>
 
-    <!-- Social Proof / Stats -->
+    <!-- Stats -->
     <section class="stats-section">
       <div class="container">
         <div class="stats-grid">
           <div class="stat">
-            <div class="stat-number">50+</div>
+            <div class="stat-number">140+</div>
             <div class="stat-label">Built-in Tools</div>
           </div>
           <div class="stat">
-            <div class="stat-number">Multi</div>
+            <div class="stat-number">6</div>
             <div class="stat-label">LLM Providers</div>
           </div>
           <div class="stat">
             <div class="stat-number">24/7</div>
-            <div class="stat-label">Signal-Driven Agents</div>
+            <div class="stat-label">Autonomous Agents</div>
           </div>
           <div class="stat">
-            <div class="stat-number">Self</div>
-            <div class="stat-label">Hosted & Secure</div>
+            <div class="stat-number">∞</div>
+            <div class="stat-label">MCP Extensions</div>
           </div>
         </div>
       </div>
@@ -174,43 +189,47 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useMeta } from '../composables/useMeta'
 
-// --- Original Features Data ---
+useMeta({
+  title: 'AADML — AI Agent Development & Management Platform',
+  description: 'Build, deploy, and manage AI agents with 140+ tools, 6 LLM providers, cron schedules, webhook triggers, MCP integration, and multi-tenant workspaces.',
+})
+
 const features = ref([
   {
     title: 'Multi-Tool Agents',
-    description: '50+ built-in tools — SSH, browser automation, web search, email, AWS, scripts, and more. Agents pick the right tool for each task.',
+    description: '140+ built-in tools — SSH, browser, web search, email, AWS, scripts, media generation, and more. Agents autonomously pick the right tool.',
     icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>'
   },
   {
     title: 'Signal System',
-    description: 'Event-driven agent triggers. Webhooks, schedules, and real-time signals fire agents automatically when conditions are met.',
+    description: 'Event-driven automation. Webhooks, cron schedules, Redis streams, and real-time signals fire agents with budget caps and auto-pause guardrails.',
     icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>'
   },
   {
     title: 'Multi-LLM Routing',
-    description: 'OpenRouter, OpenAI, Anthropic, Google, or local Ollama. Route each agent to the best model for the job.',
+    description: 'OpenRouter (100+ models), OpenAI, Anthropic, xAI, Google, or local Ollama. Route each agent to the best model for cost and quality.',
     icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>'
   },
   {
     title: 'Workspace Teams',
-    description: 'Multi-tenant orgs, workspaces, role-based access, and team collaboration. Manage who accesses what.',
+    description: 'Multi-tenant orgs, workspaces, RBAC, encrypted credential vaults, and complete audit trails. Isolate clients, teams, or environments.',
     icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>'
   },
   {
     title: 'MCP Integration',
-    description: 'Connect any Model Context Protocol server. Extend agent capabilities with external tools and data sources.',
+    description: 'Connect any Model Context Protocol server. Auto-discover tools, extend capabilities, and bridge to external systems.',
     icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>'
   },
   {
-    title: 'Enterprise Ready',
-    description: 'Audit trails, encrypted credential vaults, Docker deployment, and workspace-level access control.',
-    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>'
+    title: 'Knowledge & Dream',
+    description: 'Agents learn from every interaction. Knowledge cards, dreaming cycles, and cross-run memory make agents smarter over time.',
+    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>'
   }
 ])
 
-// --- Use Cases Data (Refactored from original HTML to Tabs) ---
 const activeTab = ref('Developers')
 
 const useCases = ref([
@@ -218,25 +237,25 @@ const useCases = ref([
     badge: 'Developers',
     title: 'Automate Your Workflow',
     desc: 'Let agents handle SSH deployments, code generation, browser testing, and API calls while you focus on architecture.',
-    items: ['50+ tools at agent fingertips', 'Multi-LLM model routing', 'Real-time streaming responses']
+    items: ['140+ tools at agent fingertips', 'Multi-LLM model routing with cost tracking', 'Real-time streaming with tool history', 'Script execution with sandboxed environments', 'Knowledge cards for persistent agent memory']
   },
   {
     badge: 'DevOps',
     title: 'Agents as Operators',
-    desc: 'Schedule agents to monitor, deploy, and respond to events. Signal-driven automation with webhook triggers.',
-    items: ['Cron-scheduled agent runs', 'Webhook-triggered workflows', 'SSH & AWS tool execution']
+    desc: 'Schedule agents to monitor, deploy, and respond to events. Signal-driven automation with webhook triggers and budget guardrails.',
+    items: ['Cron-scheduled agent runs with auto-pause', 'Webhook-triggered workflows (Shopify, Stripe, GitHub)', 'SSH & AWS tool execution', 'Signal chaining and aggregator patterns', 'Budget caps and read-only mode defaults']
   },
   {
     badge: 'Agencies',
     title: 'Manage Client Workspaces',
-    desc: 'Isolate client work in separate workspaces with their own agents, tools, and access controls.',
-    items: ['Multi-tenant workspaces', 'Per-client agent profiles', 'Encrypted credential vaults']
+    desc: 'Isolate client work in separate workspaces with their own agents, tools, credentials, and access controls.',
+    items: ['Multi-tenant workspaces with RBAC', 'Per-client agent profiles and tool assignments', 'Encrypted credential vaults (never leaked to agents)', 'Workspace sharing and agent bridging', 'Complete audit trails per workspace']
   },
   {
     badge: 'Enterprises',
     title: 'Self-Hosted & Secure',
-    desc: 'Deploy on your own infrastructure with Docker. Full audit trails, RBAC, and credential encryption.',
-    items: ['Docker Compose deployment', 'Workspace-level RBAC', 'Complete audit logging']
+    desc: 'Deploy on your own infrastructure with Docker. Full audit trails, RBAC, credential encryption, and login monitoring.',
+    items: ['Docker Compose one-command deployment', 'Workspace-level RBAC with org roles', 'Login attempt tracking and security monitoring', 'MCP server management with circuit breakers', 'Cost analytics and usage dashboards']
   }
 ])
 
@@ -244,11 +263,10 @@ const activeTabContent = computed(() => {
   return useCases.value.find(c => c.badge === activeTab.value) || useCases.value[0]
 })
 
-// --- Terminal Animation Logic ---
-const terminalLines = ref([
-  { html: '', visible: false }
-])
+// --- Terminal Animation (fixed restart bug) ---
+const terminalLines = ref([{ html: '', visible: false }])
 const isTyping = ref(true)
+let animationTimers = []
 
 const codeSequence = [
   { html: '<span class="c-gray">// AADML Agent executing...</span>', delay: 100 },
@@ -257,35 +275,42 @@ const codeSequence = [
   { html: '  command: <span class="c-green">"docker compose up -d"</span>', delay: 2000 },
   { html: '});', delay: 2400 },
   { html: '<span class="c-gray">// ✓ Deployed 3 containers</span>', delay: 3200 },
-  { html: '<span class="c-purple">await</span> agent.<span class="c-green">useTool</span>(<span class="c-blue">"WEB_SEARCH"</span>, {', delay: 4000 },
-  { html: '  query: <span class="c-green">"latest security patches"</span>', delay: 4600 },
+  { html: '<span class="c-purple">await</span> agent.<span class="c-green">useTool</span>(<span class="c-blue">"MANAGE_KNOWLEDGE"</span>, {', delay: 4000 },
+  { html: '  action: <span class="c-green">"create"</span>, title: <span class="c-green">"Deploy Log"</span>', delay: 4600 },
   { html: '});', delay: 5000 },
-  { html: '<span class="c-gray">// ✓ Found 2 relevant updates</span>', delay: 5800 },
+  { html: '<span class="c-gray">// ✓ Knowledge card saved</span>', delay: 5800 },
 ]
 
-let currentTime = 0
-
-onMounted(() => {
-  // Run terminal sequence
-  codeSequence.forEach((line, index) => {
-    setTimeout(() => {
+function runTerminalSequence() {
+  let totalDelay = 0
+  codeSequence.forEach((line) => {
+    const timer = setTimeout(() => {
       terminalLines.value.push({ html: line.html, visible: true })
-      // Auto scroll
       const body = document.querySelector('.terminal-body')
-      if(body) body.scrollTop = body.scrollHeight
-    }, currentTime + line.delay)
-    currentTime += line.delay
+      if (body) body.scrollTop = body.scrollHeight
+    }, totalDelay + line.delay)
+    animationTimers.push(timer)
+    totalDelay += line.delay
   })
 
-  // Reset loop
-  setTimeout(() => {
+  // Loop: reset after sequence finishes
+  const resetTimer = setTimeout(() => {
     isTyping.value = false
-    setTimeout(() => {
+    const restartTimer = setTimeout(() => {
       terminalLines.value = [{ html: '', visible: false }]
       isTyping.value = true
-      onMounted() // Restart
+      runTerminalSequence()
     }, 3000)
-  }, currentTime + 2000)
+    animationTimers.push(restartTimer)
+  }, totalDelay + 2000)
+  animationTimers.push(resetTimer)
+}
+
+onMounted(() => runTerminalSequence())
+
+onUnmounted(() => {
+  animationTimers.forEach(t => clearTimeout(t))
+  animationTimers = []
 })
 
 </script>
@@ -574,6 +599,47 @@ onMounted(() => {
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-10px); }
+}
+
+/* --- PROVIDER LOGOS --- */
+.logos-section {
+  padding: 3rem 24px;
+  text-align: center;
+  background: var(--bg-body);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.logos-label {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 500;
+  margin-bottom: 1.5rem;
+}
+
+.logos-grid {
+  display: flex;
+  justify-content: center;
+  gap: 2.5rem;
+  flex-wrap: wrap;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.logo-item {
+  color: var(--text-muted);
+  font-size: 1rem;
+  font-weight: 600;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  letter-spacing: 0.5px;
+}
+
+.logo-item:hover {
+  opacity: 1;
+  color: var(--text-primary);
 }
 
 /* --- 4. FEATURES (BENTO GRID) --- */

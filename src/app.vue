@@ -27,6 +27,7 @@
       <div :class="mainContentClass">
         <router-view />
       </div>
+      <AppFooter />
     </main>
     
     <!-- Toast Notifications (if any) -->
@@ -63,12 +64,17 @@
 import { ref, onMounted, provide, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from './services/api'
+import { installNavigationHistory } from './composables/useNavigationHistory'
 import AppHeader from './components/layout/AppHeader.vue'
 import AppSidebar from './components/layout/AppSidebar.vue'
+import AppFooter from './components/layout/AppFooter.vue'
 import { useTheme } from './composables/useTheme'
 
 const router = useRouter()
 const route = useRoute()
+
+// Install history-based back navigation tracking
+installNavigationHistory(router)
 const llmHealth = ref(null)
 
 // Initialize theme system

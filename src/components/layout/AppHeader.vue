@@ -466,6 +466,15 @@ const BlogIcon = {
   ])
 }
 
+const DocsIcon = {
+  render: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
+    h('path', { d: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z' }),
+    h('polyline', { points: '14 2 14 8 20 8' }),
+    h('line', { x1: '16', y1: '13', x2: '8', y2: '13' }),
+    h('line', { x1: '16', y1: '17', x2: '8', y2: '17' })
+  ])
+}
+
 const DashboardIcon = {
   render: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
     h('rect', { x: '3', y: '3', width: '7', height: '9', rx: '1' }),
@@ -591,6 +600,7 @@ const overallStatusText = computed(() => {
 const publicLinks = [
   { to: '/', label: 'Home', exact: true, iconComponent: HomeIcon },
   { to: '/features', label: 'Features', exact: true, iconComponent: FeaturesIcon },
+  { to: '/docs', label: 'Docs', exact: false, iconComponent: DocsIcon },
   { to: '/pricing', label: 'Pricing', exact: true, iconComponent: PricingIcon },
   { to: '/blog', label: 'Blog', exact: false, iconComponent: BlogIcon }
 ]

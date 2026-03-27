@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /agents/
+Disallow: /ai-settings
+Disallow: /workspaces
+Disallow: /api/
+
+Sitemap: https://aadml.com/sitemap.xml

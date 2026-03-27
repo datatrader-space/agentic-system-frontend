@@ -5,10 +5,7 @@
         <div
             class="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-3 md:px-4 shrink-0 shadow-sm z-10">
             <div class="flex items-center gap-2 sm:gap-4 min-w-0">
-                <button @click="$router.push('/agents')" class="text-gray-500 hover:text-gray-700 flex-shrink-0 p-1.5 sm:p-0">
-                    <span class="hidden sm:inline">â† Back</span>
-                    <svg class="w-5 h-5 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
-                </button>
+                <BackButton fallback="/agents" size="sm" variant="ghost" />
                 <div class="h-6 w-px bg-gray-200 hidden sm:block"></div>
                 <h1 class="text-sm sm:text-lg font-bold text-gray-800 truncate">
                     {{ agent.id ? agent.name || 'Edit Agent' : 'New Agent' }}
@@ -167,6 +164,14 @@
 
                         <!-- Selection Toolbar -->
                         <div v-if="wsFiles.length" class="px-3 pt-2 flex items-center gap-2">
+                            <!-- Sort toggle -->
+                            <button @click="wsSortBy = wsSortBy === 'name' ? 'time' : 'name'"
+                                class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition flex items-center gap-1"
+                                :title="wsSortBy === 'time' ? 'Sorted by recent' : 'Sorted by name'">
+                                <svg v-if="wsSortBy === 'time'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/></svg>
+                                {{ wsSortBy === 'time' ? 'Recent' : 'Name' }}
+                            </button>
                             <button v-if="!wsSelectionMode" @click="wsSelectionMode = true"
                                 class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition">
                                 Select
@@ -187,7 +192,7 @@
                         <!-- File Tree (recursive component) -->
                         <div v-if="wsFiles.length" class="p-3">
                             <WorkspaceTreeNode
-                                :entries="wsFiles"
+                                :entries="wsSortedFiles"
                                 :expandedDirs="wsExpandedDirs"
                                 :previewPath="wsPreviewPath"
                                 :getFileIcon="getFileIcon"
@@ -202,21 +207,7 @@
                         </div>
                     </div>
 
-                    <!-- File Preview -->
-                    <div v-if="wsPreviewContent !== null" class="border-t border-gray-200 shrink-0" style="max-height: 45%">
-                        <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
-                            <span class="text-xs font-mono text-gray-600 truncate">{{ wsPreviewPath }}</span>
-                            <div class="flex items-center gap-1">
-                                <button @click="wsDownloadFile" class="p-1 hover:bg-gray-200 rounded text-gray-500 transition" title="Download">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                </button>
-                                <button @click="wsPreviewContent = null; wsPreviewPath = null" class="p-1 hover:bg-gray-200 rounded text-gray-500 transition">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
-                            </div>
-                        </div>
-                        <pre class="p-4 text-xs font-mono text-gray-700 overflow-auto bg-white" style="max-height: calc(45vh - 40px)">{{ wsPreviewContent }}</pre>
-                    </div>
+
                 </div>
             </div>
 
@@ -234,8 +225,7 @@
                 @skip="handleHitlSkip"
             />
 
-            <!-- File Viewer Modal -->
-            <FileViewer ref="fileViewer" :systemId="selectedContext.system" :repoId="selectedContext.repo || '0'" />
+
 
             <!-- Right: Preview / Chat -->
             <div class="flex-1 flex flex-col bg-white relative overflow-hidden">
@@ -256,6 +246,8 @@
                         <div v-else class="flex bg-gray-100/80 backdrop-blur-md rounded-full p-1 gap-1 shadow-inner border border-gray-200/50">
                             <button v-for="tab in [
                                 { id: 'knowledge', label: 'KNOWLEDGE' },
+                                { id: 'data', label: 'DATA' },
+                                { id: 'flows', label: 'FLOWS' },
                                 { id: 'automation', label: 'AUTOMATION' }
                             ]" :key="tab.id" @click="activeTab = tab.id"
                                 class="text-[10px] font-black tracking-widest px-4 py-1.5 rounded-full text-gray-500 hover:text-gray-700 hover:bg-white/50 transition-all duration-300">
@@ -378,8 +370,9 @@
                     <!-- Main Mobile Tabs (Only in Chat Mode) -->
                     <div v-else class="flex items-center gap-1.5 overflow-x-auto scrollbar-hide flex-1">
                         <button v-for="tab in [
-                            { id: 'knowledge', icon: 'ðŸ“š', label: 'Context' },
-                            { id: 'automation', icon: 'âš¡', label: 'Auto' }
+                            { id: 'knowledge', icon: '📚', label: 'Context' },
+                            { id: 'flows', icon: '🔄', label: 'Flows' },
+                            { id: 'automation', icon: '⚡', label: 'Auto' }
                         ]" :key="tab.id" @click="activeTab = tab.id"
                             class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
                             <span class="text-xs">{{ tab.icon }}</span>
@@ -717,43 +710,109 @@
 
                             <!-- Tool Result -->
                             <div v-if="event.type === 'tool_result'"
-                                class="group bg-purple-50/30 border-b border-purple-100/50">
+                                class="group border-b" :class="event.data.document ? 'bg-emerald-50/30 border-emerald-100/50' : 'bg-purple-50/30 border-purple-100/50'">
                                 <div class="max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
                                     <div class="flex items-start gap-2 sm:gap-4">
                                         <div
-                                            class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
-                                            ðŸ“„
+                                            class="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0"
+                                            :class="event.data.document ? 'bg-emerald-500' : 'bg-purple-500'">
+                                            {{ event.data.document ? '📄' : '📄' }}
                                         </div>
                                         <div class="flex-1 pt-1 min-w-0">
-                                            <div class="text-xs sm:text-sm font-semibold text-purple-900 mb-1 break-words">Tool Result: {{
-                                                event.data.tool_name }}</div>
-                                            
-                                            <!-- Request URL (for remote tools) -->
-                                            <div v-if="event.data.request_url"
-                                                class="text-xs text-purple-600 mb-2 font-mono flex items-center gap-1.5 min-w-0">
-                                                <span class="px-1.5 py-0.5 rounded text-white text-[10px] font-bold uppercase flex-shrink-0"
-                                                    :class="{
-                                                        'bg-green-500': event.data.request_method === 'GET',
-                                                        'bg-blue-500': event.data.request_method === 'POST',
-                                                        'bg-amber-500': event.data.request_method === 'PATCH' || event.data.request_method === 'PUT',
-                                                        'bg-red-500': event.data.request_method === 'DELETE',
-                                                        'bg-gray-500': !['GET','POST','PATCH','PUT','DELETE'].includes(event.data.request_method)
-                                                    }">
-                                                    {{ event.data.request_method }}
-                                                </span>
-                                                <span class="truncate" :title="event.data.request_url">{{ event.data.request_url }}</span>
+                                            <!-- Document Card -->
+                                            <div v-if="event.data.document" class="space-y-3">
+                                                <div class="bg-white rounded-xl border border-emerald-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                                                    <!-- Card Header -->
+                                                    <div class="px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 flex items-center justify-between">
+                                                        <div class="flex items-center gap-2 min-w-0">
+                                                            <span class="text-white text-lg flex-shrink-0">📋</span>
+                                                            <div class="min-w-0">
+                                                                <h4 class="text-sm font-bold text-white truncate">{{ event.data.document.title }}</h4>
+                                                                <p class="text-[10px] text-emerald-100 font-medium">v{{ event.data.document.version }} · {{ event.data.document.sections_count }} sections</p>
+                                                            </div>
+                                                        </div>
+                                                        <span class="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-full flex-shrink-0"
+                                                            :class="{
+                                                                'bg-blue-100 text-blue-700': event.data.document.doc_type === 'seo_audit',
+                                                                'bg-purple-100 text-purple-700': event.data.document.doc_type === 'plan',
+                                                                'bg-amber-100 text-amber-700': event.data.document.doc_type === 'report',
+                                                                'bg-indigo-100 text-indigo-700': event.data.document.doc_type === 'code_review',
+                                                                'bg-rose-100 text-rose-700': event.data.document.doc_type === 'analysis',
+                                                                'bg-gray-100 text-gray-700': !['seo_audit','plan','report','code_review','analysis'].includes(event.data.document.doc_type)
+                                                            }">
+                                                            {{ event.data.document.doc_type.replace('_', ' ') }}
+                                                        </span>
+                                                    </div>
+                                                    <!-- Card Body -->
+                                                    <div class="px-4 py-3">
+                                                        <!-- Tags -->
+                                                        <div v-if="event.data.document.tags && event.data.document.tags.length" class="flex flex-wrap gap-1.5 mb-3">
+                                                            <span v-for="tag in event.data.document.tags.slice(0, 5)" :key="tag"
+                                                                class="px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600 rounded-full">
+                                                                {{ tag }}
+                                                            </span>
+                                                        </div>
+                                                        <!-- Actions -->
+                                                        <div class="flex items-center gap-2">
+                                                            <a :href="'/api' + event.data.document.view_url"
+                                                                target="_blank"
+                                                                class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-colors border border-emerald-200">
+                                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                </svg>
+                                                                View Document
+                                                            </a>
+                                                            <a :href="'/api' + event.data.document.download_url"
+                                                                download
+                                                                class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors border border-gray-200">
+                                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                                </svg>
+                                                                Download
+                                                            </a>
+                                                            <a :href="'/api' + event.data.document.download_url + '?format=markdown'"
+                                                                download
+                                                                class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-lg transition-colors border border-gray-200">
+                                                                <span class="text-[10px]">MD</span>
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
+
+                                            <!-- Standard Tool Result (non-document) -->
+                                            <template v-else>
+                                                <div class="text-xs sm:text-sm font-semibold text-purple-900 mb-1 break-words">Tool Result: {{
+                                                    event.data.tool_name }}</div>
                                             
-                                            <!-- Media Renderer for artifacts -->
-                                            <MediaRenderer 
-                                                v-if="hasMediaArtifacts(event.data)" 
-                                                :artifacts="getMediaArtifacts(event.data)"
-                                                class="mb-3"
-                                            />
+                                                <!-- Request URL (for remote tools) -->
+                                                <div v-if="event.data.request_url"
+                                                    class="text-xs text-purple-600 mb-2 font-mono flex items-center gap-1.5 min-w-0">
+                                                    <span class="px-1.5 py-0.5 rounded text-white text-[10px] font-bold uppercase flex-shrink-0"
+                                                        :class="{
+                                                            'bg-green-500': event.data.request_method === 'GET',
+                                                            'bg-blue-500': event.data.request_method === 'POST',
+                                                            'bg-amber-500': event.data.request_method === 'PATCH' || event.data.request_method === 'PUT',
+                                                            'bg-red-500': event.data.request_method === 'DELETE',
+                                                            'bg-gray-500': !['GET','POST','PATCH','PUT','DELETE'].includes(event.data.request_method)
+                                                        }">
+                                                        {{ event.data.request_method }}
+                                                    </span>
+                                                    <span class="truncate" :title="event.data.request_url">{{ event.data.request_url }}</span>
+                                                </div>
                                             
-                                            <div
-                                                class="font-mono text-[10px] sm:text-xs text-purple-800 bg-white border border-purple-200 p-2 rounded max-h-40 overflow-y-auto overflow-x-auto break-all">
-                                                {{ formatToolResult(event.data.result) }}</div>
+                                                <!-- Media Renderer for artifacts -->
+                                                <MediaRenderer 
+                                                    v-if="hasMediaArtifacts(event.data)" 
+                                                    :artifacts="getMediaArtifacts(event.data)"
+                                                    class="mb-3"
+                                                />
+                                            
+                                                <div
+                                                    class="font-mono text-[10px] sm:text-xs text-purple-800 bg-white border border-purple-200 p-2 rounded max-h-40 overflow-y-auto overflow-x-auto break-all">
+                                                    {{ formatToolResult(event.data.result) }}</div>
+                                            </template>
                                         </div>
                                     </div>
                                 </div>
@@ -941,72 +1000,32 @@
                 </div>
 
                 <!-- Knowledge Interface -->
-                <div v-if="activeTab === 'knowledge'" class="flex-1 flex flex-col md:flex-row overflow-hidden">
-                    <!-- Doc List -->
-                    <div class="w-full md:w-1/3 border-b md:border-b-0 md:border-r border-gray-200 overflow-y-auto bg-gray-50 max-h-[40vh] md:max-h-none">
-                        <div v-if="loadingDocs" class="p-4 text-center text-gray-500 text-sm">Loading docs...</div>
-                        <div v-else-if="knowledgeDocs.length === 0" class="p-4 text-center text-gray-500 text-sm">
-                            No knowledge documents found for this repository.
-                        </div>
-                        <div v-else>
-                            <div v-for="doc in knowledgeDocs" :key="doc.spec_id" @click="selectDoc(doc)"
-                                :class="['p-3 border-b border-gray-100 cursor-pointer hover:bg-white transition', selectedDoc?.spec_id === doc.spec_id ? 'bg-white border-l-4 border-l-blue-500' : '']">
-                                <div class="text-sm font-bold text-gray-700 truncate">{{ doc.title || doc.spec_id }}
-                                </div>
-                                <div class="text-xs text-gray-500">{{ doc.kind }}</div>
-                            </div>
-                        </div>
+                <div v-if="activeTab === 'knowledge'" class="flex-1 flex flex-col overflow-hidden">
+                    <AgentMemoryPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
+                    <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
+                        <div class="text-5xl mb-3">🧠</div>
+                        <p class="text-lg font-medium">Agent Memory</p>
+                        <p class="text-sm mt-1">Save the agent to access memory and knowledge cards</p>
                     </div>
+                </div>
 
-                    <!-- Doc View & Analysis -->
-                    <div class="flex-1 overflow-y-auto p-3 sm:p-6">
-                        <div v-if="!selectedDoc" class="flex items-center justify-center h-full text-gray-400">
-                            <p>Select a document to view analysis.</p>
-                        </div>
-                        <div v-else class="space-y-6">
-                            <!-- AI Analysis -->
-                            <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-4">
-                                <h3 class="text-sm font-bold text-indigo-800 mb-2 flex items-center gap-2">
-                                    ðŸ¤– AI Analysis
-                                    <span v-if="analyzingDoc"
-                                        class="text-xs font-normal text-indigo-500">(Generating...)</span>
-                                </h3>
-                                <div v-if="analyzingDoc" class="animate-pulse space-y-2">
-                                    <div class="h-4 bg-indigo-100 rounded w-3/4"></div>
-                                    <div class="h-4 bg-indigo-100 rounded w-1/2"></div>
-                                </div>
-                                <div v-else-if="docAnalysis">
-                                    <div class="prose prose-sm text-indigo-900 max-h-96 overflow-y-auto mb-4"
-                                        v-html="formatMarkdown(docAnalysis)"></div>
-                                    <div class="flex gap-2">
-                                        <button @click="startChatWithContext"
-                                            class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition">
-                                            ðŸ’¬ Chat with Context
-                                        </button>
-                                        <button @click="analyzeCurrentDoc"
-                                            class="px-3 py-1 bg-indigo-100 text-indigo-700 rounded text-sm hover:bg-indigo-200 transition">
-                                            â†» Re-Analyze
-                                        </button>
-                                    </div>
-                                </div>
-                                <div v-else class="flex flex-col items-center gap-2 p-4 text-center">
-                                    <span class="text-sm text-gray-500 italic">No analysis generated yet.</span>
-                                    <button @click="analyzeCurrentDoc"
-                                        class="px-4 py-2 bg-indigo-600 text-white rounded shadow text-sm hover:bg-indigo-700 transition">
-                                        âš¡ Run AI Analysis
-                                    </button>
-                                </div>
-                            </div>
+                <!-- Data Panel -->
+                <div v-if="activeTab === 'data'" class="flex-1 flex flex-col overflow-hidden">
+                    <AgentDataPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
+                    <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
+                        <div class="text-5xl mb-3">🗄️</div>
+                        <p class="text-lg font-medium">Agent Data</p>
+                        <p class="text-sm mt-1">Save the agent to access its data collections</p>
+                    </div>
+                </div>
 
-                            <!-- Raw Content -->
-                            <div>
-                                <h3 class="text-sm font-bold text-gray-800 mb-2">Original Content</h3>
-                                <div
-                                    class="bg-gray-50 p-4 rounded border border-gray-200 font-mono text-xs whitespace-pre-wrap overflow-x-auto">
-                                    {{ selectedDoc.content }}
-                                </div>
-                            </div>
-                        </div>
+                <!-- Flows Panel -->
+                <div v-if="activeTab === 'flows'" class="flex-1 flex flex-col overflow-hidden">
+                    <AgentFlowPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
+                    <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
+                        <div class="text-5xl mb-3">🔄</div>
+                        <p class="text-lg font-medium">Agent Flows</p>
+                        <p class="text-sm mt-1">Save the agent to access flow tracking</p>
                     </div>
                 </div>
             </div>
@@ -1032,6 +1051,10 @@ import MediaRenderer from '../components/MediaRenderer.vue';
 import WorkspaceTreeNode from '../components/WorkspaceTreeNode.vue';
 import HITLModal from '../components/HITLModal.vue';
 import AutomationPanel from '../components/AutomationPanel.vue';
+import AgentMemoryPanel from '../components/knowledge/AgentMemoryPanel.vue';
+import AgentFlowPanel from '../components/knowledge/AgentFlowPanel.vue';
+import AgentDataPanel from '../components/knowledge/AgentDataPanel.vue';
+import BackButton from '../components/BackButton.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -1079,11 +1102,13 @@ const tabClass = (tabId) => activeTab.value === tabId
 
 // Mobile tab items with icons and short labels
 const mobileTabItems = [
-    { id: 'chat', icon: 'ðŸ’¬', shortLabel: 'Chat' },
-    { id: 'knowledge', icon: 'ðŸ“š', shortLabel: 'Knowledge' },
-    { id: 'trace', icon: 'ðŸ”', shortLabel: 'Trace' },
-    { id: 'tools', icon: 'ðŸ”§', shortLabel: 'Tools' },
-    { id: 'automation', icon: 'âš¡', shortLabel: 'Auto' },
+    { id: 'chat', icon: '💬', shortLabel: 'Chat' },
+    { id: 'knowledge', icon: '📚', shortLabel: 'Knowledge' },
+    { id: 'data', icon: '🗄️', shortLabel: 'Data' },
+    { id: 'flows', icon: '🔄', shortLabel: 'Flows' },
+    { id: 'trace', icon: '🔍', shortLabel: 'Trace' },
+    { id: 'tools', icon: '🔧', shortLabel: 'Tools' },
+    { id: 'automation', icon: '⚡', shortLabel: 'Auto' },
 ];
 
 const showBuilder = ref(false); // Default to false (modal hidden)
@@ -1216,23 +1241,45 @@ const wsToggleDir = (path) => {
     wsExpandedDirs.value[path] = !wsExpandedDirs.value[path];
 };
 
-const MEDIA_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'mp4', 'webm', 'ogg', 'mov', 'avi'];
+const wsSortBy = ref('name'); // 'name' | 'time'
+
+// Sort entries recursively according to wsSortBy
+const sortEntries = (entries) => {
+    const sorted = [...entries].sort((a, b) => {
+        // Directories first, then files
+        if (a.is_dir && !b.is_dir) return -1;
+        if (!a.is_dir && b.is_dir) return 1;
+        if (wsSortBy.value === 'time') {
+            // Most recent first
+            return (b.modified || 0) - (a.modified || 0);
+        }
+        // Alphabetical
+        return (a.name || '').localeCompare(b.name || '');
+    });
+    return sorted.map(e => e.is_dir && e.children ? { ...e, children: sortEntries(e.children) } : e);
+};
+
+const wsSortedFiles = computed(() => sortEntries(wsFiles.value));
+
+// Build flat list of all files from the sorted tree (for FileViewer navigation)
+const flattenFiles = (entries) => {
+    const result = [];
+    for (const e of entries) {
+        if (e.is_dir && e.children) {
+            result.push(...flattenFiles(e.children));
+        } else if (!e.is_dir) {
+            result.push(e);
+        }
+    }
+    return result;
+};
 
 const wsReadFile = async (entry) => {
     if (entry.is_dir) return;
-    const ext = (entry.name || '').split('.').pop()?.toLowerCase();
-    if (MEDIA_EXTS.includes(ext)) {
-        // Open media files in the FileViewer modal (handles images/videos)
-        fileViewer.value?.open(entry, agent.value.id);
-        return;
-    }
-    try {
-        const { data } = await api.readWorkspaceFile(agent.value.id, entry.path);
-        wsPreviewContent.value = data.content;
-        wsPreviewPath.value = entry.path;
-    } catch (e) {
-        console.error('Failed to read file:', e);
-    }
+    // Open ALL files through the enhanced FileViewer modal with sibling navigation
+    // Use sorted tree so arrow nav matches displayed order
+    const siblings = flattenFiles(wsSortedFiles.value);
+    fileViewer.value?.open(entry, agent.value.id, siblings);
 };
 
 const wsDeleteEntry = async (entry) => {
@@ -2744,7 +2791,8 @@ const connectWebSocket = (repoId) => {
                     success: data.success,
                     request_url: data.request_url || '',
                     request_method: data.request_method || '',
-                    media_artifacts: data.media_artifacts || []
+                    media_artifacts: data.media_artifacts || [],
+                    document: data.document || null
                 }
             });
             

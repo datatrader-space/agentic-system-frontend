@@ -423,4 +423,21 @@ export default {
   rotateSignalApiKey: (agentId) => api.post(`/agents/${agentId}/signals/api-key/`),
   cancelSignal: (agentId, signalId) => api.post(`/agents/${agentId}/signals/${signalId}/cancel/`),
   retrySignal: (agentId, signalId) => api.post(`/agents/${agentId}/signals/${signalId}/retry/`),
+
+  // Agent Knowledge / Dreaming Cycle
+  getAgentKnowledge: (agentId) => api.get(`/agents/${agentId}/knowledge/`),
+  updateKnowledgeConfig: (agentId, data) => api.patch(`/agents/${agentId}/knowledge/config/`, data),
+  updateKnowledgeCard: (agentId, cardId, data) => api.patch(`/agents/${agentId}/knowledge/cards/${cardId}/`, data),
+  createKnowledgeCard: (agentId, data) => api.post(`/agents/${agentId}/knowledge/cards/`, data),
+  deleteKnowledgeCard: (agentId, cardId) => api.delete(`/agents/${agentId}/knowledge/cards/${cardId}/delete/`),
+  bulkDeleteKnowledgeCards: (agentId, cardIds) => api.post(`/agents/${agentId}/knowledge/cards/bulk-delete/`, { card_ids: cardIds }),
+  triggerDream: (agentId) => api.post(`/agents/${agentId}/knowledge/dream/`),
+
+  // Agent Flows
+  getAgentFlows: (agentId, sort = 'time') => api.get(`/agents/${agentId}/flows/`, { params: { sort } }),
+  updateFlow: (agentId, flowId, data) => api.patch(`/agents/${agentId}/flows/${flowId}/`, data),
+  deleteFlow: (agentId, flowId) => api.delete(`/agents/${agentId}/flows/${flowId}/delete/`),
+  bulkDeleteFlows: (agentId, flowIds) => api.post(`/agents/${agentId}/flows/bulk-delete/`, { flow_ids: flowIds }),
+  processFlows: (agentId, data = {}) => api.post(`/agents/${agentId}/flows/process/`, data),
+  updateFlowConfig: (agentId, data) => api.patch(`/agents/${agentId}/flows/config/`, data),
 }

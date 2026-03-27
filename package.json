@@ -13,6 +13,7 @@
     "marked": "^17.0.1",
     "marked-highlight": "^2.2.3",
     "monaco-editor-vue3": "^1.0.5",
+    "pdfjs-dist": "^5.5.207",
     "pinia": "^2.1.7",
     "vue": "^3.4.0",
     "vue-router": "^4.2.5",

@@ -96,45 +96,13 @@
           </div>
         </div>
 
-        <!-- SCHEDULES -->
+        <!-- SCHEDULES (using full SchedulePanel component) -->
         <div v-if="activeSubTab === 'schedules'">
-          <div v-if="loading.schedules" class="flex items-center justify-center py-16 text-gray-400 gap-2">
-            <div class="animate-spin w-5 h-5 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full"></div>
-            <span class="text-sm">Loading schedules...</span>
-          </div>
-          <div v-else-if="schedules.length === 0" class="flex flex-col items-center justify-center py-16 text-gray-400">
+          <SchedulePanel v-if="agentProfile?.id" :agent="agentProfile" />
+          <div v-else class="flex flex-col items-center justify-center py-16 text-gray-400">
             <div class="text-4xl mb-3">🕐</div>
             <p class="text-sm font-medium text-gray-600">No schedules</p>
-            <p class="text-xs mt-1">Create a workflow first, then schedule it.</p>
-          </div>
-          <div v-else class="space-y-2">
-            <div
-              v-for="s in schedules" :key="s.id"
-              class="bg-white rounded-lg border border-gray-200 p-3 flex items-center gap-4 hover:border-indigo-200 transition"
-            >
-              <div class="flex-1 min-w-0">
-                <div class="text-sm font-medium text-gray-800">{{ s.template_name }}</div>
-                <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                  <code class="px-1.5 py-0.5 bg-gray-100 rounded text-[11px]">{{ s.schedule }}</code>
-                  <span class="px-1.5 py-0.5 bg-gray-100 rounded text-[10px]">{{ s.channel }}</span>
-                </div>
-              </div>
-              <div class="flex items-center gap-2 text-xs text-gray-500">
-                <span>Last: {{ s.last_run ? formatDate(s.last_run) : 'Never' }}</span>
-              </div>
-              <div class="flex items-center gap-1.5">
-                <span class="flex items-center gap-1 text-xs">
-                  <span class="w-2 h-2 rounded-full" :class="s.active ? 'bg-green-500' : 'bg-gray-400'"></span>
-                  {{ s.active ? 'Active' : 'Paused' }}
-                </span>
-                <button @click="toggleSchedule(s)" class="px-2 py-1 text-xs border border-gray-200 rounded hover:bg-gray-50">
-                  {{ s.active ? 'Pause' : 'Resume' }}
-                </button>
-                <button @click="deleteSchedule(s)" class="px-2 py-1 text-xs text-red-500 border border-red-200 rounded hover:bg-red-50">
-                  Delete
-                </button>
-              </div>
-            </div>
+            <p class="text-xs mt-1">Save the agent first to manage schedules.</p>
           </div>
         </div>
 
@@ -503,6 +471,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import api from '../services/api'
 import WorkspaceTreeNode from './WorkspaceTreeNode.vue'
+import SchedulePanel from './SchedulePanel.vue'
 
 const props = defineProps({
   agentProfile: { type: Object, default: null }
