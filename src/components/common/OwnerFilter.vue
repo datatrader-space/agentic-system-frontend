@@ -1,14 +1,14 @@
 <template>
-  <div v-if="showFilter" class="owner-filter flex items-center gap-2">
-    <label class="text-sm font-medium text-gray-600 whitespace-nowrap">Owner:</label>
-    <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+  <div v-if="showFilter" class="owner-filter flex items-center gap-2.5">
+    <label class="text-[13px] font-semibold text-slate-500 whitespace-nowrap hidden sm:block">View:</label>
+    <div class="flex items-center bg-slate-100/80 p-1 rounded-[10px] border border-slate-200/50 shadow-inner">
       <button
         @click="select('')"
         :class="[
-          'px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200',
+          'px-3.5 py-1.5 text-[13px] rounded-md transition-all duration-300',
           modelValue === ''
-            ? 'bg-white text-gray-900 shadow-sm'
-            : 'text-gray-500 hover:text-gray-700'
+            ? 'bg-white text-slate-900 font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
+            : 'text-slate-500 font-medium hover:text-slate-800 hover:bg-slate-200/50'
         ]"
       >
         All
@@ -16,10 +16,10 @@
       <button
         @click="select('me')"
         :class="[
-          'px-3 py-1.5 text-xs font-medium rounded-md transition-all duration-200',
+          'px-3.5 py-1.5 text-[13px] rounded-md transition-all duration-300',
           modelValue === 'me'
-            ? 'bg-white text-indigo-700 shadow-sm'
-            : 'text-gray-500 hover:text-gray-700'
+            ? 'bg-white text-slate-900 font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
+            : 'text-slate-500 font-medium hover:text-slate-800 hover:bg-slate-200/50'
         ]"
       >
         Mine
@@ -28,9 +28,9 @@
         v-if="otherMembers.length > 0"
         :value="isSpecificMember ? modelValue : ''"
         @change="select($event.target.value)"
-        class="px-2 py-1.5 text-xs font-medium rounded-md bg-transparent border-none
-               text-gray-500 hover:text-gray-700 cursor-pointer focus:ring-0 focus:outline-none"
-        :class="{ 'bg-white shadow-sm !text-indigo-700': isSpecificMember }"
+        class="px-2 py-1.5 text-[13px] rounded-md bg-transparent border-none
+               text-slate-500 font-medium hover:text-slate-800 hover:bg-slate-200/50 cursor-pointer focus:ring-0 focus:outline-none transition-all ml-0.5"
+        :class="{ 'bg-white font-semibold shadow-[0_1px_3px_rgba(0,0,0,0.08)] !text-slate-900 hover:bg-white': isSpecificMember }"
       >
         <option value="" disabled>Member…</option>
         <option

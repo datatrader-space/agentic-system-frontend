@@ -4,17 +4,17 @@
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 class="text-2xl sm:text-3xl font-bold text-gray-900">🤖 Agent Library</h1>
-          <p class="text-sm sm:text-base text-gray-600 mt-1">Design, test, and deploy specialized AI agents</p>
+          <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Agent Library</h1>
+          <p class="text-sm sm:text-base text-slate-500 mt-1.5">Design, test, and deploy specialized AI agents</p>
         </div>
         <div class="flex items-center gap-3">
           <OwnerFilter v-model="ownerFilter" @update:modelValue="fetchAgents" />
           <button
             @click="createAgent"
-            class="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium flex items-center justify-center gap-2 shadow-sm"
+            class="w-full sm:w-auto px-5 py-2.5 bg-slate-900 text-white rounded-[10px] hover:bg-slate-800 transition-all font-semibold flex items-center justify-center gap-2 shadow-sm border border-transparent shadow-[0_2px_4px_rgba(0,0,0,0.1)]"
           >
-            <span class="text-xl">+</span>
-            Create New Agent
+            <svg class="w-4 h-4 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            Create Agent
           </button>
         </div>
       </div>
@@ -43,57 +43,75 @@
         <div 
           v-for="agent in agents" 
           :key="agent.id"
-          class="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-300 flex flex-col overflow-hidden"
+          class="group bg-white rounded-[16px] shadow-sm border border-slate-200/60 hover:shadow-md hover:border-slate-300 transition-all duration-300 hover:-translate-y-1 flex flex-col overflow-hidden relative cursor-pointer"
+          @click="editAgent(agent.id)"
         >
-          <!-- Card Header / Icon -->
-          <div class="p-4 sm:p-6 pb-3 sm:pb-4 flex items-start justify-between bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
-             <div class="w-12 h-12 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-2xl">
-               🤖
-             </div>
-             <div class="flex gap-2">
-                <span class="text-xs font-mono bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                    {{ agent.tools.length }} Tools
-                </span>
-             </div>
+          <!-- Card Header & Metadata -->
+          <div class="p-5 sm:p-6 pb-0">
+              <div class="flex items-start justify-between">
+                  <!-- Avatar -->
+                  <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-50/50 to-white border border-indigo-100 shadow-sm flex items-center justify-center text-xl transition-transform group-hover:scale-105 duration-300">
+                      <span v-if="agent.name.toLowerCase().includes('aws')">☁️</span>
+                      <span v-else-if="agent.name.toLowerCase().includes('deploy')">🚀</span>
+                      <span v-else-if="agent.name.toLowerCase().includes('bot')">🤖</span>
+                      <span v-else>✨</span>
+                  </div>
+                  
+                  <!-- Action Menu (Delete on hover) -->
+                  <div class="opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button v-if="agent.is_owner !== false" @click.stop="confirmDelete(agent)" class="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors z-10 relative" title="Delete agent">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                  </div>
+              </div>
+              
+              <div class="mt-4">
+                  <h3 class="text-base font-bold text-slate-900 truncate group-hover:text-indigo-600 transition-colors">{{ agent.name }}</h3>
+                  
+                  <!-- Metadata Row -->
+                  <div class="flex items-center gap-3 mt-1.5 text-xs text-slate-500 font-medium tracking-wide">
+                      <span class="flex items-center gap-1.5">
+                          <svg class="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+                          {{ agent.tools.length }} Tools
+                      </span>
+                      <div class="w-1 h-1 rounded-full bg-slate-300"></div>
+                      <span v-if="agent.knowledge_scope === 'system'" class="flex items-center gap-1.5">
+                          <svg class="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                          Global Context
+                      </span>
+                       <span v-else-if="agent.knowledge_scope === 'repository'" class="flex items-center gap-1.5">
+                          <svg class="w-3.5 h-3.5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                          Repo Context
+                      </span>
+                      <span v-else class="flex items-center gap-1.5 opacity-70">
+                          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                          Isolated
+                      </span>
+                  </div>
+              </div>
           </div>
           
-          <!-- Content -->
-          <div class="p-4 sm:p-6 pt-3 sm:pt-4 flex-1">
-            <h3 class="text-lg font-bold text-gray-900 mb-2 truncate">{{ agent.name }}</h3>
-            <p class="text-gray-500 text-sm line-clamp-3 mb-4">
-              {{ agent.description || "No description provided." }}
+          <!-- Content Description -->
+          <div class="p-5 sm:p-6 pt-3 flex-1 flex flex-col">
+            <p v-if="agent.description" class="text-slate-500 text-sm line-clamp-2 leading-relaxed">
+              {{ agent.description }}
             </p>
-            
-            <div class="flex flex-wrap gap-2 mb-4">
-                <span v-if="agent.knowledge_scope === 'system'" class="px-2 py-0.5 rounded text-xs bg-green-100 text-green-700 font-medium">System Context</span>
-                <span v-if="agent.knowledge_scope === 'repository'" class="px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700 font-medium">Repo Context</span>
-                <span v-if="agent.knowledge_scope === 'none'" class="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600 font-medium">Isolated</span>
-            </div>
+            <div v-else class="h-[2.5rem]"></div> <!-- Spacer to maintain rigid height consistency -->
           </div>
 
           <!-- Footer / Actions -->
-          <div class="p-4 bg-gray-50 border-t border-gray-100 flex gap-2">
+          <div class="px-5 py-4 border-t border-slate-100 flex items-center gap-2 bg-slate-50/50 mt-auto">
             <button
-              @click="editAgent(agent.id)"
-              class="flex-1 px-3 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition text-sm font-medium"
+              @click.stop="editAgent(agent.id)"
+              class="flex-1 px-3 py-2 text-slate-700 bg-white border border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.02)] rounded-[10px] hover:bg-slate-50 hover:text-slate-900 transition-all text-[13px] font-semibold z-10 relative"
             >
-              Edit / Test
+              Configure
             </button>
             <button
-               @click="launchSession(agent)"
-               class="flex-1 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
+               @click.stop="launchSession(agent)"
+               class="flex-1 px-3 py-2 text-indigo-700 bg-indigo-50/80 border border-indigo-100 shadow-[0_1px_2px_rgba(79,70,229,0.05)] rounded-[10px] hover:bg-indigo-600 hover:text-white transition-all duration-300 text-[13px] font-semibold z-10 relative"
             >
                Deploy
-            </button>
-            <button
-              v-if="agent.is_owner !== false"
-              @click="confirmDelete(agent)"
-              class="px-3 py-2 bg-white border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition text-sm font-medium"
-              title="Delete agent"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
             </button>
           </div>
         </div>
