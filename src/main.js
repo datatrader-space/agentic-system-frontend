@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 // import App from './App.vue'
 import App from './app.vue'
@@ -36,6 +37,11 @@ import WorkspaceHub from './views/WorkspaceHub.vue'
 import OrgSettings from './views/OrgSettings.vue'
 import WorkspaceDashboard from './views/WorkspaceDashboard.vue'
 import InviteAccept from './views/InviteAccept.vue'
+
+// v2 app shell (Phase 1) + chat workspace (Phase 2) + tabbed settings (Phase 4)
+import AppShell from './components/app-shell/AppShell.vue'
+import ChatWorkspace from './components/chat/ChatWorkspace.vue'
+import SettingsLayout from './components/settings/SettingsLayout.vue'
 
 // Create router
 const router = createRouter({
@@ -96,10 +102,28 @@ const router = createRouter({
       meta: { requiresGuest: true, public: true }
     },
     {
+      // v2 chat-first dashboard: AppShell wraps all /dashboard/* children.
+      // Existing top-level routes (/services, /mcp, …) stay alive until Phase 5.
       path: '/dashboard',
-      name: 'dashboard',
-      component: SystemList,
-      meta: { requiresAuth: true }
+      component: AppShell,
+      meta: { requiresAuth: true },
+      children: [
+        { path: '', redirect: '/dashboard/chat/new' },
+        { path: 'chat/new', name: 'dashboard-chat-new', component: ChatWorkspace },
+        { path: 'chat/:sessionId', name: 'dashboard-chat', component: ChatWorkspace },
+        { path: 'systems', name: 'dashboard-systems', component: SystemList },
+        // Legacy pages re-housed inside the shell so navigation never leaves it.
+        // (The old top-level routes below remain for back-compat / deep links.)
+        { path: 'agents', name: 'dashboard-agents', component: AgentLibrary },
+        { path: 'tools', name: 'dashboard-tools', component: ToolRegistry },
+        { path: 'services', name: 'dashboard-services', component: Services },
+        { path: 'mcp', name: 'dashboard-mcp', component: MCPServers },
+        { path: 'benchmarks', name: 'dashboard-benchmarks', component: Benchmarks },
+        { path: 'workspaces', name: 'dashboard-workspaces', component: WorkspaceHub },
+        { path: 'activity', name: 'dashboard-activity', component: LLMDashboard },
+        { path: 'settings', redirect: '/dashboard/settings/general' },
+        { path: 'settings/:tab', name: 'dashboard-settings', component: SettingsLayout },
+      ]
     },
     {
       path: '/systems/:id',
@@ -269,6 +293,9 @@ router.beforeEach(async (to, from, next) => {
 
 // Create app
 const app = createApp(App)
+
+// State management (Pinia) — required by the v2 app shell
+app.use(createPinia())
 
 // Add global notification helper
 app.provide('notify', (message, type = 'info') => {

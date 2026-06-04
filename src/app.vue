@@ -1,7 +1,8 @@
 <template>
   <div id="app" class="min-h-screen" :class="appBackgroundClass">
-    <!-- Header Component -->
+    <!-- Header Component — hidden inside the v2 app shell (/dashboard), which has its own sidebar -->
     <AppHeader
+      v-if="!isAppShell"
       :current-user="currentUser"
       :llm-health="llmHealth"
       :theme="theme"
@@ -11,9 +12,11 @@
     />
 
     <!-- Main Content -->
-    <main :class="mainContentClass">
+    <main v-if="!isAppShell" :class="mainContentClass">
       <router-view />
     </main>
+    <!-- v2 app shell: full-bleed, owns its own layout -->
+    <router-view v-else />
     
     <!-- Toast Notifications (if any) -->
     <div class="fixed bottom-4 right-4 space-y-2">
@@ -68,6 +71,9 @@ const handleToggleTheme = () => {
 
 // Layout computed properties
 const isFullScreen = computed(() => route.name === 'repository-detail' || route.name === 'agent-playground')
+
+// v2 app shell routes (/dashboard/*) render full-bleed with their own sidebar/header
+const isAppShell = computed(() => route.path === '/dashboard' || route.path.startsWith('/dashboard/'))
 
 // Public pages that need full-width dark layout
 const isPublicPage = computed(() => {
@@ -238,6 +244,9 @@ const removeNotification = (id) => {
 
 // Expose to child components via provide/inject
 provide('notify', addNotification)
+// v2 app shell consumes these (LeftSidebar user footer + sign out)
+provide('currentUser', currentUser)
+provide('logout', handleLogout)
 </script>
 
 <style>

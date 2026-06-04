@@ -22,7 +22,7 @@
     <!-- Tabs Header -->
     <div class="flex border-b border-gray-200 px-4 shrink-0 bg-white">
         <button 
-            v-for="tab in ['General', 'Knowledge', 'Tools', 'Credentials']" 
+            v-for="tab in ['General', 'Knowledge', 'Tools', 'Credentials', 'Integration']"
             :key="tab"
             @click="activeTab = tab"
             :class="['px-4 py-3 text-sm font-medium border-b-2 transition-colors', activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
@@ -558,6 +558,109 @@
         </div>
       </div>
 
+      <!-- TAB: INTEGRATION -->
+      <div v-if="activeTab === 'Integration'" class="space-y-6">
+        <div v-if="!internalAgent.id" class="text-center py-10 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+          <div class="text-4xl mb-2">🔗</div>
+          <p class="text-gray-700 font-medium mb-1">Save the agent first</p>
+          <p class="text-xs text-gray-500">Signals, API keys and connection URLs become available once the agent exists.</p>
+        </div>
+
+        <div v-else class="space-y-6">
+          <div>
+            <h3 class="text-base font-semibold text-gray-900">External Integration</h3>
+            <p class="text-xs text-gray-500 mt-1">
+              Let other projects push events (webhook) or chat in real time (WebSocket) using a per-agent API key —
+              no account password required.
+            </p>
+          </div>
+
+          <!-- Enable signals -->
+          <div class="flex items-start justify-between gap-4 bg-white border border-gray-200 rounded-lg p-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-800">Enable Signals &amp; External Access</label>
+              <p class="text-xs text-gray-500 mt-1">
+                Required for the webhook endpoint. The WebSocket chat key works once a key is generated below.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              :aria-checked="!!internalAgent.signal_enabled"
+              @click="toggleSignalEnabled"
+              :disabled="signalSaving"
+              :class="['relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50', internalAgent.signal_enabled ? 'bg-indigo-600' : 'bg-gray-300']"
+            >
+              <span :class="['inline-block h-4 w-4 transform rounded-full bg-white transition-transform', internalAgent.signal_enabled ? 'translate-x-6' : 'translate-x-1']"></span>
+            </button>
+          </div>
+
+          <!-- API Key -->
+          <div class="bg-white border border-gray-200 rounded-lg p-4">
+            <div class="flex justify-between items-center mb-2">
+              <label class="block text-sm font-medium text-gray-800">Agent API Key</label>
+              <button
+                @click="generateSignalKey"
+                :disabled="signalKeyGenerating"
+                class="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 flex items-center gap-1"
+              >
+                <span v-if="signalKeyGenerating" class="animate-spin">↻</span>
+                {{ internalAgent.signal_api_key ? 'Regenerate Key' : 'Generate Key' }}
+              </button>
+            </div>
+            <p class="text-xs text-gray-500 mb-3">
+              Bearer token for the webhook and the WebSocket chat. Regenerating immediately revokes the previous key.
+            </p>
+
+            <div v-if="internalAgent.signal_api_key" class="flex gap-2 items-center">
+              <code class="flex-1 bg-gray-100 px-3 py-2 rounded text-xs font-mono text-gray-800 break-all">
+                {{ showKey ? internalAgent.signal_api_key : maskedKey }}
+              </code>
+              <button @click="showKey = !showKey" class="text-xs px-2 py-2 border border-gray-300 rounded hover:bg-gray-50">
+                {{ showKey ? 'Hide' : 'Show' }}
+              </button>
+              <button @click="copyToClipboard(internalAgent.signal_api_key, 'key')" class="text-xs px-2 py-2 border border-gray-300 rounded hover:bg-gray-50">
+                {{ copied === 'key' ? 'Copied!' : 'Copy' }}
+              </button>
+            </div>
+            <div v-else class="text-xs text-gray-500 italic">No key yet — generate one to enable external access.</div>
+          </div>
+
+          <!-- Connection URLs -->
+          <div class="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+            <label class="block text-sm font-medium text-gray-800">Connection URLs</label>
+
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-xs font-medium text-gray-600">Webhook (POST events)</span>
+                <button @click="copyToClipboard(webhookUrl, 'webhook')" class="text-xs text-indigo-600 hover:text-indigo-800">
+                  {{ copied === 'webhook' ? 'Copied!' : 'Copy' }}
+                </button>
+              </div>
+              <code class="block bg-gray-100 px-3 py-2 rounded text-xs font-mono text-gray-800 break-all">{{ webhookUrl }}</code>
+            </div>
+
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-xs font-medium text-gray-600">WebSocket chat (real-time)</span>
+                <button @click="copyToClipboard(wsUrl, 'ws')" class="text-xs text-indigo-600 hover:text-indigo-800">
+                  {{ copied === 'ws' ? 'Copied!' : 'Copy' }}
+                </button>
+              </div>
+              <code class="block bg-gray-100 px-3 py-2 rounded text-xs font-mono text-gray-800 break-all">{{ wsUrl }}</code>
+              <p class="text-[11px] text-gray-400 mt-1">
+                Authenticate by appending <code class="bg-gray-100 px-1 rounded">?token=&lt;API_KEY&gt;</code> or sending an
+                <code class="bg-gray-100 px-1 rounded">Authorization: Bearer &lt;API_KEY&gt;</code> header.
+              </p>
+            </div>
+          </div>
+
+          <div v-if="signalMessage" class="text-sm rounded-lg p-2 text-center" :class="signalError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'">
+            {{ signalMessage }}
+          </div>
+        </div>
+      </div>
+
 
 
     </div>
@@ -618,6 +721,100 @@ const mcpCredentialEntries = ref([{ key: '', value: '' }]);
 const savingMcpCredential = ref(false);
 const mcpCredentialMessage = ref('');
 const mcpCredentialError = ref(false);
+
+// ── Integration (signals / API key / URLs) state ──
+const signalSaving = ref(false);
+const signalKeyGenerating = ref(false);
+const signalMessage = ref('');
+const signalError = ref(false);
+const showKey = ref(false);
+const copied = ref('');
+
+const maskedKey = computed(() => {
+    const k = internalAgent.value.signal_api_key || '';
+    if (k.length <= 12) return '••••••••';
+    return `${k.slice(0, 10)}${'•'.repeat(12)}${k.slice(-4)}`;
+});
+
+// Backend PUBLIC base — the address EXTERNAL projects must call directly.
+// In dev, VITE_API_TARGET points at the real backend (e.g. :8000); the Vite
+// proxy hides it for in-app calls, but external clients don't go through the
+// proxy and need the real host. In production (same-origin) fall back to the
+// current origin.
+const backendBase = (import.meta.env.VITE_API_TARGET || window.location.origin).replace(/\/+$/, '');
+
+const webhookUrl = computed(() => {
+    if (!internalAgent.value.id) return '';
+    return `${backendBase}/api/agents/${internalAgent.value.id}/webhook/`;
+});
+
+const wsUrl = computed(() => {
+    if (!internalAgent.value.id) return '';
+    // Optional explicit override; otherwise derive host + scheme from the backend base.
+    const explicit = import.meta.env.VITE_WS_HOST;
+    let host, scheme;
+    try {
+        const u = new URL(backendBase);
+        host = explicit ? explicit.replace(/^wss?:\/\//, '') : u.host;
+        scheme = u.protocol === 'https:' ? 'wss' : 'ws';
+    } catch (e) {
+        host = explicit || window.location.host;
+        scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    }
+    // repo_id 0 = "Free Agent" mode (standalone agent, no repository)
+    return `${scheme}://${host}/ws/chat/repository/0/`;
+});
+
+const flashSignalMessage = (msg, isError = false) => {
+    signalMessage.value = msg;
+    signalError.value = isError;
+    setTimeout(() => { signalMessage.value = ''; }, 4000);
+};
+
+const toggleSignalEnabled = async () => {
+    if (!internalAgent.value.id) return;
+    const next = !internalAgent.value.signal_enabled;
+    signalSaving.value = true;
+    try {
+        await api.updateAgent(internalAgent.value.id, { signal_enabled: next });
+        internalAgent.value.signal_enabled = next;
+        emit('update:agent', { ...internalAgent.value });
+        flashSignalMessage(next ? 'Signals enabled.' : 'Signals disabled.');
+    } catch (e) {
+        console.error('Failed to toggle signals', e);
+        flashSignalMessage('Failed to update signal setting.', true);
+    } finally {
+        signalSaving.value = false;
+    }
+};
+
+const generateSignalKey = async () => {
+    if (!internalAgent.value.id) return;
+    signalKeyGenerating.value = true;
+    try {
+        const res = await api.rotateAgentSignalKey(internalAgent.value.id);
+        internalAgent.value.signal_api_key = res.data.api_key;
+        showKey.value = true;
+        emit('update:agent', { ...internalAgent.value });
+        flashSignalMessage('New API key generated. Copy it now — share only this key.');
+    } catch (e) {
+        console.error('Failed to generate key', e);
+        flashSignalMessage('Failed to generate API key.', true);
+    } finally {
+        signalKeyGenerating.value = false;
+    }
+};
+
+const copyToClipboard = async (text, which) => {
+    if (!text) return;
+    try {
+        await navigator.clipboard.writeText(text);
+        copied.value = which;
+        setTimeout(() => { if (copied.value === which) copied.value = ''; }, 1500);
+    } catch (e) {
+        console.error('Clipboard copy failed', e);
+    }
+};
 
 const scopes = [
     { value: 'system', label: 'Full System' },
