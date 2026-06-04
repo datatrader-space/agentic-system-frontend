@@ -4,7 +4,7 @@
     <div class="page-header">
       <div class="header-bg"></div>
       <h1 class="gradient-text">How It Works</h1>
-      <p>Four simple steps to transform your development workflow.</p>
+      <p>Four steps to deploy autonomous AI agents.</p>
     </div>
 
     <!-- Interactive Timeline -->
@@ -39,9 +39,9 @@
             <h2>Watch AI Agents in Action</h2>
             <p>See how the system analyzes context, generates code, and tests solutions in real-time.</p>
             <ul class="check-list">
-              <li>Real-time execution logs</li>
-              <li>Automatic dependency detection</li>
-              <li>Self-correcting generation</li>
+              <li>Agents autonomously choose tools</li>
+              <li>Budget caps and auto-pause guardrails</li>
+              <li>Full audit trail on every action</li>
             </ul>
           </div>
           
@@ -55,24 +55,29 @@
             </div>
             <div class="term-body">
               <div class="log-line">
-                <span class="timestamp">[10:42:01]</span>
-                <span class="log-info">INFO</span>
-                <span>Initializing neural context...</span>
+                <span class="timestamp">[09:00:01]</span>
+                <span class="log-info">SIGNAL</span>
+                <span>Schedule "Bot Monitor" triggered (cron)</span>
               </div>
               <div class="log-line">
-                <span class="timestamp">[10:42:02]</span>
+                <span class="timestamp">[09:00:02]</span>
+                <span class="log-info">TOOL</span>
+                <span>SSH_EXEC → prod-server: docker ps</span>
+              </div>
+              <div class="log-line">
+                <span class="timestamp">[09:00:05]</span>
                 <span class="log-success">SUCCESS</span>
-                <span>Codebase analyzed. 14 files indexed.</span>
+                <span>3 containers healthy, 0 errors</span>
               </div>
               <div class="log-line">
-                <span class="timestamp">[10:42:05]</span>
-                <span class="log-info">INFO</span>
-                <span>Orchestrating tools: fs, shell, git...</span>
+                <span class="timestamp">[09:00:06]</span>
+                <span class="log-info">TOOL</span>
+                <span>MANAGE_KNOWLEDGE → create "Health OK"</span>
               </div>
               <div class="log-line typing">
-                <span class="timestamp">[10:42:12]</span>
-                <span class="log-process">PROCESSING</span>
-                <span>Generating AuthController components_</span>
+                <span class="timestamp">[09:00:08]</span>
+                <span class="log-process">TOOL</span>
+                <span>REPORT_RESULTS → saving report_</span>
                 <span class="cursor">|</span>
               </div>
             </div>
@@ -89,29 +94,29 @@
           <div class="tech-pill">
             <span class="pill-icon">🤖</span>
             <div class="pill-text">
-              <strong>LLMs</strong>
-              <span>GPT, Claude, Custom</span>
+              <strong>6 LLM Providers</strong>
+              <span>OpenRouter, OpenAI, Anthropic, xAI, Google, Ollama</span>
             </div>
           </div>
           <div class="tech-pill">
-            <span class="pill-icon">🔧</span>
+            <span class="pill-icon">🛠️</span>
             <div class="pill-text">
-              <strong>Tools</strong>
-              <span>50+ Integrations</span>
+              <strong>140+ Tools</strong>
+              <span>SSH, Web, Media, Cloud, Knowledge</span>
+            </div>
+          </div>
+          <div class="tech-pill">
+            <span class="pill-icon">🔌</span>
+            <div class="pill-text">
+              <strong>MCP Protocol</strong>
+              <span>Unlimited external tool servers</span>
             </div>
           </div>
           <div class="tech-pill">
             <span class="pill-icon">🔒</span>
             <div class="pill-text">
-              <strong>Security</strong>
-              <span>Enterprise Grade</span>
-            </div>
-          </div>
-          <div class="tech-pill">
-            <span class="pill-icon">☁️</span>
-            <div class="pill-text">
-              <strong>Deploy</strong>
-              <span>Cloud & On-Prem</span>
+              <strong>Self-Hosted</strong>
+              <span>Docker, RBAC, encrypted vaults</span>
             </div>
           </div>
         </div>
@@ -122,8 +127,8 @@
     <div class="cta-section">
       <div class="container">
         <div class="cta-box">
-          <h2>Ready to Accelerate Development?</h2>
-          <p>Join thousands of teams using AI agents today.</p>
+          <h2>Ready to Deploy Your First Agent?</h2>
+          <p>Self-host AADML in minutes with Docker, or get started on our cloud.</p>
           <router-link to="/login" class="btn-primary">
             Start Free Trial
           </router-link>
@@ -135,28 +140,33 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useMeta } from '../composables/useMeta'
 
-// Preserved Logic & Data
+useMeta({
+  title: 'How It Works — AADML',
+  description: 'Four steps to deploy autonomous AI agents: configure, equip with tools, automate with signals, and monitor results.',
+})
+
 const steps = ref([
   {
-    title: 'Connect Your Codebase',
-    description: 'Point our AI agents to your repository. They analyze your code structure, dependencies, and relationships to build a deep understanding of your project.',
-    icon: '<svg class="w-32 h-32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>'
+    title: 'Configure Your Agent',
+    description: 'Create an agent, pick an LLM model (OpenRouter, OpenAI, Anthropic, or local Ollama), write a system prompt, and set budget guardrails.',
+    icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>'
   },
   {
-    title: 'Define Your Tasks',
-    description: 'Describe what you want to build using natural language. The AI understands context, requirements, and technical constraints automatically.',
-    icon: '<svg class="w-32 h-32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>'
+    title: 'Equip with Tools',
+    description: 'Assign from 140+ built-in tools (SSH, web search, media, cloud) or connect MCP servers for unlimited external capabilities.',
+    icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>'
   },
   {
-    title: 'AI Agents Work',
-    description: 'Watch as agents orchestrate tools, generate code, run tests, and iterate based on results. Full transparency with real-time execution logs.',
-    icon: '<svg class="w-32 h-32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>'
+    title: 'Automate with Signals',
+    description: 'Set up cron schedules, webhook triggers, or manual chat. Agents execute autonomously with budget caps and auto-pause guardrails.',
+    icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>'
   },
   {
-    title: 'Review & Deploy',
-    description: 'Review generated code, approve changes, and deploy with confidence. Agents provide detailed explanations and documentation for all modifications.',
-    icon: '<svg class="w-32 h-32" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+    title: 'Monitor & Learn',
+    description: 'Review execution logs, cost analytics, and knowledge cards. Agents get smarter over time through the Dream consolidation pipeline.',
+    icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>'
   }
 ])
 </script>
@@ -290,17 +300,20 @@ const steps = ref([
 
 /* Icons inside cards */
 .icon-box {
-  width: 64px; height: 64px;
+  width: 56px; height: 56px;
   background: var(--primary-light);
-  border-radius: 16px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 1.5rem;
   color: var(--primary);
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.step-icon { width: 32px; height: 32px; }
+.step-icon { width: 28px; height: 28px; }
+.step-icon :deep(svg) { width: 100%; height: 100%; }
 
 .card-content h2 {
   font-size: 1.5rem;
@@ -506,8 +519,8 @@ const steps = ref([
 }
 
 .btn-primary {
-  background: var(--bg-surface);
-  color: var(--primary);
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
   padding: 1rem 3rem;
   border-radius: 12px;
   font-weight: 700;
@@ -516,13 +529,12 @@ const steps = ref([
   transition: 0.3s;
   position: relative;
   z-index: 2;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
 }
 
 .btn-primary:hover {
   transform: translateY(-3px);
-  box-shadow: var(--shadow-xl);
-  color: var(--primary-light);
+  box-shadow: 0 8px 30px rgba(139, 92, 246, 0.5);
 }
 
 /* --- 7. RESPONSIVE --- */

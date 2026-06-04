@@ -156,6 +156,11 @@ export default {
   },
   validateActions: (data) => api.post('/services/validate-actions/', data),
 
+  // OAuth Connection
+  getOAuthStatus: (serviceId) => api.get(`/oauth/status/${serviceId}/`),
+  startOAuth: (serviceId) => api.get(`/oauth/start/${serviceId}/`),
+  disconnectOAuth: (serviceId) => api.delete(`/oauth/disconnect/${serviceId}/`),
+
   // MCP Server Management
   getMCPServers: (params) => api.get('/mcp/servers/', { params }),
   getMCPServer: (id) => api.get(`/mcp/servers/${id}/`),
@@ -207,6 +212,7 @@ export default {
   deleteLlmProvider: (id) => api.delete(`/llm/providers/${id}/`),
   syncOllamaModels: (id) => api.post(`/llm/providers/${id}/sync_ollama_models/`),
   syncOpenRouterModels: (id) => api.post(`/llm/providers/${id}/sync_openrouter_models/`),
+  syncOpenAIModels: (id) => api.post(`/llm/providers/${id}/sync_openai_models/`),
   getLlmModels: (params = {}) => api.get('/llm/models/', { params }),
   createLlmModel: (data) => api.post('/llm/models/', data),
   updateLlmModel: (id, data) => api.put(`/llm/models/${id}/`, data),
@@ -365,6 +371,9 @@ export default {
   getAgentWorkspace: (agentId) => api.get(`/agents/${agentId}/workspace/`),
   readWorkspaceFile: (agentId, path) => api.post(`/agents/${agentId}/workspace/read/`, { path }),
   deleteWorkspaceFile: (agentId, path) => api.post(`/agents/${agentId}/workspace/delete/`, { path }),
+  bulkDeleteWorkspaceFiles: (agentId, paths) => api.post(`/agents/${agentId}/workspace/bulk-delete/`, { paths }),
+  downloadWorkspaceFile: (agentId, path) => api.post(`/agents/${agentId}/workspace/download/`, { path }, { responseType: 'blob' }),
+  previewAgentPrompt: (agentId) => api.get(`/agents/${agentId}/preview-prompt/`),
 
   // ── Workspace Status (Live Polling) ──
   getWorkspaceStatusList: () => api.get('/workspace-status/'),
@@ -381,4 +390,54 @@ export default {
     const qs = params.toString()
     return api.get(`/agents/${agentId}/workspace-routing/${qs ? '?' + qs : ''}`)
   },
+
+  // ── User Connections (OAuth Providers) ──
+  getConnectionProviders: () => api.get('/connections/providers/'),
+  getConnectionPresets: () => api.get('/connections/presets/'),
+  getConnections: () => api.get('/connections/'),
+  startConnection: (providerSlug, opts = {}) => {
+    const params = new URLSearchParams()
+    if (opts.scopes) params.set('scopes', opts.scopes)
+    if (opts.owner) params.set('owner', opts.owner)
+    const qs = params.toString()
+    return api.get(`/connections/${providerSlug}/start/${qs ? '?' + qs : ''}`)
+  },
+  disconnectConnection: (providerSlug, opts = {}) => {
+    const params = new URLSearchParams()
+    if (opts.owner) params.set('owner', opts.owner)
+    const qs = params.toString()
+    return api.delete(`/connections/${providerSlug}/disconnect/${qs ? '?' + qs : ''}`)
+  },
+  configureProvider: (providerSlug, data) => api.post(`/connections/providers/${providerSlug}/configure/`, data),
+  getProviderConfig: (providerSlug) => api.get(`/connections/providers/${providerSlug}/configure/`),
+  createProvider: (data) => api.post('/connections/providers/create/', data),
+  updateProvider: (providerSlug, data) => api.patch(`/connections/providers/${providerSlug}/`, data),
+  deleteProvider: (providerSlug) => api.delete(`/connections/providers/${providerSlug}/delete/`),
+
+  // Signal System
+  getSignals: (agentId, params) => api.get(`/agents/${agentId}/signals/`, { params }),
+  getSignalStats: (agentId) => api.get(`/agents/${agentId}/signals/stats/`),
+  getSignalFlows: (agentId) => api.get(`/agents/${agentId}/signals/flows/`),
+  getDeadLetters: (agentId) => api.get(`/agents/${agentId}/signals/dead/`),
+  sendTestSignal: (agentId, data) => api.post(`/agents/${agentId}/signals/test/`, data),
+  rotateSignalApiKey: (agentId) => api.post(`/agents/${agentId}/signals/api-key/`),
+  cancelSignal: (agentId, signalId) => api.post(`/agents/${agentId}/signals/${signalId}/cancel/`),
+  retrySignal: (agentId, signalId) => api.post(`/agents/${agentId}/signals/${signalId}/retry/`),
+
+  // Agent Knowledge / Dreaming Cycle
+  getAgentKnowledge: (agentId) => api.get(`/agents/${agentId}/knowledge/`),
+  updateKnowledgeConfig: (agentId, data) => api.patch(`/agents/${agentId}/knowledge/config/`, data),
+  updateKnowledgeCard: (agentId, cardId, data) => api.patch(`/agents/${agentId}/knowledge/cards/${cardId}/`, data),
+  createKnowledgeCard: (agentId, data) => api.post(`/agents/${agentId}/knowledge/cards/`, data),
+  deleteKnowledgeCard: (agentId, cardId) => api.delete(`/agents/${agentId}/knowledge/cards/${cardId}/delete/`),
+  bulkDeleteKnowledgeCards: (agentId, cardIds) => api.post(`/agents/${agentId}/knowledge/cards/bulk-delete/`, { card_ids: cardIds }),
+  triggerDream: (agentId) => api.post(`/agents/${agentId}/knowledge/dream/`),
+
+  // Agent Flows
+  getAgentFlows: (agentId, sort = 'time') => api.get(`/agents/${agentId}/flows/`, { params: { sort } }),
+  updateFlow: (agentId, flowId, data) => api.patch(`/agents/${agentId}/flows/${flowId}/`, data),
+  deleteFlow: (agentId, flowId) => api.delete(`/agents/${agentId}/flows/${flowId}/delete/`),
+  bulkDeleteFlows: (agentId, flowIds) => api.post(`/agents/${agentId}/flows/bulk-delete/`, { flow_ids: flowIds }),
+  processFlows: (agentId, data = {}) => api.post(`/agents/${agentId}/flows/process/`, data),
+  updateFlowConfig: (agentId, data) => api.patch(`/agents/${agentId}/flows/config/`, data),
 }

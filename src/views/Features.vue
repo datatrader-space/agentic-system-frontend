@@ -69,89 +69,96 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useMeta } from '../composables/useMeta'
+
+useMeta({
+  title: 'Features — AADML',
+  description: 'Explore the full capabilities of the AADML AI agent platform: 140+ tools, multi-LLM routing, signal system, MCP integration, knowledge cycles, and workspace teams.',
+})
 
 const features = ref([
   {
-    category: 'Code Intelligence',
-    title: 'Deep Code Understanding',
-    description: 'Our AI agents analyze your entire codebase to understand structure, relationships, and dependencies.',
-    demoLabel: 'Code Relationship Mapping',
-    icon: '<svg class="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>',
+    category: 'Tooling',
+    title: 'Multi-Tool Agents',
+    description: '140+ built-in tools across 15+ categories. Agents autonomously choose the right tool for each step — from shell commands to media generation.',
+    demoLabel: 'Tool Execution Pipeline',
+    icon: '<svg class="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>',
     benefits: [
-      'Automatic dependency detection',
-      'Cross-file relationship mapping',
-      'Impact analysis for changes',
-      'Smart code navigation'
+      'SSH, bash, and Python execution',
+      'Browser automation and web search',
+      'AWS, email, and cloud integrations',
+      'Media generation (images, video)',
+      'Custom REST API tool registration'
     ]
   },
   {
     category: 'Automation',
-    title: 'Multi-Tool Orchestration',
-    description: 'Access 50+ built-in tools and create custom integrations for complete workflow automation.',
-    demoLabel: 'Tool Execution Pipeline',
-    icon: '<svg class="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>',
-    benefits: [
-      'File system operations',
-      'Shell command execution',
-      'Database interactions',
-      'API integration tools',
-      'Custom tool development'
-    ]
-  },
-  {
-    category: 'Testing',
-    title: 'Intelligent Test Generation',
-    description: 'Automatically generate comprehensive test suites with smart coverage analysis.',
-    demoLabel: 'Auto-Generated Test Suite',
-    icon: '<svg class="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>',
-    benefits: [
-      'Unit test generation',
-      'Integration test creation',
-      'Edge case detection',
-      'Coverage optimization',
-      'Test maintenance automation'
-    ]
-  },
-  {
-    category: 'Collaboration',
-    title: 'Real-Time Agent Assistance',
-    description: 'Work alongside AI agents that understand your goals and provide contextual help.',
-    demoLabel: 'Interactive Collaboration',
-    icon: '<svg class="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"></path></svg>',
-    benefits: [
-      'Natural language queries',
-      'Context-aware suggestions',
-      'Continuous learning',
-      'Session persistence',
-      'Multi-agent workflows'
-    ]
-  },
-  {
-    category: 'Flexibility',
-    title: 'Custom LLM Integration',
-    description: 'Choose from local open-source models or cloud providers based on your needs.',
-    demoLabel: 'Multi-Provider Support',
+    title: 'Signal System & Schedules',
+    description: 'Event-driven agent execution. Cron schedules, webhooks, Redis streams, and signal bridges fire agents with budget caps and auto-pause guardrails.',
+    demoLabel: 'Signal Flow Dashboard',
     icon: '<svg class="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>',
     benefits: [
-      'Ollama local models',
-      'Claude integration',
-      'GPT support',
-      'Custom model endpoints',
-      'Cost optimization'
+      'Cron-scheduled agent runs',
+      'Webhook ingestion (Shopify, Stripe, GitHub)',
+      'Signal chaining and aggregator patterns',
+      'Budget caps and auto-pause on failures',
+      'Cross-run KV store for state persistence'
+    ]
+  },
+  {
+    category: 'Intelligence',
+    title: 'Multi-LLM Routing',
+    description: 'Route each agent to the ideal model. OpenRouter (100+ models), OpenAI, Anthropic, xAI, Google, or 100% free local Ollama.',
+    demoLabel: 'Provider Configuration',
+    icon: '<svg class="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>',
+    benefits: [
+      '6 LLM providers supported',
+      'Per-agent model and temperature overrides',
+      'Cost tracking per request and per agent',
+      'Auto model sync from provider APIs',
+      'Latency monitoring and analytics'
+    ]
+  },
+  {
+    category: 'Extensibility',
+    title: 'MCP Integration',
+    description: 'Connect any Model Context Protocol server. Tools auto-discover from connected servers with circuit breakers and health monitoring.',
+    demoLabel: 'MCP Server Manager',
+    icon: '<svg class="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>',
+    benefits: [
+      'One-click MCP server connection',
+      'Auto tool discovery and schema caching',
+      'Circuit breaker with automatic recovery',
+      'Per-agent MCP credentials with encryption',
+      'Workspace-scoped MCP server isolation'
+    ]
+  },
+  {
+    category: 'Learning',
+    title: 'Knowledge & Dream Pipeline',
+    description: 'Agents learn from every interaction. Knowledge cards capture insights. The Dream pipeline consolidates learnings across sessions.',
+    demoLabel: 'Knowledge Dashboard',
+    icon: '<svg class="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>',
+    benefits: [
+      'MANAGE_KNOWLEDGE tool for agent self-memory',
+      'Automatic knowledge extraction from conversations',
+      'Dream consolidation cycles (merge, prune, rank)',
+      'Cross-run memory via SCHEDULE_KV_STORE',
+      'REPORT_RESULTS for structured output storage'
     ]
   },
   {
     category: 'Enterprise',
-    title: 'Security & Compliance',
-    description: 'Enterprise-grade security controls with full audit trails and access management.',
+    title: 'Workspace Teams & Security',
+    description: 'Multi-tenant organizations with workspaces, RBAC, encrypted credential vaults, complete audit trails, and login monitoring.',
     demoLabel: 'Security Dashboard',
     icon: '<svg class="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>',
     benefits: [
-      'Role-based access control',
-      'Complete audit logging',
-      'Data encryption',
-      'Compliance reporting',
-      'On-premise deployment options'
+      'Multi-tenant orgs and workspaces',
+      'Role-based access control (owner/admin/member/viewer)',
+      'Encrypted credential vaults (never leaked to agents)',
+      'Login attempt tracking and security monitoring',
+      'Self-hosted Docker deployment with full audit trails'
     ]
   }
 ])

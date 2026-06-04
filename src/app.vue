@@ -1,7 +1,19 @@
 <template>
-  <div id="app" class="min-h-screen" :class="appBackgroundClass">
-    <!-- Header Component -->
+  <div id="app" class="h-screen overflow-hidden" :class="[appBackgroundClass, isPlayground ? 'flex flex-row' : 'flex flex-col']">
+
+    <!-- Sidebar: only on Agent Playground -->
+    <AppSidebar
+      v-if="isPlayground"
+      :current-user="currentUser"
+      :llm-health="llmHealth"
+      :theme="theme"
+      @logout="handleLogout"
+      @toggle-theme="handleToggleTheme"
+    />
+
+    <!-- Header: on all other pages -->
     <AppHeader
+      v-else
       :current-user="currentUser"
       :llm-health="llmHealth"
       :theme="theme"
@@ -11,8 +23,11 @@
     />
 
     <!-- Main Content -->
-    <main :class="mainContentClass">
-      <router-view />
+    <main :class="isPlayground ? 'flex-1 overflow-hidden pb-14 md:pb-0' : 'flex-1 overflow-y-auto pb-14 md:pb-0'">
+      <div :class="mainContentClass">
+        <router-view />
+      </div>
+      <AppFooter />
     </main>
     
     <!-- Toast Notifications (if any) -->
@@ -49,11 +64,17 @@
 import { ref, onMounted, provide, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from './services/api'
+import { installNavigationHistory } from './composables/useNavigationHistory'
 import AppHeader from './components/layout/AppHeader.vue'
+import AppSidebar from './components/layout/AppSidebar.vue'
+import AppFooter from './components/layout/AppFooter.vue'
 import { useTheme } from './composables/useTheme'
 
 const router = useRouter()
 const route = useRoute()
+
+// Install history-based back navigation tracking
+installNavigationHistory(router)
 const llmHealth = ref(null)
 
 // Initialize theme system
@@ -68,6 +89,9 @@ const handleToggleTheme = () => {
 
 // Layout computed properties
 const isFullScreen = computed(() => route.name === 'repository-detail' || route.name === 'agent-playground')
+
+// Agent Playground uses sidebar instead of header
+const isPlayground = computed(() => route.name === 'agent-playground')
 
 // Public pages that need full-width dark layout
 const isPublicPage = computed(() => {
@@ -85,12 +109,12 @@ const appBackgroundClass = computed(() => {
 // Main content class based on page type
 const mainContentClass = computed(() => {
   if (isFullScreen.value) {
-    return 'h-[calc(100vh-64px)]'
+    return 'h-full overflow-hidden'
   }
   if (isPublicPage.value) {
     return '' // Full width for public pages
   }
-  return 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'
+  return 'w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8'
 })
 
 const currentUser = ref(null)
@@ -139,13 +163,14 @@ onMounted(async () => {
     await loadCurrentUser()
   }
 
-  // Check LLM health
-  try {
-    const response = await api.get('/llm/health/')
-    llmHealth.value = response.data
-  } catch (error) {
-    console.error('Failed to check LLM health:', error)
-  }
+  // LLM health check disabled — it sends real paid API calls on every page load
+  // To re-enable, uncomment and switch to a lightweight /v1/models ping instead
+  // try {
+  //   const response = await api.get('/llm/health/')
+  //   llmHealth.value = response.data
+  // } catch (error) {
+  //   console.error('Failed to check LLM health:', error)
+  // }
 })
 
 // Watch for route changes to reload user if needed

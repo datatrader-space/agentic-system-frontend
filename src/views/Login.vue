@@ -31,20 +31,19 @@
               </svg>
             </div>
             <div class="logo-text">
-              <span class="logo-main">Agentic</span>
-              <span class="logo-sub">System</span>
+              <span class="logo-main">AADML</span>
             </div>
           </router-link>
 
           <!-- Tagline -->
           <h1 class="branding-title">
-            Build Faster with
-            <span class="gradient-text">AI-Powered</span>
-            Code Generation
+            Build & Deploy
+            <span class="gradient-text">AI Agents</span>
+            That Work For You
           </h1>
 
           <p class="branding-subtitle">
-            Transform your development workflow with intelligent agents that understand your codebase and accelerate delivery.
+            Orchestrate AI agents with 50+ tools, multi-LLM routing, event-driven signals, and enterprise-grade workspace management.
           </p>
 
           <!-- Features List -->
@@ -55,7 +54,7 @@
                   <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                 </svg>
               </div>
-              <span>10x Faster Development</span>
+              <span>50+ Built-in Tools</span>
             </div>
             <div class="feature-item">
               <div class="feature-icon">
@@ -93,7 +92,7 @@
           <div class="form-header">
             <h2 class="form-title">{{ isLogin ? 'Welcome back' : 'Create account' }}</h2>
             <p class="form-subtitle">
-              {{ isLogin ? 'Enter your credentials to access your account' : 'Start your journey with Agentic System' }}
+              {{ isLogin ? 'Enter your credentials to access your account' : 'Start your journey with AADML' }}
             </p>
           </div>
 

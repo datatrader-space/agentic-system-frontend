@@ -36,6 +36,10 @@ import WorkspaceHub from './views/WorkspaceHub.vue'
 import OrgSettings from './views/OrgSettings.vue'
 import WorkspaceDashboard from './views/WorkspaceDashboard.vue'
 import InviteAccept from './views/InviteAccept.vue'
+import Connections from './views/Connections.vue'
+import ConnectionDocs from './views/ConnectionDocs.vue'
+import Docs from './views/Docs.vue'
+import AdminPanel from './views/AdminPanel.vue'
 
 // Create router
 const router = createRouter({
@@ -88,6 +92,24 @@ const router = createRouter({
       name: 'contact',
       component: Contact,
       meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/docs',
+      name: 'docs',
+      component: Docs,
+      meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/docs/:slug',
+      name: 'docs-page',
+      component: Docs,
+      meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/admin',
+      name: 'admin',
+      component: AdminPanel,
+      meta: { requiresAuth: true }
     },
     {
       path: '/login',
@@ -214,6 +236,18 @@ const router = createRouter({
       name: 'invite-accept',
       component: InviteAccept,
       meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/connections',
+      name: 'connections',
+      component: Connections,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/docs/connections',
+      name: 'connection-docs',
+      component: ConnectionDocs,
+      meta: { requiresAuth: true }
     }
   ]
 })

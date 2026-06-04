@@ -54,6 +54,38 @@
               </a>
               <p v-else class="text-gray-400">Not provided</p>
             </div>
+            <div class="info-item" style="grid-column: span 2;">
+              <label>OAuth Provider (Connector)</label>
+              <div class="flex items-center gap-3">
+                <select
+                  v-model="selectedProviderId"
+                  class="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option :value="null">— None (no connector) —</option>
+                  <option
+                    v-for="p in availableProviders"
+                    :key="p.id"
+                    :value="p.id"
+                  >
+                    {{ p.icon || '🔗' }} {{ p.name }} ({{ p.slug }})
+                  </option>
+                </select>
+                <button
+                  v-if="selectedProviderId !== currentProviderId"
+                  @click="linkProvider"
+                  :disabled="linkingProvider"
+                  class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition disabled:opacity-50 whitespace-nowrap"
+                >
+                  {{ linkingProvider ? 'Saving...' : '💾 Save' }}
+                </button>
+                <span
+                  v-else-if="serviceDetail.oauth_provider"
+                  class="text-xs text-green-600 font-medium whitespace-nowrap"
+                >
+                  ✓ Linked
+                </span>
+              </div>
+            </div>
             <div class="info-item">
               <label>API Documentation</label>
               <a v-if="serviceDetail.api_docs_url" :href="serviceDetail.api_docs_url" target="_blank" class="text-blue-600 hover:underline">
@@ -94,6 +126,37 @@
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- OAuth Connection Section (only for oauth2 services) -->
+        <div v-if="serviceDetail.auth_type === 'oauth2'" class="section oauth-section">
+          <h3>🔗 OAuth Connection</h3>
+          <div v-if="oauthLoading" class="oauth-status-loading">
+            <span>Checking connection...</span>
+          </div>
+          <div v-else-if="oauthStatus.connected" class="oauth-connected">
+            <div class="oauth-status-badge connected">
+              <span>✅ Connected</span>
+              <span v-if="oauthStatus.token_expires_at" class="oauth-expiry">
+                Token expires: {{ formatDate(oauthStatus.token_expires_at) }}
+              </span>
+            </div>
+            <div class="oauth-actions">
+              <button @click="disconnectOAuth" class="btn-sm btn-danger" :disabled="oauthBusy">
+                🔌 Disconnect
+              </button>
+              <button @click="startOAuth" class="btn-sm btn-secondary" :disabled="oauthBusy">
+                🔄 Reconnect
+              </button>
+            </div>
+          </div>
+          <div v-else class="oauth-disconnected">
+            <p class="text-gray-400 mb-2">Connect your account to enable this service.</p>
+            <button @click="startOAuth" class="btn-primary" :disabled="oauthBusy">
+              🔑 {{ oauthBusy ? 'Connecting...' : 'Connect Your Account' }}
+            </button>
+            <p class="text-xs text-gray-500 mt-1">Opens authorization in a new window</p>
           </div>
         </div>
 
@@ -295,7 +358,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import api from '../../services/api'
 import ServiceEditModal from './ServiceEditModal.vue'
 import ServiceShareModal from './ServiceShareModal.vue'
@@ -320,6 +383,17 @@ const expandedActions = ref([])
 const showEditModal = ref(false)
 const showShareModal = ref(false)
 
+// OAuth provider linking state
+const availableProviders = ref([])
+const selectedProviderId = ref(null)
+const currentProviderId = ref(null)
+const linkingProvider = ref(false)
+
+// OAuth state
+const oauthStatus = ref({ connected: false })
+const oauthLoading = ref(false)
+const oauthBusy = ref(false)
+
 // Load service details
 const loadServiceDetails = async () => {
   loading.value = true
@@ -336,16 +410,93 @@ const loadServiceDetails = async () => {
         expandedGroups.value.push(firstGroup)
       }
     }
+
+    // Set current oauth provider
+    const op = serviceDetail.value.oauth_provider
+    currentProviderId.value = op ? op.id : null
+    selectedProviderId.value = currentProviderId.value
   } catch (err) {
     console.error('Failed to load service details:', err)
     error.value = err.response?.data?.error || 'Failed to load service details'
   } finally {
     loading.value = false
   }
+
+  // Check OAuth status if service uses OAuth2
+  if (serviceDetail.value.auth_type === 'oauth2') {
+    checkOAuthStatus()
+  }
+}
+
+// ---- OAuth Methods ----
+const checkOAuthStatus = async () => {
+  oauthLoading.value = true
+  try {
+    const res = await api.getOAuthStatus(props.service.id)
+    oauthStatus.value = res.data
+  } catch (err) {
+    console.error('Failed to check OAuth status:', err)
+    oauthStatus.value = { connected: false }
+  } finally {
+    oauthLoading.value = false
+  }
+}
+
+const startOAuth = async () => {
+  oauthBusy.value = true
+  try {
+    const res = await api.startOAuth(props.service.id)
+    const redirectUrl = res.data.redirect_url
+    // Open popup
+    const popup = window.open(
+      redirectUrl,
+      'oauth_popup',
+      'width=600,height=700,scrollbars=yes'
+    )
+    // Fallback: if popup blocked
+    if (!popup || popup.closed) {
+      alert('Popup blocked. Please allow popups for this site.')
+      oauthBusy.value = false
+    }
+  } catch (err) {
+    console.error('Failed to start OAuth:', err)
+    alert(err.response?.data?.error || 'Failed to start OAuth flow')
+    oauthBusy.value = false
+  }
+}
+
+const handleOAuthMessage = (event) => {
+  if (event.data?.type !== 'oauth_result') return
+  oauthBusy.value = false
+  if (event.data.status === 'success') {
+    checkOAuthStatus()
+  } else {
+    alert('OAuth connection failed: ' + (event.data.error || 'Unknown error'))
+  }
+}
+
+const disconnectOAuth = async () => {
+  if (!confirm('Disconnect your OAuth credentials for this service?')) return
+  oauthBusy.value = true
+  try {
+    await api.disconnectOAuth(props.service.id)
+    oauthStatus.value = { connected: false }
+  } catch (err) {
+    console.error('Failed to disconnect OAuth:', err)
+    alert('Failed to disconnect: ' + (err.response?.data?.error || err.message))
+  } finally {
+    oauthBusy.value = false
+  }
 }
 
 onMounted(() => {
   loadServiceDetails()
+  loadAvailableProviders()
+  window.addEventListener('message', handleOAuthMessage)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('message', handleOAuthMessage)
 })
 
 // Computed
@@ -390,6 +541,40 @@ const toggleGroup = (group) => {
     expandedGroups.value.splice(index, 1)
   } else {
     expandedGroups.value.push(group)
+  }
+}
+
+// Load available OAuth providers for the dropdown
+const loadAvailableProviders = async () => {
+  try {
+    const res = await api.getConnectionProviders()
+    availableProviders.value = (res.data || []).map(p => ({
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      icon: p.icon || '🔗',
+    }))
+  } catch (err) {
+    console.error('Failed to load providers:', err)
+  }
+}
+
+// Link/unlink OAuth provider
+const linkProvider = async () => {
+  linkingProvider.value = true
+  try {
+    await api.updateService(props.service.id, {
+      oauth_provider_id: selectedProviderId.value
+    })
+    currentProviderId.value = selectedProviderId.value
+    await loadServiceDetails()
+    emit('updated')
+  } catch (err) {
+    console.error('Failed to link provider:', err)
+    alert(err.response?.data?.error || 'Failed to link OAuth provider')
+    selectedProviderId.value = currentProviderId.value
+  } finally {
+    linkingProvider.value = false
   }
 }
 
@@ -1157,5 +1342,59 @@ const getActionSuccessRate = (action) => {
 
 .text-sm {
   font-size: 14px;
+}
+
+/* OAuth Connection Section */
+.oauth-section {
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.oauth-status-loading {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.oauth-connected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.oauth-status-badge.connected {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.oauth-expiry {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.oauth-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.oauth-disconnected {
+  text-align: center;
+  padding: 8px 0;
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.btn-danger:hover {
+  background: #b91c1c;
 }
 </style>

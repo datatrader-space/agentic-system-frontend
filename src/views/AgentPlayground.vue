@@ -1,14 +1,11 @@
-<template>
-    <div class="agent-playground h-screen flex flex-col bg-gray-100">
+﻿<template>
+    <div class="agent-playground h-full flex flex-col bg-gray-100 overflow-hidden">
 
         <!-- Top Bar: Agent Info -->
         <div
             class="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-3 md:px-4 shrink-0 shadow-sm z-10">
             <div class="flex items-center gap-2 sm:gap-4 min-w-0">
-                <button @click="$router.push('/agents')" class="text-gray-500 hover:text-gray-700 flex-shrink-0 p-1.5 sm:p-0">
-                    <span class="hidden sm:inline">← Back</span>
-                    <svg class="w-5 h-5 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
-                </button>
+                <BackButton fallback="/agents" size="sm" variant="ghost" />
                 <div class="h-6 w-px bg-gray-200 hidden sm:block"></div>
                 <h1 class="text-sm sm:text-lg font-bold text-gray-800 truncate">
                     {{ agent.id ? agent.name || 'Edit Agent' : 'New Agent' }}
@@ -16,48 +13,38 @@
             </div>
 
             <!-- Right: Actions -->
-            <div class="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
+            <div class="flex items-center gap-2 flex-shrink-0">
                 <button v-if="agent.id && isOwner" @click="toggleWorkspace"
-                    class="text-sm font-medium border rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
-                    :class="showWorkspace ? 'border-blue-400 text-blue-600' : wsRouting?.routed ? 'border-green-400 text-green-700' : 'border-gray-300 text-gray-600 hover:text-gray-900'"
-                    :title="wsRouting?.routed ? `Routed → ${wsRouting.workspace.workspace_name}` : 'Workspace'">
-                    <span v-if="wsRouting?.routed" class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    class="h-9 px-3 rounded-lg border transition-all flex items-center gap-2 group text-xs font-semibold"
+                    :class="showWorkspace ? 'bg-blue-50 border-blue-200 text-blue-600' : wsRouting?.routed ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'"
+                    :title="wsRouting?.routed ? `Routed â†’ ${wsRouting.workspace.workspace_name}` : 'Workspace'">
+                    <svg class="w-4 h-4 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                     </svg>
-                    <span class="hidden md:inline">{{ wsRouting?.routed ? wsRouting.workspace.workspace_name : 'Workspace' }}</span>
+                    <span class="hidden lg:inline">{{ wsRouting?.routed ? wsRouting.workspace.workspace_name : 'Workspace' }}</span>
                 </button>
+                
                 <button v-if="agent.id" @click="showCredentials = !showCredentials"
-                    class="text-sm font-medium border rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
-                    :class="showCredentials ? 'border-amber-400 text-amber-600' : 'border-gray-300 text-gray-600 hover:text-gray-900'"
+                    class="h-9 px-3 rounded-lg border transition-all flex items-center gap-2 group text-xs font-semibold"
+                    :class="showCredentials ? 'bg-amber-50 border-amber-200 text-amber-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'"
                     title="Credentials">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                     </svg>
-                    <span class="hidden md:inline">Credentials</span>
+                    <span class="hidden lg:inline">Credentials</span>
                 </button>
-                <button v-if="agent.id" @click="showScript = !showScript"
-                    class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
-                    :class="{ 'border-indigo-400 text-indigo-600': showScript }"
-                    :title="'Script'">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <polyline points="4 17 10 11 4 5" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
-                        <line x1="12" y1="19" x2="20" y2="19" stroke-linecap="round" stroke-width="2" />
-                    </svg>
-                    <span class="hidden md:inline">Script</span>
-                </button>
+                
                 <button v-if="isOwner" @click="showBuilder = !showBuilder"
-                    class="text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-300 rounded p-2 sm:px-3 sm:py-1.5 bg-white transition flex items-center gap-2"
-                    :title="'Configure Agent'">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    class="h-9 px-3 rounded-lg border transition-all flex items-center gap-2 group text-xs font-semibold"
+                    :class="showBuilder ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'"
+                    title="Configure Agent">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                        <circle cx="12" cy="12" r="3" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
                     </svg>
-                    <span class="hidden md:inline">Configure Agent</span>
+                    <span class="hidden lg:inline">Configure</span>
                 </button>
             </div>
         </div>
@@ -68,7 +55,13 @@
             <!-- Left: Builder (MODAL OVERLAY) -->
             <div v-if="showBuilder && isOwner" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
                 @click.self="showBuilder = false">
-                <div class="h-full w-full sm:w-[500px] bg-white shadow-2xl animate-in slide-in-from-right duration-200 overflow-y-auto">
+                <!-- Resize handle -->
+                <div class="h-full w-1.5 cursor-col-resize hover:bg-indigo-400 active:bg-indigo-500 transition-colors flex items-center justify-center group"
+                    @mousedown="startBuilderResize">
+                    <div class="w-0.5 h-8 bg-gray-400 group-hover:bg-white rounded-full"></div>
+                </div>
+                <div class="h-full bg-white shadow-2xl animate-in slide-in-from-right duration-200 overflow-y-auto"
+                    :style="{ width: builderWidth + 'px' }">
                     <AgentBuilder v-if="agent" v-model:agent="agent" :isSaving="saving" @save="saveAgent" @close="showBuilder = false" />
                 </div>
             </div>
@@ -78,7 +71,7 @@
                 @click.self="showCredentials = false">
                 <div class="h-full w-full sm:w-[500px] bg-white shadow-2xl animate-in slide-in-from-right duration-200 flex flex-col">
                     <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 shrink-0">
-                        <h2 class="text-base font-bold text-gray-800">🔑 Credentials</h2>
+                        <h2 class="text-base font-bold text-gray-800">ðŸ”‘ Credentials</h2>
                         <button @click="showCredentials = false" class="p-1.5 hover:bg-gray-100 rounded text-gray-500 transition">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
@@ -89,18 +82,6 @@
                 </div>
             </div>
 
-            <!-- Script Panel (slide-over) -->
-            <div v-if="showScript" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
-                @click.self="showScript = false">
-                <div class="h-full w-full sm:w-[560px] bg-gray-900 shadow-2xl flex flex-col animate-in slide-in-from-right duration-200">
-                    <ScriptPanel
-                        :repositoryId="selectedContext.repo?.id || '0'"
-                        :agentId="agent.id"
-                        :conversationId="activeSessionId"
-                        @close="showScript = false"
-                    />
-                </div>
-            </div>
 
             <!-- Workspace Panel (slide-over) -->
             <div v-if="showWorkspace" class="fixed inset-0 z-50 bg-black/50 flex justify-end"
@@ -142,8 +123,26 @@
                             </div>
                             <p class="text-xs text-green-700 leading-relaxed">
                                 Tools execute on <strong>{{ wsRouting.workspace.workspace_name }}</strong>
-                                <span v-if="wsRouting.workspace.workspace_path"> · {{ wsRouting.workspace.workspace_path }}</span>
-                                <span v-if="wsRouting.workspace.agent_version"> · v{{ wsRouting.workspace.agent_version }}</span>
+                                <span v-if="wsRouting.workspace.workspace_path"> Â· {{ wsRouting.workspace.workspace_path }}</span>
+                                <span v-if="wsRouting.workspace.agent_version"> Â· v{{ wsRouting.workspace.agent_version }}</span>
+                            </p>
+                        </div>
+                        <!-- Antigravity Status Badge (always visible when workspace is routed) -->
+                        <div v-if="wsRouting?.routed" class="mx-3 mt-2 p-2.5 rounded-lg" :class="cascadeStatus?.available ? 'bg-purple-50 border border-purple-200' : 'bg-gray-50 border border-gray-200'">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm">âœ¨</span>
+                                <span class="text-xs font-semibold" :class="cascadeStatus?.available ? 'text-purple-800' : 'text-gray-500'">Antigravity</span>
+                                <span v-if="cascadeStatus?.available" class="ml-auto text-[10px] text-purple-500 font-mono">port:{{ cascadeStatus.ls_port }}</span>
+                                <span v-else class="ml-auto flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                                    <span class="text-[10px] text-gray-400">Not detected</span>
+                                </span>
+                            </div>
+                            <p v-if="cascadeStatus?.available && cascadeSessions.length" class="text-[10px] text-purple-600 mt-1">
+                                {{ cascadeSessions.length }} session(s) available
+                            </p>
+                            <p v-else-if="!cascadeStatus?.available" class="text-[10px] text-gray-400 mt-1">
+                                Open Antigravity IDE on this workspace to enable
                             </p>
                         </div>
                         <div v-else-if="wsRouting && !wsRouting.routed" class="mx-3 mt-3 mb-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
@@ -163,41 +162,60 @@
                             <p class="text-xs text-gray-300">Files created by the agent will appear here</p>
                         </div>
 
+                        <!-- Selection Toolbar -->
+                        <div v-if="wsFiles.length" class="px-3 pt-2 flex items-center gap-2">
+                            <!-- Sort toggle -->
+                            <button @click="wsSortBy = wsSortBy === 'name' ? 'time' : 'name'"
+                                class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition flex items-center gap-1"
+                                :title="wsSortBy === 'time' ? 'Sorted by recent' : 'Sorted by name'">
+                                <svg v-if="wsSortBy === 'time'" class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/></svg>
+                                {{ wsSortBy === 'time' ? 'Recent' : 'Name' }}
+                            </button>
+                            <button v-if="!wsSelectionMode" @click="wsSelectionMode = true"
+                                class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition">
+                                Select
+                            </button>
+                            <template v-else>
+                                <button @click="wsBulkDelete" :disabled="!wsSelectedPaths.size"
+                                    class="text-xs px-2 py-1 rounded transition"
+                                    :class="wsSelectedPaths.size ? 'bg-red-100 hover:bg-red-200 text-red-600' : 'bg-gray-100 text-gray-400 cursor-not-allowed'">
+                                    ðŸ—‘ï¸ Delete ({{ wsSelectedPaths.size }})
+                                </button>
+                                <button @click="wsSelectionMode = false; wsSelectedPaths = new Set()"
+                                    class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition">
+                                    Cancel
+                                </button>
+                            </template>
+                        </div>
+                        
                         <!-- File Tree (recursive component) -->
-                        <div v-else class="p-3">
+                        <div v-if="wsFiles.length" class="p-3">
                             <WorkspaceTreeNode
-                                :entries="wsFiles"
+                                :entries="wsSortedFiles"
                                 :expandedDirs="wsExpandedDirs"
                                 :previewPath="wsPreviewPath"
                                 :getFileIcon="getFileIcon"
                                 :formatSize="wsFormatSize"
+                                :selectionMode="wsSelectionMode"
+                                :selectedPaths="wsSelectedPaths"
                                 @toggle-dir="wsToggleDir"
                                 @read-file="wsReadFile"
                                 @delete="wsDeleteEntry"
+                                @toggle-select="wsToggleSelect"
                             />
                         </div>
                     </div>
 
-                    <!-- File Preview -->
-                    <div v-if="wsPreviewContent !== null" class="border-t border-gray-200 shrink-0" style="max-height: 45%">
-                        <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-100">
-                            <span class="text-xs font-mono text-gray-600 truncate">{{ wsPreviewPath }}</span>
-                            <div class="flex items-center gap-1">
-                                <button @click="wsDownloadFile" class="p-1 hover:bg-gray-200 rounded text-gray-500 transition" title="Download">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                </button>
-                                <button @click="wsPreviewContent = null; wsPreviewPath = null" class="p-1 hover:bg-gray-200 rounded text-gray-500 transition">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
-                            </div>
-                        </div>
-                        <pre class="p-4 text-xs font-mono text-gray-700 overflow-auto bg-white" style="max-height: calc(45vh - 40px)">{{ wsPreviewContent }}</pre>
-                    </div>
+
                 </div>
             </div>
 
             <!-- Prompt Builder Modal -->
             <PromptBuilder ref="promptBuilder" @insert="insertPrompt" />
+
+            <!-- File Viewer Modal (images, videos, code) -->
+            <FileViewer ref="fileViewer" :agentId="agent?.id" />
 
             <!-- HITL Modal -->
             <HITLModal
@@ -207,47 +225,79 @@
                 @skip="handleHitlSkip"
             />
 
-            <!-- File Viewer Modal -->
-            <FileViewer ref="fileViewer" :systemId="selectedContext.system" :repoId="selectedContext.repo || '0'" />
+
 
             <!-- Right: Preview / Chat -->
             <div class="flex-1 flex flex-col bg-white relative overflow-hidden">
-                <!-- Desktop Tabs (hidden on mobile, shown md+) -->
-                <div class="hidden md:flex p-2 border-b border-gray-100 bg-gray-50 items-center justify-between text-xs font-mono sticky top-0 z-20">
-                    <!-- Left: Tabs -->
-                    <div class="flex gap-4 overflow-x-auto scrollbar-hide">
-                    <button @click="activeTab = 'chat'"
-                        :class="[tabClass('chat'), 'whitespace-nowrap py-1 px-1 transition-colors']">
-                        PREVIEW SESSION
-                    </button>
-                    <button @click="activeTab = 'knowledge'"
-                        :class="[tabClass('knowledge'), 'whitespace-nowrap py-1 px-1 transition-colors']">
-                        KNOWLEDGE CONTEXT
-                    </button>
-                    <button @click="activeTab = 'trace'"
-                        :class="[tabClass('trace'), 'whitespace-nowrap py-1 px-1 transition-colors']">
-                        TRACE
-                    </button>
-                    <button @click="activeTab = 'tools'"
-                        :class="[tabClass('tools'), 'whitespace-nowrap py-1 px-1 transition-colors']">
-                        🔧 TOOLS
-                    </button>
-                    <button @click="activeTab = 'automation'"
-                        :class="[tabClass('automation'), 'whitespace-nowrap py-1 px-1 transition-colors']">
-                        ⚡ AUTOMATION
-                    </button>
+                <!-- Desktop Navigation (Focused Design) -->
+                <div class="hidden md:flex p-3 border-b border-gray-100 bg-white items-center justify-between sticky top-0 z-20">
+                    <!-- Left: Navigation Actions -->
+                    <div class="flex items-center gap-3">
+                        <!-- Back to Preview (Primary Action) -->
+                        <button v-if="activeTab !== 'chat'" @click="activeTab = 'chat'"
+                            class="bg-blue-600 text-white text-[10px] font-black tracking-widest px-5 py-2 rounded-full shadow-lg hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all duration-300 flex items-center gap-2 group">
+                            <svg class="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M11 19l-7-7 7-7" />
+                            </svg>
+                            BACK TO PREVIEW
+                        </button>
+
+                        <!-- Focused Tabs (Only in Chat Mode) -->
+                        <div v-else class="flex bg-gray-100/80 backdrop-blur-md rounded-full p-1 gap-1 shadow-inner border border-gray-200/50">
+                            <button v-for="tab in [
+                                { id: 'knowledge', label: 'KNOWLEDGE' },
+                                { id: 'data', label: 'DATA' },
+                                { id: 'flows', label: 'FLOWS' },
+                                { id: 'automation', label: 'AUTOMATION' }
+                            ]" :key="tab.id" @click="activeTab = tab.id"
+                                class="text-[10px] font-black tracking-widest px-4 py-1.5 rounded-full text-gray-500 hover:text-gray-700 hover:bg-white/50 transition-all duration-300">
+                                {{ tab.label }}
+                            </button>
+                            
+                            <!-- More Dropdown (Icon Only) -->
+                            <div class="relative" ref="moreTabsRef">
+                                <button @click="showMoreTabs = !showMoreTabs"
+                                    class="text-gray-500 hover:text-gray-700 hover:bg-white/50 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300"
+                                    title="More Options">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 5v.01M12 12v.01M12 19v.01" />
+                                    </svg>
+                                </button>
+                                
+                                <transition enter-active-class="transition duration-100 ease-out"
+                                    enter-from-class="transform scale-95 opacity-0"
+                                    enter-to-class="transform scale-100 opacity-100"
+                                    leave-active-class="transition duration-75 ease-in"
+                                    leave-from-class="transform scale-100 opacity-100"
+                                    leave-to-class="transform scale-95 opacity-0">
+                                    <div v-if="showMoreTabs" class="absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-2xl shadow-2xl py-2 z-50 overflow-hidden">
+                                        <button @click="activeTab = 'trace'; showMoreTabs = false"
+                                            class="w-full text-left px-4 py-2 text-[10px] font-black tracking-widest text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors uppercase flex items-center gap-2">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> TRACE
+                                        </button>
+                                        <button @click="activeTab = 'tools'; showMoreTabs = false"
+                                            class="w-full text-left px-4 py-2 text-[10px] font-black tracking-widest text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors uppercase flex items-center gap-2">
+                                            <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span> TOOLS
+                                        </button>
+                                    </div>
+                                </transition>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Right: Conversation Switcher -->
                     <div v-if="agent.id" class="relative flex-shrink-0" ref="convSwitcherRef">
                         <button @click="showConvSwitcher = !showConvSwitcher"
-                            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition text-xs">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                            class="group flex items-center gap-2 h-9 px-3 rounded-lg border border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50 transition-all duration-200">
+                            <div class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" v-if="isTyping"></div>
+                            <svg v-else class="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                             </svg>
-                            <span class="max-w-[100px] sm:max-w-[140px] truncate">{{ currentConvTitle }}</span>
-                            <svg class="w-3 h-3" :class="{ 'rotate-180': showConvSwitcher }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            <span class="text-xs font-semibold text-gray-700 truncate max-w-[100px] sm:max-w-[140px]">
+                                {{ currentConvTitle || 'Select Conversation' }}
+                            </span>
+                            <svg class="w-3 h-3 text-gray-400 group-hover:text-blue-500 transition-all duration-200" :class="{ 'rotate-180': showConvSwitcher }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
                             </svg>
                         </button>
 
@@ -262,24 +312,42 @@
                                 </svg>
                                 New Conversation
                             </button>
+                            <!-- New AG Session -->
+                            <button v-if="wsRouting?.routed" @click="createNewCascadeSession"
+                                class="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-purple-50 border-b border-gray-100 font-medium"
+                                :class="cascadeStatus?.available ? 'text-purple-600' : 'text-gray-400 cursor-not-allowed'"
+                                :disabled="!cascadeStatus?.available">
+                                <span class="text-sm">âœ¨</span>
+                                New AG Session
+                                <span v-if="!cascadeStatus?.available" class="text-[10px] text-gray-400 ml-auto">(not connected)</span>
+                            </button>
                             <!-- Conversation List -->
-                            <div class="max-h-64 overflow-y-auto">
-                                <button v-for="conv in conversations" :key="conv.id"
-                                    @click="switchConversation(conv.id)"
-                                    class="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition border-b border-gray-50 last:border-0"
+                            <div class="max-h-64 overflow-y-auto" @scroll="onConvListScroll">
+                                <div v-for="conv in conversations" :key="conv.id"
+                                    class="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition border-b border-gray-50 last:border-0 flex items-center group/conv"
                                     :class="{ 'bg-blue-50 border-l-2 border-l-blue-500': conv.id === activeSessionId }">
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-sm font-medium text-gray-800 truncate max-w-[160px]">
-                                            {{ conv.title || 'Untitled' }}
-                                        </span>
-                                        <span class="text-[10px] text-gray-400 flex-shrink-0 ml-2">
-                                            {{ conv.message_count || 0 }} msgs
-                                        </span>
-                                    </div>
-                                    <div class="text-[10px] text-gray-400 mt-0.5">
-                                        {{ formatConvTime(conv.updated_at) }}
-                                    </div>
-                                </button>
+                                    <button @click="switchConversation(conv.id)" class="flex-1 text-left min-w-0">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm font-medium text-gray-800 truncate max-w-[160px] flex items-center gap-1">
+                                                <span v-if="conv._source === 'cascade'" title="Antigravity">âœ¨</span>
+                                                {{ conv.title || 'Untitled' }}
+                                            </span>
+                                            <span class="text-[10px] text-gray-400 flex-shrink-0 ml-2">
+                                                {{ conv.message_count || 0 }} msgs
+                                            </span>
+                                        </div>
+                                        <div class="text-[10px] text-gray-400 mt-0.5">
+                                            {{ formatConvTime(conv.updated_at) }}
+                                        </div>
+                                    </button>
+                                    <button @click.stop="deleteConversation(conv.id)"
+                                        class="ml-2 p-1 rounded hover:bg-red-100 text-gray-300 hover:text-red-500 transition opacity-0 group-hover/conv:opacity-100 flex-shrink-0"
+                                        title="Delete conversation">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
                                 <div v-if="conversations.length === 0" class="px-3 py-4 text-center text-xs text-gray-400">
                                     No conversations yet
                                 </div>
@@ -288,21 +356,37 @@
                     </div>
                 </div>
 
-                <!-- Mobile Tab Bar (visible on mobile, shown below conversation switcher) -->
-                <div class="flex md:hidden p-1.5 border-b border-gray-100 bg-gray-50 items-center text-xs font-mono sticky top-0 z-20 overflow-x-auto scrollbar-hide gap-1">
-                    <button v-if="agent.id" @click="showConvSwitcher = !showConvSwitcher"
-                        class="flex items-center gap-1 px-2 py-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition flex-shrink-0">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                <!-- Mobile Navigation (Focused Design) -->
+                <div class="flex md:hidden p-3 border-b border-gray-100 bg-white items-center sticky top-0 z-20 gap-2">
+                    <!-- Back Button if active tab is NOT chat -->
+                    <button v-if="activeTab !== 'chat'" @click="activeTab = 'chat'"
+                        class="bg-blue-600 text-white text-[10px] font-black tracking-widest px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M11 19l-7-7 7-7" />
                         </svg>
-                        <span class="max-w-[80px] truncate">{{ currentConvTitle }}</span>
+                        BACK TO PREVIEW
                     </button>
-                    <div class="h-4 w-px bg-gray-200 flex-shrink-0"></div>
-                    <button v-for="tab in mobileTabItems" :key="tab.id" @click="activeTab = tab.id"
-                        :class="[tabClass(tab.id), 'whitespace-nowrap py-1.5 px-2 rounded-md transition-colors flex items-center gap-1 flex-shrink-0']">
-                        <span>{{ tab.icon }}</span>
-                        <span class="text-[10px]">{{ tab.shortLabel }}</span>
-                    </button>
+
+                    <!-- Main Mobile Tabs (Only in Chat Mode) -->
+                    <div v-else class="flex items-center gap-1.5 overflow-x-auto scrollbar-hide flex-1">
+                        <button v-for="tab in [
+                            { id: 'knowledge', icon: '📚', label: 'Context' },
+                            { id: 'flows', icon: '🔄', label: 'Flows' },
+                            { id: 'automation', icon: '⚡', label: 'Auto' }
+                        ]" :key="tab.id" @click="activeTab = tab.id"
+                            class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
+                            <span class="text-xs">{{ tab.icon }}</span>
+                            <span class="text-[10px] font-bold uppercase tracking-wider">{{ tab.label }}</span>
+                        </button>
+                        
+                        <!-- Mobile More Icon -->
+                        <button @click="showMoreTabs = !showMoreTabs"
+                            class="bg-gray-100 text-gray-500 w-8 h-8 rounded-full flex items-center justify-center border border-gray-200">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Trace Tab -->
@@ -310,7 +394,7 @@
                     class="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center">
                     <SessionTrace v-if="activeSessionId" :session-id="activeSessionId" class="w-full h-full" />
                     <div v-else class="text-gray-400">
-                        <div class="text-4xl mb-2 text-center">🔍</div>
+                        <div class="text-4xl mb-2 text-center">ðŸ”</div>
                         <p>Start a session to view trace details.</p>
                     </div>
                 </div>
@@ -319,7 +403,7 @@
                 <div v-if="activeTab === 'tools'" class="flex-1 min-h-0 overflow-y-auto flex flex-col">
                     <ToolsPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
                     <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
-                        <div class="text-5xl mb-3">🔧</div>
+                        <div class="text-5xl mb-3">ðŸ”§</div>
                         <p class="text-lg font-medium">Tools Operations Panel</p>
                         <p class="text-sm mt-1">Save the agent to access tool management features</p>
                     </div>
@@ -329,7 +413,7 @@
                 <div v-if="activeTab === 'automation'" class="flex-1 min-h-0 overflow-y-auto flex flex-col">
                     <AutomationPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
                     <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
-                        <div class="text-5xl mb-3">⚡</div>
+                        <div class="text-5xl mb-3">âš¡</div>
                         <p class="text-lg font-medium">Automation Panel</p>
                         <p class="text-sm mt-1">Save the agent to access workflows & scheduling</p>
                     </div>
@@ -339,7 +423,7 @@
                 <!-- Chat Interface (Always Active) -->
                 <div v-if="activeTab === 'chat'" class="flex-1 flex flex-col overflow-hidden w-full bg-white">
                     <!-- Feed -->
-                    <div class="flex-1 overflow-y-auto overflow-x-hidden pb-36 md:pb-32 bg-white" ref="feed" @scroll="handleScroll">
+                    <div class="flex-1 overflow-y-auto overflow-x-hidden pb-52 md:pb-32 bg-white" ref="feed" @scroll="handleScroll">
                         <!-- Restoring Session Indicator -->
                         <div v-if="isRestoring"
                             class="flex flex-col items-center justify-center h-full text-blue-600">
@@ -356,7 +440,7 @@
 
                         <div v-else-if="chatEvents.length === 0 && !isTyping"
                             class="flex flex-col items-center justify-center h-full text-gray-400">
-                            <div class="text-5xl mb-3">✨</div>
+                            <div class="text-5xl mb-3">âœ¨</div>
                             <p class="text-lg font-medium">Agent {{ agent.name }} is ready</p>
                             <p class="text-sm mt-1 text-gray-400">Start a conversation below</p>
                         </div>
@@ -489,8 +573,8 @@
                                         class="w-full flex items-start gap-4 text-left hover:bg-indigo-50/60 transition-colors rounded p-2 -m-2">
                                         <div
                                             class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
-                                            <span v-if="event.collapsed">🧠</span>
-                                            <span v-else>✓</span>
+                                            <span v-if="event.collapsed">ðŸ§ </span>
+                                            <span v-else>âœ“</span>
                                         </div>
                                         <div class="flex-1 pt-1 min-w-0">
                                             <div
@@ -536,7 +620,7 @@
                                         class="w-full flex items-start gap-2 sm:gap-4 text-left hover:bg-blue-50/60 transition-colors rounded p-2 -m-2">
                                         <div
                                             class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
-                                            📋
+                                            ðŸ“‹
                                         </div>
                                         <div class="flex-1 pt-1 min-w-0">
                                             <div
@@ -602,7 +686,7 @@
                                     <div class="flex items-start gap-2 sm:gap-4">
                                         <div
                                             class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-amber-500 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
-                                            🛠️
+                                            ðŸ› ï¸
                                         </div>
                                         <div class="flex-1 pt-1 min-w-0">
                                             <div class="text-xs sm:text-sm font-semibold text-amber-900 mb-1 break-words">Using Tool: {{
@@ -626,43 +710,109 @@
 
                             <!-- Tool Result -->
                             <div v-if="event.type === 'tool_result'"
-                                class="group bg-purple-50/30 border-b border-purple-100/50">
+                                class="group border-b" :class="event.data.document ? 'bg-emerald-50/30 border-emerald-100/50' : 'bg-purple-50/30 border-purple-100/50'">
                                 <div class="max-w-5xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
                                     <div class="flex items-start gap-2 sm:gap-4">
                                         <div
-                                            class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
-                                            📄
+                                            class="w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0"
+                                            :class="event.data.document ? 'bg-emerald-500' : 'bg-purple-500'">
+                                            {{ event.data.document ? '📄' : '📄' }}
                                         </div>
                                         <div class="flex-1 pt-1 min-w-0">
-                                            <div class="text-xs sm:text-sm font-semibold text-purple-900 mb-1 break-words">Tool Result: {{
-                                                event.data.tool_name }}</div>
-                                            
-                                            <!-- Request URL (for remote tools) -->
-                                            <div v-if="event.data.request_url"
-                                                class="text-xs text-purple-600 mb-2 font-mono flex items-center gap-1.5 min-w-0">
-                                                <span class="px-1.5 py-0.5 rounded text-white text-[10px] font-bold uppercase flex-shrink-0"
-                                                    :class="{
-                                                        'bg-green-500': event.data.request_method === 'GET',
-                                                        'bg-blue-500': event.data.request_method === 'POST',
-                                                        'bg-amber-500': event.data.request_method === 'PATCH' || event.data.request_method === 'PUT',
-                                                        'bg-red-500': event.data.request_method === 'DELETE',
-                                                        'bg-gray-500': !['GET','POST','PATCH','PUT','DELETE'].includes(event.data.request_method)
-                                                    }">
-                                                    {{ event.data.request_method }}
-                                                </span>
-                                                <span class="truncate" :title="event.data.request_url">{{ event.data.request_url }}</span>
+                                            <!-- Document Card -->
+                                            <div v-if="event.data.document" class="space-y-3">
+                                                <div class="bg-white rounded-xl border border-emerald-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                                                    <!-- Card Header -->
+                                                    <div class="px-4 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 flex items-center justify-between">
+                                                        <div class="flex items-center gap-2 min-w-0">
+                                                            <span class="text-white text-lg flex-shrink-0">📋</span>
+                                                            <div class="min-w-0">
+                                                                <h4 class="text-sm font-bold text-white truncate">{{ event.data.document.title }}</h4>
+                                                                <p class="text-[10px] text-emerald-100 font-medium">v{{ event.data.document.version }} · {{ event.data.document.sections_count }} sections</p>
+                                                            </div>
+                                                        </div>
+                                                        <span class="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-full flex-shrink-0"
+                                                            :class="{
+                                                                'bg-blue-100 text-blue-700': event.data.document.doc_type === 'seo_audit',
+                                                                'bg-purple-100 text-purple-700': event.data.document.doc_type === 'plan',
+                                                                'bg-amber-100 text-amber-700': event.data.document.doc_type === 'report',
+                                                                'bg-indigo-100 text-indigo-700': event.data.document.doc_type === 'code_review',
+                                                                'bg-rose-100 text-rose-700': event.data.document.doc_type === 'analysis',
+                                                                'bg-gray-100 text-gray-700': !['seo_audit','plan','report','code_review','analysis'].includes(event.data.document.doc_type)
+                                                            }">
+                                                            {{ event.data.document.doc_type.replace('_', ' ') }}
+                                                        </span>
+                                                    </div>
+                                                    <!-- Card Body -->
+                                                    <div class="px-4 py-3">
+                                                        <!-- Tags -->
+                                                        <div v-if="event.data.document.tags && event.data.document.tags.length" class="flex flex-wrap gap-1.5 mb-3">
+                                                            <span v-for="tag in event.data.document.tags.slice(0, 5)" :key="tag"
+                                                                class="px-2 py-0.5 text-[10px] font-semibold bg-gray-100 text-gray-600 rounded-full">
+                                                                {{ tag }}
+                                                            </span>
+                                                        </div>
+                                                        <!-- Actions -->
+                                                        <div class="flex items-center gap-2">
+                                                            <a :href="'/api' + event.data.document.view_url"
+                                                                target="_blank"
+                                                                class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-colors border border-emerald-200">
+                                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                </svg>
+                                                                View Document
+                                                            </a>
+                                                            <a :href="'/api' + event.data.document.download_url"
+                                                                download
+                                                                class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-lg transition-colors border border-gray-200">
+                                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                                </svg>
+                                                                Download
+                                                            </a>
+                                                            <a :href="'/api' + event.data.document.download_url + '?format=markdown'"
+                                                                download
+                                                                class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-gray-50 hover:bg-gray-100 text-gray-500 rounded-lg transition-colors border border-gray-200">
+                                                                <span class="text-[10px]">MD</span>
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
+
+                                            <!-- Standard Tool Result (non-document) -->
+                                            <template v-else>
+                                                <div class="text-xs sm:text-sm font-semibold text-purple-900 mb-1 break-words">Tool Result: {{
+                                                    event.data.tool_name }}</div>
                                             
-                                            <!-- Media Renderer for artifacts -->
-                                            <MediaRenderer 
-                                                v-if="hasMediaArtifacts(event.data)" 
-                                                :artifacts="getMediaArtifacts(event.data)"
-                                                class="mb-3"
-                                            />
+                                                <!-- Request URL (for remote tools) -->
+                                                <div v-if="event.data.request_url"
+                                                    class="text-xs text-purple-600 mb-2 font-mono flex items-center gap-1.5 min-w-0">
+                                                    <span class="px-1.5 py-0.5 rounded text-white text-[10px] font-bold uppercase flex-shrink-0"
+                                                        :class="{
+                                                            'bg-green-500': event.data.request_method === 'GET',
+                                                            'bg-blue-500': event.data.request_method === 'POST',
+                                                            'bg-amber-500': event.data.request_method === 'PATCH' || event.data.request_method === 'PUT',
+                                                            'bg-red-500': event.data.request_method === 'DELETE',
+                                                            'bg-gray-500': !['GET','POST','PATCH','PUT','DELETE'].includes(event.data.request_method)
+                                                        }">
+                                                        {{ event.data.request_method }}
+                                                    </span>
+                                                    <span class="truncate" :title="event.data.request_url">{{ event.data.request_url }}</span>
+                                                </div>
                                             
-                                            <div
-                                                class="font-mono text-[10px] sm:text-xs text-purple-800 bg-white border border-purple-200 p-2 rounded max-h-40 overflow-y-auto overflow-x-auto break-all">
-                                                {{ formatToolResult(event.data.result) }}</div>
+                                                <!-- Media Renderer for artifacts -->
+                                                <MediaRenderer 
+                                                    v-if="hasMediaArtifacts(event.data)" 
+                                                    :artifacts="getMediaArtifacts(event.data)"
+                                                    class="mb-3"
+                                                />
+                                            
+                                                <div
+                                                    class="font-mono text-[10px] sm:text-xs text-purple-800 bg-white border border-purple-200 p-2 rounded max-h-40 overflow-y-auto overflow-x-auto break-all">
+                                                    {{ formatToolResult(event.data.result) }}</div>
+                                            </template>
                                         </div>
                                     </div>
                                 </div>
@@ -675,7 +825,7 @@
                                     <div class="flex items-start gap-2 sm:gap-4">
                                         <div
                                             class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-purple-400 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
-                                            💭
+                                            ðŸ’­
                                         </div>
                                         <div class="flex-1 pt-1 text-xs sm:text-sm text-purple-700 min-w-0 break-words">
                                             {{ event.content }}
@@ -690,7 +840,7 @@
                                     <div class="flex items-start gap-2 sm:gap-4">
                                         <div
                                             class="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-red-500 flex items-center justify-center text-white text-xs sm:text-sm flex-shrink-0">
-                                            ❌
+                                            âŒ
                                         </div>
                                         <div class="flex-1 pt-1 min-w-0">
                                             <div class="text-xs sm:text-sm font-semibold text-red-900 mb-1">Error</div>
@@ -727,14 +877,14 @@
                         </div>
                     </div>
 
-                    <!-- Input (Professional Design) -->
+                    <!-- Input (Glassmorphism Design) -->
                     <div
-                        class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/98 to-transparent pt-4 sm:pt-6 pb-2 sm:pb-3">
-                        <div class="max-w-5xl mx-auto px-2 sm:px-4">
+                        class="absolute bottom-14 md:bottom-0 left-0 right-0 bg-white/60 backdrop-blur-xl border-t border-white/20 pt-6 pb-4 md:pb-4">
+                        <div class="max-w-5xl mx-auto px-4">
                             <!-- Input Container -->
                             <div class="relative group">
                                 <div
-                                    class="relative bg-white border-2 border-gray-200 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-200 focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-50">
+                                    class="relative bg-white/80 backdrop-blur-sm border-2 border-gray-200/50 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 focus-within:border-blue-400 focus-within:ring-8 focus-within:ring-blue-500/10">
                                     <!-- Attachment Preview Strip -->
                                     <div v-if="pendingFiles.length" class="px-3 pt-3 pb-0">
                                         <div class="flex flex-wrap gap-2">
@@ -850,72 +1000,32 @@
                 </div>
 
                 <!-- Knowledge Interface -->
-                <div v-if="activeTab === 'knowledge'" class="flex-1 flex flex-col md:flex-row overflow-hidden">
-                    <!-- Doc List -->
-                    <div class="w-full md:w-1/3 border-b md:border-b-0 md:border-r border-gray-200 overflow-y-auto bg-gray-50 max-h-[40vh] md:max-h-none">
-                        <div v-if="loadingDocs" class="p-4 text-center text-gray-500 text-sm">Loading docs...</div>
-                        <div v-else-if="knowledgeDocs.length === 0" class="p-4 text-center text-gray-500 text-sm">
-                            No knowledge documents found for this repository.
-                        </div>
-                        <div v-else>
-                            <div v-for="doc in knowledgeDocs" :key="doc.spec_id" @click="selectDoc(doc)"
-                                :class="['p-3 border-b border-gray-100 cursor-pointer hover:bg-white transition', selectedDoc?.spec_id === doc.spec_id ? 'bg-white border-l-4 border-l-blue-500' : '']">
-                                <div class="text-sm font-bold text-gray-700 truncate">{{ doc.title || doc.spec_id }}
-                                </div>
-                                <div class="text-xs text-gray-500">{{ doc.kind }}</div>
-                            </div>
-                        </div>
+                <div v-if="activeTab === 'knowledge'" class="flex-1 flex flex-col overflow-hidden">
+                    <AgentMemoryPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
+                    <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
+                        <div class="text-5xl mb-3">🧠</div>
+                        <p class="text-lg font-medium">Agent Memory</p>
+                        <p class="text-sm mt-1">Save the agent to access memory and knowledge cards</p>
                     </div>
+                </div>
 
-                    <!-- Doc View & Analysis -->
-                    <div class="flex-1 overflow-y-auto p-3 sm:p-6">
-                        <div v-if="!selectedDoc" class="flex items-center justify-center h-full text-gray-400">
-                            <p>Select a document to view analysis.</p>
-                        </div>
-                        <div v-else class="space-y-6">
-                            <!-- AI Analysis -->
-                            <div class="bg-indigo-50 border border-indigo-100 rounded-lg p-4">
-                                <h3 class="text-sm font-bold text-indigo-800 mb-2 flex items-center gap-2">
-                                    🤖 AI Analysis
-                                    <span v-if="analyzingDoc"
-                                        class="text-xs font-normal text-indigo-500">(Generating...)</span>
-                                </h3>
-                                <div v-if="analyzingDoc" class="animate-pulse space-y-2">
-                                    <div class="h-4 bg-indigo-100 rounded w-3/4"></div>
-                                    <div class="h-4 bg-indigo-100 rounded w-1/2"></div>
-                                </div>
-                                <div v-else-if="docAnalysis">
-                                    <div class="prose prose-sm text-indigo-900 max-h-96 overflow-y-auto mb-4"
-                                        v-html="formatMarkdown(docAnalysis)"></div>
-                                    <div class="flex gap-2">
-                                        <button @click="startChatWithContext"
-                                            class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition">
-                                            💬 Chat with Context
-                                        </button>
-                                        <button @click="analyzeCurrentDoc"
-                                            class="px-3 py-1 bg-indigo-100 text-indigo-700 rounded text-sm hover:bg-indigo-200 transition">
-                                            ↻ Re-Analyze
-                                        </button>
-                                    </div>
-                                </div>
-                                <div v-else class="flex flex-col items-center gap-2 p-4 text-center">
-                                    <span class="text-sm text-gray-500 italic">No analysis generated yet.</span>
-                                    <button @click="analyzeCurrentDoc"
-                                        class="px-4 py-2 bg-indigo-600 text-white rounded shadow text-sm hover:bg-indigo-700 transition">
-                                        ⚡ Run AI Analysis
-                                    </button>
-                                </div>
-                            </div>
+                <!-- Data Panel -->
+                <div v-if="activeTab === 'data'" class="flex-1 flex flex-col overflow-hidden">
+                    <AgentDataPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
+                    <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
+                        <div class="text-5xl mb-3">🗄️</div>
+                        <p class="text-lg font-medium">Agent Data</p>
+                        <p class="text-sm mt-1">Save the agent to access its data collections</p>
+                    </div>
+                </div>
 
-                            <!-- Raw Content -->
-                            <div>
-                                <h3 class="text-sm font-bold text-gray-800 mb-2">Original Content</h3>
-                                <div
-                                    class="bg-gray-50 p-4 rounded border border-gray-200 font-mono text-xs whitespace-pre-wrap overflow-x-auto">
-                                    {{ selectedDoc.content }}
-                                </div>
-                            </div>
-                        </div>
+                <!-- Flows Panel -->
+                <div v-if="activeTab === 'flows'" class="flex-1 flex flex-col overflow-hidden">
+                    <AgentFlowPanel v-if="agent.id" :agent-profile="agent" class="w-full h-full" />
+                    <div v-else class="flex flex-col items-center justify-center h-full text-gray-400">
+                        <div class="text-5xl mb-3">🔄</div>
+                        <p class="text-lg font-medium">Agent Flows</p>
+                        <p class="text-sm mt-1">Save the agent to access flow tracking</p>
                     </div>
                 </div>
             </div>
@@ -939,9 +1049,12 @@ import FileViewer from '../components/FileViewer.vue';
 import ToolsPanel from '../components/tools/ToolsPanel.vue';
 import MediaRenderer from '../components/MediaRenderer.vue';
 import WorkspaceTreeNode from '../components/WorkspaceTreeNode.vue';
-import ScriptPanel from '../components/ScriptPanel.vue';
 import HITLModal from '../components/HITLModal.vue';
 import AutomationPanel from '../components/AutomationPanel.vue';
+import AgentMemoryPanel from '../components/knowledge/AgentMemoryPanel.vue';
+import AgentFlowPanel from '../components/knowledge/AgentFlowPanel.vue';
+import AgentDataPanel from '../components/knowledge/AgentDataPanel.vue';
+import BackButton from '../components/BackButton.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -950,9 +1063,11 @@ const agent = ref({
     name: 'New Agent',
     description: '',
     system_prompt_template: 'You are a helpful AI assistant enabled with tools.',
+    prompt_mode: 'append',
     knowledge_scope: 'system',
     tool_ids: [],
-    temperature: 0.7
+    temperature: 0.7,
+    max_history_messages: 50
 });
 
 const saving = ref(false);
@@ -963,8 +1078,15 @@ const llmModels = ref([]);
 const selectedContext = ref({ system: null, repo: null, model: null });
 const activeSessionId = ref(null); // This is actually conversation_id in the new backend logic
 const conversations = ref([]); // All conversations for this agent
+  const convPage = ref(1);
+  const convTotalPages = ref(1);
+  const isLoadingMoreConvs = ref(false);
+const cascadeSessions = ref([]); // Antigravity cascade sessions
+const cascadeStatus = ref(null); // { available: bool, ls_port, ls_pid, ... }
 const showConvSwitcher = ref(false); // Conversation dropdown toggle
+const showMoreTabs = ref(false); // "More" tabs dropdown toggle
 const convSwitcherRef = ref(null); // Ref for click-outside detection
+const moreTabsRef = ref(null); // Ref for click-outside detection
 const chatEvents = ref([]);
 const userMessage = ref('');
 const isProcessing = ref(false);
@@ -982,14 +1104,39 @@ const tabClass = (tabId) => activeTab.value === tabId
 const mobileTabItems = [
     { id: 'chat', icon: '💬', shortLabel: 'Chat' },
     { id: 'knowledge', icon: '📚', shortLabel: 'Knowledge' },
+    { id: 'data', icon: '🗄️', shortLabel: 'Data' },
+    { id: 'flows', icon: '🔄', shortLabel: 'Flows' },
     { id: 'trace', icon: '🔍', shortLabel: 'Trace' },
     { id: 'tools', icon: '🔧', shortLabel: 'Tools' },
     { id: 'automation', icon: '⚡', shortLabel: 'Auto' },
 ];
 
 const showBuilder = ref(false); // Default to false (modal hidden)
+const builderWidth = ref(700); // Default wider panel
+
+const startBuilderResize = (e) => {
+  e.preventDefault()
+  const startX = e.clientX
+  const startWidth = builderWidth.value
+
+  const onMouseMove = (moveEvent) => {
+    const delta = startX - moveEvent.clientX
+    builderWidth.value = Math.min(Math.max(startWidth + delta, 400), window.innerWidth * 0.9)
+  }
+
+  const onMouseUp = () => {
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+    document.body.style.cursor = ''
+    document.body.style.userSelect = ''
+  }
+
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
 const showWorkspace = ref(false);
-const showScript = ref(false);
 const showCredentials = ref(false);
 
 // Computed: is current user the agent owner?
@@ -1001,6 +1148,8 @@ const wsExpandedDirs = ref({});
 const wsPreviewContent = ref(null);
 const wsPreviewPath = ref(null);
 const wsRouting = ref(null); // { routed: true/false, workspace: {...} }
+const wsSelectionMode = ref(false);
+const wsSelectedPaths = ref(new Set());
 
 // HITL state
 const hitlRequests = ref([]);
@@ -1020,6 +1169,7 @@ const toggleWorkspace = async () => {
     if (showWorkspace.value) {
         await checkWorkspaceRouting();
         loadWorkspace();
+        fetchCascadeStatus();
     }
 };
 
@@ -1030,7 +1180,7 @@ const loadWorkspace = async () => {
         // If routing is active, fetch remote files from workspace agent
         if (wsRouting.value?.routed) {
             const wsId = wsRouting.value.workspace.workspace_id;
-            // Cross-platform Python one-liner — works on Windows and Linux
+            // Cross-platform Python one-liner â€” works on Windows and Linux
             const pyCmd = `python -c "import os,json;print(json.dumps([{'name':e,'type':'directory' if os.path.isdir(e) else 'file','size':os.path.getsize(e) if os.path.isfile(e) else 0} for e in sorted(os.listdir('.'))]))"`;
             const { data } = await api.executeWorkspaceCommand(wsId, pyCmd, 10);
             if (data.success && data.output) {
@@ -1054,12 +1204,12 @@ const loadWorkspace = async () => {
 };
 
 /**
- * Parse remote file listing — expects JSON array from Python one-liner.
+ * Parse remote file listing â€” expects JSON array from Python one-liner.
  * Fallback: tries line-by-line parsing for non-JSON output.
  */
 const parseRemoteListing = (output) => {
     if (!output || typeof output !== 'string') return [];
-    // The output may have a command echo prefix — find the JSON array
+    // The output may have a command echo prefix â€” find the JSON array
     const jsonStart = output.indexOf('[');
     const jsonEnd = output.lastIndexOf(']');
     if (jsonStart !== -1 && jsonEnd !== -1) {
@@ -1091,15 +1241,45 @@ const wsToggleDir = (path) => {
     wsExpandedDirs.value[path] = !wsExpandedDirs.value[path];
 };
 
+const wsSortBy = ref('name'); // 'name' | 'time'
+
+// Sort entries recursively according to wsSortBy
+const sortEntries = (entries) => {
+    const sorted = [...entries].sort((a, b) => {
+        // Directories first, then files
+        if (a.is_dir && !b.is_dir) return -1;
+        if (!a.is_dir && b.is_dir) return 1;
+        if (wsSortBy.value === 'time') {
+            // Most recent first
+            return (b.modified || 0) - (a.modified || 0);
+        }
+        // Alphabetical
+        return (a.name || '').localeCompare(b.name || '');
+    });
+    return sorted.map(e => e.is_dir && e.children ? { ...e, children: sortEntries(e.children) } : e);
+};
+
+const wsSortedFiles = computed(() => sortEntries(wsFiles.value));
+
+// Build flat list of all files from the sorted tree (for FileViewer navigation)
+const flattenFiles = (entries) => {
+    const result = [];
+    for (const e of entries) {
+        if (e.is_dir && e.children) {
+            result.push(...flattenFiles(e.children));
+        } else if (!e.is_dir) {
+            result.push(e);
+        }
+    }
+    return result;
+};
+
 const wsReadFile = async (entry) => {
     if (entry.is_dir) return;
-    try {
-        const { data } = await api.readWorkspaceFile(agent.value.id, entry.path);
-        wsPreviewContent.value = data.content;
-        wsPreviewPath.value = entry.path;
-    } catch (e) {
-        console.error('Failed to read file:', e);
-    }
+    // Open ALL files through the enhanced FileViewer modal with sibling navigation
+    // Use sorted tree so arrow nav matches displayed order
+    const siblings = flattenFiles(wsSortedFiles.value);
+    fileViewer.value?.open(entry, agent.value.id, siblings);
 };
 
 const wsDeleteEntry = async (entry) => {
@@ -1111,21 +1291,51 @@ const wsDeleteEntry = async (entry) => {
             wsPreviewContent.value = null;
             wsPreviewPath.value = null;
         }
+        wsSelectedPaths.value.delete(entry.path);
         await loadWorkspace();
     } catch (e) {
         console.error('Delete failed:', e);
     }
 };
 
-const wsDownloadFile = () => {
-    if (!wsPreviewContent.value || !wsPreviewPath.value) return;
-    const blob = new Blob([wsPreviewContent.value], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = wsPreviewPath.value.split('/').pop();
-    a.click();
-    URL.revokeObjectURL(url);
+const wsDownloadFile = async () => {
+    if (!wsPreviewPath.value) return;
+    try {
+        const res = await api.downloadWorkspaceFile(agent.value.id, wsPreviewPath.value);
+        const url = URL.createObjectURL(res.data);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = wsPreviewPath.value.split('/').pop();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error('Download failed:', e);
+    }
+};
+
+const wsToggleSelect = (path) => {
+    const s = new Set(wsSelectedPaths.value);
+    if (s.has(path)) s.delete(path);
+    else s.add(path);
+    wsSelectedPaths.value = s;
+};
+
+const wsBulkDelete = async () => {
+    const count = wsSelectedPaths.value.size;
+    if (!count) return;
+    if (!confirm(`Delete ${count} selected item(s)?`)) return;
+    try {
+        await api.bulkDeleteWorkspaceFiles(agent.value.id, [...wsSelectedPaths.value]);
+        wsSelectedPaths.value = new Set();
+        wsSelectionMode.value = false;
+        wsPreviewContent.value = null;
+        wsPreviewPath.value = null;
+        await loadWorkspace();
+    } catch (e) {
+        console.error('Bulk delete failed:', e);
+    }
 };
 
 const wsFormatSize = (bytes) => {
@@ -1189,15 +1399,15 @@ const formatFileSize = (bytes) => {
 const getFileIcon = (filename) => {
     const ext = filename.split('.').pop()?.toLowerCase() || '';
     const icons = {
-        pdf: '📄', docx: '📝', doc: '📝', xlsx: '📊', xls: '📊', csv: '📊',
-        json: '🔧', yaml: '🔧', yml: '🔧', toml: '🔧', xml: '🔧',
-        py: '🐍', js: '📜', ts: '📜', jsx: '📜', tsx: '📜', vue: '📜',
-        html: '🌐', css: '🎨', scss: '🎨',
-        md: '📖', txt: '📃', log: '📃',
-        sql: '🗃️', sh: '⚙️', bat: '⚙️', ps1: '⚙️',
-        go: '📜', rs: '📜', java: '📜', c: '📜', cpp: '📜', h: '📜', rb: '📜', php: '📜'
+        pdf: 'ðŸ“„', docx: 'ðŸ“', doc: 'ðŸ“', xlsx: 'ðŸ“Š', xls: 'ðŸ“Š', csv: 'ðŸ“Š',
+        json: 'ðŸ”§', yaml: 'ðŸ”§', yml: 'ðŸ”§', toml: 'ðŸ”§', xml: 'ðŸ”§',
+        py: 'ðŸ', js: 'ðŸ“œ', ts: 'ðŸ“œ', jsx: 'ðŸ“œ', tsx: 'ðŸ“œ', vue: 'ðŸ“œ',
+        html: 'ðŸŒ', css: 'ðŸŽ¨', scss: 'ðŸŽ¨',
+        md: 'ðŸ“–', txt: 'ðŸ“ƒ', log: 'ðŸ“ƒ',
+        sql: 'ðŸ—ƒï¸', sh: 'âš™ï¸', bat: 'âš™ï¸', ps1: 'âš™ï¸',
+        go: 'ðŸ“œ', rs: 'ðŸ“œ', java: 'ðŸ“œ', c: 'ðŸ“œ', cpp: 'ðŸ“œ', h: 'ðŸ“œ', rb: 'ðŸ“œ', php: 'ðŸ“œ'
     };
-    return icons[ext] || '📎';
+    return icons[ext] || 'ðŸ“Ž';
 };
 
 const uploadPendingFiles = async () => {
@@ -1364,7 +1574,10 @@ const restoreSession = async (sessionId) => {
                     id: Date.now() + Math.random(),
                     type: 'assistant',
                     content: eventWrapper.data.content || eventWrapper.data.message,
-                    data: eventWrapper.data
+                    data: {
+                        ...eventWrapper.data,
+                        media_artifacts: eventWrapper.data.media_artifacts || []
+                    }
                 });
             } else if (eventWrapper.event_type === 'tool_call') {
                 chatEvents.value.push({
@@ -1480,18 +1693,74 @@ const formatConvTime = (dateStr) => {
 };
 
 // Fetch all conversations for this agent (for the switcher)
-const fetchConversations = async () => {
+const fetchConversations = async (reset = true) => {
     if (!agent.value.id) return;
     try {
+        if (reset) convPage.value = 1;
         const res = await api.getConversations({
             agent_profile_id: agent.value.id,
-            ordering: '-updated_at'
+            ordering: '-updated_at',
+            page: convPage.value
         });
+        const totalCount = res.data.count || 0;
+        const pageSize = 30;
+        convTotalPages.value = Math.ceil(totalCount / pageSize) || 1;
         if (res.data.results) {
-            conversations.value = res.data.results;
+            const tagged = res.data.results.map(c => ({ ...c, _source: 'aadml' }));
+            if (reset) {
+                conversations.value = tagged;
+            } else {
+                const existingIds = new Set(conversations.value.map(c => c.id));
+                conversations.value.push(...tagged.filter(c => !existingIds.has(c.id)));
+            }
         }
     } catch (e) {
         console.error("Failed to fetch conversations", e);
+    }
+
+    // Also fetch cascade sessions if workspace is routed
+    await fetchCascadeSessions();
+};
+
+// Fetch Antigravity cascade sessions from workspace
+const fetchCascadeSessions = async () => {
+    if (!wsRouting.value?.routed) return;
+    const wsId = wsRouting.value.workspace.workspace_id;
+    try {
+        const res = await api.get(`/cascade/sessions/?workspace_id=${wsId}`);
+        if (res.data.sessions) {
+            cascadeSessions.value = res.data.sessions.map(s => ({
+                id: `cascade:${s.cascadeId}`,
+                title: s.summary || `AG Session`,
+                message_count: s.stepCount,
+                updated_at: s.lastModifiedTime,
+                _source: 'cascade',
+                _cascadeId: s.cascadeId,
+            }));
+            // Merge into conversations list
+            const aadmlConvs = conversations.value.filter(c => c._source !== 'cascade');
+            conversations.value = [...aadmlConvs, ...cascadeSessions.value]
+                .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+            // Sessions loaded â†’ AG is definitely available, refresh status
+            if (!cascadeStatus.value?.available) {
+                fetchCascadeStatus();
+            }
+        }
+    } catch (e) {
+        // Cascade not available â€” that's fine
+        console.debug('Cascade sessions unavailable:', e.message);
+    }
+};
+
+// Fetch cascade connection status
+const fetchCascadeStatus = async () => {
+    if (!wsRouting.value?.routed) return;
+    const wsId = wsRouting.value.workspace.workspace_id;
+    try {
+        const res = await api.get(`/cascade/status/?workspace_id=${wsId}`);
+        cascadeStatus.value = res.data;
+    } catch (e) {
+        cascadeStatus.value = null;
     }
 };
 
@@ -1571,9 +1840,36 @@ const fetchLastConversation = async () => {
 };
 
 // Switch to a specific conversation
-const switchConversation = async (convId) => {
+const loadMoreConversations = async () => {
+    if (isLoadingMoreConvs.value || convPage.value >= convTotalPages.value) return;
+    isLoadingMoreConvs.value = true;
+    convPage.value++;
+    await fetchConversations(false);
+    isLoadingMoreConvs.value = false;
+  };
+
+  const onConvListScroll = (e) => {
+    const el = e.target;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
+        loadMoreConversations();
+    }
+  };
+
+  const switchConversation = async (convId) => {
     showConvSwitcher.value = false;
     if (convId === activeSessionId.value) return;
+
+    // Cascade session handling
+    if (convId?.startsWith?.('cascade:')) {
+        activeSessionId.value = convId;
+        chatEvents.value = [];
+        const cascadeId = convId.replace('cascade:', '');
+        const wsId = wsRouting.value?.workspace?.workspace_id;
+        if (wsId) {
+            await loadCascadeSteps(cascadeId, wsId);
+        }
+        return;
+    }
 
     try {
         const detailRes = await api.getConversation(convId);
@@ -1612,6 +1908,86 @@ const switchConversation = async (convId) => {
     }
 };
 
+// Safely extract string content from a cascade step (some fields may be objects)
+const stepToString = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    // AG sometimes nests content as {text: '...'} or {message: '...'}
+    if (typeof val === 'object') return val.text || val.message || val.content || JSON.stringify(val);
+    return String(val);
+};
+
+// Load cascade steps and map to chat events
+const loadCascadeSteps = async (cascadeId, wsId) => {
+    try {
+        const res = await api.get(`/cascade/sessions/${cascadeId}/steps/?workspace_id=${wsId}`);
+        if (res.data.steps) {
+            chatEvents.value = res.data.steps
+                .filter(step => {
+                    const content = stepToString(step.plannerResponse) || stepToString(step.content) || stepToString(step.userMessage);
+                    return !!content;
+                })
+                .map((step, i) => ({
+                    id: `step-${i}`,
+                    type: mapStepType(step.type),
+                    content: stepToString(step.plannerResponse) || stepToString(step.content) || stepToString(step.userMessage) || '(empty step)',
+                    data: step,
+                }));
+            nextTick(() => {
+                if (feed.value) feed.value.scrollTop = feed.value.scrollHeight;
+            });
+        }
+    } catch (e) {
+        chatEvents.value.push({ id: Date.now(), type: 'assistant', content: `âš ï¸ Failed to load cascade steps: ${e.message}` });
+    }
+};
+
+// Map AG step type to chat event type
+const mapStepType = (stepType) => {
+    // Only 'user' and 'assistant' are safe â€” the chat feed has no template for other types
+    if (stepType === 'CORTEX_STEP_TYPE_USER_INPUT') return 'user';
+    return 'assistant'; // Everything else renders as assistant message
+};
+
+// Poll cascade steps until done
+let cascadePollTimer = null;
+const pollCascadeSteps = (cascadeId, wsId) => {
+    if (cascadePollTimer) clearInterval(cascadePollTimer);
+    cascadePollTimer = setInterval(async () => {
+        try {
+            const res = await api.get(`/cascade/sessions/${cascadeId}/steps/?workspace_id=${wsId}`);
+            if (res.data.steps) {
+                // Keep user messages, replace rest
+                const userEvents = chatEvents.value.filter(e => e.type === 'user');
+                const stepEvents = res.data.steps
+                    .filter(step => stepToString(step.plannerResponse) || stepToString(step.content) || stepToString(step.userMessage))
+                    .map((step, i) => ({
+                        id: `step-${i}`,
+                        type: mapStepType(step.type),
+                        content: stepToString(step.plannerResponse) || stepToString(step.content) || stepToString(step.userMessage) || '',
+                        data: step,
+                    }));
+                chatEvents.value = [...userEvents, ...stepEvents];
+                scrollToBottom();
+
+                // Check if all done
+                const running = res.data.steps.some(s => s.status === 'CORTEX_STEP_STATUS_RUNNING');
+                if (res.data.steps.length > 0 && !running) {
+                    clearInterval(cascadePollTimer);
+                    cascadePollTimer = null;
+                    isProcessing.value = false;
+                    isTyping.value = false;
+                    isAgentSessionActive.value = false;
+                }
+            }
+        } catch (e) {
+            clearInterval(cascadePollTimer);
+            cascadePollTimer = null;
+            isProcessing.value = false;
+        }
+    }, 2000);
+};
+
 // Create a new conversation for this agent
 const createNewConversation = async () => {
     showConvSwitcher.value = false;
@@ -1628,10 +2004,65 @@ const createNewConversation = async () => {
     }
 };
 
+// Create a new Antigravity cascade session
+const createNewCascadeSession = async () => {
+    showConvSwitcher.value = false;
+    const prompt = window.prompt('Enter initial prompt for Antigravity:');
+    if (!prompt) return;
+
+    const wsId = wsRouting.value?.workspace?.workspace_id;
+    if (!wsId) {
+        alert('Workspace not connected');
+        return;
+    }
+
+    isProcessing.value = true;
+    chatEvents.value = [{ id: Date.now(), type: 'user', content: prompt }];
+
+    try {
+        const res = await api.post('/cascade/sessions/new/', {
+            prompt,
+            workspace_id: wsId,
+            model: selectedContext.value.model || 246,
+        });
+        if (res.data.cascade_id) {
+            activeSessionId.value = `cascade:${res.data.cascade_id}`;
+            pollCascadeSteps(res.data.cascade_id, wsId);
+            await fetchConversations();
+        }
+    } catch (err) {
+        chatEvents.value.push({ id: Date.now(), type: 'assistant', content: `âš ï¸ Failed: ${err.message}` });
+        isProcessing.value = false;
+    }
+};
+
+// Delete a conversation
+const deleteConversation = async (convId) => {
+    if (!confirm('Delete this conversation? This cannot be undone.')) return;
+    try {
+        await api.delete(`/conversations/${convId}/`);
+        // Remove from local list
+        conversations.value = conversations.value.filter(c => c.id !== convId);
+        // If we deleted the active conversation, switch to another or create new
+        if (convId === activeSessionId.value) {
+            if (conversations.value.length > 0) {
+                switchConversation(conversations.value[0].id);
+            } else {
+                createNewConversation();
+            }
+        }
+    } catch (e) {
+        console.error('Failed to delete conversation:', e);
+    }
+};
+
 // Click-outside to close conversation switcher
 const handleClickOutside = (e) => {
     if (convSwitcherRef.value && !convSwitcherRef.value.contains(e.target)) {
         showConvSwitcher.value = false;
+    }
+    if (moreTabsRef.value && !moreTabsRef.value.contains(e.target)) {
+        showMoreTabs.value = false;
     }
 };
 
@@ -1642,27 +2073,19 @@ onMounted(async () => {
         await fetchAgent(id);
         await fetchContextData();
         checkWorkspaceRouting(); // Check routing status for toolbar indicator
+        fetchCascadeStatus(); // Check Antigravity connection for cascade features
 
-        // Check for interrupted session FIRST
-        const savedSessionId = localStorage.getItem('agent_active_session_id');
-        if (savedSessionId) {
-            console.log(`[Restore] Found active session: ${savedSessionId}`);
-            await restoreSession(savedSessionId);
+        // Session restoration disabled — was causing "unknown message subscribe" errors
+        // and always failing to reconnect dead sessions
+        // TODO: Re-enable when backend supports WS subscribe message type
+        localStorage.removeItem('agent_active_session_id');
 
-            // Reconnect WebSocket after restoring session
-            const repoId = selectedContext.value.repo || '0';
-            connectWebSocket(repoId);
+        // Fetch last conversation normally
+        await fetchLastConversation();
 
-            // Also load conversations list for switcher
-            await fetchConversations();
-        } else {
-            // No interrupted session, fetch last conversation normally
-            await fetchLastConversation();
-
-            // Auto-init chat session if none exists
-            if (!activeSessionId.value && agent.value.id) {
-                await initChatSession();
-            }
+        // Auto-init chat session if none exists
+        if (!activeSessionId.value && agent.value.id) {
+            await initChatSession();
         }
     } else {
         await fetchContextData();
@@ -1842,7 +2265,7 @@ const unescapeHTML = (str) => {
 const parseWireframe = (text) => {
     // Clean box drawing characters
     const cleanLines = text.split('\n')
-        .map(line => line.replace(/[┌┐└┘├┤─│•]/g, '').trim())
+        .map(line => line.replace(/[â”Œâ”â””â”˜â”œâ”¤â”€â”‚â€¢]/g, '').trim())
         .filter(line => line.length > 0);
 
     const data = {
@@ -1970,7 +2393,7 @@ const renderWireframeUI = (text) => {
 renderer.code = function ({ text, lang }) {
     const language = lang?.toLowerCase() || 'plaintext';
     
-    // Wireframe Detection — only for explicitly tagged blocks
+    // Wireframe Detection â€” only for explicitly tagged blocks
     const isWireframe = language === 'wireframe';
     
     if (isWireframe) {
@@ -2023,7 +2446,30 @@ const wrapTablesInScroller = (html) => {
     );
 };
 
-const formatMarkdown = (text) => wrapTablesInScroller(marked(text || ''));
+// Helper to identify and style "Data Blocks" in Markdown (e.g., Product details)
+const postProcessHtml = (html) => {
+    // 1. Wrap "Product Details" sequences (bold fields) in formatted cards
+    let processed = html.replace(
+        /(<p><strong>(Product|Handle|Product ID|Price|Vendor|Status):<\/strong>.*?<\/p>)+/g,
+        '<div class="data-card my-4 p-4 bg-gray-50 border border-gray-100 rounded-xl shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">$0</div>'
+    );
+
+    // 2. Identify "Success" messages and wrap them
+    processed = processed.replace(
+        /<p>(Task Completed Successfully|Success|Completed):?.*?<\/p>/gi,
+        '<div class="success-banner my-4 p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 rounded-xl flex items-center gap-3 font-bold text-sm"><span>âœ…</span>$0</div>'
+    );
+
+    // 3. Pattern: Detect prominent video generation prompts
+    processed = processed.replace(
+        /<blockquote>(.*?)<\/blockquote>/gs,
+        '<div class="prompt-container my-6 p-6 bg-slate-900 text-slate-100 rounded-2xl border-l-4 border-blue-500 shadow-2xl relative overflow-hidden"><div class="absolute top-0 right-0 p-2 text-[10px] font-black text-slate-700 uppercase tracking-widest">Generation Prompt</div>$1</div>'
+    );
+
+    return processed;
+};
+
+const formatMarkdown = (text) => postProcessHtml(wrapTablesInScroller(marked(text || '')));
 const formatToolResult = (result) => {
     if (typeof result === 'object') return JSON.stringify(result, null, 2);
     return result;
@@ -2043,8 +2489,8 @@ const getMediaArtifacts = (eventData) => {
     const artifacts = eventData?.media_artifacts || [];
     return artifacts.map(artifact => ({
         id: artifact.id,
-        url: artifact.file_url,
-        type: artifact.media_type,
+        url: artifact.url || artifact.file_url,
+        type: artifact.type || artifact.media_type,
         title: artifact.title || artifact.description,
         description: artifact.description,
         filename: artifact.filename
@@ -2086,14 +2532,10 @@ const connectWebSocket = (repoId) => {
         console.log('[Playground] WS Connected');
         reconnectAttempts.value = 0; // Reset on successful connection
 
-        // If we have an active session, subscribe to it
-        if (activeSessionId.value && isAgentSessionActive.value) {
-            console.log('[Playground] Subscribing to active session:', activeSessionId.value);
-            ws.value.send(JSON.stringify({
-                type: 'subscribe',
-                conversation_id: activeSessionId.value
-            }));
-        }
+        // Subscribe disabled — backend doesn't handle 'subscribe' message type
+        // if (activeSessionId.value && isAgentSessionActive.value) {
+        //     ws.value.send(JSON.stringify({ type: 'subscribe', conversation_id: activeSessionId.value }));
+        // }
     };
 
     ws.value.onmessage = (event) => {
@@ -2155,7 +2597,7 @@ const connectWebSocket = (repoId) => {
                     event._nextRenderAt = now + 400;
                     requestAnimationFrame(() => {
                         event.renderedHtml = formatMarkdown(event.content);
-                        // Inline scroll — avoids nextTick() overhead
+                        // Inline scroll â€” avoids nextTick() overhead
                         if (feed.value) {
                             const c = feed.value;
                             if (c.scrollHeight - c.scrollTop - c.clientHeight < 150) {
@@ -2175,7 +2617,7 @@ const connectWebSocket = (repoId) => {
                     data
                 });
             }
-            // Don't scrollToBottom() on every chunk — handled by the throttled rAF above
+            // Don't scrollToBottom() on every chunk â€” handled by the throttled rAF above
         } else if (data.type === 'assistant_message_complete') {
             // Check ignore flag before finalizing
             if (ignoringMessages.value) {
@@ -2296,11 +2738,13 @@ const connectWebSocket = (repoId) => {
             isProcessing.value = false;
             isTyping.value = false;
             isAgentSessionActive.value = false;
+            // Clear persisted session so page reload doesn't try to restore a dead session
+            localStorage.removeItem('agent_active_session_id');
             // Finalize any in-progress streaming message
             const lastEvent = chatEvents.value.findLast(e => e.type === 'assistant');
             if (lastEvent && lastEvent.streaming) {
                 lastEvent._nextRenderAt = null;
-                lastEvent.content += '\n\n⏹️ _Stopped by user._';
+                lastEvent.content += '\n\nâ¹ï¸ _Stopped by user._';
                 lastEvent.streaming = false;
                 lastEvent.renderedHtml = formatMarkdown(lastEvent.content);
             }
@@ -2334,7 +2778,8 @@ const connectWebSocket = (repoId) => {
                     success: data.success,
                     request_url: data.request_url || '',
                     request_method: data.request_method || '',
-                    media_artifacts: data.media_artifacts || []
+                    media_artifacts: data.media_artifacts || [],
+                    document: data.document || null
                 }
             });
             
@@ -2445,13 +2890,14 @@ const connectWebSocket = (repoId) => {
                 interaction_type: data.interaction_type,
                 response_type: data.response_type,
                 summary: data.summary,
+                services: data.services || [],          // â† credential_setup rows
                 payload: data.payload || {},
                 options: data.options || [],
                 urgency: data.urgency || 'medium',
                 timeout_at: data.timeout_at || null
             });
         } else if (data.type === 'hitl_response_ack') {
-            // HITL: backend acknowledged our response — remove from queue
+            // HITL: backend acknowledged our response â€” remove from queue
             console.log('[HITL] Response acknowledged:', data.request_id);
             hitlRequests.value = hitlRequests.value.filter(
                 r => r.request_id !== data.request_id
@@ -2487,21 +2933,18 @@ const connectWebSocket = (repoId) => {
                 connectWebSocket(repoId);
             }, delay);
         } else if (reconnectAttempts.value >= maxReconnectAttempts) {
-            console.error('[Playground] Max reconnection attempts reached');
-            chatEvents.value.push({
-                id: Date.now(),
-                type: 'error',
-                content: 'Connection lost. Please refresh the page to reconnect.',
-                data: { error: 'Max reconnection attempts reached' }
-            });
+            console.error('[Playground] Max reconnection attempts reached, reloading page...');
+            // Clear stale session state before reload
+            localStorage.removeItem('agent_active_session_id');
+            window.location.reload();
         }
     };
 };
 
-// ── HITL Handlers ──
+// â”€â”€ HITL Handlers â”€â”€
 const handleHitlRespond = ({ request_id, response_value, feedback }) => {
     if (!ws.value || ws.value.readyState !== WebSocket.OPEN) {
-        console.error('[HITL] Cannot send response — WebSocket not connected');
+        console.error('[HITL] Cannot send response â€” WebSocket not connected');
         return;
     }
     console.log('[HITL] Sending response for', request_id);
@@ -2622,8 +3065,30 @@ const sendMessage = async () => {
         }
     }
 
-    // Send to WS
-    if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+    // Send to WS (or cascade API for AG sessions)
+    const isCascadeSession = activeSessionId.value?.startsWith?.('cascade:');
+    if (isCascadeSession) {
+        const cascadeId = activeSessionId.value.replace('cascade:', '');
+        const wsId = wsRouting.value?.workspace?.workspace_id;
+        if (!wsId) {
+            chatEvents.value.push({ id: Date.now(), type: 'assistant', content: 'âš ï¸ Workspace not connected' });
+            isProcessing.value = false;
+            return;
+        }
+        try {
+            await api.post(`/cascade/sessions/${cascadeId}/send/`, {
+                prompt: content,
+                workspace_id: wsId,
+                model: selectedContext.value.model || 246,
+            });
+            // Poll for steps
+            pollCascadeSteps(cascadeId, wsId);
+        } catch (err) {
+            chatEvents.value.push({ id: Date.now(), type: 'assistant', content: `âš ï¸ Cascade send failed: ${err.message}` });
+            isProcessing.value = false;
+            isAgentSessionActive.value = false;
+        }
+    } else if (ws.value && ws.value.readyState === WebSocket.OPEN) {
         ws.value.send(JSON.stringify({
             type: 'chat_message',
             message: content,
@@ -2811,13 +3276,12 @@ const correctResponse = (event) => {
     alert('Feedback feature coming soon! This will allow you to suggest corrections to improve the agent.');
 };
 
-// Fix: Watch chatEvents to auto-scroll
+// Scroll when new events are added (e.g. user sends message, new tool call, etc.)
 watch(
-    () => chatEvents.value.length,  // Watch length instead of deep
+    () => chatEvents.value.length,
     () => {
-        // Use requestAnimationFrame for immediate scroll after render
         requestAnimationFrame(() => {
-            requestAnimationFrame(() => {  // Double RAF for reliability
+            requestAnimationFrame(() => {
                 if (feed.value) {
                     feed.value.scrollTop = feed.value.scrollHeight;
                 }
@@ -2825,6 +3289,62 @@ watch(
         });
     }
 );
+
+// â”€â”€ Streaming auto-scroll â”€â”€
+// Auto-scrolls smoothly during streaming.
+// If the user manually scrolls, pauses for 2 seconds then auto-resumes.
+
+let streamScrollRafId = null;
+let streamScrollFrame = 0;
+let lastUserScrollTime = 0;
+const STREAM_SCROLL_PAUSE_MS = 2000;  // resume 2s after last manual scroll
+const SCROLL_THROTTLE_FRAMES = 8;     // run every 8 frames (~7fps) â€” smooth feel
+
+const handleFeedScroll = () => {
+    if (!isProcessing.value) return;
+    lastUserScrollTime = Date.now();
+};
+
+const startStreamScroll = () => {
+    streamScrollFrame = 0;
+    lastUserScrollTime = 0; // fresh start â€” immediately scroll on new message
+    const loop = () => {
+        if (!isProcessing.value) {
+            streamScrollRafId = null;
+            return;
+        }
+        streamScrollFrame++;
+        if (streamScrollFrame % SCROLL_THROTTLE_FRAMES === 0 && feed.value) {
+            const userJustScrolled = (Date.now() - lastUserScrollTime) < STREAM_SCROLL_PAUSE_MS;
+            if (!userJustScrolled) {
+                feed.value.scrollTo({ top: feed.value.scrollHeight, behavior: 'smooth' });
+            }
+        }
+        streamScrollRafId = requestAnimationFrame(loop);
+    };
+    if (!streamScrollRafId) {
+        streamScrollRafId = requestAnimationFrame(loop);
+    }
+};
+
+const stopStreamScroll = () => {
+    if (streamScrollRafId) {
+        cancelAnimationFrame(streamScrollRafId);
+        streamScrollRafId = null;
+    }
+    // Smooth scroll to bottom when streaming finishes
+    if (feed.value) {
+        feed.value.scrollTo({ top: feed.value.scrollHeight, behavior: 'smooth' });
+    }
+};
+
+watch(isProcessing, (streaming) => {
+    if (streaming) {
+        startStreamScroll();
+    } else {
+        stopStreamScroll();
+    }
+});
 
 const runAgent = async () => {
     if (agent.value.knowledge_scope === 'system' && !selectedContext.value.system) {
@@ -2933,8 +3453,19 @@ onMounted(() => {
     }
 });
 
+// Attach scroll listener to feed once the ref is populated
+watch(feed, (el) => {
+    if (el) {
+        el.addEventListener('scroll', handleFeedScroll, { passive: true });
+    }
+});
+
 onBeforeUnmount(() => {
     window.removeEventListener('click', handleGlobalClick);
+    if (feed.value) {
+        feed.value.removeEventListener('scroll', handleFeedScroll);
+    }
+    stopStreamScroll();
     if (ws.value) {
         console.log('[Playground] Cleaning up WebSocket on unmount');
         ws.value.close();
@@ -3107,7 +3638,7 @@ kbd {
     word-wrap: break-word;
 }
 
-/* Table scroll wrapper — only the table scrolls, not the whole message */
+/* Table scroll wrapper â€” only the table scrolls, not the whole message */
 :deep(.table-scroll-wrapper) {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -3156,7 +3687,7 @@ kbd {
     overflow-x: hidden;
 }
 
-/* Text wrapping for prose content — avoid break-all which breaks mid-word */
+/* Text wrapping for prose content â€” avoid break-all which breaks mid-word */
 :deep(.prose p),
 :deep(.prose li),
 :deep(.prose h1),
