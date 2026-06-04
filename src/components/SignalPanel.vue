@@ -115,6 +115,24 @@
             </div>
           </div>
 
+          <!-- WebSocket Chat URL (real-time, always visible) -->
+          <div>
+            <label class="block text-xs font-medium text-gray-500 mb-1">WebSocket Chat URL</label>
+            <div class="flex gap-2">
+              <code class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 font-mono truncate">
+                {{ wsChatUrl }}
+              </code>
+              <button @click="copyToClipboard(wsChatUrl)" class="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm">
+                📋
+              </button>
+            </div>
+            <p class="text-[11px] text-gray-400 mt-1">
+              Real-time chat for external apps. Authenticate with
+              <code>?token=&lt;API_KEY&gt;</code> or an
+              <code>Authorization: Bearer &lt;API_KEY&gt;</code> header (same key as above).
+            </p>
+          </div>
+
           <!-- API Key -->
           <div>
             <label class="block text-xs font-medium text-gray-500 mb-1">API Key</label>
@@ -375,6 +393,13 @@ const testResultError = ref(false)
 const webhookUrl = computed(() => {
   const base = window.location.origin
   return `${base}/api/agents/${props.agent.id}/webhook/`
+})
+
+// WebSocket chat endpoint (repo_id 0 = standalone "Free Agent" mode).
+// Authenticated by the agent's signal_api_key via ?token= or Bearer header.
+const wsChatUrl = computed(() => {
+  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${scheme}://${window.location.host}/ws/chat/repository/0/`
 })
 
 import { computed } from 'vue'
