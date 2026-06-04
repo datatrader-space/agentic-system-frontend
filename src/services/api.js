@@ -220,10 +220,6 @@ export default {
 
   // Agents
   getAgents: () => api.get('/agents/'),
-  getAgent: (id) => api.get(`/agents/${id}/`),
-  updateAgent: (id, data) => api.patch(`/agents/${id}/`, data),
-  // Signal / webhook integration
-  rotateAgentSignalKey: (id) => api.post(`/agents/${id}/signals/api-key/`),
 
   // Authentication
   register: (data) => api.post('/auth/register', data),
