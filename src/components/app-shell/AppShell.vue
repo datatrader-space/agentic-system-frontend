@@ -19,9 +19,7 @@
           </span>
           <span class="bar-title">Agentic <span class="bar-v">v2</span></span>
         </div>
-        <button class="bar-btn ctx-toggle" title="Context (Ctrl/Cmd+J)" aria-label="Toggle context panel" @click="layout.toggleMobileRight()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M15 4v16" /></svg>
-        </button>
+        <span aria-hidden="true"></span>
       </div>
 
       <main class="center-main">
@@ -29,19 +27,7 @@
       </main>
     </div>
 
-    <!-- Right panel — inline on xl (≥1280px) -->
-    <RightContextPanel v-if="layout.rightPanelOpen" class="right-desktop" />
-    <!-- Reopen tab when the right panel is collapsed (xl only) -->
-    <button v-else class="reopen-right" title="Show context (Ctrl/Cmd+J)" aria-label="Show context panel" @click="layout.toggleRightPanel()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round" /></svg>
-    </button>
-
-    <!-- Right panel — overlay sheet below xl (<1280px) -->
-    <Transition name="sheet">
-      <div v-if="layout.mobileRightOpen" class="right-overlay" @click.self="layout.closeMobileRight()">
-        <RightContextPanel class="right-sheet" :overlay="true" @close="layout.closeMobileRight()" />
-      </div>
-    </Transition>
+    <!-- Right context panel removed -->
   </div>
 </template>
 
@@ -51,7 +37,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { useChatStore } from '../../stores/useChatStore'
 import LeftSidebar from './LeftSidebar.vue'
-import RightContextPanel from './RightContextPanel.vue'
 import MobileSidebarDrawer from './MobileSidebarDrawer.vue'
 
 const layout = useLayoutStore()

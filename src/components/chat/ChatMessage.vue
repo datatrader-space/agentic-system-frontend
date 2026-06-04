@@ -14,8 +14,17 @@
         <!-- Streaming with no text yet -->
         <StreamingIndicator v-if="isStreaming && !message.content" />
 
-        <!-- Rendered markdown content -->
-        <div v-if="message.content" class="bubble assistant" v-html="rendered"></div>
+        <!-- Rendered markdown content (full answer if rehydrated, else stored stub) -->
+        <div v-if="displayContent" class="bubble assistant" v-html="rendered"></div>
+
+        <!-- Long-answer rehydrate: the stored content is a bounded stub; fetch the full answer on demand -->
+        <div v-if="canShowFull" class="longanswer-row">
+          <button class="longanswer-btn" :disabled="loadingFull" @click="showFullAnswer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            {{ loadingFull ? 'Loading full answer…' : 'Show full answer' }}
+          </button>
+          <span v-if="fullError" class="longanswer-err">{{ fullError }}</span>
+        </div>
 
         <!-- Error + retry -->
         <div v-if="message.status === 'error'" class="error-row">
@@ -46,6 +55,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { marked } from 'marked'
+import api from '../../services/api'
 import ToolCallCard from './ToolCallCard.vue'
 import StreamingIndicator from './StreamingIndicator.vue'
 
@@ -57,12 +67,44 @@ defineEmits(['retry'])
 marked.setOptions({ breaks: true, gfm: true })
 
 const isStreaming = computed(() => props.message.status === 'streaming')
-const rendered = computed(() => marked.parse(props.message.content || ''))
+
+// Long-answer rehydration: stored content is a bounded stub; the full answer is
+// fetched on demand from the long-answer endpoint and shown in place.
+const fullContent = ref('')
+const loadingFull = ref(false)
+const fullError = ref('')
+const displayContent = computed(() => fullContent.value || props.message.content || '')
+const rendered = computed(() => marked.parse(displayContent.value))
+const canShowFull = computed(
+  () =>
+    !isStreaming.value &&
+    props.message.isLongResponse &&
+    props.message.longAnswerRef &&
+    !fullContent.value,
+)
+
+const showFullAnswer = async () => {
+  if (loadingFull.value) return
+  loadingFull.value = true
+  fullError.value = ''
+  try {
+    const res = await api.get(
+      `/conversations/${props.message.conversationId}/long-answer/`,
+      { params: { ref: props.message.longAnswerRef } },
+    )
+    fullContent.value = res.data?.content || ''
+    if (!fullContent.value) fullError.value = 'Full answer is empty.'
+  } catch (e) {
+    fullError.value = e?.response?.data?.error || 'Could not load the full answer.'
+  } finally {
+    loadingFull.value = false
+  }
+}
 
 const copied = ref(false)
 const copy = async () => {
   try {
-    await navigator.clipboard.writeText(props.message.content || '')
+    await navigator.clipboard.writeText(displayContent.value)
     copied.value = true
     setTimeout(() => (copied.value = false), 1500)
   } catch {
@@ -132,6 +174,26 @@ const copy = async () => {
 }
 .retry-btn:hover { border-color: #c7d2fe; color: #4f46e5; }
 .retry-btn svg { width: 14px; height: 14px; }
+
+.longanswer-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.longanswer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #4f46e5;
+  background: #eef2ff;
+  border: 1px solid #e0e7ff;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.longanswer-btn:hover:not(:disabled) { border-color: #c7d2fe; background: #e0e7ff; }
+.longanswer-btn:disabled { opacity: 0.6; cursor: default; }
+.longanswer-btn svg { width: 14px; height: 14px; }
+.longanswer-err { font-size: 0.8125rem; color: #dc2626; }
 
 .msg-actions { margin-top: 6px; opacity: 0; transition: opacity 0.15s; }
 .msg:hover .msg-actions { opacity: 1; }

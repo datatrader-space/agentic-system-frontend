@@ -5,7 +5,7 @@
         <div
             class="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-3 md:px-4 shrink-0 shadow-sm z-10">
             <div class="flex items-center gap-2 sm:gap-4 min-w-0">
-                <BackButton fallback="/agents" size="sm" variant="ghost" />
+                <BackButton fallback="/dashboard/agents" size="sm" variant="ghost" />
                 <div class="h-6 w-px bg-gray-200 hidden sm:block"></div>
                 <h1 class="text-sm sm:text-lg font-bold text-gray-800 truncate">
                     {{ agent.id ? agent.name || 'Edit Agent' : 'New Agent' }}
@@ -2235,8 +2235,8 @@ const saveAgent = async (agentData) => {
             res = await api.patch(`/agents/${dataToSave.id}/`, dataToSave);
         } else {
             res = await api.post('/agents/', dataToSave);
-            // Redirect to edit mode to prevent duplicate creates
-            router.replace(`/agents/${res.data.id}`);
+            // Redirect to edit mode to prevent duplicate creates (stay in dashboard shell)
+            router.replace(`/dashboard/agents/${res.data.id}`);
         }
         agent.value = res.data;
         // Fix up tool ids again if needed

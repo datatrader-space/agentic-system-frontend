@@ -146,11 +146,11 @@ const fetchAgents = async () => {
 };
 
 const createAgent = () => {
-    router.push('/agents/new'); // Opens Playground in 'new' mode
+    router.push('/dashboard/agents/new'); // Opens Playground in 'new' mode (inside dashboard shell)
 };
 
 const editAgent = (id) => {
-    router.push(`/agents/${id}`); // Opens Playground in 'edit' mode
+    router.push(`/dashboard/agents/${id}`); // Opens Playground in 'edit' mode (inside dashboard shell)
 };
 
 const launchSession = (agent) => {

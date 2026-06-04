@@ -133,6 +133,7 @@ const primaryNav = [
   { to: '/dashboard/benchmarks', label: 'Benchmarks', icon: ['M18 20V10', 'M12 20V4', 'M6 20v-6'] },
   { to: '/dashboard/workspaces', label: 'Workspaces', icon: ['M2 7l10-5 10 5-10 5z', 'M2 17l10 5 10-5', 'M2 12l10 5 10-5'] },
   { to: '/dashboard/activity', label: 'Activity', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
+  { to: '/dashboard/llm-context', label: 'LLM Context', icon: ['M4 7V4h16v3', 'M9 20h6', 'M12 4v16', 'M4 12h16'] },
   { to: '/dashboard/settings/general', match: '/dashboard/settings', label: 'Settings', icon: ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82'] },
 ]
 

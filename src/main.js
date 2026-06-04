@@ -17,6 +17,7 @@ import RepositoryPage from './views/RepositoryPage.vue'
 import Login from './views/Login.vue'
 import LLMSettings from './views/LLMSettings.vue'
 import LLMDashboard from './views/LLMDashboard.vue'
+import LLMContextDashboard from './views/LLMContextDashboard.vue'
 import Benchmarks from './views/Benchmarks.vue'
 import ToolRegistry from './views/ToolRegistry.vue'
 import Services from './views/Services.vue'
@@ -138,12 +139,15 @@ const router = createRouter({
         // Legacy pages re-housed inside the shell so navigation never leaves it.
         // (The old top-level routes below remain for back-compat / deep links.)
         { path: 'agents', name: 'dashboard-agents', component: AgentLibrary },
+        { path: 'agents/new', name: 'dashboard-agent-new', component: AgentPlayground },
+        { path: 'agents/:id', name: 'dashboard-agent-playground', component: AgentPlayground },
         { path: 'tools', name: 'dashboard-tools', component: ToolRegistry },
         { path: 'services', name: 'dashboard-services', component: Services },
         { path: 'mcp', name: 'dashboard-mcp', component: MCPServers },
         { path: 'benchmarks', name: 'dashboard-benchmarks', component: Benchmarks },
         { path: 'workspaces', name: 'dashboard-workspaces', component: WorkspaceHub },
         { path: 'activity', name: 'dashboard-activity', component: LLMDashboard },
+        { path: 'llm-context', name: 'dashboard-llm-context', component: LLMContextDashboard },
         { path: 'settings', redirect: '/dashboard/settings/general' },
         { path: 'settings/:tab', name: 'dashboard-settings', component: SettingsLayout },
       ]
@@ -287,15 +291,16 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   // For routes that don't require auth, allow access immediately
   if (!to.meta.requiresAuth) {
-    // If guest-only page (login) and user might be logged in, verify first
-    if (to.meta.requiresGuest) {
+    // Already-authenticated users shouldn't see the marketing landing page or the
+    // login page — send them straight into the app.
+    if (to.name === 'landing' || to.meta.requiresGuest) {
       try {
         const response = await api.checkAuth()
         if (response.data.authenticated) {
-          return next('/dashboard') // Redirect to dashboard if already logged in
+          return next(to.name === 'landing' ? '/dashboard/chat/new' : '/dashboard')
         }
       } catch (error) {
-        // Not authenticated, allow access to login page
+        // Not authenticated, allow access to the public/login page
       }
     }
     return next()

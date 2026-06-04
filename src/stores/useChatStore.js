@@ -117,6 +117,11 @@ export const useChatStore = defineStore('chat', {
           status: 'done',
           error: '',
           toolCalls: [],
+          // Long-answer stub: the stored content is a bounded stub; the full answer
+          // is rehydrated on demand from the long-answer endpoint (see ChatMessage.vue).
+          isLongResponse: !!(m.model_info && m.model_info.is_long_response),
+          longAnswerRef: (m.model_info && m.model_info.long_answer_ref) || '',
+          conversationId: String(id),
         }))
         this.repoId = data.repository?.id || data.repository_id || 0
         if (data.agent_profile?.id) this.selectedAgentId = String(data.agent_profile.id)
