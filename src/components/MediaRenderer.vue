@@ -5,7 +5,7 @@
             <img 
                 :src="artifacts[0].url" 
                 :alt="artifacts[0].title || 'Generated image'"
-                class="max-w-md rounded-lg shadow-lg hover:shadow-xl transition-shadow cursor-pointer border border-purple-100"
+                class="max-h-96 w-auto rounded-xl shadow-lg hover:shadow-xl transition-shadow cursor-zoom-in border border-purple-100 object-contain"
                 @click="openLightbox(artifacts[0])"
             />
             <p v-if="artifacts[0].title" class="text-sm text-purple-700 mt-2 font-medium">{{ artifacts[0].title }}</p>
@@ -16,7 +16,7 @@
             <video 
                 :src="artifacts[0].url" 
                 controls
-                class="max-w-md rounded-lg shadow-lg border border-purple-100"
+                class="max-h-96 w-auto rounded-xl shadow-lg border border-purple-100 bg-black"
             >
                 Your browser does not support the video tag.
             </video>
@@ -25,28 +25,38 @@
         
         <!-- Multiple Media - Carousel -->
         <div v-if="artifacts.length > 1" class="media-carousel">
-            <div class="flex gap-3 overflow-x-auto pb-2 scrollbar-custom">
+            <div class="flex gap-3 overflow-x-auto pb-3 scrollbar-custom">
                 <div v-for="artifact in artifacts" :key="artifact.id" class="flex-shrink-0">
                     <div class="relative group">
                         <img 
                             v-if="artifact.type === 'image'"
                             :src="artifact.url"
                             :alt="artifact.title"
-                            class="h-32 w-auto rounded shadow hover:shadow-md transition cursor-pointer border border-purple-100"
+                            class="h-56 w-auto max-w-sm rounded-xl shadow hover:shadow-lg transition-all cursor-zoom-in border border-purple-100 object-cover"
                             @click="openLightbox(artifact)"
                         />
                         <video 
                             v-if="artifact.type === 'video'"
                             :src="artifact.url"
-                            class="h-32 w-auto rounded shadow cursor-pointer border border-purple-100"
+                            class="h-56 w-auto max-w-sm rounded-xl shadow cursor-pointer border border-purple-100 bg-black"
                             muted
                             @click="openLightbox(artifact)"
                         />
-                        <div class="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity rounded pointer-events-none"></div>
+                        <!-- Play icon overlay for videos -->
+                        <div v-if="artifact.type === 'video'" class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div class="bg-black/50 rounded-full p-3">
+                                <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M8 5v14l11-7z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity rounded-xl pointer-events-none"></div>
                     </div>
+                    <p v-if="artifact.title" class="text-xs text-purple-600 mt-1.5 font-medium truncate max-w-sm">{{ artifact.title }}</p>
                 </div>
             </div>
         </div>
+
         
         <!-- Lightbox Modal -->
         <transition name="fade">

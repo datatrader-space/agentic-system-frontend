@@ -95,43 +95,206 @@
             <path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
           <h3>No schedules</h3>
-          <p>Create a workflow first, then schedule it to run automatically.</p>
+          <p>Create a schedule from chat using CREATE_SCHEDULE, or add one to a workflow.</p>
         </div>
         <div v-else class="ad-table-wrap">
           <table class="ad-table">
             <thead>
               <tr>
-                <th>Workflow</th>
+                <th>Name</th>
+                <th>Agent</th>
                 <th>Schedule</th>
-                <th>Channel</th>
-                <th>Last Run</th>
-                <th>Next Run</th>
+                <th>Runs</th>
+                <th>Cost</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="s in schedules" :key="s.id">
-                <td class="ad-table-name">{{ s.template_name }}</td>
-                <td><code class="ad-code">{{ s.schedule }}</code></td>
-                <td>
-                  <span class="ad-badge ad-badge-channel">{{ s.channel }}</span>
-                </td>
-                <td>{{ s.last_run ? formatDate(s.last_run) : 'Never' }}</td>
-                <td>{{ s.next_run ? formatDate(s.next_run) : '—' }}</td>
-                <td>
-                  <span class="ad-status-dot" :class="s.active ? 'ad-status-active' : 'ad-status-inactive'"></span>
-                  {{ s.active ? 'Active' : 'Paused' }}
-                </td>
-                <td>
-                  <button class="ad-btn ad-btn-xs" @click="toggleSchedule(s)">
-                    {{ s.active ? 'Pause' : 'Resume' }}
-                  </button>
-                  <button class="ad-btn ad-btn-xs ad-btn-danger" @click="deleteSchedule(s)">
-                    Delete
-                  </button>
-                </td>
-              </tr>
+              <template v-for="s in schedules" :key="s.id">
+                <tr @click="toggleExpanded(s.id)" style="cursor:pointer">
+                  <td class="ad-table-name">
+                    {{ s.template_name }}
+                    <span v-if="s.source === 'agent_tool'" class="ad-badge ad-badge-agent">agent</span>
+                  </td>
+                  <td>{{ s.agent_name || '—' }}</td>
+                  <td><code class="ad-code">{{ s.schedule }}</code></td>
+                  <td>{{ s.run_count || 0 }}</td>
+                  <td>
+                    <span v-if="s.total_cost_usd && s.total_cost_usd !== '0'" class="ad-cost">${{ parseFloat(s.total_cost_usd).toFixed(4) }}</span>
+                    <span v-else class="ad-cost-zero">$0</span>
+                  </td>
+                  <td>
+                    <span class="ad-status-dot" :class="s.active ? 'ad-status-active' : 'ad-status-inactive'"></span>
+                    {{ s.active ? 'Active' : 'Paused' }}
+                    <span v-if="s.consecutive_failures > 0" class="ad-fail-count">{{ s.consecutive_failures }}✗</span>
+                    <span v-if="s.read_only" class="ad-readonly-badge">🔒</span>
+                  </td>
+                  <td @click.stop>
+                    <button class="ad-btn ad-btn-xs ad-btn-primary" @click="runSchedule(s)" :disabled="firingScheduleId === s.id" title="Run Now">
+                      {{ firingScheduleId === s.id ? '...' : '▶' }}
+                    </button>
+                    <button class="ad-btn ad-btn-xs" @click="openEditSchedule(s)" title="Edit">
+                      ✎
+                    </button>
+                    <button class="ad-btn ad-btn-xs" @click="toggleSchedule(s)">
+                      {{ s.active ? 'Pause' : 'Resume' }}
+                    </button>
+                    <button class="ad-btn ad-btn-xs ad-btn-danger" @click="deleteSchedule(s)">
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+                <!-- Expanded detail row -->
+                <tr v-if="expandedSchedules.has(s.id)" class="ad-expanded-row">
+                  <td colspan="7">
+                    <!-- Sub-tabs -->
+                    <div class="ad-subtab-bar">
+                      <button
+                        v-for="tab in scheduleDetailTabs"
+                        :key="tab.key"
+                        @click="scheduleDetailTab[s.id] = tab.key"
+                        class="ad-subtab"
+                        :class="{ 'ad-subtab-active': (scheduleDetailTab[s.id] || 'overview') === tab.key }"
+                      >{{ tab.label }}</button>
+                    </div>
+
+                    <div class="ad-schedule-detail">
+                      <!-- Overview -->
+                      <div v-if="(scheduleDetailTab[s.id] || 'overview') === 'overview'">
+                        <div class="ad-detail-section" style="flex-basis:100%">
+                          <label>Prompt</label>
+                          <pre class="ad-detail-prompt">{{ s.prompt || '(no prompt — uses workflow template)' }}</pre>
+                        </div>
+                        <div class="ad-detail-grid-4">
+                          <div class="ad-detail-item">
+                            <label>Last Run</label>
+                            <span>{{ s.last_run ? formatDate(s.last_run) : 'Never' }}</span>
+                          </div>
+                          <div class="ad-detail-item">
+                            <label>Next Run</label>
+                            <span>{{ s.next_run ? formatDate(s.next_run) : '—' }}</span>
+                          </div>
+                          <div class="ad-detail-item">
+                            <label>Total Cost</label>
+                            <span>${{ parseFloat(s.total_cost_usd || 0).toFixed(4) }}</span>
+                          </div>
+                          <div class="ad-detail-item">
+                            <label>Failures</label>
+                            <span :style="s.consecutive_failures > 0 ? 'color:#fca5a5' : ''">{{ s.consecutive_failures }}</span>
+                          </div>
+                        </div>
+                        <div v-if="s.last_error" class="ad-error-block">
+                          <label>Last Error</label>
+                          <pre class="ad-result-pre ad-result-error">{{ s.last_error }}</pre>
+                        </div>
+                      </div>
+
+                      <!-- Profile & Tools -->
+                      <div v-if="(scheduleDetailTab[s.id] || 'overview') === 'profile'">
+                        <div v-if="s.profile_overrides && Object.keys(s.profile_overrides).length > 0">
+                          <div class="ad-detail-grid-4">
+                            <div v-if="s.profile_overrides.model_id" class="ad-detail-item">
+                              <label>Model</label>
+                              <code class="ad-code">{{ s.profile_overrides.model_id }}</code>
+                            </div>
+                            <div v-if="s.profile_overrides.temperature != null" class="ad-detail-item">
+                              <label>Temperature</label>
+                              <span>{{ s.profile_overrides.temperature }}</span>
+                            </div>
+                            <div v-if="s.profile_overrides.budget_usd" class="ad-detail-item">
+                              <label>Budget/Run</label>
+                              <span>${{ s.profile_overrides.budget_usd }}</span>
+                            </div>
+                            <div v-if="s.profile_overrides.max_iterations" class="ad-detail-item">
+                              <label>Max Iterations</label>
+                              <span>{{ s.profile_overrides.max_iterations }}</span>
+                            </div>
+                          </div>
+                          <div v-if="s.profile_overrides.system_prompt" class="ad-detail-section" style="margin-top:12px">
+                            <label>System Prompt Override</label>
+                            <pre class="ad-detail-prompt">{{ s.profile_overrides.system_prompt }}</pre>
+                          </div>
+                          <div v-if="s.profile_overrides.tools?.length" style="margin-top:8px">
+                            <label style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:600">Tools</label>
+                            <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                              <span v-for="t in s.profile_overrides.tools" :key="t" class="ad-badge" style="background:rgba(139,92,246,0.15);color:#c4b5fd">{{ t }}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <p v-else style="color:#64748b;font-size:0.85rem;font-style:italic">No profile overrides — uses agent defaults.</p>
+                      </div>
+
+                      <!-- Guardrails -->
+                      <div v-if="(scheduleDetailTab[s.id] || 'overview') === 'guardrails'">
+                        <div class="ad-detail-grid-4">
+                          <div class="ad-detail-item">
+                            <label>Max Runs</label>
+                            <span>{{ s.max_runs || '∞' }}</span>
+                          </div>
+                          <div class="ad-detail-item">
+                            <label>Daily Budget Cap</label>
+                            <span>{{ s.daily_budget_cap ? '$' + s.daily_budget_cap : 'No limit' }}</span>
+                          </div>
+                          <div class="ad-detail-item">
+                            <label>Pause After Failures</label>
+                            <span>{{ s.auto_pause_on_failures || '0 (never)' }}</span>
+                          </div>
+                          <div class="ad-detail-item">
+                            <label>Read-Only</label>
+                            <span>{{ s.read_only ? '🔒 Yes' : 'No' }}</span>
+                          </div>
+                          <div class="ad-detail-item">
+                            <label>Expires</label>
+                            <span>{{ s.expires_at ? formatDate(s.expires_at) : 'Never' }}</span>
+                          </div>
+                          <div class="ad-detail-item">
+                            <label>Agent</label>
+                            <span>{{ s.agent_name || '—' }}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Run History -->
+                      <div v-if="(scheduleDetailTab[s.id] || 'overview') === 'runs'">
+                        <div v-if="loadingRuns[s.id]" class="ad-loading" style="padding:20px 0">
+                          <div class="ad-spinner"></div>
+                          <span>Loading runs...</span>
+                        </div>
+                        <div v-else-if="!scheduleRuns[s.id]?.length" style="color:#64748b;text-align:center;padding:20px">
+                          No runs recorded yet.
+                        </div>
+                        <div v-else class="ad-runs-list">
+                          <div v-for="run in scheduleRuns[s.id]" :key="run.id" class="ad-run-item">
+                            <div class="ad-run-header">
+                              <div style="display:flex;align-items:center;gap:8px">
+                                <span class="ad-run-dot" :class="{
+                                  'ad-run-ok': run.status === 'completed',
+                                  'ad-run-running': run.status === 'running',
+                                  'ad-run-fail': run.status === 'failed',
+                                }"></span>
+                                <span class="ad-run-status">{{ run.status }}</span>
+                                <span v-if="run.manual" class="ad-badge" style="background:rgba(99,102,241,0.15);color:#a5b4fc;font-size:0.6rem">manual</span>
+                              </div>
+                              <div style="display:flex;align-items:center;gap:12px;font-size:0.75rem;color:#64748b">
+                                <span v-if="run.duration_seconds">{{ run.duration_seconds }}s</span>
+                                <span v-if="run.cost_usd !== '0'">${{ run.cost_usd }}</span>
+                                <span>{{ formatDate(run.started_at) }}</span>
+                              </div>
+                            </div>
+                            <div v-if="run.error" class="ad-run-error">
+                              <pre class="ad-result-pre ad-result-error" style="max-height:80px;font-size:0.75rem">{{ run.error }}</pre>
+                            </div>
+                            <div v-if="run.task_results && Object.keys(run.task_results).length" class="ad-run-results">
+                              <pre class="ad-result-pre" style="max-height:100px;font-size:0.75rem">{{ JSON.stringify(run.task_results, null, 2) }}</pre>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -253,6 +416,101 @@
         </div>
       </div>
     </div>
+
+    <!-- EDIT SCHEDULE MODAL -->
+    <Transition name="modal">
+      <div v-if="editingSchedule" class="ad-modal-overlay" @click.self="editingSchedule = null">
+        <div class="ad-modal ad-modal-lg">
+          <div class="ad-modal-header">
+            <h2>Edit Schedule: {{ editingSchedule.template_name }}</h2>
+            <button class="ad-modal-close" @click="editingSchedule = null">&times;</button>
+          </div>
+          <div class="ad-modal-body">
+            <div class="ad-form-group">
+              <label>Name</label>
+              <input v-model="scheduleForm.name" type="text" class="ad-input" />
+            </div>
+            <div class="ad-form-group">
+              <label>Prompt</label>
+              <textarea v-model="scheduleForm.prompt" class="ad-textarea" rows="4"></textarea>
+            </div>
+            <div class="ad-form-group">
+              <label>Cron Schedule</label>
+              <input v-model="scheduleForm.schedule" type="text" class="ad-input" placeholder="0 8 * * *" />
+              <span class="ad-form-hint">minute hour day month weekday</span>
+            </div>
+
+            <h3 style="font-size:0.85rem;color:#94a3b8;margin:16px 0 8px;font-weight:600">Profile Overrides</h3>
+            <div class="ad-form-group">
+              <label>LLM Provider</label>
+              <select v-model="scheduleProviderId" class="ad-select">
+                <option :value="null">All Providers</option>
+                <option v-for="p in llmProviders" :key="p.id" :value="p.id">
+                  {{ p.name }} ({{ p.provider_type }})
+                </option>
+              </select>
+            </div>
+            <div class="ad-form-group">
+              <label>Model Override</label>
+              <select v-model="scheduleForm.profile_overrides.model_id" class="ad-select">
+                <option :value="null">Use agent default</option>
+                <option v-for="m in filteredScheduleModels" :key="m.id" :value="m.id">
+                  {{ m.name }}
+                </option>
+              </select>
+            </div>
+            <div class="ad-form-group">
+              <label>System Prompt Override</label>
+              <textarea v-model="scheduleForm.profile_overrides.system_prompt" class="ad-textarea" rows="2" placeholder="Override agent system prompt"></textarea>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+              <div class="ad-form-group">
+                <label>Temperature</label>
+                <input v-model.number="scheduleForm.profile_overrides.temperature" type="number" min="0" max="2" step="0.1" class="ad-input" />
+              </div>
+              <div class="ad-form-group">
+                <label>Budget ($/run)</label>
+                <input v-model.number="scheduleForm.profile_overrides.budget_usd" type="number" min="0" step="0.01" class="ad-input" />
+              </div>
+              <div class="ad-form-group">
+                <label>Max Iterations</label>
+                <input v-model.number="scheduleForm.profile_overrides.max_iterations" type="number" min="1" max="50" class="ad-input" />
+              </div>
+            </div>
+
+            <h3 style="font-size:0.85rem;color:#94a3b8;margin:16px 0 8px;font-weight:600">Guardrails</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+              <div class="ad-form-group">
+                <label>Max Total Runs</label>
+                <input v-model.number="scheduleForm.max_runs" type="number" min="1" class="ad-input" placeholder="∞" />
+              </div>
+              <div class="ad-form-group">
+                <label>Daily Budget Cap ($)</label>
+                <input v-model="scheduleForm.daily_budget_cap" type="number" min="0" step="0.01" class="ad-input" placeholder="No limit" />
+              </div>
+              <div class="ad-form-group">
+                <label>Pause After Failures</label>
+                <input v-model.number="scheduleForm.auto_pause_on_failures" type="number" min="0" class="ad-input" />
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:16px;margin-top:8px">
+              <label class="ad-label-row">
+                <input type="checkbox" v-model="scheduleForm.read_only" class="ad-checkbox" />
+                <span>Read-only mode</span>
+              </label>
+              <div style="flex:1">
+                <label style="font-size:0.75rem;color:#64748b">Expires</label>
+                <input v-model="scheduleForm.expires_at" type="datetime-local" class="ad-input" style="padding:6px 8px" />
+              </div>
+            </div>
+          </div>
+          <div class="ad-modal-footer">
+            <button class="ad-btn ad-btn-ghost" @click="editingSchedule = null">Cancel</button>
+            <button class="ad-btn ad-btn-primary" @click="saveScheduleEdit" :disabled="savingSchedule">{{ savingSchedule ? 'Saving...' : 'Save Changes' }}</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
     <!-- CREATE WORKFLOW MODAL -->
     <Transition name="modal">
@@ -377,7 +635,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, inject } from 'vue'
+import { ref, reactive, computed, onMounted, inject, watch } from 'vue'
 import api from '../services/api'
 
 const notify = inject('notify', (msg) => alert(msg))
@@ -392,6 +650,28 @@ const executions = ref([])
 const showCreateWorkflow = ref(false)
 const editingWorkflow = ref(null)
 const selectedExecution = ref(null)
+const expandedSchedules = ref(new Set())
+const scheduleDetailTab = reactive({})
+const scheduleRuns = reactive({})
+const loadingRuns = reactive({})
+const firingScheduleId = ref(null)
+const editingSchedule = ref(null)
+const savingSchedule = ref(false)
+const scheduleForm = reactive({
+  name: '', prompt: '', schedule: '',
+  profile_overrides: {},
+  max_runs: null, daily_budget_cap: null, read_only: false,
+  expires_at: '', auto_pause_on_failures: 3,
+})
+const scheduleDetailTabs = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'profile', label: 'Profile & Tools' },
+  { key: 'guardrails', label: 'Guardrails' },
+  { key: 'runs', label: 'Run History' },
+]
+const llmProviders = ref([])
+const llmModels = ref([])
+const scheduleProviderId = ref(null)
 const execFilter = reactive({ status: '', triggered_by: '' })
 
 const workflowForm = reactive({
@@ -401,6 +681,13 @@ const workflowForm = reactive({
   addSchedule: false,
   schedule: '',
   channel: 'log',
+})
+
+const filteredScheduleModels = computed(() => {
+  if (scheduleProviderId.value) {
+    return llmModels.value.filter(m => m.provider === scheduleProviderId.value)
+  }
+  return llmModels.value
 })
 
 // Tabs
@@ -556,6 +843,112 @@ const toggleSchedule = async (s) => {
   }
 }
 
+const runSchedule = async (s) => {
+  firingScheduleId.value = s.id
+  try {
+    const res = await api.post(`/schedules/${s.id}/run/`)
+    notify(`Schedule "${s.template_name}" triggered! ${res.data.signal_id ? '(Signal #' + res.data.signal_id + ')' : ''}`, 'success')
+    loadSchedules()
+    // Refresh runs if tab is open
+    if (scheduleDetailTab[s.id] === 'runs') {
+      loadScheduleRuns(s.id)
+    }
+  } catch (e) {
+    notify('Failed to run schedule: ' + (e.response?.data?.detail || e.message), 'error')
+  } finally {
+    firingScheduleId.value = null
+  }
+}
+
+const toggleExpanded = (id) => {
+  if (expandedSchedules.value.has(id)) {
+    expandedSchedules.value.delete(id)
+  } else {
+    expandedSchedules.value.add(id)
+    if (!scheduleDetailTab[id]) scheduleDetailTab[id] = 'overview'
+  }
+  // Force reactivity
+  expandedSchedules.value = new Set(expandedSchedules.value)
+}
+
+const openEditSchedule = (s) => {
+  editingSchedule.value = s
+  scheduleForm.name = s.template_name
+  scheduleForm.prompt = s.prompt || ''
+  scheduleForm.schedule = s.schedule
+  scheduleForm.profile_overrides = { ...(s.profile_overrides || {}) }
+  scheduleForm.max_runs = s.max_runs
+  scheduleForm.daily_budget_cap = s.daily_budget_cap
+  scheduleForm.read_only = s.read_only || false
+  scheduleForm.expires_at = s.expires_at ? s.expires_at.slice(0, 16) : ''
+  scheduleForm.auto_pause_on_failures = s.auto_pause_on_failures || 3
+  // Set provider filter based on current model override
+  if (scheduleForm.profile_overrides.model_id) {
+    const model = llmModels.value.find(m => m.id === scheduleForm.profile_overrides.model_id)
+    scheduleProviderId.value = model ? model.provider : null
+  } else {
+    scheduleProviderId.value = null
+  }
+}
+
+const saveScheduleEdit = async () => {
+  savingSchedule.value = true
+  try {
+    const payload = {
+      name: scheduleForm.name,
+      prompt: scheduleForm.prompt,
+      schedule: scheduleForm.schedule,
+      read_only: scheduleForm.read_only,
+    }
+    // Include profile overrides if any keys are set
+    const po = scheduleForm.profile_overrides || {}
+    const cleanOverrides = {}
+    if (po.model_id) cleanOverrides.model_id = po.model_id
+    if (po.system_prompt) cleanOverrides.system_prompt = po.system_prompt
+    if (po.temperature != null && po.temperature !== '') cleanOverrides.temperature = po.temperature
+    if (po.budget_usd != null && po.budget_usd !== '') cleanOverrides.budget_usd = po.budget_usd
+    if (po.max_iterations) cleanOverrides.max_iterations = po.max_iterations
+    if (Object.keys(cleanOverrides).length) payload.profile_overrides = cleanOverrides
+    else payload.profile_overrides = {}
+
+    if (scheduleForm.max_runs) payload.max_runs = scheduleForm.max_runs
+    if (scheduleForm.daily_budget_cap) payload.daily_budget_cap = scheduleForm.daily_budget_cap
+    if (scheduleForm.auto_pause_on_failures != null) payload.auto_pause_on_failures = scheduleForm.auto_pause_on_failures
+    if (scheduleForm.expires_at) payload.expires_at = new Date(scheduleForm.expires_at).toISOString()
+
+    await api.put(`/schedules/${editingSchedule.value.id}/`, payload)
+    notify('Schedule updated', 'success')
+    editingSchedule.value = null
+    loadSchedules()
+  } catch (e) {
+    notify('Failed to update schedule: ' + (e.response?.data?.error || e.message), 'error')
+  } finally {
+    savingSchedule.value = false
+  }
+}
+
+const loadScheduleRuns = async (scheduleId) => {
+  loadingRuns[scheduleId] = true
+  try {
+    const res = await api.get(`/schedules/${scheduleId}/runs/`)
+    scheduleRuns[scheduleId] = res.data.runs || []
+  } catch (e) {
+    console.error('Failed to load runs:', e)
+    scheduleRuns[scheduleId] = []
+  } finally {
+    loadingRuns[scheduleId] = false
+  }
+}
+
+// Auto-load runs when Runs tab is selected
+watch(scheduleDetailTab, (tabs) => {
+  for (const [id, tab] of Object.entries(tabs)) {
+    if (tab === 'runs' && !scheduleRuns[id]) {
+      loadScheduleRuns(id)
+    }
+  }
+}, { deep: true })
+
 const deleteSchedule = async (s) => {
   if (!confirm('Delete this schedule?')) return
   try {
@@ -591,6 +984,13 @@ onMounted(() => {
   loadSchedules()
   loadScripts()
   loadExecutions()
+  // Load LLM providers and models for schedule editing
+  api.getLlmProviders().then(res => {
+    llmProviders.value = res.data.results || res.data
+  }).catch(() => {})
+  api.getLlmModels().then(res => {
+    llmModels.value = res.data.results || res.data
+  }).catch(() => {})
 })
 </script>
 
@@ -1288,4 +1688,172 @@ onMounted(() => {
 .modal-leave-to .ad-modal {
   transform: scale(0.95) translateY(10px);
 }
+
+/* ===== Schedule Expanded Rows ===== */
+.ad-expanded-row td {
+  background: #1a2236 !important;
+  padding: 0 !important;
+}
+
+.ad-schedule-detail {
+  padding: 16px 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.ad-detail-section {
+  flex: 1 1 200px;
+}
+
+.ad-detail-section label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.ad-detail-prompt {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+  white-space: pre-wrap;
+  max-height: 120px;
+  overflow-y: auto;
+  margin: 0;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.ad-detail-overrides {
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 0.75rem;
+  color: #c4b5fd;
+  white-space: pre-wrap;
+  margin: 0;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.ad-badge-agent {
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.ad-fail-count {
+  color: #f87171;
+  font-size: 0.75rem;
+  margin-left: 4px;
+  font-weight: 600;
+}
+
+/* ===== Schedule Sub-Tabs ===== */
+.ad-subtab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #334155;
+  background: rgba(0,0,0,0.15);
+  padding: 0 16px;
+}
+
+.ad-subtab {
+  padding: 8px 14px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.ad-subtab:hover { color: #94a3b8; }
+.ad-subtab-active { color: #a78bfa; border-bottom-color: #8b5cf6; }
+
+.ad-detail-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.ad-error-block {
+  margin-top: 12px;
+}
+
+.ad-error-block label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fca5a5;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.ad-cost { color: #34d399; font-size: 0.85rem; }
+.ad-cost-zero { color: #475569; font-size: 0.85rem; }
+
+.ad-readonly-badge {
+  font-size: 0.7rem;
+  margin-left: 4px;
+}
+
+/* ===== Run History ===== */
+.ad-runs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.ad-run-item {
+  background: rgba(0,0,0,0.2);
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.ad-run-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ad-run-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.ad-run-ok { background: #10b981; }
+.ad-run-running { background: #f59e0b; }
+.ad-run-fail { background: #ef4444; }
+
+.ad-run-status {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #cbd5e1;
+  text-transform: capitalize;
+}
+
+.ad-run-error, .ad-run-results {
+  margin-top: 8px;
+}
 </style>
+

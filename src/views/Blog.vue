@@ -103,11 +103,46 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { blogPosts as allPosts } from '../data/blogPosts'
+import { ref, computed, onMounted } from 'vue'
+import { blogPosts as staticPosts } from '../data/blogPosts'
+import { useMeta } from '../composables/useMeta'
+import api from '../services/api'
+
+useMeta({
+  title: 'Blog — AADML',
+  description: 'Insights on AI agents, automation, and the future of development.',
+})
 
 const email = ref('')
-const blogPosts = ref(allPosts)
+const blogPosts = ref(staticPosts)
+const loading = ref(false)
+
+// Try API first, fallback to static data
+onMounted(async () => {
+  try {
+    loading.value = true
+    const { data } = await api.get('/content/pages/', { params: { type: 'blog', published: 'true' } })
+    if (data.pages && data.pages.length > 0) {
+      // Map API format to what the template expects
+      blogPosts.value = data.pages.map((p, i) => ({
+        id: p.id,
+        slug: p.slug,
+        title: p.title,
+        excerpt: p.excerpt,
+        category: p.category || 'General',
+        date: p.published_at ? new Date(p.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '',
+        readTime: `${p.read_time_minutes || 5} min read`,
+        gradient: p.hero_gradient || staticPosts[i % staticPosts.length]?.gradient || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        image: p.og_image_url || staticPosts[i % staticPosts.length]?.image || '',
+      }))
+    }
+  } catch (e) {
+    // API not available — keep static data
+    console.debug('Blog: using static fallback', e.message)
+  } finally {
+    loading.value = false
+  }
+})
 
 const categories = ref([
   { name: 'AI Trends', count: 12 },
@@ -119,7 +154,7 @@ const categories = ref([
 ])
 
 const popularPosts = computed(() => {
-  return allPosts.slice(0, 3)
+  return blogPosts.value.slice(0, 3)
 })
 
 const subscribe = () => {

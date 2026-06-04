@@ -147,6 +147,12 @@ export const credentialsApi = {
         api.post(`/agents/${agentId}/credentials/${credentialId}/set-default/`),
 
     /**
+     * Assign (copy) a credential from another agent/global to this agent
+     */
+    assign: (agentId, credentialId) =>
+        api.post(`/agents/${agentId}/credentials/${credentialId}/assign/`),
+
+    /**
      * Get available built-in tool credential scopes
      */
     getBuiltinScopes: () =>
@@ -165,6 +171,34 @@ export const credentialsApi = {
      */
     toggleShareCredentials: (agentId, data) =>
         api.patch(`/agents/${agentId}/share-credentials/`, data),
+
+    // ============================================================================
+    // Global (user-scoped) Credentials — agent_profile=None
+    // ============================================================================
+
+    /**
+     * List user's global credentials
+     */
+    listGlobal: () =>
+        api.get(`/credentials/`),
+
+    /**
+     * Create a global credential
+     */
+    createGlobal: (data) =>
+        api.post(`/credentials/create/`, data),
+
+    /**
+     * Delete a global credential
+     */
+    deleteGlobal: (credentialId) =>
+        api.delete(`/credentials/${credentialId}/delete/`),
+
+    /**
+     * Test a global credential
+     */
+    testGlobal: (credentialId) =>
+        api.post(`/credentials/${credentialId}/test/`),
 }
 
 export default {

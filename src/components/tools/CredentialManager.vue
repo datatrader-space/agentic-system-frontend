@@ -3,7 +3,9 @@
     <!-- Header -->
     <div class="p-3 sm:p-6 border-b border-gray-200 shrink-0">
       <div class="flex items-center justify-between mb-3 sm:mb-4">
-        <h2 class="text-lg sm:text-2xl font-bold text-gray-900">Credential Manager</h2>
+        <h2 class="text-lg sm:text-2xl font-bold text-gray-900">
+          {{ isGlobalMode ? '🌐 Global Credentials' : 'Credential Manager' }}
+        </h2>
         <button
           @click="openAddModal"
           class="px-3 sm:px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition flex items-center gap-1.5 sm:gap-2 whitespace-nowrap"
@@ -17,7 +19,7 @@
       </div>
 
       <!-- Workspace Sharing Banner -->
-      <div v-if="workspaceLink && !isOwner && workspaceLink.share_credentials"
+      <div v-if="!isGlobalMode && workspaceLink && !isOwner && workspaceLink.share_credentials"
         class="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
         <span class="text-amber-500 text-lg mt-0.5">🔗</span>
         <div>
@@ -30,7 +32,7 @@
       </div>
 
       <!-- Owner: Share Credentials Toggle -->
-      <div v-if="workspaceLink && isOwner"
+      <div v-if="!isGlobalMode && workspaceLink && isOwner"
         class="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
         <div class="flex items-center gap-2">
           <span class="text-blue-500 text-lg">🔐</span>
@@ -62,13 +64,114 @@
         </div>
       </div>
 
-      <div v-else-if="credentials.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400">
+      <div v-else-if="isGlobalMode && credentials.length === 0" class="flex flex-col items-center justify-center h-full text-gray-400">
         <div class="text-5xl mb-3">🔑</div>
         <p class="text-lg font-medium">No credentials configured</p>
-        <p class="text-sm mt-1">Add credentials to enable authenticated tool access</p>
+        <p class="text-sm mt-1">Add global credentials — they'll be available to all your agents</p>
       </div>
 
-      <table v-else class="w-full min-w-[600px]">
+      <!-- AGENT MODE: Two separate sections -->
+      <template v-else-if="!isGlobalMode">
+        <!-- Section 1: Agent-specific credentials -->
+        <div class="px-3 sm:px-6 pt-4 pb-2">
+          <h3 class="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <span class="w-2 h-2 bg-blue-500 rounded-full"></span>
+            Agent Credentials
+            <span class="text-xs text-gray-400 font-normal">(assigned to this agent)</span>
+          </h3>
+        </div>
+        <table v-if="agentCredentials.length > 0" class="w-full min-w-[600px]">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-3 sm:px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+              <th class="px-3 sm:px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Scope</th>
+              <th class="px-3 sm:px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+              <th class="px-3 sm:px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th class="px-3 sm:px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Last Used</th>
+              <th class="px-3 sm:px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <tr v-for="credential in agentCredentials" :key="credential.id" class="hover:bg-gray-50">
+              <td class="px-3 sm:px-6 py-3 text-xs sm:text-sm font-medium text-gray-900">
+                {{ credential.credential_name }}
+                <span v-if="credential.is_default" class="ml-1 text-xs text-yellow-600">★ Default</span>
+              </td>
+              <td class="px-3 sm:px-6 py-3 whitespace-nowrap text-xs sm:text-sm text-gray-500">{{ credential.service_name }}</td>
+              <td class="px-3 sm:px-6 py-3 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                <span :class="['px-2 py-1 rounded text-xs font-medium', credential.scope_type === 'builtin_tool' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800']">
+                  {{ credential.scope_type === 'builtin_tool' ? 'Built-in' : credential.auth_type }}
+                </span>
+              </td>
+              <td class="px-3 sm:px-6 py-3 whitespace-nowrap">
+                <span :class="['px-2 py-1 text-xs font-semibold rounded-full', credential.is_valid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-600']">
+                  {{ credential.is_valid ? 'Valid' : 'Invalid' }}
+                </span>
+              </td>
+              <td class="px-3 sm:px-6 py-3 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden sm:table-cell">
+                {{ credential.last_used_at ? formatDate(credential.last_used_at) : 'Never' }}
+              </td>
+              <td class="px-3 sm:px-6 py-3 whitespace-nowrap text-xs sm:text-sm space-x-2">
+                <button v-if="credential.scope_type === 'service'" @click="testCredential(credential)" class="text-blue-600 hover:text-blue-800 font-medium">Test</button>
+                <button @click="deleteCredential(credential)" class="text-red-600 hover:text-red-800 font-medium">Delete</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-else class="px-3 sm:px-6 py-4 text-xs text-gray-400 italic">No credentials assigned directly to this agent.</div>
+
+        <!-- Section 2: User's other credentials -->
+        <div class="px-3 sm:px-6 pt-5 pb-2 border-t border-gray-100 mt-2">
+          <h3 class="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <span class="w-2 h-2 bg-emerald-500 rounded-full"></span>
+            Your Other Credentials
+            <span class="text-xs text-gray-400 font-normal">(from other agents &amp; global)</span>
+          </h3>
+        </div>
+        <table v-if="globalCredentials.length > 0" class="w-full min-w-[600px]">
+          <thead class="bg-emerald-50/50">
+            <tr>
+              <th class="px-3 sm:px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+              <th class="px-3 sm:px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Scope</th>
+              <th class="px-3 sm:px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+              <th class="px-3 sm:px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th class="px-3 sm:px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Last Used</th>
+              <th class="px-3 sm:px-6 py-2 text-left text-xs font-medium text-gray-500 uppercase">Info</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            <tr v-for="credential in globalCredentials" :key="credential.id" class="hover:bg-emerald-50/30">
+              <td class="px-3 sm:px-6 py-3 text-xs sm:text-sm font-medium text-gray-900">
+                {{ credential.credential_name }}
+                <br v-if="credential.agent_profile_name" />
+                <span v-if="credential.agent_profile_name" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 mt-0.5">🤖 {{ credential.agent_profile_name }}</span>
+                <span v-else class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 mt-0.5 ml-1">🌐 Global</span>
+              </td>
+              <td class="px-3 sm:px-6 py-3 whitespace-nowrap text-xs sm:text-sm text-gray-500">{{ credential.service_name }}</td>
+              <td class="px-3 sm:px-6 py-3 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                <span :class="['px-2 py-1 rounded text-xs font-medium', credential.scope_type === 'builtin_tool' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800']">
+                  {{ credential.scope_type === 'builtin_tool' ? 'Built-in' : credential.auth_type }}
+                </span>
+              </td>
+              <td class="px-3 sm:px-6 py-3 whitespace-nowrap">
+                <span :class="['px-2 py-1 text-xs font-semibold rounded-full', credential.is_valid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-600']">
+                  {{ credential.is_valid ? 'Valid' : 'Invalid' }}
+                </span>
+              </td>
+              <td class="px-3 sm:px-6 py-3 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden sm:table-cell">
+                {{ credential.last_used_at ? formatDate(credential.last_used_at) : 'Never' }}
+              </td>
+              <td class="px-3 sm:px-6 py-3 whitespace-nowrap text-xs sm:text-sm">
+                <button @click="assignCredential(credential)" class="px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 text-xs font-medium transition">Assign</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-else class="px-3 sm:px-6 py-4 text-xs text-gray-400 italic">No other credentials found. Add some in Connections → 🔑 Credentials.</div>
+      </template>
+
+      <!-- GLOBAL/CONNECTIONS MODE: Single unified table -->
+      <table v-else-if="credentials.length > 0" class="w-full min-w-[600px]">
         <thead class="bg-gray-50 sticky top-0">
           <tr>
             <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
@@ -80,39 +183,22 @@
           </tr>
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
-          <tr
-            v-for="credential in credentials"
-            :key="credential.id"
-            class="hover:bg-gray-50"
-          >
-            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">
+          <tr v-for="credential in credentials" :key="credential.id" class="hover:bg-gray-50">
+            <td class="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium text-gray-900">
               {{ credential.credential_name }}
               <span v-if="credential.is_default" class="ml-1 text-xs text-yellow-600">★ Default</span>
+              <br v-if="credential.is_global || credential.agent_profile_name" />
+              <span v-if="credential.is_global" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 mt-0.5">🌐 Global</span>
+              <span v-else-if="credential.agent_profile_name" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 mt-0.5">🤖 {{ credential.agent_profile_name }}</span>
             </td>
+            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">{{ credential.service_name }}</td>
             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
-              {{ credential.service_name }}
-            </td>
-            <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
-              <span
-                :class="[
-                  'px-2 py-1 rounded text-xs font-medium',
-                  credential.scope_type === 'builtin_tool'
-                    ? 'bg-purple-100 text-purple-800'
-                    : 'bg-blue-100 text-blue-800'
-                ]"
-              >
+              <span :class="['px-2 py-1 rounded text-xs font-medium', credential.scope_type === 'builtin_tool' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800']">
                 {{ credential.scope_type === 'builtin_tool' ? 'Built-in' : credential.auth_type }}
               </span>
             </td>
             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-              <span
-                :class="[
-                  'px-2 py-1 text-xs font-semibold rounded-full',
-                  credential.is_valid
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-red-100 text-red-600'
-                ]"
-              >
+              <span :class="['px-2 py-1 text-xs font-semibold rounded-full', credential.is_valid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-600']">
                 {{ credential.is_valid ? 'Valid' : 'Invalid' }}
               </span>
             </td>
@@ -120,19 +206,8 @@
               {{ credential.last_used_at ? formatDate(credential.last_used_at) : 'Never' }}
             </td>
             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm space-x-2">
-              <button
-                v-if="credential.scope_type === 'service'"
-                @click="testCredential(credential)"
-                class="text-blue-600 hover:text-blue-800 font-medium"
-              >
-                Test
-              </button>
-              <button
-                @click="deleteCredential(credential)"
-                class="text-red-600 hover:text-red-800 font-medium"
-              >
-                Delete
-              </button>
+              <button v-if="credential.scope_type === 'service'" @click="testCredential(credential)" class="text-blue-600 hover:text-blue-800 font-medium">Test</button>
+              <button @click="deleteCredential(credential)" class="text-red-600 hover:text-red-800 font-medium">Delete</button>
             </td>
           </tr>
         </tbody>
@@ -335,14 +410,14 @@
 <script>
 import { ref, computed, onMounted } from 'vue'
 import { credentialsApi } from '../../services/toolsApi'
-import axios from 'axios'
+import api from '../../services/api'
 
 export default {
   name: 'CredentialManager',
   props: {
     agentProfile: {
       type: Object,
-      required: true
+      default: null
     }
   },
   setup(props) {
@@ -355,6 +430,10 @@ export default {
     const services = ref([])
     const workspaceLink = ref(null)
     const isOwner = ref(true)
+
+    const isGlobalMode = computed(() => !props.agentProfile)
+    const agentCredentials = computed(() => credentials.value.filter(c => !c.is_global))
+    const globalCredentials = computed(() => credentials.value.filter(c => c.is_global))
 
     const form = ref({
       scopeType: 'builtin_tool',
@@ -390,11 +469,16 @@ export default {
     const agentId = computed(() => props.agentProfile?.id)
 
     const loadCredentials = async () => {
-      if (!agentId.value) return
       try {
         loading.value = true
-        const response = await credentialsApi.list(agentId.value)
-        credentials.value = response.data?.credentials || []
+        if (isGlobalMode.value) {
+          const response = await credentialsApi.listGlobal()
+          credentials.value = response.data?.credentials || []
+        } else {
+          if (!agentId.value) return
+          const response = await credentialsApi.list(agentId.value)
+          credentials.value = response.data?.credentials || []
+        }
       } catch (error) {
         console.error('Failed to load credentials:', error)
       } finally {
@@ -446,7 +530,7 @@ export default {
 
     const loadServices = async () => {
       try {
-        const response = await axios.get('/api/services/')
+        const response = await api.get('/services/')
         services.value = response.data?.services || response.data || []
       } catch (error) {
         console.error('Failed to load services:', error)
@@ -502,7 +586,11 @@ export default {
 
       try {
         submitting.value = true
-        await credentialsApi.create(agentId.value, payload)
+        if (isGlobalMode.value) {
+          await credentialsApi.createGlobal(payload)
+        } else {
+          await credentialsApi.create(agentId.value, payload)
+        }
         showAddModal.value = false
         await loadCredentials()
       } catch (error) {
@@ -514,7 +602,12 @@ export default {
 
     const testCredential = async (credential) => {
       try {
-        const response = await credentialsApi.test(agentId.value, credential.id)
+        let response
+        if (credential.is_global || isGlobalMode.value) {
+          response = await credentialsApi.testGlobal(credential.id)
+        } else {
+          response = await credentialsApi.test(agentId.value, credential.id)
+        }
         const data = response.data
         alert(data.success ? 'Credential test successful!' : `Test failed: ${data.message || data.error}`)
         await loadCredentials()
@@ -526,7 +619,11 @@ export default {
     const deleteCredential = async (credential) => {
       if (confirm(`Delete credential "${credential.credential_name}"?`)) {
         try {
-          await credentialsApi.delete(agentId.value, credential.id)
+          if (credential.is_global || isGlobalMode.value) {
+            await credentialsApi.deleteGlobal(credential.id)
+          } else {
+            await credentialsApi.delete(agentId.value, credential.id)
+          }
           await loadCredentials()
         } catch (error) {
           alert('Failed to delete: ' + (error.response?.data?.error || error.message))
@@ -534,11 +631,24 @@ export default {
       }
     }
 
+    const assignCredential = async (credential) => {
+      if (!agentId.value) return
+      try {
+        const response = await credentialsApi.assign(agentId.value, credential.id)
+        alert(response.data.message || 'Credential assigned!')
+        await loadCredentials()
+      } catch (error) {
+        alert('Failed to assign: ' + (error.response?.data?.error || error.message))
+      }
+    }
+
     onMounted(() => {
       loadCredentials()
       loadBuiltinScopes()
       loadServices()
-      loadWorkspaceRouting()
+      if (!isGlobalMode.value) {
+        loadWorkspaceRouting()
+      }
     })
 
     return {
@@ -553,11 +663,15 @@ export default {
       selectedScope,
       workspaceLink,
       isOwner,
+      isGlobalMode,
+      agentCredentials,
+      globalCredentials,
       openAddModal,
       formatDate,
       submitCredential,
       testCredential,
       deleteCredential,
+      assignCredential,
       toggleShareCredentials
     }
   }

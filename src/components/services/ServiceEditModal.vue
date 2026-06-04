@@ -139,10 +139,22 @@
             <!-- OAuth 2.0 -->
             <div v-else-if="formData.auth_type === 'oauth2'" class="auth-fields">
               <input
+                v-model="formData.auth_config.authorization_url"
+                type="url"
+                class="form-input mb-2"
+                placeholder="Authorization URL *"
+              />
+              <input
+                v-model="formData.auth_config.token_url"
+                type="url"
+                class="form-input mb-2"
+                placeholder="Token URL *"
+              />
+              <input
                 v-model="formData.auth_config.client_id"
                 type="text"
                 class="form-input mb-2"
-                placeholder="Client ID"
+                placeholder="Client ID *"
               />
               <input
                 v-model="formData.auth_config.client_secret"
@@ -151,11 +163,44 @@
                 placeholder="Client Secret"
               />
               <input
-                v-model="formData.auth_config.token_url"
-                type="url"
-                class="form-input"
-                placeholder="Token URL"
+                v-model="formData.auth_config.scopes"
+                type="text"
+                class="form-input mb-2"
+                placeholder="Scopes (space-separated)"
               />
+
+              <!-- Advanced Options (collapsible) -->
+              <div class="oauth-advanced">
+                <button 
+                  type="button" 
+                  class="advanced-toggle"
+                  @click="showOAuthAdvanced = !showOAuthAdvanced"
+                >
+                  {{ showOAuthAdvanced ? '▾' : '▸' }} Advanced Options
+                </button>
+                <div v-if="showOAuthAdvanced" class="advanced-fields">
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="formData.auth_config.has_refresh_token" />
+                    Has refresh token
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" v-model="formData.auth_config.permanent_token" />
+                    Permanent token (no expiry)
+                  </label>
+                  <textarea
+                    v-model="formData.auth_config.extra_auth_params"
+                    class="form-input mb-2"
+                    placeholder='Extra auth params (JSON), e.g. {"access_type": "offline"}'
+                    rows="2"
+                  ></textarea>
+                  <textarea
+                    v-model="formData.auth_config.extra_token_params"
+                    class="form-input"
+                    placeholder='Extra token params (JSON), e.g. {"audience": "api.atlassian.com"}'
+                    rows="2"
+                  ></textarea>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -225,6 +270,7 @@ const props = defineProps({
 const emit = defineEmits(['close', 'updated'])
 
 const saving = ref(false)
+const showOAuthAdvanced = ref(false)
 
 // Form data with all editable fields
 const formData = reactive({
@@ -454,5 +500,41 @@ const handleSubmit = async () => {
 
 .btn-secondary:hover {
   background: #f9fafb;
+}
+
+/* OAuth2 Advanced Options */
+.oauth-advanced {
+  margin-top: 8px;
+}
+
+.advanced-toggle {
+  background: none;
+  border: none;
+  color: #6B7280;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 0;
+}
+.advanced-toggle:hover {
+  color: #374151;
+}
+
+.advanced-fields {
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #374151;
+  cursor: pointer;
 }
 </style>

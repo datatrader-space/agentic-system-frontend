@@ -1,41 +1,50 @@
 <template>
-  <div class="mcp-container p-6 bg-gray-50 min-h-screen">
+  <div class="mcp-container p-6 lg:p-8 space-y-8">
     <div class="max-w-7xl mx-auto">
       <!-- Header -->
-      <div class="flex justify-between items-center mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
         <div>
-          <h1 class="text-3xl font-bold text-gray-900">🔌 MCP Servers</h1>
-          <p class="text-gray-600 mt-1">Model Context Protocol servers for extended tool capabilities</p>
+          <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-3">
+             <div class="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
+                 <svg class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+             </div>
+             MCP Servers
+          </h1>
+          <p class="mt-1.5 text-sm sm:text-base text-slate-500">
+            Model Context Protocol servers for extended tool capabilities
+          </p>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-3">
           <OwnerFilter v-model="ownerFilter" @update:modelValue="loadServers" />
           <button
             @click="showRegistrationModal = true"
-            class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium flex items-center gap-2"
+            class="px-5 py-2.5 bg-slate-900 text-white rounded-[10px] hover:bg-slate-800 transition-all font-semibold shadow-[0_2px_4px_rgba(0,0,0,0.1)] text-[13px] flex items-center gap-2"
           >
-            <span class="text-xl">+</span>
+            <svg class="w-4 h-4 text-white/80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
             Add MCP Server
           </button>
         </div>
       </div>
 
-      <!-- Stats Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div class="bg-white p-4 rounded-lg shadow">
-          <div class="text-sm text-gray-600">Total Servers</div>
-          <div class="text-2xl font-bold text-gray-900">{{ servers.length }}</div>
-        </div>
-        <div class="bg-white p-4 rounded-lg shadow">
-          <div class="text-sm text-gray-600">Active</div>
-          <div class="text-2xl font-bold text-green-600">{{ activeCount }}</div>
-        </div>
-        <div class="bg-white p-4 rounded-lg shadow">
-          <div class="text-sm text-gray-600">Total Tools</div>
-          <div class="text-2xl font-bold text-purple-600">{{ totalTools }}</div>
-        </div>
-        <div class="bg-white p-4 rounded-lg shadow">
-          <div class="text-sm text-gray-600">Active Sessions</div>
-          <div class="text-2xl font-bold text-blue-600">{{ sessionCount }}</div>
+      <!-- Integrated Metrics Bar -->
+      <div class="bg-white rounded-[16px] shadow-sm border border-slate-200/60 overflow-hidden mb-8">
+        <div class="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+          <div class="p-5 sm:p-6 lg:px-8 flex flex-col justify-center">
+            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Total Servers</p>
+            <span class="text-3xl font-bold tracking-tight text-slate-900">{{ servers.length }}</span>
+          </div>
+          <div class="p-5 sm:p-6 lg:px-8 flex flex-col justify-center border-l-0 md:border-l border-slate-100">
+            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Active</p>
+            <span class="text-3xl font-bold tracking-tight text-emerald-600">{{ activeCount }}</span>
+          </div>
+          <div class="p-5 sm:p-6 lg:px-8 flex flex-col justify-center">
+            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Total Tools</p>
+            <span class="text-3xl font-bold tracking-tight text-purple-600">{{ totalTools }}</span>
+          </div>
+          <div class="p-5 sm:p-6 lg:px-8 flex flex-col justify-center border-l-0 md:border-l border-slate-100">
+            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Active Sessions</p>
+            <span class="text-3xl font-bold tracking-tight text-blue-600">{{ sessionCount }}</span>
+          </div>
         </div>
       </div>
 
