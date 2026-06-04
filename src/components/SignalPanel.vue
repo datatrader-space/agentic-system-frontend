@@ -93,12 +93,22 @@
           <div class="flex items-center gap-2">
             <span class="text-sm font-semibold text-gray-700">🔗 Webhook Endpoint</span>
           </div>
-          <button 
-            @click="showWebhookConfig = !showWebhookConfig" 
-            class="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-          >
-            {{ showWebhookConfig ? 'Hide' : 'Configure' }}
-          </button>
+          <div class="flex items-center gap-3">
+            <router-link
+              :to="`/integration-guide/${agent.id}`"
+              target="_blank"
+              rel="noopener"
+              class="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+            >
+              📖 Integration Guide ↗
+            </router-link>
+            <button
+              @click="showWebhookConfig = !showWebhookConfig"
+              class="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+            >
+              {{ showWebhookConfig ? 'Hide' : 'Configure' }}
+            </button>
+          </div>
         </div>
 
         <div class="p-4 space-y-3">
