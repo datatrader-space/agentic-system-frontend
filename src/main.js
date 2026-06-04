@@ -38,6 +38,7 @@ import WorkspaceDashboard from './views/WorkspaceDashboard.vue'
 import InviteAccept from './views/InviteAccept.vue'
 import Connections from './views/Connections.vue'
 import ConnectionDocs from './views/ConnectionDocs.vue'
+import IntegrationGuide from './views/IntegrationGuide.vue'
 import Docs from './views/Docs.vue'
 import AdminPanel from './views/AdminPanel.vue'
 
@@ -247,6 +248,12 @@ const router = createRouter({
       path: '/docs/connections',
       name: 'connection-docs',
       component: ConnectionDocs,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/integration-guide/:agentId?',
+      name: 'integration-guide',
+      component: IntegrationGuide,
       meta: { requiresAuth: true }
     }
   ]
