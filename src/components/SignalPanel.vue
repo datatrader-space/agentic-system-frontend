@@ -390,16 +390,29 @@ const sendingTest = ref(false)
 const testResult = ref('')
 const testResultError = ref(false)
 
-const webhookUrl = computed(() => {
-  const base = window.location.origin
-  return `${base}/api/agents/${props.agent.id}/webhook/`
-})
+// Public backend base for EXTERNAL integrations (webhook + WS chat).
+// Defaults to the current origin — correct when the frontend is served
+// same-origin as the backend (production / ngrok). In a split dev setup
+// (Vite :5173 proxying to backend :8000) the origin is the dev server, so
+// set VITE_PUBLIC_API_BASE to the directly-reachable backend, e.g.
+// VITE_PUBLIC_API_BASE=http://192.168.18.10:8000
+const apiBase = (import.meta.env.VITE_PUBLIC_API_BASE || window.location.origin).replace(/\/+$/, '')
+
+const webhookUrl = computed(() => `${apiBase}/api/agents/${props.agent.id}/webhook/`)
 
 // WebSocket chat endpoint (repo_id 0 = standalone "Free Agent" mode).
 // Authenticated by the agent's signal_api_key via ?token= or Bearer header.
 const wsChatUrl = computed(() => {
-  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${scheme}://${window.location.host}/ws/chat/repository/0/`
+  let host, scheme
+  try {
+    const u = new URL(apiBase)
+    host = u.host
+    scheme = u.protocol === 'https:' ? 'wss' : 'ws'
+  } catch (e) {
+    host = window.location.host
+    scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  }
+  return `${scheme}://${host}/ws/chat/repository/0/`
 })
 
 import { computed } from 'vue'
