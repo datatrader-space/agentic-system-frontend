@@ -338,6 +338,7 @@
 <script>
 import { ref, reactive, computed } from 'vue'
 import api from '../../services/api'
+import { notify } from '@/composables/useNotify'
 
 export default {
   name: 'MCPServerModal',
@@ -490,7 +491,7 @@ export default {
         emit('saved')
       } catch (error) {
         console.error('Failed to save MCP server:', error)
-        alert('Failed to save server: ' + (error.response?.data?.error || error.message))
+        notify.error('Failed to save server: ' + (error.response?.data?.error || error.message))
       } finally {
         saving.value = false
       }

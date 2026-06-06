@@ -185,6 +185,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWorkspace } from '../../composables/useWorkspace'
 import tenancyApi from '../../services/tenancyApi'
+import { notify } from '@/composables/useNotify'
 
 const router = useRouter()
 const {
@@ -289,7 +290,7 @@ async function createWorkspace() {
     showCreateModal.value = false
   } catch (err) {
     console.error('[WorkspaceSwitcher] Create failed:', err?.response?.data || err)
-    alert(err?.response?.data?.detail || err?.response?.data?.name?.[0] || 'Failed to create workspace')
+    notify.error(err?.response?.data?.detail || err?.response?.data?.name?.[0] || 'Failed to create workspace')
   }
   creating.value = false
 }

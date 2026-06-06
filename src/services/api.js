@@ -320,6 +320,11 @@ export default {
     // We need a generic endpoint. I will add 'context_files' to router in next step.
     return api.post('/context_files/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
+  // Confirm + (re)build the RAG index for an uploaded knowledge document.
+  // Queues a Celery embed job; live progress streams over the knowledge-index WS.
+  indexAgentFile: (fileId) => api.post(`/context_files/${fileId}/index/`),
+  // Poll fallback for index status (WS push is primary).
+  getAgentFileStatus: (fileId) => api.get(`/context_files/${fileId}/status/`),
   uploadConversationFile: (conversationPk, file) => {
     const formData = new FormData();
     formData.append('file', file);

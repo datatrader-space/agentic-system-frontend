@@ -94,6 +94,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import tenancyApi from '../services/tenancyApi'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 const route = useRoute()
 const token = computed(() => route.params.token)
@@ -146,13 +148,13 @@ async function accept() {
     invite.value = null // hide the pending card
   } catch (err) {
     const msg = err?.response?.data?.detail || err?.response?.data?.error || 'Failed to accept'
-    alert(msg)
+    notify.show(msg)
   }
   accepting.value = false
 }
 
 async function decline() {
-  if (!confirm('Are you sure you want to decline this invitation?')) return
+  if (!(await confirm('Are you sure you want to decline this invitation?'))) return
   declining.value = true
   try {
     await tenancyApi.declineInvite(token.value)

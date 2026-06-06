@@ -7,7 +7,20 @@
           <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Agent Library</h1>
           <p class="text-sm sm:text-base text-slate-500 mt-1.5">Design, test, and deploy specialized AI agents</p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3">
+          <input
+            v-model="searchQuery"
+            type="text"
+            placeholder="Search agents…"
+            class="px-3 py-2 border border-slate-200 rounded-[10px] text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none w-44"
+          />
+          <select
+            v-model="sortBy"
+            class="px-3 py-2 border border-slate-200 rounded-[10px] text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+          >
+            <option value="recent">Recently updated</option>
+            <option value="name">Name (A–Z)</option>
+          </select>
           <OwnerFilter v-model="ownerFilter" @update:modelValue="fetchAgents" />
           <button
             @click="createAgent"
@@ -38,10 +51,17 @@
         </button>
       </div>
 
+      <!-- No matches for current search/filter -->
+      <div v-else-if="filteredAgents.length === 0" class="text-center py-20 bg-white rounded-xl shadow-sm border border-gray-100">
+        <div class="text-5xl mb-3">🔍</div>
+        <h3 class="text-lg font-bold text-gray-900">No agents match your search</h3>
+        <p class="text-gray-500 mt-1">Try a different term or clear the filter.</p>
+      </div>
+
       <!-- Agent Grid -->
       <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        <div 
-          v-for="agent in agents" 
+        <div
+          v-for="agent in filteredAgents"
           :key="agent.id"
           class="group bg-white rounded-[16px] shadow-sm border border-slate-200/60 hover:shadow-md hover:border-slate-300 transition-all duration-300 hover:-translate-y-1 flex flex-col overflow-hidden relative cursor-pointer"
           @click="editAgent(agent.id)"
@@ -57,17 +77,19 @@
                       <span v-else>✨</span>
                   </div>
                   
-                  <!-- Action Menu (Delete on hover) -->
-                  <div class="opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button v-if="agent.is_owner !== false" @click.stop="confirmDelete(agent)" class="text-slate-400 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition-colors z-10 relative" title="Delete agent">
-                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      </button>
+                  <!-- Status badge -->
+                  <div>
+                      <span v-if="agent.signal_enabled" class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-600" title="External access (webhook / WebSocket) enabled">● Live</span>
+                      <span v-else class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-400" title="Signals off">● Idle</span>
                   </div>
               </div>
-              
+
               <div class="mt-4">
                   <h3 class="text-base font-bold text-slate-900 truncate group-hover:text-indigo-600 transition-colors">{{ agent.name }}</h3>
-                  
+                  <div v-if="agent.default_model_name" class="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-100 rounded-md px-2 py-0.5 max-w-full truncate" :title="agent.default_model_name">
+                      🧠 {{ agent.default_model_name }}
+                  </div>
+
                   <!-- Metadata Row -->
                   <div class="flex items-center gap-3 mt-1.5 text-xs text-slate-500 font-medium tracking-wide">
                       <span class="flex items-center gap-1.5">
@@ -102,17 +124,35 @@
           <!-- Footer / Actions -->
           <div class="px-5 py-4 border-t border-slate-100 flex items-center gap-2 bg-slate-50/50 mt-auto">
             <button
-              @click.stop="editAgent(agent.id)"
-              class="flex-1 px-3 py-2 text-slate-700 bg-white border border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.02)] rounded-[10px] hover:bg-slate-50 hover:text-slate-900 transition-all text-[13px] font-semibold z-10 relative"
+               @click.stop="openChat(agent)"
+               class="flex-1 px-3 py-2 text-white bg-indigo-600 border border-indigo-600 rounded-[10px] hover:bg-indigo-700 transition-all text-[13px] font-semibold z-10 relative flex items-center justify-center gap-1.5"
             >
-              Configure
+               💬 Chat
             </button>
             <button
-               @click.stop="launchSession(agent)"
-               class="flex-1 px-3 py-2 text-indigo-700 bg-indigo-50/80 border border-indigo-100 shadow-[0_1px_2px_rgba(79,70,229,0.05)] rounded-[10px] hover:bg-indigo-600 hover:text-white transition-all duration-300 text-[13px] font-semibold z-10 relative"
+              @click.stop="editAgent(agent.id)"
+              class="flex-1 px-3 py-2 text-slate-700 bg-white border border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.02)] rounded-[10px] hover:bg-slate-50 hover:text-slate-900 transition-all text-[13px] font-semibold z-10 relative flex items-center justify-center gap-1.5"
             >
-               Deploy
+              ⚙ Configure
             </button>
+            <!-- Overflow menu -->
+            <div class="relative">
+              <button
+                @click.stop="toggleMenu(agent.id)"
+                class="px-2.5 py-2 text-slate-500 bg-white border border-slate-200 rounded-[10px] hover:bg-slate-50 transition-all text-[13px] font-bold z-10 relative"
+                title="More actions"
+              >⋯</button>
+              <div
+                v-if="openMenuId === agent.id"
+                @click.stop
+                class="absolute right-0 bottom-full mb-2 w-48 bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-30 text-sm"
+              >
+                <button @click.stop="openMonitor(agent)" class="w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2">📊 Monitor</button>
+                <button @click.stop="openIntegrationGuide(agent)" class="w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2">📖 Integration Guide ↗</button>
+                <button @click.stop="duplicateAgent(agent)" class="w-full text-left px-3 py-2 text-slate-700 hover:bg-slate-50 flex items-center gap-2">📋 Duplicate</button>
+                <button v-if="agent.is_owner !== false" @click.stop="confirmDelete(agent); closeMenus()" class="w-full text-left px-3 py-2 text-red-600 hover:bg-red-50 flex items-center gap-2">🗑 Delete</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -121,15 +161,37 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import api from '../services/api';
 import OwnerFilter from '../components/common/OwnerFilter.vue';
+import { notify } from '@/composables/useNotify';
+import { confirm } from '@/composables/useConfirm';
 
 const router = useRouter();
 const loading = ref(true);
 const agents = ref([]);
 const ownerFilter = ref('');
+const searchQuery = ref('');
+const sortBy = ref('recent');   // 'recent' | 'name'
+const openMenuId = ref(null);
+
+const filteredAgents = computed(() => {
+    let list = agents.value.slice();
+    const q = searchQuery.value.trim().toLowerCase();
+    if (q) {
+        list = list.filter(a =>
+            (a.name || '').toLowerCase().includes(q) ||
+            (a.description || '').toLowerCase().includes(q)
+        );
+    }
+    if (sortBy.value === 'name') {
+        list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    } else {
+        list.sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
+    }
+    return list;
+});
 
 const fetchAgents = async () => {
     try {
@@ -150,25 +212,70 @@ const createAgent = () => {
 };
 
 const editAgent = (id) => {
-    router.push(`/dashboard/agents/${id}`); // Opens Playground in 'edit' mode (inside dashboard shell)
+    router.push(`/dashboard/agents/${id}/configure`); // Opens the new single-canvas builder (inside dashboard shell)
 };
 
-const launchSession = (agent) => {
-    // TODO: Open a modal to select System/Repo before launching
-    alert("Launch feature coming soon! Use 'Edit / Test' to run in Playground.");
+const openChat = (agent) => {
+    router.push(`/dashboard/agents/${agent.id}`); // Playground (chat / test)
 };
+
+const openMonitor = (agent) => {
+    openMenuId.value = null;
+    router.push(`/dashboard/agents/${agent.id}/monitor`);
+};
+
+const openIntegrationGuide = (agent) => {
+    openMenuId.value = null;
+    window.open(`/integration-guide/${agent.id}`, '_blank', 'noopener');
+};
+
+const duplicateAgent = async (agent) => {
+    openMenuId.value = null;
+    try {
+        // Fetch the full agent, strip identity, post a copy
+        const res = await api.get(`/agents/${agent.id}/`);
+        const full = res.data || {};
+        const copy = {
+            name: `${full.name || 'Agent'} (copy)`,
+            description: full.description || '',
+            system_prompt_template: full.system_prompt_template || '',
+            prompt_mode: full.prompt_mode || 'append',
+            default_model: full.default_model || null,
+            temperature: full.temperature,
+            max_history_messages: full.max_history_messages,
+            knowledge_scope: full.knowledge_scope,
+            code_mode_enabled: full.code_mode_enabled,
+            code_mode_services: full.code_mode_services || [],
+            builder_mode_enabled: full.builder_mode_enabled,
+            tool_ids: (full.tools || []).map(t => t.id),
+        };
+        const created = await api.post('/agents/', copy);
+        await fetchAgents();
+        if (created?.data?.id) router.push(`/dashboard/agents/${created.data.id}/configure`);
+    } catch (e) {
+        notify.error('Failed to duplicate agent: ' + (e.response?.data?.error || e.message));
+    }
+};
+
+const toggleMenu = (id) => {
+    openMenuId.value = openMenuId.value === id ? null : id;
+};
+const closeMenus = () => { openMenuId.value = null; };
 
 const confirmDelete = async (agent) => {
-    const confirmed = confirm(
-        `⚠️ Delete "${agent.name}"?\n\n` +
+    const confirmed = await confirm({
+        title: `Delete "${agent.name}"?`,
+        message: `⚠️ Delete "${agent.name}"?\n\n` +
         `This will permanently delete:\n` +
         `- The agent configuration\n` +
         `- All conversations (${agent.conversation_count || 'unknown'} total)\n` +
         `- All knowledge files\n` +
         `- All related data\n\n` +
-        `This action cannot be undone.`
-    );
-    
+        `This action cannot be undone.`,
+        confirmText: 'Delete',
+        danger: true
+    });
+
     if (confirmed) {
         await deleteAgent(agent.id);
     }
@@ -182,10 +289,10 @@ const deleteAgent = async (agentId) => {
         agents.value = agents.value.filter(a => a.id !== agentId);
         
         // Show success message (you can use a toast notification library here)
-        alert('✅ Agent deleted successfully');
+        notify.success('✅ Agent deleted successfully');
     } catch (error) {
         console.error('Failed to delete agent:', error);
-        alert(
+        notify.error(
             '❌ Failed to delete agent\n\n' +
             (error.response?.data?.error || error.message || 'Unknown error')
         );
@@ -194,5 +301,9 @@ const deleteAgent = async (agentId) => {
 
 onMounted(() => {
     fetchAgents();
+    document.addEventListener('click', closeMenus);
+});
+onBeforeUnmount(() => {
+    document.removeEventListener('click', closeMenus);
 });
 </script>

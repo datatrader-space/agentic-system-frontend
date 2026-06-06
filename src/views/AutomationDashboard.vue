@@ -637,8 +637,10 @@
 <script setup>
 import { ref, reactive, computed, onMounted, inject, watch } from 'vue'
 import api from '../services/api'
+import { confirm } from '@/composables/useConfirm'
+import { notify as _toast } from '@/composables/useNotify'
 
-const notify = inject('notify', (msg) => alert(msg))
+const notify = inject('notify', (msg, type = 'info') => _toast.show(msg))
 
 // State
 const activeTab = ref('workflows')
@@ -823,7 +825,7 @@ const editWorkflow = (wf) => {
 }
 
 const deleteWorkflow = async (wf) => {
-  if (!confirm(`Delete workflow "${wf.name}"?`)) return
+  if (!(await confirm({ title: 'Delete workflow?', message: `Delete workflow "${wf.name}"?`, confirmText: 'Delete', danger: true }))) return
   try {
     await api.delete(`/workflows/${wf.id}/`)
     notify('Workflow deleted', 'success')
@@ -950,7 +952,7 @@ watch(scheduleDetailTab, (tabs) => {
 }, { deep: true })
 
 const deleteSchedule = async (s) => {
-  if (!confirm('Delete this schedule?')) return
+  if (!(await confirm({ title: 'Delete schedule?', message: 'Delete this schedule?', confirmText: 'Delete', danger: true }))) return
   try {
     await api.delete(`/schedules/${s.id}/`)
     notify('Schedule deleted', 'success')

@@ -401,6 +401,7 @@
 <script setup>
 import { ref, computed, onMounted, inject } from 'vue'
 import api from '../services/api'
+import { confirm } from '@/composables/useConfirm'
 
 const notify = inject('notify')
 
@@ -492,7 +493,7 @@ const createWorkspace = async () => {
 }
 
 const deleteWorkspace = async (ws) => {
-  if (!confirm(`Delete workspace "${ws.name}"?`)) return
+  if (!(await confirm({ title: 'Delete workspace?', message: `Delete workspace "${ws.name}"?`, confirmText: 'Delete', danger: true }))) return
   try {
     await api.delete(`/workspaces/${ws.id}/`)
     workspaces.value = workspaces.value.filter(w => w.id !== ws.id)
@@ -505,7 +506,7 @@ const deleteWorkspace = async (ws) => {
 }
 
 const regenerateToken = async (ws) => {
-  if (!confirm('Regenerate token? The current agent will need to reconnect.')) return
+  if (!(await confirm('Regenerate token? The current agent will need to reconnect.'))) return
   try {
     const res = await api.post(`/workspaces/${ws.id}/regenerate-token/`)
     ws.token = res.data.token
@@ -578,7 +579,7 @@ const assignAgent = async () => {
 }
 
 const removeAssignment = async (assignment) => {
-  if (!confirm(`Remove agent "${assignment.agent_name}"?`)) return
+  if (!(await confirm({ title: 'Remove agent?', message: `Remove agent "${assignment.agent_name}"?`, confirmText: 'Remove', danger: true }))) return
   try {
     await api.delete(`/workspaces/${selectedWorkspace.value.id}/agents/`, {
       data: { assignment_id: assignment.id }
@@ -667,7 +668,7 @@ const stopOneBridge = async (bridgeId) => {
 }
 
 const stopAllBridges = async () => {
-  if (!selectedWorkspace.value || !confirm('Stop all bridges?')) return
+  if (!selectedWorkspace.value || !(await confirm('Stop all bridges?'))) return
   try {
     await api.delete(`/workspaces/${selectedWorkspace.value.id}/bridges/`)
     bridgeList.value = []

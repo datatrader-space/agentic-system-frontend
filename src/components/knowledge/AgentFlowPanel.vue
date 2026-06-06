@@ -242,6 +242,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import api from '../../services/api'
+import { confirm } from '@/composables/useConfirm'
 
 const props = defineProps({
   agentProfile: { type: Object, required: true }
@@ -373,7 +374,7 @@ const toggleSort = () => {
 }
 
 const deleteFlow = async (flow) => {
-  if (!confirm(`Delete flow "${flow.title}"?`)) return
+  if (!(await confirm({ title: 'Delete flow?', message: `Delete flow "${flow.title}"?`, confirmText: 'Delete', danger: true }))) return
   try {
     await api.deleteFlow(props.agentProfile.id, flow.id)
     flows.value = flows.value.filter(f => f.id !== flow.id)
@@ -386,7 +387,7 @@ const deleteFlow = async (flow) => {
 
 const bulkDelete = async () => {
   const count = selectedFlows.value.size
-  if (!confirm(`Delete ${count} selected flow(s)?`)) return
+  if (!(await confirm({ title: 'Delete flows?', message: `Delete ${count} selected flow(s)?`, confirmText: 'Delete', danger: true }))) return
   bulkDeleting.value = true
   try {
     await api.bulkDeleteFlows(props.agentProfile.id, [...selectedFlows.value])

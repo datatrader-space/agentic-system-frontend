@@ -357,6 +357,8 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../services/api'
 import tenancyApi from '../services/tenancyApi'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 const route = useRoute()
 const router = useRouter()
@@ -465,13 +467,13 @@ async function saveWorkspace() {
     await tenancyApi.updateWorkspace(wsId.value, wsForm.value)
     workspace.value = { ...workspace.value, ...wsForm.value }
   } catch (err) {
-    alert(err?.response?.data?.detail || 'Failed to save')
+    notify.error(err?.response?.data?.detail || 'Failed to save')
   }
   savingWs.value = false
 }
 
 async function deleteWorkspace() {
-  if (!confirm(`Permanently delete "${workspace.value?.name}"? This cannot be undone.`)) return
+  if (!(await confirm({ title: 'Delete workspace?', message: `Permanently delete "${workspace.value?.name}"? This cannot be undone.`, confirmText: 'Delete', danger: true }))) return
   deletingWs.value = true
   try {
     await tenancyApi.deleteWorkspace(wsId.value)
@@ -491,14 +493,14 @@ async function addWSMember() {
     const r = await tenancyApi.getWSMembers(wsId.value).catch(() => ({ data: [] }))
     members.value = r.data?.results ?? r.data ?? []
   } catch (err) {
-    alert(err?.response?.data?.error || err?.response?.data?.detail || 'Failed to add member')
+    notify.error(err?.response?.data?.error || err?.response?.data?.detail || 'Failed to add member')
   }
   addingMember.value = false
 }
 
 async function removeWSMember(m) {
   const uid = m.user?.id ?? m.id
-  if (!confirm(`Remove ${m.username ?? m.user?.username}?`)) return
+  if (!(await confirm({ title: 'Remove member?', message: `Remove ${m.username ?? m.user?.username}?`, confirmText: 'Remove', danger: true }))) return
   try {
     await tenancyApi.removeWSMember(wsId.value, uid)
     members.value = members.value.filter(x => (x.user?.id ?? x.id) !== uid)
@@ -571,7 +573,7 @@ async function linkSelected() {
 
 async function unlinkResource(type, item) {
   if (!orgSlug.value || !wsSlug.value || !item.bridge_id) return
-  if (!confirm(`Remove "${item.name}" from this workspace?`)) return
+  if (!(await confirm({ title: 'Remove from workspace?', message: `Remove "${item.name}" from this workspace?`, confirmText: 'Remove', danger: true }))) return
 
   const unlinkFn = {
     agents:   tenancyApi.unlinkWSAgent,

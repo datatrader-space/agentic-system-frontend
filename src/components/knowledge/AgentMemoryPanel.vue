@@ -279,6 +279,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import api from '../../services/api';
+import { confirm } from '@/composables/useConfirm';
 
 const props = defineProps({
   agentProfile: { type: Object, required: true }
@@ -380,7 +381,7 @@ const toggleSelectAll = () => {
 
 const bulkDelete = async () => {
   const count = selectedCards.value.size;
-  if (!confirm(`Delete ${count} selected cards?`)) return;
+  if (!(await confirm({ title: 'Delete cards?', message: `Delete ${count} selected cards?`, confirmText: 'Delete', danger: true }))) return;
   bulkDeleting.value = true;
   try {
     await api.bulkDeleteKnowledgeCards(props.agentProfile.id, [...selectedCards.value]);
@@ -535,7 +536,7 @@ const toggleActive = async (card) => {
 };
 
 const confirmDelete = async (card) => {
-  if (!confirm(`Delete "${card.title}"?`)) return;
+  if (!(await confirm({ title: 'Delete card?', message: `Delete "${card.title}"?`, confirmText: 'Delete', danger: true }))) return;
   try {
     await api.deleteKnowledgeCard(props.agentProfile.id, card.id);
     cards.value = cards.value.filter(c => c.id !== card.id);

@@ -126,6 +126,8 @@
 <script>
 import { ref, onMounted } from 'vue'
 import { toolsApi } from '../../services/toolsApi'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 export default {
   name: 'ExecutionHistory',
@@ -170,13 +172,13 @@ export default {
     }
 
     const replay = async (execution) => {
-      if (confirm('Replay this execution?')) {
+      if (await confirm('Replay this execution?')) {
         try {
           await toolsApi.replayExecution(execution.id)
-          alert('Execution replayed successfully')
+          notify.success('Execution replayed successfully')
           loadHistory()
         } catch (error) {
-          alert('Failed to replay: ' + error.message)
+          notify.error('Failed to replay: ' + error.message)
         }
       }
     }

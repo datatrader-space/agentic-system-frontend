@@ -257,6 +257,7 @@
 <script>
 import { ref, computed, reactive, watch } from 'vue'
 import api from '../../services/api'
+import { notify } from '@/composables/useNotify'
 
 export default {
   name: 'MCPServerDetailModal',
@@ -315,11 +316,11 @@ export default {
         // Use test_connection which starts server and discovers tools
         const response = await api.testMCPConnection(props.server.server.id)
         if (response.data.success) {
-          alert(`Discovered ${response.data.tools_count} tools from ${response.data.server_name}`)
+          notify.show(`Discovered ${response.data.tools_count} tools from ${response.data.server_name}`)
         }
         emit('updated')
       } catch (error) {
-        alert('Failed to refresh tools: ' + (error.response?.data?.error || error.message))
+        notify.error('Failed to refresh tools: ' + (error.response?.data?.error || error.message))
       } finally {
         refreshing.value = false
       }
@@ -330,7 +331,7 @@ export default {
         await api.resetMCPCircuitBreaker(props.server.server.id)
         emit('updated')
       } catch (error) {
-        alert('Failed to reset circuit breaker')
+        notify.error('Failed to reset circuit breaker')
       }
     }
 

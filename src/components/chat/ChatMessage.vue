@@ -6,16 +6,14 @@
         <svg viewBox="0 0 32 32" fill="none"><rect x="3" y="3" width="26" height="26" rx="8" stroke="url(#ag)" stroke-width="2.5" /><path d="M10 16l4 4 8-8" stroke="url(#ag)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /><defs><linearGradient id="ag" x1="0" y1="0" x2="32" y2="32"><stop stop-color="#6366f1" /><stop offset="1" stop-color="#d946ef" /></linearGradient></defs></svg>
       </div>
       <div class="bubble-wrap">
-        <!-- Tool calls -->
-        <div v-if="message.toolCalls && message.toolCalls.length" class="tool-calls">
-          <ToolCallCard v-for="tc in message.toolCalls" :key="tc.name" :name="tc.name" :status="tc.status" />
-        </div>
-
-        <!-- Streaming with no text yet -->
-        <StreamingIndicator v-if="isStreaming && !message.content" />
+        <!-- Live activity timeline: Thinking → tools → Generating → Done (collapses to a summary) -->
+        <ActivityStream :activity="message.activity" />
 
         <!-- Rendered markdown content (full answer if rehydrated, else stored stub) -->
         <div v-if="displayContent" class="bubble assistant" v-html="rendered"></div>
+
+        <!-- Per-response token usage -->
+        <TokenUsage v-if="message.status !== 'streaming'" :usage="message.usage" />
 
         <!-- Long-answer rehydrate: the stored content is a bounded stub; fetch the full answer on demand -->
         <div v-if="canShowFull" class="longanswer-row">
@@ -56,8 +54,8 @@
 import { computed, ref } from 'vue'
 import { marked } from 'marked'
 import api from '../../services/api'
-import ToolCallCard from './ToolCallCard.vue'
-import StreamingIndicator from './StreamingIndicator.vue'
+import ActivityStream from '../activity/ActivityStream.vue'
+import TokenUsage from '../activity/TokenUsage.vue'
 
 const props = defineProps({
   message: { type: Object, required: true },

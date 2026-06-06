@@ -1,6 +1,6 @@
 <template>
-  <div class="agent-builder flex flex-col h-full bg-white w-full pt-14 sm:pt-16">
-    <div class="relative z-10 p-3 sm:p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
+  <div :class="['agent-builder flex flex-col h-full bg-white w-full', layout === 'tabs' ? 'pt-14 sm:pt-16' : '']">
+    <div v-if="layout === 'tabs'" class="relative z-10 p-3 sm:p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
       <div class="flex items-center gap-2 min-w-0">
         <button @click="$emit('close')" class="sm:hidden flex items-center text-gray-500 hover:text-gray-700 flex-shrink-0 -ml-1">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
@@ -8,19 +8,27 @@
         <h2 class="font-bold text-gray-800 flex-shrink-0 text-sm sm:text-base truncate">Agent Configuration</h2>
       </div>
       <div class="flex gap-2 flex-shrink-0 ml-2 sm:ml-4">
-        <button 
-            @click="save" 
+        <button
+            v-if="layout === 'canvas'"
+            @click="$emit('open-workspace')"
+            class="px-2.5 sm:px-3 py-1.5 border border-gray-200 text-gray-700 text-xs sm:text-sm rounded hover:bg-gray-50 flex items-center gap-1.5"
+            title="Open agent workspace"
+        >
+            <Folder class="w-4 h-4" /> <span class="hidden sm:inline">Workspace</span>
+        </button>
+        <button
+            @click="save"
             :disabled="isSaving"
             class="px-2.5 sm:px-3 py-1.5 bg-indigo-600 text-white text-xs sm:text-sm rounded hover:bg-indigo-700 disabled:opacity-50 min-w-[80px] sm:min-w-[100px]"
         >
-            {{ isSaving ? 'Saving...' : 'Save Agent' }}
+            {{ isSaving ? 'Saving...' : 'Save & Publish' }}
         </button>
       </div>
     </div>
 
 
-    <!-- Tabs Header -->
-    <div class="flex border-b border-gray-200 px-4 shrink-0 bg-white">
+    <!-- Tabs Header (hidden in canvas layout — sections stack instead) -->
+    <div v-if="layout === 'tabs'" class="flex border-b border-gray-200 px-4 shrink-0 bg-white">
         <button 
             v-for="tab in ['General', 'Knowledge', 'Tools', 'Credentials', 'Signals', 'Schedules']" 
             :key="tab"
@@ -31,18 +39,39 @@
         </button>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-6 space-y-6">
-      
+    <div :class="['flex-1 overflow-y-auto p-6', layout === 'canvas' ? 'bg-gray-50' : '']">
+      <div :class="layout === 'canvas' ? 'max-w-3xl mx-auto space-y-5' : 'space-y-5'">
+
       <!-- TAB: GENERAL -->
-      <div v-if="activeTab === 'General'" class="space-y-6">
+      <div v-if="layout === 'canvas'" class="flex items-center gap-3 pt-1">
+        <span class="w-7 h-7 rounded-lg bg-indigo-600 text-white text-sm font-bold flex items-center justify-center shrink-0">1</span>
+        <div>
+          <div class="text-[15px] font-bold text-gray-900 leading-tight">General</div>
+          <div class="text-xs text-gray-500">Identity, model &amp; behavior</div>
+        </div>
+      </div>
+      <div v-if="layout === 'canvas'" class="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3">
+        <div class="text-xs font-semibold text-gray-600 mb-2">✨ Quick start — apply a template to the instructions</div>
+        <div class="flex flex-wrap gap-2">
+          <button v-for="t in agentTemplates" :key="t.key" type="button" @click="applyTemplate(t)"
+            class="text-xs px-3 py-1.5 rounded-full bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition">
+            {{ t.icon }} {{ t.label }}
+          </button>
+        </div>
+      </div>
+      <div v-if="layout === 'canvas' || activeTab === 'General'"
+        :class="['space-y-6', layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : '']">
       <div class="space-y-4">
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
-            <input 
-                v-model="internalAgent.name"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                placeholder="e.g. Django Migration Expert"
-            />
+            <div class="flex items-center gap-3">
+                <span v-if="layout === 'canvas'" class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 flex items-center justify-center text-2xl shrink-0">🤖</span>
+                <input
+                    v-model="internalAgent.name"
+                    class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    placeholder="e.g. Django Migration Expert"
+                />
+            </div>
         </div>
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
@@ -124,28 +153,60 @@
              </div>
         </div>
 
-        <!-- Chat History Limit -->
+        <!-- Conversation Memory — Auto by default; manual cap hidden under Advanced -->
         <div class="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-                Chat History Limit
-                <span class="text-xs font-normal text-gray-500 ml-1">(messages sent as context)</span>
-            </label>
-            <div class="flex items-center gap-4">
-                <input
-                    type="range"
-                    v-model.number="internalAgent.max_history_messages"
-                    min="2"
-                    max="100"
-                    step="1"
-                    class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                >
-                <span class="text-sm font-mono font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg min-w-[4rem] text-center">
-                    {{ internalAgent.max_history_messages || 50 }}
-                </span>
+            <div class="flex items-start justify-between gap-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Conversation Memory</label>
+                    <p class="text-xs text-gray-500 mt-0.5">
+                        <template v-if="historyMode === 'auto'">
+                            Auto (recommended) — managed by token budget &amp; summarization.
+                        </template>
+                        <template v-else>
+                            Manual cap: {{ internalAgent.max_history_messages }} recent messages.
+                        </template>
+                    </p>
+                </div>
+                <button type="button" @click="showHistoryAdvanced = !showHistoryAdvanced"
+                        class="shrink-0 text-xs font-medium text-indigo-600 hover:text-indigo-700">
+                    {{ showHistoryAdvanced ? 'Hide' : 'Advanced' }}
+                </button>
             </div>
-            <p class="text-xs text-gray-500 mt-2">
-                How many recent messages to include when calling the LLM. Lower = fewer tokens & faster, higher = more conversation memory.
-            </p>
+
+            <div v-if="showHistoryAdvanced" class="mt-3 pt-3 border-t border-gray-200">
+                <div class="inline-flex rounded-md border border-gray-300 overflow-hidden mb-3">
+                    <button type="button" @click="historyMode = 'auto'"
+                        :class="['text-xs px-3 py-1 transition', historyMode === 'auto' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50']">
+                        Auto (recommended)
+                    </button>
+                    <button type="button" @click="historyMode = 'manual'"
+                        :class="['text-xs px-3 py-1 transition', historyMode === 'manual' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50']">
+                        Manual
+                    </button>
+                </div>
+
+                <div v-if="historyMode === 'manual'" class="flex items-center gap-4">
+                    <input
+                        type="range"
+                        v-model.number="internalAgent.max_history_messages"
+                        min="2"
+                        max="100"
+                        step="1"
+                        class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    >
+                    <span class="text-sm font-mono font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-lg min-w-[4rem] text-center">
+                        {{ internalAgent.max_history_messages || 50 }}
+                    </span>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">
+                    <template v-if="historyMode === 'auto'">
+                        The backend fits history to the model's context window, keeps tool-call/result pairs together, and summarizes older turns — no fixed message count to tune.
+                    </template>
+                    <template v-else>
+                        Hard cap on recent messages sent to the LLM (a backstop — the token budget still applies). Lower = fewer tokens &amp; faster.
+                    </template>
+                </p>
+            </div>
         </div>
 
         <div>
@@ -237,7 +298,8 @@
       </div>
 
       <!-- Prompt Preview Modal -->
-      <div v-if="showPromptPreview" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showPromptPreview = false">
+      <teleport to="body">
+      <div v-if="showPromptPreview" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4" @click.self="showPromptPreview = false">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
           <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
             <div>
@@ -274,12 +336,34 @@
           </div>
         </div>
       </div>
+      </teleport>
       </div>
 
       </div>
 
       <!-- TAB: KNOWLEDGE -->
-      <div v-if="activeTab === 'Knowledge'" class="space-y-6">
+      <div v-if="layout === 'canvas'" class="flex items-center gap-3 pt-2">
+        <span class="w-7 h-7 rounded-lg bg-emerald-600 text-white text-sm font-bold flex items-center justify-center shrink-0">2</span>
+        <div>
+          <div class="text-[15px] font-bold text-gray-900 leading-tight">Knowledge</div>
+          <div class="text-xs text-gray-500">What should your agent know?</div>
+        </div>
+      </div>
+      <div v-if="layout === 'canvas'" class="flex flex-wrap gap-2">
+        <button type="button" @click="$refs.fileInput && $refs.fileInput.click()"
+          class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition inline-flex items-center gap-1.5">
+          <Upload class="w-4 h-4" /> Upload file
+        </button>
+        <button v-for="s in knowledgeSources" :key="s.key" type="button" disabled
+          :title="s.label + ' — connect later (backend coming soon)'"
+          :style="{ color: s.color, borderColor: s.color + '55', background: s.color + '0f' }"
+          class="text-xs font-semibold px-3 py-1.5 rounded-lg border cursor-not-allowed flex items-center gap-1.5">
+          <component :is="s.icon" class="w-3.5 h-3.5" /> {{ s.label }}
+          <span class="ml-0.5 text-[9px] uppercase rounded px-1 py-0.5" :style="{ background: s.color + '22' }">soon</span>
+        </button>
+      </div>
+      <div v-if="layout === 'canvas' || activeTab === 'Knowledge'"
+        :class="['space-y-6', layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : '']">
 
 
       <hr />
@@ -296,7 +380,8 @@
                     class="hidden" 
                     @change="handleFileUpload"
                 />
-                <button 
+                <button
+                    v-if="layout !== 'canvas'"
                     @click="$refs.fileInput.click()"
                     class="flex-1 px-3 py-2 border border-gray-300 border-dashed rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-indigo-600 transition flex items-center justify-center gap-2"
                     :disabled="uploading"
@@ -330,17 +415,26 @@
                         </button>
                     </div>
 
-                    <!-- Analysis Preview -->
-                    <div 
-                        v-if="file.analysis" 
-                        @click="viewAnalysis(file)"
-                        class="text-xs text-gray-600 bg-gray-50 p-2 rounded mt-1 line-clamp-3 cursor-pointer hover:bg-indigo-50 transition relative group/analysis"
-                    >
-                        <span class="font-bold text-indigo-600">AI Analysis:</span> {{ file.analysis }}
-                        <div class="absolute inset-x-0 bottom-0 text-center bg-gradient-to-t from-white/90 to-transparent text-[10px] text-indigo-500 font-bold opacity-0 group-hover/analysis:opacity-100">Click to expand</div>
+                    <!-- RAG index status -->
+                    <div v-if="fileIndex(file).stage === 'ready'" class="flex items-center gap-1.5 text-xs text-emerald-600 mt-1">
+                        <span>✓</span>
+                        <span>Knowledge base ready<span v-if="fileIndex(file).chunkCount"> · {{ fileIndex(file).chunkCount }} chunks indexed</span></span>
                     </div>
-                    <div v-else class="text-xs text-gray-400 italic mt-1">
-                        Analysis pending...
+                    <div v-else-if="fileIndex(file).stage === 'failed'" class="text-xs text-red-600 mt-1 flex items-center gap-2">
+                        <span class="truncate">⚠ {{ fileIndex(file).message || file.index_error || 'Indexing failed' }}</span>
+                        <button @click.stop="retryIndex(file)" class="underline text-indigo-600 hover:text-indigo-800 shrink-0">Retry</button>
+                    </div>
+                    <div v-else class="mt-1.5">
+                        <div class="flex items-center justify-between text-[11px] text-gray-500 mb-1">
+                            <span>{{ stageLabel(fileIndex(file).stage) }}</span>
+                            <span v-if="fileIndex(file).percent">{{ fileIndex(file).percent }}%</span>
+                        </div>
+                        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div class="h-full bg-indigo-500 transition-all duration-300"
+                                 :class="{ 'animate-pulse': !fileIndex(file).percent }"
+                                 :style="{ width: (fileIndex(file).percent || 10) + '%' }"></div>
+                        </div>
+                        <div v-if="fileIndex(file).message" class="text-[10px] text-gray-400 mt-1 truncate">{{ fileIndex(file).message }}</div>
                     </div>
                 </div>
             </div>
@@ -376,7 +470,15 @@
       </div>
 
       <!-- TAB: TOOLS -->
-      <div v-if="activeTab === 'Tools'" class="space-y-6">
+      <div v-if="layout === 'canvas'" class="flex items-center gap-3 pt-2">
+        <span class="w-7 h-7 rounded-lg bg-violet-600 text-white text-sm font-bold flex items-center justify-center shrink-0">3</span>
+        <div>
+          <div class="text-[15px] font-bold text-gray-900 leading-tight">Tools</div>
+          <div class="text-xs text-gray-500">What can your agent do?</div>
+        </div>
+      </div>
+      <div v-if="layout === 'canvas' || activeTab === 'Tools'"
+        :class="['space-y-6', layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : '']">
 
       <!-- Code Mode Toggle -->
       <div class="bg-gradient-to-r from-violet-50 to-indigo-50 border border-violet-200 rounded-xl p-4">
@@ -454,8 +556,20 @@
         </div>
       </div>
 
-      <!-- Tools -->
-      <div>
+      <!-- Signal Processing — grouped with the capability toggles (canvas) -->
+      <div v-if="layout === 'canvas'">
+        <SignalPanel :agent="internalAgent" />
+      </div>
+
+      <!-- Tools — canvas: new ToolPicker; tabs/drawer: legacy list -->
+      <div v-if="layout === 'canvas'">
+        <div class="flex items-center justify-between mb-2">
+          <label class="block text-sm font-medium text-gray-700">Capabilities (Tools)</label>
+          <span class="text-xs text-gray-500">{{ selectedToolsCount }} selected</span>
+        </div>
+        <ToolPicker v-model="internalAgent.tool_ids" :tools="availableTools" />
+      </div>
+      <div v-if="layout === 'tabs'">
         <div class="flex justify-between items-center mb-2">
              <label class="block text-sm font-medium text-gray-700">Capabilities (Tools)</label>
              <div class="flex items-center gap-3">
@@ -725,16 +839,25 @@
       </div>
 
       <!-- TAB: CREDENTIALS -->
-      <div v-if="activeTab === 'Credentials'" class="space-y-6">
+      <div v-if="layout === 'canvas'" class="pt-8 mt-4 border-t-2 border-gray-200">
+        <span class="text-xs font-bold uppercase tracking-wide text-gray-400">Advanced</span>
+      </div>
+      <h3 v-if="layout === 'canvas'" class="text-sm font-bold text-gray-800 pt-1">Credentials</h3>
+      <div v-if="layout === 'canvas' || activeTab === 'Credentials'"
+        :class="['space-y-6', layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : '']">
           <!-- Service & Built-in Tool Credentials -->
-          <div class="h-[600px] border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+          <div class="border border-gray-200 rounded-lg overflow-hidden bg-white max-h-[600px] overflow-y-auto">
             <!-- Reuse the standalone component which supports both Service and Built-in tools -->
             <CredentialManager :agent-profile="internalAgent" />
           </div>
+      </div>
 
-
+      <!-- MCP SERVERS — its own section -->
+      <h3 v-if="layout === 'canvas'" class="text-sm font-bold text-gray-800 pt-3">MCP Servers</h3>
+      <div v-if="layout === 'canvas' || activeTab === 'Credentials'"
+        :class="layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : ''">
         <!-- MCP Server Credentials -->
-        <div class="mt-8 pt-6 border-t border-gray-200">
+        <div>
           <div class="flex justify-between items-center mb-2">
             <label class="block text-sm font-medium text-gray-700">MCP Server Credentials</label>
           </div>
@@ -832,28 +955,60 @@
       </div>
 
       <!-- TAB: SIGNALS -->
+      <div v-if="layout === 'canvas'" class="flex items-center gap-2 pt-3">
+        <span class="text-base">💬</span>
+        <div class="text-sm font-bold text-gray-800">Communication Channels</div>
+        <span class="w-4 h-4 rounded-full bg-gray-100 text-gray-400 text-[10px] flex items-center justify-center">?</span>
+      </div>
+      <div v-if="layout === 'canvas'" class="space-y-2">
+        <div v-for="c in channelRows" :key="c.key" class="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg">
+          <span class="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-50 shrink-0"><Icon :icon="c.icon" class="w-5 h-5" /></span>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold text-gray-800">{{ c.label }}</div>
+            <div class="text-xs text-gray-400">
+              {{ c.live ? 'Active' : 'Never invoked' }}<span v-if="c.error" class="text-red-500"> · Error while configuring</span>
+            </div>
+          </div>
+          <span v-if="c.live" class="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0"></span>
+          <span v-else class="text-[9px] uppercase bg-gray-200 text-gray-500 rounded px-1.5 py-0.5 shrink-0">soon</span>
+        </div>
+        <div class="flex flex-wrap gap-2 pt-1">
+          <button v-for="c in channelChips" :key="c.key" type="button" disabled
+            class="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 bg-white flex items-center gap-1.5 cursor-not-allowed">
+            <Icon v-if="c.icon" :icon="c.icon" class="w-4 h-4" /> {{ c.label }}
+          </button>
+        </div>
+      </div>
+      <!-- Canvas now shows Signal Processing inside the Tools section (above); this
+           remains only for the legacy tabbed layout's "Signals" tab. -->
       <div v-if="activeTab === 'Signals'">
         <SignalPanel :agent="internalAgent" />
       </div>
 
       <!-- TAB: SCHEDULES -->
-      <div v-if="activeTab === 'Schedules'">
+      <h3 v-if="layout === 'canvas'" class="text-sm font-bold text-gray-800 pt-3">Automation &amp; Schedules</h3>
+      <div v-if="layout === 'canvas' || activeTab === 'Schedules'"
+        :class="layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : ''">
         <SchedulePanel :agent="internalAgent" />
       </div>
 
-
-
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { marked } from 'marked';
 import api from '../services/api';
 import CredentialManager from './tools/CredentialManager.vue';
 import SignalPanel from './SignalPanel.vue';
 import SchedulePanel from './SchedulePanel.vue';
+import ToolPicker from './ToolPicker.vue';
+import { Upload, Globe, Table2, Search, Type, FileText, Braces, Folder } from 'lucide-vue-next';
+import { Icon } from '@iconify/vue';
+import { notify } from '@/composables/useNotify';
+import { confirm } from '@/composables/useConfirm';
 
 const props = defineProps({
     agent: {
@@ -863,10 +1018,22 @@ const props = defineProps({
     isSaving: {
         type: Boolean,
         default: false
+    },
+    // 'tabs' (default, legacy drawer) | 'canvas' (single-scroll builder — Phase 1 UI upgrade)
+    layout: {
+        type: String,
+        default: 'tabs'
+    },
+    // Awaitable persist function from the host page (AgentBuilderCanvas.saveAgent).
+    // Returns the saved agent (with id) or null. Enables lazy draft-on-demand so
+    // features that need an agent id (file upload, prompt preview) work on /new.
+    saveFn: {
+        type: Function,
+        default: null
     }
 });
 
-const emit = defineEmits(['update:agent', 'save', 'close']);
+const emit = defineEmits(['update:agent', 'save', 'close', 'open-workspace']);
 
 // Local copy for editing
 const internalAgent = ref({
@@ -875,6 +1042,20 @@ const internalAgent = ref({
     code_mode_services: [],    // RemoteService IDs (empty = all credentialed)
     builder_mode_enabled: false,  // Builder Mode: agent can register OAuth providers
     ...props.agent
+});
+
+// Conversation memory: Auto (max_history_messages = 0/null, backend manages by token
+// budget + summarization) vs Manual (an explicit recent-message cap). Hidden under Advanced.
+const showHistoryAdvanced = ref(false);
+const historyMode = computed({
+    get: () => ((internalAgent.value.max_history_messages || 0) > 0 ? 'manual' : 'auto'),
+    set: (mode) => {
+        if (mode === 'auto') {
+            internalAgent.value.max_history_messages = 0;  // 0 = Auto (backend default)
+        } else if ((internalAgent.value.max_history_messages || 0) <= 0) {
+            internalAgent.value.max_history_messages = 50;  // seed a sensible manual value
+        }
+    },
 });
 const availableTools = ref([]);
 const llmProviders = ref([]);
@@ -922,6 +1103,115 @@ const scopes = [
     { value: 'system', label: 'Full System' },
     { value: 'repository', label: 'Repository' },
     { value: 'none', label: 'None' }
+];
+
+// ── Canvas (Phase 3) — quick-start templates ──
+// Each template can pre-fill the agent by domain: instructions (always), plus name +
+// description (only when empty, never clobbering the user's text) and a set of related
+// tools matched against the agent's available tools by keyword.
+const agentTemplates = [
+    {
+        key: 'blank', icon: '✨', label: 'Blank',
+        prompt: 'You are a helpful AI assistant.',
+    },
+    {
+        key: 'support', icon: '🎧', label: 'Support',
+        name: 'Customer Support Agent',
+        description: 'Answers customer questions from the knowledge base and escalates to a human when it can’t help.',
+        prompt: 'You are a friendly customer-support assistant.\n- Answer only from the connected Knowledge base.\n- If you can\'t find the answer, say so and offer to connect a human.\n- Keep replies short and clear.',
+        toolKeywords: ['email', 'slack', 'ticket', 'zendesk', 'intercom', 'message', 'notify', 'communication'],
+    },
+    {
+        key: 'coding', icon: '💻', label: 'Coding',
+        name: 'Coding Assistant',
+        description: 'Helps with code, debugging, and reviews using filesystem and execution tools.',
+        prompt: 'You are an expert coding assistant.\n- Help with code, debugging, and reviews.\n- Prefer minimal, correct, well-explained changes.\n- Use the available tools to inspect and run code when needed.',
+        toolKeywords: ['file', 'code', 'shell', 'execute', 'terminal', 'git', 'repo', 'filesystem', 'python', 'run', 'command'],
+    },
+    {
+        key: 'research', icon: '🔎', label: 'Research',
+        name: 'Research Assistant',
+        description: 'Gathers, verifies, and synthesizes information with sources and citations.',
+        prompt: 'You are a research assistant.\n- Gather, verify, and synthesize information.\n- Cite sources and flag uncertainty.\n- Use web/search tools when available.',
+        toolKeywords: ['web', 'search', 'browse', 'scrape', 'http', 'fetch', 'wiki', 'google', 'crawl', 'url'],
+    },
+    {
+        key: 'store', icon: '🛒', label: 'Store assistant',
+        name: 'Store Assistant',
+        description: 'Helps customers find products and answer questions for your online shop.',
+        prompt: 'You are a store assistant for an online shop.\n- Help customers find products and answer questions from the Knowledge base.\n- Be concise and friendly; suggest relevant items.',
+        toolKeywords: ['shop', 'product', 'order', 'cart', 'stripe', 'payment', 'ecommerce', 'commerce', 'shopify', 'inventory', 'checkout'],
+    },
+];
+
+// Match the agent's available tools to a template's keywords (name/category/labels).
+function matchToolsForTemplate(t, cap = 12) {
+    const kws = (t.toolKeywords || []).map(k => k.toLowerCase());
+    if (!kws.length) return [];
+    const ids = [];
+    for (const tool of (availableTools.value || [])) {
+        const hay = [tool.name, tool.category, tool.display_name, tool.category_label]
+            .filter(Boolean).join(' ').toLowerCase();
+        if (kws.some(k => hay.includes(k))) ids.push(tool.id);
+        if (ids.length >= cap) break;
+    }
+    return ids;
+}
+
+const applyTemplate = async (t) => {
+    if (!t) return;
+    const cur = (internalAgent.value.system_prompt_template || '').trim();
+    if (cur && !(await confirm({
+        title: 'Apply template?',
+        message: `Apply the "${t.label}" template? This sets the instructions, fills in any empty name/description, and adds related tools.`,
+        confirmText: 'Apply',
+        danger: true,
+    }))) return;
+
+    // Instructions — always set from the template.
+    internalAgent.value.system_prompt_template = t.prompt;
+
+    // Name + description — only fill when empty, so we never overwrite the user's own text.
+    if (t.name && !(internalAgent.value.name || '').trim()) internalAgent.value.name = t.name;
+    if (t.description && !(internalAgent.value.description || '').trim()) internalAgent.value.description = t.description;
+
+    // Related tools — add matches on top of any the user already selected (additive).
+    const matched = matchToolsForTemplate(t);
+    if (matched.length) {
+        const set = new Set(internalAgent.value.tool_ids || []);
+        matched.forEach(id => set.add(id));
+        internalAgent.value.tool_ids = [...set];
+    }
+
+    const parts = ['instructions'];
+    if (t.name) parts.push('name & description');
+    if (matched.length) parts.push(`${matched.length} tool${matched.length === 1 ? '' : 's'}`);
+    notify.success(`Applied “${t.label}” template — ${parts.join(', ')}.`);
+};
+
+// ── Canvas (Phase 3) — knowledge source types (UI-first; non-upload = connect later) ──
+const knowledgeSources = [
+    { key: 'website', icon: Globe, label: 'Website', color: '#2563eb' },
+    { key: 'table', icon: Table2, label: 'Table', color: '#059669' },
+    { key: 'websearch', icon: Search, label: 'Web Search', color: '#475569' },
+    { key: 'richtext', icon: Type, label: 'Rich Text', color: '#dc2626' },
+    { key: 'notion', icon: FileText, label: 'Notion', color: '#111827' },
+    { key: 'api', icon: Braces, label: 'API', color: '#7c3aed' },
+];
+
+// ── Canvas — channels: live rows + coming-soon chips (Iconify brand logos) ──
+const channelRows = [
+    { key: 'webhook', icon: 'lucide:webhook', label: 'Webhook', live: true },
+    { key: 'websocket', icon: 'lucide:radio', label: 'WebSocket', live: true },
+    { key: 'redis', icon: 'logos:redis', label: 'Redis Stream', live: true },
+    { key: 'whatsapp', icon: 'logos:whatsapp-icon', label: 'WhatsApp', live: false },
+    { key: 'slack', icon: 'logos:slack-icon', label: 'Slack', live: false, error: true },
+];
+const channelChips = [
+    { key: 'telegram', icon: 'logos:telegram', label: 'Telegram' },
+    { key: 'instagram', icon: 'logos:instagram-icon', label: 'Instagram' },
+    { key: 'messenger', icon: 'logos:messenger', label: 'Messenger' },
+    { key: 'more', icon: '', label: '··· More' },
 ];
 
 const getScopeDescription = (scope) => {
@@ -1434,43 +1724,168 @@ const countSelectedInService = (tools) => {
     return tools.filter(t => internalAgent.value.tool_ids.includes(t.id)).length;
 };
 
+// Build the save payload from the current form values.
+const buildPayload = () => ({
+    ...internalAgent.value,
+    default_model: internalAgent.value.default_model
+});
+
 const save = () => {
-    // Read the model selection directly from internalAgent which is now v-model bound
-    const modelId = internalAgent.value.default_model;
-    
-    // Create the payload with the current form values
-    const agentData = {
-        ...internalAgent.value,
-        default_model: modelId
-    };
-    
-    console.log('Saving agent with default_model:', modelId);
-    emit('save', agentData);
+    console.log('Saving agent with default_model:', internalAgent.value.default_model);
+    emit('save', buildPayload());
 };
 
-const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+// Lazily persist a draft when a feature needs an agent id (file upload, prompt
+// preview) but we're still on /new. Returns the id, or null if it couldn't save.
+// Guarded on name only so we never create nameless junk drafts. The host's saveFn
+// already surfaces any backend error, so a null return means "abort the action".
+const ensuringSave = ref(false);
+const ensureSaved = async () => {
+    if (internalAgent.value.id) return internalAgent.value.id;
 
-    if (!internalAgent.value.id) {
-        alert("Please save the agent first to upload files.");
-        return;
+    const name = (internalAgent.value.name || '').trim();
+    if (!name) {
+        notify.warning('Give your agent a name first — we’ll save a draft automatically.');
+        return null;
+    }
+    if (typeof props.saveFn !== 'function') {
+        notify.error('Please save the agent first.');
+        return null;
     }
 
     try {
-        uploading.value = true;
-        const res = await api.uploadAgentFile(internalAgent.value.id, file);
-        
-        // Add to list
-        if (!internalAgent.value.knowledge_files) {
-            internalAgent.value.knowledge_files = [];
+        ensuringSave.value = true;
+        const saved = await props.saveFn(buildPayload());
+        if (!saved || !saved.id) return null; // saveFn already toasted the reason
+        internalAgent.value.id = saved.id;
+        notify.success('Draft saved automatically — keep editing.');
+        return saved.id;
+    } finally {
+        ensuringSave.value = false;
+    }
+};
+
+// Allow the host page (AgentBuilderCanvas top bar) to trigger save / ensure-saved.
+defineExpose({ save, ensureSaved });
+
+// ── Knowledge RAG: upload → confirm → embed + index (live progress over WS) ──
+// indexProgress maps documentId -> { stage, percent, message }. It is the live source
+// of truth during indexing; file.index_status (from the server) is the fallback.
+const indexProgress = ref({});
+const kbWs = ref(null);
+
+function kbWsUrl(agentId) {
+    const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    return `${scheme}://${window.location.host}/ws/knowledge-index/${agentId}/`;
+}
+
+function connectKbWs() {
+    const id = internalAgent.value.id;
+    if (!id) return;
+    if (kbWs.value && kbWs.value.readyState === WebSocket.OPEN) return;
+    if (kbWs.value) { try { kbWs.value.close(); } catch (e) { /* noop */ } kbWs.value = null; }
+    try {
+        const sock = new WebSocket(kbWsUrl(id));
+        kbWs.value = sock;
+        sock.onmessage = (e) => {
+            let evt; try { evt = JSON.parse(e.data); } catch { return; }
+            if (evt.type === 'index_progress') handleIndexProgress(evt);
+        };
+        sock.onclose = () => { if (kbWs.value === sock) kbWs.value = null; };
+        sock.onerror = () => { /* noop — status poll is the fallback */ };
+    } catch (err) { /* noop */ }
+}
+
+function setProgress(docId, stage, percent, message, chunkCount) {
+    indexProgress.value = {
+        ...indexProgress.value,
+        [docId]: { stage, percent: percent || 0, message: message || '', chunkCount: chunkCount || 0 },
+    };
+}
+
+function handleIndexProgress(evt) {
+    // Progress lives ONLY in the standalone indexProgress map. We deliberately do NOT
+    // mutate internalAgent here: that would round-trip through the parent's v-model and
+    // replace internalAgent wholesale on EVERY tick, re-rendering the whole builder form
+    // (which looks like the page "refreshing"). fileIndex() merges this map for display.
+    setProgress(evt.document_id, evt.stage, evt.percent, evt.message, evt.total);
+    if (evt.stage === 'ready') notify.success(`Knowledge base ready: ${evt.name}`);
+    else if (evt.stage === 'failed') notify.error(`Indexing failed: ${evt.name}${evt.message ? ' — ' + evt.message : ''}`);
+}
+
+// Apply a final status fetched via the poll fallback (used when there's no Celery worker
+// and indexing ran inline, so no WS events were emitted). Map-only — no form mutation.
+function applyStatus(docId, data) {
+    const stage = data.index_status || data.stage;
+    setProgress(docId, stage, stage === 'ready' ? 100 : 0, data.index_error || '', data.chunk_count);
+    if (stage === 'ready') notify.success('Knowledge base ready');
+    else if (stage === 'failed') notify.error('Indexing failed: ' + (data.index_error || ''));
+}
+
+async function triggerIndex(docId) {
+    setProgress(docId, 'queued', 0, 'Queued…');
+    connectKbWs();
+    try {
+        const r = await api.indexAgentFile(docId);
+        // Inline fallback (no Celery worker) finishes synchronously and reports queued:false.
+        if (r.data && r.data.queued === false) {
+            const st = await api.getAgentFileStatus(docId);
+            applyStatus(docId, st.data);
         }
-        internalAgent.value.knowledge_files.unshift(res.data);
-        
-        // Clear input
-        if (fileInput.value) fileInput.value.value = '';
     } catch (e) {
-        alert("Upload failed: " + (e.response?.data?.error || e.message));
+        setProgress(docId, 'failed', 0, 'Index trigger failed');
+        notify.error('Could not start indexing: ' + (e.response?.data?.error || e.message));
+    }
+}
+
+function retryIndex(file) {
+    triggerIndex(file.id);
+}
+
+// Display helper: live progress from the standalone map if present, else the persisted
+// server status. Keeping this read-only means progress never mutates (re-renders) the form.
+function fileIndex(file) {
+    const p = indexProgress.value[file.id];
+    if (p) return p;
+    const stage = file.index_status || 'pending';
+    return { stage, percent: stage === 'ready' ? 100 : 0, message: '', chunkCount: file.chunk_count || 0 };
+}
+
+const STAGE_LABELS = {
+    queued: 'Queued…', pending: 'Preparing…', reading: 'Reading document…',
+    chunking: 'Splitting into chunks…', embedding: 'Generating embeddings…',
+};
+function stageLabel(stage) { return STAGE_LABELS[stage] || 'Indexing…'; }
+
+const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (fileInput.value) fileInput.value.value = ''; // reset picker so the same file can re-trigger
+    if (!file) return;
+
+    // Confirmation before we persist + index the document as agent knowledge.
+    const ok = await confirm({
+        title: 'Add to knowledge base?',
+        message: `Save "${file.name}" as knowledge for this agent? We'll embed and index it so the agent can reference it when answering questions.`,
+        confirmText: 'Save & Index',
+    });
+    if (!ok) return;
+
+    // Lazily create the agent if we don't have an id yet (no "save first" dead-end).
+    let id = internalAgent.value.id || await ensureSaved();
+    if (!id) return;
+
+    try {
+        uploading.value = true;
+        const res = await api.uploadAgentFile(id, file);
+        const doc = res.data;
+        doc.index_status = doc.index_status || 'queued';
+        if (!internalAgent.value.knowledge_files) internalAgent.value.knowledge_files = [];
+        internalAgent.value.knowledge_files.unshift(doc);
+
+        // Kick off embedding + indexing; progress streams back over the WS.
+        await triggerIndex(doc.id);
+    } catch (e) {
+        notify.error("Upload failed: " + (e.response?.data?.error || e.message));
     } finally {
         uploading.value = false;
     }
@@ -1487,13 +1902,13 @@ const formatMarkdown = (text) => {
 };
 
 const removeFile = async (file) => {
-    if (!confirm(`Are you sure you want to delete ${file.name}?`)) return;
+    if (!(await confirm({ title: 'Delete file?', message: `Are you sure you want to delete ${file.name}?`, confirmText: 'Delete', danger: true }))) return;
     try {
         await api.deleteGenericFile(file.id);
         // Update local list
         internalAgent.value.knowledge_files = internalAgent.value.knowledge_files.filter(f => f.id !== file.id);
     } catch (e) {
-        alert("Failed to delete file: " + (e.response?.data?.error || e.message));
+        notify.error("Failed to delete file: " + (e.response?.data?.error || e.message));
     }
 };
 
@@ -1514,7 +1929,7 @@ const reRunAnalysis = async () => {
             internalAgent.value.knowledge_files[idx].analysis = res.data.analysis;
         }
     } catch (e) {
-        alert("Analysis failed: " + e.message);
+        notify.error("Analysis failed: " + e.message);
     } finally {
         isReAnalyzing.value = false;
     }
@@ -1570,7 +1985,7 @@ const loadMcpCredentials = async () => {
 
 const saveMcpCredentials = async () => {
     if (!internalAgent.value.id) {
-        alert('Please save the agent first');
+        notify.error('Please save the agent first');
         return;
     }
     savingMcpCredential.value = true;
@@ -1598,7 +2013,7 @@ const saveMcpCredentials = async () => {
 };
 
 const deleteMcpCredential = async (cred) => {
-    if (!confirm(`Delete MCP credential "${cred.name}"?`)) return;
+    if (!(await confirm({ title: 'Delete credential?', message: `Delete MCP credential "${cred.name}"?`, confirmText: 'Delete', danger: true }))) return;
     try {
         await api.deleteMCPCredential(selectedMcpServerId.value, cred.id);
         mcpCredentialMessage.value = 'Credential deleted';
@@ -1668,15 +2083,15 @@ const insertPlaceholder = (tag) => {
 };
 
 const previewPrompt = async () => {
-    if (!internalAgent.value.id) {
-        alert('Save the agent first to preview the prompt');
-        return;
-    }
+    // Lazily create the agent if needed — preview is rendered server-side by id.
+    const id = internalAgent.value.id || await ensureSaved();
+    if (!id) return;
+
     loadingPreview.value = true;
     showPromptPreview.value = true;
     promptPreviewData.value = null;
     try {
-        const response = await api.previewAgentPrompt(internalAgent.value.id);
+        const response = await api.previewAgentPrompt(id);
         promptPreviewData.value = response.data;
     } catch (err) {
         console.error('Preview prompt failed:', err);
@@ -1711,5 +2126,14 @@ onMounted(() => {
     fetchTools();
     fetchProviders();
     fetchModels();
+    connectKbWs();
+});
+
+// Reconnect the knowledge-index WS when the agent id first appears (lazy draft save)
+// or changes (switching agents in Configure).
+watch(() => internalAgent.value.id, (id) => { if (id) connectKbWs(); });
+
+onBeforeUnmount(() => {
+    if (kbWs.value) { try { kbWs.value.close(); } catch (e) { /* noop */ } kbWs.value = null; }
 });
 </script>

@@ -1055,6 +1055,8 @@ import AgentMemoryPanel from '../components/knowledge/AgentMemoryPanel.vue';
 import AgentFlowPanel from '../components/knowledge/AgentFlowPanel.vue';
 import AgentDataPanel from '../components/knowledge/AgentDataPanel.vue';
 import BackButton from '../components/BackButton.vue';
+import { notify } from '@/composables/useNotify';
+import { confirm } from '@/composables/useConfirm';
 
 const route = useRoute();
 const router = useRouter();
@@ -1067,7 +1069,7 @@ const agent = ref({
     knowledge_scope: 'system',
     tool_ids: [],
     temperature: 0.7,
-    max_history_messages: 50
+    max_history_messages: 0  // 0 = Auto (backend manages history by token budget + summarization)
 });
 
 const saving = ref(false);
@@ -1284,7 +1286,7 @@ const wsReadFile = async (entry) => {
 
 const wsDeleteEntry = async (entry) => {
     const label = entry.is_dir ? 'folder and all its contents' : 'file';
-    if (!confirm(`Delete this ${label}?\n${entry.path}`)) return;
+    if (!(await confirm({ title: 'Delete file?', message: `Delete this ${label}?\n${entry.path}`, confirmText: 'Delete', danger: true }))) return;
     try {
         await api.deleteWorkspaceFile(agent.value.id, entry.path);
         if (wsPreviewPath.value === entry.path) {
@@ -1325,7 +1327,7 @@ const wsToggleSelect = (path) => {
 const wsBulkDelete = async () => {
     const count = wsSelectedPaths.value.size;
     if (!count) return;
-    if (!confirm(`Delete ${count} selected item(s)?`)) return;
+    if (!(await confirm({ title: 'Delete items?', message: `Delete ${count} selected item(s)?`, confirmText: 'Delete', danger: true }))) return;
     try {
         await api.bulkDeleteWorkspaceFiles(agent.value.id, [...wsSelectedPaths.value]);
         wsSelectedPaths.value = new Set();
@@ -1373,11 +1375,11 @@ const handleFilesSelected = (event) => {
     const files = Array.from(event.target.files || []);
     for (const file of files) {
         if (pendingFiles.value.length >= MAX_FILES) {
-            alert(`Maximum ${MAX_FILES} files allowed per message.`);
+            notify.error(`Maximum ${MAX_FILES} files allowed per message.`);
             break;
         }
         if (file.size > MAX_FILE_SIZE) {
-            alert(`File "${file.name}" exceeds 10MB limit.`);
+            notify.error(`File "${file.name}" exceeds 10MB limit.`);
             continue;
         }
         pendingFiles.value.push(file);
@@ -2012,7 +2014,7 @@ const createNewCascadeSession = async () => {
 
     const wsId = wsRouting.value?.workspace?.workspace_id;
     if (!wsId) {
-        alert('Workspace not connected');
+        notify.error('Workspace not connected');
         return;
     }
 
@@ -2038,7 +2040,7 @@ const createNewCascadeSession = async () => {
 
 // Delete a conversation
 const deleteConversation = async (convId) => {
-    if (!confirm('Delete this conversation? This cannot be undone.')) return;
+    if (!(await confirm({ title: 'Delete conversation?', message: 'Delete this conversation? This cannot be undone.', confirmText: 'Delete', danger: true }))) return;
     try {
         await api.delete(`/conversations/${convId}/`);
         // Remove from local list
@@ -2245,7 +2247,7 @@ const saveAgent = async (agentData) => {
         }
         return agent.value;
     } catch (e) {
-        alert("Failed to save agent: " + (e.response?.data?.error || e.message));
+        notify.error("Failed to save agent: " + (e.response?.data?.error || e.message));
         return null;
     } finally {
         saving.value = false;
@@ -3097,7 +3099,7 @@ const sendMessage = async () => {
             model_id: selectedContext.value.model || agent.value?.default_model || null // Use selected or agent's default model
         }));
     } else {
-        alert("Connection lost. Please restart session.");
+        notify.error("Connection lost. Please restart session.");
         isProcessing.value = false;
     }
 };
@@ -3273,7 +3275,7 @@ const retryMessage = (assistantEvent) => {
 const correctResponse = (event) => {
     // Placeholder for future feedback/correction feature
     console.log('Correct response clicked for:', event);
-    alert('Feedback feature coming soon! This will allow you to suggest corrections to improve the agent.');
+    notify.show('Feedback feature coming soon! This will allow you to suggest corrections to improve the agent.');
 };
 
 // Scroll when new events are added (e.g. user sends message, new tool call, etc.)
@@ -3348,7 +3350,7 @@ watch(isProcessing, (streaming) => {
 
 const runAgent = async () => {
     if (agent.value.knowledge_scope === 'system' && !selectedContext.value.system) {
-        alert("Please select a System Context for this agent.");
+        notify.error("Please select a System Context for this agent.");
         return;
     }
 
@@ -3394,7 +3396,7 @@ const runAgent = async () => {
 
     } catch (e) {
         console.error(e);
-        alert("Run failed: " + e.message);
+        notify.error("Run failed: " + e.message);
         isAgentSessionActive.value = false;
     }
 };

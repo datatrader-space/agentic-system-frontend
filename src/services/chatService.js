@@ -87,6 +87,21 @@ export class ChatConnection {
     this._send({ type: 'stop_execution', conversation_id: this.conversationId })
   }
 
+  // Generic safe send (used for HITL approval responses, etc.). Queues if not yet open.
+  send(obj) {
+    this._send(obj)
+  }
+
+  // Send a human-in-the-loop approval/clarification response.
+  sendHitlResponse(requestId, responseValue, feedback = '') {
+    this._send({
+      type: 'hitl_response',
+      request_id: requestId,
+      response_value: responseValue,
+      feedback,
+    })
+  }
+
   close() {
     this.closedByUs = true
     try {

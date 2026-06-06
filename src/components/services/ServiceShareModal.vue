@@ -104,6 +104,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../../services/api'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 const props = defineProps({
   service: { type: Object, required: true }
@@ -158,14 +160,14 @@ const handleShare = async () => {
 }
 
 const handleRevoke = async (share) => {
-  if (!confirm(`Revoke access for ${share.shared_with_username}?`)) return
+  if (!(await confirm({ title: 'Revoke access?', message: `Revoke access for ${share.shared_with_username}?`, confirmText: 'Revoke', danger: true }))) return
   revoking.value = share.id
   try {
     await api.revokeShare(props.service.id, share.id)
     await loadShares()
     emit('updated')
   } catch (err) {
-    alert('Failed to revoke: ' + (err.response?.data?.error || err.message))
+    notify.error('Failed to revoke: ' + (err.response?.data?.error || err.message))
   } finally {
     revoking.value = null
   }

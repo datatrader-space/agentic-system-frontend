@@ -369,6 +369,8 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import api from '../services/api'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 const props = defineProps({
   agent: { type: Object, required: true }
@@ -465,14 +467,14 @@ async function loadSignals() {
 }
 
 async function rotateApiKey() {
-  if (!confirm('Generate a new API key? The old one will be invalidated.')) return
+  if (!(await confirm('Generate a new API key? The old one will be invalidated.'))) return
   rotatingKey.value = true
   try {
     const res = await api.rotateSignalApiKey(props.agent.id)
     props.agent.signal_api_key = res.data.api_key
     showApiKey.value = true
   } catch (e) {
-    alert('Failed to generate API key: ' + (e.response?.data?.error || e.message))
+    notify.error('Failed to generate API key: ' + (e.response?.data?.error || e.message))
   } finally {
     rotatingKey.value = false
   }
@@ -505,7 +507,7 @@ async function retrySignal(signalId) {
     await api.retrySignal(props.agent.id, signalId)
     loadAll()
   } catch (e) {
-    alert('Retry failed: ' + (e.response?.data?.error || e.message))
+    notify.error('Retry failed: ' + (e.response?.data?.error || e.message))
   }
 }
 
@@ -514,7 +516,7 @@ async function cancelSignal(signalId) {
     await api.cancelSignal(props.agent.id, signalId)
     loadAll()
   } catch (e) {
-    alert('Cancel failed: ' + (e.response?.data?.error || e.message))
+    notify.error('Cancel failed: ' + (e.response?.data?.error || e.message))
   }
 }
 

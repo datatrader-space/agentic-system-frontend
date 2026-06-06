@@ -6,6 +6,7 @@
 import { defineStore } from 'pinia'
 import api from '../services/api'
 import { ChatConnection } from '../services/chatService'
+import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity } from '../composables/activityStream'
 
 let _seq = 0
 const nid = () => `m${++_seq}`
@@ -22,6 +23,9 @@ export const useChatStore = defineStore('chat', {
     isStreaming: false,
     conversationId: null,
     repoId: 0,
+
+    // Human-in-the-loop approval queue (tools the backend gated for approval). Rendered by HITLModal.
+    hitlRequests: [],
 
     // Agent selection
     agents: [],
@@ -169,6 +173,21 @@ export const useChatStore = defineStore('chat', {
       this._endAssistant()
     },
 
+    // ── HITL approval responses (sent over the same WS the backend awaits on) ──
+    respondHitl({ request_id, response_value, feedback }) {
+      this._conn?.sendHitlResponse(request_id, response_value, feedback)
+      // Optimistically clear; the hitl_response_ack will also clear it.
+      this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== request_id)
+    },
+
+    dismissHitl(requestId) {
+      this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== requestId)
+    },
+
+    skipHitl(requestId) {
+      this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== requestId)
+    },
+
     retryLast() {
       if (this.isStreaming) return
       const lastUser = [...this.messages].reverse().find((m) => m.role === 'user')
@@ -207,6 +226,8 @@ export const useChatStore = defineStore('chat', {
     },
 
     _beginAssistant() {
+      const activity = createActivity()
+      startActivity(activity)
       this.messages.push({
         id: nid(),
         role: 'assistant',
@@ -214,6 +235,7 @@ export const useChatStore = defineStore('chat', {
         status: 'streaming',
         error: '',
         toolCalls: [],
+        activity, // live "what the agent is doing" timeline (see activityStream.js)
       })
       this._assistantId = this.messages[this.messages.length - 1].id
       this.isStreaming = true
@@ -225,7 +247,10 @@ export const useChatStore = defineStore('chat', {
 
     _endAssistant() {
       const m = this._cur()
-      if (m && m.status === 'streaming') m.status = 'done'
+      if (m) {
+        if (m.activity) finishActivity(m.activity)
+        if (m.status === 'streaming') m.status = 'done'
+      }
       this.isStreaming = false
       this._assistantId = null
     },
@@ -235,6 +260,7 @@ export const useChatStore = defineStore('chat', {
       if (m) {
         m.status = 'error'
         m.error = err || 'Something went wrong.'
+        if (m.activity) finishActivity(m.activity)
       }
       this.isStreaming = false
       this._assistantId = null
@@ -243,12 +269,16 @@ export const useChatStore = defineStore('chat', {
     _onEvent(msg) {
       const t = msg?.type
       const m = this._cur()
+      // Feed the live activity timeline (Thinking → tools → Generating → Done). The
+      // 'error' type is fed inside its case below (after the benign-rejection filter).
+      if (m && m.activity && t !== 'error') ingestActivity(m.activity, msg)
       switch (t) {
         case 'assistant_message_chunk':
           if (m) m.content += msg.chunk || ''
           break
         case 'assistant_message_complete':
           if (m && !m.content && msg.full_message) m.content = msg.full_message
+          if (m && msg.usage) m.usage = msg.usage // per-response token counts
           this._endAssistant()
           break
         case 'chat_response':
@@ -272,6 +302,26 @@ export const useChatStore = defineStore('chat', {
           }
           break
         }
+        // ── Human-in-the-loop: the backend gated a tool for approval ──────────────
+        case 'hitl_request':
+          // Avoid duplicates if the event is re-delivered.
+          if (!this.hitlRequests.some((r) => r.request_id === msg.request_id)) {
+            this.hitlRequests.push({
+              request_id: msg.request_id,
+              interaction_type: msg.interaction_type,
+              response_type: msg.response_type,
+              summary: msg.summary,
+              services: msg.services || [],
+              payload: msg.payload || {},
+              options: msg.options || [],
+              urgency: msg.urgency || 'medium',
+              timeout_at: msg.timeout_at || null,
+            })
+          }
+          break
+        case 'hitl_response_ack':
+          this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== msg.request_id)
+          break
         case 'agent_session_complete':
           this._endAssistant()
           break
@@ -283,6 +333,7 @@ export const useChatStore = defineStore('chat', {
           // Benign control-message rejections (e.g. "Unknown message type: ...")
           // must not fail the turn — the actual chat_message still streams/saves.
           if (/unknown message type/i.test(em)) break
+          if (m && m.activity) ingestActivity(m.activity, msg) // mark active step red
           this._errAssistant(em)
           break
         }

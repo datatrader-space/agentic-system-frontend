@@ -107,6 +107,7 @@ import { ref, computed, onMounted } from 'vue'
 import { blogPosts as staticPosts } from '../data/blogPosts'
 import { useMeta } from '../composables/useMeta'
 import api from '../services/api'
+import { notify } from '@/composables/useNotify'
 
 useMeta({
   title: 'Blog — AADML',
@@ -158,7 +159,7 @@ const popularPosts = computed(() => {
 })
 
 const subscribe = () => {
-  alert(`Subscribed with: ${email.value}`)
+  notify.success(`Subscribed with: ${email.value}`)
   email.value = ''
 }
 </script>

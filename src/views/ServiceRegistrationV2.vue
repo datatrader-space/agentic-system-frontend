@@ -1059,6 +1059,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from '../services/api'
 import MonacoJsonEditor from '../components/MonacoJsonEditor.vue'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 const router = useRouter()
 const route = useRoute()
@@ -1372,7 +1374,7 @@ async function discoverActions() {
   } catch (error) {
     console.error('Discovery failed:', error)
     discoveryError.value = error.response?.data?.error || error.message
-    alert('Failed to discover actions: ' + discoveryError.value)
+    notify.error('Failed to discover actions: ' + discoveryError.value)
   } finally {
     discovering.value = false
   }
@@ -1433,7 +1435,7 @@ async function rediscoverGraphQL() {
     console.log(`GraphQL introspection discovered ${actions.value.length} actions`)
   } catch (error) {
     console.error('GraphQL introspection failed:', error)
-    alert('GraphQL introspection failed: ' + (error.response?.data?.error || error.message) + 
+    notify.error('GraphQL introspection failed: ' + (error.response?.data?.error || error.message) +
           '\n\nMake sure the endpoint is accessible and supports introspection queries.')
   } finally {
     rediscoveringGraphQL.value = false
@@ -1502,7 +1504,7 @@ async function generateExamples() {
     
     // Check if we have the OpenAPI spec
     if (!openApiSpec.value) {
-      alert('OpenAPI spec not available. Please re-run discovery.')
+      notify.error('OpenAPI spec not available. Please re-run discovery.')
       return
     }
     
@@ -1542,7 +1544,7 @@ async function generateExamples() {
     
   } catch (error) {
     console.error('Failed to generate examples:', error)
-    alert('Failed to generate examples: ' + (error.response?.data?.error || error.message))
+    notify.error('Failed to generate examples: ' + (error.response?.data?.error || error.message))
   } finally {
     generating.value = false
   }
@@ -1589,10 +1591,10 @@ function cancelEdit() {
   editError.value = null
 }
 
-function deleteExample(index) {
+async function deleteExample(index) {
   if (!selectedAction.value || !selectedAction.value.examples) return
-  
-  if (confirm('Delete this example?')) {
+
+  if (await confirm({ title: 'Delete example?', message: 'Delete this example?', confirmText: 'Delete', danger: true })) {
     selectedAction.value.examples.splice(index, 1)
     selectedAction.value.exampleCount = selectedAction.value.examples.length
     
@@ -1789,7 +1791,7 @@ async function loadDraft(draftId) {
     console.log('Draft loaded successfully:', draft)
   } catch (error) {
     console.error('Failed to load draft:', error)
-    alert('Failed to load draft')
+    notify.error('Failed to load draft')
   }
 }
 
@@ -1824,10 +1826,10 @@ async function runActionTest() {
   console.log('Selected Action:', selectedAction.value)
   
   if (!selectedAction.value) {
-    alert('No action selected')
+    notify.error('No action selected')
     return
   }
-  
+
   console.log('Action ID:', selectedAction.value.id)
   console.log('Action tool_name:', selectedAction.value.tool_name)
   
@@ -1842,7 +1844,7 @@ async function runActionTest() {
       
       // Check if save succeeded
       if (!serviceId.value) {
-        alert('Failed to save draft. Please try manually saving first.')
+        notify.error('Failed to save draft. Please try manually saving first.')
         return
       }
     } else {
@@ -1857,7 +1859,7 @@ async function runActionTest() {
     if (!selectedAction.value.id) {
       console.error('Action still has no ID after save!')
       console.error('All actions:', actions.value.map(a => ({ name: a.name, tool_name: a.tool_name, id: a.id })))
-      alert('Action must be saved to database before testing. Please refresh and try again.')
+      notify.error('Action must be saved to database before testing. Please refresh and try again.')
       return
     }
   }
@@ -1912,17 +1914,17 @@ async function runAgentTest() {
   console.log('=== RUN AGENT TEST CALLED ===')
   
   if (!selectedAction.value) {
-    alert('No action selected')
+    notify.error('No action selected')
     return
   }
-  
+
   // Ensure action has an ID
   if (!selectedAction.value.id) {
     console.warn('Action has no ID, attempting auto-save...')
     await saveDraft()
     
     if (!selectedAction.value.id) {
-      alert('Action must be saved to database before testing. Please save the draft first.')
+      notify.error('Action must be saved to database before testing. Please save the draft first.')
       return
     }
   }
@@ -1954,7 +1956,7 @@ async function runAgentTest() {
     agentTestResult.value = response.data
   } catch (error) {
     console.error('Agent test failed:', error)
-    alert(`Agent test failed: ${error.response?.data?.error || error.message}`)
+    notify.error(`Agent test failed: ${error.response?.data?.error || error.message}`)
   } finally {
     testingAgent.value = false
   }

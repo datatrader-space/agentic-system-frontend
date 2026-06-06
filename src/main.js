@@ -4,6 +4,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 // import App from './App.vue'
 import App from './app.vue'
 import './style.css'
+import Toast, { POSITION, useToast } from 'vue-toastification'
+import 'vue-toastification/dist/index.css'
 import api from './services/api'
 import axios from 'axios'
 
@@ -24,6 +26,8 @@ import Services from './views/Services.vue'
 import MCPServers from './views/MCPServers.vue'
 import AgentLibrary from './views/AgentLibrary.vue'
 import AgentPlayground from './views/AgentPlayground.vue'
+import AgentBuilderCanvas from './views/AgentBuilderCanvas.vue'
+import AgentMonitor from './views/AgentMonitor.vue'
 import LandingPage from './views/LandingPage.vue'
 import Features from './views/Features.vue'
 import HowItWorks from './views/HowItWorks.vue'
@@ -48,6 +52,14 @@ import AdminPanel from './views/AdminPanel.vue'
 import AppShell from './components/app-shell/AppShell.vue'
 import ChatWorkspace from './components/chat/ChatWorkspace.vue'
 import SettingsLayout from './components/settings/SettingsLayout.vue'
+
+// Iconify: bundle icon sets so brand/colored logos work OFFLINE (no API fetch).
+// 'logos' = full-color brand logos; 'lucide' = generic icons used as iconify strings.
+import { addCollection } from '@iconify/vue'
+import logosIcons from '@iconify-json/logos/icons.json'
+import lucideIconSet from '@iconify-json/lucide/icons.json'
+addCollection(logosIcons)
+addCollection(lucideIconSet)
 
 // Create router
 const router = createRouter({
@@ -139,7 +151,9 @@ const router = createRouter({
         // Legacy pages re-housed inside the shell so navigation never leaves it.
         // (The old top-level routes below remain for back-compat / deep links.)
         { path: 'agents', name: 'dashboard-agents', component: AgentLibrary },
-        { path: 'agents/new', name: 'dashboard-agent-new', component: AgentPlayground },
+        { path: 'agents/new', name: 'dashboard-agent-new', component: AgentBuilderCanvas },
+        { path: 'agents/:id/configure', name: 'dashboard-agent-configure', component: AgentBuilderCanvas },
+        { path: 'agents/:id/monitor', name: 'dashboard-agent-monitor', component: AgentMonitor },
         { path: 'agents/:id', name: 'dashboard-agent-playground', component: AgentPlayground },
         { path: 'tools', name: 'dashboard-tools', component: ToolRegistry },
         { path: 'services', name: 'dashboard-services', component: Services },
@@ -343,17 +357,38 @@ const app = createApp(App)
 // State management (Pinia) — required by the v2 app shell
 app.use(createPinia())
 
-// Add global notification helper
-app.provide('notify', (message, type = 'info') => {
-  // Simple console notification for now
-  // Can be replaced with a toast library later
-  console.log(`[${type.toUpperCase()}] ${message}`)
+// Global toast notifications (replaces native browser alert popups everywhere)
+app.use(Toast, {
+  position: POSITION.TOP_RIGHT,
+  timeout: 4500,
+  closeOnClick: true,
+  pauseOnHover: true,
+  hideProgressBar: false,
+  newestOnTop: true,
+})
 
-  // You can add a toast library here like vue-toastification
-  // For now, using alert for important messages
-  if (type === 'error') {
-    alert(message)
+// Route ALL native alert() calls app-wide to custom toasts — no browser popups anywhere.
+const _toast = useToast()
+const _origAlert = window.alert.bind(window)
+window.alert = (msg) => {
+  try {
+    const text = String(msg == null ? '' : msg)
+    if (/(fail|error|invalid|denied|unable|could ?n.?t|wrong|exceed|missing|not found)/i.test(text)) {
+      _toast.error(text, { timeout: 6000 })
+    } else if (/(success|saved|created|updated|deleted|done|copied|added)/i.test(text)) {
+      _toast.success(text)
+    } else {
+      _toast.info(text)
+    }
+  } catch (e) {
+    _origAlert(msg)
   }
+}
+
+// Global notify() helper now uses toasts.
+app.provide('notify', (message, type = 'info') => {
+  const fn = _toast[type] || _toast.info
+  fn(String(message))
 })
 
 app.use(router)

@@ -472,6 +472,8 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import api from '../services/api'
 import WorkspaceTreeNode from './WorkspaceTreeNode.vue'
 import SchedulePanel from './SchedulePanel.vue'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 const props = defineProps({
   agentProfile: { type: Object, default: null }
@@ -595,7 +597,7 @@ const wsToggleDir = (path) => {
 const wsSelectFile = (entry) => {
   // Only allow .py files
   if (!entry.name.endsWith('.py')) {
-    alert('Only .py files can be registered as scripts.')
+    notify.error('Only .py files can be registered as scripts.')
     return
   }
   // Pre-fill the save modal
@@ -658,7 +660,7 @@ const saveWorkflow = async () => {
       await api.put(`/workflows/${editingWf.value.id}/`, { name: wfForm.name, prompt: wfForm.prompt, category: wfForm.category })
     } else {
       const profileId = props.agentProfile?.id
-      if (!profileId) { alert('Save the agent first'); return }
+      if (!profileId) { notify.show('Save the agent first'); return }
       const payload = { name: wfForm.name, prompt: wfForm.prompt, category: wfForm.category, profile_id: profileId }
       if (wfForm.script_id) {
         payload.script_id = wfForm.script_id
@@ -679,15 +681,15 @@ const saveWorkflow = async () => {
     Object.assign(wfForm, { name: '', prompt: '', category: 'general', script_id: null, variables: {}, addSchedule: false, schedule: '', channel: 'log' })
     loadWorkflows()
     loadSchedules()
-  } catch (e) { alert(e.response?.data?.error || 'Failed to save') }
+  } catch (e) { notify.error(e.response?.data?.error || 'Failed to save') }
 }
 
 const runWorkflow = async (wf) => {
   try {
     const res = await api.post(`/workflows/${wf.id}/run/`)
-    alert(`"${wf.name}" executed: ${res.data.status}`)
+    notify.show(`"${wf.name}" executed: ${res.data.status}`)
     loadExecutions()
-  } catch (e) { alert('Failed to run workflow') }
+  } catch (e) { notify.error('Failed to run workflow') }
 }
 
 const editWorkflow = (wf) => {
@@ -700,25 +702,25 @@ const editWorkflow = (wf) => {
 }
 
 const deleteWorkflow = async (wf) => {
-  if (!confirm(`Delete "${wf.name}"?`)) return
+  if (!(await confirm({ title: 'Delete workflow?', message: `Delete "${wf.name}"?`, confirmText: 'Delete', danger: true }))) return
   try { await api.delete(`/workflows/${wf.id}/`); loadWorkflows() }
-  catch (e) { alert('Failed') }
+  catch (e) { notify.error('Failed') }
 }
 
 const toggleSchedule = async (s) => {
   try { await api.put(`/schedules/${s.id}/`, { active: !s.active }); loadSchedules() }
-  catch (e) { alert('Failed') }
+  catch (e) { notify.error('Failed') }
 }
 
 const deleteSchedule = async (s) => {
-  if (!confirm('Delete schedule?')) return
+  if (!(await confirm({ title: 'Delete schedule?', message: 'Delete schedule?', confirmText: 'Delete', danger: true }))) return
   try { await api.delete(`/schedules/${s.id}/`); loadSchedules() }
-  catch (e) { alert('Failed') }
+  catch (e) { notify.error('Failed') }
 }
 
 const registerScript = async () => {
   const profileId = props.agentProfile?.id
-  if (!profileId) { alert('Save the agent first'); return }
+  if (!profileId) { notify.show('Save the agent first'); return }
   savingScript.value = true
   try {
     await api.post('/scripts/', {
@@ -731,16 +733,16 @@ const registerScript = async () => {
     showSaveScriptModal.value = false
     loadScripts()
   } catch (e) {
-    alert(e.response?.data?.error || 'Failed to register script')
+    notify.error(e.response?.data?.error || 'Failed to register script')
   } finally {
     savingScript.value = false
   }
 }
 
 const removeScript = async (script) => {
-  if (!confirm(`Remove "${script.name}" from registry?`)) return
+  if (!(await confirm({ title: 'Remove script?', message: `Remove "${script.name}" from registry?`, confirmText: 'Remove', danger: true }))) return
   try { await api.delete(`/scripts/${script.id}/`); loadScripts() }
-  catch (e) { alert('Failed') }
+  catch (e) { notify.error('Failed') }
 }
 
 const viewExecution = async (ex) => {

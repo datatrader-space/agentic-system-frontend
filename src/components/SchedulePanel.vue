@@ -481,6 +481,8 @@
 <script setup>
 import { ref, computed, reactive, onMounted, watch } from 'vue'
 import api from '../services/api'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 const props = defineProps({
   agent: { type: Object, required: true }
@@ -666,7 +668,7 @@ const saveSchedule = async () => {
     editingId.value = null
     await loadSchedules()
   } catch (e) {
-    alert(e.response?.data?.error || 'Failed to save schedule')
+    notify.error(e.response?.data?.error || 'Failed to save schedule')
   } finally {
     saving.value = false
   }
@@ -727,34 +729,34 @@ const toggleActive = async (s) => {
     await api.patch(`/agents/${props.agent.id}/schedules/${s.id}/`, { active: !s.active })
     s.active = !s.active
   } catch (e) {
-    alert('Failed to toggle schedule')
+    notify.error('Failed to toggle schedule')
   }
 }
 
 const fireSchedule = async (s) => {
-  if (!confirm(`Run "${s.name}" now?`)) return
+  if (!(await confirm(`Run "${s.name}" now?`))) return
   firingId.value = s.id
   try {
     const res = await api.post(`/agents/${props.agent.id}/schedules/${s.id}/fire/`)
-    alert(`Dispatched! Signal #${res.data.signal_id}`)
+    notify.show(`Dispatched! Signal #${res.data.signal_id}`)
     // Refresh runs if tab is open
     if ((activeDetailTab[s.id]) === 'runs') {
       loadRunHistory(s.id)
     }
   } catch (e) {
-    alert('Failed to fire schedule: ' + (e.response?.data?.error || e.message))
+    notify.error('Failed to fire schedule: ' + (e.response?.data?.error || e.message))
   } finally {
     firingId.value = null
   }
 }
 
 const deleteSchedule = async (s) => {
-  if (!confirm(`Delete schedule "${s.name}"?`)) return
+  if (!(await confirm({ title: 'Delete schedule?', message: `Delete schedule "${s.name}"?`, confirmText: 'Delete', danger: true }))) return
   try {
     await api.delete(`/agents/${props.agent.id}/schedules/${s.id}/`)
     await loadSchedules()
   } catch (e) {
-    alert('Failed to delete schedule')
+    notify.error('Failed to delete schedule')
   }
 }
 

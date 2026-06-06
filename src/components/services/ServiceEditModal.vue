@@ -259,6 +259,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import api from '../../services/api'
+import { notify } from '@/composables/useNotify'
 
 const props = defineProps({
   service: {
@@ -327,7 +328,7 @@ const handleSubmit = async () => {
     emit('close')
   } catch (err) {
     console.error('Failed to update service:', err)
-    alert(err.response?.data?.error || 'Failed to update service')
+    notify.error(err.response?.data?.error || 'Failed to update service')
   } finally {
     saving.value = false
   }

@@ -97,6 +97,8 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../services/api'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 const router = useRouter()
 const loading = ref(true)
@@ -123,14 +125,14 @@ function resumeDraft(draftId) {
 }
 
 async function deleteDraft(draftId) {
-  if (!confirm('Delete this draft? This cannot be undone.')) return
+  if (!(await confirm({ title: 'Delete draft?', message: 'Delete this draft? This cannot be undone.', confirmText: 'Delete', danger: true }))) return
   
   try {
     await api.deleteService(draftId)
     await loadDrafts()
   } catch (error) {
     console.error('Failed to delete draft:', error)
-    alert('Failed to delete draft')
+    notify.error('Failed to delete draft')
   }
 }
 

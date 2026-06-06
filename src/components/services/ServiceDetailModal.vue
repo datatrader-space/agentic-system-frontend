@@ -362,6 +362,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import api from '../../services/api'
 import ServiceEditModal from './ServiceEditModal.vue'
 import ServiceShareModal from './ServiceShareModal.vue'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 const props = defineProps({
   service: {
@@ -455,12 +457,12 @@ const startOAuth = async () => {
     )
     // Fallback: if popup blocked
     if (!popup || popup.closed) {
-      alert('Popup blocked. Please allow popups for this site.')
+      notify.error('Popup blocked. Please allow popups for this site.')
       oauthBusy.value = false
     }
   } catch (err) {
     console.error('Failed to start OAuth:', err)
-    alert(err.response?.data?.error || 'Failed to start OAuth flow')
+    notify.error(err.response?.data?.error || 'Failed to start OAuth flow')
     oauthBusy.value = false
   }
 }
@@ -471,19 +473,19 @@ const handleOAuthMessage = (event) => {
   if (event.data.status === 'success') {
     checkOAuthStatus()
   } else {
-    alert('OAuth connection failed: ' + (event.data.error || 'Unknown error'))
+    notify.error('OAuth connection failed: ' + (event.data.error || 'Unknown error'))
   }
 }
 
 const disconnectOAuth = async () => {
-  if (!confirm('Disconnect your OAuth credentials for this service?')) return
+  if (!(await confirm('Disconnect your OAuth credentials for this service?'))) return
   oauthBusy.value = true
   try {
     await api.disconnectOAuth(props.service.id)
     oauthStatus.value = { connected: false }
   } catch (err) {
     console.error('Failed to disconnect OAuth:', err)
-    alert('Failed to disconnect: ' + (err.response?.data?.error || err.message))
+    notify.error('Failed to disconnect: ' + (err.response?.data?.error || err.message))
   } finally {
     oauthBusy.value = false
   }
@@ -571,7 +573,7 @@ const linkProvider = async () => {
     emit('updated')
   } catch (err) {
     console.error('Failed to link provider:', err)
-    alert(err.response?.data?.error || 'Failed to link OAuth provider')
+    notify.error(err.response?.data?.error || 'Failed to link OAuth provider')
     selectedProviderId.value = currentProviderId.value
   } finally {
     linkingProvider.value = false
@@ -597,7 +599,7 @@ const toggleServiceEnabled = async () => {
     emit('updated')
   } catch (err) {
     console.error('Failed to toggle service:', err)
-    alert('Failed to update service status')
+    notify.error('Failed to update service status')
   }
 }
 
@@ -623,12 +625,12 @@ const toggleActionEnabled = async (actionId, enabled) => {
     emit('updated')
   } catch (err) {
     console.error('Failed to toggle action:', err)
-    alert('Failed to update action status')
+    notify.error('Failed to update action status')
   }
 }
 
 const handleDeleteService = async () => {
-  if (!confirm(`Are you sure you want to delete "${serviceDetail.value.name}"? This will delete all ${serviceDetail.value.total_actions} actions and cannot be undone.`)) {
+  if (!(await confirm({ title: 'Delete service?', message: `Are you sure you want to delete "${serviceDetail.value.name}"? This will delete all ${serviceDetail.value.total_actions} actions and cannot be undone.`, confirmText: 'Delete', danger: true }))) {
     return
   }
 
@@ -638,13 +640,13 @@ const handleDeleteService = async () => {
     emit('close')
   } catch (err) {
     console.error('Failed to delete service:', err)
-    alert('Failed to delete service')
+    notify.error('Failed to delete service')
   }
 }
 
 const activateService = async () => {
   const actionCount = serviceDetail.value.total_actions || 0
-  if (!confirm(`Activate "${serviceDetail.value.name}"? This will make ${actionCount} tools available to agents.`)) {
+  if (!(await confirm(`Activate "${serviceDetail.value.name}"? This will make ${actionCount} tools available to agents.`))) {
     return
   }
 
@@ -652,10 +654,10 @@ const activateService = async () => {
     await api.activateService(props.service.id)
     await loadServiceDetails()
     emit('updated')
-    alert('✅ Service activated! Tools are now available.')
+    notify.success('✅ Service activated! Tools are now available.')
   } catch (err) {
     console.error('Failed to activate service:', err)
-    alert('Failed to activate service: ' + (err.response?.data?.error || err.message))
+    notify.error('Failed to activate service: ' + (err.response?.data?.error || err.message))
   }
 }
 

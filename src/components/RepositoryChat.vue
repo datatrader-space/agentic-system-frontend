@@ -210,6 +210,14 @@
         </div>
       </form>
     </div>
+
+    <!-- Human-in-the-loop approval modal (shared handler). -->
+    <HITLModal
+      :requests="hitlRequests"
+      @respond="respondHitl"
+      @dismiss="dismissHitl"
+      @skip="skipHitl"
+    />
   </div>
 </template>
 
@@ -220,6 +228,9 @@ import { Marked } from 'marked'
 import { markedHighlight } from 'marked-highlight'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
+import { confirm } from '@/composables/useConfirm'
+import HITLModal from './HITLModal.vue'
+import { useHitl } from '../composables/useHitl'
 
 const marked = new Marked(
   markedHighlight({
@@ -261,6 +272,11 @@ const selectedModelId = ref(null)
 let ws = null
 let currentStreamingMessage = ''
 let wsRepositoryId = null
+
+// Shared HITL approval handling (same as New Chat / Emulator / Playground).
+const { hitlRequests, handleHitlEvent, respondHitl, dismissHitl, skipHitl } = useHitl((obj) => {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj))
+})
 let isConnecting = false
 let autoReconnect = true
 let reconnectTimeout = null
@@ -410,6 +426,8 @@ const closeWebSocket = ({ disableReconnect = false } = {}) => new Promise((resol
 })
 
 const handleWebSocketMessage = (data) => {
+  // HITL approval events handled by the shared composable (queue + modal).
+  if (handleHitlEvent(data)) return
   switch (data.type) {
     case 'conversation_created':
       // Store conversation ID for future messages
@@ -559,8 +577,8 @@ const retryLast = () => {
   console.log('Retry last message requested')
 }
 
-const clearMessages = () => {
-  if (confirm('Clear all messages? This cannot be undone.')) {
+const clearMessages = async () => {
+  if (await confirm({ title: 'Clear all messages?', message: 'Clear all messages? This cannot be undone.', confirmText: 'Clear', danger: true })) {
     messages.value = []
     currentStreamingMessage = ''
   }

@@ -108,6 +108,8 @@
 <script>
 import { ref, computed, onMounted } from 'vue'
 import api from '../services/api'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 import MCPServerCard from '../components/mcp/MCPServerCard.vue'
 import MCPServerModal from '../components/mcp/MCPServerModal.vue'
 import MCPServerDetailModal from '../components/mcp/MCPServerDetailModal.vue'
@@ -145,7 +147,7 @@ export default {
         servers.value = response.data.servers || []
       } catch (error) {
         console.error('Failed to load MCP servers:', error)
-        alert('Failed to load MCP servers: ' + (error.response?.data?.error || error.message))
+        notify.error('Failed to load MCP servers: ' + (error.response?.data?.error || error.message))
       } finally {
         loading.value = false
       }
@@ -166,7 +168,7 @@ export default {
         selectedServer.value = response.data
       } catch (error) {
         console.error('Failed to load server details:', error)
-        alert('Failed to load server details')
+        notify.error('Failed to load server details')
       }
     }
 
@@ -193,21 +195,21 @@ export default {
     const handleServerSaved = async () => {
       closeModal()
       await loadServers()
-      alert('MCP server saved successfully!')
+      notify.success('MCP server saved successfully!')
     }
 
     const handleDeleteServer = async (serverId) => {
-      if (!confirm('Are you sure you want to delete this MCP server?')) {
+      if (!(await confirm({ title: 'Delete MCP server?', message: 'Are you sure you want to delete this MCP server?', confirmText: 'Delete', danger: true }))) {
         return
       }
 
       try {
         await api.deleteMCPServer(serverId)
         await loadServers()
-        alert('MCP server deleted successfully')
+        notify.success('MCP server deleted successfully')
       } catch (error) {
         console.error('Failed to delete server:', error)
-        alert('Failed to delete server: ' + (error.response?.data?.error || error.message))
+        notify.error('Failed to delete server: ' + (error.response?.data?.error || error.message))
       }
     }
 
@@ -217,7 +219,7 @@ export default {
         await loadServers()
       } catch (error) {
         console.error('Failed to update server:', error)
-        alert('Failed to update server')
+        notify.error('Failed to update server')
       }
     }
 
@@ -225,10 +227,10 @@ export default {
       try {
         await api.refreshMCPTools(serverId)
         await loadServers()
-        alert('Tools refresh scheduled')
+        notify.show('Tools refresh scheduled')
       } catch (error) {
         console.error('Failed to refresh tools:', error)
-        alert('Failed to refresh tools: ' + (error.response?.data?.error || error.message))
+        notify.error('Failed to refresh tools: ' + (error.response?.data?.error || error.message))
       }
     }
 
@@ -236,10 +238,10 @@ export default {
       try {
         await api.resetMCPCircuitBreaker(serverId)
         await loadServers()
-        alert('Circuit breaker reset')
+        notify.show('Circuit breaker reset')
       } catch (error) {
         console.error('Failed to reset circuit breaker:', error)
-        alert('Failed to reset circuit breaker')
+        notify.error('Failed to reset circuit breaker')
       }
     }
 

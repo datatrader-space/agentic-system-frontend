@@ -150,6 +150,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import { notify } from '@/composables/useNotify'
 
 // Preserved Logic
 const form = ref({
@@ -161,7 +162,7 @@ const form = ref({
 })
 
 const submitForm = () => {
-  alert(`Thank you for your message! We'll get back to you at ${form.value.email} soon.`)
+  notify.success(`Thank you for your message! We'll get back to you at ${form.value.email} soon.`)
   // Reset form
   form.value = {
     name: '',

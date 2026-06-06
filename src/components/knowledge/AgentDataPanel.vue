@@ -280,6 +280,7 @@
 <script setup>
 import { ref, computed, onMounted, watch, defineComponent, h } from 'vue'
 import api from '../../services/api'
+import { confirm } from '@/composables/useConfirm'
 
 // ── Inline CellRenderer Component ──
 const CellRenderer = defineComponent({
@@ -358,7 +359,7 @@ const loadPage = async (c, offset = 0) => {
 }
 
 const deleteCollection = async (c) => {
-  if (!confirm(`Permanently delete "${c.collection_name}" and all its data?`)) return
+  if (!(await confirm({ title: 'Delete collection?', message: `Permanently delete "${c.collection_name}" and all its data?`, confirmText: 'Delete', danger: true }))) return
   try {
     await api.delete(`/agents/${props.agentProfile.id}/data/${c.collection_name}/`)
     collections.value = collections.value.filter(x => x.id !== c.id)

@@ -115,6 +115,7 @@
 import { ref, computed, onMounted } from 'vue'
 import MonacoEditor from 'monaco-editor-vue3'
 import api from '../services/api'
+import { notify } from '@/composables/useNotify'
 
 const props = defineProps({
   repositoryId: {
@@ -304,7 +305,7 @@ async function openFile(filePath) {
     activeTabId.value = newTab.id
   } catch (error) {
     console.error('Failed to load file:', error)
-    alert('Failed to load file: ' + error.message)
+    notify.error('Failed to load file: ' + error.message)
   }
 }
 

@@ -28,6 +28,7 @@
 
 <script setup>
 import { inject } from 'vue'
+import { confirm } from '@/composables/useConfirm'
 
 const notify = inject('notify', () => {})
 const platform = navigator.platform || 'web'
@@ -41,8 +42,8 @@ const resetLayout = () => {
   }
 }
 
-const clearLocal = () => {
-  if (!confirm('Clear local app data from this browser? You will stay signed in.')) return
+const clearLocal = async () => {
+  if (!(await confirm({ title: 'Clear local data?', message: 'Clear local app data from this browser? You will stay signed in.', confirmText: 'Clear', danger: true }))) return
   try {
     const keys = ['v2_layout_prefs', 'v2_current_system', 'v2_agent_rules']
     keys.forEach((k) => localStorage.removeItem(k))

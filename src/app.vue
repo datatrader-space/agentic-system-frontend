@@ -17,6 +17,9 @@
     </main>
     <!-- v2 app shell: full-bleed, owns its own layout -->
     <router-view v-else />
+
+    <!-- Global confirm dialog host (replaces native window.confirm everywhere) -->
+    <ConfirmDialog />
     
     <!-- Toast Notifications (if any) -->
     <div class="fixed bottom-4 right-4 space-y-2">
@@ -53,6 +56,7 @@ import { ref, onMounted, provide, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from './services/api'
 import AppHeader from './components/layout/AppHeader.vue'
+import ConfirmDialog from './components/ConfirmDialog.vue'
 import { useTheme } from './composables/useTheme'
 
 const router = useRouter()

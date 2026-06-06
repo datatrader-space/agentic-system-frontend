@@ -355,6 +355,8 @@
 <script>
 import { ref, computed } from 'vue'
 import api from '../../services/api'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 export default {
   name: 'ServiceRegistrationWizard',
@@ -428,10 +430,10 @@ export default {
             postmanCollection.value = JSON.parse(e.target.result)
             console.log('Postman collection loaded:', postmanCollection.value)
             const actionCount = postmanCollection.value?.item?.length || 0
-            alert(`âœ… Postman collection loaded successfully! Found ${actionCount} items.`)
+            notify.success(`âœ… Postman collection loaded successfully! Found ${actionCount} items.`)
           } catch (error) {
             console.error('Failed to parse Postman collection:', error)
-            alert('Failed to parse Postman collection: ' + error.message)
+            notify.error('Failed to parse Postman collection: ' + error.message)
           }
         }
         reader.readAsText(file)
@@ -453,10 +455,10 @@ export default {
               openAPISpec.value = { _raw: content, _format: 'yaml' }
             }
             console.log('OpenAPI spec loaded:', file.name)
-            alert('âœ… OpenAPI spec loaded successfully!')
+            notify.success('âœ… OpenAPI spec loaded successfully!')
           } catch (error) {
             console.error('Failed to parse OpenAPI spec:', error)
-            alert('Failed to parse OpenAPI spec: ' + error.message)
+            notify.error('Failed to parse OpenAPI spec: ' + error.message)
           }
         }
         reader.readAsText(file)
@@ -478,10 +480,10 @@ export default {
               graphQLSchema.value = { _sdl: content }
             }
             console.log('GraphQL schema loaded:', file.name)
-            alert('âœ… GraphQL schema loaded successfully!')
+            notify.success('âœ… GraphQL schema loaded successfully!')
           } catch (error) {
             console.error('Failed to parse GraphQL schema:', error)
-            alert('Failed to parse GraphQL schema: ' + error.message)
+            notify.error('Failed to parse GraphQL schema: ' + error.message)
           }
         }
         reader.readAsText(file)
@@ -495,7 +497,7 @@ export default {
         reader.onload = (e) => {
           htmlDocsContent.value = e.target.result
           console.log('HTML docs loaded:', file.name, '- Length:', htmlDocsContent.value.length)
-          alert('âœ… Documentation file loaded successfully!')
+          notify.success('âœ… Documentation file loaded successfully!')
         }
         reader.readAsText(file)
       }
@@ -546,7 +548,7 @@ export default {
 
       } catch (error) {
         console.error('Failed to discover actions:', error)
-        alert('Failed to discover actions: ' + (error.response?.data?.error || error.message))
+        notify.error('Failed to discover actions: ' + (error.response?.data?.error || error.message))
       } finally {
         discovering.value = false
       }
@@ -635,7 +637,7 @@ export default {
         
         // Warn if too many actions
         if (actions.length > 20) {
-          if (!confirm(`âš ï¸ You have ${actions.length} selected actions. Only the first 20 will be enriched to prevent timeout. Continue?`)) {
+          if (!(await confirm(`âš ï¸ You have ${actions.length} selected actions. Only the first 20 will be enriched to prevent timeout. Continue?`))) {
             enriching.value = false
             return
           }
@@ -681,15 +683,15 @@ export default {
           }
           message += `\nCheck the updated parameter examples!`
           
-          alert(message)
+          notify.show(message)
         }
         
       } catch (error) {
         console.error('Failed to enrich schemas:', error)
         if (error.code === 'ECONNABORTED') {
-          alert('â±ï¸ Request timed out. Try selecting fewer actions (max 20 recommended).')
+          notify.error('â±ï¸ Request timed out. Try selecting fewer actions (max 20 recommended).')
         } else {
-          alert('Failed to enrich schemas: ' + (error.response?.data?.error || error.message))
+          notify.error('Failed to enrich schemas: ' + (error.response?.data?.error || error.message))
         }
       } finally {
         enriching.value = false
@@ -758,7 +760,7 @@ export default {
 
       } catch (error) {
         console.error('Failed to register service:', error)
-        alert('Failed to register service: ' + (error.response?.data?.error || error.message))
+        notify.error('Failed to register service: ' + (error.response?.data?.error || error.message))
       } finally {
         registering.value = false
       }

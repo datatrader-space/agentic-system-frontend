@@ -714,6 +714,7 @@
 import { ref, computed, onMounted } from 'vue'
 import api from '../services/api'
 import CredentialManager from '../components/tools/CredentialManager.vue'
+import { confirm } from '@/composables/useConfirm'
 
 export default {
   name: 'Connections',
@@ -1074,7 +1075,7 @@ export default {
     }
 
     const handleDeleteProvider = async (provider) => {
-      if (!confirm(`Delete "${provider.name}"? All connections to this provider will be removed.`)) return
+      if (!(await confirm({ title: 'Delete provider?', message: `Delete "${provider.name}"? All connections to this provider will be removed.`, confirmText: 'Delete', danger: true }))) return
 
       actionLoading.value = provider.slug
       try {
@@ -1155,7 +1156,7 @@ export default {
     }
 
     const handleDisconnect = async (provider) => {
-      if (!confirm(`Disconnect from ${provider.name}? Agents using this connection will lose access.`)) return
+      if (!(await confirm(`Disconnect from ${provider.name}? Agents using this connection will lose access.`))) return
 
       actionLoading.value = provider.slug
       try {

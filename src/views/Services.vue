@@ -151,6 +151,8 @@ import ServiceRegistrationModal from '../components/services/ServiceRegistration
 import ServiceDetailModal from '../components/services/ServiceDetailModal.vue'
 import ServiceShareModal from '../components/services/ServiceShareModal.vue'
 import OwnerFilter from '../components/common/OwnerFilter.vue'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 export default {
   name: 'Services',
@@ -184,7 +186,7 @@ export default {
         services.value = response.data.services || []
       } catch (error) {
         console.error('Failed to load services:', error)
-        alert('Failed to load services: ' + (error.response?.data?.error || error.message))
+        notify.error('Failed to load services: ' + (error.response?.data?.error || error.message))
       } finally {
         loading.value = false
       }
@@ -196,28 +198,28 @@ export default {
         selectedService.value = response.data
       } catch (error) {
         console.error('Failed to load service details:', error)
-        alert('Failed to load service details')
+        notify.error('Failed to load service details')
       }
     }
 
     const handleServiceRegistered = async () => {
       showRegistrationModal.value = false
       await loadServices()
-      alert('Service registered successfully!')
+      notify.success('Service registered successfully!')
     }
 
     const handleDeleteService = async (serviceId) => {
-      if (!confirm('Are you sure you want to delete this service? All associated actions will be removed.')) {
+      if (!(await confirm({ title: 'Delete service?', message: 'Are you sure you want to delete this service? All associated actions will be removed.', confirmText: 'Delete', danger: true }))) {
         return
       }
 
       try {
         await api.deleteService(serviceId)
         await loadServices()
-        alert('Service deleted successfully')
+        notify.success('Service deleted successfully')
       } catch (error) {
         console.error('Failed to delete service:', error)
-        alert('Failed to delete service: ' + (error.response?.data?.error || error.message))
+        notify.error('Failed to delete service: ' + (error.response?.data?.error || error.message))
       }
     }
 
@@ -227,7 +229,7 @@ export default {
         await loadServices()
       } catch (error) {
         console.error('Failed to update service:', error)
-        alert('Failed to update service')
+        notify.error('Failed to update service')
       }
     }
 

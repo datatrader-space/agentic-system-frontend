@@ -156,12 +156,23 @@
         </button>
       </form>
     </div>
+
+    <!-- Human-in-the-loop approval modal (shared handler). -->
+    <HITLModal
+      :requests="hitlRequests"
+      @respond="respondHitl"
+      @dismiss="dismissHitl"
+      @skip="skipHitl"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import api from '../services/api'
+import { confirm } from '@/composables/useConfirm'
+import HITLModal from './HITLModal.vue'
+import { useHitl } from '../composables/useHitl'
 
 const props = defineProps({
   systemId: {
@@ -187,6 +198,11 @@ const models = ref([])
 const selectedModelId = ref(null)
 
 let ws = null
+
+// Shared HITL approval handling (same as New Chat / Emulator / Playground).
+const { hitlRequests, handleHitlEvent, respondHitl, dismissHitl, skipHitl } = useHitl((obj) => {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj))
+})
 let currentStreamingMessage = ''
 
 const quickSuggestions = [
@@ -275,6 +291,8 @@ const connectWebSocket = () => {
 }
 
 const handleWebSocketMessage = (data) => {
+  // HITL approval events handled by the shared composable (queue + modal).
+  if (handleHitlEvent(data)) return
   switch (data.type) {
     case 'conversation_created':
       // Store conversation ID for future messages
@@ -376,8 +394,8 @@ const sendQuickMessage = (suggestion) => {
   sendMessage()
 }
 
-const clearMessages = () => {
-  if (confirm('Clear all messages? This cannot be undone.')) {
+const clearMessages = async () => {
+  if (await confirm({ title: 'Clear all messages?', message: 'Clear all messages? This cannot be undone.', confirmText: 'Clear', danger: true })) {
     messages.value = []
     currentStreamingMessage = ''
   }

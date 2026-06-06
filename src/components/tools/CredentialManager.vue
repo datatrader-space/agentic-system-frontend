@@ -411,6 +411,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { credentialsApi } from '../../services/toolsApi'
 import api from '../../services/api'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 export default {
   name: 'CredentialManager',
@@ -515,7 +517,7 @@ export default {
         })
         workspaceLink.value.share_credentials = newValue
       } catch (error) {
-        alert('Failed to update sharing: ' + (error.response?.data?.error || error.message))
+        notify.error('Failed to update sharing: ' + (error.response?.data?.error || error.message))
       }
     }
 
@@ -609,15 +611,15 @@ export default {
           response = await credentialsApi.test(agentId.value, credential.id)
         }
         const data = response.data
-        alert(data.success ? 'Credential test successful!' : `Test failed: ${data.message || data.error}`)
+        notify.show(data.success ? 'Credential test successful!' : `Test failed: ${data.message || data.error}`)
         await loadCredentials()
       } catch (error) {
-        alert('Credential test failed: ' + (error.response?.data?.error || error.message))
+        notify.error('Credential test failed: ' + (error.response?.data?.error || error.message))
       }
     }
 
     const deleteCredential = async (credential) => {
-      if (confirm(`Delete credential "${credential.credential_name}"?`)) {
+      if (await confirm({ title: 'Delete credential?', message: `Delete credential "${credential.credential_name}"?`, confirmText: 'Delete', danger: true })) {
         try {
           if (credential.is_global || isGlobalMode.value) {
             await credentialsApi.deleteGlobal(credential.id)
@@ -626,7 +628,7 @@ export default {
           }
           await loadCredentials()
         } catch (error) {
-          alert('Failed to delete: ' + (error.response?.data?.error || error.message))
+          notify.error('Failed to delete: ' + (error.response?.data?.error || error.message))
         }
       }
     }
@@ -635,10 +637,10 @@ export default {
       if (!agentId.value) return
       try {
         const response = await credentialsApi.assign(agentId.value, credential.id)
-        alert(response.data.message || 'Credential assigned!')
+        notify.show(response.data.message || 'Credential assigned!')
         await loadCredentials()
       } catch (error) {
-        alert('Failed to assign: ' + (error.response?.data?.error || error.message))
+        notify.error('Failed to assign: ' + (error.response?.data?.error || error.message))
       }
     }
 

@@ -361,6 +361,7 @@
 <script>
 import { ref, computed } from 'vue'
 import axios from 'axios'
+import { notify } from '@/composables/useNotify'
 
 export default {
   name: 'RegisterToolModal',
@@ -464,7 +465,7 @@ export default {
         emit('registered')
         emit('close')
       } catch (error) {
-        alert(`Failed to register tool: ${error.response?.data?.error || error.message}`)
+        notify.error(`Failed to register tool: ${error.response?.data?.error || error.message}`)
       } finally {
         submitting.value = false
       }

@@ -381,6 +381,8 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import tenancyApi from '../services/tenancyApi'
+import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
 
 const route = useRoute()
 const orgSlug = computed(() => route.params.orgSlug)
@@ -472,7 +474,7 @@ async function inviteMember() {
   } catch (err) {
     const data = err?.response?.data
     const msg = data?.detail || data?.error || 'Invite failed'
-    alert(msg)
+    notify.show(msg)
   }
   inviting.value = false
 }
@@ -494,7 +496,7 @@ async function resendInvite(inv) {
 }
 
 async function cancelInvite(inv) {
-  if (!confirm(`Cancel invite to ${inv.email}?`)) return
+  if (!(await confirm(`Cancel invite to ${inv.email}?`))) return
   try {
     await tenancyApi.cancelInvite(orgSlug.value, inv.id)
     pendingInvites.value = pendingInvites.value.filter(x => x.id !== inv.id)
@@ -527,7 +529,7 @@ async function createWorkspace() {
     newWsSlug.value = ''
     await loadWorkspaces()
   } catch (err) {
-    alert(err?.response?.data?.detail || err?.response?.data?.name?.[0] || 'Failed to create workspace')
+    notify.error(err?.response?.data?.detail || err?.response?.data?.name?.[0] || 'Failed to create workspace')
   }
   creatingWs.value = false
 }
@@ -540,7 +542,7 @@ async function changeRole(m, role) {
 }
 
 async function removeMember(m) {
-  if (!confirm(`Remove ${m.username}?`)) return
+  if (!(await confirm({ title: 'Remove member?', message: `Remove ${m.username}?`, confirmText: 'Remove', danger: true }))) return
   try {
     await tenancyApi.removeOrgMember(orgSlug.value, m.user)
     members.value = members.value.filter(x => x.user !== m.user)
@@ -548,7 +550,7 @@ async function removeMember(m) {
 }
 
 async function deleteOrg() {
-  if (!confirm(`Permanently delete "${org.value?.name}"? This cannot be undone.`)) return
+  if (!(await confirm({ title: 'Delete organisation?', message: `Permanently delete "${org.value?.name}"? This cannot be undone.`, confirmText: 'Delete', danger: true }))) return
   deleting.value = true
   try {
     await tenancyApi.deleteOrg(orgSlug.value)

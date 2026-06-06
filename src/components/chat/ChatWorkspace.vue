@@ -22,6 +22,14 @@
     <div v-if="!chat.isEmpty" class="chat-footer">
       <ChatComposer :streaming="chat.isStreaming" @send="onSend" @stop="chat.stop()" />
     </div>
+
+    <!-- Human-in-the-loop approval modal: appears when the backend gates a tool for approval. -->
+    <HITLModal
+      :requests="chat.hitlRequests"
+      @respond="chat.respondHitl"
+      @dismiss="chat.dismissHitl"
+      @skip="chat.skipHitl"
+    />
   </div>
 </template>
 
@@ -32,6 +40,7 @@ import { useChatStore } from '../../stores/useChatStore'
 import ChatWelcome from './ChatWelcome.vue'
 import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
+import HITLModal from '../HITLModal.vue'
 
 const chat = useChatStore()
 const route = useRoute()

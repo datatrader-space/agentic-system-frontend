@@ -236,6 +236,7 @@
 <script>
 import { ref, computed, onMounted } from 'vue'
 import api from '../services/api'
+import { notify } from '@/composables/useNotify'
 import ToolCard from '../components/tools/ToolCard.vue'
 import ToolExecuteModal from '../components/tools/ToolExecuteModal.vue'
 import ExecutionResultsPanel from '../components/tools/ExecutionResultsPanel.vue'
@@ -398,7 +399,7 @@ export default {
     const handleToolRegistered = async () => {
       await loadTools()
       showRegisterModal.value = false
-      alert('Tool registered successfully!')
+      notify.success('Tool registered successfully!')
     }
 
     onMounted(() => {

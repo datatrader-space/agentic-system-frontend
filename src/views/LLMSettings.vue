@@ -264,6 +264,7 @@
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import api from '../services/api'
 import OwnerFilter from '../components/common/OwnerFilter.vue'
+import { confirm } from '@/composables/useConfirm'
 
 const notify = inject('notify', () => {})
 
@@ -365,7 +366,7 @@ const toggleModel = async (model) => {
 }
 
 const removeProvider = async (provider) => {
-  if (!confirm(`Delete provider "${provider.name}"?`)) return
+  if (!(await confirm({ title: 'Delete provider?', message: `Delete provider "${provider.name}"?`, confirmText: 'Delete', danger: true }))) return
   await api.deleteLlmProvider(provider.id)
   notify('Provider deleted', 'success')
   await loadProviders()
@@ -373,7 +374,7 @@ const removeProvider = async (provider) => {
 }
 
 const removeModel = async (model) => {
-  if (!confirm(`Delete model "${model.name}"?`)) return
+  if (!(await confirm({ title: 'Delete model?', message: `Delete model "${model.name}"?`, confirmText: 'Delete', danger: true }))) return
   await api.deleteLlmModel(model.id)
   notify('Model deleted', 'success')
   await loadModels()
