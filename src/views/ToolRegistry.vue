@@ -1,18 +1,18 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20">
+  <div class="min-h-screen">
     <div class="max-w-[1400px] mx-auto px-6 py-8">
       <!-- Hero Header -->
       <div class="mb-8">
         <div class="flex items-center justify-between mb-6">
           <div>
-            <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+            <h1 class="font-display text-4xl font-bold bg-gradient-to-r from-violet to-pink bg-clip-text text-transparent mb-2 tracking-tight">
               Tool Marketplace
             </h1>
-            <p class="text-gray-600 text-lg">Discover and manage powerful AI agent tools</p>
+            <p class="text-ink-soft text-lg">Discover and manage powerful AI agent tools</p>
           </div>
           <button
             @click="showRegisterModal = true"
-            class="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-semibold flex items-center gap-2"
+            class="px-6 py-3 bg-g-brand text-white rounded-xl hover:brightness-110 transition-all shadow-glow-v hover:-translate-y-0.5 font-semibold flex items-center gap-2"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />

@@ -46,6 +46,11 @@
                     <span class="font-bold text-slate-400 mr-1">{{ provider.provider_type.toUpperCase() }}</span>
                     <span v-if="provider.base_url">{{ provider.base_url }}</span>
                   </p>
+                  <!-- Test result (persistent so the failure reason stays readable) -->
+                  <p v-if="testResults[provider.id]" class="mt-1 text-[11px] font-medium break-words max-w-[200px] sm:max-w-md"
+                     :class="testResults[provider.id].success ? 'text-emerald-600' : 'text-red-600'">
+                    {{ testResults[provider.id].success ? '✓ ' : '✗ ' }}{{ testResults[provider.id].message }}
+                  </p>
                </div>
             </div>
             
@@ -57,6 +62,16 @@
                 <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-500"></div>
                 <span class="ml-2 text-[12px] font-medium" :class="provider.is_active ? 'text-slate-700' : 'text-slate-400'">{{ provider.is_active ? 'Active' : 'Disabled' }}</span>
               </label>
+
+              <!-- Test connection / key -->
+              <button
+                @click="testProvider(provider)"
+                :disabled="testing[provider.id]"
+                class="px-3 py-1.5 text-[12px] font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
+                title="Make a tiny live call to verify the key + model work"
+              >
+                {{ testing[provider.id] ? 'Testing…' : 'Test' }}
+              </button>
 
               <!-- Sync Buttons -->
               <button
@@ -154,10 +169,23 @@
                     <span class="w-1 h-1 rounded-full bg-slate-300"></span>
                     {{ model.model_id }}
                   </p>
+                  <p v-if="modelResults[model.id]" class="text-[11px] font-medium mt-0.5 break-words"
+                     :class="modelResults[model.id].success ? 'text-emerald-600' : 'text-red-600'">
+                    {{ modelResults[model.id].success ? '✓ ' : '✗ ' }}{{ modelResults[model.id].message }}
+                  </p>
                </div>
             </div>
-            
+
             <div class="flex items-center gap-4">
+              <!-- Test this exact model -->
+              <button
+                @click="testModel(model)"
+                :disabled="testingModel[model.id]"
+                class="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
+                title="Make a tiny live call with this exact model"
+              >
+                {{ testingModel[model.id] ? 'Testing…' : 'Test' }}
+              </button>
               <!-- Custom Toggle -->
               <label class="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" v-model="model.is_active" @change="toggleModel(model)" class="sr-only peer">
@@ -291,6 +319,12 @@ const newModel = ref({
   is_active: true
 })
 
+// Provider/model connectivity test state.
+const testing = ref({})        // { [providerId]: boolean }
+const testResults = ref({})    // { [providerId]: { success, message } }
+const testingModel = ref({})   // { [modelId]: boolean }
+const modelResults = ref({})   // { [modelId]: { success, message } }
+
 const loadProviders = async () => {
   const params = {}
   if (ownerFilter.value) params.owner = ownerFilter.value
@@ -320,6 +354,43 @@ const loadStats = async () => {
     stats.value = response.data
   } finally {
     statsLoading.value = false
+  }
+}
+
+// Live test: a tiny 1-token call through the provider (optionally a specific model). Shows the real
+// reason on failure (e.g. "Key limit exceeded") so you catch a bad key/limit before a chat fails.
+const testProvider = async (provider, model = null) => {
+  testing.value[provider.id] = true
+  try {
+    const res = await api.testLlmProvider(provider.id, model)
+    const d = res.data || {}
+    testResults.value[provider.id] = {
+      success: !!d.success,
+      message: d.message || (d.success ? 'Connected.' : 'Failed.'),
+    }
+  } catch (e) {
+    const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Test failed'
+    testResults.value[provider.id] = { success: false, message: msg }
+  } finally {
+    testing.value[provider.id] = false
+  }
+}
+
+// Test one exact model (passes its model_id; keyed by model id so each row shows its own result).
+const testModel = async (model) => {
+  testingModel.value[model.id] = true
+  try {
+    const res = await api.testLlmProvider(model.provider, model.model_id)
+    const d = res.data || {}
+    modelResults.value[model.id] = {
+      success: !!d.success,
+      message: d.message || (d.success ? 'Connected.' : 'Failed.'),
+    }
+  } catch (e) {
+    const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || 'Test failed'
+    modelResults.value[model.id] = { success: false, message: msg }
+  } finally {
+    testingModel.value[model.id] = false
   }
 }
 

@@ -43,7 +43,7 @@
       <div :class="layout === 'canvas' ? 'max-w-3xl mx-auto space-y-5' : 'space-y-5'">
 
       <!-- TAB: GENERAL -->
-      <div v-if="layout === 'canvas'" class="flex items-center gap-3 pt-1">
+      <div v-if="layout === 'canvas'" id="sec-general" class="vm-anchor flex items-center gap-3 pt-1">
         <span class="w-7 h-7 rounded-lg bg-indigo-600 text-white text-sm font-bold flex items-center justify-center shrink-0">1</span>
         <div>
           <div class="text-[15px] font-bold text-gray-900 leading-tight">General</div>
@@ -64,14 +64,11 @@
       <div class="space-y-4">
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
-            <div class="flex items-center gap-3">
-                <span v-if="layout === 'canvas'" class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-50 to-white border border-indigo-100 flex items-center justify-center text-2xl shrink-0">🤖</span>
-                <input
-                    v-model="internalAgent.name"
-                    class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                    placeholder="e.g. Django Migration Expert"
-                />
-            </div>
+            <input
+                v-model="internalAgent.name"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                placeholder="e.g. Django Migration Expert"
+            />
         </div>
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
@@ -153,8 +150,10 @@
              </div>
         </div>
 
-        <!-- Conversation Memory — Auto by default; manual cap hidden under Advanced -->
-        <div class="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <!-- Conversation Memory is hidden — every agent uses Auto (the backend fits history to the
+             model's context window + summarizes older turns). max_history_messages stays at its
+             default 0 (= Auto); the legacy manual cap below is kept in code but never shown. -->
+        <div v-if="false" class="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
             <div class="flex items-start justify-between gap-3">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Conversation Memory</label>
@@ -209,10 +208,12 @@
             </div>
         </div>
 
-        <div>
+        <div id="sec-prompt" class="vm-anchor">
             <label class="block text-sm font-medium text-gray-700 mb-1">
                 System Prompt
-                <span class="text-xs font-normal text-gray-500 ml-1">(Template with placeholders)</span>
+                <span class="text-xs font-normal text-gray-500 ml-1">
+                  {{ (internalAgent.prompt_mode || 'append') === 'append' ? '— just write your agent’s instructions' : '(advanced template with placeholders)' }}
+                </span>
             </label>
             
             <!-- Prompt Mode Toggle -->
@@ -252,8 +253,35 @@
               </span>
             </div>
             
-            <!-- Placeholder Insertion Buttons -->
-            <div class="flex flex-wrap gap-1.5 mb-2">
+            <!-- APPEND (default, user-facing): nothing to insert — tools / knowledge / Code Mode are
+                 added automatically on publish, based on this agent's settings. -->
+            <div v-if="(internalAgent.prompt_mode || 'append') === 'append'" class="flex flex-wrap items-center gap-1.5 mb-2">
+              <span class="text-xs text-gray-500">Added automatically:</span>
+              <span class="text-xs px-2 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">🛠 Tools</span>
+              <span class="text-xs px-2 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700">📚 Knowledge base</span>
+              <span
+                :class="[
+                  'text-xs px-2 py-1 rounded-full border',
+                  internalAgent.code_mode_enabled
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    : 'bg-gray-50 border-gray-200 text-gray-400'
+                ]"
+                :title="internalAgent.code_mode_enabled ? 'Code Mode is ON for this agent' : 'Toggle Code Mode on in Tools to include it'"
+              >⚡ Code Mode <span class="opacity-70">{{ internalAgent.code_mode_enabled ? 'on' : 'off' }}</span></span>
+
+              <button
+                @click="previewPrompt"
+                :disabled="loadingPreview"
+                class="ml-auto text-xs px-3 py-1 rounded-full bg-violet-100 border border-violet-300 text-violet-700 hover:bg-violet-200 transition flex items-center gap-1"
+              >
+                <span v-if="loadingPreview" class="animate-spin">↻</span>
+                <span v-else>👁</span>
+                {{ loadingPreview ? 'Loading...' : 'Preview Full Prompt' }}
+              </button>
+            </div>
+
+            <!-- OVERRIDE (advanced): insertable placeholders for hand-positioning sections. -->
+            <div v-else class="flex flex-wrap gap-1.5 mb-2">
               <button
                 v-for="ph in placeholders"
                 :key="ph.tag"
@@ -269,7 +297,7 @@
                 {{ ph.tag }}
                 <span v-if="internalAgent.system_prompt_template?.includes(ph.tag)" class="ml-0.5">✓</span>
               </button>
-              
+
               <button
                 @click="previewPrompt"
                 :disabled="loadingPreview"
@@ -291,7 +319,7 @@
             ></textarea>
             <div class="flex justify-between text-xs text-gray-400 mt-1 px-1">
               <span>{{ (internalAgent.system_prompt_template || '').length }} chars (~{{ Math.round((internalAgent.system_prompt_template || '').length / 4) }} tokens)</span>
-              <span v-if="(internalAgent.prompt_mode || 'append') === 'append'">Tool docs auto-appended after your prompt</span>
+              <span v-if="(internalAgent.prompt_mode || 'append') === 'append'">Tools, knowledge &amp; Code Mode are added automatically on publish</span>
               <span v-else>Use <code class="text-indigo-500">{<!-- -->{tool_protocol}}</code> where you want tool docs injected</span>
             </div>
         </div>
@@ -342,7 +370,7 @@
       </div>
 
       <!-- TAB: KNOWLEDGE -->
-      <div v-if="layout === 'canvas'" class="flex items-center gap-3 pt-2">
+      <div v-if="layout === 'canvas'" id="sec-knowledge" class="vm-anchor flex items-center gap-3 pt-2">
         <span class="w-7 h-7 rounded-lg bg-emerald-600 text-white text-sm font-bold flex items-center justify-center shrink-0">2</span>
         <div>
           <div class="text-[15px] font-bold text-gray-900 leading-tight">Knowledge</div>
@@ -470,7 +498,7 @@
       </div>
 
       <!-- TAB: TOOLS -->
-      <div v-if="layout === 'canvas'" class="flex items-center gap-3 pt-2">
+      <div v-if="layout === 'canvas'" id="sec-tools" class="vm-anchor flex items-center gap-3 pt-2">
         <span class="w-7 h-7 rounded-lg bg-violet-600 text-white text-sm font-bold flex items-center justify-center shrink-0">3</span>
         <div>
           <div class="text-[15px] font-bold text-gray-900 leading-tight">Tools</div>
@@ -549,11 +577,102 @@
           <div class="flex items-start gap-2 text-xs text-gray-600">
             <span class="text-amber-500 mt-0.5">ℹ</span>
             <div>
-              <p class="mb-1">When enabled, the agent gets the <strong>REGISTER_OAUTH_PROVIDER</strong> tool to configure new OAuth integrations during chat.</p>
-              <p class="text-gray-400">Requires staff/admin privileges. Providers are created disabled until client credentials are added.</p>
+              <p class="mb-1">When enabled, the agent can use <strong>SETUP_SERVICE_AUTH</strong> to prompt the user to connect a service (available to everyone), and <strong>REGISTER_OAUTH_PROVIDER</strong> to register new OAuth providers (admin only).</p>
+              <p class="text-gray-400">The agent never sees the actual credentials. New providers are created disabled until client credentials are added.</p>
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Autonomy & safety (v3) -->
+      <div id="sec-autonomy" class="vm-anchor">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-semibold text-gray-900">Autonomy &amp; safety</h3>
+          <span :class="['text-[11px] font-medium px-2 py-0.5 rounded-full', autonomyBadgeClass]">{{ autonomyLabel }}</span>
+        </div>
+
+        <div class="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 shadow-sm overflow-hidden">
+          <!-- Auto Mode -->
+          <div class="flex items-start justify-between gap-4 p-4">
+            <div class="flex items-start gap-3 min-w-0">
+              <div class="mt-0.5 w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <Zap class="w-[18px] h-[18px]" />
+              </div>
+              <div class="min-w-0">
+                <div class="text-sm font-medium text-gray-900">Auto Mode</div>
+                <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Runs tools automatically, including scheduled runs. Risky actions are reviewed by the AI safety policy instead of waiting for your approval.</p>
+              </div>
+            </div>
+            <button type="button" role="switch" :aria-checked="internalAgent.execution_mode === 'autonomous'"
+              @click="toggleAutoMode()"
+              :class="['relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500',
+                       internalAgent.execution_mode === 'autonomous' ? 'bg-teal-600' : 'bg-gray-200']">
+              <span :class="['inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
+                             internalAgent.execution_mode === 'autonomous' ? 'translate-x-[22px]' : 'translate-x-0.5']" />
+            </button>
+          </div>
+
+          <!-- Planning Mode -->
+          <div class="p-4">
+            <div class="flex items-start justify-between gap-4">
+              <div class="flex items-start gap-3 min-w-0">
+                <div class="mt-0.5 w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+                  <ClipboardList class="w-[18px] h-[18px]" />
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-medium text-gray-900">Planning Mode</div>
+                  <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">The agent drafts a plan and gets it approved before taking any action.</p>
+                </div>
+              </div>
+              <button type="button" role="switch" :aria-checked="internalAgent.plan_mode_enabled"
+                @click="internalAgent.plan_mode_enabled = !internalAgent.plan_mode_enabled"
+                :class="['relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500',
+                         internalAgent.plan_mode_enabled ? 'bg-indigo-600' : 'bg-gray-200']">
+                <span :class="['inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
+                               internalAgent.plan_mode_enabled ? 'translate-x-[22px]' : 'translate-x-0.5']" />
+              </button>
+            </div>
+            <label v-if="internalAgent.plan_mode_enabled" class="mt-3 ml-12 flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
+              <input type="checkbox" v-model="internalAgent.plan_approval_required"
+                class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+              <span>Require plan approval. <span class="text-gray-400">Off + Auto Mode → the AI policy reviews the plan automatically.</span></span>
+            </label>
+          </div>
+
+          <!-- Checkpoints (advanced, collapsed) -->
+          <div class="bg-gray-50/70">
+            <button type="button" @click="showCheckpoints = !showCheckpoints"
+              class="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-gray-100/60 transition-colors">
+              <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Checkpoints · Advanced</span>
+              <ChevronDown :class="['w-4 h-4 text-gray-400 transition-transform', showCheckpoints ? 'rotate-180' : '']" />
+            </button>
+            <div v-if="showCheckpoints" class="px-4 pb-4 space-y-3">
+              <div class="flex items-center justify-between gap-4">
+                <div class="min-w-0">
+                  <div class="text-xs font-medium text-gray-700">Pause every N tool calls</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">Leave blank to disable.</div>
+                </div>
+                <input type="number" min="1" v-model.number="internalAgent.checkpoint_every_n_steps"
+                       class="w-20 px-2.5 py-1.5 text-sm text-gray-800 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none" placeholder="Off" />
+              </div>
+              <label class="flex items-start gap-2.5 text-xs text-gray-700 cursor-pointer">
+                <input type="checkbox" v-model="internalAgent.checkpoint_on_phase_boundary"
+                  class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                <span>Pause between plan phases <span class="text-gray-400">(Phase Gate)</span></span>
+              </label>
+              <label class="flex items-start gap-2.5 text-xs text-gray-700 cursor-pointer">
+                <input type="checkbox" v-model="internalAgent.verify_after_completion"
+                  class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                <span>Verify work after completion <span class="text-gray-400">(self-check + summary)</span></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rules + Policy add-on: soft Behavioral Rules (guidance), separated from enforced policy -->
+      <div class="bg-white border border-gray-200 rounded-xl p-4">
+        <AgentRulesEditor v-model="internalAgent.agent_rules" />
       </div>
 
       <!-- Signal Processing — grouped with the capability toggles (canvas) -->
@@ -839,7 +958,7 @@
       </div>
 
       <!-- TAB: CREDENTIALS -->
-      <div v-if="layout === 'canvas'" class="pt-8 mt-4 border-t-2 border-gray-200">
+      <div v-if="layout === 'canvas'" id="sec-advanced" class="vm-anchor pt-8 mt-4 border-t-2 border-gray-200">
         <span class="text-xs font-bold uppercase tracking-wide text-gray-400">Advanced</span>
       </div>
       <h3 v-if="layout === 'canvas'" class="text-sm font-bold text-gray-800 pt-1">Credentials</h3>
@@ -998,14 +1117,17 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { marked } from 'marked';
 import api from '../services/api';
 import CredentialManager from './tools/CredentialManager.vue';
+import AgentRulesEditor from './agent/AgentRulesEditor.vue';
+import { MAX_RULE_LEN as RULE_MAX_LEN, MAX_RULES as RULE_MAX_COUNT, cleanRules as cleanAgentRules, rulesValid as agentRulesValid } from './agent/agentRules';
 import SignalPanel from './SignalPanel.vue';
 import SchedulePanel from './SchedulePanel.vue';
 import ToolPicker from './ToolPicker.vue';
-import { Upload, Globe, Table2, Search, Type, FileText, Braces, Folder } from 'lucide-vue-next';
+import { Upload, Globe, Table2, Search, Type, FileText, Braces, Folder, Zap, ClipboardList, ChevronDown } from 'lucide-vue-next';
+import { modeKey, modeLabel } from '../composables/agentModes';
 import { Icon } from '@iconify/vue';
 import { notify } from '@/composables/useNotify';
 import { confirm } from '@/composables/useConfirm';
@@ -1033,7 +1155,7 @@ const props = defineProps({
     }
 });
 
-const emit = defineEmits(['update:agent', 'save', 'close', 'open-workspace']);
+const emit = defineEmits(['update:agent', 'save', 'close', 'open-workspace', 'dirty']);
 
 // Local copy for editing
 const internalAgent = ref({
@@ -1041,8 +1163,46 @@ const internalAgent = ref({
     code_mode_enabled: false,  // Code Mode: search+execute vs individual tools
     code_mode_services: [],    // RemoteService IDs (empty = all credentialed)
     builder_mode_enabled: false,  // Builder Mode: agent can register OAuth providers
+    // Autonomous execution (v3) — defaults match the backend (manual / OFF).
+    execution_mode: 'manual',
+    plan_mode_enabled: false,
+    plan_approval_required: true,
+    checkpoint_every_n_steps: null,
+    checkpoint_on_phase_boundary: false,
+    verify_after_completion: false,
+    // Rules + Policy add-on. Soft `agent_rules` is editable here. Per-agent hard `agent_policy` is
+    // EMPTY by default (no-op) — org-wide guardrails live in GlobalAgentPolicy; an admin tightens a
+    // single agent via the Django admin. Matches the backend default ({}).
+    agent_rules: [],
+    agent_policy: {},
     ...props.agent
 });
+
+// Autonomy section: a small badge that reflects the resulting mode (Manual / Auto / Plan / Plan + Auto),
+// and a collapsed-by-default Advanced (checkpoints) sub-section.
+const showCheckpoints = ref(false);
+const autonomyMode = computed(() => modeKey(internalAgent.value.execution_mode, internalAgent.value.plan_mode_enabled));
+const autonomyLabel = computed(() => modeLabel(internalAgent.value.execution_mode, internalAgent.value.plan_mode_enabled));
+const autonomyBadgeClass = computed(() => ({
+  manual: 'bg-gray-100 text-gray-600',
+  auto: 'bg-teal-50 text-teal-700',
+  plan: 'bg-indigo-50 text-indigo-700',
+  plan_auto: 'bg-violet-50 text-violet-700',
+}[autonomyMode.value] || 'bg-gray-100 text-gray-600'));
+
+// Auto Mode toggle (with a confirm before enabling autonomous execution).
+async function toggleAutoMode() {
+    if (internalAgent.value.execution_mode === 'autonomous') {
+        internalAgent.value.execution_mode = 'manual';
+        return;
+    }
+    const ok = await confirm({
+        title: 'Enable Auto Mode?',
+        message: 'This agent will choose and run tools automatically, including during scheduled runs. Risky actions are reviewed by the AI safety policy instead of waiting for your approval.',
+        confirmText: 'Enable Auto Mode',
+    });
+    if (ok) internalAgent.value.execution_mode = 'autonomous';
+}
 
 // Conversation memory: Auto (max_history_messages = 0/null, backend manages by token
 // budget + summarization) vs Manual (an explicit recent-message cap). Hidden under Advanced.
@@ -1092,6 +1252,8 @@ const promptTextarea = ref(null);
 const showPromptPreview = ref(false);
 const loadingPreview = ref(false);
 const promptPreviewData = ref(null);
+// Advanced (Override-mode only) placeholders for power users who want to position sections by hand.
+// In the default Append mode these never appear — tools/knowledge/Code Mode are auto-injected.
 const placeholders = [
     { tag: '{{tools}}', description: 'List of assigned tool names and descriptions' },
     { tag: '{{knowledge}}', description: 'Knowledge context from uploaded files' },
@@ -1724,13 +1886,43 @@ const countSelectedInService = (tools) => {
     return tools.filter(t => internalAgent.value.tool_ids.includes(t.id)).length;
 };
 
-// Build the save payload from the current form values.
+// Rules + Policy add-on: validate the soft rules on submit. Inline errors are shown by
+// <AgentRulesEditor>; this hard-stops the save and toasts the reason (over-length / over-count).
+const rulesValid = () => {
+    const arr = Array.isArray(internalAgent.value.agent_rules) ? internalAgent.value.agent_rules : [];
+    if (!agentRulesValid(arr)) {
+        if (arr.length > RULE_MAX_COUNT) notify.error(`You can have at most ${RULE_MAX_COUNT} rules.`);
+        else notify.error(`Each rule must be ${RULE_MAX_LEN} characters or fewer.`);
+        return false;
+    }
+    return true;
+};
+
+// Build the save payload from the current form values (rules trimmed + emptied-dropped before send).
 const buildPayload = () => ({
     ...internalAgent.value,
-    default_model: internalAgent.value.default_model
+    default_model: internalAgent.value.default_model,
+    agent_rules: cleanAgentRules(internalAgent.value.agent_rules),
 });
 
+// ── Dirty / publish state ──────────────────────────────────────────────────────────────────
+// `cleanSnapshot` is the savable payload at the last load/save. The form is "dirty" when the
+// current payload differs. The host (AgentBuilderCanvas) uses this to redden the Save & Publish
+// button and disable the live Emulator until the changes are published.
+const cleanSnapshot = ref(null);
+function snapshotPayload() {
+    try { return JSON.stringify(buildPayload()); } catch { return ''; }
+}
+function markClean() {
+    cleanSnapshot.value = snapshotPayload();
+}
+const isDirty = computed(() => cleanSnapshot.value !== null && snapshotPayload() !== cleanSnapshot.value);
+watch(isDirty, (v) => emit('dirty', v), { immediate: true });
+// Baseline for a fresh/new agent (existing agents are baselined when props.agent arrives, below).
+onMounted(() => nextTick(markClean));
+
 const save = () => {
+    if (!rulesValid()) return;
     console.log('Saving agent with default_model:', internalAgent.value.default_model);
     emit('save', buildPayload());
 };
@@ -1742,6 +1934,7 @@ const save = () => {
 const ensuringSave = ref(false);
 const ensureSaved = async () => {
     if (internalAgent.value.id) return internalAgent.value.id;
+    if (!rulesValid()) return null;
 
     const name = (internalAgent.value.name || '').trim();
     if (!name) {
@@ -1765,8 +1958,9 @@ const ensureSaved = async () => {
     }
 };
 
-// Allow the host page (AgentBuilderCanvas top bar) to trigger save / ensure-saved.
-defineExpose({ save, ensureSaved });
+// Allow the host page (AgentBuilderCanvas top bar) to trigger save / ensure-saved, and to mark the
+// form clean after a successful publish (resets the dirty/red state).
+defineExpose({ save, ensureSaved, markClean, isDirty });
 
 // ── Knowledge RAG: upload → confirm → embed + index (live progress over WS) ──
 // indexProgress maps documentId -> { stage, percent, message }. It is the live source
@@ -2038,15 +2232,26 @@ watch(() => activeTab.value, (newTab) => {
 });
 
 // Sync prop changes to internal
+// Seed with the initial agent id so the first edit's round-trip (same id) does NOT re-baseline and
+// wipe the dirty state — only a genuinely different agent (or a fresh id after create) re-baselines.
+let _lastBaselineId = props.agent && props.agent.id;
 watch(() => props.agent, (newVal) => {
     isUpdatingFromProp.value = true;
-    internalAgent.value = { 
+    internalAgent.value = {
         default_model: null,  // Ensure reactivity
-        ...newVal 
+        ...newVal
     };
     // Ensure array exists
     if (!internalAgent.value.tool_ids) internalAgent.value.tool_ids = [];
-    
+
+    // Re-baseline the clean snapshot only when a DIFFERENT agent arrives (load, or a fresh id after
+    // create) — not on the edit round-trip (same id), which would erase the dirty state.
+    const nid = newVal && newVal.id;
+    if (nid !== _lastBaselineId) {
+        _lastBaselineId = nid;
+        nextTick(markClean);
+    }
+
     // Release lock after update propagates
     setTimeout(() => { isUpdatingFromProp.value = false; }, 0);
 }, { deep: true });

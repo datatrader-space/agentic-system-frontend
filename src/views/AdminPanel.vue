@@ -189,11 +189,15 @@ function formatDate(d) {
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+  font-family: var(--vm-font-display, 'Bricolage Grotesque', sans-serif);
+  background: var(--vm-g-brand, linear-gradient(120deg, #7C3AED, #EC4899));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
+  color: transparent;
   font-size: 2.5rem;
   font-weight: 800;
+  letter-spacing: -.02em;
 }
 
 .subtitle { color: var(--text-muted); margin-top: 0.5rem; }

@@ -702,14 +702,16 @@ onMounted(loadWorkspaces)
 }
 
 .hub-title {
-  font-size: 1.75rem;
+  font-family: var(--vm-font-display, 'Bricolage Grotesque', sans-serif);
+  font-size: 1.875rem;
   font-weight: 700;
-  color: #0f172a;
+  letter-spacing: -.02em;
+  color: var(--vm-ink, #191427);
   margin: 0;
 }
 
 .hub-subtitle {
-  color: #64748b;
+  color: var(--vm-ink-soft, #4A4360);
   margin: 4px 0 0;
   font-size: 0.9rem;
 }
@@ -719,15 +721,16 @@ onMounted(loadWorkspaces)
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 20px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  padding: 11px 20px;
+  background: var(--vm-g-brand, linear-gradient(120deg, #7C3AED, #EC4899));
   color: white;
   border: none;
-  border-radius: 10px;
-  font-weight: 600;
+  border-radius: 14px;
+  font-weight: 700;
   font-size: 0.875rem;
   cursor: pointer;
-  transition: all 0.2s;
+  box-shadow: var(--vm-glow-v, 0 10px 34px rgba(124,58,237,.42));
+  transition: transform 0.2s var(--vm-ease, cubic-bezier(.34,1.56,.64,1));
 }
 .btn-create:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4); }
 .btn-create:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }

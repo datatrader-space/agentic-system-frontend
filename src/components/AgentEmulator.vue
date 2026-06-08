@@ -3,27 +3,51 @@
     <!-- tabs -->
     <div class="px-4 pt-3 shrink-0">
       <div class="flex items-center justify-end gap-5 text-sm">
-        <span class="text-gray-400 font-medium">Inspector</span>
-        <span class="text-indigo-600 font-semibold border-b-2 border-indigo-600 pb-1">Emulator</span>
+        <button @click="view = 'inspector'"
+                :class="view === 'inspector' ? 'text-indigo-600 font-semibold border-b-2 border-indigo-600 pb-1' : 'text-gray-400 font-medium hover:text-gray-600'">Inspector</button>
+        <button @click="view = 'emulator'"
+                :class="view === 'emulator' ? 'text-indigo-600 font-semibold border-b-2 border-indigo-600 pb-1' : 'text-gray-400 font-medium hover:text-gray-600'">Emulator</button>
       </div>
     </div>
-    <!-- subheader -->
-    <div class="px-4 py-2 flex items-center justify-between shrink-0">
+    <!-- subheader (emulator view only) -->
+    <div v-if="view === 'emulator'" class="px-4 py-2 flex items-center justify-between shrink-0">
       <span class="text-sm font-bold text-gray-900">Emulator</span>
       <div class="flex items-center gap-3 text-gray-400">
-        <button @click="restart" title="Restart chat" class="hover:text-gray-600 text-base leading-none">↻</button>
-        <span class="text-base leading-none">⋯</span>
+        <button @click="restart" title="Restart chat" class="hover:text-violet-600 transition-colors">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+        </button>
+        <!-- options (⋯) menu -->
+        <div class="relative">
+          <button @click="optionsOpen = !optionsOpen" title="Options" class="hover:text-violet-600 transition-colors">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+          </button>
+          <div v-if="optionsOpen" class="absolute right-0 top-full mt-1.5 z-50 w-44 bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm text-gray-700" @click.stop>
+            <button class="w-full text-left px-3 py-1.5 hover:bg-slate-50" @click="restart(); optionsOpen = false">Restart chat</button>
+            <button class="w-full text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40" :disabled="!messages.length" @click="clearTranscript(); optionsOpen = false">Clear transcript</button>
+            <button class="w-full text-left px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40" :disabled="!messages.length" @click="copyTranscript(); optionsOpen = false">{{ copied ? 'Copied ✓' : 'Copy transcript' }}</button>
+          </div>
+          <div v-if="optionsOpen" class="fixed inset-0 z-40" @click="optionsOpen = false"></div>
+        </div>
       </div>
     </div>
 
     <!-- not-saved state -->
     <div v-if="!agentId" class="flex-1 flex items-center justify-center text-center p-6">
       <div>
-        <div class="text-3xl mb-2">💾</div>
+        <div class="w-12 h-12 mx-auto mb-3 rounded-2xl flex items-center justify-center text-white shadow-lg" style="background:linear-gradient(120deg,#7C3AED,#EC4899)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><path d="M17 21v-8H7v8M7 3v5h8" /></svg>
+        </div>
         <p class="text-sm text-gray-600 font-medium">Save the agent to test it live</p>
         <p class="text-xs text-gray-400 mt-1">The preview chats with the saved agent.</p>
       </div>
     </div>
+
+    <!-- Inspector view -->
+    <EmulatorInspector v-else-if="view === 'inspector'"
+      :agent-id="agentId"
+      :conversation-id="conversationId"
+      :model-name="modelName"
+      :turns="inspectorTurns" />
 
     <template v-else>
       <div class="flex-1 min-h-0 px-3 pb-3">
@@ -53,23 +77,67 @@
         </div>
       </div>
 
+      <!-- Manual Mode plan approval card (Planning Mode ON + Manual): approve resumes the run. -->
+      <div v-if="pendingPlan" class="px-3 pb-2 shrink-0">
+        <PlanApprovalCard :plan="pendingPlan" :busy="busy" @approve="approvePlan" @reject="rejectPlan" @revise="revisePlan" />
+      </div>
+
       <div class="px-3 pb-3 shrink-0">
-        <div class="flex gap-2 items-center">
-          <input
-            v-model="input"
-            @keydown.enter="send"
-            :disabled="busy"
-            placeholder="Type a message…"
-            class="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none disabled:bg-gray-50"
-          />
-          <button v-if="busy" @click="stop" title="Stop"
-                  class="w-10 h-10 flex items-center justify-center bg-red-500 text-white rounded-xl text-base shrink-0 hover:bg-red-600">■</button>
-          <button v-else @click="send" :disabled="!input.trim()"
-                  class="w-10 h-10 flex items-center justify-center bg-indigo-600 text-white rounded-xl text-base disabled:opacity-50 shrink-0">▸</button>
+        <!-- Unified composer: input on top, + attach + mode pill (upward) + send on the bottom toolbar -->
+        <div class="border rounded-xl bg-white px-2.5 py-2 transition"
+             :class="inputFocused ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-gray-200'">
+          <!-- staged attachments -->
+          <div v-if="emuAttachments.length" class="flex flex-wrap gap-2 mb-1.5">
+            <div v-for="(a, i) in emuAttachments" :key="i" class="inline-flex items-center gap-1.5 max-w-[200px] pl-1 pr-1.5 py-1 bg-slate-50 border border-gray-200 rounded-lg">
+              <img v-if="a.isImage && a.url" :src="a.url" class="w-7 h-7 object-cover rounded" :alt="a.name" />
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5 text-gray-400"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              <span class="text-[11px] text-gray-600 truncate">{{ a.name }}</span>
+              <button type="button" class="text-gray-400 hover:text-red-500 text-sm leading-none" title="Remove" @click="removeEmuAttachment(i)">×</button>
+            </div>
+          </div>
+          <div class="flex items-start gap-1.5">
+            <input
+              v-model="input"
+              @keydown.enter="send"
+              @focus="inputFocused = true"
+              @blur="inputFocused = false"
+              :disabled="busy"
+              placeholder="Type a message…"
+              class="flex-1 min-w-0 bg-transparent text-sm px-1 py-1 focus:outline-none disabled:opacity-50"
+            />
+            <button v-if="speech.supported" type="button" @click="speech.toggle()"
+                    :class="speech.listening.value ? 'text-white bg-red-500 animate-pulse' : 'text-gray-400 hover:text-violet-600 hover:bg-violet-50'"
+                    class="w-7 h-7 flex items-center justify-center rounded-full shrink-0 transition"
+                    :title="speech.listening.value ? 'Stop dictation' : 'Voice input'">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
+            </button>
+          </div>
+          <div class="flex items-center justify-between gap-2 mt-1.5">
+            <div class="flex items-center gap-1.5">
+              <input ref="emuFileEl" type="file" accept="image/*" multiple class="hidden" @change="onEmuFiles" />
+              <button type="button" @click="emuFileEl?.click()" title="Attach image"
+                      class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="w-4 h-4"><path d="M12 5v14m-7-7h14"/></svg>
+              </button>
+              <AgentModePicker v-if="agentId" :agent-id="agentId" placement="up" />
+            </div>
+            <button v-if="busy" @click="stop" title="Stop"
+                    class="w-9 h-9 flex items-center justify-center bg-slate-900 text-white rounded-xl shrink-0 hover:brightness-125 transition">
+              <svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><rect x="7" y="7" width="10" height="10" rx="2" /></svg>
+            </button>
+            <button v-else @click="send" :disabled="!input.trim()"
+                    class="w-9 h-9 flex items-center justify-center text-white rounded-xl disabled:opacity-40 shrink-0 transition hover:scale-105"
+                    style="background:linear-gradient(120deg,#7C3AED,#0EA5E9)" title="Send">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z" /></svg>
+            </button>
+          </div>
         </div>
         <div v-if="error" class="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-1 mt-2">{{ error }}</div>
         <div class="flex items-center justify-between mt-2 text-[11px]">
           <span class="text-gray-500">Model ▸ {{ modelName || 'default' }}</span>
+          <span v-if="sessionTokens" class="text-gray-600 tabular-nums" :title="'Total tokens used in this session'">
+            Session {{ fmtTokens(sessionTokens) }}<span v-if="sessionCost"> · {{ fmtCost(sessionCost) }}</span>
+          </span>
           <span :class="connected ? 'text-green-600' : 'text-gray-400'">● {{ connected ? 'Connected' : (reconnecting ? 'Reconnecting…' : 'Offline') }}</span>
         </div>
       </div>
@@ -86,13 +154,19 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { marked } from 'marked'
 import ActivityStream from './activity/ActivityStream.vue'
 import TokenUsage from './activity/TokenUsage.vue'
+import EmulatorInspector from './activity/EmulatorInspector.vue'
 import HITLModal from './HITLModal.vue'
+import AgentModePicker from './agent/AgentModePicker.vue'
+import PlanApprovalCard from './agent/PlanApprovalCard.vue'
 import { useHitl } from '../composables/useHitl'
+import api from '../services/api'
 import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity } from '../composables/activityStream'
+import { fmtTokens, fmtCost } from '../composables/tokens'
+import { useSpeech } from '../composables/useSpeech'
 
 const props = defineProps({
   agentId: { type: [Number, String], default: null },
@@ -104,10 +178,124 @@ const connected = ref(false)
 const reconnecting = ref(false)
 const messages = ref([])
 const input = ref('')
+const inputFocused = ref(false)
+const optionsOpen = ref(false)
+const copied = ref(false)
+
+// Voice input (mic) — appends the transcript to whatever's typed. Hidden when unsupported.
+const speech = useSpeech({ onResult: (text) => { input.value = input.value ? `${input.value} ${text}` : text } })
+
+// ── Attachments (images) staged for the next message ──
+const emuFileEl = ref(null)
+const emuAttachments = ref([])   // { file, name, isImage, url }
+function onEmuFiles(e) {
+  const files = e.target.files
+  for (const file of Array.from(files || [])) {
+    if (!file) continue
+    const isImage = /^image\//.test(file.type)
+    emuAttachments.value.push({ file, name: file.name, isImage, url: isImage ? URL.createObjectURL(file) : '' })
+  }
+  e.target.value = ''
+}
+function removeEmuAttachment(i) {
+  const a = emuAttachments.value[i]
+  if (a && a.url) { try { URL.revokeObjectURL(a.url) } catch { /* ignore */ } }
+  emuAttachments.value.splice(i, 1)
+}
+// Upload staged files to the current conversation (the backend auto-attaches recent images to the
+// vision model). Returns true once they're uploaded + cleared. No-op without a conversation yet.
+async function uploadEmuAttachments() {
+  if (!emuAttachments.value.length || !conversationId.value) return false
+  const items = emuAttachments.value.slice()
+  try {
+    for (const a of items) await api.uploadConversationFile(conversationId.value, a.file)
+  } catch {
+    error.value = 'Failed to upload an attachment.'
+    return false
+  }
+  for (const a of items) { if (a.url) { try { URL.revokeObjectURL(a.url) } catch { /* ignore */ } } }
+  emuAttachments.value = []
+  return true
+}
+
+// ⋯ options
+function clearTranscript() {
+  messages.value = []
+  error.value = ''
+}
+async function copyTranscript() {
+  const text = messages.value
+    .map((m) => `${m.role === 'user' ? 'You' : 'Agent'}: ${m.content || ''}`)
+    .join('\n\n')
+  try {
+    await navigator.clipboard.writeText(text)
+    copied.value = true
+    setTimeout(() => { copied.value = false }, 1500)
+  } catch { /* clipboard blocked — non-fatal */ }
+}
 const busy = ref(false)
 const error = ref('')
 const conversationId = ref(null)
 const scroller = ref(null)
+const view = ref('emulator') // 'emulator' | 'inspector'
+
+// Manual Mode plan approval (v3 Layer 2): the pending plan awaiting a human, and the last user
+// message so we can resume (re-send it) once the plan is approved server-side.
+const pendingPlan = ref(null)
+const lastUserMessage = ref('')
+
+// One assistant turn's data, including the Inspector capture buffers.
+function newAssistantMessage() {
+  return {
+    role: 'assistant', content: '', streaming: true,
+    activity: createActivity(), usage: null,
+    events: [], toolIO: [], knowledge: [],
+  }
+}
+
+// Running session totals (this emulator session). Prefer a turn's exact completed usage; while a
+// turn streams, fall back to its live activity-token counter so the footer ticks up and finalises exactly.
+const sessionTokens = computed(() => messages.value.reduce((a, m) =>
+  a + ((m.usage && m.usage.total_tokens) || (m.activity && m.activity.tokens && m.activity.tokens.total) || 0), 0))
+const sessionCost = computed(() => messages.value.reduce((a, m) =>
+  a + ((m.usage && m.usage.cost_usd) || (m.activity && m.activity.tokens && m.activity.tokens.cost) || 0), 0))
+
+// Inspector view: one entry per assistant turn (with the preceding user prompt).
+const inspectorTurns = computed(() => {
+  const out = []
+  const msgs = messages.value
+  for (let i = 0; i < msgs.length; i++) {
+    if (msgs[i].role !== 'assistant') continue
+    let prompt = ''
+    for (let j = i - 1; j >= 0; j--) { if (msgs[j].role === 'user') { prompt = msgs[j].content; break } }
+    const m = msgs[i]
+    out.push({ prompt, content: m.content, activity: m.activity, usage: m.usage, toolIO: m.toolIO, knowledge: m.knowledge, events: m.events })
+  }
+  return out
+})
+
+// Capture raw events + tool I/O + retrieved knowledge for the Inspector (active turn).
+function captureForInspector(m, evt) {
+  if (!m) return
+  if (m.events) { m.events.push(evt); if (m.events.length > 400) m.events.shift() }
+  if (evt.type === 'tool_call' && m.toolIO) {
+    m.toolIO.push({
+      name: evt.tool_name || (evt.data && evt.data.tool) || evt.tool || 'tool',
+      input: evt.tool_input || (evt.data && evt.data.params) || evt.parameters || null,
+      output: null, ok: null, startTs: Date.now(), endTs: 0,
+    })
+  } else if (evt.type === 'tool_result' && m.toolIO) {
+    const d = evt.data || evt
+    const openIO = [...m.toolIO].reverse().find((x) => x.output === null)
+    if (openIO) {
+      openIO.output = d.result != null ? d.result : (d.document || '')
+      openIO.ok = d.success !== false
+      openIO.endTs = Date.now()
+    }
+  } else if (evt.type === 'knowledge_retrieved') {
+    m.knowledge = evt.chunks || []
+  }
+}
 
 // Shared HITL approval handling (same as New Chat / Playground).
 const { hitlRequests, handleHitlEvent, respondHitl, dismissHitl, skipHitl } = useHitl((obj) => {
@@ -117,6 +305,12 @@ const { hitlRequests, handleHitlEvent, respondHitl, dismissHitl, skipHitl } = us
 let intentionalClose = false
 let reconnectAttempts = 0
 let reconnectTimer = null
+// The agentId the live socket belongs to, and a debounce timer for agentId changes. The host
+// (AgentBuilderCanvas) briefly flips :agent-id to null whenever the form's dirty/publish state
+// flickers; without debouncing, every flip tore down + reopened the chat socket — a connect/
+// disconnect storm. We collapse rapid flips and only act on the settled value.
+let connectedAgentId = null
+let agentIdDebounce = null
 
 marked.setOptions({ breaks: true, gfm: true })
 function renderMarkdown(text) {
@@ -187,7 +381,7 @@ function streamingAssistant() {
 function currentAssistant() {
   const existing = streamingAssistant()
   if (existing) return existing
-  const m = { role: 'assistant', content: '', streaming: true, activity: createActivity() }
+  const m = newAssistantMessage()
   messages.value.push(m)
   return m
 }
@@ -197,18 +391,58 @@ function handleEvent(raw) {
   try { evt = JSON.parse(raw) } catch (e) { return }
   // HITL approval events are handled by the shared composable (queue + modal).
   if (handleHitlEvent(evt)) return
+  // Inspector capture for the active turn (raw events, tool I/O, retrieved knowledge).
+  captureForInspector(streamingAssistant(), evt)
   switch (evt.type) {
     case 'conversation_created':
       conversationId.value = evt.conversation_id
+      saveConv()   // remember this conversation so a page refresh restores its history
+      if (emuAttachments.value.length) uploadEmuAttachments()  // flush images staged before the conv existed
       break
     // Progress-bearing events update the ACTIVE turn only — never spawn a new bubble
     // (a stray one after completion is what caused the stuck "Thinking" block).
     case 'assistant_typing':
     case 'tool_call':
     case 'tool_result':
-    case 'agent_progress': {
+    case 'agent_progress':
+    // Live token metering + streamed thinking feed the timeline (token chip / "Thought for Xs").
+    case 'token_usage':
+    case 'reasoning_delta':
+    case 'reasoning_done':
+    // v3 Auto Mode gate statuses + work summary + tool-blocked all render as timeline labels.
+    case 'auto_status':
+    case 'work_summary':
+    case 'tool_blocked': {
       const m = streamingAssistant()
       if (m) { ingestActivity(m.activity, evt); scrollToBottom() }
+      break
+    }
+    // v3 Plan Gate (Manual Mode): a plan is ready and awaits a human. Show the timeline label AND
+    // surface the approval card with the plan content.
+    case 'plan_approval_required': {
+      const m = streamingAssistant()
+      if (m) ingestActivity(m.activity, evt)
+      pendingPlan.value = evt.plan || {}
+      scrollToBottom()
+      break
+    }
+    // Human approved the plan server-side -> resume by re-sending the original instruction (it now
+    // executes because the plan is approved). Rejection just clears the card.
+    case 'plan_approved': {
+      pendingPlan.value = null
+      if (lastUserMessage.value) dispatch(lastUserMessage.value, { resume: true })
+      break
+    }
+    case 'plan_rejected': {
+      pendingPlan.value = null
+      busy.value = false
+      break
+    }
+    // Human requested changes: the feedback becomes the next instruction and the agent re-plans
+    // (a fresh plan card will follow). Shown as a user message — it's the user's input.
+    case 'plan_revise': {
+      pendingPlan.value = null
+      if (evt.feedback) dispatch(evt.feedback)
       break
     }
     case 'assistant_message_chunk': {
@@ -265,17 +499,30 @@ function handleEvent(raw) {
   }
 }
 
-function send() {
+async function send() {
   const text = input.value.trim()
-  if (busy.value || !text || !props.agentId) return
+  const hasAtt = emuAttachments.value.length > 0
+  if (busy.value || (!text && !hasAtt) || !props.agentId) return
+  input.value = ''
+  lastUserMessage.value = text
+  // Upload staged images first (when a conversation exists) so the backend attaches them to the
+  // vision model. On the very first message there's no conversation yet — they upload on
+  // conversation_created and apply to the next turn.
+  if (hasAtt && conversationId.value) await uploadEmuAttachments()
+  dispatch(text || 'Please look at the attached image.')
+}
+
+// Send a chat_message turn. `resume` re-sends the original instruction after a plan approval and so
+// does not add a second user bubble (the original is already shown).
+function dispatch(text, { resume = false } = {}) {
+  if (!text || !props.agentId) return
   if (!ws.value || ws.value.readyState !== WebSocket.OPEN) connect()
 
-  messages.value.push({ role: 'user', content: text })
+  if (!resume) messages.value.push({ role: 'user', content: text })
   // Create the assistant message up-front with a live activity timeline ("Thinking…").
-  const a = { role: 'assistant', content: '', streaming: true, activity: createActivity() }
+  const a = newAssistantMessage()
   startActivity(a.activity)
   messages.value.push(a)
-  input.value = ''
   error.value = ''
   busy.value = true
   scrollToBottom()
@@ -308,17 +555,101 @@ function stop() {
   busy.value = false
 }
 
+// Plan approval (Manual Mode): tell the server, then wait for plan_approved/plan_rejected/plan_revise.
+function sendPlanDecision(decision, feedback) {
+  if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+    ws.value.send(JSON.stringify({ type: 'plan_approval_response', decision, feedback, conversation_id: conversationId.value }))
+  }
+}
+function approvePlan() { pendingPlan.value = null; sendPlanDecision('approve') }
+function rejectPlan() { pendingPlan.value = null; sendPlanDecision('reject') }
+// Request changes: send feedback to the agent; it re-plans and asks again (revise-and-re-approve).
+function revisePlan(feedback) { pendingPlan.value = null; sendPlanDecision('revise', feedback) }
+
+// ── Session persistence across page refresh ──
+// The emulator conversation id is remembered per agent (localStorage) so a refresh reloads the
+// same thread instead of starting blank. The ↻ button explicitly starts a fresh conversation.
+function convKey() { return props.agentId ? `emu:conv:${props.agentId}` : null }
+function saveConv() {
+  const k = convKey()
+  if (k && conversationId.value) { try { localStorage.setItem(k, String(conversationId.value)) } catch { /* ignore */ } }
+}
+function clearSavedConv() {
+  const k = convKey()
+  if (k) { try { localStorage.removeItem(k) } catch { /* ignore */ } }
+}
+
+async function loadHistory(id) {
+  try {
+    const res = await api.getConversation(id)
+    const data = res.data || {}
+    const raw = Array.isArray(data.messages) ? data.messages : (data.messages && data.messages.results) || []
+    messages.value = raw.map((m) => {
+      if (m.role === 'assistant' || m.role === 'agent') {
+        const a = newAssistantMessage()
+        a.content = m.content || ''
+        a.streaming = false
+        finishActivity(a.activity)   // historical turn — no live timeline
+        return a
+      }
+      return { role: 'user', content: m.content || '' }
+    })
+    return raw.length > 0
+  } catch {
+    return false
+  }
+}
+
+// Restore this agent's saved conversation (if any), else start a fresh connection.
+async function restore() {
+  closeSocket()
+  messages.value = []
+  pendingPlan.value = null
+  error.value = ''
+  busy.value = false
+  const k = convKey()
+  const savedId = k ? localStorage.getItem(k) : null
+  if (savedId) {
+    conversationId.value = savedId
+    const ok = await loadHistory(savedId)
+    if (!ok) { conversationId.value = null; clearSavedConv() }  // stale/deleted -> fresh
+  } else {
+    conversationId.value = null
+  }
+  connect()
+  connectedAgentId = props.agentId
+  scrollToBottom()
+}
+
 function restart() {
+  clearSavedConv()
   conversationId.value = null
   messages.value = []
   error.value = ''
   busy.value = false
+  pendingPlan.value = null
+  lastUserMessage.value = ''
+  for (const a of emuAttachments.value) { if (a.url) { try { URL.revokeObjectURL(a.url) } catch { /* ignore */ } } }
+  emuAttachments.value = []
   connect()
+  connectedAgentId = props.agentId
 }
 
-watch(() => props.agentId, () => restart())
-onMounted(connect)
-onBeforeUnmount(closeSocket)
+// Debounced reaction to an agent-id change: collapse the host's transient null↔id flips (dirty /
+// publish flicker) into a single settled action. If we're already connected to the same agent, keep
+// the socket; otherwise restore. This is what prevents the connect/disconnect storm.
+function onAgentIdChanged() {
+  if (agentIdDebounce) clearTimeout(agentIdDebounce)
+  agentIdDebounce = setTimeout(() => {
+    agentIdDebounce = null
+    if (props.agentId === connectedAgentId && ws.value && ws.value.readyState === WebSocket.OPEN) return
+    restore()
+  }, 300)
+}
+
+watch(() => props.agentId, onAgentIdChanged)
+onMounted(() => { restore() })
+onBeforeUnmount(() => { if (agentIdDebounce) clearTimeout(agentIdDebounce); closeSocket() })
 </script>
 
 <style scoped>

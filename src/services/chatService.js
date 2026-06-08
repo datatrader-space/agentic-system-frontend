@@ -102,6 +102,17 @@ export class ChatConnection {
     })
   }
 
+  // Manual Mode plan approval (v3 Layer 2). decision ∈ {'approve','reject','revise'}.
+  // For 'revise', `feedback` carries the user's requested changes (handed back to the agent).
+  sendPlanDecision(decision, feedback) {
+    this._send({
+      type: 'plan_approval_response',
+      decision,
+      feedback,
+      conversation_id: this.conversationId,
+    })
+  }
+
   close() {
     this.closedByUs = true
     try {

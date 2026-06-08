@@ -4,13 +4,13 @@
       <!-- Header -->
       <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
         <div>
-          <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-3">
-             <div class="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
-                 <svg class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+          <h1 class="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink flex items-center gap-3">
+             <div class="w-10 h-10 rounded-xl bg-g-brand flex items-center justify-center shrink-0 shadow-glow-v">
+                 <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
              </div>
              MCP Servers
           </h1>
-          <p class="mt-1.5 text-sm sm:text-base text-slate-500">
+          <p class="mt-1.5 text-sm sm:text-base text-ink-soft">
             Model Context Protocol servers for extended tool capabilities
           </p>
         </div>
@@ -18,7 +18,7 @@
           <OwnerFilter v-model="ownerFilter" @update:modelValue="loadServers" />
           <button
             @click="showRegistrationModal = true"
-            class="px-5 py-2.5 bg-slate-900 text-white rounded-[10px] hover:bg-slate-800 transition-all font-semibold shadow-[0_2px_4px_rgba(0,0,0,0.1)] text-[13px] flex items-center gap-2"
+            class="px-5 py-2.5 bg-g-brand text-white rounded-xl hover:brightness-110 transition-all font-semibold shadow-glow-v text-[13px] flex items-center gap-2"
           >
             <svg class="w-4 h-4 text-white/80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
             Add MCP Server

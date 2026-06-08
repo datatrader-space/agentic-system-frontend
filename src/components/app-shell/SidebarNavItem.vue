@@ -3,6 +3,7 @@
     :to="to"
     class="nav-item"
     :class="{ active: isActive, collapsed }"
+    :style="{ animationDelay: (index * 45) + 'ms' }"
     :title="collapsed ? label : ''"
     :aria-label="collapsed ? label : undefined"
     :aria-current="isActive ? 'page' : undefined"
@@ -35,6 +36,8 @@ const props = defineProps({
   // (e.g. Settings links to /settings/general but is active across all tabs).
   match: { type: String, default: '' },
   collapsed: { type: Boolean, default: false },
+  // Index for staggered slide-in (Vibrant Light Mesh motion). Purely cosmetic.
+  index: { type: Number, default: 0 },
 })
 
 const route = useRoute()
@@ -49,35 +52,57 @@ const isActive = computed(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 9px 12px;
-  border-radius: 10px;
-  color: #475569;
+  padding: 10px 12px;
+  border-radius: 13px;
+  color: var(--vm-ink-soft);
   text-decoration: none;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-family: var(--vm-font-sans);
+  font-size: 13.5px;
+  font-weight: 600;
   white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
+  position: relative;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateX(-12px);
+  animation: vmNavIn .5s var(--vm-ease2) forwards;
+  transition: background .2s var(--vm-ease2), color .2s var(--vm-ease2), transform .2s var(--vm-ease2), box-shadow .2s var(--vm-ease2);
 }
 .nav-item:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: var(--vm-glass-strong);
+  color: var(--vm-ink);
+  transform: translateX(2px);
 }
 .nav-item.active {
-  background: #eef2ff;
-  color: #4f46e5;
+  background: var(--vm-surface);
+  color: var(--vm-violet-d);
+  box-shadow: var(--vm-shadow-s);
+}
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 60%;
+  border-radius: 0 4px 4px 0;
+  background: var(--vm-g-brand);
 }
 .nav-item.collapsed {
   justify-content: center;
-  padding: 9px 0;
+  padding: 10px 0;
 }
 .nav-icon {
   width: 19px;
   height: 19px;
   flex-shrink: 0;
-  opacity: 0.85;
+  opacity: .7;
+  transition: opacity .2s var(--vm-ease), filter .2s var(--vm-ease), stroke .2s;
 }
 .nav-item.active .nav-icon {
   opacity: 1;
+  stroke: var(--vm-violet);
+  filter: drop-shadow(0 2px 6px rgba(124, 58, 237, .5));
 }
 .nav-label {
   flex: 1;
@@ -85,15 +110,16 @@ const isActive = computed(() => {
   text-overflow: ellipsis;
 }
 .nav-badge {
-  padding: 1px 7px;
-  font-size: 0.625rem;
-  font-weight: 600;
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
   color: #fff;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: var(--vm-g-warm);
   border-radius: 999px;
 }
 .nav-item:focus-visible {
-  outline: 2px solid #6366f1;
+  outline: 2px solid var(--vm-sky);
   outline-offset: 2px;
 }
 </style>

@@ -10,7 +10,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #a5b4fc;
+  background: var(--vm-violet);
   animation: blink 1.2s infinite ease-in-out both;
 }
 .dot:nth-child(2) { animation-delay: 0.2s; }

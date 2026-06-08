@@ -96,6 +96,7 @@
               <td class="px-3 sm:px-6 py-3 text-xs sm:text-sm font-medium text-gray-900">
                 {{ credential.credential_name }}
                 <span v-if="credential.is_default" class="ml-1 text-xs text-yellow-600">★ Default</span>
+                <span class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600" title="Only this agent uses this credential">This agent</span>
               </td>
               <td class="px-3 sm:px-6 py-3 whitespace-nowrap text-xs sm:text-sm text-gray-500">{{ credential.service_name }}</td>
               <td class="px-3 sm:px-6 py-3 whitespace-nowrap text-xs sm:text-sm text-gray-500">
@@ -381,6 +382,20 @@
           />
         </div>
 
+        <!-- Scope choice (agent context only): default agent-scoped; opt in to global -->
+        <div v-if="!isGlobalMode" class="mb-4 flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
+          <div class="pr-3">
+            <p class="text-sm font-medium text-gray-800">🌐 Make available to all my agents</p>
+            <p class="text-xs text-gray-500 mt-0.5">
+              Off = only <b>this agent</b> uses it (recommended). On = global — every agent can use it.
+            </p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox" v-model="form.makeGlobal" class="sr-only peer" />
+            <div class="w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+          </label>
+        </div>
+
         <!-- Error -->
         <div v-if="formError" class="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg">
           {{ formError }}
@@ -443,6 +458,7 @@ export default {
       serviceId: '',
       credentialName: '',
       baseUrlOverride: '',
+      makeGlobal: false,   // agent context: default agent-scoped; opt in to global
       credentials: {}
     })
 
@@ -458,6 +474,7 @@ export default {
         serviceId: '',
         credentialName: '',
         baseUrlOverride: '',
+        makeGlobal: false,
         credentials: {}
       }
       formError.value = ''
@@ -588,7 +605,9 @@ export default {
 
       try {
         submitting.value = true
-        if (isGlobalMode.value) {
+        // Scope: the global manager always creates global; the agent manager creates agent-scoped
+        // UNLESS the user opted in to "make available to all my agents".
+        if (isGlobalMode.value || form.value.makeGlobal) {
           await credentialsApi.createGlobal(payload)
         } else {
           await credentialsApi.create(agentId.value, payload)

@@ -13,24 +13,18 @@
         <div class="flex items-center justify-between">
           <div class="flex items-center">
             <button
-              @click="$router.push('/')"
-              class="mr-4 text-gray-600 hover:text-gray-900"
+              @click="$router.push('/dashboard/systems')"
+              class="mr-4 text-ink-soft hover:text-ink font-semibold"
             >
               ← Back
             </button>
             <div>
-              <h1 class="text-3xl font-bold text-gray-900">{{ system.name }}</h1>
-              <p class="mt-1 text-gray-600">{{ system.description }}</p>
+              <h1 class="font-display text-3xl font-bold tracking-tight text-ink">{{ system.name }}</h1>
+              <p class="mt-1 text-ink-soft">{{ system.description }}</p>
             </div>
           </div>
           
           <div class="flex items-center gap-3">
-            <router-link 
-              to="/benchmarks"
-              class="px-3 py-1 text-sm font-medium bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 transition-colors"
-            >
-              Benchmarks
-            </router-link>
             <span
               class="px-3 py-1 text-sm font-medium rounded-full"
               :class="{

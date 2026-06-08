@@ -4,17 +4,11 @@
     <div class="sidebar-top">
       <router-link to="/dashboard" class="brand" :title="collapsed ? 'Agentic v2' : ''">
         <span class="brand-mark">
-          <svg viewBox="0 0 32 32" fill="none">
-            <rect x="3" y="3" width="26" height="26" rx="8" stroke="url(#sb-g)" stroke-width="2.5" />
-            <path d="M10 16l4 4 8-8" stroke="url(#sb-g)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-            <defs>
-              <linearGradient id="sb-g" x1="0" y1="0" x2="32" y2="32">
-                <stop stop-color="#6366f1" /><stop offset="1" stop-color="#d946ef" />
-              </linearGradient>
-            </defs>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 13l4 4L19 7" />
           </svg>
         </span>
-        <span v-if="!collapsed" class="brand-text">Agentic <span class="brand-v">v2</span></span>
+        <span v-if="!collapsed" class="brand-text">Agentic<span class="brand-v">v2</span></span>
       </router-link>
 
       <div v-if="!collapsed" class="ws-switcher-wrap">
@@ -30,19 +24,27 @@
       <span v-if="!collapsed">New Chat</span>
     </button>
 
+    <!-- Search chats -->
+    <button class="search-chats" :class="{ collapsed }" :title="collapsed ? 'Search chats' : ''" aria-label="Search chats" @click="searchOpen = true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4-4" stroke-linecap="round" /></svg>
+      <span v-if="!collapsed">Search chats</span>
+    </button>
+
     <!-- Scrollable nav + history -->
     <div class="sidebar-scroll">
       <nav class="nav-group" aria-label="Primary">
         <SidebarNavItem
-          v-for="item in primaryNav"
+          v-for="(item, i) in primaryNav"
           :key="item.to"
           v-bind="item"
+          :index="i"
           :collapsed="collapsed"
         />
       </nav>
 
-      <!-- Recent chats (real conversations for the selected agent) -->
-      <div v-if="!collapsed && chat.sessions.length" class="history">
+      <!-- Recent chats — global across agents: preview line + agent · time,
+           capped per group with a per-group "Show more". -->
+      <div v-if="!collapsed && chat.allSessions.length" class="history">
         <div
           v-for="grp in groupedSessions"
           :key="grp.label"
@@ -50,21 +52,31 @@
         >
           <div class="history-label">{{ grp.label }}</div>
           <router-link
-            v-for="s in grp.items"
+            v-for="s in visibleItems(grp)"
             :key="s.id"
             :to="`/dashboard/chat/${s.id}`"
             class="history-item"
             :class="{ active: String(route.params.sessionId) === String(s.id) }"
             @click="layout.closeMobileNav()"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <span class="history-title">{{ s.title || 'Untitled chat' }}</span>
+            <span class="history-text">
+              <span class="history-title">{{ previewOf(s) }}</span>
+              <span class="history-meta">{{ agentOf(s) }} · {{ relTime(s) }}</span>
+            </span>
           </router-link>
+          <button
+            v-if="grp.items.length > (expanded[grp.label] ? grp.items.length : PAGE)"
+            class="history-more"
+            @click="expanded[grp.label] = true"
+          >
+            Load more ({{ grp.items.length - PAGE }})
+          </button>
         </div>
       </div>
     </div>
+
+    <!-- Search modal -->
+    <ChatSearchModal v-model="searchOpen" />
 
     <!-- Footer: user + collapse toggle -->
     <div class="sidebar-footer">
@@ -92,12 +104,14 @@
 </template>
 
 <script setup>
-import { computed, inject, ref, onMounted } from 'vue'
+import { computed, inject, ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { useChatStore } from '../../stores/useChatStore'
 import SidebarNavItem from './SidebarNavItem.vue'
 import WorkspaceSwitcher from '../layout/WorkspaceSwitcher.vue'
+import ChatSearchModal from './ChatSearchModal.vue'
+import { previewOf, agentOf, relTime, groupSessions } from '../../composables/useChatHistory'
 
 const props = defineProps({
   // When true (inside the mobile drawer) the sidebar is always expanded and
@@ -130,28 +144,27 @@ const primaryNav = [
   { to: '/dashboard/tools', label: 'Tools', icon: ['M14.7 6.3a4 4 0 0 0 5 5l-9 9a2.1 2.1 0 0 1-3-3l9-9a4 4 0 0 0-2-2z'] },
   { to: '/dashboard/services', label: 'Services', icon: ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 14H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9'] },
   { to: '/dashboard/mcp', label: 'MCP', icon: ['M18.36 6.64a9 9 0 1 1-12.73 0', 'M12 2v10'] },
-  { to: '/dashboard/benchmarks', label: 'Benchmarks', icon: ['M18 20V10', 'M12 20V4', 'M6 20v-6'] },
   { to: '/dashboard/workspaces', label: 'Workspaces', icon: ['M2 7l10-5 10 5-10 5z', 'M2 17l10 5 10-5', 'M2 12l10 5 10-5'] },
   { to: '/dashboard/activity', label: 'Activity', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
   { to: '/dashboard/llm-context', label: 'LLM Context', icon: ['M4 7V4h16v3', 'M9 20h6', 'M12 4v16', 'M4 12h16'] },
   { to: '/dashboard/settings/general', match: '/dashboard/settings', label: 'Settings', icon: ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82'] },
 ]
 
-const groupedSessions = computed(() => {
-  const buckets = { Today: [], Yesterday: [], Earlier: [] }
-  const now = Date.now()
-  for (const s of chat.sessions) {
-    const d = s.updated_at || s.created_at
-    const diff = d ? Math.floor((now - new Date(d).getTime()) / 86400000) : 999
-    const key = diff <= 0 ? 'Today' : diff === 1 ? 'Yesterday' : 'Earlier'
-    buckets[key].push(s)
-  }
-  return Object.entries(buckets)
-    .filter(([, items]) => items.length)
-    .map(([label, items]) => ({ label, items }))
-})
+// Global recent chats (across agents), grouped Today / Yesterday / Previous 7 Days / Older.
+const groupedSessions = computed(() => groupSessions(chat.allSessions))
 
-onMounted(() => chat.loadAgents())
+// Per-group cap with a "Load more" expander.
+const PAGE = 5
+const expanded = reactive({})
+const visibleItems = (grp) => (expanded[grp.label] ? grp.items : grp.items.slice(0, PAGE))
+
+// Chat search popup
+const searchOpen = ref(false)
+
+onMounted(() => {
+  chat.loadAgents()
+  chat.loadAllSessions()
+})
 
 const newChat = () => {
   layout.closeMobileNav()
@@ -164,70 +177,121 @@ const newChat = () => {
 .sidebar {
   display: flex;
   flex-direction: column;
-  width: 264px;
+  width: 256px;
   height: 100%;
-  background: #ffffff;
-  border-right: 1px solid #e7eaf0;
-  transition: width 0.2s ease;
+  font-family: var(--vm-font-sans);
+  background: var(--vm-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid var(--vm-line);
+  box-shadow: var(--vm-shadow-m);
+  transition: width 0.2s var(--vm-ease2);
 }
 .sidebar.collapsed {
-  width: 72px;
+  width: 76px;
 }
 
 /* Top */
 .sidebar-top {
-  padding: 16px 14px 10px;
+  padding: 18px 14px 8px;
 }
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   text-decoration: none;
 }
 .brand-mark {
-  width: 30px;
-  height: 30px;
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--vm-g-brand);
+  box-shadow: var(--vm-glow-v);
+  animation: vmPop .7s var(--vm-ease) both;
 }
-.brand-mark svg { width: 100%; height: 100%; }
+.brand-mark svg { width: 21px; height: 21px; }
 .brand-text {
-  font-size: 1.0625rem;
+  font-family: var(--vm-font-display);
+  font-size: 1.25rem;
   font-weight: 700;
-  color: #0f172a;
+  letter-spacing: -.02em;
+  color: var(--vm-ink);
 }
 .brand-v {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #8b5cf6;
+  font-size: 0.625rem;
+  font-weight: 700;
+  background: var(--vm-g-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
   vertical-align: super;
+  margin-left: 1px;
 }
 .ws-switcher-wrap {
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
 /* New Chat */
 .new-chat {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin: 4px 14px 10px;
-  padding: 10px 14px;
+  gap: 9px;
+  margin: 10px 14px 12px;
+  padding: 13px 14px;
+  font-family: var(--vm-font-sans);
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 700;
   color: #fff;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: var(--vm-g-cool);
   border: none;
+  border-radius: 15px;
+  cursor: pointer;
+  box-shadow: var(--vm-glow-v);
+  transition: transform 0.2s var(--vm-ease);
+}
+.new-chat:hover { transform: translateY(-2px) scale(1.02); }
+.new-chat:active { transform: scale(0.97); }
+.new-chat::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .5), transparent);
+  transform: skewX(-20deg);
+  animation: vmShine 4s ease-in-out infinite;
+}
+.new-chat svg { width: 17px; height: 17px; }
+.new-chat.collapsed { margin: 10px 12px 12px; padding: 13px 0; }
+
+/* Search chats */
+.search-chats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 14px 10px;
+  padding: 9px 13px;
+  font-family: var(--vm-font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--vm-ink-soft);
+  background: var(--vm-glass-strong);
+  border: 1px solid var(--vm-line);
   border-radius: 12px;
   cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition: background .15s var(--vm-ease2), color .15s, border-color .15s;
 }
-.new-chat:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
-}
-.new-chat svg { width: 18px; height: 18px; }
-.new-chat.collapsed { margin: 4px 12px 10px; padding: 10px 0; }
+.search-chats:hover { color: var(--vm-violet-d); border-color: transparent; background: var(--vm-violet-soft); }
+.search-chats svg { width: 16px; height: 16px; }
+.search-chats.collapsed { justify-content: center; margin: 0 12px 10px; padding: 9px 0; }
 
 /* Scroll area */
 .sidebar-scroll {
@@ -236,42 +300,72 @@ const newChat = () => {
   overflow-y: auto;
   padding: 4px 12px 12px;
 }
+.sidebar-scroll::-webkit-scrollbar { width: 0; }
 .nav-group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 /* History */
-.history { margin-top: 16px; }
+.history { margin-top: 18px; }
 .history-group { margin-bottom: 10px; }
 .history-label {
   padding: 6px 12px 4px;
   font-size: 0.6875rem;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #94a3b8;
+  letter-spacing: 0.06em;
+  color: var(--vm-ink-faint);
 }
 .history-item {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  border-radius: 9px;
-  color: #475569;
+  border-radius: 11px;
+  color: var(--vm-ink-soft);
   text-decoration: none;
-  font-size: 0.8125rem;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.18s var(--vm-ease2), color 0.18s, transform 0.18s var(--vm-ease2);
 }
-.history-item:hover { background: #f1f5f9; color: #0f172a; }
-.history-item.active { background: #eef2ff; color: #4f46e5; }
-.history-item svg { width: 15px; height: 15px; flex-shrink: 0; opacity: 0.7; }
-.history-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-item:hover { background: var(--vm-glass-strong); transform: translateX(2px); }
+.history-item.active { background: var(--vm-violet-soft); }
+.history-text { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.history-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--vm-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-item.active .history-title { color: var(--vm-violet-d); }
+.history-meta {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--vm-ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
+}
+.history-more {
+  width: 100%;
+  text-align: left;
+  padding: 6px 12px;
+  margin-top: 2px;
+  border: none;
+  background: transparent;
+  color: var(--vm-violet-d);
+  font: 600 0.75rem var(--vm-font-sans);
+  cursor: pointer;
+  border-radius: 9px;
+}
+.history-more:hover { background: var(--vm-violet-soft); }
 
 /* Footer */
 .sidebar-footer {
-  border-top: 1px solid #eef1f5;
+  border-top: 1px solid var(--vm-line);
   padding: 10px 12px;
 }
 .user {
@@ -279,7 +373,7 @@ const newChat = () => {
   align-items: center;
   gap: 10px;
   padding: 6px;
-  border-radius: 10px;
+  border-radius: 12px;
 }
 .user.collapsed { justify-content: center; }
 .avatar {
@@ -290,21 +384,21 @@ const newChat = () => {
   height: 34px;
   flex-shrink: 0;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 700;
   color: #fff;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: var(--vm-g-brand);
   border-radius: 50%;
 }
 .user-info { display: flex; flex-direction: column; line-height: 1.2; flex: 1; min-width: 0; }
-.user-name { font-size: 0.8125rem; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.user-plan { font-size: 0.6875rem; color: #94a3b8; }
+.user-name { font-size: 0.8125rem; font-weight: 700; color: var(--vm-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-plan { font-size: 0.6875rem; color: var(--vm-ink-faint); }
 .logout-btn {
   display: flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; flex-shrink: 0;
-  background: transparent; border: none; border-radius: 8px;
-  color: #94a3b8; cursor: pointer; transition: all 0.15s;
+  background: transparent; border: none; border-radius: 9px;
+  color: var(--vm-ink-faint); cursor: pointer; transition: all 0.15s;
 }
-.logout-btn:hover { background: #fef2f2; color: #ef4444; }
+.logout-btn:hover { background: rgba(239, 68, 68, .1); color: var(--vm-danger); }
 .logout-btn svg { width: 16px; height: 16px; }
 
 .collapse-toggle {
@@ -315,14 +409,15 @@ const newChat = () => {
   margin-top: 6px;
   padding: 8px 12px;
   font-size: 0.8125rem;
-  color: #64748b;
+  font-weight: 600;
+  color: var(--vm-ink-faint);
   background: transparent;
   border: none;
-  border-radius: 9px;
+  border-radius: 11px;
   cursor: pointer;
   transition: background 0.15s;
 }
-.collapse-toggle:hover { background: #f1f5f9; }
+.collapse-toggle:hover { background: var(--vm-glass-strong); color: var(--vm-ink-soft); }
 .collapse-toggle svg { width: 16px; height: 16px; transition: transform 0.2s; }
 .sidebar.collapsed .collapse-toggle { justify-content: center; }
 </style>

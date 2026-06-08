@@ -5,6 +5,64 @@ function lastStep(a) {
   return a.steps[a.steps.length - 1]
 }
 
+describe('activityStream — live token metering (token_usage)', () => {
+  it('records a running token snapshot from token_usage', () => {
+    const a = createActivity()
+    start(a)
+    expect(a.tokens).toBeNull()
+    ingest(a, { type: 'token_usage', phase: 'stream', estimated: true, prompt_tokens: 3200, completion_tokens: 400, total_tokens: 3600 })
+    expect(a.tokens.total).toBe(3600)
+    expect(a.tokens.estimated).toBe(true)
+  })
+
+  it('an estimate does not regress a larger exact count', () => {
+    const a = createActivity()
+    start(a)
+    ingest(a, { type: 'token_usage', phase: 'iter', estimated: false, total_tokens: 4215, cached_tokens: 1120, cost_usd: 0.012 })
+    ingest(a, { type: 'token_usage', phase: 'stream', estimated: true, total_tokens: 3600 })
+    expect(a.tokens.total).toBe(4215)       // exact retained
+    expect(a.tokens.cached).toBe(1120)
+    expect(a.tokens.cost).toBe(0.012)
+  })
+
+  it('assistant_message_complete.usage reconciles the final exact tokens', () => {
+    const a = createActivity()
+    start(a)
+    ingest(a, { type: 'token_usage', phase: 'stream', estimated: true, total_tokens: 3000 })
+    ingest(a, { type: 'assistant_message_complete', usage: { prompt_tokens: 3212, completion_tokens: 1003, total_tokens: 4215, cached_tokens: 1120, cost_usd: 0.012 } })
+    expect(a.tokens.total).toBe(4215)
+    expect(a.tokens.estimated).toBe(false)
+    expect(a.tokens.cost).toBe(0.012)
+  })
+
+  it('renders plan phases as pending (○) roadmap steps, once per turn', () => {
+    const a = createActivity()
+    start(a)
+    const plan = { title: 'Fix imports', phases: [{ phase_number: 1, title: 'Edit app/models.py' }, { phase_number: 2, title: 'Re-run test suite' }] }
+    ingest(a, { type: 'plan_approval_required', plan })
+    const pend = a.steps.filter((s) => s.phase === 'plan_pending')
+    expect(pend.length).toBe(2)
+    expect(pend.every((s) => s.status === 'pending')).toBe(true)
+    expect(pend[0].label).toBe('Edit app/models.py')
+    // idempotent: a repeated event does not duplicate the roadmap
+    ingest(a, { type: 'plan_approval_required', plan })
+    expect(a.steps.filter((s) => s.phase === 'plan_pending').length).toBe(2)
+  })
+
+  it('streams thinking via reasoning_delta and collapses on reasoning_done', () => {
+    const a = createActivity()
+    start(a)
+    ingest(a, { type: 'reasoning_delta', step_id: 'k1', text: 'Let me ' })
+    ingest(a, { type: 'reasoning_delta', step_id: 'k1', text: 'inspect the imports.' })
+    const think = a.steps.find((s) => s.phase === 'thinking' && s.thinkingText)
+    expect(think.thinkingText).toBe('Let me inspect the imports.')
+    ingest(a, { type: 'reasoning_done', step_id: 'k1', duration_ms: 18000 })
+    const done = a.steps.find((s) => s.id === think.id)
+    expect(done.status).toBe('done')
+    expect(done.label).toBe('Thought for 18s')
+  })
+})
+
 describe('activityStream — explicit approval / blocked states', () => {
   it('marks a tool step as pending_approval on hitl_request', () => {
     const a = createActivity()
@@ -64,6 +122,44 @@ describe('activityStream — explicit approval / blocked states', () => {
     expect(statuses).not.toContain('pending_approval')
     expect(statuses).not.toContain('blocked')
     expect(lastStep(a).status).toBe('done')
+  })
+
+  it('renders auto_status gate labels (Auto Mode)', () => {
+    const a = createActivity()
+    start(a)
+    ingest(a, { type: 'auto_status', gate: 'plan', decision: 'approved' })
+    expect(lastStep(a).label).toContain('plan approved')
+    expect(lastStep(a).status).toBe('done')
+    ingest(a, { type: 'auto_status', gate: 'progress', decision: 'stop' })
+    expect(lastStep(a).label).toContain('stopping')
+    expect(lastStep(a).status).toBe('blocked')
+  })
+
+  it('renders plan_approval_required as pending approval', () => {
+    const a = createActivity()
+    start(a)
+    ingest(a, { type: 'plan_approval_required', plan: {} })
+    expect(lastStep(a).status).toBe('pending_approval')
+  })
+
+  it('renders the Question Gate (clarification) labels', () => {
+    const a = createActivity()
+    start(a)
+    ingest(a, { type: 'auto_status', gate: 'question', decision: 'resolved' })
+    expect(lastStep(a).label).toContain('direction resolved')
+    expect(lastStep(a).status).toBe('done')
+    ingest(a, { type: 'auto_status', gate: 'question', decision: 'escalate' })
+    expect(lastStep(a).label).toContain('human input needed')
+    expect(lastStep(a).status).toBe('blocked')
+  })
+
+  it('renders the in-progress "reviewing" states for tool and plan gates', () => {
+    const a = createActivity()
+    start(a)
+    ingest(a, { type: 'auto_status', gate: 'tool', decision: 'reviewing' })
+    expect(lastStep(a).label).toContain('reviewing tool risk')
+    ingest(a, { type: 'auto_status', gate: 'plan', decision: 'reviewing' })
+    expect(lastStep(a).label).toContain('reviewing plan')
   })
 
   it('preserves existing error behavior', () => {

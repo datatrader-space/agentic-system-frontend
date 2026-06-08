@@ -210,6 +210,7 @@ export default {
   createLlmProvider: (data) => api.post('/llm/providers/', data),
   updateLlmProvider: (id, data) => api.put(`/llm/providers/${id}/`, data),
   deleteLlmProvider: (id) => api.delete(`/llm/providers/${id}/`),
+  testLlmProvider: (id, model) => api.post(`/llm/providers/${id}/test/`, model ? { model } : {}),
   syncOllamaModels: (id) => api.post(`/llm/providers/${id}/sync_ollama_models/`),
   syncOpenRouterModels: (id) => api.post(`/llm/providers/${id}/sync_openrouter_models/`),
   syncOpenAIModels: (id) => api.post(`/llm/providers/${id}/sync_openai_models/`),
@@ -220,6 +221,9 @@ export default {
 
   // Agents
   getAgents: () => api.get('/agents/'),
+  getAgent: (id) => api.get(`/agents/${id}/`),
+  // Update agent fields (used by the chat Modes picker to persist execution_mode / plan_mode).
+  updateAgent: (id, data) => api.patch(`/agents/${id}/`, data),
 
   // Authentication
   register: (data) => api.post('/auth/register', data),
@@ -260,17 +264,6 @@ export default {
         relationships: relationships.data.relationships || []
       }
     }
-  },
-
-  // Benchmarks
-  getBenchmarkReports: () => api.get('/benchmarks/reports/'),
-  getBenchmarkReport: (id) => api.get(`/benchmarks/reports/${id}/`),
-  createBenchmarkRun: (data) => api.post('/benchmarks/runs/', data),
-  getBenchmarkRun: (id) => api.get(`/benchmarks/runs/${id}/`),
-  getBenchmarkReportDownloadUrl: (id, filePath) => {
-    const base = api.defaults.baseURL || ''
-    const encoded = encodeURIComponent(filePath)
-    return `${base}/benchmarks/reports/${id}/download?file=${encoded}`
   },
 
   // Context Files
@@ -320,6 +313,24 @@ export default {
     // We need a generic endpoint. I will add 'context_files' to router in next step.
     return api.post('/context_files/', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
+  // Emulator Inspector: real per-turn debug logs (exact prompt the model received + response).
+  getAgentDebugLogs: (agentId, params) => api.get(`/agents/${agentId}/debug-logs/`, { params }),
+
+  // ── Publish lifecycle ──
+  publishAgent: (id) => api.post(`/agents/${id}/publish/`),
+  unpublishAgent: (id) => api.post(`/agents/${id}/unpublish/`),
+  // ── Templates ──
+  listAgentTemplates: () => api.get('/agents/templates/'),
+  saveAgentAsTemplate: (id, data) => api.post(`/agents/${id}/save-as-template/`, data),
+  createAgentFromTemplate: (data) => api.post('/agents/from-template/', data),
+  // ── Public share / webchat deploy ──
+  getAgentShare: (id) => api.get(`/agents/${id}/share/`),
+  enableAgentShare: (id) => api.post(`/agents/${id}/share/enable/`),
+  disableAgentShare: (id) => api.post(`/agents/${id}/share/disable/`),
+  regenerateAgentShare: (id) => api.post(`/agents/${id}/share/regenerate/`),
+  updateAgentShareSettings: (id, data) => api.patch(`/agents/${id}/share/`, data),
+  // Public (no auth): the webchat widget / public chat page reads this by share token.
+  getPublicAgentConfig: (token) => api.get(`/public/agents/${token}/config.json`),
   // Confirm + (re)build the RAG index for an uploaded knowledge document.
   // Queues a Celery embed job; live progress streams over the knowledge-index WS.
   indexAgentFile: (fileId) => api.post(`/context_files/${fileId}/index/`),

@@ -1,10 +1,10 @@
 <template>
-  <div class="min-h-screen bg-slate-50/50 p-6 sm:p-8 font-sans">
+  <div class="min-h-screen p-6 sm:p-8 font-sans">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
       <div>
-        <h1 class="text-3xl font-extrabold tracking-tight text-slate-900">LLM Context System</h1>
-        <p class="text-[14px] text-slate-500 mt-1 font-medium">
+        <h1 class="font-display text-3xl font-extrabold tracking-tight text-ink">LLM Context System</h1>
+        <p class="text-[14px] text-ink-soft mt-1 font-medium">
           Phase 2 store counts, retention footprint, and embedding cost (admin only)
         </p>
       </div>

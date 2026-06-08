@@ -498,8 +498,8 @@ onUnmounted(() => {
   position: absolute;
   top: -16px;
   right: 24px;
-  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
+  border: 1px solid rgba(124, 58, 237, 0.3);
   padding: 0.5rem 1.25rem;
   border-radius: 50px;
   display: flex;

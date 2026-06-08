@@ -18,9 +18,23 @@
       <ChatMessageList v-else />
     </div>
 
+    <!-- Manual Mode plan approval card (Planning Mode ON + Manual): approve resumes the run. -->
+    <div v-if="chat.pendingPlan" class="chat-plan">
+      <PlanApprovalCard :plan="chat.pendingPlan" :busy="chat.isStreaming"
+        @approve="chat.approvePlan" @reject="chat.rejectPlan" @revise="chat.revisePlan" />
+    </div>
+
     <!-- Composer (thread mode; welcome screen has its own) -->
     <div v-if="!chat.isEmpty" class="chat-footer">
-      <ChatComposer :streaming="chat.isStreaming" @send="onSend" @stop="chat.stop()" />
+      <ChatComposer :streaming="chat.isStreaming" :attachments="chat.pendingAttachments"
+        :agent-id="chat.currentAgent && chat.currentAgent.id"
+        :execution-mode="chat.currentAgent && chat.currentAgent.execution_mode"
+        :plan-mode="chat.currentAgent && chat.currentAgent.plan_mode_enabled"
+        @send="onSend" @stop="chat.stop()" @mode-change="onModeChange"
+        @attach="chat.addAttachments" @remove-attach="chat.removeAttachment" />
+      <div v-if="chat.sessionTokens" class="session-meter" :title="`Total tokens used in this chat`">
+        Session {{ fmtTokens(chat.sessionTokens) }}<span v-if="chat.sessionCost"> · {{ fmtCost(chat.sessionCost) }}</span>
+      </div>
     </div>
 
     <!-- Human-in-the-loop approval modal: appears when the backend gates a tool for approval. -->
@@ -41,6 +55,8 @@ import ChatWelcome from './ChatWelcome.vue'
 import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
 import HITLModal from '../HITLModal.vue'
+import PlanApprovalCard from '../agent/PlanApprovalCard.vue'
+import { fmtTokens, fmtCost } from '../../composables/tokens'
 
 const chat = useChatStore()
 const route = useRoute()
@@ -50,6 +66,14 @@ const title = computed(() => {
   const first = chat.messages.find((m) => m.role === 'user')
   return first ? first.content.slice(0, 60) : 'New Chat'
 })
+
+// Persist the mode change locally so the picker + any badges reflect it immediately.
+const onModeChange = (patch) => {
+  if (chat.currentAgent) {
+    chat.currentAgent.execution_mode = patch.execution_mode
+    chat.currentAgent.plan_mode_enabled = patch.plan_mode_enabled
+  }
+}
 
 const onSend = (text) => chat.sendMessage(text)
 
@@ -93,46 +117,64 @@ watch(
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  font-family: var(--vm-font-sans);
 }
 .chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 20px;
-  border-bottom: 1px solid #eef1f5;
-  background: #fff;
+  padding: 13px 22px;
+  border-bottom: 1px solid var(--vm-line);
+  background: var(--vm-glass-strong);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   flex-shrink: 0;
 }
 .chat-head-text { min-width: 0; }
 .chat-title {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: #0f172a;
+  font-family: var(--vm-font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--vm-ink);
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.chat-agent { font-size: 0.75rem; color: #8b5cf6; font-weight: 500; }
+.chat-agent {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--vm-g-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.auto-badge { margin-left: 6px; padding: 1px 7px; border-radius: 9999px; background: #ccfbf1; color: #0f766e; font-size: 0.65rem; font-weight: 600; }
 .header-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 8px 13px;
   font-size: 0.8125rem;
-  font-weight: 500;
-  color: #475569;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 9px;
+  font-weight: 600;
+  color: var(--vm-ink-soft);
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-line-2);
+  border-radius: 12px;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.15s;
+  transition: transform 0.15s var(--vm-ease), box-shadow 0.15s, color 0.15s;
 }
-.header-btn:hover { border-color: #c7d2fe; color: #4f46e5; }
+.header-btn:hover { transform: translateY(-1px); box-shadow: var(--vm-shadow-s); color: var(--vm-violet-d); }
 .header-btn svg { width: 15px; height: 15px; }
 
 .chat-body { flex: 1; min-height: 0; }
-.chat-footer { flex-shrink: 0; background: linear-gradient(to top, #f6f7f9 60%, transparent); }
+.chat-plan { flex-shrink: 0; padding: 8px 20px 0; }
+.chat-footer { flex-shrink: 0; background: linear-gradient(to top, var(--vm-bg) 55%, transparent); }
+.session-meter {
+  text-align: right; padding: 2px 20px 6px; font-size: 11px; color: var(--vm-text-3, #6b7280);
+  font-variant-numeric: tabular-nums; user-select: none;
+}
 </style>

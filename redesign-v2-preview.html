@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Agentic — Redesign v2 · Vibrant Light Mesh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   VIBRANT LIGHT MESH — design tokens
+   ============================================================ */
+:root{
+  --bg:#FBFAFF; --ink:#191427; --ink-soft:#4A4360; --ink-faint:#9A93AE;
+  --surface:#FFFFFF; --glass:rgba(255,255,255,.62); --glass-strong:rgba(255,255,255,.82);
+  --violet:#7C3AED; --violet-d:#6D28D9; --pink:#EC4899; --amber:#F59E0B;
+  --teal:#14B8A6; --sky:#0EA5E9; --lime:#84CC16; --green:#10B981;
+  --line:rgba(25,20,39,.08); --line-2:rgba(25,20,39,.14);
+  --g-brand:linear-gradient(120deg,#7C3AED,#EC4899);
+  --g-cool:linear-gradient(120deg,#7C3AED,#0EA5E9);
+  --g-warm:linear-gradient(120deg,#F59E0B,#EC4899);
+  --g-teal:linear-gradient(120deg,#14B8A6,#0EA5E9);
+  --g-multi:linear-gradient(120deg,#7C3AED,#EC4899,#F59E0B);
+  --shadow-s:0 2px 8px rgba(25,20,39,.06);
+  --shadow-m:0 8px 30px rgba(25,20,39,.10),0 2px 8px rgba(25,20,39,.05);
+  --shadow-l:0 24px 60px rgba(124,58,237,.16),0 8px 24px rgba(25,20,39,.10);
+  --glow-v:0 10px 34px rgba(124,58,237,.42);
+  --glow-p:0 10px 34px rgba(236,72,153,.40);
+  --ease:cubic-bezier(.34,1.56,.64,1); --ease2:cubic-bezier(.4,0,.2,1);
+  --r:18px; --r-l:26px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);
+     -webkit-font-smoothing:antialiased;overflow:hidden}
+h1,h2,h3,h4{font-family:'Bricolage Grotesque',sans-serif;letter-spacing:-.02em}
+svg{display:block}
+.ic{width:20px;height:20px;flex:0 0 auto;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.ic-s{width:15px;height:15px}.ic-xs{width:13px;height:13px}
+
+/* ---------- Animated mesh background ---------- */
+.mesh{position:fixed;inset:0;z-index:0;overflow:hidden;background:var(--bg)}
+.blob{position:absolute;border-radius:50%;filter:blur(60px);opacity:.55;mix-blend-mode:multiply;will-change:transform}
+.b1{width:46vw;height:46vw;left:-8vw;top:-10vw;background:radial-gradient(circle,#C7B6FF,transparent 70%);animation:drift1 26s var(--ease2) infinite}
+.b2{width:40vw;height:40vw;right:-6vw;top:-8vw;background:radial-gradient(circle,#FFB6D9,transparent 70%);animation:drift2 30s var(--ease2) infinite}
+.b3{width:42vw;height:42vw;left:18vw;bottom:-16vw;background:radial-gradient(circle,#B6F0E6,transparent 70%);animation:drift3 32s var(--ease2) infinite}
+.b4{width:34vw;height:34vw;right:8vw;bottom:-12vw;background:radial-gradient(circle,#FFE0AE,transparent 70%);animation:drift4 28s var(--ease2) infinite}
+@keyframes drift1{50%{transform:translate(8vw,6vw) scale(1.15)}}
+@keyframes drift2{50%{transform:translate(-7vw,8vw) scale(1.1)}}
+@keyframes drift3{50%{transform:translate(6vw,-7vw) scale(1.2)}}
+@keyframes drift4{50%{transform:translate(-8vw,-5vw) scale(1.12)}}
+.grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.025;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+/* ---------- Page switcher ---------- */
+.switcher{position:fixed;z-index:60;top:16px;left:50%;transform:translateX(-50%);
+  display:flex;gap:4px;padding:5px;border-radius:999px;background:var(--glass-strong);
+  backdrop-filter:blur(16px);border:1px solid var(--line);box-shadow:var(--shadow-m)}
+.switcher button{border:none;background:transparent;font:600 13px/1 'Plus Jakarta Sans';color:var(--ink-soft);
+  padding:9px 18px;border-radius:999px;cursor:pointer;transition:.25s var(--ease2);display:flex;align-items:center;gap:7px}
+.switcher button.on{background:var(--g-brand);color:#fff;box-shadow:var(--glow-v)}
+.switcher .tag{position:absolute;top:-9px;right:-6px;font:700 9px/1 'Plus Jakarta Sans';background:#191427;color:#fff;padding:3px 7px;border-radius:999px}
+
+/* ---------- App shell ---------- */
+.app{position:relative;z-index:2;display:flex;height:100vh;padding:14px;gap:14px}
+.page{display:none;flex:1;min-width:0}
+.page.show{display:flex;animation:pageIn .5s var(--ease2)}
+@keyframes pageIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+/* ---------- Sidebar ---------- */
+.side{width:248px;flex:0 0 auto;border-radius:var(--r-l);background:var(--glass);backdrop-filter:blur(20px);
+  border:1px solid var(--glass-strong);box-shadow:var(--shadow-m);display:flex;flex-direction:column;padding:18px 14px}
+.brand{display:flex;align-items:center;gap:11px;padding:4px 8px 0}
+.logo{width:38px;height:38px;border-radius:12px;background:var(--g-brand);display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--glow-v);animation:logoPop .7s var(--ease) both}
+.logo svg{width:21px;height:21px;stroke:#fff;stroke-width:2.6;fill:none}
+@keyframes logoPop{from{transform:scale(.4) rotate(-20deg);opacity:0}}
+.brand b{font-family:'Bricolage Grotesque';font-size:20px;font-weight:700}
+.brand .v{font:700 10px/1 'Plus Jakarta Sans';background:var(--g-brand);-webkit-background-clip:text;background-clip:text;color:transparent;vertical-align:super}
+.ws{margin:16px 4px 6px;display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:14px;
+  background:var(--glass-strong);border:1px solid var(--line);cursor:pointer;transition:.2s var(--ease2)}
+.ws:hover{transform:translateY(-1px);box-shadow:var(--shadow-s)}
+.ws .dot{width:26px;height:26px;border-radius:8px;background:var(--g-warm);flex:0 0 auto}
+.ws .t{font-size:13px;font-weight:700;flex:1;min-width:0}
+.ws .s{font-size:11px;color:var(--ink-faint)}
+
+.newchat{margin:10px 4px 14px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;
+  padding:13px;border-radius:15px;background:var(--g-cool);color:#fff;font:700 14px 'Plus Jakarta Sans';
+  box-shadow:var(--glow-v);position:relative;overflow:hidden;transition:transform .2s var(--ease)}
+.newchat:hover{transform:translateY(-2px) scale(1.02)}
+.newchat:active{transform:scale(.97)}
+.newchat svg{width:17px;height:17px;stroke:#fff;stroke-width:2.6;fill:none}
+.newchat::after{content:"";position:absolute;top:0;left:-120%;width:60%;height:100%;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent);transform:skewX(-20deg);animation:shine 4s ease-in-out infinite}
+@keyframes shine{0%,60%{left:-120%}80%,100%{left:160%}}
+
+.nav{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:3px;padding:2px 2px}
+.nav::-webkit-scrollbar{width:0}
+.nav a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:13px;color:var(--ink-soft);
+  text-decoration:none;font-size:13.5px;font-weight:600;position:relative;cursor:pointer;
+  transition:background .2s var(--ease2),color .2s,transform .2s var(--ease2);
+  opacity:0;transform:translateX(-12px);animation:navIn .5s var(--ease2) forwards}
+.nav a .ic{opacity:.7;transition:.2s var(--ease)}
+.nav a:hover{background:var(--glass-strong);color:var(--ink);transform:translateX(2px)}
+.nav a.on{background:var(--surface);color:var(--violet-d);box-shadow:var(--shadow-s)}
+.nav a.on .ic{opacity:1;stroke:var(--violet);filter:drop-shadow(0 2px 6px rgba(124,58,237,.5))}
+.nav a.on::before{content:"";position:absolute;left:-2px;top:50%;transform:translateY(-50%);width:4px;height:60%;
+  border-radius:0 4px 4px 0;background:var(--g-brand)}
+.nav a .bdg{margin-left:auto;font:700 10px 'Plus Jakarta Sans';color:#fff;background:var(--g-warm);padding:2px 7px;border-radius:999px}
+@keyframes navIn{to{opacity:1;transform:none}}
+.side-foot{border-top:1px solid var(--line);padding-top:12px;margin-top:8px;display:flex;align-items:center;gap:10px}
+.ava{width:34px;height:34px;border-radius:50%;background:var(--g-brand);color:#fff;font:700 12px 'Plus Jakarta Sans';
+  display:flex;align-items:center;justify-content:center}
+.side-foot .nm{font-size:13px;font-weight:700}.side-foot .pl{font-size:11px;color:var(--ink-faint)}
+
+/* ---------- Main scroll ---------- */
+.main{flex:1;min-width:0;border-radius:var(--r-l);background:var(--glass);backdrop-filter:blur(14px);
+  border:1px solid var(--glass-strong);box-shadow:var(--shadow-m);overflow-y:auto}
+.main::-webkit-scrollbar{width:9px}.main::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:9px;border:3px solid transparent;background-clip:padding-box}
+.wrap{padding:30px 34px 46px}
+
+/* hero header */
+.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:8px}
+.eyebrow{display:inline-flex;align-items:center;gap:7px;font:700 11px 'Plus Jakarta Sans';letter-spacing:.08em;
+  text-transform:uppercase;color:var(--violet-d);background:#F3EEFE;padding:5px 11px;border-radius:999px;margin-bottom:12px}
+.eyebrow .pip{width:6px;height:6px;border-radius:50%;background:var(--violet);box-shadow:0 0 0 4px rgba(124,58,237,.18);animation:pip 1.8s ease-in-out infinite}
+@keyframes pip{50%{box-shadow:0 0 0 7px rgba(124,58,237,0)}}
+.title{font-size:40px;font-weight:700;line-height:1.02}
+.title .grad{background:linear-gradient(120deg,#7C3AED,#EC4899,#F59E0B,#7C3AED);background-size:300% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;animation:flow 8s linear infinite}
+@keyframes flow{to{background-position:300% 0}}
+.sub{color:var(--ink-soft);font-size:15px;margin-top:8px;max-width:46ch}
+
+/* stat row */
+.stats{display:flex;gap:12px;flex-wrap:wrap;margin:22px 0 26px}
+.stat{flex:1;min-width:130px;background:var(--glass-strong);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px 16px;position:relative;overflow:hidden;transition:.3s var(--ease)}
+.stat:hover{transform:translateY(-3px);box-shadow:var(--shadow-m)}
+.stat .k{font:800 28px 'Bricolage Grotesque';line-height:1}
+.stat .l{font-size:12px;color:var(--ink-faint);font-weight:600;margin-top:5px}
+.stat .ic{position:absolute;right:12px;top:12px;width:18px;height:18px;opacity:.5}
+.stat.s1 .k{color:var(--violet-d)} .stat.s2 .k{color:var(--pink)} .stat.s3 .k{color:var(--teal)} .stat.s4 .k{color:var(--amber)}
+.stat::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:100%;}
+.stat.s1::after{background:var(--g-brand)}.stat.s2::after{background:var(--g-warm)}.stat.s3::after{background:var(--g-teal)}.stat.s4::after{background:linear-gradient(120deg,#F59E0B,#84CC16)}
+
+/* toolbar */
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:24px}
+.search{position:relative;flex:1;min-width:220px;max-width:380px}
+.search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:17px;height:17px;stroke:var(--ink-faint);stroke-width:2;fill:none}
+.search input{width:100%;padding:12px 14px 12px 40px;border-radius:14px;border:1.5px solid var(--line);
+  background:var(--glass-strong);font:500 14px 'Plus Jakarta Sans';color:var(--ink);transition:.25s var(--ease2)}
+.search input::placeholder{color:var(--ink-faint)}
+.search input:focus{outline:none;border-color:var(--sky);box-shadow:0 0 0 4px rgba(14,165,233,.16);background:#fff}
+.seg{display:flex;background:var(--glass-strong);border:1px solid var(--line);border-radius:14px;padding:3px;gap:2px}
+.seg button{border:none;background:transparent;font:600 12.5px 'Plus Jakarta Sans';color:var(--ink-soft);padding:8px 13px;border-radius:11px;cursor:pointer;transition:.2s}
+.seg button.on{background:#fff;color:var(--violet-d);box-shadow:var(--shadow-s)}
+.chip-f{display:flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--glass-strong);border-radius:14px;padding:10px 14px;font:600 13px 'Plus Jakarta Sans';color:var(--ink-soft);cursor:pointer;transition:.2s var(--ease2)}
+.chip-f:hover{border-color:var(--line-2);transform:translateY(-1px)}
+.btn-cta{margin-left:auto;border:none;cursor:pointer;display:flex;align-items:center;gap:9px;padding:12px 20px;border-radius:14px;
+  background:var(--g-brand);color:#fff;font:700 14px 'Plus Jakarta Sans';box-shadow:var(--glow-v);position:relative;overflow:hidden;transition:transform .2s var(--ease)}
+.btn-cta:hover{transform:translateY(-2px) scale(1.02)}.btn-cta:active{transform:scale(.97)}
+.btn-cta svg{width:17px;height:17px;stroke:#fff;stroke-width:2.6;fill:none}
+
+/* ---------- Agent cards ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:20px}
+.card{position:relative;border-radius:var(--r-l);background:var(--glass-strong);backdrop-filter:blur(10px);
+  border:1px solid var(--line);box-shadow:var(--shadow-m);padding:22px;cursor:pointer;overflow:hidden;
+  transform-style:preserve-3d;transition:transform .35s var(--ease),box-shadow .35s var(--ease),border-color .3s;
+  opacity:0;animation:cardIn .6s var(--ease2) forwards}
+@keyframes cardIn{from{opacity:0;transform:translateY(24px) scale(.96)}to{opacity:1;transform:none}}
+.card:hover{box-shadow:var(--shadow-l);border-color:transparent}
+.card::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;opacity:0;transition:opacity .3s;
+  background:var(--g-multi);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude}
+.card:hover::before{opacity:1}
+.card .halo{position:absolute;width:160px;height:160px;border-radius:50%;filter:blur(46px);opacity:0;
+  top:-40px;right:-30px;transition:opacity .4s;pointer-events:none}
+.card:hover .halo{opacity:.45}
+.card.v .halo{background:#C7B6FF}.card.p .halo{background:#FFB6D9}.card.t .halo{background:#B6F0E6}
+.card-top{display:flex;align-items:flex-start;justify-content:space-between;transform:translateZ(30px)}
+.tile{width:54px;height:54px;border-radius:16px;display:flex;align-items:center;justify-content:center;color:#fff;
+  box-shadow:var(--shadow-m);transition:transform .4s var(--ease);animation:float 5s ease-in-out infinite}
+.card:hover .tile{transform:scale(1.08) rotate(-4deg)}
+.tile svg{width:26px;height:26px;stroke:#fff;stroke-width:2;fill:none}
+.tile.v{background:var(--g-brand)}.tile.p{background:var(--g-warm)}.tile.t{background:var(--g-teal)}
+@keyframes float{50%{transform:translateY(-5px)}}
+.badge{display:inline-flex;align-items:center;gap:7px;font:700 11px 'Plus Jakarta Sans';padding:5px 11px;border-radius:999px}
+.badge.live{background:rgba(16,185,129,.12);color:#059669}
+.badge.idle{background:rgba(154,147,174,.14);color:var(--ink-faint)}
+.orb{width:8px;height:8px;border-radius:50%;position:relative}
+.orb.g{background:var(--green)}.orb.x{background:#CBD0DA}
+.orb.g::after{content:"";position:absolute;inset:-4px;border-radius:50%;background:var(--green);opacity:.4;animation:ring 1.8s var(--ease2) infinite}
+.orb.x{animation:fade 2.2s ease-in-out infinite}
+@keyframes ring{0%{transform:scale(.6);opacity:.5}70%{transform:scale(2.4);opacity:0}100%{opacity:0}}
+@keyframes fade{50%{opacity:.4}}
+.card h3{font-size:19px;font-weight:700;margin-top:18px;transform:translateZ(24px)}
+.row-chip{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;transform:translateZ(18px)}
+.mchip{display:inline-flex;align-items:center;gap:6px;font:600 11.5px 'Plus Jakarta Sans';color:var(--ink-soft);
+  background:var(--bg);border:1px solid var(--line);padding:4px 10px;border-radius:9px}
+.mchip svg{width:13px;height:13px;stroke-width:2;fill:none}
+.mchip.v{color:var(--violet-d);background:#F3EEFE;border-color:transparent}
+.mchip.t{color:#0D9488;background:#E6FBF6;border-color:transparent}
+.desc{color:var(--ink-soft);font-size:13.5px;line-height:1.55;margin-top:14px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;transform:translateZ(14px)}
+.meter{margin-top:16px;transform:translateZ(10px)}
+.meter .lbl{display:flex;justify-content:space-between;font:600 10.5px 'Plus Jakarta Sans';color:var(--ink-faint);margin-bottom:5px}
+.meter .bar{height:6px;border-radius:999px;background:var(--bg);overflow:hidden}
+.meter .fill{height:100%;border-radius:999px;background:var(--g-cool);width:0;transition:width 1.1s var(--ease2) .3s}
+.card-foot{display:flex;gap:10px;margin-top:18px;transform:translateZ(20px)}
+.bchat{flex:1;border:none;cursor:pointer;padding:11px;border-radius:13px;background:var(--violet);color:#fff;
+  font:700 13px 'Plus Jakarta Sans';transition:.2s var(--ease);display:flex;align-items:center;justify-content:center;gap:7px}
+.bchat:hover{background:var(--violet-d);box-shadow:var(--glow-v)}
+.bcfg{flex:1;border:1.5px solid var(--line-2);background:transparent;cursor:pointer;padding:11px;border-radius:13px;
+  color:var(--ink-soft);font:700 13px 'Plus Jakarta Sans';transition:.2s var(--ease)}
+.bcfg:hover{border-color:var(--violet);color:var(--violet-d);background:#F3EEFE}
+.bchat svg,.bcfg svg{width:15px;height:15px;stroke-width:2.4;fill:none}
+
+/* add-new card */
+.card.add{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;
+  border:2px dashed var(--line-2);background:transparent;box-shadow:none;color:var(--ink-faint);min-height:300px}
+.card.add:hover{border-color:var(--violet);color:var(--violet-d);background:rgba(124,58,237,.04);transform:translateY(-4px)}
+.card.add .plus{width:56px;height:56px;border-radius:50%;background:var(--g-brand);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:var(--glow-v)}
+.card.add .plus svg{width:26px;height:26px;stroke:#fff;stroke-width:2.6;fill:none}
+.card.add b{font:700 16px 'Bricolage Grotesque';color:var(--ink)}
+
+/* ============================================================
+   CONFIGURE PAGE
+   ============================================================ */
+.cfg{display:flex;flex-direction:column;height:100%}
+.cfg-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 24px;
+  border-bottom:1px solid var(--line);background:var(--glass-strong);backdrop-filter:blur(14px);flex:0 0 auto;flex-wrap:wrap}
+.cfg-bar .back{display:flex;align-items:center;gap:9px;min-width:0}
+.cfg-bar .back .b{font:600 13px 'Plus Jakarta Sans';color:var(--violet-d);cursor:pointer;display:flex;align-items:center;gap:5px}
+.cfg-bar .nm{font:700 18px 'Bricolage Grotesque'}
+.cfg-bar .dirty{font:700 11px 'Plus Jakarta Sans';color:var(--amber);background:rgba(245,158,11,.12);padding:5px 10px;border-radius:999px}
+.cfg-actions{display:flex;align-items:center;gap:9px}
+.gbtn{border:1px solid var(--line-2);background:var(--glass-strong);cursor:pointer;padding:9px 14px;border-radius:12px;
+  font:600 13px 'Plus Jakarta Sans';color:var(--ink-soft);display:flex;align-items:center;gap:7px;transition:.2s var(--ease)}
+.gbtn:hover{transform:translateY(-1px);box-shadow:var(--shadow-s);color:var(--ink)}
+.gbtn svg{width:15px;height:15px;stroke-width:2;fill:none}
+.save{border:none;cursor:pointer;padding:10px 18px;border-radius:12px;background:var(--g-brand);color:#fff;
+  font:700 13.5px 'Plus Jakarta Sans';box-shadow:var(--glow-v);display:flex;align-items:center;gap:8px;transition:transform .2s var(--ease)}
+.save:hover{transform:translateY(-2px)}.save svg{width:15px;height:15px;stroke:#fff;stroke-width:2.6;fill:none}
+
+.cfg-body{flex:1;min-height:0;display:flex;overflow:hidden}
+.canvas{flex:1;min-width:0;overflow-y:auto;padding:24px 26px 60px}
+.canvas::-webkit-scrollbar{width:9px}.canvas::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:9px;border:3px solid transparent;background-clip:padding-box}
+
+/* progress rail */
+.rail{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+.rail .step{display:flex;align-items:center;gap:8px;font:700 12px 'Plus Jakarta Sans';color:var(--ink-faint);
+  background:var(--glass-strong);border:1px solid var(--line);padding:7px 13px;border-radius:999px;cursor:pointer;transition:.2s var(--ease)}
+.rail .step .n{width:18px;height:18px;border-radius:50%;background:var(--line-2);color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center}
+.rail .step.done{color:#0D9488;border-color:transparent;background:#E6FBF6}.rail .step.done .n{background:var(--teal)}
+.rail .step.cur{color:var(--violet-d);border-color:transparent;background:#F3EEFE}.rail .step.cur .n{background:var(--g-brand)}
+
+/* section card */
+.sec{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);padding:24px;margin-bottom:18px;
+  position:relative;overflow:hidden;box-shadow:var(--shadow-s);opacity:0;transform:translateY(16px);animation:cardIn .6s var(--ease2) forwards}
+.sec::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px}
+.sec.a::before{background:var(--g-brand)}.sec.b::before{background:var(--g-warm)}.sec.c::before{background:var(--g-teal)}
+.sec.d::before{background:linear-gradient(180deg,#0EA5E9,#7C3AED)}.sec.e::before{background:linear-gradient(180deg,#F59E0B,#84CC16)}
+.sec-h{display:flex;align-items:center;gap:13px;margin-bottom:20px}
+.sec-ico{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff}
+.sec-ico svg{width:20px;height:20px;stroke:#fff;stroke-width:2.2;fill:none}
+.sec.a .sec-ico{background:var(--g-brand)}.sec.b .sec-ico{background:var(--g-warm)}.sec.c .sec-ico{background:var(--g-teal)}
+.sec.d .sec-ico{background:linear-gradient(120deg,#0EA5E9,#7C3AED)}.sec.e .sec-ico{background:linear-gradient(120deg,#F59E0B,#84CC16)}
+.sec-h h3{font-size:18px;font-weight:700}.sec-h p{font-size:12.5px;color:var(--ink-faint)}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.fld{margin-bottom:16px;position:relative}
+.fld label{display:block;font:600 12px 'Plus Jakarta Sans';color:var(--ink-soft);margin-bottom:7px}
+.fld input,.fld textarea,.fakesel{width:100%;padding:12px 14px;border-radius:13px;border:1.5px solid var(--line);
+  background:var(--bg);font:500 14px 'Plus Jakarta Sans';color:var(--ink);transition:.25s var(--ease2)}
+.fld input:focus,.fld textarea:focus{outline:none;border-color:var(--sky);box-shadow:0 0 0 4px rgba(14,165,233,.16);background:#fff}
+.fld textarea{resize:vertical;min-height:88px;font-family:'Plus Jakarta Sans'}
+.fakesel{display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:var(--ink)}
+.fakesel .pv{display:flex;align-items:center;gap:8px}.fakesel .lg{width:18px;height:18px;border-radius:5px;background:var(--g-warm)}
+.prompt{position:relative}
+.prompt textarea{min-height:150px;font-family:ui-monospace,'SF Mono',monospace;font-size:13px;line-height:1.7;padding-left:46px;background:#fff}
+.prompt .gutter{position:absolute;left:0;top:0;bottom:0;width:36px;border-right:1px solid var(--line);
+  padding:13px 0;text-align:center;font:400 13px/1.7 ui-monospace,monospace;color:var(--ink-faint);background:var(--bg);border-radius:13px 0 0 13px;pointer-events:none}
+.prompt .count{position:absolute;right:12px;bottom:10px;font:600 11px 'Plus Jakarta Sans';color:var(--ink-faint);background:var(--bg);padding:3px 8px;border-radius:8px}
+
+/* toggle */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--line)}
+.toggle-row:last-child{border-bottom:none}
+.toggle-row .tx b{font:700 14px 'Plus Jakarta Sans'}.toggle-row .tx p{font-size:12px;color:var(--ink-faint);margin-top:2px;max-width:52ch}
+.sw{width:46px;height:26px;border-radius:999px;background:var(--line-2);position:relative;cursor:pointer;transition:.3s var(--ease2);flex:0 0 auto}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:var(--shadow-s);transition:.3s var(--ease)}
+.sw.on{background:var(--g-brand)}.sw.on::after{left:23px}
+
+/* tool chips */
+.tools{display:flex;flex-wrap:wrap;gap:9px}
+.tool{display:flex;align-items:center;gap:8px;padding:9px 13px;border-radius:12px;font:600 13px 'Plus Jakarta Sans';
+  border:1.5px solid var(--line);background:var(--bg);cursor:pointer;transition:.2s var(--ease)}
+.tool:hover{transform:translateY(-2px);box-shadow:var(--shadow-s)}
+.tool.on{border-color:transparent;background:#F3EEFE;color:var(--violet-d)}
+.tool .d{width:8px;height:8px;border-radius:50%}
+.tool.on .d{background:var(--violet)}.tool .d{background:var(--line-2)}
+.tool.add{border-style:dashed;color:var(--ink-faint)}
+.tool.add:hover{color:var(--violet-d);border-color:var(--violet)}
+
+/* knowledge files */
+.kfile{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:13px;background:var(--bg);border:1px solid var(--line);margin-bottom:9px}
+.kfile .fi{width:34px;height:34px;border-radius:9px;background:var(--g-teal);color:#fff;display:flex;align-items:center;justify-content:center}
+.kfile .fi svg{width:17px;height:17px;stroke:#fff;stroke-width:2;fill:none}
+.kfile .meta{flex:1;min-width:0}.kfile .meta b{font:700 13px 'Plus Jakarta Sans'}.kfile .meta span{font-size:11px;color:var(--ink-faint)}
+.kbar{height:5px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:6px}
+.kbar i{display:block;height:100%;background:var(--g-teal);border-radius:999px;width:0;transition:width 1.2s var(--ease2) .4s}
+.kstate{font:700 11px 'Plus Jakarta Sans';padding:4px 9px;border-radius:999px}
+.kstate.ok{background:#E6FBF6;color:#0D9488}.kstate.go{background:#FFF4E0;color:#B45309}
+.drop{border:2px dashed var(--line-2);border-radius:15px;padding:22px;text-align:center;color:var(--ink-faint);cursor:pointer;transition:.2s var(--ease);margin-top:10px}
+.drop:hover{border-color:var(--teal);color:#0D9488;background:#E6FBF6}
+
+/* ---- emulator dock ---- */
+.dock{width:420px;flex:0 0 auto;border-left:1px solid var(--line);background:var(--glass-strong);backdrop-filter:blur(14px);
+  display:flex;flex-direction:column;position:relative}
+.dock-h{display:flex;align-items:center;gap:16px;padding:16px 18px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.dock-h .tab{font:700 13px 'Plus Jakarta Sans';color:var(--ink-faint);cursor:pointer;padding-bottom:5px}
+.dock-h .tab.on{color:var(--violet-d);border-bottom:2.5px solid var(--violet)}
+.dock-h .live{margin-left:auto;display:flex;align-items:center;gap:7px;font:700 11px 'Plus Jakarta Sans';color:#059669}
+.dock-body{flex:1;min-height:0;overflow-y:auto;padding:18px}
+.bub-u{margin-left:auto;width:fit-content;max-width:84%;background:var(--g-brand);color:#fff;padding:11px 14px;border-radius:18px 18px 5px 18px;font-size:13.5px;box-shadow:var(--glow-v)}
+.bub-a{max-width:90%;background:#fff;border:1px solid var(--line);padding:12px 14px;border-radius:18px 18px 18px 5px;font-size:13.5px;margin-top:14px;box-shadow:var(--shadow-s)}
+.toolrun{display:flex;align-items:center;gap:9px;margin-top:12px;padding:10px 12px;border-radius:12px;background:#F3EEFE;border:1px solid rgba(124,58,237,.18);font:600 12px 'Plus Jakarta Sans';color:var(--violet-d)}
+.toolrun .sp{width:14px;height:14px;border-radius:50%;border:2px solid rgba(124,58,237,.3);border-top-color:var(--violet);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.typing{display:flex;gap:5px;align-items:center;margin-top:14px;color:var(--ink-faint);font-size:12px}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--violet);animation:blink 1.2s infinite}
+.typing i:nth-child(2){animation-delay:.2s}.typing i:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+.tokchip{display:inline-flex;gap:7px;align-items:center;margin-top:12px;font:700 11px 'Plus Jakarta Sans';color:var(--ink-soft);background:var(--bg);border:1px solid var(--line);padding:5px 11px;border-radius:999px}
+.composer{margin:14px 18px 18px;display:flex;align-items:center;gap:9px;border:1.5px solid var(--line);border-radius:16px;padding:8px 8px 8px 16px;background:#fff;transition:.25s var(--ease2)}
+.composer:focus-within{border-color:var(--sky);box-shadow:0 0 0 4px rgba(14,165,233,.16)}
+.composer input{flex:1;border:none;outline:none;font:500 13.5px 'Plus Jakarta Sans';background:transparent}
+.send{width:38px;height:38px;border:none;border-radius:12px;background:var(--g-cool);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--glow-v);transition:transform .2s var(--ease)}
+.send:hover{transform:scale(1.08) rotate(-8deg)}.send svg{width:16px;height:16px;stroke:#fff;stroke-width:2.6;fill:none}
+.lock{position:absolute;inset:0;z-index:5;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  background:rgba(255,255,255,.55);backdrop-filter:blur(3px);text-align:center;padding:24px}
+.lock.show{display:flex}
+.lock .ring{width:62px;height:62px;border-radius:50%;background:var(--g-brand);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:var(--glow-v);animation:float 4s ease-in-out infinite}
+.lock .ring svg{width:28px;height:28px;stroke:#fff;stroke-width:2.2;fill:none}
+.lock b{font:700 15px 'Bricolage Grotesque'}.lock p{font-size:12.5px;color:var(--ink-soft);max-width:30ch}
+.lock .mini{border:none;cursor:pointer;padding:9px 16px;border-radius:11px;background:var(--ink);color:#fff;font:700 12px 'Plus Jakarta Sans'}
+
+@media (max-width:1100px){.dock{display:none}.canvas{padding-bottom:40px}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
+.note{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);z-index:60;font:600 11px 'Plus Jakarta Sans';
+  color:var(--ink-soft);background:var(--glass-strong);backdrop-filter:blur(12px);border:1px solid var(--line);padding:7px 16px;border-radius:999px;box-shadow:var(--shadow-s)}
+</style>
+</head>
+<body>
+
+<!-- animated mesh -->
+<div class="mesh"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div></div>
+<div class="grain"></div>
+
+<!-- page switcher -->
+<div class="switcher">
+  <button id="t-agents" class="on" onclick="show('agents')"><svg class="ic ic-s" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg> Agent Library</button>
+  <button id="t-cfg" onclick="show('cfg')"><svg class="ic ic-s" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8M4.6 9a1.6 1.6 0 0 0-.3-1.8"/></svg> Configure Agent</button>
+</div>
+
+<div class="app">
+
+  <!-- =========================== SHARED SIDEBAR =========================== -->
+  <aside class="side">
+    <div class="brand">
+      <span class="logo"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span>
+      <b>Agentic<span class="v">v2</span></b>
+    </div>
+    <div class="ws"><span class="dot"></span><div style="flex:1;min-width:0"><div class="t">Acme Workspace</div><div class="s">Pro · 8 members</div></div><svg class="ic ic-s" style="stroke:var(--ink-faint)" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+    <button class="newchat"><svg viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14"/></svg> New Chat</button>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot"><span class="ava">SK</span><div style="flex:1"><div class="nm">Sajid</div><div class="pl">Pro Plan</div></div><svg class="ic ic-s" style="stroke:var(--ink-faint);cursor:pointer" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></div>
+  </aside>
+
+  <!-- =========================== PAGE: AGENTS =========================== -->
+  <section class="page show" id="page-agents">
+    <div class="main">
+      <div class="wrap">
+        <div class="hero">
+          <div>
+            <span class="eyebrow"><span class="pip"></span> Workspace · 12 agents</span>
+            <h1 class="title">Your <span class="grad">Agent Library</span></h1>
+            <p class="sub">Design, test, and deploy specialized AI agents — each with its own tools, knowledge, and autonomy.</p>
+          </div>
+          <button class="btn-cta"><svg viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14"/></svg> Create Agent</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat s1"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/></svg><div class="k" data-to="12">0</div><div class="l">Total agents</div></div>
+          <div class="stat s2"><svg class="ic" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><div class="k" data-to="3" data-suffix=" live">0</div><div class="l">Live & deployed</div></div>
+          <div class="stat s3"><svg class="ic" viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0 5 5l-9 9a2.1 2.1 0 0 1-3-3l9-9a4 4 0 0 0-2-2z"/></svg><div class="k" data-to="48">0</div><div class="l">Tools connected</div></div>
+          <div class="stat s4"><svg class="ic" viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg><div class="k" data-to="1240" data-suffix="">0</div><div class="l">Runs this week</div></div>
+        </div>
+
+        <div class="toolbar">
+          <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input placeholder="Search agents, tools, models…" /></div>
+          <div class="seg"><button class="on">All</button><button>Live</button><button>Drafts</button></div>
+          <div class="chip-f"><svg class="ic ic-s" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg> Recently updated</div>
+          <button class="btn-cta"><svg viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14"/></svg> Create Agent</button>
+        </div>
+
+        <div class="grid" id="agrid"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================== PAGE: CONFIGURE =========================== -->
+  <section class="page" id="page-cfg">
+    <div class="main" style="overflow:hidden">
+      <div class="cfg">
+        <!-- top bar -->
+        <div class="cfg-bar">
+          <div class="back">
+            <span class="b" onclick="show('agents')"><svg class="ic ic-s" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg> Agents</span>
+            <span style="color:var(--ink-faint)">/</span>
+            <span class="nm">AWS DevOps Agent</span>
+            <span class="dirty">● Unsaved changes</span>
+          </div>
+          <div class="cfg-actions">
+            <button class="gbtn"><svg viewBox="0 0 24 24"><path d="M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-7L9 4H5a2 2 0 0 0-2 2z"/></svg> Workspace</button>
+            <button class="gbtn" style="color:var(--violet-d);border-color:rgba(124,58,237,.3)"><svg viewBox="0 0 24 24"><path d="M4.5 16.5L3 22l5.5-1.5M15 4l5 5-9 9-5-5z"/></svg> Deploy</button>
+            <button class="save"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg> Save &amp; Publish</button>
+          </div>
+        </div>
+
+        <div class="cfg-body">
+          <!-- left canvas -->
+          <div class="canvas">
+            <div class="rail">
+              <span class="step done"><span class="n">✓</span> General</span>
+              <span class="step cur"><span class="n">2</span> System Prompt</span>
+              <span class="step"><span class="n">3</span> Knowledge</span>
+              <span class="step"><span class="n">4</span> Tools</span>
+              <span class="step"><span class="n">5</span> Autonomy</span>
+              <span class="step"><span class="n">6</span> Advanced</span>
+            </div>
+
+            <!-- General -->
+            <div class="sec a" style="animation-delay:.05s">
+              <div class="sec-h"><span class="sec-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg></span><div><h3>General</h3><p>Identity, provider and default model</p></div></div>
+              <div class="grid2">
+                <div class="fld"><label>Agent name</label><input value="AWS DevOps Agent" /></div>
+                <div class="fld"><label>LLM Provider</label><div class="fakesel"><span class="pv"><span class="lg"></span> Anthropic</span><svg class="ic ic-s" style="stroke:var(--ink-faint)" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div></div>
+              </div>
+              <div class="grid2">
+                <div class="fld"><label>Default model</label><div class="fakesel"><span class="pv"><svg class="ic ic-s" style="stroke:var(--violet)" viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4 3 3 0 0 1 1 5 3 3 0 0 1-1 5 4 4 0 0 1-8 0 3 3 0 0 1-1-5 3 3 0 0 1 1-5 4 4 0 0 1 4-4z"/></svg> claude-opus-4</span><svg class="ic ic-s" style="stroke:var(--ink-faint)" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div></div>
+                <div class="fld"><label>Conversation memory</label><div class="fakesel"><span class="pv">Last 20 turns</span><svg class="ic ic-s" style="stroke:var(--ink-faint)" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div></div>
+              </div>
+              <div class="fld" style="margin-bottom:0"><label>Description</label><input value="Inspect, debug, deploy & maintain production servers safely over SSH." /></div>
+            </div>
+
+            <!-- System Prompt -->
+            <div class="sec b" style="animation-delay:.12s">
+              <div class="sec-h"><span class="sec-ico"><svg viewBox="0 0 24 24"><path d="M4 7V5h16v2M9 19h6M12 5v14"/></svg></span><div><h3>System Prompt</h3><p>The agent's operating rules & persona</p></div></div>
+              <div class="fld prompt" style="margin-bottom:0">
+                <label>Instructions</label>
+                <div style="position:relative">
+                  <div class="gutter">1<br>2<br>3<br>4<br>5</div>
+                  <textarea>You are an AWS DevOps agent working directly on production through SSH.
+Treat the server as production at all times — never edit live code.
+Inspect first: logs, status, docker state. Explain risk before any change.
+Use the smallest safe change. Back up configs before editing.
+Never expose secrets in your responses.</textarea>
+                  <span class="count">412 / 8000</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Knowledge -->
+            <div class="sec c" style="animation-delay:.19s">
+              <div class="sec-h"><span class="sec-ico"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M14 3v5h5"/></svg></span><div><h3>Knowledge (RAG)</h3><p>Indexed docs the agent can cite</p></div></div>
+              <div class="kfile">
+                <span class="fi"><svg viewBox="0 0 24 24"><path d="M14 3v5h5M6 3h9l5 5v13H6z"/></svg></span>
+                <div class="meta"><b>runbook-devops.md</b><span>248 KB · indexed</span></div>
+                <span class="kstate ok">✓ Ready</span>
+              </div>
+              <div class="kfile">
+                <span class="fi" style="background:var(--g-warm)"><svg viewBox="0 0 24 24"><path d="M14 3v5h5M6 3h9l5 5v13H6z"/></svg></span>
+                <div class="meta"><b>infra-architecture.pdf</b><span>indexing… 64%</span><div class="kbar"><i data-w="64"></i></div></div>
+                <span class="kstate go">⟳ Indexing</span>
+              </div>
+              <div class="drop"><svg class="ic" style="margin:0 auto 6px;stroke:var(--teal)" viewBox="0 0 24 24"><path d="M12 16V4m-5 5l5-5 5 5M5 20h14"/></svg>Drop files or click to upload knowledge</div>
+            </div>
+
+            <!-- Tools -->
+            <div class="sec d" style="animation-delay:.26s">
+              <div class="sec-h"><span class="sec-ico"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0 5 5l-9 9a2.1 2.1 0 0 1-3-3l9-9a4 4 0 0 0-2-2z"/></svg></span><div><h3>Tools</h3><p>8 of 48 enabled</p></div></div>
+              <div class="tools">
+                <span class="tool on"><span class="d"></span> SSH Terminal</span>
+                <span class="tool on"><span class="d"></span> Persistent Shell</span>
+                <span class="tool on"><span class="d"></span> Docker</span>
+                <span class="tool on"><span class="d"></span> Filesystem</span>
+                <span class="tool on"><span class="d"></span> SSM</span>
+                <span class="tool"><span class="d"></span> Email</span>
+                <span class="tool"><span class="d"></span> SQLite</span>
+                <span class="tool add">+ Browse 48 tools</span>
+              </div>
+            </div>
+
+            <!-- Autonomy -->
+            <div class="sec e" style="animation-delay:.33s">
+              <div class="sec-h"><span class="sec-ico"><svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span><div><h3>Autonomy &amp; Safety</h3><p>How much the agent can do unattended</p></div></div>
+              <div class="toggle-row"><div class="tx"><b>Auto Mode</b><p>Run multi-step tasks without confirming each tool call.</p></div><span class="sw" onclick="this.classList.toggle('on')"></span></div>
+              <div class="toggle-row"><div class="tx"><b>Planning Mode</b><p>Draft a step-by-step plan and ask for approval before executing.</p></div><span class="sw on" onclick="this.classList.toggle('on')"></span></div>
+              <div class="toggle-row"><div class="tx"><b>Human-in-the-loop on risky ops</b><p>Pause for approval before destructive shell / DB commands.</p></div><span class="sw on" onclick="this.classList.toggle('on')"></span></div>
+            </div>
+
+            <!-- Advanced -->
+            <div class="sec a" style="animation-delay:.40s">
+              <div class="sec-h"><span class="sec-ico" style="background:var(--ink)"><svg viewBox="0 0 24 24"><path d="M12 8v8M8 12h8"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg></span><div><h3>Advanced</h3><p>Credentials · MCP servers · Channels · Schedules</p></div></div>
+              <div class="tools">
+                <span class="tool"><svg class="ic ic-xs" style="stroke:var(--ink-soft)" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> 3 credentials</span>
+                <span class="tool"><svg class="ic ic-xs" style="stroke:var(--ink-soft)" viewBox="0 0 24 24"><path d="M18 6.6a9 9 0 1 1-12.7 0M12 2v10"/></svg> 1 MCP server</span>
+                <span class="tool"><svg class="ic ic-xs" style="stroke:var(--ink-soft)" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Slack channel</span>
+                <span class="tool"><svg class="ic ic-xs" style="stroke:var(--ink-soft)" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg> Daily 09:00 schedule</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- right emulator dock -->
+          <div class="dock">
+            <div class="dock-h">
+              <span class="tab">Inspector</span>
+              <span class="tab on">Emulator</span>
+              <span class="live"><span class="orb g"></span> claude-opus-4</span>
+            </div>
+            <div class="dock-body">
+              <div class="bub-u">Check if nginx is healthy on prod and report status.</div>
+              <div class="toolrun"><span class="sp"></span> Running <b>&nbsp;ssh · docker compose ps</b></div>
+              <div class="bub-a">All containers are <b>Up</b> and <b>nginx -t</b> passed. Site responds <b>200</b> on :443. No changes were made — production is healthy. ✅</div>
+              <span class="tokchip"><svg class="ic ic-xs" style="stroke:var(--violet)" viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg> 1,240 tokens · $0.004 · 2.1s</span>
+              <div class="typing"><i></i><i></i><i></i> agent is thinking…</div>
+            </div>
+            <div class="composer"><input placeholder="Message the agent…" /><button class="send"><svg viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg></button></div>
+            <!-- locked overlay (shown because there are unsaved changes) -->
+            <div class="lock show">
+              <span class="ring"><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+              <b>Publish to test your agent</b>
+              <p>The live preview unlocks once you Save &amp; Publish your changes.</p>
+              <button class="mini" onclick="this.closest('.lock').classList.remove('show')">Save &amp; Publish</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="note">Vibrant Light Mesh · static preview · flip pages with the pill at the top · hover the cards (3D tilt)</div>
+
+<script>
+/* ---- nav ---- */
+const NAV=[
+ ['Systems','M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z',0],
+ ['Agents','c',1,'12'],
+ ['Tools','M14.7 6.3a4 4 0 0 0 5 5l-9 9a2.1 2.1 0 0 1-3-3l9-9a4 4 0 0 0-2-2z',0],
+ ['Services','M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82',0],
+ ['MCP','M18.4 6.6a9 9 0 1 1-12.7 0M12 2v10',0],
+ ['Benchmarks','M18 20V10M12 20V4M6 20v-6',0],
+ ['Workspaces','M2 7l10-5 10 5-10 5zM2 17l10 5 10-5M2 12l10 5 10-5',0],
+ ['Activity','M22 12h-4l-3 9L9 3l-3 9H2',0],
+ ['LLM Context','M4 7V4h16v3M9 20h6M12 4v16',0],
+ ['Settings','M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82',0],
+];
+const nav=document.getElementById('nav');
+NAV.forEach((n,i)=>{
+  const a=document.createElement('a'); a.style.animationDelay=(i*45)+'ms'; if(n[2])a.className='on';
+  const path = n[1]==='c' ? '<circle cx="12" cy="6" r="3"/><path d="M12 18a8 8 0 0 1-8-8M20 10a8 8 0 0 1-8 8"/>' : '<path d="'+n[1]+'"/>';
+  a.innerHTML='<svg class="ic" viewBox="0 0 24 24">'+path+'</svg><span>'+n[0]+'</span>'+(n[3]?'<span class="bdg">'+n[3]+'</span>':'');
+  nav.appendChild(a);
+});
+
+/* ---- agent cards ---- */
+const AGENTS=[
+ {n:'AWS DevOps Agent',c:'v',ic:'<path d="M18 10h-1.3A5 5 0 1 0 7 9a4 4 0 0 0-1 7.9"/>',live:1,model:'claude-opus-4',tools:12,ctx:'Global Context',ctxc:'t',d:'Inspect, debug, deploy and maintain production servers safely over SSH — never edits live code.',load:82},
+ {n:'Release Deployer',c:'p',ic:'<path d="M4.5 16.5L3 22l5.5-1.5M15 4l5 5-9 9-5-5z"/>',live:0,model:'gpt-4o',tools:4,ctx:'Repo Context',ctxc:'',d:'Cuts releases, runs migrations after approval, and verifies the deploy end-to-end.',load:45},
+ {n:'Support Assistant',c:'t',ic:'<path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8L12 14.6 7 18.2l1.9-5.8L4 8.8h6.1z"/>',live:1,model:'claude-haiku',tools:8,ctx:'Global Context',ctxc:'t',d:'Answers customer questions from your knowledge base with cited sources and graceful hand-off.',load:67},
+ {n:'Data Analyst',c:'v',ic:'<path d="M18 20V10M12 20V4M6 20v-6"/>',live:1,model:'gpt-4o-mini',tools:6,ctx:'SQL + Files',ctxc:'',d:'Queries warehouses, builds charts, and explains trends in plain language on a schedule.',load:73},
+ {n:'Code Reviewer',c:'p',ic:'<path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/>',live:0,model:'claude-sonnet',tools:5,ctx:'Repo Context',ctxc:'',d:'Reviews PRs for bugs and style, posts inline comments, and suggests safe fixes.',load:38},
+];
+const grid=document.getElementById('agrid');
+AGENTS.forEach((a,i)=>{
+  const el=document.createElement('div'); el.className='card '+a.c; el.style.animationDelay=(i*80+120)+'ms';
+  el.innerHTML=`
+    <div class="halo"></div>
+    <div class="card-top">
+      <span class="tile ${a.c}"><svg viewBox="0 0 24 24">${a.ic}</svg></span>
+      <span class="badge ${a.live?'live':'idle'}"><span class="orb ${a.live?'g':'x'}"></span> ${a.live?'Live':'Idle'}</span>
+    </div>
+    <h3>${a.n}</h3>
+    <div class="row-chip">
+      <span class="mchip v"><svg viewBox="0 0 24 24"><path d="M12 2a4 4 0 0 1 4 4 3 3 0 0 1 1 5 3 3 0 0 1-1 5 4 4 0 0 1-8 0 3 3 0 0 1-1-5 3 3 0 0 1 1-5 4 4 0 0 1 4-4z"/></svg> ${a.model}</span>
+      <span class="mchip"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0 5 5l-9 9a2.1 2.1 0 0 1-3-3l9-9a4 4 0 0 0-2-2z"/></svg> ${a.tools} tools</span>
+      <span class="mchip ${a.ctxc}"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> ${a.ctx}</span>
+    </div>
+    <p class="desc">${a.d}</p>
+    <div class="meter"><div class="lbl"><span>Capability coverage</span><span>${a.load}%</span></div><div class="bar"><i class="fill" data-w="${a.load}"></i></div></div>
+    <div class="card-foot">
+      <button class="bchat"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat</button>
+      <button class="bcfg" onclick="show('cfg')">Configure</button>
+    </div>`;
+  grid.appendChild(el);
+});
+// add-new tile
+const addEl=document.createElement('div'); addEl.className='card add'; addEl.style.animationDelay=(AGENTS.length*80+120)+'ms';
+addEl.innerHTML='<span class="plus"><svg viewBox="0 0 24 24"><path d="M12 5v14m-7-7h14"/></svg></span><b>Create a new agent</b><span style="font-size:12.5px">Start from scratch or a template</span>';
+grid.appendChild(addEl);
+
+/* ---- 3D tilt ---- */
+document.querySelectorAll('.card:not(.add)').forEach(c=>{
+  c.addEventListener('mousemove',e=>{
+    const r=c.getBoundingClientRect(), x=(e.clientX-r.left)/r.width-.5, y=(e.clientY-r.top)/r.height-.5;
+    c.style.transform=`translateY(-6px) rotateX(${-y*7}deg) rotateY(${x*9}deg)`;
+  });
+  c.addEventListener('mouseleave',()=>c.style.transform='');
+});
+
+/* ---- count-up + bars ---- */
+function animate(){
+  document.querySelectorAll('[data-to]').forEach(el=>{
+    const to=+el.dataset.to, suf=el.dataset.suffix||''; let t0=null;
+    const step=ts=>{ if(!t0)t0=ts; const p=Math.min((ts-t0)/1100,1); const v=Math.floor((1-Math.pow(1-p,3))*to);
+      el.textContent=v.toLocaleString()+suf; if(p<1)requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  });
+  setTimeout(()=>document.querySelectorAll('[data-w]').forEach(b=>b.style.width=b.dataset.w+'%'),200);
+}
+animate();
+
+/* ---- page switch ---- */
+function show(p){
+  document.getElementById('page-agents').classList.toggle('show',p==='agents');
+  document.getElementById('page-cfg').classList.toggle('show',p==='cfg');
+  document.getElementById('t-agents').classList.toggle('on',p==='agents');
+  document.getElementById('t-cfg').classList.toggle('on',p==='cfg');
+}
+</script>
+</body>
+</html>

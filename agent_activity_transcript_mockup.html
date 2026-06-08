@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Activity Transcript — mockup</title>
+<style>
+  :root{
+    --indigo:#4f46e5; --indigo-50:#eef2ff; --indigo-100:#e0e7ff;
+    --g300:#d1d5db; --g400:#9ca3af; --g500:#6b7280; --g700:#374151; --g900:#111827;
+    --emerald:#10b981; --red:#ef4444; --amber:#d97706; --border:#e5e7eb; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eef0f4;font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--g900);
+       display:flex;gap:26px;flex-wrap:wrap;justify-content:center;align-items:flex-start;padding:30px 16px}
+  .panel{width:460px;background:#f8fafc;border:1px solid var(--border);border-radius:16px;overflow:hidden;
+         box-shadow:0 10px 30px rgba(15,23,42,.08);display:flex;flex-direction:column;max-height:760px}
+  .tabs{display:flex;justify-content:flex-end;gap:20px;padding:12px 16px 0;font-size:14px}
+  .tabs .on{color:var(--indigo);font-weight:600;border-bottom:2px solid var(--indigo);padding-bottom:5px}
+  .tabs .off{color:var(--g400);font-weight:500}
+  .sub{padding:8px 16px;display:flex;justify-content:space-between;align-items:center}
+  .sub b{font-size:14px}.sub .ico{color:var(--g400)}
+  .chat{flex:1;margin:0 12px 12px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;overflow:auto}
+  .urow{display:flex;justify-content:flex-end;margin-bottom:12px}
+  .ubub{background:var(--indigo-100);color:#3730a3;border-radius:16px 16px 4px 16px;padding:9px 13px;font-size:14px;max-width:82%}
+  .work{display:flex;align-items:center;justify-content:space-between;margin:2px 0 8px}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:2px 9px;border-radius:20px;background:var(--indigo-50);color:var(--indigo)}
+  .badge .dot{width:6px;height:6px;border-radius:50%;background:var(--indigo);animation:pulse 1.3s ease-in-out infinite}
+  .tok{font-size:12px;color:var(--g500);font-variant-numeric:tabular-nums}
+  .tx{border:1px solid var(--border);background:rgba(248,250,252,.7);border-radius:12px;overflow:hidden}
+  .row{border-bottom:.5px solid #eef0f4}
+  .row:last-child{border-bottom:none}
+  .rhead{display:flex;align-items:center;gap:9px;padding:7px 11px;cursor:pointer;font-size:13px}
+  .rhead:hover{background:#f1f5f9}
+  .lab{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--g700)}
+  .rhead.active .lab{color:var(--g900);font-weight:500}
+  .rhead.muted .lab{color:var(--g500)}
+  .dur{font-size:11px;color:var(--g400)}
+  .chev{color:var(--g300);font-size:11px;width:10px;text-align:center}
+  .chk{color:var(--emerald);font-weight:700;width:14px;text-align:center}
+  .x{color:var(--red);font-weight:700;width:14px;text-align:center}
+  .spin{width:13px;height:13px;border:2px solid #e5e7eb;border-top-color:var(--indigo);border-radius:50%;animation:spin .7s linear infinite}
+  .pend{width:11px;height:11px;border:1.5px solid var(--g300);border-radius:50%;margin:0 1px}
+  .brain{width:14px;text-align:center}
+  .exit{font-size:9px;font-weight:700;padding:1px 5px;border-radius:5px}
+  .exit.ok{background:#dcfce7;color:#15803d}.exit.bad{background:#fee2e2;color:#b91c1c}
+  .body{padding:0 11px 10px 34px;font-size:12px}
+  pre{margin:6px 0 0;font-family:var(--mono);font-size:11.5px;line-height:1.5;border-radius:8px;padding:9px 11px;overflow:auto;max-height:230px}
+  .term{background:#0f172a;color:#e2e8f0}
+  .term .cmd{color:#7dd3fc}.term .muted{color:#64748b}
+  .snip{background:#f8fafc;border:1px solid var(--border);color:#334155}
+  .diff{background:#0f172a;border-radius:8px;padding:9px 11px;font-family:var(--mono);font-size:11.5px;line-height:1.55;margin-top:6px;overflow:auto;max-height:230px}
+  .diff .add{color:#86efac}.diff .del{color:#fca5a5}.diff .ctx{color:#94a3b8}
+  .think{color:#475569;font-size:12.5px;line-height:1.6;font-style:italic}
+  .answer{font-size:14px;line-height:1.55;color:#1e293b;margin:10px 2px 0}.answer b{color:#0f172a}
+  .summary{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--g700);padding:7px 11px;cursor:pointer;border:1px solid var(--border);background:rgba(248,250,252,.7);border-radius:12px}
+  .summary .c{color:var(--emerald);font-weight:700}
+  .ftok{display:flex;gap:7px;font-size:11px;color:var(--g400);margin-top:10px;font-variant-numeric:tabular-nums}
+  .foot{display:flex;justify-content:space-between;align-items:center;padding:8px 16px 12px;font-size:11px;color:var(--g500)}
+  .foot .conn{color:var(--emerald)}
+  .cap{width:460px;text-align:center;color:#64748b;font-size:12px;margin-top:10px}
+  .ctrls{width:100%;text-align:center;margin-top:6px}
+  button{font:inherit;font-size:13px;padding:7px 16px;border-radius:9px;border:1px solid var(--indigo-100);background:var(--indigo);color:#fff;cursor:pointer}
+  @keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+</style>
+</head>
+<body>
+
+  <!-- LIVE transcript -->
+  <div>
+    <div class="panel">
+      <div class="tabs"><span class="off">Inspector</span><span class="on">Emulator</span></div>
+      <div class="sub"><b>Emulator</b><span class="ico">↻ ⋯</span></div>
+      <div class="chat">
+        <div class="urow"><div class="ubub">run the test suite and fix any broken imports</div></div>
+        <div class="work">
+          <span class="badge"><span class="dot"></span> Working</span>
+          <span class="tok" id="live">· 3.9k tokens</span>
+        </div>
+        <div class="tx">
+
+          <!-- thinking -->
+          <div class="row">
+            <div class="rhead muted" onclick="t(this)"><span class="brain">✻</span><span class="lab">Thought for 18s</span><span class="chev">▸</span></div>
+            <div class="body" style="display:none"><div class="think">The user wants the suite run and imports fixed. I'll inspect the project layout, run pytest to see failures, then read the offending modules and patch the bad imports — checking package.json/requirements for the right names.</div></div>
+          </div>
+
+          <!-- read -->
+          <div class="row">
+            <div class="rhead muted" onclick="t(this)"><span class="chk">✓</span><span class="lab">Read app/models.py</span><span class="dur">0.3s</span><span class="chev">▸</span></div>
+            <div class="body" style="display:none"><pre class="snip">  1  from django.db import models
+  2  from redis import Redis          # ← suspicious
+  3
+  4  class Account(models.Model):
+  5      name = models.CharField(max_length=255)</pre></div>
+          </div>
+
+          <!-- search -->
+          <div class="row">
+            <div class="rhead muted" onclick="t(this)"><span class="chk">✓</span><span class="lab">Searched for "import redis"</span><span class="dur">0.7s</span><span class="chev">▸</span></div>
+            <div class="body" style="display:none"><pre class="snip">app/models.py:2:  from redis import Redis
+app/tasks.py:5:   import redis</pre></div>
+          </div>
+
+          <!-- bash (active, expanded, IN/OUT) -->
+          <div class="row">
+            <div class="rhead active" onclick="t(this)"><span class="spin"></span><span class="lab">Ran: pytest -q tests/</span><span class="exit bad">exit 1</span><span class="chev">▾</span></div>
+            <div class="body">
+              <pre class="term"><span class="muted">$</span> <span class="cmd">pytest -q tests/</span>
+<span class="muted">…</span>
+E   ModuleNotFoundError: No module named 'redis'
+<span style="color:#fca5a5">1 error in 0.42s</span></pre>
+            </div>
+          </div>
+
+          <!-- pending -->
+          <div class="row"><div class="rhead muted"><span class="pend"></span><span class="lab" style="color:#9ca3af">Edit app/models.py — fix import</span><span class="chev"></span></div></div>
+          <div class="row"><div class="rhead muted"><span class="pend"></span><span class="lab" style="color:#9ca3af">Re-run test suite</span><span class="chev"></span></div></div>
+        </div>
+      </div>
+      <div class="foot"><span>Model ▸ Claude Sonnet 4.6</span><span class="conn">● Connected</span></div>
+    </div>
+    <div class="cap"><b>① Live</b> — thinking, reads, search, and a bash call with its real IN/OUT (click any row)</div>
+  </div>
+
+  <!-- DONE transcript -->
+  <div>
+    <div class="panel">
+      <div class="tabs"><span class="off">Inspector</span><span class="on">Emulator</span></div>
+      <div class="sub"><b>Emulator</b><span class="ico">↻ ⋯</span></div>
+      <div class="chat">
+        <div class="urow"><div class="ubub">run the test suite and fix any broken imports</div></div>
+        <div class="summary" onclick="t2()"><span class="c">✓</span> Done · 5 steps · 12.7s · 4.2k tokens <span style="margin-left:auto;color:#9ca3af" id="c2">▾</span></div>
+        <div id="exp2" class="tx" style="margin-top:6px">
+          <div class="row"><div class="rhead muted"><span class="brain">✻</span><span class="lab">Thought for 18s</span><span class="dur">18.0s</span></div></div>
+          <div class="row"><div class="rhead muted"><span class="chk">✓</span><span class="lab">Read app/models.py</span><span class="dur">0.3s</span></div></div>
+          <div class="row"><div class="rhead muted"><span class="chk">✓</span><span class="lab">Searched for "import redis"</span><span class="dur">0.7s</span></div></div>
+          <div class="row">
+            <div class="rhead muted" onclick="t(this)"><span class="chk">✓</span><span class="lab">Edited app/models.py</span><span class="dur">0.2s</span><span class="chev">▾</span></div>
+            <div class="body"><div class="diff"><span class="del">- from redis import Redis</span>
+<span class="add">+ from django.core.cache import cache</span></div></div>
+          </div>
+          <div class="row"><div class="rhead muted"><span class="chk">✓</span><span class="lab">Ran: pytest -q tests/</span><span class="exit ok">exit 0</span><span class="dur">2.1s</span></div></div>
+        </div>
+        <div class="answer">Fixed it. <b>app/models.py</b> imported <b>redis</b> directly, which isn't installed; I switched it to Django's cache API and re-ran the suite — <b>all tests pass</b>.</div>
+        <div class="ftok" title="3,212 prompt + 1,003 completion · 1.1k cached · $0.012"><span>▦ 4.2k tokens</span><span style="color:#94a3b8">· ↑3.2k ↓1.0k · 1.1k cached · $0.012</span></div>
+      </div>
+      <div class="foot"><span>Model ▸ Claude Sonnet 4.6</span><span class="conn">● Connected</span></div>
+    </div>
+    <div class="cap"><b>② Done</b> — collapses to <b>Done · 5 steps · 12.7s · 4.2k</b> (expand for the full transcript + the edit diff)</div>
+  </div>
+
+  <div class="ctrls"><button onclick="run()">▶ Replay token ticker</button></div>
+
+<script>
+  function t(h){ const b=h.parentElement.querySelector('.body'); if(!b)return; const open=b.style.display!=='none'; b.style.display=open?'none':'block'; const c=h.querySelector('.chev'); if(c&&c.textContent) c.textContent=open?'▸':'▾'; }
+  function t2(){ const e=document.getElementById('exp2'),i=document.getElementById('c2'); const open=e.style.display!=='none'; e.style.display=open?'none':''; i.textContent=open?'▸':'▾'; }
+  function fmt(n){ return n>=1000?(n/1000).toFixed(1).replace(/\.0$/,'')+'k':String(n) }
+  let timer=null;
+  function run(){ if(timer)clearInterval(timer); const el=document.getElementById('live'); let n=3200; const target=4215;
+    timer=setInterval(()=>{ n+=Math.round(55+Math.random()*85); if(n>=target){n=target;clearInterval(timer);timer=null;} el.textContent='· '+fmt(n)+' tokens'; },90); }
+  run();
+</script>
+</body>
+</html>

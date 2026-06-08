@@ -3,12 +3,12 @@
     <!-- Header & Actions -->
     <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6 sm:mb-8">
       <div>
-        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Your Systems</h1>
-        <p class="mt-1.5 text-sm sm:text-base text-slate-500">Manage your multi-repo agent systems</p>
+        <h1 class="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink">Your Systems</h1>
+        <p class="mt-1.5 text-sm sm:text-base text-ink-soft">Manage your multi-repo agent systems</p>
       </div>
       <div class="flex flex-col sm:flex-row items-center gap-3">
         <router-link
-          to="/agents"
+          to="/dashboard/agents"
           class="inline-flex items-center justify-center px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-[10px] hover:bg-slate-50 hover:border-slate-300 hover:text-slate-900 transition-all shadow-sm font-semibold text-[13px] w-full sm:w-auto"
         >
           <svg class="w-4 h-4 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
@@ -16,7 +16,7 @@
         </router-link>
         <button
           @click="showCreateModal = true"
-          class="inline-flex items-center justify-center px-4 py-2.5 bg-slate-900 text-white rounded-[10px] hover:bg-slate-800 transition-all font-semibold text-[13px] shadow-sm border border-transparent shadow-[0_2px_4px_rgba(0,0,0,0.1)] w-full sm:w-auto"
+          class="inline-flex items-center justify-center px-4 py-2.5 bg-g-brand text-white rounded-xl hover:brightness-110 transition-all font-semibold text-[13px] shadow-glow-v w-full sm:w-auto"
         >
           <svg class="w-4 h-4 mr-2 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
           Create System

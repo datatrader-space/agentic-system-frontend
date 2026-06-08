@@ -1,22 +1,27 @@
 <template>
   <div id="app" class="min-h-screen" :class="appBackgroundClass">
-    <!-- Header Component — hidden inside the v2 app shell (/dashboard), which has its own sidebar -->
-    <AppHeader
-      v-if="!isAppShell"
-      :current-user="currentUser"
-      :llm-health="llmHealth"
-      :theme="theme"
-      @logout="handleLogout"
-      @connect-github="connectGitHub"
-      @toggle-theme="handleToggleTheme"
-    />
+    <!-- Public webchat (/a/:token, /embed/:token): bare full-bleed, no app header/shell -->
+    <router-view v-if="isBareChat" />
 
-    <!-- Main Content -->
-    <main v-if="!isAppShell" :class="mainContentClass">
-      <router-view />
-    </main>
-    <!-- v2 app shell: full-bleed, owns its own layout -->
-    <router-view v-else />
+    <template v-else>
+      <!-- Header Component — hidden inside the v2 app shell (/dashboard), which has its own sidebar -->
+      <AppHeader
+        v-if="!isAppShell"
+        :current-user="currentUser"
+        :llm-health="llmHealth"
+        :theme="theme"
+        @logout="handleLogout"
+        @connect-github="connectGitHub"
+        @toggle-theme="handleToggleTheme"
+      />
+
+      <!-- Main Content -->
+      <main v-if="!isAppShell" :class="mainContentClass">
+        <router-view />
+      </main>
+      <!-- v2 app shell: full-bleed, owns its own layout -->
+      <router-view v-else />
+    </template>
 
     <!-- Global confirm dialog host (replaces native window.confirm everywhere) -->
     <ConfirmDialog />
@@ -63,8 +68,10 @@ const router = useRouter()
 const route = useRoute()
 const llmHealth = ref(null)
 
-// Initialize theme system
-const { theme, toggleTheme, isDark } = useTheme()
+// Initialize theme system — LIGHT ONLY (no dark mode). Force light even if a
+// previous session saved 'dark', so the whole app + marketing renders light.
+const { theme, toggleTheme, isDark, setTheme } = useTheme()
+setTheme('light')
 
 const handleToggleTheme = () => {
   toggleTheme()
@@ -79,18 +86,18 @@ const isFullScreen = computed(() => route.name === 'repository-detail' || route.
 // v2 app shell routes (/dashboard/*) render full-bleed with their own sidebar/header
 const isAppShell = computed(() => route.path === '/dashboard' || route.path.startsWith('/dashboard/'))
 
+// Public webchat pages render completely bare (no app header, no main wrapper).
+const isBareChat = computed(() => route.path.startsWith('/a/') || route.path.startsWith('/embed/'))
+
 // Public pages that need full-width dark layout
 const isPublicPage = computed(() => {
   return !!route.meta.public
 })
 
-// Background class based on page type
-const appBackgroundClass = computed(() => {
-  if (isPublicPage.value) {
-    return 'app-dark-theme'
-  }
-  return 'bg-gray-50'
-})
+// Background class based on page type. Light theme only — public/marketing pages
+// are now light too (they're var-driven, so flipping the canvas + data-theme=light
+// makes them render light). See REDESIGN_PLAN.md Phase 6.
+const appBackgroundClass = computed(() => 'app-light-theme')
 
 // Main content class based on page type
 const mainContentClass = computed(() => {
@@ -268,9 +275,9 @@ body {
   box-sizing: border-box;
 }
 
-/* Dark theme for public/landing pages */
-.app-dark-theme {
-  background: #030712;
+/* Light-only canvas for public/marketing + app pages */
+.app-light-theme {
+  background: #FBFAFF;
 }
 
 /* Light theme background */

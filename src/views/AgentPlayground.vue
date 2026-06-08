@@ -14,6 +14,8 @@
 
             <!-- Right: Actions -->
             <div class="flex items-center gap-2 flex-shrink-0">
+                <AgentModePicker v-if="agent.id" :agent-id="agent.id"
+                    :execution-mode="agent.execution_mode" :plan-mode="agent.plan_mode_enabled" />
                 <button v-if="agent.id && isOwner" @click="toggleWorkspace"
                     class="h-9 px-3 rounded-lg border transition-all flex items-center gap-2 group text-xs font-semibold"
                     :class="showWorkspace ? 'bg-blue-50 border-blue-200 text-blue-600' : wsRouting?.routed ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'"
@@ -1042,6 +1044,7 @@ import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css'; // Or any other style
 import api from '../services/api';
 import AgentBuilder from '../components/AgentBuilder.vue';
+import AgentModePicker from '../components/agent/AgentModePicker.vue';
 import CredentialManager from '../components/tools/CredentialManager.vue';
 import SessionTrace from '../components/SessionTrace.vue';
 import PromptBuilder from '../components/PromptBuilder.vue';

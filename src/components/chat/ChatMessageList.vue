@@ -6,6 +6,9 @@
         :key="m.id"
         :message="m"
         @retry="chat.retryLast()"
+        @regenerate="chat.regenerate(m.id)"
+        @edit="chat.editAndResend(m.id, $event)"
+        @feedback="chat.setFeedback(m.id, $event)"
       />
     </div>
   </div>

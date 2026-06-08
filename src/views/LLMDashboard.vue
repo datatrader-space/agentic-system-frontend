@@ -1,10 +1,10 @@
 <template>
-  <div class="min-h-screen bg-slate-50/50 p-6 sm:p-8 font-sans">
+  <div class="min-h-screen p-6 sm:p-8 font-sans">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
       <div>
-        <h1 class="text-3xl font-extrabold tracking-tight text-slate-900">AI Cost Dashboard</h1>
-        <p class="text-[14px] text-slate-500 mt-1 font-medium">Monitor usage, costs, and audit LLM requests</p>
+        <h1 class="font-display text-3xl font-extrabold tracking-tight text-ink">AI Cost Dashboard</h1>
+        <p class="text-[14px] text-ink-soft mt-1 font-medium">Monitor usage, costs, and audit LLM requests</p>
       </div>
       <div class="flex items-center gap-3">
         <select v-model="agentFilter" @change="refreshAll" class="bg-white text-slate-700 rounded-[10px] px-3 py-2 text-[14px] font-medium border border-slate-200 focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all outline-none shadow-sm cursor-pointer">

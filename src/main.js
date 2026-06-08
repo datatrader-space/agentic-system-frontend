@@ -12,46 +12,49 @@ import axios from 'axios'
 // Set global axios defaults
 axios.defaults.withCredentials = true
 
-// Import views
-import SystemList from './views/SystemList.vue'
-import SystemDetail from './views/SystemDetail.vue'
-import RepositoryPage from './views/RepositoryPage.vue'
-import Login from './views/Login.vue'
-import LLMSettings from './views/LLMSettings.vue'
-import LLMDashboard from './views/LLMDashboard.vue'
-import LLMContextDashboard from './views/LLMContextDashboard.vue'
-import Benchmarks from './views/Benchmarks.vue'
-import ToolRegistry from './views/ToolRegistry.vue'
-import Services from './views/Services.vue'
-import MCPServers from './views/MCPServers.vue'
-import AgentLibrary from './views/AgentLibrary.vue'
-import AgentPlayground from './views/AgentPlayground.vue'
-import AgentBuilderCanvas from './views/AgentBuilderCanvas.vue'
-import AgentMonitor from './views/AgentMonitor.vue'
-import LandingPage from './views/LandingPage.vue'
-import Features from './views/Features.vue'
-import HowItWorks from './views/HowItWorks.vue'
-import Blog from './views/Blog.vue'
-import BlogPost from './views/BlogPost.vue'
-import Pricing from './views/Pricing.vue'
-import About from './views/About.vue'
-import Contact from './views/Contact.vue'
-import ServiceRegistrationV2 from './views/ServiceRegistrationV2.vue'
-import ServiceDrafts from './views/ServiceDrafts.vue'
-import WorkspaceHub from './views/WorkspaceHub.vue'
-import OrgSettings from './views/OrgSettings.vue'
-import WorkspaceDashboard from './views/WorkspaceDashboard.vue'
-import InviteAccept from './views/InviteAccept.vue'
-import Connections from './views/Connections.vue'
-import ConnectionDocs from './views/ConnectionDocs.vue'
-import IntegrationGuide from './views/IntegrationGuide.vue'
-import Docs from './views/Docs.vue'
-import AdminPanel from './views/AdminPanel.vue'
+// Views — lazy-loaded for route-level code-splitting (Phase 7 optimization).
+// Vue Router accepts async component factories, so each view ships in its own chunk
+// instead of one giant bundle; heavy deps (Monaco, pdf.js, highlight.js) only load
+// on the routes that need them.
+const SystemList = () => import('./views/SystemList.vue')
+const SystemDetail = () => import('./views/SystemDetail.vue')
+const RepositoryPage = () => import('./views/RepositoryPage.vue')
+const Login = () => import('./views/Login.vue')
+const LLMSettings = () => import('./views/LLMSettings.vue')
+const LLMDashboard = () => import('./views/LLMDashboard.vue')
+const LLMContextDashboard = () => import('./views/LLMContextDashboard.vue')
+const ToolRegistry = () => import('./views/ToolRegistry.vue')
+const Services = () => import('./views/Services.vue')
+const MCPServers = () => import('./views/MCPServers.vue')
+const AgentLibrary = () => import('./views/AgentLibrary.vue')
+const AgentPlayground = () => import('./views/AgentPlayground.vue')
+const AgentBuilderCanvas = () => import('./views/AgentBuilderCanvas.vue')
+const AgentMonitor = () => import('./views/AgentMonitor.vue')
+const LandingPage = () => import('./views/LandingPage.vue')
+const Features = () => import('./views/Features.vue')
+const HowItWorks = () => import('./views/HowItWorks.vue')
+const Blog = () => import('./views/Blog.vue')
+const BlogPost = () => import('./views/BlogPost.vue')
+const Pricing = () => import('./views/Pricing.vue')
+const About = () => import('./views/About.vue')
+const Contact = () => import('./views/Contact.vue')
+const ServiceRegistrationV2 = () => import('./views/ServiceRegistrationV2.vue')
+const ServiceDrafts = () => import('./views/ServiceDrafts.vue')
+const WorkspaceHub = () => import('./views/WorkspaceHub.vue')
+const OrgSettings = () => import('./views/OrgSettings.vue')
+const WorkspaceDashboard = () => import('./views/WorkspaceDashboard.vue')
+const InviteAccept = () => import('./views/InviteAccept.vue')
+const Connections = () => import('./views/Connections.vue')
+const ConnectionDocs = () => import('./views/ConnectionDocs.vue')
+const IntegrationGuide = () => import('./views/IntegrationGuide.vue')
+const PublicChat = () => import('./views/PublicChat.vue')
+const Docs = () => import('./views/Docs.vue')
+const AdminPanel = () => import('./views/AdminPanel.vue')
 
-// v2 app shell (Phase 1) + chat workspace (Phase 2) + tabbed settings (Phase 4)
-import AppShell from './components/app-shell/AppShell.vue'
-import ChatWorkspace from './components/chat/ChatWorkspace.vue'
-import SettingsLayout from './components/settings/SettingsLayout.vue'
+// v2 app shell + chat workspace + tabbed settings (also lazy)
+const AppShell = () => import('./components/app-shell/AppShell.vue')
+const ChatWorkspace = () => import('./components/chat/ChatWorkspace.vue')
+const SettingsLayout = () => import('./components/settings/SettingsLayout.vue')
 
 // Iconify: bundle icon sets so brand/colored logos work OFFLINE (no API fetch).
 // 'logos' = full-color brand logos; 'lucide' = generic icons used as iconify strings.
@@ -71,6 +74,9 @@ const router = createRouter({
       component: LandingPage,
       meta: { requiresAuth: false, public: true }
     },
+    // Public shareable webchat (no login): full page + embed (runs in the widget iframe).
+    { path: '/a/:token', name: 'public-chat', component: PublicChat, meta: { requiresAuth: false, public: true } },
+    { path: '/embed/:token', name: 'public-chat-embed', component: PublicChat, meta: { requiresAuth: false, public: true } },
     {
       path: '/features',
       name: 'features',
@@ -125,12 +131,7 @@ const router = createRouter({
       component: Docs,
       meta: { requiresAuth: false, public: true }
     },
-    {
-      path: '/admin',
-      name: 'admin',
-      component: AdminPanel,
-      meta: { requiresAuth: true }
-    },
+    { path: '/admin', name: 'admin', redirect: '/dashboard/admin' },
     {
       path: '/login',
       name: 'login',
@@ -158,145 +159,55 @@ const router = createRouter({
         { path: 'tools', name: 'dashboard-tools', component: ToolRegistry },
         { path: 'services', name: 'dashboard-services', component: Services },
         { path: 'mcp', name: 'dashboard-mcp', component: MCPServers },
-        { path: 'benchmarks', name: 'dashboard-benchmarks', component: Benchmarks },
         { path: 'workspaces', name: 'dashboard-workspaces', component: WorkspaceHub },
         { path: 'activity', name: 'dashboard-activity', component: LLMDashboard },
         { path: 'llm-context', name: 'dashboard-llm-context', component: LLMContextDashboard },
+        { path: 'llm-settings', name: 'dashboard-llm-settings', component: LLMSettings },
+        // Phase 5: previously top-level authed pages, re-housed inside the single shell.
+        { path: 'systems/:id', name: 'dashboard-system-detail', component: SystemDetail },
+        { path: 'systems/:systemId/repositories/:repoId', name: 'dashboard-repository-detail', component: RepositoryPage },
+        { path: 'services/register', name: 'dashboard-service-register', component: ServiceRegistrationV2 },
+        { path: 'services/wizard', name: 'dashboard-service-wizard', component: ServiceRegistrationV2 },
+        { path: 'services/drafts', name: 'dashboard-service-drafts', component: ServiceDrafts },
+        { path: 'workspace/:wsId', name: 'dashboard-workspace', component: WorkspaceDashboard },
+        { path: 'workspace/:wsId/:tab', name: 'dashboard-workspace-tab', component: WorkspaceDashboard },
+        { path: 'connections', name: 'dashboard-connections', component: Connections },
+        { path: 'connections/docs', name: 'dashboard-connection-docs', component: ConnectionDocs },
+        { path: 'integration-guide/:agentId?', name: 'dashboard-integration-guide', component: IntegrationGuide },
+        { path: 'org/:orgSlug/settings', name: 'dashboard-org-settings', component: OrgSettings },
+        { path: 'org/:orgSlug/settings/:tab', name: 'dashboard-org-settings-tab', component: OrgSettings },
+        { path: 'admin', name: 'dashboard-admin', component: AdminPanel },
         { path: 'settings', redirect: '/dashboard/settings/general' },
         { path: 'settings/:tab', name: 'dashboard-settings', component: SettingsLayout },
       ]
     },
-    {
-      path: '/systems/:id',
-      name: 'system-detail',
-      component: SystemDetail,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/systems/:systemId/repositories/:repoId',
-      name: 'repository-detail',
-      component: RepositoryPage,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/ai-settings',
-      name: 'ai-settings',
-      component: LLMSettings,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/ai-dashboard',
-      name: 'ai-dashboard',
-      component: LLMDashboard,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/benchmarks',
-      name: 'benchmarks',
-      component: Benchmarks,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/tools',
-      name: 'tools',
-      component: ToolRegistry,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/services',
-      name: 'services',
-      component: Services,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/mcp',
-      name: 'mcp-servers',
-      component: MCPServers,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/agents',
-      name: 'agent-library',
-      component: AgentLibrary,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/agents/:id',
-      name: 'agent-playground',
-      component: AgentPlayground,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/services/register',
-      name: 'service-registration-v2',
-      component: ServiceRegistrationV2,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/services/wizard',
-      name: 'service-wizard',
-      component: ServiceRegistrationV2,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/services/drafts',
-      name: 'service-drafts',
-      component: ServiceDrafts,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/workspaces',
-      name: 'workspace-hub',
-      component: WorkspaceHub,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/org/:orgSlug/settings',
-      name: 'org-settings',
-      component: OrgSettings,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/org/:orgSlug/settings/:tab',
-      name: 'org-settings-tab',
-      component: OrgSettings,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/workspace/:wsId',
-      name: 'workspace-dashboard',
-      component: WorkspaceDashboard,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/workspace/:wsId/:tab',
-      name: 'workspace-tab',
-      component: WorkspaceDashboard,
-      meta: { requiresAuth: true }
-    },
+    // ── Phase 5: legacy top-level authed paths now REDIRECT into the single shell.
+    //    Names are kept so name-based navigation keeps working; bookmarks/deep links too.
+    { path: '/systems/:id', name: 'system-detail', redirect: to => `/dashboard/systems/${to.params.id}` },
+    { path: '/systems/:systemId/repositories/:repoId', name: 'repository-detail', redirect: to => `/dashboard/systems/${to.params.systemId}/repositories/${to.params.repoId}` },
+    { path: '/ai-settings', name: 'ai-settings', redirect: '/dashboard/llm-settings' },
+    { path: '/ai-dashboard', name: 'ai-dashboard', redirect: '/dashboard/activity' },
+    { path: '/tools', name: 'tools', redirect: '/dashboard/tools' },
+    { path: '/services', name: 'services', redirect: '/dashboard/services' },
+    { path: '/mcp', name: 'mcp-servers', redirect: '/dashboard/mcp' },
+    { path: '/agents', name: 'agent-library', redirect: '/dashboard/agents' },
+    { path: '/agents/:id', name: 'agent-playground', redirect: to => `/dashboard/agents/${to.params.id}` },
+    { path: '/services/register', name: 'service-registration-v2', redirect: '/dashboard/services/register' },
+    { path: '/services/wizard', name: 'service-wizard', redirect: '/dashboard/services/wizard' },
+    { path: '/services/drafts', name: 'service-drafts', redirect: '/dashboard/services/drafts' },
+    { path: '/workspaces', name: 'workspace-hub', redirect: '/dashboard/workspaces' },
+    { path: '/org/:orgSlug/settings', name: 'org-settings', redirect: to => `/dashboard/org/${to.params.orgSlug}/settings` },
+    { path: '/org/:orgSlug/settings/:tab', name: 'org-settings-tab', redirect: to => `/dashboard/org/${to.params.orgSlug}/settings/${to.params.tab}` },
+    { path: '/workspace/:wsId', name: 'workspace-dashboard', redirect: to => `/dashboard/workspace/${to.params.wsId}` },
+    { path: '/workspace/:wsId/:tab', name: 'workspace-tab', redirect: to => `/dashboard/workspace/${to.params.wsId}/${to.params.tab}` },
+    { path: '/connections', name: 'connections', redirect: '/dashboard/connections' },
+    { path: '/docs/connections', name: 'connection-docs', redirect: '/dashboard/connections/docs' },
+    { path: '/integration-guide/:agentId?', name: 'integration-guide', redirect: to => `/dashboard/integration-guide${to.params.agentId ? '/' + to.params.agentId : ''}` },
     {
       path: '/invite/accept/:token',
       name: 'invite-accept',
       component: InviteAccept,
       meta: { requiresAuth: false, public: true }
-    },
-    {
-      path: '/connections',
-      name: 'connections',
-      component: Connections,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/docs/connections',
-      name: 'connection-docs',
-      component: ConnectionDocs,
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/integration-guide/:agentId?',
-      name: 'integration-guide',
-      component: IntegrationGuide,
-      meta: { requiresAuth: true }
     }
   ]
 })
@@ -356,6 +267,10 @@ const app = createApp(App)
 
 // State management (Pinia) — required by the v2 app shell
 app.use(createPinia())
+
+// v-reveal — scroll-reveal directive (Vibrant Light Mesh power-up)
+import reveal from './directives/reveal'
+app.directive('reveal', reveal)
 
 // Global toast notifications (replaces native browser alert popups everywhere)
 app.use(Toast, {

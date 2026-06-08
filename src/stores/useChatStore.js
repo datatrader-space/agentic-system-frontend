@@ -27,15 +27,28 @@ export const useChatStore = defineStore('chat', {
     // Human-in-the-loop approval queue (tools the backend gated for approval). Rendered by HITLModal.
     hitlRequests: [],
 
+    // Manual Mode plan awaiting human approval (v3 Layer 2). Rendered by PlanApprovalCard; null when
+    // none pending. Approving resumes the run (re-sends the last user message).
+    pendingPlan: null,
+
+    // Staged attachments (images/files) to send with the next message. Each:
+    // { file: File, name, isImage, url }. Uploaded to the conversation on send; the backend
+    // auto-attaches recent images to the vision model.
+    pendingAttachments: [],
+
     // Agent selection
     agents: [],
     selectedAgentId: null,
     agentsLoaded: false,
     agentsLoading: false,
 
-    // Sidebar history
+    // Sidebar history (current agent)
     sessions: [],
     sessionsLoading: false,
+
+    // Global chat history across ALL agents (sidebar list + search modal)
+    allSessions: [],
+    allSessionsLoading: false,
 
     loadingHistory: false,
     error: '',
@@ -47,6 +60,13 @@ export const useChatStore = defineStore('chat', {
     isEmpty: (s) => s.messages.length === 0,
     currentAgent: (s) =>
       s.agents.find((a) => String(a.id) === String(s.selectedAgentId)) || null,
+    // Running session totals (this chat). Prefer a turn's EXACT completed usage; while a turn is
+    // still streaming, fall back to its live activity-token counter so the footer ticks up mid-run
+    // and finalises exactly. Turns with neither contribute 0; auto-resets when messages clear.
+    sessionTokens: (s) => s.messages.reduce((a, m) =>
+      a + ((m.usage && m.usage.total_tokens) || (m.activity && m.activity.tokens && m.activity.tokens.total) || 0), 0),
+    sessionCost: (s) => s.messages.reduce((a, m) =>
+      a + ((m.usage && m.usage.cost_usd) || (m.activity && m.activity.tokens && m.activity.tokens.cost) || 0), 0),
   },
   actions: {
     // ---- Agents + history ----
@@ -92,12 +112,35 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    // Global recent chats across every agent — powers the sidebar list + search modal.
+    async loadAllSessions() {
+      if (this.allSessionsLoading) return
+      this.allSessionsLoading = true
+      try {
+        const res = await api.getConversations({ ordering: '-updated_at', limit: 200 })
+        this.allSessions = pickArray(res.data)
+      } catch {
+        /* non-fatal */
+      } finally {
+        this.allSessionsLoading = false
+      }
+    },
+
     // ---- Conversation lifecycle ----
     reset() {
       this._teardown()
       this.messages = []
       this.conversationId = null
       this.error = ''
+      this.pendingPlan = null
+      this._clearAttachments()
+    },
+
+    _clearAttachments() {
+      for (const a of this.pendingAttachments) {
+        if (a && a.url) { try { URL.revokeObjectURL(a.url) } catch { /* ignore */ } }
+      }
+      this.pendingAttachments = []
     },
 
     async openConversation(id) {
@@ -109,6 +152,8 @@ export const useChatStore = defineStore('chat', {
       this._teardown()
       this.conversationId = String(id)
       this.messages = []
+      this.pendingPlan = null
+      this._clearAttachments()
       this.loadingHistory = true
       this.error = ''
       try {
@@ -137,9 +182,27 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    // ── Attachments (images/files) staged for the next message ──
+    addAttachments(files) {
+      for (const file of Array.from(files || [])) {
+        if (!file) continue
+        const isImage = /^image\//.test(file.type)
+        this.pendingAttachments.push({
+          file, name: file.name, isImage,
+          url: isImage ? URL.createObjectURL(file) : '',
+        })
+      }
+    },
+    removeAttachment(i) {
+      const a = this.pendingAttachments[i]
+      if (a && a.url) { try { URL.revokeObjectURL(a.url) } catch { /* ignore */ } }
+      this.pendingAttachments.splice(i, 1)
+    },
+
     async sendMessage(text) {
       const content = (text || '').trim()
-      if (!content || this.isStreaming) return
+      const atts = this.pendingAttachments.slice()
+      if ((!content && atts.length === 0) || this.isStreaming) return
 
       // Start a conversation on the first message.
       if (!this.conversationId) {
@@ -155,6 +218,7 @@ export const useChatStore = defineStore('chat', {
           if (!this.conversationId) throw new Error('no conversation id')
           this._connect()
           this.loadSessions() // surface the new chat in the sidebar
+          this.loadAllSessions() // refresh the global recent-chats list + search
         } catch {
           this.error = 'Failed to start chat.'
           return
@@ -163,8 +227,24 @@ export const useChatStore = defineStore('chat', {
         this._connect()
       }
 
-      this.messages.push({ id: nid(), role: 'user', content, status: 'done' })
+      // Show the user turn (with attachment previews) and the assistant placeholder up-front.
+      this.messages.push({
+        id: nid(), role: 'user', content, status: 'done',
+        attachments: atts.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url })),
+      })
+      this.pendingAttachments = [] // claimed by this turn; the message bubble keeps the preview urls
       this._beginAssistant()
+
+      // Upload attachments to the conversation BEFORE sending the text — the backend auto-attaches
+      // recent images (within one message) to the vision model, so they must exist first.
+      if (atts.length) {
+        try {
+          for (const a of atts) await api.uploadConversationFile(this.conversationId, a.file)
+        } catch {
+          this.error = 'Failed to upload an attachment.'
+        }
+      }
+
       this._conn?.sendMessage(content, this.selectedAgentId)
     },
 
@@ -184,6 +264,39 @@ export const useChatStore = defineStore('chat', {
       this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== requestId)
     },
 
+    // ── Manual Mode plan approval (v3 Layer 2) ──
+    approvePlan() {
+      this.pendingPlan = null
+      this._conn?.sendPlanDecision('approve')
+    },
+    rejectPlan() {
+      this.pendingPlan = null
+      this._conn?.sendPlanDecision('reject')
+    },
+    // Request changes: hand the feedback to the agent, which re-plans and asks again.
+    revisePlan(feedback) {
+      this.pendingPlan = null
+      this._conn?.sendPlanDecision('revise', feedback)
+    },
+    // Resume after the server approves the plan: re-run the last user instruction (now unblocked).
+    _resumeAfterPlan() {
+      const lastUser = [...this.messages].reverse().find((m) => m.role === 'user')
+      if (!lastUser) return
+      if (!this._conn && this.conversationId) this._connect()
+      this._beginAssistant()
+      this._conn?.sendMessage(lastUser.content, this.selectedAgentId)
+    },
+    // Resume after a revision request: the feedback IS the next instruction (shown as a user turn),
+    // and the agent re-plans from it.
+    _resumeAfterRevise(feedback) {
+      const text = (feedback || '').trim()
+      if (!text) return
+      if (!this._conn && this.conversationId) this._connect()
+      this.messages.push({ id: nid(), role: 'user', content: text, status: 'done' })
+      this._beginAssistant()
+      this._conn?.sendMessage(text, this.selectedAgentId)
+    },
+
     skipHitl(requestId) {
       this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== requestId)
     },
@@ -197,6 +310,45 @@ export const useChatStore = defineStore('chat', {
       if (!this._conn && this.conversationId) this._connect()
       this._beginAssistant()
       this._conn?.sendMessage(lastUser.content, this.selectedAgentId)
+    },
+
+    // Regenerate the answer for a given message: re-run the user turn that produced it (drop
+    // everything after that user message, then re-send it).
+    regenerate(messageId) {
+      if (this.isStreaming) return
+      const idx = this.messages.findIndex((m) => m.id === messageId)
+      if (idx < 0) return
+      let userIdx = idx
+      if (this.messages[idx].role !== 'user') {
+        userIdx = -1
+        for (let i = idx; i >= 0; i--) { if (this.messages[i].role === 'user') { userIdx = i; break } }
+      }
+      const userMsg = this.messages[userIdx]
+      if (!userMsg || userMsg.role !== 'user') return
+      this.messages = this.messages.slice(0, userIdx + 1)   // keep the user turn, drop the rest
+      if (!this._conn && this.conversationId) this._connect()
+      this._beginAssistant()
+      this._conn?.sendMessage(userMsg.content, this.selectedAgentId)
+    },
+
+    // Edit a user message and re-submit: replace its text, drop everything after it, re-send.
+    editAndResend(messageId, newText) {
+      const text = (newText || '').trim()
+      if (!text || this.isStreaming) return
+      const idx = this.messages.findIndex((m) => m.id === messageId)
+      if (idx < 0 || this.messages[idx].role !== 'user') return
+      this.messages[idx].content = text
+      this.messages = this.messages.slice(0, idx + 1)
+      if (!this._conn && this.conversationId) this._connect()
+      this._beginAssistant()
+      this._conn?.sendMessage(text, this.selectedAgentId)
+    },
+
+    // Thumbs up/down on an assistant message (toggles). Stored on the message; ready to POST to a
+    // feedback endpoint later.
+    setFeedback(messageId, value) {
+      const m = this.messages.find((x) => x.id === messageId)
+      if (m) m.feedback = m.feedback === value ? null : value
     },
 
     // ---- Connection + streaming internals ----
@@ -277,7 +429,11 @@ export const useChatStore = defineStore('chat', {
           if (m) m.content += msg.chunk || ''
           break
         case 'assistant_message_complete':
-          if (m && !m.content && msg.full_message) m.content = msg.full_message
+          // The backend sends the CLEANED prose here (tool-call JSON stripped). Always
+          // replace the live-streamed text with it so any raw JSON that streamed
+          // token-by-token is corrected to clean prose. Tool calls still render as
+          // cards via the tool_call/tool_result events + activity timeline.
+          if (m && msg.full_message != null) m.content = msg.full_message
           if (m && msg.usage) m.usage = msg.usage // per-response token counts
           this._endAssistant()
           break
@@ -321,6 +477,26 @@ export const useChatStore = defineStore('chat', {
           break
         case 'hitl_response_ack':
           this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== msg.request_id)
+          break
+        // ── v3 Plan Gate (Manual Mode): a plan is ready and awaits a human. The timeline label is
+        // already shown via the catch-all ingest above; surface the approval card with the content.
+        case 'plan_approval_required':
+          this.pendingPlan = msg.plan || {}
+          break
+        // Human approved server-side → resume by re-sending the original instruction (it now
+        // executes because the plan is approved). Rejection just clears the card + ends the turn.
+        case 'plan_approved':
+          this.pendingPlan = null
+          this._resumeAfterPlan()
+          break
+        case 'plan_rejected':
+          this.pendingPlan = null
+          this._endAssistant()
+          break
+        // Human requested changes → the feedback becomes the next instruction; the agent re-plans.
+        case 'plan_revise':
+          this.pendingPlan = null
+          this._resumeAfterRevise(msg.feedback)
           break
         case 'agent_session_complete':
           this._endAssistant()
