@@ -1,15 +1,17 @@
 <template>
   <div>
-    <!-- Selected tools as cards -->
+    <!-- Selected tools — grouped by connector/category (a connector shows one summary
+         card with its tool count; a lone tool shows its own name). -->
     <div class="flex flex-wrap gap-2">
-      <div v-for="t in selectedTools" :key="t.id"
+      <div v-for="g in selectedGroups" :key="g.key"
         class="group flex items-center gap-2 bg-white border border-slate-200 rounded-xl pl-2 pr-1 py-1.5 shadow-sm">
-        <ToolIcon :name="t.name" :group="groupKey(t)" :size="28" :inner="16" />
+        <ToolIcon :name="g.sampleName" :group="g.key" :size="28" :inner="16" />
         <div class="min-w-0">
-          <div class="text-sm font-medium text-slate-800 truncate max-w-[170px]">{{ toolLabel(t) }}</div>
-          <div class="text-[10px] text-slate-400 truncate max-w-[170px]">{{ catLabel(groupKey(t)) }}</div>
+          <div class="text-sm font-medium text-slate-800 truncate max-w-[170px]">{{ g.label }}</div>
+          <div class="text-[10px] text-slate-400 truncate max-w-[170px]">{{ g.sub }}</div>
         </div>
-        <button @click="toggle(t.id)" class="text-slate-300 hover:text-red-500 text-lg leading-none px-1.5" title="Remove">×</button>
+        <button @click="removeGroup(g)" class="text-slate-300 hover:text-red-500 text-lg leading-none px-1.5"
+          :title="g.count > 1 ? 'Remove all ' + g.count + ' tools' : 'Remove'">×</button>
       </div>
 
       <button @click="openModal" type="button"
@@ -105,6 +107,46 @@ const searchInput = ref(null)
 
 const ids = computed(() => new Set(props.modelValue || []))
 const selectedTools = computed(() => props.tools.filter(t => ids.value.has(t.id)))
+
+// Coarse "connector root" so a connector's many tools collapse into ONE group
+// (github.read / github.issue / … -> "github"; MCP -> "mcp"; service -> "service:<id>").
+function connectorRoot(t) {
+  if (t.name && String(t.name).startsWith('MCP_')) return 'mcp'
+  if (t.category) return String(t.category).split('.')[0]
+  if (t.service) return 'service:' + (typeof t.service === 'string' ? t.service : (t.service.id || 'services'))
+  return groupKey(t)
+}
+const ROOT_LABELS = { github: 'GitHub', slack: 'Slack', mcp: 'MCP servers' }
+function rootLabel(key) {
+  if (ROOT_LABELS[key]) return ROOT_LABELS[key]
+  if (key && key.startsWith('service:')) return 'Service'
+  return catLabel(key)
+}
+// Selected tools grouped: one card per connector (with count), or the tool's own name when it's alone.
+const selectedGroups = computed(() => {
+  const m = new Map()
+  for (const t of selectedTools.value) {
+    const k = connectorRoot(t)
+    if (!m.has(k)) m.set(k, { key: k, tools: [] })
+    m.get(k).tools.push(t)
+  }
+  return [...m.values()].map(g => {
+    const count = g.tools.length
+    return {
+      key: g.key,
+      ids: g.tools.map(t => t.id),
+      count,
+      sampleName: g.tools[0].name,
+      label: count === 1 ? toolLabel(g.tools[0]) : rootLabel(g.key),
+      sub: count === 1 ? catLabel(groupKey(g.tools[0])) : `${count} tools`,
+    }
+  }).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+})
+function removeGroup(g) {
+  const set = new Set(props.modelValue || [])
+  g.ids.forEach(id => set.delete(id))
+  emit('update:modelValue', [...set])
+}
 
 function groupKey(t) {
   // Primary taxonomy is the tool's real `category` (infrastructure, network,

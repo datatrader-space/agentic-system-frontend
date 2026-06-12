@@ -148,6 +148,37 @@
                     {{ selectedModelInfo.description }}
                 </div>
              </div>
+
+             <!-- Capability models (multi-model): optional per-task models the agent switches to when
+                  its main model can't do something (e.g. generate an image). -->
+             <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Capability models <span class="text-xs font-normal text-gray-400">— optional</span>
+                </label>
+                <p class="text-xs text-gray-500 mb-2 leading-snug">
+                    Let this agent use a specialized model for a task its main model can't do — e.g.
+                    generate images, or read an uploaded image. Leave on <strong>Auto</strong> to use the
+                    main model, or auto-pick any capable model you've added.
+                </p>
+                <div class="space-y-2">
+                    <div v-for="role in capabilityRoles" :key="role.key" class="flex items-center gap-2">
+                        <span class="text-xs text-gray-600 w-32 shrink-0">{{ role.label }}</span>
+                        <select
+                            :value="internalAgent[role.key] || ''"
+                            @change="internalAgent[role.key] = $event.target.value ? parseInt($event.target.value) : null"
+                            class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                            <option :value="null">Auto / main model</option>
+                            <option v-for="m in capabilityModelOptions" :key="m.id" :value="m.id">
+                                {{ m.name }}
+                            </option>
+                        </select>
+                    </div>
+                </div>
+                <p v-if="!hasAnyCapabilityModels" class="text-[11px] text-amber-600 mt-2 leading-snug">
+                    No active models yet. Add or enable models for your providers on the AI Providers page,
+                    then pick the one to use for each task here.
+                </p>
+             </div>
         </div>
 
         <!-- Conversation Memory is hidden — every agent uses Auto (the backend fits history to the
@@ -505,6 +536,63 @@
           <div class="text-xs text-gray-500">What can your agent do?</div>
         </div>
       </div>
+
+      <!-- Connectors — assign connected connectors (GitHub/Slack/MCP/services) to THIS agent.
+           Assigning a connector adds ALL its tools; refine per-tool allow/deny on the Connectors page. -->
+      <div v-if="(layout === 'canvas' || activeTab === 'Tools')"
+        :class="['space-y-3', layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : '']">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2 min-w-0">
+            <div class="w-7 h-7 rounded-lg bg-violet-100 flex items-center justify-center text-violet-700 shrink-0">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+            </div>
+            <div class="min-w-0">
+              <div class="text-sm font-semibold text-gray-800">Connectors</div>
+              <div class="text-xs text-gray-500">Assign a connected connector — its tools are added to this agent.</div>
+            </div>
+          </div>
+          <button type="button" @click="openConnectorsHub"
+            class="px-3 py-1.5 rounded-lg text-[12px] font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 transition-colors shrink-0 inline-flex items-center gap-1.5">
+            <Icon icon="lucide:search" class="w-3.5 h-3.5" /> Browse &amp; connect
+          </button>
+        </div>
+
+        <p v-if="connectorsLoading" class="text-xs text-gray-400 py-2">Loading connectors…</p>
+        <div v-else-if="!connectedConnectors.length" class="rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-4 py-5 text-center">
+          <p class="text-[13px] font-medium text-gray-600">No connected connectors yet</p>
+          <p class="text-[11px] text-gray-400 mt-0.5">Connect GitHub, Slack, an MCP server, or a service, then assign it here.</p>
+          <button type="button" @click="openConnectorsHub" class="mt-2 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100">Browse &amp; connect</button>
+        </div>
+        <div v-else>
+          <!-- Up to 5 shown; expand to a scrollable list for the rest. -->
+          <div :class="['space-y-2', showAllConnectors ? 'max-h-72 overflow-y-auto pr-1' : '']">
+            <div v-for="c in displayedConnectors" :key="c.kind + ':' + c.id"
+              class="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2.5 hover:border-violet-200 transition-colors">
+              <Icon v-if="c.icon && c.icon.includes(':')" :icon="c.icon" class="w-7 h-7 shrink-0" />
+              <span v-else class="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 shrink-0">{{ (c.name||'?').charAt(0) }}</span>
+              <div class="min-w-0 flex-1">
+                <div class="text-[13px] font-semibold text-gray-800 truncate">{{ c.name }}</div>
+                <div class="text-[11px] text-gray-400 truncate">
+                  {{ connectorKindLabel(c) }} · {{ connectorTools(c).length }} tools
+                  <span v-if="connectorTools(c).length === 0" class="text-amber-500">(none synced yet)</span>
+                </div>
+              </div>
+              <button type="button" @click="toggleConnector(c)" :disabled="!connectorTools(c).length"
+                :class="['px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors shrink-0 disabled:opacity-40',
+                  connectorAssigned(c) ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200'
+                                       : 'text-violet-700 bg-violet-50 hover:bg-violet-100 border border-violet-200']">
+                {{ connectorAssigned(c) ? '✓ Assigned' : 'Assign' }}
+              </button>
+            </div>
+          </div>
+          <button v-if="connectedConnectors.length > 5" type="button" @click="showAllConnectors = !showAllConnectors"
+            class="mt-2 text-[12px] font-semibold text-violet-600 hover:underline">
+            {{ showAllConnectors ? 'Show less' : `Show ${connectedConnectors.length - 5} more` }}
+          </button>
+          <p class="text-[11px] text-gray-400 pt-1.5">Fine-tune per-tool allow / ask / deny on the <button type="button" @click="openConnectorsHub" class="text-violet-600 font-semibold hover:underline">Connectors page</button> (this agent's scope).</p>
+        </div>
+      </div>
+
       <div v-if="layout === 'canvas' || activeTab === 'Tools'"
         :class="['space-y-6', layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : '']">
 
@@ -675,10 +763,8 @@
         <AgentRulesEditor v-model="internalAgent.agent_rules" />
       </div>
 
-      <!-- Signal Processing — grouped with the capability toggles (canvas) -->
-      <div v-if="layout === 'canvas'">
-        <SignalPanel :agent="internalAgent" />
-      </div>
+      <!-- Integrations (WebSocket / Webhook / Public widget) live in the top-bar "Deploy" panel
+           for the canvas layout — no inline duplicate here. -->
 
       <!-- Tools — canvas: new ToolPicker; tabs/drawer: legacy list -->
       <div v-if="layout === 'canvas'">
@@ -971,134 +1057,11 @@
           </div>
       </div>
 
-      <!-- MCP SERVERS — its own section -->
-      <h3 v-if="layout === 'canvas'" class="text-sm font-bold text-gray-800 pt-3">MCP Servers</h3>
-      <div v-if="layout === 'canvas' || activeTab === 'Credentials'"
-        :class="layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : ''">
-        <!-- MCP Server Credentials -->
-        <div>
-          <div class="flex justify-between items-center mb-2">
-            <label class="block text-sm font-medium text-gray-700">MCP Server Credentials</label>
-          </div>
-          <p class="text-xs text-gray-500 mb-4">
-            Set environment variables for MCP servers. These are encrypted and injected when the server process starts.
-          </p>
+      <!-- (Old per-agent "MCP Servers" credential section removed — MCP is now managed as a
+           connector on the Connectors page; assign it to the agent in the Connectors section above.) -->
 
-          <!-- MCP Server Selector -->
-          <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-1">MCP Server</label>
-            <select
-              v-model="selectedMcpServerId"
-              @change="loadMcpCredentials"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white"
-            >
-              <option value="">-- Select an MCP server --</option>
-              <option v-for="srv in mcpServers" :key="srv.id" :value="srv.id">
-                {{ srv.icon || '🔌' }} {{ srv.name }}
-              </option>
-            </select>
-          </div>
-
-          <div v-if="!selectedMcpServerId" class="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-            <div class="text-4xl mb-2">🔌</div>
-            <p class="text-gray-600 font-medium mb-1">Select an MCP server</p>
-            <p class="text-xs text-gray-500">Choose a server to configure its environment variables for this agent</p>
-          </div>
-
-          <div v-else class="space-y-4">
-            <!-- Existing MCP Credentials -->
-            <div v-if="mcpCredentials.length" class="space-y-2">
-              <div v-for="cred in mcpCredentials" :key="cred.id" class="bg-gray-50 rounded-lg p-4">
-                <div class="flex justify-between items-center mb-2">
-                  <span class="font-medium text-gray-800">{{ cred.name }}</span>
-                  <button
-                    @click="deleteMcpCredential(cred)"
-                    class="text-xs px-2 py-1 text-gray-600 hover:text-red-600 border border-gray-300 rounded hover:border-red-300"
-                  >
-                    Delete
-                  </button>
-                </div>
-                <div v-for="(val, key) in cred.env_vars" :key="key" class="flex gap-2 text-sm mb-1">
-                  <code class="bg-gray-200 px-2 py-0.5 rounded text-gray-800 text-xs">{{ key }}</code>
-                  <span class="text-gray-400 font-mono text-xs">{{ val }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Add / Edit MCP Env Vars -->
-            <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-              <h4 class="font-medium text-gray-900 mb-1">{{ mcpCredentials.length ? 'Update' : 'Set' }} Environment Variables</h4>
-              <p class="text-xs text-gray-500 mb-3">Values are encrypted at rest and injected as env vars when the server starts.</p>
-
-              <div v-for="(entry, index) in mcpCredentialEntries" :key="index" class="flex gap-2 mb-2">
-                <input
-                  v-model="entry.key"
-                  type="text"
-                  placeholder="VARIABLE_NAME"
-                  class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                >
-                <input
-                  v-model="entry.value"
-                  type="password"
-                  placeholder="secret_value"
-                  class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                >
-                <button
-                  @click="mcpCredentialEntries.splice(index, 1)"
-                  class="text-red-400 hover:text-red-600 px-2 text-lg"
-                >×</button>
-              </div>
-
-              <button
-                @click="mcpCredentialEntries.push({ key: '', value: '' })"
-                class="text-sm text-indigo-600 hover:text-indigo-800 flex items-center gap-1 mb-3 font-medium"
-              >
-                <span>+</span> Add Variable
-              </button>
-
-              <button
-                @click="saveMcpCredentials"
-                :disabled="savingMcpCredential || !mcpCredentialEntries.some(e => e.key && e.value)"
-                class="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <span v-if="savingMcpCredential" class="animate-spin">↻</span>
-                {{ savingMcpCredential ? 'Saving...' : 'Save MCP Credentials' }}
-              </button>
-
-              <div v-if="mcpCredentialMessage" class="mt-3 text-sm rounded-lg p-2 text-center" :class="mcpCredentialError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'">
-                {{ mcpCredentialMessage }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- TAB: SIGNALS -->
-      <div v-if="layout === 'canvas'" class="flex items-center gap-2 pt-3">
-        <span class="text-base">💬</span>
-        <div class="text-sm font-bold text-gray-800">Communication Channels</div>
-        <span class="w-4 h-4 rounded-full bg-gray-100 text-gray-400 text-[10px] flex items-center justify-center">?</span>
-      </div>
-      <div v-if="layout === 'canvas'" class="space-y-2">
-        <div v-for="c in channelRows" :key="c.key" class="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg">
-          <span class="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-50 shrink-0"><Icon :icon="c.icon" class="w-5 h-5" /></span>
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-semibold text-gray-800">{{ c.label }}</div>
-            <div class="text-xs text-gray-400">
-              {{ c.live ? 'Active' : 'Never invoked' }}<span v-if="c.error" class="text-red-500"> · Error while configuring</span>
-            </div>
-          </div>
-          <span v-if="c.live" class="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0"></span>
-          <span v-else class="text-[9px] uppercase bg-gray-200 text-gray-500 rounded px-1.5 py-0.5 shrink-0">soon</span>
-        </div>
-        <div class="flex flex-wrap gap-2 pt-1">
-          <button v-for="c in channelChips" :key="c.key" type="button" disabled
-            class="text-xs px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 bg-white flex items-center gap-1.5 cursor-not-allowed">
-            <Icon v-if="c.icon" :icon="c.icon" class="w-4 h-4" /> {{ c.label }}
-          </button>
-        </div>
-      </div>
-      <!-- Canvas now shows Signal Processing inside the Tools section (above); this
+      <!-- (Communication Channels section removed.) -->
+      <!-- Canvas shows Signal Processing inside the Tools section (above); this
            remains only for the legacy tabbed layout's "Signals" tab. -->
       <div v-if="activeTab === 'Signals'">
         <SignalPanel :agent="internalAgent" />
@@ -1123,9 +1086,9 @@ import api from '../services/api';
 import CredentialManager from './tools/CredentialManager.vue';
 import AgentRulesEditor from './agent/AgentRulesEditor.vue';
 import { MAX_RULE_LEN as RULE_MAX_LEN, MAX_RULES as RULE_MAX_COUNT, cleanRules as cleanAgentRules, rulesValid as agentRulesValid } from './agent/agentRules';
-import SignalPanel from './SignalPanel.vue';
 import SchedulePanel from './SchedulePanel.vue';
 import ToolPicker from './ToolPicker.vue';
+import SignalPanel from './SignalPanel.vue';
 import { Upload, Globe, Table2, Search, Type, FileText, Braces, Folder, Zap, ClipboardList, ChevronDown } from 'lucide-vue-next';
 import { modeKey, modeLabel } from '../composables/agentModes';
 import { Icon } from '@iconify/vue';
@@ -1160,6 +1123,11 @@ const emit = defineEmits(['update:agent', 'save', 'close', 'open-workspace', 'di
 // Local copy for editing
 const internalAgent = ref({
     default_model: null,  // Ensure this property exists for Vue reactivity
+    // Capability roster (multi-model) — optional per-task models (null = auto / main model).
+    image_model: null,
+    vision_model: null,
+    audio_model: null,
+    video_model: null,
     code_mode_enabled: false,  // Code Mode: search+execute vs individual tools
     code_mode_services: [],    // RemoteService IDs (empty = all credentialed)
     builder_mode_enabled: false,  // Builder Mode: agent can register OAuth providers
@@ -1639,11 +1607,29 @@ const groupedFilteredTools = computed(() => {
     return sortedGrouped;
 });
 
+// Capability roster (multi-model). The dropdowns list the user's OWN models straight from the
+// providers' DB — you pick whichever model you want for each role. We deliberately do NOT gate the
+// list by a hardcoded "known image models" registry (that would hide new/unknown models); embedding
+// models are the only thing excluded since they can't drive chat/media.
+const capabilityRoles = [
+    { key: 'image_model', label: 'Image generation' },
+    { key: 'vision_model', label: 'Image input (vision)' },
+    { key: 'audio_model', label: 'Audio generation' },
+    { key: 'video_model', label: 'Video generation' },
+];
+// Capability models come from the SAME provider the agent uses (the LLM Provider selected above),
+// so e.g. an OpenRouter agent only sees OpenRouter models. Embedding models excluded.
+const capabilityModelOptions = computed(() =>
+    llmModels.value.filter(m =>
+        m.is_active !== false && !m.is_embedding &&
+        (!selectedProviderId.value || m.provider === selectedProviderId.value)));
+const hasAnyCapabilityModels = computed(() => capabilityModelOptions.value.length > 0);
+
 const filteredModels = computed(() => {
-    let models = selectedProviderId.value 
+    let models = selectedProviderId.value
         ? llmModels.value.filter(m => m.provider === selectedProviderId.value)
         : llmModels.value;
-    
+
     // Apply search filter
     const query = modelSearchQuery.value.toLowerCase().trim();
     if (query) {
@@ -2327,10 +2313,76 @@ const copyPromptPreview = async () => {
     }
 };
 
+// ── Connectors: assign a connected connector (all its tools) to THIS agent ──
+const connectedConnectors = ref([]);
+const connectorsLoading = ref(false);
+const showAllConnectors = ref(false);
+// Show up to 5; "Show more" reveals the rest (scrollable).
+const displayedConnectors = computed(() =>
+    showAllConnectors.value ? connectedConnectors.value : connectedConnectors.value.slice(0, 5));
+
+const loadAgentConnectors = async () => {
+    connectorsLoading.value = true;
+    try {
+        const scope = internalAgent.value?.id ? `agent:${internalAgent.value.id}` : 'global';
+        const { data } = await api.getConnectors(scope);
+        connectedConnectors.value = (data.connectors || []).filter(c => c.connected);
+    } catch (e) {
+        connectedConnectors.value = [];
+    } finally {
+        connectorsLoading.value = false;
+    }
+};
+
+const connectorKindLabel = (c) =>
+    ({ builtin: 'Built-in service', mcp: 'MCP server', service: 'Service' }[c.kind] || 'Connector');
+
+// Map a connector to the availableTools objects it owns (built-in by category prefix,
+// MCP by name prefix, service by service id).
+const connectorTools = (c) => {
+    const tools = availableTools.value || [];
+    if (c.kind === 'builtin') {
+        const k = String(c.id).toLowerCase();
+        return tools.filter(t => {
+            const cat = (t.category || '').toLowerCase();
+            return cat === k || cat.startsWith(k + '.');
+        });
+    }
+    if (c.kind === 'mcp') {
+        const slug = String(c.slug || '').toUpperCase().replace(/[-\s]/g, '_');
+        if (!slug) return [];
+        return tools.filter(t => String(t.name || '').toUpperCase().startsWith('MCP_' + slug + '_'));
+    }
+    if (c.kind === 'service') {
+        return tools.filter(t => String(t.service_id ?? (t.service && t.service.id) ?? t.service ?? '') === String(c.id));
+    }
+    return [];
+};
+
+const connectorAssigned = (c) => areAllServiceToolsSelected(connectorTools(c));
+
+const toggleConnector = (c) => {
+    const ts = connectorTools(c);
+    if (!ts.length) { notify.info(`No tools synced for ${c.name} yet`); return; }
+    toggleServiceTools(ts);  // adds ALL when none/partial; removes ALL when fully assigned
+};
+
+// Open the full Connectors page (Browse + connect + per-tool permissions) in a new tab,
+// so the in-progress agent draft isn't lost.
+const openConnectorsHub = () => {
+    const scope = internalAgent.value?.id ? `?scope=agent:${internalAgent.value.id}` : '';
+    window.open(`/dashboard/connectors${scope}`, '_blank', 'noopener');
+};
+
+// Reload the connector list when the agent id first appears (draft save / switching agents).
+watch(() => internalAgent.value.id, () => loadAgentConnectors());
+
 onMounted(() => {
     fetchTools();
     fetchProviders();
     fetchModels();
+    fetchMcpServers();       // needed so MCP connectors can map to their tools
+    loadAgentConnectors();
     connectKbWs();
 });
 

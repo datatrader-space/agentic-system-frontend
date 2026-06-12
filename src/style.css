@@ -292,3 +292,23 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .vm-reveal { opacity: 1 !important; transform: none !important; }
 }
+/* ── Inline chat media (generated images/videos auto-embedded into responses) ──
+   Shared sizing so generated/pasted media renders consistently in every chat UI. */
+.chat-media-img {
+  max-width: 100%;
+  height: auto;
+  max-height: 28rem;
+  border-radius: 12px;
+  margin-top: 0.5rem;
+  display: block;
+  cursor: zoom-in;
+  border: 1px solid rgba(124, 58, 237, 0.12);
+}
+.chat-media-vid {
+  max-width: 100%;
+  max-height: 28rem;
+  border-radius: 12px;
+  margin-top: 0.5rem;
+  display: block;
+  background: #000;
+}

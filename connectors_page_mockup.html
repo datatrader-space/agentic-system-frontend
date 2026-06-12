@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Connectors — Design Preview</title>
+<style>
+  :root{
+    --violet:#7c3aed; --violet-d:#6d28d9; --indigo:#4f46e5; --sky:#0ea5e9; --emerald:#10b981;
+    --amber:#d97706; --red:#ef4444; --ink:#0f172a; --ink2:#334155; --muted:#64748b; --faint:#94a3b8;
+    --line:#e5e7eb; --line2:#eef2f7; --bg:#f6f7fb; --card:#ffffff;
+    --g-brand:linear-gradient(120deg,#7c3aed,#0ea5e9);
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);
+    background:
+      radial-gradient(900px 500px at 12% -5%, #ede9fe 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, #e0f2fe 0%, transparent 50%),
+      radial-gradient(800px 600px at 50% 110%, #fce7f3 0%, transparent 55%),
+      var(--bg);
+    padding:34px 22px 70px;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+  .hero{margin-bottom:30px}
+  .hero h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:0 0 8px;
+    background:var(--g-brand);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p{margin:0;color:var(--muted);font-size:15px;max-width:760px;line-height:1.55}
+  .badge-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+  .pill{font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--ink2)}
+  .pill.v{background:#f5f3ff;border-color:#ddd6fe;color:#6d28d9}
+
+  .sec{margin-top:38px}
+  .sec-h{display:flex;align-items:baseline;gap:10px;margin:0 0 14px}
+  .sec-n{width:26px;height:26px;border-radius:8px;background:var(--g-brand);color:#fff;font-weight:800;font-size:13px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(124,58,237,.25)}
+  .sec-t{font-size:18px;font-weight:700;letter-spacing:-.01em}
+  .sec-d{font-size:13px;color:var(--muted);margin:0 0 16px 36px}
+
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 16px 40px rgba(15,23,42,.07);overflow:hidden}
+  .cap{font-size:12px;color:var(--muted);text-align:center;margin-top:10px}
+  .cap b{color:var(--ink2)}
+
+  /* window chrome */
+  .chrome{display:flex;align-items:center;gap:7px;padding:11px 14px;border-bottom:1px solid var(--line2);background:#fcfcfe}
+  .dot{width:11px;height:11px;border-radius:50%}
+  .d1{background:#ff5f57}.d2{background:#febc2e}.d3{background:#28c840}
+  .url{margin-left:10px;font-size:12px;color:var(--faint);font-family:var(--mono)}
+
+  /* app shell */
+  .app{display:grid;grid-template-columns:188px 270px 1fr;min-height:560px}
+  .rail{border-right:1px solid var(--line2);padding:16px 12px;background:#fbfbfe}
+  .rail-h{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--faint);font-weight:700;padding:0 8px 8px}
+  .nav{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:10px;font-size:13.5px;color:var(--ink2);font-weight:500;cursor:default}
+  .nav .ic{width:16px;height:16px;color:var(--faint)}
+  .nav.on{background:#f0f0ff;color:var(--violet-d);font-weight:600}
+  .nav.on .ic{color:var(--violet)}
+  .scope{margin:14px 6px 4px;padding:9px 10px;border:1px solid var(--line);border-radius:11px;background:#fff}
+  .scope-l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:700}
+  .scope-v{display:flex;align-items:center;justify-content:space-between;margin-top:5px;font-size:13px;font-weight:600}
+  .scope-v .chev{color:var(--faint)}
+  .scope-tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--emerald);font-weight:600;margin-top:7px}
+
+  .list{border-right:1px solid var(--line2);padding:14px 10px;overflow:auto}
+  .list-h{display:flex;align-items:center;justify-content:space-between;padding:2px 8px 10px}
+  .list-h b{font-size:15px;font-weight:700}
+  .iconbtn{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+  .grp{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:700;padding:10px 8px 6px;display:flex;align-items:center;gap:6px}
+  .grp .c{margin-left:auto;background:#eef2f7;color:var(--muted);border-radius:999px;font-size:10px;padding:1px 7px}
+  .citem{display:flex;align-items:center;gap:10px;padding:8px 9px;border-radius:11px;cursor:pointer}
+  .citem:hover{background:#f7f7fb}
+  .citem.on{background:#f0f0ff}
+  .ci-ic{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;background:#fff;border:1px solid var(--line)}
+  .ci-nm{font-size:13.5px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ci-st{width:7px;height:7px;border-radius:50%}
+  .st-on{background:var(--emerald)} .st-off{background:#cbd5e1}
+
+  .detail{padding:22px 24px;overflow:auto}
+  .d-top{display:flex;align-items:flex-start;gap:13px}
+  .d-ic{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;background:#fff;border:1px solid var(--line);box-shadow:0 4px 12px rgba(15,23,42,.06)}
+  .d-nm{font-size:19px;font-weight:800;letter-spacing:-.01em}
+  .d-sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+  .d-actions{margin-left:auto;display:flex;gap:8px}
+  .btn{font-size:12.5px;font-weight:600;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--ink2);cursor:pointer}
+  .btn.primary{background:var(--g-brand);color:#fff;border-color:transparent;box-shadow:0 8px 20px rgba(124,58,237,.28)}
+  .btn.ghostred{color:var(--red);border-color:#fecaca;background:#fff}
+  .d-desc{font-size:13px;color:var(--ink2);line-height:1.6;margin:16px 0 6px;max-width:620px}
+
+  .perm-h{display:flex;align-items:center;justify-content:space-between;margin:22px 0 6px}
+  .perm-h .t{font-size:14px;font-weight:700}
+  .perm-h .d{font-size:12px;color:var(--muted)}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
+  .seg span{font-size:11.5px;font-weight:600;padding:6px 11px;color:var(--muted);cursor:pointer;border-right:1px solid var(--line2)}
+  .seg span:last-child{border-right:none}
+  .seg .allow.on{background:#ecfdf5;color:#059669}
+  .seg .ask.on{background:#fffbeb;color:#b45309}
+  .seg .deny.on{background:#fef2f2;color:#dc2626}
+
+  .toolgrp{margin-top:14px;border:1px solid var(--line);border-radius:13px;overflow:hidden}
+  .tg-h{display:flex;align-items:center;gap:8px;padding:10px 13px;background:#fbfbfe;border-bottom:1px solid var(--line2);font-size:12.5px;font-weight:700;color:var(--ink2)}
+  .tg-h .pilln{margin-left:6px;background:#eef2f7;color:var(--muted);border-radius:999px;font-size:10.5px;padding:1px 8px;font-weight:700}
+  .tg-h.write{color:#b45309}
+  .tg-h .dot-w{width:7px;height:7px;border-radius:50%;background:var(--amber)}
+  .tg-h .dot-r{width:7px;height:7px;border-radius:50%;background:var(--emerald)}
+  .trow{display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:.5px solid var(--line2);font-size:13px}
+  .trow:last-child{border-bottom:none}
+  .trow .nm{flex:1;color:var(--ink2)}
+  .trow .mono{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .mini{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .mini b{font-size:11px;font-weight:600;padding:4px 9px;color:var(--faint);cursor:pointer;border-right:1px solid var(--line2)}
+  .mini b:last-child{border-right:none}
+  .mini .a.on{background:#ecfdf5;color:#059669}
+  .mini .k.on{background:#fffbeb;color:#b45309}
+  .mini .d.on{background:#fef2f2;color:#dc2626}
+
+  /* generic two-up grid for feature cards */
+  .twoup{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  @media(max-width:880px){.twoup{grid-template-columns:1fr}.app{grid-template-columns:1fr}}
+
+  /* menu */
+  .menu{width:230px;border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 40px rgba(15,23,42,.14);overflow:hidden;background:#fff}
+  .mi{display:flex;align-items:center;gap:10px;padding:11px 13px;font-size:13px;color:var(--ink2);border-bottom:1px solid var(--line2);cursor:pointer}
+  .mi:last-child{border-bottom:none}
+  .mi:hover{background:#f7f7fb}
+  .mi .ic{width:16px;height:16px;color:var(--violet)}
+  .mi small{display:block;color:var(--faint);font-size:11px;margin-top:1px}
+
+  /* form */
+  .form{padding:18px 20px}
+  .form h3{margin:0 0 14px;font-size:15px;font-weight:700}
+  .fld{margin-bottom:13px}
+  .fld label{display:block;font-size:12px;font-weight:600;color:var(--ink2);margin-bottom:5px}
+  .inp{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff}
+  .inp.mono{font-family:var(--mono);font-size:12px}
+  .seg2{display:inline-flex;gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg2 span{font-size:12px;font-weight:600;padding:7px 12px;color:var(--muted);cursor:pointer;border-right:1px solid var(--line2)}
+  .seg2 span.on{background:#f0f0ff;color:var(--violet-d)}
+  .seg2 span:last-child{border-right:none}
+
+  /* directory cards */
+  .dir{padding:18px 20px}
+  .dir-tabs{display:flex;gap:18px;font-size:13px;margin-bottom:14px}
+  .dir-tabs .on{color:var(--violet-d);font-weight:700;border-bottom:2px solid var(--violet);padding-bottom:6px}
+  .dir-tabs .off{color:var(--faint);font-weight:500}
+  .dir-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .dcard{border:1px solid var(--line);border-radius:12px;padding:13px;display:flex;gap:11px;align-items:flex-start}
+  .dcard .ic{width:34px;height:34px;border-radius:9px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  .dcard .nm{font-size:13.5px;font-weight:700}
+  .dcard .nw{font-size:9.5px;font-weight:700;color:var(--violet);background:#f5f3ff;border-radius:5px;padding:1px 5px;margin-left:6px}
+  .dcard .ds{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.45}
+  .dcard .add{margin-left:auto;width:26px;height:26px;border-radius:8px;border:1px solid var(--line);color:var(--violet);display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer}
+
+  /* agent builder strip */
+  .ab-step{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line2);background:#fbfbfe}
+  .ab-num{width:24px;height:24px;border-radius:7px;background:var(--violet);color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .ab-step .t{font-weight:700;font-size:14px}
+  .ab-step .s{font-size:12px;color:var(--muted)}
+  .ab-body{padding:16px 18px}
+  .ab-note{font-size:12px;color:var(--muted);margin:0 0 12px}
+  .conn-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:11px;padding:8px 11px;background:#fff;font-size:13px;font-weight:600;margin:0 8px 8px 0}
+  .conn-chip .ic{width:22px;height:22px;border-radius:7px;background:#fff;border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:13px}
+  .conn-chip.ok{border-color:#bbf7d0;background:#f0fdf4}
+  .conn-chip .go{font-size:11px;font-weight:700;color:var(--violet)}
+  .conn-chip .okt{font-size:11px;font-weight:700;color:#059669}
+
+  /* skills */
+  .skill{border:1px solid var(--line);border-radius:13px;padding:14px;display:flex;gap:12px;align-items:flex-start}
+  .skill .ic{width:38px;height:38px;border-radius:10px;background:#f5f3ff;color:var(--violet);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+  .skill .nm{font-size:14px;font-weight:700}
+  .skill .ds{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.45}
+  .skill .meta{font-size:11px;color:var(--faint);margin-top:6px}
+  .skill .install{margin-left:auto;font-size:12px;font-weight:700;color:#fff;background:var(--g-brand);border:none;border-radius:9px;padding:7px 14px;cursor:pointer;box-shadow:0 6px 16px rgba(124,58,237,.25)}
+  .skill.inst .install{background:#ecfdf5;color:#059669;box-shadow:none}
+
+  /* sandbox */
+  .sb{display:flex;align-items:center;gap:13px;padding:13px 15px;border:1px solid var(--line);border-radius:13px;margin-bottom:10px}
+  .sb .ic{width:36px;height:36px;border-radius:10px;background:#0f172a;color:#7dd3fc;display:flex;align-items:center;justify-content:center;font-size:17px}
+  .sb .nm{font-size:14px;font-weight:700}
+  .sb .s{font-size:12px;color:var(--muted)}
+  .sb .stat{margin-left:auto;font-size:12px;font-weight:700}
+  .sb .on{color:#059669}.sb .off{color:var(--faint)}
+  .sb .mng{font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:9px;padding:6px 13px;background:#fff;color:var(--ink2);cursor:pointer}
+  svg{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hero">
+    <h1>Connectors — one home for tools, services, MCP &amp; skills</h1>
+    <p>A single page (replacing the separate <b>Services</b>, <b>MCP</b> and <b>Workspace</b> pages) where users connect
+       integrations with their own account, install skills, choose <b>Global</b> vs a specific agent, and set
+       <b>allow / ask / deny</b> on every tool. Design preview — not final pixels.</p>
+    <div class="badge-row">
+      <span class="pill v">Claude-style Connectors</span>
+      <span class="pill">Global &amp; per-agent scope</span>
+      <span class="pill">Per-tool permissions</span>
+      <span class="pill">Connect with user OAuth</span>
+      <span class="pill">Custom MCP &amp; Skills</span>
+    </div>
+  </div>
+
+  <!-- ============ 1. MAIN VIEW ============ -->
+  <div class="sec">
+    <div class="sec-h"><span class="sec-n">1</span><span class="sec-t">Connectors — main view</span></div>
+    <div class="sec-d">Left rail (Skills / Connectors) · connector list grouped Connected / Not&nbsp;connected with a Scope switcher · detail panel for the selected connector.</div>
+    <div class="panel">
+      <div class="chrome"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span><span class="url">app.youragent.ai/dashboard/connectors</span></div>
+      <div class="app">
+        <!-- rail -->
+        <div class="rail">
+          <div class="rail-h">Customize</div>
+          <div class="nav"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>Skills</div>
+          <div class="nav on"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Connectors</div>
+          <div class="scope">
+            <div class="scope-l">Scope</div>
+            <div class="scope-v">🌐 Global <span class="chev">▾</span></div>
+            <div class="scope-tag">● available to all your agents</div>
+          </div>
+          <div style="font-size:11px;color:var(--faint);padding:14px 8px 4px;line-height:1.5">Switch scope to a specific agent to connect tools just for that agent.</div>
+        </div>
+        <!-- list -->
+        <div class="list">
+          <div class="list-h"><b>Connectors</b><span class="iconbtn">＋</span></div>
+          <div class="grp">Connected <span class="c">4</span></div>
+          <div class="citem on"><div class="ci-ic">🟡</div><div class="ci-nm">Apollo.io</div><span class="ci-st st-on"></span></div>
+          <div class="citem"><div class="ci-ic">🐙</div><div class="ci-nm">GitHub</div><span class="ci-st st-on"></span></div>
+          <div class="citem"><div class="ci-ic">📓</div><div class="ci-nm">Notion</div><span class="ci-st st-on"></span></div>
+          <div class="citem"><div class="ci-ic">🖥️</div><div class="ci-nm">my-mcp (custom)</div><span class="ci-st st-on"></span></div>
+          <div class="grp">Not connected <span class="c">4</span></div>
+          <div class="citem"><div class="ci-ic">✉️</div><div class="ci-nm">Gmail</div><span class="ci-st st-off"></span></div>
+          <div class="citem"><div class="ci-ic">📅</div><div class="ci-nm">Google Calendar</div><span class="ci-st st-off"></span></div>
+          <div class="citem"><div class="ci-ic">🛍️</div><div class="ci-nm">Shopify</div><span class="ci-st st-off"></span></div>
+          <div class="citem"><div class="ci-ic">💬</div><div class="ci-nm">Slack</div><span class="ci-st st-off"></span></div>
+        </div>
+        <!-- detail -->
+        <div class="detail">
+          <div class="d-top">
+            <div class="d-ic">🟡</div>
+            <div><div class="d-nm">Apollo.io</div><div class="d-sub">Service · connected as you@northrays.com · OAuth</div></div>
+            <div class="d-actions"><button class="btn ghostred">Disconnect</button></div>
+          </div>
+          <div class="d-desc">Prospect and take action from a single conversation — search Apollo’s database, enrich records to reveal verified contact details, create or update contacts, and manage sequences.</div>
+
+          <div class="perm-h">
+            <div><div class="t">Tool permissions</div><div class="d">Choose when an agent may use each tool.</div></div>
+            <div class="seg"><span class="allow">Allow all</span><span class="ask on">Ask first</span><span class="deny">Deny all</span></div>
+          </div>
+
+          <div class="toolgrp">
+            <div class="tg-h"><span class="dot-r"></span>Read-only tools <span class="pilln">8</span></div>
+            <div class="trow"><span class="nm">Search for Contacts</span><span class="mini"><b class="a on">Allow</b><b class="k">Ask</b><b class="d">Deny</b></span></div>
+            <div class="trow"><span class="nm">Query Analytics Data</span><span class="mini"><b class="a on">Allow</b><b class="k">Ask</b><b class="d">Deny</b></span></div>
+            <div class="trow"><span class="nm">List Sending Schedules</span><span class="mini"><b class="a on">Allow</b><b class="k">Ask</b><b class="d">Deny</b></span></div>
+          </div>
+          <div class="toolgrp">
+            <div class="tg-h write"><span class="dot-w"></span>Write / delete tools <span class="pilln">18</span></div>
+            <div class="trow"><span class="nm">Create an Account</span><span class="mini"><b class="a">Allow</b><b class="k on">Ask</b><b class="d">Deny</b></span></div>
+            <div class="trow"><span class="nm">Bulk Create Accounts</span><span class="mini"><b class="a">Allow</b><b class="k">Ask</b><b class="d on">Deny</b></span></div>
+            <div class="trow"><span class="nm">Update an Account</span><span class="mini"><b class="a">Allow</b><b class="k on">Ask</b><b class="d">Deny</b></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><b>① Main view</b> — pick a connector on the left, manage it on the right. Status dot = connected.</div>
+  </div>
+
+  <!-- ============ 2 + 3 ============ -->
+  <div class="sec twoup">
+    <div>
+      <div class="sec-h"><span class="sec-n">2</span><span class="sec-t">Per-tool permissions</span></div>
+      <div class="panel" style="padding:18px 20px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px">Allow · Ask · Deny — per tool</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Read-only tools default to Allow; write/delete default to Ask. Set any tool to Deny to block it for this scope.</div>
+        <div class="toolgrp" style="margin-top:0">
+          <div class="tg-h write"><span class="dot-w"></span>Write / delete tools <span class="pilln">3</span></div>
+          <div class="trow"><span class="nm">SSH_EXEC <span class="mono">run remote command</span></span><span class="mini"><b class="a">Allow</b><b class="k on">Ask</b><b class="d">Deny</b></span></div>
+          <div class="trow"><span class="nm">Delete a Sequence</span><span class="mini"><b class="a">Allow</b><b class="k">Ask</b><b class="d on">Deny</b></span></div>
+          <div class="trow"><span class="nm">Send a Message</span><span class="mini"><b class="a">Allow</b><b class="k on">Ask</b><b class="d">Deny</b></span></div>
+        </div>
+        <div style="margin-top:12px;font-size:11.5px;color:var(--muted);line-height:1.5">
+          🟢 <b>Allow</b> = runs automatically · 🟠 <b>Ask</b> = a human approval card appears before it runs ·
+          🔴 <b>Deny</b> = blocked (added to the agent’s forbidden list).
+        </div>
+      </div>
+      <div class="cap"><b>② Permissions</b> — reuses your existing risk tiers + approval gate; no new safety engine.</div>
+    </div>
+    <div>
+      <div class="sec-h"><span class="sec-n">3</span><span class="sec-t">Scope: Global or per-agent</span></div>
+      <div class="panel" style="padding:18px 20px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px">One switch decides who gets the connector</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Connect a tool for every agent, or just one — backed by your existing credential scoping.</div>
+        <div class="scope" style="margin:0 0 10px"><div class="scope-l">Scope</div><div class="scope-v">🌐 Global <span class="chev">▾</span></div><div class="scope-tag">● available to all your agents</div></div>
+        <div class="menu" style="width:100%">
+          <div class="mi">🌐 <div>Global<small>Every agent of yours can use it</small></div></div>
+          <div class="mi">🤖 <div>codding_agent<small>Only this agent (its own credential)</small></div></div>
+          <div class="mi">🤖 <div>support_bot<small>Only this agent</small></div></div>
+        </div>
+      </div>
+      <div class="cap"><b>③ Scope</b> — “Global vs this agent” = the <span class="mono">agent_profile</span> scope on the credential.</div>
+    </div>
+  </div>
+
+  <!-- ============ 4 ============ -->
+  <div class="sec">
+    <div class="sec-h"><span class="sec-n">4</span><span class="sec-t">Add a connector</span></div>
+    <div class="sec-d">The “＋” menu: browse the directory, add a <b>custom MCP server</b>, or register a service from its API spec.</div>
+    <div class="twoup">
+      <div class="panel" style="padding:22px;display:flex;align-items:center;justify-content:center;background:#fbfbfe">
+        <div class="menu">
+          <div class="mi"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><div>Browse connectors<small>Directory of integrations &amp; skills</small></div></div>
+          <div class="mi"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M14 7h7M17.5 3.5v7"/></svg><div>Add custom MCP<small>stdio · http · sse server</small></div></div>
+          <div class="mi"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg><div>Register a service<small>From OpenAPI / Postman spec</small></div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="form">
+          <h3>Add custom MCP server</h3>
+          <div class="fld"><label>Name</label><input class="inp" value="my-mcp" /></div>
+          <div class="fld"><label>Transport</label><div class="seg2"><span class="on">stdio</span><span>http</span><span>sse</span></div></div>
+          <div class="fld"><label>Command</label><input class="inp mono" value="npx -y @modelcontextprotocol/server-github" /></div>
+          <div class="fld"><label>Environment (secrets, encrypted)</label><input class="inp mono" value="GITHUB_TOKEN=••••••••••" /></div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px"><button class="btn">Test connection</button><button class="btn primary">Add &amp; discover tools</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><b>④ Add connector</b> — reuses your existing MCP &amp; service forms inside the new shell.</div>
+  </div>
+
+  <!-- ============ 5. DIRECTORY ============ -->
+  <div class="sec">
+    <div class="sec-h"><span class="sec-n">5</span><span class="sec-t">Directory — Connectors · Skills · Plugins</span></div>
+    <div class="panel">
+      <div class="dir">
+        <div class="dir-tabs"><span class="off">Connectors</span><span class="on">Skills</span><span class="off">Plugins</span></div>
+        <div class="dir-grid">
+          <div class="dcard"><div class="ic">🎨</div><div style="flex:1"><div class="nm">canvas-design</div><div class="ds">Create visual art in PNG/PDF using a design philosophy.</div></div><div class="add">＋</div></div>
+          <div class="dcard"><div class="ic">🛠️</div><div style="flex:1"><div class="nm">mcp-builder</div><div class="ds">Guide for creating high-quality MCP servers.</div></div><div class="add">＋</div></div>
+          <div class="dcard"><div class="ic">📄</div><div style="flex:1"><div class="nm">doc-coauthoring</div><div class="ds">Structured workflow for co-authoring docs.</div></div><div class="add">＋</div></div>
+          <div class="dcard"><div class="ic">📊</div><div style="flex:1"><div class="nm">theme-factory</div><div class="ds">Style artifacts (slides, docs, landing pages) with a theme.</div></div><div class="add">＋</div></div>
+          <div class="dcard"><div class="ic">🧪</div><div style="flex:1"><div class="nm">devops-runbook <span class="nw">New</span></div><div class="ds">SSH health checks, deploy steps &amp; safe rollback guidance.</div></div><div class="add">＋</div></div>
+          <div class="dcard"><div class="ic">🔎</div><div style="flex:1"><div class="nm">web-research</div><div class="ds">Multi-source web search + cited synthesis.</div></div><div class="add">＋</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><b>⑤ Directory</b> — searchable Connectors / Skills / Plugins (Skills = installable instruction + tool bundles).</div>
+  </div>
+
+  <!-- ============ 6. AGENT BUILDER ============ -->
+  <div class="sec">
+    <div class="sec-h"><span class="sec-n">6</span><span class="sec-t">Inside agent creation</span></div>
+    <div class="sec-d">When building an agent, the same connectors appear in the Tools step — connect with the user’s own auth, scoped to <i>this</i> agent.</div>
+    <div class="panel">
+      <div class="ab-step"><span class="ab-num">4</span><div><div class="t">Tools &amp; Connectors</div><div class="s">Pick what <b>codding_agent</b> can use</div></div></div>
+      <div class="ab-body">
+        <p class="ab-note">Connected for this agent (your auth):</p>
+        <span class="conn-chip ok"><span class="ic">🐙</span>GitHub <span class="okt">✓ connected</span></span>
+        <span class="conn-chip ok"><span class="ic">🖥️</span>my-mcp <span class="okt">✓ connected</span></span>
+        <span class="conn-chip"><span class="ic">🟡</span>Apollo.io <span class="go">Connect →</span></span>
+        <span class="conn-chip"><span class="ic">💬</span>Slack <span class="go">Connect →</span></span>
+        <p class="ab-note" style="margin-top:14px">Built-in tool families:</p>
+        <span class="conn-chip ok"><span class="ic">🔧</span>SSH / infra <span class="okt">on</span></span>
+        <span class="conn-chip ok"><span class="ic">🌐</span>Web search <span class="okt">on</span></span>
+        <span class="conn-chip"><span class="ic">🗄️</span>Database <span class="go">add</span></span>
+        <div style="margin-top:14px;font-size:12px;color:var(--muted)">↳ Per-tool Allow/Ask/Deny for this agent is set right here, same control as the Connectors page.</div>
+      </div>
+    </div>
+    <div class="cap"><b>⑥ Agent builder</b> — “available services to connect using the user auth”, scoped to the agent.</div>
+  </div>
+
+  <!-- ============ 7 + 8 ============ -->
+  <div class="sec twoup">
+    <div>
+      <div class="sec-h"><span class="sec-n">7</span><span class="sec-t">Skills</span></div>
+      <div class="panel" style="padding:16px 18px">
+        <div class="skill inst" style="margin-bottom:10px"><div class="ic">🧪</div><div style="flex:1"><div class="nm">devops-runbook</div><div class="ds">SSH health checks, deploy &amp; rollback procedures.</div><div class="meta">Installed · Global</div></div><button class="install">Installed ✓</button></div>
+        <div class="skill" style="margin-bottom:10px"><div class="ic">📄</div><div style="flex:1"><div class="nm">doc-coauthoring</div><div class="ds">Co-author structured documents step by step.</div><div class="meta">Anthropic · 446K installs</div></div><button class="install">Install</button></div>
+        <div class="skill"><div class="ic">🔎</div><div style="flex:1"><div class="nm">web-research</div><div class="ds">Fan-out web search + cited report.</div><div class="meta">Verified</div></div><button class="install">Install</button></div>
+      </div>
+      <div class="cap"><b>⑦ Skills</b> — install global or per-agent (= a tool bundle + a skill instruction).</div>
+    </div>
+    <div>
+      <div class="sec-h"><span class="sec-n">8</span><span class="sec-t">Execution sandboxes (Workspace)</span></div>
+      <div class="panel" style="padding:16px 18px">
+        <div class="sb"><div class="ic">🖥️</div><div><div class="nm">mypc</div><div class="s">ubuntu · up 54 days · 4 tools run</div></div><span class="stat on">● Connected</span><button class="mng">Manage</button></div>
+        <div class="sb"><div class="ic">☁️</div><div><div class="nm">prod-runner</div><div class="s">ec2 · 54.215.158.228</div></div><span class="stat off">● Offline</span><button class="mng">Manage</button></div>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.5">A sandbox is the <b>machine</b> an agent runs tools on — kept as its own tab inside Connectors.</div>
+      </div>
+      <div class="cap"><b>⑧ Sandboxes</b> — the old “Workspace” page, folded in as a distinct section.</div>
+    </div>
+  </div>
+
+  <div style="text-align:center;color:var(--faint);font-size:12px;margin-top:40px">
+    Design preview for the unified <b style="color:var(--ink2)">Connectors</b> page · replaces Services + MCP + Workspace · built on the existing services / MCP / credential / approval backend.
+  </div>
+
+</div>
+</body>
+</html>

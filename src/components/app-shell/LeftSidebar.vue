@@ -34,7 +34,7 @@
     <div class="sidebar-scroll">
       <nav class="nav-group" aria-label="Primary">
         <SidebarNavItem
-          v-for="(item, i) in primaryNav"
+          v-for="(item, i) in visibleNav"
           :key="item.to"
           v-bind="item"
           :index="i"
@@ -139,16 +139,20 @@ const initials = computed(() => {
 // Nav items — each `to` points at a working route (existing top-level routes
 // stay alive through Phase 5; dashboard children render inside this shell).
 const primaryNav = [
-  { to: '/dashboard/systems', label: 'Systems', icon: ['M3 3h7v9H3z', 'M14 3h7v5h-7z', 'M14 12h7v9h-7z', 'M3 16h7v5H3z'] },
+  { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6'] },
   { to: '/dashboard/agents', match: '/dashboard/agents', label: 'Agents', icon: ['M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93', 'M12 18a8 8 0 0 1-8-8', 'M20 10a8 8 0 0 1-8 8', 'M12 11.5a1.5 1.5 0 1 0 0 .01'] },
   { to: '/dashboard/tools', label: 'Tools', icon: ['M14.7 6.3a4 4 0 0 0 5 5l-9 9a2.1 2.1 0 0 1-3-3l9-9a4 4 0 0 0-2-2z'] },
-  { to: '/dashboard/services', label: 'Services', icon: ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-2.82 1.17V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 14H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9'] },
-  { to: '/dashboard/mcp', label: 'MCP', icon: ['M18.36 6.64a9 9 0 1 1-12.73 0', 'M12 2v10'] },
-  { to: '/dashboard/workspaces', label: 'Workspaces', icon: ['M2 7l10-5 10 5-10 5z', 'M2 17l10 5 10-5', 'M2 12l10 5 10-5'] },
+  { to: '/dashboard/connectors', label: 'Connectors', icon: ['M13.83 10.17a4 4 0 0 0-5.66 0l-4 4a4 4 0 1 0 5.66 5.66l1.1-1.1', 'M10.17 13.83a4 4 0 0 0 5.66 0l4-4a4 4 0 1 0-5.66-5.66l-1.1 1.1'] },
   { to: '/dashboard/activity', label: 'Activity', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
-  { to: '/dashboard/llm-context', label: 'LLM Context', icon: ['M4 7V4h16v3', 'M9 20h6', 'M12 4v16', 'M4 12h16'] },
+  { to: '/dashboard/llm-context', label: 'LLM Context', adminOnly: true, icon: ['M4 7V4h16v3', 'M9 20h6', 'M12 4v16', 'M4 12h16'] },
+  { to: '/dashboard/model-pricing', label: 'Model Pricing', adminOnly: true, icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'] },
   { to: '/dashboard/settings/general', match: '/dashboard/settings', label: 'Settings', icon: ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82'] },
 ]
+
+// Admin-only nav entries (e.g. LLM Context — ops stats, backed by an IsAdminUser endpoint)
+// are hidden from non-staff users. `is_staff` comes from /auth/me (UserSerializer).
+const isAdmin = computed(() => !!(currentUser.value && currentUser.value.is_staff))
+const visibleNav = computed(() => primaryNav.filter((item) => !item.adminOnly || isAdmin.value))
 
 // Global recent chats (across agents), grouped Today / Yesterday / Previous 7 Days / Older.
 const groupedSessions = computed(() => groupSessions(chat.allSessions))

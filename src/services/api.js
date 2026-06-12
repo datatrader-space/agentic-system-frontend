@@ -95,6 +95,7 @@ export default {
   getRepositories: (systemId) => api.get(`/systems/${systemId}/repositories/`),
   getRepository: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/`),
   createRepository: (systemId, data) => api.post(`/systems/${systemId}/repositories/`, data),
+  deleteRepository: (systemId, repoId) => api.delete(`/systems/${systemId}/repositories/${repoId}/`),
   analyzeRepository: (systemId, repoId, force = false) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/analyze/`, { force }),
   getQuestions: (systemId, repoId) =>
@@ -115,6 +116,27 @@ export default {
   // Repository Documentation
   getRepositoryRequirements: (systemId, repoId) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/requirements/`),
+
+  // Unified Connectors (P0 — read-only aggregation over Services + MCP)
+  // scope: 'global' | 'agent:<id>'
+  getConnectors: (scope = 'global') => api.get('/connectors/', { params: { scope } }),
+  // Per-connector tools grouped read-only/write + per-tool permissions (P3)
+  getConnectorTools: (kind, id, scope = 'global') =>
+    api.get(`/connectors/${kind}/${id}/tools/`, { params: { scope } }),
+  updateConnectorPermissions: (kind, id, scope, permissions) =>
+    api.patch(`/connectors/${kind}/${id}/permissions/`, { permissions }, { params: { scope } }),
+
+  // Built-in connector services (GitHub, Slack, ...). Service-generic, keyed by service.
+  // OAuth reuses startConnection(provider_slug).
+  getConnectorServices: () => api.get('/connectors/services'),
+  getServiceStatus: (key) => api.get(`/connectors/svc/${key}/status`),
+  connectServicePat: (key, token) => api.post(`/connectors/svc/${key}/connect-pat`, { token }),
+  disconnectService: (key) => api.post(`/connectors/svc/${key}/disconnect`),
+  enableService: (key) => api.post(`/connectors/svc/${key}/enable`),
+  disableService: (key) => api.post(`/connectors/svc/${key}/disable`),
+
+  // Workspaces (Execution sandboxes section inside Connectors)
+  getWorkspaces: () => api.get('/workspaces/'),
 
   // Service Management
   getServices: (params) => api.get('/services/', { params }),
@@ -206,15 +228,27 @@ export default {
   getLlmUsage: (params) => api.get('/llm/usage/', { params }),
   getLlmRequests: (params) => api.get('/llm/requests/', { params }),
   getLlmAudit: (params) => api.get('/llm/audit/', { params }),
+  // Admin — DB-backed model pricing (staff only; backend enforces IsAdminUser)
+  getModelPricing: (params) => api.get('/admin/model-pricing/', { params }),
+  setModelPricing: (id, data) => api.post(`/admin/model-pricing/${id}/`, data),
+  syncOpenRouterPricing: () => api.post('/admin/model-pricing/sync-openrouter/', {}),
+
   getLlmProviders: (params) => api.get('/llm/providers/', { params }),
   createLlmProvider: (data) => api.post('/llm/providers/', data),
   updateLlmProvider: (id, data) => api.put(`/llm/providers/${id}/`, data),
   deleteLlmProvider: (id) => api.delete(`/llm/providers/${id}/`),
   testLlmProvider: (id, model) => api.post(`/llm/providers/${id}/test/`, model ? { model } : {}),
+  // Generic re-sync for ANY provider type (openai/anthropic/gemini/xai/openrouter/ollama).
+  // Models also auto-sync on provider creation server-side; this is the manual refresh.
+  syncModels: (id) => api.post(`/llm/providers/${id}/sync_models/`),
   syncOllamaModels: (id) => api.post(`/llm/providers/${id}/sync_ollama_models/`),
   syncOpenRouterModels: (id) => api.post(`/llm/providers/${id}/sync_openrouter_models/`),
   syncOpenAIModels: (id) => api.post(`/llm/providers/${id}/sync_openai_models/`),
   getLlmModels: (params = {}) => api.get('/llm/models/', { params }),
+  // Per-user model selection for internal LLM ops (ask_llm / summarize / artifact_summarize)
+  getOperationModels: () => api.get('/llm/operation-models/'),
+  updateOperationModels: (data) => api.put('/llm/operation-models/', data),
+  reindexEmbeddings: () => api.post('/llm/reindex-embeddings/'),
   createLlmModel: (data) => api.post('/llm/models/', data),
   updateLlmModel: (id, data) => api.put(`/llm/models/${id}/`, data),
   deleteLlmModel: (id) => api.delete(`/llm/models/${id}/`),
@@ -249,6 +283,14 @@ export default {
   getCrsBlueprints: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/blueprints/`),
   getCrsArtifacts: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/artifacts/`),
   getCrsRelationships: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/relationships/`),
+
+  // Coding workspace ("Let's Code", P1) — flag-gated on the backend (CODING_WORKSPACE_ENABLED)
+  startCodingTask: (systemId, repoId, prompt) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/start/`, { prompt }),
+  listCodingTasks: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/coding/tasks/`),
+  getCodingTask: (systemId, repoId, taskId) => api.get(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/`),
+  cancelCodingTask: (systemId, repoId, taskId) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/cancel/`),
+  discardCodingTask: (systemId, repoId, taskId) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/discard/`),
+  exportCodingTask: (systemId, repoId, taskId) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/export/`),
 
   // Combined CRS payloads
   getCRSPayloads: async (systemId, repoId) => {
@@ -439,6 +481,8 @@ export default {
   rotateSignalApiKey: (agentId) => api.post(`/agents/${agentId}/signals/api-key/`),
   cancelSignal: (agentId, signalId) => api.post(`/agents/${agentId}/signals/${signalId}/cancel/`),
   retrySignal: (agentId, signalId) => api.post(`/agents/${agentId}/signals/${signalId}/retry/`),
+  // Mint a short-lived, browser-safe WebSocket chat token (auth: owner session or signal_api_key).
+  mintChatToken: (agentId) => api.post(`/agents/${agentId}/chat-token/`),
 
   // Agent Knowledge / Dreaming Cycle
   getAgentKnowledge: (agentId) => api.get(`/agents/${agentId}/knowledge/`),

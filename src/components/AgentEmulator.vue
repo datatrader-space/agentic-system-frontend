@@ -71,6 +71,16 @@
               <div v-if="m.content"
                    class="emu-prose text-sm text-gray-800 break-words mt-1"
                    v-html="renderMarkdown(m.content)"></div>
+              <ReasoningPanel v-if="!m.streaming" :activity="m.activity" />
+              <div v-if="!m.streaming && stopBadge(m)" class="mt-1.5">
+                <span class="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ring-1"
+                      :class="[stopBadge(m).tone.bg, stopBadge(m).tone.text, stopBadge(m).tone.ring]"
+                      :title="stopBadge(m).title">
+                  <span class="w-1.5 h-1.5 rounded-full" :class="stopBadge(m).tone.dot"></span>
+                  {{ stopBadge(m).label }}
+                  <span class="opacity-60">· {{ stopBadge(m).confidence }}</span>
+                </span>
+              </div>
               <TokenUsage v-if="!m.streaming" :usage="m.usage" />
             </div>
           </div>
@@ -157,6 +167,7 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { marked } from 'marked'
 import ActivityStream from './activity/ActivityStream.vue'
+import ReasoningPanel from './activity/ReasoningPanel.vue'
 import TokenUsage from './activity/TokenUsage.vue'
 import EmulatorInspector from './activity/EmulatorInspector.vue'
 import HITLModal from './HITLModal.vue'
@@ -164,9 +175,11 @@ import AgentModePicker from './agent/AgentModePicker.vue'
 import PlanApprovalCard from './agent/PlanApprovalCard.vue'
 import { useHitl } from '../composables/useHitl'
 import api from '../services/api'
-import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity } from '../composables/activityStream'
+import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity, interrupt as interruptActivity } from '../composables/activityStream'
 import { fmtTokens, fmtCost } from '../composables/tokens'
 import { useSpeech } from '../composables/useSpeech'
+import { stopReasonBadge } from '../composables/stopReason'
+import { enhanceChatMedia } from '../utils/chatMedia'
 
 const props = defineProps({
   agentId: { type: [Number, String], default: null },
@@ -313,8 +326,12 @@ let connectedAgentId = null
 let agentIdDebounce = null
 
 marked.setOptions({ breaks: true, gfm: true })
+function stopBadge(m) {
+  return stopReasonBadge(m && m.stopReason, m && m.confidence)
+}
+
 function renderMarkdown(text) {
-  try { return marked.parse(text || '') } catch { return text || '' }
+  try { return enhanceChatMedia(marked.parse(text || '')) } catch { return text || '' }
 }
 
 function wsUrl() {
@@ -342,9 +359,18 @@ function connect() {
     sock.onopen = () => { connected.value = true; reconnecting.value = false; reconnectAttempts = 0 }
     sock.onclose = () => {
       connected.value = false
-      if (!intentionalClose) scheduleReconnect()
+      // The in-flight turn (if any) is gone the moment the socket drops — the backend won't
+      // resume it after a reload/crash. Finalize the streaming bubble so it can't spin
+      // "Thinking…" forever; reconnecting only restores the socket for the NEXT message.
+      if (!intentionalClose) {
+        interruptStreaming('Connection lost — the server restarted or dropped mid-response.')
+        scheduleReconnect()
+      }
     }
-    sock.onerror = () => { connected.value = false }
+    sock.onerror = () => {
+      connected.value = false
+      interruptStreaming('Connection error — the response was interrupted.')
+    }
     sock.onmessage = (e) => handleEvent(e.data)
   } catch (err) {
     error.value = 'Connection failed'
@@ -373,6 +399,18 @@ async function scrollToBottom() {
 function streamingAssistant() {
   const last = messages.value[messages.value.length - 1]
   return (last && last.role === 'assistant' && last.streaming) ? last : null
+}
+
+// Socket dropped mid-stream (dev-server reload / crash): collapse the live timeline to an
+// "Interrupted" summary and stop the spinner. No-op when nothing is streaming, and idempotent
+// (onerror + onclose may both fire). busy is cleared so the composer re-enables.
+function interruptStreaming(note) {
+  const m = streamingAssistant()
+  if (!m) { busy.value = false; return }
+  interruptActivity(m.activity, note)
+  m.streaming = false
+  if (!m.content) m.content = '_⚠️ ' + note + '_'
+  busy.value = false
 }
 
 // The active assistant, or a new one for UNSOLICITED content (e.g. a greeting the
@@ -404,6 +442,7 @@ function handleEvent(raw) {
     case 'assistant_typing':
     case 'tool_call':
     case 'tool_result':
+    case 'tool_progress':   // per-command live progress inside a multi-step tool (SSH_EXEC etc.)
     case 'agent_progress':
     // Live token metering + streamed thinking feed the timeline (token chip / "Thought for Xs").
     case 'token_usage':
@@ -457,6 +496,7 @@ function handleEvent(raw) {
       if (m) {
         if (evt.full_message) m.content = evt.full_message
         if (evt.usage) m.usage = evt.usage
+        if (evt.stop_reason) { m.stopReason = evt.stop_reason; m.confidence = evt.confidence }
         finishActivity(m.activity)
         m.streaming = false
       }

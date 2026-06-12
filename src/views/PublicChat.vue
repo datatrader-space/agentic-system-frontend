@@ -71,6 +71,7 @@ import { marked } from 'marked'
 import api from '../services/api'
 import ActivityStream from '../components/activity/ActivityStream.vue'
 import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity } from '../composables/activityStream'
+import { enhanceChatMedia } from '../utils/chatMedia'
 
 const route = useRoute()
 const embed = computed(() => String(route.path || '').startsWith('/embed'))
@@ -87,9 +88,11 @@ const error = ref('')
 const conversationId = ref(null)
 const scroller = ref(null)
 let intentionalClose = false
+let reconnectAttempts = 0
+let reconnectTimer = null
 
 marked.setOptions({ breaks: true, gfm: true })
-const md = (t) => { try { return marked.parse(t || '') } catch { return t || '' } }
+const md = (t) => { try { return enhanceChatMedia(marked.parse(t || '')) } catch { return t || '' } }
 const accent = computed(() => cfg.value.theme_color || '#4f46e5')
 const themeVars = computed(() => ({ '--pc-accent': accent.value }))
 const avatarStyle = computed(() => (cfg.value.avatar_url ? {} : { background: accent.value }))
@@ -107,8 +110,16 @@ function connect() {
   try {
     const sock = new WebSocket(wsUrl())
     ws.value = sock
+    sock.onopen = () => { reconnectAttempts = 0 }      // healthy — clear backoff
     sock.onmessage = (e) => handleEvent(e.data)
-    sock.onclose = () => { if (!intentionalClose) setTimeout(connect, 1500) }
+    // Bounded reconnect: exponential backoff (1s,2s,4s… cap 10s) then a slow 30s self-heal retry, so a
+    // rejecting/closing socket can't be hammered every 1.5s (reconnect-storm guard).
+    sock.onclose = () => {
+      if (intentionalClose) return
+      const delay = reconnectAttempts < 6 ? Math.min(1000 * Math.pow(2, reconnectAttempts++), 10000) : 30000
+      if (reconnectTimer) clearTimeout(reconnectTimer)
+      reconnectTimer = setTimeout(connect, delay)
+    }
   } catch (e) { /* noop */ }
 }
 
@@ -190,7 +201,7 @@ onMounted(async () => {
     connect()
   } catch (e) { offline.value = true }
 })
-onBeforeUnmount(() => { intentionalClose = true; if (ws.value) { try { ws.value.close() } catch (e) { /* noop */ } } })
+onBeforeUnmount(() => { intentionalClose = true; if (reconnectTimer) clearTimeout(reconnectTimer); if (ws.value) { try { ws.value.close() } catch (e) { /* noop */ } } })
 </script>
 
 <style scoped>

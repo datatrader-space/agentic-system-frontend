@@ -1,336 +1,157 @@
 <template>
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
       <!-- Header -->
-      <div class="p-6 border-b border-gray-200">
-        <div class="flex justify-between items-center">
-          <div>
-            <h2 class="text-xl font-bold text-gray-900">🔌 {{ isEditMode ? 'Edit' : 'Add' }} MCP Server</h2>
-            <p class="text-sm text-gray-500 mt-1">{{ isEditMode ? 'Update configuration for ' + form.name : 'Configure a Model Context Protocol server to extend agent capabilities' }}</p>
+      <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-start">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">{{ isEditMode ? 'Edit' : 'Add a' }} tool server</h2>
+          <p class="text-[13px] text-slate-500 mt-0.5">Connect an MCP server to give your agents more tools.</p>
+        </div>
+        <button @click="$emit('close')" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+      </div>
+
+      <div class="p-6 space-y-5">
+        <!-- Step 1: choose type -->
+        <div>
+          <label class="block text-[13px] font-semibold text-slate-700 mb-2">How do you connect to it?</label>
+          <div class="grid grid-cols-2 gap-3">
+            <button type="button" @click="form.mode = 'hosted'"
+              class="text-left px-4 py-3 rounded-xl border-2 transition-colors"
+              :class="form.mode === 'hosted' ? 'border-indigo-500 bg-indigo-50/40' : 'border-slate-200 hover:border-slate-300'">
+              <div class="text-[13px] font-semibold text-slate-800">🌐 Hosted (URL)</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">A server you reach over the web.</div>
+            </button>
+            <button type="button" @click="form.mode = 'local'"
+              class="text-left px-4 py-3 rounded-xl border-2 transition-colors"
+              :class="form.mode === 'local' ? 'border-indigo-500 bg-indigo-50/40' : 'border-slate-200 hover:border-slate-300'">
+              <div class="text-[13px] font-semibold text-slate-800">💻 Local program</div>
+              <div class="text-[11px] text-slate-500 mt-0.5">Runs a command on the server. Advanced.</div>
+            </button>
           </div>
-          <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600">
-            <span class="text-2xl">&times;</span>
-          </button>
+        </div>
+
+        <!-- Name -->
+        <div>
+          <label class="block text-[13px] font-semibold text-slate-700 mb-1">Name</label>
+          <input v-model="form.name" type="text" placeholder="e.g. My Company API"
+            class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none">
+        </div>
+
+        <!-- Hosted path -->
+        <template v-if="form.mode === 'hosted'">
+          <div>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-1">Server URL</label>
+            <input v-model="form.endpoint_url" type="url" placeholder="https://example.com/mcp"
+              class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none font-mono">
+          </div>
+
+          <!-- Auth -->
+          <div>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-1">Does it need a key?</label>
+            <select v-model="form.auth.type" @change="headersTouched = true"
+              class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none bg-white">
+              <option value="none">No — it's open</option>
+              <option value="bearer">Bearer token</option>
+              <option value="api_key">API key (header)</option>
+              <option value="custom">Custom header</option>
+            </select>
+            <p v-if="isEditMode && form.auth.type === 'none'" class="text-[11px] text-slate-400 mt-1">
+              Existing credentials are kept unless you choose a type and enter a new value.
+            </p>
+            <div v-if="form.auth.type !== 'none'" class="mt-2 space-y-2">
+              <input v-if="form.auth.type === 'api_key' || form.auth.type === 'custom'"
+                v-model="form.auth.header_name" @input="headersTouched = true" type="text"
+                :placeholder="form.auth.type === 'api_key' ? 'Header name (e.g. X-API-Key)' : 'Header name (e.g. Authorization)'"
+                class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none font-mono">
+              <input v-model="form.auth.token" @input="headersTouched = true" type="password"
+                placeholder="Paste the token / key"
+                class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none font-mono">
+            </div>
+          </div>
+
+          <!-- Extra headers — for things like ngrok-skip-browser-warning that must be sent on every
+               request (in addition to auth). -->
+          <div>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-1">
+              Extra headers <span class="text-[11px] font-normal text-slate-400">— optional</span>
+            </label>
+            <p class="text-[11px] text-slate-400 mb-2 leading-snug">
+              Sent on every request. Use this for things like
+              <code class="bg-slate-100 px-1 rounded">ngrok-skip-browser-warning</code> = <code class="bg-slate-100 px-1 rounded">true</code>.
+            </p>
+            <div v-for="(row, i) in form.extraHeaders" :key="i" class="flex gap-2 mb-2">
+              <input v-model="row.name" @input="headersTouched = true" type="text" placeholder="Header name"
+                class="flex-1 px-3 py-2 text-[13px] border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 font-mono">
+              <input v-model="row.value" @input="headersTouched = true" type="text" placeholder="value"
+                class="flex-1 px-3 py-2 text-[13px] border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 font-mono">
+              <button type="button" @click="form.extraHeaders.splice(i, 1); headersTouched = true" class="px-2 text-slate-400 hover:text-red-500">✕</button>
+            </div>
+            <button type="button" @click="form.extraHeaders.push({ name: '', value: '' }); headersTouched = true"
+              class="text-[12px] font-semibold text-indigo-600 hover:text-indigo-700">+ Add header</button>
+          </div>
+        </template>
+
+        <!-- Local path -->
+        <template v-else>
+          <div>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-1">Command</label>
+            <input v-model="form.command" type="text" placeholder="npx"
+              class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none font-mono">
+            <p class="text-[11px] text-slate-400 mt-1">The program to run, e.g. <code class="bg-slate-100 px-1 rounded">npx</code>, <code class="bg-slate-100 px-1 rounded">uvx</code>, <code class="bg-slate-100 px-1 rounded">python</code>.</p>
+          </div>
+          <div>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-1">Arguments</label>
+            <textarea v-model="argsText" rows="3" placeholder="-y&#10;@modelcontextprotocol/server-github"
+              class="w-full px-3 py-2 text-[13px] border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none font-mono"></textarea>
+            <p class="text-[11px] text-slate-400 mt-1">One per line.</p>
+          </div>
+          <!-- Simple env vars (key/value) -->
+          <div>
+            <label class="block text-[13px] font-semibold text-slate-700 mb-1">Keys &amp; secrets <span class="text-[11px] font-normal text-slate-400">— optional</span></label>
+            <div v-for="(row, i) in form.envVars" :key="i" class="flex gap-2 mb-2">
+              <input v-model="row.key" type="text" placeholder="GITHUB_TOKEN"
+                class="flex-1 px-3 py-2 text-[13px] border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 font-mono">
+              <input v-model="row.value" type="password" placeholder="value"
+                class="flex-1 px-3 py-2 text-[13px] border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 font-mono">
+              <button type="button" @click="form.envVars.splice(i, 1)" class="px-2 text-slate-400 hover:text-red-500">✕</button>
+            </div>
+            <button type="button" @click="form.envVars.push({ key: '', value: '' })" class="text-[12px] font-semibold text-indigo-600 hover:text-indigo-700">+ Add</button>
+          </div>
+        </template>
+
+        <!-- Description (optional, both) -->
+        <div>
+          <label class="block text-[13px] font-semibold text-slate-700 mb-1">What is it for? <span class="text-[11px] font-normal text-slate-400">— optional</span></label>
+          <input v-model="form.description" type="text" placeholder="Short description"
+            class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none">
+        </div>
+
+        <!-- Result -->
+        <div v-if="testResult" class="p-3 rounded-xl text-[13px]"
+          :class="testResult.success ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'">
+          <p class="font-semibold" :class="testResult.success ? 'text-emerald-800' : 'text-red-800'">
+            {{ testResult.success ? '✓ Connected' : '✗ Could not connect' }}
+          </p>
+          <p :class="testResult.success ? 'text-emerald-700' : 'text-red-700'">{{ testResult.message }}</p>
+          <ul v-if="testResult.remediation?.steps" class="list-disc ml-4 mt-1 text-red-600 text-[12px]">
+            <li v-for="(s, i) in testResult.remediation.steps" :key="i">{{ s }}</li>
+          </ul>
         </div>
       </div>
 
-      <!-- Form -->
-      <form @submit.prevent="handleSubmit" class="p-6 space-y-5">
-        <!-- Quick Start Examples -->
-        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
-          <h4 class="font-medium text-purple-900 mb-2">📋 Quick Start Examples</h4>
-          <div class="flex flex-wrap gap-2">
-            <button type="button" @click="applyTemplate('github')" 
-              class="px-3 py-1 text-xs bg-white border border-purple-300 rounded-full hover:bg-purple-100">
-              GitHub
-            </button>
-            <button type="button" @click="applyTemplate('filesystem')" 
-              class="px-3 py-1 text-xs bg-white border border-purple-300 rounded-full hover:bg-purple-100">
-              Filesystem
-            </button>
-            <button type="button" @click="applyTemplate('slack')" 
-              class="px-3 py-1 text-xs bg-white border border-purple-300 rounded-full hover:bg-purple-100">
-              Slack
-            </button>
-            <button type="button" @click="applyTemplate('postgres')" 
-              class="px-3 py-1 text-xs bg-white border border-purple-300 rounded-full hover:bg-purple-100">
-              PostgreSQL
-            </button>
-          </div>
-        </div>
-
-        <!-- Basic Info -->
-        <div class="space-y-4">
-          <h3 class="font-medium text-gray-900 flex items-center gap-2">
-            📝 Basic Information
-            <span class="text-xs font-normal text-gray-500">Identify your MCP server</span>
-          </h3>
-          
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">
-                Name *
-                <span class="ml-1 text-gray-400 cursor-help" title="A human-readable name to identify this MCP server">ⓘ</span>
-              </label>
-              <input
-                v-model="form.name"
-                type="text"
-                required
-                placeholder="GitHub MCP"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              >
-              <p class="text-xs text-gray-500 mt-1">Display name shown in the UI</p>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">
-                Slug
-                <span class="ml-1 text-gray-400 cursor-help" title="Short identifier used in tool naming (e.g., MCP_GITHUB_)">ⓘ</span>
-              </label>
-              <input
-                v-model="form.slug"
-                type="text"
-                placeholder="github"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              >
-              <p class="text-xs text-gray-500 mt-1">Used for tool prefix (MCP_SLUG_TOOLNAME)</p>
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea
-              v-model="form.description"
-              rows="2"
-              placeholder="GitHub API integration via MCP - provides repository, issue, and PR management tools"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            ></textarea>
-          </div>
-        </div>
-
-        <!-- Transport Configuration -->
-        <div class="bg-gray-50 p-4 rounded-lg space-y-4">
-          <h3 class="font-medium text-gray-900 flex items-center gap-2">
-            🔗 Transport Configuration
-            <span class="text-xs font-normal text-gray-500">How to connect to the MCP server</span>
-          </h3>
-          
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Transport Type *</label>
-            <select
-              v-model="form.transport_type"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
-            >
-              <option value="stdio">stdio (Local subprocess) - Most common</option>
-              <option value="http">HTTP (Remote server)</option>
-              <option value="sse">SSE (Server-Sent Events)</option>
-            </select>
-            <p class="text-xs text-gray-500 mt-1">
-              <strong>stdio:</strong> Run MCP as a local process (npx, uvx, node, python)<br>
-              <strong>HTTP/SSE:</strong> Connect to a remote MCP server
-            </p>
-          </div>
-
-          <!-- stdio config -->
-          <div v-if="form.transport_type === 'stdio'" class="space-y-4 border-t border-gray-200 pt-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">
-                Command *
-                <span class="ml-1 text-gray-400 cursor-help" title="The executable to run (npx, uvx, node, python, etc.)">ⓘ</span>
-              </label>
-              <input
-                v-model="form.command"
-                type="text"
-                required
-                placeholder="npx"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono"
-              >
-              <p class="text-xs text-gray-500 mt-1">
-                Common commands: <code class="bg-gray-200 px-1 rounded">npx</code> (Node), 
-                <code class="bg-gray-200 px-1 rounded">uvx</code> (Python), 
-                <code class="bg-gray-200 px-1 rounded">node</code>, 
-                <code class="bg-gray-200 px-1 rounded">python</code>
-              </p>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">
-                Arguments (JSON array) *
-                <span class="ml-1 text-gray-400 cursor-help" title="Command arguments as a JSON array of strings">ⓘ</span>
-              </label>
-              <input
-                v-model="argsText"
-                type="text"
-                placeholder='["-y", "@modelcontextprotocol/server-github"]'
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono text-sm"
-              >
-              <p class="text-xs text-gray-500 mt-1">
-                Example: <code class="bg-gray-200 px-1 rounded text-xs">["-y", "@modelcontextprotocol/server-github"]</code>
-              </p>
-            </div>
-          </div>
-
-          <!-- HTTP/SSE config -->
-          <div v-else class="border-t border-gray-200 pt-4">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Endpoint URL *</label>
-            <input
-              v-model="form.endpoint_url"
-              type="url"
-              required
-              placeholder="https://mcp-server.example.com/mcp"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            >
-            <p class="text-xs text-gray-500 mt-1">Full URL to the remote MCP server endpoint</p>
-          </div>
-        </div>
-
-        <!-- Environment Variables -->
-        <div class="bg-gray-50 p-4 rounded-lg space-y-3">
-          <div class="flex justify-between items-start">
-            <div>
-              <h3 class="font-medium text-gray-900">🔐 Environment Variables</h3>
-              <p class="text-xs text-gray-500 mt-1">
-                Pass API keys and secrets to the MCP server. Values are resolved at runtime.
-              </p>
-            </div>
-          </div>
-          
-          <!-- Help text for credential syntax -->
-          <div class="bg-white border border-gray-200 rounded p-3 text-xs">
-            <p class="font-medium text-gray-700 mb-2">Credential Reference Syntax:</p>
-            <ul class="space-y-1 text-gray-600">
-              <li><code class="bg-gray-100 px-1 rounded">env://VAR_NAME</code> → Read from system environment</li>
-              <li><code class="bg-gray-100 px-1 rounded">vault://secret/path#key</code> → Read from HashiCorp Vault</li>
-              <li><code class="bg-gray-100 px-1 rounded">ssm://parameter/name</code> → Read from AWS SSM</li>
-              <li><code class="bg-gray-100 px-1 rounded">raw_value</code> → Use literal value (⚠️ stored in DB)</li>
-            </ul>
-          </div>
-          
-          <div v-for="(value, key, index) in form.env_config" :key="index" class="flex gap-2">
-            <input
-              :value="key"
-              @input="updateEnvKey(key, $event.target.value)"
-              type="text"
-              placeholder="GITHUB_TOKEN"
-              class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
-            >
-            <input
-              v-model="form.env_config[key]"
-              type="text"
-              placeholder="env://GITHUB_TOKEN"
-              class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
-            >
-            <button
-              type="button"
-              @click="removeEnvVar(key)"
-              class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg"
-            >🗑️</button>
-          </div>
-          
-          <button
-            type="button"
-            @click="addEnvVar"
-            class="text-sm text-purple-600 hover:text-purple-800 flex items-center gap-1"
-          >
-            <span>+</span> Add Environment Variable
+      <!-- Footer -->
+      <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
+        <template v-if="savedOk">
+          <button @click="finish" class="px-5 py-2 bg-slate-900 text-white rounded-lg text-[13px] font-semibold hover:bg-slate-800">Done</button>
+        </template>
+        <template v-else>
+          <button @click="$emit('close')" class="px-4 py-2 text-slate-700 bg-slate-100 rounded-lg text-[13px] font-semibold hover:bg-slate-200">Cancel</button>
+          <button @click="handleSubmit" :disabled="saving || !canSave"
+            class="px-5 py-2 bg-indigo-600 text-white rounded-lg text-[13px] font-semibold hover:bg-indigo-700 disabled:opacity-50">
+            {{ saving ? 'Connecting…' : (isEditMode ? 'Save changes' : 'Add server') }}
           </button>
-        </div>
-
-        <!-- Advanced Options -->
-        <details class="bg-gray-50 p-4 rounded-lg">
-          <summary class="font-medium text-gray-900 cursor-pointer flex items-center gap-2">
-            ⚙️ Advanced Options
-            <span class="text-xs font-normal text-gray-500">Timeouts, caching, and reliability settings</span>
-          </summary>
-          <div class="mt-4 space-y-4">
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                  Discovery Mode
-                  <span class="ml-1 text-gray-400 cursor-help" title="How tools are discovered from the server">ⓘ</span>
-                </label>
-                <select v-model="form.discovery_mode" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                  <option value="hybrid">Hybrid (cached + refresh)</option>
-                  <option value="dynamic">Dynamic (always fresh)</option>
-                  <option value="cached">Cached (fast startup)</option>
-                </select>
-                <p class="text-xs text-gray-500 mt-1">Hybrid is recommended for most cases</p>
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                  Lifecycle Mode
-                  <span class="ml-1 text-gray-400 cursor-help" title="How MCP server processes are managed">ⓘ</span>
-                </label>
-                <select v-model="form.lifecycle_mode" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                  <option value="per_session">Per Session (start/stop per chat)</option>
-                  <option value="persistent">Persistent (keep running)</option>
-                </select>
-                <p class="text-xs text-gray-500 mt-1">Per-session uses less resources</p>
-              </div>
-            </div>
-            
-            <div class="grid grid-cols-3 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Startup Timeout</label>
-                <div class="flex items-center gap-2">
-                  <input v-model.number="form.startup_timeout_ms" type="number" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                  <span class="text-xs text-gray-500">ms</span>
-                </div>
-                <p class="text-xs text-gray-500 mt-1">Max time to start server</p>
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Tool Timeout</label>
-                <div class="flex items-center gap-2">
-                  <input v-model.number="form.tool_timeout_ms" type="number" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                  <span class="text-xs text-gray-500">ms</span>
-                </div>
-                <p class="text-xs text-gray-500 mt-1">Max time per tool call</p>
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Idle Timeout</label>
-                <div class="flex items-center gap-2">
-                  <input v-model.number="form.idle_timeout_ms" type="number" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                  <span class="text-xs text-gray-500">ms</span>
-                </div>
-                <p class="text-xs text-gray-500 mt-1">Shutdown after idle</p>
-              </div>
-            </div>
-            
-            <div class="flex items-center gap-2 pt-2">
-              <input type="checkbox" v-model="form.circuit_breaker_enabled" id="cb-enabled" class="rounded text-purple-600">
-              <label for="cb-enabled" class="text-sm text-gray-700">
-                Enable Circuit Breaker
-                <span class="text-gray-500">(prevents startup storms on repeated failures)</span>
-              </label>
-            </div>
-          </div>
-        </details>
-
-        <!-- Actions -->
-        <div class="flex justify-between items-center pt-4 border-t border-gray-200">
-          <button
-            type="button"
-            @click="testConnection"
-            :disabled="testing || !canTest"
-            class="px-4 py-2 text-purple-700 bg-purple-100 rounded-lg hover:bg-purple-200 transition disabled:opacity-50 flex items-center gap-2"
-          >
-            <span v-if="testing" class="animate-spin">⟳</span>
-            <span v-else>🧪</span>
-            {{ testing ? 'Testing...' : 'Test Connection' }}
-          </button>
-          
-          <div class="flex gap-3">
-            <button
-              type="button"
-              @click="$emit('close')"
-              class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
-            >Cancel</button>
-            <button
-              type="submit"
-              :disabled="saving"
-              class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50"
-            >
-              {{ saving ? 'Saving...' : 'Add Server' }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Test Result -->
-        <div v-if="testResult" class="p-4 rounded-lg" :class="testResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'">
-          <div class="flex items-start gap-2">
-            <span class="text-xl">{{ testResult.success ? '✅' : '❌' }}</span>
-            <div>
-              <p class="font-medium" :class="testResult.success ? 'text-green-800' : 'text-red-800'">
-                {{ testResult.success ? 'Connection Successful!' : 'Connection Failed' }}
-              </p>
-              <p class="text-sm" :class="testResult.success ? 'text-green-700' : 'text-red-700'">
-                {{ testResult.message }}
-              </p>
-              <div v-if="testResult.tools" class="mt-2 text-xs text-green-600">
-                Discovered {{ testResult.tools }} tools
-              </div>
-            </div>
-          </div>
-        </div>
-      </form>
+        </template>
+      </div>
     </div>
   </div>
 </template>
@@ -340,178 +161,113 @@ import { ref, reactive, computed } from 'vue'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 
+// Reverse-map an existing env_config (when present) into the friendly auth picker.
+function deriveAuth(env) {
+  for (const [k, v] of Object.entries(env || {})) {
+    if (k.toLowerCase() === 'authorization') {
+      if (typeof v === 'string' && v.startsWith('Bearer ')) return { type: 'bearer', token: '', header_name: '' }
+      return { type: 'custom', header_name: 'Authorization', token: '' }
+    }
+    if (k.toUpperCase().startsWith('HEADER_')) return { type: 'api_key', header_name: k.slice(7), token: '' }
+  }
+  return { type: 'none', token: '', header_name: '' }
+}
+
 export default {
   name: 'MCPServerModal',
-  props: {
-    server: {
-      type: Object,
-      default: null
-    }
-  },
+  props: { server: { type: Object, default: null } },
   emits: ['close', 'saved'],
   setup(props, { emit }) {
     const saving = ref(false)
-    const testing = ref(false)
+    const savedOk = ref(false)
     const testResult = ref(null)
-    
+    const headersTouched = ref(false)
     const isEditMode = computed(() => !!props.server)
-    
-    // Initialize form with server data if editing
+
+    const s = props.server || {}
     const form = reactive({
-      name: props.server?.name || '',
-      slug: props.server?.slug || '',
-      description: props.server?.description || '',
-      transport_type: props.server?.transport_type || 'stdio',
-      command: props.server?.command || '',
-      args: props.server?.args || [],
-      endpoint_url: props.server?.endpoint_url || '',
-      env_config: props.server?.env_config || {},
-      discovery_mode: props.server?.discovery_mode || 'hybrid',
-      lifecycle_mode: props.server?.lifecycle_mode || 'per_session',
-      startup_timeout_ms: props.server?.startup_timeout_ms || 30000,
-      tool_timeout_ms: props.server?.tool_timeout_ms || 60000,
-      idle_timeout_ms: props.server?.idle_timeout_ms || 300000,
-      circuit_breaker_enabled: props.server?.circuit_breaker_enabled ?? true,
-      enabled: props.server?.enabled ?? true
+      mode: (s.transport_type === 'stdio') ? 'local' : 'hosted',
+      name: s.name || '',
+      description: s.description || '',
+      endpoint_url: s.endpoint_url || '',
+      command: s.command || '',
+      auth: deriveAuth(s.env_config),
+      // Extra request headers (hosted) beyond the single auth header. The FIRST HEADER_*/Authorization
+      // is treated as auth (deriveAuth); any others would be extra — but env_config isn't returned in
+      // the safe dict, so on edit these start empty and are re-entered if changed.
+      extraHeaders: [],
+      envVars: Object.entries(s.env_config || {})
+        .filter(([k]) => k.toLowerCase() !== 'authorization' && !k.toUpperCase().startsWith('HEADER_'))
+        .map(([key, value]) => ({ key, value: '' })),
     })
 
     const argsText = computed({
-      get: () => JSON.stringify(form.args),
-      set: (val) => {
-        try {
-          form.args = JSON.parse(val || '[]')
-        } catch (e) {
-          // Leave as-is if parse fails
-        }
-      }
+      get: () => (Array.isArray(s.args) && !form._argsEdited ? s.args.join('\n') : (form._argsRaw ?? '')),
+      set: (val) => { form._argsRaw = val; form._argsEdited = true },
     })
+    const argsArray = () => (form._argsEdited ? (form._argsRaw || '') : (Array.isArray(s.args) ? s.args.join('\n') : ''))
+      .split('\n').map(a => a.trim()).filter(Boolean)
 
-    const canTest = computed(() => {
-      if (form.transport_type === 'stdio') {
-        return form.command && form.args.length > 0
-      }
-      return form.endpoint_url
-    })
+    const canSave = computed(() =>
+      form.name.trim() && (form.mode === 'hosted' ? form.endpoint_url.trim() : form.command.trim()))
 
-    // Quick start templates
-    const templates = {
-      github: {
-        name: 'GitHub MCP',
-        slug: 'github',
-        description: 'GitHub API integration - repos, issues, PRs, and more',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-github'],
-        env_config: { 'GITHUB_TOKEN': 'env://GITHUB_TOKEN' }
-      },
-      filesystem: {
-        name: 'Filesystem MCP',
-        slug: 'fs',
-        description: 'Read and write files in specified directories',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-filesystem', '/path/to/allowed/dir'],
-        env_config: {}
-      },
-      slack: {
-        name: 'Slack MCP',
-        slug: 'slack',
-        description: 'Slack workspace integration',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-slack'],
-        env_config: { 'SLACK_BOT_TOKEN': 'env://SLACK_BOT_TOKEN', 'SLACK_TEAM_ID': 'env://SLACK_TEAM_ID' }
-      },
-      postgres: {
-        name: 'PostgreSQL MCP',
-        slug: 'postgres',
-        description: 'Query PostgreSQL databases',
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-postgres', 'postgresql://localhost/mydb'],
-        env_config: {}
-      }
-    }
-
-    const applyTemplate = (templateName) => {
-      const template = templates[templateName]
-      if (template) {
-        form.name = template.name
-        form.slug = template.slug
-        form.description = template.description
-        form.command = template.command
-        form.args = [...template.args]
-        form.env_config = { ...template.env_config }
-        testResult.value = null
-      }
-    }
-
-    const addEnvVar = () => {
-      const key = `VAR_${Object.keys(form.env_config).length + 1}`
-      form.env_config[key] = ''
-    }
-
-    const removeEnvVar = (key) => {
-      delete form.env_config[key]
-    }
-
-    const updateEnvKey = (oldKey, newKey) => {
-      if (oldKey !== newKey && newKey) {
-        form.env_config[newKey] = form.env_config[oldKey]
-        delete form.env_config[oldKey]
-      }
-    }
-
-    const testConnection = async () => {
-      testing.value = true
-      testResult.value = null
-      
-      try {
-        // For now, create the server temporarily and test
-        // In the future, add a dedicated test endpoint
-        testResult.value = {
-          success: true,
-          message: `Configuration looks valid. Save the server and use "Refresh Tools" to discover tools.`,
-          tools: null
+    function buildPayload() {
+      if (form.mode === 'hosted') {
+        const p = { name: form.name, description: form.description, transport_type: 'http', endpoint_url: form.endpoint_url }
+        // Only send headers when the user set/changed them (so editing doesn't wipe stored ones).
+        // auth + extra_headers are sent together as the full header set.
+        if (!isEditMode.value || headersTouched.value) {
+          p.auth = { type: form.auth.type, token: form.auth.token, header_name: form.auth.header_name }
+          p.extra_headers = form.extraHeaders
+            .filter(h => h.name.trim() && h.value)
+            .map(h => ({ name: h.name.trim(), value: h.value }))
         }
-      } catch (error) {
-        testResult.value = {
-          success: false,
-          message: error.response?.data?.error || error.message
-        }
-      } finally {
-        testing.value = false
+        return p
       }
+      const env = {}
+      form.envVars.forEach(r => { if (r.key.trim() && r.value) env[r.key.trim()] = r.value })
+      return { name: form.name, description: form.description, transport_type: 'stdio',
+               command: form.command, args: argsArray(), env_config: env }
     }
 
-    const handleSubmit = async () => {
+    async function handleSubmit() {
       saving.value = true
+      testResult.value = null
       try {
+        const payload = buildPayload()
+        let serverId = props.server?.id
         if (isEditMode.value) {
-          await api.updateMCPServer(props.server.id, form)
+          await api.updateMCPServer(serverId, payload)
         } else {
-          await api.createMCPServer(form)
+          const res = await api.createMCPServer(payload)
+          serverId = res.data?.server?.id
         }
-        emit('saved')
+        savedOk.value = true
+        // Verify + discover tools so the user sees it worked.
+        if (serverId) {
+          try {
+            const t = await api.testMCPConnection(serverId)
+            const d = t.data || {}
+            const n = d.tools_count ?? (Array.isArray(d.tools) ? d.tools.length : 0)
+            testResult.value = d.success !== false
+              ? { success: true, message: `${n} tool${n === 1 ? '' : 's'} found.` }
+              : { success: false, message: d.error || 'Saved, but the connection test failed.', remediation: d.remediation }
+          } catch (e) {
+            const d = e.response?.data || {}
+            testResult.value = { success: false, message: d.error || e.message, remediation: d.remediation }
+          }
+        }
+        notify.success(isEditMode.value ? 'Server updated' : 'Server added')
       } catch (error) {
-        console.error('Failed to save MCP server:', error)
-        notify.error('Failed to save server: ' + (error.response?.data?.error || error.message))
+        notify.error('Failed to save: ' + (error.response?.data?.error || error.message))
       } finally {
         saving.value = false
       }
     }
 
-    return {
-      form,
-      argsText,
-      saving,
-      testing,
-      testResult,
-      canTest,
-      isEditMode,
-      applyTemplate,
-      addEnvVar,
-      removeEnvVar,
-      updateEnvKey,
-      testConnection,
-      handleSubmit
-    }
+    const finish = () => { emit('saved'); emit('close') }
+
+    return { form, argsText, saving, savedOk, testResult, headersTouched, isEditMode, canSave, handleSubmit, finish }
   }
 }
 </script>

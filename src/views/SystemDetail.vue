@@ -13,7 +13,7 @@
         <div class="flex items-center justify-between">
           <div class="flex items-center">
             <button
-              @click="$router.push('/dashboard/systems')"
+              @click="$router.push('/dashboard/lets-code?tab=systems')"
               class="mr-4 text-ink-soft hover:text-ink font-semibold"
             >
               ← Back
@@ -282,6 +282,16 @@
                 >
                   Re-run Enrichment
                 </button>
+
+                <!-- Remove repository -->
+                <button
+                  @click.stop="removeRepository(repo)"
+                  :disabled="deletingRepoId === repo.id"
+                  title="Remove this repository"
+                  class="px-3 py-1 border border-red-300 text-red-600 rounded text-sm hover:bg-red-50 disabled:opacity-60"
+                >
+                  {{ deletingRepoId === repo.id ? 'Removing…' : 'Remove' }}
+                </button>
               </div>
             </div>
           </div>
@@ -537,10 +547,23 @@
             <p class="mt-2 text-gray-600">Loading your GitHub repositories...</p>
           </div>
 
-          <!-- Error -->
+          <!-- Not connected → offer the same connector OAuth flow as the Connectors page -->
+          <div v-else-if="githubNotConnected" class="border border-gray-200 rounded-lg p-6 mb-4 text-center">
+            <p class="text-gray-900 font-medium">Connect GitHub to browse your repositories</p>
+            <p class="text-gray-500 text-sm mt-1">Uses the same GitHub connection as the Connectors page — no token needed in .env.</p>
+            <button
+              @click="connectGithub"
+              type="button"
+              :disabled="connectingGithub"
+              class="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-black disabled:opacity-60"
+            >
+              {{ connectingGithub ? 'Connecting…' : 'Connect GitHub' }}
+            </button>
+          </div>
+
+          <!-- Error (other failures) -->
           <div v-else-if="githubReposError" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
             <p class="text-red-800 font-medium">{{ githubReposError }}</p>
-            <p class="text-red-600 text-sm mt-1">Make sure GITHUB_TOKEN is set in .env</p>
             <button
               @click="loadGithubRepos"
               type="button"
@@ -552,6 +575,19 @@
 
           <!-- Repositories List -->
           <div v-else-if="githubRepos.length > 0">
+            <!-- Connected-account bar: switch / use a different GitHub account -->
+            <div class="flex items-center justify-between mb-3 text-sm">
+              <span class="text-gray-500">Repositories from your connected GitHub account</span>
+              <button
+                @click="connectGithub"
+                type="button"
+                :disabled="connectingGithub"
+                class="text-blue-600 hover:text-blue-800 underline disabled:opacity-60"
+              >
+                {{ connectingGithub ? 'Connecting…' : 'Use a different GitHub account' }}
+              </button>
+            </div>
+
             <!-- Search -->
             <input
               v-model="repoSearchQuery"
@@ -1013,6 +1049,8 @@
 import { ref, computed, onMounted, inject, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../services/api'
+import { connectOAuth } from '@/composables/useOAuthConnect'
+import { confirm } from '@/composables/useConfirm'
 import CRSPipelineDashboard from '../components/CRSPipelineDashboard.vue'
 import RepositoryChat from '../components/RepositoryChat.vue'
 import PlannerChat from '../components/PlannerChat.vue'
@@ -1073,6 +1111,9 @@ const addRepoTab = ref('browse')
 const githubRepos = ref([])
 const loadingGithubRepos = ref(false)
 const githubReposError = ref(null)
+const githubNotConnected = ref(false)
+const connectingGithub = ref(false)
+const deletingRepoId = ref(null)
 const repoSearchQuery = ref('')
 
 // Computed
@@ -1399,6 +1440,7 @@ const loadGithubRepos = async () => {
   try {
     loadingGithubRepos.value = true
     githubReposError.value = null
+    githubNotConnected.value = false
 
     const response = await api.githubListRepos()
 
@@ -1410,9 +1452,56 @@ const loadGithubRepos = async () => {
     }
   } catch (error) {
     console.error('Failed to load GitHub repos:', error)
-    githubReposError.value = error.response?.data?.error || 'Failed to load repositories. Check your GitHub token.'
+    const data = error.response?.data || {}
+    if (data.github_not_connected || error.response?.status === 401) {
+      githubNotConnected.value = true   // show the Connect GitHub flow instead of an error
+    } else {
+      githubReposError.value = data.error || 'Failed to load repositories.'
+    }
   } finally {
     loadingGithubRepos.value = false
+  }
+}
+
+// Connect (or switch) the GitHub account via the SAME connector OAuth popup the Connectors
+// page uses, then load this account's repositories.
+const connectGithub = async () => {
+  try {
+    connectingGithub.value = true
+    // Re-running the connector OAuth lets the user authorize a different GitHub account
+    // (whichever account is signed in on github.com) and updates the stored connection.
+    await connectOAuth(api, 'github')
+    notify('GitHub connected', 'success')
+    githubNotConnected.value = false
+    githubRepos.value = []
+    await loadGithubRepos()
+  } catch (e) {
+    notify(e?.message || 'GitHub connection failed', 'error')
+  } finally {
+    connectingGithub.value = false
+  }
+}
+
+const removeRepository = async (repo) => {
+  const ok = await confirm({
+    title: 'Remove repository?',
+    message: `Remove "${repo.name}" from this system? This deletes its analysis / CRS data and local clone. The GitHub repository itself is not affected.`,
+    confirmText: 'Remove', cancelText: 'Cancel', danger: true,
+  })
+  if (!ok) return
+  try {
+    deletingRepoId.value = repo.id
+    await api.deleteRepository(systemId, repo.id)
+    notify(`Removed ${repo.name}`, 'success')
+    if (selectedRepo.value && selectedRepo.value.id === repo.id) {
+      showRepositoryPanel.value = false
+      selectedRepo.value = null
+    }
+    await loadSystem()
+  } catch (e) {
+    notify(e.response?.data?.error || 'Failed to remove repository', 'error')
+  } finally {
+    deletingRepoId.value = null
   }
 }
 

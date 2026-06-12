@@ -231,6 +231,7 @@ import 'highlight.js/styles/atom-one-dark.css'
 import { confirm } from '@/composables/useConfirm'
 import HITLModal from './HITLModal.vue'
 import { useHitl } from '../composables/useHitl'
+import { enhanceChatMedia } from '../utils/chatMedia'
 
 const marked = new Marked(
   markedHighlight({
@@ -280,6 +281,10 @@ const { hitlRequests, handleHitlEvent, respondHitl, dismissHitl, skipHitl } = us
 let isConnecting = false
 let autoReconnect = true
 let reconnectTimeout = null
+// Bounded reconnect: exponential backoff + a cap so a persistently-failing/rejecting socket can't
+// hammer the server every 3s forever (that was a reconnect-storm source). Reset on a successful open.
+let reconnectAttempts = 0
+const MAX_RECONNECT_ATTEMPTS = 6
 let incomingMessageCounter = 0
 
 // Load conversation history
@@ -355,6 +360,7 @@ const connectWebSocket = (repositoryId = props.repository.id) => {
   ws.onopen = () => {
     connected.value = true
     isConnecting = false
+    reconnectAttempts = 0      // healthy connection — clear the backoff
     console.log('WebSocket connected')
   }
 
@@ -364,17 +370,26 @@ const connectWebSocket = (repositoryId = props.repository.id) => {
     ws = null
     console.log('WebSocket disconnected')
 
-    // Attempt reconnection after 3 seconds
+    // Reconnect with EXPONENTIAL BACKOFF (1s, 2s, 4s … capped at 10s) so a socket the server keeps
+    // closing/rejecting isn't hammered every 3s. After the fast attempts, fall back to a slow 30s
+    // heartbeat retry so it still self-heals when the server returns — without a reconnect storm.
     if (autoReconnect) {
+      let delay
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000)
+        reconnectAttempts++
+      } else {
+        delay = 30000
+      }
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout)
       }
       reconnectTimeout = setTimeout(() => {
         if (!connected.value) {
-          console.log('Attempting to reconnect...')
+          console.log(`Attempting to reconnect… (attempt ${reconnectAttempts})`)
           connectWebSocket(repositoryId)
         }
-      }, 3000)
+      }, delay)
     }
   }
 
@@ -599,7 +614,7 @@ const scrollToBottom = async (force = false) => {
 
 const formatMessage = (content) => {
   if (!content) return ''
-  return marked.parse(content)
+  return enhanceChatMedia(marked.parse(content))
 }
 
 const activeModels = computed(() => models.value.filter((model) => model.is_active))

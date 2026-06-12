@@ -111,7 +111,7 @@
           <template v-else-if="active === 'Tools'">
             <p class="muted">Manage the tools available to your agents.</p>
             <router-link class="link-btn" to="/dashboard/tools" @click="closeOverlay">Open Tool Registry →</router-link>
-            <router-link class="link-btn" to="/dashboard/mcp" @click="closeOverlay">Manage MCP Servers →</router-link>
+            <router-link class="link-btn" to="/dashboard/connectors" @click="closeOverlay">Manage Connectors →</router-link>
           </template>
 
           <!-- Files -->

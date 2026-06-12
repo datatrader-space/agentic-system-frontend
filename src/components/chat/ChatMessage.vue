@@ -12,6 +12,19 @@
         <!-- Rendered markdown content (full answer if rehydrated, else stored stub) -->
         <div v-if="displayContent" class="bubble assistant" v-html="rendered"></div>
 
+        <!-- Private reasoning — collapsed by default, separate from the answer -->
+        <ReasoningPanel v-if="message.status !== 'streaming'" :activity="message.activity" />
+
+        <!-- Why the run ended (backend-determined stop reason + confidence) -->
+        <div v-if="message.status !== 'streaming' && stopBadge" class="mt-1.5">
+          <span class="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ring-1"
+                :class="[stopBadge.tone.bg, stopBadge.tone.text, stopBadge.tone.ring]" :title="stopBadge.title">
+            <span class="w-1.5 h-1.5 rounded-full" :class="stopBadge.tone.dot"></span>
+            {{ stopBadge.label }}
+            <span class="opacity-60">· {{ stopBadge.confidence }}</span>
+          </span>
+        </div>
+
         <!-- Per-response token usage -->
         <TokenUsage v-if="message.status !== 'streaming'" :usage="message.usage" />
 
@@ -105,6 +118,8 @@ import { marked } from 'marked'
 import api from '../../services/api'
 import ActivityStream from '../activity/ActivityStream.vue'
 import TokenUsage from '../activity/TokenUsage.vue'
+import ReasoningPanel from '../activity/ReasoningPanel.vue'
+import { stopReasonBadge } from '../../composables/stopReason'
 
 const props = defineProps({
   message: { type: Object, required: true },
@@ -162,6 +177,7 @@ const share = async () => {
 }
 
 const isStreaming = computed(() => props.message.status === 'streaming')
+const stopBadge = computed(() => stopReasonBadge(props.message.stopReason, props.message.confidence))
 
 // Long-answer rehydration: stored content is a bounded stub; the full answer is
 // fetched on demand from the long-answer endpoint and shown in place.
@@ -243,12 +259,16 @@ const copy = async () => {
 }
 .bubble.assistant { color: var(--vm-ink); }
 .bubble.user {
-  max-width: 75%;
+  /* Width is capped by .user-col (max-width:80%). Using a % here too made the
+     bubble's width depend on its auto-width parent (circular) → collapsed to ~1 char. */
+  max-width: 100%;
+  width: fit-content;
   padding: 11px 15px;
   color: #fff;
   background: var(--vm-g-brand);
   border-radius: 18px 18px 5px 18px;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   box-shadow: var(--vm-glow-v);
 }
 .user-attach { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
@@ -321,8 +341,9 @@ const copy = async () => {
 .msg-action svg { width: 15px; height: 15px; }
 .msg-action.active { color: var(--vm-violet-d, #4f46e5); }
 
-/* User column: bubble + actions, right-aligned */
-.user-col { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; max-width: 80%; }
+/* User column: bubble + actions, right-aligned. margin-left:auto pushes it to the
+   right; max-width caps it; children size by their own intrinsic width (fit-content). */
+.user-col { display: flex; flex-direction: column; align-items: flex-end; min-width: 0; max-width: 80%; margin-left: auto; }
 .user-actions { margin-top: 4px; }
 .bubble.user.collapsed {
   max-height: 132px;
@@ -342,8 +363,8 @@ const copy = async () => {
 }
 .showmore:hover { text-decoration: underline; }
 
-/* User edit mode */
-.user-edit { width: min(100%, 520px); }
+/* User edit mode — viewport-based width (not %-of-auto-parent, which would collapse). */
+.user-edit { width: min(520px, 70vw); }
 .user-edit-area {
   width: 100%;
   border: 1.5px solid var(--vm-sky, #0ea5e9);
@@ -392,4 +413,35 @@ const copy = async () => {
 .bubble.assistant :deep(pre code) { background: none; padding: 0; color: inherit; }
 .bubble.assistant :deep(strong) { font-weight: 600; color: #0f172a; }
 .bubble.assistant :deep(a) { color: #4f46e5; text-decoration: underline; }
+
+/* Tables (GFM) */
+.bubble.assistant :deep(table) {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 4px 0 12px;
+  font-size: 0.9em;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  display: table;
+}
+.bubble.assistant :deep(thead th) {
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 600;
+  text-align: left;
+}
+.bubble.assistant :deep(th),
+.bubble.assistant :deep(td) {
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  vertical-align: top;
+}
+.bubble.assistant :deep(th:last-child),
+.bubble.assistant :deep(td:last-child) { border-right: none; }
+.bubble.assistant :deep(tbody tr:last-child td) { border-bottom: none; }
+.bubble.assistant :deep(tbody tr:nth-child(even)) { background: #fafbfc; }
+.bubble.assistant :deep(table code) { background: rgba(15, 23, 42, 0.06); }
 </style>

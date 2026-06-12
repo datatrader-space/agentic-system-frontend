@@ -1,9 +1,64 @@
 import { describe, it, expect } from 'vitest'
-import { createActivity, start, ingest, finish } from './activityStream'
+import { createActivity, start, ingest, finish, interrupt } from './activityStream'
 
 function lastStep(a) {
   return a.steps[a.steps.length - 1]
 }
+
+describe('activityStream — tool_progress (per-command live steps)', () => {
+  it('opens a step per running command and closes it on done with duration + exit', () => {
+    const a = createActivity()
+    start(a)
+    ingest(a, { type: 'tool_progress', tool: 'SSH_EXEC', index: 1, total: 3, phase: 'running', command: 'docker ps', label: '[1/3] docker ps' })
+    const running = a.steps.find((s) => s.cmdIndex === 1)
+    expect(running).toBeTruthy()
+    expect(running.status).toBe('running')
+    ingest(a, { type: 'tool_progress', tool: 'SSH_EXEC', index: 1, total: 3, phase: 'done', command: 'docker ps', exit_code: 0 })
+    expect(running.status).toBe('done')
+    expect(running.exitCode).toBe(0)
+  })
+
+  it('marks a timed-out command as error with a wait-longer hint', () => {
+    const a = createActivity()
+    start(a)
+    ingest(a, { type: 'tool_progress', index: 2, total: 3, phase: 'running', command: 'sleep 999', label: '[2/3] sleep 999' })
+    ingest(a, { type: 'tool_progress', index: 2, total: 3, phase: 'done', command: 'sleep 999', exit_code: -2 })
+    const s = a.steps.find((x) => x.cmdIndex === 2)
+    expect(s.status).toBe('error')
+    expect(s.error).toMatch(/timed out/i)
+  })
+})
+
+describe('activityStream — interrupt (socket dropped mid-stream)', () => {
+  it('collapses a running activity to interrupted instead of leaving it spinning', () => {
+    const a = createActivity()
+    start(a)               // seeds a running "Thinking" step
+    expect(a.done).toBe(false)
+    expect(a.steps.some((s) => s.status === 'running')).toBe(true)
+
+    interrupt(a, 'Connection lost')
+
+    expect(a.done).toBe(true)            // spinner stops (timeline collapses)
+    expect(a.running).toBe(false)
+    expect(a.interrupted).toBe(true)     // distinct from a normal finish()
+    expect(a.error).toBe('Connection lost')
+    // every previously-active step is now errored (not silently "done")
+    expect(a.steps.every((s) => s.status !== 'running')).toBe(true)
+    expect(lastStep(a).status).toBe('error')
+  })
+
+  it('finish() marks done WITHOUT the interrupted flag (the happy path)', () => {
+    const a = createActivity()
+    start(a)
+    finish(a)
+    expect(a.done).toBe(true)
+    expect(a.interrupted).toBeFalsy()
+  })
+
+  it('interrupt is a safe no-op on a null activity', () => {
+    expect(() => interrupt(null, 'x')).not.toThrow()
+  })
+})
 
 describe('activityStream — live token metering (token_usage)', () => {
   it('records a running token snapshot from token_usage', () => {

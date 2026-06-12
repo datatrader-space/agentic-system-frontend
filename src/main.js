@@ -16,7 +16,7 @@ axios.defaults.withCredentials = true
 // Vue Router accepts async component factories, so each view ships in its own chunk
 // instead of one giant bundle; heavy deps (Monaco, pdf.js, highlight.js) only load
 // on the routes that need them.
-const SystemList = () => import('./views/SystemList.vue')
+const LetsCode = () => import('./views/LetsCode.vue')
 const SystemDetail = () => import('./views/SystemDetail.vue')
 const RepositoryPage = () => import('./views/RepositoryPage.vue')
 const Login = () => import('./views/Login.vue')
@@ -24,8 +24,7 @@ const LLMSettings = () => import('./views/LLMSettings.vue')
 const LLMDashboard = () => import('./views/LLMDashboard.vue')
 const LLMContextDashboard = () => import('./views/LLMContextDashboard.vue')
 const ToolRegistry = () => import('./views/ToolRegistry.vue')
-const Services = () => import('./views/Services.vue')
-const MCPServers = () => import('./views/MCPServers.vue')
+const ConnectorsPage = () => import('./views/ConnectorsPage.vue')
 const AgentLibrary = () => import('./views/AgentLibrary.vue')
 const AgentPlayground = () => import('./views/AgentPlayground.vue')
 const AgentBuilderCanvas = () => import('./views/AgentBuilderCanvas.vue')
@@ -40,7 +39,6 @@ const About = () => import('./views/About.vue')
 const Contact = () => import('./views/Contact.vue')
 const ServiceRegistrationV2 = () => import('./views/ServiceRegistrationV2.vue')
 const ServiceDrafts = () => import('./views/ServiceDrafts.vue')
-const WorkspaceHub = () => import('./views/WorkspaceHub.vue')
 const OrgSettings = () => import('./views/OrgSettings.vue')
 const WorkspaceDashboard = () => import('./views/WorkspaceDashboard.vue')
 const InviteAccept = () => import('./views/InviteAccept.vue')
@@ -50,6 +48,7 @@ const IntegrationGuide = () => import('./views/IntegrationGuide.vue')
 const PublicChat = () => import('./views/PublicChat.vue')
 const Docs = () => import('./views/Docs.vue')
 const AdminPanel = () => import('./views/AdminPanel.vue')
+const ModelPricingPage = () => import('./views/ModelPricingPage.vue')
 
 // v2 app shell + chat workspace + tabbed settings (also lazy)
 const AppShell = () => import('./components/app-shell/AppShell.vue')
@@ -148,7 +147,8 @@ const router = createRouter({
         { path: '', redirect: '/dashboard/chat/new' },
         { path: 'chat/new', name: 'dashboard-chat-new', component: ChatWorkspace },
         { path: 'chat/:sessionId', name: 'dashboard-chat', component: ChatWorkspace },
-        { path: 'systems', name: 'dashboard-systems', component: SystemList },
+        { path: 'lets-code', name: 'dashboard-lets-code', component: LetsCode },
+        { path: 'systems', redirect: '/dashboard/lets-code' },
         // Legacy pages re-housed inside the shell so navigation never leaves it.
         // (The old top-level routes below remain for back-compat / deep links.)
         { path: 'agents', name: 'dashboard-agents', component: AgentLibrary },
@@ -157,9 +157,11 @@ const router = createRouter({
         { path: 'agents/:id/monitor', name: 'dashboard-agent-monitor', component: AgentMonitor },
         { path: 'agents/:id', name: 'dashboard-agent-playground', component: AgentPlayground },
         { path: 'tools', name: 'dashboard-tools', component: ToolRegistry },
-        { path: 'services', name: 'dashboard-services', component: Services },
-        { path: 'mcp', name: 'dashboard-mcp', component: MCPServers },
-        { path: 'workspaces', name: 'dashboard-workspaces', component: WorkspaceHub },
+        // Retired pages — Services / MCP / Workspaces are now folded into Connectors.
+        { path: 'services', name: 'dashboard-services', redirect: '/dashboard/connectors' },
+        { path: 'mcp', name: 'dashboard-mcp', redirect: '/dashboard/connectors' },
+        { path: 'connectors', name: 'dashboard-connectors', component: ConnectorsPage },
+        { path: 'workspaces', name: 'dashboard-workspaces', redirect: '/dashboard/connectors' },
         { path: 'activity', name: 'dashboard-activity', component: LLMDashboard },
         { path: 'llm-context', name: 'dashboard-llm-context', component: LLMContextDashboard },
         { path: 'llm-settings', name: 'dashboard-llm-settings', component: LLMSettings },
@@ -177,6 +179,7 @@ const router = createRouter({
         { path: 'org/:orgSlug/settings', name: 'dashboard-org-settings', component: OrgSettings },
         { path: 'org/:orgSlug/settings/:tab', name: 'dashboard-org-settings-tab', component: OrgSettings },
         { path: 'admin', name: 'dashboard-admin', component: AdminPanel },
+        { path: 'model-pricing', name: 'dashboard-model-pricing', component: ModelPricingPage, meta: { requiresAuth: true, requiresAdmin: true } },
         { path: 'settings', redirect: '/dashboard/settings/general' },
         { path: 'settings/:tab', name: 'dashboard-settings', component: SettingsLayout },
       ]
@@ -236,6 +239,12 @@ router.beforeEach(async (to, from, next) => {
   try {
     const response = await api.checkAuth()
     if (response.data.authenticated) {
+      // Admin-only routes (e.g. Model Pricing) additionally require is_staff.
+      // Backend already enforces IsAdminUser; this blocks direct-URL access for UX/security.
+      if (to.meta.requiresAdmin && !response.data.user?.is_staff) {
+        console.warn('Admin route blocked for non-staff user:', to.path)
+        return next('/dashboard/chat/new')
+      }
       // User is authenticated, allow access
       next()
     } else {

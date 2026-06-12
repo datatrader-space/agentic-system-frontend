@@ -2474,7 +2474,11 @@ const postProcessHtml = (html) => {
     return processed;
 };
 
-const formatMarkdown = (text) => postProcessHtml(wrapTablesInScroller(marked(text || '')));
+// This view renders generated media via <MediaRenderer> (from media_artifacts), so strip the served
+// /media/ image markdown the backend also embeds into the answer text — otherwise it shows twice.
+const stripServedMediaMarkdown = (t) =>
+    (t || '').replace(/!\[[^\]]*\]\([^)]*\/media\/[^)]*\)/g, '').replace(/\n{3,}/g, '\n\n').trim();
+const formatMarkdown = (text) => postProcessHtml(wrapTablesInScroller(marked(stripServedMediaMarkdown(text))));
 const formatToolResult = (result) => {
     if (typeof result === 'object') return JSON.stringify(result, null, 2);
     return result;

@@ -26,8 +26,12 @@
 
     <!-- Composer (thread mode; welcome screen has its own) -->
     <div v-if="!chat.isEmpty" class="chat-footer">
+      <!-- agent-id comes from selectedAgentId (always set once a conversation loads), NOT
+           currentAgent — the latter only resolves if the agent is in the workspace-scoped
+           agents list, so it would hide the mode picker for cross-workspace/unloaded agents.
+           AgentModePicker re-fetches the agent's mode itself on mount, so the id is enough. -->
       <ChatComposer :streaming="chat.isStreaming" :attachments="chat.pendingAttachments"
-        :agent-id="chat.currentAgent && chat.currentAgent.id"
+        :agent-id="chat.selectedAgentId"
         :execution-mode="chat.currentAgent && chat.currentAgent.execution_mode"
         :plan-mode="chat.currentAgent && chat.currentAgent.plan_mode_enabled"
         @send="onSend" @stop="chat.stop()" @mode-change="onModeChange"

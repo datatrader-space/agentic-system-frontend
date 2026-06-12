@@ -3,13 +3,53 @@
 
 const DAY = 86400000
 
+/**
+ * Turn a raw last-message body into a clean one-line preview. Agents that answer in JSON
+ * (e.g. PitchPilot's `{"fit_verdict":"go","fit_score":82,...}`) would otherwise dump the raw
+ * blob into the sidebar — summarize those into something readable instead.
+ */
+function humanizePreview(raw) {
+  if (!raw) return ''
+  const looksJson = raw[0] === '{' || raw[0] === '['
+  if (!looksJson) return raw
+
+  let obj = null
+  try { obj = JSON.parse(raw) } catch { /* possibly truncated — fall through to regex */ }
+
+  if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+    const verdict = obj.fit_verdict || obj.verdict
+    if (verdict) {
+      const v = String(verdict).toUpperCase().replace(/_/g, '-')
+      const score = obj.fit_score ?? obj.score
+      return score != null ? `Pitch: ${v} · score ${score}` : `Pitch: ${v}`
+    }
+    // Otherwise surface the first human-meaningful string field.
+    for (const k of ['summary', 'title', 'headline', 'message', 'answer', 'text', 'name', 'result']) {
+      if (typeof obj[k] === 'string' && obj[k].trim()) return obj[k].trim()
+    }
+    return 'Structured result'
+  }
+
+  // Truncated/unparseable JSON — pull known fields by regex so it still reads cleanly.
+  const vm = raw.match(/"(?:fit_)?verdict"\s*:\s*"([^"]+)"/i)
+  if (vm) {
+    const v = vm[1].toUpperCase().replace(/_/g, '-')
+    const sm = raw.match(/"(?:fit_)?score"\s*:\s*"?([0-9.]+)"?/i)
+    return sm ? `Pitch: ${v} · score ${sm[1]}` : `Pitch: ${v}`
+  }
+  return 'Structured result'
+}
+
 /** The text to show as the primary line: last message preview → title → fallback. */
 export function previewOf(s) {
-  const c = s && s.last_message && (s.last_message.content || '').trim()
-  if (c) return c
-  const t = (s && s.title || '').trim()
-  if (t && !/^chat with /i.test(t)) return t
-  return t || 'New conversation'
+  const raw = s && s.last_message && (s.last_message.content || '').trim()
+  const title = (s && s.title || '').trim()
+  if (raw) {
+    const clean = humanizePreview(raw)
+    if (clean) return clean
+  }
+  if (title && !/^chat with /i.test(title)) return title
+  return title || 'New conversation'
 }
 
 /** Agent name for the secondary line. */

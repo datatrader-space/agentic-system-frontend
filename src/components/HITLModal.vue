@@ -1,8 +1,8 @@
 ﻿<template>
   <Teleport to="body">
     <Transition name="modal-fade">
-      <div v-if="currentRequest" class="hitl-overlay" @click.self="handleOverlayClick">
-        <div class="hitl-modal" :class="[`urgency-${currentRequest.urgency}`, `type-${currentRequest.interaction_type}`]">
+      <div v-if="currentRequest" class="hitl-overlay" :class="{ 'hitl-overlay--compact': isCompactAsk }" @click.self="handleOverlayClick">
+        <div class="hitl-modal" :class="[`urgency-${currentRequest.urgency}`, `type-${currentRequest.interaction_type}`, { 'hitl-modal--compact': isCompactAsk }]">
           <!-- Header -->
           <div class="modal-header">
             <div class="header-left">
@@ -57,6 +57,16 @@
                   <span v-if="option.description" class="option-description">{{ option.description }}</span>
                   <span v-if="option.risk" class="risk-badge" :class="`risk-${option.risk}`">{{ option.risk }} risk</span>
                 </button>
+              </div>
+              <!-- …or type your own answer (when the agent allows free text) -->
+              <div v-if="currentRequest.payload?.allow_text" class="choice-text-row">
+                <input
+                  v-model="textResponse"
+                  class="text-input"
+                  placeholder="…or type your own answer"
+                  @keydown.enter="textResponse.trim() && respond(textResponse)"
+                />
+                <button class="btn btn-submit choice-text-send" :disabled="!textResponse.trim()" @click="respond(textResponse)">Send</button>
               </div>
             </div>
 
@@ -204,8 +214,8 @@
               </button>
             </div>
 
-            <!-- Optional Feedback (not shown for credential_setup) -->
-            <div v-if="currentRequest.response_type !== 'none' && currentRequest.interaction_type !== 'credential_setup'" class="feedback-section">
+            <!-- Optional Feedback (not shown for credential_setup or compact-ask cards) -->
+            <div v-if="currentRequest.response_type !== 'none' && currentRequest.interaction_type !== 'credential_setup' && !isCompactAsk" class="feedback-section">
               <label for="feedback">Optional Comment:</label>
               <textarea
                 id="feedback"
@@ -228,8 +238,8 @@
               </span>
             </div>
             <div class="footer-right">
-              <button v-if="currentRequest.response_type !== 'none'" @click="skip" class="btn-link">
-                Skip ({{ pendingRequests.length - 1 }} more)
+              <button v-if="currentRequest.response_type !== 'none' && pendingRequests.length > 1" @click="skip" class="btn-link">
+                Skip to next ({{ pendingRequests.length - 1 }} more)
               </button>
             </div>
           </div>
@@ -260,10 +270,22 @@ const currentTime = ref(Date.now());
 const currentRequest = computed(() => props.requests[0] || null);
 const pendingRequests = computed(() => props.requests);
 
-// Payload has meaningful content
+// Compact "ask the user" style card (Claude/ChatGPT AskUserQuestion): short question + option
+// buttons + optional free text. No payload dump, no separate comment box.
+const isCompactAsk = computed(() =>
+  ['choice', 'question', 'clarification'].includes(currentRequest.value?.interaction_type)
+);
+
+// Control-only payload keys that should NOT surface a "View Details" dump to the user.
+const CONTROL_PAYLOAD_KEYS = ['allow_text', 'interpretation', 'confidence',
+  'original_interpretation', 'ambiguities', 'suggested_plan'];
+
+// Payload has meaningful (user-facing) content worth a "View Details" expander.
 const hasPayloadContent = computed(() => {
-  if (!currentRequest.value?.payload) return false;
-  return Object.keys(currentRequest.value.payload).length > 0;
+  const p = currentRequest.value?.payload;
+  if (!p) return false;
+  if (isCompactAsk.value) return false;   // keep clarification cards small
+  return Object.keys(p).some(k => !CONTROL_PAYLOAD_KEYS.includes(k));
 });
 
 // Time remaining calculation
@@ -545,6 +567,44 @@ watch(currentRequest, () => {
   }
 }
 
+/* Compact "ask the user" card — small, focused: short question + option buttons + optional text */
+.hitl-modal--compact { max-width: 440px; }
+.hitl-modal--compact .modal-header { padding: 13px 18px 6px; border-bottom: none; }
+.hitl-modal--compact .icon { display: none; }          /* slim Claude-style header */
+.hitl-modal--compact .subtitle { display: none; }
+.hitl-modal--compact .modal-header h3 { font-size: 15px; }
+.hitl-modal--compact .modal-body { padding: 16px 18px; }
+.hitl-modal--compact .summary { font-size: 15px; font-weight: 600; line-height: 1.45; margin-bottom: 14px; color: #111827; }
+.hitl-modal--compact .response-section { margin-bottom: 0; }
+.hitl-modal--compact .choice-options { gap: 8px; }
+.hitl-modal--compact .option-button { padding: 11px 14px; }
+.hitl-modal--compact .option-button:hover { transform: none; }   /* no slide — feels jumpy in a small card */
+.hitl-modal--compact .choice-text-row { margin-top: 10px; }
+.hitl-modal--compact .modal-footer { padding: 8px 18px; background: transparent; border-top: none; }
+
+/* Compact ask = small card DOCKED at the bottom of the chat (Claude AskUserQuestion style) — NOT a
+   full-screen dark overlay. No backdrop, so the conversation stays visible AND interactive behind it. */
+.hitl-overlay--compact {
+  background: transparent;
+  backdrop-filter: none;
+  align-items: flex-end;            /* dock to bottom… */
+  justify-content: center;          /* …centered over the chat column */
+  padding: 0 16px 104px;            /* sit just above the message composer */
+  pointer-events: none;            /* clicks pass through to the chat */
+}
+.hitl-overlay--compact .hitl-modal {
+  pointer-events: auto;            /* but the card itself is interactive */
+  width: auto;
+  max-height: 70vh;
+  box-shadow: 0 10px 34px rgba(15, 23, 42, 0.18);
+  border: 1px solid #e5e7eb;
+  animation: hitlDockUp 0.22s ease-out;
+}
+@keyframes hitlDockUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
 /* Urgency-based border colors */
 .urgency-low { border-top: 4px solid #10b981; }
 .urgency-medium { border-top: 4px solid #f59e0b; }
@@ -793,6 +853,24 @@ watch(currentRequest, () => {
 .risk-badge.risk-low { background: #d1fae5; color: #065f46; }
 .risk-badge.risk-medium { background: #fed7aa; color: #92400e; }
 .risk-badge.risk-high { background: #fecaca; color: #991b1b; }
+
+/* "…or type your own answer" row under the option buttons */
+.choice-text-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin-top: 12px;
+}
+.choice-text-row .text-input {
+  flex: 1;
+  resize: none;
+}
+.choice-text-send {
+  width: auto;
+  margin-top: 0;
+  flex-shrink: 0;
+  padding: 0 18px;
+}
 
 /* Text Input */
 .text-input {

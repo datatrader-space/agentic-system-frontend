@@ -6,7 +6,7 @@
 import { defineStore } from 'pinia'
 import api from '../services/api'
 import { ChatConnection } from '../services/chatService'
-import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity } from '../composables/activityStream'
+import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity, interrupt as interruptActivity } from '../composables/activityStream'
 
 let _seq = 0
 const nid = () => `m${++_seq}`
@@ -128,12 +128,15 @@ export const useChatStore = defineStore('chat', {
 
     // ---- Conversation lifecycle ----
     reset() {
-      this._teardown()
+      // "New chat" stays on the SAME repo endpoint — keep the socket, just clear state and detach the
+      // conversation (the first message creates a new one and conversation_created sets the id).
+      this._clearTurnState()
       this.messages = []
       this.conversationId = null
       this.error = ''
       this.pendingPlan = null
       this._clearAttachments()
+      this._conn?.setConversation(null)
     },
 
     _clearAttachments() {
@@ -149,7 +152,7 @@ export const useChatStore = defineStore('chat', {
         return
       }
       if (String(this.conversationId) === String(id) && this.messages.length) return
-      this._teardown()
+      this._clearTurnState()   // switch conversation: clear UI state but KEEP the shared socket
       this.conversationId = String(id)
       this.messages = []
       this.pendingPlan = null
@@ -170,10 +173,21 @@ export const useChatStore = defineStore('chat', {
           // is rehydrated on demand from the long-answer endpoint (see ChatMessage.vue).
           isLongResponse: !!(m.model_info && m.model_info.is_long_response),
           longAnswerRef: (m.model_info && m.model_info.long_answer_ref) || '',
+          // Restore per-turn metadata persisted in model_info so a refresh keeps the token/cost
+          // footer + stop badge (otherwise only the bare text survives reload).
+          usage: (m.model_info && m.model_info.usage) || null,
+          stopReason: (m.model_info && m.model_info.stop_reason) || '',
+          confidence: (m.model_info && m.model_info.confidence) || '',
+          trace: (m.model_info && m.model_info.trace) || [],
+          activity: (m.model_info && m.model_info.activity) || null,   // restore the step timeline
           conversationId: String(id),
         }))
         this.repoId = data.repository?.id || data.repository_id || 0
-        if (data.agent_profile?.id) this.selectedAgentId = String(data.agent_profile.id)
+        // Backend serializes agent_profile as a bare PK (integer), with the human name
+        // exposed separately as agent_profile_name — so read the id directly (older code
+        // expected a nested object, which left selectedAgentId unset and hid the mode pill).
+        const agentPk = (data.agent_profile && data.agent_profile.id) || data.agent_profile
+        if (agentPk) this.selectedAgentId = String(agentPk)
         this._connect()
       } catch {
         this.error = 'Failed to load conversation'
@@ -352,18 +366,111 @@ export const useChatStore = defineStore('chat', {
     },
 
     // ---- Connection + streaming internals ----
-    _connect() {
-      this._teardown(false)
-      this._conn = new ChatConnection(this.conversationId, {
+    _connectionHandlers() {
+      return {
         onEvent: (msg) => this._onEvent(msg),
-        onError: () => {
-          if (this.isStreaming) this._errAssistant('Connection error')
+        onOpen: () => {
+          // Reconnected after a mid-turn drop. The backend keeps the turn alive and PERSISTS its
+          // answer (turn lifetime is decoupled from the socket), so recover by reloading history.
+          if (this._recovering) this._recoverAfterReconnect()
+        },
+        onError: (em) => {
+          if (!this.isStreaming) return
+          // Only a TERMINAL give-up (reconnect attempts exhausted) is a real error. Transient
+          // blips just mean "reconnecting" — don't scare the user or kill the turn.
+          if (em && /please refresh/i.test(em)) this._errAssistant(em)
+          else this._enterReconnecting()
         },
         onClose: () => {
-          if (this.isStreaming) this._endAssistant()
+          // Abnormal drop mid-stream. Do NOT finalize as interrupted — the backend turn survives.
+          // Show "Reconnecting…"; ChatConnection auto-reconnects and onOpen recovers the result.
+          if (this.isStreaming) this._enterReconnecting()
         },
-      })
-      this._conn.connect(this.repoId || 0)
+      }
+    },
+
+    // Industry practice: ONE stable socket per endpoint (repoId), decoupled from conversation/route
+    // changes. The conversation_id travels per-message, so switching conversations must NOT churn the
+    // socket — we reuse the live one and just point it at the new conversation. Only a different repo
+    // endpoint (or no socket yet) creates a connection.
+    _connect() {
+      const repo = this.repoId || 0
+      if (this._conn && this._conn.repoId === repo) {
+        this._conn.setConversation(this.conversationId)
+        this._conn.connect(repo)   // idempotent: no-op if already OPEN/CONNECTING, reconnects if dead
+        return
+      }
+      this._teardown(false)        // repo changed (or first connect) -> (re)create
+      this._conn = new ChatConnection(this.conversationId, this._connectionHandlers())
+      this._conn.connect(repo)
+    },
+
+    // Clear the per-turn UI/streaming state WITHOUT touching the socket (used when switching
+    // conversations — the socket is shared and must stay alive).
+    _clearTurnState() {
+      this.isStreaming = false
+      this._assistantId = null
+      this._recovering = false
+    },
+
+    // Full teardown — ONLY for logout / app unmount. Closes the socket for good (no reconnect).
+    disconnect() {
+      this._teardown(true)
+    },
+
+    // Mid-turn socket drop: enter a soft "reconnecting" state instead of erroring. Idempotent.
+    _enterReconnecting() {
+      if (this._recovering) return
+      this._recovering = true
+      const m = this._cur()
+      if (m && m.activity) m.activity.reconnecting = true
+    },
+
+    // Socket came back after a drop: the turn likely finished on the backend while we were away.
+    // Reload history (polling briefly in case it's still finishing), then swap in the saved answer.
+    async _recoverAfterReconnect() {
+      this._recovering = false
+      const m = this._cur()
+      if (m && m.activity) m.activity.reconnecting = false
+      const hadAssistantBefore = this.messages.filter((x) => x.role === 'assistant').length
+      for (let i = 0; i < 10; i++) {
+        const landed = await this._refreshHistory(hadAssistantBefore)
+        if (landed) { this.isStreaming = false; this._assistantId = null; return }
+        if (!this.isStreaming) return
+        await new Promise((r) => setTimeout(r, 2500))
+      }
+      // Waited ~25s and the turn never landed — clear the spinner without a scary error.
+      this._endAssistant()
+    },
+
+    // Re-fetch conversation messages from the server. Returns true once the turn that was running
+    // during the drop has been persisted (a new assistant message is present).
+    async _refreshHistory(prevAssistantCount = 0) {
+      try {
+        const res = await api.getConversation(this.conversationId)
+        const rows = pickArray((res.data || {}).messages)
+        const assistantCount = rows.filter((m) => (m.role === 'assistant')).length
+        if (assistantCount <= prevAssistantCount) return false   // turn not persisted yet
+        this.messages = rows.map((m) => ({
+          id: nid(),
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.content || '',
+          status: 'done',
+          error: '',
+          toolCalls: [],
+          isLongResponse: !!(m.model_info && m.model_info.is_long_response),
+          longAnswerRef: (m.model_info && m.model_info.long_answer_ref) || '',
+          usage: (m.model_info && m.model_info.usage) || null,
+          stopReason: (m.model_info && m.model_info.stop_reason) || '',
+          confidence: (m.model_info && m.model_info.confidence) || '',
+          trace: (m.model_info && m.model_info.trace) || [],
+          activity: (m.model_info && m.model_info.activity) || null,
+          conversationId: String(this.conversationId),
+        }))
+        return true
+      } catch {
+        return false
+      }
     },
 
     _teardown(clearStreaming = true) {
@@ -378,6 +485,7 @@ export const useChatStore = defineStore('chat', {
     },
 
     _beginAssistant() {
+      this._recovering = false   // fresh turn must never inherit a stale "reconnecting" state
       const activity = createActivity()
       startActivity(activity)
       this.messages.push({
@@ -407,12 +515,24 @@ export const useChatStore = defineStore('chat', {
       this._assistantId = null
     },
 
+    _persistTurnMeta(m) {
+      // Snapshot the finished activity timeline back to the server so the "Done · N steps · …"
+      // accordion + reasoning survive a page refresh (usage/stop are already persisted server-side).
+      // Best-effort: the row was just saved by the turn, so the backend attaches this to it.
+      try {
+        if (!m || !m.activity || !this.conversationId || !this._conn) return
+        const activity = JSON.parse(JSON.stringify(m.activity))
+        this._conn.send({ type: 'persist_turn_meta', conversation_id: this.conversationId, activity })
+      } catch { /* best-effort — never block the turn */ }
+    },
+
     _errAssistant(err) {
       const m = this._cur()
       if (m) {
         m.status = 'error'
         m.error = err || 'Something went wrong.'
-        if (m.activity) finishActivity(m.activity)
+        // interrupt (not finish): the live timeline collapses to "Interrupted", not "Done".
+        if (m.activity) interruptActivity(m.activity, m.error)
       }
       this.isStreaming = false
       this._assistantId = null
@@ -435,7 +555,9 @@ export const useChatStore = defineStore('chat', {
           // cards via the tool_call/tool_result events + activity timeline.
           if (m && msg.full_message != null) m.content = msg.full_message
           if (m && msg.usage) m.usage = msg.usage // per-response token counts
+          if (m && msg.stop_reason) { m.stopReason = msg.stop_reason; m.confidence = msg.confidence }
           this._endAssistant()
+          this._persistTurnMeta(m)   // snapshot the finished timeline so it survives a refresh
           break
         case 'chat_response':
         case 'assistant':

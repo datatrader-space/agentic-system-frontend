@@ -24,6 +24,13 @@ export default defineConfig(({ mode }) => {
           secure: false,
           ws: true
         },
+        // Serve backend-generated media (generated images/videos) through the dev server so relative
+        // /media/... URLs resolve to the backend, not the Vite origin (which 404s).
+        '/media': {
+          target: env.VITE_API_TARGET || 'http://localhost:8000',
+          changeOrigin: true,
+          secure: false
+        },
         '/ws': {
           target: env.VITE_API_TARGET ? env.VITE_API_TARGET.replace(/^http/, 'ws') : 'ws://localhost:8000',
           changeOrigin: true,

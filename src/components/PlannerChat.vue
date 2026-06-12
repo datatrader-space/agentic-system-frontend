@@ -198,6 +198,11 @@ const models = ref([])
 const selectedModelId = ref(null)
 
 let ws = null
+// Bounded, guarded reconnect (the old flat 3s reconnect had no cap AND no guard, so closing the socket
+// on unmount/system-switch left a zombie socket reconnecting forever).
+let autoReconnect = true
+let reconnectAttempts = 0
+let reconnectTimer = null
 
 // Shared HITL approval handling (same as New Chat / Emulator / Playground).
 const { hitlRequests, handleHitlEvent, respondHitl, dismissHitl, skipHitl } = useHitl((obj) => {
@@ -252,6 +257,7 @@ const loadModels = async () => {
 
 // WebSocket connection
 const connectWebSocket = () => {
+  autoReconnect = true       // this component wants the socket; allow reconnects
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const wsHost = import.meta.env.VITE_WS_HOST || window.location.host
   const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/planner/${props.systemId}/`
@@ -260,6 +266,7 @@ const connectWebSocket = () => {
 
   ws.onopen = () => {
     connected.value = true
+    reconnectAttempts = 0      // healthy — clear backoff
     console.log('Planner WebSocket connected')
   }
 
@@ -267,13 +274,17 @@ const connectWebSocket = () => {
     connected.value = false
     console.log('Planner WebSocket disconnected')
 
-    // Attempt reconnection after 3 seconds
-    setTimeout(() => {
-      if (!connected.value) {
-        console.log('Attempting to reconnect planner...')
+    // Reconnect with exponential backoff (1s,2s,4s… cap 10s) then a slow 30s self-heal retry — and
+    // ONLY while this component still wants the socket (autoReconnect), so it can't zombie-reconnect.
+    if (!autoReconnect) return
+    const delay = reconnectAttempts < 6 ? Math.min(1000 * Math.pow(2, reconnectAttempts++), 10000) : 30000
+    if (reconnectTimer) clearTimeout(reconnectTimer)
+    reconnectTimer = setTimeout(() => {
+      if (!connected.value && autoReconnect) {
+        console.log(`Attempting to reconnect planner… (attempt ${reconnectAttempts})`)
         connectWebSocket()
       }
-    }, 3000)
+    }, delay)
   }
 
   ws.onerror = (error) => {
@@ -435,6 +446,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  autoReconnect = false      // stop the reconnect loop — component is gone
+  if (reconnectTimer) clearTimeout(reconnectTimer)
   if (ws) {
     ws.close()
   }
@@ -442,10 +455,13 @@ onUnmounted(() => {
 
 // Watch for system changes
 watch(() => props.systemId, () => {
-  // Reconnect if system changes
+  // Reconnect if system changes — suppress the old socket's reconnect, then connectWebSocket re-enables it.
+  autoReconnect = false
+  if (reconnectTimer) clearTimeout(reconnectTimer)
   if (ws) {
     ws.close()
   }
+  reconnectAttempts = 0
   messages.value = []
   currentStreamingMessage = ''
   selectedModelId.value = null

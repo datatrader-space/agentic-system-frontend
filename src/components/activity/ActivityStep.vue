@@ -33,7 +33,8 @@
       </div>
 
       <span class="text-[11px] text-gray-400 shrink-0 mt-0.5 flex items-center gap-1">
-        <span v-if="step.status === 'running'">…</span>
+        <!-- live ticking elapsed while running, so a long step is visibly ALIVE, not frozen -->
+        <span v-if="step.status === 'running'" class="tabular-nums" :class="{ 'text-amber-500 font-medium': liveSecs != null && liveSecs >= 20 }">{{ liveSecs != null ? liveSecs.toFixed(0) + 's' : '…' }}</span>
         <span v-else-if="secs != null">{{ secs.toFixed(1) }}s</span>
         <span v-if="hasBody" class="text-gray-300">{{ open ? '▾' : '▸' }}</span>
       </span>
@@ -80,11 +81,18 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { stepSeconds } from '../../composables/activityStream'
+import { useClock } from '../../composables/useClock'
 
 const props = defineProps({ step: { type: Object, required: true } })
 const open = ref(false)
 
 const secs = computed(() => stepSeconds(props.step))
+// Live elapsed for a still-running step (ticks every second via the shared clock).
+const nowMs = useClock()
+const liveSecs = computed(() => {
+  if (props.step.status !== 'running' || !props.step.startTs) return null
+  return Math.max(0, (nowMs.value - props.step.startTs) / 1000)
+})
 
 function asText(x) {
   if (x == null) return ''

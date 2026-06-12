@@ -204,6 +204,31 @@ export function ingest(activity, evt) {
       return
     }
 
+    // Per-command live progress inside a multi-step tool (e.g. SSH_EXEC running N commands).
+    // Each command becomes its OWN step — running → done with a duration — so the timeline shows
+    // exactly what's executing and never goes dark for a long batch.
+    case 'tool_progress': {
+      const idx = evt.index, total = evt.total
+      const cmd = evt.command || ''
+      const label = evt.label || (idx && total ? `[${idx}/${total}] ${cmd}` : (cmd || 'Running command'))
+      if (evt.phase === 'running') {
+        const s = openStep(activity, { phase: 'tool', label, tool: evt.tool || 'tool',
+                                       kind: 'terminal', input: cmd ? { command: cmd } : null }, t)
+        s.cmdIndex = idx; s.cmdTotal = total
+      } else { // 'done'
+        let s = activity.steps.find((x) => x.cmdIndex === idx && ACTIVE_STATUSES.has(x.status)) || lastActive(activity)
+        if (s) {
+          s.endTs = t
+          if (evt.exit_code != null) s.exitCode = evt.exit_code
+          if (evt.exit_code === -2) { s.status = 'error'; s.error = 'Timed out — force-terminated (re-run with a larger timeout to wait longer)' }
+          else if (evt.exit_code === -1) { s.status = 'error'; s.error = 'Stopped' }
+          else if (evt.exit_code != null && evt.exit_code !== 0) { s.status = 'error' }
+          else s.status = 'done'
+        }
+      }
+      return
+    }
+
     case 'tool_result': {
       const d = evt.data || evt
       const ok = d.success !== false
@@ -373,6 +398,26 @@ export function finish(activity) {
   }
   activity.running = false
   activity.done = true
+}
+
+// The turn ended ABNORMALLY (the socket dropped mid-stream — dev-server reload or a crash —
+// so the backend never sent a terminal event). Collapse the live timeline instead of leaving
+// it spinning "Thinking…" forever: mark every still-active step as errored and flag the whole
+// activity interrupted so the summary reads "Interrupted", not a misleading "Done".
+export function interrupt(activity, note = 'Connection lost') {
+  if (!activity) return
+  const t = now()
+  for (const s of activity.steps) {
+    if (ACTIVE_STATUSES.has(s.status)) {
+      s.status = 'error'
+      s.error = note
+      s.endTs = t
+    }
+  }
+  activity.running = false
+  activity.done = true
+  activity.interrupted = true
+  activity.error = note
 }
 
 // ---- view helpers ----------------------------------------------------------

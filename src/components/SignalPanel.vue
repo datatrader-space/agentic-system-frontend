@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-6">
-    <!-- Enable Signals Toggle -->
-    <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4">
+    <!-- Enable Signals Toggle (hidden in 'monitoring' mode — the Deploy panel's Webhook card owns it) -->
+    <div v-if="mode !== 'monitoring'" class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-lg">⚡</div>
@@ -10,7 +10,7 @@
             <div class="text-xs text-gray-500 mt-0.5">Agent reacts to external events (webhooks, Redis streams)</div>
           </div>
         </div>
-        <button 
+        <button
           @click="toggleSignals"
           :class="[
             'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2',
@@ -22,7 +22,7 @@
       </div>
     </div>
 
-    <template v-if="agent.signal_enabled">
+    <template v-if="agent.signal_enabled || mode === 'monitoring'">
       <!-- Concurrency Mode -->
       <div class="border border-gray-200 rounded-xl overflow-hidden">
         <div class="bg-gray-50 px-4 py-3 border-b border-gray-200">
@@ -95,6 +95,7 @@
           </div>
           <div class="flex items-center gap-3">
             <router-link
+              v-if="mode !== 'monitoring'"
               :to="`/integration-guide/${agent.id}`"
               target="_blank"
               rel="noopener"
@@ -112,52 +113,56 @@
         </div>
 
         <div class="p-4 space-y-3">
-          <!-- Webhook URL (always visible) -->
-          <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">Webhook URL</label>
-            <div class="flex gap-2">
-              <code class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 font-mono truncate">
-                {{ webhookUrl }}
-              </code>
-              <button @click="copyToClipboard(webhookUrl)" class="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm">
-                📋
-              </button>
+          <!-- Endpoint URLs + API key: shown only in 'full' mode. In the Deploy panel these
+               live in the dedicated WebSocket / Webhook cards, so we skip them here. -->
+          <template v-if="mode !== 'monitoring'">
+            <!-- Webhook URL (always visible) -->
+            <div>
+              <label class="block text-xs font-medium text-gray-500 mb-1">Webhook URL</label>
+              <div class="flex gap-2">
+                <code class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 font-mono truncate">
+                  {{ webhookUrl }}
+                </code>
+                <button @click="copyToClipboard(webhookUrl)" class="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm">
+                  📋
+                </button>
+              </div>
             </div>
-          </div>
 
-          <!-- WebSocket Chat URL (real-time, always visible) -->
-          <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">WebSocket Chat URL</label>
-            <div class="flex gap-2">
-              <code class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 font-mono truncate">
-                {{ wsChatUrl }}
-              </code>
-              <button @click="copyToClipboard(wsChatUrl)" class="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm">
-                📋
-              </button>
+            <!-- WebSocket Chat URL (real-time, always visible) -->
+            <div>
+              <label class="block text-xs font-medium text-gray-500 mb-1">WebSocket Chat URL</label>
+              <div class="flex gap-2">
+                <code class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 font-mono truncate">
+                  {{ wsChatUrl }}
+                </code>
+                <button @click="copyToClipboard(wsChatUrl)" class="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm">
+                  📋
+                </button>
+              </div>
+              <p class="text-[11px] text-gray-400 mt-1">
+                Real-time chat for external apps. Authenticate with
+                <code>?token=&lt;API_KEY&gt;</code> or an
+                <code>Authorization: Bearer &lt;API_KEY&gt;</code> header (same key as above).
+              </p>
             </div>
-            <p class="text-[11px] text-gray-400 mt-1">
-              Real-time chat for external apps. Authenticate with
-              <code>?token=&lt;API_KEY&gt;</code> or an
-              <code>Authorization: Bearer &lt;API_KEY&gt;</code> header (same key as above).
-            </p>
-          </div>
 
-          <!-- API Key -->
-          <div>
-            <label class="block text-xs font-medium text-gray-500 mb-1">API Key</label>
-            <div class="flex gap-2">
-              <code class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 font-mono truncate">
-                {{ agent.signal_api_key ? (showApiKey ? agent.signal_api_key : '••••••••••••••••') : 'Not generated yet' }}
-              </code>
-              <button v-if="agent.signal_api_key" @click="showApiKey = !showApiKey" class="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm">
-                {{ showApiKey ? '🙈' : '👁' }}
-              </button>
-              <button @click="rotateApiKey" :disabled="rotatingKey" class="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm disabled:opacity-50">
-                {{ rotatingKey ? '...' : agent.signal_api_key ? '🔄' : 'Generate' }}
-              </button>
+            <!-- API Key -->
+            <div>
+              <label class="block text-xs font-medium text-gray-500 mb-1">API Key</label>
+              <div class="flex gap-2">
+                <code class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 font-mono truncate">
+                  {{ agent.signal_api_key ? (showApiKey ? agent.signal_api_key : '••••••••••••••••') : 'Not generated yet' }}
+                </code>
+                <button v-if="agent.signal_api_key" @click="showApiKey = !showApiKey" class="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 text-sm">
+                  {{ showApiKey ? '🙈' : '👁' }}
+                </button>
+                <button @click="rotateApiKey" :disabled="rotatingKey" class="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm disabled:opacity-50">
+                  {{ rotatingKey ? '...' : agent.signal_api_key ? '🔄' : 'Generate' }}
+                </button>
+              </div>
             </div>
-          </div>
+          </template>
 
           <!-- Extended config -->
           <template v-if="showWebhookConfig">
@@ -373,13 +378,18 @@ import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 
 const props = defineProps({
-  agent: { type: Object, required: true }
+  agent: { type: Object, required: true },
+  // 'full' (default) = standalone panel with its own enable toggle + URLs + API key.
+  // 'monitoring' = embedded in the unified Deploy panel's Webhook card: the enable toggle,
+  // endpoint URLs and API key live in that card, so we render only the operational sections
+  // (concurrency, stats, advanced settings, Redis bridge, test, log, flows, dead letters).
+  mode: { type: String, default: 'full' },
 })
 
 const emit = defineEmits(['update:agent'])
 
 // UI state
-const showWebhookConfig = ref(false)
+const showWebhookConfig = ref(props.mode === 'monitoring')
 const showBridgeConfig = ref(false)
 const showTestPanel = ref(false)
 const showApiKey = ref(false)

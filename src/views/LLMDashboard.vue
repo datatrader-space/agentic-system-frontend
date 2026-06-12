@@ -116,6 +116,30 @@
       </div>
     </div>
 
+    <!-- By Agent -->
+    <div class="bg-white border border-slate-200/60 shadow-sm rounded-[16px] p-6 mb-8 hover:-translate-y-1 transition-transform duration-200">
+      <h3 class="text-[16px] font-extrabold text-slate-900 mb-6 flex items-center gap-2">
+        <span class="w-1.5 h-6 bg-emerald-500 rounded-full"></span>
+        Cost by Agent
+        <span v-if="agentFilter" class="text-[11px] font-bold text-slate-400">(filtered)</span>
+      </h3>
+      <div v-if="!usage?.cost_by_agent?.length" class="text-slate-400 text-[14px] font-medium py-4 text-center border border-dashed border-slate-200 rounded-lg">No data yet</div>
+      <div v-else class="space-y-5">
+        <button v-for="item in usage.cost_by_agent" :key="item.agent_id || 'none'"
+          @click="item.agent_id && (agentFilter = String(item.agent_id), refreshAll())"
+          :disabled="!item.agent_id"
+          class="flex items-center gap-4 w-full text-left disabled:cursor-default enabled:hover:opacity-80 transition-opacity">
+          <div class="w-40 text-[13px] font-bold text-slate-700 truncate" :title="item.agent_name">{{ item.agent_name }}</div>
+          <div class="flex-1 h-3.5 bg-slate-100 rounded-full overflow-hidden shrink-0 min-w-10">
+            <div class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500 shadow-inner"
+              :style="{ width: agentBarWidth(item.cost) }"></div>
+          </div>
+          <div class="w-20 text-right text-[13px] font-mono font-bold text-emerald-600 shrink-0">${{ item.cost.toFixed(4) }}</div>
+          <div class="w-16 text-right text-[12px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 shrink-0 shadow-sm">{{ item.requests }} <span class="text-[10px] uppercase text-slate-400">req</span></div>
+        </button>
+      </div>
+    </div>
+
     <!-- Tabs: Requests / Audit -->
     <div class="mb-5">
       <div class="inline-flex bg-slate-100/80 p-1 rounded-[12px] items-center">
@@ -158,10 +182,10 @@
           </select>
         </div>
 
-        <!-- Table -->
-        <div class="overflow-x-auto rounded-[12px] border border-slate-200 shadow-sm">
+        <!-- Table — scrollable section (50/page from the backend), sticky header -->
+        <div class="overflow-auto max-h-[60vh] rounded-[12px] border border-slate-200 shadow-sm">
           <table class="w-full text-left border-collapse">
-            <thead class="bg-slate-50/80">
+            <thead class="bg-slate-50 sticky top-0 z-10">
               <tr class="text-[11px] font-extrabold tracking-widest uppercase text-slate-500 border-b border-slate-200">
                 <th class="px-5 py-3.5">Provider</th>
                 <th class="px-5 py-3.5">Model</th>
@@ -344,6 +368,11 @@ const providerBarWidth = (cost) => {
 
 const modelBarWidth = (cost) => {
   const max = Math.max(...(usage.value?.cost_by_model || []).map(m => m.cost), 0.001)
+  return Math.max(4, (cost / max) * 100) + '%'
+}
+
+const agentBarWidth = (cost) => {
+  const max = Math.max(...(usage.value?.cost_by_agent || []).map(a => a.cost), 0.001)
   return Math.max(4, (cost / max) * 100) + '%'
 }
 

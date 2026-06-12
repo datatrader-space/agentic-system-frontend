@@ -14,6 +14,17 @@
 //                     tool_call {tool, params} / tool_result {tool_name, result, success}
 //                     agent_session_complete | stop_acknowledged | error {error|message}
 
+// Heartbeat / reconnect tuning. A backend reload kills the socket WITHOUT always delivering a
+// close frame (half-open) — so we ping and treat silence as death, then reconnect automatically.
+// Keepalive: an idle WebSocket through the Vite dev proxy gets cut (code 1006) — which is exactly
+// what happens during a long, silent clarification-card wait. Ping OFTEN (and immediately on open)
+// so the socket is never idle long enough to be dropped. STALE_MS stays a comfortable multiple of
+// HEARTBEAT_MS so a single missed pong doesn't false-trip a reconnect.
+const HEARTBEAT_MS = 10000   // send a ping this often (and once immediately on open)
+const STALE_MS = 35000       // no message (incl. pong) for this long => socket is dead
+const RECONNECT_MAX = 10     // give up after this many consecutive failed reconnects
+const RECONNECT_CAP_MS = 10000
+
 export class ChatConnection {
   constructor(conversationId, handlers = {}) {
     this.conversationId = conversationId
@@ -22,21 +33,37 @@ export class ChatConnection {
     this.isOpen = false
     this.queue = []
     this.closedByUs = false
+    this.repoId = 0
+    this._hb = null
+    this._lastActivity = 0
+    this._reconnectAttempts = 0
+    this._reconnectTimer = null
   }
 
   connect(repoId = 0) {
+    this.repoId = repoId || 0
+    this.closedByUs = false
+    if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null }
+    // Never orphan a live socket into a duplicate: if one is already open/connecting, keep it.
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      return
+    }
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
     // Same-origin: the Vite dev server proxies /ws → the backend (see vite.config.js).
-    const url = `${proto}://${window.location.host}/ws/chat/repository/${repoId || 0}/`
+    const url = `${proto}://${window.location.host}/ws/chat/repository/${this.repoId}/`
     try {
       this.ws = new WebSocket(url)
     } catch (e) {
       this.handlers.onError?.('Could not open chat connection')
+      this._scheduleReconnect()
       return
     }
 
     this.ws.onopen = () => {
       this.isOpen = true
+      this._reconnectAttempts = 0
+      this._lastActivity = Date.now()
+      this._startHeartbeat()
       // No 'subscribe' handshake: the chat consumer routes by conversation_id on the
       // chat_message itself and rejects unknown types. Just flush anything queued
       // before the socket opened.
@@ -45,19 +72,61 @@ export class ChatConnection {
       this.handlers.onOpen?.()
     }
     this.ws.onmessage = (e) => {
+      this._lastActivity = Date.now()   // any inbound traffic proves the socket is alive
       let msg
       try {
         msg = JSON.parse(e.data)
       } catch {
         return
       }
+      if (msg.type === 'pong') return   // liveness only — don't surface to the UI
       this.handlers.onEvent?.(msg)
     }
     this.ws.onerror = () => this.handlers.onError?.('Chat connection error')
     this.ws.onclose = () => {
       this.isOpen = false
-      if (!this.closedByUs) this.handlers.onClose?.()
+      this._stopHeartbeat()
+      // Detach this dead socket's handlers so a half-open/late event can't drive reconnect churn.
+      const dead = this.ws
+      if (dead) { dead.onopen = dead.onmessage = dead.onerror = dead.onclose = null }
+      this.ws = null
+      // Notify (so the store can show "reconnecting") AND auto-reconnect for the next turn.
+      if (!this.closedByUs) {
+        this.handlers.onClose?.()
+        this._scheduleReconnect()
+      }
     }
+  }
+
+  _startHeartbeat() {
+    this._stopHeartbeat()
+    this._raw({ type: 'ping' })   // ping immediately so the socket is never idle from t=0
+    this._hb = setInterval(() => {
+      // Dead socket detection: no inbound traffic for STALE_MS even though we keep pinging.
+      if (Date.now() - this._lastActivity > STALE_MS) {
+        try { this.ws?.close() } catch { /* ignore */ }   // triggers onclose -> reconnect
+        return
+      }
+      this._raw({ type: 'ping' })
+    }, HEARTBEAT_MS)
+  }
+
+  _stopHeartbeat() {
+    if (this._hb) { clearInterval(this._hb); this._hb = null }
+  }
+
+  _scheduleReconnect() {
+    if (this.closedByUs || this._reconnectTimer) return
+    if (this._reconnectAttempts >= RECONNECT_MAX) {
+      this.handlers.onError?.('Lost connection — please refresh.')
+      return
+    }
+    const delay = Math.min(1000 * 2 ** this._reconnectAttempts, RECONNECT_CAP_MS)
+    this._reconnectAttempts += 1
+    this._reconnectTimer = setTimeout(() => {
+      this._reconnectTimer = null
+      this.connect(this.repoId)
+    }, delay)
   }
 
   _raw(obj) {
@@ -69,8 +138,19 @@ export class ChatConnection {
   }
 
   _send(obj) {
-    if (this.isOpen && this.ws?.readyState === WebSocket.OPEN) this._raw(obj)
-    else this.queue.push(obj)
+    if (this.isOpen && this.ws?.readyState === WebSocket.OPEN) {
+      this._raw(obj)
+    } else {
+      // Not connected: keep the message and (re)open the socket — it flushes on reopen.
+      this.queue.push(obj)
+      if (!this.closedByUs) this._scheduleReconnect()
+    }
+  }
+
+  // The chat socket is keyed by repoId (stable); conversation_id travels PER-MESSAGE, so ONE socket
+  // serves every conversation. Switch the active conversation without tearing down the connection.
+  setConversation(conversationId) {
+    this.conversationId = conversationId
   }
 
   sendMessage(text, agentId, modelId = null) {
@@ -115,6 +195,8 @@ export class ChatConnection {
 
   close() {
     this.closedByUs = true
+    this._stopHeartbeat()
+    if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null }
     try {
       this.ws?.close()
     } catch {
