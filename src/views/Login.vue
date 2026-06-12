@@ -24,7 +24,7 @@
                 <defs>
                   <linearGradient id="login-gradient" x1="0" y1="0" x2="32" y2="32">
                     <stop stop-color="#6366f1"/>
-                    <stop offset="0.5" stop-color="#8b5cf6"/>
+                    <stop offset="0.5" stop-color="#2563EB"/>
                     <stop offset="1" stop-color="#d946ef"/>
                   </linearGradient>
                 </defs>
@@ -741,7 +741,7 @@ watch(() => formData.value.password, () => {
 }
 
 .forgot-link:hover {
-  color: #a78bfa;
+  color: #60A5FA;
 }
 
 .input-wrapper {

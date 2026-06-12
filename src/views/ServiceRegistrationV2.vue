@@ -430,7 +430,7 @@
  Generation -->
             <div v-if="specExamplesCount === 0 || llmExamplesCount === 0" class="llm-generation-card">
               <div class="llm-header">
-                <svg viewBox="0 0 24 24" fill="#8b5cf6">
+                <svg viewBox="0 0 24 24" fill="#2563EB">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
                 </svg>
                 <div>
@@ -2263,7 +2263,7 @@ function registerAnother() {
   margin: 0 0 0.25rem;
   font-size: 1rem;
   font-weight: 600;
-  color: #8b5cf6;
+  color: #2563EB;
 }
 
 .graphql-banner-content p {
@@ -2293,7 +2293,7 @@ function registerAnother() {
 }
 
 .graphql-endpoint-input:focus {
-  border-color: #8b5cf6;
+  border-color: #2563EB;
   box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
 }
 
@@ -2316,7 +2316,7 @@ function registerAnother() {
 }
 
 .graphql-auth-input:focus {
-  border-color: #8b5cf6;
+  border-color: #2563EB;
   box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
 }
 
@@ -2329,7 +2329,7 @@ function registerAnother() {
   align-items: center;
   gap: 0.4rem;
   padding: 0.5rem 1rem;
-  background: linear-gradient(135deg, #8b5cf6, #a855f7);
+  background: linear-gradient(135deg, #2563EB, #a855f7);
   border: none;
   border-radius: 8px;
   color: white;
@@ -3688,7 +3688,7 @@ function registerAnother() {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: #8b5cf6;
+  background: #2563EB;
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;
@@ -3699,7 +3699,7 @@ function registerAnother() {
 }
 
 .btn-generate-llm:hover {
-  background: #7c3aed;
+  background: #2563EB;
 }
 
 .btn-generate-llm svg {
@@ -3845,7 +3845,7 @@ function registerAnother() {
 
 .example-editor:focus {
   outline: none;
-  border-color: #8b5cf6;
+  border-color: #2563EB;
   background: white;
 }
 
@@ -3894,12 +3894,12 @@ function registerAnother() {
 }
 
 .edit-actions .btn-primary {
-  background: #8b5cf6;
+  background: #2563EB;
   color: white;
 }
 
 .edit-actions .btn-primary:hover {
-  background: #7c3aed;
+  background: #2563EB;
 }
 
 .btn-add-example {
@@ -3962,7 +3962,7 @@ function registerAnother() {
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1.25rem;
-  background: #8b5cf6;
+  background: #2563EB;
   color: white;
   border: none;
   border-radius: 6px;
@@ -3973,7 +3973,7 @@ function registerAnother() {
 }
 
 .btn-save-draft:hover:not(:disabled) {
-  background: #7c3aed;
+  background: #2563EB;
   transform: translateY(-1px);
   box-shadow: 0 4px 6px rgba(139, 92, 246, 0.2);
 }
@@ -4053,7 +4053,7 @@ function registerAnother() {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  color: #8b5cf6;
+  color: #2563EB;
   text-decoration: none;
   font-size: 0.875rem;
   font-weight: 500;
@@ -4061,7 +4061,7 @@ function registerAnother() {
 }
 
 .resume-draft-link a:hover {
-  color: #7c3aed;
+  color: #2563EB;
   transform: translateX(4px);
 }
 
@@ -4197,7 +4197,7 @@ function registerAnother() {
 .action-chip .method-badge.get { background: #10b981; color: white; }
 .action-chip .method-badge.post { background: #3b82f6; color: white; }
 .action-chip .method-badge.put { background: #f59e0b; color: white; }
-.action-chip .method-badge.patch { background: #8b5cf6; color: white; }
+.action-chip .method-badge.patch { background: #2563EB; color: white; }
 .action-chip .method-badge.delete { background: #ef4444; color: white; }
 
 .action-chip .action-name {
@@ -4356,7 +4356,7 @@ function registerAnother() {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: linear-gradient(135deg, #a855f7, #ec4899);
+  background: linear-gradient(135deg, #a855f7, #1E40AF);
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;

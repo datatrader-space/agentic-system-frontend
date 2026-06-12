@@ -34,7 +34,7 @@
     <!-- not-saved state -->
     <div v-if="!agentId" class="flex-1 flex items-center justify-center text-center p-6">
       <div>
-        <div class="w-12 h-12 mx-auto mb-3 rounded-2xl flex items-center justify-center text-white shadow-lg" style="background:linear-gradient(120deg,#7C3AED,#EC4899)">
+        <div class="w-12 h-12 mx-auto mb-3 rounded-2xl flex items-center justify-center text-white shadow-lg" style="background:linear-gradient(120deg,#2563EB,#1E40AF)">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><path d="M17 21v-8H7v8M7 3v5h8" /></svg>
         </div>
         <p class="text-sm text-gray-600 font-medium">Save the agent to test it live</p>
@@ -137,7 +137,7 @@
             </button>
             <button v-else @click="send" :disabled="!input.trim()"
                     class="w-9 h-9 flex items-center justify-center text-white rounded-xl disabled:opacity-40 shrink-0 transition hover:scale-105"
-                    style="background:linear-gradient(120deg,#7C3AED,#0EA5E9)" title="Send">
+                    style="background:linear-gradient(120deg,#2563EB,#0EA5E9)" title="Send">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z" /></svg>
             </button>
           </div>

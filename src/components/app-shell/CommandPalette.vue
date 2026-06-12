@@ -65,9 +65,9 @@ const query = ref('')
 const active = ref(0)
 
 const G = {
-  brand: 'linear-gradient(120deg,#7C3AED,#EC4899)',
-  cool: 'linear-gradient(120deg,#7C3AED,#0EA5E9)',
-  warm: 'linear-gradient(120deg,#F59E0B,#EC4899)',
+  brand: 'linear-gradient(120deg,#2563EB,#1E40AF)',
+  cool: 'linear-gradient(120deg,#2563EB,#0EA5E9)',
+  warm: 'linear-gradient(120deg,#F59E0B,#1E40AF)',
   teal: 'linear-gradient(120deg,#14B8A6,#0EA5E9)',
 }
 
@@ -78,7 +78,6 @@ const commands = [
   { id: 'go-letscode', label: "Let's Code", kind: 'Go to', grad: G.brand, icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6'], run: () => go('/dashboard/lets-code') },
   { id: 'go-systems', label: 'Systems / Repositories', kind: 'Go to', grad: G.cool, icon: ['M3 3h7v9H3z', 'M14 3h7v5h-7z', 'M14 12h7v9h-7z', 'M3 16h7v5H3z'], run: () => go('/dashboard/systems') },
   { id: 'go-agents', label: 'Agents', kind: 'Go to', grad: G.brand, icon: ['M12 2a4 4 0 0 1 4 4', 'M12 18a8 8 0 0 1-8-8', 'M20 10a8 8 0 0 1-8 8'], run: () => go('/dashboard/agents') },
-  { id: 'go-tools', label: 'Tools', kind: 'Go to', grad: G.teal, icon: ['M14.7 6.3a4 4 0 0 0 5 5l-9 9a2.1 2.1 0 0 1-3-3l9-9a4 4 0 0 0-2-2z'], run: () => go('/dashboard/tools') },
   { id: 'go-services', label: 'Services', kind: 'Go to', grad: G.warm, icon: ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82', 'M4.6 9a1.65 1.65 0 0 0-.33-1.82'], run: () => go('/dashboard/services') },
   { id: 'go-mcp', label: 'MCP Servers', kind: 'Go to', grad: G.cool, icon: ['M18.36 6.64a9 9 0 1 1-12.73 0', 'M12 2v10'], run: () => go('/dashboard/mcp') },
   { id: 'go-workspaces', label: 'Workspaces', kind: 'Go to', grad: G.warm, icon: ['M2 7l10-5 10 5-10 5z', 'M2 17l10 5 10-5', 'M2 12l10 5 10-5'], run: () => go('/dashboard/workspaces') },

@@ -335,7 +335,7 @@ h2 {
 .cta-section {
   text-align: center;
   padding: 4rem 2rem;
-  background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
+  background: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%);
   border-radius: 1rem;
   color: white;
 }

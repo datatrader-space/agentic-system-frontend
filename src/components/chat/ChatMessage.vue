@@ -115,6 +115,7 @@
 <script setup>
 import { computed, ref, nextTick } from 'vue'
 import { marked } from 'marked'
+import { enhanceChatMedia } from '../../utils/chatMedia'
 import api from '../../services/api'
 import ActivityStream from '../activity/ActivityStream.vue'
 import TokenUsage from '../activity/TokenUsage.vue'
@@ -185,7 +186,7 @@ const fullContent = ref('')
 const loadingFull = ref(false)
 const fullError = ref('')
 const displayContent = computed(() => fullContent.value || props.message.content || '')
-const rendered = computed(() => marked.parse(displayContent.value))
+const rendered = computed(() => enhanceChatMedia(marked.parse(displayContent.value)))
 const canShowFull = computed(
   () =>
     !isStreaming.value &&

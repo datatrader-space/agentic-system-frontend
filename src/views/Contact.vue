@@ -346,7 +346,7 @@ const submitForm = () => {
 /* Button */
 .btn-submit {
   width: 100%;
-  background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, #2563EB 100%);
   color: white;
   border: none;
   padding: 1.25rem;

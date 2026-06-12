@@ -218,7 +218,7 @@
                           <div v-if="s.profile_overrides.tools?.length" style="margin-top:8px">
                             <label style="font-size:0.7rem;color:#64748b;text-transform:uppercase;font-weight:600">Tools</label>
                             <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
-                              <span v-for="t in s.profile_overrides.tools" :key="t" class="ad-badge" style="background:rgba(139,92,246,0.15);color:#c4b5fd">{{ t }}</span>
+                              <span v-for="t in s.profile_overrides.tools" :key="t" class="ad-badge" style="background:rgba(139,92,246,0.15);color:#BFDBFE">{{ t }}</span>
                             </div>
                           </div>
                         </div>
@@ -1033,7 +1033,7 @@ onMounted(() => {
 .ad-title-icon {
   width: 28px;
   height: 28px;
-  color: #a78bfa;
+  color: #60A5FA;
 }
 
 .ad-subtitle {
@@ -1071,8 +1071,8 @@ onMounted(() => {
 }
 
 .ad-tab-active {
-  color: #a78bfa;
-  border-bottom-color: #8b5cf6;
+  color: #60A5FA;
+  border-bottom-color: #2563EB;
 }
 
 .ad-tab-icon {
@@ -1084,7 +1084,7 @@ onMounted(() => {
   padding: 1px 8px;
   font-size: 0.75rem;
   background: rgba(139, 92, 246, 0.15);
-  color: #c4b5fd;
+  color: #BFDBFE;
   border-radius: 10px;
 }
 
@@ -1117,7 +1117,7 @@ onMounted(() => {
   width: 24px;
   height: 24px;
   border: 3px solid rgba(139, 92, 246, 0.2);
-  border-top-color: #8b5cf6;
+  border-top-color: #2563EB;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -1245,7 +1245,7 @@ onMounted(() => {
 .ad-script-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  background: linear-gradient(135deg, #4f46e5, #2563EB);
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -1284,7 +1284,7 @@ onMounted(() => {
 }
 
 .ad-param-item code {
-  color: #a78bfa;
+  color: #60A5FA;
   background: rgba(139, 92, 246, 0.1);
   padding: 1px 6px;
   border-radius: 3px;
@@ -1358,7 +1358,7 @@ onMounted(() => {
 
 .ad-badge-general { background: #1e3a5f; color: #60a5fa; }
 .ad-badge-monitoring { background: #064e3b; color: #34d399; }
-.ad-badge-deployment { background: #4c1d95; color: #c4b5fd; }
+.ad-badge-deployment { background: #4c1d95; color: #BFDBFE; }
 .ad-badge-reporting { background: #78350f; color: #fbbf24; }
 .ad-badge-channel { background: #334155; color: #94a3b8; }
 
@@ -1411,12 +1411,12 @@ onMounted(() => {
 .ad-btn svg { width: 16px; height: 16px; }
 
 .ad-btn-primary {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #6366f1, #2563EB);
   color: white;
   border: none;
 }
 
-.ad-btn-primary:hover { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
+.ad-btn-primary:hover { background: linear-gradient(135deg, #4f46e5, #2563EB); }
 .ad-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .ad-btn-ghost {
@@ -1489,7 +1489,7 @@ onMounted(() => {
   padding: 2px 8px;
   background: rgba(139, 92, 246, 0.1);
   border-radius: 4px;
-  color: #c4b5fd;
+  color: #BFDBFE;
 }
 
 .ad-code-block {
@@ -1500,7 +1500,7 @@ onMounted(() => {
   border: 1px solid #334155;
   font-family: monospace;
   font-size: 0.8rem;
-  color: #a78bfa;
+  color: #60A5FA;
 }
 
 /* ===== Modal ===== */
@@ -1738,7 +1738,7 @@ onMounted(() => {
   border-radius: 6px;
   padding: 10px;
   font-size: 0.75rem;
-  color: #c4b5fd;
+  color: #BFDBFE;
   white-space: pre-wrap;
   margin: 0;
   font-family: 'JetBrains Mono', monospace;
@@ -1783,7 +1783,7 @@ onMounted(() => {
 }
 
 .ad-subtab:hover { color: #94a3b8; }
-.ad-subtab-active { color: #a78bfa; border-bottom-color: #8b5cf6; }
+.ad-subtab-active { color: #60A5FA; border-bottom-color: #2563EB; }
 
 .ad-detail-grid-4 {
   display: grid;

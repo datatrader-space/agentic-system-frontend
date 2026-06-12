@@ -309,7 +309,7 @@ onMounted(() => loadShares())
 .share-user { display: flex; align-items: center; gap: 10px; }
 .user-avatar {
   width: 32px; height: 32px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #6366f1, #2563EB);
   color: white;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;

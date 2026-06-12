@@ -468,14 +468,15 @@ const operationDefs = [
   { key: 'ask_llm_model_id', label: 'ASK_LLM', help: "Model the agent's ASK_LLM tool uses." },
   { key: 'summarize_model_id', label: 'Compact & summarization', help: 'Model that summarizes / compacts long conversation history.' },
   { key: 'artifact_summarize_model_id', label: 'Artifact summarization', help: 'Model that summarizes large tool outputs (else fast deterministic head/tail).' },
+  { key: 'turn_router_model_id', label: 'Turn router / manager', help: 'Fast model that pre-routes each turn (greeting vs tool task vs deep task). Leave as Agent default to use a built-in fast model (Haiku) on the agent\'s own provider.' },
 ]
-const opModels = ref({ ask_llm_model_id: null, summarize_model_id: null, artifact_summarize_model_id: null, embedding_model_id: null })
+const opModels = ref({ ask_llm_model_id: null, summarize_model_id: null, artifact_summarize_model_id: null, turn_router_model_id: null, embedding_model_id: null })
 const embeddingDirty = ref(false)
 const reindexing = ref(false)
 
 // Active operation tab + the provider chosen for each operation (provider → model → save).
 const opActiveTab = ref('ask_llm_model_id')
-const opProvider = ref({ ask_llm_model_id: null, summarize_model_id: null, artifact_summarize_model_id: null })
+const opProvider = ref({ ask_llm_model_id: null, summarize_model_id: null, artifact_summarize_model_id: null, turn_router_model_id: null })
 const embProvider = ref(null)
 
 // Active models for a provider, split by chat vs embedding so each picker only shows what fits.
@@ -491,7 +492,7 @@ const currentLabel = (key) => {
 }
 // After models + saved selections load, pre-select the provider that owns each chosen model.
 const deriveOpProviders = () => {
-  for (const key of ['ask_llm_model_id', 'summarize_model_id', 'artifact_summarize_model_id']) {
+  for (const key of ['ask_llm_model_id', 'summarize_model_id', 'artifact_summarize_model_id', 'turn_router_model_id']) {
     const m = models.value.find((x) => x.id === opModels.value[key])
     opProvider.value[key] = m ? m.provider : null
   }
@@ -506,6 +507,7 @@ const loadOperationModels = async () => {
       ask_llm_model_id: r.data.ask_llm_model_id ?? null,
       summarize_model_id: r.data.summarize_model_id ?? null,
       artifact_summarize_model_id: r.data.artifact_summarize_model_id ?? null,
+      turn_router_model_id: r.data.turn_router_model_id ?? null,
       embedding_model_id: r.data.embedding_model_id ?? null,
     }
     deriveOpProviders()

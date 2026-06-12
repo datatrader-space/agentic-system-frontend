@@ -585,8 +585,8 @@ export default {
 
 .plan { border-left: 3px solid #3b82f6; }
 .tool { border-left: 3px solid #f59e0b; }
-.tool-result { border-left: 3px solid #8b5cf6; background: #fdfbff; }
-.thought { border-left: 3px solid #8b5cf6; background: #fdfbff; }
+.tool-result { border-left: 3px solid #2563EB; background: #fdfbff; }
+.thought { border-left: 3px solid #2563EB; background: #fdfbff; }
 .success { border-left: 3px solid #10b981; background: #ecfdf5; }
 .error { border-left: 3px solid #ef4444; background: #fef2f2; }
 

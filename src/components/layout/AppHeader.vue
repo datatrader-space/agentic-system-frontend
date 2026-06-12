@@ -29,7 +29,7 @@
                   <defs>
                     <linearGradient id="logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
                       <stop stop-color="#6366f1"/>
-                      <stop offset="0.5" stop-color="#8b5cf6"/>
+                      <stop offset="0.5" stop-color="#2563EB"/>
                       <stop offset="1" stop-color="#d946ef"/>
                     </linearGradient>
                   </defs>
@@ -719,7 +719,7 @@ onUnmounted(() => {
   --primary: #6366f1;
   --primary-dark: #4f46e5;
   --primary-light: #eef2ff;
-  --accent: #8b5cf6;
+  --accent: #2563EB;
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #94a3b8;
@@ -781,7 +781,7 @@ onUnmounted(() => {
 }
 
 .app-header.header-dark .nav-link-active {
-  color: #a78bfa;
+  color: #60A5FA;
   background: rgba(139, 92, 246, 0.15);
 }
 

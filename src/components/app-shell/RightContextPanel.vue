@@ -109,8 +109,7 @@
 
           <!-- Tools -->
           <template v-else-if="active === 'Tools'">
-            <p class="muted">Manage the tools available to your agents.</p>
-            <router-link class="link-btn" to="/dashboard/tools" @click="closeOverlay">Open Tool Registry →</router-link>
+            <p class="muted">Tools are managed per-agent (in the agent builder) and via Connectors.</p>
             <router-link class="link-btn" to="/dashboard/connectors" @click="closeOverlay">Manage Connectors →</router-link>
           </template>
 
@@ -254,7 +253,7 @@ onMounted(() => {
 .state-icon svg { width: 22px; height: 22px; }
 .state-title { font-size: 0.9375rem; font-weight: 600; color: #334155; margin: 0 0 4px; }
 .state-sub { font-size: 0.8125rem; color: #94a3b8; margin: 0 0 16px; }
-.state-btn { display: inline-block; padding: 8px 16px; font-size: 0.8125rem; font-weight: 500; color: #fff; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 9px; cursor: pointer; text-decoration: none; }
+.state-btn { display: inline-block; padding: 8px 16px; font-size: 0.8125rem; font-weight: 500; color: #fff; background: linear-gradient(135deg, #6366f1, #2563EB); border: none; border-radius: 9px; cursor: pointer; text-decoration: none; }
 
 /* Skeleton */
 .skeleton-card { border: 1px solid #eef1f5; border-radius: 14px; padding: 16px; }

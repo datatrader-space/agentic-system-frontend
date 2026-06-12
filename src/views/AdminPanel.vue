@@ -190,7 +190,7 @@ function formatDate(d) {
 
 .gradient-text {
   font-family: var(--vm-font-display, 'Bricolage Grotesque', sans-serif);
-  background: var(--vm-g-brand, linear-gradient(120deg, #7C3AED, #EC4899));
+  background: var(--vm-g-brand, linear-gradient(120deg, #2563EB, #1E40AF));
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -268,7 +268,7 @@ function formatDate(d) {
 
 .badge-period, .badge-count {
   background: rgba(139, 92, 246, 0.1);
-  color: #8b5cf6;
+  color: #2563EB;
   padding: 0.2rem 0.6rem;
   border-radius: 6px;
   font-size: 0.75rem;

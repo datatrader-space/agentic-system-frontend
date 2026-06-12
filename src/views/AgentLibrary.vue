@@ -352,7 +352,7 @@ const EmptyArt = (props) => h('div', { class: 'empty-art' }, [
     h('svg', { viewBox: '0 0 120 120', fill: 'none' }, [
         h('defs', [
             h('linearGradient', { id: 'ea', x1: '0', y1: '0', x2: '120', y2: '120', gradientUnits: 'userSpaceOnUse' }, [
-                h('stop', { 'stop-color': '#7C3AED' }), h('stop', { offset: '1', 'stop-color': '#EC4899' }),
+                h('stop', { 'stop-color': '#2563EB' }), h('stop', { offset: '1', 'stop-color': '#1E40AF' }),
             ]),
         ]),
         h('rect', { x: '18', y: '24', width: '84', height: '72', rx: '16', fill: 'url(#ea)', opacity: '0.12' }),

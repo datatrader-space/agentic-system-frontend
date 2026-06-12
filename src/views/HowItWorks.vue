@@ -425,13 +425,13 @@ const steps = ref([
 .timestamp { color: #6b7280; min-width: 80px; }
 .log-info { color: #60a5fa; font-weight: bold; min-width: 80px; }
 .log-success { color: #10b981; font-weight: bold; min-width: 80px; }
-.log-process { color: #8b5cf6; font-weight: bold; min-width: 100px; }
+.log-process { color: #2563EB; font-weight: bold; min-width: 100px; }
 
 /* Typing Animation */
 .typing .cursor {
   display: inline-block;
   width: 8px; height: 16px;
-  background: #8b5cf6;
+  background: #2563EB;
   animation: blink 1s step-end infinite;
   vertical-align: middle;
 }
@@ -519,7 +519,7 @@ const steps = ref([
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  background: linear-gradient(135deg, #2563EB 0%, #2563EB 100%);
   color: white;
   padding: 1rem 3rem;
   border-radius: 12px;

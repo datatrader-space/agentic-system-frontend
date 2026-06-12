@@ -20,7 +20,7 @@
         <div class="author-row">
           <div class="author-avatar">
             <!-- Placeholder Avatar -->
-            <img src="https://ui-avatars.com/api/?name=Sarah+Chen&background=8b5cf6&color=fff" alt="Author">
+            <img src="https://ui-avatars.com/api/?name=Sarah+Chen&background=2563EB&color=fff" alt="Author">
           </div>
           <div class="author-info">
             <div class="author-name">By {{ post.author }}</div>

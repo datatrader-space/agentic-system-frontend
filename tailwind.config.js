@@ -13,23 +13,28 @@ export default {
   theme: {
     extend: {
       colors: {
-        bg: "#FBFAFF",
+        bg: "#F8FAFC",
         ink: {
-          DEFAULT: "#191427",
-          soft: "#4A4360",
-          faint: "#9A93AE",
+          DEFAULT: "#0F172A",
+          soft: "#475569",
+          faint: "#94A3B8",
         },
-        surface: "#FFFFFF",
-        violet: { DEFAULT: "#7C3AED", d: "#6D28D9", soft: "#F3EEFE" },
-        pink: { DEFAULT: "#EC4899" },
-        amber: { DEFAULT: "#F59E0B" },
-        teal: { DEFAULT: "#14B8A6" },
-        sky: { DEFAULT: "#0EA5E9" },
-        lime: { DEFAULT: "#84CC16" },
+        surface: { DEFAULT: "#FFFFFF", soft: "#F1F5F9" },
+        // Brand blue is kept under the legacy "violet" name so existing utility
+        // classes (bg-violet, text-violet-d, …) re-skin to blue automatically.
+        violet: { DEFAULT: "#2563EB", d: "#1D4ED8", soft: "#EFF6FF" },
+        primary: { DEFAULT: "#2563EB", d: "#1D4ED8", soft: "#EFF6FF" },
+        pink: { DEFAULT: "#1E40AF" },          // candy pink → deep navy
+        amber: { DEFAULT: "#F59E0B" },         // warning only
+        teal: { DEFAULT: "#14B8A6" },          // accent
+        accent: { DEFAULT: "#14B8A6", soft: "#CCFBF1" },
+        sky: { DEFAULT: "#3B82F6" },           // focus / info
+        lime: { DEFAULT: "#14B8A6" },
         ok: "#10B981",
         danger: "#EF4444",
-        line: "rgba(25,20,39,.08)",
-        "line-2": "rgba(25,20,39,.14)",
+        line: "rgba(15,23,42,.08)",
+        "line-2": "rgba(15,23,42,.14)",
+        "vm-border": "#E2E8F0",
       },
       fontFamily: {
         display: ['"Bricolage Grotesque"', "system-ui", "sans-serif"],
@@ -42,18 +47,18 @@ export default {
         "2xl": "26px",
       },
       boxShadow: {
-        s: "0 2px 8px rgba(25,20,39,.06)",
-        m: "0 8px 30px rgba(25,20,39,.10), 0 2px 8px rgba(25,20,39,.05)",
-        l: "0 24px 60px rgba(124,58,237,.16), 0 8px 24px rgba(25,20,39,.10)",
-        "glow-v": "0 10px 34px rgba(124,58,237,.42)",
-        "glow-p": "0 10px 34px rgba(236,72,153,.40)",
+        s: "0 2px 8px rgba(15,23,42,.06)",
+        m: "0 8px 30px rgba(15,23,42,.10), 0 2px 8px rgba(15,23,42,.05)",
+        l: "0 24px 60px rgba(37,99,235,.14), 0 8px 24px rgba(15,23,42,.10)",
+        "glow-v": "0 10px 30px rgba(37,99,235,.30)",
+        "glow-p": "0 10px 30px rgba(37,99,235,.22)",
       },
       backgroundImage: {
-        "g-brand": "linear-gradient(120deg,#7C3AED,#EC4899)",
-        "g-cool": "linear-gradient(120deg,#7C3AED,#0EA5E9)",
-        "g-warm": "linear-gradient(120deg,#F59E0B,#EC4899)",
-        "g-teal": "linear-gradient(120deg,#14B8A6,#0EA5E9)",
-        "g-multi": "linear-gradient(120deg,#7C3AED,#EC4899,#F59E0B)",
+        "g-brand": "linear-gradient(135deg,#2563EB,#1E40AF)",
+        "g-cool": "linear-gradient(135deg,#2563EB,#14B8A6)",
+        "g-warm": "linear-gradient(135deg,#F8FAFC,#EEF2FF)",
+        "g-teal": "linear-gradient(135deg,#14B8A6,#2563EB)",
+        "g-multi": "linear-gradient(135deg,#2563EB,#1D4ED8,#14B8A6)",
       },
       transitionTimingFunction: {
         spring: "cubic-bezier(.34,1.56,.64,1)",

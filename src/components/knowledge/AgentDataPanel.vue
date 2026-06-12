@@ -38,8 +38,8 @@
           <div class="adp-empty__icon">
             <svg viewBox="0 0 64 64" fill="none">
               <rect x="8" y="20" width="48" height="8" rx="2" fill="#e0e7ff" stroke="#818cf8" stroke-width="1.5"/>
-              <rect x="8" y="32" width="48" height="8" rx="2" fill="#ede9fe" stroke="#a78bfa" stroke-width="1.5"/>
-              <rect x="8" y="44" width="48" height="8" rx="2" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="1.5"/>
+              <rect x="8" y="32" width="48" height="8" rx="2" fill="#ede9fe" stroke="#60A5FA" stroke-width="1.5"/>
+              <rect x="8" y="44" width="48" height="8" rx="2" fill="#f5f3ff" stroke="#BFDBFE" stroke-width="1.5"/>
               <circle cx="48" cy="16" r="10" fill="#dbeafe" stroke="#60a5fa" stroke-width="1.5"/>
               <path d="M45 16h6M48 13v6" stroke="#3b82f6" stroke-width="2" stroke-linecap="round"/>
             </svg>
@@ -482,7 +482,7 @@ watch(() => props.agentProfile?.id, fetchData)
 /* ═══ Badges ═══ */
 .adp-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.05em; }
 .adp-badge--warn { background: #fef3c7; color: #92400e; }
-.adp-badge--purple { background: #f3e8ff; color: #7c3aed; }
+.adp-badge--purple { background: #f3e8ff; color: #2563EB; }
 .adp-badge--blue { background: #dbeafe; color: #1d4ed8; }
 .adp-pulse { animation: adpPulse 2s ease-in-out infinite; }
 @keyframes adpPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
@@ -607,7 +607,7 @@ watch(() => props.agentProfile?.id, fetchData)
 .adp-json__ln { display: inline-block; width: 40px; text-align: right; margin-right: 16px; color: #334155; user-select: none; font-size: 10px; }
 :deep(.adp-json--key) { color: #7dd3fc; }
 :deep(.adp-json--str) { color: #86efac; }
-:deep(.adp-json--num) { color: #c4b5fd; }
+:deep(.adp-json--num) { color: #BFDBFE; }
 :deep(.adp-json--bool) { color: #fdba74; }
 :deep(.adp-json--null) { color: #f87171; font-style: italic; }
 

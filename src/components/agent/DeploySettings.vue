@@ -233,7 +233,7 @@ const testTokenTtl = ref(0)
 const s = reactive({
   chat_interface: 'toggle', launcher: 'bubble', button_image_url: '', allow_uploads: false,
   proactive: { enabled: false, text: '', delay_s: 4 },
-  branding: { name: '', greeting: '', avatar_url: '', theme_color: '#7C3AED' },
+  branding: { name: '', greeting: '', avatar_url: '', theme_color: '#2563EB' },
 })
 
 const agentId = computed(() => props.agent && props.agent.id)
@@ -277,7 +277,7 @@ function applySettings(ss) {
   s.button_image_url = ss.button_image_url || ''
   s.allow_uploads = !!ss.allow_uploads
   s.proactive = { enabled: false, text: '', delay_s: 4, ...(ss.proactive || {}) }
-  s.branding = { name: '', greeting: '', avatar_url: '', theme_color: '#7C3AED', ...(ss.branding || {}) }
+  s.branding = { name: '', greeting: '', avatar_url: '', theme_color: '#2563EB', ...(ss.branding || {}) }
 }
 
 async function load() {

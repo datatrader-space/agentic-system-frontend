@@ -316,7 +316,7 @@
           <div class="bg-amber-50 border border-amber-200 rounded-[12px] px-4 py-4 flex items-start gap-3">
             <span class="text-amber-500 text-xl leading-none mt-0.5">âš ï¸</span>
             <div class="text-[13px] text-amber-800">
-              <strong>Note:</strong> After registration, all selected actions will be created as tools and immediately available in the Tool Registry.
+              <strong>Note:</strong> After registration, all selected actions will be created as tools and immediately available to assign to your agents.
             </div>
           </div>
         </div>

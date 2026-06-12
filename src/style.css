@@ -25,10 +25,10 @@
   --text-muted: #9ca3af;
   --text-inverse: #111827;
   
-  --primary: #8b5cf6;
+  --primary: #2563EB;
   --primary-light: rgba(139, 92, 246, 0.1);
   --primary-glow: rgba(139, 92, 246, 0.3);
-  --accent: #ec4899;
+  --accent: #1E40AF;
   --accent-light: rgba(236, 72, 153, 0.1);
   
   --success: #10b981;
@@ -49,9 +49,9 @@
   --glass-border: rgba(255, 255, 255, 0.1);
   
   /* Gradients */
-  --gradient-primary: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+  --gradient-primary: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%);
   --gradient-surface: linear-gradient(180deg, #030712 0%, #0a0f1a 100%);
-  --gradient-text: linear-gradient(135deg, #fff 0%, #c4b5fd 100%);
+  --gradient-text: linear-gradient(135deg, #fff 0%, #BFDBFE 100%);
 }
 
 /* Light Theme Overrides */
@@ -68,10 +68,10 @@
   --text-muted: #6b7280;
   --text-inverse: #ffffff;
   
-  --primary: #7c3aed;
+  --primary: #2563EB;
   --primary-light: rgba(124, 58, 237, 0.1);
   --primary-glow: rgba(124, 58, 237, 0.2);
-  --accent: #db2777;
+  --accent: #1D4ED8;
   --accent-light: rgba(219, 39, 119, 0.1);
   
   --success: #059669;
@@ -92,9 +92,9 @@
   --glass-border: rgba(0, 0, 0, 0.1);
   
   /* Gradients for light mode */
-  --gradient-primary: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
+  --gradient-primary: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
   --gradient-surface: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
-  --gradient-text: linear-gradient(135deg, #111827 0%, #7c3aed 100%);
+  --gradient-text: linear-gradient(135deg, #111827 0%, #2563EB 100%);
 }
 
 /* Custom styles */
@@ -184,37 +184,55 @@ body {
    cleanup). Mirror of tailwind.config.js so scoped styles can use them.
    ============================================================ */
 :root {
-  --vm-bg: #FBFAFF;
-  --vm-ink: #191427;
-  --vm-ink-soft: #4A4360;
-  --vm-ink-faint: #9A93AE;
-  --vm-surface: #FFFFFF;
-  --vm-glass: rgba(255, 255, 255, .62);
-  --vm-glass-strong: rgba(255, 255, 255, .82);
-  --vm-violet: #7C3AED;
-  --vm-violet-d: #6D28D9;
-  --vm-violet-soft: #F3EEFE;
-  --vm-pink: #EC4899;
-  --vm-amber: #F59E0B;
-  --vm-teal: #14B8A6;
-  --vm-sky: #0EA5E9;
-  --vm-lime: #84CC16;
-  --vm-green: #10B981;
+  /* ── Professional SaaS theme — neutral slate + deep blue + one teal accent.
+        (Token NAMES kept from the old vibrant-mesh system so every component
+        re-skins automatically; --vm-violet* is now the BLUE primary.) ── */
+  --vm-bg: #F8FAFC;            /* page background (slate-50) */
+  --vm-ink: #0F172A;           /* main text (slate-900) */
+  --vm-ink-soft: #475569;      /* secondary text (slate-600) */
+  --vm-ink-faint: #94A3B8;     /* muted text (slate-400) */
+  --vm-surface: #FFFFFF;       /* cards / panels */
+  --vm-surface-soft: #F1F5F9;  /* subtle filled areas (slate-100) */
+  --vm-border: #E2E8F0;        /* hairline borders (slate-200) */
+  --vm-glass: rgba(255, 255, 255, .72);
+  --vm-glass-strong: rgba(255, 255, 255, .88);
+
+  /* Brand = professional blue (mapped onto the legacy "violet" token names) */
+  --vm-violet: #2563EB;        /* primary */
+  --vm-violet-d: #1D4ED8;      /* primary hover */
+  --vm-violet-soft: #EFF6FF;   /* primary tint */
+  --vm-pink: #1E40AF;          /* was candy pink → deep navy (kills the pink) */
+  --vm-amber: #F59E0B;         /* warning only */
+  --vm-teal: #14B8A6;          /* the single controlled accent */
+  --vm-sky: #3B82F6;           /* focus / info blue */
+  --vm-lime: #14B8A6;          /* folded into the teal accent */
+  --vm-green: #10B981;         /* success */
   --vm-danger: #EF4444;
-  --vm-line: rgba(25, 20, 39, .08);
-  --vm-line-2: rgba(25, 20, 39, .14);
+  --vm-line: rgba(15, 23, 42, .08);
+  --vm-line-2: rgba(15, 23, 42, .14);
 
-  --vm-g-brand: linear-gradient(120deg, #7C3AED, #EC4899);
-  --vm-g-cool: linear-gradient(120deg, #7C3AED, #0EA5E9);
-  --vm-g-warm: linear-gradient(120deg, #F59E0B, #EC4899);
-  --vm-g-teal: linear-gradient(120deg, #14B8A6, #0EA5E9);
-  --vm-g-multi: linear-gradient(120deg, #7C3AED, #EC4899, #F59E0B);
+  /* Semantic aliases (preferred names for new code) */
+  --vm-primary: #2563EB;
+  --vm-primary-d: #1D4ED8;
+  --vm-primary-soft: #EFF6FF;
+  --vm-accent: #14B8A6;
+  --vm-accent-soft: #CCFBF1;
+  --vm-success: #10B981;
+  --vm-warning: #F59E0B;
+  --vm-focus: #3B82F6;
 
-  --vm-shadow-s: 0 2px 8px rgba(25, 20, 39, .06);
-  --vm-shadow-m: 0 8px 30px rgba(25, 20, 39, .10), 0 2px 8px rgba(25, 20, 39, .05);
-  --vm-shadow-l: 0 24px 60px rgba(124, 58, 237, .16), 0 8px 24px rgba(25, 20, 39, .10);
-  --vm-glow-v: 0 10px 34px rgba(124, 58, 237, .42);
-  --vm-glow-p: 0 10px 34px rgba(236, 72, 153, .40);
+  /* Subtle, professional gradients (no candy) */
+  --vm-g-brand: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%);
+  --vm-g-cool: linear-gradient(135deg, #2563EB 0%, #14B8A6 100%);
+  --vm-g-warm: linear-gradient(135deg, #F8FAFC 0%, #EEF2FF 100%);
+  --vm-g-teal: linear-gradient(135deg, #14B8A6 0%, #2563EB 100%);
+  --vm-g-multi: linear-gradient(135deg, #2563EB 0%, #1D4ED8 55%, #14B8A6 100%);
+
+  --vm-shadow-s: 0 2px 8px rgba(15, 23, 42, .06);
+  --vm-shadow-m: 0 8px 30px rgba(15, 23, 42, .10), 0 2px 8px rgba(15, 23, 42, .05);
+  --vm-shadow-l: 0 24px 60px rgba(37, 99, 235, .14), 0 8px 24px rgba(15, 23, 42, .10);
+  --vm-glow-v: 0 10px 30px rgba(37, 99, 235, .30);
+  --vm-glow-p: 0 10px 30px rgba(37, 99, 235, .22);
 
   --vm-ease: cubic-bezier(.34, 1.56, .64, 1);   /* spring / overshoot */
   --vm-ease2: cubic-bezier(.4, 0, .2, 1);        /* smooth */
@@ -245,7 +263,7 @@ body {
 
 /* animated gradient text (hero words) */
 .vm-grad-text {
-  background: linear-gradient(120deg, #7C3AED, #EC4899, #F59E0B, #7C3AED);
+  background: linear-gradient(120deg, #2563EB, #1D4ED8, #14B8A6, #2563EB);
   background-size: 300% 100%;
   -webkit-background-clip: text; background-clip: text;
   color: transparent;
@@ -312,3 +330,31 @@ body {
   display: block;
   background: #000;
 }
+
+/* Hover-reveal download button overlaid on chat media (img/video). */
+.chat-media-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+.chat-media-dl {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.6rem;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff !important;
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  cursor: pointer;
+}
+/* Force white strokes regardless of inherited link color (CSS beats the stroke="currentColor" attr). */
+.chat-media-dl svg { width: 1rem; height: 1rem; stroke: #fff; fill: none; }
+.chat-media-wrap:hover .chat-media-dl { opacity: 1; }
+.chat-media-dl:hover { background: rgba(0, 0, 0, 0.78); }

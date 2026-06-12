@@ -864,7 +864,7 @@ onMounted(async () => {
 .tint-service {
   background: linear-gradient(135deg, #ede9fe, #eef2ff);
   border: 1px solid #ddd6fe;
-  color: #6d28d9;
+  color: #1D4ED8;
 }
 .tint-mcp {
   background: linear-gradient(135deg, #f1f5f9, #f8fafc);

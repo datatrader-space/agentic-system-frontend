@@ -309,7 +309,7 @@ function formatDate(dateStr) {
 .sidebar-title {
   font-size: 1rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+  background: linear-gradient(135deg, #2563EB, #06b6d4);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   margin: 0;
@@ -354,7 +354,7 @@ function formatDate(dateStr) {
 }
 
 .search-input:focus {
-  border-color: #8b5cf6;
+  border-color: #2563EB;
   background: rgba(139, 92, 246, 0.08);
 }
 
@@ -401,8 +401,8 @@ function formatDate(dateStr) {
 }
 
 .nav-item.active {
-  color: #8b5cf6;
-  border-left-color: #8b5cf6;
+  color: #2563EB;
+  border-left-color: #2563EB;
   background: rgba(139, 92, 246, 0.08);
   font-weight: 600;
 }
@@ -483,7 +483,7 @@ function formatDate(dateStr) {
 }
 
 .gradient-text {
-  background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+  background: linear-gradient(135deg, #2563EB, #06b6d4);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -544,7 +544,7 @@ function formatDate(dateStr) {
   transition: transform 0.2s;
 }
 
-.quick-card:hover .quick-arrow { transform: translateX(3px); color: #8b5cf6; }
+.quick-card:hover .quick-arrow { transform: translateX(3px); color: #2563EB; }
 
 .welcome-footer {
   text-align: center;
@@ -553,7 +553,7 @@ function formatDate(dateStr) {
   font-size: 0.9rem;
 }
 
-.welcome-footer a { color: #8b5cf6; text-decoration: none; }
+.welcome-footer a { color: #2563EB; text-decoration: none; }
 .welcome-footer a:hover { text-decoration: underline; }
 
 /* ═══ Empty / 404 ═══ */
@@ -566,7 +566,7 @@ function formatDate(dateStr) {
 .content-empty h2 { font-size: 1.5rem; margin-bottom: 0.5rem; }
 .content-empty p { color: var(--text-muted); }
 .content-empty code { background: rgba(139,92,246,0.1); padding: 0.2rem 0.5rem; border-radius: 4px; }
-.back-link { display: inline-block; margin-top: 1.5rem; color: #8b5cf6; text-decoration: none; font-weight: 600; }
+.back-link { display: inline-block; margin-top: 1.5rem; color: #2563EB; text-decoration: none; font-weight: 600; }
 
 /* ═══ Breadcrumb ═══ */
 .breadcrumb {
@@ -578,7 +578,7 @@ function formatDate(dateStr) {
   color: var(--text-muted);
 }
 
-.breadcrumb a { color: #8b5cf6; text-decoration: none; }
+.breadcrumb a { color: #2563EB; text-decoration: none; }
 .breadcrumb a:hover { text-decoration: underline; }
 .breadcrumb-sep { opacity: 0.4; }
 .breadcrumb-current { color: var(--text-primary); font-weight: 500; }
@@ -594,7 +594,7 @@ function formatDate(dateStr) {
   display: inline-block;
   padding: 0.3rem 0.8rem;
   background: rgba(139, 92, 246, 0.1);
-  color: #8b5cf6;
+  color: #2563EB;
   border-radius: 6px;
   font-size: 0.8rem;
   font-weight: 600;
@@ -646,14 +646,14 @@ function formatDate(dateStr) {
 .article-body :deep(th), .article-body :deep(td) { padding: 0.65rem 1rem; border: 1px solid var(--border); text-align: left; }
 .article-body :deep(th) { background: rgba(139, 92, 246, 0.08); font-weight: 600; font-size: 0.9rem; }
 .article-body :deep(blockquote) {
-  border-left: 3px solid #8b5cf6;
+  border-left: 3px solid #2563EB;
   padding: 0.75rem 1.25rem;
   margin: 1rem 0;
   background: rgba(139, 92, 246, 0.05);
   border-radius: 0 8px 8px 0;
   color: var(--text-secondary, var(--text-muted));
 }
-.article-body :deep(a) { color: #8b5cf6; text-decoration: none; }
+.article-body :deep(a) { color: #2563EB; text-decoration: none; }
 .article-body :deep(a:hover) { text-decoration: underline; }
 .article-body :deep(hr) { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 

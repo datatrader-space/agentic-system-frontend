@@ -218,6 +218,8 @@ function blankAgent() {
     code_mode_services: [],
     builder_mode_enabled: false,
     prompt_mode: 'append',
+    tool_shortlist_mode: 'default',
+    tool_delivery_mode: 'default',
     max_history_messages: 0,  // 0 = Auto (backend manages history by token budget + summarization)
   }
 }
@@ -412,7 +414,7 @@ onBeforeUnmount(() => {
 }
 .builder-host :deep(.agent-builder .w-7.h-7.bg-indigo-600) { background: var(--vm-g-brand) !important; }
 .builder-host :deep(.agent-builder .w-7.h-7.bg-emerald-600) { background: var(--vm-g-teal) !important; }
-.builder-host :deep(.agent-builder .w-7.h-7.bg-violet-600) { background: linear-gradient(120deg,#0EA5E9,#7C3AED) !important; }
+.builder-host :deep(.agent-builder .w-7.h-7.bg-violet-600) { background: linear-gradient(120deg,#0EA5E9,#2563EB) !important; }
 
 /* inputs / textareas / selects → rounded + sky focus ring */
 .builder-host :deep(.agent-builder input[type="text"]),

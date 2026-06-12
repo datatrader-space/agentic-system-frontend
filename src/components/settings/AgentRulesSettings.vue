@@ -66,6 +66,6 @@ const save = () => {
 .rules-input:focus { outline: none; border-color: #c7d2fe; box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
 .actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 14px; }
 .saved-note { font-size: 0.8125rem; color: #16a34a; }
-.save-btn { padding: 9px 20px; font-size: 0.875rem; font-weight: 600; color: #fff; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 9px; cursor: pointer; }
+.save-btn { padding: 9px 20px; font-size: 0.875rem; font-weight: 600; color: #fff; background: linear-gradient(135deg, #6366f1, #2563EB); border: none; border-radius: 9px; cursor: pointer; }
 .save-btn:hover { transform: translateY(-1px); }
 </style>

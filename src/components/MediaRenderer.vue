@@ -2,24 +2,38 @@
     <div class="media-renderer">
         <!-- Single Image -->
         <div v-if="artifacts.length === 1 && artifacts[0].type === 'image'" class="single-media">
-            <img 
-                :src="artifacts[0].url" 
-                :alt="artifacts[0].title || 'Generated image'"
-                class="max-h-96 w-auto rounded-xl shadow-lg hover:shadow-xl transition-shadow cursor-zoom-in border border-purple-100 object-contain"
-                @click="openLightbox(artifacts[0])"
-            />
+            <div class="relative group inline-block">
+                <img
+                    :src="artifacts[0].url"
+                    :alt="artifacts[0].title || 'Generated image'"
+                    class="max-h-96 w-auto rounded-xl shadow-lg hover:shadow-xl transition-shadow cursor-zoom-in border border-purple-100 object-contain"
+                    @click="openLightbox(artifacts[0])"
+                />
+                <button type="button" @click.stop="downloadMedia(artifacts[0])" :disabled="downloading"
+                        title="Download image"
+                        class="absolute top-2 right-2 bg-black/55 hover:bg-black/75 text-white rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+                </button>
+            </div>
             <p v-if="artifacts[0].title" class="text-sm text-purple-700 mt-2 font-medium">{{ artifacts[0].title }}</p>
         </div>
-        
+
         <!-- Single Video -->
         <div v-if="artifacts.length === 1 && artifacts[0].type === 'video'" class="single-media">
-            <video 
-                :src="artifacts[0].url" 
-                controls
-                class="max-h-96 w-auto rounded-xl shadow-lg border border-purple-100 bg-black"
-            >
-                Your browser does not support the video tag.
-            </video>
+            <div class="relative group inline-block">
+                <video
+                    :src="artifacts[0].url"
+                    controls
+                    class="max-h-96 w-auto rounded-xl shadow-lg border border-purple-100 bg-black"
+                >
+                    Your browser does not support the video tag.
+                </video>
+                <button type="button" @click.stop="downloadMedia(artifacts[0])" :disabled="downloading"
+                        title="Download video"
+                        class="absolute top-2 right-2 bg-black/55 hover:bg-black/75 text-white rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+                </button>
+            </div>
             <p v-if="artifacts[0].title" class="text-sm text-purple-700 mt-2 font-medium">{{ artifacts[0].title }}</p>
         </div>
         
@@ -51,6 +65,11 @@
                             </div>
                         </div>
                         <div class="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity rounded-xl pointer-events-none"></div>
+                        <button type="button" @click.stop="downloadMedia(artifact)" :disabled="downloading"
+                                title="Download"
+                                class="absolute top-2 right-2 bg-black/55 hover:bg-black/75 text-white rounded-lg p-1.5 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+                        </button>
                     </div>
                     <p v-if="artifact.title" class="text-xs text-purple-600 mt-1.5 font-medium truncate max-w-sm">{{ artifact.title }}</p>
                 </div>
@@ -116,9 +135,19 @@
                     </svg>
                 </button>
                 
+                <!-- Download Button -->
+                <button
+                    v-if="selectedMedia"
+                    @click.stop="downloadMedia(selectedMedia)" :disabled="downloading"
+                    class="absolute top-4 right-16 text-white hover:bg-white/20 rounded-full p-3 transition-colors disabled:opacity-50"
+                    aria-label="Download" title="Download"
+                >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+                </button>
+
                 <!-- Close Button -->
-                <button 
-                    @click="closeLightbox" 
+                <button
+                    @click="closeLightbox"
                     class="absolute top-4 right-4 text-white text-2xl hover:bg-white/20 rounded-full p-3 transition-colors"
                     aria-label="Close"
                 >
@@ -146,6 +175,40 @@ const props = defineProps({
 
 const lightboxOpen = ref(false);
 const selectedMedia = ref(null);
+const downloading = ref(false);
+
+// Download a media artifact. Generated media is served from the backend on a DIFFERENT origin
+// (BACKEND_URL, different port) than the frontend, so a plain <a download> is ignored by browsers
+// for cross-origin URLs — we must fetch the bytes and save a blob to force the download.
+const filenameFor = (artifact) => {
+    const fromUrl = (artifact?.url || '').split('?')[0].split('/').pop();
+    if (fromUrl && fromUrl.includes('.')) return decodeURIComponent(fromUrl);
+    const ext = artifact?.type === 'video' ? 'mp4' : 'png';
+    return `${(artifact?.title || 'media').replace(/[^\w.-]+/g, '_')}.${ext}`;
+};
+
+const downloadMedia = async (artifact) => {
+    if (!artifact?.url || downloading.value) return;
+    downloading.value = true;
+    try {
+        const resp = await fetch(artifact.url, { mode: 'cors' });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const blob = await resp.blob();
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objUrl;
+        a.download = filenameFor(artifact);
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+    } catch (e) {
+        // Fallback: open in a new tab so the user can save manually (e.g. CORS-restricted host).
+        try { window.open(artifact.url, '_blank', 'noopener'); } catch (_) { /* ignore */ }
+    } finally {
+        downloading.value = false;
+    }
+};
 
 // Computed property for current media index
 import { computed } from 'vue';

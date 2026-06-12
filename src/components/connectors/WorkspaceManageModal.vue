@@ -323,7 +323,7 @@ onMounted(() => {
   transition: all 0.12s;
 }
 .ws-icon-btn:hover {
-  color: #6d28d9;
+  color: #1D4ED8;
   border-color: #ddd6fe;
   background: #f5f3ff;
 }
@@ -338,7 +338,7 @@ onMounted(() => {
   outline: none;
 }
 .ws-input:focus {
-  border-color: #c4b5fd;
+  border-color: #BFDBFE;
   box-shadow: 0 0 0 2px #ddd6fe;
 }
 </style>

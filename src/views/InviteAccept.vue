@@ -191,7 +191,7 @@ onMounted(async () => {
 }
 .invite-org-badge {
   width: 64px; height: 64px; border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #6366f1, #2563EB);
   display: flex; align-items: center; justify-content: center;
   font-size: 28px; font-weight: 800; color: #fff;
   margin: 0 auto 20px;
@@ -210,7 +210,7 @@ p  { color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 0 0 8px; }
 .invite-detail { font-size: 15px; color: #d1d5db; }
 .role-chip {
   display: inline-block;
-  background: rgba(139,92,246,0.15); color: #a78bfa;
+  background: rgba(139,92,246,0.15); color: #60A5FA;
   padding: 2px 10px; border-radius: 20px;
   font-size: 13px; font-weight: 600;
 }
@@ -232,7 +232,7 @@ p  { color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 0 0 8px; }
 .invite-actions { display: flex; gap: 12px; justify-content: center; margin-top: 20px; }
 .btn-accept {
   padding: 12px 28px; border-radius: 10px; border: none;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #6366f1, #2563EB);
   color: #fff; font-size: 15px; font-weight: 600;
   cursor: pointer; transition: all 0.12s ease;
 }
@@ -248,7 +248,7 @@ p  { color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 0 0 8px; }
 .btn-primary {
   display: inline-block;
   padding: 10px 24px; border-radius: 10px; border: none;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #6366f1, #2563EB);
   color: #fff; font-size: 14px; font-weight: 600;
   cursor: pointer; text-decoration: none;
   margin-top: 16px;
@@ -265,7 +265,7 @@ p  { color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 0 0 8px; }
 .spinner-lg {
   width: 36px; height: 36px; border-radius: 50%;
   border: 3px solid rgba(139,92,246,0.2);
-  border-top-color: #a78bfa;
+  border-top-color: #60A5FA;
   animation: spin 0.8s linear infinite;
   margin: 0 auto 16px;
 }

@@ -141,7 +141,6 @@ const initials = computed(() => {
 const primaryNav = [
   { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6'] },
   { to: '/dashboard/agents', match: '/dashboard/agents', label: 'Agents', icon: ['M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93', 'M12 18a8 8 0 0 1-8-8', 'M20 10a8 8 0 0 1-8 8', 'M12 11.5a1.5 1.5 0 1 0 0 .01'] },
-  { to: '/dashboard/tools', label: 'Tools', icon: ['M14.7 6.3a4 4 0 0 0 5 5l-9 9a2.1 2.1 0 0 1-3-3l9-9a4 4 0 0 0-2-2z'] },
   { to: '/dashboard/connectors', label: 'Connectors', icon: ['M13.83 10.17a4 4 0 0 0-5.66 0l-4 4a4 4 0 1 0 5.66 5.66l1.1-1.1', 'M10.17 13.83a4 4 0 0 0 5.66 0l4-4a4 4 0 1 0-5.66-5.66l-1.1 1.1'] },
   { to: '/dashboard/activity', label: 'Activity', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
   { to: '/dashboard/llm-context', label: 'LLM Context', adminOnly: true, icon: ['M4 7V4h16v3', 'M9 20h6', 'M12 4v16', 'M4 12h16'] },

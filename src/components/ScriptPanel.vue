@@ -336,12 +336,12 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
 }
 
 .sp-btn-primary {
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    background: linear-gradient(135deg, #4f46e5 0%, #2563EB 100%);
     color: white;
 }
 
 .sp-btn-primary:hover:not(:disabled) {
-    background: linear-gradient(135deg, #4338ca 0%, #6d28d9 100%);
+    background: linear-gradient(135deg, #4338ca 0%, #1D4ED8 100%);
 }
 
 .sp-btn-secondary {
@@ -482,7 +482,7 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
 
 .sp-progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
+    background: linear-gradient(90deg, #6366f1 0%, #2563EB 100%);
     border-radius: 3px;
     transition: width 0.3s ease;
 }

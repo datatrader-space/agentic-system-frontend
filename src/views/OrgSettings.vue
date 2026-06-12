@@ -423,7 +423,7 @@ const platformTabs = [
 const orgColor = computed(() => stringToColor(org.value?.name ?? '?'))
 
 function stringToColor(str) {
-  const palette = ['#6366f1','#8b5cf6','#ec4899','#14b8a6','#f59e0b','#10b981','#3b82f6']
+  const palette = ['#6366f1','#2563EB','#1E40AF','#14b8a6','#f59e0b','#10b981','#3b82f6']
   let h = 0; for (let c of str) h = c.charCodeAt(0) + ((h << 5) - h)
   return palette[Math.abs(h) % palette.length]
 }
@@ -629,7 +629,7 @@ onMounted(() => {
   position: relative;
 }
 .settings-tab:hover { background: rgba(25,20,39,0.06); color: #191427; }
-.settings-tab--active { background: rgba(139,92,246,0.12); color: #7C3AED; font-weight: 600; }
+.settings-tab--active { background: rgba(139,92,246,0.12); color: #2563EB; font-weight: 600; }
 .settings-tab--danger { color: #DC2626; }
 .settings-tab--danger:hover { background: rgba(239,68,68,0.08); }
 .settings-tab--danger.settings-tab--active { background: rgba(239,68,68,0.12); }
@@ -676,7 +676,7 @@ onMounted(() => {
   padding: 9px 12px; font-size: 14px; outline: none;
   transition: border-color 0.15s;
 }
-.settings-input:focus { border-color: #8b5cf6; }
+.settings-input:focus { border-color: #2563EB; }
 .input-prefix-wrap { display: flex; align-items: center; }
 .input-prefix { color: #6b7280; font-size: 13px; padding-right: 6px; white-space: nowrap; }
 .settings-input--prefix { flex: 1; }
@@ -697,7 +697,7 @@ onMounted(() => {
 .member-row:last-child { border-bottom: none; }
 .member-avatar {
   width: 36px; height: 36px; border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #6366f1, #2563EB);
   display: flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: 14px; color: #fff;
   flex-shrink: 0;
@@ -708,7 +708,7 @@ onMounted(() => {
 .member-actions { display: flex; align-items: center; gap: 8px; }
 .role-badge { padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
 .role-owner  { background: rgba(245,158,11,0.15); color: #B45309; }
-.role-admin  { background: rgba(139,92,246,0.15); color: #7C3AED; }
+.role-admin  { background: rgba(139,92,246,0.15); color: #2563EB; }
 .role-member { background: rgba(16,185,129,0.12); color: #059669; }
 .role-viewer { background: rgba(156,163,175,0.12); color: #6B7280; }
 .role-pending { background: rgba(251,146,60,0.12); color: #C2410C; }
@@ -790,7 +790,7 @@ onMounted(() => {
   display: inline-flex; align-items: center;
   padding: 6px 16px; border-radius: 20px;
   background: rgba(139,92,246,0.12);
-  color: #7C3AED; font-size: 12px; font-weight: 600;
+  color: #2563EB; font-size: 12px; font-weight: 600;
   letter-spacing: 0.04em;
 }
 
@@ -813,7 +813,7 @@ onMounted(() => {
 .btn-primary {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 9px 18px; border-radius: 8px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #6366f1, #2563EB);
   border: none; color: #fff; font-size: 13.5px; font-weight: 600;
   cursor: pointer; transition: opacity 0.15s;
 }
@@ -850,7 +850,7 @@ onMounted(() => {
 .spinner {
   width: 16px; height: 16px;
   border: 2px solid rgba(139,92,246,0.3);
-  border-top-color: #8b5cf6;
+  border-top-color: #2563EB;
   border-radius: 50%; animation: spin 0.7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }

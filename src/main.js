@@ -23,7 +23,6 @@ const Login = () => import('./views/Login.vue')
 const LLMSettings = () => import('./views/LLMSettings.vue')
 const LLMDashboard = () => import('./views/LLMDashboard.vue')
 const LLMContextDashboard = () => import('./views/LLMContextDashboard.vue')
-const ToolRegistry = () => import('./views/ToolRegistry.vue')
 const ConnectorsPage = () => import('./views/ConnectorsPage.vue')
 const AgentLibrary = () => import('./views/AgentLibrary.vue')
 const AgentPlayground = () => import('./views/AgentPlayground.vue')
@@ -156,8 +155,8 @@ const router = createRouter({
         { path: 'agents/:id/configure', name: 'dashboard-agent-configure', component: AgentBuilderCanvas },
         { path: 'agents/:id/monitor', name: 'dashboard-agent-monitor', component: AgentMonitor },
         { path: 'agents/:id', name: 'dashboard-agent-playground', component: AgentPlayground },
-        { path: 'tools', name: 'dashboard-tools', component: ToolRegistry },
-        // Retired pages — Services / MCP / Workspaces are now folded into Connectors.
+        // Retired pages — the global Tools page was removed; Services / MCP / Workspaces fold into Connectors.
+        { path: 'tools', name: 'dashboard-tools', redirect: '/dashboard' },
         { path: 'services', name: 'dashboard-services', redirect: '/dashboard/connectors' },
         { path: 'mcp', name: 'dashboard-mcp', redirect: '/dashboard/connectors' },
         { path: 'connectors', name: 'dashboard-connectors', component: ConnectorsPage },
@@ -190,7 +189,7 @@ const router = createRouter({
     { path: '/systems/:systemId/repositories/:repoId', name: 'repository-detail', redirect: to => `/dashboard/systems/${to.params.systemId}/repositories/${to.params.repoId}` },
     { path: '/ai-settings', name: 'ai-settings', redirect: '/dashboard/llm-settings' },
     { path: '/ai-dashboard', name: 'ai-dashboard', redirect: '/dashboard/activity' },
-    { path: '/tools', name: 'tools', redirect: '/dashboard/tools' },
+    { path: '/tools', name: 'tools', redirect: '/dashboard' },
     { path: '/services', name: 'services', redirect: '/dashboard/services' },
     { path: '/mcp', name: 'mcp-servers', redirect: '/dashboard/mcp' },
     { path: '/agents', name: 'agent-library', redirect: '/dashboard/agents' },

@@ -428,7 +428,7 @@ onUnmounted(() => {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  background: linear-gradient(135deg, #2563EB 0%, #2563EB 100%);
   color: white;
   box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
 }
@@ -498,7 +498,7 @@ onUnmounted(() => {
   position: absolute;
   top: -16px;
   right: 24px;
-  background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
+  background: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%);
   border: 1px solid rgba(124, 58, 237, 0.3);
   padding: 0.5rem 1.25rem;
   border-radius: 50px;
@@ -518,15 +518,15 @@ onUnmounted(() => {
 .ai-status {
   width: 8px;
   height: 8px;
-  background: #8b5cf6;
+  background: #2563EB;
   border-radius: 50%;
-  box-shadow: 0 0 12px #8b5cf6;
+  box-shadow: 0 0 12px #2563EB;
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 12px #8b5cf6; }
-  50% { box-shadow: 0 0 20px #8b5cf6, 0 0 30px rgba(139, 92, 246, 0.5); }
+  0%, 100% { box-shadow: 0 0 12px #2563EB; }
+  50% { box-shadow: 0 0 20px #2563EB, 0 0 30px rgba(139, 92, 246, 0.5); }
 }
 
 .terminal-header {

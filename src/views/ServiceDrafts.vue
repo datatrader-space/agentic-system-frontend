@@ -183,7 +183,7 @@ function formatDate(dateString) {
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  background: #8b5cf6;
+  background: #2563EB;
   color: white;
   border: none;
   border-radius: 8px;
@@ -194,7 +194,7 @@ function formatDate(dateString) {
 }
 
 .btn-new:hover {
-  background: #7c3aed;
+  background: #2563EB;
   transform: translateY(-1px);
   box-shadow: 0 4px 6px rgba(139, 92, 246, 0.2);
 }
@@ -215,7 +215,7 @@ function formatDate(dateString) {
   height: 40px;
   margin: 0 auto 1rem;
   border: 4px solid #f1f5f9;
-  border-top-color: #8b5cf6;
+  border-top-color: #2563EB;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -251,7 +251,7 @@ function formatDate(dateString) {
 .btn-primary {
   display: inline-block;
   padding: 0.75rem 1.5rem;
-  background: #8b5cf6;
+  background: #2563EB;
   color: white;
   border-radius: 8px;
   font-weight: 500;
@@ -260,7 +260,7 @@ function formatDate(dateString) {
 }
 
 .btn-primary:hover {
-  background: #7c3aed;
+  background: #2563EB;
   transform: translateY(-1px);
 }
 
@@ -280,7 +280,7 @@ function formatDate(dateString) {
 }
 
 .draft-card:hover {
-  border-color: #8b5cf6;
+  border-color: #2563EB;
   box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1);
   transform: translateY(-2px);
 }
@@ -366,7 +366,7 @@ function formatDate(dateString) {
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #8b5cf6 0%, #a78bfa 100%);
+  background: linear-gradient(90deg, #2563EB 0%, #60A5FA 100%);
   transition: width 0.3s;
 }
 
@@ -394,12 +394,12 @@ function formatDate(dateString) {
 }
 
 .btn-resume {
-  background: #8b5cf6;
+  background: #2563EB;
   color: white;
 }
 
 .btn-resume:hover {
-  background: #7c3aed;
+  background: #2563EB;
 }
 
 .btn-delete {

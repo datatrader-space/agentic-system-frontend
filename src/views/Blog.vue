@@ -527,7 +527,7 @@ const subscribe = () => {
 }
 
 .btn-subscribe:hover {
-  background: #7c3aed;
+  background: #2563EB;
   box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
 }
 

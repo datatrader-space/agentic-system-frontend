@@ -393,7 +393,7 @@ const pickerLinking    = ref(false)
 const pickerSelected   = reactive(new Set())
 const availableItems   = ref([])
 
-const palette = ['#6366f1','#8b5cf6','#ec4899','#14b8a6','#f59e0b','#10b981']
+const palette = ['#6366f1','#2563EB','#1E40AF','#14b8a6','#f59e0b','#10b981']
 function stringToColor(str = '') {
   let h = 0; for (let c of str) h = c.charCodeAt(0) + ((h << 5) - h)
   return palette[Math.abs(h) % palette.length]
@@ -641,7 +641,7 @@ onMounted(loadAll)
   transition: all 0.12s ease; margin-bottom: 2px;
 }
 .wsd-tab:hover { background: rgba(25,20,39,0.06); color: #191427; }
-.wsd-tab--active { background: rgba(139,92,246,0.12); color: #7C3AED; font-weight: 600; }
+.wsd-tab--active { background: rgba(139,92,246,0.12); color: #2563EB; font-weight: 600; }
 .tab-icon { width: 16px; height: 16px; display: flex; align-items: center; flex-shrink: 0; }
 .tab-icon svg { width: 16px; height: 16px; }
 .tab-count { font-size: 11px; margin-left: auto; color: #6b7280; background: rgba(25,20,39,0.07); padding: 1px 7px; border-radius: 10px; }
@@ -733,7 +733,7 @@ onMounted(loadAll)
 .member-row:last-child { border-bottom: none; }
 .member-avatar {
   width: 36px; height: 36px; border-radius: 50%;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #6366f1, #2563EB);
   display: flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: 14px; color: #fff; flex-shrink: 0;
 }
@@ -742,7 +742,7 @@ onMounted(loadAll)
 .member-email { font-size: 12px; color: #6B7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .role-badge { padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
 .role-owner  { background: rgba(245,158,11,0.15); color: #fbbf24; }
-.role-admin  { background: rgba(139,92,246,0.15); color: #7C3AED; }
+.role-admin  { background: rgba(139,92,246,0.15); color: #2563EB; }
 .role-member { background: rgba(16,185,129,0.12); color: #059669; }
 .role-viewer { background: rgba(156,163,175,0.12); color: #6B7280; }
 
@@ -769,7 +769,7 @@ onMounted(loadAll)
   border-radius: 8px; color: #191427; padding: 9px 12px; font-size: 14px; outline: none;
   transition: border-color 0.15s;
 }
-.settings-input:focus { border-color: #8b5cf6; }
+.settings-input:focus { border-color: #2563EB; }
 .settings-select {
   background: rgba(25,20,39,0.06); border: 1px solid rgba(25,20,39,0.12);
   border-radius: 8px; color: #191427; padding: 8px 12px; font-size: 13px; outline: none; cursor: pointer;
@@ -790,7 +790,7 @@ onMounted(loadAll)
 .pf-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
 .pf-title { display: block; font-size: 13px; font-weight: 600; color: #191427; margin-bottom: 2px; }
 .pf-desc { display: block; font-size: 11.5px; color: #6b7280; line-height: 1.4; }
-.placeholder-badge { display: inline-flex; padding: 6px 16px; border-radius: 20px; background: rgba(139,92,246,0.12); color: #7C3AED; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; }
+.placeholder-badge { display: inline-flex; padding: 6px 16px; border-radius: 20px; background: rgba(139,92,246,0.12); color: #2563EB; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; }
 
 /* Danger */
 .danger-zone { margin-top: 32px; }
@@ -805,7 +805,7 @@ onMounted(loadAll)
 .btn-primary {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 9px 18px; border-radius: 8px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #6366f1, #2563EB);
   border: none; color: #fff; font-size: 13.5px; font-weight: 600;
   cursor: pointer; transition: opacity 0.15s;
 }
@@ -830,7 +830,7 @@ onMounted(loadAll)
 .add-resource-btn {
   display: flex; align-items: center; gap: 5px;
   padding: 6px 14px; background: rgba(139,92,246,0.12);
-  border: 1px solid rgba(139,92,246,0.25); color: #7C3AED;
+  border: 1px solid rgba(139,92,246,0.25); color: #2563EB;
   font-size: 12.5px; font-weight: 600; border-radius: 8px;
   cursor: pointer; transition: all 0.15s;
 }
@@ -842,9 +842,9 @@ onMounted(loadAll)
 .empty-block { text-align: center; padding: 40px 20px; color: #6b7280; font-size: 13px; }
 .empty-icon { font-size: 32px; margin-bottom: 10px; }
 .empty-block p { margin: 0 0 12px; }
-.empty-link { color: #8b5cf6; text-decoration: none; font-weight: 600; font-size: 13px; background: none; border: none; cursor: pointer; }
+.empty-link { color: #2563EB; text-decoration: none; font-weight: 600; font-size: 13px; background: none; border: none; cursor: pointer; }
 .empty-link:hover { text-decoration: underline; }
-.spinner { width: 18px; height: 18px; border: 2px solid rgba(139,92,246,0.3); border-top-color: #8b5cf6; border-radius: 50%; animation: spin 0.7s linear infinite; }
+.spinner { width: 18px; height: 18px; border: 2px solid rgba(139,92,246,0.3); border-top-color: #2563EB; border-radius: 50%; animation: spin 0.7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Picker Modal */
@@ -858,14 +858,14 @@ onMounted(loadAll)
 .picker-row { display: flex; align-items: center; gap: 12px; padding: 11px 20px; cursor: pointer; transition: background 0.12s; }
 .picker-row:hover { background: rgba(25,20,39,0.04); }
 .picker-row--selected { background: rgba(139,92,246,0.08); }
-.picker-check { font-size: 16px; color: #7C3AED; min-width: 20px; }
+.picker-check { font-size: 16px; color: #2563EB; min-width: 20px; }
 .picker-item-info { flex: 1; min-width: 0; }
 .picker-item-name { font-size: 13.5px; color: #191427; font-weight: 600; }
 .picker-item-meta { font-size: 11.5px; color: #6b7280; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .picker-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid rgba(25,20,39,0.08); }
 .picker-cancel { padding: 8px 16px; background: none; border: 1px solid rgba(25,20,39,0.1); color: #6B7280; border-radius: 8px; cursor: pointer; font-size: 13px; }
 .picker-cancel:hover { border-color: rgba(25,20,39,0.18); color: #191427; }
-.picker-confirm { padding: 8px 20px; background: #7c3aed; border: none; color: #fff; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; }
-.picker-confirm:hover { background: #6d28d9; }
+.picker-confirm { padding: 8px 20px; background: #2563EB; border: none; color: #fff; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; }
+.picker-confirm:hover { background: #1D4ED8; }
 .picker-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>

@@ -290,7 +290,7 @@ const ToolIcon = (props) => {
     [h(comp, { style: { width: inner + 'px', height: inner + 'px', color } })])
 }
 ToolIcon.props = ['name', 'group', 'size', 'inner']
-const palette = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6']
+const palette = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#2563EB', '#1E40AF', '#14b8a6']
 function colorForKey(key) {
   let h = 0
   for (let i = 0; i < (key || '').length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0

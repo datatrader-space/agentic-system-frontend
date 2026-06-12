@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Teleport to="body">
     <Transition name="modal-fade">
       <div v-if="currentRequest" class="hitl-overlay" :class="{ 'hitl-overlay--compact': isCompactAsk }" @click.self="handleOverlayClick">
@@ -1221,8 +1221,8 @@ watch(currentRequest, () => {
 
 .cred-btn--manual {
   background: #f5f3ff;
-  color: #6d28d9;
-  border: 1px solid #c4b5fd;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
 }
 .cred-btn--manual:hover { background: #ede9fe; }
 
@@ -1262,7 +1262,7 @@ watch(currentRequest, () => {
   outline: none;
   transition: border-color 0.15s;
 }
-.cred-key-input:focus { border-color: #6d28d9; }
+.cred-key-input:focus { border-color: #1D4ED8; }
 
 .cred-done-btn {
   margin-top: 8px;
@@ -1311,8 +1311,8 @@ watch(currentRequest, () => {
   padding: 1px 6px;
   border-radius: 999px;
   background: #ede9fe;
-  color: #6d28d9;
-  border: 1px solid #c4b5fd;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
 }
 
 /* Credential picker â€” replaces single Use Existing button */
@@ -1364,7 +1364,7 @@ watch(currentRequest, () => {
   align-items: center;
   gap: 3px;
   background: #ede9fe;
-  color: #6d28d9;
-  border: 1px solid #c4b5fd;
+  color: #1D4ED8;
+  border: 1px solid #BFDBFE;
 }
 </style>
