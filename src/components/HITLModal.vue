@@ -1,8 +1,8 @@
 <template>
   <Teleport to="body">
     <Transition name="modal-fade">
-      <div v-if="currentRequest" class="hitl-overlay" :class="{ 'hitl-overlay--compact': isCompactAsk }" @click.self="handleOverlayClick">
-        <div class="hitl-modal" :class="[`urgency-${currentRequest.urgency}`, `type-${currentRequest.interaction_type}`, { 'hitl-modal--compact': isCompactAsk }]">
+      <div v-if="currentRequest" class="hitl-overlay" :class="{ 'hitl-overlay--compact': isDocked }" @click.self="handleOverlayClick">
+        <div class="hitl-modal" :class="[`urgency-${currentRequest.urgency}`, `type-${currentRequest.interaction_type}`, { 'hitl-modal--compact': isDocked, 'hitl-modal--approval': isToolApproval }]">
           <!-- Header -->
           <div class="modal-header">
             <div class="header-left">
@@ -16,17 +16,26 @@
               <span class="urgency-badge" :class="`urgency-${currentRequest.urgency}`">
                 {{ currentRequest.urgency }}
               </span>
-              <button v-if="currentRequest.response_type === 'none' || currentRequest.interaction_type === 'credential_setup'" @click="dismiss" class="close-btn">Ã—</button>
+              <button v-if="currentRequest.response_type === 'none' || currentRequest.interaction_type === 'credential_setup'" @click="dismiss" class="close-btn" aria-label="Close">&times;</button>
             </div>
           </div>
 
           <!-- Body -->
           <div class="modal-body">
-            <p class="summary">{{ currentRequest.summary }}</p>
+            <p class="summary">{{ approvalTitle }}</p>
+
+            <!-- Tool-approval: show EXACTLY what will run before approving -->
+            <div v-if="actionPreview" class="action-preview">
+              <div class="action-preview__label">
+                {{ currentRequest.payload?.tool_name || 'Action' }}
+                <span v-if="currentRequest.payload?.risk_summary" class="action-preview__risk">{{ currentRequest.payload.risk_summary }}</span>
+              </div>
+              <pre class="action-preview__cmd">{{ actionPreview }}</pre>
+            </div>
 
             <!-- Payload Preview (collapsible) -->
             <details v-if="hasPayloadContent" class="payload-details">
-              <summary>View Details</summary>
+              <summary>View raw details</summary>
               <pre class="payload-content">{{ JSON.stringify(currentRequest.payload, null, 2) }}</pre>
             </details>
 
@@ -34,12 +43,21 @@
             <div v-if="currentRequest.response_type === 'binary'" class="response-section">
               <div class="button-group">
                 <button @click="respond(true)" class="btn btn-approve">
-                  <span class="btn-icon">âœ“</span>
+                  <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                   Approve
                 </button>
                 <button @click="respond(false)" class="btn btn-reject">
-                  <span class="btn-icon">âœ—</span>
+                  <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
                   Reject
+                </button>
+              </div>
+              <!-- Redirect: run something different instead of the proposed call -->
+              <div v-if="currentRequest.payload?.kind === 'tool_approval'" class="instruction-row">
+                <input v-model="instruction" type="text" class="instruction-input"
+                       placeholder="Or tell the agent what to do instead — e.g. only run 'docker ps'"
+                       @keydown.enter="sendInstruction" />
+                <button class="btn btn-instruct" :disabled="!instruction.trim()" @click="sendInstruction">
+                  Run this instead
                 </button>
               </div>
             </div>
@@ -91,7 +109,7 @@
               </button>
             </div>
 
-            <!-- â”€â”€ Credential Setup (per_item) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+            <!-- ── Credential Setup (per_item) ──────────────────────────────── -->
             <div v-else-if="currentRequest.interaction_type === 'credential_setup'" class="response-section cred-setup">
               <div
                 v-for="svc in credServices"
@@ -105,11 +123,11 @@
                 }"
               >
                 <div class="cred-row-left">
-                  <span class="cred-icon">{{ svc.icon || 'ðŸ”—' }}</span>
+                  <span class="cred-icon">{{ svc.icon || '🔗' }}</span>
                   <div class="cred-info">
                     <span class="cred-name">{{ svc.name }}</span>
                     <span v-if="svc.already_connected" class="cred-status cred-status--ok">Already connected</span>
-                    <span v-else-if="credState[svc.name] === 'connected'" class="cred-status cred-status--ok">âœ“ Connected</span>
+                    <span v-else-if="credState[svc.name] === 'connected'" class="cred-status cred-status--ok">✓ Connected</span>
                     <span v-else-if="credState[svc.name] === 'skipped'" class="cred-status cred-status--skip">Skipped</span>
                     <span v-else-if="credState[svc.name] === 'pending_confirm'" class="cred-status cred-status--pending">Did it work?</span>
                     <span v-else class="cred-reason">{{ svc.reason }}</span>
@@ -124,7 +142,7 @@
                     :disabled="connectingService === svc.name"
                     class="cred-btn cred-btn--reauth-small"
                     title="Re-authorize if this connection isn't working"
-                  >{{ connectingService === svc.name ? 'Openingâ€¦' : 'Re-auth' }}</button>
+                  >{{ connectingService === svc.name ? 'Opening…' : 'Re-auth' }}</button>
                 </div>
 
                 <!-- Not-yet-connected: connect / api-key / skip actions -->
@@ -132,8 +150,8 @@
                   <!-- OAuth -->
                   <template v-if="svc.auth_type === 'oauth2'">
                     <template v-if="credState[svc.name] === 'pending_confirm'">
-                      <button @click="confirmConnected(svc.name)" class="cred-btn cred-btn--confirm">âœ“ I connected it</button>
-                      <button @click="retryOAuth(svc)" class="cred-btn cred-btn--retry">â†º Retry</button>
+                      <button @click="confirmConnected(svc.name)" class="cred-btn cred-btn--confirm">✓ I connected it</button>
+                      <button @click="retryOAuth(svc)" class="cred-btn cred-btn--retry">↺ Retry</button>
                     </template>
                     <button
                       v-else-if="credState[svc.name] !== 'connected' && credState[svc.name] !== 'skipped'"
@@ -141,13 +159,13 @@
                       :disabled="connectingService === svc.name"
                       class="cred-btn cred-btn--connect"
                       :class="{ 'cred-btn--reauth': svc.needs_reauth }"
-                    >{{ connectingService === svc.name ? 'Openingâ€¦' : (svc.needs_reauth ? 'Re-authorize' : 'Connect') }}</button>
+                    >{{ connectingService === svc.name ? 'Opening…' : (svc.needs_reauth ? 'Re-authorize' : 'Connect') }}</button>
                     <button
                       v-else-if="credState[svc.name] === 'connected'"
                       @click="retryOAuth(svc)"
                       class="cred-btn cred-btn--retry-small"
                       title="Re-connect"
-                    >â†º</button>
+                    >↺</button>
                   </template><template v-else>
                     <!-- Existing creds: show as selectable rows, one per unique credential -->
                     <template v-if="svc.existing_creds_available && credState[svc.name] !== 'connected'">
@@ -159,7 +177,7 @@
                           @click="useExistingCred(svc.name, cred.name)"
                         >
                           <span class="picker-cred-name">{{ cred.name }}</span>
-                          <span v-if="cred.is_default" class="picker-badge picker-badge--default">â˜… Default</span>
+                          <span v-if="cred.is_default" class="picker-badge picker-badge--default">★ Default</span>
                           <span v-if="cred.agents?.length" class="picker-badge picker-badge--agent">
                             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z"/></svg>
                             {{ cred.agents.join(', ') }}
@@ -181,13 +199,13 @@
                     >Done</button>
                   </template>
 
-                  <!-- Skip Ã— -->
+                  <!-- Skip × -->
                   <button
                     v-if="credState[svc.name] !== 'connected' && credState[svc.name] !== 'skipped'"
                     @click="skipService(svc.name)"
                     class="cred-btn-skip"
                     title="Skip this service"
-                  >Ã—</button>
+                  >×</button>
                 </div>
               </div>
 
@@ -195,7 +213,7 @@
               <div v-if="expandedInstructions" class="instructions-box">
                 <pre>{{ getInstructions(expandedInstructions) }}</pre>
                 <div class="instructions-footer">
-                  ðŸ’¡ To add credentials directly: go to <strong>Settings â†’ Agents â†’ [this agent] â†’ Credentials</strong> and add the API key there, then come back and click <em>Done</em>.
+                  💡 To add credentials directly: go to <strong>Settings → Agents → [this agent] → Credentials</strong> and add the API key there, then come back and click <em>Done</em>.
                 </div>
               </div>
 
@@ -210,12 +228,12 @@
                 :disabled="!allServicesResolved"
                 class="btn btn-submit cred-done-btn"
               >
-                Done â€” resume agent
+                Done — resume agent
               </button>
             </div>
 
             <!-- Optional Feedback (not shown for credential_setup or compact-ask cards) -->
-            <div v-if="currentRequest.response_type !== 'none' && currentRequest.interaction_type !== 'credential_setup' && !isCompactAsk" class="feedback-section">
+            <div v-if="currentRequest.response_type !== 'none' && currentRequest.interaction_type !== 'credential_setup' && !isDocked" class="feedback-section">
               <label for="feedback">Optional Comment:</label>
               <textarea
                 id="feedback"
@@ -231,7 +249,7 @@
           <div class="modal-footer">
             <div class="footer-left">
               <span v-if="currentRequest.timeout_at" class="timeout-indicator" :class="{'timeout-warning': isNearTimeout}">
-                â± {{ timeRemaining }}
+                ⏱ {{ timeRemaining }}
               </span>
               <span v-if="pendingRequests.length > 1" class="queue-indicator">
                 {{ pendingRequests.length }} pending requests
@@ -264,6 +282,7 @@ const emit = defineEmits(['respond', 'dismiss', 'skip']);
 // State
 const textResponse = ref('');
 const feedback = ref('');
+const instruction = ref('');
 const currentTime = ref(Date.now());
 
 // Current request (first in queue)
@@ -276,16 +295,46 @@ const isCompactAsk = computed(() =>
   ['choice', 'question', 'clarification'].includes(currentRequest.value?.interaction_type)
 );
 
+// A tool-approval card ("Approve SSH_EXEC?") — the command is shown in the action preview.
+const isToolApproval = computed(() => currentRequest.value?.payload?.kind === 'tool_approval');
+
+// Docked = a small card that sits just above the chat composer (Claude-style) instead of a
+// full-screen blocking modal. Used for quick decisions: clarifications AND tool approvals.
+const isDocked = computed(() => isCompactAsk.value || isToolApproval.value);
+
 // Control-only payload keys that should NOT surface a "View Details" dump to the user.
 const CONTROL_PAYLOAD_KEYS = ['allow_text', 'interpretation', 'confidence',
   'original_interpretation', 'ambiguities', 'suggested_plan'];
 
-// Payload has meaningful (user-facing) content worth a "View Details" expander.
+// Payload has meaningful (user-facing) content worth a "View Details" expander. We DON'T show raw
+// JSON for compact asks or tool approvals — a tool approval already shows the exact command in the
+// action preview, so the raw payload dump is just noise.
 const hasPayloadContent = computed(() => {
   const p = currentRequest.value?.payload;
   if (!p) return false;
-  if (isCompactAsk.value) return false;   // keep clarification cards small
+  if (isCompactAsk.value || isToolApproval.value) return false;
   return Object.keys(p).some(k => !CONTROL_PAYLOAD_KEYS.includes(k));
+});
+
+// For a tool-approval card: the EXACT command(s)/action that will run if approved. Prefer the
+// backend-built `preview`; fall back to the raw commands/args so the user always sees what runs.
+const actionPreview = computed(() => {
+  const p = currentRequest.value?.payload;
+  if (!p || p.kind !== 'tool_approval') return '';
+  if (p.preview) return p.preview;
+  const a = p.parameters || p.tool_args || {};
+  if (Array.isArray(a.commands)) return a.commands.map(c => `$ ${c}`).join('\n');
+  for (const k of ['command', 'query', 'sql', 'script', 'code', 'url', 'path']) {
+    if (a[k]) return String(a[k]);
+  }
+  return '';
+});
+
+// Title line — for tool approvals, keep it short ("Approve SSH_EXEC?") since the command shows below.
+const approvalTitle = computed(() => {
+  const p = currentRequest.value?.payload;
+  if (p?.kind === 'tool_approval' && p.tool_name) return `Approve ${p.tool_name}?`;
+  return currentRequest.value?.summary || '';
 });
 
 // Time remaining calculation
@@ -316,21 +365,21 @@ const isNearTimeout = computed(() => {
 // Icon mapping
 const getIcon = (type) => {
   const icons = {
-    'approval': 'âœ“',
-    'choice': 'â˜°',
+    'approval': '✓',
+    'choice': '☰',
     'question': '?',
-    'clarification': 'ðŸ’¬',
-    'validation': 'âœ“',
-    'review': 'ðŸ‘',
-    'escalation': 'âš ',
-    'alert': 'â„¹',
-    'progress': 'â³',
-    'collaboration': 'ðŸ‘¥',
-    'confirmation': 'âœ“',
-    'preference': 'âš™',
-    'credential_setup': 'ðŸ”‘',
+    'clarification': '💬',
+    'validation': '✓',
+    'review': '👁',
+    'escalation': '⚠',
+    'alert': 'ℹ',
+    'progress': '⏳',
+    'collaboration': '👥',
+    'confirmation': '✓',
+    'preference': '⚙',
+    'credential_setup': '🔑',
   };
-  return icons[type] || 'â€¢';
+  return icons[type] || '•';
 };
 
 // Title mapping
@@ -341,7 +390,7 @@ const getTitle = (type) => {
     'question': 'Question',
     'clarification': 'Clarification Needed',
     'validation': 'Validation Request',
-    'review': 'Review Required',
+    'review': '👁',
     'escalation': 'Issue Escalation',
     'alert': 'Notification',
     'progress': 'Progress Update',
@@ -354,18 +403,26 @@ const getTitle = (type) => {
 };
 
 // Actions
-const respond = (value) => {
+const respond = (value, feedbackOverride = null) => {
   if (!currentRequest.value) return;
-  
+
   emit('respond', {
     request_id: currentRequest.value.request_id,
     response_value: value,
-    feedback: feedback.value
+    feedback: feedbackOverride != null ? feedbackOverride : feedback.value
   });
-  
+
   // Reset form
   textResponse.value = '';
   feedback.value = '';
+  instruction.value = '';
+};
+
+// "Run this instead": reject the proposed call but hand the agent a corrected instruction
+// (e.g. "only run docker ps"). The agent re-issues the fixed command — which is gated again.
+const sendInstruction = () => {
+  const t = instruction.value.trim();
+  if (t) respond(false, `Do not run that as-is. Instead: ${t}`);
 };
 
 const dismiss = () => {
@@ -396,9 +453,9 @@ onUnmounted(() => {
   if (intervalId) clearInterval(intervalId);
 });
 
-// â”€â”€ Credential Setup State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Credential Setup State ───────────────────────────────────────────────────
 
-// All services from payload â€” include both needs-setup and already-connected
+// All services from payload — include both needs-setup and already-connected
 const credServices = computed(() => {
   return currentRequest.value?.services ||
     currentRequest.value?.payload?.services || [];
@@ -450,7 +507,7 @@ const openOAuthPopup = async (svc) => {
     if (!popup || popup.closed) {
       clearInterval(poll);
       connectingService.value = null;
-      // Don't auto-mark connected â€” wait for explicit confirmation
+      // Don't auto-mark connected — wait for explicit confirmation
       if (credState.value[svc.name] !== 'connected') {
         credState.value = { ...credState.value, [svc.name]: 'pending_confirm' };
       }
@@ -582,6 +639,16 @@ watch(currentRequest, () => {
 .hitl-modal--compact .choice-text-row { margin-top: 10px; }
 .hitl-modal--compact .modal-footer { padding: 8px 18px; background: transparent; border-top: none; }
 
+/* Tool-approval card ("Approve SSH_EXEC?") — docked + compact like a clarification, but a bit wider
+   so the command is readable, and with tighter spacing so it stays small near the composer. */
+.hitl-modal--compact.hitl-modal--approval { max-width: 520px; }
+.hitl-modal--approval .modal-body { padding-top: 8px; }
+.hitl-modal--approval .summary { margin-bottom: 10px; }
+.hitl-modal--approval .action-preview { margin-bottom: 12px; }
+.hitl-modal--approval .action-preview__cmd { max-height: 160px; font-size: 12px; }
+.hitl-modal--approval .button-group { gap: 10px; }
+.hitl-modal--approval .btn { padding: 10px 18px; }
+
 /* Compact ask = small card DOCKED at the bottom of the chat (Claude AskUserQuestion style) — NOT a
    full-screen dark overlay. No backdrop, so the conversation stays visible AND interactive behind it. */
 .hitl-overlay--compact {
@@ -600,6 +667,10 @@ watch(currentRequest, () => {
   border: 1px solid #e5e7eb;
   animation: hitlDockUp 0.22s ease-out;
 }
+/* Keep the urgency accent visible on the docked card (the 1px border above would hide it). */
+.hitl-overlay--compact .hitl-modal.urgency-critical { border-top: 3px solid #dc2626; }
+.hitl-overlay--compact .hitl-modal.urgency-high { border-top: 3px solid #ef4444; }
+.hitl-overlay--compact .hitl-modal.urgency-medium { border-top: 3px solid #f59e0b; }
 @keyframes hitlDockUp {
   from { transform: translateY(16px); opacity: 0; }
   to   { transform: translateY(0); opacity: 1; }
@@ -693,6 +764,80 @@ watch(currentRequest, () => {
   overflow-y: auto;
   flex: 1;
 }
+
+.action-preview {
+  margin: 0 0 18px 0;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.action-preview__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #92400e;
+  background: #fef3c7;
+  border-bottom: 1px solid #fde68a;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.action-preview__risk {
+  margin-left: auto;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #b45309;
+}
+.action-preview__cmd {
+  margin: 0;
+  padding: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #1f2937;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.instruction-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: center;
+}
+.instruction-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #111827;
+}
+.instruction-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+.btn-instruct {
+  white-space: nowrap;
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-instruct:hover:not(:disabled) { background: #e0e7ff; }
+.btn-instruct:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .summary {
   font-size: 15px;
@@ -974,7 +1119,7 @@ watch(currentRequest, () => {
   opacity: 0;
 }
 
-/* â”€â”€ Credential Setup â”€â”€â”€ */
+/* ── Credential Setup ─── */
 .hitl-modal.type-credential_setup {
   max-width: 680px;
 }
@@ -1282,7 +1427,7 @@ watch(currentRequest, () => {
   margin-left: 2px;
 }
 
-/* Credential chip row â€” matches admin AgentCredential list style */
+/* Credential chip row — matches admin AgentCredential list style */
 .existing-cred-label {
   display: inline-flex;
   align-items: center;
@@ -1297,7 +1442,7 @@ watch(currentRequest, () => {
   white-space: nowrap;
 }
 
-/* "â˜… Default" accent badge inside the chip */
+/* "★ Default" accent badge inside the chip */
 .existing-cred-default {
   font-size: 10px;
   font-weight: 600;
@@ -1315,7 +1460,7 @@ watch(currentRequest, () => {
   border: 1px solid #BFDBFE;
 }
 
-/* Credential picker â€” replaces single Use Existing button */
+/* Credential picker — replaces single Use Existing button */
 .cred-picker {
   display: flex;
   flex-direction: column;

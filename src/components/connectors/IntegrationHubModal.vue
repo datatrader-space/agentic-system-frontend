@@ -220,7 +220,10 @@
               <p v-if="!installedItems.length" class="py-10 text-center text-[13px] text-ink-faint">Nothing installed yet — connect one from the Integration Hub.</p>
               <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <div v-for="c in installedItems" :key="c.kind + c.id" class="rounded-xl border border-slate-200 p-4 flex items-center gap-2.5">
-                  <span class="w-9 h-9 rounded-lg bg-slate-50 border border-slate-200/60 flex items-center justify-center font-bold text-slate-600">{{ (c.name||'?').charAt(0) }}</span>
+                  <span class="w-9 h-9 rounded-lg bg-white border border-slate-200/60 flex items-center justify-center overflow-hidden shrink-0">
+                    <Icon v-if="c.icon && c.icon.includes(':')" :icon="c.icon" class="w-6 h-6" />
+                    <span v-else class="font-bold text-slate-600">{{ (c.name||'?').charAt(0) }}</span>
+                  </span>
                   <div class="min-w-0"><div class="text-[13px] font-bold text-ink truncate">{{ c.name }}</div><div class="text-[11px] text-emerald-600 font-semibold">Connected</div></div>
                 </div>
               </div>
@@ -428,12 +431,42 @@ function catSubtitle(cat) {
     'E-commerce & Payments': 'Stores, payments, and billing',
   }[cat] || ''
 }
+// Map a known provider/service to its real brand logo (iconify), so installed cards show the platform
+// logo instead of a letter fallback. Falls back to any iconify icon the connector already carries.
+const _LOGO_BY_KEY = {
+  github: 'logos:github-icon', slack: 'logos:slack-icon', gmail: 'logos:google-gmail',
+  notion: 'logos:notion-icon', postgres: 'logos:postgresql', postgresql: 'logos:postgresql',
+  stripe: 'logos:stripe', shopify: 'logos:shopify',
+}
+function _logoFor(item) {
+  if (item.icon && item.icon.includes(':')) return item.icon            // connector already has a logo
+  const key = String(item.provider_slug || item.id || item.name || '').toLowerCase().trim()
+  return _LOGO_BY_KEY[key] || null                                       // null -> letter fallback
+}
+// Dedupe key: a built-in service can appear BOTH in props.connectors (kind='builtin') and in the
+// services map — without this, GitHub shows twice. Normalize on provider/name so each platform is one.
+function _identityKey(item) {
+  return String(item.provider_slug || item.name || item.id || '')
+    .toLowerCase().replace(/\s+/g, '')
+}
 const installedItems = computed(() => {
-  const arr = props.connectors.filter((c) => c.connected).map((c) => ({ kind: c.kind, id: c.id, name: c.name }))
-  for (const s of Object.values(services.value)) {
-    if (s.connected) arr.unshift({ kind: 'service', id: s.key, name: s.name })
+  const out = []
+  const seen = new Set()
+  const add = (it) => {
+    const k = _identityKey(it)
+    if (!k || seen.has(k)) return
+    seen.add(k)
+    out.push({ ...it, icon: _logoFor(it) })
   }
-  return arr
+  // Unified connector list first (carries real icon + provider_slug for built-ins/services/MCP).
+  for (const c of props.connectors) {
+    if (c.connected) add({ kind: c.kind, id: c.id, name: c.name, icon: c.icon, provider_slug: c.provider_slug })
+  }
+  // Built-in services fetched here — only added if not already represented above (dedupe).
+  for (const s of Object.values(services.value)) {
+    if (s.connected) add({ kind: 'service', id: s.key, name: s.name, provider_slug: s.key })
+  }
+  return out
 })
 
 // ── Detail / install actions (service-generic; driven by the open detailItem) ──

@@ -75,6 +75,73 @@ api.interceptors.response.use(
   }
 )
 
+// ───────────────────────────────────────────────────────────────────────────
+// GET request DEDUP + short-TTL CACHE
+//
+// Two cheap, broad wins for page-load speed:
+//  1) Dedup: concurrent identical GETs share ONE in-flight promise, so two components mounting at
+//     once (e.g. AgentBuilder + LLMSettings both calling /llm/providers/) make ONE network call.
+//  2) Cache: slow-changing reference data is served from memory for a few seconds, so navigating
+//     between tabs doesn't refetch providers/models/tools/etc. Any write (post/put/patch/delete)
+//     clears the cache, so data is never stale after a mutation. Pass { noCache: true } to bypass.
+// ───────────────────────────────────────────────────────────────────────────
+const _inflight = new Map()
+const _cache = new Map()
+
+// url-path → cache TTL in ms (0 = dedup only, no caching). Matched by substring.
+const _CACHE_TTL = [
+  ['/auth/me', 60_000], ['/auth/check', 60_000],
+  ['/llm/providers', 60_000], ['/llm/models', 60_000],
+  ['/tools/definitions', 60_000], ['/services/', 60_000], ['/mcp/servers', 60_000],
+  ['/connectors', 30_000], ['/credentials/builtin-scopes', 300_000],
+  ['/v2/orgs', 60_000], ['/workspaces', 60_000],
+]
+function _ttlFor(url) {
+  for (const [frag, ttl] of _CACHE_TTL) if (url.includes(frag)) return ttl
+  return 0
+}
+function _key(url, config) {
+  return url + '::' + JSON.stringify((config && config.params) || {})
+}
+
+const _rawGet = api.get.bind(api)
+api.get = (url, config = {}) => {
+  const key = _key(url, config)
+  const ttl = config.noCache ? 0 : _ttlFor(url)
+  const now = Date.now()
+  if (ttl) {
+    const c = _cache.get(key)
+    if (c && c.expiry > now) {
+      // Return a fresh shallow copy so a caller mutating .data can't corrupt the cached copy.
+      return Promise.resolve({ ...c.resp, data: _clone(c.resp.data), _cached: true })
+    }
+  }
+  if (_inflight.has(key)) return _inflight.get(key)
+  const p = _rawGet(url, config)
+    .then((resp) => {
+      _inflight.delete(key)
+      if (ttl) _cache.set(key, { resp, expiry: Date.now() + ttl })
+      return resp
+    })
+    .catch((err) => { _inflight.delete(key); throw err })
+  _inflight.set(key, p)
+  return p
+}
+
+function _clone(d) {
+  try { return (typeof structuredClone === 'function') ? structuredClone(d) : JSON.parse(JSON.stringify(d)) }
+  catch { return d }
+}
+
+// Any mutation invalidates the whole GET cache (simple + always-correct; writes are rare vs reads).
+for (const m of ['post', 'put', 'patch', 'delete']) {
+  const raw = api[m].bind(api)
+  api[m] = (...args) => { _cache.clear(); return raw(...args) }
+}
+
+// Exposed so auth flows (login/logout) can hard-reset cached user/reference data.
+export function clearApiCache() { _cache.clear(); _inflight.clear() }
+
 // API methods
 export default {
   // Generic methods
@@ -378,6 +445,17 @@ export default {
   indexAgentFile: (fileId) => api.post(`/context_files/${fileId}/index/`),
   // Poll fallback for index status (WS push is primary).
   getAgentFileStatus: (fileId) => api.get(`/context_files/${fileId}/status/`),
+  // ── Website knowledge sources (crawl → index → RAG). Live progress on the knowledge-index WS. ──
+  discoverWebSource: (data) => api.post('/web_sources/discover/', data),
+  getWebSource: (id) => api.get(`/web_sources/${id}/`),
+  listWebSources: (agentId) => api.get('/web_sources/', { params: { agent_id: agentId } }),
+  addWebSource: (id, data) => api.post(`/web_sources/${id}/add/`, data),
+  reindexWebSource: (id) => api.post(`/web_sources/${id}/reindex/`),
+  cancelWebSource: (id) => api.post(`/web_sources/${id}/cancel/`),
+  deleteWebSource: (id) => api.delete(`/web_sources/${id}/`),
+  getWebSourcePages: (id, params = {}) => api.get(`/web_sources/${id}/pages/`, { params }),
+  addWebSourcePages: (id, urls) => api.post(`/web_sources/${id}/add_pages/`, { urls }),
+  setWebSourceRecrawl: (id, recrawl_schedule) => api.post(`/web_sources/${id}/set_schedule/`, { recrawl_schedule }),
   uploadConversationFile: (conversationPk, file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -386,6 +464,14 @@ export default {
   getContextFiles: (conversationPk) => api.get(`/conversations/${conversationPk}/files/`),
   deleteContextFile: (conversationPk, fileId) => api.delete(`/conversations/${conversationPk}/files/${fileId}/`),
   deleteGenericFile: (fileId) => api.delete(`/context_files/${fileId}/`),
+
+  // Agent Workflows — saved prompt templates / "macros" scoped to one agent profile.
+  // Backend: agent/view_handlers/workflow_views.py (POST requires profile_id + name).
+  getWorkflows: (profileId) => api.get('/workflows/', { params: profileId ? { profile_id: profileId } : {} }),
+  createWorkflow: (payload) => api.post('/workflows/', payload),
+  updateWorkflow: (id, payload) => api.put(`/workflows/${id}/`, payload),
+  deleteWorkflow: (id) => api.delete(`/workflows/${id}/`),
+  runWorkflow: (id) => api.post(`/workflows/${id}/run/`),
 
   // Agent Chat
   startAgentChat: (agentProfileId, repositoryId = null) => {

@@ -69,6 +69,11 @@ export class ChatConnection {
       // before the socket opened.
       const pending = this.queue.splice(0)
       pending.forEach((m) => this._raw(m))
+      // Reopening an existing conversation: ask the server to resume any turn still running for it
+      // (live re-stream after a refresh). No-op for a brand-new chat (no conversation id yet).
+      if (this.conversationId) {
+        try { this._raw({ type: 'resume', conversation_id: this.conversationId }) } catch (e) { /* noop */ }
+      }
       this.handlers.onOpen?.()
     }
     this.ws.onmessage = (e) => {

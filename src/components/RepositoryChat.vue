@@ -277,7 +277,7 @@ let wsRepositoryId = null
 // Shared HITL approval handling (same as New Chat / Emulator / Playground).
 const { hitlRequests, handleHitlEvent, respondHitl, dismissHitl, skipHitl } = useHitl((obj) => {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj))
-})
+}, () => conversationId.value)
 let isConnecting = false
 let autoReconnect = true
 let reconnectTimeout = null
@@ -362,6 +362,11 @@ const connectWebSocket = (repositoryId = props.repository.id) => {
     isConnecting = false
     reconnectAttempts = 0      // healthy connection — clear the backoff
     console.log('WebSocket connected')
+    // Reopening a conversation: ask the server to resume any turn still running for it (live
+    // re-stream after a refresh / navigate-away). No-op for a brand-new chat (no conversation yet).
+    if (conversationId.value) {
+      try { ws.send(JSON.stringify({ type: 'resume', conversation_id: conversationId.value })) } catch (e) { /* noop */ }
+    }
   }
 
   ws.onclose = () => {
@@ -441,6 +446,8 @@ const closeWebSocket = ({ disableReconnect = false } = {}) => new Promise((resol
 })
 
 const handleWebSocketMessage = (data) => {
+  // Server keepalive heartbeat — keeps the socket alive through long turns; nothing to render.
+  if (data.type === 'ping') return
   // HITL approval events handled by the shared composable (queue + modal).
   if (handleHitlEvent(data)) return
   switch (data.type) {
@@ -499,6 +506,18 @@ const handleWebSocketMessage = (data) => {
           result: data.result
         })
       }
+      break
+
+    case 'turn_resumed':
+      // A turn is still running for this conversation (we returned mid-generation). Show the
+      // generating state; its live tokens stream in and build a fresh streaming message, finalized
+      // by assistant_message_complete (which carries the full text).
+      isTyping.value = true
+      currentStreamingMessage = ''
+      break
+
+    case 'turn_not_running':
+      // Nothing running — the saved answer (if any) is already loaded from history.
       break
 
     case 'pong':

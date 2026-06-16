@@ -30,7 +30,7 @@
     <!-- Tabs Header (hidden in canvas layout — sections stack instead) -->
     <div v-if="layout === 'tabs'" class="flex border-b border-gray-200 px-4 shrink-0 bg-white">
         <button 
-            v-for="tab in ['General', 'Knowledge', 'Tools', 'Credentials', 'Signals', 'Schedules']" 
+            v-for="tab in ['General', 'Knowledge', 'Workflows', 'Tools', 'Credentials', 'Signals', 'Schedules']"
             :key="tab"
             @click="activeTab = tab"
             :class="['px-4 py-3 text-sm font-medium border-b-2 transition-colors', activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
@@ -441,13 +441,22 @@
           class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition inline-flex items-center gap-1.5">
           <Upload class="w-4 h-4" /> Upload file
         </button>
-        <button v-for="s in knowledgeSources" :key="s.key" type="button" disabled
-          :title="s.label + ' — connect later (backend coming soon)'"
-          :style="{ color: s.color, borderColor: s.color + '55', background: s.color + '0f' }"
-          class="text-xs font-semibold px-3 py-1.5 rounded-lg border cursor-not-allowed flex items-center gap-1.5">
-          <component :is="s.icon" class="w-3.5 h-3.5" /> {{ s.label }}
-          <span class="ml-0.5 text-[9px] uppercase rounded px-1 py-0.5" :style="{ background: s.color + '22' }">soon</span>
-        </button>
+        <template v-for="s in knowledgeSources" :key="s.key">
+          <!-- Website is live; the rest are coming soon. -->
+          <button v-if="s.key === 'website'" type="button" @click="openWebsiteModal"
+            :title="'Add a website source'"
+            :style="{ color: s.color, borderColor: s.color + '55', background: s.color + '0f' }"
+            class="text-xs font-semibold px-3 py-1.5 rounded-lg border hover:brightness-95 transition flex items-center gap-1.5">
+            <component :is="s.icon" class="w-3.5 h-3.5" /> {{ s.label }}
+          </button>
+          <button v-else type="button" disabled
+            :title="s.label + ' — connect later (backend coming soon)'"
+            :style="{ color: s.color, borderColor: s.color + '55', background: s.color + '0f' }"
+            class="text-xs font-semibold px-3 py-1.5 rounded-lg border cursor-not-allowed flex items-center gap-1.5">
+            <component :is="s.icon" class="w-3.5 h-3.5" /> {{ s.label }}
+            <span class="ml-0.5 text-[9px] uppercase rounded px-1 py-0.5" :style="{ background: s.color + '22' }">soon</span>
+          </button>
+        </template>
       </div>
       <div v-if="layout === 'canvas' || activeTab === 'Knowledge'"
         :class="['space-y-6', layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : '']">
@@ -524,9 +533,65 @@
                         <div v-if="fileIndex(file).message" class="text-[10px] text-gray-400 mt-1 truncate">{{ fileIndex(file).message }}</div>
                     </div>
                 </div>
+
+                <!-- Website sources (one row per site) -->
+                <div v-for="ws in webSources" :key="'ws-' + ws.id"
+                     class="group relative bg-white border border-gray-200 rounded-lg p-3 hover:border-indigo-300 transition">
+                    <div class="flex justify-between items-start mb-1">
+                        <div class="flex items-center gap-2 min-w-0 cursor-pointer" @click="openPagesModal(ws)" title="View pages">
+                            <Globe class="w-4 h-4 text-blue-600 shrink-0" />
+                            <div class="font-medium text-sm text-gray-800 truncate hover:text-indigo-600">{{ ws.display_name || ws.root_url }}</div>
+                            <span class="text-[11px] text-blue-500 shrink-0">{{ ws.discovered_count }} pages</span>
+                        </div>
+                        <div class="flex items-center gap-2 shrink-0">
+                            <button v-if="ws.status === 'indexing'" @click.stop="cancelWeb(ws)" title="Cancel"
+                                    class="text-[11px] text-gray-400 hover:text-amber-600 opacity-0 group-hover:opacity-100 transition">Cancel</button>
+                            <button v-else @click.stop="reindexWeb(ws)" title="Re-index"
+                                    class="text-[11px] text-gray-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition">Re-index</button>
+                            <button @click.stop="removeWeb(ws)" title="Remove"
+                                    class="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition">×</button>
+                        </div>
+                    </div>
+                    <!-- ready -->
+                    <div v-if="ws.status === 'ready' || ws.status === 'partial'" class="flex items-center gap-1.5 text-xs mt-1"
+                         :class="ws.status === 'partial' ? 'text-amber-600' : 'text-emerald-600'">
+                        <span>✓</span>
+                        <span>Indexed {{ ws.indexed_count }} page(s)<span v-if="ws.chunk_count"> · {{ ws.chunk_count }} chunks</span>
+                          <span v-if="ws.failed_count"> · {{ ws.failed_count }} failed</span>
+                          <span class="text-gray-400"> · added {{ relativeTime(ws.finished_at || ws.updated_at) }}</span></span>
+                    </div>
+                    <!-- failed / cancelled -->
+                    <div v-else-if="ws.status === 'failed'" class="text-xs text-red-600 mt-1 flex items-center gap-2">
+                        <span class="truncate">⚠ {{ ws.error || 'Indexing failed' }}</span>
+                        <button @click.stop="reindexWeb(ws)" class="underline text-indigo-600 hover:text-indigo-800 shrink-0">Retry</button>
+                    </div>
+                    <div v-else-if="ws.status === 'cancelled'" class="text-xs text-gray-500 mt-1">Cancelled · {{ ws.indexed_count }} indexed</div>
+                    <!-- discovering / indexing -->
+                    <div v-else class="mt-1.5">
+                        <div class="flex items-center justify-between text-[11px] text-gray-500 mb-1">
+                            <span class="flex items-center gap-1.5">
+                                <span class="w-3 h-3 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin"></span>
+                                {{ ws.status === 'discovering' ? 'Discovering pages…' : `Indexing ${ws.selected_count || ws.discovered_count} pages` }}
+                            </span>
+                            <span v-if="ws.status === 'indexing'">{{ webPercent(ws) }}%</span>
+                        </div>
+                        <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                            <div class="h-full bg-blue-500 transition-all duration-300"
+                                 :class="{ 'animate-pulse': ws.status === 'discovering' }"
+                                 :style="{ width: (ws.status === 'indexing' ? webPercent(ws) : 10) + '%' }"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
       </div>
+
+      <!-- Add Website Source modal -->
+      <AddWebsiteSourceModal v-if="showWebsiteModal" :agent-id="internalAgent.id"
+        @close="showWebsiteModal = false" @added="onWebSourceAdded" />
+      <!-- Website pages detail modal -->
+      <WebSourcePagesModal v-if="pagesModalSource" :source="pagesModalSource"
+        @close="pagesModalSource = null" @updated="onWebSourceUpdated" />
 
       <!-- Analysis Modal -->
       <div v-if="showAnalysisModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" @click.self="showAnalysisModal = false">
@@ -554,6 +619,80 @@
         </div>
       </div>
 
+      </div>
+
+      <!-- TAB: WORKFLOWS — saved prompt "macros" this agent can run on demand (backend: /api/workflows/) -->
+      <div v-if="layout === 'canvas'" id="sec-workflows" class="vm-anchor flex items-center gap-3 pt-2">
+        <span class="w-7 h-7 rounded-lg bg-teal-600 text-white flex items-center justify-center shrink-0"><Zap class="w-4 h-4" /></span>
+        <div>
+          <div class="text-[15px] font-bold text-gray-900 leading-tight">Workflows</div>
+          <div class="text-xs text-gray-500">Reusable prompts (macros) this agent can run on demand.</div>
+        </div>
+      </div>
+      <div v-if="layout === 'canvas' || activeTab === 'Workflows'"
+        :class="['space-y-3', layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : '']">
+
+        <div class="flex items-center justify-between gap-3">
+          <label class="block text-sm font-medium text-gray-700">Workflows</label>
+          <button type="button" @click="openWorkflowForm()"
+            class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-teal-50 border border-teal-200 text-teal-700 hover:bg-teal-100 transition inline-flex items-center gap-1.5">
+            <Zap class="w-3.5 h-3.5" /> New workflow
+          </button>
+        </div>
+
+        <div v-if="workflowsLoading" class="text-xs text-gray-400 text-center py-3">Loading workflows…</div>
+        <div v-else-if="!workflows.length && !showWorkflowForm" class="text-xs text-gray-400 text-center italic py-3">
+          No workflows yet. Add a reusable prompt your agent can run on demand (e.g. “Summarize today’s open PRs”).
+        </div>
+
+        <!-- Workflow list -->
+        <div v-else class="space-y-2">
+          <div v-for="wf in workflows" :key="wf.id"
+            class="group bg-white border border-gray-200 rounded-lg p-3 hover:border-indigo-300 transition">
+            <div class="flex justify-between items-start gap-2">
+              <div class="min-w-0 flex-1">
+                <div class="font-medium text-sm text-gray-800 truncate">{{ wf.name }}</div>
+                <div class="text-xs text-gray-500 mt-0.5 truncate">{{ wf.prompt }}</div>
+                <div class="flex items-center gap-2 mt-1">
+                  <span class="text-[10px] uppercase rounded px-1.5 py-0.5 bg-teal-50 text-teal-700 border border-teal-200">{{ wf.category || 'general' }}</span>
+                  <span v-if="wf.execution_count" class="text-[10px] text-gray-400">{{ wf.execution_count }} run{{ wf.execution_count === 1 ? '' : 's' }}</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition">
+                <button @click="runWorkflowItem(wf)" :disabled="wfBusy" title="Run now"
+                  class="text-xs px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">▶ Run</button>
+                <button @click="openWorkflowForm(wf)" title="Edit"
+                  class="text-xs px-2 py-1 rounded text-gray-500 hover:bg-gray-100">Edit</button>
+                <button @click="deleteWorkflowItem(wf)" :disabled="wfBusy" title="Delete"
+                  class="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 disabled:opacity-50">×</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Create / edit form (inline) -->
+        <div v-if="showWorkflowForm" class="mt-2 rounded-lg border border-indigo-200 bg-indigo-50/40 p-3 space-y-2">
+          <div class="text-xs font-semibold text-gray-700">{{ editingWorkflow ? 'Edit workflow' : 'New workflow' }}</div>
+          <input v-model="wfName" placeholder="Name (e.g. Daily standup summary)"
+            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:outline-none" />
+          <textarea v-model="wfPrompt" rows="3" placeholder="The prompt this workflow sends to the agent…"
+            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-300 focus:outline-none"></textarea>
+          <div class="flex items-center gap-2">
+            <select v-model="wfCategory" class="px-2 py-1.5 text-xs border border-gray-300 rounded-lg bg-white">
+              <option value="general">General</option>
+              <option value="deployment">Deployment</option>
+              <option value="monitoring">Monitoring</option>
+              <option value="reporting">Reporting</option>
+            </select>
+            <div class="flex-1"></div>
+            <button @click="closeWorkflowForm" class="text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200">Cancel</button>
+            <button @click="saveWorkflow" :disabled="!wfName.trim() || !wfPrompt.trim() || wfBusy"
+              class="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+              {{ wfBusy ? 'Saving…' : (editingWorkflow ? 'Update' : 'Create') }}
+            </button>
+          </div>
+          <p v-if="!internalAgent.id" class="text-[11px] text-gray-400">A draft of this agent is saved automatically when you create the first workflow.</p>
+        </div>
       </div>
 
       <!-- TAB: TOOLS -->
@@ -1122,6 +1261,10 @@ import { modeKey, modeLabel } from '../composables/agentModes';
 import { Icon } from '@iconify/vue';
 import { notify } from '@/composables/useNotify';
 import { confirm } from '@/composables/useConfirm';
+import AddWebsiteSourceModal from './knowledge/AddWebsiteSourceModal.vue';
+import WebSourcePagesModal from './knowledge/WebSourcePagesModal.vue';
+import { useRelativeTime } from '@/composables/useRelativeTime';
+const { relativeTime } = useRelativeTime();
 
 const props = defineProps({
     agent: {
@@ -1982,6 +2125,95 @@ defineExpose({ save, ensureSaved, markClean, isDirty });
 const indexProgress = ref({});
 const kbWs = ref(null);
 
+// ── Website knowledge sources (crawl → index). One row per site; live status over the KB WS. ──
+const webSources = ref([]);
+const showWebsiteModal = ref(false);
+const pagesModalSource = ref(null);
+
+function openPagesModal(ws) { pagesModalSource.value = ws; }
+function onWebSourceUpdated(src) {
+  if (!src || !src.id) { loadWebSources(); return; }
+  const i = webSources.value.findIndex(w => w.id === src.id);
+  if (i >= 0) webSources.value[i] = { ...webSources.value[i], ...src };
+  if (pagesModalSource.value && pagesModalSource.value.id === src.id) {
+    pagesModalSource.value = { ...pagesModalSource.value, ...src };
+  }
+  connectKbWs();   // a re-index/add-pages kicks off indexing → listen for progress
+}
+
+function webPercent(ws) {
+  const total = ws.selected_count || ws.discovered_count || 0;
+  const done = (ws.indexed_count || 0) + (ws.failed_count || 0);
+  return total ? Math.min(100, Math.round((done / total) * 100)) : 0;
+}
+
+async function loadWebSources() {
+  const id = internalAgent.value.id;
+  if (!id) return;
+  try {
+    const r = await api.listWebSources(id);
+    webSources.value = r.data?.results || r.data || [];
+  } catch (e) { /* non-fatal */ }
+}
+
+function openWebsiteModal() {
+  // Show the modal IMMEDIATELY (never block the UI on a save). If the agent isn't saved yet, save it
+  // in the BACKGROUND — the modal's :agent-id prop is reactive, so it fills in once the id exists. A
+  // brand-new agent can't be saved until it has a system prompt; if that's the case, tell the user
+  // (so the website attaches to the agent) rather than failing silently.
+  showWebsiteModal.value = true;
+  if (!internalAgent.value.id) {
+    Promise.resolve(ensureSaved()).catch(() => {
+      notify.info('Give your agent a name + system prompt and it will be saved automatically so the website attaches to it.');
+    });
+  }
+}
+
+function onWebSourceAdded(src) {
+  const i = webSources.value.findIndex(w => w.id === src.id);
+  if (i >= 0) webSources.value[i] = src; else webSources.value.unshift(src);
+  connectKbWs();   // ensure we're listening for progress
+}
+
+function upsertWebSource(payload) {
+  const id = payload.source_id;
+  const i = webSources.value.findIndex(w => w.id === id);
+  if (i < 0) { loadWebSources(); return; }   // unknown source → refresh list
+  const cur = webSources.value[i];
+  webSources.value[i] = {
+    ...cur,
+    status: payload.status ?? cur.status,
+    discovered_count: payload.discovered ?? cur.discovered_count,
+    selected_count: payload.selected ?? cur.selected_count,
+    indexed_count: payload.indexed ?? cur.indexed_count,
+    failed_count: payload.failed ?? cur.failed_count,
+    chunk_count: payload.chunk_count ?? cur.chunk_count,
+    updated_at: new Date().toISOString(),
+    finished_at: payload.type === 'web_source.done' ? new Date().toISOString() : cur.finished_at,
+  };
+  if (payload.type === 'web_source.done') {
+    const st = webSources.value[i].status;
+    if (st === 'ready') notify.success(`Website indexed: ${webSources.value[i].display_name}`);
+    else if (st === 'failed') notify.error(`Website indexing failed: ${webSources.value[i].display_name}`);
+  }
+}
+
+async function reindexWeb(ws) {
+  try { const r = await api.reindexWebSource(ws.id); onWebSourceAdded(r.data); notify.info('Re-indexing…'); }
+  catch (e) { notify.error('Re-index failed: ' + (e.response?.data?.error || e.message)); }
+}
+async function cancelWeb(ws) {
+  try { await api.cancelWebSource(ws.id); notify.info('Cancelling…'); }
+  catch (e) { notify.error('Cancel failed: ' + (e.response?.data?.error || e.message)); }
+}
+async function removeWeb(ws) {
+  const ok = await confirm({ title: 'Remove website source?',
+    message: `Remove "${ws.display_name}" and its indexed pages from this agent's knowledge?`, danger: true, confirmText: 'Remove' });
+  if (!ok) return;
+  try { await api.deleteWebSource(ws.id); webSources.value = webSources.value.filter(w => w.id !== ws.id); }
+  catch (e) { notify.error('Remove failed: ' + (e.response?.data?.error || e.message)); }
+}
+
 function kbWsUrl(agentId) {
     const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
     return `${scheme}://${window.location.host}/ws/knowledge-index/${agentId}/`;
@@ -1998,6 +2230,7 @@ function connectKbWs() {
         sock.onmessage = (e) => {
             let evt; try { evt = JSON.parse(e.data); } catch { return; }
             if (evt.type === 'index_progress') handleIndexProgress(evt);
+            else if (typeof evt.type === 'string' && evt.type.startsWith('web_source.')) upsertWebSource(evt);
         };
         sock.onclose = () => { if (kbWs.value === sock) kbWs.value = null; };
         sock.onerror = () => { /* noop — status poll is the fallback */ };
@@ -2242,6 +2475,8 @@ watch(() => activeTab.value, (newTab) => {
     } else if (newTab === 'Tools' && internalAgent.value.id) {
         // Fetch credentials for service view badges
         fetchCredentials();
+    } else if (newTab === 'Workflows' && internalAgent.value.id) {
+        loadWorkflows();
     }
 });
 
@@ -2362,6 +2597,99 @@ const loadAgentConnectors = async () => {
     }
 };
 
+// ── Agent Workflows (saved prompt "macros") — backend: /api/workflows/, scoped by profile_id ──
+const workflows = ref([]);
+const workflowsLoading = ref(false);
+const showWorkflowForm = ref(false);
+const editingWorkflow = ref(null);
+const wfName = ref('');
+const wfPrompt = ref('');
+const wfCategory = ref('general');
+const wfBusy = ref(false);
+
+const loadWorkflows = async () => {
+    const id = internalAgent.value?.id;
+    if (!id) { workflows.value = []; return; }          // unsaved draft → nothing to load yet
+    workflowsLoading.value = true;
+    try {
+        const { data } = await api.getWorkflows(id);
+        workflows.value = Array.isArray(data) ? data : (data.results || data.workflows || []);
+    } catch (e) {
+        workflows.value = [];
+    } finally {
+        workflowsLoading.value = false;
+    }
+};
+
+const openWorkflowForm = (wf = null) => {
+    editingWorkflow.value = wf;
+    wfName.value = wf?.name || '';
+    wfPrompt.value = wf?.prompt || '';
+    wfCategory.value = wf?.category || 'general';
+    showWorkflowForm.value = true;
+};
+const closeWorkflowForm = () => {
+    showWorkflowForm.value = false;
+    editingWorkflow.value = null;
+    wfName.value = ''; wfPrompt.value = ''; wfCategory.value = 'general';
+};
+
+const saveWorkflow = async () => {
+    if (!wfName.value.trim() || !wfPrompt.value.trim()) return;
+    wfBusy.value = true;
+    try {
+        if (editingWorkflow.value) {
+            const { data } = await api.updateWorkflow(editingWorkflow.value.id, {
+                name: wfName.value.trim(), prompt: wfPrompt.value.trim(), category: wfCategory.value,
+            });
+            const i = workflows.value.findIndex(w => w.id === editingWorkflow.value.id);
+            if (i !== -1) workflows.value[i] = data; else workflows.value.unshift(data);
+            notify.success('Workflow updated');
+        } else {
+            // Lazily create the agent if there's no id yet (same pattern as knowledge upload).
+            const id = internalAgent.value.id || await ensureSaved();
+            if (!id) { wfBusy.value = false; return; }   // ensureSaved already explained why
+            const { data } = await api.createWorkflow({
+                profile_id: id, name: wfName.value.trim(), prompt: wfPrompt.value.trim(), category: wfCategory.value,
+            });
+            workflows.value.unshift(data);
+            notify.success('Workflow created');
+        }
+        closeWorkflowForm();
+    } catch (e) {
+        notify.error(e?.response?.data?.error || 'Failed to save workflow');
+    } finally {
+        wfBusy.value = false;
+    }
+};
+
+const deleteWorkflowItem = async (wf) => {
+    if (!(await confirm({ title: 'Delete workflow?', message: `Delete "${wf.name}"? This can't be undone.`, confirmText: 'Delete', danger: true }))) return;
+    wfBusy.value = true;
+    try {
+        await api.deleteWorkflow(wf.id);
+        workflows.value = workflows.value.filter(w => w.id !== wf.id);
+        notify.success('Workflow deleted');
+    } catch (e) {
+        notify.error(e?.response?.data?.error || 'Failed to delete workflow');
+    } finally {
+        wfBusy.value = false;
+    }
+};
+
+const runWorkflowItem = async (wf) => {
+    wfBusy.value = true;
+    try {
+        await api.runWorkflow(wf.id);
+        notify.success(`Running "${wf.name}"`);
+        loadWorkflows();   // refresh run count
+    } catch (e) {
+        notify.error(e?.response?.data?.error || 'Failed to run workflow');
+    } finally {
+        wfBusy.value = false;
+    }
+};
+
 const connectorKindLabel = (c) =>
     ({ builtin: 'Built-in service', mcp: 'MCP server', service: 'Service' }[c.kind] || 'Connector');
 
@@ -2402,8 +2730,8 @@ const openConnectorsHub = () => {
     window.open(`/dashboard/connectors${scope}`, '_blank', 'noopener');
 };
 
-// Reload the connector list when the agent id first appears (draft save / switching agents).
-watch(() => internalAgent.value.id, () => loadAgentConnectors());
+// Reload the connector list + workflows when the agent id first appears (draft save / switching agents).
+watch(() => internalAgent.value.id, () => { loadAgentConnectors(); loadWorkflows(); });
 
 onMounted(() => {
     fetchTools();
@@ -2411,12 +2739,14 @@ onMounted(() => {
     fetchModels();
     fetchMcpServers();       // needed so MCP connectors can map to their tools
     loadAgentConnectors();
+    loadWorkflows();
     connectKbWs();
+    loadWebSources();
 });
 
 // Reconnect the knowledge-index WS when the agent id first appears (lazy draft save)
 // or changes (switching agents in Configure).
-watch(() => internalAgent.value.id, (id) => { if (id) connectKbWs(); });
+watch(() => internalAgent.value.id, (id) => { if (id) { connectKbWs(); loadWebSources(); } });
 
 onBeforeUnmount(() => {
     if (kbWs.value) { try { kbWs.value.close(); } catch (e) { /* noop */ } kbWs.value = null; }

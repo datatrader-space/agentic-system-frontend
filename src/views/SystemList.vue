@@ -128,10 +128,14 @@
             </div>
           </div>
           
-          <!-- Created date -->
-          <div class="mt-4 pt-4 border-t">
-            <p class="text-xs text-gray-400">
-              Created {{ formatDate(system.created_at) }}
+          <!-- Assigned agent + created date -->
+          <div class="mt-4 pt-4 border-t flex items-center justify-between">
+            <p class="text-xs text-gray-500 truncate" :title="system.default_agent_profile_name || ''">
+              <span class="text-gray-400">Agent:</span>
+              {{ system.default_agent_profile_name || '—' }}
+            </p>
+            <p class="text-xs text-gray-400 shrink-0 ml-2">
+              {{ formatDate(system.created_at) }}
             </p>
           </div>
         </div>
@@ -189,7 +193,24 @@
               placeholder="Describe your system..."
             ></textarea>
           </div>
-          
+
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Agent
+            </label>
+            <select
+              v-model="newSystem.default_agent_profile"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+            >
+              <option :value="null">Auto-create a coding agent for this system</option>
+              <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
+            </select>
+            <p class="mt-1.5 text-xs text-gray-500">
+              The agent this system (and its repos / CRS) uses. Leave on “Auto-create” to provision a
+              dedicated coding agent, or pick one of your existing agents.
+            </p>
+          </div>
+
           <div class="flex justify-end space-x-3">
             <button
               type="button"
@@ -229,10 +250,24 @@ const creating = ref(false)
 const stats = ref(null)
 const statsLoading = ref(false)
 
+const agents = ref([])
+
 const newSystem = ref({
   name: '',
-  description: ''
+  description: '',
+  default_agent_profile: null   // optional: pick an existing agent; blank = auto-create one
 })
+
+// Load the user's agents so a system can be assigned to one (blank = auto-provision a coding agent).
+const loadAgents = async () => {
+  try {
+    const response = await api.getAgents()
+    agents.value = response.data?.results || response.data || []
+  } catch (error) {
+    console.error('Failed to load agents:', error)
+    agents.value = []
+  }
+}
 
 // Load systems
 const loadSystems = async () => {
@@ -270,7 +305,7 @@ const createSystem = async () => {
 
     notify?.('System created successfully!', 'success')
     showCreateModal.value = false
-    newSystem.value = { name: '', description: '' }
+    newSystem.value = { name: '', description: '', default_agent_profile: null }
 
     router.push(`/systems/${response.data.id}`)
   } catch (error) {
@@ -317,5 +352,6 @@ const topProviderModel = computed(() => {
 onMounted(() => {
   loadSystems()
   loadStats()
+  loadAgents()
 })
 </script>

@@ -540,11 +540,20 @@ export const useChatStore = defineStore('chat', {
 
     _onEvent(msg) {
       const t = msg?.type
+      if (t === 'ping') return   // server keepalive heartbeat — nothing to render
       const m = this._cur()
       // Feed the live activity timeline (Thinking → tools → Generating → Done). The
       // 'error' type is fed inside its case below (after the benign-rejection filter).
       if (m && m.activity && t !== 'error') ingestActivity(m.activity, msg)
       switch (t) {
+        case 'turn_resumed':
+          // We reconnected (e.g. after a refresh) to a turn still running on the server. Open a fresh
+          // streaming assistant message so the live tokens land; assistant_message_complete will
+          // replace it with the full cleaned text. Guard against double-starting.
+          if (!this.isStreaming) this._beginAssistant()
+          break
+        case 'turn_not_running':
+          break   // nothing in flight — saved history (if any) is already loaded
         case 'assistant_message_chunk':
           if (m) m.content += msg.chunk || ''
           break
@@ -581,7 +590,12 @@ export const useChatStore = defineStore('chat', {
           break
         }
         // ── Human-in-the-loop: the backend gated a tool for approval ──────────────
-        case 'hitl_request':
+        case 'hitl_request': {
+          // Scope to THIS window's conversation. HITL requests are broadcast to the user-level group,
+          // so every open chat window/tab receives them; only show the card in the window whose
+          // conversation triggered the turn (fall back to showing it when no id is present).
+          const _hcid = msg.conversation_id || msg.payload?.conversation_id
+          if (_hcid && this.conversationId && String(_hcid) !== String(this.conversationId)) break
           // Avoid duplicates if the event is re-delivered.
           if (!this.hitlRequests.some((r) => r.request_id === msg.request_id)) {
             this.hitlRequests.push({
@@ -597,6 +611,7 @@ export const useChatStore = defineStore('chat', {
             })
           }
           break
+        }
         case 'hitl_response_ack':
           this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== msg.request_id)
           break

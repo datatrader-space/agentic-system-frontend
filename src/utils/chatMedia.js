@@ -14,9 +14,11 @@ const isVideoUrl = (u) =>
   VID_RE.test(u) || /\/media\/[^"'\s]*\.(mp4|webm|ogg|mov|m4v)/i.test(u)
 
 // Map a media URL to the forced-download endpoint (server sets Content-Disposition: attachment, so it
-// downloads even cross-origin where the <a download> attribute is ignored). Keeps the URL's origin.
+// downloads even cross-origin where the <a download> attribute is ignored). ONLY for our own backend's
+// root-relative `/media/` — an absolute URL from another origin (e.g. a product image on the store's
+// domain) has no `/media-dl/` route there, so we keep it as-is.
 const downloadHref = (src) =>
-  /\/media\//.test(src) ? src.replace('/media/', '/media-dl/') : src
+  src.startsWith('/media/') ? src.replace('/media/', '/media-dl/') : src
 
 const DL_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>'

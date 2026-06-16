@@ -773,9 +773,8 @@ onMounted(async () => {
   if (typeof qScope === 'string' && (qScope === 'global' || qScope.startsWith('agent:'))) {
     scope.value = qScope
   }
-  await loadAgents()
-  loadConnectors()
-  loadWorkspaces()
+  // Parallel — independent loads (was: loadAgents awaited, blocking the rest).
+  Promise.all([loadAgents(), loadConnectors(), loadWorkspaces()])
 })
 </script>
 

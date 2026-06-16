@@ -10,15 +10,23 @@ import { ref } from 'vue'
  * the frontend only renders the prompt and relays the user's decision.
  *
  * @param {(obj: object) => void} sendFn  Sends a JSON message over that surface's WebSocket.
+ * @param {() => (string|number|null)} [getConversationId]  Returns THIS window's active conversation
+ *   id. HITL requests are broadcast to a user-level group, so every open window/tab receives them;
+ *   when provided, we only queue a request whose `conversation_id` matches this window (the one that
+ *   triggered the turn). Omit it to keep the old behavior (show everywhere).
  * @returns queue ref + event/response handlers to wire into the surface.
  */
-export function useHitl(sendFn) {
+export function useHitl(sendFn, getConversationId = null) {
   const hitlRequests = ref([])
 
   /** Feed a raw WS event; returns true if it was a HITL event (so the caller can stop). */
   function handleHitlEvent(evt) {
     if (!evt || !evt.type) return false
     if (evt.type === 'hitl_request') {
+      // Scope to this window's conversation (skip cards meant for another open window).
+      const cid = evt.conversation_id || evt.payload?.conversation_id
+      const mine = getConversationId ? getConversationId() : null
+      if (cid && mine && String(cid) !== String(mine)) return true
       if (!hitlRequests.value.some((r) => r.request_id === evt.request_id)) {
         hitlRequests.value.push({
           request_id: evt.request_id,

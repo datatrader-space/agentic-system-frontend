@@ -221,10 +221,20 @@
             <select v-model="opModels.embedding_model_id" :disabled="!embProvider"
                     class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm font-medium text-slate-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50">
               <option :value="null">{{ embProvider ? 'Select a model…' : 'Local (default), 384-dim' }}</option>
-              <option v-for="m in modelsForProvider(embProvider, true)" :key="m.id" :value="m.id">{{ m.name }}</option>
+              <option v-for="m in embModels" :key="m.id" :value="m.id">{{ m.name }}</option>
             </select>
-            <p v-if="embProvider && modelsForProvider(embProvider, true).length === 0"
-               class="text-[11px] text-amber-600 mt-1">No embedding models for this provider — sync the provider to discover them.</p>
+            <p v-if="embProvider && embModels.length === 0"
+               class="text-[11px] text-amber-600 mt-1 flex items-center gap-2">
+              <span>No models found for this provider.</span>
+              <button type="button" @click="syncEmbeddingModels" :disabled="syncingEmb"
+                      class="inline-flex items-center gap-1 underline text-indigo-600 hover:text-indigo-800 disabled:opacity-60">
+                <span v-if="syncingEmb" class="w-3 h-3 border-2 border-indigo-200 border-t-indigo-500 rounded-full animate-spin"></span>
+                {{ syncingEmb ? 'Syncing…' : 'Sync now to discover them' }}
+              </button>
+            </p>
+            <p v-if="embProvider && embProviderType === 'openrouter'" class="text-[11px] text-amber-600 mt-1">
+              Note: OpenRouter does not offer embedding models — use an OpenAI/Gemini provider, or the built-in Local model.
+            </p>
           </div>
         </div>
         <div class="flex items-center gap-3 mt-4">
@@ -478,6 +488,32 @@ const reindexing = ref(false)
 const opActiveTab = ref('ask_llm_model_id')
 const opProvider = ref({ ask_llm_model_id: null, summarize_model_id: null, artifact_summarize_model_id: null, turn_router_model_id: null })
 const embProvider = ref(null)
+// ALL active models for the selected embedding provider (no is_embedding filter) — show everything and
+// let the user choose, same as the other operation pickers. (Pick a text-embedding-* model for OpenAI.)
+const embModels = computed(() =>
+  models.value.filter((m) => m.provider === embProvider.value && m.is_active !== false))
+const syncingEmb = ref(false)
+const embProviderType = computed(() => {
+  const p = providers.value.find((x) => x.id === embProvider.value)
+  return p ? (p.provider_type || p.type) : null
+})
+
+// Discover the selected provider's embedding models on demand (e.g. text-embedding-3-small for OpenAI),
+// then refresh the model list so the dropdown populates — no hunting for a sync button elsewhere.
+const syncEmbeddingModels = async () => {
+  if (!embProvider.value || syncingEmb.value) return
+  syncingEmb.value = true
+  try {
+    await api.syncModels(embProvider.value)
+    await loadModels()
+    if (embModels.value.length) notify.success(`Found ${embModels.value.length} model(s)`)
+    else notify.info('Provider returned no models — check the API key, or use the Local model.')
+  } catch (e) {
+    notify.error('Sync failed: ' + (e.response?.data?.error || e.message))
+  } finally {
+    syncingEmb.value = false
+  }
+}
 
 // Active models for a provider, split by chat vs embedding so each picker only shows what fits.
 const modelsForProvider = (pid, embedding = false) => {
@@ -754,10 +790,10 @@ const formatDate = (value) => {
 watch(modelFilter, () => { modelPage.value = 1; loadModels() })
 
 onMounted(async () => {
-  await loadProviders()
-  await loadModels()
+  // Parallel for the independent loads; operation-models derives providers from `models`, so it runs
+  // after. (Was 4 sequential awaits = 4× round-trip latency.)
+  await Promise.all([loadProviders(), loadModels(), loadStats()])
   await loadOperationModels()
-  await loadStats()
 })
 </script>
 

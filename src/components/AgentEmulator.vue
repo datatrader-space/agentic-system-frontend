@@ -313,7 +313,7 @@ function captureForInspector(m, evt) {
 // Shared HITL approval handling (same as New Chat / Playground).
 const { hitlRequests, handleHitlEvent, respondHitl, dismissHitl, skipHitl } = useHitl((obj) => {
   if (ws.value && ws.value.readyState === WebSocket.OPEN) ws.value.send(JSON.stringify(obj))
-})
+}, () => conversationId.value)
 
 let intentionalClose = false
 let reconnectAttempts = 0
@@ -356,7 +356,12 @@ function connect() {
   try {
     const sock = new WebSocket(wsUrl())
     ws.value = sock
-    sock.onopen = () => { connected.value = true; reconnecting.value = false; reconnectAttempts = 0 }
+    sock.onopen = () => {
+      connected.value = true; reconnecting.value = false; reconnectAttempts = 0
+      if (conversationId.value) {
+        try { sock.send(JSON.stringify({ type: 'resume', conversation_id: conversationId.value })) } catch (e) { /* noop */ }
+      }
+    }
     sock.onclose = () => {
       connected.value = false
       // The in-flight turn (if any) is gone the moment the socket drops — the backend won't
@@ -427,6 +432,7 @@ function currentAssistant() {
 function handleEvent(raw) {
   let evt
   try { evt = JSON.parse(raw) } catch (e) { return }
+  if (evt.type === 'ping') return   // server keepalive heartbeat
   // HITL approval events are handled by the shared composable (queue + modal).
   if (handleHitlEvent(evt)) return
   // Inspector capture for the active turn (raw events, tool I/O, retrieved knowledge).
@@ -437,6 +443,21 @@ function handleEvent(raw) {
       saveConv()   // remember this conversation so a page refresh restores its history
       if (emuAttachments.value.length) uploadEmuAttachments()  // flush images staged before the conv existed
       break
+
+    case 'turn_resumed': {
+      // Returned mid-generation — open a streaming assistant bubble so the resumed live tokens/timeline
+      // land; assistant_message_complete finalizes it. Guard against double-starting.
+      if (!streamingAssistant()) {
+        const a = newAssistantMessage()
+        startActivity(a.activity)
+        messages.value.push(a)
+      }
+      busy.value = true
+      scrollToBottom()
+      break
+    }
+    case 'turn_not_running':
+      break   // nothing running — saved history already loaded
     // Progress-bearing events update the ACTIVE turn only — never spawn a new bubble
     // (a stray one after completion is what caused the stuck "Thinking" block).
     case 'assistant_typing':

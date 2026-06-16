@@ -207,7 +207,7 @@ let reconnectTimer = null
 // Shared HITL approval handling (same as New Chat / Emulator / Playground).
 const { hitlRequests, handleHitlEvent, respondHitl, dismissHitl, skipHitl } = useHitl((obj) => {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj))
-})
+}, () => conversationId.value)
 let currentStreamingMessage = ''
 
 const quickSuggestions = [
@@ -268,6 +268,9 @@ const connectWebSocket = () => {
     connected.value = true
     reconnectAttempts = 0      // healthy — clear backoff
     console.log('Planner WebSocket connected')
+    if (conversationId.value) {
+      try { ws.send(JSON.stringify({ type: 'resume', conversation_id: conversationId.value })) } catch (e) { /* noop */ }
+    }
   }
 
   ws.onclose = () => {
@@ -302,6 +305,7 @@ const connectWebSocket = () => {
 }
 
 const handleWebSocketMessage = (data) => {
+  if (data.type === 'ping') return   // server keepalive heartbeat
   // HITL approval events handled by the shared composable (queue + modal).
   if (handleHitlEvent(data)) return
   switch (data.type) {
@@ -310,6 +314,16 @@ const handleWebSocketMessage = (data) => {
       conversationId.value = data.conversation_id
       console.log('Planner conversation created:', conversationId.value)
       break
+
+    case 'turn_resumed':
+      // Returned mid-generation — show the generating state; live tokens build a fresh streaming
+      // message, finalized by assistant_message_complete.
+      isTyping.value = true
+      currentStreamingMessage = ''
+      break
+
+    case 'turn_not_running':
+      break   // nothing running — saved history already loaded
 
     case 'assistant_typing':
       isTyping.value = data.typing

@@ -25,8 +25,15 @@
       <!-- ════════════ WEBSOCKET ════════════ -->
       <template v-if="tab === 'websocket'">
         <section>
-          <h2 class="text-lg font-semibold text-gray-900 mb-1">💬 Live chat over WebSocket</h2>
+          <h2 class="text-lg font-semibold text-gray-900 mb-1">💬 Live chat over WebSocket <span class="align-middle text-[10px] font-semibold uppercase tracking-wide text-emerald-700 bg-emerald-100 rounded px-1.5 py-0.5 ml-1">Best for chat</span></h2>
           <p class="text-sm text-gray-600">Real-time, streamed replies — best for chat UIs and interactive use. This is what most integrations want.</p>
+        </section>
+
+        <section>
+          <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+            <div class="font-medium text-indigo-900 text-sm mb-1">🧠 Sessions &amp; memory — read this first</div>
+            <p class="text-sm text-indigo-800/90">The agent remembers a conversation only while you reuse the same <code class="kbd">conversation_id</code>. On the <b>first</b> message send none; the server replies with a <code class="kbd">conversation_created</code> event carrying a new <code class="kbd">conversation_id</code>. <b>Save it and send it back on every later message</b> for that user. Omit it and each message starts a brand-new chat with no memory of the last reply.</p>
+          </div>
         </section>
 
         <section>
@@ -89,6 +96,7 @@
         <section>
           <h2 class="text-lg font-semibold text-gray-900 mb-1">🪝 Push an event via Webhook</h2>
           <p class="text-sm text-gray-600">Fire-and-forget for backend events — no live user waiting. Returns <code class="kbd">202</code> + a <code class="kbd">result_url</code> you poll for the reply &amp; usage.</p>
+          <p class="text-sm text-gray-600 mt-1">Building a back-and-forth chat instead of one-off events? Add a stable <code class="kbd">flow_key</code> (below) so the agent keeps context — or use <b>WebSocket</b>, which is built for chat.</p>
         </section>
 
         <section>
@@ -122,6 +130,19 @@
           <h2 class="text-base font-semibold text-gray-900 mb-2">2 — Poll for the result</h2>
           <p class="text-sm text-gray-600 mb-2">The <code class="kbd">202</code> returns a <code class="kbd">result_url</code>. Poll it until <code class="kbd">status</code> is <code class="kbd">processed</code> — the result carries <code class="kbd">response</code>, <code class="kbd">usage</code> and <code class="kbd">cost_usd</code>.</p>
           <CodeBlock :code="curlPoll" :id="'poll'" :copied="copied" @copy="copy" />
+        </section>
+
+        <section>
+          <h2 class="text-base font-semibold text-gray-900 mb-2">Sessions &amp; memory <span class="align-middle text-[10px] font-semibold uppercase tracking-wide text-indigo-700 bg-indigo-100 rounded px-1.5 py-0.5">multi-turn chat</span></h2>
+          <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-2">
+            <p class="text-sm text-indigo-900">By default each webhook call is independent — fine for one-off events, but a chat loses context every message. To keep memory across calls, send the <b>same</b> <code class="kbd">flow_key</code> for every message in one conversation (e.g. one per end-user or per chat thread):</p>
+            <CodeBlock :code="curlWhFlow" :id="'whflow'" :copied="copied" @copy="copy" />
+            <ul class="text-sm text-indigo-800/90 space-y-1 list-disc pl-5">
+              <li>Same <code class="kbd">flow_key</code> → same persistent conversation; the agent sees prior turns + a rolling summary.</li>
+              <li>Use a different <code class="kbd">flow_key</code> per user/thread to keep them isolated.</li>
+              <li>For a live, streamed chat experience prefer the <b>WebSocket</b> tab — webhook is async (you poll) and best for backend events.</li>
+            </ul>
+          </div>
         </section>
       </template>
 
@@ -267,6 +288,13 @@ const curlWh = computed(() => `curl -X POST "${webhookUrl.value}" \\
   -H "Content-Type: application/json" \\
   -d '{"signal_type":"order.created","payload":{"order_id":987}}'
 # -> 202 { "signal_id": 123, "result_url": "/api/agents/${agentId.value}/signals/123/" }`)
+
+const curlWhFlow = computed(() => `# Reuse the SAME flow_key every turn -> the agent keeps context.
+curl -X POST "${webhookUrl.value}" \\
+  -H "Authorization: Bearer ${apiKey.value}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"signal_type":"chat.message","flow_key":"user-42","payload":{"message":"And what did I just ask?"}}'
+# Same flow_key as the previous message -> remembers. New flow_key -> fresh chat.`)
 
 const curlPoll = computed(() => `curl "${resultUrl.value}" \\
   -H "Authorization: Bearer ${apiKey.value}"

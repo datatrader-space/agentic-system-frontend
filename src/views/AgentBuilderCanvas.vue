@@ -129,9 +129,10 @@ const steps = [
   { id: 'sec-general', n: 1, label: 'General' },
   { id: 'sec-prompt', n: 2, label: 'System Prompt' },
   { id: 'sec-knowledge', n: 3, label: 'Knowledge' },
-  { id: 'sec-tools', n: 4, label: 'Tools' },
-  { id: 'sec-autonomy', n: 5, label: 'Autonomy' },
-  { id: 'sec-advanced', n: 6, label: 'Advanced' },
+  { id: 'sec-workflows', n: 4, label: 'Workflows' },
+  { id: 'sec-tools', n: 5, label: 'Tools' },
+  { id: 'sec-autonomy', n: 6, label: 'Autonomy' },
+  { id: 'sec-advanced', n: 7, label: 'Advanced' },
 ]
 const activeStep = ref('sec-general')
 const activeIndex = computed(() => Math.max(0, steps.findIndex(s => s.id === activeStep.value)))
