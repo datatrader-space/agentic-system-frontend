@@ -8,6 +8,7 @@ import Toast, { POSITION, useToast } from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
 import api from './services/api'
 import axios from 'axios'
+import { trackPageview } from './composables/useAnalytics'
 
 // Set global axios defaults
 axios.defaults.withCredentials = true
@@ -20,6 +21,9 @@ const LetsCode = () => import('./views/LetsCode.vue')
 const SystemDetail = () => import('./views/SystemDetail.vue')
 const RepositoryPage = () => import('./views/RepositoryPage.vue')
 const Login = () => import('./views/Login.vue')
+const ForgotPassword = () => import('./views/ForgotPassword.vue')
+const ResetPassword = () => import('./views/ResetPassword.vue')
+const VerifyEmail = () => import('./views/VerifyEmail.vue')
 const LLMSettings = () => import('./views/LLMSettings.vue')
 const LLMDashboard = () => import('./views/LLMDashboard.vue')
 const LLMContextDashboard = () => import('./views/LLMContextDashboard.vue')
@@ -48,6 +52,11 @@ const PublicChat = () => import('./views/PublicChat.vue')
 const Docs = () => import('./views/Docs.vue')
 const AdminPanel = () => import('./views/AdminPanel.vue')
 const ModelPricingPage = () => import('./views/ModelPricingPage.vue')
+const AdminShell = () => import('./components/admin-shell/AdminShell.vue')
+const AdminOverview = () => import('./views/admin/AdminOverview.vue')
+const CrawlerExportAPI = () => import('./views/admin/CrawlerExportAPI.vue')
+const AdminKnowledge = () => import('./views/admin/AdminKnowledge.vue')
+const Billing = () => import('./views/Billing.vue')
 
 // v2 app shell + chat workspace + tabbed settings (also lazy)
 const AppShell = () => import('./components/app-shell/AppShell.vue')
@@ -129,12 +138,36 @@ const router = createRouter({
       component: Docs,
       meta: { requiresAuth: false, public: true }
     },
-    { path: '/admin', name: 'admin', redirect: '/dashboard/admin' },
+    { path: '/admin', name: 'admin', redirect: '/admin-dashboard/overview' },
     {
       path: '/login',
       name: 'login',
       component: Login,
       meta: { requiresGuest: true, public: true }
+    },
+    {
+      path: '/signup',
+      name: 'signup',
+      component: Login,
+      meta: { requiresGuest: true, public: true }
+    },
+    {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: ForgotPassword,
+      meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: ResetPassword,
+      meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/verify-email',
+      name: 'verify-email',
+      component: VerifyEmail,
+      meta: { requiresAuth: false, public: true }
     },
     {
       // v2 chat-first dashboard: AppShell wraps all /dashboard/* children.
@@ -160,9 +193,12 @@ const router = createRouter({
         { path: 'services', name: 'dashboard-services', redirect: '/dashboard/connectors' },
         { path: 'mcp', name: 'dashboard-mcp', redirect: '/dashboard/connectors' },
         { path: 'connectors', name: 'dashboard-connectors', component: ConnectorsPage },
+        // Workflow Builder (NEW node-canvas system — lazy-loaded; separate from old /workflows feature)
+        { path: 'workflow-builder', name: 'dashboard-workflow-builder', component: () => import('./views/WorkflowsList.vue') },
+        { path: 'workflow-builder/:id', name: 'dashboard-workflow-canvas', component: () => import('./views/WorkflowBuilder.vue') },
         { path: 'workspaces', name: 'dashboard-workspaces', redirect: '/dashboard/connectors' },
         { path: 'activity', name: 'dashboard-activity', component: LLMDashboard },
-        { path: 'llm-context', name: 'dashboard-llm-context', component: LLMContextDashboard },
+        { path: 'llm-context', name: 'dashboard-llm-context', redirect: '/admin-dashboard/llm-context' },
         { path: 'llm-settings', name: 'dashboard-llm-settings', component: LLMSettings },
         // Phase 5: previously top-level authed pages, re-housed inside the single shell.
         { path: 'systems/:id', name: 'dashboard-system-detail', component: SystemDetail },
@@ -177,11 +213,28 @@ const router = createRouter({
         { path: 'integration-guide/:agentId?', name: 'dashboard-integration-guide', component: IntegrationGuide },
         { path: 'org/:orgSlug/settings', name: 'dashboard-org-settings', component: OrgSettings },
         { path: 'org/:orgSlug/settings/:tab', name: 'dashboard-org-settings-tab', component: OrgSettings },
-        { path: 'admin', name: 'dashboard-admin', component: AdminPanel },
-        { path: 'model-pricing', name: 'dashboard-model-pricing', component: ModelPricingPage, meta: { requiresAuth: true, requiresAdmin: true } },
+        { path: 'admin', name: 'dashboard-admin', redirect: '/admin-dashboard/platform' },
+        { path: 'model-pricing', name: 'dashboard-model-pricing', redirect: '/admin-dashboard/model-pricing' },
+        { path: 'billing', name: 'dashboard-billing', component: Billing },
         { path: 'settings', redirect: '/dashboard/settings/general' },
         { path: 'settings/:tab', name: 'dashboard-settings', component: SettingsLayout },
       ]
+    },
+    // ── Separate ADMIN dashboard (own shell + sidebar, staff-gated). Admin pages live here, not in
+    //    the user /dashboard. requiresAdmin on the parent gates every child.
+    {
+      path: '/admin-dashboard',
+      component: AdminShell,
+      meta: { requiresAuth: true, requiresAdmin: true },
+      children: [
+        { path: '', redirect: '/admin-dashboard/overview' },
+        { path: 'overview', name: 'admin-overview', component: AdminOverview },
+        { path: 'platform', name: 'admin-platform', component: AdminPanel },
+        { path: 'knowledge', name: 'admin-knowledge', component: AdminKnowledge },
+        { path: 'model-pricing', name: 'admin-model-pricing', component: ModelPricingPage },
+        { path: 'llm-context', name: 'admin-llm-context', component: LLMContextDashboard },
+        { path: 'crawler-export', name: 'admin-crawler-export', component: CrawlerExportAPI },
+      ],
     },
     // ── Phase 5: legacy top-level authed paths now REDIRECT into the single shell.
     //    Names are kept so name-based navigation keeps working; bookmarks/deep links too.
@@ -267,6 +320,14 @@ router.beforeEach(async (to, from, next) => {
       console.warn('Auth check failed (network/server error), allowing through:', error?.message)
       next()
     }
+  }
+})
+
+// First-party analytics: record a pageview on public/marketing routes only
+// (no-op until the user grants cookie consent; never fires under Do-Not-Track).
+router.afterEach((to) => {
+  if (to.meta?.public && !to.path.startsWith('/a/') && !to.path.startsWith('/embed/')) {
+    trackPageview(to)
   }
 })
 

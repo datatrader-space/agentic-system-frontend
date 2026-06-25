@@ -11,7 +11,7 @@
           <h1 class="title">Your <span class="vm-grad-text">Agent Library</span></h1>
           <p class="sub">Design, test, and deploy specialized AI agents — each with its own tools, knowledge, and autonomy.</p>
         </div>
-        <button class="cta" @click="createAgent">
+        <button class="cta" data-tour="create-agent-hero" @click="createAgent">
           <Icon icon="lucide:plus" class="i" /> Create Agent
         </button>
       </div>
@@ -62,7 +62,7 @@
         <EmptyArt />
         <h3>No agents yet</h3>
         <p>Create your first specialized agent to get started.</p>
-        <button class="cta" @click="createAgent"><Icon icon="lucide:sparkles" class="i" /> Design an Agent</button>
+        <button class="cta" data-tour="create-agent-empty" @click="createAgent"><Icon icon="lucide:sparkles" class="i" /> Design an Agent</button>
       </div>
 
       <!-- ===================== No matches ===================== -->

@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click.self="$emit('close')">
+  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click.self="cancel()">
     <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
       <!-- Header -->
       <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-start">
@@ -7,7 +7,7 @@
           <h2 class="text-lg font-bold text-slate-900">Add a Website Source</h2>
           <p class="text-[13px] text-slate-500 mt-0.5">Your agent will answer questions from the content found on the pages you add.</p>
         </div>
-        <button @click="$emit('close')" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+        <button @click="cancel()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
       </div>
 
       <div class="px-6 py-5 space-y-5">
@@ -40,6 +40,42 @@
                 <span v-if="busy" class="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
                 {{ busy ? 'Discovering…' : 'Discover Pages' }}
               </button>
+            </div>
+
+            <!-- Live discovery progress: which page is being fetched right now -->
+            <p v-if="busy && currentUrl" class="mt-2 flex items-center gap-2 text-[12px] text-slate-500">
+              <span class="inline-block w-2 h-2 bg-indigo-500 rounded-full animate-pulse shrink-0"></span>
+              <span class="shrink-0">Fetching:</span>
+              <span class="font-mono text-slate-600 truncate">{{ currentUrl }}</span>
+              <span v-if="foundCount" class="shrink-0 text-indigo-500 font-semibold">· {{ foundCount }} found</span>
+            </p>
+
+            <!-- Advanced crawl options -->
+            <button type="button" @click="showAdvanced = !showAdvanced"
+                    class="mt-2 text-[12px] font-semibold text-indigo-600 hover:text-indigo-800">
+              {{ showAdvanced ? '▾ Hide advanced options' : '▸ Advanced options' }}
+            </button>
+            <div v-if="showAdvanced" class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">JS rendering</label>
+                <select v-model="renderJs" :disabled="busy"
+                        class="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-60">
+                  <option value="auto">Auto (detect)</option>
+                  <option value="false">Off — fastest</option>
+                  <option value="true">On — JS sites</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Max pages</label>
+                <input v-model.number="maxPages" type="number" min="1" max="5000" :disabled="busy"
+                       class="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-slate-50" />
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-slate-500 mb-1">Max depth</label>
+                <input v-model.number="maxDepth" type="number" min="1" max="10" :disabled="busy"
+                       class="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:bg-slate-50" />
+              </div>
+              <p class="sm:col-span-3 text-[11px] text-slate-400 -mt-1">Set JS rendering to <strong>Off</strong> for faster crawling on standard server-rendered sites; lower Max pages for a quicker, focused index.</p>
             </div>
           </div>
 
@@ -98,7 +134,7 @@
 
       <!-- Footer -->
       <div class="px-6 py-4 border-t border-slate-100 flex justify-end gap-3">
-        <button @click="$emit('close')" class="px-4 py-2 text-[13px] font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</button>
+        <button @click="cancel()" class="px-4 py-2 text-[13px] font-semibold rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">Cancel</button>
         <button v-if="phase !== 'discovered' && mode === 'specific_pages'" @click="addManual" :disabled="busy || !manualLines.length"
                 class="px-4 py-2 text-[13px] font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 inline-flex items-center gap-1.5">
           <span v-if="busy" class="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin"></span>
@@ -115,7 +151,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onBeforeUnmount } from 'vue'
 import api from '../../services/api'
 import { notify } from '../../composables/useNotify'
 
@@ -133,6 +169,64 @@ const tree = reactive({ root: '', total: 0, groups: [] })
 const picked = ref(new Set())
 const expanded = reactive({})
 const editAsText = ref(false)
+// Advanced crawl options (full_site) — map to the discover endpoint's per-source overrides.
+const showAdvanced = ref(false)
+const renderJs = ref('auto')        // auto | false | true
+const maxPages = ref(1000)
+const maxDepth = ref(4)
+
+// True once the user actually clicks "Add" — until then the discovered source is a throwaway that
+// Cancel must delete (so a cancelled discovery never lingers in the KB / gets indexed).
+const committed = ref(false)
+
+// Live discovery progress (which URL is being fetched) via the knowledge-index WebSocket.
+const currentUrl = ref('')
+const foundCount = ref(0)
+const progressWs = ref(null)
+
+async function cancel() {
+  // Discard the source created during discovery if the user never added it.
+  if (sourceId.value && !committed.value) {
+    const discardedId = sourceId.value
+    try { await api.deleteWebSource(discardedId) } catch (e) { /* best-effort */ }
+    emit('discarded', discardedId)
+  }
+  emit('close')
+}
+
+function progressWsUrl() {
+  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${scheme}://${window.location.host}/ws/knowledge-index/${props.agentId}/`
+}
+function connectProgressWs() {
+  if (!props.agentId) return                    // no agent → no group to subscribe to
+  disconnectProgressWs()
+  try {
+    const sock = new WebSocket(progressWsUrl())
+    progressWs.value = sock
+    sock.onmessage = (e) => {
+      let evt; try { evt = JSON.parse(e.data) } catch { return }
+      if (evt.type !== 'web_source.progress') return
+      if (sourceId.value && evt.source_id && evt.source_id !== sourceId.value) return
+      if (evt.last_url) currentUrl.value = evt.last_url
+      if (typeof evt.discovered === 'number') foundCount.value = evt.discovered
+    }
+    sock.onclose = () => { if (progressWs.value === sock) progressWs.value = null }
+    sock.onerror = () => { /* noop — discovery still completes via polling */ }
+  } catch (e) { /* noop */ }
+}
+function disconnectProgressWs() {
+  if (progressWs.value) { try { progressWs.value.close() } catch (e) { /* noop */ } progressWs.value = null }
+  currentUrl.value = ''
+  foundCount.value = 0
+}
+onBeforeUnmount(() => {
+  disconnectProgressWs()
+  // Safety net: if the modal is torn down without committing (e.g. route change), drop the throwaway.
+  if (sourceId.value && !committed.value) {
+    try { api.deleteWebSource(sourceId.value) } catch (e) { /* best-effort, fire-and-forget */ }
+  }
+})
 
 const manualLines = computed(() =>
   manualText.value.split(/\s+/).map(s => s.trim()).filter(s => /^https?:\/\//i.test(s) || s.includes('.')))
@@ -163,14 +257,19 @@ function togglePage(u, on) {
 async function discover() {
   error.value = ''
   busy.value = true
+  connectProgressWs()                 // subscribe before kicking off so we don't miss early pages
   try {
-    const r = await api.discoverWebSource({ agent_id: props.agentId, url: url.value.trim(), mode: mode.value })
+    const r = await api.discoverWebSource({
+      agent_id: props.agentId, url: url.value.trim(), mode: mode.value,
+      render_js: renderJs.value, max_pages: maxPages.value, max_depth: maxDepth.value,
+    })
     sourceId.value = r.data.id
     await pollUntilDiscovered()
   } catch (e) {
     error.value = e.response?.data?.error || e.message || 'Discovery failed'
   } finally {
     busy.value = false
+    disconnectProgressWs()             // discovery resolved → stop the live-URL line
   }
 }
 
@@ -196,6 +295,7 @@ async function addSelected() {
   try {
     const urls = editAsText.value ? manualLines.value : [...picked.value]
     const r = await api.addWebSource(sourceId.value, { urls })
+    committed.value = true                 // user committed → keep the source
     notify.success(`Indexing ${urls.length} page(s)…`)
     emit('added', r.data)
     emit('close')
@@ -222,6 +322,7 @@ async function addManual() {
       await new Promise(res => setTimeout(res, 1000))
     }
     const add = await api.addWebSource(sourceId.value, { select_all: true })
+    committed.value = true
     notify.success(`Indexing ${manualLines.value.length} page(s)…`)
     emit('added', add.data)
     emit('close')

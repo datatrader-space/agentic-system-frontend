@@ -1,564 +1,274 @@
 <template>
-  <div class="blog-page">
-    <!-- Header -->
-    <div class="page-header">
-      <div class="header-bg"></div>
-      <h1 class="gradient-text">Blog</h1>
-      <p>Insights on AI, automation, and the future of development</p>
-    </div>
-
-    <div class="blog-container">
-      <!-- Main Content Area -->
-      <div class="main-content">
-        
-        <!-- Featured Post (Index 0) -->
-        <article class="blog-card featured-card" v-if="blogPosts.length > 0">
-          <div class="card-image-wrapper">
-            <div class="image-placeholder" :style="{ background: blogPosts[0].color }"></div>
-            <div class="category-overlay">
-              <span class="post-category">{{ blogPosts[0].category }}</span>
-            </div>
+  <PublicLayout>
+    <!-- Hero -->
+    <section class="relative overflow-hidden">
+      <HeroBackdrop />
+      <div class="relative z-10 mx-auto max-w-7xl px-4 pt-16 sm:px-6 lg:px-8 lg:pt-24">
+      <div class="grid items-start gap-8 lg:grid-cols-[1.5fr_1fr]">
+        <div v-reveal>
+          <div class="eyebrow">Engineering Journal</div>
+          <h1 class="hero-title">Thoughts on the <span class="vm-grad-text">agentic era</span>.</h1>
+          <p class="hero-sub">In-depth technical analysis, product updates, and philosophical musings on the future of autonomous systems and developer workflows.</p>
+        </div>
+        <div v-reveal class="lg:pt-10">
+          <div class="search">
+            <Icon icon="lucide:search" class="h-4 w-4 text-ink-faint" />
+            <input v-model="query" type="text" placeholder="Search articles…" />
           </div>
-          <div class="card-content">
-            <div class="post-meta">
-              <span class="post-date">{{ blogPosts[0].date }}</span>
-              <span class="separator">•</span>
-              <span class="post-read-time">{{ blogPosts[0].readTime }} min read</span>
-            </div>
-            <h2>{{ blogPosts[0].title }}</h2>
-            <p>{{ blogPosts[0].excerpt }}</p>
-            <router-link :to="`/blog/${blogPosts[0].slug}`" class="read-more">
-              Read Article <span class="arrow">→</span>
-            </router-link>
-          </div>
-        </article>
-
-        <!-- Standard Posts Grid (Index 1+) -->
-        <div class="regular-grid">
-          <article class="blog-card" v-for="(post, index) in blogPosts" :key="post.id" v-show="index > 0">
-            <div class="card-image-wrapper">
-              <div class="image-placeholder" :style="{ background: post.color }"></div>
-              <div class="category-overlay">
-                <span class="post-category">{{ post.category }}</span>
-              </div>
-            </div>
-            <div class="card-content">
-              <div class="post-meta">
-                <span class="post-date">{{ post.date }}</span>
-                <span class="separator">•</span>
-                <span class="post-read-time">{{ post.readTime }} min read</span>
-              </div>
-              <h2>{{ post.title }}</h2>
-              <p>{{ post.excerpt }}</p>
-              <router-link :to="`/blog/${post.slug}`" class="read-more">
-                Read Article <span class="arrow">→</span>
-              </router-link>
-            </div>
-          </article>
         </div>
       </div>
+      <div class="mt-8 border-b border-line"></div>
+      </div>
+    </section>
 
-      <!-- Sidebar -->
-      <aside class="sidebar">
-        <!-- Categories -->
-        <div class="sidebar-widget">
-          <h3>Categories</h3>
-          <ul class="category-list">
-            <li v-for="cat in categories" :key="cat.name">
-              <a href="#">
-                <span>{{ cat.name }}</span>
-                <span class="count">{{ cat.count }}</span>
-              </a>
-            </li>
-          </ul>
+    <!-- Body -->
+    <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
+      <div v-if="loading" class="grid gap-6 lg:grid-cols-[2fr_1fr]">
+        <div class="vm-skel h-80 rounded-2xl"></div>
+        <div class="vm-skel h-80 rounded-2xl"></div>
+      </div>
+
+      <div v-else-if="!filtered.length" class="py-20 text-center text-ink-soft">No articles found.</div>
+
+      <div v-else class="blog-grid">
+        <!-- Featured -->
+        <router-link v-if="featured" :to="`/blog/${featured.slug}`" class="featured" v-reveal>
+          <div class="featured-img" :style="bg(featured)"></div>
+          <div class="featured-body">
+            <div class="meta-row">
+              <span class="cat">{{ featured.category }}</span>
+              <span class="muted">{{ featured.readTime }} min read</span>
+            </div>
+            <h2 class="featured-title">{{ featured.title }}</h2>
+            <p class="featured-excerpt">{{ featured.excerpt }}</p>
+            <div class="author">
+              <span class="avatar" :style="avatarBg(featured.author)">{{ initial(featured.author) }}</span>
+              <div><div class="a-name">{{ featured.author || 'AADML Team' }}</div><div class="a-role">Author</div></div>
+            </div>
+          </div>
+        </router-link>
+
+        <!-- Sidebar -->
+        <aside class="aside" v-reveal>
+          <div class="card">
+            <h3>Categories</h3>
+            <div class="chips">
+              <button class="chip" :class="{ active: activeCat === 'All Posts' }" @click="activeCat = 'All Posts'">All Posts</button>
+              <button v-for="c in categories" :key="c" class="chip" :class="{ active: activeCat === c }" @click="activeCat = c">{{ c }}</button>
+            </div>
+          </div>
+
+          <div class="protocol">
+            <h3>The Protocol</h3>
+            <p>Get bi-weekly updates on agentic workflows and platform updates delivered to your inbox.</p>
+            <form @submit.prevent="subscribe">
+              <input v-model="email" type="email" required placeholder="email@example.com" class="p-input" />
+              <button type="submit" class="p-btn">Subscribe</button>
+            </form>
+          </div>
+        </aside>
+
+        <!-- Card grid -->
+        <div class="cards">
+          <router-link v-for="post in rest" :key="post.slug" :to="`/blog/${post.slug}`" class="post-card" v-reveal>
+            <div class="card-img" :style="bg(post)"></div>
+            <div class="card-body">
+              <span class="cat-label">{{ post.category }}</span>
+              <h3 class="card-title">{{ post.title }}</h3>
+              <p class="card-excerpt">{{ post.excerpt }}</p>
+              <div class="card-foot">
+                <span class="author sm">
+                  <span class="avatar sm" :style="avatarBg(post.author)">{{ initial(post.author) }}</span>
+                  <span class="a-name">{{ post.author || 'AADML' }}</span>
+                </span>
+                <span class="muted">{{ post.date }}</span>
+              </div>
+            </div>
+          </router-link>
         </div>
 
-        <!-- Popular Posts -->
-        <div class="sidebar-widget popular-widget">
-          <h3>Trending</h3>
-          <ul class="popular-list">
-            <li v-for="post in popularPosts" :key="post.id">
-              <router-link :to="`/blog/${post.slug}`" class="popular-link">
-                <div class="trending-number">#{{ post.id }}</div>
-                <span>{{ post.title }}</span>
-              </router-link>
-            </li>
-          </ul>
+        <!-- Pagination -->
+        <div v-if="totalPages > 1" class="pager">
+          <button class="pg-arrow" :disabled="page === 1" @click="go(page - 1)"><Icon icon="lucide:chevron-left" class="h-4 w-4" /></button>
+          <button v-for="n in pageList" :key="n" class="pg" :class="{ active: n === page, dots: n === '…' }" :disabled="n === '…'" @click="n !== '…' && go(n)">{{ n }}</button>
+          <button class="pg-arrow" :disabled="page === totalPages" @click="go(page + 1)"><Icon icon="lucide:chevron-right" class="h-4 w-4" /></button>
         </div>
-
-        <!-- Newsletter -->
-        <div class="sidebar-widget newsletter-widget">
-          <h3>Stay Updated</h3>
-          <p>Get the latest insights on AI development.</p>
-          <form @submit.prevent="subscribe" class="subscribe-form">
-            <input type="email" placeholder="Enter your email" v-model="email" required>
-            <button type="submit" class="btn-subscribe">
-              Subscribe
-            </button>
-          </form>
-        </div>
-      </aside>
-    </div>
-  </div>
+      </div>
+    </section>
+  </PublicLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { blogPosts as staticPosts } from '../data/blogPosts'
+import { Icon } from '@iconify/vue'
+import PublicLayout from '../components/public/PublicLayout.vue'
+import HeroBackdrop from '../components/public/HeroBackdrop.vue'
 import { useMeta } from '../composables/useMeta'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 
 useMeta({
   title: 'Blog — AADML',
-  description: 'Insights on AI agents, automation, and the future of development.',
+  description: 'Thoughts on the agentic era — technical analysis, product updates, and the future of autonomous developer workflows.',
 })
 
+const PAGE_SIZE = 7
+const loading = ref(true)
+const posts = ref([])
+const query = ref('')
+const activeCat = ref('All Posts')
+const page = ref(1)
 const email = ref('')
-const blogPosts = ref(staticPosts)
-const loading = ref(false)
 
-// Try API first, fallback to static data
 onMounted(async () => {
   try {
-    loading.value = true
     const { data } = await api.get('/content/pages/', { params: { type: 'blog', published: 'true' } })
-    if (data.pages && data.pages.length > 0) {
-      // Map API format to what the template expects
-      blogPosts.value = data.pages.map((p, i) => ({
-        id: p.id,
-        slug: p.slug,
-        title: p.title,
-        excerpt: p.excerpt,
-        category: p.category || 'General',
-        date: p.published_at ? new Date(p.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '',
-        readTime: `${p.read_time_minutes || 5} min read`,
-        gradient: p.hero_gradient || staticPosts[i % staticPosts.length]?.gradient || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        image: p.og_image_url || staticPosts[i % staticPosts.length]?.image || '',
-      }))
+    if (data.pages && data.pages.length) {
+      posts.value = data.pages.map(mapApi)
+    } else {
+      posts.value = staticPosts.map(mapStatic)
     }
   } catch (e) {
-    // API not available — keep static data
-    console.debug('Blog: using static fallback', e.message)
+    posts.value = staticPosts.map(mapStatic)
   } finally {
     loading.value = false
   }
 })
 
-const categories = ref([
-  { name: 'AI Trends', count: 12 },
-  { name: 'Productivity', count: 8 },
-  { name: 'Tutorial', count: 15 },
-  { name: 'Case Study', count: 6 },
-  { name: 'Testing', count: 5 },
-  { name: 'Technical', count: 10 }
-])
+function mapApi(p) {
+  return {
+    slug: p.slug, title: p.title, excerpt: p.excerpt, category: p.category || 'Engineering',
+    author: p.author, readTime: p.read_time_minutes || 5,
+    date: p.published_at ? new Date(p.published_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : '',
+    gradient: p.hero_gradient || 'linear-gradient(135deg,#2563EB,#14B8A6)', image: p.og_image_url || '',
+  }
+}
+function mapStatic(p) {
+  return {
+    slug: p.slug, title: p.title, excerpt: p.excerpt, category: p.category || 'Engineering',
+    author: p.author, readTime: typeof p.readTime === 'number' ? p.readTime : 6, date: p.date || '',
+    gradient: p.gradient || p.color || 'linear-gradient(135deg,#2563EB,#14B8A6)', image: p.image || '',
+  }
+}
 
-const popularPosts = computed(() => {
-  return blogPosts.value.slice(0, 3)
+const categories = computed(() => {
+  const set = new Set()
+  posts.value.forEach(p => p.category && set.add(p.category))
+  return [...set].slice(0, 6)
 })
 
-const subscribe = () => {
-  notify.success(`Subscribed with: ${email.value}`)
-  email.value = ''
+const filtered = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  return posts.value.filter(p => {
+    if (activeCat.value !== 'All Posts' && p.category !== activeCat.value) return false
+    if (q && !(`${p.title} ${p.excerpt}`.toLowerCase().includes(q))) return false
+    return true
+  })
+})
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filtered.value.length / PAGE_SIZE)))
+const pageItems = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, page.value * PAGE_SIZE))
+const featured = computed(() => pageItems.value[0] || null)
+const rest = computed(() => pageItems.value.slice(1))
+
+const pageList = computed(() => {
+  const t = totalPages.value
+  if (t <= 5) return Array.from({ length: t }, (_, i) => i + 1)
+  const list = [1]
+  if (page.value > 3) list.push('…')
+  for (let n = Math.max(2, page.value - 1); n <= Math.min(t - 1, page.value + 1); n++) list.push(n)
+  if (page.value < t - 2) list.push('…')
+  list.push(t)
+  return list
+})
+
+function go(n) { page.value = n; window.scrollTo({ top: 0, behavior: 'smooth' }) }
+watch([query, activeCat], () => { page.value = 1 })
+
+function initial(name) { return (name || 'A').trim().charAt(0).toUpperCase() }
+function avatarBg(name) {
+  const hues = ['#2563EB', '#14B8A6', '#7c3aed', '#0891b2', '#1e40af']
+  const h = (name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  return { background: hues[h % hues.length] }
 }
+function bg(p) {
+  if (p.image) return { backgroundImage: `url(${p.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+  return { background: p.gradient }
+}
+function subscribe() { notify.success(`Subscribed: ${email.value}`); email.value = '' }
 </script>
 
 <style scoped>
-/* --- 1. THEME VARIABLES --- */
-/* --- 1. THEME VARIABLES --- */
-.blog-page {
-  /* Most variables are now global */
-  width: 100%;
-  min-height: 100vh;
-  background-color: var(--bg-body);
-  color: var(--text-primary);
-  overflow-x: hidden;
-}
+.eyebrow { font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--vm-primary); }
+.hero-title { margin-top: 12px; font-family: var(--vm-font-display); font-size: clamp(2.2rem, 5vw, 3.4rem); font-weight: 800; letter-spacing: -.02em; color: var(--vm-ink); line-height: 1.05; }
+.hero-sub { margin-top: 16px; max-width: 560px; font-size: 1.02rem; line-height: 1.65; color: var(--vm-ink-soft); }
+.search { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--vm-border); background: var(--vm-surface); box-shadow: var(--vm-shadow-s); }
+.search input { flex: 1; border: none; outline: none; background: transparent; font-size: .92rem; color: var(--vm-ink); }
 
-/* --- 2. PAGE HEADER --- */
-.page-header {
-  position: relative;
-  text-align: center;
-  padding: 6rem 1.5rem 5rem;
-  overflow: hidden;
-}
+.blog-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.muted { color: var(--vm-ink-faint); font-size: .8rem; }
+.cat { display: inline-block; padding: 4px 10px; border-radius: 7px; font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--vm-primary); background: var(--vm-primary-soft); }
+.cat-label { font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--vm-primary); }
 
-.header-bg {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.15) 0%, transparent 60%);
-  z-index: 0;
-}
+/* Featured */
+.featured { grid-column: 1; display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; border-radius: 20px; border: 1px solid var(--vm-border); background: var(--vm-surface); box-shadow: var(--vm-shadow-s); text-decoration: none; transition: transform .2s var(--vm-ease), box-shadow .2s, border-color .2s; }
+.featured:hover { transform: translateY(-3px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
+.featured-img { min-height: 340px; }
+.featured-body { padding: 30px; display: flex; flex-direction: column; }
+.meta-row { display: flex; align-items: center; gap: 12px; }
+.featured-title { margin-top: 16px; font-family: var(--vm-font-display); font-size: 1.7rem; font-weight: 800; line-height: 1.15; color: var(--vm-ink); }
+.featured-excerpt { margin-top: 12px; color: var(--vm-ink-soft); line-height: 1.6; flex: 1; }
+.author { display: flex; align-items: center; gap: 10px; margin-top: 22px; }
+.author.sm { margin-top: 0; gap: 8px; }
+.avatar { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; color: #fff; font-weight: 700; font-size: .9rem; }
+.avatar.sm { width: 26px; height: 26px; font-size: .72rem; }
+.a-name { font-weight: 600; font-size: .85rem; color: var(--vm-ink); }
+.a-role { font-size: .76rem; color: var(--vm-ink-faint); }
 
-.gradient-text {
-  background: var(--gradient-text);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-size: 3.5rem;
-  font-weight: 800;
-  margin-bottom: 1rem;
-  position: relative;
-  z-index: 1;
-}
+/* Sidebar */
+.aside { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: 22px; }
+.card { border: 1px solid var(--vm-border); border-radius: 18px; background: var(--vm-surface); padding: 24px; box-shadow: var(--vm-shadow-s); }
+.card h3 { font-size: 1.25rem; font-weight: 800; color: var(--vm-ink); }
+.chips { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px; }
+.chip { padding: 8px 16px; border-radius: 999px; border: none; font-size: .82rem; font-weight: 600; color: var(--vm-ink-soft); background: var(--vm-surface-soft); cursor: pointer; transition: background .15s, color .15s; }
+.chip.active { color: #fff; background: var(--vm-primary); }
+.chip:hover:not(.active) { background: #e2e8f0; }
 
-.page-header > p {
-  color: var(--text-muted);
-  font-size: 1.25rem;
-  position: relative;
-  z-index: 1;
-}
+.protocol { border-radius: 18px; padding: 24px; color: #fff; background: var(--vm-g-brand); box-shadow: var(--vm-glow-p); position: relative; overflow: hidden; }
+.protocol h3 { font-size: 1.3rem; font-weight: 800; }
+.protocol p { margin-top: 10px; font-size: .88rem; line-height: 1.55; color: rgba(255,255,255,.85); }
+.p-input { width: 100%; margin-top: 16px; padding: 11px 14px; border-radius: 10px; border: none; background: rgba(255,255,255,.18); color: #fff; outline: none; font-size: .88rem; }
+.p-input::placeholder { color: rgba(255,255,255,.7); }
+.p-btn { width: 100%; margin-top: 10px; padding: 11px; border-radius: 10px; border: none; font-weight: 700; color: var(--vm-primary); background: #fff; cursor: pointer; }
 
-/* --- 3. LAYOUT CONTAINER --- */
-.blog-container {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0 1.5rem 6rem;
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 4rem;
-  position: relative;
-}
+/* Card grid */
+.cards { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 8px; }
+.post-card { display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; border: 1px solid var(--vm-border); background: var(--vm-surface); box-shadow: var(--vm-shadow-s); text-decoration: none; transition: transform .2s var(--vm-ease), box-shadow .2s, border-color .2s; }
+.post-card:hover { transform: translateY(-4px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
+.card-img { height: 180px; }
+.card-body { padding: 20px; display: flex; flex-direction: column; flex: 1; }
+.card-title { margin-top: 8px; font-size: 1.1rem; font-weight: 700; line-height: 1.3; color: var(--vm-ink); }
+.card-excerpt { margin-top: 8px; font-size: .85rem; line-height: 1.55; color: var(--vm-ink-soft); flex: 1; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
 
-.main-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2.5rem;
-}
+/* Pagination */
+.pager { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 36px; }
+.pg, .pg-arrow { min-width: 40px; height: 40px; padding: 0 10px; border-radius: 11px; border: 1px solid var(--vm-border); background: var(--vm-surface); color: var(--vm-ink-soft); font-weight: 600; font-size: .88rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.pg.active { background: var(--vm-primary); color: #fff; border-color: transparent; }
+.pg.dots { border: none; background: none; cursor: default; }
+.pg-arrow:disabled { opacity: .4; cursor: not-allowed; }
 
-/* --- 4. FEATURED POST (Wide Card) --- */
-.featured-card {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  background: var(--bg-card-solid);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  overflow: hidden;
-  transition: all 0.3s ease;
+@media (max-width: 1023px) {
+  .blog-grid { grid-template-columns: 1fr; }
+  .aside { grid-column: 1; grid-row: auto; flex-direction: row; flex-wrap: wrap; }
+  .aside .card, .aside .protocol { flex: 1; min-width: 260px; }
+  .featured { grid-column: 1; }
+  .cards { grid-template-columns: repeat(2, 1fr); }
 }
-
-.featured-card:hover {
-  transform: translateY(-5px);
-  border-color: var(--primary);
-  box-shadow: var(--shadow-xl);
-}
-
-.featured-card .card-image-wrapper {
-  height: 100%;
-  min-height: 350px;
-  position: relative;
-}
-
-.featured-card .card-content {
-  padding: 3rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-/* --- 5. REGULAR GRID --- */
-.regular-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 2rem;
-}
-
-.blog-card {
-  background: var(--bg-card);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: all 0.3s ease;
-}
-
-.blog-card:hover {
-  transform: translateY(-5px);
-  border-color: var(--primary-glow);
-  box-shadow: var(--shadow-lg);
-}
-
-/* --- 6. CARD INTERNALS --- */
-.card-image-wrapper {
-  position: relative;
-  height: 200px;
-  overflow: hidden;
-}
-
-.image-placeholder {
-  width: 100%;
-  height: 100%;
-  background-size: cover;
-  background-position: center;
-}
-
-.category-overlay {
-  position: absolute;
-  top: 1rem; left: 1rem;
-  z-index: 2;
-}
-
-.post-category {
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255,255,255,0.1);
-  color: var(--text-primary);
-  padding: 0.4rem 0.8rem;
-  border-radius: 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.card-content {
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1;
-}
-
-.post-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.separator {
-  color: var(--border);
-}
-
-.card-content h2 {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 0.75rem;
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.card-content p {
-  color: var(--text-muted);
-  font-size: 0.95rem;
-  line-height: 1.6;
-  margin-bottom: 1.5rem;
-  flex-grow: 1;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.read-more {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--primary);
-  font-weight: 600;
-  text-decoration: none;
-  transition: all 0.2s ease;
-}
-
-.read-more:hover {
-  color: var(--primary-light);
-}
-
-.read-more .arrow {
-  transition: transform 0.2s ease;
-}
-
-.read-more:hover .arrow {
-  transform: translateX(4px);
-}
-
-/* --- 7. SIDEBAR --- */
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
-
-.sidebar-widget {
-  background: var(--bg-card);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 2rem;
-  position: sticky;
-  top: 100px; /* Keeps it visible while scrolling */
-  transition: 0.3s;
-}
-
-.sidebar-widget h3 {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin-bottom: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Category List */
-.category-list {
-  list-style: none;
-  padding: 0;
-}
-
-.category-list li {
-  margin-bottom: 0.5rem;
-}
-
-.category-list a {
-  display: flex;
-  justify-content: space-between;
-  color: var(--text-muted);
-  text-decoration: none;
-  padding: 0.75rem;
-  border-radius: 8px;
-  transition: 0.2s;
-}
-
-.category-list a:hover {
-  background: var(--bg-surface);
-  color: var(--text-primary);
-}
-
-.count {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  color: var(--text-primary);
-}
-
-/* Trending List */
-.popular-list {
-  list-style: none;
-  padding: 0;
-}
-
-.popular-list li {
-  margin-bottom: 1rem;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  padding-bottom: 1rem;
-}
-
-.popular-list li:last-child {
-  border-bottom: none;
-}
-
-.popular-link {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  text-decoration: none;
-  color: var(--text-muted);
-  font-weight: 500;
-  font-size: 0.95rem;
-  line-height: 1.4;
-  transition: 0.2s;
-}
-
-.popular-link:hover {
-  color: var(--primary);
-}
-
-.trending-number {
-  font-family: monospace;
-  color: var(--primary);
-  opacity: 0.8;
-  font-size: 0.9rem;
-}
-
-/* Newsletter Widget */
-.newsletter-widget {
-  background: var(--bg-card);
-  border-color: var(--primary-glow);
-}
-
-.newsletter-widget p {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  margin-bottom: 1.5rem;
-  line-height: 1.5;
-}
-
-.subscribe-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.subscribe-form input {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.8rem;
-  color: var(--text-primary);
-  outline: none;
-  transition: 0.2s;
-}
-
-.subscribe-form input:focus {
-  border-color: var(--primary);
-}
-
-.btn-subscribe {
-  background: var(--primary);
-  color: var(--text-primary);
-  border: none;
-  padding: 0.8rem;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: 0.3s;
-}
-
-.btn-subscribe:hover {
-  background: #2563EB;
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
-}
-
-/* --- 8. RESPONSIVE --- */
-@media (max-width: 1024px) {
-  .blog-container {
-    grid-template-columns: 1fr;
-  }
-  
-  .sidebar {
-    position: static;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 2rem;
-  }
-}
-
-@media (max-width: 768px) {
-  .page-header { padding: 4rem 1.5rem; }
-  .gradient-text { font-size: 2.5rem; }
-  
-  .featured-card {
-    grid-template-columns: 1fr;
-  }
-  
-  .featured-card .card-image-wrapper {
-    min-height: 200px;
-  }
-  
-  .featured-card .card-content {
-    padding: 1.5rem;
-  }
+@media (max-width: 640px) {
+  .featured { grid-template-columns: 1fr; }
+  .featured-img { min-height: 200px; }
+  .cards { grid-template-columns: 1fr; }
 }
 </style>

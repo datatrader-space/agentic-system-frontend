@@ -1,215 +1,177 @@
 <template>
-  <div class="docs-page">
-    <!-- Sidebar -->
-    <aside class="docs-sidebar" :class="{ open: sidebarOpen }">
-      <div class="sidebar-header">
-        <div class="sidebar-brand">
-          <span class="sidebar-logo">📚</span>
-          <div>
-            <h2 class="sidebar-title">AADML Docs</h2>
-            <span class="sidebar-version">v1.0</span>
+  <PublicLayout>
+    <div class="docs-shell">
+      <!-- ── Left: grouped nav ── -->
+      <aside class="docs-side" :class="{ open: sidebarOpen }">
+        <div class="side-search">
+          <Icon icon="lucide:search" class="h-4 w-4 text-ink-faint" />
+          <input v-model="searchQuery" type="text" placeholder="Search documentation…" />
+          <button class="side-close lg:hidden" @click="sidebarOpen = false" aria-label="Close"><Icon icon="lucide:x" class="h-5 w-5" /></button>
+        </div>
+
+        <nav class="side-nav vm-scroll">
+          <div v-if="loading" class="space-y-3 p-2">
+            <div v-for="i in 6" :key="i" class="vm-skel h-4" :style="{ width: (55 + i * 6) + '%' }"></div>
           </div>
-        </div>
-        <button class="sidebar-close" @click="sidebarOpen = false">✕</button>
-      </div>
-
-      <!-- Search -->
-      <div class="sidebar-search">
-        <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-        </svg>
-        <input v-model="searchQuery" type="text" placeholder="Search docs..." class="search-input" />
-      </div>
-
-      <nav class="docs-nav">
-        <div v-if="loading" class="nav-loading">
-          <div class="skeleton" v-for="i in 4" :key="i"></div>
-        </div>
-        <template v-else>
-          <div v-for="item in filteredTree" :key="item.slug" class="nav-section">
-            <router-link 
-              :to="`/docs/${item.slug}`" 
-              class="nav-item" 
-              :class="{ active: currentSlug === item.slug }"
-              @click="sidebarOpen = false"
-            >
-              <span class="nav-icon">{{ categoryIcon(item.category) }}</span>
-              <span>{{ item.title }}</span>
-            </router-link>
-            <div v-if="item.children && item.children.length" class="nav-children">
+          <template v-else>
+            <div v-for="group in filteredGroups" :key="group.category" class="nav-group">
+              <div class="nav-group-label">{{ group.category }}</div>
               <router-link
-                v-for="child in item.children"
-                :key="child.slug"
-                :to="`/docs/${child.slug}`"
-                class="nav-item child"
-                :class="{ active: currentSlug === child.slug }"
+                v-for="item in group.items"
+                :key="item.slug"
+                :to="`/docs/${item.slug}`"
+                class="nav-item"
+                :class="{ active: currentSlug === item.slug }"
                 @click="sidebarOpen = false"
               >
-                {{ child.title }}
+                <span v-if="currentSlug === item.slug" class="dot">•</span>{{ item.title }}
               </router-link>
             </div>
-          </div>
-        </template>
-      </nav>
-    </aside>
+          </template>
+        </nav>
+      </aside>
 
-    <!-- Mobile toggle -->
-    <button class="mobile-sidebar-toggle" @click="sidebarOpen = true">
-      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-      </svg>
-      <span>Docs Menu</span>
-    </button>
+      <button class="mobile-toggle lg:hidden" @click="sidebarOpen = true">
+        <Icon icon="lucide:menu" class="h-5 w-5" /> Docs
+      </button>
 
-    <!-- Content -->
-    <main class="docs-content">
-      <!-- Loading -->
-      <div v-if="pageLoading" class="content-loading">
-        <div class="skeleton-block" v-for="i in 3" :key="i"></div>
-      </div>
-
-      <!-- Welcome / Landing -->
-      <div v-else-if="!currentPage && !currentSlug" class="docs-welcome">
-        <div class="welcome-hero">
-          <div class="welcome-glow"></div>
-          <h1 class="welcome-title">
-            <span class="gradient-text">AADML Documentation</span>
-          </h1>
-          <p class="welcome-subtitle">
-            Everything you need to build, deploy, and manage AI agents.
-          </p>
+      <!-- ── Center: article ── -->
+      <main class="docs-main">
+        <div v-if="pageLoading" class="space-y-4 py-6">
+          <div class="vm-skel h-9 w-2/5"></div>
+          <div class="vm-skel h-4 w-4/5"></div>
+          <div class="vm-skel h-4 w-3/5"></div>
         </div>
 
-        <div class="quick-links">
-          <router-link 
-            v-for="card in quickStartCards" 
-            :key="card.slug" 
-            :to="`/docs/${card.slug}`" 
-            class="quick-card"
-          >
-            <span class="quick-icon">{{ card.icon }}</span>
-            <div>
-              <h3>{{ card.title }}</h3>
-              <p>{{ card.desc }}</p>
-            </div>
-            <svg class="quick-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-            </svg>
-          </router-link>
-        </div>
-
-        <div class="welcome-footer">
-          <p>Can't find what you need? Use the search or <router-link to="/contact">contact us</router-link>.</p>
-        </div>
-      </div>
-
-      <!-- 404 for slug not found -->
-      <div v-else-if="!currentPage && currentSlug" class="content-empty">
-        <span class="empty-icon">📄</span>
-        <h2>Page not found</h2>
-        <p>The documentation page "<code>{{ currentSlug }}</code>" doesn't exist yet.</p>
-        <router-link to="/docs" class="back-link">← Back to docs</router-link>
-      </div>
-
-      <!-- Article -->
-      <article v-else class="article">
-        <!-- Breadcrumb -->
-        <div class="breadcrumb">
-          <router-link to="/docs">Docs</router-link>
-          <span class="breadcrumb-sep">/</span>
-          <span v-if="currentPage.category" class="breadcrumb-cat">{{ currentPage.category }}</span>
-          <span v-if="currentPage.category" class="breadcrumb-sep">/</span>
-          <span class="breadcrumb-current">{{ currentPage.title }}</span>
-        </div>
-
-        <div class="article-header">
-          <span class="article-category" v-if="currentPage.category">
-            {{ categoryIcon(currentPage.category) }} {{ currentPage.category }}
-          </span>
-          <h1>{{ currentPage.title }}</h1>
-          <p class="article-excerpt" v-if="currentPage.excerpt">{{ currentPage.excerpt }}</p>
-        </div>
-        <div class="article-body" v-html="currentPage.content_html || ''"></div>
-        <div class="article-footer">
-          <div class="article-meta" v-if="currentPage.updated_at">
-            Last updated: {{ formatDate(currentPage.updated_at) }}
-          </div>
-          <div class="article-nav">
-            <router-link v-if="prevPage" :to="`/docs/${prevPage.slug}`" class="nav-prev">
-              ← {{ prevPage.title }}
-            </router-link>
-            <router-link v-if="nextPage" :to="`/docs/${nextPage.slug}`" class="nav-next">
-              {{ nextPage.title }} →
+        <!-- Welcome (no slug) -->
+        <div v-else-if="!currentPage && !currentSlug" class="welcome">
+          <h1 class="welcome-title">AADML Documentation</h1>
+          <p class="welcome-lead">Everything you need to build, deploy, and manage AI agents — from your first agent to production automation.</p>
+          <div class="quick-grid">
+            <router-link v-for="card in quickStartCards" :key="card.slug" :to="`/docs/${card.slug}`" class="quick-card">
+              <span class="quick-ico">{{ card.icon }}</span>
+              <div><h3>{{ card.title }}</h3><p>{{ card.desc }}</p></div>
             </router-link>
           </div>
         </div>
-      </article>
-    </main>
-  </div>
+
+        <!-- 404 -->
+        <div v-else-if="!currentPage && currentSlug" class="missing">
+          <Icon icon="lucide:file-question" class="mx-auto h-12 w-12 text-ink-faint" />
+          <h2>Page not found</h2>
+          <p>The page “<code>{{ currentSlug }}</code>” doesn’t exist yet.</p>
+          <router-link to="/docs" class="text-violet font-semibold">← Back to docs</router-link>
+        </div>
+
+        <!-- Article -->
+        <article v-else class="article">
+          <nav class="crumb">
+            <router-link to="/docs">Docs</router-link>
+            <Icon icon="lucide:chevron-right" class="h-3.5 w-3.5" />
+            <span>{{ currentPage.title }}</span>
+          </nav>
+
+          <h1 class="article-title">{{ currentPage.title }}</h1>
+          <p v-if="currentPage.excerpt" class="article-lead">{{ currentPage.excerpt }}</p>
+
+          <div ref="articleEl" class="article-body" v-html="currentPage.content_html || ''"></div>
+
+          <!-- prev / next -->
+          <div class="pager">
+            <router-link v-if="prevPage" :to="`/docs/${prevPage.slug}`" class="pager-link prev">
+              <span class="pager-cap">Previous</span>
+              <span class="pager-title"><Icon icon="lucide:arrow-left" class="h-4 w-4" /> {{ prevPage.title }}</span>
+            </router-link>
+            <span v-else></span>
+            <router-link v-if="nextPage" :to="`/docs/${nextPage.slug}`" class="pager-link next">
+              <span class="pager-cap">Next</span>
+              <span class="pager-title">{{ nextPage.title }} <Icon icon="lucide:arrow-right" class="h-4 w-4" /></span>
+            </router-link>
+          </div>
+        </article>
+      </main>
+
+      <!-- ── Right: on-this-page + help ── -->
+      <aside v-if="currentPage" class="docs-toc">
+        <div class="toc-sticky">
+          <template v-if="toc.length">
+            <div class="toc-label">On this page</div>
+            <ul class="toc-list">
+              <li v-for="h in toc" :key="h.id" :class="{ sub: h.level === 3, active: activeId === h.id }">
+                <a :href="`#${h.id}`" @click.prevent="scrollTo(h.id)">{{ h.text }}</a>
+              </li>
+            </ul>
+          </template>
+
+          <div class="help-card">
+            <div class="help-top"><Icon icon="lucide:help-circle" class="h-5 w-5 text-violet" /> Need help?</div>
+            <p>Join our community for real-time support and product updates.</p>
+            <a href="/contact" class="help-link">Contact us <Icon icon="lucide:arrow-right" class="h-4 w-4" /></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </PublicLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { Icon } from '@iconify/vue'
+import PublicLayout from '../components/public/PublicLayout.vue'
 import { useMeta } from '../composables/useMeta'
 import api from '../services/api'
 
 const route = useRoute()
-
 const tree = ref([])
 const currentPage = ref(null)
 const loading = ref(true)
 const pageLoading = ref(false)
 const searchQuery = ref('')
 const sidebarOpen = ref(false)
+const articleEl = ref(null)
+const toc = ref([])
+const activeId = ref('')
+let spy = null
 
 const currentSlug = computed(() => route.params.slug || '')
 
 useMeta({
   title: computed(() => currentPage.value ? `${currentPage.value.title} — AADML Docs` : 'Documentation — AADML'),
-  description: computed(() => currentPage.value?.excerpt || 'AADML platform documentation — agents, tools, signals, MCP, and more.'),
+  description: computed(() => currentPage.value?.excerpt || 'AADML platform documentation — agents, tools, signals, MCP, knowledge, and more.'),
 })
 
 const quickStartCards = [
   { slug: 'getting-started', icon: '🚀', title: 'Getting Started', desc: 'Set up your first agent in 5 minutes' },
-  { slug: 'tools', icon: '🛠️', title: 'Tools', desc: '140+ built-in tools across 15+ categories' },
-  { slug: 'signals', icon: '⚡', title: 'Signals & Schedules', desc: 'Automate agents with cron, webhooks, and events' },
+  { slug: 'tools', icon: '🛠️', title: 'Tools', desc: '1,800+ tools across builtin, MCP, and services' },
+  { slug: 'signals', icon: '⚡', title: 'Signals & Schedules', desc: 'Automate agents with cron, webhooks, events' },
   { slug: 'mcp', icon: '🔌', title: 'MCP Integration', desc: 'Connect external Model Context Protocol servers' },
-  { slug: 'knowledge', icon: '🧠', title: 'Knowledge & Dream', desc: 'Agent memory, knowledge cards, and dream cycles' },
+  { slug: 'knowledge', icon: '🧠', title: 'Knowledge & Dream', desc: 'Agent memory, knowledge cards, dream cycles' },
   { slug: 'api-reference', icon: '📡', title: 'API Reference', desc: 'REST API endpoints and authentication' },
 ]
 
-const categoryIcons = {
-  'Basics': '🚀',
-  'Core': '🛠️',
-  'Automation': '⚡',
-  'Extensibility': '🔌',
-  'Intelligence': '🧠',
-  'Developers': '📡',
-  'Security': '🔒',
-}
-
-function categoryIcon(cat) {
-  return categoryIcons[cat] || '📄'
-}
-
-const filteredTree = computed(() => {
-  if (!searchQuery.value.trim()) return tree.value
-  const q = searchQuery.value.toLowerCase()
-  return tree.value.filter(item => 
-    item.title.toLowerCase().includes(q) ||
-    (item.children || []).some(c => c.title.toLowerCase().includes(q))
-  )
-})
-
-// Prev/next navigation
+// Flatten the CMS tree (top-level + children) then group by category for the sidebar.
 const flatPages = computed(() => {
   const flat = []
-  tree.value.forEach(item => {
-    flat.push(item)
-    if (item.children) flat.push(...item.children)
-  })
+  tree.value.forEach(item => { flat.push(item); if (item.children) flat.push(...item.children) })
   return flat
+})
+const groups = computed(() => {
+  const order = []
+  const byCat = {}
+  for (const p of flatPages.value) {
+    const cat = p.category || 'Documentation'
+    if (!byCat[cat]) { byCat[cat] = []; order.push(cat) }
+    byCat[cat].push(p)
+  }
+  return order.map(cat => ({ category: cat, items: byCat[cat] }))
+})
+const filteredGroups = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return groups.value
+  return groups.value
+    .map(g => ({ category: g.category, items: g.items.filter(i => i.title.toLowerCase().includes(q)) }))
+    .filter(g => g.items.length)
 })
 
 const currentIndex = computed(() => flatPages.value.findIndex(p => p.slug === currentSlug.value))
@@ -218,18 +180,13 @@ const nextPage = computed(() => currentIndex.value >= 0 && currentIndex.value < 
 
 onMounted(async () => {
   await loadTree()
-  if (currentSlug.value) {
-    await loadPage(currentSlug.value)
-  }
+  if (currentSlug.value) await loadPage(currentSlug.value)
 })
+onUnmounted(() => spy?.disconnect())
 
 watch(() => route.params.slug, async (slug) => {
-  if (slug) {
-    await loadPage(slug)
-    window.scrollTo(0, 0)
-  } else {
-    currentPage.value = null
-  }
+  if (slug) { await loadPage(slug); window.scrollTo(0, 0) }
+  else { currentPage.value = null; toc.value = [] }
 })
 
 async function loadTree() {
@@ -238,18 +195,10 @@ async function loadTree() {
     const { data } = await api.get('/content/docs-tree/')
     tree.value = data.tree || []
   } catch (e) {
-    console.warn('Docs: could not load tree', e.message)
-    tree.value = [
-      { slug: 'getting-started', title: 'Getting Started', category: 'Basics', children: [] },
-      { slug: 'tools', title: 'Tools', category: 'Core', children: [] },
-      { slug: 'signals', title: 'Signals & Schedules', category: 'Automation', children: [] },
-      { slug: 'mcp', title: 'MCP Integration', category: 'Extensibility', children: [] },
-      { slug: 'knowledge', title: 'Knowledge & Dream', category: 'Intelligence', children: [] },
-      { slug: 'api-reference', title: 'API Reference', category: 'Developers', children: [] },
-    ]
-  } finally {
-    loading.value = false
-  }
+    // Purely backend-driven: no fake nav on error — show the empty/welcome state.
+    console.debug('Docs: tree load failed', e.message)
+    tree.value = []
+  } finally { loading.value = false }
 }
 
 async function loadPage(slug) {
@@ -257,460 +206,214 @@ async function loadPage(slug) {
     pageLoading.value = true
     const { data } = await api.get(`/content/pages/${slug}/`)
     currentPage.value = data.page
+    await nextTick()
+    enhanceArticle()
   } catch (e) {
     currentPage.value = null
-  } finally {
-    pageLoading.value = false
+    toc.value = []
+  } finally { pageLoading.value = false }
+}
+
+function slugify(t) {
+  return (t || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'section'
+}
+
+/** After rendering CMS HTML: build the right-rail TOC + add filename headers & copy buttons to code blocks. */
+function enhanceArticle() {
+  const el = articleEl.value
+  if (!el) return
+
+  // TOC from h2/h3
+  const headings = el.querySelectorAll('h2, h3')
+  const items = []
+  const seen = {}
+  headings.forEach(h => {
+    let id = h.id || slugify(h.textContent)
+    if (seen[id]) { id = `${id}-${seen[id]++}` } else { seen[id] = 1 }
+    h.id = id
+    items.push({ id, text: h.textContent.trim(), level: h.tagName === 'H3' ? 3 : 2 })
+  })
+  toc.value = items
+
+  // Code blocks → header bar (language label) + copy button
+  el.querySelectorAll('pre').forEach(pre => {
+    if (pre.dataset.enhanced) return
+    pre.dataset.enhanced = '1'
+    const code = pre.querySelector('code')
+    const cls = code?.className || ''
+    const lang = (cls.match(/language-([\w-]+)/)?.[1] || 'code').replace(/^bash$/, 'Terminal')
+    const wrap = document.createElement('div')
+    wrap.className = 'code-block'
+    const bar = document.createElement('div')
+    bar.className = 'code-bar'
+    const label = document.createElement('span')
+    label.className = 'code-lang'
+    label.textContent = lang
+    const btn = document.createElement('button')
+    btn.className = 'code-copy'
+    btn.type = 'button'
+    btn.textContent = 'Copy'
+    btn.addEventListener('click', () => {
+      navigator.clipboard?.writeText(code?.innerText || pre.innerText || '')
+      btn.textContent = 'Copied'
+      setTimeout(() => { btn.textContent = 'Copy' }, 1500)
+    })
+    bar.appendChild(label); bar.appendChild(btn)
+    pre.parentNode.insertBefore(wrap, pre)
+    wrap.appendChild(bar); wrap.appendChild(pre)
+  })
+
+  // Scrollspy for the active TOC entry
+  spy?.disconnect()
+  if (headings.length) {
+    spy = new IntersectionObserver((entries) => {
+      const visible = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+      if (visible[0]) activeId.value = visible[0].target.id
+    }, { rootMargin: '-80px 0px -70% 0px' })
+    headings.forEach(h => spy.observe(h))
   }
 }
 
-function formatDate(dateStr) {
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+function scrollTo(id) {
+  const el = document.getElementById(id)
+  if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); activeId.value = id }
 }
 </script>
 
 <style scoped>
-.docs-page {
+.docs-shell {
   display: grid;
-  grid-template-columns: 300px 1fr;
-  min-height: 100vh;
-  background: var(--bg-body);
-  color: var(--text-primary);
+  grid-template-columns: 264px minmax(0, 1fr) 232px;
+  max-width: 1320px;
+  margin: 0 auto;
+  align-items: start;
 }
 
-/* ═══ Sidebar ═══ */
-.docs-sidebar {
-  background: var(--bg-card);
-  border-right: 1px solid var(--border);
+/* ── Left nav ── */
+.docs-side {
   position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
+  top: 64px;
+  align-self: start;
+  height: calc(100vh - 64px);
   display: flex;
   flex-direction: column;
+  border-right: 1px solid var(--vm-border);
+  background: var(--vm-surface-soft);
+  padding: 20px 14px;
 }
-
-.sidebar-header {
-  padding: 1.5rem 1.5rem 1rem;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.side-search {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; border-radius: 11px; background: var(--vm-surface);
+  border: 1px solid var(--vm-border); margin-bottom: 14px;
 }
-
-.sidebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
+.side-search input { flex: 1; border: none; outline: none; background: transparent; font-size: .85rem; color: var(--vm-ink); }
+.side-close { border: none; background: none; cursor: pointer; color: var(--vm-ink-faint); }
+.side-nav { overflow-y: auto; flex: 1; }
+.nav-group { margin-bottom: 18px; }
+.nav-group-label {
+  font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--vm-ink-faint); padding: 0 10px 8px;
 }
-
-.sidebar-logo { font-size: 1.4rem; }
-
-.sidebar-title {
-  font-size: 1rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, #2563EB, #06b6d4);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin: 0;
-}
-
-.sidebar-version {
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  background: rgba(139,92,246,0.1);
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-}
-
-.sidebar-close { display: none; background: none; border: none; color: var(--text-muted); font-size: 1.2rem; cursor: pointer; }
-
-/* Search */
-.sidebar-search {
-  padding: 0.75rem 1.25rem;
-  position: relative;
-}
-
-.search-icon {
-  position: absolute;
-  left: 1.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  color: var(--text-muted);
-}
-
-.search-input {
-  width: 100%;
-  padding: 0.6rem 0.75rem 0.6rem 2.25rem;
-  background: rgba(139, 92, 246, 0.05);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.search-input:focus {
-  border-color: #2563EB;
-  background: rgba(139, 92, 246, 0.08);
-}
-
-.search-input::placeholder { color: var(--text-muted); }
-
-/* Nav */
-.docs-nav {
-  padding: 0.75rem 0;
-  flex: 1;
-  overflow-y: auto;
-}
-
-.nav-loading { padding: 1rem 1.5rem; }
-.skeleton {
-  height: 18px;
-  border-radius: 6px;
-  background: rgba(139,92,246,0.08);
-  margin-bottom: 0.75rem;
-  animation: pulse 1.5s ease infinite;
-}
-.skeleton:nth-child(2) { width: 70%; }
-.skeleton:nth-child(3) { width: 85%; }
-
-.nav-section { margin-bottom: 0.125rem; }
-
 .nav-item {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 1.25rem;
-  color: var(--text-muted);
-  text-decoration: none;
-  font-size: 0.875rem;
-  font-weight: 500;
-  border-left: 3px solid transparent;
-  transition: all 0.15s ease;
+  display: block; position: relative;
+  padding: 7px 10px; border-radius: 8px;
+  font-size: .875rem; color: var(--vm-ink-soft); text-decoration: none;
+}
+.nav-item:hover { color: var(--vm-ink); background: rgba(15,23,42,.04); }
+.nav-item.active { color: var(--vm-primary); font-weight: 600; }
+.nav-item .dot { position: absolute; left: 0; color: var(--vm-primary); }
+
+.mobile-toggle {
+  display: none; align-items: center; gap: 8px;
+  position: fixed; bottom: 18px; left: 18px; z-index: 40;
+  padding: 11px 16px; border-radius: 12px; border: none;
+  font-weight: 600; color: #fff; background: var(--vm-g-brand); box-shadow: var(--vm-glow-p); cursor: pointer;
 }
 
-.nav-icon { font-size: 0.9rem; }
+/* ── Center article ── */
+.docs-main { min-width: 0; padding: 40px 56px 80px; }
 
-.nav-item:hover {
-  color: var(--text-primary);
-  background: rgba(139, 92, 246, 0.04);
-}
+.crumb { display: flex; align-items: center; gap: 6px; font-size: .82rem; color: var(--vm-ink-faint); margin-bottom: 18px; }
+.crumb a { color: var(--vm-ink-soft); text-decoration: none; }
+.crumb a:hover { color: var(--vm-primary); }
 
-.nav-item.active {
-  color: #2563EB;
-  border-left-color: #2563EB;
-  background: rgba(139, 92, 246, 0.08);
-  font-weight: 600;
-}
+.article-title { font-family: var(--vm-font-display); font-size: 2.6rem; font-weight: 800; letter-spacing: -.02em; color: var(--vm-ink); line-height: 1.1; }
+.article-lead { margin-top: 18px; font-size: 1.05rem; line-height: 1.7; color: var(--vm-ink-soft); }
 
-.nav-item.child {
-  padding-left: 2.75rem;
-  font-size: 0.825rem;
-}
+.welcome { padding: 12px 0; }
+.welcome-title { font-family: var(--vm-font-display); font-size: 2.4rem; font-weight: 800; color: var(--vm-ink); }
+.welcome-lead { margin-top: 12px; font-size: 1.05rem; color: var(--vm-ink-soft); max-width: 640px; }
+.quick-grid { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.quick-card { display: flex; gap: 14px; align-items: center; border: 1px solid var(--vm-border); border-radius: 14px; background: var(--vm-surface); padding: 18px; text-decoration: none; transition: transform .2s var(--vm-ease), box-shadow .2s, border-color .2s; }
+.quick-card:hover { transform: translateY(-2px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
+.quick-ico { font-size: 1.6rem; }
+.quick-card h3 { font-weight: 700; color: var(--vm-ink); }
+.quick-card p { font-size: .82rem; color: var(--vm-ink-soft); }
 
-/* ═══ Mobile ═══ */
-.mobile-sidebar-toggle {
-  display: none;
-  position: fixed;
-  bottom: 1rem;
-  left: 1rem;
-  z-index: 90;
-  background: rgba(139, 92, 246, 0.9);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  padding: 0.6rem 1rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  gap: 0.5rem;
-  align-items: center;
-  box-shadow: 0 4px 20px rgba(139,92,246,0.4);
-  backdrop-filter: blur(8px);
-}
+.missing { text-align: center; padding: 64px 0; }
+.missing h2 { margin-top: 14px; font-size: 1.3rem; font-weight: 700; color: var(--vm-ink); }
+.missing p { margin-top: 6px; color: var(--vm-ink-soft); }
+.missing code { background: var(--vm-primary-soft); color: var(--vm-primary-d); padding: 1px 6px; border-radius: 5px; }
 
-/* ═══ Content ═══ */
-.docs-content {
-  padding: 2.5rem 4rem;
-  max-width: 860px;
-  min-height: 100vh;
-}
+/* pager */
+.pager { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--vm-border); display: flex; justify-content: space-between; gap: 16px; }
+.pager-link { display: flex; flex-direction: column; gap: 4px; padding: 14px 18px; border: 1px solid var(--vm-border); border-radius: 12px; text-decoration: none; transition: border-color .15s, transform .15s; max-width: 48%; }
+.pager-link.next { text-align: right; align-items: flex-end; margin-left: auto; }
+.pager-link:hover { border-color: var(--vm-primary); transform: translateY(-1px); }
+.pager-cap { font-size: .72rem; color: var(--vm-ink-faint); text-transform: uppercase; letter-spacing: .05em; }
+.pager-title { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--vm-primary); }
 
-@keyframes pulse {
-  0%,100% { opacity: 0.6; }
-  50% { opacity: 1; }
-}
+/* ── Right TOC ── */
+.docs-toc { position: sticky; top: 64px; align-self: start; padding: 40px 16px; }
+.toc-sticky { display: flex; flex-direction: column; gap: 20px; }
+.toc-label { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--vm-ink-faint); }
+.toc-list { list-style: none; margin: 8px 0 0; padding: 0; border-left: 1px solid var(--vm-border); }
+.toc-list li a { display: block; padding: 5px 12px; font-size: .82rem; color: var(--vm-ink-soft); text-decoration: none; border-left: 2px solid transparent; margin-left: -1px; }
+.toc-list li.sub a { padding-left: 22px; }
+.toc-list li a:hover { color: var(--vm-ink); }
+.toc-list li.active a { color: var(--vm-primary); border-left-color: var(--vm-primary); font-weight: 600; }
 
-.content-loading { padding: 2rem 0; }
-.skeleton-block {
-  height: 20px;
-  border-radius: 8px;
-  background: rgba(139,92,246,0.06);
-  margin-bottom: 1rem;
-  animation: pulse 1.5s ease infinite;
-}
-.skeleton-block:first-child { width: 45%; height: 32px; }
-.skeleton-block:nth-child(2) { width: 80%; }
-.skeleton-block:nth-child(3) { width: 65%; }
+.help-card { border: 1px solid var(--vm-border); border-radius: 14px; background: var(--vm-primary-soft); padding: 16px; }
+.help-top { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: .9rem; color: var(--vm-ink); }
+.help-card p { margin-top: 8px; font-size: .8rem; color: var(--vm-ink-soft); line-height: 1.5; }
+.help-link { display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; font-size: .82rem; font-weight: 600; color: var(--vm-primary); text-decoration: none; }
 
-/* ═══ Welcome ═══ */
-.docs-welcome { padding: 1rem 0; }
-
-.welcome-hero {
-  text-align: center;
-  padding: 3rem 0 2.5rem;
-  position: relative;
-}
-
-.welcome-glow {
-  position: absolute;
-  top: 0; left: 50%;
-  transform: translateX(-50%);
-  width: 400px; height: 200px;
-  background: radial-gradient(circle, rgba(139,92,246,0.15), transparent 70%);
-  pointer-events: none;
-}
-
-.welcome-title {
-  font-size: 2.5rem;
-  font-weight: 800;
-  margin-bottom: 0.75rem;
-  position: relative;
-}
-
-.gradient-text {
-  background: linear-gradient(135deg, #2563EB, #06b6d4);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.welcome-subtitle {
-  color: var(--text-muted);
-  font-size: 1.1rem;
-  position: relative;
-}
-
-.quick-links {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.quick-card {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 1.25rem;
-  text-decoration: none;
-  color: var(--text-primary);
-  transition: all 0.2s ease;
-}
-
-.quick-card:hover {
-  border-color: rgba(139,92,246,0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-}
-
-.quick-icon { font-size: 1.6rem; flex-shrink: 0; }
-
-.quick-card h3 {
-  font-size: 0.95rem;
-  font-weight: 700;
-  margin-bottom: 0.2rem;
-}
-
-.quick-card p {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  line-height: 1.4;
-  margin: 0;
-}
-
-.quick-arrow {
-  width: 16px;
-  height: 16px;
-  color: var(--text-muted);
-  margin-left: auto;
-  flex-shrink: 0;
-  transition: transform 0.2s;
-}
-
-.quick-card:hover .quick-arrow { transform: translateX(3px); color: #2563EB; }
-
-.welcome-footer {
-  text-align: center;
-  margin-top: 3rem;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
-.welcome-footer a { color: #2563EB; text-decoration: none; }
-.welcome-footer a:hover { text-decoration: underline; }
-
-/* ═══ Empty / 404 ═══ */
-.content-empty {
-  text-align: center;
-  padding: 4rem 2rem;
-}
-
-.empty-icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
-.content-empty h2 { font-size: 1.5rem; margin-bottom: 0.5rem; }
-.content-empty p { color: var(--text-muted); }
-.content-empty code { background: rgba(139,92,246,0.1); padding: 0.2rem 0.5rem; border-radius: 4px; }
-.back-link { display: inline-block; margin-top: 1.5rem; color: #2563EB; text-decoration: none; font-weight: 600; }
-
-/* ═══ Breadcrumb ═══ */
-.breadcrumb {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 1.5rem;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.breadcrumb a { color: #2563EB; text-decoration: none; }
-.breadcrumb a:hover { text-decoration: underline; }
-.breadcrumb-sep { opacity: 0.4; }
-.breadcrumb-current { color: var(--text-primary); font-weight: 500; }
-
-/* ═══ Article ═══ */
-.article-header {
-  margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.article-category {
-  display: inline-block;
-  padding: 0.3rem 0.8rem;
-  background: rgba(139, 92, 246, 0.1);
-  color: #2563EB;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  margin-bottom: 0.75rem;
-}
-
-.article-header h1 {
-  font-size: 2.2rem;
-  font-weight: 800;
-  line-height: 1.2;
-  margin-bottom: 0.5rem;
-}
-
-.article-excerpt {
-  color: var(--text-muted);
-  font-size: 1.1rem;
-  line-height: 1.5;
-}
-
-.article-body {
-  line-height: 1.85;
-  font-size: 1rem;
-}
-
-.article-body :deep(h1) { font-size: 1.8rem; margin: 2.5rem 0 1rem; font-weight: 700; }
-.article-body :deep(h2) { font-size: 1.4rem; margin: 2rem 0 0.8rem; font-weight: 700; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
-.article-body :deep(h3) { font-size: 1.15rem; margin: 1.5rem 0 0.6rem; font-weight: 600; }
-.article-body :deep(p) { margin-bottom: 1rem; color: var(--text-secondary, var(--text-primary)); }
-.article-body :deep(ul), .article-body :deep(ol) { padding-left: 1.5rem; margin-bottom: 1rem; }
-.article-body :deep(li) { margin-bottom: 0.5rem; }
-.article-body :deep(code) {
-  background: rgba(139, 92, 246, 0.12);
-  padding: 0.15rem 0.45rem;
-  border-radius: 5px;
-  font-size: 0.88em;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-}
-.article-body :deep(pre) {
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 1.25rem 1.5rem;
-  overflow-x: auto;
-  margin: 1.25rem 0;
-  font-size: 0.88rem;
-}
-.article-body :deep(pre code) { background: none; padding: 0; }
-.article-body :deep(table) { width: 100%; border-collapse: collapse; margin: 1.25rem 0; border-radius: 8px; overflow: hidden; }
-.article-body :deep(th), .article-body :deep(td) { padding: 0.65rem 1rem; border: 1px solid var(--border); text-align: left; }
-.article-body :deep(th) { background: rgba(139, 92, 246, 0.08); font-weight: 600; font-size: 0.9rem; }
-.article-body :deep(blockquote) {
-  border-left: 3px solid #2563EB;
-  padding: 0.75rem 1.25rem;
-  margin: 1rem 0;
-  background: rgba(139, 92, 246, 0.05);
-  border-radius: 0 8px 8px 0;
-  color: var(--text-secondary, var(--text-muted));
-}
-.article-body :deep(a) { color: #2563EB; text-decoration: none; }
+/* ── Rendered markdown ── */
+.article-body { margin-top: 28px; line-height: 1.75; color: var(--vm-ink-soft); }
+.article-body :deep(h2) { scroll-margin-top: 80px; font-size: 1.5rem; font-weight: 800; color: var(--vm-ink); margin: 2.4rem 0 1rem; }
+.article-body :deep(h3) { scroll-margin-top: 80px; font-size: 1.15rem; font-weight: 700; color: var(--vm-ink); margin: 1.8rem 0 .6rem; }
+.article-body :deep(p) { margin-bottom: 1rem; }
+.article-body :deep(a) { color: var(--vm-primary); text-decoration: none; }
 .article-body :deep(a:hover) { text-decoration: underline; }
-.article-body :deep(hr) { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+.article-body :deep(ul), .article-body :deep(ol) { padding-left: 1.4rem; margin-bottom: 1rem; }
+.article-body :deep(li) { margin-bottom: .4rem; }
+.article-body :deep(code) { background: var(--vm-primary-soft); color: var(--vm-primary-d); padding: .12rem .42rem; border-radius: 5px; font-size: .88em; font-family: 'JetBrains Mono', monospace; }
+.article-body :deep(table) { width: 100%; border-collapse: collapse; margin: 1.2rem 0; }
+.article-body :deep(th), .article-body :deep(td) { padding: .6rem 1rem; border: 1px solid var(--vm-border); text-align: left; }
+.article-body :deep(th) { background: var(--vm-surface-soft); font-weight: 600; }
+.article-body :deep(blockquote) { border-left: 3px solid var(--vm-primary); padding: .6rem 1.2rem; margin: 1rem 0; background: var(--vm-primary-soft); border-radius: 0 8px 8px 0; }
 
-/* ═══ Article Footer ═══ */
-.article-footer {
-  margin-top: 3rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
+/* enhanced code blocks (injected wrapper) */
+.article-body :deep(.code-block) { margin: 1.3rem 0; border: 1px solid var(--vm-border); border-radius: 12px; overflow: hidden; background: #0d1117; }
+.article-body :deep(.code-bar) { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; background: rgba(255,255,255,.04); border-bottom: 1px solid rgba(255,255,255,.08); }
+.article-body :deep(.code-lang) { font-size: .72rem; font-family: 'JetBrains Mono', monospace; color: #8b949e; text-transform: capitalize; }
+.article-body :deep(.code-copy) { font-size: .72rem; font-weight: 600; color: #8b949e; background: none; border: none; cursor: pointer; }
+.article-body :deep(.code-copy:hover) { color: #e6edf3; }
+.article-body :deep(.code-block pre) { margin: 0; border: none; border-radius: 0; background: #0d1117; color: #e6edf3; padding: 16px 18px; overflow-x: auto; font-size: .86rem; }
+.article-body :deep(.code-block pre code) { background: none; color: inherit; padding: 0; }
+
+@media (max-width: 1100px) {
+  .docs-shell { grid-template-columns: 240px minmax(0, 1fr); }
+  .docs-toc { display: none; }
+  .docs-main { padding: 36px 32px 72px; }
 }
-
-.article-meta {
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  margin-bottom: 1.5rem;
-}
-
-.article-nav {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.nav-prev, .nav-next {
-  padding: 0.75rem 1.25rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  text-decoration: none;
-  color: var(--text-primary);
-  font-size: 0.9rem;
-  font-weight: 600;
-  transition: all 0.15s ease;
-}
-
-.nav-prev:hover, .nav-next:hover {
-  border-color: rgba(139,92,246,0.3);
-  transform: translateY(-1px);
-}
-
-.nav-next { margin-left: auto; }
-
-/* ═══ Responsive ═══ */
-@media (max-width: 900px) {
-  .docs-page { grid-template-columns: 1fr; }
-  .docs-sidebar {
-    position: fixed;
-    top: 0; left: 0;
-    width: 300px; height: 100vh;
-    z-index: 100;
-    transform: translateX(-100%);
-    transition: transform 0.25s ease;
-  }
-  .docs-sidebar.open { transform: translateX(0); box-shadow: 0 0 40px rgba(0,0,0,0.5); }
-  .sidebar-close { display: block; }
-  .mobile-sidebar-toggle { display: flex; }
-  .docs-content { padding: 2rem 1.5rem; }
-  .quick-links { grid-template-columns: 1fr; }
-  .welcome-title { font-size: 1.8rem; }
+@media (max-width: 860px) {
+  .docs-shell { grid-template-columns: 1fr; }
+  .docs-side { position: fixed; top: 0; left: 0; z-index: 70; width: 280px; height: 100vh; transform: translateX(-100%); transition: transform .25s var(--vm-ease2); box-shadow: var(--vm-shadow-l); }
+  .docs-side.open { transform: translateX(0); }
+  .mobile-toggle { display: inline-flex; }
+  .docs-main { padding: 28px 20px 72px; }
+  .quick-grid { grid-template-columns: 1fr; }
+  .article-title { font-size: 2rem; }
 }
 </style>

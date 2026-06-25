@@ -40,6 +40,7 @@ import AdvancedSettings from './AdvancedSettings.vue'
 // Workspaces are primary sidebar destinations now, so they live there — not here).
 import LLMSettings from '../../views/LLMSettings.vue'
 import LLMDashboard from '../../views/LLMDashboard.vue'
+import Billing from '../../views/Billing.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -49,6 +50,7 @@ const tabs = [
   { key: 'providers', label: 'AI Providers', component: LLMSettings },
   { key: 'agent', label: 'Agent Rules', component: AgentRulesSettings },
   { key: 'usage', label: 'Usage', component: LLMDashboard },
+  { key: 'billing', label: 'Billing', component: Billing },
   { key: 'security', label: 'Security', component: SecuritySettings },
   { key: 'advanced', label: 'Advanced', component: AdvancedSettings },
 ]

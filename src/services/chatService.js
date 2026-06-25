@@ -38,6 +38,17 @@ export class ChatConnection {
     this._lastActivity = 0
     this._reconnectAttempts = 0
     this._reconnectTimer = null
+    this._prewarmAgentId = null   // agent to pre-build server-side before the first message
+  }
+
+  // Pre-build the agent runtime on the server (runner + workspace + KB-exists) during the idle window
+  // before the first message, so the first turn reuses it instead of paying the ~6.6s cold build.
+  // Re-sent on every (re)open below. Best-effort; the backend no-ops if it can't.
+  prewarm(agentId) {
+    this._prewarmAgentId = agentId ? String(agentId) : null
+    if (this._prewarmAgentId && this.isOpen) {
+      try { this._raw({ type: 'agent_prewarm', agent_id: this._prewarmAgentId }) } catch (e) { /* noop */ }
+    }
   }
 
   connect(repoId = 0) {
@@ -73,6 +84,10 @@ export class ChatConnection {
       // (live re-stream after a refresh). No-op for a brand-new chat (no conversation id yet).
       if (this.conversationId) {
         try { this._raw({ type: 'resume', conversation_id: this.conversationId }) } catch (e) { /* noop */ }
+      }
+      // Prewarm the selected agent on (re)open so the first message reuses the runner.
+      if (this._prewarmAgentId) {
+        try { this._raw({ type: 'agent_prewarm', agent_id: this._prewarmAgentId }) } catch (e) { /* noop */ }
       }
       this.handlers.onOpen?.()
     }

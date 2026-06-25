@@ -33,6 +33,8 @@
       {{ error }}
     </div>
 
+    <PageLoader v-else-if="loading && !hasLoaded" label="Loading context stats…" min-height="320px" />
+
     <template v-else>
       <!-- Cost board -->
       <div class="bg-white border border-slate-200/60 shadow-[0_2px_12px_rgba(0,0,0,0.06)] rounded-[16px] mb-8 overflow-hidden">
@@ -106,8 +108,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import api from '../services/api'
+import PageLoader from '../components/common/PageLoader.vue'
 
 const loading = ref(false)
+const hasLoaded = ref(false)   // show the full-page spinner only on the first load
 const error = ref('')
 const days = ref(30)
 const stats = ref({})
@@ -151,6 +155,7 @@ async function load() {
     else error.value = e?.response?.data?.error || 'Failed to load LLM context stats.'
   } finally {
     loading.value = false
+    hasLoaded.value = true
   }
 }
 

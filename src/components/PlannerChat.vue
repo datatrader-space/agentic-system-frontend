@@ -170,6 +170,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import api from '../services/api'
+import { showMemorySavedToast } from '@/composables/useMemoryToast'
 import { confirm } from '@/composables/useConfirm'
 import HITLModal from './HITLModal.vue'
 import { useHitl } from '../composables/useHitl'
@@ -380,6 +381,10 @@ const handleWebSocketMessage = (data) => {
 
     case 'pong':
       // Heartbeat response
+      break
+
+    case 'memory_saved':
+      showMemorySavedToast(data)
       break
 
     default:

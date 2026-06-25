@@ -4,9 +4,14 @@
     <router-view v-if="isBareChat" />
 
     <template v-else>
-      <!-- Header Component — hidden inside the v2 app shell (/dashboard), which has its own sidebar -->
+      <!-- Header Component — legacy top nav. Authenticated users live entirely
+           inside the v2 AppShell (/dashboard) which owns its own header/sidebar,
+           so this is NEVER shown when signed in (`!currentUser`). It only remains
+           as a public-navbar fallback for logged-out non-marketing pages.
+           Also gated on routerReady so the initial async auth guard can't flash it
+           before the shell resolves. -->
       <AppHeader
-        v-if="!isAppShell"
+        v-if="routerReady && !currentUser && !isAppShell && !isMarketingPage"
         :current-user="currentUser"
         :llm-health="llmHealth"
         :theme="theme"
@@ -63,15 +68,22 @@ import api from './services/api'
 import AppHeader from './components/layout/AppHeader.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import { useTheme } from './composables/useTheme'
+import { identify } from './composables/useAnalytics'
 
 const router = useRouter()
 const route = useRoute()
 const llmHealth = ref(null)
 
-// Initialize theme system — LIGHT ONLY (no dark mode). Force light even if a
-// previous session saved 'dark', so the whole app + marketing renders light.
-const { theme, toggleTheme, isDark, setTheme } = useTheme()
-setTheme('light')
+// True once the initial navigation (incl. the async auth guard) has resolved.
+// Until then `route` is at START_LOCATION (path '/', name undefined), which would
+// otherwise make the legacy AppHeader flash on a hard refresh of /dashboard/*.
+const routerReady = ref(false)
+router.isReady().then(() => { routerReady.value = true })
+
+// Initialize the theme system. Honors the user's saved choice (useTheme reads
+// localStorage on first use and defaults brand-new sessions to light). Dark mode
+// is still in beta, so the toggle in Settings warns about possible inconsistencies.
+const { theme, toggleTheme } = useTheme()
 
 const handleToggleTheme = () => {
   toggleTheme()
@@ -83,11 +95,24 @@ const handleToggleTheme = () => {
 // Layout computed properties
 const isFullScreen = computed(() => route.name === 'repository-detail' || route.name === 'agent-playground')
 
-// v2 app shell routes (/dashboard/*) render full-bleed with their own sidebar/header
-const isAppShell = computed(() => route.path === '/dashboard' || route.path.startsWith('/dashboard/'))
+// v2 app shell routes (/dashboard/*) and the separate admin dashboard (/admin-dashboard/*) render
+// full-bleed with their own sidebar/header.
+const isAppShell = computed(() =>
+  route.path === '/dashboard' || route.path.startsWith('/dashboard/') ||
+  route.path === '/admin-dashboard' || route.path.startsWith('/admin-dashboard/'))
 
 // Public webchat pages render completely bare (no app header, no main wrapper).
 const isBareChat = computed(() => route.path.startsWith('/a/') || route.path.startsWith('/embed/'))
+
+// Marketing routes carry their own PublicLayout header+footer; standalone auth
+// pages render their own centered card. In both cases the legacy AppHeader must
+// not also render. (Login already self-hides via its own isLoginPage check.)
+const marketingRoutes = new Set([
+  'landing', 'features', 'how-it-works', 'blog', 'blog-post',
+  'pricing', 'about', 'contact', 'docs', 'docs-page',
+  'signup', 'forgot-password', 'reset-password', 'verify-email',
+])
+const isMarketingPage = computed(() => marketingRoutes.has(route.name))
 
 // Public pages that need full-width dark layout
 const isPublicPage = computed(() => {
@@ -118,6 +143,8 @@ const loadCurrentUser = async () => {
   try {
     const response = await api.getCurrentUser()
     currentUser.value = response.data.user
+    // Link this visitor to the signed-in user (no-op without analytics consent).
+    identify()
   } catch (error) {
     console.error('Failed to load user:', error)
     currentUser.value = null

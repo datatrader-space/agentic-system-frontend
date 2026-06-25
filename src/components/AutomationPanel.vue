@@ -476,11 +476,13 @@ import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 
 const props = defineProps({
-  agentProfile: { type: Object, default: null }
+  agentProfile: { type: Object, default: null },
+  // Restrict which sub-tabs show (e.g. ['scripts','history']). Empty/omitted = all four.
+  tabs: { type: Array, default: () => [] },
 })
 
 // --- State ---
-const activeSubTab = ref('workflows')
+const activeSubTab = ref(props.tabs.length ? props.tabs[0] : 'workflows')
 const loading = reactive({ workflows: false, schedules: false, scripts: false, executions: false })
 const workflows = ref([])
 const schedules = ref([])
@@ -523,12 +525,15 @@ const savingScript = ref(false)
 const scriptForm = reactive({ name: '', file_path: '', category: 'general', description: '' })
 
 // --- Computed ---
-const subTabs = computed(() => [
-  { key: 'workflows', icon: '📋', label: 'Workflows', count: workflows.value.length },
-  { key: 'schedules', icon: '🕐', label: 'Schedules', count: schedules.value.length },
-  { key: 'scripts', icon: '💻', label: 'Scripts', count: scripts.value.length },
-  { key: 'history', icon: '📊', label: 'History', count: executions.value.length },
-])
+const subTabs = computed(() => {
+  const all = [
+    { key: 'workflows', icon: '📋', label: 'Workflows', count: workflows.value.length },
+    { key: 'schedules', icon: '🕐', label: 'Schedules', count: schedules.value.length },
+    { key: 'scripts', icon: '💻', label: 'Scripts', count: scripts.value.length },
+    { key: 'history', icon: '📊', label: 'History', count: executions.value.length },
+  ]
+  return props.tabs.length ? all.filter(t => props.tabs.includes(t.key)) : all
+})
 
 const filteredScripts = computed(() => {
   if (!scriptSearch.value) return scripts.value

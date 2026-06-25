@@ -18,6 +18,8 @@
       </div>
     </div>
 
+    <PageLoader v-if="loading && !hasLoaded" label="Loading usage & costs…" min-height="320px" />
+    <template v-else>
     <!-- Unified Metrics Board -->
     <div class="bg-white border border-slate-200/60 shadow-[0_2px_12px_rgba(0,0,0,0.06)] rounded-[16px] mb-8 overflow-hidden">
       <div class="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100">
@@ -70,6 +72,65 @@
           </div>
           <p class="text-2xl font-extrabold tracking-tight text-slate-900 truncate mt-1.5" :title="stats?.top_provider_model?.model || '—'">{{ stats?.top_provider_model?.model || '—' }}</p>
           <p class="text-[13px] text-slate-500 mt-2 font-medium">{{ stats?.top_provider_model?.total_requests || 0 }} requests</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Knowledge Base / Embedding cost strip -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <!-- Knowledge Base cost -->
+      <div class="bg-white border border-slate-200/60 shadow-sm rounded-[16px] p-6">
+        <div class="flex items-center justify-between mb-4">
+          <p class="text-[13px] font-bold tracking-wide uppercase text-slate-500">Knowledge Base Cost</p>
+          <div class="w-10 h-10 rounded-[10px] bg-indigo-500/10 flex items-center justify-center">
+            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+          </div>
+        </div>
+        <p class="text-3xl font-extrabold tracking-tight text-slate-900">${{ (usage?.kb_cost || 0).toFixed(4) }}</p>
+        <p class="text-[13px] text-slate-500 mt-2 font-medium">
+          <span v-if="usage?.crawl_cost">incl. ${{ (usage.crawl_cost || 0).toFixed(4) }} crawl · {{ (usage.crawl_pages || 0).toLocaleString() }} pages</span>
+          <span v-else>Files + websites indexed so far</span>
+        </p>
+      </div>
+
+      <!-- Embedding cost (all vectors) -->
+      <div class="bg-white border border-slate-200/60 shadow-sm rounded-[16px] p-6">
+        <div class="flex items-center justify-between mb-4">
+          <p class="text-[13px] font-bold tracking-wide uppercase text-slate-500">Embedding Cost</p>
+          <div class="w-10 h-10 rounded-[10px] bg-cyan-500/10 flex items-center justify-center">
+            <svg class="w-5 h-5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7z M9 9h6 M9 13h6" /></svg>
+          </div>
+        </div>
+        <p class="text-3xl font-extrabold tracking-tight text-slate-900">${{ (usage?.embedding_cost || 0).toFixed(4) }}</p>
+        <p class="text-[13px] text-slate-500 mt-2 font-medium">{{ (usage?.embedding_requests || 0).toLocaleString() }} requests · {{ (usage?.embedding_tokens || 0).toLocaleString() }} tokens</p>
+      </div>
+
+      <!-- Chat / completion cost -->
+      <div class="bg-white border border-slate-200/60 shadow-sm rounded-[16px] p-6">
+        <div class="flex items-center justify-between mb-4">
+          <p class="text-[13px] font-bold tracking-wide uppercase text-slate-500">Chat / Completion Cost</p>
+          <div class="w-10 h-10 rounded-[10px] bg-emerald-500/10 flex items-center justify-center">
+            <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4-.8L3 20l1.3-3.9A7.96 7.96 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+          </div>
+        </div>
+        <p class="text-3xl font-extrabold tracking-tight text-slate-900">${{ (usage?.chat_cost ?? ((usage?.total_cost || 0) - (usage?.embedding_cost || 0))).toFixed(4) }}</p>
+        <p class="text-[13px] text-slate-500 mt-2 font-medium">Excludes embedding cost</p>
+      </div>
+    </div>
+
+    <!-- Knowledge Base cost by source -->
+    <div v-if="usage?.kb_cost_by_source?.length" class="bg-white border border-slate-200/60 shadow-sm rounded-[16px] p-6 mb-8">
+      <h3 class="text-[16px] font-extrabold text-slate-900 mb-6 flex items-center gap-2">
+        <span class="w-1.5 h-6 bg-indigo-500 rounded-full"></span>
+        Knowledge Base Cost by Source
+      </h3>
+      <div class="space-y-4">
+        <div v-for="item in usage.kb_cost_by_source" :key="(item.kb_kind || '') + '-' + (item.kb_id || '')" class="flex items-center gap-4 w-full">
+          <span class="text-[11px] font-bold uppercase px-2 py-1 rounded-md shrink-0"
+                :class="item.kb_kind === 'web' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'">{{ item.kb_kind === 'web' ? 'Website' : 'File' }}</span>
+          <div class="flex-1 text-[13px] font-bold text-slate-700 truncate" :title="item.kb_name">{{ item.kb_name || ('source #' + item.kb_id) }}</div>
+          <div class="w-20 text-right text-[12px] font-bold text-slate-500 shrink-0">{{ (item.tokens || 0).toLocaleString() }} <span class="text-[10px] uppercase text-slate-400">tok</span></div>
+          <div class="w-20 text-right text-[13px] font-mono font-bold text-emerald-600 shrink-0">${{ (item.cost || 0).toFixed(4) }}</div>
         </div>
       </div>
     </div>
@@ -321,14 +382,17 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import api from '../services/api'
+import PageLoader from '../components/common/PageLoader.vue'
 
 const loading = ref(false)
+const hasLoaded = ref(false)   // full-page spinner only on first load (not on filter refresh)
 const stats = ref(null)
 const usage = ref(null)
 const agents = ref([])
@@ -451,10 +515,36 @@ async function refreshAll() {
   loading.value = false
 }
 
-onMounted(async () => {
+// Initial load: one /llm/dashboard/ round-trip instead of 5 calls. The individual
+// loaders above still drive filter changes + pagination after mount. Falls back to
+// the per-panel calls if the bundle endpoint is unavailable.
+async function loadDashboard() {
   loading.value = true
-  await loadAgents()
-  await Promise.all([loadStats(), loadUsage(), loadRequests(), loadAudit()])
-  loading.value = false
-})
+  try {
+    const params = { page: reqPage.value }
+    const { data } = await api.getLlmDashboard(params)
+    agents.value = data.agents?.results || data.agents || []
+    stats.value = data.stats || {}
+    usage.value = data.usage || {}
+    if (data.requests) {
+      requests.value = data.requests.results || []
+      reqCount.value = data.requests.count || 0
+      reqTotalPages.value = data.requests.total_pages || 1
+    }
+    if (data.audit) {
+      auditEntries.value = data.audit.results || []
+      auditCount.value = data.audit.count || 0
+      auditTotalPages.value = data.audit.total_pages || 1
+    }
+  } catch (e) {
+    console.error('Dashboard bundle failed — falling back', e)
+    await loadAgents()
+    await Promise.all([loadStats(), loadUsage(), loadRequests(), loadAudit()])
+  } finally {
+    loading.value = false
+    hasLoaded.value = true
+  }
+}
+
+onMounted(loadDashboard)
 </script>

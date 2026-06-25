@@ -1059,6 +1059,7 @@ import AgentFlowPanel from '../components/knowledge/AgentFlowPanel.vue';
 import AgentDataPanel from '../components/knowledge/AgentDataPanel.vue';
 import BackButton from '../components/BackButton.vue';
 import { notify } from '@/composables/useNotify';
+import { showMemorySavedToast } from '@/composables/useMemoryToast';
 import { confirm } from '@/composables/useConfirm';
 
 const route = useRoute();
@@ -2121,10 +2122,8 @@ const initChatSession = async () => {
 const loadKnowledge = async () => {
     activeTab.value = 'knowledge';
 
-    // Combine Repo Knowledge + Agent Knowledge
+    // Agent Knowledge (repo CRS-knowledge extraction was removed)
     const docs = [];
-
-    // 1. Agent Knowledge
     if (agent.value.knowledge_files) {
         docs.push(...agent.value.knowledge_files.map(f => ({
             ...f,
@@ -2135,21 +2134,6 @@ const loadKnowledge = async () => {
             analyzed: !!f.analysis,
             analysis: f.analysis
         })));
-    }
-
-    // 2. Repo Knowledge (if configured)
-    if (selectedContext.value.system && selectedContext.value.repo) {
-        try {
-            loadingDocs.value = true;
-            const res = await api.getKnowledgeDocs(selectedContext.value.system, selectedContext.value.repo);
-            if (res.data.docs) {
-                docs.push(...res.data.docs);
-            }
-        } catch (e) {
-            console.error("Failed to load repo docs", e);
-        } finally {
-            loadingDocs.value = false;
-        }
     }
 
     knowledgeDocs.value = docs;
@@ -2186,16 +2170,8 @@ const analyzeCurrentDoc = async () => {
             // Update local state
             selectedDoc.value.analysis = analysis;
             selectedDoc.value.analyzed = true;
-
         } else {
-            // Repository Knowledge
-            const res = await api.analyzeKnowledgeDoc(
-                selectedContext.value.system,
-                selectedContext.value.repo,
-                selectedDoc.value.kind,
-                selectedDoc.value.spec_id
-            );
-            analysis = res.data.summary;
+            analysis = 'Analysis is only available for agent knowledge files.';
         }
 
         docAnalysis.value = analysis;
@@ -2663,6 +2639,8 @@ const connectWebSocket = (repoId) => {
             isProcessing.value = false;
             isAgentSessionActive.value = false; // Disable stop button
             scrollToBottom();
+        } else if (data.type === 'memory_saved') {
+            showMemorySavedToast(data);
         } else if (data.type === 'chat_response') {
             // Check ignore flag
             if (ignoringMessages.value) {

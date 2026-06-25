@@ -87,7 +87,7 @@
 
       <!-- Table -->
       <div class="panel">
-        <div v-if="loading" class="panel-loading">Loading models…</div>
+        <PageLoader v-if="loading" label="Loading models…" />
         <div v-else-if="!filtered.length" class="panel-loading">
           No models match these filters. Models are added to the catalog when a provider is synced.
         </div>
@@ -169,6 +169,7 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useMeta } from '../composables/useMeta'
 import api from '../services/api'
+import PageLoader from '../components/common/PageLoader.vue'
 import { notify } from '@/composables/useNotify'
 
 useMeta({ title: 'Model Pricing — Admin' })
@@ -203,14 +204,9 @@ function seedEdits(list) {
   }
 }
 
-onMounted(async () => {
-  try {
-    const { data } = await api.get('/auth/check')
-    isStaff.value = !!data.user?.is_staff
-  } catch { isStaff.value = false }
-  if (!isStaff.value) return
-  await load()
-})
+// No /auth/check round-trip: the route is guarded by `requiresAdmin` and the
+// backend enforces IsAdminUser (403). We derive isStaff straight from load().
+onMounted(load)
 
 async function syncOpenRouter() {
   syncing.value = true
@@ -232,11 +228,16 @@ async function load() {
   loading.value = true
   try {
     const { data } = await api.getModelPricing()
+    isStaff.value = true
     models.value = data.models || []
     providers.value = data.providers || []
     seedEdits(models.value)
   } catch (e) {
-    notify.error('Failed to load model pricing: ' + (e?.response?.data?.error || e.message))
+    if (e?.response?.status === 403) {
+      isStaff.value = false   // backend says not staff → show access-denied
+    } else {
+      notify.error('Failed to load model pricing: ' + (e?.response?.data?.error || e.message))
+    }
   }
   loading.value = false
 }

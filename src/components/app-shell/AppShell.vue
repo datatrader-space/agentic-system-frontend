@@ -38,6 +38,9 @@
 
     <!-- Command palette (Cmd/Ctrl+K) -->
     <CommandPalette v-model="paletteOpen" />
+
+    <!-- First-run onboarding: welcome modal + feature spotlight tour -->
+    <FeatureTour />
   </div>
 </template>
 
@@ -50,6 +53,7 @@ import LeftSidebar from './LeftSidebar.vue'
 import MobileSidebarDrawer from './MobileSidebarDrawer.vue'
 import MeshBackground from './MeshBackground.vue'
 import CommandPalette from './CommandPalette.vue'
+import FeatureTour from '../onboarding/FeatureTour.vue'
 
 const layout = useLayoutStore()
 const chat = useChatStore()

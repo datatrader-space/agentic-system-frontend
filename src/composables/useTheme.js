@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 // Theme state - shared across all components
 const currentTheme = ref('light')
@@ -26,8 +26,10 @@ export function useTheme() {
     isInitialized.value = true
   }
 
-  // Computed property for dark mode check
-  const isDark = () => currentTheme.value === 'dark'
+  // Reactive dark-mode flag (a real computed ref, so `isDark.value` in scripts and
+  // `isDark` in templates both track the theme — previously a plain function, which
+  // is always truthy in templates and has no `.value`, breaking the settings toggle).
+  const isDark = computed(() => currentTheme.value === 'dark')
 
   /**
    * Toggle between light and dark themes

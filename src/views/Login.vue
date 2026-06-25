@@ -125,7 +125,7 @@
           </Transition>
 
           <!-- Form -->
-          <form @submit.prevent="handleSubmit" class="login-form">
+          <form v-if="!twoFA.active" @submit.prevent="handleSubmit" class="login-form">
             <!-- Email/Username Field -->
             <div class="form-group">
               <label class="form-label">
@@ -153,7 +153,7 @@
             <div class="form-group">
               <label class="form-label">
                 Password
-                <span v-if="isLogin" class="forgot-link">Forgot password?</span>
+                <router-link v-if="isLogin" to="/forgot-password" class="forgot-link">Forgot password?</router-link>
               </label>
               <div class="input-wrapper" :class="{ 'input-focused': focusedField === 'password', 'input-error': validationErrors.password }">
                 <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -210,20 +210,61 @@
             </button>
           </form>
 
+          <!-- Two-Factor Challenge -->
+          <form v-if="twoFA.active" @submit.prevent="verify2fa" class="login-form">
+            <div class="form-group">
+              <label class="form-label">Authentication code</label>
+              <div class="input-wrapper" :class="{ 'input-focused': focusedField === 'code' }">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+                <input
+                  v-model="twoFA.code"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  maxlength="14"
+                  placeholder="6-digit code or recovery code"
+                  @focus="focusedField = 'code'"
+                  @blur="focusedField = null"
+                />
+              </div>
+              <span class="field-hint">Open your authenticator app, or enter a recovery code.</span>
+            </div>
+            <button type="submit" class="submit-btn" :disabled="loading || !twoFA.code">
+              <span v-if="loading" class="btn-loader"></span>
+              <span v-else>Verify &amp; sign in</span>
+            </button>
+            <button type="button" class="link-btn" @click="cancel2fa">← Back to sign in</button>
+          </form>
+
           <!-- Divider -->
-          <div class="divider">
+          <div v-if="!twoFA.active" class="divider">
             <span>or continue with</span>
           </div>
 
           <!-- Social Login -->
-          <div class="social-buttons">
-            <button type="button" class="social-btn" disabled title="Coming soon">
+          <div v-if="!twoFA.active" class="social-buttons">
+            <button
+              type="button"
+              class="social-btn"
+              :disabled="!socialProviders.includes('github')"
+              :title="socialProviders.includes('github') ? 'Continue with GitHub' : 'GitHub sign-in not configured'"
+              @click="socialLogin('github')"
+            >
               <svg viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
               </svg>
               <span>GitHub</span>
             </button>
-            <button type="button" class="social-btn" disabled title="Coming soon">
+            <button
+              type="button"
+              class="social-btn"
+              :disabled="!socialProviders.includes('google')"
+              :title="socialProviders.includes('google') ? 'Continue with Google' : 'Google sign-in not configured'"
+              @click="socialLogin('google')"
+            >
               <svg viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                 <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -235,7 +276,7 @@
           </div>
 
           <!-- Toggle Mode -->
-          <p class="toggle-text">
+          <p v-if="!twoFA.active" class="toggle-text">
             {{ isLogin ? "Don't have an account?" : 'Already have an account?' }}
             <button type="button" @click="toggleMode" class="toggle-link">
               {{ isLogin ? 'Sign up' : 'Sign in' }}
@@ -243,7 +284,7 @@
           </p>
 
           <!-- Terms -->
-          <p v-if="!isLogin" class="terms-text">
+          <p v-if="!isLogin && !twoFA.active" class="terms-text">
             By creating an account, you agree to our
             <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
           </p>
@@ -262,7 +303,7 @@ const router = useRouter()
 const route = useRoute()
 
 // State
-const isLogin = ref(route.query.mode !== 'signup')
+const isLogin = ref(route.path !== '/signup' && route.query.mode !== 'signup')
 const loading = ref(false)
 const error = ref(null)
 const success = ref(null)
@@ -270,6 +311,10 @@ const showPassword = ref(false)
 const focusedField = ref(null)
 const rememberMe = ref(false)
 const validationErrors = ref({})
+// Two-factor challenge: populated when login returns requires_2fa.
+const twoFA = ref({ active: false, token: '', code: '' })
+// Social providers that are actually configured on the backend (buttons enable only for these).
+const socialProviders = ref([])
 
 const formData = ref({
   username: '',
@@ -385,6 +430,13 @@ const handleSubmit = async () => {
       // Login
       const response = await api.login(data)
 
+      // 2FA gate — switch to the code-entry step instead of completing login.
+      if (response.data.requires_2fa) {
+        twoFA.value = { active: true, token: response.data.ephemeral_token, code: '' }
+        loading.value = false
+        return
+      }
+
       if (response.data.success) {
         success.value = 'Login successful! Redirecting...'
         localStorage.setItem('user', JSON.stringify(response.data.user))
@@ -413,6 +465,56 @@ const handleSubmit = async () => {
     loading.value = false
   }
 }
+
+const verify2fa = async () => {
+  error.value = null
+  try {
+    loading.value = true
+    const response = await api.twofaVerify(twoFA.value.token, twoFA.value.code)
+    if (response.data.success) {
+      success.value = 'Login successful! Redirecting...'
+      localStorage.setItem('user', JSON.stringify(response.data.user))
+      setTimeout(() => router.push(route.query.next || '/dashboard'), 600)
+    }
+  } catch (err) {
+    error.value = err.response?.data?.error || 'Invalid code. Please try again.'
+  } finally {
+    loading.value = false
+  }
+}
+
+const cancel2fa = () => {
+  twoFA.value = { active: false, token: '', code: '' }
+  error.value = null
+}
+
+// Full-page redirect into the backend's OAuth flow (proxied via /api in dev).
+const socialLogin = (provider) => {
+  if (!socialProviders.value.includes(provider)) return
+  window.location.href = `/api/auth/social/${provider}/start`
+}
+
+const SOCIAL_ERRORS = {
+  not_configured: 'That sign-in method isn’t configured yet.',
+  no_email: 'We couldn’t read a verified email from that account.',
+  exchange_failed: 'Sign-in failed. Please try again.',
+  bad_state: 'Your sign-in session expired. Please try again.',
+  missing_code: 'Sign-in was cancelled.',
+  account_disabled: 'This account is disabled.',
+}
+
+onMounted(async () => {
+  // Surface any social-login error passed back as ?social_error=...
+  const se = route.query.social_error
+  if (se) error.value = SOCIAL_ERRORS[se] || 'Social sign-in failed. Please try again.'
+  // Discover which provider buttons to enable.
+  try {
+    const { data } = await api.get('/auth/social/providers')
+    socialProviders.value = data.providers || []
+  } catch (e) {
+    socialProviders.value = []
+  }
+})
 
 // Clear validation errors when typing
 watch(() => formData.value.username, () => {
@@ -814,6 +916,27 @@ watch(() => formData.value.password, () => {
 .field-error {
   font-size: 0.8125rem;
   color: var(--danger);
+}
+
+.field-hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.link-btn {
+  align-self: center;
+  margin-top: 4px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--transition);
+}
+
+.link-btn:hover {
+  color: var(--primary);
 }
 
 /* Password Strength */

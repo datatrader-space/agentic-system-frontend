@@ -122,13 +122,6 @@
                   />
                 </div>
 
-                <div v-if="activeContextTab === 'knowledge'" class="h-full overflow-y-auto custom-scrollbar p-6">
-                   <RepositoryKnowledge
-                    :repository-id="repository.id"
-                     :system-id="systemId"
-                  />
-                </div>
-
                 <div v-if="activeContextTab === 'docs'" class="h-full overflow-y-auto custom-scrollbar p-6">
                   <RepositoryDocs
                     :repository="repository"
@@ -156,7 +149,6 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../services/api'
-import RepositoryKnowledge from '../components/RepositoryKnowledge.vue'
 import RepositoryDocs from '../components/RepositoryDocs.vue'
 import RepositoryChat from '../components/RepositoryChat.vue'
 import CodeBrowser from '../components/CodeBrowser.vue'
@@ -181,7 +173,6 @@ const activeContextTab = ref('code')
 
 const contextTabs = [
   { id: 'code', label: 'Code', icon: '💻' },
-  { id: 'knowledge', label: 'Knowledge', icon: '🧠' },
   { id: 'docs', label: 'Docs', icon: '📄' },
   { id: 'trace', label: 'Trace', icon: '🔍' }
 ]

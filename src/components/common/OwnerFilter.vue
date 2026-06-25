@@ -46,7 +46,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, inject, onMounted, watch } from 'vue'
 import { useWorkspace } from '../../composables/useWorkspace'
 import tenancyApi from '../../services/tenancyApi'
 import api from '../../services/api'
@@ -59,7 +59,10 @@ const emit = defineEmits(['update:modelValue'])
 
 const { activeOrg } = useWorkspace()
 const members = ref([])
-const currentUserId = ref(null)
+// Reuse the app-wide current user (provided once by app.vue) instead of a per-mount
+// /auth/me round-trip; fall back to fetching only if it's somehow not provided.
+const injectedUser = inject('currentUser', ref(null))
+const currentUserId = ref(injectedUser.value?.id ?? null)
 const myRole = ref(null)
 
 // Show filter for everyone so they can toggle All/Mine
@@ -82,12 +85,15 @@ function select(val) {
 async function loadMembers() {
   if (!activeOrg.value?.slug) return
   try {
-    // Load current user ID if not yet known
+    // Prefer the app-wide current user; only fetch as a last resort.
+    if (!currentUserId.value) {
+      currentUserId.value = injectedUser.value?.id ?? null
+    }
     if (!currentUserId.value) {
       const meRes = await api.getCurrentUser()
       currentUserId.value = meRes.data?.user?.id ?? meRes.data?.id ?? null
     }
-    
+
     // Only fetch other members if we are an owner or admin (or we don't know yet)
     // Actually, getOrgMembers requires owner/admin. Let's try it, and if it fails (403), we just catch it.
     const r = await tenancyApi.getOrgMembers(activeOrg.value.slug)

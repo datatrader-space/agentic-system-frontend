@@ -67,11 +67,31 @@
 
             <!-- assistant: live activity timeline + markdown answer + token usage -->
             <div v-else class="max-w-[92%] w-full">
-              <ActivityStream :activity="m.activity" />
+              <!-- Rich streaming timeline (builder/debug tier) when rich events are present; otherwise
+                   the existing raw-derived ActivityStream — so flag-OFF behaviour is unchanged. -->
+              <AgentActivityTimeline
+                v-if="m.streaming ? richActive : !!m.timeline"
+                :debug="true"
+                :status-label="m.streaming && liveStatus ? liveStatus.label : ''"
+                :steps="m.streaming ? liveSteps : m.timeline.steps"
+                :sources="m.streaming ? liveSources : m.timeline.sources"
+                :summary="m.streaming ? liveSummary : m.timeline.summary"
+                :is-complete="m.streaming ? liveComplete : true"
+                :has-failures="m.streaming ? liveHasFailures : m.timeline.hasFailures"
+                :tokens="(m.usage && m.usage.total_tokens) || null"
+                :reasoning="reasoningItems(m.activity)"
+                :running="m.streaming"
+              />
+              <ActivityStream v-else :activity="m.activity" />
               <div v-if="m.content"
                    class="emu-prose text-sm text-gray-800 break-words mt-1"
                    v-html="renderMarkdown(m.content)"></div>
-              <ReasoningPanel v-if="!m.streaming" :activity="m.activity" />
+              <!-- Provenance footer (where the answer came from) — same as New Chat -->
+              <ProvenanceFooter v-if="!m.streaming && m.answerBasis" :basis="m.answerBasis" />
+              <!-- KB sources panel (clickable): cited-or-top-4 when provenance is on, else full list -->
+              <SourcesList v-if="!m.streaming && emuPanelCitations(m).length"
+                           :citations="emuPanelCitations(m)" />
+              <ReasoningPanel v-if="!m.streaming && !m.timeline" :activity="m.activity" />
               <div v-if="!m.streaming && stopBadge(m)" class="mt-1.5">
                 <span class="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ring-1"
                       :class="[stopBadge(m).tone.bg, stopBadge(m).tone.text, stopBadge(m).tone.ring]"
@@ -168,13 +188,19 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { marked } from 'marked'
 import ActivityStream from './activity/ActivityStream.vue'
 import ReasoningPanel from './activity/ReasoningPanel.vue'
+import { reasoningItems } from '../composables/activityStream'
 import TokenUsage from './activity/TokenUsage.vue'
 import EmulatorInspector from './activity/EmulatorInspector.vue'
+import AgentActivityTimeline from './AgentActivityTimeline.vue'
+import SourcesList from './chat/SourcesList.vue'
+import ProvenanceFooter from './chat/ProvenanceFooter.vue'
 import HITLModal from './HITLModal.vue'
 import AgentModePicker from './agent/AgentModePicker.vue'
 import PlanApprovalCard from './agent/PlanApprovalCard.vue'
 import { useHitl } from '../composables/useHitl'
+import { useAgentTimeline } from '../composables/useAgentTimeline'
 import api from '../services/api'
+import { showMemorySavedToast } from '@/composables/useMemoryToast'
 import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity, interrupt as interruptActivity } from '../composables/activityStream'
 import { fmtTokens, fmtCost } from '../composables/tokens'
 import { useSpeech } from '../composables/useSpeech'
@@ -185,6 +211,13 @@ const props = defineProps({
   agentId: { type: [Number, String], default: null },
   modelName: { type: String, default: '' },
 })
+
+// Panel sources: prefer the answer_basis cited-or-top-4 set (provenance) when present; else the full list.
+const emuPanelCitations = (m) => {
+  const ab = m && m.answerBasis
+  if (ab && Array.isArray(ab.citations) && ab.citations.length) return ab.citations
+  return (m && m.citations) || []
+}
 
 const ws = ref(null)
 const connected = ref(false)
@@ -235,6 +268,8 @@ async function uploadEmuAttachments() {
 function clearTranscript() {
   messages.value = []
   error.value = ''
+  resetTimeline()
+  richActive.value = false
 }
 async function copyTranscript() {
   const text = messages.value
@@ -315,6 +350,34 @@ const { hitlRequests, handleHitlEvent, respondHitl, dismissHitl, skipHitl } = us
   if (ws.value && ws.value.readyState === WebSocket.OPEN) ws.value.send(JSON.stringify(obj))
 }, () => conversationId.value)
 
+// Rich streaming activity (AgentRunner rich events) — builder/debug tier in the emulator. Entirely
+// additive: when AGENTRUNNER_RICH_STREAMING_ENABLED is OFF none of these events arrive, `richActive`
+// stays false, and the emulator keeps using the existing ActivityStream timeline exactly as today.
+// The raw events still feed `m.activity` (Inspector / ReasoningPanel / token metering) unchanged — we
+// only swap the *visible* timeline to the rich one when rich events are present.
+const {
+  currentStatus: liveStatus,
+  steps: liveSteps,
+  sources: liveSources,
+  summary: liveSummary,
+  hasFailures: liveHasFailures,
+  isComplete: liveComplete,
+  ingest: ingestTimeline,
+  reset: resetTimeline,
+  finalize: finalizeTimeline,
+  interrupt: interruptTimeline,
+  snapshot: snapshotTimeline,
+} = useAgentTimeline()
+const richActive = ref(false)
+
+// Pin the finished rich timeline onto the active assistant message so it persists after the live refs
+// reset for the next turn.
+function attachTimelineSnapshot() {
+  if (!richActive.value) return
+  const m = streamingAssistant() || messages.value[messages.value.length - 1]
+  if (m && m.role === 'assistant') m.timeline = snapshotTimeline()
+}
+
 let intentionalClose = false
 let reconnectAttempts = 0
 let reconnectTimer = null
@@ -358,6 +421,9 @@ function connect() {
     ws.value = sock
     sock.onopen = () => {
       connected.value = true; reconnecting.value = false; reconnectAttempts = 0
+      // Prewarm the agent runtime during the idle window BEFORE the first message, so the first turn
+      // reuses the runner (no ~6.6s cold build). Best-effort — the backend no-ops if it can't.
+      try { sock.send(JSON.stringify({ type: 'agent_prewarm', agent_id: props.agentId })) } catch (e) { /* noop */ }
       if (conversationId.value) {
         try { sock.send(JSON.stringify({ type: 'resume', conversation_id: conversationId.value })) } catch (e) { /* noop */ }
       }
@@ -413,6 +479,8 @@ function interruptStreaming(note) {
   const m = streamingAssistant()
   if (!m) { busy.value = false; return }
   interruptActivity(m.activity, note)
+  // Also stop the rich timeline (if active) so no rich step spins forever; pin its interrupted snapshot.
+  if (richActive.value && !liveComplete.value) { interruptTimeline(note); m.timeline = snapshotTimeline() }
   m.streaming = false
   if (!m.content) m.content = '_⚠️ ' + note + '_'
   busy.value = false
@@ -437,6 +505,14 @@ function handleEvent(raw) {
   if (handleHitlEvent(evt)) return
   // Inspector capture for the active turn (raw events, tool I/O, retrieved knowledge).
   captureForInspector(streamingAssistant(), evt)
+  // Rich streaming activity events (flag-gated on the backend). Drive the builder/debug timeline and
+  // stop — they don't affect the turn lifecycle (busy/streaming stay driven by the raw events).
+  if (ingestTimeline(evt)) {
+    richActive.value = true
+    if (evt.type === 'agent_turn_summary') attachTimelineSnapshot()
+    scrollToBottom()
+    return
+  }
   switch (evt.type) {
     case 'conversation_created':
       conversationId.value = evt.conversation_id
@@ -516,15 +592,22 @@ function handleEvent(raw) {
       const m = streamingAssistant()
       if (m) {
         if (evt.full_message) m.content = evt.full_message
+        if (Array.isArray(evt.citations)) m.citations = evt.citations   // KB sources panel (clickable)
+        if (evt.answer_basis) m.answerBasis = evt.answer_basis          // provenance footer + cited-or-top4
         if (evt.usage) m.usage = evt.usage
         if (evt.stop_reason) { m.stopReason = evt.stop_reason; m.confidence = evt.confidence }
         finishActivity(m.activity)
+        // Close the rich timeline (if any) and pin its snapshot onto this message.
+        if (richActive.value) { finalizeTimeline(); m.timeline = snapshotTimeline() }
         m.streaming = false
       }
       busy.value = false
       scrollToBottom()
       break
     }
+    case 'memory_saved':
+      showMemorySavedToast(evt)
+      break
     case 'chat_response':
     case 'assistant_message':
     case 'assistant': {
@@ -580,6 +663,9 @@ function dispatch(text, { resume = false } = {}) {
   if (!ws.value || ws.value.readyState !== WebSocket.OPEN) connect()
 
   if (!resume) messages.value.push({ role: 'user', content: text })
+  // Fresh rich-activity timeline for the new turn.
+  resetTimeline()
+  richActive.value = false
   // Create the assistant message up-front with a live activity timeline ("Thinking…").
   const a = newAssistantMessage()
   startActivity(a.activity)
@@ -612,7 +698,11 @@ function stop() {
     try { ws.value.send(JSON.stringify({ type: 'stop_execution', conversation_id: conversationId.value })) } catch (e) { /* noop */ }
   }
   const m = messages.value[messages.value.length - 1]
-  if (m && m.role === 'assistant' && m.streaming) { finishActivity(m.activity); m.streaming = false }
+  if (m && m.role === 'assistant' && m.streaming) {
+    finishActivity(m.activity)
+    if (richActive.value && !liveComplete.value) { interruptTimeline('Stopped.'); m.timeline = snapshotTimeline() }
+    m.streaming = false
+  }
   busy.value = false
 }
 
@@ -690,6 +780,8 @@ function restart() {
   busy.value = false
   pendingPlan.value = null
   lastUserMessage.value = ''
+  resetTimeline()
+  richActive.value = false
   for (const a of emuAttachments.value) { if (a.url) { try { URL.revokeObjectURL(a.url) } catch { /* ignore */ } } }
   emuAttachments.value = []
   connect()

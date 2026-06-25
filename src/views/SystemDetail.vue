@@ -328,13 +328,6 @@
         <div class="border-b px-6">
           <div class="flex space-x-4 overflow-x-auto">
             <button
-              @click="repoTab = 'knowledge'"
-              class="px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap"
-              :class="repoTab === 'knowledge' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-900'"
-            >
-              📚 Knowledge
-            </button>
-            <button
               @click="repoTab = 'docs'"
               class="px-3 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap"
               :class="repoTab === 'docs' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-900'"
@@ -402,13 +395,8 @@
         
         <!-- Tab Content -->
         <div>
-          <RepositoryKnowledge
-            v-if="repoTab === 'knowledge'"
-            :repository-id="selectedRepo.id"
-            :system-id="systemId"
-          />
           <RepositoryDocs
-            v-else-if="repoTab === 'docs'"
+            v-if="repoTab === 'docs'"
             :repository="selectedRepo"
           />
           <div v-else-if="repoTab === 'code'" style="height: 600px;">
@@ -1058,7 +1046,6 @@ import ArtifactViewer from '../components/ArtifactViewer.vue'
 import BlueprintViewer from '../components/BlueprintViewer.vue'
 import RelationshipViewer from '../components/RelationshipViewer.vue'
 import SessionTrace from '../components/SessionTrace.vue'
-import RepositoryKnowledge from '../components/RepositoryKnowledge.vue'
 import RepositoryDocs from '../components/RepositoryDocs.vue'
 import CodeBrowser from '../components/CodeBrowser.vue'
 
@@ -1077,7 +1064,7 @@ const showCrsModal = ref(false)
 const showPlannerChat = ref(false)
 const showRepositoryPanel = ref(false)
 const showDeleteConfirm = ref(false)
-const repoTab = ref('knowledge')
+const repoTab = ref('docs')
 const adding = ref(false)
 const loadingQuestions = ref(false)
 const submitting = ref(false)
@@ -1405,7 +1392,7 @@ const saveIntentConstraints = async () => {
 const closeRepositoryPanel = () => {
   showRepositoryPanel.value = false
   selectedRepo.value = null
-  repoTab.value = 'knowledge'
+  repoTab.value = 'docs'
   crsSummary.value = null
   crsPayloads.value = { blueprints: null, artifacts: null, relationships: null }
 }

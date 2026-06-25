@@ -78,9 +78,39 @@
               </svg>
             </div>
             <div class="flex-1">
+              <!-- Rich activity ABOVE the answer (Claude-style): live timeline while streaming, or the
+                   pinned snapshot once the turn is done. Clean + collapsed by default. -->
+              <AgentActivityTimeline
+                v-if="message.streaming && richActive"
+                class="mb-1.5"
+                :status-label="liveStatus ? liveStatus.label : ''"
+                :steps="liveSteps"
+                :sources="liveSources"
+                :summary="liveSummary"
+                :is-complete="liveComplete"
+                :has-failures="liveHasFailures"
+                :tokens="(message.usage && message.usage.total_tokens) || null"
+                :running="true"
+              />
+              <AgentActivityTimeline
+                v-else-if="message.timeline"
+                class="mb-1.5"
+                :status-label="''"
+                :steps="message.timeline.steps"
+                :sources="message.timeline.sources"
+                :summary="message.timeline.summary"
+                :is-complete="true"
+                :has-failures="message.timeline.hasFailures"
+                :tokens="(message.usage && message.usage.total_tokens) || null"
+                :running="false"
+              />
+
               <div class="message-bubble">
                 <div v-html="formatMessage(message.content)"></div>
               </div>
+
+              <!-- Provenance footer: where this answer came from (flag-gated by the backend envelope). -->
+              <ProvenanceFooter v-if="!message.streaming && message.answerBasis" :basis="message.answerBasis" />
 
               <!-- Trace Information -->
               <div v-if="message.trace && message.trace.length > 0" class="mt-2 text-xs">
@@ -123,16 +153,31 @@
         </div>
       </div>
 
-      <!-- Typing Indicator -->
-      <div v-if="isTyping" class="message message-assistant">
+      <!-- Typing Indicator / live rich activity. Hidden once a rich answer is streaming — the
+           above-the-answer timeline on the message takes over (avoids a stray empty avatar). -->
+      <div v-if="isTyping && !(richActive && hasStreamingMsg)" class="message message-assistant">
         <div class="message-content assistant-message">
-          <div class="flex items-start gap-2">
+          <div class="flex items-start gap-2 w-full">
             <div class="assistant-avatar">
               <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
               </svg>
             </div>
-            <div class="typing-indicator">
+            <!-- Pre-answer live activity (before the streaming message exists). Once the answer starts
+                 streaming, the above-the-answer timeline on the message takes over (hasStreamingMsg).
+                 Without rich events, the classic typing dots — so flag-OFF behaviour is unchanged. -->
+            <div v-if="richActive && !hasStreamingMsg && (liveStatus || liveSteps.length)" class="flex-1">
+              <AgentActivityTimeline
+                :status-label="liveStatus ? liveStatus.label : ''"
+                :steps="liveSteps"
+                :sources="liveSources"
+                :summary="liveSummary"
+                :is-complete="liveComplete"
+                :has-failures="liveHasFailures"
+                :running="true"
+              />
+            </div>
+            <div v-else class="typing-indicator">
               <span></span>
               <span></span>
               <span></span>
@@ -229,8 +274,13 @@ import { markedHighlight } from 'marked-highlight'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import { confirm } from '@/composables/useConfirm'
+import { notify } from '@/composables/useNotify'
+import { showMemorySavedToast } from '@/composables/useMemoryToast'
 import HITLModal from './HITLModal.vue'
+import AgentActivityTimeline from './AgentActivityTimeline.vue'
+import ProvenanceFooter from './chat/ProvenanceFooter.vue'
 import { useHitl } from '../composables/useHitl'
+import { useAgentTimeline } from '../composables/useAgentTimeline'
 import { enhanceChatMedia } from '../utils/chatMedia'
 
 const marked = new Marked(
@@ -278,6 +328,50 @@ let wsRepositoryId = null
 const { hitlRequests, handleHitlEvent, respondHitl, dismissHitl, skipHitl } = useHitl((obj) => {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj))
 }, () => conversationId.value)
+
+// Rich streaming activity (AgentRunner rich events). Entirely additive: when the backend flag
+// AGENTRUNNER_RICH_STREAMING_ENABLED is OFF none of these events arrive, `richActive` stays false,
+// and the chat behaves exactly as before.
+const {
+  currentStatus: liveStatus,
+  steps: liveSteps,
+  sources: liveSources,
+  summary: liveSummary,
+  hasFailures: liveHasFailures,
+  isComplete: liveComplete,
+  ingest: ingestTimeline,
+  reset: resetTimeline,
+  finalize: finalizeTimeline,
+  interrupt: interruptTimeline,
+  snapshot: snapshotTimeline,
+} = useAgentTimeline()
+// True once this turn has produced at least one rich event — gates rich rendering and the
+// suppression of duplicate raw tool chips.
+const richActive = ref(false)
+
+// Stop a live rich timeline that can't finish (turn ended on the server, user cancelled, or the socket
+// gave up reconnecting) so no step spins forever. Pins the interrupted snapshot + clears the spinner.
+const interruptRich = (note) => {
+  if (richActive.value && !liveComplete.value) {
+    interruptTimeline(note)
+    attachTimelineSnapshot()
+  }
+  const last = messages.value[messages.value.length - 1]
+  if (last && last.role === 'assistant' && last.streaming) last.streaming = false
+  isTyping.value = false
+}
+
+// Pin the finished rich timeline onto the most recent assistant message so it persists after the
+// live refs reset for the next turn.
+const attachTimelineSnapshot = () => {
+  if (!richActive.value) return
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    if (messages.value[i].role === 'assistant') {
+      messages.value[i].timeline = snapshotTimeline()
+      break
+    }
+  }
+}
 let isConnecting = false
 let autoReconnect = true
 let reconnectTimeout = null
@@ -385,6 +479,9 @@ const connectWebSocket = (repositoryId = props.repository.id) => {
         reconnectAttempts++
       } else {
         delay = 30000
+        // Fast reconnects exhausted — don't let a live rich timeline spin forever while we fall back
+        // to the slow self-heal retry. (Transient drops still resume cleanly via turn_resumed.)
+        interruptRich('Connection lost.')
       }
       if (reconnectTimeout) {
         clearTimeout(reconnectTimeout)
@@ -450,6 +547,14 @@ const handleWebSocketMessage = (data) => {
   if (data.type === 'ping') return
   // HITL approval events handled by the shared composable (queue + modal).
   if (handleHitlEvent(data)) return
+  // Rich streaming activity events (flag-gated on the backend). Drive the live timeline and stop —
+  // they replace raw tool chips in the visible area; raw events still stream for everything else.
+  if (ingestTimeline(data)) {
+    richActive.value = true
+    if (data.type === 'agent_turn_summary') attachTimelineSnapshot()
+    scrollToBottom()
+    return
+  }
   switch (data.type) {
     case 'conversation_created':
       // Store conversation ID for future messages
@@ -490,11 +595,20 @@ const handleWebSocketMessage = (data) => {
         completedMessage.streaming = false
         completedMessage.content = data.full_message
         completedMessage.trace = data.trace || []
+        if (data.answer_basis) completedMessage.answerBasis = data.answer_basis   // provenance footer
       }
       currentStreamingMessage = ''
+      // Close the rich timeline (if any) and pin its snapshot onto this message so it persists.
+      if (richActive.value) {
+        finalizeTimeline()
+        attachTimelineSnapshot()
+      }
       break
 
     case 'tool_result':
+      // When rich streaming is active, the rich step cards replace raw tool chips — skip the
+      // duplicate raw chip in the visible area (raw events still arrive; we just don't re-render).
+      if (richActive.value) break
       // Store tool results for display
       const lastMsg = messages.value[messages.value.length - 1]
       if (lastMsg && lastMsg.role === 'assistant') {
@@ -511,19 +625,30 @@ const handleWebSocketMessage = (data) => {
     case 'turn_resumed':
       // A turn is still running for this conversation (we returned mid-generation). Show the
       // generating state; its live tokens stream in and build a fresh streaming message, finalized
-      // by assistant_message_complete (which carries the full text).
+      // by assistant_message_complete (which carries the full text). Reset the rich timeline so the
+      // resumed turn streams into a clean one (if it was interrupted by the drop).
       isTyping.value = true
       currentStreamingMessage = ''
+      resetTimeline()
+      richActive.value = false
       break
 
     case 'turn_not_running':
-      // Nothing running — the saved answer (if any) is already loaded from history.
+      // Nothing running — the saved answer (if any) is already loaded from history. If we thought a
+      // rich turn was live (socket dropped mid-turn, then reconnected to find it gone), interrupt it
+      // so it can't spin forever.
+      interruptRich('The response was interrupted.')
       break
 
     case 'pong':
       // Heartbeat response
       break
-    
+
+    case 'memory_saved':
+      // Memory Autopilot auto-saved memory from this turn — undoable toast(s).
+      showMemorySavedToast(data)
+      break
+
     case 'agent_event':
       // AgentRunner events
       console.log('[AGENT]', data.event, data.data)
@@ -531,7 +656,7 @@ const handleWebSocketMessage = (data) => {
         isTyping.value = true
       } else if (data.event === 'session_complete') {
         isTyping.value = false
-      } else if (data.event === 'tool_call') {
+      } else if (data.event === 'tool_call' && !richActive.value) {
         const lastMsg = messages.value[messages.value.length - 1]
         if (lastMsg && lastMsg.role === 'assistant') {
           if (!lastMsg.toolResults) lastMsg.toolResults = []
@@ -543,8 +668,10 @@ const handleWebSocketMessage = (data) => {
       }
       scrollToBottom()
       break
-    
+
     case 'tool_call':
+      // Rich step cards replace raw tool chips when rich streaming is active.
+      if (richActive.value) break
       const toolMsg = messages.value[messages.value.length - 1]
       if (toolMsg && toolMsg.role === 'assistant') {
         if (!toolMsg.toolResults) toolMsg.toolResults = []
@@ -568,6 +695,10 @@ const sendMessage = () => {
 
   const messageText = currentMessage.value.trim()
   const messageId = `client-${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+  // Fresh rich-activity timeline for the new turn.
+  resetTimeline()
+  richActive.value = false
 
   // Add user message to display
   messages.value.push({
@@ -596,13 +727,20 @@ const stopExecution = () => {
   ws.send(JSON.stringify({
     type: 'stop_execution'
   }))
-  
+
+  // User cancelled — stop the live rich spinner immediately (don't wait for a terminal event).
+  interruptRich('Stopped.')
+
   console.log('Stop execution requested')
 }
 
 const retryLast = () => {
   if (!connected.value || !ws || !conversationId.value) return
-  
+
+  // Fresh rich-activity timeline for the retried turn.
+  resetTimeline()
+  richActive.value = false
+
   ws.send(JSON.stringify({
     type: 'retry_last',
     conversation_id: conversationId.value
@@ -615,6 +753,8 @@ const clearMessages = async () => {
   if (await confirm({ title: 'Clear all messages?', message: 'Clear all messages? This cannot be undone.', confirmText: 'Clear', danger: true })) {
     messages.value = []
     currentStreamingMessage = ''
+    resetTimeline()
+    richActive.value = false
   }
 }
 
@@ -637,6 +777,13 @@ const formatMessage = (content) => {
 }
 
 const activeModels = computed(() => models.value.filter((model) => model.is_active))
+
+// True while an assistant message is actively streaming — used so the pre-answer live activity (shown
+// in the typing slot) hands off to the above-the-answer timeline once the answer starts.
+const hasStreamingMsg = computed(() => {
+  const last = messages.value[messages.value.length - 1]
+  return !!(last && last.role === 'assistant' && last.streaming)
+})
 
 // Lifecycle
 onMounted(async () => {

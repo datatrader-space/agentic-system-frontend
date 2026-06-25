@@ -13,6 +13,7 @@
     <!-- Page tabs — one view at a time instead of four stacked sections -->
     <div class="flex gap-1 bg-slate-100 p-1 rounded-xl w-full sm:w-fit overflow-x-auto">
       <button v-for="t in pageTabs" :key="t.key" @click="pageTab = t.key" type="button"
+              :data-tour="'tab-' + t.key"
               class="px-4 py-2 text-[13px] font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-2"
               :class="pageTab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'">
         {{ t.label }}
@@ -23,6 +24,8 @@
       </button>
     </div>
 
+    <PageLoader v-if="loading && !hasLoaded" label="Loading providers & models…" min-height="320px" />
+    <template v-else>
     <!-- Configured Providers -->
     <div v-show="pageTab === 'providers'" class="bg-white rounded-[16px] shadow-sm border border-slate-200/60 overflow-hidden">
       <div class="p-5 sm:p-6 pb-4 sm:pb-5 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between gap-4">
@@ -30,7 +33,7 @@
           <h2 class="text-base font-bold text-slate-900">Configured Providers</h2>
           <p class="text-[13px] text-slate-500 mt-0.5">Manage Ollama, Anthropic, OpenAI, OpenRouter, Gemini, or custom endpoints.</p>
         </div>
-        <button @click="showAddProvider = !showAddProvider" type="button"
+        <button @click="showAddProvider = !showAddProvider" type="button" data-tour="add-provider"
                 class="px-3.5 py-2 text-[13px] font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors whitespace-nowrap flex items-center gap-1.5">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="showAddProvider ? 'M6 18L18 6M6 6l12 12' : 'M12 4v16m8-8H4'"></path></svg>
           {{ showAddProvider ? 'Close' : 'Add Provider' }}
@@ -206,13 +209,13 @@
       <div class="px-5 sm:px-6 pb-5 sm:pb-6 border-t border-slate-100 pt-5">
         <label class="block text-[13px] font-semibold text-slate-700">Embedding model
           <span class="text-[11px] font-normal text-slate-400">— used for knowledge / RAG vectors</span></label>
-        <p class="text-[11px] text-slate-400 mt-0.5 mb-3 leading-snug">Default is the built-in <strong>local model</strong> (fast, free, private). Switching to a provider model can improve retrieval quality but <strong>requires re-indexing</strong> — existing knowledge won't match the new embedder until you re-index.</p>
+        <p class="text-[11px] text-slate-400 mt-0.5 mb-3 leading-snug">Default is <strong>text-embedding-3-small</strong> (served via your OpenAI or OpenRouter provider). Pick a larger model (e.g. text-embedding-3-large) to override. Switching the model <strong>requires re-indexing</strong> — existing knowledge won't match the new embedder until you re-index.<span v-if="embeddingHealth.supported_dims && embeddingHealth.supported_dims.length"> Only models whose dimension is one of <strong>{{ embeddingHealth.supported_dims.join(', ') }}</strong> can be selected (each has a native ANN index).</span></p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
           <div>
             <label class="block text-[12px] font-semibold text-slate-600 mb-1.5">Provider</label>
             <select v-model="embProvider" @change="onEmbProviderChange"
                     class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm font-medium text-slate-700 cursor-pointer">
-              <option :value="null">Local (default) — BGE-small</option>
+              <option :value="null">Default — text-embedding-3-small (OpenAI/OpenRouter)</option>
               <option v-for="p in providers" :key="p.id" :value="p.id">{{ p.name }}</option>
             </select>
           </div>
@@ -220,7 +223,7 @@
             <label class="block text-[12px] font-semibold text-slate-600 mb-1.5">Model</label>
             <select v-model="opModels.embedding_model_id" :disabled="!embProvider"
                     class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm font-medium text-slate-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50">
-              <option :value="null">{{ embProvider ? 'Select a model…' : 'Local (default), 384-dim' }}</option>
+              <option :value="null">{{ embProvider ? 'Select a model…' : 'Default — text-embedding-3-small' }}</option>
               <option v-for="m in embModels" :key="m.id" :value="m.id">{{ m.name }}</option>
             </select>
             <p v-if="embProvider && embModels.length === 0"
@@ -232,18 +235,83 @@
                 {{ syncingEmb ? 'Syncing…' : 'Sync now to discover them' }}
               </button>
             </p>
-            <p v-if="embProvider && embProviderType === 'openrouter'" class="text-[11px] text-amber-600 mt-1">
-              Note: OpenRouter does not offer embedding models — use an OpenAI/Gemini provider, or the built-in Local model.
+            <p v-if="embProvider && embProviderType === 'openrouter' && embModels.length === 0" class="text-[11px] text-amber-600 mt-1">
+              No OpenRouter embedding models found yet. Click <strong>“Sync now to discover them”</strong> above — OpenRouter offers ~26 embedding models (e.g. gemini-embedding-2, e5, gte) that are only fetched on a fresh sync.
             </p>
           </div>
         </div>
         <div class="flex items-center gap-3 mt-4">
           <button @click="onEmbeddingChange" type="button"
                   class="px-4 py-2 text-[13px] font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors">Save</button>
-          <span class="text-[12px] text-slate-400">Current: <strong class="text-slate-600">{{ currentLabel('embedding_model_id') || 'Local (default)' }}</strong></span>
+          <span class="text-[12px] text-slate-400">Current: <strong class="text-slate-600">{{ currentLabel('embedding_model_id') || 'Default (text-embedding-3-small)' }}</strong></span>
         </div>
-        <div v-if="embeddingDirty" class="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-[10px] bg-amber-50 border border-amber-200 max-w-2xl">
+        <!-- Retrieval mode: confirms the embedding dimension actually matches the vector store (fast
+             native ANN) vs the per-user numpy fallback. Surfaced so 'reindex finished' is verifiable. -->
+        <div v-if="embeddingHealth.embedder_dim" class="mt-3 max-w-2xl text-[12px]">
+          <span v-if="embeddingHealth.native_ann"
+                class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            Native ANN active · {{ embeddingHealth.embedder_dim }}-dim (matches the vector store)
+          </span>
+          <span v-else
+                class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200"
+                :title="`Your model is ${embeddingHealth.embedder_dim}-dim but the shared vector store is ${embeddingHealth.column_dim}-dim. Retrieval uses the correct per-user fallback (slower). Other users are unaffected.`">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+            Fallback retrieval · model {{ embeddingHealth.embedder_dim }}-dim ≠ store {{ embeddingHealth.column_dim }}-dim
+          </span>
+        </div>
+        <!-- Atomic switch in progress: the PREVIOUS model is still answering while the new index builds.
+             Shown when a switch is pinned and no live poll is running on this page (e.g. after reload). -->
+        <div v-if="embeddingHealth.switching && !reindexProgress.active" class="mt-3 p-3.5 rounded-[10px] bg-sky-50 border border-sky-200 max-w-2xl">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[12px] font-semibold text-sky-700">Switching embedding model — previous model still answering</span>
+            <span class="text-[12px] font-semibold tabular-nums text-sky-700">{{ embeddingHealth.switch_done }} / {{ embeddingHealth.switch_total }} · {{ embeddingHealth.switch_percent }}%</span>
+          </div>
+          <div class="h-2 rounded-full bg-sky-100 overflow-hidden">
+            <div class="h-full bg-sky-500 rounded-full transition-all duration-500 ease-out" :style="{ width: embeddingHealth.switch_percent + '%' }"></div>
+          </div>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 mt-2">
+            <p class="text-[11px] text-sky-500 flex-1">Your knowledge keeps answering with the previous model — it flips to the new one automatically when the rebuild finishes. No downtime.</p>
+            <button @click="reindexEmbeddings" :disabled="reindexing" type="button"
+                    class="px-3 py-1.5 text-[12px] font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60 transition-colors whitespace-nowrap">
+              {{ reindexing ? 'Resuming…' : 'Resume / finish rebuild' }}
+            </button>
+          </div>
+        </div>
+        <!-- Live re-index progress: the re-embed runs on Celery; we poll status so the user sees it move
+             and finish (instead of a button that silently flips back). -->
+        <div v-else-if="reindexProgress.active" class="mt-3 p-3.5 rounded-[10px] bg-indigo-50 border border-indigo-200 max-w-2xl">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[12px] font-semibold text-indigo-700 flex items-center gap-2">
+              <span class="w-3.5 h-3.5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></span>
+              Re-indexing knowledge…
+            </span>
+            <span class="text-[12px] font-semibold tabular-nums text-indigo-700">{{ reindexProgress.done }} / {{ reindexProgress.total }} · {{ reindexProgress.percent }}%</span>
+          </div>
+          <div class="h-2 rounded-full bg-indigo-100 overflow-hidden">
+            <div class="h-full bg-indigo-500 rounded-full transition-all duration-500 ease-out" :style="{ width: reindexProgress.percent + '%' }"></div>
+          </div>
+          <p class="text-[11px] mt-1.5" :class="reindexProgress.note ? 'text-amber-600' : 'text-indigo-400'">
+            {{ reindexProgress.note || 'Runs in the background — you can keep working; this updates live.' }}
+          </p>
+        </div>
+        <!-- Completion confirmation (clears on the next change/reindex). -->
+        <div v-else-if="reindexProgress.done_flag" class="mt-3 flex items-center gap-2 p-3 rounded-[10px] bg-emerald-50 border border-emerald-200 max-w-2xl">
+          <svg class="w-4 h-4 text-emerald-600 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 5.29a1 1 0 010 1.42l-7.5 7.5a1 1 0 01-1.42 0l-3.5-3.5a1 1 0 111.42-1.42l2.79 2.79 6.79-6.79a1 1 0 011.42 0z" clip-rule="evenodd"/></svg>
+          <span class="text-[12px] font-semibold text-emerald-700">Re-indexing complete{{ reindexProgress.total ? ` — ${reindexProgress.total} chunk(s) realigned` : '' }}.</span>
+        </div>
+        <div v-else-if="embeddingDirty" class="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-[10px] bg-amber-50 border border-amber-200 max-w-2xl">
           <p class="text-[12px] text-amber-700 flex-1 leading-snug">Embedding model changed. Your existing knowledge must be <strong>re-indexed</strong> with the new embedder — until then, RAG retrieval returns no matches.</p>
+          <button @click="reindexEmbeddings" :disabled="reindexing" type="button"
+                  class="px-3.5 py-2 text-[12px] font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-60 transition-colors whitespace-nowrap">
+            {{ reindexing ? 'Re-indexing…' : 'Re-index now' }}
+          </button>
+        </div>
+        <!-- Persistent drift warning: chunks embedded by a different model are silently ignored by RAG. -->
+        <div v-else-if="embeddingHealth.needs_reindex" class="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-[10px] bg-amber-50 border border-amber-200 max-w-2xl">
+          <p class="text-[12px] text-amber-700 flex-1 leading-snug">
+            <strong>{{ embeddingHealth.stale_chunks }}</strong> of {{ embeddingHealth.total_chunks }} knowledge chunk(s) were embedded with a different model and are <strong>not being used in answers</strong>. Re-index to fix.
+          </p>
           <button @click="reindexEmbeddings" :disabled="reindexing" type="button"
                   class="px-3.5 py-2 text-[12px] font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-60 transition-colors whitespace-nowrap">
             {{ reindexing ? 'Re-indexing…' : 'Re-index now' }}
@@ -428,16 +496,22 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { computed, inject, onMounted, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import api from '../services/api'
 import OwnerFilter from '../components/common/OwnerFilter.vue'
+import PageLoader from '../components/common/PageLoader.vue'
 import { confirm } from '@/composables/useConfirm'
 
 const notify = inject('notify', () => {})
+
+// Page-level initial-load state → drives the full-page spinner on first paint.
+const loading = ref(true)
+const hasLoaded = ref(false)
 
 // Pull a readable, user-facing message out of an API error. Handles DRF shapes: a string body,
 // {error}/{detail}/{message}, or field errors like {name: ["You already have a provider named…"]}.
@@ -479,19 +553,34 @@ const operationDefs = [
   { key: 'summarize_model_id', label: 'Compact & summarization', help: 'Model that summarizes / compacts long conversation history.' },
   { key: 'artifact_summarize_model_id', label: 'Artifact summarization', help: 'Model that summarizes large tool outputs (else fast deterministic head/tail).' },
   { key: 'turn_router_model_id', label: 'Turn router / manager', help: 'Fast model that pre-routes each turn (greeting vs tool task vs deep task). Leave as Agent default to use a built-in fast model (Haiku) on the agent\'s own provider.' },
+  { key: 'enrichment_model_id', label: 'CRS Enrichment Pipeline', help: 'Model for the CRS code-artifact enrichment pipeline AND connector/service schema enrichment. Leave unset to skip enrichment. CRS (a background task) uses the repository owner\'s pick.' },
+  { key: 'verifier_model_id', label: 'Final verifier / LLM judge', help: 'Model for the final-answer grounding judge (catches fabrication / ungrounded claims). Leave as Agent default to fall back to the summarize model.' },
 ]
-const opModels = ref({ ask_llm_model_id: null, summarize_model_id: null, artifact_summarize_model_id: null, turn_router_model_id: null, embedding_model_id: null })
+const opModels = ref({ ask_llm_model_id: null, summarize_model_id: null, artifact_summarize_model_id: null, turn_router_model_id: null, enrichment_model_id: null, verifier_model_id: null, embedding_model_id: null })
 const embeddingDirty = ref(false)
 const reindexing = ref(false)
+// Persistent embedding-health (independent of a just-made change): how many stored chunks were
+// embedded by a different model than the current one and are therefore ignored by retrieval.
+const embeddingHealth = ref({ needs_reindex: false, stale_chunks: 0, total_chunks: 0 })
+const loadEmbeddingHealth = async () => {
+  try {
+    const r = await api.getEmbeddingStatus()
+    embeddingHealth.value = r.data || { needs_reindex: false, stale_chunks: 0, total_chunks: 0 }
+  } catch (e) { /* non-fatal: just hides the banner */ }
+}
 
 // Active operation tab + the provider chosen for each operation (provider → model → save).
 const opActiveTab = ref('ask_llm_model_id')
-const opProvider = ref({ ask_llm_model_id: null, summarize_model_id: null, artifact_summarize_model_id: null, turn_router_model_id: null })
+const opProvider = ref({ ask_llm_model_id: null, summarize_model_id: null, artifact_summarize_model_id: null, turn_router_model_id: null, enrichment_model_id: null, verifier_model_id: null })
 const embProvider = ref(null)
-// ALL active models for the selected embedding provider (no is_embedding filter) — show everything and
-// let the user choose, same as the other operation pickers. (Pick a text-embedding-* model for OpenAI.)
-const embModels = computed(() =>
-  models.value.filter((m) => m.provider === embProvider.value && m.is_active !== false))
+// Embedding models for the selected provider. If the provider has any models flagged is_embedding
+// (OpenRouter/OpenAI sync tags them), show ONLY those so the user isn't hunting through hundreds of
+// chat models. Otherwise fall back to all active models (providers whose flag is unreliable).
+const embModels = computed(() => {
+  const active = models.value.filter((m) => m.provider === embProvider.value && m.is_active !== false)
+  const flagged = active.filter((m) => m.is_embedding)
+  return flagged.length ? flagged : active
+})
 const syncingEmb = ref(false)
 const embProviderType = computed(() => {
   const p = providers.value.find((x) => x.id === embProvider.value)
@@ -506,10 +595,12 @@ const syncEmbeddingModels = async () => {
   try {
     await api.syncModels(embProvider.value)
     await loadModels()
-    if (embModels.value.length) notify.success(`Found ${embModels.value.length} model(s)`)
-    else notify.info('Provider returned no models — check the API key, or use the Local model.')
+    // `notify` here is the INJECTED function form notify(msg, type) — NOT the imported object with
+    // .success()/.error() methods. Calling notify.success(...) throws "is not a function".
+    if (embModels.value.length) notify(`Found ${embModels.value.length} model(s)`, 'success')
+    else notify('Provider returned no models — check the API key for this provider.', 'info')
   } catch (e) {
-    notify.error('Sync failed: ' + (e.response?.data?.error || e.message))
+    notify('Sync failed: ' + (e.response?.data?.error || e.message), 'error')
   } finally {
     syncingEmb.value = false
   }
@@ -528,7 +619,7 @@ const currentLabel = (key) => {
 }
 // After models + saved selections load, pre-select the provider that owns each chosen model.
 const deriveOpProviders = () => {
-  for (const key of ['ask_llm_model_id', 'summarize_model_id', 'artifact_summarize_model_id', 'turn_router_model_id']) {
+  for (const key of ['ask_llm_model_id', 'summarize_model_id', 'artifact_summarize_model_id', 'turn_router_model_id', 'enrichment_model_id', 'verifier_model_id']) {
     const m = models.value.find((x) => x.id === opModels.value[key])
     opProvider.value[key] = m ? m.provider : null
   }
@@ -544,6 +635,8 @@ const loadOperationModels = async () => {
       summarize_model_id: r.data.summarize_model_id ?? null,
       artifact_summarize_model_id: r.data.artifact_summarize_model_id ?? null,
       turn_router_model_id: r.data.turn_router_model_id ?? null,
+      enrichment_model_id: r.data.enrichment_model_id ?? null,
+      verifier_model_id: r.data.verifier_model_id ?? null,
       embedding_model_id: r.data.embedding_model_id ?? null,
     }
     deriveOpProviders()
@@ -558,26 +651,135 @@ const saveOperationModels = async () => {
   }
 }
 const onEmbeddingChange = async () => {
+  const label = currentLabel('embedding_model_id') || 'Default (text-embedding-3-small)'
   try {
     await api.updateOperationModels(opModels.value)
     embeddingDirty.value = true
-    notify('Embedding model saved — re-index to apply', 'success')
+    reindexProgress.value.done_flag = false        // a new change supersedes any prior "complete" note
+    notify(`Embedding model saved${label ? ' — ' + label : ''}. Re-index your knowledge to apply it.`, 'success')
+    // Refresh the health badge so the user immediately sees the new model vs. the stored vectors.
+    await loadEmbeddingHealth()
   } catch (e) {
+    // The backend rejects models whose dimension has no native ANN index (400) — surface that clearly.
     notify('Failed to save: ' + (e.response?.data?.error || e.message), 'error')
   }
 }
-const reindexEmbeddings = async () => {
-  reindexing.value = true
+
+// Live re-index progress. The re-embed runs on Celery (async), so the POST only ENQUEUES it; we then
+// POLL the status endpoint — `stale_chunks` falls toward 0 as the worker re-embeds, which drives the bar.
+const reindexProgress = ref({ active: false, total: 0, done: 0, percent: 0, done_flag: false, note: '' })
+let _reindexTimer = null
+const _clearReindexTimer = () => { if (_reindexTimer) { clearTimeout(_reindexTimer); _reindexTimer = null } }
+
+const _pollReindex = async () => {
+  _reindexTimer = null
+  const p = reindexProgress.value
   try {
-    const r = await api.reindexEmbeddings()
-    embeddingDirty.value = false
-    notify(`Re-indexing started for ${r.data?.documents ?? 'your'} documents`, 'success')
+    const r = await api.getEmbeddingStatus()
+    const d = r.data || {}
+    embeddingHealth.value = { ...embeddingHealth.value, ...d }
+    // Atomic switch: the old model keeps serving while the new gen builds — progress comes from the
+    // switch_* fields, and "complete" is the FLIP (switching → false). Otherwise (plain re-index) the
+    // bar is driven by stale_chunks falling to 0.
+    const switching = !!d.switching
+    const total = switching ? (d.switch_total || p.total || 0) : (d.total_chunks || p.total || 0)
+    const done = switching ? (d.switch_done || 0) : Math.max(0, total - (d.stale_chunks || 0))
+    p.total = total
+    p.done = done
+    p.percent = switching ? (d.switch_percent || 0) : (total ? Math.round((done / total) * 100) : 100)
+
+    const complete = switching ? false : (!d.needs_reindex || (d.stale_chunks || 0) === 0)
+    // For a switch, completion is detected when `switching` drops to false (the flip happened) AFTER we
+    // saw it true at least once.
+    const flipped = !switching && p._sawSwitch
+    if (complete || flipped) {                                 // ── complete / flipped ──
+      p.percent = 100
+      p.done = p.total
+      p.active = false
+      p.done_flag = true
+      p.note = ''
+      reindexing.value = false
+      embeddingDirty.value = false
+      notify(flipped ? 'Switch complete — now serving the new embedding model.'
+                     : (p.total ? `Re-indexing complete — ${p.total} chunk(s) realigned${d.embedder_dim ? ' at ' + d.embedder_dim + '-dim' : ''}.`
+                                : 'Re-indexing complete.'), 'success')
+      if (d.native_ann === false) {
+        notify(`Note: retrieval uses the per-user fallback (model ${d.embedder_dim}-dim ≠ store ${d.column_dim}-dim) — other users unaffected.`, 'info')
+      }
+      return
+    }
+    if (switching) p._sawSwitch = true
+
+    // ── still running: stall detection + safety cap ──
+    p._polls = (p._polls || 0) + 1
+    p._stall = (done === p._lastDone) ? (p._stall || 0) + 1 : 0
+    p._lastDone = done
+    if (done === 0 && p._stall >= 4) {
+      p.note = 'Waiting on the background worker — re-indexing runs on Celery, so make sure the worker is running.'
+    } else if (p._stall >= 8) {
+      p.note = 'Still working in the background — you can leave this page; progress is saved.'
+    } else {
+      p.note = ''
+    }
+    if (p._polls > 80) {                                       // ~4 min cap — stop polling, keep banner honest
+      p.active = false
+      reindexing.value = false
+      p.note = ''
+      notify('Re-indexing is still running in the background — reopen this page later to see the final state.', 'info')
+      return
+    }
+    _reindexTimer = setTimeout(_pollReindex, 3000)
   } catch (e) {
-    notify('Failed to start re-index: ' + (e.response?.data?.error || e.message), 'error')
-  } finally {
-    reindexing.value = false
+    // Transient status error — back off and retry a few times before giving up.
+    p._polls = (p._polls || 0) + 1
+    if (p._polls > 80) { p.active = false; reindexing.value = false; return }
+    _reindexTimer = setTimeout(_pollReindex, 4000)
   }
 }
+
+const reindexEmbeddings = async () => {
+  if (reindexing.value) return
+  // Re-index is never auto-started on save — it's a paid action (generates new embeddings billed to
+  // Activity/Usage), so require an explicit confirmation that states the scope + cost first.
+  const total = embeddingHealth.value.total_chunks || embeddingHealth.value.stale_chunks || 0
+  const ok = await confirm({
+    title: 'Re-index knowledge?',
+    message: `This re-embeds ${total ? total.toLocaleString() + ' knowledge chunk(s)' : 'your knowledge'} `
+           + `with the current embedding model. It runs in the background and generates new embeddings — `
+           + `the cost is metered to your Activity / Usage as embedding cost (a local model is free). `
+           + `You can keep working while it runs.`,
+    confirmText: 'Re-index now',
+    cancelText: 'Cancel',
+  })
+  if (!ok) return
+  _clearReindexTimer()
+  reindexing.value = true
+  reindexProgress.value = { active: true, total: 0, done: 0, percent: 0, done_flag: false, note: '',
+                            _polls: 0, _stall: 0, _lastDone: -1, _sawSwitch: false }
+  try {
+    const r = await api.reindexEmbeddings()
+    const d = r.data || {}
+    const total = d.total_chunks ?? d.stale_chunks ?? 0
+    reindexProgress.value.total = total
+    let msg = d.stale_chunks ? `Re-indexing started — realigning ${d.stale_chunks} chunk(s)` : 'Re-indexing started'
+    if (d.embedder_dim) msg += ` at ${d.embedder_dim}-dim`
+    notify(msg, d.native_ann === false ? 'info' : 'success')
+    if (total === 0) {                                          // nothing to do — finish immediately
+      reindexProgress.value.active = false
+      reindexProgress.value.done_flag = true
+      reindexProgress.value.percent = 100
+      reindexing.value = false
+      notify('No knowledge chunks to re-index.', 'info')
+      return
+    }
+    _reindexTimer = setTimeout(_pollReindex, 2500)              // begin live polling
+  } catch (e) {
+    reindexProgress.value.active = false
+    reindexing.value = false
+    notify('Failed to start re-index: ' + (e.response?.data?.error || e.message), 'error')
+  }
+}
+onBeforeUnmount(_clearReindexTimer)
 const ownerFilter = ref('')
 
 const newProvider = ref({
@@ -790,10 +992,34 @@ const formatDate = (value) => {
 watch(modelFilter, () => { modelPage.value = 1; loadModels() })
 
 onMounted(async () => {
-  // Parallel for the independent loads; operation-models derives providers from `models`, so it runs
-  // after. (Was 4 sequential awaits = 4× round-trip latency.)
-  await Promise.all([loadProviders(), loadModels(), loadStats()])
-  await loadOperationModels()
+  // One /llm/configure-bundle/ round-trip (providers + models + stats + operation-models)
+  // instead of 4 calls. The individual loaders above still handle owner/provider filter
+  // changes after mount. Falls back to the separate calls if the bundle is unavailable.
+  try {
+    const { data } = await api.getLlmConfigureBundle()
+    providers.value = data.providers?.results || data.providers || []
+    models.value = data.models?.results || data.models || []
+    stats.value = data.stats || {}
+    const om = data.operation_models || {}
+    opModels.value = {
+      ask_llm_model_id: om.ask_llm_model_id ?? null,
+      summarize_model_id: om.summarize_model_id ?? null,
+      artifact_summarize_model_id: om.artifact_summarize_model_id ?? null,
+      turn_router_model_id: om.turn_router_model_id ?? null,
+      enrichment_model_id: om.enrichment_model_id ?? null,
+      verifier_model_id: om.verifier_model_id ?? null,
+      embedding_model_id: om.embedding_model_id ?? null,
+    }
+    deriveOpProviders()
+  } catch (e) {
+    console.error('LLM configure bundle failed — falling back', e)
+    await Promise.all([loadProviders(), loadModels(), loadStats()])
+    await loadOperationModels()
+  } finally {
+    loading.value = false
+    hasLoaded.value = true
+    loadEmbeddingHealth()
+  }
 })
 </script>
 

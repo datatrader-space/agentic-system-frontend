@@ -76,7 +76,7 @@
       <div class="conn-grid">
         <!-- ── Connector list ── -->
         <section class="pane list-pane">
-          <div v-if="loading" class="pane-state">Loading connectors…</div>
+          <PageLoader v-if="loading" label="Loading connectors…" />
           <div v-else-if="error" class="pane-state err">{{ error }}</div>
 
           <template v-else>
@@ -407,6 +407,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
+import PageLoader from '../components/common/PageLoader.vue'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { connectOAuth } from '@/composables/useOAuthConnect'
@@ -767,14 +768,39 @@ async function loadWorkspaces() {
 
 watch(scope, loadConnectors)
 
-onMounted(async () => {
+// Initial load: one /connectors/bundle/ round-trip (agents + connectors + workspaces)
+// instead of 3 parallel calls. Per-scope refresh after mount still uses loadConnectors
+// via the watcher above. Falls back to the individual loads if the bundle fails.
+async function loadConnectorsBundle() {
+  loading.value = true
+  wsLoading.value = true
+  try {
+    const { data } = await api.getConnectorsBundle(scope.value)
+    agents.value = data.agents?.results || data.agents || []
+    connectors.value = data.connectors?.connectors || []
+    workspaces.value = data.workspaces?.workspaces || data.workspaces || []
+    if (selected.value) {
+      const match = connectors.value.find(
+        (c) => c.kind === selected.value.kind && c.id === selected.value.id
+      )
+      selected.value = match || null
+    }
+  } catch (e) {
+    console.error('Connectors bundle failed — falling back', e)
+    await Promise.all([loadAgents(), loadConnectors(), loadWorkspaces()])
+  } finally {
+    loading.value = false
+    wsLoading.value = false
+  }
+}
+
+onMounted(() => {
   // Deep-link: ?scope=agent:<id> (e.g. opened from the agent builder Tools step).
   const qScope = route.query.scope
   if (typeof qScope === 'string' && (qScope === 'global' || qScope.startsWith('agent:'))) {
     scope.value = qScope
   }
-  // Parallel — independent loads (was: loadAgents awaited, blocking the rest).
-  Promise.all([loadAgents(), loadConnectors(), loadWorkspaces()])
+  loadConnectorsBundle()
 })
 </script>
 

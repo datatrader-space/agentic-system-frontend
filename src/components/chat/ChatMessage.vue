@@ -6,14 +6,30 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
       </div>
       <div class="bubble-wrap">
-        <!-- Live activity timeline: Thinking → tools → Generating → Done (collapses to a summary) -->
-        <ActivityStream :activity="message.activity" />
+        <!-- Live activity timeline (rich streaming): Thinking → Searching → Generating → Done.
+             Renders ONLY friendly, param-free labels — never raw tool calls / params / output. Live
+             values come from the store while streaming; a pinned snapshot after. Falls back to the
+             legacy raw ActivityStream only when rich streaming is OFF (no rich events arrived). -->
+        <AgentActivityTimeline
+          v-if="isStreaming ? chat.richActive : !!message.timeline"
+          :debug="false"
+          :status-label="isStreaming && chat.liveStatus ? chat.liveStatus.label : ''"
+          :steps="isStreaming ? chat.liveSteps : message.timeline.steps"
+          :sources="isStreaming ? chat.liveSources : message.timeline.sources"
+          :summary="isStreaming ? chat.liveSummary : message.timeline.summary"
+          :is-complete="!isStreaming"
+          :has-failures="isStreaming ? chat.liveHasFailures : message.timeline.hasFailures"
+          :tokens="(message.usage && message.usage.total_tokens) || null"
+          :reasoning="reasoningItems(message.activity)"
+          :running="isStreaming" />
+        <ActivityStream v-else :activity="message.activity" />
 
         <!-- Rendered markdown content (full answer if rehydrated, else stored stub) -->
         <div v-if="displayContent" class="bubble assistant" v-html="rendered"></div>
 
-        <!-- Private reasoning — collapsed by default, separate from the answer -->
-        <ReasoningPanel v-if="message.status !== 'streaming'" :activity="message.activity" />
+        <!-- Private reasoning — FALLBACK only (flag-OFF / legacy path). When the rich timeline is shown
+             (message.timeline), reasoning is folded INTO it, so we don't render this separate box. -->
+        <ReasoningPanel v-if="message.status !== 'streaming' && !message.timeline" :activity="message.activity" />
 
         <!-- Why the run ended (backend-determined stop reason + confidence) -->
         <div v-if="message.status !== 'streaming' && stopBadge" class="mt-1.5">
@@ -24,6 +40,14 @@
             <span class="opacity-60">· {{ stopBadge.confidence }}</span>
           </span>
         </div>
+
+        <!-- Provenance footer (always-on when answer_basis present): where this answer came from. -->
+        <ProvenanceFooter v-if="message.status !== 'streaming' && message.answerBasis"
+                          :basis="message.answerBasis" />
+
+        <!-- Sources / citations: the cited-or-top-4 set when answer_basis is on, else the full list. -->
+        <SourcesList v-if="message.status !== 'streaming' && panelCitations.length"
+                     :citations="panelCitations" />
 
         <!-- Per-response token usage -->
         <TokenUsage v-if="message.status !== 'streaming'" :usage="message.usage" />
@@ -118,9 +142,16 @@ import { marked } from 'marked'
 import { enhanceChatMedia } from '../../utils/chatMedia'
 import api from '../../services/api'
 import ActivityStream from '../activity/ActivityStream.vue'
+import AgentActivityTimeline from '../AgentActivityTimeline.vue'
 import TokenUsage from '../activity/TokenUsage.vue'
 import ReasoningPanel from '../activity/ReasoningPanel.vue'
+import { reasoningItems } from '../../composables/activityStream'
+import SourcesList from './SourcesList.vue'
+import ProvenanceFooter from './ProvenanceFooter.vue'
 import { stopReasonBadge } from '../../composables/stopReason'
+import { useChatStore } from '../../stores/useChatStore'
+
+const chat = useChatStore()
 
 const props = defineProps({
   message: { type: Object, required: true },
@@ -179,6 +210,13 @@ const share = async () => {
 
 const isStreaming = computed(() => props.message.status === 'streaming')
 const stopBadge = computed(() => stopReasonBadge(props.message.stopReason, props.message.confidence))
+
+// Panel sources: prefer the answer_basis cited-or-top-4 set (provenance) when present; else the full list.
+const panelCitations = computed(() => {
+  const ab = props.message.answerBasis
+  if (ab && Array.isArray(ab.citations) && ab.citations.length) return ab.citations
+  return props.message.citations || []
+})
 
 // Long-answer rehydration: stored content is a bounded stub; the full answer is
 // fetched on demand from the long-answer endpoint and shown in place.

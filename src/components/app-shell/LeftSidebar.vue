@@ -17,7 +17,7 @@
     </div>
 
     <!-- New Chat -->
-    <button class="new-chat" :class="{ collapsed }" :title="collapsed ? 'New Chat (Ctrl/Cmd+K)' : ''" aria-label="New chat" @click="newChat">
+    <button class="new-chat" data-tour="new-chat" :class="{ collapsed }" :title="collapsed ? 'New Chat (Ctrl/Cmd+K)' : ''" aria-label="New chat" @click="newChat">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <path d="M12 5v14m-7-7h14" stroke-linecap="round" />
       </svg>
@@ -80,6 +80,11 @@
 
     <!-- Footer: user + collapse toggle -->
     <div class="sidebar-footer">
+      <button class="take-tour" :class="{ collapsed }" :title="collapsed ? 'Take a tour' : ''" aria-label="Take a tour" @click="startTour">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke-linecap="round" stroke-linejoin="round" /><line x1="12" y1="17" x2="12.01" y2="17" stroke-linecap="round" /></svg>
+        <span v-if="!collapsed">Take a tour</span>
+      </button>
+
       <div class="user" :class="{ collapsed }">
         <div class="avatar">{{ initials }}</div>
         <div v-if="!collapsed" class="user-info">
@@ -112,6 +117,7 @@ import SidebarNavItem from './SidebarNavItem.vue'
 import WorkspaceSwitcher from '../layout/WorkspaceSwitcher.vue'
 import ChatSearchModal from './ChatSearchModal.vue'
 import { previewOf, agentOf, relTime, groupSessions } from '../../composables/useChatHistory'
+import { useOnboarding } from '../../composables/useOnboarding'
 
 const props = defineProps({
   // When true (inside the mobile drawer) the sidebar is always expanded and
@@ -139,13 +145,13 @@ const initials = computed(() => {
 // Nav items — each `to` points at a working route (existing top-level routes
 // stay alive through Phase 5; dashboard children render inside this shell).
 const primaryNav = [
-  { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6'] },
-  { to: '/dashboard/agents', match: '/dashboard/agents', label: 'Agents', icon: ['M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93', 'M12 18a8 8 0 0 1-8-8', 'M20 10a8 8 0 0 1-8 8', 'M12 11.5a1.5 1.5 0 1 0 0 .01'] },
-  { to: '/dashboard/connectors', label: 'Connectors', icon: ['M13.83 10.17a4 4 0 0 0-5.66 0l-4 4a4 4 0 1 0 5.66 5.66l1.1-1.1', 'M10.17 13.83a4 4 0 0 0 5.66 0l4-4a4 4 0 1 0-5.66-5.66l-1.1 1.1'] },
-  { to: '/dashboard/activity', label: 'Activity', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
-  { to: '/dashboard/llm-context', label: 'LLM Context', adminOnly: true, icon: ['M4 7V4h16v3', 'M9 20h6', 'M12 4v16', 'M4 12h16'] },
-  { to: '/dashboard/model-pricing', label: 'Model Pricing', adminOnly: true, icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'] },
-  { to: '/dashboard/settings/general', match: '/dashboard/settings', label: 'Settings', icon: ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82'] },
+  { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", 'data-tour': 'lets-code', icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6'] },
+  { to: '/dashboard/agents', match: '/dashboard/agents', label: 'Agents', 'data-tour': 'agents', icon: ['M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93', 'M12 18a8 8 0 0 1-8-8', 'M20 10a8 8 0 0 1-8 8', 'M12 11.5a1.5 1.5 0 1 0 0 .01'] },
+  { to: '/dashboard/connectors', label: 'Connectors', 'data-tour': 'connectors', icon: ['M13.83 10.17a4 4 0 0 0-5.66 0l-4 4a4 4 0 1 0 5.66 5.66l1.1-1.1', 'M10.17 13.83a4 4 0 0 0 5.66 0l4-4a4 4 0 1 0-5.66-5.66l-1.1 1.1'] },
+  { to: '/dashboard/workflow-builder', match: '/dashboard/workflow-builder', label: 'Workflow Builder', 'data-tour': 'workflow', icon: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M10 7h4a3 3 0 0 1 3 3v4'] },
+  { to: '/dashboard/activity', label: 'Activity', 'data-tour': 'activity', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
+  { to: '/admin-dashboard', match: '/admin-dashboard', label: 'Admin', adminOnly: true, icon: ['M12 2 4 5v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V5z', 'M9 12l2 2 4-4'] },
+  { to: '/dashboard/settings/general', match: '/dashboard/settings', label: 'Settings', 'data-tour': 'settings', icon: ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82'] },
 ]
 
 // Admin-only nav entries (e.g. LLM Context — ops stats, backed by an IsAdminUser endpoint)
@@ -173,6 +179,13 @@ const newChat = () => {
   layout.closeMobileNav()
   chat.reset()
   if (route.path !== '/dashboard/chat/new') router.push('/dashboard/chat/new')
+}
+
+// Replay the feature tour on demand (resets the completed flag + relaunches).
+const onboarding = useOnboarding()
+const startTour = () => {
+  layout.closeMobileNav()
+  onboarding.resetTour()
 }
 </script>
 
@@ -371,6 +384,16 @@ const newChat = () => {
   border-top: 1px solid var(--vm-line);
   padding: 10px 12px;
 }
+.take-tour {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  margin-bottom: 6px; padding: 9px 12px;
+  font: 600 0.8125rem var(--vm-font-sans);
+  color: var(--vm-ink-soft); background: transparent; border: none; border-radius: 11px;
+  cursor: pointer; transition: background .15s, color .15s;
+}
+.take-tour:hover { background: var(--vm-violet-soft); color: var(--vm-violet-d); }
+.take-tour svg { width: 16px; height: 16px; flex-shrink: 0; }
+.take-tour.collapsed { justify-content: center; padding: 9px 0; }
 .user {
   display: flex;
   align-items: center;

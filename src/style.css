@@ -243,6 +243,38 @@ body {
   --vm-font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
 }
 
+/* ============================================================
+   DARK THEME (beta) — overrides the var-driven --vm-* tokens so every
+   component built on them re-skins automatically. Same token NAMES, dark
+   values. Equal specificity to :root, declared after it → wins when
+   <html data-theme="dark"> is set. (Brand/semantic accents read fine on
+   dark, so only the neutral surface/text/border tokens are remapped.)
+   ============================================================ */
+[data-theme="dark"] {
+  --vm-bg: #0B1220;            /* page background */
+  --vm-ink: #E5E7EB;           /* main text */
+  --vm-ink-soft: #94A3B8;      /* secondary text */
+  --vm-ink-faint: #64748B;     /* muted text */
+  --vm-surface: #111827;       /* cards / panels */
+  --vm-surface-soft: #1E293B;  /* subtle filled areas */
+  --vm-border: #1F2937;        /* hairline borders */
+  --vm-glass: rgba(17, 24, 39, .72);
+  --vm-glass-strong: rgba(17, 24, 39, .88);
+
+  --vm-violet-soft: rgba(37, 99, 235, .16);   /* primary tint on dark */
+  --vm-primary-soft: rgba(37, 99, 235, .16);
+  --vm-accent-soft: rgba(20, 184, 166, .16);
+
+  --vm-line: rgba(255, 255, 255, .09);
+  --vm-line-2: rgba(255, 255, 255, .16);
+
+  --vm-g-warm: linear-gradient(135deg, #0B1220 0%, #111827 100%);
+
+  --vm-shadow-s: 0 2px 8px rgba(0, 0, 0, .35);
+  --vm-shadow-m: 0 8px 30px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .35);
+  --vm-shadow-l: 0 24px 60px rgba(0, 0, 0, .55), 0 8px 24px rgba(0, 0, 0, .4);
+}
+
 /* ---- Mesh keyframes (transform/opacity only — GPU cheap) ---- */
 @keyframes vmDrift1 { 50% { transform: translate(8vw, 6vw) scale(1.15); } }
 @keyframes vmDrift2 { 50% { transform: translate(-7vw, 8vw) scale(1.1); } }
@@ -269,6 +301,10 @@ body {
   color: transparent;
   animation: vmFlow 8s linear infinite;
 }
+
+/* Let's Code — inline diff decorations (Monaco renders outside scoped styles, so global). */
+.lc-add-line { background: rgba(34, 197, 94, .16); }
+.lc-add-gutter { background: #22c55e; width: 3px !important; margin-left: 3px; }
 
 /* status orb: green ring pulse (live) / soft fade (idle) */
 .vm-orb { width: 8px; height: 8px; border-radius: 50%; position: relative; flex: 0 0 auto; }

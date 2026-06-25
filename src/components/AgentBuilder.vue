@@ -30,7 +30,7 @@
     <!-- Tabs Header (hidden in canvas layout — sections stack instead) -->
     <div v-if="layout === 'tabs'" class="flex border-b border-gray-200 px-4 shrink-0 bg-white">
         <button 
-            v-for="tab in ['General', 'Knowledge', 'Workflows', 'Tools', 'Credentials', 'Signals', 'Schedules']"
+            v-for="tab in ['General', 'Knowledge', 'Workflows', 'Scripts', 'Data', 'Memory', 'Flow', 'Tools', 'Credentials', 'Signals', 'Schedules']"
             :key="tab"
             @click="activeTab = tab"
             :class="['px-4 py-3 text-sm font-medium border-b-2 transition-colors', activeTab === tab ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700']"
@@ -98,28 +98,15 @@
              </select>
 
              <label class="block text-sm font-medium text-gray-700 mb-1 mt-4">Default Model</label>
-             
-             <!-- Model Search -->
-             <input 
-                v-model="modelSearchQuery"
-                type="text"
-                placeholder="Search models by name..."
-                class="w-full px-3 py-2 mb-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+
+             <!-- Searchable, vendor-grouped model picker -->
+             <ModelPicker
+                :model-value="internalAgent.default_model"
+                @update:model-value="internalAgent.default_model = $event"
+                :models="filteredModels"
+                placeholder="Search & select a model…"
              />
-             
-             <!-- Model Dropdown -->
-             <select 
-                ref="modelSelect"
-                :value="internalAgent.default_model || ''"
-                @change="internalAgent.default_model = $event.target.value ? parseInt($event.target.value) : null"
-                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white"
-             >
-                <option :value="null">Select a model...</option>
-                <option v-for="m in filteredModels" :key="m.id" :value="m.id">
-                    {{ m.name }}
-                </option>
-             </select>
-             
+
              <!-- Selected Model Info -->
              <div v-if="selectedModelInfo" class="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div class="flex items-start justify-between mb-2">
@@ -362,16 +349,6 @@
         <p class="text-xs text-gray-500 mb-3">How this agent's tools are presented to the model. Defaults follow the system setting.</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-medium text-gray-700 mb-1">Tool shortlist</label>
-            <select v-model="internalAgent.tool_shortlist_mode"
-                    class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
-              <option value="default">Use system default</option>
-              <option value="on">On — few active tools, request the rest (best with many tools)</option>
-              <option value="off">Off — all assigned tools available directly (best with few tools)</option>
-            </select>
-            <p class="text-[11px] text-gray-400 mt-1 leading-snug">On is token-efficient for big tool sets; Off removes the request-access step.</p>
-          </div>
-          <div>
             <label class="block text-xs font-medium text-gray-700 mb-1">Tool format</label>
             <select v-model="internalAgent.tool_delivery_mode"
                     class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
@@ -380,6 +357,20 @@
               <option value="text">Full schemas in prompt (text protocol)</option>
             </select>
             <p class="text-[11px] text-gray-400 mt-1 leading-snug">Native uses the provider's tools API; text embeds full schemas in the prompt.</p>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-700 mb-1">Reasoning</label>
+            <button type="button"
+                    @click="internalAgent.stream_reasoning = !internalAgent.stream_reasoning"
+                    class="flex items-center gap-2 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50">
+              <span class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+                    :class="internalAgent.stream_reasoning ? 'bg-indigo-600' : 'bg-gray-300'">
+                <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"
+                      :class="internalAgent.stream_reasoning ? 'translate-x-4' : 'translate-x-1'"></span>
+              </span>
+              <span class="text-gray-700">Stream model reasoning</span>
+            </button>
+            <p class="text-[11px] text-gray-400 mt-1 leading-snug">Shows the model's extended thinking in the activity timeline. Adds token cost + latency; reasoning-capable models only.</p>
           </div>
         </div>
       </div>
@@ -466,7 +457,12 @@
 
       <!-- Agent Knowledge Base -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-2">Knowledge Base & Files</label>
+        <div class="flex items-center justify-between mb-2">
+          <label class="block text-sm font-medium text-gray-700">Knowledge Base & Files</label>
+          <span v-if="kbCost > 0"
+                class="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md shrink-0"
+                title="Total embedding cost for this agent's knowledge base so far">KB cost so far: {{ fmtCost(kbCost) }}</span>
+        </div>
         <div class="space-y-3">
              <!-- Upload -->
             <div class="flex gap-2">
@@ -514,7 +510,7 @@
                     <!-- RAG index status -->
                     <div v-if="fileIndex(file).stage === 'ready'" class="flex items-center gap-1.5 text-xs text-emerald-600 mt-1">
                         <span>✓</span>
-                        <span>Knowledge base ready<span v-if="fileIndex(file).chunkCount"> · {{ fileIndex(file).chunkCount }} chunks indexed</span></span>
+                        <span>Knowledge base ready<span v-if="fileIndex(file).chunkCount"> · {{ fileIndex(file).chunkCount }} chunks indexed</span><span v-if="kbCostFor('file', file.id) > 0" class="text-gray-400"> · {{ fmtCost(kbCostFor('file', file.id)) }}</span></span>
                     </div>
                     <div v-else-if="fileIndex(file).stage === 'failed'" class="text-xs text-red-600 mt-1 flex items-center gap-2">
                         <span class="truncate">⚠ {{ fileIndex(file).message || file.index_error || 'Indexing failed' }}</span>
@@ -558,6 +554,7 @@
                         <span>✓</span>
                         <span>Indexed {{ ws.indexed_count }} page(s)<span v-if="ws.chunk_count"> · {{ ws.chunk_count }} chunks</span>
                           <span v-if="ws.failed_count"> · {{ ws.failed_count }} failed</span>
+                          <span v-if="kbCostFor('web', ws.id) > 0" class="text-gray-400"> · {{ fmtCost(kbCostFor('web', ws.id)) }}</span>
                           <span class="text-gray-400"> · added {{ relativeTime(ws.finished_at || ws.updated_at) }}</span></span>
                     </div>
                     <!-- failed / cancelled -->
@@ -566,6 +563,10 @@
                         <button @click.stop="reindexWeb(ws)" class="underline text-indigo-600 hover:text-indigo-800 shrink-0">Retry</button>
                     </div>
                     <div v-else-if="ws.status === 'cancelled'" class="text-xs text-gray-500 mt-1">Cancelled · {{ ws.indexed_count }} indexed</div>
+                    <!-- discovered: pages found but NOT added/indexed yet -->
+                    <div v-else-if="ws.status === 'discovered'" class="text-xs text-amber-600 mt-1">
+                        {{ ws.discovered_count }} page(s) discovered — not added yet
+                    </div>
                     <!-- discovering / indexing -->
                     <div v-else class="mt-1.5">
                         <div class="flex items-center justify-between text-[11px] text-gray-500 mb-1">
@@ -580,6 +581,9 @@
                                  :class="{ 'animate-pulse': ws.status === 'discovering' }"
                                  :style="{ width: (ws.status === 'indexing' ? webPercent(ws) : 10) + '%' }"></div>
                         </div>
+                        <div v-if="ws.last_url" class="mt-1 text-[10px] text-gray-400 font-mono truncate">
+                            {{ ws.status === 'discovering' ? 'Fetching: ' : 'Indexing: ' }}{{ ws.last_url }}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -588,7 +592,7 @@
 
       <!-- Add Website Source modal -->
       <AddWebsiteSourceModal v-if="showWebsiteModal" :agent-id="internalAgent.id"
-        @close="showWebsiteModal = false" @added="onWebSourceAdded" />
+        @close="showWebsiteModal = false" @added="onWebSourceAdded" @discarded="onWebSourceDiscarded" />
       <!-- Website pages detail modal -->
       <WebSourcePagesModal v-if="pagesModalSource" :source="pagesModalSource"
         @close="pagesModalSource = null" @updated="onWebSourceUpdated" />
@@ -693,6 +697,68 @@
           </div>
           <p v-if="!internalAgent.id" class="text-[11px] text-gray-400">A draft of this agent is saved automatically when you create the first workflow.</p>
         </div>
+      </div>
+
+      <!-- TAB: SCRIPTS (registered workspace .py files + run History) -->
+      <div v-if="layout === 'canvas'" id="sec-scripts" class="vm-anchor flex items-center gap-3 pt-2">
+        <span class="w-7 h-7 rounded-lg bg-violet-600 text-white text-sm font-bold flex items-center justify-center shrink-0">5</span>
+        <div>
+          <div class="text-[15px] font-bold text-gray-900 leading-tight">Scripts</div>
+          <div class="text-xs text-gray-500">Reusable Python scripts the agent can run — and their run history.</div>
+        </div>
+      </div>
+      <div v-if="layout === 'canvas' || activeTab === 'Scripts'" class="pl-0 sm:pl-10">
+        <LazyMount v-if="internalAgent.id"><AutomationPanel :agent-profile="internalAgent" :tabs="['scripts', 'history']" /></LazyMount>
+        <p v-else class="text-xs text-gray-400 italic py-3">Save the agent first to register and run scripts.</p>
+      </div>
+
+      <!-- TAB: DATA (STORE_AGENT_DATA collections / Data Explorer) -->
+      <div v-if="layout === 'canvas'" id="sec-data" class="vm-anchor flex items-center gap-3 pt-2">
+        <span class="w-7 h-7 rounded-lg bg-violet-600 text-white text-sm font-bold flex items-center justify-center shrink-0">6</span>
+        <div>
+          <div class="text-[15px] font-bold text-gray-900 leading-tight">Data</div>
+          <div class="text-xs text-gray-500">Collections the agent stores via STORE_AGENT_DATA, as browsable tables.</div>
+        </div>
+      </div>
+      <div v-if="layout === 'canvas' || activeTab === 'Data'" class="pl-0 sm:pl-10">
+        <LazyMount v-if="internalAgent.id"><AgentDataPanel :agent-profile="internalAgent" /></LazyMount>
+        <p v-else class="text-xs text-gray-400 italic py-3">Save the agent first to view its stored data.</p>
+      </div>
+
+      <!-- TAB: MEMORY (unified AgentMemory — what the agent remembers, by scope + the legacy dreaming cards) -->
+      <div v-if="layout === 'canvas'" id="sec-memory" class="vm-anchor flex items-center gap-3 pt-2">
+        <span class="w-7 h-7 rounded-lg bg-violet-600 text-white text-sm font-bold flex items-center justify-center shrink-0">7</span>
+        <div>
+          <div class="text-[15px] font-bold text-gray-900 leading-tight">Memory</div>
+          <div class="text-xs text-gray-500">Durable facts the agent remembers, by scope — saved by you or automatically.</div>
+        </div>
+      </div>
+      <div v-if="layout === 'canvas' || activeTab === 'Memory'" class="pl-0 sm:pl-10 space-y-6">
+        <LazyMount v-if="internalAgent.id"><AgentMemoryList :agent-profile="internalAgent" /></LazyMount>
+        <p v-else class="text-xs text-gray-400 italic py-3">Save the agent first to view its memory.</p>
+        <!-- Legacy dreaming / knowledge-card system (being folded into unified memory).
+             Only mounts (and fetches) once the user expands it. -->
+        <details v-if="internalAgent.id" class="rounded-lg border border-gray-200" @toggle="legacyMemoryOpen = $event.target.open">
+          <summary class="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-gray-500 hover:text-gray-700">
+            Dreaming &amp; knowledge cards (legacy)
+          </summary>
+          <div class="p-3 pt-0">
+            <AgentMemoryPanel v-if="legacyMemoryOpen" :agent-profile="internalAgent" />
+          </div>
+        </details>
+      </div>
+
+      <!-- TAB: FLOW (conversation flow tracking) -->
+      <div v-if="layout === 'canvas'" id="sec-flow" class="vm-anchor flex items-center gap-3 pt-2">
+        <span class="w-7 h-7 rounded-lg bg-violet-600 text-white text-sm font-bold flex items-center justify-center shrink-0">8</span>
+        <div>
+          <div class="text-[15px] font-bold text-gray-900 leading-tight">Flow</div>
+          <div class="text-xs text-gray-500">Tracked conversation flows the agent can resume.</div>
+        </div>
+      </div>
+      <div v-if="layout === 'canvas' || activeTab === 'Flow'" class="pl-0 sm:pl-10">
+        <LazyMount v-if="internalAgent.id"><AgentFlowPanel :agent-profile="internalAgent" /></LazyMount>
+        <p v-else class="text-xs text-gray-400 italic py-3">Save the agent first to view its flows.</p>
       </div>
 
       <!-- TAB: TOOLS -->
@@ -1220,7 +1286,7 @@
           <!-- Service & Built-in Tool Credentials -->
           <div class="border border-gray-200 rounded-lg overflow-hidden bg-white max-h-[600px] overflow-y-auto">
             <!-- Reuse the standalone component which supports both Service and Built-in tools -->
-            <CredentialManager :agent-profile="internalAgent" />
+            <LazyMount><CredentialManager :agent-profile="internalAgent" /></LazyMount>
           </div>
       </div>
 
@@ -1238,7 +1304,7 @@
       <h3 v-if="layout === 'canvas'" class="text-sm font-bold text-gray-800 pt-3">Automation &amp; Schedules</h3>
       <div v-if="layout === 'canvas' || activeTab === 'Schedules'"
         :class="layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : ''">
-        <SchedulePanel :agent="internalAgent" />
+        <LazyMount><SchedulePanel :agent="internalAgent" /></LazyMount>
       </div>
 
       </div>
@@ -1254,7 +1320,14 @@ import CredentialManager from './tools/CredentialManager.vue';
 import AgentRulesEditor from './agent/AgentRulesEditor.vue';
 import { MAX_RULE_LEN as RULE_MAX_LEN, MAX_RULES as RULE_MAX_COUNT, cleanRules as cleanAgentRules, rulesValid as agentRulesValid } from './agent/agentRules';
 import SchedulePanel from './SchedulePanel.vue';
+import AutomationPanel from './AutomationPanel.vue';
+import LazyMount from './common/LazyMount.vue';
+import AgentDataPanel from './knowledge/AgentDataPanel.vue';
+import AgentMemoryPanel from './knowledge/AgentMemoryPanel.vue';
+import AgentMemoryList from './knowledge/AgentMemoryList.vue';
+import AgentFlowPanel from './knowledge/AgentFlowPanel.vue';
 import ToolPicker from './ToolPicker.vue';
+import ModelPicker from './common/ModelPicker.vue';
 import SignalPanel from './SignalPanel.vue';
 import { Upload, Globe, Table2, Search, Type, FileText, Braces, Folder, Zap, ClipboardList, ChevronDown } from 'lucide-vue-next';
 import { modeKey, modeLabel } from '../composables/agentModes';
@@ -1299,6 +1372,7 @@ const internalAgent = ref({
     vision_model: null,
     audio_model: null,
     video_model: null,
+    stream_reasoning: false,  // Phase 3 (b): stream the model's extended thinking into the timeline
     code_mode_enabled: false,  // Code Mode: search+execute vs individual tools
     code_mode_services: [],    // RemoteService IDs (empty = all credentialed)
     builder_mode_enabled: false,  // Builder Mode: agent can register OAuth providers
@@ -1365,11 +1439,9 @@ const isUpdatingFromProp = ref(false);
 const uploading = ref(false);
 const isReAnalyzing = ref(false);
 const fileInput = ref(null);
-const modelSelect = ref(null);
 const showAnalysisModal = ref(false);
 const selectedAnalysisFile = ref(null);
 const toolSearchQuery = ref('');
-const modelSearchQuery = ref(''); // NEW: for model search
 const activeTab = ref('General');
 const toolsViewMode = ref('selected'); // 'selected', 'category' or 'service'
 const expandedServices = ref({}); // Track which service groups are expanded
@@ -1796,23 +1868,12 @@ const capabilityModelOptions = computed(() =>
         (!selectedProviderId.value || m.provider === selectedProviderId.value)));
 const hasAnyCapabilityModels = computed(() => capabilityModelOptions.value.length > 0);
 
-const filteredModels = computed(() => {
-    let models = selectedProviderId.value
+// Provider filter only — ModelPicker handles search, vendor grouping and capability filters.
+const filteredModels = computed(() =>
+    selectedProviderId.value
         ? llmModels.value.filter(m => m.provider === selectedProviderId.value)
-        : llmModels.value;
-
-    // Apply search filter
-    const query = modelSearchQuery.value.toLowerCase().trim();
-    if (query) {
-        models = models.filter(m => 
-            m.name.toLowerCase().includes(query) ||
-            m.model_id.toLowerCase().includes(query) ||
-            (m.metadata?.description && m.metadata.description.toLowerCase().includes(query))
-        );
-    }
-    
-    return models;
-});
+        : llmModels.value
+);
 
 // Get info about the currently selected model
 const selectedModelInfo = computed(() => {
@@ -2156,6 +2217,32 @@ async function loadWebSources() {
   } catch (e) { /* non-fatal */ }
 }
 
+// Knowledge-base embedding cost for THIS agent (total + per file/site), from the same
+// /llm/usage aggregation the Activity dashboard uses (request_source='embedding').
+const kbCost = ref(0);
+const kbCostBySource = ref([]);   // [{ kb_kind, kb_id, kb_name, cost, tokens, requests }]
+
+async function loadKbCost() {
+  const id = internalAgent.value.id;
+  if (!id) { kbCost.value = 0; kbCostBySource.value = []; return; }
+  try {
+    const r = await api.getLlmUsage({ agent_id: id });
+    kbCost.value = r.data?.kb_cost || 0;
+    kbCostBySource.value = r.data?.kb_cost_by_source || [];
+  } catch (e) { /* non-fatal */ }
+}
+
+// Cost recorded so far for one knowledge source (file or website), matched by kind + id.
+function kbCostFor(kind, id) {
+  const row = kbCostBySource.value.find(s => s.kb_kind === kind && String(s.kb_id) === String(id));
+  return row ? (row.cost || 0) : 0;
+}
+function fmtCost(v) {
+  const n = Number(v || 0);
+  if (n > 0 && n < 0.0001) return '<$0.0001';
+  return '$' + n.toFixed(4);
+}
+
 function openWebsiteModal() {
   // Show the modal IMMEDIATELY (never block the UI on a save). If the agent isn't saved yet, save it
   // in the BACKGROUND — the modal's :agent-id prop is reactive, so it fills in once the id exists. A
@@ -2175,6 +2262,12 @@ function onWebSourceAdded(src) {
   connectKbWs();   // ensure we're listening for progress
 }
 
+function onWebSourceDiscarded(id) {
+  // Modal cancelled before "Add" — the throwaway discovered source was deleted; drop it from the list
+  // (it may have appeared via a discovery progress WS event that triggered a reload).
+  webSources.value = webSources.value.filter(w => w.id !== id);
+}
+
 function upsertWebSource(payload) {
   const id = payload.source_id;
   const i = webSources.value.findIndex(w => w.id === id);
@@ -2188,12 +2281,13 @@ function upsertWebSource(payload) {
     indexed_count: payload.indexed ?? cur.indexed_count,
     failed_count: payload.failed ?? cur.failed_count,
     chunk_count: payload.chunk_count ?? cur.chunk_count,
+    last_url: payload.last_url || cur.last_url,        // live URL being fetched/indexed
     updated_at: new Date().toISOString(),
     finished_at: payload.type === 'web_source.done' ? new Date().toISOString() : cur.finished_at,
   };
   if (payload.type === 'web_source.done') {
     const st = webSources.value[i].status;
-    if (st === 'ready') notify.success(`Website indexed: ${webSources.value[i].display_name}`);
+    if (st === 'ready') { notify.success(`Website indexed: ${webSources.value[i].display_name}`); loadKbCost(); }
     else if (st === 'failed') notify.error(`Website indexing failed: ${webSources.value[i].display_name}`);
   }
 }
@@ -2250,7 +2344,7 @@ function handleIndexProgress(evt) {
     // replace internalAgent wholesale on EVERY tick, re-rendering the whole builder form
     // (which looks like the page "refreshing"). fileIndex() merges this map for display.
     setProgress(evt.document_id, evt.stage, evt.percent, evt.message, evt.total);
-    if (evt.stage === 'ready') notify.success(`Knowledge base ready: ${evt.name}`);
+    if (evt.stage === 'ready') { notify.success(`Knowledge base ready: ${evt.name}`); loadKbCost(); }
     else if (evt.stage === 'failed') notify.error(`Indexing failed: ${evt.name}${evt.message ? ' — ' + evt.message : ''}`);
 }
 
@@ -2259,7 +2353,7 @@ function handleIndexProgress(evt) {
 function applyStatus(docId, data) {
     const stage = data.index_status || data.stage;
     setProgress(docId, stage, stage === 'ready' ? 100 : 0, data.index_error || '', data.chunk_count);
-    if (stage === 'ready') notify.success('Knowledge base ready');
+    if (stage === 'ready') { notify.success('Knowledge base ready'); loadKbCost(); }
     else if (stage === 'failed') notify.error('Indexing failed: ' + (data.index_error || ''));
 }
 
@@ -2597,6 +2691,9 @@ const loadAgentConnectors = async () => {
     }
 };
 
+// Legacy dreaming/knowledge-cards panel mounts (and fetches) only once expanded.
+const legacyMemoryOpen = ref(false);
+
 // ── Agent Workflows (saved prompt "macros") — backend: /api/workflows/, scoped by profile_id ──
 const workflows = ref([]);
 const workflowsLoading = ref(false);
@@ -2733,22 +2830,71 @@ const openConnectorsHub = () => {
 // Reload the connector list + workflows when the agent id first appears (draft save / switching agents).
 watch(() => internalAgent.value.id, () => { loadAgentConnectors(); loadWorkflows(); });
 
+// ── Lazy, per-section data loading ────────────────────────────────────────────
+// The Configure page is one long scroll. Instead of fetching EVERY section's data on
+// mount (tools, MCP, connectors, workflows, web sources — several of them slow), we
+// load only the General-section essentials (the model picker) up front and defer each
+// heavier section's fetch until it scrolls into view. So opening the page paints the
+// General section instantly; the rest loads as you reach it ("load only what's shown").
+let sectionIO = null;
+function setupSectionLazyLoad() {
+    const loaders = {
+        'sec-knowledge': () => { loadWebSources(); loadKbCost(); },
+        'sec-workflows': () => loadWorkflows(),
+        'sec-tools': () => { fetchTools(); fetchMcpServers(); loadAgentConnectors(); },
+    };
+    // No IntersectionObserver (old/test env) → just load them all so nothing is missing.
+    if (typeof IntersectionObserver === 'undefined') {
+        Object.values(loaders).forEach((fn) => fn());
+        return;
+    }
+    const done = new Set();
+    sectionIO = new IntersectionObserver((entries) => {
+        for (const e of entries) {
+            if (e.isIntersecting && !done.has(e.target.id)) {
+                done.add(e.target.id);
+                (loaders[e.target.id] || (() => {}))();
+                sectionIO.unobserve(e.target);
+            }
+        }
+    }, { rootMargin: '400px' });   // start the fetch a bit before the section is visible
+    nextTick(() => {
+        Object.keys(loaders).forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) sectionIO.observe(el);
+        });
+    });
+}
+
 onMounted(() => {
-    fetchTools();
-    fetchProviders();
-    fetchModels();
-    fetchMcpServers();       // needed so MCP connectors can map to their tools
-    loadAgentConnectors();
-    loadWorkflows();
+    const id = internalAgent.value?.id;
+    if (id) {
+        // General-section essentials → the model picker fills in immediately, NOT
+        // blocked behind the slower tools/connectors fetches.
+        fetchProviders();
+        fetchModels();
+        // Everything below the fold loads only when its section scrolls into view.
+        setupSectionLazyLoad();
+    } else {
+        // New-agent (wizard) path: sections are revealed one at a time, so just load
+        // the global catalogs the dropdowns need up front.
+        fetchTools();
+        fetchProviders();
+        fetchModels();
+        fetchMcpServers();       // needed so MCP connectors can map to their tools
+        loadAgentConnectors();
+        loadWorkflows();
+        loadWebSources();
+    }
     connectKbWs();
-    loadWebSources();
 });
 
 // Reconnect the knowledge-index WS when the agent id first appears (lazy draft save)
 // or changes (switching agents in Configure).
-watch(() => internalAgent.value.id, (id) => { if (id) { connectKbWs(); loadWebSources(); } });
+watch(() => internalAgent.value.id, (id) => { if (id) { connectKbWs(); loadWebSources(); loadKbCost(); } });
 
 onBeforeUnmount(() => {
     if (kbWs.value) { try { kbWs.value.close(); } catch (e) { /* noop */ } kbWs.value = null; }
+    if (sectionIO) { sectionIO.disconnect(); sectionIO = null; }
 });
 </script>

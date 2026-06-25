@@ -1,617 +1,219 @@
 <template>
-  <div class="blog-post-page">
-    <!-- Navigation Breadcrumb (Visual only for context) -->
-    <nav class="breadcrumb">
-      <router-link to="/blog">Blog</router-link>
-      <span class="separator">/</span>
-      <span class="current">{{ post.category }}</span>
-    </nav>
+  <PublicLayout>
+    <article class="mx-auto max-w-3xl px-4 pb-10 pt-10 sm:px-6 lg:px-8">
+      <!-- Breadcrumb -->
+      <nav class="flex items-center gap-2 text-sm text-ink-faint">
+        <router-link to="/blog" class="text-violet">Blog</router-link>
+        <span>/</span><span>{{ post.category }}</span>
+      </nav>
 
-    <!-- Main Article -->
-    <article class="post-container">
-      <header class="post-header">
-        <div class="post-meta-top">
-          <span class="post-category">{{ post.category }}</span>
-          <span class="post-read-time">{{ post.readTime }} min read</span>
+      <!-- Header -->
+      <header class="mt-6 text-center">
+        <div class="flex items-center justify-center gap-3 text-sm">
+          <span class="cat">{{ post.category }}</span>
+          <span class="text-ink-faint">{{ readLabel(post) }}</span>
         </div>
-        
-        <h1 class="post-title">{{ post.title }}</h1>
-        
-        <div class="author-row">
-          <div class="author-avatar">
-            <!-- Placeholder Avatar -->
-            <img src="https://ui-avatars.com/api/?name=Sarah+Chen&background=2563EB&color=fff" alt="Author">
-          </div>
-          <div class="author-info">
-            <div class="author-name">By {{ post.author }}</div>
-            <div class="post-date">{{ post.date }}</div>
+        <h1 class="mt-5 font-display text-4xl font-extrabold leading-tight tracking-tight text-ink">{{ post.title }}</h1>
+        <div class="mt-6 flex items-center justify-center gap-3 border-t border-line pt-6">
+          <img :src="avatarUrl" alt="" class="h-11 w-11 rounded-full" />
+          <div class="text-left">
+            <div class="font-semibold text-ink">By {{ post.author || 'AADML Team' }}</div>
+            <div class="text-sm text-ink-faint">{{ post.date }}</div>
           </div>
         </div>
       </header>
 
-      <!-- Feature Image with Gradient Overlay -->
-      <div class="post-hero-image">
-        <div class="image-placeholder" :style="{ background: post.color }"></div>
-        <div class="image-overlay"></div>
-      </div>
+      <!-- Hero image -->
+      <div class="mt-8 h-72 w-full overflow-hidden rounded-2xl" :style="heroBg"></div>
 
-      <!-- Content Area (Deep styled typography) -->
-      <div class="post-content">
-        <div v-html="post.content"></div>
+      <!-- Body -->
+      <div v-if="loading" class="mt-10 space-y-4">
+        <div class="vm-skel h-4 w-full"></div>
+        <div class="vm-skel h-4 w-11/12"></div>
+        <div class="vm-skel h-4 w-3/4"></div>
       </div>
+      <div v-else class="post-body mt-10" v-html="bodyHtml"></div>
 
-      <!-- Footer Tags & Share -->
-      <footer class="post-footer">
-        <div class="footer-top">
-          <div class="tags-container">
-            <h4>Tags</h4>
-            <div class="tags">
-              <span class="tag" v-for="tag in post.tags" :key="tag">#{{ tag }}</span>
-            </div>
+      <!-- Footer -->
+      <footer class="mt-12 flex flex-col gap-6 border-t border-line pt-8 sm:flex-row sm:items-start sm:justify-between">
+        <div v-if="post.tags?.length">
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-ink-faint">Tags</h4>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <span v-for="tag in post.tags" :key="tag" class="tag">#{{ tag }}</span>
           </div>
-          
-          <div class="share-container">
-            <h4>Share this post</h4>
-            <div class="social-buttons">
-              <button class="social-btn twitter" title="Share on Twitter">
-                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/></svg>
-              </button>
-              <button class="social-btn linkedin" title="Share on LinkedIn">
-                <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
-              </button>
-              <button class="social-btn link" title="Copy Link">
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
-              </button>
-            </div>
+        </div>
+        <div>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-ink-faint">Share</h4>
+          <div class="mt-3 flex gap-2">
+            <button class="share" title="Copy link" @click="copyLink"><Icon icon="lucide:link" class="h-4 w-4" /></button>
+            <a class="share" :href="shareX" target="_blank" rel="noopener" title="Share on X"><Icon icon="lucide:twitter" class="h-4 w-4" /></a>
+            <a class="share" :href="shareLinkedIn" target="_blank" rel="noopener" title="Share on LinkedIn"><Icon icon="lucide:linkedin" class="h-4 w-4" /></a>
           </div>
         </div>
       </footer>
     </article>
 
-    <!-- Related Posts Section -->
-    <aside class="related-posts-section">
-      <div class="container">
-        <h3 class="related-title">You might also like</h3>
-        <div class="related-grid">
-          <router-link 
-            v-for="related in relatedPosts" 
-            :key="related.id"
-            :to="`/blog/${related.slug}`"
-            class="related-card"
-          >
-            <div class="related-image" :style="{ background: related.color }"></div>
-            <div class="related-content">
-              <span class="related-category">AI Trends</span>
-              <h4>{{ related.title }}</h4>
-              <p class="related-date">{{ related.date }}</p>
-            </div>
-          </router-link>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Bottom CTA -->
-    <div class="cta-section">
-      <div class="cta-box">
-        <h2>Ready to Transform Your Development Workflow?</h2>
-        <p>Join thousands of developers using AI agents to accelerate their projects.</p>
-        <router-link to="/login" class="btn btn-primary">
-          Get Started Free
+    <!-- Related -->
+    <section v-if="relatedPosts.length" class="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+      <h3 class="mb-6 font-display text-2xl font-extrabold text-ink">You might also like</h3>
+      <div class="grid gap-6 sm:grid-cols-3">
+        <router-link v-for="r in relatedPosts" :key="r.slug" :to="`/blog/${r.slug}`" class="rel-card">
+          <div class="h-36 w-full" :style="cardBg(r)"></div>
+          <div class="p-5">
+            <span class="cat">{{ r.category || 'Article' }}</span>
+            <h4 class="mt-2 line-clamp-2 font-bold text-ink">{{ r.title }}</h4>
+            <p class="mt-1 text-sm text-ink-faint">{{ r.date }}</p>
+          </div>
         </router-link>
       </div>
-    </div>
-  </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="mx-auto max-w-5xl px-4 pb-24 sm:px-6 lg:px-8">
+      <div class="cta-box">
+        <h2 class="font-display text-3xl font-extrabold text-white">Ready to transform your workflow?</h2>
+        <p class="mx-auto mt-3 max-w-lg text-blue-100">Join the developers using AI agents to ship faster.</p>
+        <router-link to="/login" class="mt-7 inline-flex rounded-xl bg-white px-7 py-3 font-bold text-violet transition-transform hover:-translate-y-0.5">Get started free</router-link>
+      </div>
+    </section>
+  </PublicLayout>
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { Icon } from '@iconify/vue'
 import { blogPosts as allPosts } from '../data/blogPosts'
+import PublicLayout from '../components/public/PublicLayout.vue'
+import { useMeta } from '../composables/useMeta'
+import api from '../services/api'
+import { notify } from '@/composables/useNotify'
 
 const route = useRoute()
-
-const post = ref({
-  id: 0,
-  slug: '',
-  title: 'Loading...',
-  author: '',
-  date: '',
-  readTime: 0,
-  category: '',
-  color: '',
-  tags: [],
-  content: ''
-})
-
+const loading = ref(false)
+const post = ref({ slug: '', title: 'Loading…', author: '', date: '', readTime: 5, category: '', tags: [], content: '' })
 const relatedPosts = ref([])
 
-const loadPost = () => {
+const bodyHtml = computed(() => post.value.content_html || post.value.content || '')
+const heroBg = computed(() => cardBg(post.value))
+const avatarUrl = computed(() => `https://ui-avatars.com/api/?name=${encodeURIComponent(post.value.author || 'AADML')}&background=2563EB&color=fff`)
+const shareX = computed(() => `https://twitter.com/intent/tweet?url=${encodeURIComponent(currentUrl())}&text=${encodeURIComponent(post.value.title || '')}`)
+const shareLinkedIn = computed(() => `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(currentUrl())}`)
+
+useMeta({
+  title: computed(() => post.value.title ? `${post.value.title} — AADML Blog` : 'Blog — AADML'),
+  description: computed(() => post.value.excerpt || 'Insights on AI agents and automation.'),
+  ogType: 'article',
+  image: computed(() => post.value.image || post.value.og_image_url || ''),
+  jsonLd: computed(() => ({
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.value.title,
+    author: { '@type': 'Person', name: post.value.author || 'AADML Team' },
+    datePublished: post.value.published_at || undefined,
+  })),
+})
+
+function currentUrl() { return typeof window !== 'undefined' ? window.location.href : '' }
+function cardBg(p) {
+  if (!p) return {}
+  if (p.image || p.og_image_url) return { backgroundImage: `url(${p.image || p.og_image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+  return { background: p.gradient || p.color || p.hero_gradient || 'linear-gradient(135deg,#2563EB,#14B8A6)' }
+}
+function readLabel(p) {
+  const t = p.readTime
+  if (typeof t === 'string') return t.includes('read') ? t : `${t} min read`
+  return `${t || 5} min read`
+}
+
+async function loadPost() {
   const slug = route.params.slug
-  const foundPost = allPosts.find(p => p.slug === slug)
-  
-  if (foundPost) {
-    post.value = foundPost
-    // Get 3 other posts as related (excluding current)
-    relatedPosts.value = allPosts
-      .filter(p => p.slug !== slug)
-      .slice(0, 3)
-    
-    // Scroll to top on navigation
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+  const fallback = allPosts.find(p => p.slug === slug)
+  if (fallback) post.value = fallback
+  relatedPosts.value = allPosts.filter(p => p.slug !== slug).slice(0, 3)
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+
+  // Prefer live CMS content when available
+  try {
+    loading.value = !fallback
+    const { data } = await api.get(`/content/pages/${slug}/`)
+    if (data.page) {
+      const p = data.page
+      post.value = {
+        slug: p.slug,
+        title: p.title,
+        excerpt: p.excerpt,
+        author: p.author || 'AADML Team',
+        category: p.category || 'Article',
+        date: p.published_at ? new Date(p.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : (fallback?.date || ''),
+        published_at: p.published_at,
+        readTime: p.read_time_minutes || 5,
+        tags: p.tags || fallback?.tags || [],
+        content_html: p.content_html,
+        hero_gradient: p.hero_gradient,
+        og_image_url: p.og_image_url,
+      }
+    }
+  } catch (e) {
+    console.debug('BlogPost: using static fallback', e.message)
+  } finally {
+    loading.value = false
   }
 }
 
-// Watch for route parameter changes
-watch(() => route.params.slug, () => {
-  loadPost()
-})
+function copyLink() {
+  navigator.clipboard?.writeText(currentUrl())
+  notify.success('Link copied')
+}
 
-onMounted(() => {
-  loadPost()
-})
+watch(() => route.params.slug, loadPost)
+onMounted(loadPost)
 </script>
 
 <style scoped>
-/* --- 1. THEME VARIABLES --- */
-/* --- 1. THEME VARIABLES --- */
-.blog-post-page {
-  /* Most variables are now global */
-  width: 100%;
-  min-height: 100vh;
-  background-color: var(--bg-body);
-  color: var(--text-primary);
-  overflow-x: hidden;
-  padding-bottom: 6rem;
+.cat {
+  display: inline-block; padding: 3px 11px; border-radius: 999px;
+  font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--vm-primary); background: var(--vm-primary-soft);
 }
-
-/* --- 2. BREADCRUMB --- */
-.breadcrumb {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 1.5rem 0;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.875rem;
-  color: var(--text-muted);
-}
-
-.breadcrumb a {
-  color: var(--text-muted);
-  text-decoration: none;
-  transition: color 0.2s;
-}
-
-.breadcrumb a:hover { color: var(--primary); }
-.separator { color: var(--border); }
-.current { color: var(--text-main); font-weight: 500; }
-
-/* --- 3. MAIN ARTICLE CONTAINER --- */
-/* --- 3. MAIN ARTICLE CONTAINER --- */
-.post-container {
-  max-width: 800px;
-  margin: 0 auto 4rem;
-  background: var(--bg-card);
-  backdrop-filter: blur(20px);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  overflow: hidden; /* Contains the image */
-  box-shadow: var(--shadow-xl);
-}
-
-/* --- 4. HEADER --- */
-.post-header {
-  padding: 3rem 2.5rem 2rem;
-  text-align: center;
-}
-
-.post-meta-top {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.post-category {
-  background: linear-gradient(90deg, rgba(139, 92, 246, 0.2), rgba(236, 72, 153, 0.2));
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  color: var(--text-secondary);
-  padding: 0.4rem 1rem;
-  border-radius: 50px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.post-read-time {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-.post-read-time::before {
-  content: '';
-  width: 4px; height: 4px;
-  background: var(--text-muted);
-  border-radius: 50%;
-}
-
-.post-title {
-  font-size: 3rem;
-  font-weight: 800;
-  line-height: 1.2;
-  background: var(--gradient-text);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin-bottom: 2.5rem;
-  letter-spacing: -0.02em;
-}
-
-.author-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  padding-top: 2rem;
-  border-top: 1px solid var(--border);
-}
-
-.author-avatar img {
-  width: 48px; height: 48px;
-  border-radius: 50%;
-  border: 2px solid var(--bg-card);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-}
-
-.author-name {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.post-date {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-}
-
-/* --- 5. HERO IMAGE --- */
-.post-hero-image {
-  position: relative;
-  height: 400px;
-  width: 100%;
-  overflow: hidden;
-}
-
-.image-placeholder {
-  width: 100%;
-  height: 100%;
-  background-size: cover;
-  background-position: center;
-}
-
-.image-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, var(--bg-body) 0%, transparent 20%);
-}
-
-/* --- 6. CONTENT TYPOGRAPHY (THE CRITICAL PART) --- */
-.post-content {
-  padding: 3rem 2.5rem 4rem;
-  color: var(--text-secondary);
-  font-family: 'Inter', system-ui, sans-serif;
-  font-size: 1.125rem;
-  line-height: 1.8;
-}
-
-/* Deep styles for v-html content */
-.post-content :deep(.lead) {
-  font-size: 1.35rem;
-  line-height: 1.6;
-  color: var(--text-secondary);
-  margin-bottom: 3rem;
-  font-weight: 400;
-}
-
-.post-content :deep(h2) {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 4rem 0 1.5rem;
-  position: relative;
-  padding-bottom: 1rem;
-}
-
-.post-content :deep(h2::after) {
-  content: '';
-  position: absolute;
-  left: 0; bottom: 0;
-  width: 60px; height: 4px;
-  background: var(--primary);
-  border-radius: 2px;
-}
-
-.post-content :deep(p) {
-  margin-bottom: 1.75rem;
-  color: var(--text-secondary);
-}
-
-.post-content :deep(ul) {
-  margin: 2rem 0;
-  padding-left: 0;
-  list-style: none;
-}
-
-.post-content :deep(li) {
-  margin-bottom: 1rem;
-  padding-left: 2rem;
-  position: relative;
-  color: var(--text-secondary);
-}
-
-.post-content :deep(li::before) {
-  content: '•';
-  color: var(--primary);
-  font-size: 1.5rem;
-  position: absolute;
-  left: 0;
-  top: -4px;
-}
-
-.post-content :deep(strong) {
-  color: var(--text-primary);
-  font-weight: 600;
-}
-
-.post-content :deep(blockquote) {
-  border-left: 4px solid var(--primary);
-  background: var(--bg-surface);
-  padding: 2rem;
-  margin: 3rem 0;
-  border-radius: 0 12px 12px 0;
-  font-style: italic;
-  color: var(--text-secondary);
-}
-
-.post-content :deep(cite) {
-  display: block;
-  margin-top: 1.5rem;
-  font-style: normal;
-  color: var(--primary);
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-/* --- 7. FOOTER & TAGS --- */
-.post-footer {
-  padding: 2rem 2.5rem 3rem;
-  border-top: 1px solid var(--border);
-}
-
-.footer-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 2rem;
-}
-
-.tags-container h4, .share-container h4 {
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-bottom: 1rem;
-}
-
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
 .tag {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  font-size: 0.875rem;
-  transition: 0.2s;
-  cursor: default;
+  padding: 6px 12px; border-radius: 8px; font-size: .85rem;
+  color: var(--vm-ink-soft); border: 1px solid var(--vm-border); background: var(--vm-surface);
 }
+.share {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 10px; cursor: pointer;
+  color: var(--vm-ink-soft); border: 1px solid var(--vm-border); background: var(--vm-surface);
+  transition: all .15s;
+}
+.share:hover { color: #fff; background: var(--vm-primary); border-color: var(--vm-primary); transform: translateY(-2px); }
 
-.tag:hover {
-  border-color: var(--primary);
-  color: var(--primary);
+.rel-card {
+  display: block; overflow: hidden; border-radius: 16px;
+  border: 1px solid var(--vm-border); background: var(--vm-surface);
+  text-decoration: none; box-shadow: var(--vm-shadow-s);
+  transition: transform .2s var(--vm-ease), box-shadow .2s, border-color .2s;
 }
-
-.social-buttons {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.social-btn {
-  width: 40px; height: 40px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,0.05);
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: 0.2s;
-}
-
-.social-btn:hover {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--text-primary);
-  transform: translateY(-2px);
-}
-
-/* --- 8. RELATED POSTS --- */
-.related-posts-section {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1.5rem;
-}
-
-.related-title {
-  font-size: 1.75rem;
-  color: var(--text-primary);
-  margin-bottom: 2rem;
-  border-left: 4px solid var(--primary);
-  padding-left: 1rem;
-}
-
-.related-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-}
-
-.related-card {
-  background: var(--bg-glass);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  text-decoration: none;
-  transition: 0.3s;
-}
-
-.related-card:hover {
-  transform: translateY(-5px);
-  border-color: var(--primary);
-}
-
-.related-image {
-  height: 160px;
-  width: 100%;
-}
-
-.related-content {
-  padding: 1.5rem;
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.related-category {
-  font-size: 0.75rem;
-  color: var(--primary);
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  text-transform: uppercase;
-}
-
-.related-content h4 {
-  color: var(--text-primary);
-  font-size: 1.25rem;
-  margin-bottom: 0.5rem;
-  line-height: 1.4;
-}
-
-.related-date {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  margin-top: auto;
-}
-
-/* --- 9. BOTTOM CTA --- */
-.cta-section {
-  max-width: 1000px;
-  margin: 6rem auto 4rem;
-  padding: 0 1.5rem;
-}
+.rel-card:hover { transform: translateY(-4px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
 
 .cta-box {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 5rem 3rem;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-  box-shadow: var(--shadow-xl);
+  border-radius: 26px; padding: 56px 32px; text-align: center;
+  background: var(--vm-g-multi); box-shadow: var(--vm-shadow-l);
 }
 
-/* Decorative Glow */
-.cta-box::before {
-  content: '';
-  position: absolute;
-  top: -50%; left: -50%;
-  width: 200%; height: 200%;
-  background: radial-gradient(circle at center, rgba(139, 92, 246, 0.15), transparent 50%);
-  pointer-events: none;
-}
-
-.cta-box h2 {
-  font-size: 2.5rem;
-  color: var(--text-primary);
-  margin-bottom: 1.5rem;
-  position: relative;
-  z-index: 1;
-}
-
-.cta-box p {
-  color: var(--text-secondary);
-  font-size: 1.25rem;
-  margin-bottom: 3rem;
-  position: relative;
-  z-index: 1;
-}
-
-.btn {
-  display: inline-block;
-  padding: 1rem 3rem;
-  border-radius: 50px;
-  font-weight: 600;
-  text-decoration: none;
-  transition: 0.3s;
-  position: relative;
-  z-index: 2;
-}
-
-.btn-primary {
-  background: white;
-  color: var(--primary);
-  box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-}
-
-.btn-primary:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 15px 35px rgba(0,0,0,0.4);
-}
-
-/* --- RESPONSIVE --- */
-@media (max-width: 1024px) {
-  .post-title { font-size: 2.5rem; }
-  .footer-top {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
-}
-
-@media (max-width: 768px) {
-  .post-container {
-    border-radius: 0;
-    margin: 0 0 2rem;
-  }
-  
-  .post-header { padding: 2rem 1.5rem; }
-  .post-content { padding: 2rem 1.5rem; }
-  
-  .post-hero-image { height: 250px; }
-  .post-title { font-size: 2rem; }
-  
-  .cta-box { padding: 3rem 1.5rem; }
-  .cta-box h2 { font-size: 1.75rem; }
-}
+/* rendered markdown / html body */
+.post-body { font-size: 1.08rem; line-height: 1.85; color: var(--vm-ink-soft); }
+.post-body :deep(.lead) { font-size: 1.25rem; color: var(--vm-ink); margin-bottom: 2rem; }
+.post-body :deep(h2) { font-size: 1.7rem; font-weight: 800; color: var(--vm-ink); margin: 2.6rem 0 1rem; }
+.post-body :deep(h3) { font-size: 1.25rem; font-weight: 700; color: var(--vm-ink); margin: 1.8rem 0 .6rem; }
+.post-body :deep(p) { margin-bottom: 1.4rem; }
+.post-body :deep(ul), .post-body :deep(ol) { padding-left: 1.4rem; margin-bottom: 1.4rem; }
+.post-body :deep(li) { margin-bottom: .6rem; }
+.post-body :deep(strong) { color: var(--vm-ink); }
+.post-body :deep(a) { color: var(--vm-primary); text-decoration: none; }
+.post-body :deep(a:hover) { text-decoration: underline; }
+.post-body :deep(blockquote) { border-left: 4px solid var(--vm-primary); background: var(--vm-primary-soft); padding: 1.2rem 1.5rem; margin: 2rem 0; border-radius: 0 12px 12px 0; font-style: italic; color: var(--vm-ink); }
+.post-body :deep(code) { background: var(--vm-primary-soft); color: var(--vm-primary-d); padding: .12rem .4rem; border-radius: 5px; font-size: .88em; font-family: 'JetBrains Mono', monospace; }
+.post-body :deep(pre) { background: #0d1117; color: #e6edf3; border-radius: 12px; padding: 1.1rem 1.4rem; overflow-x: auto; margin: 1.4rem 0; }
+.post-body :deep(pre code) { background: none; color: inherit; padding: 0; }
 </style>

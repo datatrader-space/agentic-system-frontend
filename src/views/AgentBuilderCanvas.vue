@@ -18,7 +18,7 @@
         <div class="bar-right">
           <button class="gbtn" @click="showWorkspace = true"><Icon icon="lucide:folder" /> Workspace</button>
           <button v-if="agent && agent.id" class="gbtn violet" @click="showDeploy = true"><Icon icon="lucide:rocket" /> Deploy</button>
-          <div class="save-wrap">
+          <div class="save-wrap" v-if="!wizard">
             <div class="save-split" :class="needsPublish ? 'is-dirty' : 'is-ok'">
               <button class="save-main" :disabled="saving" @click="triggerSave">
                 <Icon v-if="!saving" :icon="needsPublish ? 'lucide:upload-cloud' : 'lucide:check-circle-2'" />
@@ -37,37 +37,67 @@
         </div>
       </div>
 
-      <!-- ===================== Wizard step rail ===================== -->
-      <div class="rail vm-scroll">
+      <!-- ===================== Step rail (wizard = paginated, edit = scroll-spy) ===================== -->
+      <div class="rail vm-scroll" data-tour="agent-rail">
         <button
-          v-for="(s, i) in steps"
+          v-for="(s, i) in railSteps"
           :key="s.id"
           class="step"
-          :class="{ cur: activeStep === s.id, done: i < activeIndex }"
-          @click="scrollToSection(s.id)"
+          :class="{ cur: wizard ? i === wizardIndex : activeStep === s.id, done: wizard ? i < wizardIndex : i < activeIndex }"
+          :disabled="wizard && i > maxReached"
+          @click="wizard ? goToStep(i) : scrollToSection(s.id)"
         >
-          <span class="n"><Icon v-if="i < activeIndex" icon="lucide:check" /><template v-else>{{ s.n }}</template></span>
+          <span class="n"><Icon v-if="(wizard ? i < wizardIndex : i < activeIndex)" icon="lucide:check" /><template v-else>{{ s.n }}</template></span>
           {{ s.label }}
         </button>
       </div>
 
+      <!-- Wizard step heading (only while creating) -->
+      <div v-if="wizard" class="wiz-head">
+        <span class="wiz-step">Step {{ wizardIndex + 1 }} of {{ wizardSteps.length }}</span>
+        <h2 class="wiz-title">{{ curWizard.title }}</h2>
+        <p class="wiz-help">{{ curWizard.help }}</p>
+      </div>
+
       <!-- ===================== Body ===================== -->
-      <div class="cfg-body">
-        <div ref="builderHost" class="builder-host">
-          <AgentBuilder
-            ref="builderRef"
-            v-model:agent="agent"
-            layout="canvas"
-            :is-saving="saving"
-            :save-fn="saveAgent"
-            @save="saveAgent"
-            @dirty="dirty = $event"
-            @close="goBack"
-            @open-workspace="showWorkspace = true"
-          />
+      <div class="cfg-body" :class="{ wizard }">
+        <div class="builder-col">
+          <div ref="builderHost" class="builder-host">
+            <AgentBuilder
+              ref="builderRef"
+              v-model:agent="agent"
+              layout="canvas"
+              :is-saving="saving"
+              :save-fn="saveAgent"
+              @save="saveAgent"
+              @dirty="dirty = $event"
+              @close="goBack"
+              @open-workspace="showWorkspace = true"
+            />
+          </div>
+
+          <!-- Wizard navigation -->
+          <div v-if="wizard" class="wiz-nav">
+            <button class="wiz-back" :disabled="wizardIndex === 0" @click="prevStep">
+              <Icon icon="lucide:arrow-left" /> Back
+            </button>
+            <span class="wiz-count">{{ wizardIndex + 1 }} / {{ wizardSteps.length }}</span>
+            <button
+              v-if="wizardIndex < wizardSteps.length - 1"
+              class="wiz-next" :disabled="!canNext" @click="nextStep"
+            >
+              Next <Icon icon="lucide:arrow-right" />
+            </button>
+            <button
+              v-else
+              class="wiz-next create" :disabled="!canNext || saving" @click="createFromWizard"
+            >
+              <Icon icon="lucide:sparkles" /> {{ saving ? 'Creating…' : 'Create Agent' }}
+            </button>
+          </div>
         </div>
 
-        <div class="dock">
+        <div class="dock" v-if="!wizard">
           <AgentEmulator
             :key="publishedVersion"
             :class="{ 'pointer-events-none opacity-40 select-none': needsPublish }"
@@ -130,12 +160,123 @@ const steps = [
   { id: 'sec-prompt', n: 2, label: 'System Prompt' },
   { id: 'sec-knowledge', n: 3, label: 'Knowledge' },
   { id: 'sec-workflows', n: 4, label: 'Workflows' },
-  { id: 'sec-tools', n: 5, label: 'Tools' },
-  { id: 'sec-autonomy', n: 6, label: 'Autonomy' },
-  { id: 'sec-advanced', n: 7, label: 'Advanced' },
+  { id: 'sec-scripts', n: 5, label: 'Scripts' },
+  { id: 'sec-data', n: 6, label: 'Data' },
+  { id: 'sec-memory', n: 7, label: 'Memory' },
+  { id: 'sec-flow', n: 8, label: 'Flow' },
+  { id: 'sec-tools', n: 9, label: 'Tools' },
+  { id: 'sec-autonomy', n: 10, label: 'Autonomy' },
+  { id: 'sec-advanced', n: 11, label: 'Advanced' },
 ]
 const activeStep = ref('sec-general')
 const activeIndex = computed(() => Math.max(0, steps.findIndex(s => s.id === activeStep.value)))
+
+/* ===================== Guided wizard (NEW agent only) =====================
+   The 7 builder sections are flat siblings in AgentBuilder's canvas. While creating a
+   new agent we show ONE grouped step at a time (Back/Next + validation); once the agent
+   is saved (has an id) we fall back to the free-scroll + scroll-spy editor. AgentBuilder
+   itself is untouched — we just toggle the visibility of its top-level section nodes. */
+const isNew = computed(() => !(agent.value && agent.value.id))
+const wizard = computed(() => isNew.value)
+
+const wizardSteps = [
+  { id: 'basics', n: 1, label: 'Basics', sections: ['sec-general'],
+    title: 'Name your agent', help: 'Give it an identity, pick a model, and set how it should behave.' },
+  { id: 'instructions', n: 2, label: 'Instructions', sections: ['sec-prompt'],
+    title: 'Write the instructions', help: 'The system prompt steers every reply. Start from a template or write your own.' },
+  { id: 'knowledge', n: 3, label: 'Knowledge & Workflows', sections: ['sec-knowledge', 'sec-workflows'],
+    title: 'Knowledge & workflows', help: 'Add documents the agent can reference and reusable flows it can run.' },
+  { id: 'tools', n: 4, label: 'Tools & Autonomy', sections: ['sec-tools', 'sec-autonomy'],
+    title: 'Tools & autonomy', help: 'Choose the tools it can use and how independently it is allowed to act.' },
+  { id: 'review', n: 5, label: 'Review',
+    sections: ['sec-general', 'sec-prompt', 'sec-knowledge', 'sec-workflows', 'sec-tools', 'sec-autonomy', 'sec-advanced'],
+    title: 'Review & create', help: 'Give everything a final look (and fine-tune advanced options), then create your agent.' },
+]
+const wizardIndex = ref(0)
+const maxReached = ref(0)
+const curWizard = computed(() => wizardSteps[wizardIndex.value] || wizardSteps[0])
+const railSteps = computed(() => (wizard.value ? wizardSteps : steps))
+const canNext = computed(() => {
+  if (curWizard.value.id === 'basics') return !!(agent.value && (agent.value.name || '').trim())
+  return true
+})
+
+// The builder's 7 sections (#sec-*) are nested at MIXED depths (e.g. #sec-prompt lives inside
+// the General card), so they're not a flat sibling partition. To show one step we: assign every
+// node its "owning section" in document order, then add the `wiz-hidden` CLASS to the top-most
+// subtrees that contain NO active-section content. We never touch inline `display`, so the
+// builder's own v-show fields keep working.
+function builderRoot() {
+  const host = builderHost.value
+  const scroller = host && host.querySelector('.agent-builder > .flex-1')
+  return scroller ? scroller.firstElementChild : null   // .max-w-3xl.space-y-5
+}
+
+function clearWizHidden(root) {
+  root.querySelectorAll('.wiz-hidden').forEach(el => el.classList.remove('wiz-hidden'))
+  root.classList.remove('wiz-hidden')
+}
+
+function applyWizardStep(retry = 0) {
+  if (!wizard.value) return
+  const root = builderRoot()
+  if (!root) { if (retry < 6) setTimeout(() => applyWizardStep(retry + 1), 80); return }
+  clearWizHidden(root)
+
+  const active = new Set(curWizard.value.sections)
+  const all = [root, ...root.querySelectorAll('*')]   // document order
+  let cur = null
+  for (const el of all) {
+    if (el.id && el.id.indexOf('sec-') === 0) cur = el.id
+    el.__sec = cur
+  }
+  // bottom-up: an element "has active content" if it (or any descendant) is owned by an active
+  // section, or it sits before the first anchor (chrome → always shown).
+  const hasActive = new Map()
+  for (let i = all.length - 1; i >= 0; i--) {
+    const el = all[i]
+    let h = (el.__sec === null) || active.has(el.__sec)
+    if (!h) for (const c of el.children) { if (hasActive.get(c)) { h = true; break } }
+    hasActive.set(el, h)
+  }
+  // top-down: hide the highest fully-inactive subtrees
+  ;(function walk(el) {
+    for (const c of el.children) {
+      if (!hasActive.get(c)) c.classList.add('wiz-hidden')
+      else walk(c)
+    }
+  })(root)
+
+  const scroller = builderHost.value && builderHost.value.querySelector('.agent-builder > .flex-1')
+  if (scroller) scroller.scrollTop = 0
+}
+
+function resetSections() {
+  const root = builderRoot()
+  if (root) clearWizHidden(root)
+}
+
+function goToStep(i) {
+  if (i < 0 || i >= wizardSteps.length || i > maxReached.value) return
+  wizardIndex.value = i
+}
+function nextStep() {
+  if (!canNext.value) { notify.warning('Please give your agent a name first.'); return }
+  if (wizardIndex.value < wizardSteps.length - 1) {
+    wizardIndex.value++
+    maxReached.value = Math.max(maxReached.value, wizardIndex.value)
+  }
+}
+function prevStep() { if (wizardIndex.value > 0) wizardIndex.value-- }
+function createFromWizard() {
+  if (!canNext.value) { notify.warning('Please give your agent a name first.'); return }
+  triggerSaveDraft()   // creates the agent (no publish) → navigates to the editor
+}
+
+watch(wizardIndex, () => nextTick(applyWizardStep))
+watch(wizard, (w) => nextTick(() => {
+  if (w) { applyWizardStep() } else { resetSections(); setupSpy() }
+}))
 
 function scrollToSection(id) {
   const host = builderHost.value
@@ -219,7 +360,6 @@ function blankAgent() {
     code_mode_services: [],
     builder_mode_enabled: false,
     prompt_mode: 'append',
-    tool_shortlist_mode: 'default',
     tool_delivery_mode: 'default',
     max_history_messages: 0,  // 0 = Auto (backend manages history by token budget + summarization)
   }
@@ -244,7 +384,13 @@ async function load() {
   }
   loading.value = false
   await nextTick()
-  setupSpy()
+  if (wizard.value) {
+    wizardIndex.value = 0
+    maxReached.value = 0
+    applyWizardStep()
+  } else {
+    setupSpy()
+  }
 }
 
 async function saveAgent(agentData) {
@@ -354,7 +500,8 @@ onBeforeUnmount(() => {
 .rail { display: flex; gap: 8px; padding: 14px 22px; overflow-x: auto; flex: 0 0 auto; border-bottom: 1px solid var(--vm-line); background: rgba(255, 255, 255, .4); backdrop-filter: blur(8px); }
 .rail::-webkit-scrollbar { height: 0; }
 .step { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; border: 1px solid var(--vm-line); background: var(--vm-glass-strong); cursor: pointer; padding: 7px 14px; border-radius: 999px; font: 700 12.5px var(--vm-font-sans); color: var(--vm-ink-faint); transition: .2s var(--vm-ease); }
-.step:hover { transform: translateY(-1px); color: var(--vm-ink-soft); }
+.step:hover:not(:disabled) { transform: translateY(-1px); color: var(--vm-ink-soft); }
+.step:disabled { opacity: .5; cursor: not-allowed; }
 .step .n { width: 19px; height: 19px; border-radius: 50%; background: var(--vm-line-2); color: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; }
 .step .n :deep(svg) { width: 11px; height: 11px; }
 .step.done { color: #0D9488; border-color: transparent; background: #E6FBF6; }
@@ -364,7 +511,25 @@ onBeforeUnmount(() => {
 
 /* body */
 .cfg-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
-.builder-host { flex: 1; min-width: 0; height: 100%; }
+.builder-col { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.builder-host { flex: 1; min-width: 0; min-height: 0; }
+
+/* Wizard step heading (between rail and builder) */
+.wiz-head { padding: 14px 24px 4px; max-width: 820px; width: 100%; margin: 0 auto; }
+.wiz-step { font: 700 11px var(--vm-font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--vm-violet-d); }
+.wiz-title { font-family: var(--vm-font-display); font-size: 22px; font-weight: 700; color: var(--vm-ink); margin: 4px 0 0; }
+.wiz-help { color: var(--vm-ink-soft); font-size: 13.5px; margin: 3px 0 0; }
+
+/* Wizard nav bar (sticky under the builder) */
+.wiz-nav { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px; border-top: 1px solid var(--vm-line); background: var(--vm-glass-strong); backdrop-filter: blur(10px); }
+.wiz-back, .wiz-next { display: inline-flex; align-items: center; gap: 8px; font: 700 14px var(--vm-font-sans); padding: 11px 22px; border-radius: 12px; cursor: pointer; border: 1px solid var(--vm-line-2); background: var(--vm-surface); color: var(--vm-ink-soft); transition: .2s var(--vm-ease2); }
+.wiz-back:hover:not(:disabled) { color: var(--vm-ink); border-color: var(--vm-ink-faint); }
+.wiz-back:disabled { opacity: .45; cursor: not-allowed; }
+.wiz-count { font: 700 12px var(--vm-font-sans); color: var(--vm-ink-faint); }
+.wiz-next { background: var(--vm-g-brand); color: #fff; border: none; box-shadow: var(--vm-glow-v); }
+.wiz-next:hover:not(:disabled) { filter: brightness(1.04); }
+.wiz-next:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+.wiz-back :deep(svg), .wiz-next :deep(svg) { width: 16px; height: 16px; }
 .dock { width: 420px; flex: 0 0 auto; position: relative; border-left: 1px solid var(--vm-line); background: var(--vm-glass-strong); backdrop-filter: blur(14px); }
 @media (max-width: 1180px) { .dock { width: 360px; } }
 @media (max-width: 900px) { .cfg-body { flex-direction: column; } .dock { width: 100%; height: 60vh; border-left: none; border-top: 1px solid var(--vm-line); } }
@@ -384,11 +549,13 @@ onBeforeUnmount(() => {
 .builder-host :deep(.agent-builder) { background: transparent; }
 .builder-host :deep(.agent-builder > .flex-1) {
   background:
-    radial-gradient(120% 80% at 0% 0%, rgba(199,182,255,.16), transparent 60%),
-    radial-gradient(120% 80% at 100% 0%, rgba(255,182,217,.14), transparent 60%),
+    radial-gradient(120% 80% at 0% 0%, rgba(37,99,235,.07), transparent 60%),
+    radial-gradient(120% 80% at 100% 0%, rgba(20,184,166,.06), transparent 60%),
     var(--vm-bg) !important;
 }
 .builder-host :deep(.vm-anchor) { scroll-margin-top: 16px; }
+/* Wizard: hide non-active section subtrees without touching inline display (preserves v-show). */
+.builder-host :deep(.wiz-hidden) { display: none !important; }
 
 /* widen the canvas a touch + comfortable rhythm */
 .builder-host :deep(.agent-builder .max-w-3xl) { max-width: 760px !important; }

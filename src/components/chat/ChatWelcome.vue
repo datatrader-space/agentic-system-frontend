@@ -7,18 +7,40 @@
       <h1 class="welcome-title">What would you like your <span class="vm-grad-text">agent</span> to do?</h1>
       <p class="welcome-sub">Ask about repositories, run tools, inspect system state, or generate a plan.</p>
 
-      <!-- Agent + mode now live inside the composer bottom bar (Claude-style), below. -->
-      <p v-if="chat.agentsLoaded && !chat.agents.length" class="no-agent">
-        No agents yet — <router-link to="/dashboard/agents" class="no-agent-link">create one</router-link> to start chatting.
-      </p>
+      <!-- No agents yet: prominent, unmissable call to action. The composer below is disabled
+           so the user understands chatting isn't available until an agent exists.
+           Setup has an order: an agent needs a model, a model needs a configured AI provider —
+           so if no models exist yet we point to providers FIRST, otherwise to agent creation. -->
+      <div v-if="chat.needsAgent" class="no-agent-card">
+        <div class="nac-icon">
+          <svg v-if="needsProvider" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 1 5 5v1a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5z"/><path d="M4 22a8 8 0 0 1 16 0"/></svg>
+        </div>
+        <template v-if="needsProvider">
+          <h2 class="nac-title">Connect an AI provider to get started</h2>
+          <p class="nac-sub">Your agents run on AI models. First connect a provider (OpenAI, Anthropic, OpenRouter…) and activate a model — then you can create an agent and chat.</p>
+          <div class="nac-actions">
+            <button type="button" class="nac-cta" @click="goProviders">Set up AI provider</button>
+            <router-link to="/dashboard/agents" class="nac-ghost">Skip to agents</router-link>
+          </div>
+        </template>
+        <template v-else>
+          <h2 class="nac-title">Create an agent to start chatting</h2>
+          <p class="nac-sub">Agents are the AI workers that answer your messages. You need at least one before you can chat.</p>
+          <div class="nac-actions">
+            <button type="button" class="nac-cta" @click="goCreateAgent">Create your first agent</button>
+            <router-link to="/dashboard/agents" class="nac-ghost">Browse agents</router-link>
+          </div>
+        </template>
+      </div>
 
-      <!-- Suggestion chips -->
-      <div class="chips">
+      <!-- Suggestion chips (hidden when there's no agent to act on them) -->
+      <div v-if="!chat.needsAgent" class="chips">
         <button v-for="s in suggestions" :key="s" class="chip" @click="useSuggestion(s)">{{ s }}</button>
       </div>
 
       <!-- Composer -->
-      <form class="composer" @submit.prevent="submit">
+      <form class="composer" :class="{ 'composer-disabled': chat.needsAgent }" @submit.prevent="submit">
         <!-- Staged attachments -->
         <div v-if="chat.pendingAttachments.length" class="attach-strip">
           <div v-for="(a, i) in chat.pendingAttachments" :key="i" class="attach-chip">
@@ -34,8 +56,10 @@
             ref="inputEl"
             v-model="draft"
             class="composer-input"
+            data-tour="composer-input"
             rows="1"
-            placeholder="Message your agent…"
+            :disabled="chat.needsAgent"
+            :placeholder="chat.needsAgent ? 'Create an agent to start chatting…' : 'Message your agent…'"
             @keydown="onKeydown"
           ></textarea>
           <button v-if="speech.supported" type="button" class="composer-mic" :class="{ live: speech.listening.value }"
@@ -45,7 +69,7 @@
         </div>
         <!-- Bottom toolbar: + attach + mode pill (left), send (right) -->
         <div class="composer-actions">
-          <div class="composer-bar-left">
+          <div class="composer-bar-left" data-tour="chat-controls">
             <button type="button" class="composer-attach" title="Attach image" @click="fileEl?.click()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m-7-7h14" stroke-linecap="round" /></svg>
             </button>
@@ -58,7 +82,7 @@
               :plan-mode="chat.currentAgent.plan_mode_enabled"
               placement="up" @change="onModeChange" />
           </div>
-          <button type="submit" class="composer-send" :disabled="!draft.trim() && !chat.pendingAttachments.length" title="Send">
+          <button type="submit" class="composer-send" :disabled="chat.needsAgent || (!draft.trim() && !chat.pendingAttachments.length)" title="Send">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </button>
         </div>
@@ -69,13 +93,33 @@
 
 <script setup>
 import { ref, nextTick, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useChatStore } from '../../stores/useChatStore'
+import api from '../../services/api'
 import AgentModePicker from '../agent/AgentModePicker.vue'
 import AgentSelect from './AgentSelect.vue'
 import { useSpeech } from '../../composables/useSpeech'
 
 const emit = defineEmits(['submit'])
 const chat = useChatStore()
+const router = useRouter()
+
+const goCreateAgent = () => router.push('/dashboard/agents/new')
+const goProviders = () => router.push('/dashboard/settings/providers')
+
+// Setup order: an agent needs an active model, a model needs a configured provider. Only
+// checked when the user has no agents (the empty-state branch) so we point them to the
+// genuine first step. Best-effort — defaults to the agent CTA if the check fails.
+const needsProvider = ref(false)
+const checkModels = async () => {
+  try {
+    const res = await api.getLlmModels()
+    const models = res.data?.results || res.data || []
+    needsProvider.value = Array.isArray(models) && models.length === 0
+  } catch {
+    needsProvider.value = false
+  }
+}
 
 const draft = ref('')
 const inputEl = ref(null)
@@ -90,7 +134,11 @@ const onFiles = (e) => {
   e.target.value = ''
 }
 
-onMounted(() => chat.loadAgents())
+onMounted(async () => {
+  await chat.loadAgents()
+  // Only the zero-agent path needs the provider/model check (to order the CTA correctly).
+  if (chat.needsAgent) checkModels()
+})
 const onSelectAgent = (a) => { if (a && a.id != null) chat.setAgent(a.id) }
 
 // Reflect a mode change immediately on the selected agent (the picker also PATCHes the backend).
@@ -122,6 +170,12 @@ const onKeydown = (e) => {
 }
 
 const submit = () => {
+  // No agent yet → route to the genuine next setup step instead of sending into the void:
+  // a provider (if no models exist) or agent creation.
+  if (chat.needsAgent) {
+    needsProvider.value ? goProviders() : goCreateAgent()
+    return
+  }
   const text = draft.value.trim()
   if (!text && !chat.pendingAttachments.length) return
   emit('submit', text)
@@ -179,6 +233,43 @@ const submit = () => {
 .agent-select:focus { outline: none; border-color: var(--vm-sky); box-shadow: 0 0 0 4px rgba(14,165,233,.16); }
 .no-agent { font-size: 0.875rem; color: var(--vm-ink-faint); margin: 0 0 22px; }
 .no-agent-link { color: var(--vm-violet-d); font-weight: 600; }
+
+/* Prominent "create an agent first" empty state */
+.no-agent-card {
+  margin: 6px auto 24px;
+  max-width: 460px;
+  padding: 26px 24px;
+  text-align: center;
+  background: var(--vm-surface);
+  border: 1.5px solid var(--vm-line);
+  border-radius: 18px;
+  box-shadow: var(--vm-shadow-m);
+  animation: vmPop .5s var(--vm-ease) both;
+}
+.nac-icon {
+  width: 48px; height: 48px; margin: 0 auto 14px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 14px; color: #fff; background: var(--vm-g-brand); box-shadow: var(--vm-glow-v);
+}
+.nac-icon svg { width: 24px; height: 24px; }
+.nac-title {
+  font-family: var(--vm-font-display);
+  font-size: 1.125rem; font-weight: 700; color: var(--vm-ink); margin: 0 0 6px;
+}
+.nac-sub { font-size: 0.875rem; color: var(--vm-ink-soft); margin: 0 0 18px; line-height: 1.5; }
+.nac-actions { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.nac-cta {
+  padding: 10px 18px; font-size: 0.875rem; font-weight: 700; color: #fff; cursor: pointer;
+  background: var(--vm-g-cool); border: none; border-radius: 12px; box-shadow: var(--vm-glow-v);
+  transition: transform 0.18s var(--vm-ease);
+}
+.nac-cta:hover { transform: translateY(-2px); }
+.nac-ghost { font-size: 0.875rem; font-weight: 600; color: var(--vm-violet-d); }
+.nac-ghost:hover { text-decoration: underline; }
+
+/* Composer is visually muted + non-interactive until an agent exists */
+.composer-disabled { opacity: 0.55; }
+.composer-disabled:focus-within { border-color: var(--vm-line); box-shadow: var(--vm-shadow-m); }
 .chips {
   display: flex;
   flex-wrap: wrap;

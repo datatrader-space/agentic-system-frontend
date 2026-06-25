@@ -425,6 +425,31 @@ export function stepSeconds(s) {
   if (!s || !s.endTs || !s.startTs) return null
   return Math.max(0, (s.endTs - s.startTs) / 1000)
 }
+// One entry per reasoning ("thinking") step — phrase label + any streamed thinking text. Shared by the
+// standalone ReasoningPanel (flag-OFF fallback) and the unified AgentActivityTimeline (rich path), so
+// both surface identical reasoning. Empty for the public tier (the backend never sends reasoning there).
+export function stripThinkTags(s) {
+  // Reasoning can arrive wrapped in <think>…</think> (the backend tags native reasoning so the
+  // think-filter routes it). Strip any literal tags so they never show in the UI.
+  return String(s || '').replace(/<\/?think>/gi, '').trim()
+}
+
+export function reasoningItems(activity) {
+  if (!activity || !Array.isArray(activity.steps)) return []
+  const out = [], seen = new Set()
+  for (const s of activity.steps) {
+    if (s.phase !== 'thinking') continue
+    const label = stripThinkTags(s.label)
+    const text = stripThinkTags(s.thinkingText)
+    if (!text && (!label || label === 'Thinking')) continue
+    const key = `${label}|${text}`
+    if (seen.has(key)) continue   // de-duplicate identical reasoning items
+    seen.add(key)
+    out.push({ label, text })
+  }
+  return out
+}
+
 export function activitySummary(a) {
   if (!a || !a.steps.length) return { count: 0, seconds: 0 }
   const first = a.steps[0]

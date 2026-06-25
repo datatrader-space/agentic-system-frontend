@@ -1,9 +1,12 @@
+# AADML — robots policy
+# Public marketing pages are crawlable; the authenticated app and APIs are not.
 User-agent: *
 Allow: /
 Disallow: /dashboard
-Disallow: /agents/
-Disallow: /ai-settings
-Disallow: /workspaces
 Disallow: /api/
+Disallow: /login
+Disallow: /invite
+Disallow: /a/
+Disallow: /embed/
 
 Sitemap: https://aadml.com/sitemap.xml

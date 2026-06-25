@@ -23,13 +23,24 @@
           <h3 class="text-[13px] font-bold text-ink mb-2">Connect this sandbox</h3>
           <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
             <div class="text-[11px] font-semibold text-ink-faint uppercase tracking-wide mb-1">Run on the machine (Python)</div>
+            <!-- Step 1: one-time install of the workspace-agent package (provides `agent_runtime`). -->
+            <div class="text-[11px] font-semibold text-ink-faint mb-1">Step 1 — install the agent (one-time)</div>
+            <div class="flex items-center gap-2">
+              <code class="flex-1 text-[11px] text-ink bg-white border border-slate-200 rounded-lg px-3 py-2 overflow-x-auto whitespace-nowrap">{{ pipInstallCommand }}</code>
+              <button @click="copy(pipInstallCommand)" class="ws-icon-btn" title="Copy">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              </button>
+            </div>
+            <p class="text-[10.5px] text-ink-faint mt-1 leading-snug">Requires Python 3.9+. Installs the <code class="text-[10px]">agent_runtime</code> module used by the command below.</p>
+            <!-- Step 2: run it with this sandbox's server + token. -->
+            <div class="text-[11px] font-semibold text-ink-faint mt-2 mb-1">Step 2 — run it</div>
             <div class="flex items-center gap-2">
               <code class="flex-1 text-[11px] text-ink bg-white border border-slate-200 rounded-lg px-3 py-2 overflow-x-auto whitespace-nowrap">{{ pythonCommand }}</code>
               <button @click="copy(pythonCommand)" class="ws-icon-btn" title="Copy">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
               </button>
             </div>
-            <div class="text-[11px] font-semibold text-ink-faint uppercase tracking-wide mt-2 mb-1">Or Docker</div>
+            <div class="text-[11px] font-semibold text-ink-faint uppercase tracking-wide mt-2 mb-1">Or Docker <span class="normal-case font-normal text-[10px]">(no install needed — pulls the image)</span></div>
             <div class="flex items-center gap-2">
               <code class="flex-1 text-[11px] text-ink bg-white border border-slate-200 rounded-lg px-3 py-2 overflow-x-auto whitespace-nowrap">{{ dockerCommand }}</code>
               <button @click="copy(dockerCommand)" class="ws-icon-btn" title="Copy">
@@ -186,6 +197,9 @@ const wsServerUrl = computed(() => {
   const loc = window.location
   return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}`
 })
+// One-time prerequisite for the Python path: the `agent_runtime` module ships in this package, so it must
+// be pip-installed before the run command works. (The Docker path pulls the image instead — no pip needed.)
+const pipInstallCommand = 'pip install darrxscale-workspace-agent==1.1.0'
 const pythonCommand = computed(
   () => `python -m agent_runtime --server ${wsServerUrl.value} --token ${ws.value.token || '<TOKEN>'}`
 )

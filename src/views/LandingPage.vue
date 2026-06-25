@@ -1,1018 +1,327 @@
 <template>
-  <div class="landing-page">
-    <!-- Hero Section -->
-    <section class="hero-section">
-      <div class="hero-content">
-        <div class="hero-text">
-          <h1 class="hero-title">
-            Build AI Agents That
-            <span class="gradient-text">Automate Everything</span>
+  <PublicLayout>
+    <!-- ── Hero ─────────────────────────────────────────────── -->
+    <section class="relative overflow-hidden">
+      <HeroBackdrop />
+      <div class="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-16 sm:px-6 lg:px-8 lg:pb-24 lg:pt-24">
+      <div class="grid items-center gap-12 lg:grid-cols-2">
+        <div v-reveal>
+          <span class="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-soft shadow-s">
+            <span class="vm-orb is-live"></span>
+            Now shipping — Let’s Code agentic IDE
+          </span>
+          <h1 class="mt-6 font-display text-4xl font-extrabold leading-[1.08] tracking-tight text-ink sm:text-5xl lg:text-6xl">
+            The agentic OS for
+            <span class="vm-grad-text">coding & knowledge work</span>
           </h1>
-          <p class="hero-subtitle">
-            AADML is a full-stack AI agent platform. 140+ built-in tools, 6 LLM providers,
-            cron schedules, webhook triggers, MCP integration, and multi-tenant workspace management — all self-hosted.
+          <p class="mt-6 max-w-xl text-lg leading-relaxed text-ink-soft">
+            One platform where agents read your code, edit with reviewable diffs, run and verify, retrieve from your knowledge, and automate on a schedule — code-aware, context-aware, and cost-aware. Self-hostable and built for teams.
           </p>
-          
-          <div class="cta-buttons">
-            <router-link to="/login" class="btn btn-primary">
-              Get Started Free
+          <div class="mt-8 flex flex-wrap gap-3">
+            <router-link to="/login" class="hero-btn-primary">
+              Get started free
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-5 w-5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
             </router-link>
-            <router-link to="/how-it-works" class="btn btn-secondary">
-              See How It Works
-            </router-link>
+            <router-link to="/how-it-works" class="hero-btn-ghost">See how it works</router-link>
           </div>
-          
-          <p class="trust-badge">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
-            Agents run SSH, browse the web, call APIs, generate media, manage knowledge, and more
+          <p class="mt-7 flex items-center gap-2 text-sm text-ink-faint">
+            <Icon icon="lucide:shield-check" class="h-5 w-5 text-teal" />
+            Edits land as reviewable diffs — accept hunk-by-hunk, never silent writes.
           </p>
         </div>
 
-        <div class="hero-visual">
-          <!-- AI Terminal Animation -->
-          <div class="terminal-window">
-            <div class="ai-badge">
-              <div class="ai-status"></div>
-              <span>AI Agent Working...</span>
+        <!-- Hero visual: animated agent terminal -->
+        <div v-reveal class="relative">
+          <div class="terminal">
+            <div class="terminal-badge">
+              <span class="vm-orb is-live"></span> Agent working…
             </div>
-            <div class="terminal-header">
-              <div class="dots">
-                <div class="dot red"></div>
-                <div class="dot yellow"></div>
-                <div class="dot green"></div>
-              </div>
-              <div class="terminal-title">agent.js — readonly</div>
+            <div class="terminal-bar">
+              <span class="dot" style="background:#ff5f56"></span>
+              <span class="dot" style="background:#ffbd2e"></span>
+              <span class="dot" style="background:#27c93f"></span>
+              <span class="terminal-file">agent · vividmind-v2</span>
             </div>
             <div class="terminal-body">
-              <div 
-                v-for="(line, index) in terminalLines" 
-                :key="index" 
-                class="code-line" 
-                :class="{ visible: line.visible }"
-              >
-                <span class="line-num">{{ index + 1 }}</span>
-                <span v-html="line.html"></span>
-                <span v-if="index === terminalLines.length - 1 && isTyping" class="cursor"></span>
+              <div v-for="(line, i) in shownLines" :key="i" class="code-line">
+                <span class="ln">{{ i + 1 }}</span><span v-html="line"></span>
               </div>
+              <span v-if="typing" class="caret"></span>
             </div>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Features Overview (Bento Grid) -->
-    <section class="features-section">
-      <div class="container">
-        <div class="section-header">
-          <h2>Everything You Need to Deploy Agents</h2>
-          <p>A complete platform for building, managing, and scaling AI agent workflows</p>
-        </div>
-        
-        <div class="bento-grid">
-          <div 
-            v-for="(feature, index) in features" 
-            :key="feature.title" 
-            class="bento-card"
-            :class="{ 
-              'bento-large': index === 0, 
-              'bento-tall': index === 2 || index === 5 
-            }"
-          >
-            <div class="feature-icon" v-html="feature.icon"></div>
-            <div>
-              <h3>{{ feature.title }}</h3>
-              <p>{{ feature.description }}</p>
+          <div class="pointer-events-none absolute -bottom-6 -right-4 hidden rounded-2xl border border-line bg-surface px-4 py-3 shadow-l sm:block" v-reveal>
+            <div class="flex items-center gap-2 text-sm font-semibold text-ink">
+              <Icon icon="lucide:git-pull-request" class="h-4 w-4 text-violet" /> PR opened · 3 files
             </div>
-            <div class="card-visual"></div>
+            <div class="mt-0.5 text-xs text-ink-faint">+128 −42 · verified ✓</div>
           </div>
         </div>
+      </div>
+      </div>
+    </section>
 
-        <div class="cta-center">
-          <router-link to="/features" class="btn btn-outline">
-            Explore All Features →
-          </router-link>
+    <!-- ── Logo cloud ──────────────────────────────────────── -->
+    <section class="border-y border-line bg-surface/60">
+      <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <p class="text-center text-xs font-semibold uppercase tracking-[0.2em] text-ink-faint">
+          Works with every major model provider
+        </p>
+        <div class="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+          <span v-for="p in providers" :key="p" class="text-base font-semibold text-ink-faint transition-colors hover:text-ink">{{ p }}</span>
         </div>
       </div>
     </section>
 
-    <!-- Provider Logos -->
-    <section class="logos-section">
-      <div class="container">
-        <p class="logos-label">Works with every major LLM provider</p>
-        <div class="logos-grid">
-          <div class="logo-item">OpenRouter</div>
-          <div class="logo-item">OpenAI</div>
-          <div class="logo-item">Anthropic</div>
-          <div class="logo-item">Google</div>
-          <div class="logo-item">xAI</div>
-          <div class="logo-item">Ollama</div>
-        </div>
+    <!-- ── Feature bento ───────────────────────────────────── -->
+    <section class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+      <div class="mx-auto max-w-2xl text-center" v-reveal>
+        <h2 class="font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">Everything an agent needs to ship work</h2>
+        <p class="mt-4 text-lg text-ink-soft">A complete, self-hostable platform — not a wrapper. Reason, retrieve, edit, run, and automate in one place.</p>
+      </div>
+
+      <div class="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <article
+          v-for="(f, i) in features"
+          :key="f.title"
+          v-reveal
+          class="bento"
+          :class="{ 'sm:col-span-2': i === 0 }"
+        >
+          <span class="bento-icon"><Icon :icon="f.icon" class="h-6 w-6" /></span>
+          <h3 class="mt-5 text-lg font-bold text-ink">{{ f.title }}</h3>
+          <p class="mt-2 text-[0.95rem] leading-relaxed text-ink-soft">{{ f.desc }}</p>
+          <span v-if="f.badge" class="bento-badge">{{ f.badge }}</span>
+        </article>
+      </div>
+
+      <div class="mt-12 text-center" v-reveal>
+        <router-link to="/features" class="hero-btn-ghost">Explore all features →</router-link>
       </div>
     </section>
 
-    <!-- Use Cases (Tabs) -->
-    <section class="use-cases-section">
-      <div class="container">
-        <div class="section-header">
-          <h2>Built for Every Team</h2>
-          <p>From solo developers to enterprise teams</p>
+    <!-- ── How it works ────────────────────────────────────── -->
+    <section class="border-y border-line bg-g-warm">
+      <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24">
+        <div class="mx-auto max-w-2xl text-center" v-reveal>
+          <h2 class="font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">From prompt to pull request</h2>
+          <p class="mt-4 text-lg text-ink-soft">The agent decides when to answer, edit, run, or ask — you stay in control.</p>
         </div>
-
-        <div class="tabs">
-          <button 
-            v-for="tab in useCases" 
-            :key="tab.badge"
-            class="tab-btn"
-            :class="{ active: activeTab === tab.badge }"
-            @click="activeTab = tab.badge"
-          >
-            {{ tab.badge }}
-          </button>
-        </div>
-
-        <div class="tab-content active">
-          <div class="use-case-card">
-            <div class="use-case-badge">{{ activeTabContent.badge }}</div>
-            <h3>{{ activeTabContent.title }}</h3>
-            <p>{{ activeTabContent.desc }}</p>
-            <ul>
-              <li v-for="item in activeTabContent.items" :key="item">
-                <span class="check-icon">✓</span> {{ item }}
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Stats -->
-    <section class="stats-section">
-      <div class="container">
-        <div class="stats-grid">
-          <div class="stat">
-            <div class="stat-number">140+</div>
-            <div class="stat-label">Built-in Tools</div>
-          </div>
-          <div class="stat">
-            <div class="stat-number">6</div>
-            <div class="stat-label">LLM Providers</div>
-          </div>
-          <div class="stat">
-            <div class="stat-number">24/7</div>
-            <div class="stat-label">Autonomous Agents</div>
-          </div>
-          <div class="stat">
-            <div class="stat-number">∞</div>
-            <div class="stat-label">MCP Extensions</div>
+        <div class="mt-14 grid gap-6 md:grid-cols-3">
+          <div v-for="(s, i) in steps" :key="s.title" v-reveal class="step">
+            <span class="step-num">{{ i + 1 }}</span>
+            <h3 class="mt-4 text-lg font-bold text-ink">{{ s.title }}</h3>
+            <p class="mt-2 text-[0.95rem] leading-relaxed text-ink-soft">{{ s.desc }}</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Final CTA -->
-    <section class="final-cta-section">
-      <div class="container">
-        <div class="cta-box">
-          <div class="cta-content">
-            <h2>Ready to Deploy Your First Agent?</h2>
-            <p>Self-host AADML in minutes with Docker, or get started on our cloud</p>
-            <router-link to="/login" class="btn btn-primary btn-large">
-              Start Building Now
-            </router-link>
-          </div>
+    <!-- ── Stats ───────────────────────────────────────────── -->
+    <section class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+      <div class="grid gap-8 rounded-2xl border border-line bg-surface p-10 shadow-m sm:grid-cols-4" v-reveal>
+        <div v-for="st in stats" :key="st.label" class="text-center">
+          <div class="font-display text-4xl font-extrabold text-ink">{{ st.value }}</div>
+          <div class="mt-1 text-xs font-semibold uppercase tracking-wider text-ink-faint">{{ st.label }}</div>
         </div>
       </div>
     </section>
-  </div>
+
+    <!-- ── Final CTA ───────────────────────────────────────── -->
+    <section class="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
+      <div class="cta-box" v-reveal>
+        <h2 class="font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Ready to deploy your first agent?</h2>
+        <p class="mx-auto mt-4 max-w-xl text-lg text-blue-100">Self-host with Docker in minutes, or start on the cloud. Bring your own model keys.</p>
+        <div class="mt-8 flex flex-wrap justify-center gap-3">
+          <router-link to="/login" class="cta-btn-light">Start building now</router-link>
+          <router-link to="/pricing" class="cta-btn-outline">View pricing</router-link>
+        </div>
+      </div>
+    </section>
+  </PublicLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { Icon } from '@iconify/vue'
+import PublicLayout from '../components/public/PublicLayout.vue'
+import HeroBackdrop from '../components/public/HeroBackdrop.vue'
 import { useMeta } from '../composables/useMeta'
 
 useMeta({
-  title: 'AADML — AI Agent Development & Management Platform',
-  description: 'Build, deploy, and manage AI agents with 140+ tools, 6 LLM providers, cron schedules, webhook triggers, MCP integration, and multi-tenant workspaces.',
+  title: 'AADML — The agentic OS for coding & knowledge work',
+  description: 'Build, deploy, and manage AI agents that read your code, propose reviewable diffs, run and verify, retrieve from your knowledge, and automate on a schedule. 1,800+ tools, every major model provider, self-hostable.',
+  jsonLd: {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'AADML',
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'Web, Docker',
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+    description: 'The agentic OS for coding and knowledge work — code-aware, context-aware, cost-aware automation.',
+  },
 })
 
-const features = ref([
-  {
-    title: 'Multi-Tool Agents',
-    description: '140+ built-in tools — SSH, browser, web search, email, AWS, scripts, media generation, and more. Agents autonomously pick the right tool.',
-    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>'
-  },
-  {
-    title: 'Signal System',
-    description: 'Event-driven automation. Webhooks, cron schedules, Redis streams, and real-time signals fire agents with budget caps and auto-pause guardrails.',
-    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>'
-  },
-  {
-    title: 'Multi-LLM Routing',
-    description: 'OpenRouter (100+ models), OpenAI, Anthropic, xAI, Google, or local Ollama. Route each agent to the best model for cost and quality.',
-    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>'
-  },
-  {
-    title: 'Workspace Teams',
-    description: 'Multi-tenant orgs, workspaces, RBAC, encrypted credential vaults, and complete audit trails. Isolate clients, teams, or environments.',
-    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>'
-  },
-  {
-    title: 'MCP Integration',
-    description: 'Connect any Model Context Protocol server. Auto-discover tools, extend capabilities, and bridge to external systems.',
-    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>'
-  },
-  {
-    title: 'Knowledge & Dream',
-    description: 'Agents learn from every interaction. Knowledge cards, dreaming cycles, and cross-run memory make agents smarter over time.',
-    icon: '<svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>'
-  }
-])
+const providers = ['OpenAI', 'Anthropic', 'Google', 'OpenRouter', 'xAI', 'Ollama']
 
-const activeTab = ref('Developers')
-
-const useCases = ref([
-  {
-    badge: 'Developers',
-    title: 'Automate Your Workflow',
-    desc: 'Let agents handle SSH deployments, code generation, browser testing, and API calls while you focus on architecture.',
-    items: ['140+ tools at agent fingertips', 'Multi-LLM model routing with cost tracking', 'Real-time streaming with tool history', 'Script execution with sandboxed environments', 'Knowledge cards for persistent agent memory']
-  },
-  {
-    badge: 'DevOps',
-    title: 'Agents as Operators',
-    desc: 'Schedule agents to monitor, deploy, and respond to events. Signal-driven automation with webhook triggers and budget guardrails.',
-    items: ['Cron-scheduled agent runs with auto-pause', 'Webhook-triggered workflows (Shopify, Stripe, GitHub)', 'SSH & AWS tool execution', 'Signal chaining and aggregator patterns', 'Budget caps and read-only mode defaults']
-  },
-  {
-    badge: 'Agencies',
-    title: 'Manage Client Workspaces',
-    desc: 'Isolate client work in separate workspaces with their own agents, tools, credentials, and access controls.',
-    items: ['Multi-tenant workspaces with RBAC', 'Per-client agent profiles and tool assignments', 'Encrypted credential vaults (never leaked to agents)', 'Workspace sharing and agent bridging', 'Complete audit trails per workspace']
-  },
-  {
-    badge: 'Enterprises',
-    title: 'Self-Hosted & Secure',
-    desc: 'Deploy on your own infrastructure with Docker. Full audit trails, RBAC, credential encryption, and login monitoring.',
-    items: ['Docker Compose one-command deployment', 'Workspace-level RBAC with org roles', 'Login attempt tracking and security monitoring', 'MCP server management with circuit breakers', 'Cost analytics and usage dashboards']
-  }
-])
-
-const activeTabContent = computed(() => {
-  return useCases.value.find(c => c.badge === activeTab.value) || useCases.value[0]
-})
-
-// --- Terminal Animation (fixed restart bug) ---
-const terminalLines = ref([{ html: '', visible: false }])
-const isTyping = ref(true)
-let animationTimers = []
-
-const codeSequence = [
-  { html: '<span class="c-gray">// AADML Agent executing...</span>', delay: 100 },
-  { html: '<span class="c-purple">await</span> agent.<span class="c-green">useTool</span>(<span class="c-blue">"SSH_EXEC"</span>, {', delay: 800 },
-  { html: '  host: <span class="c-green">"prod-server"</span>,', delay: 1400 },
-  { html: '  command: <span class="c-green">"docker compose up -d"</span>', delay: 2000 },
-  { html: '});', delay: 2400 },
-  { html: '<span class="c-gray">// ✓ Deployed 3 containers</span>', delay: 3200 },
-  { html: '<span class="c-purple">await</span> agent.<span class="c-green">useTool</span>(<span class="c-blue">"MANAGE_KNOWLEDGE"</span>, {', delay: 4000 },
-  { html: '  action: <span class="c-green">"create"</span>, title: <span class="c-green">"Deploy Log"</span>', delay: 4600 },
-  { html: '});', delay: 5000 },
-  { html: '<span class="c-gray">// ✓ Knowledge card saved</span>', delay: 5800 },
+const features = [
+  { icon: 'lucide:code-2', title: 'Let’s Code agentic IDE', desc: 'Clone a repo in the browser. The agent reads, edits, and proposes reviewable diffs you accept hunk-by-hunk — then exports a GitHub PR. No silent writes.' },
+  { icon: 'lucide:wrench', title: '1,800+ tools', desc: 'Builtin tools, any MCP server, and any OpenAPI/Postman service — lazily loaded and authorized per agent, so the model never drowns in a giant prompt.' },
+  { icon: 'lucide:git-branch', title: 'Code intelligence', desc: 'Symbol- and graph-aware retrieval grounds every change in how your codebase actually fits together — callers, callees, imports, and related tests.', badge: 'Beta' },
+  { icon: 'lucide:book-open', title: 'Knowledge & RAG', desc: 'Ground agents in your uploaded docs and crawled websites with hybrid semantic + keyword search, per agent.' },
+  { icon: 'lucide:zap', title: 'Automation', desc: 'Fire agents from webhooks (signals) or cron (schedules) with budget caps, retries, dead-letter recovery, and human-in-the-loop approval.' },
+  { icon: 'lucide:building-2', title: 'Multi-tenant & cost-metered', desc: 'Orgs, workspaces, RBAC, encrypted credential vaults, and per-token cost accounting baked in from day one — not bolted on.' },
 ]
 
-function runTerminalSequence() {
-  let totalDelay = 0
-  codeSequence.forEach((line) => {
-    const timer = setTimeout(() => {
-      terminalLines.value.push({ html: line.html, visible: true })
-      const body = document.querySelector('.terminal-body')
-      if (body) body.scrollTop = body.scrollHeight
-    }, totalDelay + line.delay)
-    animationTimers.push(timer)
-    totalDelay += line.delay
-  })
+const steps = [
+  { title: 'Ask or assign', desc: 'Start a conversation or trigger an agent from a webhook or schedule. It retrieves the right context first.' },
+  { title: 'Edit & verify', desc: 'The agent proposes minimal diffs against a clone, runs focused checks, and asks when it’s unsure.' },
+  { title: 'Review & ship', desc: 'You review per-file and per-hunk, accept what’s right, and export a pull request — guardrails intact.' },
+]
 
-  // Loop: reset after sequence finishes
-  const resetTimer = setTimeout(() => {
-    isTyping.value = false
-    const restartTimer = setTimeout(() => {
-      terminalLines.value = [{ html: '', visible: false }]
-      isTyping.value = true
-      runTerminalSequence()
-    }, 3000)
-    animationTimers.push(restartTimer)
-  }, totalDelay + 2000)
-  animationTimers.push(resetTimer)
+const stats = [
+  { value: '1,800+', label: 'Tools' },
+  { value: '6', label: 'Model providers' },
+  { value: '100+', label: 'Models' },
+  { value: '24/7', label: 'Autonomous' },
+]
+
+/* ── Animated terminal ── */
+const sequence = [
+  '<span class="c-gray">// agent: implement the change</span>',
+  '<span class="c-violet">search_code</span>(<span class="c-str">"checkout limit enforcement"</span>)',
+  '<span class="c-gray">// 3 results · ranked by graph proximity</span>',
+  '<span class="c-violet">propose_diff</span>({ files: <span class="c-num">3</span> })',
+  '<span class="c-gray">// running focused verify…</span>',
+  '<span class="c-ok">✓ py_compile ok · 4 related tests pass</span>',
+  '<span class="c-violet">export_pr</span>({ base: <span class="c-str">"main"</span> })',
+  '<span class="c-ok">✓ PR opened · awaiting review</span>',
+]
+const shownLines = ref([])
+const typing = ref(true)
+let timers = []
+
+function run() {
+  shownLines.value = []
+  typing.value = true
+  let d = 350
+  sequence.forEach((line) => {
+    timers.push(setTimeout(() => { shownLines.value.push(line) }, d))
+    d += 650
+  })
+  timers.push(setTimeout(() => { typing.value = false }, d + 400))
+  timers.push(setTimeout(run, d + 3200))
 }
 
-onMounted(() => runTerminalSequence())
-
-onUnmounted(() => {
-  animationTimers.forEach(t => clearTimeout(t))
-  animationTimers = []
-})
-
+onMounted(run)
+onUnmounted(() => { timers.forEach(clearTimeout); timers = [] })
 </script>
 
 <style scoped>
-/* --- 1. CORE VARIABLES --- */
-.landing-page {
-  /* Most variables are now global in style.css */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
-  width: 100%;
-  overflow-x: hidden;
-  color: var(--text-primary);
-  background: var(--bg-body);
-  min-height: 100vh;
+.hero-btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 13px 24px; border-radius: 13px;
+  font-weight: 600; color: #fff; text-decoration: none;
+  background: var(--vm-g-brand); box-shadow: var(--vm-glow-p);
+  transition: transform .18s var(--vm-ease), box-shadow .18s;
 }
+.hero-btn-primary:hover { transform: translateY(-2px); box-shadow: var(--vm-glow-v); }
 
-.container {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0 1.5rem;
+.hero-btn-ghost {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 13px 22px; border-radius: 13px;
+  font-weight: 600; color: var(--vm-ink); text-decoration: none;
+  background: var(--vm-surface); border: 1px solid var(--vm-border); box-shadow: var(--vm-shadow-s);
+  transition: transform .18s var(--vm-ease), border-color .18s;
 }
+.hero-btn-ghost:hover { transform: translateY(-2px); border-color: var(--vm-primary); }
 
-/* --- 2. HERO SECTION --- */
-.hero-section {
+/* Terminal */
+.terminal {
   position: relative;
-  padding: 80px 24px 100px;
+  border-radius: 18px;
   overflow: hidden;
-  background: var(--gradient-surface);
+  background: linear-gradient(180deg, #0d1117, #161b22);
+  box-shadow: var(--vm-shadow-l);
+  border: 1px solid rgba(255,255,255,.08);
+  height: 360px;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
 }
-
-/* Background Effects */
-.hero-section::before {
-  content: '';
-  position: absolute;
-  top: -200px;
-  right: -200px;
-  width: 800px;
-  height: 800px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
-  pointer-events: none;
+.terminal-badge {
+  position: absolute; top: -1px; right: 18px;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 14px; border-radius: 0 0 12px 12px;
+  font-size: .75rem; font-weight: 600; color: #e5e7eb;
+  background: rgba(37,99,235,.9);
 }
-
-.hero-section::after {
-  content: '';
-  position: absolute;
-  bottom: -300px;
-  left: -200px;
-  width: 700px;
-  height: 700px;
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.1) 0%, transparent 70%);
-  pointer-events: none;
+.terminal-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px; border-bottom: 1px solid rgba(255,255,255,.06);
 }
-
-.hero-content {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 24px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 5rem;
-  align-items: center;
-  position: relative;
-  z-index: 1;
-}
-
-.hero-text {
-  max-width: 600px;
-}
-
-.hero-title {
-  font-size: clamp(2.5rem, 5vw, 4rem);
-  font-weight: 800;
-  line-height: 1.1;
-  margin-bottom: 1.5rem;
-  letter-spacing: -0.03em;
-  color: var(--text-primary);
-}
-
-.gradient-text {
-  display: block;
-  background: var(--gradient-primary);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.hero-subtitle {
-  font-size: 1.125rem;
-  line-height: 1.7;
-  color: var(--text-secondary);
-  margin-bottom: 2.5rem;
-  max-width: 95%;
-}
-
-.cta-buttons {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 2.5rem;
-  flex-wrap: wrap;
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.875rem 1.75rem;
-  border-radius: 10px;
-  font-weight: 600;
-  font-size: 0.9375rem;
-  text-decoration: none;
-  transition: all 0.25s ease;
-  border: 1px solid transparent;
-  cursor: pointer;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #2563EB 0%, #2563EB 100%);
-  color: white;
-  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
-}
-
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(139, 92, 246, 0.5);
-}
-
-.btn-secondary {
-  background: var(--glass-bg);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  backdrop-filter: blur(10px);
-}
-
-.btn-secondary:hover {
-  background: var(--bg-surface);
-  border-color: var(--border-strong);
-}
-
-.btn-large {
-  padding: 1.125rem 2.25rem;
-  font-size: 1rem;
-}
-
-.trust-badge {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-}
-.trust-badge .icon {
-  width: 1.25rem;
-  height: 1.25rem;
-  color: #10b981;
-}
-
-/* --- 3. TERMINAL ANIMATION --- */
-.hero-visual {
-  position: relative;
-  perspective: 1000px;
-}
-
-.terminal-window {
-  background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 25px 60px -15px rgba(0, 0, 0, 0.6),
-    0 0 40px rgba(139, 92, 246, 0.1);
-  font-family: var(--font-mono);
-  overflow: hidden;
-  position: relative;
-  height: 380px;
-  transform: rotateY(-2deg) rotateX(2deg);
-  transition: transform 0.3s ease;
-}
-
-.terminal-window:hover {
-  transform: rotateY(0) rotateX(0);
-}
-
-.ai-badge {
-  position: absolute;
-  top: -16px;
-  right: 24px;
-  background: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%);
-  border: 1px solid rgba(124, 58, 237, 0.3);
-  padding: 0.5rem 1.25rem;
-  border-radius: 50px;
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.4),
-    0 0 20px rgba(139, 92, 246, 0.15);
-  z-index: 10;
-  animation: float 4s ease-in-out infinite;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #e5e7eb;
-}
-
-.ai-status {
-  width: 8px;
-  height: 8px;
-  background: #2563EB;
-  border-radius: 50%;
-  box-shadow: 0 0 12px #2563EB;
-  animation: pulse-glow 2s ease-in-out infinite;
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 12px #2563EB; }
-  50% { box-shadow: 0 0 20px #2563EB, 0 0 30px rgba(139, 92, 246, 0.5); }
-}
-
-.terminal-header {
-  background: rgba(22, 27, 34, 0.8);
-  padding: 0.875rem 1.25rem;
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.dots {
-  display: flex;
-  gap: 8px;
-}
-
-.dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.red { background: #ff5f56; }
-.yellow { background: #ffbd2e; }
-.green { background: #27c93f; }
-
-.terminal-title {
-  margin-left: 1rem;
-  font-size: 0.8125rem;
-  color: #6b7280;
-  flex-grow: 1;
-  text-align: center;
-}
-
-.terminal-body {
-  padding: 1.5rem;
-  font-size: 0.9rem;
-  color: #e6edf3;
-  overflow-y: auto;
-  height: calc(100% - 40px);
-}
-
-.code-line {
-  display: flex;
-  margin-bottom: 0.25rem;
-  opacity: 0;
-  transform: translateX(-5px);
-  transition: opacity 0.2s, transform 0.2s;
-}
-.code-line.visible { opacity: 1; transform: translateX(0); }
-.line-num {
-  color: #484f58;
-  margin-right: 1.5rem;
-  user-select: none;
-  text-align: right;
-  min-width: 20px;
-}
-.c-purple { color: #d2a8ff; }
-.c-blue { color: #a5d6ff; }
-.c-green { color: #7ee787; }
-.c-yellow { color: #e3b341; }
-.c-gray { color: #8b949e; }
-.cursor {
-  display: inline-block;
-  width: 8px; height: 16px;
-  background: var(--primary);
-  animation: blink 1s step-end infinite;
-  vertical-align: middle;
-}
+.dot { width: 12px; height: 12px; border-radius: 50%; }
+.terminal-file { margin-left: 12px; font-size: .8rem; color: #6b7280; }
+.terminal-body { padding: 18px 20px; font-size: .86rem; color: #e6edf3; overflow: hidden; }
+.code-line { display: flex; gap: 18px; margin-bottom: 6px; animation: vmCardIn .3s var(--vm-ease2) both; }
+.ln { color: #484f58; min-width: 16px; text-align: right; user-select: none; }
+.caret { display: inline-block; width: 8px; height: 15px; background: #2563EB; animation: blink 1s step-end infinite; }
 @keyframes blink { 50% { opacity: 0; } }
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
+.c-gray { color: #8b949e; } .c-violet { color: #79c0ff; } .c-str { color: #7ee787; }
+.c-num { color: #f2cc60; } .c-ok { color: #56d364; }
 
-/* --- PROVIDER LOGOS --- */
-.logos-section {
-  padding: 3rem 24px;
-  text-align: center;
-  background: var(--bg-body);
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-}
-
-.logos-label {
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  font-weight: 500;
-  margin-bottom: 1.5rem;
-}
-
-.logos-grid {
-  display: flex;
-  justify-content: center;
-  gap: 2.5rem;
-  flex-wrap: wrap;
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.logo-item {
-  color: var(--text-muted);
-  font-size: 1rem;
-  font-weight: 600;
-  opacity: 0.6;
-  transition: opacity 0.2s;
-  letter-spacing: 0.5px;
-}
-
-.logo-item:hover {
-  opacity: 1;
-  color: var(--text-primary);
-}
-
-/* --- 4. FEATURES (BENTO GRID) --- */
-.features-section {
-  padding: 100px 24px;
-  background: var(--bg-body);
-}
-
-.section-header {
-  text-align: center;
-  margin-bottom: 4rem;
-}
-
-.section-header h2 {
-  font-size: clamp(2rem, 4vw, 2.75rem);
-  font-weight: 700;
-  margin-bottom: 1rem;
-  color: var(--text-primary);
-}
-
-.section-header p {
-  color: var(--text-muted);
-  font-size: 1.125rem;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.bento-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 260px);
-  gap: 1.5rem;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.bento-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 2rem;
+/* Bento */
+.bento {
   position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease;
-  display: flex;
-  flex-direction: column;
-  backdrop-filter: blur(10px);
+  border-radius: 18px;
+  border: 1px solid var(--vm-border);
+  background: var(--vm-surface);
+  padding: 26px;
+  box-shadow: var(--vm-shadow-s);
+  transition: transform .22s var(--vm-ease), box-shadow .22s, border-color .22s;
+}
+.bento:hover { transform: translateY(-4px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.35); }
+.bento-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; border-radius: 13px;
+  color: var(--vm-primary); background: var(--vm-primary-soft);
+}
+.bento-badge {
+  position: absolute; top: 20px; right: 20px;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: .65rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--vm-accent); background: var(--vm-accent-soft);
 }
 
-.bento-card:hover {
-  border-color: var(--primary-glow);
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-xl);
+/* Steps */
+.step {
+  border-radius: 18px; border: 1px solid var(--vm-border);
+  background: var(--vm-glass-strong); backdrop-filter: blur(10px);
+  padding: 28px; box-shadow: var(--vm-shadow-s);
+}
+.step-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 12px;
+  font-family: var(--vm-font-display); font-weight: 800; color: #fff;
+  background: var(--vm-g-brand);
 }
 
-.bento-large { grid-column: span 2; }
-.bento-tall { grid-row: span 2; }
-
-.feature-icon {
-  color: var(--primary);
-  margin-bottom: 1.25rem;
-  width: 48px;
-  height: 48px;
-}
-
-.bento-card h3 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-bottom: 0.625rem;
-  color: var(--text-primary);
-}
-
-.bento-card p {
-  color: var(--text-muted);
-  font-size: 0.9375rem;
-  line-height: 1.6;
-}
-
-.card-visual {
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 50%;
-  height: 50%;
-  background: radial-gradient(circle at bottom right, rgba(139, 92, 246, 0.08), transparent);
-  pointer-events: none;
-}
-
-.cta-center {
-  text-align: center;
-  margin-top: 3.5rem;
-}
-
-.btn-outline {
-  background: transparent;
-  color: var(--primary);
-  border: 2px solid var(--primary-glow);
-  padding: 0.875rem 1.75rem;
-}
-
-.btn-outline:hover {
-  background: var(--primary);
-  color: white;
-  border-color: var(--primary);
-}
-
-/* --- 5. USE CASES (TABS) --- */
-.use-cases-section {
-  padding: 100px 24px;
-  background: var(--bg-surface);
-}
-
-.tabs {
-  display: flex;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-bottom: 3rem;
-  flex-wrap: wrap;
-}
-
-.tab-btn {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  padding: 0.75rem 1.5rem;
-  border-radius: 50px;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  font-size: 0.9375rem;
-  font-weight: 500;
-}
-
-.tab-btn.active,
-.tab-btn:hover {
-  background: var(--gradient-primary);
-  color: white;
-  border-color: transparent;
-  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3);
-}
-
-.tab-content {
-  max-width: 800px;
-  margin: 0 auto;
-  animation: fadeUp 0.4s ease-out;
-}
-
-.use-case-card {
-  background: var(--bg-card);
-  padding: 3rem;
-  border-radius: 20px;
-  border: 1px solid var(--border);
-  text-align: center;
-  backdrop-filter: blur(10px);
-}
-
-.use-case-badge {
-  display: inline-block;
-  padding: 0.375rem 1rem;
-  background: var(--primary-light);
-  color: var(--primary);
-  border-radius: 50px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 1.25rem;
-}
-
-.use-case-card h3 {
-  font-size: 1.75rem;
-  font-weight: 700;
-  margin-bottom: 1rem;
-  color: var(--text-primary);
-}
-
-.use-case-card p {
-  color: var(--text-muted);
-  margin-bottom: 2rem;
-  font-size: 1.0625rem;
-  line-height: 1.6;
-}
-
-.use-case-card ul {
-  list-style: none;
-  padding: 0;
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.875rem;
-}
-
-.use-case-card li {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  color: var(--text-secondary);
-  font-size: 0.9375rem;
-}
-
-.check-icon {
-  color: var(--primary);
-  font-weight: bold;
-}
-
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* --- 6. STATS --- */
-.stats-section {
-  padding: 100px 24px;
-  text-align: center;
-  background: var(--bg-body);
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 2.5rem;
-  max-width: 1000px;
-  margin: 0 auto;
-}
-
-.stat-number {
-  font-size: clamp(2.5rem, 5vw, 3.5rem);
-  font-weight: 800;
-  margin-bottom: 0.5rem;
-  background: var(--gradient-text);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.stat-label {
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  font-size: 0.8125rem;
-  font-weight: 500;
-}
-
-/* --- 7. FINAL CTA --- */
-.final-cta-section {
-  padding: 100px 24px;
-  text-align: center;
-  background: var(--bg-body);
-}
-
+/* CTA */
 .cta-box {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 28px;
-  padding: 5rem 2.5rem;
-  max-width: 1000px;
-  margin: 0 auto;
-  position: relative;
-  overflow: hidden;
+  position: relative; overflow: hidden;
+  border-radius: 26px; padding: 72px 32px; text-align: center;
+  background: var(--vm-g-multi); box-shadow: var(--vm-shadow-l);
 }
-
-.cta-box::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: radial-gradient(circle at top left, rgba(236, 72, 153, 0.15), transparent 50%),
-              radial-gradient(circle at bottom right, rgba(139, 92, 246, 0.15), transparent 50%);
-  pointer-events: none;
+.cta-btn-light {
+  display: inline-flex; padding: 13px 28px; border-radius: 13px;
+  font-weight: 700; text-decoration: none; color: var(--vm-primary); background: #fff;
+  transition: transform .18s var(--vm-ease);
 }
-
-.cta-content {
-  position: relative;
-  z-index: 2;
+.cta-btn-light:hover { transform: translateY(-2px); }
+.cta-btn-outline {
+  display: inline-flex; padding: 13px 28px; border-radius: 13px;
+  font-weight: 700; text-decoration: none; color: #fff;
+  border: 1px solid rgba(255,255,255,.5);
+  transition: background .18s;
 }
-
-.cta-content h2 {
-  font-size: clamp(2rem, 5vw, 3rem);
-  font-weight: 700;
-  margin-bottom: 1.25rem;
-  color: var(--text-primary);
-}
-
-.cta-content p {
-  color: var(--text-secondary);
-  font-size: 1.125rem;
-  margin-bottom: 2.5rem;
-}
-
-/* --- RESPONSIVE --- */
-@media (max-width: 1024px) {
-  .hero-content {
-    grid-template-columns: 1fr;
-    text-align: center;
-    gap: 3rem;
-  }
-
-  .hero-text {
-    max-width: 100%;
-  }
-
-  .hero-subtitle {
-    margin: 0 auto 2rem;
-    max-width: 100%;
-  }
-
-  .cta-buttons {
-    justify-content: center;
-  }
-
-  .trust-badge {
-    justify-content: center;
-  }
-
-  .bento-grid {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
-  }
-
-  .bento-large,
-  .bento-tall {
-    grid-column: auto;
-    grid-row: auto;
-  }
-}
-
-@media (max-width: 768px) {
-  .hero-section {
-    padding: 60px 16px 80px;
-  }
-
-  .terminal-window {
-    height: 300px;
-    transform: none;
-  }
-
-  .terminal-window:hover {
-    transform: none;
-  }
-
-  .ai-badge {
-    font-size: 0.75rem;
-    padding: 0.375rem 0.875rem;
-  }
-
-  .cta-box {
-    padding: 3.5rem 1.5rem;
-    border-radius: 20px;
-  }
-
-  .btn {
-    padding: 0.75rem 1.5rem;
-    font-size: 0.875rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .cta-buttons {
-    flex-direction: column;
-  }
-
-  .btn {
-    width: 100%;
-  }
-
-  .tabs {
-    gap: 0.5rem;
-  }
-
-  .tab-btn {
-    padding: 0.625rem 1rem;
-    font-size: 0.8125rem;
-  }
-}
+.cta-btn-outline:hover { background: rgba(255,255,255,.14); }
 </style>

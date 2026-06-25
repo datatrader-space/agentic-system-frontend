@@ -5,11 +5,24 @@
 // (ChatConnection). History loads via GET /conversations/.
 import { defineStore } from 'pinia'
 import api from '../services/api'
+import { notify } from '../composables/useNotify'
 import { ChatConnection } from '../services/chatService'
 import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity, interrupt as interruptActivity } from '../composables/activityStream'
+import { useAgentTimeline, isRichEvent } from '../composables/useAgentTimeline'
+
+// One shared live timeline for the currently-streaming assistant message (only one streams at a time).
+// Reset per turn, snapshotted onto the message on completion — the SAME reducer the Emulator uses, so
+// New Chat shows the identical friendly, param-free activity (Searching → Generating) instead of raw tool I/O.
+const _tl = useAgentTimeline()
 
 let _seq = 0
 const nid = () => `m${++_seq}`
+
+// §4b: streaming-content events stamped with the server's per-turn (turn_id, message_id). Used by the
+// stale/interrupted-stream guard in _onEvent to ignore events from a superseded turn.
+const STREAM_ID_TYPES = new Set([
+  'assistant_message_chunk', 'assistant_message_complete', 'tool_result', 'tool_call',
+])
 
 function pickArray(d) {
   if (Array.isArray(d)) return d
@@ -49,6 +62,7 @@ export const useChatStore = defineStore('chat', {
     // Global chat history across ALL agents (sidebar list + search modal)
     allSessions: [],
     allSessionsLoading: false,
+    _allSessionsAt: 0,   // last successful fetch (ms) — drives the TTL cache below
 
     loadingHistory: false,
     error: '',
@@ -58,6 +72,9 @@ export const useChatStore = defineStore('chat', {
   }),
   getters: {
     isEmpty: (s) => s.messages.length === 0,
+    // True once we know the user has zero agents — drives the "create an agent first"
+    // empty state and the disabled composer on the welcome screen.
+    needsAgent: (s) => s.agentsLoaded && s.agents.length === 0,
     currentAgent: (s) =>
       s.agents.find((a) => String(a.id) === String(s.selectedAgentId)) || null,
     // Running session totals (this chat). Prefer a turn's EXACT completed usage; while a turn is
@@ -67,6 +84,17 @@ export const useChatStore = defineStore('chat', {
       a + ((m.usage && m.usage.total_tokens) || (m.activity && m.activity.tokens && m.activity.tokens.total) || 0), 0),
     sessionCost: (s) => s.messages.reduce((a, m) =>
       a + ((m.usage && m.usage.cost_usd) || (m.activity && m.activity.tokens && m.activity.tokens.cost) || 0), 0),
+
+    // ── Rich-streaming live timeline (the currently-streaming message) ──
+    // Mirrors the Emulator so New Chat renders the SAME friendly, param-free activity (Searching →
+    // Generating) via AgentActivityTimeline instead of the raw ActivityStream/ActivityStep tool I/O.
+    richActive: () => _tl.hasActivity(),
+    liveStatus: () => _tl.currentStatus.value,
+    liveSteps: () => _tl.steps.value,
+    liveSources: () => _tl.sources.value,
+    liveSummary: () => _tl.summary.value,
+    liveComplete: () => _tl.isComplete.value,
+    liveHasFailures: () => _tl.hasFailures.value,
   },
   actions: {
     // ---- Agents + history ----
@@ -93,6 +121,7 @@ export const useChatStore = defineStore('chat', {
     setAgent(id) {
       this.selectedAgentId = String(id)
       this.loadSessions()
+      this.prewarmAgent()   // warm the newly-selected agent during the idle window before the 1st message
     },
 
     async loadSessions() {
@@ -113,12 +142,16 @@ export const useChatStore = defineStore('chat', {
     },
 
     // Global recent chats across every agent — powers the sidebar list + search modal.
-    async loadAllSessions() {
+    // Cached for 60s: re-opening the search modal or re-mounting the sidebar reuses the
+    // list instead of refetching. Pass force=true after a mutation (e.g. a new chat).
+    async loadAllSessions(force = false) {
       if (this.allSessionsLoading) return
+      if (!force && this.allSessions.length && (Date.now() - this._allSessionsAt) < 60000) return
       this.allSessionsLoading = true
       try {
         const res = await api.getConversations({ ordering: '-updated_at', limit: 200 })
         this.allSessions = pickArray(res.data)
+        this._allSessionsAt = Date.now()
       } catch {
         /* non-fatal */
       } finally {
@@ -179,7 +212,14 @@ export const useChatStore = defineStore('chat', {
           stopReason: (m.model_info && m.model_info.stop_reason) || '',
           confidence: (m.model_info && m.model_info.confidence) || '',
           trace: (m.model_info && m.model_info.trace) || [],
-          activity: (m.model_info && m.model_info.activity) || null,   // restore the step timeline
+          activity: (m.model_info && m.model_info.activity) || null,   // legacy raw timeline (fallback)
+          // Rich timeline replay: restore the masked snapshot so a reopened chat shows the friendly
+          // Searching → Generating timeline instead of falling back to the raw ActivityStream.
+          timeline: (m.model_info && m.model_info.timeline) || null,
+          // Provenance replay (decision #4): the answer_basis envelope carries the label + the
+          // cited-or-top-4 sources, so a reopened chat shows the SAME footer + clickable panel.
+          answerBasis: (m.model_info && m.model_info.answer_basis) || null,
+          citations: (m.model_info && m.model_info.answer_basis && m.model_info.answer_basis.citations) || [],
           conversationId: String(id),
         }))
         this.repoId = data.repository?.id || data.repository_id || 0
@@ -218,10 +258,18 @@ export const useChatStore = defineStore('chat', {
       const atts = this.pendingAttachments.slice()
       if ((!content && atts.length === 0) || this.isStreaming) return
 
+      // No agents at all → don't silently swallow the message. Tell the user what to do.
+      if (this.needsAgent) {
+        this.error = 'Create an agent before sending a message.'
+        notify.warning('Create an agent before you can chat — no agents exist yet.')
+        return
+      }
+
       // Start a conversation on the first message.
       if (!this.conversationId) {
         if (!this.selectedAgentId) {
           this.error = 'Select an agent to start chatting.'
+          notify.warning('Select an agent to start chatting.')
           return
         }
         try {
@@ -232,7 +280,7 @@ export const useChatStore = defineStore('chat', {
           if (!this.conversationId) throw new Error('no conversation id')
           this._connect()
           this.loadSessions() // surface the new chat in the sidebar
-          this.loadAllSessions() // refresh the global recent-chats list + search
+          this.loadAllSessions(true) // force-refresh the global recent-chats list + search
         } catch {
           this.error = 'Failed to start chat.'
           return
@@ -398,11 +446,21 @@ export const useChatStore = defineStore('chat', {
       if (this._conn && this._conn.repoId === repo) {
         this._conn.setConversation(this.conversationId)
         this._conn.connect(repo)   // idempotent: no-op if already OPEN/CONNECTING, reconnects if dead
+        this._conn.prewarm(this.selectedAgentId)
         return
       }
       this._teardown(false)        // repo changed (or first connect) -> (re)create
       this._conn = new ChatConnection(this.conversationId, this._connectionHandlers())
       this._conn.connect(repo)
+      this._conn.prewarm(this.selectedAgentId)
+    },
+
+    // Open the chat socket EARLY (when the chat page loads / an agent is selected) and pre-build the
+    // selected agent's server-side runtime, so the FIRST message reuses the runner instead of paying
+    // the ~6.6s cold build. Without this the socket only opens lazily on first send (no idle window).
+    prewarmAgent() {
+      if (!this.selectedAgentId) return
+      this._connect()
     },
 
     // Clear the per-turn UI/streaming state WITHOUT touching the socket (used when switching
@@ -495,10 +553,15 @@ export const useChatStore = defineStore('chat', {
         status: 'streaming',
         error: '',
         toolCalls: [],
-        activity, // live "what the agent is doing" timeline (see activityStream.js)
+        citations: [], // P6: KB sources for the "Sources" panel (set on assistant_message_complete)
+        answerBasis: null, // provenance envelope (label + cited-or-top4) set on assistant_message_complete
+        activity, // legacy raw timeline (see activityStream.js) — fallback when rich streaming is OFF
+        timeline: null, // rich-streaming snapshot, pinned on completion (friendly, param-free)
+        _serverMid: null, // §4b: server's per-turn message_id, adopted from the first stamped event
       })
       this._assistantId = this.messages[this.messages.length - 1].id
       this.isStreaming = true
+      _tl.reset()   // fresh rich-streaming timeline for this turn
     },
 
     _cur() {
@@ -509,6 +572,8 @@ export const useChatStore = defineStore('chat', {
       const m = this._cur()
       if (m) {
         if (m.activity) finishActivity(m.activity)
+        _tl.finalize()
+        if (_tl.hasActivity()) m.timeline = _tl.snapshot()   // pin the rich timeline onto this message
         if (m.status === 'streaming') m.status = 'done'
       }
       this.isStreaming = false
@@ -522,7 +587,10 @@ export const useChatStore = defineStore('chat', {
       try {
         if (!m || !m.activity || !this.conversationId || !this._conn) return
         const activity = JSON.parse(JSON.stringify(m.activity))
-        this._conn.send({ type: 'persist_turn_meta', conversation_id: this.conversationId, activity })
+        // Also persist the rich-streaming timeline snapshot so a refresh renders the masked timeline
+        // (Searching → Generating, friendly labels) instead of falling back to the raw ActivityStream.
+        const timeline = m.timeline ? JSON.parse(JSON.stringify(m.timeline)) : null
+        this._conn.send({ type: 'persist_turn_meta', conversation_id: this.conversationId, activity, timeline })
       } catch { /* best-effort — never block the turn */ }
     },
 
@@ -533,6 +601,8 @@ export const useChatStore = defineStore('chat', {
         m.error = err || 'Something went wrong.'
         // interrupt (not finish): the live timeline collapses to "Interrupted", not "Done".
         if (m.activity) interruptActivity(m.activity, m.error)
+        _tl.interrupt(m.error)
+        if (_tl.hasActivity()) m.timeline = _tl.snapshot()
       }
       this.isStreaming = false
       this._assistantId = null
@@ -541,7 +611,18 @@ export const useChatStore = defineStore('chat', {
     _onEvent(msg) {
       const t = msg?.type
       if (t === 'ping') return   // server keepalive heartbeat — nothing to render
+      // Rich streaming: friendly, param-free activity (Searching → Generating). Feed the shared
+      // timeline reducer and stop — these 6 events carry no content/usage to process further.
+      if (isRichEvent(msg)) { _tl.ingest(msg); return }
       const m = this._cur()
+      // §4b stale/interrupted-stream guard (defense-in-depth — the backend also drops these
+      // server-side). A streamed event carries the server's per-turn message_id; the first one we
+      // see binds the bubble, and any later event from a DIFFERENT (superseded) turn is ignored so it
+      // can't overwrite the live answer, leak tool-call JSON, or pollute the activity timeline.
+      if (m && msg && msg.message_id != null && STREAM_ID_TYPES.has(t)) {
+        if (m._serverMid == null) m._serverMid = msg.message_id
+        else if (m._serverMid !== msg.message_id) return
+      }
       // Feed the live activity timeline (Thinking → tools → Generating → Done). The
       // 'error' type is fed inside its case below (after the benign-rejection filter).
       if (m && m.activity && t !== 'error') ingestActivity(m.activity, msg)
@@ -565,6 +646,8 @@ export const useChatStore = defineStore('chat', {
           if (m && msg.full_message != null) m.content = msg.full_message
           if (m && msg.usage) m.usage = msg.usage // per-response token counts
           if (m && msg.stop_reason) { m.stopReason = msg.stop_reason; m.confidence = msg.confidence }
+          if (m && Array.isArray(msg.citations)) m.citations = msg.citations // P6: KB sources
+          if (m && msg.answer_basis) m.answerBasis = msg.answer_basis // provenance footer + cited-or-top4
           this._endAssistant()
           this._persistTurnMeta(m)   // snapshot the finished timeline so it survives a refresh
           break

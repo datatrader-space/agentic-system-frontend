@@ -72,6 +72,11 @@
         </div>
       </div>
 
+      <!-- Website Traffic & Visitor Analytics (Track D) -->
+      <div class="panel full-width">
+        <AnalyticsPanel />
+      </div>
+
       <!-- Recent Users -->
       <div class="panel full-width">
         <h2>Users <span class="badge-count">{{ userTotal }}</span></h2>
@@ -109,6 +114,7 @@
 import { ref, onMounted } from 'vue'
 import { useMeta } from '../composables/useMeta'
 import api from '../services/api'
+import AnalyticsPanel from '../components/admin/AnalyticsPanel.vue'
 
 useMeta({ title: 'Admin — AADML' })
 

@@ -151,6 +151,14 @@ export default {
   patch: (url, data, config) => api.patch(url, data, config),
   delete: (url, config) => api.delete(url, config),
 
+  // Admin — Crawler Export API (third-party crawl-data export keys + integration docs)
+  getCrawlerExportKeys: () => api.get('/admin/crawler-export/keys/'),
+  toggleCrawlerExport: (enabled) => api.post('/admin/crawler-export/toggle/', { enabled }),
+  createCrawlerExportKey: (name) => api.post('/admin/crawler-export/keys/', { name }),
+  revokeCrawlerExportKey: (id) => api.post(`/admin/crawler-export/keys/${id}/revoke/`),
+  getCrawlerExportDocs: () => api.get('/admin/crawler-export/docs/'),
+  embedWebSource: (id) => api.post(`/admin/web-sources/${id}/embed/`),
+
   // Systems
   getSystems: () => api.get('/systems/'),
   getSystem: (id) => api.get(`/systems/${id}/`),
@@ -170,16 +178,6 @@ export default {
   submitAnswers: (systemId, repoId, answers) =>
     api.post(`/systems/${systemId}/repositories/${repoId}/submit_answers/`, { answers }),
 
-  // Repository Knowledge
-  getKnowledgeSummary: (systemId, repoId) =>
-    api.get(`/systems/${systemId}/repositories/${repoId}/knowledge/summary/`),
-  getKnowledgeDocs: (systemId, repoId) =>
-    api.get(`/systems/${systemId}/repositories/${repoId}/knowledge/docs/`),
-  extractKnowledge: (systemId, repoId, force = true) =>
-    api.post(`/systems/${systemId}/repositories/${repoId}/knowledge/extract/`, { force }),
-  analyzeKnowledgeDoc: (systemId, repoId, kind, specId) =>
-    api.post(`/systems/${systemId}/repositories/${repoId}/knowledge/analyze_doc/`, { kind, spec_id: specId }),
-
   // Repository Documentation
   getRepositoryRequirements: (systemId, repoId) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/requirements/`),
@@ -187,6 +185,8 @@ export default {
   // Unified Connectors (P0 — read-only aggregation over Services + MCP)
   // scope: 'global' | 'agent:<id>'
   getConnectors: (scope = 'global') => api.get('/connectors/', { params: { scope } }),
+  // One-shot load for the Connectors page: agents + connectors + workspaces.
+  getConnectorsBundle: (scope = 'global') => api.get('/connectors/bundle/', { params: { scope } }),
   // Per-connector tools grouped read-only/write + per-tool permissions (P3)
   getConnectorTools: (kind, id, scope = 'global') =>
     api.get(`/connectors/${kind}/${id}/tools/`, { params: { scope } }),
@@ -269,13 +269,27 @@ export default {
 
 
 
-  // Repository Files
-  getRepositoryFiles: (systemId, repoId) =>
-    api.get(`/systems/${systemId}/repositories/${repoId}/files/`),
+  // Repository Files — lazy, one directory level per call (opts.path), or a capped name search
+  // (opts.search). No args = top-level entries.
+  getRepositoryFiles: (systemId, repoId, opts = {}) => {
+    const params = {}
+    if (opts.path) params.path = opts.path
+    if (opts.search) params.search = opts.search
+    return api.get(`/systems/${systemId}/repositories/${repoId}/files/`, { params })
+  },
   getFileContent: (systemId, repoId, filePath) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/files/content/`, {
       params: { path: filePath }
     }),
+  saveFileContent: (systemId, repoId, path, content) =>
+    api.post(`/systems/${systemId}/repositories/${repoId}/files/write/`, { path, content }),
+  // Source Control (VS Code–style SCM over the repo clone)
+  getSourceControlStatus: (systemId, repoId) =>
+    api.get(`/systems/${systemId}/repositories/${repoId}/source-control/status/`),
+  getSourceControlDiff: (systemId, repoId, path) =>
+    api.get(`/systems/${systemId}/repositories/${repoId}/source-control/diff/`, { params: { path } }),
+  // LLM models (for the IDE model switcher)
+  getLLMModels: () => api.get('/llm/models/'),
 
   // Knowledge
   getKnowledge: (systemId) => api.get(`/systems/${systemId}/knowledge/`),
@@ -295,10 +309,35 @@ export default {
   getLlmUsage: (params) => api.get('/llm/usage/', { params }),
   getLlmRequests: (params) => api.get('/llm/requests/', { params }),
   getLlmAudit: (params) => api.get('/llm/audit/', { params }),
+  // One-shot loads: Activity page (agents+stats+usage+requests+audit) and
+  // Settings → LLM tab (providers+models+stats+operation-models).
+  getLlmDashboard: (params) => api.get('/llm/dashboard/', { params }),
+  getLlmConfigureBundle: () => api.get('/llm/configure-bundle/'),
   // Admin — DB-backed model pricing (staff only; backend enforces IsAdminUser)
   getModelPricing: (params) => api.get('/admin/model-pricing/', { params }),
   setModelPricing: (id, data) => api.post(`/admin/model-pricing/${id}/`, data),
   syncOpenRouterPricing: () => api.post('/admin/model-pricing/sync-openrouter/', {}),
+
+  // Admin — RAG Knowledge console (P9/P8/P10; staff only, backend enforces IsAdminUser)
+  kbOverview: (params) => api.get('/admin/knowledge/overview/', { params, noCache: true }),
+  kbTopQuestions: (params) => api.get('/admin/knowledge/top-questions/', { params, noCache: true }),
+  kbUnanswered: (params) => api.get('/admin/knowledge/unanswered/', { params, noCache: true }),
+  kbConflicts: (params) => api.get('/admin/knowledge/conflicts/', { params, noCache: true }),
+  kbEval: (params) => api.get('/admin/knowledge/eval/', { params, noCache: true, timeout: 120000 }),
+  kbSearchTest: (data) => api.post('/admin/knowledge/search-test/', data),
+  kbCorrections: (params) => api.get('/admin/knowledge/corrections/', { params, noCache: true }),
+  kbCreateCorrection: (data) => api.post('/admin/knowledge/corrections/', data),
+  kbUpdateCorrection: (id, data) => api.patch(`/admin/knowledge/corrections/${id}/`, data),
+  kbDeleteCorrection: (id) => api.delete(`/admin/knowledge/corrections/${id}/`),
+  kbArchiveChunk: (id, data) => api.post(`/admin/knowledge/chunks/${id}/archive/`, data || {}),
+  kbNeedsReview: () => api.get('/admin/knowledge/needs-review/', { noCache: true }),
+  kbIndexHealth: (params) => api.get('/admin/knowledge/index-health/', { params, noCache: true }),
+  kbReembed: (data) => api.post('/admin/knowledge/reembed/', data, { timeout: 300000 }),
+  kbSetTrust: (data) => api.post('/admin/knowledge/trust/', data),
+  kbSetAcl: (data) => api.post('/admin/knowledge/acl/', data),
+  kbAliases: (params) => api.get('/admin/knowledge/aliases/', { params, noCache: true }),
+  kbCreateAlias: (data) => api.post('/admin/knowledge/aliases/', data),
+  kbDeleteAlias: (id) => api.delete(`/admin/knowledge/aliases/${id}/`),
 
   getLlmProviders: (params) => api.get('/llm/providers/', { params }),
   createLlmProvider: (data) => api.post('/llm/providers/', data),
@@ -316,6 +355,7 @@ export default {
   getOperationModels: () => api.get('/llm/operation-models/'),
   updateOperationModels: (data) => api.put('/llm/operation-models/', data),
   reindexEmbeddings: () => api.post('/llm/reindex-embeddings/'),
+  getEmbeddingStatus: () => api.get('/llm/reindex-embeddings/'),
   createLlmModel: (data) => api.post('/llm/models/', data),
   updateLlmModel: (id, data) => api.put(`/llm/models/${id}/`, data),
   deleteLlmModel: (id) => api.delete(`/llm/models/${id}/`),
@@ -332,6 +372,37 @@ export default {
   logout: () => api.post('/auth/logout'),
   getCurrentUser: () => api.get('/auth/me'),
   checkAuth: () => api.get('/auth/check'),
+  // First-run onboarding state (feature tour). Best-effort persistence so the tour
+  // follows the user across devices. Body: { onboarding_completed?, onboarding_step? }.
+  updateOnboarding: (data) => api.patch('/auth/me/onboarding', data),
+
+  // Auth hardening (Track B): verification, password reset/change, 2FA
+  verifyEmail: (token) => api.post('/auth/verify-email', { token }),
+  resendVerification: () => api.post('/auth/resend-verification'),
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
+  resetPassword: (token, password) => api.post('/auth/reset-password', { token, password }),
+  changePassword: (current_password, new_password) => api.post('/auth/change-password', { current_password, new_password }),
+  twofaStatus: () => api.get('/auth/2fa/status'),
+  twofaSetup: () => api.post('/auth/2fa/setup'),
+  twofaConfirm: (code) => api.post('/auth/2fa/confirm', { code }),
+  twofaDisable: (password) => api.post('/auth/2fa/disable', { password }),
+  twofaVerify: (ephemeral_token, code) => api.post('/auth/2fa/verify', { ephemeral_token, code }),
+
+  // Billing (Track C — Stripe). Plans is public; the rest are org-scoped + auth.
+  billingPlans: () => api.get('/billing/plans/'),
+  billingSubscription: () => api.get('/billing/subscription/', { noCache: true }),
+  billingCheckout: (tier, interval) => api.post('/billing/checkout/', { tier, interval }),
+  billingPortal: () => api.post('/billing/portal/'),
+
+  // Web analytics — admin reports (Track D)
+  analyticsOverview: (days = 30) => api.get('/analytics/admin/overview/', { params: { days } }),
+  analyticsPages: (days = 30) => api.get('/analytics/admin/pages/', { params: { days } }),
+  analyticsSources: (days = 30) => api.get('/analytics/admin/sources/', { params: { days } }),
+  analyticsTech: (days = 30) => api.get('/analytics/admin/tech/', { params: { days } }),
+  analyticsVisitors: (days = 30, limit = 50, offset = 0) =>
+    api.get('/analytics/admin/visitors/', { params: { days, limit, offset } }),
+  analyticsVisitor: (vid) => api.get(`/analytics/admin/visitors/${vid}/`),
+  analyticsFunnels: (days = 30) => api.get('/analytics/admin/funnels/', { params: { days } }),
 
   // GitHub OAuth
   githubConfig: () => api.get('/auth/github/config'),
@@ -352,12 +423,24 @@ export default {
   getCrsRelationships: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/relationships/`),
 
   // Coding workspace ("Let's Code", P1) — flag-gated on the backend (CODING_WORKSPACE_ENABLED)
-  startCodingTask: (systemId, repoId, prompt) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/start/`, { prompt }),
+  startCodingTask: (systemId, repoId, prompt, modelId = null, agentId = null) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/start/`, { prompt, model_id: modelId, agent_id: agentId }),
   listCodingTasks: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/coding/tasks/`),
   getCodingTask: (systemId, repoId, taskId) => api.get(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/`),
   cancelCodingTask: (systemId, repoId, taskId) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/cancel/`),
   discardCodingTask: (systemId, repoId, taskId) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/discard/`),
+  revertCodingFile: (systemId, repoId, taskId, path) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/revert-file/`, { path }),
+  revertCodingHunk: (systemId, repoId, taskId, path, hunk) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/revert-hunk/`, { path, hunk }),
   exportCodingTask: (systemId, repoId, taskId) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/export/`),
+
+  // Let's Code IDE — projects (clone GitHub repo → CRS pipeline; hides systems/repos)
+  unifiedConfig: (systemId = null) => api.get('/lets-code/unified-config/', systemId ? { params: { system: systemId } } : {}),   // { enabled, export_enabled, agent_id }
+  listProjects: () => api.get('/lets-code/projects/', { noCache: true }),
+  createProject: (data) => api.post('/lets-code/projects/', data),   // { github_url, name?, branch? }
+  getProject: (repoId) => api.get(`/lets-code/projects/${repoId}/`, { noCache: true }),
+  deleteProject: (repoId) => api.delete(`/lets-code/projects/${repoId}/`),
+  retryProject: (repoId) => api.post(`/lets-code/projects/${repoId}/retry/`),
+  getProjectBranches: (repoId) => api.get(`/lets-code/projects/${repoId}/branches/`, { noCache: true }),
+  switchProjectBranch: (repoId, branch) => api.post(`/lets-code/projects/${repoId}/switch-branch/`, { branch }),
 
   // Combined CRS payloads
   getCRSPayloads: async (systemId, repoId) => {
@@ -473,6 +556,35 @@ export default {
   deleteWorkflow: (id) => api.delete(`/workflows/${id}/`),
   runWorkflow: (id) => api.post(`/workflows/${id}/run/`),
 
+  // Workflow Builder — node-canvas graphs (NEW, separate system: /api/workflow-graphs/).
+  getWorkflowGraphs: () => api.get('/workflow-graphs/'),
+  getWorkflowGraph: (id) => api.get(`/workflow-graphs/${id}/`),
+  // One-shot load for the canvas: the graph + all graphs (subflow picker) + agents.
+  getWorkflowGraphBundle: (id) => api.get(`/workflow-graphs/${id}/bundle/`),
+  createWorkflowGraph: (payload) => api.post('/workflow-graphs/', payload),
+  saveWorkflowGraph: (id, payload) => api.put(`/workflow-graphs/${id}/`, payload),
+  deleteWorkflowGraph: (id) => api.delete(`/workflow-graphs/${id}/`),
+  validateWorkflowGraph: (id, graph) => api.post(`/workflow-graphs/${id}/validate/`, { graph }),
+  runWorkflowGraph: (id, payload = {}) => api.post(`/workflow-graphs/${id}/run/`, payload),
+  getWorkflowGraphRuns: (id) => api.get(`/workflow-graphs/${id}/runs/`),
+  getWorkflowGraphRun: (runId) => api.get(`/workflow-graph-runs/${runId}/`),
+  cancelWorkflowGraphRun: (runId) => api.post(`/workflow-graph-runs/${runId}/cancel/`),
+  rerunWorkflowGraphRun: (runId, fromNode = null) =>
+    api.post(`/workflow-graph-runs/${runId}/rerun/`, fromNode ? { from_node: fromNode } : {}),
+  approveWorkflowGraphRun: (runId, nodeId, decision) =>
+    api.post(`/workflow-graph-runs/${runId}/approve/`, { node_id: nodeId, decision }),
+  // C: metrics, version history, export/import, starter templates
+  getWorkflowGraphMetrics: (id) => api.get(`/workflow-graphs/${id}/metrics/`),
+  exportWorkflowGraph: (id) => api.get(`/workflow-graphs/${id}/export/`),
+  importWorkflowGraph: (payload) => api.post('/workflow-graphs/import/', payload),
+  getWorkflowGraphVersions: (id) => api.get(`/workflow-graphs/${id}/versions/`),
+  restoreWorkflowGraphVersion: (id, versionId) =>
+    api.post(`/workflow-graphs/${id}/versions/${versionId}/restore/`),
+  getWorkflowGraphTemplates: () => api.get('/workflow-graph-templates/'),
+  getWorkflowMcpCatalog: () => api.get('/workflow-graphs/mcp-catalog/'),
+  createWorkflowGraphFromTemplate: (key, name) =>
+    api.post('/workflow-graph-templates/create/', name ? { key, name } : { key }),
+
   // Agent Chat
   startAgentChat: (agentProfileId, repositoryId = null) => {
     const payload = {};
@@ -572,6 +684,10 @@ export default {
 
   // Agent Knowledge / Dreaming Cycle
   getAgentKnowledge: (agentId) => api.get(`/agents/${agentId}/knowledge/`),
+  // Unified memory (new system: AgentMemory via memory_router + Memory Autopilot)
+  getAgentMemory: (agentId, params) => api.get(`/agents/${agentId}/memory/`, { params }),
+  getAgentMemoryActivity: (agentId) => api.get(`/agents/${agentId}/memory/activity/`),
+  forgetMemory: (memoryId) => api.post('/memory/forget/', { memory_id: memoryId }),
   updateKnowledgeConfig: (agentId, data) => api.patch(`/agents/${agentId}/knowledge/config/`, data),
   updateKnowledgeCard: (agentId, cardId, data) => api.patch(`/agents/${agentId}/knowledge/cards/${cardId}/`, data),
   createKnowledgeCard: (agentId, data) => api.post(`/agents/${agentId}/knowledge/cards/`, data),

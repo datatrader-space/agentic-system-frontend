@@ -86,11 +86,17 @@ const startNew = () => {
   if (route.path !== '/dashboard/chat/new') router.push('/dashboard/chat/new')
 }
 
-onMounted(() => {
-  chat.loadAgents()
+onMounted(async () => {
+  await chat.loadAgents()
   const sid = route.params.sessionId
-  if (sid) chat.openConversation(sid)
-  else if (chat.conversationId) chat.reset()
+  if (sid) {
+    chat.openConversation(sid)
+  } else {
+    if (chat.conversationId) chat.reset()
+    // New chat: open the socket + pre-build the (auto-)selected agent now, during the idle window
+    // before the user sends — so the first message reuses the runner (no ~6.6s cold build).
+    chat.prewarmAgent()
+  }
 })
 
 // Load a conversation by URL, or reset for a fresh "new chat".
