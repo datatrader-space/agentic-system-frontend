@@ -7,7 +7,7 @@ COPY package*.json ./
 # platform deps (@esbuild/linux-*) as "missing" and fails `npm ci`. install regenerates as needed.
 RUN npm install --no-audit --no-fund
 COPY . .
-ENV NODE_OPTIONS="--max-old-space-size=1536"
+ENV NODE_OPTIONS="--max-old-space-size=2560"
 RUN npm run build
 
 # Production stage — Nginx with envsubst for BACKEND_URL
