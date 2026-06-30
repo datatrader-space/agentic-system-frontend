@@ -1,14 +1,14 @@
-<template>
+﻿<template>
   <aside class="sidebar" :class="{ collapsed }" aria-label="Sidebar">
     <!-- Brand + workspace -->
     <div class="sidebar-top">
-      <router-link to="/dashboard" class="brand" :title="collapsed ? 'Agentic v2' : ''">
+      <router-link to="/dashboard" class="brand" :title="collapsed ? 'Aadml' : ''">
         <span class="brand-mark">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 13l4 4L19 7" />
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
+            <path d="M6 12.5l4 4L18 8" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </span>
-        <span v-if="!collapsed" class="brand-text">Agentic<span class="brand-v">v2</span></span>
+        <span v-if="!collapsed" class="brand-text">Aadml<span class="brand-v">v2</span></span>
       </router-link>
 
       <div v-if="!collapsed" class="ws-switcher-wrap">
@@ -24,13 +24,7 @@
       <span v-if="!collapsed">New Chat</span>
     </button>
 
-    <!-- Search chats -->
-    <button class="search-chats" :class="{ collapsed }" :title="collapsed ? 'Search chats' : ''" aria-label="Search chats" @click="searchOpen = true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4-4" stroke-linecap="round" /></svg>
-      <span v-if="!collapsed">Search chats</span>
-    </button>
-
-    <!-- Scrollable nav + history -->
+    <!-- Scrollable nav -->
     <div class="sidebar-scroll">
       <nav class="nav-group" aria-label="Primary">
         <SidebarNavItem
@@ -39,44 +33,13 @@
           v-bind="item"
           :index="i"
           :collapsed="collapsed"
+          @toggle="toggleNavGroup(item)"
         />
       </nav>
 
-      <!-- Recent chats — global across agents: preview line + agent · time,
+      <!-- Recent chats â€” global across agents: preview line + agent Â· time,
            capped per group with a per-group "Show more". -->
-      <div v-if="!collapsed && chat.allSessions.length" class="history">
-        <div
-          v-for="grp in groupedSessions"
-          :key="grp.label"
-          class="history-group"
-        >
-          <div class="history-label">{{ grp.label }}</div>
-          <router-link
-            v-for="s in visibleItems(grp)"
-            :key="s.id"
-            :to="`/dashboard/chat/${s.id}`"
-            class="history-item"
-            :class="{ active: String(route.params.sessionId) === String(s.id) }"
-            @click="layout.closeMobileNav()"
-          >
-            <span class="history-text">
-              <span class="history-title">{{ previewOf(s) }}</span>
-              <span class="history-meta">{{ agentOf(s) }} · {{ relTime(s) }}</span>
-            </span>
-          </router-link>
-          <button
-            v-if="grp.items.length > (expanded[grp.label] ? grp.items.length : PAGE)"
-            class="history-more"
-            @click="expanded[grp.label] = true"
-          >
-            Load more ({{ grp.items.length - PAGE }})
-          </button>
-        </div>
-      </div>
     </div>
-
-    <!-- Search modal -->
-    <ChatSearchModal v-model="searchOpen" />
 
     <!-- Footer: user + collapse toggle -->
     <div class="sidebar-footer">
@@ -109,14 +72,12 @@
 </template>
 
 <script setup>
-import { computed, inject, ref, reactive, onMounted } from 'vue'
+import { computed, inject, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { useChatStore } from '../../stores/useChatStore'
 import SidebarNavItem from './SidebarNavItem.vue'
 import WorkspaceSwitcher from '../layout/WorkspaceSwitcher.vue'
-import ChatSearchModal from './ChatSearchModal.vue'
-import { previewOf, agentOf, relTime, groupSessions } from '../../composables/useChatHistory'
 import { useOnboarding } from '../../composables/useOnboarding'
 
 const props = defineProps({
@@ -142,38 +103,36 @@ const initials = computed(() => {
   return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
 })
 
-// Nav items — each `to` points at a working route (existing top-level routes
+// Nav items â€” each `to` points at a working route (existing top-level routes
 // stay alive through Phase 5; dashboard children render inside this shell).
 const primaryNav = [
+  { to: '/dashboard', exact: true, label: 'Home', 'data-tour': 'home', icon: ['M3 12l9-9 9 9', 'M5 10v10h14V10'] },
   { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", 'data-tour': 'lets-code', icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6'] },
   { to: '/dashboard/agents', match: '/dashboard/agents', label: 'Agents', 'data-tour': 'agents', icon: ['M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93', 'M12 18a8 8 0 0 1-8-8', 'M20 10a8 8 0 0 1-8 8', 'M12 11.5a1.5 1.5 0 1 0 0 .01'] },
   { to: '/dashboard/connectors', label: 'Connectors', 'data-tour': 'connectors', icon: ['M13.83 10.17a4 4 0 0 0-5.66 0l-4 4a4 4 0 1 0 5.66 5.66l1.1-1.1', 'M10.17 13.83a4 4 0 0 0 5.66 0l4-4a4 4 0 1 0-5.66-5.66l-1.1 1.1'] },
+  { to: '/dashboard/tools', label: 'Tools', 'data-tour': 'tools', icon: ['M14.7 6.3a4 4 0 0 1-5.6 5.6L4 17v3h3l5.1-5.1a4 4 0 0 1 5.6-5.6l-2.6 2.6-2-2 2.6-2.6z'] },
   { to: '/dashboard/workflow-builder', match: '/dashboard/workflow-builder', label: 'Workflow Builder', 'data-tour': 'workflow', icon: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M10 7h4a3 3 0 0 1 3 3v4'] },
+  { to: '/dashboard/schedules', label: 'Schedules', 'data-tour': 'schedules', icon: ['M8 2v4', 'M16 2v4', 'M3 10h18', 'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z', 'M12 14v3l2 1'] },
+  { to: '/dashboard/organization', match: '/dashboard/organization', label: 'Organization', 'data-tour': 'organization', icon: ['M3 21h18', 'M5 21V7l7-4 7 4v14', 'M9 21v-6h6v6', 'M9 9h.01', 'M15 9h.01'] },
+  { to: '/dashboard/budgets', label: 'Budgets', 'data-tour': 'budgets', icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6'] },
+  { to: '/dashboard/approvals', label: 'Approvals', 'data-tour': 'approvals', icon: ['M9 12l2 2 4-4', 'M12 2 5 5v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V7z'] },
   { to: '/dashboard/activity', label: 'Activity', 'data-tour': 'activity', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
   { to: '/admin-dashboard', match: '/admin-dashboard', label: 'Admin', adminOnly: true, icon: ['M12 2 4 5v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V5z', 'M9 12l2 2 4-4'] },
   { to: '/dashboard/settings/general', match: '/dashboard/settings', label: 'Settings', 'data-tour': 'settings', icon: ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82'] },
+  { to: '/dashboard/help-center', match: '/dashboard/help-center', label: 'Help Center', 'data-tour': 'help-center', icon: ['M9.09 9a3 3 0 1 1 5.83 1c0 2-3 2.25-3 4', 'M12 17h.01', 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z'] },
 ]
 
-// Admin-only nav entries (e.g. LLM Context — ops stats, backed by an IsAdminUser endpoint)
+// Admin-only nav entries (e.g. LLM Context â€” ops stats, backed by an IsAdminUser endpoint)
 // are hidden from non-staff users. `is_staff` comes from /auth/me (UserSerializer).
 const isAdmin = computed(() => !!(currentUser.value && currentUser.value.is_staff))
-const visibleNav = computed(() => primaryNav.filter((item) => !item.adminOnly || isAdmin.value))
+const visibleNav = computed(() => primaryNav.filter((item) => {
+  if (item.adminOnly && !isAdmin.value) return false
+  return true
+}))
 
-// Global recent chats (across agents), grouped Today / Yesterday / Previous 7 Days / Older.
-const groupedSessions = computed(() => groupSessions(chat.allSessions))
-
-// Per-group cap with a "Load more" expander.
-const PAGE = 5
-const expanded = reactive({})
-const visibleItems = (grp) => (expanded[grp.label] ? grp.items : grp.items.slice(0, PAGE))
-
-// Chat search popup
-const searchOpen = ref(false)
-
-onMounted(() => {
-  chat.loadAgents()
-  chat.loadAllSessions()
-})
+const toggleNavGroup = () => {
+  return
+}
 
 const newChat = () => {
   layout.closeMobileNav()
@@ -230,6 +189,12 @@ const startTour = () => {
   animation: vmPop .7s var(--vm-ease) both;
 }
 .brand-mark svg { width: 21px; height: 21px; }
+.brand-letter {
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
 .brand-text {
   font-family: var(--vm-font-display);
   font-size: 1.25rem;
@@ -288,27 +253,6 @@ const startTour = () => {
 .new-chat svg { width: 17px; height: 17px; }
 .new-chat.collapsed { margin: 10px 12px 12px; padding: 13px 0; }
 
-/* Search chats */
-.search-chats {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 14px 10px;
-  padding: 9px 13px;
-  font-family: var(--vm-font-sans);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--vm-ink-soft);
-  background: var(--vm-glass-strong);
-  border: 1px solid var(--vm-line);
-  border-radius: 12px;
-  cursor: pointer;
-  transition: background .15s var(--vm-ease2), color .15s, border-color .15s;
-}
-.search-chats:hover { color: var(--vm-violet-d); border-color: transparent; background: var(--vm-violet-soft); }
-.search-chats svg { width: 16px; height: 16px; }
-.search-chats.collapsed { justify-content: center; margin: 0 12px 10px; padding: 9px 0; }
-
 /* Scroll area */
 .sidebar-scroll {
   flex: 1;
@@ -322,62 +266,6 @@ const startTour = () => {
   flex-direction: column;
   gap: 3px;
 }
-
-/* History */
-.history { margin-top: 18px; }
-.history-group { margin-bottom: 10px; }
-.history-label {
-  padding: 6px 12px 4px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--vm-ink-faint);
-}
-.history-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 11px;
-  color: var(--vm-ink-soft);
-  text-decoration: none;
-  transition: background 0.18s var(--vm-ease2), color 0.18s, transform 0.18s var(--vm-ease2);
-}
-.history-item:hover { background: var(--vm-glass-strong); transform: translateX(2px); }
-.history-item.active { background: var(--vm-violet-soft); }
-.history-text { min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
-.history-title {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--vm-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.history-item.active .history-title { color: var(--vm-violet-d); }
-.history-meta {
-  font-size: 0.6875rem;
-  font-weight: 500;
-  color: var(--vm-ink-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin-top: 1px;
-}
-.history-more {
-  width: 100%;
-  text-align: left;
-  padding: 6px 12px;
-  margin-top: 2px;
-  border: none;
-  background: transparent;
-  color: var(--vm-violet-d);
-  font: 600 0.75rem var(--vm-font-sans);
-  cursor: pointer;
-  border-radius: 9px;
-}
-.history-more:hover { background: var(--vm-violet-soft); }
 
 /* Footer */
 .sidebar-footer {
@@ -446,4 +334,104 @@ const startTour = () => {
 .collapse-toggle:hover { background: var(--vm-glass-strong); color: var(--vm-ink-soft); }
 .collapse-toggle svg { width: 16px; height: 16px; transition: transform 0.2s; }
 .sidebar.collapsed .collapse-toggle { justify-content: center; }
+
+/* Screen 25 sidebar refresh */
+.sidebar {
+  width: 228px;
+  background: #fbfdff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-right: 1px solid #e3ebf6;
+  box-shadow: none;
+}
+.sidebar.collapsed {
+  width: 72px;
+}
+.sidebar-top {
+  padding: 18px 16px 10px;
+}
+.brand {
+  gap: 12px;
+}
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  color: #fff;
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
+  animation: none;
+}
+.brand-mark svg {
+  width: 19px;
+  height: 19px;
+}
+.brand-letter {
+  display: none;
+}
+.brand-text {
+  font-family: Inter, var(--vm-font-display), var(--vm-font-sans);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #111827;
+}
+.brand-v {
+  color: #2563eb;
+  background: none;
+  -webkit-background-clip: initial;
+  background-clip: initial;
+}
+.ws-switcher-wrap {
+  margin-top: 16px;
+}
+.new-chat {
+  margin: 12px 14px;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 8px;
+  background: #2563eb;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.2);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.new-chat::after {
+  display: none;
+}
+.new-chat:hover {
+  transform: translateY(-1px);
+  background: #1d4ed8;
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.24);
+}
+.new-chat.collapsed {
+  margin: 12px 12px;
+}
+.sidebar-scroll {
+  padding: 6px 12px 14px;
+}
+.nav-group {
+  gap: 4px;
+}
+.sidebar-footer {
+  border-top: 1px solid #e8eef7;
+  padding: 10px 12px 12px;
+  background: #fbfdff;
+}
+.take-tour,
+.collapse-toggle {
+  border-radius: 9px;
+  color: #64748b;
+}
+.take-tour:hover,
+.collapse-toggle:hover {
+  background: #f1f6ff;
+  color: #1d4ed8;
+}
+.user {
+  padding: 8px 6px;
+  border-radius: 10px;
+}
+.avatar {
+  background: #2563eb;
+}
 </style>
+

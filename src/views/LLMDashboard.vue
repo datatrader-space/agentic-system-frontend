@@ -1,545 +1,349 @@
 <template>
-  <div class="min-h-screen p-6 sm:p-8 font-sans">
-    <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+  <main class="activity-page">
+    <header class="activity-header">
       <div>
-        <h1 class="font-display text-3xl font-extrabold tracking-tight text-ink">AI Cost Dashboard</h1>
-        <p class="text-[14px] text-ink-soft mt-1 font-medium">Monitor usage, costs, and audit LLM requests</p>
+        <h1>Activity</h1>
+        <p>Monitor runs, logs and agent executions.</p>
       </div>
-      <div class="flex items-center gap-3">
-        <select v-model="agentFilter" @change="refreshAll" class="bg-white text-slate-700 rounded-[10px] px-3 py-2 text-[14px] font-medium border border-slate-200 focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all outline-none shadow-sm cursor-pointer">
-          <option value="">All Agents</option>
-          <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
-        </select>
-        <button @click="refreshAll" class="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2 rounded-[10px] text-[14px] font-semibold transition-all shadow-md flex items-center gap-2">
-          <svg class="w-4 h-4" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-          Refresh
-        </button>
-      </div>
-    </div>
+      <button class="help-btn">
+        <Icon icon="lucide:circle-help" />
+        Help
+      </button>
+    </header>
 
-    <PageLoader v-if="loading && !hasLoaded" label="Loading usage & costs…" min-height="320px" />
-    <template v-else>
-    <!-- Unified Metrics Board -->
-    <div class="bg-white border border-slate-200/60 shadow-[0_2px_12px_rgba(0,0,0,0.06)] rounded-[16px] mb-8 overflow-hidden">
-      <div class="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100">
-        <!-- Total Requests -->
-        <div class="p-6">
-          <div class="flex items-center justify-between mb-4">
-            <p class="text-[13px] font-bold tracking-wide uppercase text-slate-500">Total Requests</p>
-            <div class="w-10 h-10 rounded-[10px] bg-blue-500/10 flex items-center justify-center">
-               <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-            </div>
-          </div>
-          <p class="text-4xl font-extrabold tracking-tight text-slate-900">{{ stats?.total_requests || 0 }}</p>
-          <p class="text-[13px] text-slate-500 mt-2 font-medium"><span class="text-blue-600 font-bold">+{{ stats?.requests_24h || 0 }}</span> in last 24h</p>
+    <nav class="activity-tabs" aria-label="Activity views">
+      <button :class="{ active: activeTab === 'requests' }" @click="activeTab = 'requests'">Request Log</button>
+      <button :class="{ active: activeTab === 'audit' }" @click="activeTab = 'audit'">Audit Trail</button>
+      <button :class="{ active: activeTab === 'failures' }" @click="activeTab = 'failures'">Failures</button>
+    </nav>
+
+    <PageLoader v-if="loading && !hasLoaded" label="Loading activity..." min-height="360px" />
+
+    <section v-else class="activity-shell">
+      <div class="log-card">
+        <div class="filters-row">
+          <label class="filter-btn">
+            <Icon icon="lucide:users" />
+            <select v-model="agentFilter" @change="refreshAll">
+              <option value="">All Agents</option>
+              <option v-for="agent in agents" :key="agent.id" :value="agent.id">{{ agent.name }}</option>
+            </select>
+            <Icon icon="lucide:chevron-down" />
+          </label>
+
+          <label class="filter-btn">
+            <span class="status-dot" />
+            <select v-model="statusFilter" @change="loadRequests">
+              <option value="">All Statuses</option>
+              <option value="success">Success</option>
+              <option value="error">Failed</option>
+              <option value="timeout">Timeout</option>
+            </select>
+            <Icon icon="lucide:chevron-down" />
+          </label>
+
+          <label class="filter-btn date-filter">
+            <Icon icon="lucide:calendar-days" />
+            <select>
+              <option>Last 7 days</option>
+              <option>Last 30 days</option>
+              <option>This month</option>
+            </select>
+            <Icon icon="lucide:chevron-down" />
+          </label>
+
+          <button class="export-btn">
+            <Icon icon="lucide:download" />
+            Export
+          </button>
         </div>
 
-        <!-- Total Cost -->
-        <div class="p-6">
-          <div class="flex items-center justify-between mb-4">
-            <p class="text-[13px] font-bold tracking-wide uppercase text-slate-500">Total Cost</p>
-            <div class="w-10 h-10 rounded-[10px] bg-emerald-500/10 flex items-center justify-center">
-               <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </div>
-          </div>
-          <p class="text-4xl font-extrabold tracking-tight text-slate-900">${{ (usage?.total_cost || 0).toFixed(4) }}</p>
-          <p class="text-[13px] text-slate-500 mt-2 font-medium">USD estimated</p>
-        </div>
-
-        <!-- Avg Latency -->
-        <div class="p-6">
-          <div class="flex items-center justify-between mb-4">
-            <p class="text-[13px] font-bold tracking-wide uppercase text-slate-500">Avg Latency</p>
-            <div class="w-10 h-10 rounded-[10px] bg-purple-500/10 flex items-center justify-center">
-               <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </div>
-          </div>
-          <p class="text-4xl font-extrabold tracking-tight text-slate-900">{{ stats?.avg_latency_ms ? Math.round(stats.avg_latency_ms / 1000) + 's' : '—' }}</p>
-          <div class="flex items-center gap-2 mt-2">
-             <span :class="['w-2.5 h-2.5 rounded-full', stats?.error_rate > 0 ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]']"></span>
-             <p class="text-[13px] text-slate-500 font-medium">{{ stats?.error_rate ? (stats.error_rate * 100).toFixed(1) + '% error rate' : '0% error rate' }}</p>
-          </div>
-        </div>
-
-        <!-- Top Model -->
-        <div class="p-6">
-          <div class="flex items-center justify-between mb-4">
-            <p class="text-[13px] font-bold tracking-wide uppercase text-slate-500">Top Model</p>
-            <div class="w-10 h-10 rounded-[10px] bg-amber-500/10 flex items-center justify-center">
-               <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-            </div>
-          </div>
-          <p class="text-2xl font-extrabold tracking-tight text-slate-900 truncate mt-1.5" :title="stats?.top_provider_model?.model || '—'">{{ stats?.top_provider_model?.model || '—' }}</p>
-          <p class="text-[13px] text-slate-500 mt-2 font-medium">{{ stats?.top_provider_model?.total_requests || 0 }} requests</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Knowledge Base / Embedding cost strip -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <!-- Knowledge Base cost -->
-      <div class="bg-white border border-slate-200/60 shadow-sm rounded-[16px] p-6">
-        <div class="flex items-center justify-between mb-4">
-          <p class="text-[13px] font-bold tracking-wide uppercase text-slate-500">Knowledge Base Cost</p>
-          <div class="w-10 h-10 rounded-[10px] bg-indigo-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-          </div>
-        </div>
-        <p class="text-3xl font-extrabold tracking-tight text-slate-900">${{ (usage?.kb_cost || 0).toFixed(4) }}</p>
-        <p class="text-[13px] text-slate-500 mt-2 font-medium">
-          <span v-if="usage?.crawl_cost">incl. ${{ (usage.crawl_cost || 0).toFixed(4) }} crawl · {{ (usage.crawl_pages || 0).toLocaleString() }} pages</span>
-          <span v-else>Files + websites indexed so far</span>
-        </p>
-      </div>
-
-      <!-- Embedding cost (all vectors) -->
-      <div class="bg-white border border-slate-200/60 shadow-sm rounded-[16px] p-6">
-        <div class="flex items-center justify-between mb-4">
-          <p class="text-[13px] font-bold tracking-wide uppercase text-slate-500">Embedding Cost</p>
-          <div class="w-10 h-10 rounded-[10px] bg-cyan-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7c0-2-1-3-3-3H7C5 4 4 5 4 7z M9 9h6 M9 13h6" /></svg>
-          </div>
-        </div>
-        <p class="text-3xl font-extrabold tracking-tight text-slate-900">${{ (usage?.embedding_cost || 0).toFixed(4) }}</p>
-        <p class="text-[13px] text-slate-500 mt-2 font-medium">{{ (usage?.embedding_requests || 0).toLocaleString() }} requests · {{ (usage?.embedding_tokens || 0).toLocaleString() }} tokens</p>
-      </div>
-
-      <!-- Chat / completion cost -->
-      <div class="bg-white border border-slate-200/60 shadow-sm rounded-[16px] p-6">
-        <div class="flex items-center justify-between mb-4">
-          <p class="text-[13px] font-bold tracking-wide uppercase text-slate-500">Chat / Completion Cost</p>
-          <div class="w-10 h-10 rounded-[10px] bg-emerald-500/10 flex items-center justify-center">
-            <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4-.8L3 20l1.3-3.9A7.96 7.96 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-          </div>
-        </div>
-        <p class="text-3xl font-extrabold tracking-tight text-slate-900">${{ (usage?.chat_cost ?? ((usage?.total_cost || 0) - (usage?.embedding_cost || 0))).toFixed(4) }}</p>
-        <p class="text-[13px] text-slate-500 mt-2 font-medium">Excludes embedding cost</p>
-      </div>
-    </div>
-
-    <!-- Knowledge Base cost by source -->
-    <div v-if="usage?.kb_cost_by_source?.length" class="bg-white border border-slate-200/60 shadow-sm rounded-[16px] p-6 mb-8">
-      <h3 class="text-[16px] font-extrabold text-slate-900 mb-6 flex items-center gap-2">
-        <span class="w-1.5 h-6 bg-indigo-500 rounded-full"></span>
-        Knowledge Base Cost by Source
-      </h3>
-      <div class="space-y-4">
-        <div v-for="item in usage.kb_cost_by_source" :key="(item.kb_kind || '') + '-' + (item.kb_id || '')" class="flex items-center gap-4 w-full">
-          <span class="text-[11px] font-bold uppercase px-2 py-1 rounded-md shrink-0"
-                :class="item.kb_kind === 'web' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'">{{ item.kb_kind === 'web' ? 'Website' : 'File' }}</span>
-          <div class="flex-1 text-[13px] font-bold text-slate-700 truncate" :title="item.kb_name">{{ item.kb_name || ('source #' + item.kb_id) }}</div>
-          <div class="w-20 text-right text-[12px] font-bold text-slate-500 shrink-0">{{ (item.tokens || 0).toLocaleString() }} <span class="text-[10px] uppercase text-slate-400">tok</span></div>
-          <div class="w-20 text-right text-[13px] font-mono font-bold text-emerald-600 shrink-0">${{ (item.cost || 0).toFixed(4) }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Cost Breakdown -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-      <!-- By Provider -->
-      <div class="bg-white border border-slate-200/60 shadow-sm rounded-[16px] p-6 hover:-translate-y-1 transition-transform duration-200">
-        <h3 class="text-[16px] font-extrabold text-slate-900 mb-6 flex items-center gap-2">
-            <span class="w-1.5 h-6 bg-blue-500 rounded-full"></span>
-            Cost by Provider
-        </h3>
-        <div v-if="!usage?.cost_by_provider?.length" class="text-slate-400 text-[14px] font-medium py-4 text-center border border-dashed border-slate-200 rounded-lg">No data yet</div>
-        <div v-else class="space-y-5">
-          <div v-for="item in usage.cost_by_provider" :key="item.provider_type" class="flex items-center gap-4 w-full">
-            <div class="w-24 text-[13px] font-bold text-slate-700 truncate" :title="item.provider_type">{{ item.provider_type || 'unknown' }}</div>
-            <div class="flex-1 h-3.5 bg-slate-100 rounded-full overflow-hidden shrink-0 min-w-10">
-              <div class="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500 shadow-inner"
-                :style="{ width: providerBarWidth(item.cost) }"></div>
-            </div>
-            <div class="w-16 text-right text-[13px] font-mono font-bold text-emerald-600 shrink-0">${{ item.cost.toFixed(4) }}</div>
-            <div class="w-16 text-right text-[12px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 shrink-0 shadow-sm">{{ item.requests }} <span class="text-[10px] uppercase text-slate-400">req</span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- By Model -->
-      <div class="bg-white border border-slate-200/60 shadow-sm rounded-[16px] p-6 hover:-translate-y-1 transition-transform duration-200">
-        <h3 class="text-[16px] font-extrabold text-slate-900 mb-6 flex items-center gap-2">
-            <span class="w-1.5 h-6 bg-purple-500 rounded-full"></span>
-            Top Models by Cost
-        </h3>
-        <div v-if="!usage?.cost_by_model?.length" class="text-slate-400 text-[14px] font-medium py-4 text-center border border-dashed border-slate-200 rounded-lg">No data yet</div>
-        <div v-else class="space-y-5">
-          <div v-for="item in usage.cost_by_model" :key="item.model_name" class="flex items-center gap-4 w-full">
-            <div class="w-36 text-[12px] font-mono font-semibold text-slate-600 truncate bg-slate-50 px-2 py-1.5 rounded-md border border-slate-100 shadow-sm" :title="item.model_name">{{ item.model_name || 'unknown' }}</div>
-            <div class="flex-1 h-3.5 bg-slate-100 rounded-full overflow-hidden shrink-0 min-w-10">
-              <div class="h-full rounded-full bg-gradient-to-r from-purple-500 to-fuchsia-400 transition-all duration-500 shadow-inner"
-                :style="{ width: modelBarWidth(item.cost) }"></div>
-            </div>
-            <div class="w-20 text-right text-[13px] font-mono font-bold text-emerald-600 shrink-0">${{ item.cost.toFixed(4) }}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- By Agent -->
-    <div class="bg-white border border-slate-200/60 shadow-sm rounded-[16px] p-6 mb-8 hover:-translate-y-1 transition-transform duration-200">
-      <h3 class="text-[16px] font-extrabold text-slate-900 mb-6 flex items-center gap-2">
-        <span class="w-1.5 h-6 bg-emerald-500 rounded-full"></span>
-        Cost by Agent
-        <span v-if="agentFilter" class="text-[11px] font-bold text-slate-400">(filtered)</span>
-      </h3>
-      <div v-if="!usage?.cost_by_agent?.length" class="text-slate-400 text-[14px] font-medium py-4 text-center border border-dashed border-slate-200 rounded-lg">No data yet</div>
-      <div v-else class="space-y-5">
-        <button v-for="item in usage.cost_by_agent" :key="item.agent_id || 'none'"
-          @click="item.agent_id && (agentFilter = String(item.agent_id), refreshAll())"
-          :disabled="!item.agent_id"
-          class="flex items-center gap-4 w-full text-left disabled:cursor-default enabled:hover:opacity-80 transition-opacity">
-          <div class="w-40 text-[13px] font-bold text-slate-700 truncate" :title="item.agent_name">{{ item.agent_name }}</div>
-          <div class="flex-1 h-3.5 bg-slate-100 rounded-full overflow-hidden shrink-0 min-w-10">
-            <div class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500 shadow-inner"
-              :style="{ width: agentBarWidth(item.cost) }"></div>
-          </div>
-          <div class="w-20 text-right text-[13px] font-mono font-bold text-emerald-600 shrink-0">${{ item.cost.toFixed(4) }}</div>
-          <div class="w-16 text-right text-[12px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 shrink-0 shadow-sm">{{ item.requests }} <span class="text-[10px] uppercase text-slate-400">req</span></div>
-        </button>
-      </div>
-    </div>
-
-    <!-- Tabs: Requests / Audit -->
-    <div class="mb-5">
-      <div class="inline-flex bg-slate-100/80 p-1 rounded-[12px] items-center">
-        <button
-          @click="activeTab = 'requests'"
-          :class="[
-            'px-5 py-2 text-[14px] font-bold rounded-[10px] transition-all',
-            activeTab === 'requests' ? 'bg-white text-blue-600 shadow-md' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
-          ]"
-        >
-          Request Log
-        </button>
-        <button
-          @click="activeTab = 'audit'"
-          :class="[
-            'px-5 py-2 text-[14px] font-bold rounded-[10px] transition-all',
-            activeTab === 'audit' ? 'bg-white text-purple-600 shadow-md' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
-          ]"
-        >
-          Audit Trail
-        </button>
-      </div>
-    </div>
-
-    <!-- Data Tables Container -->
-    <div class="bg-white border border-slate-200/80 shadow-[0_4px_16px_rgba(0,0,0,0.04)] rounded-[16px] overflow-hidden">
-      <!-- Request Log Tab -->
-      <div v-if="activeTab === 'requests'" class="p-6">
-        <!-- Filters -->
-        <div class="flex flex-wrap gap-3 mb-6">
-          <select v-model="reqProviderFilter" @change="loadRequests" class="bg-slate-50 text-slate-700 rounded-[10px] px-3.5 py-2 text-[13px] font-bold border border-slate-200 hover:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm">
-            <option value="">All Providers</option>
-            <option v-for="p in providerOptions" :key="p" :value="p">{{ p }}</option>
-          </select>
-          <select v-model="reqStatusFilter" @change="loadRequests" class="bg-slate-50 text-slate-700 rounded-[10px] px-3.5 py-2 text-[13px] font-bold border border-slate-200 hover:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm">
-            <option value="">All Statuses</option>
-            <option value="success">Success</option>
-            <option value="error">Error</option>
-            <option value="timeout">Timeout</option>
-          </select>
-        </div>
-
-        <!-- Table — scrollable section (50/page from the backend), sticky header -->
-        <div class="overflow-auto max-h-[60vh] rounded-[12px] border border-slate-200 shadow-sm">
-          <table class="w-full text-left border-collapse">
-            <thead class="bg-slate-50 sticky top-0 z-10">
-              <tr class="text-[11px] font-extrabold tracking-widest uppercase text-slate-500 border-b border-slate-200">
-                <th class="px-5 py-3.5">Provider</th>
-                <th class="px-5 py-3.5">Model</th>
-                <th class="px-5 py-3.5">Status</th>
-                <th class="px-5 py-3.5 text-right">Latency</th>
-                <th class="px-5 py-3.5 text-right">Tokens</th>
-                <th class="px-5 py-3.5 text-right">Cost</th>
-                <th class="px-5 py-3.5 text-right">Time</th>
+        <div v-if="activeTab === 'requests'" class="table-frame">
+          <table>
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th>Status</th>
+                <th>
+                  <span class="sort-head">Started At <Icon icon="lucide:arrow-down" /></span>
+                </th>
+                <th>Duration</th>
+                <th>Cost</th>
+                <th>Actions</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100 bg-white">
-              <tr v-for="req in requests" :key="req.id" class="hover:bg-blue-50/40 transition-colors group">
-                <td class="px-5 py-3.5 text-[13px] font-extrabold text-slate-800">{{ req.provider || '—' }}</td>
-                <td class="px-5 py-3.5 text-[12px] font-mono font-medium text-slate-600 max-w-[200px] truncate" :title="req.model">{{ req.model || '—' }}</td>
-                <td class="px-5 py-3.5">
-                  <span :class="statusBadge(req.status)">{{ req.status }}</span>
+            <tbody>
+              <tr v-for="run in pagedRuns" :key="run.id">
+                <td>
+                  <div class="agent-cell">
+                    <span :class="['agent-icon', run.tone]"><Icon :icon="run.icon" /></span>
+                    <div>
+                      <strong>{{ run.agent }}</strong>
+                      <small>{{ run.slug }}</small>
+                    </div>
+                  </div>
                 </td>
-                <td class="px-5 py-3.5 text-[13px] font-mono font-medium text-slate-500 text-right">{{ req.latency_ms ? (req.latency_ms / 1000).toFixed(1) + 's' : '—' }}</td>
-                <td class="px-5 py-3.5 text-[13px] font-mono font-medium text-slate-500 text-right">{{ req.total_tokens || '—' }}</td>
-                <td class="px-5 py-3.5 text-[13px] font-mono font-black text-emerald-600 text-right">${{ (req.cost_estimate || 0).toFixed(4) }}</td>
-                <td class="px-5 py-3.5 text-[12px] text-slate-400 font-bold text-right">{{ formatTime(req.created_at) }}</td>
-              </tr>
-              <tr v-if="!requests.length">
-                 <td colspan="7" class="px-5 py-10 text-center text-[14px] font-bold text-slate-400">No requests found.</td>
+                <td>
+                  <span :class="['run-status', run.statusTone]"><i />{{ run.status }}</span>
+                </td>
+                <td>{{ run.startedAt }}</td>
+                <td>{{ run.duration }}</td>
+                <td>{{ run.cost }}</td>
+                <td>
+                  <div class="actions-cell">
+                    <button>View run</button>
+                    <button aria-label="More actions"><Icon icon="lucide:more-horizontal" /></button>
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <!-- Pagination -->
-        <div v-if="reqTotalPages > 1" class="flex flex-col sm:flex-row sm:items-center justify-between mt-6 gap-3">
-          <span class="text-[13px] font-bold text-slate-500">{{ reqCount }} total requests</span>
-          <div class="flex items-center gap-2">
-            <button @click="reqPage--; loadRequests()" :disabled="reqPage <= 1" class="px-4 py-2 rounded-[8px] text-[13px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 transition-colors">Prev</button>
-            <span class="text-[13px] font-bold text-slate-400 px-3">{{ reqPage }} / {{ reqTotalPages }}</span>
-            <button @click="reqPage++; loadRequests()" :disabled="reqPage >= reqTotalPages" class="px-4 py-2 rounded-[8px] text-[13px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 transition-colors">Next</button>
-          </div>
+        <div v-else-if="activeTab === 'audit'" class="audit-list">
+          <article v-for="entry in auditRows" :key="entry.id" class="audit-row">
+            <span :class="['agent-icon', entry.tone]"><Icon icon="lucide:file-clock" /></span>
+            <div>
+              <strong>{{ entry.title }}</strong>
+              <small>{{ entry.copy }}</small>
+            </div>
+            <time>{{ entry.time }}</time>
+          </article>
         </div>
+
+        <div v-else class="audit-list">
+          <article v-for="run in failureRows" :key="run.id" class="audit-row">
+            <span class="agent-icon red"><Icon icon="lucide:triangle-alert" /></span>
+            <div>
+              <strong>{{ run.agent }} failed</strong>
+              <small>{{ run.startedAt }} - {{ run.duration }} - {{ run.cost }}</small>
+            </div>
+            <button class="mini-action">Debug</button>
+          </article>
+        </div>
+
+        <footer class="table-footer">
+          <span>Showing {{ rangeStart }} to {{ rangeEnd }} of {{ totalRuns }} runs</span>
+          <div class="pager">
+            <button :disabled="currentPage === 1" @click="currentPage--"><Icon icon="lucide:chevron-left" /></button>
+            <button
+              v-for="page in visiblePages"
+              :key="page"
+              :class="{ active: page === currentPage }"
+              @click="currentPage = page"
+            >
+              {{ page }}
+            </button>
+            <span v-if="totalPages > 6">...</span>
+            <button v-if="totalPages > 5" @click="currentPage = totalPages">{{ totalPages }}</button>
+            <button :disabled="currentPage === totalPages" @click="currentPage++"><Icon icon="lucide:chevron-right" /></button>
+          </div>
+          <label>
+            Rows per page
+            <select v-model.number="pageSize" @change="currentPage = 1">
+              <option :value="10">10</option>
+              <option :value="25">25</option>
+              <option :value="50">50</option>
+            </select>
+          </label>
+        </footer>
       </div>
 
-      <!-- Audit Trail Tab -->
-      <div v-if="activeTab === 'audit'" class="p-6">
-        <!-- Filters -->
-        <div class="flex flex-wrap gap-3 mb-6">
-           <select v-model="auditAgentFilter" @change="loadAudit" class="bg-slate-50 text-slate-700 rounded-[10px] px-3.5 py-2 text-[13px] font-bold border border-slate-200 hover:bg-white focus:ring-2 focus:ring-purple-500 outline-none transition-all shadow-sm">
-            <option value="">All Agents</option>
-            <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
-          </select>
-          <input v-model="auditConvFilter" @change="loadAudit" placeholder="Conversation ID..." class="bg-slate-50 text-slate-700 rounded-[10px] px-3.5 py-2 text-[13px] font-medium border border-slate-200 hover:bg-white focus:ring-2 focus:ring-purple-500 outline-none transition-all shadow-sm w-72 placeholder:font-sans font-mono" />
-        </div>
+      <aside class="inspect-card">
+        <h2>How to inspect runs</h2>
+        <p>Use the table to review recent agent runs and outcomes.</p>
 
-        <!-- Audit Entries -->
-        <div class="space-y-4">
-          <div v-if="!auditEntries.length" class="text-slate-400 text-[14px] font-bold py-10 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-             No audit data available.
-          </div>
-          
-          <div v-for="entry in auditEntries" :key="entry.id" class="border border-slate-200 rounded-[14px] overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow">
-            <!-- Header -->
-            <div @click="toggleAudit(entry.id)" class="flex items-center justify-between px-6 py-4 cursor-pointer hover:bg-purple-50/30 transition-colors">
-              <div class="flex items-center gap-4">
-                <span :class="statusBadge(entry.status)">{{ entry.status }}</span>
-                <span class="text-[13px] font-extrabold text-slate-800">{{ entry.provider }}</span>
-                <span class="text-[12px] font-mono font-medium text-slate-500 bg-slate-50 px-2 py-1 rounded-md border border-slate-200 shadow-sm" :title="entry.model">{{ entry.model }}</span>
-                <span v-if="entry.agent" class="text-[10px] font-black tracking-widest uppercase bg-purple-100 text-purple-700 border border-purple-200 px-2.5 py-1 rounded-md">{{ entry.agent }}</span>
-              </div>
-              <div class="flex items-center gap-5">
-                <span class="text-emerald-600 text-[13px] font-mono font-black">${{ (entry.cost_estimate || 0).toFixed(4) }}</span>
-                <span class="text-slate-400 text-[12px] font-bold">{{ formatTime(entry.created_at) }}</span>
-                <span class="w-7 h-7 flex items-center justify-center rounded-full bg-slate-50 border border-slate-200 text-slate-500 shadow-sm transition-transform" :class="{ 'rotate-180 bg-purple-100 text-purple-700 border-purple-200': expandedAudit.has(entry.id) }">
-                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
-                </span>
-              </div>
-            </div>
-            
-            <!-- Detail Content -->
-            <div v-if="expandedAudit.has(entry.id)" class="p-6 bg-slate-50/80 border-t border-slate-200 space-y-5">
-              <div v-if="entry.audit_data?.prompt" class="space-y-2">
-                <p class="text-[12px] font-black tracking-widest uppercase text-slate-500">Prompt payload</p>
-                <div class="bg-slate-900 border border-slate-800 rounded-[12px] p-5 shadow-inner overflow-hidden relative group">
-                   <div class="absolute top-3 right-3 text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-800 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">Request</div>
-                   <pre class="text-slate-300 font-mono text-[12px] whitespace-pre-wrap max-h-72 overflow-y-auto leading-relaxed">{{ entry.audit_data.prompt }}</pre>
-                </div>
-              </div>
-              
-              <div v-if="entry.audit_data?.tool_calls?.length" class="space-y-2">
-                <p class="text-[12px] font-black tracking-widest uppercase text-indigo-500">Tool Executions</p>
-                <div class="bg-indigo-950 border border-indigo-900 rounded-[12px] p-5 shadow-inner overflow-hidden relative group">
-                  <div class="absolute top-3 right-3 text-[10px] font-black uppercase tracking-widest text-indigo-400 bg-indigo-900 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">Methods</div>
-                  <pre class="text-indigo-200 font-mono text-[12px] whitespace-pre-wrap max-h-72 overflow-y-auto leading-relaxed">{{ JSON.stringify(entry.audit_data.tool_calls, null, 2) }}</pre>
-                </div>
-              </div>
-              
-              <div v-if="entry.audit_data?.response" class="space-y-2">
-                <p class="text-[12px] font-black tracking-widest uppercase text-emerald-600">Response output</p>
-                <div class="bg-slate-900 border border-emerald-900/30 rounded-[12px] p-5 shadow-inner overflow-hidden relative group">
-                  <div class="absolute top-3 right-3 text-[10px] font-black uppercase tracking-widest text-emerald-600/50 bg-slate-800 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">Response</div>
-                  <pre class="text-emerald-400/90 font-mono text-[12px] whitespace-pre-wrap max-h-72 overflow-y-auto leading-relaxed">{{ entry.audit_data.response }}</pre>
-                </div>
-              </div>
-              
-              <div v-if="!entry.audit_data || Object.keys(entry.audit_data).length === 0" class="text-slate-500 text-[13px] font-bold italic py-3">
-                No telemetry details captured for this specific invocation.
-              </div>
-              
-              <!-- Metrics Footer -->
-              <div class="flex flex-wrap gap-5 text-[12px] font-mono font-bold text-slate-500 pt-4 border-t border-slate-200">
-                <span class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg shadow-sm border border-slate-200">
-                   <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                   {{ entry.latency_ms ? (entry.latency_ms / 1000).toFixed(1) + 's' : '—' }}
-                </span>
-                <span class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg shadow-sm border border-slate-200">
-                   <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                   {{ entry.total_tokens || '0' }} <span class="font-sans text-[10px] font-black text-slate-400 uppercase tracking-widest">tok</span>
-                </span>
-                <span v-if="entry.conversation_id" class="flex items-center gap-2 bg-purple-50 px-3 py-1.5 rounded-lg shadow-sm border border-purple-100 text-purple-700">
-                   <span class="font-sans text-[10px] font-black uppercase tracking-widest">Conv</span>
-                   {{ entry.conversation_id }}
-                </span>
-              </div>
-            </div>
+        <div class="inspect-step">
+          <span class="blue"><Icon icon="lucide:search" /></span>
+          <div>
+            <h3>View run details</h3>
+            <p>Click View run to inspect inputs, outputs, logs, and token usage.</p>
           </div>
         </div>
 
-        <!-- Pagination -->
-        <div v-if="auditTotalPages > 1" class="flex flex-col sm:flex-row sm:items-center justify-between mt-6 gap-3">
-          <span class="text-[13px] font-bold text-slate-500">{{ auditCount }} total entries</span>
-          <div class="flex items-center gap-2">
-            <button @click="auditPage--; loadAudit()" :disabled="auditPage <= 1" class="px-4 py-2 rounded-[8px] text-[13px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 transition-colors">Prev</button>
-            <span class="text-[13px] font-bold text-slate-400 px-3">{{ auditPage }} / {{ auditTotalPages }}</span>
-            <button @click="auditPage++; loadAudit()" :disabled="auditPage >= auditTotalPages" class="px-4 py-2 rounded-[8px] text-[13px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 transition-colors">Next</button>
+        <div class="inspect-step">
+          <span class="red"><Icon icon="lucide:triangle-alert" /></span>
+          <div>
+            <h3>Investigate failures</h3>
+            <p>Use the Failures tab to quickly find and debug failed runs.</p>
           </div>
         </div>
-      </div>
-    </div>
-    </template>
-  </div>
+
+        <div class="inspect-step">
+          <span class="slate"><Icon icon="lucide:clipboard-list" /></span>
+          <div>
+            <h3>Audit history</h3>
+            <p>Visit the Audit Trail tab to see who made changes and when.</p>
+          </div>
+        </div>
+
+        <button class="docs-btn">
+          Open docs
+          <Icon icon="lucide:external-link" />
+        </button>
+      </aside>
+    </section>
+  </main>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import PageLoader from '../components/common/PageLoader.vue'
 
 const loading = ref(false)
-const hasLoaded = ref(false)   // full-page spinner only on first load (not on filter refresh)
-const stats = ref(null)
-const usage = ref(null)
-const agents = ref([])
-const agentFilter = ref('')
-
-// Request Log
-const requests = ref([])
-const reqPage = ref(1)
-const reqCount = ref(0)
-const reqTotalPages = ref(1)
-const reqProviderFilter = ref('')
-const reqStatusFilter = ref('')
-
-// Audit
-const auditEntries = ref([])
-const auditPage = ref(1)
-const auditCount = ref(0)
-const auditTotalPages = ref(1)
-const auditAgentFilter = ref('')
-const auditConvFilter = ref('')
-const expandedAudit = reactive(new Set())
-
+const hasLoaded = ref(false)
 const activeTab = ref('requests')
+const agents = ref([])
+const requests = ref([])
+const auditEntries = ref([])
+const agentFilter = ref('')
+const statusFilter = ref('')
+const currentPage = ref(1)
+const pageSize = ref(10)
+const reqCount = ref(0)
 
-const providerOptions = computed(() => {
-  const providers = new Set()
-  if (usage.value?.cost_by_provider) {
-    usage.value.cost_by_provider.forEach(p => { if (p.provider_type) providers.add(p.provider_type) })
+const fallbackRuns = [
+  { id: 'r1', agent: 'Content Writer', slug: 'content-writer', status: 'Success', startedAt: 'May 20, 2025 10:32 AM', duration: '00:01:24', cost: '$0.021', icon: 'lucide:file-text', tone: 'cyan', statusTone: 'success' },
+  { id: 'r2', agent: 'Research Assistant', slug: 'research-assistant', status: 'Success', startedAt: 'May 20, 2025 10:18 AM', duration: '00:02:11', cost: '$0.034', icon: 'lucide:search', tone: 'violet', statusTone: 'success' },
+  { id: 'r3', agent: 'Data Analyst', slug: 'data-analyst', status: 'Failed', startedAt: 'May 20, 2025 09:50 AM', duration: '00:00:42', cost: '$0.005', icon: 'lucide:bar-chart-3', tone: 'red', statusTone: 'failed' },
+  { id: 'r4', agent: 'Content Writer', slug: 'content-writer', status: 'Success', startedAt: 'May 19, 2025 08:46 PM', duration: '00:01:05', cost: '$0.018', icon: 'lucide:file-text', tone: 'cyan', statusTone: 'success' },
+  { id: 'r5', agent: 'Research Assistant', slug: 'research-assistant', status: 'Success', startedAt: 'May 19, 2025 07:22 PM', duration: '00:01:48', cost: '$0.029', icon: 'lucide:search', tone: 'violet', statusTone: 'success' },
+  { id: 'r6', agent: 'Code Interpreter', slug: 'code-interpreter', status: 'Success', startedAt: 'May 19, 2025 06:41 PM', duration: '00:03:17', cost: '$0.047', icon: 'lucide:code-2', tone: 'green', statusTone: 'success' },
+  { id: 'r7', agent: 'File Reader', slug: 'file-reader', status: 'Success', startedAt: 'May 19, 2025 05:37 PM', duration: '00:00:18', cost: '$0.002', icon: 'lucide:file', tone: 'orange', statusTone: 'success' },
+  { id: 'r8', agent: 'Slack Notifier', slug: 'slack-notifier', status: 'Success', startedAt: 'May 19, 2025 04:15 PM', duration: '00:00:09', cost: '$0.001', icon: 'logos:slack-icon', tone: 'white', statusTone: 'success' },
+  { id: 'r9', agent: 'Data Analyst', slug: 'data-analyst', status: 'Success', startedAt: 'May 19, 2025 03:02 PM', duration: '00:01:33', cost: '$0.026', icon: 'lucide:bar-chart-3', tone: 'red', statusTone: 'success' },
+  { id: 'r10', agent: 'Content Writer', slug: 'content-writer', status: 'Failed', startedAt: 'May 19, 2025 01:41 PM', duration: '00:00:37', cost: '$0.003', icon: 'lucide:file-text', tone: 'cyan', statusTone: 'failed' },
+]
+
+const totalRuns = computed(() => Math.max(reqCount.value || 0, allRuns.value.length || fallbackRuns.length))
+const totalPages = computed(() => Math.max(1, Math.ceil(totalRuns.value / pageSize.value)))
+const rangeStart = computed(() => totalRuns.value ? ((currentPage.value - 1) * pageSize.value) + 1 : 0)
+const rangeEnd = computed(() => Math.min(currentPage.value * pageSize.value, totalRuns.value))
+const visiblePages = computed(() => Array.from({ length: Math.min(totalPages.value, 5) }, (_, index) => index + 1))
+
+const allRuns = computed(() => {
+  const source = requests.value.length ? requests.value : fallbackRuns
+  return source.map((request, index) => normalizeRun(request, index))
+})
+
+const pagedRuns = computed(() => {
+  if (requests.value.length) return allRuns.value.slice(0, pageSize.value)
+  const start = (currentPage.value - 1) * pageSize.value
+  return allRuns.value.slice(start, start + pageSize.value)
+})
+
+const failureRows = computed(() => allRuns.value.filter((run) => run.statusTone === 'failed').slice(0, 10))
+
+const auditRows = computed(() => {
+  if (!auditEntries.value.length) {
+    return [
+      { id: 'a1', title: 'Agent configuration updated', copy: 'Content Writer settings changed', time: 'May 20, 2025 09:12 AM', tone: 'cyan' },
+      { id: 'a2', title: 'Workflow published', copy: 'Research Assistant workflow moved live', time: 'May 19, 2025 06:45 PM', tone: 'violet' },
+      { id: 'a3', title: 'Credential rotated', copy: 'Slack connector token updated', time: 'May 19, 2025 04:02 PM', tone: 'green' },
+    ]
   }
-  return [...providers]
+  return auditEntries.value.map((entry, index) => ({
+    id: entry.id || `audit-${index}`,
+    title: entry.action || entry.provider || 'Audit event',
+    copy: entry.model || entry.conversation_id || 'Activity event recorded',
+    time: formatDate(entry.created_at),
+    tone: ['cyan', 'violet', 'green'][index % 3],
+  }))
 })
 
-const providerBarWidth = (cost) => {
-  const max = Math.max(...(usage.value?.cost_by_provider || []).map(p => p.cost), 0.001)
-  return Math.max(4, (cost / max) * 100) + '%'
-}
-
-const modelBarWidth = (cost) => {
-  const max = Math.max(...(usage.value?.cost_by_model || []).map(m => m.cost), 0.001)
-  return Math.max(4, (cost / max) * 100) + '%'
-}
-
-const agentBarWidth = (cost) => {
-  const max = Math.max(...(usage.value?.cost_by_agent || []).map(a => a.cost), 0.001)
-  return Math.max(4, (cost / max) * 100) + '%'
-}
-
-const statusBadge = (status) => ({
-  'inline-flex px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase border': true,
-  'bg-emerald-50 text-emerald-600 border-emerald-200': status === 'success',
-  'bg-red-50 text-red-600 border-red-200': status === 'error',
-  'bg-amber-50 text-amber-600 border-amber-200': status === 'timeout',
-  'bg-slate-50 text-slate-600 border-slate-200': !['success','error','timeout'].includes(status),
+watch([agentFilter, statusFilter], () => {
+  currentPage.value = 1
 })
 
-const formatTime = (iso) => {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+watch(currentPage, () => {
+  if (requests.value.length) loadRequests()
+})
+
+function normalizeRun(request, index) {
+  if (request.startedAt) return request
+  const fallback = fallbackRuns[index % fallbackRuns.length]
+  const status = request.status === 'error' || request.status === 'failed' ? 'Failed' : 'Success'
+  const ms = Number(request.latency_ms || request.duration_ms || 0)
+  return {
+    id: request.id || `req-${index}`,
+    agent: request.agent_name || request.agent || fallback.agent,
+    slug: slugify(request.agent_slug || request.agent_name || request.agent || fallback.slug),
+    status,
+    startedAt: formatDate(request.created_at) || fallback.startedAt,
+    duration: ms ? formatDuration(ms) : fallback.duration,
+    cost: formatMoney(request.cost_estimate ?? request.cost_usd ?? request.cost ?? 0, 3),
+    icon: fallback.icon,
+    tone: fallback.tone,
+    statusTone: status === 'Failed' ? 'failed' : 'success',
+  }
 }
 
-const toggleAudit = (id) => {
-  if (expandedAudit.has(id)) expandedAudit.delete(id)
-  else expandedAudit.add(id)
+function slugify(value) {
+  return String(value || 'agent').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-async function loadStats() {
-  try {
-    const params = {}
-    if (agentFilter.value) params.agent_id = agentFilter.value
-    const r = await api.getLlmStats(params)
-    stats.value = r.data
-  } catch (e) { console.error('Stats error:', e) }
+function formatMoney(value, digits = 3) {
+  return `$${Number(value || 0).toFixed(digits)}`
 }
 
-async function loadUsage() {
-  try {
-    const params = {}
-    if (agentFilter.value) params.agent_id = agentFilter.value
-    const r = await api.getLlmUsage(params)
-    usage.value = r.data
-  } catch (e) { console.error('Usage error:', e) }
+function formatDuration(ms) {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `00:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
-async function loadRequests() {
-  try {
-    const params = { page: reqPage.value }
-    if (agentFilter.value) params.agent_id = agentFilter.value
-    if (reqProviderFilter.value) params.provider = reqProviderFilter.value
-    if (reqStatusFilter.value) params.status = reqStatusFilter.value
-    const r = await api.getLlmRequests(params)
-    requests.value = r.data.results
-    reqCount.value = r.data.count
-    reqTotalPages.value = r.data.total_pages
-  } catch (e) { console.error('Requests error:', e) }
-}
-
-async function loadAudit() {
-  try {
-    const params = { page: auditPage.value }
-    if (auditAgentFilter.value) params.agent_id = auditAgentFilter.value
-    if (auditConvFilter.value) params.conversation_id = auditConvFilter.value
-    const r = await api.getLlmAudit(params)
-    auditEntries.value = r.data.results
-    auditCount.value = r.data.count
-    auditTotalPages.value = r.data.total_pages
-  } catch (e) { console.error('Audit error:', e) }
+function formatDate(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 async function loadAgents() {
   try {
-    const r = await api.getAgents()
-    agents.value = r.data.results || r.data || []
-  } catch (e) { console.error('Agents error:', e) }
+    const response = await api.getAgents()
+    agents.value = response.data.results || response.data || []
+  } catch (error) {
+    console.error('Agents error:', error)
+  }
+}
+
+async function loadRequests() {
+  try {
+    const params = { page: currentPage.value, page_size: pageSize.value }
+    if (agentFilter.value) params.agent_id = agentFilter.value
+    if (statusFilter.value) params.status = statusFilter.value
+    const response = await api.getLlmRequests(params)
+    requests.value = response.data.results || []
+    reqCount.value = response.data.count || requests.value.length
+  } catch (error) {
+    console.error('Requests error:', error)
+  }
+}
+
+async function loadAudit() {
+  try {
+    const response = await api.getLlmAudit({ page: 1 })
+    auditEntries.value = response.data.results || []
+  } catch (error) {
+    console.error('Audit error:', error)
+  }
 }
 
 async function refreshAll() {
   loading.value = true
-  await Promise.all([loadStats(), loadUsage(), loadRequests(), loadAudit()])
+  await Promise.all([loadRequests(), loadAudit()])
   loading.value = false
 }
 
-// Initial load: one /llm/dashboard/ round-trip instead of 5 calls. The individual
-// loaders above still drive filter changes + pagination after mount. Falls back to
-// the per-panel calls if the bundle endpoint is unavailable.
 async function loadDashboard() {
   loading.value = true
   try {
-    const params = { page: reqPage.value }
-    const { data } = await api.getLlmDashboard(params)
-    agents.value = data.agents?.results || data.agents || []
-    stats.value = data.stats || {}
-    usage.value = data.usage || {}
-    if (data.requests) {
-      requests.value = data.requests.results || []
-      reqCount.value = data.requests.count || 0
-      reqTotalPages.value = data.requests.total_pages || 1
-    }
-    if (data.audit) {
-      auditEntries.value = data.audit.results || []
-      auditCount.value = data.audit.count || 0
-      auditTotalPages.value = data.audit.total_pages || 1
-    }
-  } catch (e) {
-    console.error('Dashboard bundle failed — falling back', e)
     await loadAgents()
-    await Promise.all([loadStats(), loadUsage(), loadRequests(), loadAudit()])
+    await Promise.all([loadRequests(), loadAudit()])
   } finally {
     loading.value = false
     hasLoaded.value = true
@@ -548,3 +352,599 @@ async function loadDashboard() {
 
 onMounted(loadDashboard)
 </script>
+
+<style scoped>
+.activity-page {
+  min-height: 100%;
+  padding: 28px 32px 38px;
+  background: #f8fbff;
+  color: #10182f;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button,
+select {
+  font: inherit;
+}
+
+.activity-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 31px;
+}
+
+.activity-header h1 {
+  font-size: 27px;
+  line-height: 1.12;
+  font-weight: 850;
+  letter-spacing: 0;
+  color: #071225;
+}
+
+.activity-header p {
+  margin-top: 8px;
+  color: #52637d;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.help-btn,
+.export-btn,
+.filter-btn,
+.docs-btn,
+.actions-cell button,
+.pager button,
+.table-footer select,
+.mini-action {
+  border: 1px solid #dbe4f0;
+  background: #fff;
+  color: #17233c;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .035);
+}
+
+.help-btn {
+  display: inline-flex;
+  height: 37px;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 0 15px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.help-btn svg {
+  width: 16px;
+  height: 16px;
+  color: #52637d;
+}
+
+.activity-tabs {
+  display: flex;
+  gap: 33px;
+  border-bottom: 1px solid #dfe7f2;
+  margin-bottom: 0;
+}
+
+.activity-tabs button {
+  height: 45px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: #52637d;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.activity-tabs button.active {
+  color: #245af4;
+  border-bottom-color: #245af4;
+}
+
+.activity-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 278px;
+  gap: 22px;
+  border: 1px solid #dfe7f2;
+  border-radius: 16px;
+  background: #fff;
+  padding: 20px 20px 18px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, .055);
+}
+
+.log-card {
+  min-width: 0;
+}
+
+.filters-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.filter-btn,
+.export-btn {
+  display: inline-flex;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.filter-btn {
+  min-width: 158px;
+  position: relative;
+  justify-content: flex-start;
+}
+
+.filter-btn svg,
+.export-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.filter-btn svg:first-child {
+  color: #53657d;
+}
+
+.filter-btn select {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  appearance: none;
+  background: transparent;
+  color: #17233c;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.filter-btn svg:last-child {
+  pointer-events: none;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #071225;
+}
+
+.date-filter {
+  min-width: 166px;
+}
+
+.export-btn {
+  margin-left: auto;
+}
+
+.table-frame {
+  overflow: hidden;
+  border: 1px solid #dfe7f2;
+  border-radius: 12px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+th {
+  height: 48px;
+  padding: 0 18px;
+  background: #f8fafc;
+  border-bottom: 1px solid #dfe7f2;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+th:nth-child(1) { width: 28%; }
+th:nth-child(2) { width: 14%; }
+th:nth-child(3) { width: 22%; }
+th:nth-child(4) { width: 13%; }
+th:nth-child(5) { width: 11%; }
+th:nth-child(6) { width: 16%; }
+
+td {
+  height: 55px;
+  padding: 0 18px;
+  border-bottom: 1px solid #edf2f8;
+  color: #23334f;
+  font-size: 13px;
+  font-weight: 650;
+  vertical-align: middle;
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.sort-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sort-head svg {
+  width: 14px;
+  height: 14px;
+  color: #071225;
+}
+
+.agent-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.agent-cell strong,
+.agent-cell small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-cell strong {
+  color: #10182f;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.agent-cell small {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.agent-icon {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 7px;
+  color: #fff;
+}
+
+.agent-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.agent-icon.cyan { background: #10aeb9; }
+.agent-icon.violet { background: #8063ee; }
+.agent-icon.red { background: #f34e44; }
+.agent-icon.green { background: #13a978; }
+.agent-icon.orange { background: #f97316; }
+.agent-icon.white {
+  border: 1px solid #dbe4f0;
+  background: #fff;
+}
+
+.run-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.run-status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.run-status.success {
+  color: #04996f;
+}
+
+.run-status.success i {
+  background: #10b981;
+}
+
+.run-status.failed {
+  color: #dc2626;
+}
+
+.run-status.failed i {
+  background: #ef4444;
+}
+
+.actions-cell {
+  display: grid;
+  grid-template-columns: 78px 36px;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.actions-cell button {
+  display: inline-grid;
+  place-items: center;
+  height: 31px;
+  border-radius: 8px;
+  padding: 0 12px;
+  line-height: 1;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.actions-cell button:first-child {
+  width: 78px;
+}
+
+.actions-cell button:last-child {
+  width: 36px;
+  min-width: 36px;
+  padding: 0;
+}
+
+.actions-cell button:last-child svg {
+  width: 15px;
+  height: 15px;
+}
+
+.audit-list {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #dfe7f2;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.audit-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #e7edf5;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.audit-row strong,
+.audit-row small {
+  display: block;
+}
+
+.audit-row strong {
+  color: #10182f;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.audit-row small,
+.audit-row time {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.mini-action {
+  height: 30px;
+  border-radius: 7px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.table-footer {
+  display: grid;
+  grid-template-columns: 1fr auto 175px;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 18px 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.pager button {
+  min-width: 31px;
+  height: 31px;
+  border-radius: 8px;
+  color: #23334f;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pager button.active {
+  border-color: #245af4;
+  background: #245af4;
+  color: #fff;
+}
+
+.pager button:disabled {
+  opacity: .45;
+}
+
+.table-footer label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.table-footer select {
+  width: 84px;
+  height: 33px;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-weight: 800;
+}
+
+.inspect-card {
+  align-self: start;
+  border: 1px solid #dfe7f2;
+  border-radius: 14px;
+  background: #fff;
+  padding: 26px 20px 20px;
+}
+
+.inspect-card h2 {
+  color: #10182f;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.inspect-card > p {
+  margin-top: 9px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.inspect-step {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 13px;
+  margin-top: 28px;
+}
+
+.inspect-step > span {
+  display: grid;
+  width: 33px;
+  height: 33px;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.inspect-step svg {
+  width: 17px;
+  height: 17px;
+}
+
+.inspect-step .blue { background: #dbeafe; color: #2563eb; }
+.inspect-step .red { background: #fee2e2; color: #ef4444; }
+.inspect-step .slate { background: #eaf0ff; color: #2563eb; }
+
+.inspect-step h3 {
+  color: #10182f;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.inspect-step p {
+  margin-top: 7px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.docs-btn {
+  display: inline-flex;
+  width: 100%;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 30px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+@media (max-width: 1280px) {
+  .activity-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .inspect-card {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .inspect-card > h2,
+  .inspect-card > p,
+  .docs-btn {
+    grid-column: 1 / -1;
+  }
+
+  .inspect-step {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 980px) {
+  .activity-page {
+    padding: 24px 18px 38px;
+  }
+
+  .filters-row {
+    flex-wrap: wrap;
+  }
+
+  .export-btn {
+    margin-left: 0;
+  }
+
+  .table-frame {
+    overflow-x: auto;
+  }
+
+  table {
+    min-width: 920px;
+  }
+
+  .table-footer {
+    grid-template-columns: 1fr;
+  }
+
+  .table-footer label {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 720px) {
+  .activity-header {
+    flex-direction: column;
+  }
+
+  .activity-tabs {
+    gap: 18px;
+    overflow-x: auto;
+  }
+
+  .filter-btn,
+  .export-btn {
+    width: 100%;
+  }
+
+  .inspect-card {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

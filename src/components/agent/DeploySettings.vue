@@ -253,7 +253,7 @@ const wsChatUrl = computed(() => {
   let host, scheme
   try { const u = new URL(apiBase); host = u.host; scheme = u.protocol === 'https:' ? 'wss' : 'ws' }
   catch (e) { host = window.location.host; scheme = window.location.protocol === 'https:' ? 'wss' : 'ws' }
-  return `${scheme}://${host}/ws/chat/repository/0/`
+  return `${scheme}://${host}/ws/chat/agent/`
 })
 
 const embedCode = computed(() => {

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Transition name="cmdk">
     <div v-if="modelValue" class="cmdk-overlay" @click.self="close" @keydown.esc.prevent="close">
       <div class="cmdk" role="dialog" aria-modal="true" aria-label="Command palette">
@@ -9,7 +9,7 @@
             ref="inputEl"
             v-model="query"
             type="text"
-            placeholder="Search pages and actions…"
+            placeholder="Search pages and actionsâ€¦"
             @keydown.down.prevent="move(1)"
             @keydown.up.prevent="move(-1)"
             @keydown.enter.prevent="run(filtered[active])"
@@ -37,13 +37,13 @@
               <span class="cmdk-kind">{{ item.kind }}</span>
             </button>
           </template>
-          <div v-else class="cmdk-empty">No matches for “{{ query }}”.</div>
+          <div v-else class="cmdk-empty">No matches for â€œ{{ query }}â€.</div>
         </div>
 
         <div class="cmdk-foot">
-          <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
-          <span><kbd>↵</kbd> open</span>
-          <span class="brandline">Agentic · ⌘K</span>
+          <span><kbd>â†‘</kbd><kbd>â†“</kbd> navigate</span>
+          <span><kbd>â†µ</kbd> open</span>
+          <span class="brandline">Aadml Â· âŒ˜K</span>
         </div>
       </div>
     </div>
@@ -215,3 +215,4 @@ kbd {
 .cmdk-enter-from, .cmdk-leave-to { opacity: 0; }
 .cmdk-enter-from .cmdk, .cmdk-leave-to .cmdk { transform: translateY(-12px) scale(.97); opacity: 0; }
 </style>
+

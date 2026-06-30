@@ -50,13 +50,14 @@
           <div class="text-xs text-gray-500">Identity, model &amp; behavior</div>
         </div>
       </div>
-      <div v-if="layout === 'canvas'" class="bg-indigo-50/60 border border-indigo-100 rounded-xl p-3">
-        <div class="text-xs font-semibold text-gray-600 mb-2">✨ Quick start — apply a template to the instructions</div>
-        <div class="flex flex-wrap gap-2">
-          <button v-for="t in agentTemplates" :key="t.key" type="button" @click="applyTemplate(t)"
-            class="text-xs px-3 py-1.5 rounded-full bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition">
-            {{ t.icon }} {{ t.label }}
-          </button>
+      <!-- Choose a starting point (Screen 13): blank + 3 built-in templates. -->
+      <StartingPointCards v-if="layout === 'canvas'" @apply="applyStartingPoint" />
+      <!-- Help callout (Screen 13) -->
+      <div v-if="layout === 'canvas'" class="flex items-start gap-2.5 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3">
+        <Info class="w-4 h-4 text-indigo-600 mt-0.5 shrink-0" />
+        <div class="text-xs text-gray-600 leading-relaxed">
+          <span class="font-semibold text-gray-700">Not sure where to start?</span>
+          Pick a template above for a head start, then fine-tune everything in the next steps.
         </div>
       </div>
       <div v-if="layout === 'canvas' || activeTab === 'General'"
@@ -989,6 +990,94 @@
             </div>
           </div>
         </div>
+
+        <!-- ── Autonomy & Safety controls (Screen 18): approval rules · guardrails · spending ── -->
+        <div class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <!-- Approval Rules (risk ceiling) -->
+          <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-2 mb-1">
+              <ShieldAlert class="w-4 h-4 text-indigo-600" />
+              <h4 class="text-sm font-semibold text-gray-900">Approval Rules</h4>
+            </div>
+            <p class="text-xs text-gray-500 mb-3 leading-relaxed">
+              Require approval for actions at or above this risk level.
+            </p>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Require approval above</label>
+            <select v-model="riskCeiling"
+              class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <option value="">No approval required</option>
+              <option value="low">Low risk &amp; above</option>
+              <option value="medium">Medium risk &amp; above</option>
+              <option value="high">High risk &amp; above</option>
+              <option value="critical">Critical risk only</option>
+            </select>
+            <p class="text-[11px] text-gray-400 mt-1.5 leading-snug">
+              Org-wide guardrails always apply on top of this; per-agent rules can only tighten them.
+            </p>
+          </div>
+
+          <!-- Guardrails summary (read-only, from GET /agents/:id/guardrails/) -->
+          <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center justify-between mb-1">
+              <div class="flex items-center gap-2">
+                <ShieldCheck class="w-4 h-4 text-emerald-600" />
+                <h4 class="text-sm font-semibold text-gray-900">Guardrails</h4>
+              </div>
+              <button v-if="internalAgent.id" type="button" @click="loadGuardrails"
+                class="text-[11px] font-medium text-indigo-600 hover:text-indigo-700">Refresh</button>
+            </div>
+            <p class="text-xs text-gray-500 mb-3 leading-relaxed">Org-wide safety policy in effect for this agent.</p>
+            <div v-if="!internalAgent.id" class="text-xs text-gray-400 italic">Save the agent to view its effective guardrails.</div>
+            <div v-else-if="guardrailsLoading" class="text-xs text-gray-400">Loading guardrails…</div>
+            <ul v-else-if="guardrailItems.length" class="space-y-1.5">
+              <li v-for="(g, i) in guardrailItems" :key="i" class="flex items-start gap-2 text-xs text-gray-700">
+                <Check class="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
+                <span>{{ g }}</span>
+              </li>
+            </ul>
+            <div v-else class="text-xs text-gray-400">No additional guardrails configured.</div>
+          </div>
+
+          <!-- Spending Limits -->
+          <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center gap-2 mb-1">
+              <Wallet class="w-4 h-4 text-amber-600" />
+              <h4 class="text-sm font-semibold text-gray-900">Spending Limits</h4>
+            </div>
+            <p class="text-xs text-gray-500 mb-3 leading-relaxed">Cap how much this agent can spend. Blank = no cap.</p>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Max per run</label>
+                <div class="relative">
+                  <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                  <input type="number" min="0" step="0.01" v-model.number="internalAgent.max_cost_per_run_usd"
+                    placeholder="0.00"
+                    class="w-full pl-6 pr-2.5 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Daily budget</label>
+                <div class="relative">
+                  <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                  <input type="number" min="0" step="0.01" v-model.number="internalAgent.daily_budget_usd"
+                    placeholder="0.00"
+                    class="w-full pl-6 pr-2.5 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Autonomy Summary (deterministic, client-side) -->
+          <AutonomySummary
+            :execution-mode="internalAgent.execution_mode"
+            :plan-mode-enabled="internalAgent.plan_mode_enabled"
+            :plan-approval-required="internalAgent.plan_approval_required"
+            :risk-ceiling="riskCeiling"
+            :max-cost-per-run="internalAgent.max_cost_per_run_usd"
+            :daily-budget="internalAgent.daily_budget_usd"
+            :checkpoint-every-n-steps="internalAgent.checkpoint_every_n_steps"
+          />
+        </div>
       </div>
 
       <!-- Rules + Policy add-on: soft Behavioral Rules (guidance), separated from enforced policy -->
@@ -1280,12 +1369,22 @@
       <div v-if="layout === 'canvas'" id="sec-advanced" class="vm-anchor pt-8 mt-4 border-t-2 border-gray-200">
         <span class="text-xs font-bold uppercase tracking-wide text-gray-400">Advanced</span>
       </div>
-      <h3 v-if="layout === 'canvas'" class="text-sm font-bold text-gray-800 pt-1">Credentials</h3>
-      <div v-if="layout === 'canvas' || activeTab === 'Credentials'"
-        :class="['space-y-6', layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : '']">
-          <!-- Service & Built-in Tool Credentials -->
+      <h3 v-if="layout === 'canvas'" class="text-sm font-bold text-gray-800 pt-1">Attach Credentials from Vault</h3>
+      <p v-if="layout === 'canvas'" class="text-xs text-gray-500 -mt-1">
+        Credentials are global, secure &amp; reusable — attach the ones this agent needs.
+      </p>
+      <!-- Two-column on canvas: the vault table + a display-only permissions explainer (Screen 09). -->
+      <div v-if="layout === 'canvas'" class="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-4 items-start">
+        <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-6">
           <div class="border border-gray-200 rounded-lg overflow-hidden bg-white max-h-[600px] overflow-y-auto">
-            <!-- Reuse the standalone component which supports both Service and Built-in tools -->
+            <LazyMount><CredentialManager :agent-profile="internalAgent" /></LazyMount>
+          </div>
+        </div>
+        <PermissionExplainer />
+      </div>
+      <!-- Legacy tabbed layout: single column, no rail. -->
+      <div v-else-if="activeTab === 'Credentials'" class="space-y-6">
+          <div class="border border-gray-200 rounded-lg overflow-hidden bg-white max-h-[600px] overflow-y-auto">
             <LazyMount><CredentialManager :agent-profile="internalAgent" /></LazyMount>
           </div>
       </div>
@@ -1329,7 +1428,10 @@ import AgentFlowPanel from './knowledge/AgentFlowPanel.vue';
 import ToolPicker from './ToolPicker.vue';
 import ModelPicker from './common/ModelPicker.vue';
 import SignalPanel from './SignalPanel.vue';
-import { Upload, Globe, Table2, Search, Type, FileText, Braces, Folder, Zap, ClipboardList, ChevronDown } from 'lucide-vue-next';
+import { Upload, Globe, Table2, Search, Type, FileText, Braces, Folder, Zap, ClipboardList, ChevronDown, ShieldAlert, ShieldCheck, Wallet, Check, Info } from 'lucide-vue-next';
+import AutonomySummary from './agent-builder/AutonomySummary.vue';
+import PermissionExplainer from './agent-builder/PermissionExplainer.vue';
+import StartingPointCards from './agent-builder/StartingPointCards.vue';
 import { modeKey, modeLabel } from '../composables/agentModes';
 import { Icon } from '@iconify/vue';
 import { notify } from '@/composables/useNotify';
@@ -1383,6 +1485,9 @@ const internalAgent = ref({
     checkpoint_every_n_steps: null,
     checkpoint_on_phase_boundary: false,
     verify_after_completion: false,
+    // Per-agent spending limits (Screen 18). Null = no cap.
+    max_cost_per_run_usd: null,
+    daily_budget_usd: null,
     // Rules + Policy add-on. Soft `agent_rules` is editable here. Per-agent hard `agent_policy` is
     // EMPTY by default (no-op) — org-wide guardrails live in GlobalAgentPolicy; an admin tightens a
     // single agent via the Django admin. Matches the backend default ({}).
@@ -1415,6 +1520,43 @@ async function toggleAutoMode() {
         confirmText: 'Enable Auto Mode',
     });
     if (ok) internalAgent.value.execution_mode = 'autonomous';
+}
+
+// ── Approval Rules (Screen 18) — surface agent_policy.risk_ceiling as a simple select.
+// agent_policy is a JSON dict; we read/write only its risk_ceiling key, preserving the rest.
+const riskCeiling = computed({
+    get: () => (internalAgent.value.agent_policy && internalAgent.value.agent_policy.risk_ceiling) || '',
+    set: (val) => {
+        const policy = { ...(internalAgent.value.agent_policy || {}) };
+        policy.risk_ceiling = val || null;
+        internalAgent.value.agent_policy = policy;
+    },
+});
+
+// ── Guardrails summary (Screen 18) — read-only, from GET /agents/:id/guardrails/.
+const guardrailsLoading = ref(false);
+const guardrailItems = ref([]);
+async function loadGuardrails() {
+    if (!internalAgent.value.id) return;
+    guardrailsLoading.value = true;
+    try {
+        const res = await api.getAgentGuardrails(internalAgent.value.id);
+        const d = res.data || {};
+        // Backend returns { guardrails: [str,...] } (preferred). Fall back to a small
+        // derived list so the panel is never empty when the endpoint is sparse.
+        let items = Array.isArray(d.guardrails) ? d.guardrails.slice() : [];
+        if (!items.length) {
+            if (d.risk_ceiling) items.push(`Actions above ${d.risk_ceiling} risk require approval`);
+            if (Array.isArray(d.forbidden_tools) && d.forbidden_tools.length)
+                items.push(`${d.forbidden_tools.length} tool(s) blocked by policy`);
+            if (d.allow_external_write === false) items.push('External writes are blocked');
+        }
+        guardrailItems.value = items;
+    } catch (e) {
+        guardrailItems.value = [];
+    } finally {
+        guardrailsLoading.value = false;
+    }
 }
 
 // Conversation memory: Auto (max_history_messages = 0/null, backend manages by token
@@ -1529,6 +1671,26 @@ function matchToolsForTemplate(t, cap = 12) {
         if (ids.length >= cap) break;
     }
     return ids;
+}
+
+// Starting-point card (Screen 13). `t` is a backend AgentProfile template (template_scope='builtin')
+// or null for "Start from blank". We pre-fill the local draft only — the agent is created later when
+// the wizard saves (so we never clobber the user's own edits). Name/description fill only when empty.
+function applyStartingPoint(t) {
+    if (!t) {
+        // Blank: only clear instructions if the user hasn't typed anything yet.
+        if (!(internalAgent.value.system_prompt_template || '').trim()) {
+            internalAgent.value.system_prompt_template = 'You are a helpful AI assistant.';
+        }
+        return;
+    }
+    internalAgent.value.system_prompt_template = t.system_prompt_template || internalAgent.value.system_prompt_template || '';
+    if (!(internalAgent.value.name || '').trim() && t.name) internalAgent.value.name = t.name;
+    if (!(internalAgent.value.description || '').trim()) {
+        internalAgent.value.description = t.description || t.template_description || '';
+    }
+    if (t.prompt_mode) internalAgent.value.prompt_mode = t.prompt_mode;
+    notify.success(`Started from “${t.name}”. Fine-tune it in the next steps.`);
 }
 
 const applyTemplate = async (t) => {
@@ -2875,6 +3037,7 @@ onMounted(() => {
         fetchModels();
         // Everything below the fold loads only when its section scrolls into view.
         setupSectionLazyLoad();
+        loadGuardrails();
     } else {
         // New-agent (wizard) path: sections are revealed one at a time, so just load
         // the global catalogs the dropdowns need up front.
@@ -2891,7 +3054,7 @@ onMounted(() => {
 
 // Reconnect the knowledge-index WS when the agent id first appears (lazy draft save)
 // or changes (switching agents in Configure).
-watch(() => internalAgent.value.id, (id) => { if (id) { connectKbWs(); loadWebSources(); loadKbCost(); } });
+watch(() => internalAgent.value.id, (id) => { if (id) { connectKbWs(); loadWebSources(); loadKbCost(); loadGuardrails(); } });
 
 onBeforeUnmount(() => {
     if (kbWs.value) { try { kbWs.value.close(); } catch (e) { /* noop */ } kbWs.value = null; }

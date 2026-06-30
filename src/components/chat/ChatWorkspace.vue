@@ -1,15 +1,86 @@
 <template>
   <div class="chat-workspace">
+    <div v-if="chat.isEmpty" class="floating-history">
+      <button class="icon-btn" title="Chat history" aria-label="Chat history" @click.stop="toggleHistory">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 3v6h6" /><path d="M12 7v5l3 2" /></svg>
+      </button>
+      <div v-if="historyOpen" class="history-popover">
+        <div class="history-head">
+          <strong>Chat history</strong>
+          <button aria-label="Close history" @click="historyOpen = false">×</button>
+        </div>
+        <div class="history-tabs">
+          <button class="active">Local</button>
+          <button disabled>Web</button>
+        </div>
+        <label class="history-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4-4" /></svg>
+          <input v-model="historyQuery" placeholder="Search sessions..." />
+        </label>
+        <div class="history-list">
+          <p v-if="!filteredGroups.length" class="history-empty">No chats found.</p>
+          <section v-for="grp in filteredGroups" :key="grp.label">
+            <h4>{{ grp.label }}</h4>
+            <button
+              v-for="s in grp.items"
+              :key="s.id"
+              class="history-row"
+              :class="{ active: String(route.params.sessionId) === String(s.id) }"
+              @click="openSession(s.id)"
+            >
+              <span>{{ previewOf(s) }}</span>
+              <small>{{ relTime(s) }}</small>
+            </button>
+          </section>
+        </div>
+      </div>
+    </div>
+
     <!-- Thread header (only once a conversation has started) -->
     <header v-if="!chat.isEmpty" class="chat-header">
       <div class="chat-head-text">
         <h2 class="chat-title">{{ title }}</h2>
         <span v-if="chat.currentAgent" class="chat-agent">{{ chat.currentAgent.name }}</span>
       </div>
-      <button class="header-btn" title="New chat" @click="startNew">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m-7-7h14" stroke-linecap="round" /></svg>
-        <span>New</span>
-      </button>
+      <div class="chat-actions">
+        <button class="icon-btn" title="Chat history" aria-label="Chat history" @click.stop="toggleHistory">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 3v6h6" /><path d="M12 7v5l3 2" /></svg>
+        </button>
+        <button class="header-btn" title="New chat" @click="startNew">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m-7-7h14" stroke-linecap="round" /></svg>
+          <span>New</span>
+        </button>
+      </div>
+      <div v-if="historyOpen" class="history-popover in-header">
+        <div class="history-head">
+          <strong>Chat history</strong>
+          <button aria-label="Close history" @click="historyOpen = false">×</button>
+        </div>
+        <div class="history-tabs">
+          <button class="active">Local</button>
+          <button disabled>Web</button>
+        </div>
+        <label class="history-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4-4" /></svg>
+          <input v-model="historyQuery" placeholder="Search sessions..." />
+        </label>
+        <div class="history-list">
+          <p v-if="!filteredGroups.length" class="history-empty">No chats found.</p>
+          <section v-for="grp in filteredGroups" :key="grp.label">
+            <h4>{{ grp.label }}</h4>
+            <button
+              v-for="s in grp.items"
+              :key="s.id"
+              class="history-row"
+              :class="{ active: String(route.params.sessionId) === String(s.id) }"
+              @click="openSession(s.id)"
+            >
+              <span>{{ previewOf(s) }}</span>
+              <small>{{ relTime(s) }}</small>
+            </button>
+          </section>
+        </div>
+      </div>
     </header>
 
     <!-- Body -->
@@ -52,7 +123,7 @@
 </template>
 
 <script setup>
-import { computed, watch, onMounted } from 'vue'
+import { computed, watch, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useChatStore } from '../../stores/useChatStore'
 import ChatWelcome from './ChatWelcome.vue'
@@ -61,15 +132,43 @@ import ChatComposer from './ChatComposer.vue'
 import HITLModal from '../HITLModal.vue'
 import PlanApprovalCard from '../agent/PlanApprovalCard.vue'
 import { fmtTokens, fmtCost } from '../../composables/tokens'
+import { previewOf, relTime, groupSessions } from '../../composables/useChatHistory'
 
 const chat = useChatStore()
 const route = useRoute()
 const router = useRouter()
+const historyOpen = ref(false)
+const historyQuery = ref('')
 
 const title = computed(() => {
   const first = chat.messages.find((m) => m.role === 'user')
   return first ? first.content.slice(0, 60) : 'New Chat'
 })
+
+const filteredGroups = computed(() => {
+  const q = historyQuery.value.trim().toLowerCase()
+  return groupSessions(chat.allSessions)
+    .map((grp) => ({
+      ...grp,
+      items: grp.items
+        .filter((s) => {
+          if (!q) return true
+          return `${previewOf(s)} ${s.agent_profile_name || s.agent_name || ''}`.toLowerCase().includes(q)
+        })
+        .slice(0, 12),
+    }))
+    .filter((grp) => grp.items.length)
+})
+
+const toggleHistory = async () => {
+  historyOpen.value = !historyOpen.value
+  if (historyOpen.value) await chat.loadAllSessions()
+}
+
+const openSession = (id) => {
+  historyOpen.value = false
+  router.push(`/dashboard/chat/${id}`)
+}
 
 // Persist the mode change locally so the picker + any badges reflect it immediately.
 const onModeChange = (patch) => {
@@ -88,6 +187,7 @@ const startNew = () => {
 
 onMounted(async () => {
   await chat.loadAgents()
+  chat.loadAllSessions()
   const sid = route.params.sessionId
   if (sid) {
     chat.openConversation(sid)
@@ -123,6 +223,7 @@ watch(
 
 <style scoped>
 .chat-workspace {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -130,6 +231,7 @@ watch(
   font-family: var(--vm-font-sans);
 }
 .chat-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -162,6 +264,12 @@ watch(
   color: transparent;
 }
 .auto-badge { margin-left: 6px; padding: 1px 7px; border-radius: 9999px; background: #ccfbf1; color: #0f766e; font-size: 0.65rem; font-weight: 600; }
+.chat-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .header-btn {
   display: inline-flex;
   align-items: center;
@@ -179,6 +287,170 @@ watch(
 }
 .header-btn:hover { transform: translateY(-1px); box-shadow: var(--vm-shadow-s); color: var(--vm-violet-d); }
 .header-btn svg { width: 15px; height: 15px; }
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--vm-ink-soft);
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-line-2);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.15s var(--vm-ease), box-shadow 0.15s, color 0.15s;
+}
+.icon-btn:hover { transform: translateY(-1px); box-shadow: var(--vm-shadow-s); color: var(--vm-violet-d); }
+.icon-btn svg { width: 17px; height: 17px; }
+.floating-history {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  z-index: 35;
+}
+.history-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 344px;
+  max-height: min(520px, calc(100vh - 96px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #d7d7d7;
+  background: #1f1f1f;
+  border: 1px solid #363636;
+  border-radius: 8px;
+  box-shadow: 0 22px 55px rgba(0, 0, 0, .35);
+}
+.history-popover.in-header {
+  top: 52px;
+  right: 22px;
+}
+.history-head {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 12px;
+  border-bottom: 1px solid #303030;
+}
+.history-head strong {
+  color: #f4f4f5;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.history-head button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 18px;
+}
+.history-head button:hover { background: #2b2b2b; color: #fff; }
+.history-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 6px;
+  background: #292929;
+}
+.history-tabs button {
+  height: 30px;
+  border: 0;
+  border-radius: 5px;
+  color: #b8b8b8;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+}
+.history-tabs button.active {
+  color: #f4f4f5;
+  background: #1b1b1b;
+}
+.history-tabs button:disabled {
+  opacity: .7;
+}
+.history-search {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 7px 8px 4px;
+  padding: 0 9px;
+  color: #888;
+  background: #181818;
+  border: 1px solid #2b2b2b;
+  border-radius: 6px;
+}
+.history-search svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+.history-search input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: #e5e7eb;
+  background: transparent;
+  font-size: 12px;
+}
+.history-search input::placeholder { color: #858585; }
+.history-list {
+  overflow-y: auto;
+  padding: 4px 4px 8px;
+}
+.history-list section + section {
+  margin-top: 7px;
+}
+.history-list h4 {
+  margin: 8px 4px 4px;
+  color: #8b949e;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+.history-row {
+  width: 100%;
+  min-height: 30px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 5px;
+  color: #d0d0d0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+.history-row:hover,
+.history-row.active {
+  background: #24383b;
+  color: #fff;
+}
+.history-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.history-row small {
+  color: #a3a3a3;
+  font-size: 11px;
+}
+.history-empty {
+  margin: 22px 0;
+  color: #9ca3af;
+  text-align: center;
+  font-size: 12px;
+}
 
 .chat-body { flex: 1; min-height: 0; }
 .chat-plan { flex-shrink: 0; padding: 8px 20px 0; }

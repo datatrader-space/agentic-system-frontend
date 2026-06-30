@@ -215,10 +215,39 @@ const dropdownStyle = ref({})
 function updateDropdownPos() {
   if (!triggerRef.value) return
   const rect = triggerRef.value.getBoundingClientRect()
+  const sidebar = triggerRef.value.closest?.('aside.sidebar')
+  const viewportPadding = 12
+  const defaultWidth = 280
+
+  if (sidebar) {
+    const sidebarRect = sidebar.getBoundingClientRect()
+    const leftEdge = Math.max(sidebarRect.left + 16, rect.left)
+    const availableWidth = Math.max(176, Math.floor(sidebarRect.right - leftEdge - 16))
+    const width = Math.min(defaultWidth, availableWidth)
+
+    dropdownStyle.value = {
+      position: 'fixed',
+      top: `${rect.bottom + 8}px`,
+      left: `${leftEdge}px`,
+      width: `${width}px`,
+      maxWidth: `calc(100vw - ${viewportPadding * 2}px)`,
+      zIndex: 99999,
+    }
+    return
+  }
+
+  const width = Math.min(defaultWidth, window.innerWidth - viewportPadding * 2)
+  const left = Math.max(
+    viewportPadding,
+    Math.min(rect.left, window.innerWidth - width - viewportPadding),
+  )
+
   dropdownStyle.value = {
     position: 'fixed',
     top: `${rect.bottom + 8}px`,
-    right: `${window.innerWidth - rect.right}px`,
+    left: `${left}px`,
+    width: `${width}px`,
+    maxWidth: `calc(100vw - ${viewportPadding * 2}px)`,
     zIndex: 99999,
   }
 }
@@ -226,7 +255,7 @@ function updateDropdownPos() {
 // Generate consistent color from workspace name
 function stringToColor(str) {
   const palette = [
-    '#6366f1', '#2563EB', '#1E40AF', '#14b8a6',
+    '#2563EB', '#1D4ED8', '#2E90FA', '#14b8a6',
     '#f59e0b', '#10b981', '#3b82f6', '#ef4444',
   ]
   let hash = 0
@@ -370,20 +399,22 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 6px 12px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.09);
+  height: 34px;
+  padding: 0 11px;
+  background: #ffffff;
+  border: 1px solid #d8e2f0;
   border-radius: 8px;
-  color: #e2e8f0;
-  font-size: 13.5px;
-  font-weight: 500;
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 750;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
   max-width: 180px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .035);
 }
-.ws-trigger:hover { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.15); }
-.ws-trigger--open { background: rgba(139,92,246,0.12); border-color: rgba(139,92,246,0.35); color: #60A5FA; }
+.ws-trigger:hover { background: #f8fbff; border-color: #cbd9ed; color: #0f172a; }
+.ws-trigger--open { background: #eef4ff; border-color: #bcd0f7; color: #2563eb; }
 
 .ws-dot {
   width: 8px; height: 8px;
@@ -396,7 +427,7 @@ onUnmounted(() => {
 }
 .ws-caret {
   width: 14px; height: 14px;
-  color: #9ca3af;
+  color: #94a3b8;
   flex-shrink: 0;
   transition: transform 0.2s ease;
 }
@@ -407,12 +438,13 @@ onUnmounted(() => {
 <style>
 /* --- Dropdown (teleported, global) --- */
 .ws-dropdown {
-  width: 260px;
-  background: #111827;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(139,92,246,0.1);
+  width: 280px;
+  background: #ffffff;
+  border: 1px solid #dfe7f2;
+  border-radius: 10px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
   overflow: hidden;
+  color: #0f172a;
   /* position/top/right set via inline style */
 }
 
@@ -426,11 +458,11 @@ onUnmounted(() => {
 /* --- Loading --- */
 .ws-loading {
   display: flex; align-items: center; gap: 10px;
-  padding: 20px 16px; color: #9ca3af; font-size: 13px;
+  padding: 20px 16px; color: #64748b; font-size: 13px;
 }
 .ws-spinner {
   width: 16px; height: 16px;
-  border: 2px solid rgba(139,92,246,0.3);
+  border: 2px solid #dbe7ff;
   border-top-color: #2563EB;
   border-radius: 50%;
   animation: ws-spin 0.7s linear infinite;
@@ -438,28 +470,29 @@ onUnmounted(() => {
 @keyframes ws-spin { to { transform: rotate(360deg); } }
 
 /* --- Empty --- */
-.ws-empty { padding: 20px 16px; font-size: 13px; color: #9ca3af; }
-.ws-create-link { color: #2563EB; text-decoration: none; font-weight: 500; }
+.ws-empty { padding: 20px 16px; font-size: 13px; color: #64748b; }
+.ws-create-link { color: #2563EB; text-decoration: none; font-weight: 750; }
 
 /* --- Org Group --- */
 .ws-org-group { padding: 8px 0; }
-.ws-org-group + .ws-org-group { border-top: 1px solid rgba(255,255,255,0.06); }
+.ws-org-group + .ws-org-group { border-top: 1px solid #edf2f7; }
 
 .ws-org-label {
   display: flex; align-items: center; gap: 6px;
-  padding: 6px 16px;
-  font-size: 11px; font-weight: 600;
-  color: #6b7280;
-  text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 7px 16px 6px;
+  font-size: 10.5px; font-weight: 850;
+  color: #64748b;
+  text-transform: uppercase; letter-spacing: 0.04em;
 }
-.ws-org-icon { width: 12px; height: 12px; color: #6b7280; }
+.ws-org-icon { width: 12px; height: 12px; color: #94a3b8; }
 .ws-personal-badge {
   margin-left: auto;
-  background: rgba(139,92,246,0.15);
-  color: #60A5FA;
-  padding: 1px 6px;
-  border-radius: 4px;
+  background: #eef4ff;
+  color: #2563eb;
+  padding: 2px 7px;
+  border-radius: 999px;
   font-size: 10px;
+  font-weight: 850;
   text-transform: none; letter-spacing: 0;
 }
 
@@ -467,81 +500,83 @@ onUnmounted(() => {
 .ws-item {
   display: flex; align-items: center; gap: 10px;
   width: 100%;
-  padding: 8px 16px;
+  min-height: 36px;
+  padding: 8px 14px;
   background: none; border: none;
-  color: #d1d5db; font-size: 13.5px;
+  color: #334155; font-size: 12.5px; font-weight: 750;
   cursor: pointer;
   transition: background 0.12s ease;
   text-align: left;
 }
-.ws-item:hover { background: rgba(255,255,255,0.05); }
-.ws-item--active { color: #f9fafb; }
+.ws-item:hover { background: #f8fbff; }
+.ws-item--active { color: #2563eb; background: #eef4ff; }
 
 .ws-item-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .ws-item-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ws-check { width: 14px; height: 14px; color: #2563EB; flex-shrink: 0; }
-.ws-members-count { font-size: 11px; color: #6b7280; white-space: nowrap; }
+.ws-members-count { font-size: 11px; color: #94a3b8; white-space: nowrap; }
 
 /* --- Personal Mode --- */
 .ws-personal-mode {
   padding: 6px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid #edf2f7;
 }
 .ws-item--personal {
   gap: 10px;
 }
-.ws-pm-icon { width: 16px; height: 16px; color: #9ca3af; flex-shrink: 0; }
-.ws-item--active .ws-pm-icon { color: #60A5FA; }
-.ws-pm-hint { font-size: 11px; color: #6b7280; white-space: nowrap; }
+.ws-pm-icon { width: 16px; height: 16px; color: #64748b; flex-shrink: 0; }
+.ws-item--active .ws-pm-icon { color: #2563eb; }
+.ws-pm-hint { font-size: 11px; color: #94a3b8; white-space: nowrap; }
 
 /* --- Footer --- */
 .ws-footer {
-  border-top: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid #edf2f7;
   padding: 6px 0;
 }
 .ws-footer-link {
   display: flex; align-items: center; gap: 8px;
   width: 100%;
-  padding: 9px 16px;
+  padding: 9px 14px;
   background: none; border: none;
-  color: #9ca3af; font-size: 13px;
+  color: #64748b; font-size: 12.5px; font-weight: 750;
   cursor: pointer; text-decoration: none;
   transition: color 0.12s, background 0.12s;
   text-align: left;
 }
-.ws-footer-link:hover { color: #e2e8f0; background: rgba(255,255,255,0.04); }
+.ws-footer-link:hover { color: #2563eb; background: #f8fbff; }
 .ws-footer-link svg { width: 14px; height: 14px; flex-shrink: 0; }
 
 /* --- Create Modal --- */
 .ws-modal-backdrop {
   position: fixed; inset: 0;
-  background: rgba(0,0,0,0.7);
-  backdrop-filter: blur(4px);
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(3px);
   z-index: 100000;
   display: flex; align-items: center; justify-content: center;
 }
 .ws-modal {
-  background: #111827;
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 16px;
-  padding: 28px;
+  background: #ffffff;
+  border: 1px solid #dfe7f2;
+  border-radius: 10px;
+  padding: 24px;
   width: 360px;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
 }
 .ws-modal-enter-active, .ws-modal-leave-active { transition: all 0.2s ease; }
 .ws-modal-enter-from, .ws-modal-leave-to { opacity: 0; transform: scale(0.94); }
 
-.ws-modal-title { font-size: 17px; font-weight: 600; color: #f9fafb; margin: 0 0 20px; }
+.ws-modal-title { font-size: 17px; font-weight: 850; color: #0f172a; margin: 0 0 20px; }
 .ws-form-group { margin-bottom: 16px; }
-.ws-form-group label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 6px; font-weight: 500; }
+.ws-form-group label { display: block; font-size: 12px; color: #334155; margin-bottom: 6px; font-weight: 800; }
 .ws-input {
   width: 100%; box-sizing: border-box;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: #fff;
+  border: 1px solid #d8e2f0;
   border-radius: 8px;
-  color: #f9fafb;
+  color: #0f172a;
   padding: 9px 12px;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 650;
   outline: none;
   transition: border-color 0.15s;
 }
@@ -549,16 +584,16 @@ onUnmounted(() => {
 .ws-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
 .ws-btn-cancel {
   padding: 8px 16px; border-radius: 8px;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-  color: #9ca3af; cursor: pointer; font-size: 13.5px;
+  background: #fff; border: 1px solid #d8e2f0;
+  color: #334155; cursor: pointer; font-size: 12.5px; font-weight: 850;
   transition: all 0.15s;
 }
-.ws-btn-cancel:hover { color: #e2e8f0; }
+.ws-btn-cancel:hover { color: #0f172a; background: #f8fbff; }
 .ws-btn-create {
   padding: 8px 20px; border-radius: 8px;
-  background: linear-gradient(135deg, #6366f1, #2563EB);
+  background: #2563eb;
   border: none; color: #fff;
-  cursor: pointer; font-size: 13.5px; font-weight: 600;
+  cursor: pointer; font-size: 12.5px; font-weight: 850;
   transition: opacity 0.15s;
 }
 .ws-btn-create:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -575,8 +610,8 @@ button.ws-create-link {
   background: none;
   border: none;
   color: #2563EB;
-  font-weight: 500;
-  font-size: 13px;
+  font-weight: 850;
+  font-size: 12.5px;
   cursor: pointer;
   padding: 0;
 }

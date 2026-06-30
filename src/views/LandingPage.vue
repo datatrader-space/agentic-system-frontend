@@ -1,6 +1,6 @@
-<template>
+﻿<template>
   <PublicLayout>
-    <!-- ── Hero ─────────────────────────────────────────────── -->
+    <!-- â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <section class="relative overflow-hidden">
       <HeroBackdrop />
       <div class="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-16 sm:px-6 lg:px-8 lg:pb-24 lg:pt-24">
@@ -8,14 +8,14 @@
         <div v-reveal>
           <span class="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-soft shadow-s">
             <span class="vm-orb is-live"></span>
-            Now shipping — Let’s Code agentic IDE
+            Now shipping â€” Letâ€™s Code Aadml IDE
           </span>
           <h1 class="mt-6 font-display text-4xl font-extrabold leading-[1.08] tracking-tight text-ink sm:text-5xl lg:text-6xl">
-            The agentic OS for
+            The Aadml OS for
             <span class="vm-grad-text">coding & knowledge work</span>
           </h1>
           <p class="mt-6 max-w-xl text-lg leading-relaxed text-ink-soft">
-            One platform where agents read your code, edit with reviewable diffs, run and verify, retrieve from your knowledge, and automate on a schedule — code-aware, context-aware, and cost-aware. Self-hostable and built for teams.
+            One platform where agents read your code, edit with reviewable diffs, run and verify, retrieve from your knowledge, and automate on a schedule â€” code-aware, context-aware, and cost-aware. Self-hostable and built for teams.
           </p>
           <div class="mt-8 flex flex-wrap gap-3">
             <router-link to="/login" class="hero-btn-primary">
@@ -28,7 +28,7 @@
           </div>
           <p class="mt-7 flex items-center gap-2 text-sm text-ink-faint">
             <Icon icon="lucide:shield-check" class="h-5 w-5 text-teal" />
-            Edits land as reviewable diffs — accept hunk-by-hunk, never silent writes.
+            Edits land as reviewable diffs â€” accept hunk-by-hunk, never silent writes.
           </p>
         </div>
 
@@ -36,13 +36,13 @@
         <div v-reveal class="relative">
           <div class="terminal">
             <div class="terminal-badge">
-              <span class="vm-orb is-live"></span> Agent working…
+              <span class="vm-orb is-live"></span> Agent workingâ€¦
             </div>
             <div class="terminal-bar">
               <span class="dot" style="background:#ff5f56"></span>
               <span class="dot" style="background:#ffbd2e"></span>
               <span class="dot" style="background:#27c93f"></span>
-              <span class="terminal-file">agent · vividmind-v2</span>
+              <span class="terminal-file">agent Â· vividmind-v2</span>
             </div>
             <div class="terminal-body">
               <div v-for="(line, i) in shownLines" :key="i" class="code-line">
@@ -53,16 +53,16 @@
           </div>
           <div class="pointer-events-none absolute -bottom-6 -right-4 hidden rounded-2xl border border-line bg-surface px-4 py-3 shadow-l sm:block" v-reveal>
             <div class="flex items-center gap-2 text-sm font-semibold text-ink">
-              <Icon icon="lucide:git-pull-request" class="h-4 w-4 text-violet" /> PR opened · 3 files
+              <Icon icon="lucide:git-pull-request" class="h-4 w-4 text-violet" /> PR opened Â· 3 files
             </div>
-            <div class="mt-0.5 text-xs text-ink-faint">+128 −42 · verified ✓</div>
+            <div class="mt-0.5 text-xs text-ink-faint">+128 âˆ’42 Â· verified âœ“</div>
           </div>
         </div>
       </div>
       </div>
     </section>
 
-    <!-- ── Logo cloud ──────────────────────────────────────── -->
+    <!-- â”€â”€ Logo cloud â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <section class="border-y border-line bg-surface/60">
       <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <p class="text-center text-xs font-semibold uppercase tracking-[0.2em] text-ink-faint">
@@ -74,11 +74,11 @@
       </div>
     </section>
 
-    <!-- ── Feature bento ───────────────────────────────────── -->
+    <!-- â”€â”€ Feature bento â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <section class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
       <div class="mx-auto max-w-2xl text-center" v-reveal>
         <h2 class="font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">Everything an agent needs to ship work</h2>
-        <p class="mt-4 text-lg text-ink-soft">A complete, self-hostable platform — not a wrapper. Reason, retrieve, edit, run, and automate in one place.</p>
+        <p class="mt-4 text-lg text-ink-soft">A complete, self-hostable platform â€” not a wrapper. Reason, retrieve, edit, run, and automate in one place.</p>
       </div>
 
       <div class="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -97,16 +97,16 @@
       </div>
 
       <div class="mt-12 text-center" v-reveal>
-        <router-link to="/features" class="hero-btn-ghost">Explore all features →</router-link>
+        <router-link to="/features" class="hero-btn-ghost">Explore all features â†’</router-link>
       </div>
     </section>
 
-    <!-- ── How it works ────────────────────────────────────── -->
+    <!-- â”€â”€ How it works â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <section class="border-y border-line bg-g-warm">
       <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24">
         <div class="mx-auto max-w-2xl text-center" v-reveal>
           <h2 class="font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">From prompt to pull request</h2>
-          <p class="mt-4 text-lg text-ink-soft">The agent decides when to answer, edit, run, or ask — you stay in control.</p>
+          <p class="mt-4 text-lg text-ink-soft">The agent decides when to answer, edit, run, or ask â€” you stay in control.</p>
         </div>
         <div class="mt-14 grid gap-6 md:grid-cols-3">
           <div v-for="(s, i) in steps" :key="s.title" v-reveal class="step">
@@ -118,7 +118,7 @@
       </div>
     </section>
 
-    <!-- ── Stats ───────────────────────────────────────────── -->
+    <!-- â”€â”€ Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <section class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
       <div class="grid gap-8 rounded-2xl border border-line bg-surface p-10 shadow-m sm:grid-cols-4" v-reveal>
         <div v-for="st in stats" :key="st.label" class="text-center">
@@ -128,7 +128,7 @@
       </div>
     </section>
 
-    <!-- ── Final CTA ───────────────────────────────────────── -->
+    <!-- â”€â”€ Final CTA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <section class="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
       <div class="cta-box" v-reveal>
         <h2 class="font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Ready to deploy your first agent?</h2>
@@ -150,7 +150,7 @@ import HeroBackdrop from '../components/public/HeroBackdrop.vue'
 import { useMeta } from '../composables/useMeta'
 
 useMeta({
-  title: 'AADML — The agentic OS for coding & knowledge work',
+  title: 'AADML â€” The Aadml OS for coding & knowledge work',
   description: 'Build, deploy, and manage AI agents that read your code, propose reviewable diffs, run and verify, retrieve from your knowledge, and automate on a schedule. 1,800+ tools, every major model provider, self-hostable.',
   jsonLd: {
     '@context': 'https://schema.org',
@@ -159,25 +159,25 @@ useMeta({
     applicationCategory: 'DeveloperApplication',
     operatingSystem: 'Web, Docker',
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-    description: 'The agentic OS for coding and knowledge work — code-aware, context-aware, cost-aware automation.',
+    description: 'The Aadml OS for coding and knowledge work â€” code-aware, context-aware, cost-aware automation.',
   },
 })
 
 const providers = ['OpenAI', 'Anthropic', 'Google', 'OpenRouter', 'xAI', 'Ollama']
 
 const features = [
-  { icon: 'lucide:code-2', title: 'Let’s Code agentic IDE', desc: 'Clone a repo in the browser. The agent reads, edits, and proposes reviewable diffs you accept hunk-by-hunk — then exports a GitHub PR. No silent writes.' },
-  { icon: 'lucide:wrench', title: '1,800+ tools', desc: 'Builtin tools, any MCP server, and any OpenAPI/Postman service — lazily loaded and authorized per agent, so the model never drowns in a giant prompt.' },
-  { icon: 'lucide:git-branch', title: 'Code intelligence', desc: 'Symbol- and graph-aware retrieval grounds every change in how your codebase actually fits together — callers, callees, imports, and related tests.', badge: 'Beta' },
+  { icon: 'lucide:code-2', title: 'Letâ€™s Code Aadml IDE', desc: 'Clone a repo in the browser. The agent reads, edits, and proposes reviewable diffs you accept hunk-by-hunk â€” then exports a GitHub PR. No silent writes.' },
+  { icon: 'lucide:wrench', title: '1,800+ tools', desc: 'Builtin tools, any MCP server, and any OpenAPI/Postman service â€” lazily loaded and authorized per agent, so the model never drowns in a giant prompt.' },
+  { icon: 'lucide:git-branch', title: 'Code intelligence', desc: 'Symbol- and graph-aware retrieval grounds every change in how your codebase actually fits together â€” callers, callees, imports, and related tests.', badge: 'Beta' },
   { icon: 'lucide:book-open', title: 'Knowledge & RAG', desc: 'Ground agents in your uploaded docs and crawled websites with hybrid semantic + keyword search, per agent.' },
   { icon: 'lucide:zap', title: 'Automation', desc: 'Fire agents from webhooks (signals) or cron (schedules) with budget caps, retries, dead-letter recovery, and human-in-the-loop approval.' },
-  { icon: 'lucide:building-2', title: 'Multi-tenant & cost-metered', desc: 'Orgs, workspaces, RBAC, encrypted credential vaults, and per-token cost accounting baked in from day one — not bolted on.' },
+  { icon: 'lucide:building-2', title: 'Multi-tenant & cost-metered', desc: 'Orgs, workspaces, RBAC, encrypted credential vaults, and per-token cost accounting baked in from day one â€” not bolted on.' },
 ]
 
 const steps = [
   { title: 'Ask or assign', desc: 'Start a conversation or trigger an agent from a webhook or schedule. It retrieves the right context first.' },
-  { title: 'Edit & verify', desc: 'The agent proposes minimal diffs against a clone, runs focused checks, and asks when it’s unsure.' },
-  { title: 'Review & ship', desc: 'You review per-file and per-hunk, accept what’s right, and export a pull request — guardrails intact.' },
+  { title: 'Edit & verify', desc: 'The agent proposes minimal diffs against a clone, runs focused checks, and asks when itâ€™s unsure.' },
+  { title: 'Review & ship', desc: 'You review per-file and per-hunk, accept whatâ€™s right, and export a pull request â€” guardrails intact.' },
 ]
 
 const stats = [
@@ -187,16 +187,16 @@ const stats = [
   { value: '24/7', label: 'Autonomous' },
 ]
 
-/* ── Animated terminal ── */
+/* â”€â”€ Animated terminal â”€â”€ */
 const sequence = [
   '<span class="c-gray">// agent: implement the change</span>',
   '<span class="c-violet">search_code</span>(<span class="c-str">"checkout limit enforcement"</span>)',
-  '<span class="c-gray">// 3 results · ranked by graph proximity</span>',
+  '<span class="c-gray">// 3 results Â· ranked by graph proximity</span>',
   '<span class="c-violet">propose_diff</span>({ files: <span class="c-num">3</span> })',
-  '<span class="c-gray">// running focused verify…</span>',
-  '<span class="c-ok">✓ py_compile ok · 4 related tests pass</span>',
+  '<span class="c-gray">// running focused verifyâ€¦</span>',
+  '<span class="c-ok">âœ“ py_compile ok Â· 4 related tests pass</span>',
   '<span class="c-violet">export_pr</span>({ base: <span class="c-str">"main"</span> })',
-  '<span class="c-ok">✓ PR opened · awaiting review</span>',
+  '<span class="c-ok">âœ“ PR opened Â· awaiting review</span>',
 ]
 const shownLines = ref([])
 const typing = ref(true)
@@ -325,3 +325,4 @@ onUnmounted(() => { timers.forEach(clearTimeout); timers = [] })
 }
 .cta-btn-outline:hover { background: rgba(255,255,255,.14); }
 </style>
+

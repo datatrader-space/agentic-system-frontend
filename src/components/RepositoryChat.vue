@@ -446,7 +446,9 @@ const connectWebSocket = (repositoryId = props.repository.id) => {
   autoReconnect = true
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const wsHost = import.meta.env.VITE_WS_HOST || window.location.host
-  const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/repository/${repositoryId}/`
+  // A real repository → repo-scoped chat; no repo (id 0/falsy) → general agent chat route.
+  const wsPath = repositoryId ? `/ws/chat/repository/${repositoryId}/` : '/ws/chat/agent/'
+  const wsUrl = `${wsProtocol}//${wsHost}${wsPath}`
 
   ws = new WebSocket(wsUrl)
   wsRepositoryId = repositoryId

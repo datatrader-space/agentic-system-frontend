@@ -3,39 +3,41 @@
     <div class="max-w-6xl mx-auto">
       <div class="flex items-end justify-between gap-4 mb-6">
         <div>
-          <h1 class="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink flex items-center gap-3">
-            <span class="w-10 h-10 rounded-xl bg-g-brand flex items-center justify-center shrink-0 shadow-glow-v text-white">⚙</span>
+          <h1 class="text-[25px] font-[850] leading-tight tracking-normal text-[#0f172a] flex items-center gap-3">
+            <span class="w-10 h-10 rounded-[10px] bg-[#eef4ff] flex items-center justify-center shrink-0 text-[#2563eb]">
+              <Workflow :size="21" :stroke-width="2" />
+            </span>
             Workflow Builder
           </h1>
           <p class="mt-1.5 text-sm text-ink-soft">Drag-and-drop graphs of triggers, agents &amp; actions. <span class="text-amber-600 font-medium">Preview</span></p>
         </div>
         <div class="flex items-center gap-2">
           <button @click="openTemplates"
-            class="px-3 py-2 rounded-xl text-sm font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 inline-flex items-center gap-1.5">
-            <span>🧩</span> Templates
+            class="h-9 px-3 rounded-[8px] border border-[#d8e2f0] bg-white text-[12px] font-[850] text-[#334155] hover:bg-[#f8fbff] inline-flex items-center gap-1.5">
+            <LayoutTemplate :size="15" :stroke-width="2" /> Templates
           </button>
           <button @click="triggerImport"
-            class="px-3 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 inline-flex items-center gap-1.5">
-            <span>⤓</span> Import
+            class="h-9 px-3 rounded-[8px] border border-[#d8e2f0] bg-white text-[12px] font-[850] text-[#334155] hover:bg-[#f8fbff] inline-flex items-center gap-1.5">
+            <Upload :size="15" :stroke-width="2" /> Import
           </button>
           <input ref="fileInput" type="file" accept="application/json,.json" class="hidden" @change="onImportFile" />
           <button @click="createNew" :disabled="creating"
-            class="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-g-brand shadow-glow-v hover:opacity-95 disabled:opacity-60 inline-flex items-center gap-2">
-            <span>＋</span> {{ creating ? 'Creating…' : 'New workflow' }}
+            class="h-9 px-4 rounded-[8px] text-[12px] font-[850] text-white bg-[#2563eb] shadow-[0_8px_18px_rgba(37,99,235,0.18)] hover:bg-[#1d4ed8] disabled:opacity-60 inline-flex items-center gap-2">
+            <Plus :size="15" :stroke-width="2.2" /> {{ creating ? 'Creating…' : 'New workflow' }}
           </button>
         </div>
       </div>
 
       <PageLoader v-if="loading" label="Loading workflows…" />
-      <div v-else-if="!graphs.length" class="rounded-2xl border border-dashed border-slate-200 bg-slate-50/40 py-16 text-center">
+      <div v-else-if="!graphs.length" class="rounded-[10px] border border-dashed border-[#dfe7f2] bg-white py-16 text-center shadow-[0_8px_22px_rgba(15,23,42,0.035)]">
         <p class="text-sm font-medium text-ink-soft">No workflows yet</p>
         <p class="text-xs text-ink-faint mt-1">Build your first graph: a trigger → an agent → an action.</p>
-        <button @click="createNew" class="mt-4 px-4 py-2 rounded-lg text-sm font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100">Create your first workflow</button>
+        <button @click="createNew" class="mt-4 h-9 px-4 rounded-[8px] text-[12px] font-[850] text-[#2563eb] bg-[#eef4ff] hover:bg-[#e3edff]">Create your first workflow</button>
       </div>
 
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <button v-for="g in graphs" :key="g.id" @click="open(g)"
-          class="group text-left rounded-2xl border border-slate-200 bg-white p-4 hover:border-violet-300 hover:shadow-sm transition-all">
+          class="group text-left rounded-[10px] border border-[#dfe7f2] bg-white p-4 shadow-[0_8px_22px_rgba(15,23,42,0.035)] hover:border-[#cfdbea] transition-all">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <div class="text-[14px] font-bold text-ink truncate">{{ g.name }}</div>
@@ -50,7 +52,7 @@
             <span class="text-ink-faint">last run: {{ g.last_run.status }}</span>
           </div>
           <div class="mt-3 flex items-center gap-2">
-            <span class="text-[11px] font-semibold text-violet-700 opacity-0 group-hover:opacity-100 transition-opacity">Open builder →</span>
+            <span class="text-[11px] font-[850] text-[#2563eb] opacity-0 group-hover:opacity-100 transition-opacity">Open builder →</span>
             <div class="flex-1"></div>
             <span @click.stop="duplicate(g)" class="text-[11px] font-semibold text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline mr-3">Duplicate</span>
             <span @click.stop="exportGraph(g)" class="text-[11px] font-semibold text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity hover:underline mr-3">Export</span>
@@ -62,7 +64,7 @@
 
     <!-- Templates picker -->
     <div v-if="showTemplates" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30" @click.self="showTemplates = false">
-      <div class="w-[460px] max-w-[92vw] bg-white rounded-2xl shadow-xl overflow-hidden">
+      <div class="w-[460px] max-w-[92vw] bg-white rounded-[10px] shadow-[0_18px_45px_rgba(15,23,42,0.14)] overflow-hidden border border-[#dfe7f2]">
         <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-200">
           <b class="text-ink">Start from a template</b>
           <button class="text-slate-400 text-2xl leading-none" @click="showTemplates = false">×</button>
@@ -70,7 +72,7 @@
         <div class="p-3 max-h-[60vh] overflow-y-auto">
           <p v-if="!templates.length" class="text-sm text-ink-faint p-6 text-center">No templates available.</p>
           <button v-for="t in templates" :key="t.key" @click="useTemplate(t)" :disabled="creating"
-            class="w-full text-left rounded-xl border border-slate-200 p-3 mb-2 hover:border-violet-300 hover:bg-violet-50/40 disabled:opacity-60">
+            class="w-full text-left rounded-[8px] border border-[#dfe7f2] p-3 mb-2 hover:border-[#bcd0f7] hover:bg-[#f8fbff] disabled:opacity-60">
             <div class="text-[13px] font-bold text-ink">{{ t.name }}</div>
             <div class="text-[12px] text-ink-soft mt-0.5">{{ t.description }}</div>
           </button>
@@ -83,6 +85,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { LayoutTemplate, Plus, Upload, Workflow } from 'lucide-vue-next'
 import api from '../services/api'
 import PageLoader from '../components/common/PageLoader.vue'
 import { notify } from '@/composables/useNotify'
@@ -197,13 +200,14 @@ async function exportGraph(g) {
 }
 
 async function remove(g) {
-  if (!(await confirm({ title: 'Delete workflow?', message: `Delete "${g.name}"? This can't be undone.`, confirmText: 'Delete', danger: true }))) return
+  // Archive (soft-delete): preserves historical cost attribution + any workflow budget's spend history.
+  if (!(await confirm({ title: 'Archive workflow?', message: `Archive "${g.name}"? It will be hidden from the list, but its run history and budget spend are kept. You can still see it via "Include archived".`, confirmText: 'Archive' }))) return
   try {
     await api.deleteWorkflowGraph(g.id)
     graphs.value = graphs.value.filter(x => x.id !== g.id)
-    notify.success('Workflow deleted')
+    notify.success('Workflow archived')
   } catch (e) {
-    notify.error(e?.response?.data?.error || 'Failed to delete')
+    notify.error(e?.response?.data?.error || 'Failed to archive')
   }
 }
 

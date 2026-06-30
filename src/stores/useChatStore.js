@@ -98,10 +98,14 @@ export const useChatStore = defineStore('chat', {
   },
   actions: {
     // ---- Agents + history ----
-    async loadAgents() {
+    async loadAgents(force = false) {
       // agentsLoading is set synchronously, so concurrent mount-time calls from
       // LeftSidebar / ChatWelcome / ChatWorkspace collapse into a single request.
-      if (this.agentsLoaded || this.agentsLoading) return
+      // force=true (after creating / editing / deleting an agent) bypasses the "already loaded"
+      // short-circuit so the change shows immediately without a full page refresh — still deduped
+      // against any in-flight load.
+      if (this.agentsLoading) return
+      if (this.agentsLoaded && !force) return
       this.agentsLoading = true
       try {
         const res = await api.getAgents()
@@ -116,6 +120,12 @@ export const useChatStore = defineStore('chat', {
       } finally {
         this.agentsLoading = false
       }
+    },
+
+    // Refresh the agent list after a create/edit/delete so pickers (New Chat / sidebar) update without a
+    // page refresh. Thin wrapper over loadAgents(force=true) for explicit, greppable call sites.
+    async refreshAgents() {
+      return this.loadAgents(true)
     },
 
     setAgent(id) {

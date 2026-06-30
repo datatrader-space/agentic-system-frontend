@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <!-- Public marketing shell. Owns its own scroll (global body has overflow:hidden,
        same pattern as AppShell). Self-contained Vibrant Light Mesh backdrop so the
        z-index never fights the app canvas. Light theme only. -->
@@ -11,7 +11,7 @@
       <span class="pl-blob b4"></span>
     </div>
 
-    <!-- ── Header ───────────────────────────────────────────── -->
+    <!-- â”€â”€ Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <header class="pl-header" :class="{ scrolled: isScrolled }">
       <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <!-- Brand -->
@@ -61,7 +61,7 @@
       </div>
     </header>
 
-    <!-- ── Mobile drawer ────────────────────────────────────── -->
+    <!-- â”€â”€ Mobile drawer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <Transition name="pl-fade">
       <div v-if="mobileOpen" class="pl-overlay md:hidden" @click.self="closeMobile">
         <nav class="pl-drawer">
@@ -89,12 +89,12 @@
       </div>
     </Transition>
 
-    <!-- ── Page content ─────────────────────────────────────── -->
+    <!-- â”€â”€ Page content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <main class="pl-main">
       <slot />
     </main>
 
-    <!-- ── Footer ───────────────────────────────────────────── -->
+    <!-- â”€â”€ Footer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <footer class="pl-footer">
       <div class="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div class="grid gap-10 md:grid-cols-[1.4fr_repeat(3,1fr)]">
@@ -114,7 +114,7 @@
               <span class="font-display text-base font-extrabold text-ink">AADML</span>
             </div>
             <p class="mt-4 max-w-xs text-sm leading-relaxed text-ink-soft">
-              The agentic OS for coding and knowledge work — code-aware, context-aware, and cost-aware automation. Self-hostable and built for teams.
+              The Aadml OS for coding and knowledge work â€” code-aware, context-aware, and cost-aware automation. Self-hostable and built for teams.
             </p>
           </div>
           <div v-for="col in footerCols" :key="col.title">
@@ -128,7 +128,7 @@
           </div>
         </div>
         <div class="mt-12 flex flex-col items-center justify-between gap-4 border-t border-line pt-6 text-sm text-ink-faint sm:flex-row">
-          <span>© {{ year }} AADML. All rights reserved.</span>
+          <span>Â© {{ year }} AADML. All rights reserved.</span>
           <div class="flex gap-5">
             <router-link to="/docs" class="pl-foot-link">Docs</router-link>
             <router-link to="/pricing" class="pl-foot-link">Pricing</router-link>
@@ -218,7 +218,7 @@ onUnmounted(() => scrollEl.value?.removeEventListener('scroll', onScroll))
   scroll-behavior: smooth;
 }
 
-/* ── Mesh backdrop ── */
+/* â”€â”€ Mesh backdrop â”€â”€ */
 .pl-mesh {
   position: fixed;
   inset: 0;
@@ -239,7 +239,7 @@ onUnmounted(() => scrollEl.value?.removeEventListener('scroll', onScroll))
 .b3 { width: 42vw; height: 42vw; left: 16vw; top: 60vh; background: radial-gradient(circle, #DBE4F0, transparent 70%); animation: vmDrift3 32s var(--vm-ease2) infinite; }
 .b4 { width: 34vw; height: 34vw; right: 6vw; top: 80vh; background: radial-gradient(circle, #E0ECFF, transparent 70%); animation: vmDrift4 28s var(--vm-ease2) infinite; }
 
-/* ── Header ── */
+/* â”€â”€ Header â”€â”€ */
 .pl-header {
   position: sticky;
   top: 0;
@@ -300,7 +300,7 @@ onUnmounted(() => scrollEl.value?.removeEventListener('scroll', onScroll))
 }
 .pl-btn-primary:hover { transform: translateY(-1px); box-shadow: var(--vm-glow-v); }
 
-/* ── Burger ── */
+/* â”€â”€ Burger â”€â”€ */
 .pl-burger {
   display: inline-flex;
   flex-direction: column;
@@ -316,7 +316,7 @@ onUnmounted(() => scrollEl.value?.removeEventListener('scroll', onScroll))
 }
 .pl-burger span { display: block; height: 2px; width: 18px; background: var(--vm-ink); border-radius: 2px; }
 
-/* ── Mobile drawer ── */
+/* â”€â”€ Mobile drawer â”€â”€ */
 .pl-overlay {
   position: fixed;
   inset: 0;
@@ -347,7 +347,7 @@ onUnmounted(() => scrollEl.value?.removeEventListener('scroll', onScroll))
 }
 .pl-drawer-link:hover, .pl-drawer-link.active { color: var(--vm-primary); background: var(--vm-primary-soft); }
 
-/* ── Main / footer ── */
+/* â”€â”€ Main / footer â”€â”€ */
 .pl-main { position: relative; z-index: 1; }
 .pl-footer {
   position: relative;
@@ -367,3 +367,4 @@ onUnmounted(() => scrollEl.value?.removeEventListener('scroll', onScroll))
   .public-shell { scroll-behavior: auto; }
 }
 </style>
+

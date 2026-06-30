@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <PublicLayout>
     <!-- Header -->
     <section class="relative overflow-hidden">
@@ -11,7 +11,7 @@
           One platform. Every capability an agent needs.
         </h1>
         <p v-reveal class="mx-auto mt-5 max-w-2xl text-lg text-ink-soft">
-          From a browser-based coding agent to webhook automation and multi-tenant governance — accurate to what ships today, with beta work clearly marked.
+          From a browser-based coding agent to webhook automation and multi-tenant governance â€” accurate to what ships today, with beta work clearly marked.
         </p>
       </div>
     </section>
@@ -61,8 +61,8 @@ import HeroBackdrop from '../components/public/HeroBackdrop.vue'
 import { useMeta } from '../composables/useMeta'
 
 useMeta({
-  title: 'Features — AADML',
-  description: 'Explore AADML: the Let’s Code agentic IDE, 1,800+ tools, code intelligence, knowledge & RAG, webhook/cron automation, multi-tenant governance, and full cost observability.',
+  title: 'Features â€” AADML',
+  description: 'Explore AADML: the Letâ€™s Code Aadml IDE, 1,800+ tools, code intelligence, knowledge & RAG, webhook/cron automation, multi-tenant governance, and full cost observability.',
 })
 
 const groups = [
@@ -76,11 +76,11 @@ const groups = [
     ],
   },
   {
-    title: 'Code intelligence & Let’s Code',
+    title: 'Code intelligence & Letâ€™s Code',
     icon: 'lucide:code-2',
     items: [
-      { icon: 'lucide:panel-left', title: 'Let’s Code IDE', desc: 'Clone a GitHub repo, browse files, and chat with an agent that proposes diffs you review and export as a PR.', status: 'Shipped' },
-      { icon: 'lucide:git-compare', title: 'Reviewable diffs', desc: 'Per-file and per-hunk accept/revert against a clone — focused verify runs before anything ships.', status: 'Shipped' },
+      { icon: 'lucide:panel-left', title: 'Letâ€™s Code IDE', desc: 'Clone a GitHub repo, browse files, and chat with an agent that proposes diffs you review and export as a PR.', status: 'Shipped' },
+      { icon: 'lucide:git-compare', title: 'Reviewable diffs', desc: 'Per-file and per-hunk accept/revert against a clone â€” focused verify runs before anything ships.', status: 'Shipped' },
       { icon: 'lucide:network', title: 'Graph-aware retrieval', desc: 'Symbol and call-graph indexing (CRS) grounds edits in callers, callees, imports, and related tests.', status: 'Beta' },
     ],
   },
@@ -88,7 +88,7 @@ const groups = [
     title: 'Knowledge & RAG',
     icon: 'lucide:book-open',
     items: [
-      { icon: 'lucide:file-text', title: 'Document knowledge', desc: 'Upload PDFs, text, and markdown — chunked and embedded for per-agent semantic retrieval.', status: 'Shipped' },
+      { icon: 'lucide:file-text', title: 'Document knowledge', desc: 'Upload PDFs, text, and markdown â€” chunked and embedded for per-agent semantic retrieval.', status: 'Shipped' },
       { icon: 'lucide:globe', title: 'Website crawler', desc: 'Index sites via sitemap or crawl, grouped as one source with live progress.', status: 'Shipped' },
       { icon: 'lucide:brain', title: 'Self-learning (Dream)', desc: 'Agents distil knowledge cards from their own history and inject them into future runs.', status: 'Shipped' },
     ],
@@ -116,8 +116,8 @@ const groups = [
     icon: 'lucide:shield-check',
     items: [
       { icon: 'lucide:building-2', title: 'Multi-tenancy', desc: 'Organizations, workspaces, teams, and RBAC with workspace-scoped resources and audit trails.', status: 'Shipped' },
-      { icon: 'lucide:key-round', title: 'Encrypted credentials', desc: 'Fernet-encrypted vaults and OAuth connections — secrets are never exposed to agents or logs.', status: 'Shipped' },
-      { icon: 'lucide:bar-chart-3', title: 'Cost observability', desc: 'Every LLM call is logged with tokens, latency, and frozen cost — per user, agent, and source.', status: 'Shipped' },
+      { icon: 'lucide:key-round', title: 'Encrypted credentials', desc: 'Fernet-encrypted vaults and OAuth connections â€” secrets are never exposed to agents or logs.', status: 'Shipped' },
+      { icon: 'lucide:bar-chart-3', title: 'Cost observability', desc: 'Every LLM call is logged with tokens, latency, and frozen cost â€” per user, agent, and source.', status: 'Shipped' },
     ],
   },
 ]
@@ -158,3 +158,4 @@ const groups = [
 }
 .cta-ghost:hover { border-color: var(--vm-primary); }
 </style>
+

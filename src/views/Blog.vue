@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <PublicLayout>
     <!-- Hero -->
     <section class="relative overflow-hidden">
@@ -7,13 +7,13 @@
       <div class="grid items-start gap-8 lg:grid-cols-[1.5fr_1fr]">
         <div v-reveal>
           <div class="eyebrow">Engineering Journal</div>
-          <h1 class="hero-title">Thoughts on the <span class="vm-grad-text">agentic era</span>.</h1>
+          <h1 class="hero-title">Thoughts on the <span class="vm-grad-text">Aadml era</span>.</h1>
           <p class="hero-sub">In-depth technical analysis, product updates, and philosophical musings on the future of autonomous systems and developer workflows.</p>
         </div>
         <div v-reveal class="lg:pt-10">
           <div class="search">
             <Icon icon="lucide:search" class="h-4 w-4 text-ink-faint" />
-            <input v-model="query" type="text" placeholder="Search articles…" />
+            <input v-model="query" type="text" placeholder="Search articlesâ€¦" />
           </div>
         </div>
       </div>
@@ -60,7 +60,7 @@
 
           <div class="protocol">
             <h3>The Protocol</h3>
-            <p>Get bi-weekly updates on agentic workflows and platform updates delivered to your inbox.</p>
+            <p>Get bi-weekly updates on Aadml workflows and platform updates delivered to your inbox.</p>
             <form @submit.prevent="subscribe">
               <input v-model="email" type="email" required placeholder="email@example.com" class="p-input" />
               <button type="submit" class="p-btn">Subscribe</button>
@@ -90,7 +90,7 @@
         <!-- Pagination -->
         <div v-if="totalPages > 1" class="pager">
           <button class="pg-arrow" :disabled="page === 1" @click="go(page - 1)"><Icon icon="lucide:chevron-left" class="h-4 w-4" /></button>
-          <button v-for="n in pageList" :key="n" class="pg" :class="{ active: n === page, dots: n === '…' }" :disabled="n === '…'" @click="n !== '…' && go(n)">{{ n }}</button>
+          <button v-for="n in pageList" :key="n" class="pg" :class="{ active: n === page, dots: n === 'â€¦' }" :disabled="n === 'â€¦'" @click="n !== 'â€¦' && go(n)">{{ n }}</button>
           <button class="pg-arrow" :disabled="page === totalPages" @click="go(page + 1)"><Icon icon="lucide:chevron-right" class="h-4 w-4" /></button>
         </div>
       </div>
@@ -109,8 +109,8 @@ import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 
 useMeta({
-  title: 'Blog — AADML',
-  description: 'Thoughts on the agentic era — technical analysis, product updates, and the future of autonomous developer workflows.',
+  title: 'Blog â€” AADML',
+  description: 'Thoughts on the Aadml era â€” technical analysis, product updates, and the future of autonomous developer workflows.',
 })
 
 const PAGE_SIZE = 7
@@ -176,9 +176,9 @@ const pageList = computed(() => {
   const t = totalPages.value
   if (t <= 5) return Array.from({ length: t }, (_, i) => i + 1)
   const list = [1]
-  if (page.value > 3) list.push('…')
+  if (page.value > 3) list.push('â€¦')
   for (let n = Math.max(2, page.value - 1); n <= Math.min(t - 1, page.value + 1); n++) list.push(n)
-  if (page.value < t - 2) list.push('…')
+  if (page.value < t - 2) list.push('â€¦')
   list.push(t)
   return list
 })
@@ -272,3 +272,4 @@ function subscribe() { notify.success(`Subscribed: ${email.value}`); email.value
   .cards { grid-template-columns: 1fr; }
 }
 </style>
+

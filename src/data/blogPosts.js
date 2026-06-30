@@ -1,4 +1,4 @@
-export const blogPosts = [
+﻿export const blogPosts = [
   {
     id: 1,
     slug: 'ai-powered-development-2026',
@@ -11,7 +11,7 @@ export const blogPosts = [
     color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     tags: ['AI', 'Development', 'Automation', 'Productivity'],
     content: `
-      <p class="lead">The landscape of software development is undergoing a dramatic transformation. AI-powered agents are no longer science fiction—they're actively reshaping how we write, test, and deploy code.</p>
+      <p class="lead">The landscape of software development is undergoing a dramatic transformation. AI-powered agents are no longer science fictionâ€”they're actively reshaping how we write, test, and deploy code.</p>
 
       <h2>The Rise of Intelligent Agents</h2>
       <p>Gone are the days when developers had to manually scaffold projects, write boilerplate code, and spend hours debugging. AI agents can now understand context, analyze codebases, and make intelligent suggestions that save countless hours.</p>
@@ -28,8 +28,8 @@ export const blogPosts = [
       <p>We're seeing teams report productivity gains of 10x or more in specific tasks. A developer who used to spend 2 hours writing unit tests can now have comprehensive test suites generated in minutes. Code reviews that took days now happen in hours, with AI agents catching potential issues before human reviewers even look.</p>
 
       <blockquote>
-        "AI agents haven't replaced developers—they've made us exponentially more effective. We're spending less time on repetitive tasks and more time on creative problem-solving."
-        <cite>— Michael Torres, Senior Engineer at TechCorp</cite>
+        "AI agents haven't replaced developersâ€”they've made us exponentially more effective. We're spending less time on repetitive tasks and more time on creative problem-solving."
+        <cite>â€” Michael Torres, Senior Engineer at TechCorp</cite>
       </blockquote>
 
       <h2>The Enterprise Perspective</h2>
@@ -46,7 +46,7 @@ export const blogPosts = [
         <li>Natural language interfaces for complex DevOps tasks</li>
       </ul>
 
-      <p>The future of development isn't about replacing humans—it's about augmenting our capabilities and letting us focus on what we do best: creative problem-solving and innovation.</p>
+      <p>The future of development isn't about replacing humansâ€”it's about augmenting our capabilities and letting us focus on what we do best: creative problem-solving and innovation.</p>
 
       <p>If you haven't started exploring AI-powered development tools yet, 2026 is the year to begin. The gap between early adopters and laggards is widening rapidly.</p>
     `
@@ -73,8 +73,8 @@ export const blogPosts = [
   },
   {
     id: 3,
-    slug: 'getting-started-with-agentic-systems',
-    title: 'Getting Started with Agentic Systems',
+    slug: 'getting-started-with-Aadml-systems',
+    title: 'Getting Started with Aadmls',
     author: 'David Miller',
     date: 'January 10, 2026',
     readTime: 6,
@@ -83,9 +83,9 @@ export const blogPosts = [
     color: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
     tags: ['Tutorial', 'AI', 'Beginners'],
     content: `
-      <p class="lead">Ready to dive into the world of agentic systems? This guide will walk you through the basics of setting up your first AI agent.</p>
-      <h2>What is an Agentic System?</h2>
-      <p>Unlike simple chatbots, agentic systems have the ability to use tools, maintain state, and perform multi-step tasks autonomously.</p>
+      <p class="lead">Ready to dive into the world of Aadmls? This guide will walk you through the basics of setting up your first AI agent.</p>
+      <h2>What is an Aadml?</h2>
+      <p>Unlike simple chatbots, Aadmls have the ability to use tools, maintain state, and perform multi-step tasks autonomously.</p>
       <p>We'll cover configuration, tool selection, and basic orchestration in this article.</p>
     `
   },
@@ -103,7 +103,7 @@ export const blogPosts = [
     content: `
       <p class="lead">Moving AI from experimental labs to enterprise production environments is a journey fraught with challenges. Here's what we learned.</p>
       <h2>Security First</h2>
-      <p>In the enterprise, security isn't just a feature—it's a prerequisite. We've implemented robust audit trails for all AI-generated content.</p>
+      <p>In the enterprise, security isn't just a featureâ€”it's a prerequisite. We've implemented robust audit trails for all AI-generated content.</p>
     `
   },
   {
@@ -137,3 +137,4 @@ export const blogPosts = [
     `
   }
 ];
+

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="panel">
     <div class="card">
       <h3 class="card-title">Interface</h3>
@@ -20,7 +20,7 @@
 
     <div class="card">
       <h3 class="card-title">About</h3>
-      <div class="kv"><span>Interface</span><span>Agentic v2</span></div>
+      <div class="kv"><span>Interface</span><span>Aadml</span></div>
       <div class="kv"><span>Platform</span><span>{{ platform }}</span></div>
     </div>
   </div>
@@ -72,3 +72,4 @@ const clearLocal = async () => {
 .kv span:first-child { color: #94a3b8; }
 .kv span:last-child { color: #334155; font-weight: 500; }
 </style>
+

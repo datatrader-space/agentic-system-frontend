@@ -38,7 +38,36 @@
 
     <!-- Main -->
     <main class="admin-main">
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <Suspense>
+          <component :is="Component" :key="route.fullPath" />
+          <template #fallback>
+            <div class="admin-route-loading">
+              <div class="admin-skeleton__toolbar">
+                <span class="vm-skel admin-skeleton__search"></span>
+                <span class="vm-skel admin-skeleton__filter"></span>
+                <span class="vm-skel admin-skeleton__filter short"></span>
+              </div>
+              <div class="admin-skeleton__grid">
+                <article v-for="item in 6" :key="item" class="admin-skeleton__card">
+                  <div class="admin-skeleton__top">
+                    <span class="vm-skel admin-skeleton__avatar"></span>
+                    <span class="vm-skel admin-skeleton__pill"></span>
+                  </div>
+                  <span class="vm-skel admin-skeleton__line title"></span>
+                  <span class="vm-skel admin-skeleton__line"></span>
+                  <span class="vm-skel admin-skeleton__line wide"></span>
+                  <span class="vm-skel admin-skeleton__line mid"></span>
+                  <div class="admin-skeleton__foot">
+                    <span class="vm-skel"></span>
+                    <span class="vm-skel"></span>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </template>
+        </Suspense>
+      </router-view>
     </main>
   </div>
 </template>
@@ -58,6 +87,8 @@ const nav = [
   { to: '/admin-dashboard/model-pricing', label: 'Model Pricing', icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'] },
   { to: '/admin-dashboard/llm-context', label: 'LLM Context', icon: ['M4 7V4h16v3', 'M9 20h6', 'M12 4v16', 'M4 12h16'] },
   { to: '/admin-dashboard/crawler-export', label: 'Crawler Export API', icon: ['M21 2H3v16h5v4l4-4h5l4-4z', 'M8 9h8', 'M8 13h6'] },
+  { to: '/admin-dashboard/api-reference', label: 'API Reference', icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6', 'M14 4l-4 16'] },
+  { to: '/admin-dashboard/help-analytics', label: 'Help Analytics', icon: ['M3 3v18h18', 'M7 16l4-4 3 3 5-6'] },
 ]
 
 // Django admin lives on the backend (:8000 in dev; same origin in prod).
@@ -77,10 +108,10 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.admin-shell { display: flex; min-height: 100vh; background: #0f172a; color: #e2e8f0; }
+.admin-shell { display: flex; height: 100vh; overflow: hidden; background: #0f172a; color: #e2e8f0; }
 .admin-sidebar {
   width: 248px; flex-shrink: 0; background: #111827; border-right: 1px solid #1f2937;
-  display: flex; flex-direction: column; padding: 18px 12px; position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column; padding: 18px 12px; height: 100vh; overflow-y: auto;
 }
 .admin-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; }
 .admin-logo { font-size: 22px; }
@@ -99,5 +130,39 @@ onMounted(async () => {
 .admin-back { color: #818cf8; font-size: 12.5px; text-decoration: none; font-weight: 600; }
 .admin-back:hover { color: #a5b4fc; }
 .admin-user { font-size: 11px; color: #64748b; margin-top: 8px; word-break: break-all; }
-.admin-main { flex: 1; min-width: 0; overflow-x: hidden; background: #f8fafc; color: #0f172a; }
+.admin-main { flex: 1; min-width: 0; height: 100vh; overflow-y: auto; overflow-x: hidden; background: #f8fafc; color: #0f172a; }
+.admin-route-loading {
+  width: 100%;
+  min-height: 320px;
+  padding: 32px;
+}
+.admin-skeleton__toolbar { display: flex; gap: 10px; margin-bottom: 18px; }
+.admin-skeleton__search { width: min(420px, 52%); height: 40px; border-radius: 9px; }
+.admin-skeleton__filter { width: 140px; height: 40px; border-radius: 9px; }
+.admin-skeleton__filter.short { width: 110px; }
+.admin-skeleton__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.admin-skeleton__card {
+  min-height: 238px;
+  border: 1px solid #dfe7f2;
+  border-radius: 10px;
+  background: #fff;
+  padding: 22px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .035);
+}
+.admin-skeleton__top { display: flex; align-items: flex-start; justify-content: space-between; }
+.admin-skeleton__avatar { width: 54px; height: 54px; border-radius: 16px; }
+.admin-skeleton__pill { width: 54px; height: 22px; border-radius: 999px; }
+.admin-skeleton__line { display: block; width: 78%; height: 13px; margin-top: 12px; }
+.admin-skeleton__line.title { width: 56%; height: 18px; margin-top: 18px; }
+.admin-skeleton__line.wide { width: 100%; }
+.admin-skeleton__line.mid { width: 88%; margin-top: 8px; }
+.admin-skeleton__foot { display: flex; gap: 9px; margin-top: 20px; }
+.admin-skeleton__foot span { flex: 1; height: 38px; }
+@media (max-width: 680px) {
+  .admin-route-loading { padding: 22px 16px; }
+  .admin-skeleton__toolbar { flex-direction: column; }
+  .admin-skeleton__search,
+  .admin-skeleton__filter,
+  .admin-skeleton__filter.short { width: 100%; }
+}
 </style>

@@ -30,15 +30,15 @@
   position: absolute;
   border-radius: 50%;
   filter: blur(70px);
-  opacity: .4;            /* subtle — enterprise, not candy */
+  opacity: .14;
   mix-blend-mode: multiply;
   will-change: transform;
 }
 /* Cool slate/blue + a hint of teal — barely-there professional tint. */
-.b1 { width: 46vw; height: 46vw; left: -8vw; top: -10vw; background: radial-gradient(circle, #C7DBFF, transparent 70%); animation: vmDrift1 26s var(--vm-ease2) infinite; }
-.b2 { width: 40vw; height: 40vw; right: -6vw; top: -8vw; background: radial-gradient(circle, #DBE4F0, transparent 70%); animation: vmDrift2 30s var(--vm-ease2) infinite; }
-.b3 { width: 42vw; height: 42vw; left: 18vw; bottom: -16vw; background: radial-gradient(circle, #CDEFE9, transparent 70%); animation: vmDrift3 32s var(--vm-ease2) infinite; }
-.b4 { width: 34vw; height: 34vw; right: 8vw; bottom: -12vw; background: radial-gradient(circle, #E2E8F0, transparent 70%); animation: vmDrift4 28s var(--vm-ease2) infinite; }
+.b1 { width: 46vw; height: 46vw; left: -8vw; top: -10vw; background: radial-gradient(circle, #D8E6FF, transparent 70%); animation: vmDrift1 26s var(--vm-ease2) infinite; }
+.b2 { width: 40vw; height: 40vw; right: -6vw; top: -8vw; background: radial-gradient(circle, #EAF0F8, transparent 70%); animation: vmDrift2 30s var(--vm-ease2) infinite; }
+.b3 { width: 42vw; height: 42vw; left: 18vw; bottom: -16vw; background: radial-gradient(circle, #DFF6F2, transparent 70%); animation: vmDrift3 32s var(--vm-ease2) infinite; }
+.b4 { width: 34vw; height: 34vw; right: 8vw; bottom: -12vw; background: radial-gradient(circle, #EEF4FF, transparent 70%); animation: vmDrift4 28s var(--vm-ease2) infinite; }
 .grain {
   position: absolute;
   inset: 0;

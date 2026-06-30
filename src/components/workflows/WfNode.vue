@@ -6,7 +6,7 @@
     <Handle v-if="!isTrigger" type="target" :position="Position.Left" class="wf-h wf-h-in" />
 
     <div class="wf-node-head">
-      <span class="wf-ic" :class="familyClass">{{ icon }}</span>
+      <span class="wf-ic" :class="familyClass"><Icon :icon="icon" /></span>
       <div class="wf-node-text">
         <div class="wf-node-title">{{ title }}</div>
         <div class="wf-node-sub">{{ subtitle }}</div>
@@ -45,6 +45,7 @@
 
 <script setup>
 import { computed, inject } from 'vue'
+import { Icon } from '@iconify/vue'
 import { Handle, Position } from '@vue-flow/core'
 import { nodeConfigPreview, nodeStatusState, nodeAccent, NODE_STATUS_LABELS } from '../../utils/wfNodeView'
 
@@ -69,13 +70,23 @@ const familyClass = computed(() => `fam-${family.value}`)
 const accent = computed(() => nodeAccent(props.type))
 
 const ICONS = {
-  'trigger.manual': '▶', 'trigger.schedule': '⏰', 'trigger.webhook': '🔗', 'trigger.channel': '💬',
-  'agent.run': '🤖',
-  'action.channel': '📣', 'action.tool': '🛠️', 'action.mcp_tool': '🔧', 'action.script': '📜', 'action.http': '🌐',
-  'action.subworkflow': '🧩',
-  'logic.condition': '🔀', 'logic.delay': '⏳', 'logic.approval': '✋', 'logic.foreach': '🔁',
+  'trigger.manual': 'lucide:square-play',
+  'trigger.schedule': 'lucide:clock-3',
+  'trigger.webhook': 'lucide:webhook',
+  'trigger.channel': 'lucide:message-square',
+  'agent.run': 'lucide:bot',
+  'action.channel': 'logos:slack-icon',
+  'action.tool': 'lucide:wrench',
+  'action.mcp_tool': 'lucide:plug-zap',
+  'action.script': 'lucide:scan-line',
+  'action.http': 'lucide:globe-2',
+  'action.subworkflow': 'lucide:workflow',
+  'logic.condition': 'lucide:split',
+  'logic.delay': 'lucide:timer',
+  'logic.approval': 'lucide:badge-check',
+  'logic.foreach': 'lucide:repeat-2',
 }
-const icon = computed(() => ICONS[props.type] || '◻')
+const icon = computed(() => ICONS[props.type] || 'lucide:square')
 
 const TITLES = {
   'trigger.manual': 'Manual trigger', 'agent.run': 'Run agent', 'action.channel': 'Send to channel',
@@ -84,8 +95,15 @@ const title = computed(() => props.data?.label || TITLES[props.type] || props.ty
 
 const subtitle = computed(() => {
   if (props.type === 'agent.run') return props.data?.agent_name || props.data?.agent_id ? `Agent: ${props.data.agent_name || props.data.agent_id}` : 'Pick an agent'
-  if (props.type === 'action.channel') return `Channel: ${props.data?.kind || 'log'}`
+  if (props.type === 'action.channel') return props.data?.slack_channel || `Channel: ${props.data?.kind || 'log'}`
+  if (props.type === 'trigger.webhook') return 'Inbound HTTP'
+  if (props.type === 'trigger.schedule') return 'Cron trigger'
+  if (props.type === 'trigger.channel') return 'Inbound Slack/Telegram/Email'
   if (props.type === 'trigger.manual') return 'Runs on demand'
+  if (props.type === 'action.http') return props.data?.url ? `${props.data?.method || 'GET'} ${props.data.url}` : 'GET/POST a URL'
+  if (props.type === 'action.script') return props.data?.notes || 'Run a saved script'
+  if (props.type === 'action.tool') return props.data?.tool || 'Call a registered tool'
+  if (props.type === 'logic.condition') return props.data?.expression || 'Logic node'
   if (props.type === 'logic.approval') return props.data?.message || 'Wait for approval'
   if (props.type === 'logic.foreach') return `For each → ${props.data?.do?.type || 'action'}`
   if (props.type === 'action.subworkflow') return props.data?.graph_name ? `Graph: ${props.data.graph_name}` : 'Pick a graph'
@@ -180,4 +198,254 @@ const isInvalid = computed(() => statusState.value === 'invalid' || !!props.data
   box-shadow: 0 2px 6px rgba(0,0,0,.18); opacity: 0; transform: scale(.85); transition: opacity .12s, transform .12s; z-index: 4; }
 .wf-node:hover .wf-quickadd { opacity: 1; transform: scale(1); }
 .wf-quickadd:hover { filter: brightness(1.08); transform: scale(1.12); }
+
+/* Screen 25 clean icon treatment: hide corrupted glyph text and use a stable mark. */
+.wf-ic {
+  font-size: 0;
+}
+.wf-ic::before {
+  content: "";
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+}
+.wf-ic.fam-trigger::before {
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 10px solid var(--accent);
+  border-right: 0;
+  border-radius: 2px;
+}
+.wf-node {
+  min-width: 210px;
+  border-radius: 14px;
+  border-color: #dbe5f0;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+.wf-stripe {
+  display: none;
+}
+.wf-node.fam-trigger,
+.wf-node.fam-agent,
+.wf-node.fam-action,
+.wf-node.fam-logic {
+  border-top-width: 1.5px;
+}
+.wf-node.selected {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14), 0 12px 28px rgba(15, 23, 42, 0.1);
+}
+.wf-node-title {
+  font-size: 13px;
+  font-weight: 850;
+}
+.wf-node-sub {
+  font-size: 11px;
+}
+
+/* Screen 25 canvas node sizing */
+.wf-node {
+  min-width: 318px;
+  max-width: 340px;
+  min-height: 82px;
+  border-radius: 16px;
+  border: 1px solid #d7e3f2;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+}
+.wf-node.fam-trigger {
+  border-left: 6px solid var(--accent);
+}
+.wf-node-head {
+  gap: 18px;
+  padding: 20px 24px;
+}
+.wf-ic {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+}
+.wf-ic::before {
+  width: 16px;
+  height: 16px;
+}
+.wf-ic.fam-trigger::before {
+  border-top-width: 8px;
+  border-bottom-width: 8px;
+  border-left-width: 12px;
+}
+.wf-node-title {
+  font-size: 21px;
+  line-height: 1.2;
+  font-weight: 850;
+}
+.wf-node-sub {
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #7b8ca7;
+}
+.wf-status {
+  position: absolute;
+  right: -18px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.wf-dot {
+  width: 14px;
+  height: 14px;
+}
+.wf-node :deep(.vue-flow__handle) {
+  width: 14px;
+  height: 14px;
+}
+.wf-node :deep(.vue-flow__handle.wf-h-out) {
+  right: -18px;
+}
+.wf-preview,
+.wf-warn,
+.wf-note {
+  display: none;
+}
+.wf-quickadd {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  right: -13px;
+  bottom: -13px;
+  width: 26px;
+  height: 26px;
+  z-index: 8;
+  background: #2563eb;
+}
+
+/* Workflow builder 2026 node cards */
+.wf-node {
+  min-width: 220px;
+  max-width: 260px;
+  min-height: 66px;
+  border: 1px solid #dce5f2;
+  border-radius: 9px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.07);
+}
+.wf-node.fam-trigger,
+.wf-node.fam-agent,
+.wf-node.fam-action,
+.wf-node.fam-logic {
+  border-top-width: 1px;
+  border-left: 1px solid #dce5f2;
+}
+.wf-node.selected {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22), 0 12px 28px rgba(15, 23, 42, 0.09);
+}
+.wf-node-head {
+  gap: 13px;
+  padding: 14px 16px;
+}
+.wf-ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+.wf-ic::before {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+.wf-ic.fam-trigger::before {
+  border-top-width: 6px;
+  border-bottom-width: 6px;
+  border-left-width: 9px;
+}
+.wf-ic.fam-trigger { background: #f0e9ff; }
+.wf-ic.fam-agent { background: #ecebff; }
+.wf-ic.fam-action { background: #e9fbf2; }
+.wf-ic.fam-logic { background: #fff4dd; }
+.wf-node-title {
+  font-size: 13px;
+  line-height: 1.25;
+  font-weight: 850;
+  color: #111b34;
+}
+.wf-node-sub {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.25;
+  color: #60708a;
+}
+.wf-status {
+  right: 8px;
+  top: 8px;
+  transform: none;
+}
+.wf-dot {
+  width: 11px;
+  height: 11px;
+  border: 2px solid #ffffff;
+  background: #18b77a;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.18);
+}
+.wf-node :deep(.vue-flow__handle) {
+  width: 10px;
+  height: 10px;
+}
+.wf-node :deep(.vue-flow__handle.wf-h-out) {
+  right: -6px;
+}
+.wf-node :deep(.vue-flow__handle.wf-h-in) {
+  left: -6px;
+}
+.wf-quickadd {
+  right: -12px;
+  bottom: -12px;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+}
+.wf-ic {
+  font-size: 0;
+}
+.wf-ic::before {
+  content: none !important;
+  display: none !important;
+}
+.wf-ic svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+  stroke-width: 2.2;
+}
+.wf-ic.fam-action svg {
+  color: #10b981;
+}
+.wf-ic.fam-agent svg {
+  color: #6366f1;
+}
+.wf-ic.fam-logic svg {
+  color: #f59e0b;
+}
+
+/* Final icon override: prevent legacy CSS-drawn squares from replacing SVG icons. */
+.wf-ic::before,
+.wf-ic::after {
+  content: none !important;
+  display: none !important;
+}
+.wf-ic {
+  display: grid !important;
+  place-items: center !important;
+  font-size: 0 !important;
+}
+.wf-ic svg {
+  display: block !important;
+  width: 18px !important;
+  height: 18px !important;
+}
 </style>
+

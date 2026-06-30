@@ -61,7 +61,9 @@ export class ChatConnection {
     }
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
     // Same-origin: the Vite dev server proxies /ws → the backend (see vite.config.js).
-    const url = `${proto}://${window.location.host}/ws/chat/repository/${this.repoId}/`
+    // General agent chat (no repo) → dedicated /ws/chat/agent/ route; a real repo → repo-scoped route.
+    const path = this.repoId ? `/ws/chat/repository/${this.repoId}/` : '/ws/chat/agent/'
+    const url = `${proto}://${window.location.host}${path}`
     try {
       this.ws = new WebSocket(url)
     } catch (e) {

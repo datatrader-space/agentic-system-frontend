@@ -1,9 +1,9 @@
-<template>
+﻿<template>
   <div class="acp">
     <div class="acp-head">
       <div class="acp-head-top">
         <Icon icon="lucide:sparkles" class="logo" />
-        <span class="title">Agentic AI</span>
+        <span class="title">Aadml AI</span>
       </div>
       <div class="acp-head-sel">
         <label class="sel" title="Agent persona">
@@ -36,13 +36,13 @@
       <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role">
         <div v-if="m.role === 'user'" class="bubble user">{{ m.text }}</div>
         <template v-else>
-          <div class="ai-row"><span class="ai-ic"><Icon icon="lucide:sparkles" /></span><span class="ai-nm">Agentic AI</span></div>
+          <div class="ai-row"><span class="ai-ic"><Icon icon="lucide:sparkles" /></span><span class="ai-nm">Aadml AI</span></div>
           <div v-if="m.task && m.task.plan && m.task.plan.length" class="ai-plan">
             <div class="ai-plan-h">Plan</div>
             <ol><li v-for="(s, si) in m.task.plan" :key="si">{{ s }}</li></ol>
           </div>
           <div v-if="isRunning(m.task)" class="ai-run">
-            <span class="vm-orb is-live"></span> {{ statusLabel(m.task) }}…
+            <span class="vm-orb is-live"></span> {{ statusLabel(m.task) }}â€¦
           </div>
           <div v-if="m.task && m.task.error_message" class="ai-err">
             <Icon icon="lucide:alert-triangle" /> {{ m.task.error_message }}
@@ -70,11 +70,11 @@
     </div>
 
     <div class="acp-composer">
-      <div v-if="!crsReady" class="acp-gate"><span class="vm-orb is-idle"></span> Indexing project — chat unlocks when ready.</div>
+      <div v-if="!crsReady" class="acp-gate"><span class="vm-orb is-idle"></span> Indexing project â€” chat unlocks when ready.</div>
       <div class="acp-input">
         <textarea
           v-model="input" rows="2" :disabled="!crsReady || sending"
-          placeholder="Ask Agentic AI to code, refactor or debug…"
+          placeholder="Ask Aadml AI to code, refactor or debugâ€¦"
           @keydown.enter.exact.prevent="send()"
         ></textarea>
         <button class="send" :disabled="!crsReady || sending || !input.trim()" @click="send()">
@@ -155,7 +155,7 @@ function pollTask(msg) {
 async function send(text) {
   const prompt = (text || input.value).trim()
   if (!prompt) return
-  if (!props.crsReady) { notify.warning('The project is still indexing — please wait.'); return }
+  if (!props.crsReady) { notify.warning('The project is still indexing â€” please wait.'); return }
   messages.value.push({ role: 'user', text: prompt })
   input.value = ''
   sending.value = true
@@ -188,7 +188,7 @@ async function onExport(m) {
   try {
     const { data } = await api.exportCodingTask(props.systemId, props.repoId, m.task.id)
     m.task = data
-    notify.info('Opening branch + PR…')
+    notify.info('Opening branch + PRâ€¦')
     pollExport(m)
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Export failed'); exporting.value = false
@@ -242,12 +242,12 @@ async function onCopy(m) {
 function onClarify(m, o) {
   const base = (m.task && m.task.prompt) || ''
   if (!o || o.id === 'CUSTOM' || (o.label || '').toLowerCase() === 'custom') {
-    input.value = base ? `${base} — ` : ''
+    input.value = base ? `${base} â€” ` : ''
     notify.info('Type your specific instruction, then send')
     nextTick(() => { const el = scrollEl.value?.parentElement?.querySelector('textarea'); el && el.focus() })
     return
   }
-  const clarified = `${base}\n\nClarification: ${o.label}${o.description ? ' — ' + o.description : ''}`
+  const clarified = `${base}\n\nClarification: ${o.label}${o.description ? ' â€” ' + o.description : ''}`
   send(clarified)
 }
 
@@ -306,3 +306,4 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 .send :deep(svg) { width: 17px; height: 17px; }
 .spin { animation: acp-spin 1s linear infinite; } @keyframes acp-spin { to { transform: rotate(360deg); } }
 </style>
+

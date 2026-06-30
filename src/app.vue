@@ -1,7 +1,36 @@
 <template>
   <div id="app" class="min-h-screen" :class="appBackgroundClass">
     <!-- Public webchat (/a/:token, /embed/:token): bare full-bleed, no app header/shell -->
-    <router-view v-if="isBareChat" />
+    <router-view v-if="isBareChat" v-slot="{ Component }">
+      <Suspense>
+        <component :is="Component" :key="route.fullPath" />
+        <template #fallback>
+          <div class="global-route-loading">
+            <div class="route-skeleton__toolbar">
+              <span class="vm-skel route-skeleton__search"></span>
+              <span class="vm-skel route-skeleton__filter"></span>
+              <span class="vm-skel route-skeleton__filter short"></span>
+            </div>
+            <div class="route-skeleton__grid">
+              <article v-for="item in 6" :key="item" class="route-skeleton__card">
+                <div class="route-skeleton__top">
+                  <span class="vm-skel route-skeleton__avatar"></span>
+                  <span class="vm-skel route-skeleton__pill"></span>
+                </div>
+                <span class="vm-skel route-skeleton__line title"></span>
+                <span class="vm-skel route-skeleton__line"></span>
+                <span class="vm-skel route-skeleton__line wide"></span>
+                <span class="vm-skel route-skeleton__line mid"></span>
+                <div class="route-skeleton__foot">
+                  <span class="vm-skel"></span>
+                  <span class="vm-skel"></span>
+                </div>
+              </article>
+            </div>
+          </div>
+        </template>
+      </Suspense>
+    </router-view>
 
     <template v-else>
       <!-- Header Component — legacy top nav. Authenticated users live entirely
@@ -22,10 +51,68 @@
 
       <!-- Main Content -->
       <main v-if="!isAppShell" :class="mainContentClass">
-        <router-view />
+        <router-view v-slot="{ Component }">
+          <Suspense>
+            <component :is="Component" :key="route.fullPath" />
+            <template #fallback>
+              <div class="global-route-loading">
+                <div class="route-skeleton__toolbar">
+                  <span class="vm-skel route-skeleton__search"></span>
+                  <span class="vm-skel route-skeleton__filter"></span>
+                  <span class="vm-skel route-skeleton__filter short"></span>
+                </div>
+                <div class="route-skeleton__grid">
+                  <article v-for="item in 6" :key="item" class="route-skeleton__card">
+                    <div class="route-skeleton__top">
+                      <span class="vm-skel route-skeleton__avatar"></span>
+                      <span class="vm-skel route-skeleton__pill"></span>
+                    </div>
+                    <span class="vm-skel route-skeleton__line title"></span>
+                    <span class="vm-skel route-skeleton__line"></span>
+                    <span class="vm-skel route-skeleton__line wide"></span>
+                    <span class="vm-skel route-skeleton__line mid"></span>
+                    <div class="route-skeleton__foot">
+                      <span class="vm-skel"></span>
+                      <span class="vm-skel"></span>
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </template>
+          </Suspense>
+        </router-view>
       </main>
       <!-- v2 app shell: full-bleed, owns its own layout -->
-      <router-view v-else />
+      <router-view v-else v-slot="{ Component }">
+        <Suspense>
+          <component :is="Component" :key="route.matched[0]?.path || route.fullPath" />
+          <template #fallback>
+            <div class="global-route-loading shell">
+              <div class="route-skeleton__toolbar">
+                <span class="vm-skel route-skeleton__search"></span>
+                <span class="vm-skel route-skeleton__filter"></span>
+                <span class="vm-skel route-skeleton__filter short"></span>
+              </div>
+              <div class="route-skeleton__grid">
+                <article v-for="item in 6" :key="item" class="route-skeleton__card">
+                  <div class="route-skeleton__top">
+                    <span class="vm-skel route-skeleton__avatar"></span>
+                    <span class="vm-skel route-skeleton__pill"></span>
+                  </div>
+                  <span class="vm-skel route-skeleton__line title"></span>
+                  <span class="vm-skel route-skeleton__line"></span>
+                  <span class="vm-skel route-skeleton__line wide"></span>
+                  <span class="vm-skel route-skeleton__line mid"></span>
+                  <div class="route-skeleton__foot">
+                    <span class="vm-skel"></span>
+                    <span class="vm-skel"></span>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </template>
+        </Suspense>
+      </router-view>
     </template>
 
     <!-- Global confirm dialog host (replaces native window.confirm everywhere) -->
@@ -291,9 +378,10 @@ provide('logout', handleLogout)
 /* Global styles */
 body {
   margin: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -327,5 +415,120 @@ body {
   background: #5a67d8;
   transform: translateY(-1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.global-route-loading {
+  width: 100%;
+  min-height: 320px;
+  padding: 32px;
+}
+
+.global-route-loading.shell {
+  min-height: 100dvh;
+  background: #f8fbff;
+}
+
+.route-skeleton__toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.route-skeleton__search {
+  width: min(420px, 52%);
+  height: 40px;
+  border-radius: 9px;
+}
+
+.route-skeleton__filter {
+  width: 140px;
+  height: 40px;
+  border-radius: 9px;
+}
+
+.route-skeleton__filter.short {
+  width: 110px;
+}
+
+.route-skeleton__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.route-skeleton__card {
+  min-height: 238px;
+  border: 1px solid #dfe7f2;
+  border-radius: 10px;
+  background: #fff;
+  padding: 22px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .035);
+}
+
+.route-skeleton__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.route-skeleton__avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+}
+
+.route-skeleton__pill {
+  width: 54px;
+  height: 22px;
+  border-radius: 999px;
+}
+
+.route-skeleton__line {
+  display: block;
+  width: 78%;
+  height: 13px;
+  margin-top: 12px;
+}
+
+.route-skeleton__line.title {
+  width: 56%;
+  height: 18px;
+  margin-top: 18px;
+}
+
+.route-skeleton__line.wide {
+  width: 100%;
+}
+
+.route-skeleton__line.mid {
+  width: 88%;
+  margin-top: 8px;
+}
+
+.route-skeleton__foot {
+  display: flex;
+  gap: 9px;
+  margin-top: 20px;
+}
+
+.route-skeleton__foot span {
+  flex: 1;
+  height: 38px;
+}
+
+@media (max-width: 680px) {
+  .global-route-loading {
+    padding: 22px 16px;
+  }
+
+  .route-skeleton__toolbar {
+    flex-direction: column;
+  }
+
+  .route-skeleton__search,
+  .route-skeleton__filter,
+  .route-skeleton__filter.short {
+    width: 100%;
+  }
 }
 </style>

@@ -1,25 +1,9 @@
-// Memory Autopilot — render an undoable "Remembered: X" toast when the backend auto-saves memory from a
-// turn (the `memory_saved` WS event, pushed to the user_<id> group). Shared by every chat surface so the
-// behavior is identical. Clicking the toast calls the undo endpoint (POST /api/memory/forget/).
-import api from '@/services/api'
-import { notify } from '@/composables/useNotify'
-
-export function showMemorySavedToast(data) {
-  const items = Array.isArray(data?.items) ? data.items : []
-  for (const it of items) {
-    if (!it || !it.id) continue
-    notify.success(`🧠 Remembered: ${it.content || 'a note'} — click to undo`, {
-      timeout: 8000,
-      onClick: async () => {
-        try {
-          await api.forgetMemory(it.id)
-          notify.info('Okay — forgotten.')
-        } catch (e) {
-          notify.error('Could not undo that memory.')
-        }
-      },
-    })
-  }
+// Memory Autopilot — the backend still auto-saves memory from a turn (the `memory_saved` WS event), but
+// per product decision we no longer surface a "Remembered: X — click to undo" toast (nor the "Okay —
+// forgotten" toast on undo). This is intentionally a no-op so every chat surface stops showing it from one
+// place; the WS event is still consumed harmlessly by the callers. Memory management lives in the Memory tab.
+export function showMemorySavedToast(_data) {
+  // intentionally no-op — memory auto-save toasts are disabled
 }
 
 export function useMemoryToast() {

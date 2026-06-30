@@ -1,21 +1,24 @@
-<template>
-  <div class="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 sm:p-8" @click.self="$emit('close')">
-    <div class="w-full max-w-6xl h-[88vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+﻿<template>
+  <div class="hub-overlay fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 sm:p-8" @click.self="$emit('close')">
+    <div class="hub-modal w-full max-w-6xl h-[88vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
       <!-- Header -->
-      <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 shrink-0">
+      <div class="hub-header flex items-center justify-between px-5 py-3.5 border-b border-slate-200 shrink-0">
         <div class="flex items-center gap-2.5">
-          <span class="w-7 h-7 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center">
+          <span class="hub-mark w-7 h-7 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
           </span>
-          <h2 class="text-[15px] font-bold text-ink">Integration Hub</h2>
+          <div>
+            <h2 class="hub-title text-[15px] font-bold text-ink">Connector Catalog</h2>
+            <p class="hub-subtitle">Connect Aadml with the tools and services you use every day.</p>
+          </div>
         </div>
         <div class="flex items-center gap-2">
-          <div v-if="!detailItem" class="flex gap-1 p-1 bg-slate-100 rounded-lg">
-            <button @click="view = 'hub'" :class="['px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors', view === 'hub' ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700']">Integration Hub</button>
-            <button @click="view = 'installed'" :class="['px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors', view === 'installed' ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700']">Installed Integrations</button>
+          <div v-if="!detailItem" class="hub-tabs flex gap-1 p-1 bg-slate-100 rounded-lg">
+            <button @click="view = 'hub'" :class="['px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors', view === 'hub' ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700']">Catalog</button>
+            <button @click="view = 'installed'" :class="['px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors', view === 'installed' ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700']">Installed Integrations <span class="hub-tab-count">{{ installedItems.length }}</span></button>
           </div>
-          <button @click="$emit('close')" class="px-3 py-1.5 rounded-lg text-[12px] font-semibold text-ink-soft bg-slate-100 hover:bg-slate-200 flex items-center gap-1.5">
-            Close <kbd class="text-[10px] text-slate-400 font-sans">Esc</kbd>
+          <button @click="$emit('close')" class="hub-close px-3 py-1.5 rounded-lg text-[12px] font-semibold text-ink-soft bg-slate-100 hover:bg-slate-200 flex items-center gap-1.5">
+            <Icon icon="lucide:x" class="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -69,7 +72,7 @@
             <div v-if="isInstalled(detailItem)" class="flex items-center justify-between px-4 py-3 text-[12px] border-b border-slate-100">
               <div class="flex gap-6">
                 <div><div class="text-ink-faint">Version</div><div class="font-semibold text-ink">{{ detailItem.version }}</div></div>
-                <div><div class="text-ink-faint">{{ detailItem.name }}</div><a class="font-semibold text-violet-700 hover:underline" :href="detailItem.sourceUrl" target="_blank" rel="noopener">Source Code ↗</a></div>
+                <div><div class="text-ink-faint">{{ detailItem.name }}</div><a class="font-semibold text-violet-700 hover:underline" :href="detailItem.sourceUrl" target="_blank" rel="noopener">Source Code â†—</a></div>
               </div>
               <span class="text-ink-faint">About Integration</span>
             </div>
@@ -78,9 +81,9 @@
               <div class="flex items-center justify-between gap-3 mb-3">
                 <span class="text-[13px] font-bold text-ink">Connections</span>
                 <select v-model="connMethod" class="px-3 py-1.5 text-[12px] font-semibold text-ink bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300">
-                  <option v-if="authMethods.includes('oauth2')" value="oauth">Connect with OAuth — Recommended</option>
-                  <option v-if="authMethods.includes('github_app')" value="app">Configure with your own GitHub App — Advanced</option>
-                  <option v-if="authMethods.includes('personal_access_token')" value="pat">Personal Access Token — Advanced / Manual</option>
+                  <option v-if="authMethods.includes('oauth2')" value="oauth">Connect with OAuth â€” Recommended</option>
+                  <option v-if="authMethods.includes('github_app')" value="app">Configure with your own GitHub App â€” Advanced</option>
+                  <option v-if="authMethods.includes('personal_access_token')" value="pat">Personal Access Token â€” Advanced / Manual</option>
                 </select>
               </div>
 
@@ -92,11 +95,11 @@
                   <span class="text-[10px] font-semibold text-emerald-700 bg-emerald-100 rounded px-1.5 py-0.5 capitalize">{{ (current?.auth_method || '').replace(/_/g, ' ') }}</span>
                 </div>
                 <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
-                  <div><dt class="text-emerald-700/70">Account</dt><dd class="font-semibold text-emerald-900">{{ current?.account_login || '—' }}</dd></div>
+                  <div><dt class="text-emerald-700/70">Account</dt><dd class="font-semibold text-emerald-900">{{ current?.account_login || 'â€”' }}</dd></div>
                   <div><dt class="text-emerald-700/70">Status</dt><dd class="font-semibold text-emerald-900 capitalize">{{ current?.status }}</dd></div>
                   <div class="col-span-2">
                     <dt class="text-emerald-700/70">Granted scopes</dt>
-                    <dd class="font-semibold text-emerald-900">{{ (current?.scopes_granted?.length ? current.scopes_granted.join(', ') : '—') }}</dd>
+                    <dd class="font-semibold text-emerald-900">{{ (current?.scopes_granted?.length ? current.scopes_granted.join(', ') : 'â€”') }}</dd>
                   </div>
                   <div class="col-span-2">
                     <dt class="text-emerald-700/70 mb-1">Available tools ({{ current?.capabilities?.length || 0 }})</dt>
@@ -114,7 +117,7 @@
                   <template v-if="current?.oauth_configured">
                     <p class="text-[13px] text-ink-soft">You are not connected to {{ detailItem.name }}</p>
                     <button @click="connectWithOAuth" :disabled="busy" class="mt-3 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 inline-flex items-center gap-2">
-                      <Icon icon="lucide:lock" class="w-4 h-4" /> {{ busy ? 'Connecting…' : 'Connect with OAuth' }}
+                      <Icon icon="lucide:lock" class="w-4 h-4" /> {{ busy ? 'Connectingâ€¦' : 'Connect with OAuth' }}
                     </button>
                     <p class="text-[11px] text-ink-faint mt-2">Requesting scopes: <code class="hub-code">{{ (current?.requested_scopes || []).join(' ') }}</code>. Tokens are stored encrypted server-side.</p>
                   </template>
@@ -126,7 +129,7 @@
                   </template>
                 </div>
 
-                <!-- GitHub App (advanced) — honest not-configured -->
+                <!-- GitHub App (advanced) â€” honest not-configured -->
                 <div v-else-if="connMethod === 'app'" class="text-center py-3">
                   <Icon icon="lucide:info" class="w-6 h-6 text-amber-500 mx-auto" />
                   <p class="mt-2 text-[13px] font-semibold text-ink">GitHub App setup is not fully configured yet</p>
@@ -137,10 +140,10 @@
                 <!-- PAT (advanced / manual) -->
                 <div v-else>
                   <label class="block text-[12px] font-semibold text-ink mb-1">{{ detailItem.name }} {{ detailItem.id === 'slack' ? 'token' : 'Personal Access Token' }}</label>
-                  <input v-model="token" type="password" :placeholder="detailItem.id === 'slack' ? 'xoxb-… or xoxp-…' : 'ghp_…'" class="w-full px-3 py-2.5 text-[13px] text-ink bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300" />
-                  <p class="text-[11px] text-ink-faint mt-1.5">Validated against {{ detailItem.name }} and stored encrypted server-side — never exposed to the browser.</p>
+                  <input v-model="token" type="password" :placeholder="detailItem.id === 'slack' ? 'xoxb-â€¦ or xoxp-â€¦' : 'ghp_â€¦'" class="w-full px-3 py-2.5 text-[13px] text-ink bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                  <p class="text-[11px] text-ink-faint mt-1.5">Validated against {{ detailItem.name }} and stored encrypted server-side â€” never exposed to the browser.</p>
                   <button @click="installWithToken" :disabled="!token.trim() || busy" class="mt-3 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 flex items-center gap-2">
-                    <Icon icon="lucide:lock" class="w-4 h-4" /> {{ busy ? 'Connecting…' : 'Connect with token' }}
+                    <Icon icon="lucide:lock" class="w-4 h-4" /> {{ busy ? 'Connectingâ€¦' : 'Connect with token' }}
                   </button>
                 </div>
               </div>
@@ -198,28 +201,105 @@
 
       <!-- ============ GRID / DIRECTORY VIEW ============ -->
       <template v-else>
-        <div class="px-5 pt-4 shrink-0">
-          <div class="relative">
-            <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4-4"/></svg>
-            <input v-model="query" placeholder="Search integrations…" class="w-full pl-9 pr-3 py-2.5 text-[13px] text-ink bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300 focus:bg-white" />
+        <div class="catalog-shell flex-1 min-h-0 overflow-hidden">
+          <div class="catalog-toolbar">
+            <div class="catalog-search relative">
+              <svg class="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4-4"/></svg>
+              <input v-model="query" placeholder="Search integrations..." />
+            </div>
+            <select v-model="activeCategory"><option value="All Categories">All Categories</option><option v-for="c in categories.filter(c => c !== 'Popular')" :key="c" :value="c">{{ c }}</option></select>
+            <select disabled><option>All Providers</option></select>
+            <select disabled><option>Sort: Popular</option></select>
+          </div>
+
+          <div class="catalog-body">
+            <main class="catalog-main">
+              <h3>{{ view === 'installed' ? 'Installed Integrations' : 'All Integrations' }}</h3>
+              <p>{{ view === 'installed' ? 'Connectors connected in this scope.' : 'Browse and connect integrations to extend Aadml.' }}</p>
+
+              <div v-if="view === 'installed'" class="catalog-grid">
+                <article v-for="c in installedItems" :key="c.kind + c.id" class="catalog-card">
+                  <span class="catalog-logo"><Icon v-if="c.icon && c.icon.includes(':')" :icon="c.icon" /><span v-else>{{ (c.name || '?').charAt(0) }}</span></span>
+                  <div class="catalog-card-title"><strong>{{ c.name }}</strong><Icon icon="lucide:badge-check" /></div>
+                  <span class="catalog-by">Connected</span>
+                </article>
+              </div>
+              <p v-if="view === 'installed' && !installedItems.length" class="catalog-empty">Nothing installed yet. Connect one from the connector catalog.</p>
+
+              <div v-if="view !== 'installed'" class="catalog-grid">
+                <article v-for="item in catalogItems" :key="item.id" class="catalog-card" @click="openDetail(item)">
+                  <div class="catalog-card-head">
+                    <span class="catalog-logo"><Icon :icon="item.icon" /></span>
+                    <div>
+                      <div class="catalog-card-title"><strong>{{ item.name }}</strong><Icon v-if="item.verified" icon="lucide:badge-check" /></div>
+                      <span class="catalog-by">By {{ item.author }}</span>
+                    </div>
+                  </div>
+                  <p>{{ item.desc }}</p>
+                  <div class="catalog-tags"><span v-for="tag in item.tags" :key="tag">{{ tag }}</span></div>
+                  <button class="catalog-connect" @click.stop="openDetail(item)"><Icon icon="lucide:plus" /> {{ item.id === 'custom-mcp' ? 'Add Custom' : 'Connect' }}</button>
+                </article>
+              </div>
+              <p v-if="view !== 'installed' && !catalogItems.length" class="catalog-empty">No integrations match "{{ query }}".</p>
+              <button v-if="view !== 'installed'" class="catalog-request">Can't find what you need? Request an integration <Icon icon="lucide:external-link" /></button>
+            </main>
+
+            <aside class="catalog-info">
+              <h4>About Integrations</h4>
+              <section>
+                <Icon icon="lucide:plug" />
+                <strong>What are connectors?</strong>
+                <p>Connectors let Aadml securely interact with your tools and services so your agents can take action and get things done.</p>
+              </section>
+              <section>
+                <Icon icon="lucide:scan-line" />
+                <strong>Understanding scopes</strong>
+                <p>Scopes define the specific data and actions Aadml can access. You can review and change scopes anytime.</p>
+                <button>Learn about scopes</button>
+              </section>
+              <section>
+                <Icon icon="lucide:badge-check" />
+                <strong>How installation works</strong>
+                <ol>
+                  <li>Choose an integration</li>
+                  <li>Review requested scopes</li>
+                  <li>Authorize securely</li>
+                  <li>Start building with your data</li>
+                </ol>
+                <button>View installation guide</button>
+              </section>
+              <div class="catalog-security">
+                <Icon icon="lucide:shield-check" />
+                <strong>Security you can trust</strong>
+                <p>We use industry-standard encryption and never store your credentials in plain text.</p>
+                <a>Learn more about security <Icon icon="lucide:external-link" /></a>
+              </div>
+            </aside>
           </div>
         </div>
 
-        <div class="flex-1 min-h-0 flex">
-          <aside class="w-56 shrink-0 border-r border-slate-100 p-3 overflow-y-auto">
+        <div v-if="false" class="hub-search px-5 pt-4 shrink-0">
+          <div class="relative">
+            <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4-4"/></svg>
+            <input v-model="query" placeholder="Search integrationsâ€¦" class="w-full pl-9 pr-3 py-2.5 text-[13px] text-ink bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300 focus:bg-white" />
+          </div>
+        </div>
+
+        <div v-if="false" class="flex-1 min-h-0 flex">
+          <aside class="hub-sidebar w-56 shrink-0 border-r border-slate-100 p-3 overflow-y-auto">
             <button v-for="c in categories" :key="c" @click="activeCategory = c"
               :class="['w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-left transition-colors mb-0.5', activeCategory === c ? 'bg-slate-100 text-ink font-semibold' : 'text-ink-soft hover:bg-slate-50']">
               <Icon :icon="categoryIcon(c)" class="w-4 h-4 shrink-0 text-slate-400" />{{ c }}
             </button>
           </aside>
 
-          <div class="flex-1 min-w-0 overflow-y-auto p-5">
+          <div class="hub-content flex-1 min-w-0 overflow-y-auto p-5">
             <div v-if="view === 'installed'">
               <h3 class="text-[15px] font-bold text-ink mb-1">Installed integrations</h3>
               <p class="text-[12px] text-ink-faint mb-4">Connectors connected in this scope.</p>
-              <p v-if="!installedItems.length" class="py-10 text-center text-[13px] text-ink-faint">Nothing installed yet — connect one from the Integration Hub.</p>
+              <p v-if="!installedItems.length" class="py-10 text-center text-[13px] text-ink-faint">Nothing installed yet â€” connect one from the connector catalog.</p>
               <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                <div v-for="c in installedItems" :key="c.kind + c.id" class="rounded-xl border border-slate-200 p-4 flex items-center gap-2.5">
+                <div v-for="c in installedItems" :key="c.kind + c.id" class="hub-installed-card rounded-xl border border-slate-200 p-4 flex items-center gap-2.5">
                   <span class="w-9 h-9 rounded-lg bg-white border border-slate-200/60 flex items-center justify-center overflow-hidden shrink-0">
                     <Icon v-if="c.icon && c.icon.includes(':')" :icon="c.icon" class="w-6 h-6" />
                     <span v-else class="font-bold text-slate-600">{{ (c.name||'?').charAt(0) }}</span>
@@ -239,7 +319,7 @@
                   <p class="text-[12px] text-ink-faint mb-3">{{ group.subtitle }}</p>
                   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                     <button v-for="item in group.items" :key="item.id" @click="openDetail(item)"
-                      class="group text-left rounded-xl border border-slate-200 p-4 hover:border-violet-300 hover:shadow-sm transition-all">
+                      class="hub-card group text-left rounded-xl border border-slate-200 p-4 hover:border-violet-300 hover:shadow-sm transition-all">
                       <div class="flex items-start justify-between">
                         <div class="flex items-center gap-2.5 min-w-0">
                           <Icon :icon="item.icon" class="w-9 h-9 shrink-0" />
@@ -260,7 +340,7 @@
                   </div>
                 </div>
               </template>
-              <p v-if="!visibleGroups.length" class="py-12 text-center text-[13px] text-ink-faint">No integrations match “{{ query }}”.</p>
+              <p v-if="!visibleGroups.length" class="py-12 text-center text-[13px] text-ink-faint">No integrations match â€œ{{ query }}â€.</p>
             </div>
           </div>
         </div>
@@ -284,7 +364,7 @@ const emit = defineEmits(['close', 'installed'])
 
 const view = ref('hub')
 const query = ref('')
-const activeCategory = ref('Popular')
+const activeCategory = ref('All Categories')
 
 // Detail / install state
 const detailItem = ref(null)
@@ -327,22 +407,22 @@ function categoryIcon(c) {
 }
 
 const GITHUB = {
-  id: 'github', name: 'GitHub', author: 'Agentic', verified: true, popular: true,
+  id: 'github', name: 'GitHub', author: 'Aadml', verified: true, popular: true,
   category: 'Developer Tools', icon: 'logos:github-icon', version: '1.0.0',
   provider_slug: 'github',
   sourceUrl: 'https://docs.github.com/en/rest',
   desc: 'Manage GitHub issues, pull requests, and repositories.',
   longDesc:
-    'Streamline your development workflow by seamlessly integrating GitHub. This integration lets you manage and automate your GitHub repositories, issues, and pull requests directly from your agents — collaborate effectively, track progress, and ensure smooth development cycles with features like real-time notifications, issue management, and pull request merging.',
+    'Streamline your development workflow by seamlessly integrating GitHub. This integration lets you manage and automate your GitHub repositories, issues, and pull requests directly from your agents â€” collaborate effectively, track progress, and ensure smooth development cycles with features like real-time notifications, issue management, and pull request merging.',
   migration: [
     'The integration now supports both GitHub Apps and personal access tokens for authentication. GitHub Apps are recommended for organizations, while personal access tokens are suitable for individual users.',
-    'The "Find Target" action now requires the repo field to be specified — it should contain the repository name. The discussion channel was removed from this action.',
+    'The "Find Target" action now requires the repo field to be specified â€” it should contain the repository name. The discussion channel was removed from this action.',
     'The number tag on channels was removed. Pull requests now have a pullRequestNumber tag, and issues have an issueNumber tag.',
   ],
   config: [
     { title: 'Automatic configuration with OAuth (recommended)', body: 'Authorize the platform GitHub app with least-privilege scopes (read:user, user:email, repo). The token is stored encrypted server-side and used to authenticate API calls. Requires GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET on the backend.' },
-    { title: 'Personal Access Token (manual)', body: 'Generate a fine-grained GitHub personal access token with Repository permissions (Issues + Pull requests: Read & write). Paste it under "Install Integration" → Personal Access Token. Validated against GitHub and stored encrypted server-side.' },
-    { title: 'Custom GitHub App (advanced)', body: 'Create your own GitHub App and provide its credentials. Not fully wired yet — use OAuth or a Personal Access Token for now.' },
+    { title: 'Personal Access Token (manual)', body: 'Generate a fine-grained GitHub personal access token with Repository permissions (Issues + Pull requests: Read & write). Paste it under "Install Integration" â†’ Personal Access Token. Validated against GitHub and stored encrypted server-side.' },
+    { title: 'Custom GitHub App (advanced)', body: 'Create your own GitHub App and provide its credentials. Not fully wired yet â€” use OAuth or a Personal Access Token for now.' },
   ],
   cards: {
     actions: [
@@ -359,16 +439,16 @@ const GITHUB = {
 }
 
 const SLACK = {
-  id: 'slack', name: 'Slack', author: 'Agentic', verified: true, popular: true,
+  id: 'slack', name: 'Slack', author: 'Aadml', verified: true, popular: true,
   category: 'Communication & Channels', icon: 'logos:slack-icon', version: '1.0.0',
   provider_slug: 'slack',
   sourceUrl: 'https://api.slack.com/web',
   desc: 'List channels, read messages, list users, and post to Slack.',
   longDesc:
-    'Connect Slack to let your agents read channel activity and post messages on your behalf. Authenticate once with OAuth (or a Slack token) and the platform manages credentials and runtime access — no manual bot setup per agent.',
+    'Connect Slack to let your agents read channel activity and post messages on your behalf. Authenticate once with OAuth (or a Slack token) and the platform manages credentials and runtime access â€” no manual bot setup per agent.',
   config: [
     { title: 'Connect with OAuth (recommended)', body: 'Authorize a Slack app to grant least-privilege bot scopes (channels:read, channels:history, chat:write, users:read). Requires SLACK_CLIENT_ID / SLACK_CLIENT_SECRET configured on the backend.' },
-    { title: 'Connect with a token (manual)', body: 'Paste a Slack bot token (xoxb-…) or user token (xoxp-…). It is validated via auth.test and stored encrypted server-side.' },
+    { title: 'Connect with a token (manual)', body: 'Paste a Slack bot token (xoxb-â€¦) or user token (xoxp-â€¦). It is validated via auth.test and stored encrypted server-side.' },
   ],
   cards: {
     actions: [
@@ -389,12 +469,15 @@ const SLACK = {
 }
 
 const CATALOG = [
-  GITHUB,
-  SLACK,
-  { id: 'gmail', name: 'Gmail', author: 'Agentic', verified: true, soon: true, category: 'Marketing & Email', icon: 'logos:google-gmail', desc: 'Read, send, and organize email from Gmail.' },
-  { id: 'notion', name: 'Notion', author: 'Agentic', verified: true, soon: true, category: 'Business Operations', icon: 'logos:notion-icon', desc: 'Read and update Notion pages and databases.' },
-  { id: 'postgres', name: 'PostgreSQL', author: 'Agentic', verified: true, soon: true, category: 'Developer Tools', icon: 'logos:postgresql', desc: 'Query and inspect PostgreSQL databases.' },
-  { id: 'stripe', name: 'Stripe', author: 'Agentic', verified: true, soon: true, category: 'E-commerce & Payments', icon: 'logos:stripe', desc: 'Manage payments, customers, and subscriptions.' },
+  { ...GITHUB, tags: ['Developer Tools', 'Code Hosting'] },
+  { ...SLACK, tags: ['Communication', 'Messaging'] },
+  { id: 'gmail', name: 'Gmail', author: 'Aadml', verified: true, soon: true, category: 'Marketing & Email', icon: 'logos:google-gmail', desc: 'Read, send, and organize emails from Gmail.', tags: ['Email'] },
+  { id: 'stripe', name: 'Stripe', author: 'Aadml', verified: true, soon: true, category: 'E-commerce & Payments', icon: 'logos:stripe', desc: 'Manage payments, customers, and subscriptions.', tags: ['Payments', 'Billing'] },
+  { id: 'notion', name: 'Notion', author: 'Aadml', verified: true, soon: true, category: 'Business Operations', icon: 'logos:notion-icon', desc: 'Read and update Notion pages and databases.', tags: ['Productivity', 'Docs'] },
+  { id: 'hubspot', name: 'HubSpot', author: 'Aadml', verified: true, soon: true, category: 'CRM & Sales', icon: 'logos:hubspot', desc: 'Sync contacts, deals, and marketing data.', tags: ['CRM', 'Marketing'] },
+  { id: 'salesforce', name: 'Salesforce', author: 'Aadml', verified: true, soon: true, category: 'CRM & Sales', icon: 'logos:salesforce', desc: 'Access and sync Salesforce records and objects.', tags: ['CRM', 'Sales'] },
+  { id: 'google-drive', name: 'Google Drive', author: 'Aadml', verified: true, soon: true, category: 'File Management', icon: 'logos:google-drive', desc: 'Search, upload, and manage files in Drive.', tags: ['Storage', 'Files'] },
+  { id: 'custom-mcp', name: 'Custom / MCP', author: 'Aadml', verified: false, soon: false, category: 'Developer Tools', icon: 'lucide:link', desc: 'Connect any MCP-compatible or custom API.', tags: ['Custom', 'Advanced'] },
 ]
 
 function isInstalled(item) {
@@ -406,6 +489,13 @@ const matchesQuery = (item) => {
   if (!q) return true
   return item.name.toLowerCase().includes(q) || (item.desc || '').toLowerCase().includes(q)
 }
+const catalogItems = computed(() => {
+  let items = CATALOG.filter(matchesQuery)
+  if (activeCategory.value && activeCategory.value !== 'Popular' && activeCategory.value !== 'All Categories') {
+    items = items.filter((i) => i.category === activeCategory.value)
+  }
+  return items
+})
 const visibleGroups = computed(() => {
   const items = CATALOG.filter(matchesQuery)
   if (activeCategory.value === 'Popular' && !query.value.trim()) {
@@ -444,7 +534,7 @@ function _logoFor(item) {
   return _LOGO_BY_KEY[key] || null                                       // null -> letter fallback
 }
 // Dedupe key: a built-in service can appear BOTH in props.connectors (kind='builtin') and in the
-// services map — without this, GitHub shows twice. Normalize on provider/name so each platform is one.
+// services map â€” without this, GitHub shows twice. Normalize on provider/name so each platform is one.
 function _identityKey(item) {
   return String(item.provider_slug || item.name || item.id || '')
     .toLowerCase().replace(/\s+/g, '')
@@ -462,14 +552,14 @@ const installedItems = computed(() => {
   for (const c of props.connectors) {
     if (c.connected) add({ kind: c.kind, id: c.id, name: c.name, icon: c.icon, provider_slug: c.provider_slug })
   }
-  // Built-in services fetched here — only added if not already represented above (dedupe).
+  // Built-in services fetched here â€” only added if not already represented above (dedupe).
   for (const s of Object.values(services.value)) {
     if (s.connected) add({ kind: 'service', id: s.key, name: s.name, provider_slug: s.key })
   }
   return out
 })
 
-// ── Detail / install actions (service-generic; driven by the open detailItem) ──
+// â”€â”€ Detail / install actions (service-generic; driven by the open detailItem) â”€â”€
 function openDetail(item) {
   detailItem.value = item
   setupOpen.value = false
@@ -489,7 +579,7 @@ async function afterChange() {
   emit('installed') // parent reloads its connector list too
 }
 
-// OAuth — only when the backend reports the provider is configured; otherwise honest message.
+// OAuth â€” only when the backend reports the provider is configured; otherwise honest message.
 async function connectWithOAuth() {
   const svc = detailItem.value
   if (!current.value?.oauth_configured) {
@@ -590,4 +680,395 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Screen 27 connector browser modal */
+.hub-overlay {
+  align-items: center;
+  background: rgba(15, 23, 42, .42);
+  backdrop-filter: blur(3px);
+}
+.hub-modal {
+  max-width: 1500px;
+  height: min(92vh, 900px);
+  border: 1px solid rgba(226, 232, 240, .95);
+  border-radius: 16px;
+  box-shadow: 0 30px 90px rgba(15, 23, 42, .28);
+}
+.hub-header {
+  min-height: 76px;
+  padding: 18px 24px;
+  background: #fff;
+  border-color: #E2E8F0;
+}
+.hub-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  color: #2563EB;
+  background: #EAF0FF;
+}
+.hub-title {
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: #0F172A;
+}
+.hub-subtitle {
+  margin-top: 3px;
+  font-size: 12.5px;
+  color: #64748B;
+}
+.hub-tabs {
+  height: 38px;
+  align-items: center;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+}
+.hub-tabs button {
+  height: 30px;
+  border-radius: 7px;
+  padding-inline: 13px;
+  color: #64748B;
+}
+.hub-tab-count {
+  display: inline-grid;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: #EEF2FF;
+  color: #64748B;
+  font-size: 11px;
+}
+.hub-close {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid #E2E8F0;
+  border-radius: 9px;
+  background: #fff;
+  color: #64748B;
+  padding: 0;
+}
+.hub-search {
+  padding: 18px 24px 14px;
+  background: #fff;
+}
+.hub-search input {
+  height: 42px;
+  border-color: #DDE5F0;
+  border-radius: 10px;
+  background: #fff;
+  font-weight: 600;
+}
+.hub-sidebar {
+  width: 260px;
+  border-color: #E2E8F0;
+  background: #FBFCFE;
+  padding: 14px;
+}
+.hub-sidebar button {
+  min-height: 38px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.hub-content {
+  padding: 22px 24px;
+  background: #fff;
+}
+.hub-content h3 {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0F172A;
+}
+.hub-content h3 + span {
+  background: #F1F5F9;
+}
+.hub-card,
+.hub-installed-card {
+  min-height: 138px;
+  border-color: #E2E8F0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .03);
+}
+.hub-card:hover {
+  border-color: #BFDBFE;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .08);
+}
+.hub-card :deep(.text-\[13px\].font-bold),
+.hub-installed-card :deep(.text-\[13px\].font-bold) {
+  color: #0F172A;
+}
+.hub-card :deep(.text-ink-soft),
+.hub-card :deep(.text-ink-faint),
+.hub-installed-card :deep(.text-ink-faint) {
+  color: #64748B;
+}
+@media (max-width: 900px) {
+  .hub-modal { height: 90vh; }
+  .hub-sidebar { width: 210px; }
+}
+
+.catalog-shell {
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+}
+.catalog-toolbar {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) 150px 150px 140px;
+  gap: 14px;
+  padding: 18px 24px;
+  border-top: 1px solid #F1F5F9;
+  border-bottom: 1px solid #E2E8F0;
+}
+.catalog-search input,
+.catalog-toolbar select {
+  width: 100%;
+  height: 40px;
+  border: 1px solid #DDE5F0;
+  border-radius: 9px;
+  background: #fff;
+  color: #0F172A;
+  font-size: 13px;
+  font-weight: 650;
+  outline: none;
+}
+.catalog-search input {
+  padding: 0 14px 0 42px;
+}
+.catalog-toolbar select {
+  padding: 0 34px 0 14px;
+}
+.catalog-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 24px;
+  flex: 1;
+  min-height: 0;
+  padding: 22px 24px 24px;
+  overflow-y: auto;
+}
+.catalog-main {
+  min-width: 0;
+}
+.catalog-main > h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: #0F172A;
+}
+.catalog-main > p {
+  margin: 6px 0 18px;
+  font-size: 12.5px;
+  color: #64748B;
+}
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.catalog-card {
+  min-height: 178px;
+  border: 1px solid #E2E8F0;
+  border-radius: 13px;
+  background: #fff;
+  padding: 20px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.catalog-card:hover {
+  border-color: #BFDBFE;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, .08);
+  transform: translateY(-1px);
+}
+.catalog-card-head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.catalog-logo {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 11px;
+  background: #F8FAFC;
+}
+.catalog-logo svg {
+  width: 36px;
+  height: 36px;
+}
+.catalog-card-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #0F172A;
+  font-size: 15px;
+}
+.catalog-card-title svg {
+  width: 14px;
+  height: 14px;
+  color: #2563EB;
+}
+.catalog-by {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #64748B;
+}
+.catalog-card > p {
+  min-height: 38px;
+  margin: 18px 0 12px;
+  color: #64748B;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.catalog-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.catalog-tags span {
+  border-radius: 999px;
+  background: #F1F5F9;
+  padding: 4px 10px;
+  color: #64748B;
+  font-size: 11px;
+  font-weight: 750;
+}
+.catalog-connect {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #DDE5F0;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 14px;
+  color: #2563EB;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.catalog-connect svg {
+  width: 14px;
+  height: 14px;
+}
+.catalog-request {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 20px;
+  color: #2563EB;
+  font-size: 12.5px;
+  font-weight: 750;
+}
+.catalog-request svg {
+  width: 13px;
+  height: 13px;
+}
+.catalog-info {
+  align-self: start;
+  position: sticky;
+  top: 0;
+  max-height: none;
+  overflow: visible;
+  border: 1px solid #E2E8F0;
+  border-radius: 13px;
+  background: #fff;
+  padding: 20px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+}
+.catalog-info h4 {
+  margin: 0 0 20px;
+  color: #0F172A;
+  font-size: 14px;
+  font-weight: 800;
+}
+.catalog-info section {
+  border-bottom: 1px solid #E2E8F0;
+  padding: 0 0 22px;
+  margin-bottom: 22px;
+}
+.catalog-info section > svg,
+.catalog-security > svg {
+  width: 18px;
+  height: 18px;
+  color: #2563EB;
+  margin-bottom: 14px;
+}
+.catalog-info strong,
+.catalog-security strong {
+  display: block;
+  color: #0F172A;
+  font-size: 12.5px;
+  font-weight: 800;
+}
+.catalog-info p,
+.catalog-info li,
+.catalog-security p {
+  margin-top: 9px;
+  color: #64748B;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.catalog-info ol {
+  margin: 12px 0 0;
+  padding-left: 18px;
+}
+.catalog-info button {
+  height: 36px;
+  margin-top: 14px;
+  border: 1px solid #DDE5F0;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 14px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 800;
+}
+.catalog-security {
+  border: 1px solid #DDE5F0;
+  border-radius: 12px;
+  background: #F8FBFF;
+  padding: 16px;
+}
+.catalog-security a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  color: #2563EB;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.catalog-security a svg {
+  width: 12px;
+  height: 12px;
+}
+.catalog-empty {
+  padding: 56px 0;
+  text-align: center;
+  color: #64748B;
+  font-size: 13px;
+}
+@media (max-width: 1180px) {
+  .catalog-body { grid-template-columns: 1fr; overflow-y: auto; }
+  .catalog-info { display: none; }
+  .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .catalog-toolbar { grid-template-columns: 1fr; }
+  .catalog-grid { grid-template-columns: 1fr; }
+}
 </style>
+

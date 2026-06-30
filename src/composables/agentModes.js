@@ -1,8 +1,8 @@
-/**
+﻿/**
  * Canonical mapping between the four product modes and the two backend booleans.
  *
- * The four modes are exactly the 2×2 of (execution_mode, plan_mode_enabled) — there is no separate
- * "mode" field. See the backend decision record agentic-docs/detailed_doc/router-vs-v3-authority.md.
+ * The four modes are exactly the 2Ã—2 of (execution_mode, plan_mode_enabled) â€” there is no separate
+ * "mode" field. See the backend decision record Aadml-docs/detailed_doc/router-vs-v3-authority.md.
  *
  *   Manual     = manual     + plan OFF
  *   Auto       = autonomous + plan OFF
@@ -41,12 +41,13 @@ export function modeDotClass(executionMode, planMode) {
 
 /** The four menu options, each carrying the exact backend patch it persists. */
 export const MODE_OPTIONS = [
-  { key: 'manual', icon: '✋', title: 'Manual mode', desc: 'You approve each tool / question.',
+  { key: 'manual', icon: 'âœ‹', title: 'Manual mode', desc: 'You approve each tool / question.',
     patch: { execution_mode: 'manual', plan_mode_enabled: false } },
-  { key: 'auto', icon: '⚡', title: 'Auto mode', desc: 'AI policy resolves stops; scheduled runs don’t hang.',
+  { key: 'auto', icon: 'âš¡', title: 'Auto mode', desc: 'AI policy resolves stops; scheduled runs donâ€™t hang.',
     patch: { execution_mode: 'autonomous', plan_mode_enabled: false } },
-  { key: 'plan', icon: '📋', title: 'Planning mode', desc: 'Plan first, then act (you approve the plan).',
+  { key: 'plan', icon: 'ðŸ“‹', title: 'Planning mode', desc: 'Plan first, then act (you approve the plan).',
     patch: { execution_mode: 'manual', plan_mode_enabled: true } },
-  { key: 'plan_auto', icon: '🤖', title: 'Plan + Auto', desc: 'AI plans, reviews, and runs autonomously.',
+  { key: 'plan_auto', icon: 'ðŸ¤–', title: 'Plan + Auto', desc: 'AI plans, reviews, and runs autonomously.',
     patch: { execution_mode: 'autonomous', plan_mode_enabled: true } },
 ]
+

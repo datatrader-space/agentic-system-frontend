@@ -60,6 +60,7 @@
             rows="1"
             :disabled="chat.needsAgent"
             :placeholder="chat.needsAgent ? 'Create an agent to start chatting…' : 'Message your agent…'"
+            @input="autoGrow"
             @keydown="onKeydown"
           ></textarea>
           <button v-if="speech.supported" type="button" class="composer-mic" :class="{ live: speech.listening.value }"
@@ -125,8 +126,19 @@ const draft = ref('')
 const inputEl = ref(null)
 const fileEl = ref(null)
 
+// Auto-grow the textarea with its content: reset to measure the natural height, then
+// match scrollHeight. CSS caps it at max-height and turns on scrolling past that point.
+const autoGrow = () => {
+  const el = inputEl.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+// Run after the DOM reflects a programmatic draft change (suggestion click, voice input, clear).
+const resizeSoon = () => nextTick(autoGrow)
+
 // Voice input (mic) — appends the transcript to the draft. Hidden when the browser can't transcribe.
-const speech = useSpeech({ onResult: (text) => { draft.value = draft.value ? `${draft.value} ${text}` : text } })
+const speech = useSpeech({ onResult: (text) => { draft.value = draft.value ? `${draft.value} ${text}` : text; resizeSoon() } })
 
 const onFiles = (e) => {
   const files = e.target.files
@@ -135,7 +147,9 @@ const onFiles = (e) => {
 }
 
 onMounted(async () => {
-  await chat.loadAgents()
+  // Force a refresh so an agent created/edited elsewhere (e.g. the Agent Builder) shows up in the New
+  // Chat picker immediately — the store otherwise caches the list and a stale picker needed a page reload.
+  await chat.loadAgents(true)
   // Only the zero-agent path needs the provider/model check (to order the CTA correctly).
   if (chat.needsAgent) checkModels()
 })
@@ -159,6 +173,7 @@ const suggestions = [
 const useSuggestion = async (text) => {
   draft.value = text
   await nextTick()
+  autoGrow()
   inputEl.value?.focus()
 }
 
@@ -180,6 +195,7 @@ const submit = () => {
   if (!text && !chat.pendingAttachments.length) return
   emit('submit', text)
   draft.value = ''
+  resizeSoon()
 }
 </script>
 
@@ -314,10 +330,13 @@ const submit = () => {
   outline: none;
   resize: none;
   font-size: 0.9375rem;
+  line-height: 1.5;
   font-family: inherit;
   color: var(--vm-ink);
   background: transparent;
+  box-sizing: border-box;
   max-height: 160px;
+  overflow-y: auto;
 }
 .composer-input::placeholder { color: var(--vm-ink-faint); }
 .composer-top { display: flex; align-items: flex-start; gap: 6px; }

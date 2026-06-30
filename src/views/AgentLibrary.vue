@@ -1,9 +1,6 @@
 <template>
   <div class="lib vm-scroll">
     <div class="lib-wrap">
-      <!-- Top switcher: Agent Library ↔ Configure Agent (in-place) -->
-      <div class="tabs-top"><AgentTabSwitcher /></div>
-
       <!-- ===================== Hero header ===================== -->
       <div class="hero">
         <div>
@@ -152,7 +149,6 @@ import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import api from '../services/api';
 import OwnerFilter from '../components/common/OwnerFilter.vue';
-import AgentTabSwitcher from '../components/agent/AgentTabSwitcher.vue';
 import { notify } from '@/composables/useNotify';
 import { confirm } from '@/composables/useConfirm';
 import { useCountUp } from '@/composables/useCountUp';
@@ -250,13 +246,13 @@ const createAgent = () => {
 };
 
 const editAgent = (id) => {
-    router.push(`/dashboard/agents/${id}/configure`); // Opens the new single-canvas builder (inside dashboard shell)
+    router.push(`/dashboard/agents/${id}/editor`); // Opens the new single-canvas builder (inside dashboard shell)
 };
 
 const openChat = (agent) => {
     // Open the unified Configure screen in edit mode (its right dock IS the live
     // chat/emulator) — same place as Configure, focused on the Emulator tab.
-    router.push({ path: `/dashboard/agents/${agent.id}/configure`, query: { tab: 'emulator' } });
+    router.push({ path: `/dashboard/agents/${agent.id}/editor`, query: { tab: 'emulator' } });
 };
 
 const openMonitor = (agent) => {
@@ -291,7 +287,7 @@ const duplicateAgent = async (agent) => {
         };
         const created = await api.post('/agents/', copy);
         await fetchAgents();
-        if (created?.data?.id) router.push(`/dashboard/agents/${created.data.id}/configure`);
+        if (created?.data?.id) router.push(`/dashboard/agents/${created.data.id}/editor`);
     } catch (e) {
         notify.error('Failed to duplicate agent: ' + (e.response?.data?.error || e.message));
     }
@@ -495,5 +491,309 @@ EmptyArt.props = ['search'];
 .empty h3 { font-family: var(--vm-font-display); font-size: 20px; font-weight: 700; }
 .empty p { color: var(--vm-ink-soft); font-size: 14px; margin: 6px 0 18px; }
 
-@media (max-width: 640px) { .lib-wrap { padding: 22px 16px 40px; } .title { font-size: 30px; } }
+/* Theme audit: align this older library page with the Getting Started / Docs / Tutorials system. */
+.lib {
+  background: #f8fbff;
+  color: #0f172a;
+}
+.lib-wrap {
+  max-width: 1360px;
+  padding: 28px 32px 64px;
+}
+.hero {
+  align-items: center;
+  margin-bottom: 22px;
+}
+.eyebrow {
+  margin-bottom: 9px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #2563eb;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .04em;
+}
+.eyebrow .pip {
+  background: #2563eb;
+  box-shadow: none;
+  animation: none;
+}
+.title {
+  color: #0f172a;
+  font-size: 25px;
+  font-weight: 850;
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+.vm-grad-text {
+  background: none;
+  color: inherit;
+  animation: none;
+}
+.sub {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.cta,
+.ghost-btn,
+.b-chat,
+.b-cfg,
+.b-more {
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 850;
+  box-shadow: none;
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+}
+.cta {
+  min-height: 38px;
+  padding: 0 15px;
+  background: #2563eb;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, .18);
+}
+.cta:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+}
+.ghost-btn,
+.b-cfg,
+.b-more {
+  border: 1px solid #d8e2f0;
+  background: #fff;
+  color: #334155;
+}
+.ghost-btn:hover,
+.b-cfg:hover,
+.b-more:hover {
+  border-color: #c8d6ea;
+  background: #f8fbff;
+  color: #2563eb;
+}
+.stats {
+  gap: 14px;
+  margin: 0 0 18px;
+}
+.stat {
+  min-height: 104px;
+  padding: 18px 20px;
+  border: 1px solid #dfe7f2;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .035);
+  backdrop-filter: none;
+}
+.stat:hover {
+  transform: none;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .035);
+}
+.stat::after {
+  display: none;
+}
+.stat .badge-ic {
+  top: 16px;
+  right: 16px;
+  width: 18px;
+  height: 18px;
+  opacity: 1;
+  color: #2563eb;
+}
+.stat .k {
+  font-size: 28px;
+  font-weight: 850;
+  color: #0f172a !important;
+}
+.stat .l {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 750;
+}
+.toolbar {
+  margin-bottom: 18px;
+  gap: 10px;
+}
+.search input,
+.select-wrap select,
+.seg {
+  border: 1px solid #d8e2f0;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: none;
+}
+.search input {
+  height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+.select-wrap select {
+  height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 12.5px;
+  font-weight: 750;
+}
+.seg {
+  height: 40px;
+  padding: 3px;
+}
+.seg button {
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.seg button.on {
+  background: #eef4ff;
+  color: #2563eb;
+  box-shadow: none;
+}
+.grid {
+  gap: 16px;
+}
+.card,
+.skel-card {
+  border: 1px solid #dfe7f2;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .035);
+  backdrop-filter: none;
+}
+.card {
+  padding: 18px;
+  transform-style: flat;
+}
+.card:hover {
+  transform: translateY(-1px);
+  border-color: #cfdbea;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+}
+.card .accent,
+.card .halo {
+  display: none;
+}
+.tile {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: #eef4ff !important;
+  color: #2563eb;
+  box-shadow: none;
+  animation: none;
+}
+.tile.p {
+  background: #f0e9ff !important;
+  color: #7c3aed;
+}
+.tile.t {
+  background: #e3f8f4 !important;
+  color: #0f9f8a;
+}
+.tile :deep(svg) {
+  width: 21px;
+  height: 21px;
+}
+.card:hover .tile {
+  transform: none;
+}
+.badge {
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.name {
+  margin-top: 15px;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+.chips {
+  gap: 6px;
+  margin-top: 9px;
+}
+.chip {
+  border: 1px solid #dfe7f2;
+  border-radius: 7px;
+  background: #f8fbff;
+  color: #53657d;
+  font-size: 11px;
+  font-weight: 750;
+}
+.chip.v,
+.chip.t {
+  border-color: transparent;
+}
+.desc {
+  color: #64748b;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.meter-lbl {
+  font-size: 10.5px;
+  color: #64748b;
+}
+.bar {
+  background: #edf2f7;
+}
+.bar i {
+  background: #2563eb;
+}
+.card-foot {
+  margin-top: 16px;
+}
+.b-chat {
+  border: 1px solid #2563eb;
+  background: #2563eb;
+}
+.b-chat:hover {
+  background: #1d4ed8;
+  box-shadow: none;
+}
+.menu {
+  border: 1px solid #dfe7f2;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, .14);
+  backdrop-filter: none;
+}
+.menu button {
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 750;
+}
+.card.add {
+  border: 1px dashed #cfdbea;
+  border-radius: 10px;
+  background: #fff;
+  min-height: 300px;
+}
+.card.add:hover {
+  border-color: #2563eb;
+  background: #f8fbff;
+  transform: translateY(-1px);
+}
+.card.add .plus {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+  background: #eef4ff;
+  color: #2563eb;
+  box-shadow: none;
+}
+.empty h3 {
+  font-size: 17px;
+  font-weight: 850;
+}
+.empty p {
+  color: #64748b;
+  font-size: 13px;
+}
+@media (max-width: 640px) {
+  .lib-wrap { padding: 22px 16px 40px; }
+  .title { font-size: 25px; }
+}
 </style>

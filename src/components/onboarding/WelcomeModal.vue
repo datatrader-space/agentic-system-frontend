@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <teleport to="body">
     <transition name="wm-fade">
       <div v-if="show" class="wm-overlay" @click.self="$emit('later')">
@@ -6,7 +6,7 @@
           <div class="wm-mark">
             <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
           </div>
-          <h2 id="wm-title" class="wm-title">Welcome to Agentic{{ name ? `, ${name}` : '' }}!</h2>
+          <h2 id="wm-title" class="wm-title">Welcome to Aadml{{ name ? `, ${name}` : '' }}!</h2>
           <p class="wm-sub">
             This is your workspace for building AI agents that chat, run tools, automate workflows, and write code.
           </p>
@@ -92,3 +92,4 @@ defineEmits(['create', 'tour', 'later'])
 .wm-fade-enter-active, .wm-fade-leave-active { transition: opacity .2s ease; }
 .wm-fade-enter-from, .wm-fade-leave-to { opacity: 0; }
 </style>
+

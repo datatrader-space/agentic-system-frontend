@@ -1,24 +1,20 @@
 <template>
-  <div class="connectors-container p-6 lg:p-8">
-    <div class="max-w-7xl mx-auto">
+  <div class="connectors-container px-6 py-7 lg:px-8">
+    <div class="mx-auto max-w-[1660px]">
       <!-- Header -->
-      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+      <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 class="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-g-brand flex items-center justify-center shrink-0 shadow-glow-v">
-              <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
-            </div>
+          <h1 class="font-display text-[29px] font-bold leading-tight tracking-tight text-ink">
             Connectors
           </h1>
           <p class="mt-1.5 text-sm sm:text-base text-ink-soft">
             One home for tools, services &amp; MCP — connect with your account, scope globally or per agent.
           </p>
         </div>
-        <div class="flex items-center gap-2">
-          <span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-            Preview
-          </span>
-        </div>
+        <button class="help-top-btn">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="9" stroke-width="2" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 9.75a2.25 2.25 0 114.08 1.3c-.85.7-1.58 1.18-1.58 2.45M12 17h.01" /></svg>
+          How connectors work
+        </button>
       </div>
 
       <!-- Toolbar: scope · summary · add connector -->
@@ -40,7 +36,8 @@
           <div class="stat-chips">
             <span class="stat-chip"><b class="ok">{{ connected.length }}</b> connected</span>
             <span class="stat-chip"><b>{{ notConnected.length }}</b> available</span>
-            <span class="stat-chip"><b>{{ totalTools }}</b> tools</span>
+            <span class="stat-chip"><b>{{ mcpCount }}</b> MCP</span>
+            <span class="stat-chip"><b>{{ customCount }}</b> custom</span>
           </div>
           <div class="add-wrap">
             <button class="add-btn" @click="addMenuOpen = !addMenuOpen">
@@ -72,7 +69,16 @@
         </div>
       </div>
 
-      <!-- 2-pane: connector list · detail -->
+      <!-- Filter tab strip + category/type dropdowns + search -->
+      <ConnectorTabs
+        v-model:active="activeTab"
+        v-model:category="filterCategory"
+        v-model:typeFilter="filterType"
+        v-model:query="searchQuery"
+        :tabs="tabDefs"
+      />
+
+      <!-- 3-pane: connector list · detail · getting started -->
       <div class="conn-grid">
         <!-- ── Connector list ── -->
         <section class="pane list-pane">
@@ -80,31 +86,35 @@
           <div v-else-if="error" class="pane-state err">{{ error }}</div>
 
           <template v-else>
+            <p v-if="hasActiveFilters && !filteredConnectors.length" class="group-empty">
+              No connectors match the current filters.
+            </p>
+
             <!-- Connected -->
-            <div class="group-block">
-              <div class="group-head">Connected <span>{{ connected.length }}</span></div>
-              <p v-if="!connected.length" class="group-empty">Nothing connected in this scope yet.</p>
-              <button v-for="c in connected" :key="c.kind + c.id" @click="select(c)" :class="['conn-row', { active: isActive(c) }]">
+            <div v-if="!hasActiveFilters || filteredConnected.length" class="group-block">
+              <div class="group-head">Connected <span>{{ filteredConnected.length }}</span></div>
+              <p v-if="!filteredConnected.length" class="group-empty">Nothing connected in this scope yet.</p>
+              <button v-for="c in filteredConnected" :key="c.kind + c.id" @click="select(c)" :class="['conn-row', { active: isActive(c) }]">
                 <span class="connector-icon" :class="iconTint(c)"><Icon v-if="isIconify(c)" :icon="c.icon" class="w-5 h-5" /><template v-else>{{ iconFor(c) }}</template></span>
                 <span class="row-text">
                   <span class="row-name">{{ c.name }}</span>
                   <span class="row-sub">{{ kindLabel(c) }} · {{ c.tool_count_total }} tool{{ c.tool_count_total === 1 ? '' : 's' }}</span>
                 </span>
-                <span class="status-pill on"><span class="vm-orb is-live"></span>Connected</span>
+                <span class="row-action">Manage <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9 6 6 6-6" /></svg></span>
               </button>
             </div>
 
             <!-- Not connected -->
-            <div class="group-block">
-              <div class="group-head">Available <span>{{ notConnected.length }}</span></div>
-              <p v-if="!notConnected.length" class="group-empty">Everything available is connected.</p>
-              <button v-for="c in notConnected" :key="c.kind + c.id" @click="select(c)" :class="['conn-row', { active: isActive(c) }]">
+            <div v-if="!hasActiveFilters || filteredNotConnected.length" class="group-block">
+              <div class="group-head">Available <span>{{ filteredNotConnected.length }}</span></div>
+              <p v-if="!filteredNotConnected.length" class="group-empty">Everything available is connected.</p>
+              <button v-for="c in filteredNotConnected" :key="c.kind + c.id" @click="select(c)" :class="['conn-row', { active: isActive(c) }]">
                 <span class="connector-icon" :class="iconTint(c)"><Icon v-if="isIconify(c)" :icon="c.icon" class="w-5 h-5" /><template v-else>{{ iconFor(c) }}</template></span>
                 <span class="row-text">
                   <span class="row-name">{{ c.name }}</span>
                   <span class="row-sub">{{ kindLabel(c) }} · {{ authLabel(c) }}</span>
                 </span>
-                <span class="status-pill off">{{ authLabel(c) }}</span>
+                <span class="connect-action" @click.stop="handleConnect(c)">Connect</span>
               </button>
             </div>
           </template>
@@ -117,7 +127,11 @@
               <svg fill="none" viewBox="0 0 24 24" stroke="#fff"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
             </div>
             <p class="de-title">No connector selected</p>
-            <p class="de-sub">Pick a connector on the left to connect it and set per-tool permissions.</p>
+            <p class="de-sub">Choose a connector from the list to view details, configure settings, and assign it to agents.</p>
+            <div class="de-notes">
+              <p><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4z" /></svg> Use connectors to securely access external tools and data.</p>
+              <p><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4z" /></svg> Scope determines whether a connector is available globally or only to specific agents.</p>
+            </div>
           </div>
 
           <div v-else>
@@ -136,13 +150,13 @@
                 </div>
               </div>
               <div class="flex items-center gap-2 shrink-0">
-                <!-- Built-in services are managed in the Integration Hub -->
+                <!-- Built-in services are managed through the connector catalog. -->
                 <button
                   v-if="selected.kind === 'builtin'"
                   @click="showHub = true"
                   class="px-3.5 py-2 rounded-xl text-[13px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100"
                 >
-                  {{ selected.connected ? 'Manage in Integration Hub' : 'Connect in Integration Hub' }}
+                  {{ selected.connected ? 'Manage connector' : 'Browse catalog' }}
                 </button>
                 <!-- OAuth: connect with your account / disconnect -->
                 <template v-else-if="selected.auth_kind === 'oauth' && selected.provider_slug">
@@ -274,6 +288,9 @@
             </div>
           </div>
         </section>
+
+        <!-- ── Right: Getting started (static) ── -->
+        <ConnectorGettingStartedSidebar class="getting-started-pane" @browse="openBrowse" />
       </div>
 
       <!-- ── Execution sandboxes (Workspace, distinct section) ── -->
@@ -288,10 +305,21 @@
               <p class="text-[12px] text-ink-faint mt-0.5">The machines agents run tools on — a distinct section inside Connectors.</p>
             </div>
           </div>
-          <button @click="openCreateWs" class="add-btn shrink-0">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v16m8-8H4"></path></svg>
-            New sandbox
-          </button>
+          <div class="flex items-center gap-3 shrink-0">
+            <button
+              v-if="workspaces.length"
+              type="button"
+              class="view-all-link"
+              @click="toggleAllSandboxes"
+            >
+              {{ showAllSandboxes ? 'Show fewer' : 'View all sandboxes' }}
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 5l7 7-7 7"></path></svg>
+            </button>
+            <button @click="openCreateWs" class="add-btn">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v16m8-8H4"></path></svg>
+              New sandbox
+            </button>
+          </div>
         </div>
 
         <div v-if="wsLoading" class="py-8 text-center text-[13px] text-ink-faint">Loading sandboxes…</div>
@@ -300,8 +328,8 @@
           <p class="text-[11px] text-ink-faint mt-0.5">A sandbox is a machine an agent runs its tools on.</p>
           <button @click="openCreateWs" class="mt-3 px-3.5 py-1.5 rounded-lg text-[12px] font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100">Create your first sandbox</button>
         </div>
-        <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <button v-for="w in workspaces" :key="w.id" @click="manageWs = w"
+        <div v-else class="space-y-3">
+          <button v-for="w in visibleWorkspaces" :key="w.id" @click="manageWs = w"
             class="group text-left rounded-xl border border-slate-200/70 bg-white px-4 py-3.5 flex items-center gap-3 hover:border-violet-300 hover:shadow-sm transition-all">
             <span class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-100 to-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-500 shrink-0">
               <svg class="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
@@ -342,7 +370,7 @@
     <!-- Add / edit MCP server (reuses the existing MCPServerModal) — no redirect -->
     <MCPServerModal v-if="showMcpModal" :server="editMcpServer" @close="showMcpModal = false; editMcpServer = null" @saved="onMcpSaved" />
 
-    <!-- Integration Hub directory (opened from + → Browse) -->
+    <!-- Connector catalog directory (opened from + -> Browse) -->
     <IntegrationHubModal v-if="showHub" :connectors="connectors" @close="showHub = false" @installed="loadConnectors" />
 
     <!-- Manage MCP server in-page (reuses MCPServerDetailModal) — no redirect to /dashboard/mcp -->
@@ -418,6 +446,8 @@ import ServiceRegistrationModal from '../components/services/ServiceRegistration
 import ServiceDetailModal from '../components/services/ServiceDetailModal.vue'
 import WorkspaceManageModal from '../components/connectors/WorkspaceManageModal.vue'
 import IntegrationHubModal from '../components/connectors/IntegrationHubModal.vue'
+import ConnectorTabs from '../components/connectors/ConnectorTabs.vue'
+import ConnectorGettingStartedSidebar from '../components/connectors/ConnectorGettingStartedSidebar.vue'
 
 const route = useRoute()
 
@@ -434,6 +464,15 @@ const manageWs = ref(null)
 const showCreateWs = ref(false)
 const newWsName = ref('')
 const creatingWs = ref(false)
+
+const showAllSandboxes = ref(false)
+const SANDBOX_PREVIEW_COUNT = 1
+const visibleWorkspaces = computed(() =>
+  showAllSandboxes.value ? workspaces.value : workspaces.value.slice(0, SANDBOX_PREVIEW_COUNT)
+)
+function toggleAllSandboxes() {
+  showAllSandboxes.value = !showAllSandboxes.value
+}
 
 const wsStatusLabel = (s) =>
   ({ connected: 'Connected', disconnected: 'Offline', pending: 'Pending' }[s] || s || 'Unknown')
@@ -588,7 +627,52 @@ function closeMcpDetail() {
 const connected = computed(() => connectors.value.filter((c) => c.connected))
 const notConnected = computed(() => connectors.value.filter((c) => !c.connected))
 const totalTools = computed(() => connectors.value.reduce((n, c) => n + (c.tool_count_total || 0), 0))
+const mcpCount = computed(() => connectors.value.filter((c) => c.kind === 'mcp').length)
+const customCount = computed(() => connectors.value.filter((c) => c.kind === 'service').length)
 const isActive = (c) => !!selected.value && selected.value.kind === c.kind && selected.value.id === c.id
+
+// ── Client-side filtering (tab strip · category · type · search) ──
+const activeTab = ref('all')          // all | connected | available | mcp | custom
+const filterCategory = ref('all')     // all | builtin | service | mcp
+const filterType = ref('all')         // all | oauth | api_key | env | none
+const searchQuery = ref('')
+
+const tabDefs = computed(() => [
+  { value: 'all', label: 'All', count: connectors.value.length },
+  { value: 'connected', label: 'Connected', count: connected.value.length },
+  { value: 'available', label: 'Available', count: notConnected.value.length },
+  { value: 'mcp', label: 'MCP', count: connectors.value.filter((c) => c.kind === 'mcp').length },
+  { value: 'custom', label: 'Custom', count: connectors.value.filter((c) => c.kind === 'service').length },
+])
+
+function passesFilters(c) {
+  // Tab
+  if (activeTab.value === 'connected' && !c.connected) return false
+  if (activeTab.value === 'available' && c.connected) return false
+  if (activeTab.value === 'mcp' && c.kind !== 'mcp') return false
+  if (activeTab.value === 'custom' && c.kind !== 'service') return false
+  // Category (by kind)
+  if (filterCategory.value !== 'all' && c.kind !== filterCategory.value) return false
+  // Type (by auth_kind, OAuth covers oauth/oauth2)
+  if (filterType.value !== 'all') {
+    const ak = c.auth_kind === 'oauth2' ? 'oauth' : c.auth_kind
+    if (ak !== filterType.value) return false
+  }
+  // Search
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    const hay = `${c.name || ''} ${c.description || ''} ${kindLabel(c)}`.toLowerCase()
+    if (!hay.includes(q)) return false
+  }
+  return true
+}
+
+const filteredConnectors = computed(() => connectors.value.filter(passesFilters))
+const filteredConnected = computed(() => filteredConnectors.value.filter((c) => c.connected))
+const filteredNotConnected = computed(() => filteredConnectors.value.filter((c) => !c.connected))
+const hasActiveFilters = computed(
+  () => activeTab.value !== 'all' || filterCategory.value !== 'all' || filterType.value !== 'all' || !!searchQuery.value.trim()
+)
 
 // The agent object backing the current scope (null = global). Passed to
 // CredentialManager so created credentials land in the right scope.
@@ -838,8 +922,19 @@ onMounted(() => {
   background: var(--vm-glass-strong); backdrop-filter: blur(18px); border: 1px solid var(--vm-line);
   border-radius: 14px; box-shadow: var(--vm-shadow-l); padding: 6px; }
 
-.conn-grid { display: grid; grid-template-columns: 1fr; gap: 18px; }
-@media (min-width: 1024px) { .conn-grid { grid-template-columns: minmax(320px, 380px) 1fr; } }
+.conn-grid { display: grid; grid-template-columns: 1fr; gap: 18px; align-items: start; }
+@media (min-width: 1024px) { .conn-grid { grid-template-columns: minmax(300px, 360px) 1fr; } }
+@media (min-width: 1320px) { .conn-grid { grid-template-columns: minmax(300px, 340px) 1fr 280px; } }
+/* Getting-started rail: 3rd pane only on wide screens (keeps 2-pane below). */
+.getting-started-pane { display: none; }
+@media (min-width: 1320px) { .getting-started-pane { display: flex; position: sticky; top: 18px; } }
+
+.view-all-link {
+  display: inline-flex; align-items: center; gap: 5px; cursor: pointer; border: none; background: transparent;
+  font: 700 12.5px var(--vm-font-sans); color: var(--vm-sky); transition: opacity .15s;
+}
+.view-all-link:hover { opacity: .8; }
+.view-all-link svg { width: 14px; height: 14px; }
 .pane { background: var(--vm-glass-strong); border: 1px solid var(--vm-line); border-radius: var(--vm-r-l); box-shadow: var(--vm-shadow-m); }
 .list-pane { padding: 12px; min-height: 460px; }
 .detail-pane { padding: 22px; min-height: 460px; }
@@ -974,4 +1069,66 @@ onMounted(() => {
 .ap-recommended { background: #fef3c7; color: #b45309; }
 .ap-required { background: #ffedd5; color: #c2410c; }
 .ap-hard { background: #fee2e2; color: #dc2626; }
+
+/* Screen 27 visual pass */
+.connectors-container { min-height: 100%; background: #F8FAFC; color: #0F172A; }
+.help-top-btn {
+  display: inline-flex; height: 40px; align-items: center; gap: 8px; border: 1px solid #DDE5F0; border-radius: 9px;
+  background: #fff; padding: 0 16px; color: #344054; font: 700 13px var(--vm-font-sans); box-shadow: 0 1px 2px rgba(16,24,40,.04);
+}
+.help-top-btn svg { width: 16px; height: 16px; color: #64748B; }
+.conn-toolbar {
+  margin-bottom: 18px; padding: 14px 16px; background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(16,24,40,.04);
+}
+.scope-label { font-size: 12px; font-weight: 800; letter-spacing: .05em; color: #64748B; }
+.scope-field .ic { left: 12px; width: 16px; height: 16px; color: #64748B; }
+.scope-field select {
+  padding: 10px 34px 10px 36px; border-radius: 10px; border-color: #DDE5F0; background: #fff;
+  font-weight: 800; color: #0F172A; min-width: 285px;
+}
+.scope-hint { color: #94A3B8; }
+.stat-chip { padding: 7px 14px; background: #F8FAFC; border-color: #E2E8F0; color: #0F172A; font-weight: 800; }
+.stat-chip b.ok { color: #10B981; }
+.add-btn { border-radius: 8px; background: #2563EB; box-shadow: 0 1px 2px rgba(37,99,235,.25); font-weight: 800; }
+.add-menu { background: #fff; border-color: #E2E8F0; border-radius: 12px; box-shadow: 0 18px 38px rgba(15,23,42,.14); }
+.conn-grid { gap: 16px; }
+@media (min-width: 1024px) { .conn-grid { grid-template-columns: minmax(330px, 390px) minmax(0, 1fr); } }
+@media (min-width: 1320px) { .conn-grid { grid-template-columns: minmax(330px, 390px) minmax(0, 1fr) 290px; } }
+.pane { background: #fff; border-color: #E2E8F0; border-radius: 12px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+.list-pane { min-height: 470px; padding: 14px; }
+.detail-pane { min-height: 470px; padding: 24px; }
+.group-block + .group-block { margin-top: 14px; padding-top: 12px; border-top: 1px solid #E2E8F0; }
+.group-head { padding: 0 2px 9px; color: #0F172A; font-size: 14px; font-weight: 800; letter-spacing: 0; text-transform: none; }
+.group-head span { border: 0; background: transparent; color: #64748B; font-size: 13px; padding: 0; }
+.conn-row { padding: 10px 0; border-radius: 10px; }
+.conn-row:hover { background: #F8FAFC; box-shadow: none; transform: none; }
+.conn-row.active { background: #F8FAFC; border-color: #DBEAFE; box-shadow: none; }
+.connector-icon { width: 34px; height: 34px; border-radius: 10px; }
+.row-name { font-size: 13px; font-weight: 800; }
+.row-sub { font-size: 11px; color: #64748B; }
+.row-action, .connect-action {
+  display: inline-flex; height: 34px; min-width: 82px; flex-shrink: 0; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid #DDE5F0; border-radius: 9px; background: #fff; padding: 0 12px; color: #0F172A;
+  font: 800 12px var(--vm-font-sans); box-shadow: 0 1px 2px rgba(16,24,40,.03);
+}
+.row-action svg { width: 14px; height: 14px; color: #64748B; }
+.connect-action { color: #2563EB; }
+.detail-empty { min-height: 420px; }
+.de-orb { width: 70px; height: 70px; border-radius: 999px; background: #EAF0FF; box-shadow: none; animation: none; }
+.de-orb svg { width: 30px; height: 30px; stroke: #2563EB; }
+.de-title { font-size: 17px; font-weight: 800; color: #0F172A; }
+.de-sub { max-width: 390px; color: #64748B; font-size: 13px; line-height: 1.6; }
+.de-notes { margin-top: 26px; display: flex; flex-direction: column; gap: 12px; text-align: left; color: #64748B; font-size: 13px; }
+.de-notes p { display: flex; align-items: flex-start; gap: 9px; max-width: 450px; }
+.de-notes svg { margin-top: 2px; width: 15px; height: 15px; flex-shrink: 0; color: #64748B; }
+.sandboxes { margin-top: 16px; background: #fff; border-color: #E2E8F0; border-radius: 12px; box-shadow: 0 1px 2px rgba(16,24,40,.04); padding: 18px 20px; }
+.sandboxes > .space-y-3 { display: block; }
+.sandboxes > .space-y-3 > button {
+  min-height: 62px;
+  width: 100%;
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+.sandboxes > .space-y-3 > button + button { display: none; }
 </style>

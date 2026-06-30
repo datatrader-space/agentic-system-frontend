@@ -434,7 +434,7 @@ const wsChatUrl = computed(() => {
     host = window.location.host
     scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
   }
-  return `${scheme}://${host}/ws/chat/repository/0/`
+  return `${scheme}://${host}/ws/chat/agent/`
 })
 
 import { computed } from 'vue'

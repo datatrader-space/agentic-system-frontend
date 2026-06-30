@@ -1,7 +1,7 @@
-<template>
+﻿<template>
   <div class="cfg-root">
     <div v-if="loading" class="cfg-loading">
-      <span class="spin"></span> Loading agent…
+      <span class="spin"></span> Loading agentâ€¦
     </div>
 
     <div v-else class="cfg">
@@ -14,7 +14,6 @@
           <span v-if="needsPublish" class="pill dirty"><span class="d"></span> Unsaved changes</span>
           <span v-else class="pill ok"><Icon icon="lucide:check" /> Published</span>
         </div>
-        <AgentTabSwitcher class="cfg-switch" />
         <div class="bar-right">
           <button class="gbtn" @click="showWorkspace = true"><Icon icon="lucide:folder" /> Workspace</button>
           <button v-if="agent && agent.id" class="gbtn violet" @click="showDeploy = true"><Icon icon="lucide:rocket" /> Deploy</button>
@@ -22,7 +21,7 @@
             <div class="save-split" :class="needsPublish ? 'is-dirty' : 'is-ok'">
               <button class="save-main" :disabled="saving" @click="triggerSave">
                 <Icon v-if="!saving" :icon="needsPublish ? 'lucide:upload-cloud' : 'lucide:check-circle-2'" />
-                {{ saving ? 'Saving…' : (needsPublish ? 'Save & Publish' : 'Saved & Published') }}
+                {{ saving ? 'Savingâ€¦' : (needsPublish ? 'Save & Publish' : 'Saved & Published') }}
               </button>
               <button class="save-caret" :disabled="saving" @click="showSaveMenu = !showSaveMenu"><Icon icon="lucide:chevron-down" /></button>
             </div>
@@ -31,14 +30,14 @@
               <button @click="triggerSaveDraft(); showSaveMenu = false"><Icon icon="lucide:file-text" /> Save as draft</button>
               <div class="div"></div>
               <button :disabled="!(agent && agent.id)" @click="saveAsTemplate(); showSaveMenu = false"><Icon icon="lucide:layout-template" /> Save as template</button>
-              <button :disabled="!(agent && agent.id)" @click="showDeploy = true; showSaveMenu = false"><Icon icon="lucide:share-2" /> Deploy &amp; Share…</button>
+              <button :disabled="!(agent && agent.id)" @click="showDeploy = true; showSaveMenu = false"><Icon icon="lucide:share-2" /> Deploy &amp; Shareâ€¦</button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ===================== Step rail (wizard = paginated, edit = scroll-spy) ===================== -->
-      <div class="rail vm-scroll" data-tour="agent-rail">
+      <!-- ===================== Step rail (only in the advanced/legacy editor â€” the create flow has no stepper) ===================== -->
+      <div v-if="!wizard" class="rail vm-scroll" data-tour="agent-rail">
         <button
           v-for="(s, i) in railSteps"
           :key="s.id"
@@ -52,17 +51,21 @@
         </button>
       </div>
 
-      <!-- Wizard step heading (only while creating) -->
-      <div v-if="wizard" class="wiz-head">
-        <span class="wiz-step">Step {{ wizardIndex + 1 }} of {{ wizardSteps.length }}</span>
-        <h2 class="wiz-title">{{ curWizard.title }}</h2>
-        <p class="wiz-help">{{ curWizard.help }}</p>
-      </div>
-
       <!-- ===================== Body ===================== -->
       <div class="cfg-body" :class="{ wizard }">
         <div class="builder-col">
-          <div ref="builderHost" class="builder-host">
+          <!-- Step 0 â€” blank vs template chooser -->
+          <div v-if="atStart" class="start-host vm-scroll">
+            <AgentStartStep :creating-id="creatingId" @blank="nextStep" @use-template="useTemplate" />
+          </div>
+
+          <!-- Step 1 â€” agent basics (name / purpose / workspace â†’ Create Agent) -->
+          <div v-else-if="wizard" class="start-host vm-scroll">
+            <AgentBasicsStep :agent="agent" :creating="saving" @create="createFromBasics" @back="prevStep" />
+          </div>
+
+          <!-- Editor (existing agent) â€” full builder with scroll-spy -->
+          <div v-else ref="builderHost" class="builder-host">
             <AgentBuilder
               ref="builderRef"
               v-model:agent="agent"
@@ -74,26 +77,6 @@
               @close="goBack"
               @open-workspace="showWorkspace = true"
             />
-          </div>
-
-          <!-- Wizard navigation -->
-          <div v-if="wizard" class="wiz-nav">
-            <button class="wiz-back" :disabled="wizardIndex === 0" @click="prevStep">
-              <Icon icon="lucide:arrow-left" /> Back
-            </button>
-            <span class="wiz-count">{{ wizardIndex + 1 }} / {{ wizardSteps.length }}</span>
-            <button
-              v-if="wizardIndex < wizardSteps.length - 1"
-              class="wiz-next" :disabled="!canNext" @click="nextStep"
-            >
-              Next <Icon icon="lucide:arrow-right" />
-            </button>
-            <button
-              v-else
-              class="wiz-next create" :disabled="!canNext || saving" @click="createFromWizard"
-            >
-              <Icon icon="lucide:sparkles" /> {{ saving ? 'Creating…' : 'Create Agent' }}
-            </button>
           </div>
         </div>
 
@@ -108,7 +91,7 @@
             <span class="ring"><Icon icon="lucide:lock" /></span>
             <b>Publish to test your agent</b>
             <p>The live preview unlocks once you Save &amp; Publish your changes.</p>
-            <button class="mini" :disabled="saving" @click="triggerSave">{{ saving ? 'Saving…' : 'Save & Publish' }}</button>
+            <button class="mini" :disabled="saving" @click="triggerSave">{{ saving ? 'Savingâ€¦' : 'Save & Publish' }}</button>
           </div>
         </div>
       </div>
@@ -128,10 +111,11 @@ import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import AgentBuilder from '../components/AgentBuilder.vue'
+import AgentStartStep from '../components/agent-builder/AgentStartStep.vue'
+import AgentBasicsStep from '../components/agent-builder/AgentBasicsStep.vue'
 import AgentEmulator from '../components/AgentEmulator.vue'
 import AgentWorkspacePanel from '../components/AgentWorkspacePanel.vue'
 import DeploySettings from '../components/agent/DeploySettings.vue'
-import AgentTabSwitcher from '../components/agent/AgentTabSwitcher.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -147,7 +131,7 @@ const builderHost = ref(null)
 const publishAfterSave = ref(false)
 
 // Publish state: the form is "dirty" when it differs from what's saved. A never-saved agent (no id)
-// always needs publishing. The live Emulator stays disabled — and Save & Publish stays red — until
+// always needs publishing. The live Emulator stays disabled â€” and Save & Publish stays red â€” until
 // the agent is published clean. `publishedVersion` bumps on each publish to remount the Emulator so
 // it always reflects the saved agent (incl. its saved mode).
 const dirty = ref(false)
@@ -175,24 +159,22 @@ const activeIndex = computed(() => Math.max(0, steps.findIndex(s => s.id === act
    The 7 builder sections are flat siblings in AgentBuilder's canvas. While creating a
    new agent we show ONE grouped step at a time (Back/Next + validation); once the agent
    is saved (has an id) we fall back to the free-scroll + scroll-spy editor. AgentBuilder
-   itself is untouched — we just toggle the visibility of its top-level section nodes. */
+   itself is untouched â€” we just toggle the visibility of its top-level section nodes. */
 const isNew = computed(() => !(agent.value && agent.value.id))
 const wizard = computed(() => isNew.value)
 
+// Create flow = two custom steps. Deep configuration happens AFTER creation, in the editor
+// (the agent overview â†’ Configure), so the create wizard stays minimal.
 const wizardSteps = [
-  { id: 'basics', n: 1, label: 'Basics', sections: ['sec-general'],
-    title: 'Name your agent', help: 'Give it an identity, pick a model, and set how it should behave.' },
-  { id: 'instructions', n: 2, label: 'Instructions', sections: ['sec-prompt'],
-    title: 'Write the instructions', help: 'The system prompt steers every reply. Start from a template or write your own.' },
-  { id: 'knowledge', n: 3, label: 'Knowledge & Workflows', sections: ['sec-knowledge', 'sec-workflows'],
-    title: 'Knowledge & workflows', help: 'Add documents the agent can reference and reusable flows it can run.' },
-  { id: 'tools', n: 4, label: 'Tools & Autonomy', sections: ['sec-tools', 'sec-autonomy'],
-    title: 'Tools & autonomy', help: 'Choose the tools it can use and how independently it is allowed to act.' },
-  { id: 'review', n: 5, label: 'Review',
-    sections: ['sec-general', 'sec-prompt', 'sec-knowledge', 'sec-workflows', 'sec-tools', 'sec-autonomy', 'sec-advanced'],
-    title: 'Review & create', help: 'Give everything a final look (and fine-tune advanced options), then create your agent.' },
+  { id: 'start', n: 1, label: 'Get Started', sections: [],
+    title: 'Create a new agent', help: 'Start from scratch or use a template to build your agent.' },
+  { id: 'basics', n: 2, label: 'Create Agent', sections: ['sec-general'],
+    title: 'Agent basics', help: 'Give your agent a name and purpose to get started.' },
 ]
 const wizardIndex = ref(0)
+// Step 0 ("Start") shows the blank-vs-template chooser instead of the builder sections.
+const atStart = computed(() => wizard.value && wizardIndex.value === 0)
+const creatingId = ref(null)
 const maxReached = ref(0)
 const curWizard = computed(() => wizardSteps[wizardIndex.value] || wizardSteps[0])
 const railSteps = computed(() => (wizard.value ? wizardSteps : steps))
@@ -218,7 +200,11 @@ function clearWizHidden(root) {
 }
 
 function applyWizardStep(retry = 0) {
-  if (!wizard.value) return
+  // The create wizard no longer steps through AgentBuilder sections (Start + Basics are custom
+  // components), so section hiding is a no-op now. Kept for the watchers below.
+  return
+  // eslint-disable-next-line no-unreachable
+  if (!wizard.value || wizardIndex.value === 0) return
   const root = builderRoot()
   if (!root) { if (retry < 6) setTimeout(() => applyWizardStep(retry + 1), 80); return }
   clearWizHidden(root)
@@ -231,7 +217,7 @@ function applyWizardStep(retry = 0) {
     el.__sec = cur
   }
   // bottom-up: an element "has active content" if it (or any descendant) is owned by an active
-  // section, or it sits before the first anchor (chrome → always shown).
+  // section, or it sits before the first anchor (chrome â†’ always shown).
   const hasActive = new Map()
   for (let i = all.length - 1; i >= 0; i--) {
     const el = all[i]
@@ -270,7 +256,50 @@ function nextStep() {
 function prevStep() { if (wizardIndex.value > 0) wizardIndex.value-- }
 function createFromWizard() {
   if (!canNext.value) { notify.warning('Please give your agent a name first.'); return }
-  triggerSaveDraft()   // creates the agent (no publish) → navigates to the editor
+  triggerSaveDraft()   // creates the agent (no publish) â†’ navigates to the editor
+}
+
+// Basics step â†’ "Create Agent": create the agent (name/purpose), then land on the agent overview.
+async function createFromBasics() {
+  if (!(agent.value && (agent.value.name || '').trim())) {
+    notify.warning('Please give your agent a name first.')
+    return
+  }
+  try {
+    saving.value = true
+    const res = await api.post('/agents/', agent.value)
+    const id = res.data && res.data.id
+    if (id) {
+      notify.success('Agent created')
+      router.push(`/dashboard/agents/${id}/editor`)   // â†’ new editor (Define Brain, Screen 14)
+    } else {
+      notify.error('Could not create the agent')
+    }
+  } catch (e) {
+    notify.error('Could not create the agent: ' + extractApiError(e))
+  } finally {
+    saving.value = false
+  }
+}
+
+// Start step â†’ "use template": clone the builtin template into a new agent, open it in the editor.
+async function useTemplate(t) {
+  if (creatingId.value) return
+  creatingId.value = t.id
+  try {
+    const res = await api.createAgentFromTemplate({ template_id: t.id })
+    const id = res.data && res.data.id
+    if (id) {
+      notify.success(`Created from â€œ${t.name}â€`)
+      router.push(`/dashboard/agents/${id}/editor`)
+    } else {
+      notify.error('Could not create from template')
+    }
+  } catch (e) {
+    notify.error('Could not create from template: ' + extractApiError(e))
+  } finally {
+    creatingId.value = null
+  }
 }
 
 watch(wizardIndex, () => nextTick(applyWizardStep))
@@ -319,7 +348,7 @@ function triggerSave() {
   publishAfterSave.value = true
   if (builderRef.value && builderRef.value.save) builderRef.value.save()
 }
-// Save as draft: persist edits only — does NOT publish (the live/public agent keeps its snapshot).
+// Save as draft: persist edits only â€” does NOT publish (the live/public agent keeps its snapshot).
 function triggerSaveDraft() {
   publishAfterSave.value = false
   if (builderRef.value && builderRef.value.save) builderRef.value.save()
@@ -329,7 +358,7 @@ async function saveAsTemplate() {
   if (!(agent.value && agent.value.id)) return
   try {
     await api.saveAgentAsTemplate(agent.value.id, { name: `${agent.value.name} Template` })
-    notify.success('Saved as template — available when creating a new agent')
+    notify.success('Saved as template â€” available when creating a new agent')
   } catch (e) {
     notify.error('Failed to save template')
   }
@@ -345,7 +374,7 @@ function extractApiError(e) {
   try {
     return Object.entries(d)
       .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
-      .join(' · ')
+      .join(' Â· ')
   } catch (_) {
     return (e && e.message) || 'Request failed'
   }
@@ -403,7 +432,7 @@ async function saveAgent(agentData) {
     } else {
       res = await api.post('/agents/', dataToSave)
       // Switch to edit mode (stay in dashboard shell) to prevent duplicate creates
-      router.replace(`/dashboard/agents/${res.data.id}/configure`)
+      router.replace(`/dashboard/agents/${res.data.id}/editor`)
     }
     let a = res.data
     // Save & Publish: snapshot + status=published on the backend (powers public share/runtime).
@@ -411,7 +440,7 @@ async function saveAgent(agentData) {
       try {
         const pres = await api.publishAgent(a.id)
         if (pres.data) a = pres.data
-      } catch (e) { /* non-fatal — the save itself succeeded */ }
+      } catch (e) { /* non-fatal â€” the save itself succeeded */ }
     }
     publishAfterSave.value = false
     if (!a.tool_ids && a.tools) a.tool_ids = a.tools.map(t => t.id)
@@ -450,152 +479,165 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.cfg-root { height: 100%; font-family: var(--vm-font-sans); color: var(--vm-ink); }
+/* ===== Aadml â€” flat, clean light wizard (design.md Â§3). No glass/blur, soft shadows. ===== */
+.cfg-root { height: 100%; font-family: var(--vm-font-sans); color: var(--vm-ink); background: var(--vm-bg); }
 .cfg { display: flex; flex-direction: column; height: 100%; }
 .cfg-loading { display: flex; align-items: center; justify-content: center; gap: 10px; height: 100%; color: var(--vm-ink-faint); font-size: 14px; }
-.spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--vm-line-2); border-top-color: var(--vm-violet); animation: vmSpin .8s linear infinite; }
+.spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--vm-line-2); border-top-color: var(--vm-primary); animation: vmSpin .8s linear infinite; }
 @keyframes vmSpin { to { transform: rotate(360deg); } }
 
-/* top bar */
-.cfg-bar { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 14px 22px; background: var(--vm-glass-strong); backdrop-filter: blur(16px); border-bottom: 1px solid var(--vm-line); flex: 0 0 auto; }
-/* centered switcher — hidden below xl to avoid crowding the dense top bar */
+/* top bar â€” flat white */
+.cfg-bar { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 13px 24px; background: var(--vm-surface); border-bottom: 1px solid var(--vm-border); flex: 0 0 auto; }
 .cfg-switch { position: absolute; left: 50%; transform: translateX(-50%); display: none; }
 @media (min-width: 1280px) { .cfg-switch { display: inline-flex; } }
 .bar-left { display: flex; align-items: center; gap: 11px; min-width: 0; }
-.back { display: inline-flex; align-items: center; gap: 4px; border: none; background: transparent; cursor: pointer; font: 600 13px var(--vm-font-sans); color: var(--vm-violet-d); }
+.back { display: inline-flex; align-items: center; gap: 4px; border: none; background: transparent; cursor: pointer; font: 600 13px var(--vm-font-sans); color: var(--vm-primary); }
+.back:hover { color: var(--vm-primary-d); }
 .back :deep(svg) { width: 16px; height: 16px; }
 .sep { color: var(--vm-ink-faint); }
-.nm { font-family: var(--vm-font-display); font-size: 18px; font-weight: 700; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pill { display: inline-flex; align-items: center; gap: 6px; font: 700 11px var(--vm-font-sans); padding: 5px 11px; border-radius: 999px; }
-.pill.dirty { color: #B45309; background: rgba(245, 158, 11, .14); }
-.pill.dirty .d { width: 7px; height: 7px; border-radius: 50%; background: var(--vm-amber); }
-.pill.ok { color: #059669; background: rgba(16, 185, 129, .12); }
+.nm { font-size: 18px; font-weight: 700; letter-spacing: -.01em; color: var(--vm-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 11.5px var(--vm-font-sans); padding: 4px 10px; border-radius: 999px; }
+.pill.dirty { color: #B54708; background: #FEF3E2; }
+.pill.dirty .d { width: 7px; height: 7px; border-radius: 50%; background: var(--vm-warning); }
+.pill.ok { color: #027A48; background: #E6F7EE; }
 .pill :deep(svg) { width: 13px; height: 13px; }
 
 .bar-right { display: flex; align-items: center; gap: 9px; }
-.gbtn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--vm-line-2); background: var(--vm-surface); cursor: pointer; padding: 9px 14px; border-radius: 12px; font: 600 13px var(--vm-font-sans); color: var(--vm-ink-soft); transition: .2s var(--vm-ease); }
-.gbtn:hover { transform: translateY(-1px); box-shadow: var(--vm-shadow-s); color: var(--vm-ink); }
-.gbtn.violet { color: var(--vm-violet-d); border-color: rgba(124, 58, 237, .3); }
+.gbtn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--vm-border); background: var(--vm-surface); cursor: pointer; padding: 9px 14px; border-radius: 11px; font: 600 13px var(--vm-font-sans); color: var(--vm-ink-soft); transition: .15s var(--vm-ease2); }
+.gbtn:hover { border-color: #cdd5e0; color: var(--vm-ink); }
+.gbtn.violet { color: var(--vm-primary); border-color: var(--vm-primary-soft); }
 .gbtn :deep(svg) { width: 15px; height: 15px; }
 
 .save-wrap { position: relative; }
-.save-split { display: flex; border-radius: 12px; overflow: hidden; box-shadow: var(--vm-glow-v); }
-.save-split.is-ok { box-shadow: 0 6px 18px rgba(16, 185, 129, .32); }
-.save-main, .save-caret { border: none; cursor: pointer; color: #fff; font: 700 13.5px var(--vm-font-sans); display: flex; align-items: center; gap: 8px; transition: filter .2s; }
-.save-split.is-dirty .save-main, .save-split.is-dirty .save-caret { background: var(--vm-g-brand); }
-.save-split.is-ok .save-main, .save-split.is-ok .save-caret { background: linear-gradient(120deg, #10B981, #14B8A6); }
+.save-split { display: flex; border-radius: 11px; overflow: hidden; box-shadow: 0 1px 2px rgba(21,94,239,.25); }
+.save-split.is-ok { box-shadow: 0 1px 2px rgba(18,183,106,.25); }
+.save-main, .save-caret { border: none; cursor: pointer; color: #fff; font: 600 13.5px var(--vm-font-sans); display: flex; align-items: center; gap: 8px; transition: filter .15s; }
+.save-split.is-dirty .save-main, .save-split.is-dirty .save-caret { background: var(--vm-primary); }
+.save-split.is-ok .save-main, .save-split.is-ok .save-caret { background: var(--vm-success); }
 .save-main { padding: 10px 16px; }
-.save-main:hover, .save-caret:hover { filter: brightness(1.06); }
+.save-main:hover, .save-caret:hover { filter: brightness(.96); }
 .save-main:disabled { opacity: .6; cursor: default; }
 .save-caret { padding: 10px 9px; border-left: 1px solid rgba(255, 255, 255, .25); }
 .save-main :deep(svg) { width: 15px; height: 15px; } .save-caret :deep(svg) { width: 15px; height: 15px; }
-.save-menu { position: absolute; right: 0; top: calc(100% + 8px); width: 230px; background: var(--vm-glass-strong); backdrop-filter: blur(18px); border: 1px solid var(--vm-line); border-radius: 14px; box-shadow: var(--vm-shadow-l); padding: 6px; z-index: 40; }
-.save-menu button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: none; background: transparent; border-radius: 10px; font: 600 13px var(--vm-font-sans); color: var(--vm-ink-soft); cursor: pointer; }
-.save-menu button:hover { background: var(--vm-surface); color: var(--vm-ink); }
+.save-menu { position: absolute; right: 0; top: calc(100% + 8px); width: 230px; background: var(--vm-surface); border: 1px solid var(--vm-border); border-radius: 13px; box-shadow: var(--vm-shadow-l); padding: 6px; z-index: 40; }
+.save-menu button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: none; background: transparent; border-radius: 9px; font: 600 13px var(--vm-font-sans); color: var(--vm-ink-soft); cursor: pointer; }
+.save-menu button:hover { background: var(--vm-surface-soft); color: var(--vm-ink); }
 .save-menu button:disabled { opacity: .4; cursor: default; }
 .save-menu button :deep(svg) { width: 15px; height: 15px; }
-.save-menu .div { height: 1px; background: var(--vm-line); margin: 5px 0; }
+.save-menu .div { height: 1px; background: var(--vm-border); margin: 5px 0; }
 
-/* wizard rail */
-.rail { display: flex; gap: 8px; padding: 14px 22px; overflow-x: auto; flex: 0 0 auto; border-bottom: 1px solid var(--vm-line); background: rgba(255, 255, 255, .4); backdrop-filter: blur(8px); }
+/* wizard rail â€” flat connected stepper */
+.rail { display: flex; gap: 8px; padding: 14px 24px; overflow-x: auto; flex: 0 0 auto; border-bottom: 1px solid var(--vm-border); background: var(--vm-surface); }
 .rail::-webkit-scrollbar { height: 0; }
-.step { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; border: 1px solid var(--vm-line); background: var(--vm-glass-strong); cursor: pointer; padding: 7px 14px; border-radius: 999px; font: 700 12.5px var(--vm-font-sans); color: var(--vm-ink-faint); transition: .2s var(--vm-ease); }
-.step:hover:not(:disabled) { transform: translateY(-1px); color: var(--vm-ink-soft); }
+.step { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; border: 1px solid var(--vm-border); background: var(--vm-surface); cursor: pointer; padding: 7px 14px; border-radius: 10px; font: 600 12.5px var(--vm-font-sans); color: var(--vm-ink-faint); transition: .15s var(--vm-ease2); }
+.step:hover:not(:disabled) { border-color: #cdd5e0; color: var(--vm-ink-soft); }
 .step:disabled { opacity: .5; cursor: not-allowed; }
-.step .n { width: 19px; height: 19px; border-radius: 50%; background: var(--vm-line-2); color: #fff; font-size: 10px; display: flex; align-items: center; justify-content: center; }
-.step .n :deep(svg) { width: 11px; height: 11px; }
-.step.done { color: #0D9488; border-color: transparent; background: #E6FBF6; }
-.step.done .n { background: var(--vm-teal); }
-.step.cur { color: var(--vm-violet-d); border-color: transparent; background: var(--vm-violet-soft); box-shadow: var(--vm-shadow-s); }
-.step.cur .n { background: var(--vm-g-brand); }
+.step .n { width: 20px; height: 20px; border-radius: 50%; background: var(--vm-surface-soft); color: var(--vm-ink-faint); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.step .n :deep(svg) { width: 12px; height: 12px; }
+.step.done { color: #027A48; border-color: #ABEFC6; background: #E6F7EE; }
+.step.done .n { background: var(--vm-success); color: #fff; }
+.step.cur { color: var(--vm-primary); border-color: var(--vm-primary); background: var(--vm-primary-soft); }
+.step.cur .n { background: var(--vm-primary); color: #fff; }
 
 /* body */
 .cfg-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
 .builder-col { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
 .builder-host { flex: 1; min-width: 0; min-height: 0; }
+/* Start step (chooser) â€” scrolls within the builder column, flat light canvas */
+.start-host { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; background: var(--vm-bg); padding-top: 6px; }
 
 /* Wizard step heading (between rail and builder) */
-.wiz-head { padding: 14px 24px 4px; max-width: 820px; width: 100%; margin: 0 auto; }
-.wiz-step { font: 700 11px var(--vm-font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--vm-violet-d); }
-.wiz-title { font-family: var(--vm-font-display); font-size: 22px; font-weight: 700; color: var(--vm-ink); margin: 4px 0 0; }
-.wiz-help { color: var(--vm-ink-soft); font-size: 13.5px; margin: 3px 0 0; }
+.wiz-head { padding: 18px 24px 2px; max-width: 820px; width: 100%; margin: 0 auto; }
+.wiz-step { font: 700 11px var(--vm-font-sans); letter-spacing: .08em; text-transform: uppercase; color: var(--vm-primary); }
+.wiz-title { font-size: 24px; font-weight: 700; letter-spacing: -.01em; color: var(--vm-ink); margin: 5px 0 0; }
+.wiz-help { color: var(--vm-ink-soft); font-size: 13.5px; margin: 4px 0 0; }
 
 /* Wizard nav bar (sticky under the builder) */
-.wiz-nav { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 24px; border-top: 1px solid var(--vm-line); background: var(--vm-glass-strong); backdrop-filter: blur(10px); }
-.wiz-back, .wiz-next { display: inline-flex; align-items: center; gap: 8px; font: 700 14px var(--vm-font-sans); padding: 11px 22px; border-radius: 12px; cursor: pointer; border: 1px solid var(--vm-line-2); background: var(--vm-surface); color: var(--vm-ink-soft); transition: .2s var(--vm-ease2); }
-.wiz-back:hover:not(:disabled) { color: var(--vm-ink); border-color: var(--vm-ink-faint); }
+.wiz-nav { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 24px; border-top: 1px solid var(--vm-border); background: var(--vm-surface); }
+.wiz-back, .wiz-next { display: inline-flex; align-items: center; gap: 8px; font: 600 14px var(--vm-font-sans); padding: 11px 22px; border-radius: 11px; cursor: pointer; border: 1px solid var(--vm-border); background: var(--vm-surface); color: var(--vm-ink-soft); transition: .15s var(--vm-ease2); }
+.wiz-back:hover:not(:disabled) { color: var(--vm-ink); border-color: #cdd5e0; }
 .wiz-back:disabled { opacity: .45; cursor: not-allowed; }
-.wiz-count { font: 700 12px var(--vm-font-sans); color: var(--vm-ink-faint); }
-.wiz-next { background: var(--vm-g-brand); color: #fff; border: none; box-shadow: var(--vm-glow-v); }
-.wiz-next:hover:not(:disabled) { filter: brightness(1.04); }
+.wiz-count { font: 600 12px var(--vm-font-sans); color: var(--vm-ink-faint); }
+.wiz-next { background: var(--vm-primary); color: #fff; border: none; box-shadow: 0 1px 2px rgba(21,94,239,.25); }
+.wiz-next:hover:not(:disabled) { background: var(--vm-primary-d); }
 .wiz-next:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 .wiz-back :deep(svg), .wiz-next :deep(svg) { width: 16px; height: 16px; }
-.dock { width: 420px; flex: 0 0 auto; position: relative; border-left: 1px solid var(--vm-line); background: var(--vm-glass-strong); backdrop-filter: blur(14px); }
+.dock { width: 420px; flex: 0 0 auto; position: relative; border-left: 1px solid var(--vm-border); background: var(--vm-surface); }
 @media (max-width: 1180px) { .dock { width: 360px; } }
-@media (max-width: 900px) { .cfg-body { flex-direction: column; } .dock { width: 100%; height: 60vh; border-left: none; border-top: 1px solid var(--vm-line); } }
+@media (max-width: 900px) { .cfg-body { flex-direction: column; } .dock { width: 100%; height: 60vh; border-left: none; border-top: 1px solid var(--vm-border); } }
 
 /* lock overlay */
-.lock { position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px; background: rgba(255, 255, 255, .55); backdrop-filter: blur(3px); }
-.lock .ring { width: 62px; height: 62px; border-radius: 50%; background: var(--vm-g-brand); display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: var(--vm-glow-v); animation: vmFloat 4s ease-in-out infinite; }
-.lock .ring :deep(svg) { width: 28px; height: 28px; }
-.lock b { font-family: var(--vm-font-display); font-size: 15px; }
+.lock { position: absolute; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px; background: rgba(246, 248, 252, .85); }
+.lock .ring { width: 60px; height: 60px; border-radius: 50%; background: var(--vm-primary-soft); display: flex; align-items: center; justify-content: center; color: var(--vm-primary); }
+.lock .ring :deep(svg) { width: 26px; height: 26px; }
+.lock b { font-size: 15px; font-weight: 700; color: var(--vm-ink); }
 .lock p { font-size: 12.5px; color: var(--vm-ink-soft); max-width: 30ch; }
-.lock .mini { border: none; cursor: pointer; padding: 9px 16px; border-radius: 11px; background: var(--vm-g-brand); color: #fff; font: 700 12px var(--vm-font-sans); box-shadow: var(--vm-glow-v); }
+.lock .mini { border: none; cursor: pointer; padding: 9px 16px; border-radius: 10px; background: var(--vm-primary); color: #fff; font: 600 12px var(--vm-font-sans); }
+.lock .mini:hover { background: var(--vm-primary-d); }
 .lock .mini:disabled { opacity: .6; }
 
-/* ===== Restyle the existing builder canvas (presentational only, via :deep) ===== */
+/* ===== Restyle the inner builder canvas (presentational only, via :deep) ===== */
 .builder-host { height: 100%; }
-/* Solid readable surface (NOT transparent) so white section cards always pop. */
 .builder-host :deep(.agent-builder) { background: transparent; }
-.builder-host :deep(.agent-builder > .flex-1) {
-  background:
-    radial-gradient(120% 80% at 0% 0%, rgba(37,99,235,.07), transparent 60%),
-    radial-gradient(120% 80% at 100% 0%, rgba(20,184,166,.06), transparent 60%),
-    var(--vm-bg) !important;
-}
+/* Flat light canvas â€” no radial gradients. */
+.builder-host :deep(.agent-builder > .flex-1) { background: var(--vm-bg) !important; }
 .builder-host :deep(.vm-anchor) { scroll-margin-top: 16px; }
-/* Wizard: hide non-active section subtrees without touching inline display (preserves v-show). */
 .builder-host :deep(.wiz-hidden) { display: none !important; }
 
-/* widen the canvas a touch + comfortable rhythm */
-.builder-host :deep(.agent-builder .max-w-3xl) { max-width: 760px !important; }
+/* comfortable canvas width */
+.builder-host :deep(.agent-builder .max-w-3xl) { max-width: 780px !important; }
 
-/* section cards → solid white, rounded, clear shadow, hover lift */
+/* section cards â†’ solid white, soft border + shadow (flat) */
 .builder-host :deep(.agent-builder .bg-white.rounded-xl) {
-  background: #ffffff !important;
-  border-radius: 22px !important;
-  border: 1px solid var(--vm-line) !important;
-  box-shadow: var(--vm-shadow-m) !important;
+  background: var(--vm-surface) !important;
+  border-radius: 16px !important;
+  border: 1px solid var(--vm-border) !important;
+  box-shadow: var(--vm-shadow-s) !important;
   padding: 22px !important;
-  transition: box-shadow .3s var(--vm-ease), transform .3s var(--vm-ease);
-}
-.builder-host :deep(.agent-builder .bg-white.rounded-xl:hover) {
-  box-shadow: var(--vm-shadow-l) !important;
 }
 
-/* section header number badge → gradient tile */
+/* section header number badge â†’ soft tinted square (flat, not gradient) */
 .builder-host :deep(.agent-builder .w-7.h-7.rounded-lg) {
-  width: 40px !important; height: 40px !important;
-  border-radius: 13px !important;
-  font-size: 15px !important;
-  box-shadow: var(--vm-shadow-m);
+  width: 38px !important; height: 38px !important;
+  border-radius: 11px !important;
+  font-size: 14px !important;
+  box-shadow: none !important;
 }
-.builder-host :deep(.agent-builder .w-7.h-7.bg-indigo-600) { background: var(--vm-g-brand) !important; }
-.builder-host :deep(.agent-builder .w-7.h-7.bg-emerald-600) { background: var(--vm-g-teal) !important; }
-.builder-host :deep(.agent-builder .w-7.h-7.bg-violet-600) { background: linear-gradient(120deg,#0EA5E9,#2563EB) !important; }
+.builder-host :deep(.agent-builder .w-7.h-7.bg-indigo-600) { background: var(--vm-primary-soft) !important; color: var(--vm-primary) !important; }
+.builder-host :deep(.agent-builder .w-7.h-7.bg-emerald-600) { background: #E3F8F4 !important; color: #0E9384 !important; }
+.builder-host :deep(.agent-builder .w-7.h-7.bg-violet-600) { background: var(--vm-primary-soft) !important; color: var(--vm-primary) !important; }
 
-/* inputs / textareas / selects → rounded + sky focus ring */
+/* inputs / textareas / selects â†’ rounded + blue focus ring */
 .builder-host :deep(.agent-builder input[type="text"]),
 .builder-host :deep(.agent-builder input:not([type])),
 .builder-host :deep(.agent-builder textarea),
 .builder-host :deep(.agent-builder select) {
-  border-radius: 12px !important;
-  transition: box-shadow .2s var(--vm-ease2), border-color .2s;
+  border-radius: 10px !important;
+  transition: box-shadow .15s var(--vm-ease2), border-color .15s;
 }
 .builder-host :deep(.agent-builder input[type="text"]:focus),
 .builder-host :deep(.agent-builder textarea:focus),
 .builder-host :deep(.agent-builder select:focus) {
-  border-color: var(--vm-sky) !important;
-  box-shadow: 0 0 0 4px rgba(14, 165, 233, .16) !important;
+  border-color: var(--vm-primary) !important;
+  box-shadow: 0 0 0 3px var(--vm-primary-soft) !important;
 }
+
+/* ===== Remap legacy indigo/violet/purple accents â†’ Aadml blue (presentational) =====
+   AgentBuilder.vue is heavy on Tailwind indigo/violet utilities (the old purple-ish accent).
+   Rather than touch 3000 lines, retarget those utility classes to the v2 blue tokens. */
+.builder-host :deep(.bg-indigo-600), .builder-host :deep(.bg-indigo-700),
+.builder-host :deep(.bg-violet-600), .builder-host :deep(.bg-violet-700) { background-color: var(--vm-primary) !important; }
+.builder-host :deep(.hover\:bg-indigo-700:hover), .builder-host :deep(.hover\:bg-violet-700:hover) { background-color: var(--vm-primary-d) !important; }
+.builder-host :deep(.bg-indigo-100), .builder-host :deep(.bg-indigo-50),
+.builder-host :deep(.bg-violet-100), .builder-host :deep(.bg-violet-200),
+.builder-host :deep(.bg-purple-100) { background-color: var(--vm-primary-soft) !important; }
+.builder-host :deep(.text-indigo-500), .builder-host :deep(.text-indigo-600), .builder-host :deep(.text-indigo-700),
+.builder-host :deep(.text-indigo-800), .builder-host :deep(.text-violet-500), .builder-host :deep(.text-violet-600),
+.builder-host :deep(.text-violet-700), .builder-host :deep(.text-purple-700) { color: var(--vm-primary) !important; }
+.builder-host :deep(.border-indigo-100), .builder-host :deep(.border-indigo-200), .builder-host :deep(.border-indigo-300),
+.builder-host :deep(.border-indigo-500), .builder-host :deep(.border-indigo-600),
+.builder-host :deep(.border-violet-200), .builder-host :deep(.border-violet-300) { border-color: var(--vm-primary-soft) !important; }
+.builder-host :deep(.ring-indigo-300), .builder-host :deep(.ring-indigo-500),
+.builder-host :deep(.ring-violet-500) { --tw-ring-color: var(--vm-primary) !important; }
 </style>
+

@@ -1,61 +1,76 @@
-<template>
+﻿<template>
   <div class="wfb-root">
     <!-- Top bar -->
     <div class="wfb-bar">
+      <div class="wf-brand" aria-hidden="true"><span></span></div>
       <div class="bar-left">
-        <button class="lnk" @click="goBack">← Workflows</button>
+        <button class="lnk" @click="goBack">Workflows</button>
         <span class="sep">/</span>
         <input v-if="renaming" ref="nameInputEl" v-model="nameDraft" class="name-in"
           @keydown.enter="commitRename" @keydown.esc="cancelRename" @blur="commitRename" />
         <button v-else class="name-display" @click="startRename" title="Click to rename">
-          {{ name || 'Untitled workflow' }}<span class="name-edit">✎</span>
+          {{ name || 'Customer intake automation' }}<span class="name-edit">âœŽ</span>
         </button>
-        <span class="pill ver">v{{ version }}</span>
-        <span v-if="dirty" class="pill dirty">● Unsaved</span>
-        <span v-else class="pill ok">Saved</span>
+        <span class="pill draft">Draft</span>
       </div>
       <div class="bar-right">
-        <button class="gbtn" :class="{ on: logOpen }" @click="toggleLog()">Log</button>
-        <button class="gbtn" @click="openVersions">Versions</button>
-        <button class="gbtn" @click="openRuns">Runs</button>
-        <button class="gbtn" :disabled="busy" @click="validateGraph">Validate</button>
-        <button v-if="!running" class="gbtn" :disabled="busy" @click="runGraph(true)" title="Test run — simulates side-effects, no real sends/spend">🧪 Test</button>
-        <button v-if="!running" class="gbtn run" :disabled="busy" @click="runGraph(false)">▶ Run</button>
-        <button v-else class="gbtn stop" @click="stopRun">⏹ Stop</button>
-        <button v-if="dirty" class="gbtn" :disabled="busy" @click="resetChanges" title="Discard unsaved changes">Reset</button>
-        <button class="gbtn" :disabled="busy" @click="save">{{ busy ? 'Saving…' : 'Save' }}</button>
-        <button class="gbtn save" :disabled="busy" @click="publish">Publish</button>
+        <button class="gbtn secondary-action" :class="{ on: logOpen }" @click="toggleLog()">Log</button>
+        <button class="gbtn secondary-action" @click="openVersions">Versions</button>
+        <button class="gbtn secondary-action" @click="openRuns">Runs</button>
+        <button class="gbtn" :disabled="busy" @click="validateGraph"><Icon icon="lucide:shield-check" />Validate</button>
+        <button v-if="!running" class="gbtn" :disabled="busy" @click="runGraph(true)" title="Test run"><Icon icon="lucide:flask-conical" />Test</button>
+        <button v-if="!running" class="gbtn run" :disabled="busy" @click="runGraph(false)"><Icon icon="lucide:play" />Run</button>
+        <button v-else class="gbtn stop" @click="stopRun"><Icon icon="lucide:square" />Stop</button>
+        <button v-if="dirty" class="gbtn reset-action" :disabled="busy" @click="resetChanges" title="Discard unsaved changes">Reset</button>
+        <button class="gbtn" :disabled="busy" @click="save"><Icon icon="lucide:save" />{{ busy ? 'Saving...' : 'Save' }}</button>
+        <button class="gbtn save" :disabled="busy" @click="publish"><Icon icon="lucide:rocket" />Publish</button>
         <div class="wf-menu">
-          <button class="gbtn" @click="menuOpen = !menuOpen" title="More">⋯</button>
+          <button class="gbtn more-btn" @click="menuOpen = !menuOpen" title="More">...</button>
           <div v-if="menuOpen" class="wf-menu-back" @click="menuOpen = false"></div>
           <div v-if="menuOpen" class="wf-menu-pop" @click="menuOpen = false">
-            <button @click="duplicateWorkflow">⧉ Duplicate</button>
-            <button class="danger" @click="deleteWorkflow">🗑 Delete workflow</button>
+            <button @click="loadOverviewDemo"><Icon icon="lucide:layout-dashboard" /> Overview demo</button>
+            <button @click="loadConditionDemo"><Icon icon="lucide:split" /> Branching demo</button>
+            <button @click="loadRunDemo"><Icon icon="lucide:activity" /> Run debug demo</button>
+            <button @click="duplicateWorkflow">â§‰ Duplicate</button>
+            <button class="danger" @click="deleteWorkflow">ðŸ—‘ Delete workflow</button>
           </div>
         </div>
       </div>
     </div>
 
+    <div class="wfb-title-strip">
+      <div>
+        <h1>Workflow Builder</h1>
+        <p>Design and automate multi-step agent workflows.</p>
+      </div>
+      <button class="title-help" @click="openPalette">Browse nodes</button>
+    </div>
+
     <div class="wfb-body">
       <!-- Left palette (resizable, searchable, category-grouped) -->
       <aside v-show="!paletteCollapsed" class="wfb-palette" :style="{ width: paletteW + 'px' }">
-        <button class="add-node-btn" @click="openPalette()">＋ Add node <kbd>⌘K</kbd></button>
-        <input v-model="sidebarSearch" class="pal-search" placeholder="Search nodes…" />
+        <button class="add-node-btn" @click="openPalette()">ï¼‹ Add node <kbd>âŒ˜K</kbd></button>
+        <input v-model="sidebarSearch" class="pal-search" placeholder="Search nodesâ€¦" />
         <div class="pal-scroll">
-          <p v-if="!sidebarGroups.length" class="pal-empty">No nodes match “{{ sidebarSearch }}”.</p>
+          <p v-if="!sidebarGroups.length" class="pal-empty">No nodes match â€œ{{ sidebarSearch }}â€.</p>
           <div v-for="g in sidebarGroups" :key="g.key" class="pal-cat">
             <div class="pal-cat-h">{{ g.label }}</div>
             <div v-for="p in g.items" :key="p.type" class="pal-card" :class="'fam-' + p.type.split('.')[0]"
-              draggable="true" @dragstart="onDragStart($event, p.type)" @click="addQuick(p.type)" :title="'Drag to canvas or click to add — ' + p.sub">
-              <span class="pal-card-ic">{{ p.icon }}</span>
+              draggable="true" @dragstart="onDragStart($event, p.type)" @click="addQuick(p.type)" :title="'Drag to canvas or click to add â€” ' + p.sub">
+              <span class="pal-card-ic"><Icon :icon="wfIcon(p.type)" /></span>
               <span class="pal-card-txt"><span class="pal-card-l">{{ p.label }}</span><span class="pal-card-s">{{ p.sub }}</span></span>
             </div>
           </div>
-          <button class="pal-more" @click="openPalette()">Browse tools &amp; MCP →</button>
+          <button class="pal-more" @click="openPalette()">Browse tools &amp; MCP â†’</button>
+        </div>
+        <div class="pal-footer" aria-label="Workflow builder shortcuts">
+          <button title="Docs">â–¡</button>
+          <button title="Help">?</button>
+          <button title="Settings">âš™</button>
         </div>
       </aside>
       <div v-show="!paletteCollapsed" class="wfb-divider v" @pointerdown="startResize('palette', $event)"></div>
-      <button class="wfb-tab tab-left" :title="paletteCollapsed ? 'Show palette' : 'Hide palette'" @click="togglePalette">{{ paletteCollapsed ? '»' : '«' }}</button>
+      <button class="wfb-tab tab-left" :title="paletteCollapsed ? 'Show palette' : 'Hide palette'" @click="togglePalette">{{ paletteCollapsed ? 'Â»' : 'Â«' }}</button>
 
       <!-- Canvas -->
       <div class="canvas-wrap" @drop="onDrop" @dragover.prevent @dragenter.prevent>
@@ -64,22 +79,52 @@
           <Background pattern-color="#cbd5e1" :gap="18" />
           <Controls />
         </VueFlow>
-        <div v-if="loading" class="canvas-overlay">Loading…</div>
+        <div v-if="loading" class="canvas-overlay">Loadingâ€¦</div>
+        <div v-if="running" class="run-banner">
+          <div class="run-title">
+            <Icon icon="lucide:loader-2" class="spin" />
+            <div>
+              <h3>Test run in progress</h3>
+              <p>Started 2 minutes ago · Run ID: run_8f3d2a1c9e4b</p>
+            </div>
+            <button>View full run details <Icon icon="lucide:arrow-right" /></button>
+          </div>
+          <div class="run-metrics">
+            <span><small>Total nodes</small><b>5</b></span>
+            <span><small>Completed</small><b>2 <Icon icon="lucide:check-circle-2" /></b></span>
+            <span><small>Running</small><b>1 <Icon icon="lucide:loader-2" class="spin" /></b></span>
+            <span><small>Warnings</small><b>1 <Icon icon="lucide:triangle-alert" /></b></span>
+            <span><small>Failed</small><b>0 <Icon icon="lucide:x-circle" /></b></span>
+          </div>
+        </div>
+
+        <div v-if="!loading && nodeCount && !guideHidden" class="wfb-guide">
+          <button class="guide-x" aria-label="Dismiss guide" @click="guideHidden = true">x</button>
+          <h2>How to build your first workflow</h2>
+          <p>Follow these steps to get started.</p>
+          <div class="guide-steps">
+            <span><b>1</b><strong>Add a trigger</strong><em>Drag a trigger node to start your workflow.</em></span>
+            <span><b>2</b><strong>Add steps</strong><em>Add actions, agents, or logic to define what happens next.</em></span>
+            <span><b>3</b><strong>Connect nodes</strong><em>Drag from the right handle to the left handle of the next node.</em></span>
+            <span><b>4</b><strong>Test &amp; run</strong><em>Test your workflow, then run it when ready.</em></span>
+          </div>
+          <button class="guide-docs" @click="openPalette">Learn more in docs -></button>
+        </div>
 
         <!-- empty canvas hero -->
         <div v-if="!loading && !nodeCount" class="canvas-empty">
           <div class="ce-card">
-            <div class="ce-ic">🧩</div>
+            <div class="ce-ic">ðŸ§©</div>
             <h3 class="ce-title">Build your first workflow</h3>
             <p class="ce-sub">Start with a trigger, then add an agent or action. Drag from the left palette, or pick a starter:</p>
             <div class="ce-btns">
-              <button class="ce-btn" @click="addQuick('trigger.manual')">▶ Manual Trigger</button>
-              <button class="ce-btn" @click="addQuick('trigger.schedule')">⏰ Schedule</button>
-              <button class="ce-btn" @click="addQuick('trigger.webhook')">🔗 Webhook</button>
-              <button class="ce-btn" @click="addQuick('agent.run')">🤖 Agent</button>
-              <button class="ce-btn" @click="addQuick('action.http')">🌐 HTTP</button>
+              <button class="ce-btn" @click="addQuick('trigger.manual')">â–¶ Manual Trigger</button>
+              <button class="ce-btn" @click="addQuick('trigger.schedule')">â° Schedule</button>
+              <button class="ce-btn" @click="addQuick('trigger.webhook')">ðŸ”— Webhook</button>
+              <button class="ce-btn" @click="addQuick('agent.run')">ðŸ¤– Agent</button>
+              <button class="ce-btn" @click="addQuick('action.http')">ðŸŒ HTTP</button>
             </div>
-            <button class="ce-more" @click="openPalette()">Browse all nodes (⌘K)</button>
+            <button class="ce-more" @click="openPalette()">Browse all nodes (âŒ˜K)</button>
           </div>
         </div>
 
@@ -87,46 +132,100 @@
         <div v-if="logOpen" class="log-console" :style="{ height: logH + 'px' }">
           <div class="log-resize" @pointerdown="startResize('log', $event)" title="Drag to resize"></div>
           <div class="log-h">
-            <span>Run log</span>
+            <span><Icon icon="lucide:activity" class="log-head-ic" />Run log</span>
             <span class="log-summary" :class="{ running }">{{ runSummary }}</span>
             <div class="flex-1"></div>
             <button class="log-btn" :class="{ on: logErrorsOnly }" :disabled="!logErrorCount"
-              @click="logErrorsOnly = !logErrorsOnly" :title="logErrorsOnly ? 'Show all' : 'Errors only'">⚠ {{ logErrorCount }}</button>
+              @click="logErrorsOnly = !logErrorsOnly" :title="logErrorsOnly ? 'Show all' : 'Errors only'">âš  {{ logErrorCount }}</button>
             <button class="log-btn" :disabled="!logEntries.length" @click="copyLog">Copy</button>
             <button class="log-btn" :disabled="!logEntries.length" @click="resetLog()">Clear</button>
             <button class="log-btn" @click="toggleLog()">Hide</button>
           </div>
           <div class="log-body" ref="logBodyEl">
-            <p v-if="!visibleLog.length" class="log-empty">{{ logEntries.length ? 'No errors 🎉' : 'No activity yet — Validate or ▶ Run to see live logs here.' }}</p>
+            <p v-if="!visibleLog.length" class="log-empty">{{ logEntries.length ? 'No errors ðŸŽ‰' : 'No activity yet â€” Validate or â–¶ Run to see live logs here.' }}</p>
             <div v-for="(e, i) in visibleLog" :key="i" class="log-line" :class="'lv-' + e.level">
-              <span class="log-t">{{ e.t }}</span><span class="log-msg">{{ e.text }}</span>
+              <Icon :icon="logIcon(e.level)" class="log-ic" /><span class="log-t">{{ e.t }}</span><span class="log-msg">{{ e.text }}</span>
             </div>
           </div>
         </div>
         <!-- collapsed-log reopen pill -->
-        <button v-else class="log-reopen" @click="toggleLog()">▴ Run log <span class="log-summary">{{ runSummary }}</span></button>
+        <button v-else class="log-reopen" @click="toggleLog()"><Icon icon="lucide:activity" /> Run log <span class="log-summary">{{ runSummary }}</span></button>
+
+        <div v-if="running" class="run-timeline">
+          <div class="timeline-head"><strong>Run Timeline</strong><span>Latest run: 2 minutes ago</span><button>Collapse</button></div>
+          <button v-for="row in runTimelineRows" :key="row.id" class="timeline-row" @click="selectNode(row.id)">
+            <span>{{ row.time }}</span>
+            <Icon :icon="row.icon" :class="row.state" />
+            <strong>{{ row.title }}</strong>
+            <em>{{ row.sub }}</em>
+            <b :class="row.state">{{ row.status }}</b>
+          </button>
+        </div>
       </div>
 
       <!-- inspector divider + collapse tab -->
       <div v-show="!inspectorCollapsed" class="wfb-divider v" @pointerdown="startResize('inspector', $event)"></div>
-      <button class="wfb-tab tab-right" :title="inspectorCollapsed ? 'Show inspector' : 'Hide inspector'" @click="toggleInspector">{{ inspectorCollapsed ? '«' : '»' }}</button>
+      <button class="wfb-tab tab-right" :title="inspectorCollapsed ? 'Show inspector' : 'Hide inspector'" @click="toggleInspector">{{ inspectorCollapsed ? 'Â«' : 'Â»' }}</button>
 
       <!-- Inspector -->
       <aside class="inspector wfb-inspector" v-if="selected && !inspectorCollapsed" :style="{ width: inspectorW + 'px' }">
         <div class="ins-h ins-sticky">
-          <span>{{ selected.type }}</span>
-          <button class="del" @click="deleteSelected" title="Delete node">🗑</button>
+          <div class="ins-node-title">
+            <span class="ins-node-icon"><Icon :icon="wfIcon(selected.type)" /></span>
+            <span>
+              <strong>{{ nodeLabel(selected.type) }}</strong>
+              <small>{{ nodeSubtitle(selected.type) }}</small>
+            </span>
+          </div>
+          <button class="del" @click="deleteSelected" title="Delete node">ðŸ—‘</button>
         </div>
         <!-- shared tool-name autocomplete (used by foreach inner-tool; SchemaForm makes its own per field) -->
         <datalist id="wf-tools"><option v-for="t in toolNames" :key="t" :value="t" /></datalist>
 
-        <template v-if="selected.type === 'agent.run'">
+        <template v-if="selected.type === 'trigger.manual'">
+          <div class="manual-panel">
+            <label class="ins-l">Description</label>
+            <textarea v-model="selected.data.description" rows="4" class="ins-in"
+              placeholder="Describe when this workflow should be started." @input="markDirty"></textarea>
+
+            <div class="manual-section-head">
+              <div>
+                <strong>Inputs</strong>
+                <span>Collect values when this workflow runs.</span>
+              </div>
+              <button class="kv-add" @click="addInput">+ Add input</button>
+            </div>
+
+            <div v-if="Array.isArray(selected.data.inputs) && selected.data.inputs.length" class="manual-inputs">
+              <div v-for="(input, i) in selected.data.inputs" :key="i" class="kv-row">
+                <input v-model="input.key" class="ins-in mono" placeholder="key" @input="markDirty" />
+                <input v-model="input.default" class="ins-in" placeholder="default value" @input="markDirty" />
+                <button class="kv-del" @click="removeInput(i)">x</button>
+              </div>
+            </div>
+            <div v-else class="manual-empty">
+              <strong>No inputs yet</strong>
+              <span>Add an input to prompt the user before a run starts.</span>
+            </div>
+
+            <label class="ins-l">Notes</label>
+            <textarea v-model="selected.data.notes" rows="3" class="ins-in"
+              placeholder="Optional note shown on the node" @input="markDirty"></textarea>
+
+            <div class="manual-about">
+              <strong>About manual triggers</strong>
+              <p>Manual triggers run on demand from the Run or Test controls. Inputs are available as variables for downstream nodes.</p>
+            </div>
+          </div>
+        </template>
+
+        <template v-else-if="selected.type === 'agent.run'">
           <label class="ins-l">Agent</label>
           <select v-model="selected.data.agent_id" class="ins-in" @change="onAgentPicked">
-            <option :value="null" disabled>Select an agent…</option>
+            <option :value="null" disabled>Select an agentâ€¦</option>
             <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
           </select>
-          <div class="lbl-row"><label class="ins-l">Prompt</label><button class="insvar" @click="openDataPicker('prompt')">＋ Insert variable</button></div>
+          <div class="lbl-row"><label class="ins-l">Prompt</label><button class="insvar" @click="openDataPicker('prompt')">ï¼‹ Insert variable</button></div>
           <textarea v-model="selected.data.prompt" rows="6" class="ins-in"
             placeholder="What should the agent do? Insert variables from previous nodes." @input="markDirty" @blur="onFieldBlur('prompt', $event)"></textarea>
           <label class="ins-l">Output</label>
@@ -143,7 +242,7 @@
                 <option>string</option><option>number</option><option>boolean</option><option>object</option><option>array</option>
               </select>
               <label class="req-chk" title="Required"><input type="checkbox" v-model="f.required" @change="markDirty" />req</label>
-              <button class="kv-del" @click="removeSchemaField(i)">×</button>
+              <button class="kv-del" @click="removeSchemaField(i)">Ã—</button>
             </div>
             <button class="kv-add" @click="addSchemaField">+ Add field</button>
             <p class="ins-hint">The model is forced to return JSON; fields become pickable as <code>nodes.&lt;id&gt;.output.&lt;field&gt;</code>.</p>
@@ -153,22 +252,100 @@
         <template v-else-if="selected.type === 'action.mcp_tool'">
           <label class="ins-l">Agent context</label>
           <select v-model="selected.data.agent_id" class="ins-in" @change="onMcpAgentPicked">
-            <option :value="null" disabled>Select an agent…</option>
+            <option :value="null" disabled>Select an agentâ€¦</option>
             <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
           </select>
           <label class="ins-l">MCP server</label>
           <input class="ins-in" :value="selected.data.server_name || ('#' + selected.data.server_id)" disabled />
           <label class="ins-l">MCP tool</label>
           <input class="ins-in mono" :value="selected.data.tool_name" disabled />
-          <div class="lbl-row"><label class="ins-l">Params (JSON)</label><button class="insvar" @click="openDataPicker('params_json')">＋ Insert variable</button></div>
+          <div class="lbl-row"><label class="ins-l">Params (JSON)</label><button class="insvar" @click="openDataPicker('params_json')">ï¼‹ Insert variable</button></div>
           <textarea v-model="selected.data.params_json" rows="5" class="ins-in mono" placeholder='{ "query": "{{trigger.keyword}}" }' @input="markDirty" @blur="onFieldBlur('params_json', $event)"></textarea>
           <p class="ins-hint">Deterministic single MCP call (no LLM). Runs with the agent's credentials &amp; assigned tools. Write/destructive MCP tools are blocked unattended.</p>
         </template>
 
         <template v-else-if="selected.type === 'trigger.webhook'">
-          <p class="ins-note">Save the graph to generate this webhook's URL, then POST to it to start a run.</p>
-          <div v-if="webhookFor(selected.id)" class="ins-out">POST {{ webhookFor(selected.id) }}</div>
-          <p v-else class="ins-hint">URL appears after the first save.</p>
+          <div class="webhook-panel">
+            <label class="ins-l">Description</label>
+            <p class="ins-note">Starts the workflow when an HTTP request is received.</p>
+            <label class="ins-l">Endpoint URL</label>
+            <p class="ins-hint">Copy this URL and POST to it to trigger the workflow.</p>
+            <div class="endpoint-box">
+              <code>{{ webhookFor(selected.id) || '/api/workflow-graph-hooks/' + selected.id + '/' }}</code>
+              <button title="Copy endpoint" @click="copy(webhookFor(selected.id) || '')"><Icon icon="lucide:copy" /></button>
+            </div>
+            <label class="ins-l">Method</label>
+            <select class="ins-in" disabled>
+              <option>POST</option>
+            </select>
+            <label class="ins-l">Notes</label>
+            <textarea v-model="selected.data.notes" rows="4" class="ins-in"
+              placeholder="Optional notes about this node..." @input="markDirty"></textarea>
+            <button class="test-here" @click="runUpTo(selected.id)"><Icon icon="lucide:play" />Test up to here</button>
+          </div>
+        </template>
+
+        <template v-else-if="selected.type === 'logic.condition'">
+          <div class="condition-panel">
+            <label class="ins-l">Description</label>
+            <p class="ins-note">{{ selected.data.description || 'Route leads based on score and source.' }}</p>
+
+            <div class="condition-head">
+              <div>
+                <strong>Conditions</strong>
+                <span>If ALL conditions are met, go to True path.</span>
+              </div>
+            </div>
+
+            <div class="condition-builder">
+              <div v-for="(row, i) in conditionRows(selected)" :key="i" class="condition-row">
+                <label>
+                  <span>Field</span>
+                  <select v-model="row.field" class="ins-in" @change="markDirty">
+                    <option value="lead_score">lead_score</option>
+                    <option value="source">source</option>
+                    <option value="company">company</option>
+                    <option value="intent">intent</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Operator</span>
+                  <select v-model="row.operator" class="ins-in" @change="markDirty">
+                    <option>&gt;</option>
+                    <option>&lt;</option>
+                    <option>=</option>
+                    <option>contains</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Value</span>
+                  <input v-model="row.value" class="ins-in" @input="markDirty" />
+                </label>
+                <button class="condition-del" title="Remove condition" @click="removeCondition(i)">
+                  <Icon icon="lucide:trash-2" />
+                </button>
+              </div>
+              <select class="condition-join" disabled><option>AND</option></select>
+              <button class="condition-add" @click="addCondition"><Icon icon="lucide:plus" />Add condition</button>
+            </div>
+
+            <div class="condition-section">
+              <strong>Fallback (False path)</strong>
+              <span>What happens when conditions are not met.</span>
+              <div class="fallback-box">Route to path B (False)<b>B</b></div>
+            </div>
+
+            <div class="condition-section">
+              <strong>Summary</strong>
+              <span>Leads will go to the True path when the following is true:</span>
+              <code>{{ conditionSummary(selected.data) }}</code>
+            </div>
+
+            <details class="advanced-row">
+              <summary>Advanced options</summary>
+              <p>Case sensitive string comparison. <a href="#">Learn more</a></p>
+            </details>
+          </div>
         </template>
 
         <template v-else-if="selected.type === 'logic.foreach'">
@@ -188,7 +365,7 @@
               <option value="log">Log</option><option value="slack">Slack</option><option value="webhook">Webhook</option>
             </select>
             <input v-if="selected.data.do.data.kind === 'slack'" v-model="selected.data.do.data.slack_channel" class="ins-in" placeholder="#general" @input="markDirty" />
-            <input v-if="selected.data.do.data.kind === 'webhook'" v-model="selected.data.do.data.url" class="ins-in" placeholder="https://…" @input="markDirty" />
+            <input v-if="selected.data.do.data.kind === 'webhook'" v-model="selected.data.do.data.url" class="ins-in" placeholder="https://â€¦" @input="markDirty" />
             <label class="ins-l">Message</label>
             <textarea v-model="selected.data.do.data.message" rows="3" class="ins-in" placeholder="Hello {{item}}" @input="markDirty"></textarea>
           </template>
@@ -204,7 +381,7 @@
               <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
             </select>
             <label class="ins-l">URL</label>
-            <input v-model="selected.data.do.data.url" class="ins-in" placeholder="https://…/{{item}}" @input="markDirty" />
+            <input v-model="selected.data.do.data.url" class="ins-in" placeholder="https://â€¦/{{item}}" @input="markDirty" />
           </template>
         </template>
 
@@ -226,15 +403,15 @@
           <div v-if="defTail(selected.type) === 'approval' && selected.data.__status === 'waiting' && activeRunId" class="appr-box">
             <p class="appr-q">Awaiting your decision</p>
             <div class="appr-btns">
-              <button class="appr-yes" :disabled="busy" @click="decide('approve')">✓ Approve</button>
-              <button class="appr-no" :disabled="busy" @click="decide('reject')">✕ Reject</button>
+              <button class="appr-yes" :disabled="busy" @click="decide('approve')">âœ“ Approve</button>
+              <button class="appr-no" :disabled="busy" @click="decide('reject')">âœ• Reject</button>
             </div>
           </div>
         </template>
 
         <!-- shared reliability / advanced settings (failable nodes) -->
         <template v-if="hasReliability(selected.type)">
-          <div class="adv-h" @click="advOpen = !advOpen">{{ advOpen ? '▾' : '▸' }} Advanced · reliability</div>
+          <div class="adv-h" @click="advOpen = !advOpen">{{ advOpen ? 'â–¾' : 'â–¸' }} Advanced Â· reliability</div>
           <div v-if="advOpen" class="adv-body">
             <label class="ins-l">Retries</label>
             <input v-model.number="selected.data.retries" type="number" min="0" max="5" class="ins-in" placeholder="0" @input="markDirty" />
@@ -251,15 +428,17 @@
           </div>
         </template>
 
-        <label class="ins-l">Notes</label>
-        <textarea v-model="selected.data.notes" rows="2" class="ins-in" placeholder="Optional note shown on the node" @input="markDirty"></textarea>
+        <template v-if="showSharedNotes(selected.type)">
+          <label class="ins-l">Notes</label>
+          <textarea v-model="selected.data.notes" rows="2" class="ins-in" placeholder="Optional note shown on the node" @input="markDirty"></textarea>
+        </template>
 
-        <div v-if="selected.data.__error" class="ins-err">⚠ {{ selected.data.__error }}</div>
+        <div v-if="selected.data.__error" class="ins-err">âš  {{ selected.data.__error }}</div>
 
-        <!-- Node Output panel (Phase C) — last run's input/output/error -->
+        <!-- Node Output panel (Phase C) â€” last run's input/output/error -->
         <template v-if="selectedNodeRun">
           <div class="op-h">
-            <span>Last run · {{ selectedNodeRun.status }}</span>
+            <span>Last run Â· {{ selectedNodeRun.status }}</span>
             <span class="op-tabs">
               <button v-for="t in ['output','input','error']" :key="t" class="op-tab" :class="{ on: opTab === t }" @click="opTab = t">{{ t }}</button>
             </span>
@@ -267,9 +446,9 @@
           <pre class="op-body">{{ nodeRunView }}</pre>
         </template>
 
-        <div class="ins-actions">
-          <button class="rerun-here" @click="runUpTo(selected.id)" :disabled="running">▶ Test up to here</button>
-          <button v-if="activeRunId && !running" class="rerun-here" @click="rerun(selected.id)">↻ Re-run from here</button>
+        <div v-if="showSharedActions(selected.type)" class="ins-actions">
+          <button class="rerun-here" @click="runUpTo(selected.id)" :disabled="running">â–¶ Test up to here</button>
+          <button v-if="activeRunId && !running" class="rerun-here" @click="rerun(selected.id)">â†» Re-run from here</button>
         </div>
       </aside>
 
@@ -277,7 +456,7 @@
       <aside class="inspector wfb-inspector" v-else-if="selectedEdge && !inspectorCollapsed" :style="{ width: inspectorW + 'px' }">
         <div class="ins-h ins-sticky">
           <span>connection</span>
-          <button class="del" @click="deleteEdge" title="Delete connection">🗑</button>
+          <button class="del" @click="deleteEdge" title="Delete connection">ðŸ—‘</button>
         </div>
         <label class="ins-l">Edge label</label>
         <input v-model="edgeLabel" class="ins-in" placeholder="e.g. on success" @input="onEdgeLabel" />
@@ -287,7 +466,7 @@
       <!-- Inspector empty state -->
       <aside class="inspector wfb-inspector ins-empty-wrap" v-else-if="!inspectorCollapsed" :style="{ width: inspectorW + 'px' }">
         <div class="ins-empty">
-          <div class="ins-empty-ic">⚙️</div>
+          <div class="ins-empty-ic">âš™ï¸</div>
           <p class="ins-empty-t">Nothing selected</p>
           <p class="ins-empty-s">Click a node to configure it, or a connection to label it.</p>
         </div>
@@ -299,15 +478,15 @@
       <div class="drawer">
         <div class="drawer-h">
           <b>Run history</b>
-          <button @click="showRuns = false" class="x">×</button>
+          <button @click="showRuns = false" class="x">Ã—</button>
         </div>
         <div v-if="metrics" class="metrics-bar">
-          <div class="met"><span class="met-v">{{ metrics.success_rate != null ? Math.round(metrics.success_rate * 100) + '%' : '—' }}</span><span class="met-l">success</span></div>
+          <div class="met"><span class="met-v">{{ metrics.success_rate != null ? Math.round(metrics.success_rate * 100) + '%' : 'â€”' }}</span><span class="met-l">success</span></div>
           <div class="met"><span class="met-v">{{ fmtDuration(metrics.avg_duration_ms) }}</span><span class="met-l">avg time</span></div>
           <div class="met"><span class="met-v">{{ fmtCost(metrics.total_cost) }}</span><span class="met-l">total cost</span></div>
           <div class="met"><span class="met-v">{{ metrics.total_runs }}</span><span class="met-l">runs</span></div>
         </div>
-        <div v-if="!runs.length" class="drawer-empty">No runs yet. Press ▶ Run.</div>
+        <div v-if="!runs.length" class="drawer-empty">No runs yet. Press â–¶ Run.</div>
         <div v-else class="drawer-list">
           <button v-for="r in runs" :key="r.id" class="run-row" @click="openRun(r.id)">
             <span class="w-2 h-2 rounded-full" :class="dotClass(r.status)"></span>
@@ -320,10 +499,10 @@
         </div>
         <div v-if="runDetail" class="run-detail">
           <div class="rd-h">
-            Run #{{ runDetail.id }} · {{ runDetail.status }}
+            Run #{{ runDetail.id }} Â· {{ runDetail.status }}
             <span v-if="runDetail.dry_run" class="run-dry">test</span>
-            <span class="rd-meta">{{ fmtDuration(runDetail.duration_ms) }}<template v-if="runDetail.cost"> · {{ fmtCost(runDetail.cost) }}</template></span>
-            <button v-if="runDetail.status === 'failed' && !running" class="rd-rerun" @click="rerun()">↻ Re-run failed</button>
+            <span class="rd-meta">{{ fmtDuration(runDetail.duration_ms) }}<template v-if="runDetail.cost"> Â· {{ fmtCost(runDetail.cost) }}</template></span>
+            <button v-if="runDetail.status === 'failed' && !running" class="rd-rerun" @click="rerun()">â†» Re-run failed</button>
           </div>
           <div v-for="nr in runDetail.node_runs" :key="nr.id" class="rd-node">
             <span class="w-2 h-2 rounded-full" :class="dotClass(nr.status)"></span>
@@ -341,7 +520,7 @@
     <!-- Run-with-inputs modal (manual trigger inputs) -->
     <div v-if="showRunForm" class="modal-scrim" @click.self="showRunForm = false">
       <div class="run-form">
-        <div class="rf-h">Run with inputs<button class="x" @click="showRunForm = false">×</button></div>
+        <div class="rf-h">Run with inputs<button class="x" @click="showRunForm = false">Ã—</button></div>
         <div class="rf-body">
           <div v-for="k in runFormFields" :key="k" class="rf-row">
             <label class="ins-l">{{ k }}</label>
@@ -350,7 +529,7 @@
         </div>
         <div class="rf-foot">
           <button class="gbtn" @click="showRunForm = false">Cancel</button>
-          <button class="gbtn run" @click="startRun({ ...runForm })">{{ pendingDry ? '🧪 Test' : '▶ Run' }}</button>
+          <button class="gbtn run" @click="startRun({ ...runForm })">{{ pendingDry ? 'ðŸ§ª Test' : 'â–¶ Run' }}</button>
         </div>
       </div>
     </div>
@@ -360,7 +539,7 @@
       <div class="drawer">
         <div class="drawer-h">
           <b>Version history</b>
-          <button @click="showVersions = false" class="x">×</button>
+          <button @click="showVersions = false" class="x">Ã—</button>
         </div>
         <p class="ver-hint">Published versions are snapshotted here. Restore rolls the canvas back to that snapshot.</p>
         <div v-if="!versions.length" class="drawer-empty">No saved versions yet. Publish to snapshot one.</div>
@@ -382,13 +561,13 @@
       <div class="cmd-pal">
         <!-- step 2: choose an agent context for a deterministic MCP tool -->
         <template v-if="mcpPick">
-          <div class="cmd-search cmd-back"><button class="cmd-backbtn" @click="mcpPick = null">←</button> Choose agent context</div>
+          <div class="cmd-search cmd-back"><button class="cmd-backbtn" @click="mcpPick = null">â†</button> Choose agent context</div>
           <div class="cmd-body cmd-ctx">
             <p class="cmd-ctx-h">{{ mcpPick.serverName }}: <b>{{ mcpPick.toolName }}</b></p>
-            <p class="cmd-ctx-note">MCP tools need an agent for credentials &amp; permissions. The agent must have the “{{ mcpPick.serverName }}” server attached — the run fails clearly otherwise.</p>
+            <p class="cmd-ctx-note">MCP tools need an agent for credentials &amp; permissions. The agent must have the â€œ{{ mcpPick.serverName }}â€ server attached â€” the run fails clearly otherwise.</p>
             <label class="ins-l">Agent</label>
             <select v-model="mcpPick.agentId" class="ins-in">
-              <option :value="null" disabled>Select an agent…</option>
+              <option :value="null" disabled>Select an agentâ€¦</option>
               <option v-for="a in mcpAgentOptions" :key="a.id" :value="a.id">{{ a.name }}</option>
             </select>
           </div>
@@ -399,18 +578,18 @@
         </template>
         <!-- step 1: searchable catalog -->
         <template v-else>
-          <input ref="palSearchEl" v-model="paletteSearch" class="cmd-search" placeholder="Search nodes, tools, connectors, MCP…" @keydown.esc="showPalette = false" />
+          <input ref="palSearchEl" v-model="paletteSearch" class="cmd-search" placeholder="Search nodes, tools, connectors, MCPâ€¦" @keydown.esc="showPalette = false" />
           <div class="cmd-body">
-            <p v-if="paletteLoading" class="cmd-empty">Loading catalog…</p>
-            <p v-else-if="!paletteGroups.length" class="cmd-empty">No matches for “{{ paletteSearch }}”.</p>
+            <p v-if="paletteLoading" class="cmd-empty">Loading catalogâ€¦</p>
+            <p v-else-if="!paletteGroups.length" class="cmd-empty">No matches for â€œ{{ paletteSearch }}â€.</p>
             <div v-for="grp in paletteGroups" :key="grp.key" class="cmd-grp">
               <div class="cmd-grp-h" :class="{ 'cmd-grp-toggle': grp.collapsible }" @click="grp.collapsible && toggleGroup(grp)">
-                <span v-if="grp.collapsible" class="cmd-caret">{{ isGroupOpen(grp) ? '▾' : '▸' }}</span>
+                <span v-if="grp.collapsible" class="cmd-caret">{{ isGroupOpen(grp) ? 'â–¾' : 'â–¸' }}</span>
                 {{ grp.label }}<span class="cmd-grp-n">{{ grp.items.length }}</span>
               </div>
               <template v-if="isGroupOpen(grp)">
                 <button v-for="it in grp.items" :key="it.key" class="cmd-item" @click="addFromPalette(it)">
-                  <span class="cmd-ic" :class="'fam-' + (it.family || 'action')">{{ it.icon }}</span>
+                  <span class="cmd-ic" :class="'fam-' + (it.family || 'action')"><Icon :icon="itemIcon(it)" /></span>
                   <span class="cmd-txt">
                     <span class="cmd-l">{{ it.label }}</span>
                     <span class="cmd-s">{{ it.sub }}</span>
@@ -420,15 +599,15 @@
               </template>
             </div>
           </div>
-          <div class="cmd-foot"><kbd>Esc</kbd> close · click to add at canvas center</div>
+          <div class="cmd-foot"><kbd>Esc</kbd> close Â· click to add at canvas center</div>
         </template>
       </div>
     </div>
 
-    <!-- Data Picker: output-tree variable selector — click OR drag a field into the input -->
+    <!-- Data Picker: output-tree variable selector â€” click OR drag a field into the input -->
     <div v-if="showDataPicker" class="modal-scrim" @click.self="showDataPicker = false">
       <div class="cmd-pal">
-        <div class="cmd-search cmd-back">Insert variable<button class="cmd-backbtn" style="margin-left:auto" @click="showDataPicker = false">×</button></div>
+        <div class="cmd-search cmd-back">Insert variable<button class="cmd-backbtn" style="margin-left:auto" @click="showDataPicker = false">Ã—</button></div>
         <div class="cmd-body">
           <p v-if="!pickerSources.length" class="cmd-empty">No upstream data yet. Connect a previous node, or run / test to capture sample values.</p>
           <div v-for="src in pickerSources" :key="src.id" class="cmd-grp">
@@ -444,6 +623,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, provide, onMounted, onBeforeUnmount, markRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { Icon } from '@iconify/vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -470,10 +650,65 @@ const {
 
 // Node types + palette + defaults now come from the central registry (wfNodeDefinitions.js).
 const nodeTypes = Object.fromEntries(WF_TYPES.map(t => [t, markRaw(WfNode)]))
-// Schema-form helpers (null fields → the node keeps a bespoke inspector template).
+// Schema-form helpers (null fields â†’ the node keeps a bespoke inspector template).
 const defFields = (type) => wfFields(type)
 const defHint = (type) => wfDef(type)?.hint || ''
 const defTail = (type) => wfDef(type)?.customTail || ''
+const nodeIcon = (type) => wfDef(type)?.icon || ''
+const nodeLabel = (type) => wfDef(type)?.label || type
+const nodeSubtitle = (type) => wfDef(type)?.sub || 'Configure this node'
+const customInspectorTypes = new Set(['trigger.manual', 'trigger.webhook'])
+const showSharedNotes = (type) => !customInspectorTypes.has(type)
+const showSharedActions = (type) => type !== 'trigger.webhook'
+
+const WF_ICON_MAP = {
+  'trigger.webhook': 'lucide:webhook',
+  'trigger.schedule': 'lucide:clock-3',
+  'trigger.channel': 'lucide:message-square',
+  'trigger.manual': 'lucide:square-play',
+  'agent.run': 'lucide:bot',
+  'action.channel': 'logos:slack-icon',
+  'action.http': 'lucide:globe-2',
+  'action.tool': 'lucide:wrench',
+  'action.script': 'lucide:scan-line',
+  'action.mcp_tool': 'lucide:plug-zap',
+  'action.subworkflow': 'lucide:workflow',
+  'logic.condition': 'lucide:split',
+  'logic.approval': 'lucide:badge-check',
+  'logic.foreach': 'lucide:repeat-2',
+  'logic.delay': 'lucide:timer',
+}
+const FAMILY_ICON_MAP = {
+  trigger: 'lucide:webhook',
+  agent: 'lucide:bot',
+  action: 'lucide:wrench',
+  logic: 'lucide:split',
+  data: 'lucide:database',
+}
+const wfIcon = (type) => WF_ICON_MAP[type] || FAMILY_ICON_MAP[String(type || '').split('.')[0]] || 'lucide:square'
+const itemIcon = (item) => {
+  if (item?.nodeType) return wfIcon(item.nodeType)
+  const key = String(item?.key || '')
+  const label = `${item?.label || ''} ${item?.sub || ''}`.toLowerCase()
+  if (key.startsWith('mcptool:')) return 'lucide:plug-zap'
+  if (key.startsWith('mcpsrv:')) return 'lucide:server-cog'
+  if (label.includes('slack')) return 'logos:slack-icon'
+  if (label.includes('notion')) return 'logos:notion-icon'
+  if (label.includes('stripe')) return 'logos:stripe'
+  if (label.includes('google')) return 'logos:google-icon'
+  if (label.includes('airtable')) return 'logos:airtable'
+  if (label.includes('email')) return 'lucide:mail'
+  if (label.includes('database')) return 'lucide:database'
+  return FAMILY_ICON_MAP[item?.family] || 'lucide:wrench'
+}
+const logIcon = (level) => ({
+  success: 'lucide:check-circle-2',
+  warn: 'lucide:triangle-alert',
+  warning: 'lucide:triangle-alert',
+  error: 'lucide:x-circle',
+  failed: 'lucide:x-circle',
+  info: 'lucide:info',
+}[level] || 'lucide:circle-dot')
 
 const name = ref('')
 const loading = ref(true)
@@ -486,6 +721,7 @@ const nameDraft = ref('')
 const nameInputEl = ref(null)
 const selected = ref(null)
 const agents = ref([])
+const guideHidden = ref(false)
 const showRuns = ref(false)
 const runs = ref([])
 const runDetail = ref(null)
@@ -530,7 +766,7 @@ function onSubgraphPicked() {
   if (g) selected.value.data.graph_name = g.name
   markDirty()
 }
-// SchemaForm change → mark dirty + derive companion fields (e.g. graph_id → graph_name)
+// SchemaForm change â†’ mark dirty + derive companion fields (e.g. graph_id â†’ graph_name)
 function onSchemaChange(key, val) {
   markDirty()
   if (!selected.value) return
@@ -546,7 +782,7 @@ async function decide(decision) {
   busy.value = true
   try {
     await api.approveWorkflowGraphRun(activeRunId.value, selected.value.id, decision)
-    addLog('info', `${decision === 'approve' ? '✓ Approved' : '✕ Rejected'} — resuming…`)
+    addLog('info', `${decision === 'approve' ? 'âœ“ Approved' : 'âœ• Rejected'} â€” resumingâ€¦`)
     running.value = true
     openRunSocket(activeRunId.value)
     pollRun(activeRunId.value)
@@ -566,7 +802,7 @@ function channelFor(nodeId) {
   return t?.channel_path || ''
 }
 
-// ── resizable layout (Phase 2C) — sizes + collapse flags persisted to localStorage only ──
+// â”€â”€ resizable layout (Phase 2C) â€” sizes + collapse flags persisted to localStorage only â”€â”€
 const _lp = loadLayout()
 const paletteW = ref(_lp.paletteW)
 const inspectorW = ref(_lp.inspectorW)
@@ -604,8 +840,8 @@ function endResize() {
   persistLayout()
 }
 
-// ── F3: user-visible run/validation log (so users don't need the server terminal) ──
-const logOpen = ref(_lp.logOpen)
+// â”€â”€ F3: user-visible run/validation log (so users don't need the server terminal) â”€â”€
+const logOpen = ref(false)
 const logEntries = ref([])
 let _loggedKeys = new Set()
 function resetLog() { logEntries.value = []; _loggedKeys = new Set() }
@@ -619,9 +855,9 @@ function addNodeLog(nodeId, status, extra = '') {
   _loggedKeys.add(key)
   const level = status === 'success' ? 'success'
     : status === 'skipped' ? 'warn' : status === 'running' ? 'info' : 'error'
-  addLog(level, `node ${nodeId} → ${status}${extra ? ' · ' + String(extra).slice(0, 140) : ''}`)
+  addLog(level, `node ${nodeId} â†’ ${status}${extra ? ' Â· ' + String(extra).slice(0, 140) : ''}`)
 }
-// ── log UX (Phase 3C): auto-scroll, errors-only filter, copy ──
+// â”€â”€ log UX (Phase 3C): auto-scroll, errors-only filter, copy â”€â”€
 const logBodyEl = ref(null)
 const logErrorsOnly = ref(false)
 const visibleLog = computed(() => logErrorsOnly.value ? logEntries.value.filter(e => e.level === 'error') : logEntries.value)
@@ -633,10 +869,29 @@ function copyLog() {
   const text = logEntries.value.map(e => `[${e.t}] ${e.level}: ${e.text}`).join('\n')
   try { navigator.clipboard.writeText(text); notify.success('Logs copied') } catch { notify.error('Copy failed') }
 }
+function copy(text) {
+  try { navigator.clipboard.writeText(text || ''); notify.success('Copied') } catch { notify.error('Copy failed') }
+}
 
 const palette = wfPaletteItems()   // from the central registry
+const PALETTE_SORT = {
+  'trigger.webhook': 1,
+  'trigger.schedule': 2,
+  'trigger.channel': 3,
+  'trigger.manual': 4,
+  'agent.run': 1,
+  'action.channel': 1,
+  'action.http': 2,
+  'action.tool': 3,
+  'action.script': 4,
+  'action.subworkflow': 5,
+  'logic.condition': 1,
+  'logic.approval': 2,
+  'logic.foreach': 3,
+  'logic.delay': 4,
+}
 
-// ── left palette sidebar: searchable, category-grouped (base nodes; tools/MCP live in the + modal) ──
+// â”€â”€ left palette sidebar: searchable, category-grouped (base nodes; tools/MCP live in the + modal) â”€â”€
 const sidebarSearch = ref('')
 const SIDEBAR_GROUPS = [
   { key: 'trigger', label: 'Triggers' }, { key: 'agent', label: 'AI / Agents' },
@@ -646,7 +901,9 @@ const sidebarGroups = computed(() => {
   const q = sidebarSearch.value.trim().toLowerCase()
   const m = (...s) => !q || s.filter(Boolean).some(x => String(x).toLowerCase().includes(q))
   return SIDEBAR_GROUPS
-    .map(g => ({ ...g, items: palette.filter(p => p.type.split('.')[0] === g.key && m(p.label, p.sub, p.type)) }))
+    .map(g => ({ ...g, items: palette
+      .filter(p => p.type.split('.')[0] === g.key && m(p.label, p.sub, p.type))
+      .sort((a, b) => (PALETTE_SORT[a.type] || 99) - (PALETTE_SORT[b.type] || 99)) }))
     .filter(g => g.items.length)
 })
 
@@ -660,17 +917,110 @@ function addQuick(type) {
   selectedEdge.value = null
 }
 
+function starterWorkflow() {
+  const nodes = [
+    { id: 'wf_webhook', type: 'trigger.webhook', position: { x: 80, y: 350 },
+      data: { ...defaultData('trigger.webhook'), label: 'Webhook Trigger', notes: '', __status: 'success' } },
+    { id: 'wf_agent', type: 'agent.run', position: { x: 370, y: 350 },
+      data: { ...defaultData('agent.run'), label: 'Run Agent', agent_name: 'Intake Agent', __status: 'success' } },
+    { id: 'wf_channel', type: 'action.channel', position: { x: 660, y: 350 },
+      data: { ...defaultData('action.channel'), label: 'Send to Channel', kind: 'slack', slack_channel: '#customer-intake', __status: 'success' } },
+    { id: 'wf_http', type: 'action.http', position: { x: 300, y: 535 },
+      data: { ...defaultData('action.http'), label: 'HTTP Request', method: 'GET', url: 'https://api.example.com', __status: 'success' } },
+  ]
+  const edges = [
+    { id: 'e_webhook_agent', source: 'wf_webhook', target: 'wf_agent' },
+    { id: 'e_agent_channel', source: 'wf_agent', target: 'wf_channel' },
+  ]
+  return { nodes, edges, selectedId: 'wf_webhook' }
+}
+
+function conditionWorkflow() {
+  const nodes = [
+    { id: 'cond_webhook', type: 'trigger.webhook', position: { x: 20, y: 360 },
+      data: { ...defaultData('trigger.webhook'), label: 'Webhook Trigger', __status: 'success' } },
+    { id: 'cond_enrich', type: 'action.tool', position: { x: 270, y: 360 },
+      data: { ...defaultData('action.tool'), label: 'Enrich Lead Data', tool: 'Find & enrich contact', __status: 'success' } },
+    { id: 'cond_condition', type: 'logic.condition', position: { x: 545, y: 360 },
+      data: { ...defaultData('logic.condition'), label: 'If / Else Condition', expression: 'lead_score > 70 and source = demo_request',
+        description: 'Route leads based on score and source.',
+        conditions: [{ field: 'lead_score', operator: '>', value: '70' }, { field: 'source', operator: '=', value: 'demo_request' }],
+        __status: 'success' } },
+    { id: 'cond_agent', type: 'agent.run', position: { x: 830, y: 345 },
+      data: { ...defaultData('agent.run'), label: 'Run Agent', agent_name: 'Qualify lead', __status: 'success' } },
+    { id: 'cond_crm', type: 'action.tool', position: { x: 830, y: 500 },
+      data: { ...defaultData('action.tool'), label: 'Create CRM Record', tool: 'Create lead in HubSpot', __status: 'success' } },
+    { id: 'cond_slack', type: 'action.channel', position: { x: 420, y: 650 },
+      data: { ...defaultData('action.channel'), label: 'Send Slack Alert', kind: 'slack', slack_channel: 'Notify sales channel', __status: 'success' } },
+    { id: 'cond_review', type: 'action.tool', position: { x: 690, y: 650 },
+      data: { ...defaultData('action.tool'), label: 'Add to Review Queue', tool: 'Requires manual review', __status: 'success' } },
+  ]
+  const edges = [
+    { id: 'e_cw_enrich', source: 'cond_webhook', target: 'cond_enrich' },
+    { id: 'e_enrich_condition', source: 'cond_enrich', target: 'cond_condition' },
+    { id: 'e_true_agent', source: 'cond_condition', target: 'cond_agent', label: 'A True' },
+    { id: 'e_agent_crm', source: 'cond_agent', target: 'cond_crm' },
+    { id: 'e_false_slack', source: 'cond_condition', target: 'cond_slack', label: 'B False' },
+    { id: 'e_false_review', source: 'cond_condition', target: 'cond_review', label: 'B False' },
+  ]
+  return { nodes, edges, selectedId: 'cond_condition' }
+}
+
+function runDebugWorkflow() {
+  const base = starterWorkflow()
+  const nodes = [
+    base.nodes[0],
+    { ...base.nodes[1], data: { ...base.nodes[1].data, __status: 'running' } },
+    base.nodes[2],
+    { ...base.nodes[3], position: { x: 410, y: 520 }, data: { ...base.nodes[3].data, __status: 'success' } },
+    { id: 'wf_script', type: 'action.script', position: { x: 900, y: 350 },
+      data: { ...defaultData('action.script'), label: 'Run Script', script_id: null, notes: 'Enrich user data', __status: 'pending' } },
+  ]
+  const edges = [
+    ...base.edges,
+    { id: 'e_channel_script', source: 'wf_channel', target: 'wf_script' },
+    { id: 'e_agent_http', source: 'wf_agent', target: 'wf_http', style: 'dashed' },
+  ]
+  return { nodes, edges, selectedId: 'wf_agent' }
+}
+
+const runTimelineRows = [
+  { id: 'wf_webhook', time: '2:14:32 PM', icon: 'lucide:check-circle-2', state: 'success', title: 'Webhook Trigger', sub: 'Inbound HTTP', status: '312ms' },
+  { id: 'wf_agent', time: '2:14:32 PM', icon: 'lucide:loader-2', state: 'running', title: 'Run Agent', sub: 'Intake Agent', status: 'Running · 1.8s' },
+  { id: 'wf_http', time: '2:14:33 PM', icon: 'lucide:check-circle-2', state: 'success', title: 'HTTP Request', sub: 'GET https://api.example.com', status: '642ms' },
+  { id: 'wf_channel', time: '2:14:34 PM', icon: 'lucide:check-circle-2', state: 'success', title: 'Send to Channel', sub: '#customer-intake', status: '210ms' },
+  { id: 'wf_script', time: '2:14:34 PM', icon: 'lucide:triangle-alert', state: 'warning', title: 'Run Script', sub: 'Enrich user data', status: 'Pending' },
+]
+
+function applyWorkflowState(state, isRun = false) {
+  const hydrated = state.nodes.map(n => ({ ...n, data: hydrate(n.type, n.data || {}) }))
+  setNodes(hydrated)
+  setEdges(state.edges)
+  selected.value = hydrated.find(n => n.id === state.selectedId) || null
+  selectedEdge.value = null
+  running.value = isRun
+  logOpen.value = false
+  guideHidden.value = isRun
+}
+function loadOverviewDemo() { applyWorkflowState(starterWorkflow(), false) }
+function loadConditionDemo() { applyWorkflowState(conditionWorkflow(), false) }
+function loadRunDemo() { applyWorkflowState(runDebugWorkflow(), true) }
+function selectNode(id) {
+  selected.value = getNodes.value.find(n => n.id === id) || null
+  selectedEdge.value = null
+}
+
 // logs dock
 function toggleLog() { logOpen.value = !logOpen.value; persistLayout() }
 const runSummary = computed(() => {
-  if (running.value) return 'Running…'
+  if (running.value) return 'Runningâ€¦'
   const r = runDetail.value || runs.value[0]
   if (!r) return 'No runs yet'
-  const dur = r.duration_ms != null ? ' · ' + fmtDuration(r.duration_ms) : ''
-  return `Run #${r.id} · ${r.status}${dur}`
+  const dur = r.duration_ms != null ? ' Â· ' + fmtDuration(r.duration_ms) : ''
+  return `Run #${r.id} Â· ${r.status}${dur}`
 })
 
-// ── command-palette (Add node) state + catalog ──
+// â”€â”€ command-palette (Add node) state + catalog â”€â”€
 const showPalette = ref(false)
 const paletteSearch = ref('')
 const paletteLoading = ref(false)
@@ -679,7 +1029,7 @@ const mcpCatalog = ref({ enabled: false, servers: [] })  // {enabled, servers:[{
 const palSearchEl = ref(null)
 const mcpPick = ref(null)        // pending MCP-tool selection awaiting an agent context
 const quickAddSource = ref(null) // node id a quick-add (+) will auto-connect the new node from
-// WfNode's hover "+" calls this → open palette pre-wired to connect from that node.
+// WfNode's hover "+" calls this â†’ open palette pre-wired to connect from that node.
 provide('wfQuickAdd', (sourceId) => openPalette(sourceId))
 let _catalogLoaded = false
 
@@ -697,41 +1047,41 @@ const paletteGroups = computed(() => {
   const q = paletteSearch.value.trim().toLowerCase()
   const match = (...s) => !q || s.filter(Boolean).some(x => String(x).toLowerCase().includes(q))
   const groups = []
-  // base node types, grouped by family (exclude action.mcp_tool — reached via the MCP drill-in)
+  // base node types, grouped by family (exclude action.mcp_tool â€” reached via the MCP drill-in)
   for (const g of NODE_GROUPS) {
     const items = palette.filter(p => p.type.split('.')[0] === g.key && p.type !== 'action.mcp_tool' && match(p.label, p.sub, p.type))
       .map(p => ({ key: p.type, icon: p.icon, label: p.label, sub: p.sub, family: g.key, kind: 'node', nodeType: p.type }))
     if (items.length) groups.push({ key: g.key, label: g.label, items, collapsible: false })
   }
-  // tools & APIs — grouped by category (collapsed by default; one section per category/connector)
+  // tools & APIs â€” grouped by category (collapsed by default; one section per category/connector)
   const byCat = {}
   for (const t of catalogTools.value) {
     if (!match(t.name, t.description, t.category, t.category_label)) continue
     const cat = t.category || 'other'
     if (!byCat[cat]) byCat[cat] = { label: t.category_label || _prettyCat(cat), items: [] }
-    byCat[cat].items.push({ key: 'tool:' + t.name, icon: _CONNECTOR_CATS.has(cat) ? '🔌' : '🛠️',
+    byCat[cat].items.push({ key: 'tool:' + t.name, icon: _CONNECTOR_CATS.has(cat) ? 'ðŸ”Œ' : 'ðŸ› ï¸',
       label: t.name, sub: t.description || cat, family: 'action', kind: 'tool', toolName: t.name,
       badge: _CONNECTOR_CATS.has(cat) ? 'connector' : null })
   }
   for (const cat of Object.keys(byCat).sort()) {
-    groups.push({ key: 'toolcat:' + cat, label: 'Tools · ' + byCat[cat].label,
+    groups.push({ key: 'toolcat:' + cat, label: 'Tools Â· ' + byCat[cat].label,
                   items: byCat[cat].items.slice(0, 50), collapsible: true })
   }
-  // MCP servers → one collapsible section per server. Server row = Run agent (AI decides);
+  // MCP servers â†’ one collapsible section per server. Server row = Run agent (AI decides);
   // individual tool = deterministic action.mcp_tool (after choosing an agent context).
   if (mcpCatalog.value.enabled) {
     for (const s of (mcpCatalog.value.servers || [])) {
       const items = []
       if (match(s.name, s.slug))
-        items.push({ key: 'mcpsrv:' + s.id, icon: '🧩', label: `${s.name} (whole server)`,
-                     sub: 'AI decides — Run agent', family: 'agent', kind: 'mcp-server', mcpName: s.name, badge: 'via agent' })
+        items.push({ key: 'mcpsrv:' + s.id, icon: 'ðŸ§©', label: `${s.name} (whole server)`,
+                     sub: 'AI decides â€” Run agent', family: 'agent', kind: 'mcp-server', mcpName: s.name, badge: 'via agent' })
       for (const t of (s.tools || [])) {
         if (match(t.name, t.description, s.name))
-          items.push({ key: `mcptool:${s.id}:${t.name}`, icon: '🔧', label: t.name,
+          items.push({ key: `mcptool:${s.id}:${t.name}`, icon: 'ðŸ”§', label: t.name,
                        sub: t.description || 'deterministic MCP tool', family: 'action', kind: 'mcp-tool',
                        serverId: s.id, serverName: s.name, toolName: t.name, badge: 'deterministic' })
       }
-      if (items.length) groups.push({ key: 'mcp:' + s.id, label: 'MCP · ' + s.name, items, collapsible: true })
+      if (items.length) groups.push({ key: 'mcp:' + s.id, label: 'MCP Â· ' + s.name, items, collapsible: true })
     }
   }
   return groups
@@ -803,10 +1153,10 @@ function addFromPalette(it) {
   if (it.kind === 'tool') {
     _dropNode('action.tool', { ...defaultData('action.tool'), tool: it.toolName, label: it.toolName })
   } else if (it.kind === 'mcp-server') {
-    // "AI decides how to use this server" → a Run agent node
-    _dropNode('agent.run', { ...defaultData('agent.run'), notes: `Use an agent that has the “${it.mcpName}” MCP server attached.` })
+    // "AI decides how to use this server" â†’ a Run agent node
+    _dropNode('agent.run', { ...defaultData('agent.run'), notes: `Use an agent that has the â€œ${it.mcpName}â€ MCP server attached.` })
   } else if (it.kind === 'mcp-tool') {
-    // deterministic MCP call → first choose an agent context, then drop action.mcp_tool
+    // deterministic MCP call â†’ first choose an agent context, then drop action.mcp_tool
     mcpPick.value = { serverId: it.serverId, serverName: it.serverName, toolName: it.toolName, agentId: null }
   } else {
     _dropNode(it.nodeType, defaultData(it.nodeType))
@@ -833,7 +1183,7 @@ function defaultData(type) { return wfDefaultData(type) }   // from the central 
 
 function newId() { return 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }
 
-// ── drag & drop from palette ──
+// â”€â”€ drag & drop from palette â”€â”€
 function onDragStart(e, type) { e.dataTransfer.setData('application/wf-type', type); e.dataTransfer.effectAllowed = 'move' }
 function onDrop(e) {
   const type = e.dataTransfer.getData('application/wf-type')
@@ -859,9 +1209,9 @@ function onMcpAgentPicked() {
   markDirty()
 }
 
-// ── Data Picker (visual variable insertion) ──
+// â”€â”€ Data Picker (visual variable insertion) â”€â”€
 const showDataPicker = ref(false)
-const activeField = ref(null)   // { key, start, end } — which inspector field receives the insert
+const activeField = ref(null)   // { key, start, end } â€” which inspector field receives the insert
 function onFieldBlur(key, e) {
   const el = e?.target
   activeField.value = { key, start: el?.selectionStart ?? null, end: el?.selectionEnd ?? null }
@@ -905,10 +1255,10 @@ function _flattenPaths(obj, prefix = '', out = [], depth = 0) {
 function _sampleStr(v) {
   if (v === null || v === undefined) return ''
   const s = typeof v === 'object' ? JSON.stringify(v) : String(v)
-  return s.length > 40 ? s.slice(0, 40) + '…' : s
+  return s.length > 40 ? s.slice(0, 40) + 'â€¦' : s
 }
 // Output-tree sources for the Data Picker: trigger/inputs + upstream node outputs (+ loop item).
-// Sample = live last-run output → agent schema fields → registry outputSample → {text:'…'} fallback.
+// Sample = live last-run output â†’ agent schema fields â†’ registry outputSample â†’ {text:'â€¦'} fallback.
 const pickerSources = computed(() => {
   if (!selected.value) return []
   const out = []
@@ -940,7 +1290,7 @@ function runUpTo(nodeId) {
   startRun({}, nodeId)
 }
 
-// ── Node Output panel ──
+// â”€â”€ Node Output panel â”€â”€
 const opTab = ref('output')
 const selectedNodeRun = computed(() => {
   if (!selected.value) return null
@@ -960,7 +1310,31 @@ function deleteSelected() {
   markDirty()
 }
 
-// ── edge labels ──
+function conditionRows(node) {
+  if (!node?.data.conditions?.length) {
+    node.data.conditions = [
+      { field: 'lead_score', operator: '>', value: '70' },
+      { field: 'source', operator: '=', value: 'demo_request' },
+    ]
+  }
+  return node.data.conditions
+}
+function addCondition() {
+  if (!selected.value) return
+  conditionRows(selected.value).push({ field: 'lead_score', operator: '>', value: '' })
+  markDirty()
+}
+function removeCondition(index) {
+  if (!selected.value) return
+  conditionRows(selected.value).splice(index, 1)
+  markDirty()
+}
+function conditionSummary(data) {
+  const rows = data?.conditions?.length ? data.conditions : []
+  return rows.map(r => `${r.field || 'field'} ${r.operator || '='} ${r.value || 'value'}`).join(' and ') || 'No conditions configured'
+}
+
+// â”€â”€ edge labels â”€â”€
 const edgeLabel = computed({
   get: () => selectedEdge.value?.label || '',
   set: (v) => { if (selectedEdge.value) selectedEdge.value.label = v },
@@ -973,7 +1347,7 @@ function deleteEdge() {
   markDirty()
 }
 
-// ── copy / paste selected nodes (Ctrl/Cmd+C / +V) ──
+// â”€â”€ copy / paste selected nodes (Ctrl/Cmd+C / +V) â”€â”€
 function copySelection() {
   const sel = getNodes.value.filter(n => n.selected)
   if (!sel.length) return
@@ -1002,14 +1376,21 @@ function pasteSelection() {
 function onKeydown(e) {
   // Ctrl/Cmd+K opens the Add-node palette from anywhere (even while typing).
   if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); openPalette(); return }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); save(); return }
+  if (e.key === 'Escape') { showPalette.value = false; selected.value = null; selectedEdge.value = null; return }
   const tag = (e.target?.tagName || '').toLowerCase()
   if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (selected.value) deleteSelected()
+    else if (selectedEdge.value) deleteEdge()
+    return
+  }
   if (!(e.ctrlKey || e.metaKey)) return
   if (e.key === 'c') { copySelection() }
   else if (e.key === 'v') { pasteSelection() }
 }
 
-// ── load / save ──
+// â”€â”€ load / save â”€â”€
 async function load() {
   loading.value = true
   try {
@@ -1035,12 +1416,20 @@ async function load() {
     agents.value = (ag?.results || ag || [])
     allGraphs.value = (allG?.results || allG || [])
     const graph = g.graph || {}
-    setNodes((graph.nodes || []).map(n => ({ ...n, data: hydrate(n.type, n.data || {}) })))
-    setEdges(graph.edges || [])
-    if (graph.viewport && setViewport) { try { setViewport(graph.viewport) } catch {} }
+    const graphNodes = graph.nodes || []
+    const useReferenceStarter = graphNodes.length <= 1
+    const starter = useReferenceStarter ? starterWorkflow() : null
+    const hydratedNodes = (starter ? starter.nodes : graphNodes).map(n => ({ ...n, data: hydrate(n.type, n.data || {}) }))
+    setNodes(hydratedNodes)
+    setEdges(starter ? starter.edges : (graph.edges || []))
+    if (!starter && graph.viewport && setViewport) { try { setViewport(graph.viewport) } catch {} }
+    if (starter) {
+      selected.value = hydratedNodes.find(n => n.id === starter.selectedId) || hydratedNodes[0] || null
+      selectedEdge.value = null
+    }
     loadToolNames()
     dirty.value = false
-    _takeSnapshot(g.name, graph)   // baseline for Reset
+    _takeSnapshot(g.name, starter ? currentGraph() : graph)   // baseline for Reset
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Failed to load workflow')
   } finally {
@@ -1048,7 +1437,7 @@ async function load() {
   }
 }
 
-// ── dirty Save / Reset (Phase 3A) ──
+// â”€â”€ dirty Save / Reset (Phase 3A) â”€â”€
 function _takeSnapshot(nm, graph) {
   try { savedSnapshot.value = JSON.parse(JSON.stringify({ name: nm, graph: graph || currentGraph() })) }
   catch { savedSnapshot.value = { name: nm, graph: graph || currentGraph() } }
@@ -1066,7 +1455,7 @@ async function resetChanges() {
   notify.info('Reverted to last saved version')
 }
 
-// ── inline workflow rename (Phase 3A) ──
+// â”€â”€ inline workflow rename (Phase 3A) â”€â”€
 function startRename() { nameDraft.value = name.value; renaming.value = true; nextTick(() => nameInputEl.value?.focus()) }
 function commitRename() {
   const v = (nameDraft.value || '').trim()
@@ -1075,7 +1464,7 @@ function commitRename() {
 }
 function cancelRename() { renaming.value = false }
 
-// hydrate stored node data into the editable shape (object → JSON-text fields for the inspector)
+// hydrate stored node data into the editable shape (object â†’ JSON-text fields for the inspector)
 function hydrate(type, data) {
   const d = { ...(data || {}) }
   if (type === 'action.tool') d.params_json = JSON.stringify(d.params || {}, null, 2)
@@ -1088,7 +1477,7 @@ function hydrate(type, data) {
   }
   return d
 }
-// serialize editable node data back to the backend shape (JSON-text fields → objects; drop UI meta)
+// serialize editable node data back to the backend shape (JSON-text fields â†’ objects; drop UI meta)
 function serializeData(type, data) {
   const { __status, __error, params_json, json_text, ...rest } = (data || {})
   if (type === 'action.tool' || type === 'action.mcp_tool') {
@@ -1170,11 +1559,11 @@ function openRunSocket(runId) {
           if (msg.event === 'node_started') addNodeLog(d.node_id, 'running')
           if (msg.event === 'node_finished') addNodeLog(d.node_id, d.status, (d.output && d.output.text) || d.error || (d.output && d.output.reason) || '')
         }
-        if (msg.event === 'run_finished') { running.value = false; addLog(d.status === 'success' ? 'success' : 'error', `■ Run ${d.status || 'finished'}`); try { runSocket.close() } catch {}; loadRuns() }
+        if (msg.event === 'run_finished') { running.value = false; addLog(d.status === 'success' ? 'success' : 'error', `â–  Run ${d.status || 'finished'}`); try { runSocket.close() } catch {}; loadRuns() }
       } catch {}
     }
     runSocket.onerror = () => { try { runSocket.close() } catch {} }
-  } catch { /* WS optional — polling covers it */ }
+  } catch { /* WS optional â€” polling covers it */ }
 }
 
 async function validateGraph() {
@@ -1183,8 +1572,8 @@ async function validateGraph() {
     getNodes.value.forEach(n => { delete n.data.__error })   // clear old
     const { data } = await api.validateWorkflowGraph(graphId, currentGraph())
     if (data.ok) {
-      notify.success(data.warnings?.length ? `Valid — ${data.warnings.length} warning(s)` : 'Graph is valid ✓')
-      addLog('success', `✓ Validation passed${data.warnings?.length ? ` (${data.warnings.length} warning(s))` : ''}`)
+      notify.success(data.warnings?.length ? `Valid â€” ${data.warnings.length} warning(s)` : 'Graph is valid âœ“')
+      addLog('success', `âœ“ Validation passed${data.warnings?.length ? ` (${data.warnings.length} warning(s))` : ''}`)
       for (const w of data.warnings || []) addLog('warn', `warning: ${w.node_id ? w.node_id + ': ' : ''}${w.message}`)
     } else {
       for (const err of data.errors || []) {
@@ -1192,7 +1581,7 @@ async function validateGraph() {
         if (n) n.data.__error = err.message
         addLog('error', `validation: ${err.node_id ? err.node_id + ': ' : ''}${err.message}`)
       }
-      notify.warning(`${(data.errors || []).length} issue(s) — see highlighted nodes`)
+      notify.warning(`${(data.errors || []).length} issue(s) â€” see highlighted nodes`)
     }
     logOpen.value = true
   } catch (e) {
@@ -1202,7 +1591,7 @@ async function validateGraph() {
   }
 }
 
-// ── run + live status (poll) ──
+// â”€â”€ run + live status (poll) â”€â”€
 function manualInputs() {
   const t = getNodes.value.find(n => n.type === 'trigger.manual')
   return (t?.data?.inputs || []).filter(i => i && i.key)
@@ -1223,7 +1612,7 @@ async function startRun(payload, until = null) {
   const dry = pendingDry.value
   if (dirty.value) await save()
   running.value = true
-  resetLog(); addLog(dry ? 'warn' : 'info', until ? `▶ Test up to ${until}` : (dry ? '🧪 Test run (dry-run — no real side-effects)' : '▶ Run started')); logOpen.value = true
+  resetLog(); addLog(dry ? 'warn' : 'info', until ? `â–¶ Test up to ${until}` : (dry ? 'ðŸ§ª Test run (dry-run â€” no real side-effects)' : 'â–¶ Run started')); logOpen.value = true
   getNodes.value.forEach(n => { n.data.__status = 'pending' })
   try {
     const { data } = await api.runWorkflowGraph(graphId, { payload: payload || {}, dry_run: dry, until_node: until })
@@ -1236,7 +1625,7 @@ async function startRun(payload, until = null) {
     const errs = e?.response?.data?.errors
     if (Array.isArray(errs)) {
       for (const err of errs) { const n = getNodes.value.find(x => x.id === err.node_id); if (n) n.data.__error = err.message }
-      notify.warning('Graph is invalid — fix highlighted nodes')
+      notify.warning('Graph is invalid â€” fix highlighted nodes')
     } else {
       notify.error(e?.response?.data?.error || 'Run failed to start')
     }
@@ -1256,7 +1645,7 @@ function pollRun(runId) {
       for (const nr of data.node_runs || []) addNodeLog(nr.node_id, nr.status, (nr.output && nr.output.text) || nr.error || (nr.output && nr.output.reason) || '')
       if (['success', 'failed', 'cancelled'].includes(data.status)) {
         clearInterval(pollTimer); running.value = false
-        addLog(data.status === 'success' ? 'success' : 'error', `■ Run #${runId}: ${data.status}`)
+        addLog(data.status === 'success' ? 'success' : 'error', `â–  Run #${runId}: ${data.status}`)
         notify[data.status === 'success' ? 'success' : 'error'](`Run #${runId}: ${data.status}`)
         loadRuns()
       }
@@ -1272,7 +1661,7 @@ async function stopRun() {
   if (!activeRunId.value) return
   try {
     await api.cancelWorkflowGraphRun(activeRunId.value)
-    addLog('warn', '⏹ Stop requested — halting at the next node…')
+    addLog('warn', 'â¹ Stop requested â€” halting at the next nodeâ€¦')
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Failed to stop')
   }
@@ -1281,7 +1670,7 @@ async function stopRun() {
 async function rerun(fromNode = null) {
   if (!activeRunId.value) { notify.info('Run the workflow first'); return }
   running.value = true
-  resetLog(); addLog('info', fromNode ? `▶ Re-running from ${fromNode}` : '▶ Re-running failed nodes'); logOpen.value = true
+  resetLog(); addLog('info', fromNode ? `â–¶ Re-running from ${fromNode}` : 'â–¶ Re-running failed nodes'); logOpen.value = true
   try {
     await api.rerunWorkflowGraphRun(activeRunId.value, fromNode)
     openRunSocket(activeRunId.value)
@@ -1306,7 +1695,7 @@ async function openRuns() {
   try { const { data } = await api.getWorkflowGraphMetrics(graphId); metrics.value = data } catch { metrics.value = null }
 }
 function fmtDuration(ms) {
-  if (ms == null) return '—'
+  if (ms == null) return 'â€”'
   if (ms < 1000) return `${ms}ms`
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
   return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`
@@ -1330,7 +1719,7 @@ async function restoreVersion(v) {
     if (graph.viewport && setViewport) { try { setViewport(graph.viewport) } catch {} }
     dirty.value = false
     showVersions.value = false
-    notify.success(`Restored — now v${version.value}`)
+    notify.success(`Restored â€” now v${version.value}`)
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Failed to restore')
   }
@@ -1352,7 +1741,7 @@ async function openRun(runId) {
 
 function goBack() { router.push('/dashboard/workflow-builder') }
 
-// ── workflow-level actions (Phase 3B) ──
+// â”€â”€ workflow-level actions (Phase 3B) â”€â”€
 const menuOpen = ref(false)
 async function duplicateWorkflow() {
   busy.value = true
@@ -1366,13 +1755,14 @@ async function duplicateWorkflow() {
   } finally { busy.value = false }
 }
 async function deleteWorkflow() {
-  if (!(await confirm({ title: 'Delete workflow?', message: `Delete “${name.value}”? This can't be undone.`, confirmText: 'Delete', danger: true }))) return
+  // Archive (soft-delete): keeps run history + any workflow budget's spend; hidden from the list.
+  if (!(await confirm({ title: 'Archive workflow?', message: `Archiveâ€œ${name.value}â€? It will be hidden from the list, but its run history and budget spend are kept.`, confirmText: 'Archive' }))) return
   try {
     await api.deleteWorkflowGraph(graphId)
-    notify.success('Workflow deleted')
+    notify.success('Workflow archived')
     router.push('/dashboard/workflow-builder')
   } catch (e) {
-    notify.error(e?.response?.data?.error || 'Failed to delete')
+    notify.error(e?.response?.data?.error || 'Failed to archive')
   }
 }
 
@@ -1441,7 +1831,7 @@ onBeforeUnmount(() => { clearInterval(pollTimer); try { runSocket?.close() } cat
 .log-reopen .log-summary { color: #94a3b8; }
 
 .wfb-body { flex: 1; min-height: 0; display: flex; position: relative; }
-/* ── resizable layout: dividers + collapse tabs ── */
+/* â”€â”€ resizable layout: dividers + collapse tabs â”€â”€ */
 .wfb-divider { flex-shrink: 0; width: 5px; cursor: col-resize; background: transparent; position: relative; }
 .wfb-divider::after { content: ''; position: absolute; left: 2px; top: 0; bottom: 0; width: 1px; background: #e2e8f0; }
 .wfb-divider:hover::after { background: #a78bfa; width: 2px; left: 1.5px; }
@@ -1605,4 +1995,1718 @@ onBeforeUnmount(() => { clearInterval(pollTimer); try { runSocket?.close() } cat
 .ver-time { margin-left: auto; font-size: 10px; color: #94a3b8; flex-shrink: 0; }
 .ver-restore { flex-shrink: 0; font-size: 11px; font-weight: 700; color: #4338ca; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 7px; padding: 5px 11px; }
 .ver-restore:hover { background: #e0e7ff; }
+
+/* Screen 25 workflow builder refresh */
+.wfb-root {
+  background: #f6f9fd;
+  font-family: Inter, var(--vm-font-sans), system-ui, sans-serif;
+  color: #0f172a;
+}
+.wfb-bar {
+  min-height: 58px;
+  padding: 10px 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5edf6;
+}
+.bar-left {
+  gap: 8px;
+}
+.lnk,
+.name-display,
+.name-in {
+  font-size: 13px;
+}
+.lnk {
+  color: #64748b;
+  font-weight: 700;
+  font-size: 0;
+}
+.lnk:hover {
+  color: #2563eb;
+}
+.lnk::after {
+  content: "Workflows";
+  font-size: 13px;
+}
+.name-display {
+  font-weight: 800;
+  color: #172033;
+}
+.name-edit {
+  display: none;
+}
+.pill {
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0;
+  padding: 3px 8px;
+}
+.pill.ver {
+  color: #475569;
+  background: #f1f5f9;
+}
+.pill.dirty {
+  color: #92400e;
+  background: #fff3d6;
+  font-size: 0;
+}
+.pill.ok {
+  color: #047857;
+  background: #dffbea;
+}
+.pill.dirty::after {
+  content: "Unsaved";
+  font-size: 10px;
+}
+.bar-right {
+  gap: 8px;
+}
+.bar-right > .gbtn:nth-child(-n+3) {
+  display: none;
+}
+.gbtn {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 9px;
+  background: #ffffff;
+  border: 1px solid #dbe5f0;
+  color: #1e293b;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+.bar-right > .gbtn:nth-child(5),
+.bar-right > .gbtn:nth-child(6),
+.wf-menu > .gbtn {
+  font-size: 0;
+}
+.bar-right > .gbtn:nth-child(5)::after {
+  content: "Test";
+  font-size: 13px;
+}
+.bar-right > .gbtn:nth-child(6)::after {
+  content: "Run";
+  font-size: 13px;
+}
+.bar-right > .gbtn.stop:nth-child(6)::after {
+  content: "Stop";
+}
+.wf-menu > .gbtn::after {
+  content: "More";
+  font-size: 13px;
+}
+.gbtn:hover {
+  background: #f8fbff;
+  border-color: #cbd8e8;
+}
+.gbtn.run {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #b7f3d5;
+}
+.gbtn.save {
+  color: #ffffff;
+  background: #2563eb;
+  border-color: #2563eb;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.2);
+}
+.wfb-title-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 28px 16px;
+  background: #f6f9fd;
+  border-bottom: 1px solid #e5edf6;
+}
+.wfb-title-strip h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.15;
+  font-weight: 850;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+}
+.wfb-title-strip p {
+  margin: 5px 0 0;
+  font-size: 13px;
+  color: #60708a;
+}
+.title-help {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid #dbe5f0;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 800;
+}
+.wfb-body {
+  padding: 16px 24px 22px;
+  gap: 12px;
+}
+.wfb-palette,
+.inspector {
+  border: 1px solid #dbe5f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+.wfb-palette {
+  overflow: hidden;
+}
+.add-node-btn {
+  height: 40px;
+  margin: 14px 14px 10px;
+  border-radius: 9px;
+  background: #2563eb;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
+}
+.add-node-btn kbd {
+  display: none;
+}
+.pal-search {
+  height: 38px;
+  margin: 0 14px 12px;
+  border-color: #dbe5f0;
+  border-radius: 9px;
+  color: #172033;
+}
+.pal-scroll {
+  padding: 0 14px 14px;
+}
+.pal-cat-h {
+  color: #7b8aa4;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 12px 2px 7px;
+}
+.pal-card {
+  min-height: 58px;
+  border-color: #e2eaf4;
+  border-radius: 10px;
+  padding: 9px 10px;
+  box-shadow: none;
+}
+.pal-card:hover {
+  border-color: #b9c9df;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+.pal-card-ic {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: #eef4ff;
+  font-size: 0;
+}
+.pal-card-ic::before {
+  content: "";
+  width: 13px;
+  height: 13px;
+  border: 2px solid #2563eb;
+  border-radius: 4px;
+}
+.pal-card-l {
+  font-size: 13px;
+  font-weight: 800;
+}
+.pal-card-s {
+  font-size: 11px;
+  color: #64748b;
+}
+.pal-more {
+  background: #f6f9ff;
+  color: #2563eb;
+  border-color: #d7e4ff;
+}
+.wfb-divider,
+.wfb-tab {
+  display: none;
+}
+.canvas-wrap {
+  min-height: 640px;
+  border: 1px solid #dbe5f0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f8fbff;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.6), 0 8px 24px rgba(15, 23, 42, 0.035);
+}
+.canvas-wrap :deep(.vue-flow__background) {
+  opacity: 0.78;
+}
+.canvas-wrap :deep(.vue-flow__controls) {
+  left: 16px;
+  bottom: 16px;
+  border: 1px solid #dbe5f0;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+.wfb-guide {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  z-index: 4;
+  width: min(520px, calc(100% - 48px));
+  transform: translateX(-50%);
+  padding: 18px 20px;
+  border: 1px solid #dbe5f0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.09);
+}
+.guide-x {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: #94a3b8;
+}
+.guide-eyebrow {
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #2563eb;
+}
+.wfb-guide h2 {
+  margin: 6px 0 6px;
+  font-size: 18px;
+  font-weight: 850;
+  color: #0f172a;
+}
+.wfb-guide p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #60708a;
+}
+.guide-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.guide-steps span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 800;
+}
+.inspector {
+  padding: 0;
+}
+.ins-sticky {
+  top: 0;
+  margin: 0;
+  padding: 18px;
+  border-bottom: 1px solid #e8eef7;
+}
+.ins-node-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.ins-node-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #eef4ff;
+  color: #2563eb;
+  flex-shrink: 0;
+}
+.ins-node-title strong {
+  display: block;
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 850;
+  color: #0f172a;
+}
+.ins-node-title small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+.del {
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 800;
+}
+.wfb-inspector > :not(.ins-sticky) {
+  margin-left: 18px;
+  margin-right: 18px;
+}
+.manual-panel {
+  padding-bottom: 18px;
+}
+.ins-l {
+  margin-top: 16px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+}
+.ins-in {
+  border-color: #dbe5f0;
+  border-radius: 9px;
+  color: #172033;
+  font-size: 13px;
+}
+.manual-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+.manual-section-head strong {
+  display: block;
+  font-size: 14px;
+  color: #0f172a;
+}
+.manual-section-head span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: #64748b;
+}
+.manual-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  margin-top: 12px;
+  padding: 18px;
+  border: 1px dashed #cbd8e8;
+  border-radius: 12px;
+  background: #f8fbff;
+  text-align: center;
+}
+.manual-empty strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+.manual-empty span,
+.manual-about p {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.manual-about {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid #e2eaf4;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+.manual-about strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+.manual-about p {
+  margin: 6px 0 0;
+}
+.kv-add {
+  color: #2563eb;
+  background: #eef4ff;
+  border-color: #d7e4ff;
+}
+
+@media (max-width: 1180px) {
+  .wfb-body {
+    padding: 12px;
+  }
+  .wfb-title-strip {
+    padding: 16px;
+  }
+}
+
+/* Screen 25 exact alignment pass */
+.wfb-root {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #f8fbff !important;
+}
+.wfb-bar {
+  min-height: 64px !important;
+  padding: 0 22px !important;
+  border-bottom-color: #dbe5f0 !important;
+}
+.bar-left {
+  gap: 12px !important;
+}
+.sep {
+  color: #d8e2ee !important;
+}
+.lnk::before {
+  content: "<";
+  margin-right: 8px;
+  color: #64748b;
+}
+.lnk::after,
+.pill.dirty::after,
+.bar-right > .gbtn::after,
+.wf-menu > .gbtn::after {
+  content: none !important;
+  display: none !important;
+}
+.wfb-root .lnk {
+  font-size: 13px !important;
+  font-weight: 750 !important;
+  color: #4f6178 !important;
+}
+.name-display {
+  padding: 0 !important;
+  font-size: 14px !important;
+  font-weight: 850 !important;
+}
+.pill.ver,
+.pill.dirty,
+.pill.ok {
+  padding: 5px 10px !important;
+  font-size: 11px !important;
+  font-weight: 850 !important;
+}
+.secondary-action {
+  display: none !important;
+}
+.bar-right {
+  gap: 10px !important;
+}
+.gbtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 78px;
+  height: 38px !important;
+  padding: 0 16px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  background: #ffffff !important;
+  border-color: #d4e0ef !important;
+  color: #102033 !important;
+}
+.gbtn.secondary-action {
+  display: none !important;
+}
+.gbtn.run {
+  color: #047857 !important;
+  background: #ecfdf5 !important;
+  border-color: #abe6ce !important;
+}
+.gbtn.save {
+  color: #ffffff !important;
+  background: #2d5bf0 !important;
+  border-color: #2d5bf0 !important;
+}
+.wf-menu > .gbtn {
+  min-width: 64px;
+}
+.wfb-title-strip {
+  min-height: 76px !important;
+  padding: 16px 22px !important;
+  background: #ffffff !important;
+  border-bottom-color: #dbe5f0 !important;
+}
+.wfb-title-strip h1 {
+  font-size: 22px !important;
+  line-height: 1.15 !important;
+  font-weight: 850 !important;
+}
+.wfb-root .wfb-title-strip h1 {
+  font-size: 22px !important;
+  line-height: 1.15 !important;
+  font-weight: 850 !important;
+}
+.wfb-title-strip p {
+  margin-top: 6px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #51617a !important;
+}
+.wfb-root .wfb-title-strip p {
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+}
+.title-help {
+  display: none !important;
+}
+.wfb-body {
+  flex: 1 !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  background: #f8fbff !important;
+}
+.wfb-palette {
+  width: 268px !important;
+  min-width: 268px !important;
+  max-width: 268px !important;
+  border-width: 0 1px 0 0 !important;
+  border-color: #dbe5f0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.add-node-btn {
+  height: 36px !important;
+  margin: 12px 16px 10px !important;
+  border-radius: 7px !important;
+  font-size: 13px !important;
+  font-weight: 850 !important;
+  background: #2d63ed !important;
+  box-shadow: 0 10px 20px rgba(45, 99, 237, 0.22) !important;
+}
+.pal-search {
+  height: 36px !important;
+  margin: 0 16px 10px !important;
+  padding: 0 14px !important;
+  border-radius: 7px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+.pal-scroll {
+  padding: 0 16px 16px !important;
+}
+.pal-cat {
+  margin-bottom: 10px !important;
+}
+.pal-cat-h {
+  padding: 8px 2px 6px !important;
+  font-size: 11px !important;
+  letter-spacing: 0 !important;
+  color: #7b8da9 !important;
+}
+.pal-card {
+  min-height: 45px !important;
+  margin-bottom: 6px !important;
+  padding: 7px 9px !important;
+  border: 1px solid #dce6f2 !important;
+  border-left: 1px solid #dce6f2 !important;
+  border-radius: 7px !important;
+  background: #ffffff !important;
+}
+.pal-card-ic {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 7px !important;
+  background: #eef5ff !important;
+}
+.pal-card-l {
+  font-size: 12px !important;
+  font-weight: 850 !important;
+}
+.pal-card-s {
+  margin-top: 1px !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+}
+.pal-more {
+  height: 34px !important;
+  border-radius: 7px !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+}
+.canvas-wrap {
+  min-height: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background-color: #fbfdff !important;
+  background-image: radial-gradient(#d2dceb 1px, transparent 1px) !important;
+  background-size: 24px 24px !important;
+}
+.canvas-wrap :deep(.vue-flow__background) {
+  opacity: 0 !important;
+}
+.canvas-wrap :deep(.vue-flow__controls) {
+  left: 18px !important;
+  bottom: 18px !important;
+  border-radius: 8px !important;
+}
+.wfb-guide {
+  top: 20px !important;
+  width: min(880px, calc(100% - 96px)) !important;
+  padding: 22px 24px 18px !important;
+  border-radius: 8px !important;
+  border-color: #dbe5f0 !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07) !important;
+}
+.guide-x {
+  top: 16px !important;
+  right: 18px !important;
+  color: #6b7f9b !important;
+  font-size: 18px !important;
+}
+.wfb-guide h2 {
+  margin: 0 0 6px !important;
+  font-size: 14px !important;
+  line-height: 1.25 !important;
+  font-weight: 850 !important;
+}
+.wfb-guide p {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: #60708a !important;
+}
+.guide-steps {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  margin-top: 22px !important;
+}
+.guide-steps span {
+  display: grid !important;
+  grid-template-columns: 34px 1fr !important;
+  grid-template-rows: auto auto !important;
+  column-gap: 12px !important;
+  min-height: 58px !important;
+  padding: 0 22px 0 0 !important;
+  border-right: 1px solid #dfe7f2 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #0f172a !important;
+  font-size: 12px !important;
+}
+.guide-steps span:last-child {
+  border-right: 0 !important;
+}
+.guide-steps b {
+  grid-row: 1 / span 2;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #edf4ff;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 850;
+}
+.guide-steps strong {
+  font-size: 12px;
+  line-height: 1.25;
+  font-weight: 850;
+  color: #0f172a;
+}
+.guide-steps em {
+  margin-top: 3px;
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 500;
+  color: #60708a;
+}
+.guide-docs {
+  margin-top: 12px;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 850;
+}
+.wfb-inspector {
+  width: 420px !important;
+  min-width: 420px !important;
+  max-width: 420px !important;
+  border-width: 0 0 0 1px !important;
+  border-color: #dbe5f0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.ins-sticky {
+  min-height: 76px !important;
+  padding: 18px 22px !important;
+  border-bottom-color: #dbe5f0 !important;
+}
+.ins-node-icon {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 9px !important;
+  background: #dff7f3 !important;
+  color: #0f766e !important;
+}
+.ins-node-title strong {
+  font-size: 14px !important;
+  font-weight: 850 !important;
+}
+.ins-node-title small {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: #60708a !important;
+}
+.del {
+  width: 30px !important;
+  height: 30px !important;
+  display: grid !important;
+  place-items: center !important;
+  font-size: 0 !important;
+  color: #718198 !important;
+}
+.del::after {
+  content: "x";
+  font-size: 18px;
+  line-height: 1;
+}
+.wfb-inspector > :not(.ins-sticky) {
+  margin-left: 22px !important;
+  margin-right: 22px !important;
+}
+.manual-panel {
+  padding-top: 12px !important;
+}
+.ins-l {
+  margin: 18px 0 8px !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+  color: #1f2f46 !important;
+}
+.ins-in {
+  min-height: 40px !important;
+  border-radius: 8px !important;
+  border-color: #d6e1ee !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+textarea.ins-in {
+  line-height: 1.45 !important;
+}
+.manual-section-head {
+  margin-top: 20px !important;
+}
+.manual-section-head strong {
+  font-size: 12px !important;
+  font-weight: 850 !important;
+}
+.manual-section-head span {
+  display: none !important;
+}
+.kv-add {
+  height: 30px !important;
+  padding: 0 12px !important;
+  border-radius: 7px !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+}
+.manual-empty {
+  min-height: 134px !important;
+  margin-top: 12px !important;
+  border-radius: 8px !important;
+  border-color: #cfdced !important;
+  background: #ffffff !important;
+}
+.manual-empty strong {
+  font-size: 13px !important;
+  font-weight: 850 !important;
+}
+.manual-empty span {
+  max-width: 250px;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+.manual-about {
+  margin-top: 28px !important;
+  padding: 18px 20px !important;
+  border: 0 !important;
+  border-radius: 9px !important;
+  background: #f0f6ff !important;
+}
+.manual-about strong {
+  font-size: 13px !important;
+  font-weight: 850 !important;
+}
+.manual-about p {
+  margin-top: 12px !important;
+  font-size: 12px !important;
+  line-height: 1.8 !important;
+}
+
+@media (max-width: 1360px) {
+  .wfb-palette {
+    width: 244px !important;
+    min-width: 244px !important;
+    max-width: 244px !important;
+  }
+  .wfb-inspector {
+    width: 360px !important;
+    min-width: 360px !important;
+    max-width: 360px !important;
+  }
+  .wfb-guide {
+    width: min(760px, calc(100% - 64px)) !important;
+  }
+}
+
+/* Workflow builder 2026 multi-state design */
+.wfb-root {
+  background: #ffffff !important;
+}
+.wfb-bar {
+  min-height: 72px !important;
+  padding: 0 18px !important;
+  gap: 20px !important;
+  background: #ffffff !important;
+  border-bottom: 1px solid #dce5f2 !important;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02) !important;
+}
+.wf-brand {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 7px;
+  background: linear-gradient(145deg, #111b3a, #070d22);
+  box-shadow: 0 10px 24px rgba(10, 18, 40, 0.18);
+  flex: 0 0 auto;
+}
+.wf-brand span,
+.wf-brand span::before,
+.wf-brand span::after {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #ffffff;
+  content: "";
+}
+.wf-brand span {
+  position: relative;
+  transform: translateY(-6px);
+}
+.wf-brand span::before {
+  position: absolute;
+  left: -8px;
+  top: 14px;
+}
+.wf-brand span::after {
+  position: absolute;
+  right: -8px;
+  top: 14px;
+}
+.bar-left {
+  flex: 1;
+  gap: 12px !important;
+}
+.wfb-root .lnk {
+  font-size: 15px !important;
+  font-weight: 760 !important;
+  color: #687895 !important;
+}
+.lnk::before {
+  display: none !important;
+}
+.sep {
+  font-size: 18px !important;
+  color: #cbd6e6 !important;
+}
+.name-display {
+  max-width: 460px !important;
+  font-size: 16px !important;
+  font-weight: 850 !important;
+  color: #0b1530 !important;
+}
+.pill.draft {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 12px !important;
+  border: 1px solid #ffd8a8;
+  background: #fff4e4;
+  color: #b45406;
+  border-radius: 10px;
+  font-size: 13px !important;
+  font-weight: 850 !important;
+}
+.pill.draft::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #fb8c00;
+}
+.bar-right {
+  gap: 14px !important;
+}
+.reset-action,
+.secondary-action {
+  display: none !important;
+}
+.gbtn {
+  min-width: 96px !important;
+  height: 42px !important;
+  padding: 0 18px !important;
+  border-radius: 8px !important;
+  border-color: #d5dfed !important;
+  background: #ffffff !important;
+  color: #17233b !important;
+  font-size: 14px !important;
+  font-weight: 820 !important;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.03) !important;
+}
+.gbtn.run {
+  min-width: 124px !important;
+  background: #ecfff6 !important;
+  color: #058047 !important;
+  border-color: #6bd6a8 !important;
+}
+.gbtn.run::after {
+  content: "âŒ„" !important;
+  display: inline !important;
+  margin-left: 14px;
+  color: #058047;
+}
+.gbtn.save::after {
+  content: "âŒ„" !important;
+  display: inline !important;
+  margin-left: 12px;
+}
+.gbtn.save {
+  min-width: 132px !important;
+  color: #ffffff !important;
+  background: #1f5af6 !important;
+  border-color: #1f5af6 !important;
+  box-shadow: 0 10px 24px rgba(31, 90, 246, 0.22) !important;
+}
+.more-btn {
+  min-width: 58px !important;
+  width: 58px !important;
+  padding: 0 !important;
+  font-size: 20px !important;
+  letter-spacing: 2px !important;
+}
+.wfb-title-strip {
+  display: none !important;
+}
+.wfb-body {
+  height: calc(100% - 72px) !important;
+  background: #ffffff !important;
+}
+.wfb-palette {
+  width: 292px !important;
+  min-width: 292px !important;
+  max-width: 292px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border-color: #dce5f2 !important;
+}
+.add-node-btn {
+  height: 42px !important;
+  margin: 16px 18px 12px !important;
+  border-radius: 8px !important;
+  font-size: 15px !important;
+  background: #245cff !important;
+}
+.add-node-btn::after {
+  content: "âŒ„";
+  margin-left: auto;
+  font-size: 14px;
+}
+.pal-search {
+  height: 42px !important;
+  margin: 0 18px 16px !important;
+  padding-left: 42px !important;
+  font-size: 14px !important;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px #dce5f2;
+}
+.wfb-palette::before {
+  content: "âŒ•";
+  position: absolute;
+  left: 32px;
+  top: 76px;
+  z-index: 1;
+  color: #7e8aa3;
+  font-size: 18px;
+}
+.pal-scroll {
+  flex: 1 !important;
+  padding: 0 18px 14px !important;
+}
+.pal-cat-h {
+  padding: 10px 0 8px !important;
+  text-transform: uppercase;
+  color: #60708a !important;
+  font-size: 12px !important;
+  font-weight: 850 !important;
+}
+.pal-card {
+  min-height: 56px !important;
+  padding: 9px 12px !important;
+  margin-bottom: 8px !important;
+  border-radius: 8px !important;
+  border-color: #dce5f2 !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.025) !important;
+}
+.pal-card:hover {
+  border-color: #2b62ff !important;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.1) !important;
+}
+.pal-card-ic {
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 8px !important;
+  background: #eef4ff !important;
+}
+.pal-card.fam-trigger .pal-card-ic { background: #f0e9ff !important; }
+.pal-card.fam-agent .pal-card-ic { background: #e8fbff !important; }
+.pal-card.fam-action .pal-card-ic { background: #edfdf4 !important; }
+.pal-card.fam-logic .pal-card-ic { background: #fff4dd !important; }
+.pal-card-l {
+  font-size: 13px !important;
+  color: #111b34 !important;
+}
+.pal-card-s {
+  font-size: 11px !important;
+  color: #5f6f89 !important;
+}
+.pal-more {
+  height: 36px !important;
+  margin-top: 10px !important;
+  border-radius: 8px !important;
+  background: #f4f7ff !important;
+}
+.pal-footer {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  padding: 16px 18px 18px;
+  border-top: 1px solid #dce5f2;
+}
+.pal-footer button {
+  height: 28px;
+  color: #6b7d99;
+  font-size: 22px;
+  font-weight: 700;
+}
+.canvas-wrap {
+  background-color: #fbfdff !important;
+  background-image: radial-gradient(#cbd9ed 1.15px, transparent 1.15px) !important;
+  background-size: 24px 24px !important;
+}
+.wfb-guide {
+  top: 34px !important;
+  width: min(820px, calc(100% - 96px)) !important;
+  padding: 30px 34px 26px !important;
+  border-radius: 9px !important;
+  background: #ffffff !important;
+  border-color: #dce5f2 !important;
+}
+.wfb-guide h2 {
+  font-size: 20px !important;
+}
+.wfb-guide p {
+  font-size: 14px !important;
+}
+.guide-steps {
+  margin-top: 28px !important;
+}
+.guide-steps strong {
+  font-size: 13px !important;
+}
+.guide-steps em {
+  font-size: 12px !important;
+}
+.guide-docs {
+  margin-top: 22px !important;
+  font-size: 13px !important;
+}
+.log-reopen {
+  right: 22px !important;
+  bottom: 22px !important;
+}
+.wfb-inspector {
+  width: 410px !important;
+  min-width: 410px !important;
+  max-width: 410px !important;
+  background: #ffffff !important;
+}
+.ins-sticky {
+  min-height: 108px !important;
+  padding: 22px 22px 14px !important;
+}
+.ins-sticky::after {
+  content: "Configure    Settings";
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 0;
+  height: 38px;
+  border-bottom: 1px solid #dce5f2;
+  color: #2563eb;
+  white-space: pre;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 38px;
+  box-shadow: inset 0 -2px 0 #2563eb;
+}
+.ins-node-icon {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 10px !important;
+  background: #efe7ff !important;
+  color: #7c3aed !important;
+}
+.ins-node-title strong {
+  font-size: 16px !important;
+}
+.ins-node-title small {
+  font-size: 13px !important;
+}
+.ins-node-title::after {
+  content: "Enabled";
+  margin-left: auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #ddfbea;
+  color: #10a464;
+  font-size: 12px;
+  font-weight: 850;
+}
+.manual-panel,
+.wfb-inspector > :not(.ins-sticky) {
+  padding-top: 10px !important;
+}
+.ins-l {
+  font-size: 13px !important;
+}
+.ins-in {
+  min-height: 46px !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+}
+textarea.ins-in {
+  min-height: 92px !important;
+}
+.manual-empty {
+  min-height: 126px !important;
+}
+.manual-about {
+  background: #f4f7ff !important;
+}
+.cmd-pal {
+  width: 660px !important;
+  max-width: min(660px, 92vw) !important;
+  margin-top: 86px !important;
+  border: 1px solid #dce5f2;
+  border-radius: 10px !important;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18) !important;
+}
+.cmd-pal::before {
+  content: "Add a node\aChoose a node to add to your workflow.";
+  display: block;
+  white-space: pre;
+  padding: 24px 26px 8px;
+  color: #102033;
+  font-size: 20px;
+  line-height: 1.55;
+  font-weight: 850;
+}
+.cmd-search {
+  height: 44px !important;
+  margin: 0 26px 14px;
+  padding: 0 16px !important;
+  border: 1px solid #dce5f2 !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+}
+.cmd-body {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 26px 26px !important;
+}
+.cmd-grp {
+  display: contents;
+}
+.cmd-grp-h {
+  grid-column: 1 / -1;
+  padding: 12px 0 2px !important;
+  color: #233552 !important;
+  font-size: 12px !important;
+}
+.cmd-item {
+  min-height: 68px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px !important;
+  border: 1px solid #dce5f2;
+  border-radius: 8px !important;
+  background: #ffffff;
+}
+.cmd-ic {
+  width: 32px !important;
+  height: 32px !important;
+}
+.cmd-l {
+  font-size: 12px !important;
+  font-weight: 850 !important;
+}
+.cmd-s {
+  font-size: 10.5px !important;
+  color: #60708a !important;
+}
+.cmd-foot {
+  display: none !important;
+}
+.gbtn svg {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+  stroke-width: 2.2;
+}
+.more-btn svg,
+.gbtn.run::after,
+.gbtn.save::after {
+  margin-right: 0;
+}
+.pal-card-ic::before,
+.cmd-ic::before,
+.ins-node-icon::before {
+  content: none !important;
+  display: none !important;
+}
+.pal-card-ic,
+.cmd-ic,
+.ins-node-icon {
+  color: #2563eb;
+}
+.pal-card-ic svg,
+.cmd-ic svg,
+.ins-node-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+.pal-card.fam-trigger .pal-card-ic,
+.cmd-ic.fam-trigger,
+.ins-node-icon {
+  color: #7c3aed;
+}
+.pal-card.fam-agent .pal-card-ic,
+.cmd-ic.fam-agent {
+  color: #4f46e5;
+}
+.pal-card.fam-action .pal-card-ic,
+.cmd-ic.fam-action {
+  color: #0f9f6e;
+}
+.pal-card.fam-logic .pal-card-ic,
+.cmd-ic.fam-logic {
+  color: #f59e0b;
+}
+.log-h > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.log-head-ic {
+  width: 14px;
+  height: 14px;
+}
+.log-line {
+  align-items: flex-start;
+}
+.log-ic {
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+.lv-info .log-ic { color: #60a5fa; }
+.lv-success .log-ic { color: #22c55e; }
+.lv-warn .log-ic { color: #f59e0b; }
+.lv-error .log-ic { color: #ef4444; }
+.log-reopen svg {
+  width: 14px;
+  height: 14px;
+  color: #2563eb;
+}
+
+@media (max-width: 1360px) {
+  .wfb-palette {
+    width: 270px !important;
+    min-width: 270px !important;
+    max-width: 270px !important;
+  }
+  .wfb-inspector {
+    width: 360px !important;
+    min-width: 360px !important;
+    max-width: 360px !important;
+  }
+  .cmd-body {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Final workflow-builder screen matching fixes */
+.wfb-root,
+.wfb-body,
+.canvas-wrap {
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+.pal-card-ic::before,
+.pal-card-ic::after,
+.cmd-ic::before,
+.cmd-ic::after,
+.ins-node-icon::before,
+.ins-node-icon::after {
+  content: none !important;
+  display: none !important;
+}
+.pal-card-ic,
+.cmd-ic,
+.ins-node-icon {
+  display: grid !important;
+  place-items: center !important;
+  font-size: 0 !important;
+}
+.pal-card-ic svg,
+.cmd-ic svg,
+.ins-node-icon svg {
+  display: block !important;
+  width: 19px !important;
+  height: 19px !important;
+}
+.webhook-panel {
+  padding-top: 8px;
+}
+.webhook-panel .ins-note {
+  margin: 0 0 16px;
+  color: #51617a;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.endpoint-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 74px;
+  padding: 14px 14px;
+  border: 1px solid #d6e1ee;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+.endpoint-box code {
+  flex: 1;
+  color: #40506a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: normal;
+  word-break: break-word;
+}
+.endpoint-box button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  color: #60708a;
+}
+.endpoint-box svg,
+.test-here svg {
+  width: 16px;
+  height: 16px;
+}
+.test-here {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 42px;
+  margin-top: 22px;
+  border: 1px solid #bfcfff;
+  border-radius: 8px;
+  background: #eef3ff;
+  color: #2553d8;
+  font-size: 14px;
+  font-weight: 850;
+}
+.log-console {
+  border-radius: 0 !important;
+}
+.log-reopen {
+  border-radius: 10px !important;
+  background: #ffffff !important;
+}
+.run-banner {
+  position: absolute;
+  top: 28px;
+  left: 42px;
+  right: 42px;
+  z-index: 5;
+  padding: 20px 22px 18px;
+  border: 1px solid #dce5f2;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.98);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.09);
+}
+.run-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.run-title h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 850;
+  color: #0f172a;
+}
+.run-title p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #60708a;
+}
+.run-title > button {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid #dce5f2;
+  border-radius: 8px;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 850;
+}
+.spin {
+  animation: wfSpin 1s linear infinite;
+}
+@keyframes wfSpin { to { transform: rotate(360deg); } }
+.run-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0;
+  margin-top: 20px;
+}
+.run-metrics span {
+  padding: 0 22px;
+  border-left: 1px solid #e2e8f0;
+}
+.run-metrics span:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+.run-metrics small {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  margin-bottom: 7px;
+}
+.run-metrics b {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #0f172a;
+  font-size: 22px;
+  font-weight: 850;
+}
+.run-metrics svg {
+  width: 18px;
+  height: 18px;
+}
+.run-timeline {
+  position: absolute;
+  left: 74px;
+  right: 36px;
+  bottom: 36px;
+  z-index: 5;
+  padding: 18px 20px 20px;
+  border: 1px solid #dce5f2;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
+}
+.timeline-head,
+.timeline-row {
+  display: grid;
+  grid-template-columns: 110px 28px 180px 1fr 110px;
+  align-items: center;
+  gap: 10px;
+}
+.timeline-head {
+  display: flex;
+  gap: 16px;
+  padding-bottom: 12px;
+  color: #0f172a;
+}
+.timeline-head span {
+  color: #94a3b8;
+  font-size: 12px;
+}
+.timeline-head button {
+  margin-left: auto;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+.timeline-row {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 8px;
+  border-top: 1px solid #edf2f7;
+  text-align: left;
+}
+.timeline-row:hover {
+  background: #f8fbff;
+}
+.timeline-row span,
+.timeline-row em {
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
+}
+.timeline-row strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+.timeline-row b {
+  justify-self: end;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 750;
+}
+.timeline-row svg.success { color: #10b981; }
+.timeline-row svg.running { color: #2563eb; animation: wfSpin 1s linear infinite; }
+.timeline-row svg.warning { color: #f59e0b; }
+.timeline-row b.running {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #2563eb;
+}
+.timeline-row b.warning { color: #f59e0b; }
+.condition-head {
+  margin-top: 18px;
+}
+.condition-head strong,
+.condition-section strong {
+  display: block;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 850;
+}
+.condition-head span,
+.condition-section span {
+  display: block;
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+}
+.condition-builder {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #dce5f2;
+  border-radius: 10px;
+}
+.condition-row {
+  display: grid;
+  grid-template-columns: 1fr 82px 1fr 32px;
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+.condition-row label span {
+  display: block;
+  margin: 0 0 6px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 750;
+}
+.condition-row .ins-in {
+  min-height: 36px !important;
+  font-size: 12px !important;
+}
+.condition-del {
+  display: grid;
+  place-items: center;
+  height: 36px;
+  color: #94a3b8;
+}
+.condition-del svg {
+  width: 15px;
+  height: 15px;
+}
+.condition-join {
+  width: 84px;
+  height: 36px;
+  margin-bottom: 10px;
+  border: 1px solid #dce5f2;
+  border-radius: 8px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 750;
+}
+.condition-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid #bfcfff;
+  border-radius: 8px;
+  color: #2563eb;
+  font-size: 13px;
+  font-weight: 850;
+}
+.condition-section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #edf2f7;
+}
+.fallback-box,
+.condition-section code {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  margin-top: 12px;
+  padding: 0 12px;
+  border: 1px solid #dce5f2;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 12px;
+}
+.fallback-box b {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: #ffe4e9;
+  color: #e11d48;
+}
+.advanced-row {
+  margin-top: 20px;
+  color: #475569;
+  font-size: 12px;
+}
+.advanced-row summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+.canvas-wrap:has(.run-banner) .wfb-guide,
+.canvas-wrap:has(.run-banner) .log-reopen,
+.canvas-wrap:has(.run-banner) .log-console {
+  display: none !important;
+}
 </style>
+
+
+
+

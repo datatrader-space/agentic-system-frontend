@@ -1,38 +1,38 @@
 <template>
-  <div ref="rootEl" class="relative">
+  <div ref="rootEl" class="relative font-[Inter,system-ui,sans-serif]">
     <!-- Trigger -->
     <button
       type="button"
       @click="toggleOpen"
-      class="w-full flex items-center justify-between gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white text-left hover:border-indigo-400 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition"
-      :class="{ 'border-indigo-500 ring-2 ring-indigo-500': open }"
+      class="w-full flex items-center justify-between gap-2 px-3 py-2.5 border border-[#D0D5DD] rounded-[10px] bg-white text-left transition focus:outline-none"
+      :class="open ? 'border-[#2563EB] ring-[3px] ring-blue-100' : 'hover:border-[#9aa6b8]'"
     >
       <span v-if="selectedModel" class="flex items-center gap-2 min-w-0">
-        <span class="shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+        <span class="shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[#F2F4F7] text-[#475569]">
           {{ vendorLabel(selectedModel) }}
         </span>
-        <span class="truncate text-sm text-gray-800">{{ selectedModel.name }}</span>
+        <span class="truncate text-[13.5px] text-[#0F172A]">{{ selectedModel.name }}</span>
       </span>
-      <span v-else class="text-sm text-gray-400">{{ placeholder }}</span>
-      <ChevronDown class="w-4 h-4 text-gray-400 shrink-0" :class="{ 'rotate-180': open }" />
+      <span v-else class="text-[13.5px] text-[#98A2B3]">{{ placeholder }}</span>
+      <ChevronDown class="w-4 h-4 text-[#98A2B3] shrink-0 transition-transform" :class="{ 'rotate-180': open }" />
     </button>
 
     <!-- Popover -->
     <div
       v-if="open"
-      class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden flex flex-col"
-      style="max-height: 70vh;"
+      class="absolute z-50 mt-1 w-full bg-white border border-[#E5E7EB] rounded-xl shadow-[0_12px_32px_rgba(16,24,40,0.12)] overflow-hidden flex flex-col"
+      style="max-height: 340px;"
     >
       <!-- Search -->
-      <div class="p-2 border-b border-gray-100">
+      <div class="p-2 border-b border-[#F2F4F7]">
         <div class="relative">
-          <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search class="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#98A2B3]" />
           <input
             ref="searchEl"
             v-model="search"
             type="text"
             :placeholder="`Search ${totalCount} models…`"
-            class="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+            class="w-full pl-8 pr-3 py-2 text-[13px] text-[#0F172A] placeholder-[#98A2B3] border border-[#E5E7EB] rounded-lg focus:border-[#2563EB] focus:ring-[3px] focus:ring-blue-100 focus:outline-none"
             @keydown.esc="close"
           />
         </div>
@@ -47,8 +47,8 @@
             :class="[
               'text-[11px] px-2 py-0.5 rounded-full font-medium border transition flex items-center gap-1',
               activeFilters.has(f.key)
-                ? 'bg-indigo-600 text-white border-indigo-600'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'
+                ? 'bg-[#2563EB] text-white border-[#2563EB]'
+                : 'bg-white text-[#667085] border-[#E5E7EB] hover:border-[#9aa6b8]'
             ]"
           >
             <span>{{ f.icon }}</span>{{ f.label }}
@@ -60,8 +60,8 @@
       <div class="overflow-y-auto flex-1 py-1">
         <template v-if="groups.length">
           <div v-for="group in groups" :key="group.vendor">
-            <div class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400 bg-gray-50 sticky top-0">
-              {{ group.label }} <span class="text-gray-300">({{ group.models.length }})</span>
+            <div class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#98A2B3] bg-[#F9FAFB] sticky top-0">
+              {{ group.label }} <span class="text-[#CDD5E0]">({{ group.models.length }})</span>
             </div>
             <button
               v-for="m in group.models"
@@ -69,18 +69,18 @@
               type="button"
               @click="select(m)"
               :class="[
-                'w-full text-left px-3 py-2 hover:bg-indigo-50 transition flex flex-col gap-0.5',
-                m.id === modelValue ? 'bg-indigo-50' : ''
+                'w-full text-left px-3 py-2 transition flex flex-col gap-0.5',
+                m.id === modelValue ? 'bg-[#EAF0FF]' : 'hover:bg-[#F9FAFB]'
               ]"
             >
               <div class="flex items-center justify-between gap-2">
-                <span class="text-sm text-gray-800 truncate" :class="{ 'font-semibold text-indigo-700': m.id === modelValue }">
+                <span class="text-[13px] text-[#0F172A] truncate" :class="{ 'font-semibold text-[#2563EB]': m.id === modelValue }">
                   {{ m.name }}
                 </span>
-                <span class="shrink-0 text-[11px] text-gray-400">{{ formatPrice(m) }}</span>
+                <span class="shrink-0 text-[11px] text-[#98A2B3]">{{ formatPrice(m) }}</span>
               </div>
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-[10px] text-gray-400">{{ formatContext(m) }}</span>
+                <span class="text-[10.5px] text-[#98A2B3]">{{ formatContext(m) }}</span>
                 <span
                   v-for="cap in modelCaps(m)"
                   :key="cap"
@@ -92,7 +92,7 @@
             </button>
           </div>
         </template>
-        <div v-else class="px-3 py-8 text-center text-sm text-gray-400">
+        <div v-else class="px-3 py-8 text-center text-[13px] text-[#667085]">
           No models match your search.
         </div>
       </div>

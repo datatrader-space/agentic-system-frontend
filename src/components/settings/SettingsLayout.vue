@@ -1,26 +1,57 @@
 <template>
-  <div class="settings">
-    <header class="settings-header">
-      <h1 class="settings-h1">Settings</h1>
-      <p class="settings-sub">Manage providers, tools, workspaces, and platform preferences.</p>
+  <div class="settings" :class="{ 'settings--usage': isUsage }">
+    <header v-if="!isUsage" class="settings-header">
+      <div>
+        <h1 class="settings-h1">Settings</h1>
+        <p class="settings-sub">Manage providers, tools, workspaces, and platform preferences.</p>
+      </div>
+
+      <div class="settings-menu-wrap">
+        <button class="settings-menu-button" type="button" @click="menuOpen = !menuOpen" aria-label="Open settings sections">
+          <span />
+          <span />
+          <span />
+          <strong>{{ activeLabel }}</strong>
+        </button>
+        <div v-if="menuOpen" class="settings-menu">
+          <button
+            v-for="t in tabs"
+            :key="t.key"
+            type="button"
+            :class="{ active: t.key === activeKey }"
+            @click="go(t.key)"
+          >
+            {{ t.label }}
+          </button>
+        </div>
+      </div>
     </header>
 
-    <div class="settings-grid">
-      <!-- Tab nav (vertical on desktop, horizontal scroll on mobile) -->
-      <nav class="settings-nav">
-        <button
-          v-for="t in tabs"
-          :key="t.key"
-          class="settings-tab"
-          :class="{ active: t.key === activeKey }"
-          @click="go(t.key)"
-        >
-          {{ t.label }}
+    <div v-else class="usage-menu-anchor">
+      <div class="settings-menu-wrap">
+        <button class="settings-menu-button icon-only" type="button" @click="menuOpen = !menuOpen" aria-label="Open settings sections">
+          <span />
+          <span />
+          <span />
+          <strong>{{ activeLabel }}</strong>
         </button>
-      </nav>
+        <div v-if="menuOpen" class="settings-menu usage-menu">
+          <button
+            v-for="t in tabs"
+            :key="t.key"
+            type="button"
+            :class="{ active: t.key === activeKey }"
+            @click="go(t.key)"
+          >
+            {{ t.label }}
+          </button>
+        </div>
+      </div>
+    </div>
 
+    <div class="settings-grid" :class="{ wide: isUsage }">
       <!-- Active tab content -->
-      <section class="settings-content">
+      <section class="settings-content" :class="{ wide: isUsage }">
         <component :is="activeComponent" />
       </section>
     </div>
@@ -28,28 +59,31 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 // New lightweight panels
 import GeneralSettings from './GeneralSettings.vue'
 import AgentRulesSettings from './AgentRulesSettings.vue'
+import MemorySettings from './MemorySettings.vue'
 import SecuritySettings from './SecuritySettings.vue'
 import AdvancedSettings from './AdvancedSettings.vue'
 // Reused existing pages (genuinely configuration/usage; Tools, MCP, and
 // Workspaces are primary sidebar destinations now, so they live there — not here).
 import LLMSettings from '../../views/LLMSettings.vue'
-import LLMDashboard from '../../views/LLMDashboard.vue'
+import UsagePage from '../../views/UsagePage.vue'
 import Billing from '../../views/Billing.vue'
 
 const route = useRoute()
 const router = useRouter()
+const menuOpen = ref(false)
 
 const tabs = [
   { key: 'general', label: 'General', component: GeneralSettings },
   { key: 'providers', label: 'AI Providers', component: LLMSettings },
   { key: 'agent', label: 'Agent Rules', component: AgentRulesSettings },
-  { key: 'usage', label: 'Usage', component: LLMDashboard },
+  { key: 'memory', label: 'Memory', component: MemorySettings },
+  { key: 'usage', label: 'Usage', component: UsagePage },
   { key: 'billing', label: 'Billing', component: Billing },
   { key: 'security', label: 'Security', component: SecuritySettings },
   { key: 'advanced', label: 'Advanced', component: AdvancedSettings },
@@ -62,8 +96,15 @@ const activeKey = computed(() => {
 const activeComponent = computed(
   () => tabs.find((x) => x.key === activeKey.value)?.component
 )
+const activeLabel = computed(
+  () => tabs.find((x) => x.key === activeKey.value)?.label || 'Settings'
+)
+const isUsage = computed(() => activeKey.value === 'usage')
 
-const go = (key) => router.push(`/dashboard/settings/${key}`)
+const go = (key) => {
+  menuOpen.value = false
+  router.push(`/dashboard/settings/${key}`)
+}
 </script>
 
 <style scoped>
@@ -72,55 +113,136 @@ const go = (key) => router.push(`/dashboard/settings/${key}`)
   overflow-y: auto;
   padding: 24px 24px 48px;
 }
-.settings-header { max-width: 1100px; margin: 0 auto 20px; }
+.settings--usage {
+  padding: 30px 30px 48px;
+  background: #f8fbff;
+}
+.settings-header {
+  max-width: 1100px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
 .settings-h1 { font-size: 1.5rem; font-weight: 700; color: #0f172a; margin: 0; }
 .settings-sub { font-size: 0.875rem; color: #64748b; margin: 4px 0 0; }
+.usage-menu-anchor {
+  position: sticky;
+  top: 14px;
+  z-index: 30;
+  max-width: 1700px;
+  margin: 0 auto;
+  height: 0;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+.settings-menu-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  pointer-events: auto;
+}
+.settings-menu-button {
+  position: relative;
+  height: 38px;
+  min-width: 150px;
+  padding: 0 13px 0 38px;
+  border: 1px solid #d9e3f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.03);
+}
+.settings-menu-button span {
+  position: absolute;
+  left: 14px;
+  width: 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: #3156e9;
+}
+.settings-menu-button span:nth-of-type(1) { top: 13px; }
+.settings-menu-button span:nth-of-type(2) { top: 18px; }
+.settings-menu-button span:nth-of-type(3) { top: 23px; }
+.settings-menu-button strong {
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+.settings-menu-button.icon-only {
+  min-width: 38px;
+  width: 38px;
+  height: 34px;
+  padding: 0;
+  border-radius: 9px;
+}
+.settings-menu-button.icon-only strong {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.settings-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  padding: 8px;
+  border: 1px solid #dfe7f2;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
+}
+.settings-menu button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+.settings-menu button:hover { background: #f1f5f9; color: #0f172a; }
+.settings-menu button.active { background: #eef2ff; color: #3156e9; }
 
 .settings-grid {
   max-width: 1100px;
   margin: 0 auto;
-  display: grid;
-  grid-template-columns: 200px 1fr;
-  gap: 24px;
-  align-items: start;
+  display: block;
 }
-
-.settings-nav {
-  position: sticky;
-  top: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.settings-grid.wide {
+  max-width: 1700px;
+  display: block;
 }
-.settings-tab {
-  text-align: left;
-  padding: 9px 13px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #475569;
-  background: transparent;
-  border: none;
-  border-radius: 9px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  white-space: nowrap;
-}
-.settings-tab:hover { background: #f1f5f9; color: #0f172a; }
-.settings-tab.active { background: #eef2ff; color: #4f46e5; }
 
 .settings-content { min-width: 0; }
+.settings-content.wide {
+  overflow: visible;
+}
+.settings-content.wide :deep(.cost-page) {
+  padding: 0;
+  background: transparent;
+}
+.settings-content.wide :deep(.head-actions) {
+  margin-right: 48px;
+}
 
-/* Mobile: horizontal scroll tab bar */
+@media (max-width: 1200px) {
+  .settings-grid.wide { max-width: 1700px; }
+}
+
 @media (max-width: 768px) {
-  .settings-grid { grid-template-columns: 1fr; gap: 14px; }
-  .settings-nav {
-    position: static;
-    flex-direction: row;
-    overflow-x: auto;
-    gap: 4px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #eef1f5;
-  }
-  .settings-tab { flex-shrink: 0; }
+  .settings-header { flex-direction: column; }
+  .settings-menu-wrap, .settings-menu-button { width: 100%; }
+  .settings-menu { left: 0; right: auto; width: 100%; }
 }
 </style>

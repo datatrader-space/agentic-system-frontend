@@ -2492,7 +2492,8 @@ const reconnectDelay = computed(() => Math.min(1000 * Math.pow(2, reconnectAttem
 const connectWebSocket = (repoId) => {
     const host = import.meta.env.VITE_WS_HOST || window.location.host;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    let wsUrl = `${protocol}//${host}/ws/chat/repository/${repoId || '0'}/`;
+    // Real repo → repo-scoped chat; free-agent (no repo) → dedicated agent route.
+    let wsUrl = `${protocol}//${host}${repoId ? `/ws/chat/repository/${repoId}/` : '/ws/chat/agent/'}`;
 
     // Tenancy: attach workspace context so consumer can bridge tool logs
     const wsId = localStorage.getItem('activeWorkspaceId');

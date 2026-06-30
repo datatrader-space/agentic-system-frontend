@@ -1,4 +1,4 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -12,6 +12,32 @@
    ============================================ */
 
 :root {
+  /* Global typography foundation */
+  --font-sans: "Inter", "Geist", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Sora", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  --text-2xs: 0.6875rem; /* 11px */
+  --text-xs: 0.75rem;    /* 12px */
+  --text-sm: 0.875rem;   /* 14px */
+  --text-md: 1rem;       /* 16px */
+  --text-lg: 1.125rem;   /* 18px */
+  --text-xl: 1.25rem;    /* 20px */
+  --text-2xl: 1.5rem;    /* 24px */
+  --text-3xl: 2rem;      /* 32px */
+  --text-4xl: 2.5rem;    /* 40px */
+  --text-5xl: 3.25rem;   /* 52px */
+  --text-6xl: 4rem;      /* 64px */
+
+  --leading-tight: 1.1;
+  --leading-snug: 1.25;
+  --leading-normal: 1.45;
+  --leading-relaxed: 1.6;
+
+  --tracking-tight: -0.03em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+
   /* Default: Dark Theme */
   --bg-body: #030712;
   --bg-surface: #111827;
@@ -108,12 +134,265 @@ body {
   padding: 0;
   height: 100%;
   overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  font-weight: 400;
   background-color: var(--bg-body);
   color: var(--text-primary);
+  letter-spacing: var(--tracking-normal);
 }
 
 #app {
   min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: var(--font-mono);
+}
+
+.page-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-3xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  font-weight: 700;
+}
+
+.page-description {
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  font-weight: 400;
+  color: #6b7280;
+}
+
+.section-title {
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  font-weight: 650;
+}
+
+.card-title {
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  font-weight: 600;
+}
+
+.table-header {
+  font-size: var(--text-xs);
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.table-cell {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  font-weight: 400;
+}
+
+.button-text {
+  font-size: var(--text-sm);
+  line-height: 1;
+  font-weight: 600;
+}
+
+.caption {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.micro {
+  font-size: var(--text-2xs);
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+.code-text {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.app-shell :where(main) {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  font-weight: 400;
+}
+
+.app-shell :where(h1) {
+  font-size: var(--text-3xl);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  font-weight: 700;
+}
+
+.app-shell :where(h2) {
+  font-size: var(--text-xl);
+  line-height: var(--leading-snug);
+  font-weight: 650;
+}
+
+.app-shell :where(h3) {
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
+  font-weight: 600;
+}
+
+.app-shell :where(p) {
+  line-height: var(--leading-normal);
+}
+
+.app-shell :where(label) {
+  font-size: 0.8125rem;
+  line-height: var(--leading-normal);
+  font-weight: 600;
+}
+
+.app-shell :where(input, select, textarea) {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  font-weight: 400;
+}
+
+.app-shell :where(button, .btn) {
+  font-size: var(--text-sm);
+  line-height: 1;
+  font-weight: 600;
+}
+
+.app-shell :where(th) {
+  font-size: var(--text-xs);
+  line-height: 1.2;
+  font-weight: 650;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.app-shell :where(td) {
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  font-weight: 400;
+}
+
+.app-shell :where(small, .meta, .muted) {
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  font-weight: 500;
+}
+
+.app-shell :where(code, pre, kbd, samp, .log-line, .code-text) {
+  font-family: var(--font-mono);
+}
+
+/* Dashboard typography contract.
+   This intentionally beats scoped page CSS so dashboard pages share one system. */
+.app-shell .center-main :is(h1, .page-title) {
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-3xl) !important;
+  line-height: var(--leading-tight) !important;
+  letter-spacing: var(--tracking-tight) !important;
+  font-weight: 700 !important;
+}
+
+.app-shell .center-main :is(.page-description, header > p) {
+  font-size: var(--text-md) !important;
+  line-height: var(--leading-relaxed) !important;
+  font-weight: 400 !important;
+}
+
+.app-shell .center-main :is(h2, .section-title) {
+  font-size: var(--text-xl) !important;
+  line-height: var(--leading-snug) !important;
+  font-weight: 650 !important;
+}
+
+.app-shell .center-main :is(h3, .card-title) {
+  font-size: var(--text-sm) !important;
+  line-height: var(--leading-snug) !important;
+  font-weight: 600 !important;
+}
+
+.app-shell .center-main :is(p, li) {
+  line-height: var(--leading-normal) !important;
+}
+
+.app-shell .center-main :is(label, .field-label) {
+  font-size: 0.8125rem !important;
+  line-height: var(--leading-normal) !important;
+  font-weight: 600 !important;
+}
+
+.app-shell .center-main :is(input, select, textarea) {
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-sm) !important;
+  line-height: var(--leading-normal) !important;
+  font-weight: 400 !important;
+}
+
+.app-shell .center-main :is(input::placeholder, textarea::placeholder) {
+  font-weight: 400 !important;
+}
+
+.app-shell .center-main :is(button, .btn, .button-text) {
+  font-family: var(--font-sans) !important;
+  font-size: var(--text-sm) !important;
+  line-height: 1 !important;
+  font-weight: 600 !important;
+}
+
+.app-shell .center-main :is(th, .table-header) {
+  font-size: var(--text-xs) !important;
+  line-height: 1.2 !important;
+  font-weight: 650 !important;
+  letter-spacing: var(--tracking-wide) !important;
+  text-transform: uppercase !important;
+}
+
+.app-shell .center-main :is(td, .table-cell) {
+  font-size: var(--text-sm) !important;
+  line-height: var(--leading-normal) !important;
+  font-weight: 400 !important;
+}
+
+.app-shell .center-main :is(small, .caption, .meta, .muted) {
+  font-size: var(--text-xs) !important;
+  line-height: var(--leading-normal) !important;
+  font-weight: 500 !important;
+}
+
+.app-shell .center-main :is(.micro, .badge, [class*="badge"], [class*="chip"]) {
+  font-size: var(--text-2xs) !important;
+  line-height: 1.2 !important;
+  font-weight: 600 !important;
+}
+
+.app-shell .center-main :is(code, pre, kbd, samp, .log-line, .code-text) {
+  font-family: var(--font-mono) !important;
+}
+
+@media (max-width: 640px) {
+  .page-title {
+    font-size: 1.875rem;
+  }
+
+  .page-description {
+    font-size: var(--text-sm);
+  }
 }
 
 /* Smooth theme transitions */
@@ -177,76 +456,81 @@ body {
 }
 
 /* ============================================================
-   VIBRANT LIGHT MESH — design tokens (APPROVED · REDESIGN_PLAN.md §2)
+   VIBRANT LIGHT MESH â€” design tokens (APPROVED Â· REDESIGN_PLAN.md Â§2)
    ============================================================
    Additive layer for the new UI. New token names (no clash with the
    legacy bg/text vars above, which are removed in the Phase 7
    cleanup). Mirror of tailwind.config.js so scoped styles can use them.
    ============================================================ */
 :root {
-  /* ── Professional SaaS theme — neutral slate + deep blue + one teal accent.
-        (Token NAMES kept from the old vibrant-mesh system so every component
-        re-skins automatically; --vm-violet* is now the BLUE primary.) ── */
-  --vm-bg: #F8FAFC;            /* page background (slate-50) */
-  --vm-ink: #0F172A;           /* main text (slate-900) */
-  --vm-ink-soft: #475569;      /* secondary text (slate-600) */
-  --vm-ink-faint: #94A3B8;     /* muted text (slate-400) */
+  /* â”€â”€ Aadml design language (design.md Â§3) â€” clean white surfaces on a soft
+        blue-tinted canvas, blue primary, teal/green accents, very soft shadows, Inter.
+        THE single source of truth: token NAMES kept from the legacy vibrant-mesh system
+        so every existing component re-skins automatically. The old purple/glass theme is
+        retired â€” these values ARE the Aadml palette. â”€â”€ */
+  --vm-bg: #F8FBFF;            /* page background */
+  --vm-ink: #0F172A;           /* text strong */
+  --vm-ink-soft: #334155;      /* text normal */
+  --vm-ink-faint: #64748B;     /* text muted */
   --vm-surface: #FFFFFF;       /* cards / panels */
-  --vm-surface-soft: #F1F5F9;  /* subtle filled areas (slate-100) */
-  --vm-border: #E2E8F0;        /* hairline borders (slate-200) */
-  --vm-glass: rgba(255, 255, 255, .72);
-  --vm-glass-strong: rgba(255, 255, 255, .88);
+  --vm-surface-soft: #F3F7FD;  /* subtle filled areas */
+  --vm-border: #DFE7F2;        /* hairline borders */
+  --vm-glass: rgba(255, 255, 255, .86);
+  --vm-glass-strong: rgba(255, 255, 255, .96);
 
-  /* Brand = professional blue (mapped onto the legacy "violet" token names) */
+  /* Brand = Aadml blue (mapped onto the legacy "violet" token names so primary stays blue) */
   --vm-violet: #2563EB;        /* primary */
   --vm-violet-d: #1D4ED8;      /* primary hover */
-  --vm-violet-soft: #EFF6FF;   /* primary tint */
-  --vm-pink: #1E40AF;          /* was candy pink → deep navy (kills the pink) */
-  --vm-amber: #F59E0B;         /* warning only */
-  --vm-teal: #14B8A6;          /* the single controlled accent */
-  --vm-sky: #3B82F6;           /* focus / info blue */
+  --vm-violet-soft: #EEF4FF;   /* primary tint */
+  --vm-pink: #7C3AED;          /* secondary highlight only (design.md: purple = secondary accent) */
+  --vm-amber: #F79009;         /* warning */
+  --vm-teal: #14B8A6;          /* accent teal */
+  --vm-sky: #2E90FA;           /* focus / info blue */
   --vm-lime: #14B8A6;          /* folded into the teal accent */
-  --vm-green: #10B981;         /* success */
-  --vm-danger: #EF4444;
-  --vm-line: rgba(15, 23, 42, .08);
-  --vm-line-2: rgba(15, 23, 42, .14);
+  --vm-green: #12B76A;         /* success */
+  --vm-danger: #F04438;
+  --vm-line: #DFE7F2;
+  --vm-line-2: #D8E2F0;
 
   /* Semantic aliases (preferred names for new code) */
   --vm-primary: #2563EB;
   --vm-primary-d: #1D4ED8;
-  --vm-primary-soft: #EFF6FF;
+  --vm-primary-soft: #EEF4FF;
   --vm-accent: #14B8A6;
-  --vm-accent-soft: #CCFBF1;
-  --vm-success: #10B981;
-  --vm-warning: #F59E0B;
-  --vm-focus: #3B82F6;
+  --vm-accent-soft: #E3F8F4;
+  --vm-success: #12B76A;
+  --vm-warning: #F79009;
+  --vm-focus: #2E90FA;
 
-  /* Subtle, professional gradients (no candy) */
-  --vm-g-brand: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%);
+  /* Subtle, professional gradients (Aadml blueâ†’teal; no candy) */
+  --vm-g-brand: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
   --vm-g-cool: linear-gradient(135deg, #2563EB 0%, #14B8A6 100%);
-  --vm-g-warm: linear-gradient(135deg, #F8FAFC 0%, #EEF2FF 100%);
+  --vm-g-warm: linear-gradient(135deg, #F8FBFF 0%, #EEF4FF 100%);
   --vm-g-teal: linear-gradient(135deg, #14B8A6 0%, #2563EB 100%);
   --vm-g-multi: linear-gradient(135deg, #2563EB 0%, #1D4ED8 55%, #14B8A6 100%);
 
-  --vm-shadow-s: 0 2px 8px rgba(15, 23, 42, .06);
-  --vm-shadow-m: 0 8px 30px rgba(15, 23, 42, .10), 0 2px 8px rgba(15, 23, 42, .05);
-  --vm-shadow-l: 0 24px 60px rgba(37, 99, 235, .14), 0 8px 24px rgba(15, 23, 42, .10);
-  --vm-glow-v: 0 10px 30px rgba(37, 99, 235, .30);
-  --vm-glow-p: 0 10px 30px rgba(37, 99, 235, .22);
+  /* Very soft shadows (design.md: avoid heavy glow) */
+  --vm-shadow-s: 0 1px 2px rgba(15, 23, 42, .035);
+  --vm-shadow-m: 0 8px 22px rgba(15, 23, 42, .035);
+  --vm-shadow-l: 0 14px 34px rgba(15, 23, 42, .06);
+  --vm-glow-v: 0 8px 18px rgba(37, 99, 235, .18);
+  --vm-glow-p: 0 8px 18px rgba(37, 99, 235, .14);
 
   --vm-ease: cubic-bezier(.34, 1.56, .64, 1);   /* spring / overshoot */
   --vm-ease2: cubic-bezier(.4, 0, .2, 1);        /* smooth */
-  --vm-r: 18px;
-  --vm-r-l: 26px;
+  --vm-r: 10px;
+  --vm-r-l: 10px;
 
-  --vm-font-display: 'Bricolage Grotesque', system-ui, sans-serif;
-  --vm-font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  /* design.md typography: one primary font â€” Inter */
+  --vm-font-display: var(--font-sans);
+  --vm-font-sans: var(--font-sans);
+  --vm-font-mono: var(--font-mono);
 }
 
 /* ============================================================
-   DARK THEME (beta) — overrides the var-driven --vm-* tokens so every
+   DARK THEME (beta) â€” overrides the var-driven --vm-* tokens so every
    component built on them re-skins automatically. Same token NAMES, dark
-   values. Equal specificity to :root, declared after it → wins when
+   values. Equal specificity to :root, declared after it â†’ wins when
    <html data-theme="dark"> is set. (Brand/semantic accents read fine on
    dark, so only the neutral surface/text/border tokens are remapped.)
    ============================================================ */
@@ -275,7 +559,7 @@ body {
   --vm-shadow-l: 0 24px 60px rgba(0, 0, 0, .55), 0 8px 24px rgba(0, 0, 0, .4);
 }
 
-/* ---- Mesh keyframes (transform/opacity only — GPU cheap) ---- */
+/* ---- Mesh keyframes (transform/opacity only â€” GPU cheap) ---- */
 @keyframes vmDrift1 { 50% { transform: translate(8vw, 6vw) scale(1.15); } }
 @keyframes vmDrift2 { 50% { transform: translate(-7vw, 8vw) scale(1.1); } }
 @keyframes vmDrift3 { 50% { transform: translate(6vw, -7vw) scale(1.2); } }
@@ -302,7 +586,7 @@ body {
   animation: vmFlow 8s linear infinite;
 }
 
-/* Let's Code — inline diff decorations (Monaco renders outside scoped styles, so global). */
+/* Let's Code â€” inline diff decorations (Monaco renders outside scoped styles, so global). */
 .lc-add-line { background: rgba(34, 197, 94, .16); }
 .lc-add-gutter { background: #22c55e; width: 3px !important; margin-left: 3px; }
 
@@ -346,7 +630,7 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .vm-reveal { opacity: 1 !important; transform: none !important; }
 }
-/* ── Inline chat media (generated images/videos auto-embedded into responses) ──
+/* â”€â”€ Inline chat media (generated images/videos auto-embedded into responses) â”€â”€
    Shared sizing so generated/pasted media renders consistently in every chat UI. */
 .chat-media-img {
   max-width: 100%;
@@ -394,3 +678,76 @@ body {
 .chat-media-dl svg { width: 1rem; height: 1rem; stroke: #fff; fill: none; }
 .chat-media-wrap:hover .chat-media-dl { opacity: 1; }
 .chat-media-dl:hover { background: rgba(0, 0, 0, 0.78); }
+
+/* Dashboard theme audit layer.
+   Keeps older utility-heavy pages visually aligned with Getting Started,
+   Documentation, Tutorials, and Guided Tours without touching public pages. */
+.app-shell {
+  --tw-ring-color: rgba(37, 99, 235, .18);
+}
+.app-shell :where(.rounded-xl, .rounded-2xl) {
+  border-radius: 10px !important;
+}
+.app-shell :where(.shadow-lg, .shadow-xl, .shadow-2xl) {
+  box-shadow: var(--vm-shadow-l) !important;
+}
+.app-shell :where(.shadow-md, .shadow-sm) {
+  box-shadow: var(--vm-shadow-m) !important;
+}
+.app-shell :where(.border-gray-200, .border-slate-200, .border-\[\#E5E7EB\]) {
+  border-color: #dfe7f2 !important;
+}
+.app-shell :where(.bg-slate-50, .bg-slate-50\/40, .bg-slate-50\/60, .bg-gray-50) {
+  background-color: #f8fbff !important;
+}
+.app-shell :where(.text-violet-600, .text-violet-700, .text-indigo-600, .text-indigo-700) {
+  color: #2563eb !important;
+}
+.app-shell :where(.bg-violet-50, .bg-indigo-50) {
+  background-color: #eef4ff !important;
+}
+.app-shell :where(.hover\:bg-violet-100:hover, .hover\:bg-indigo-100:hover) {
+  background-color: #e3edff !important;
+}
+.app-shell :where(.hover\:border-violet-300:hover, .hover\:border-indigo-300:hover) {
+  border-color: #bcd0f7 !important;
+}
+.app-shell :where(.bg-violet-600, .bg-indigo-600) {
+  background-color: #2563eb !important;
+}
+.app-shell :where(.hover\:bg-violet-700:hover, .hover\:bg-indigo-700:hover) {
+  background-color: #1d4ed8 !important;
+}
+.app-shell :where(.bg-g-brand) {
+  background: #2563eb !important;
+}
+.app-shell :where(.bg-g-teal) {
+  background: #e3f8f4 !important;
+  color: #0f9f8a !important;
+}
+.app-shell :where(.shadow-glow-v, .shadow-glow-p) {
+  box-shadow: 0 8px 18px rgba(37, 99, 235, .18) !important;
+}
+
+/* Teleported modals/dropdowns and legacy authenticated views are outside
+   .app-shell; keep their common utility styling in the same visual family. */
+:where(.rounded-xl, .rounded-2xl):not(pre):not(code):not(canvas):not(video):not(img) {
+  border-radius: 10px !important;
+}
+:where(.shadow-lg, .shadow-xl, .shadow-2xl):not(pre):not(code):not(canvas):not(video):not(img) {
+  box-shadow: 0 14px 34px rgba(15, 23, 42, .08) !important;
+}
+:where(.bg-violet-600, .bg-indigo-600):not(pre):not(code),
+:where(.bg-purple-600):not(pre):not(code) {
+  background-color: #2563eb !important;
+}
+:where(.hover\:bg-violet-700:hover, .hover\:bg-indigo-700:hover, .hover\:bg-purple-700:hover) {
+  background-color: #1d4ed8 !important;
+}
+:where(.text-violet-600, .text-violet-700, .text-indigo-600, .text-indigo-700, .text-purple-600, .text-purple-700):not(pre):not(code) {
+  color: #2563eb !important;
+}
+:where(.bg-violet-50, .bg-indigo-50, .bg-purple-50):not(pre):not(code) {
+  background-color: #eef4ff !important;
+}
+

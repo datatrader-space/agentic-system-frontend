@@ -28,9 +28,31 @@ const LLMSettings = () => import('./views/LLMSettings.vue')
 const LLMDashboard = () => import('./views/LLMDashboard.vue')
 const LLMContextDashboard = () => import('./views/LLMContextDashboard.vue')
 const ConnectorsPage = () => import('./views/ConnectorsPage.vue')
+const ToolsPage = () => import('./views/ToolsPage.vue')
+const HelpCenter = () => import('./views/HelpCenter.vue')
+const DocumentationHome = () => import('./views/DocumentationHome.vue')
+const TutorialsLibrary = () => import('./views/TutorialsLibrary.vue')
+const TutorialDetail = () => import('./views/TutorialDetail.vue')
+const HelpArticle = () => import('./views/HelpArticle.vue')
+const LearningPaths = () => import('./views/LearningPaths.vue')
+const LearningPathDetail = () => import('./views/LearningPathDetail.vue')
+const DocsBrowser = () => import('./views/DocsBrowser.vue')
+const GuidedToursLibrary = () => import('./views/GuidedToursLibrary.vue')
+const GuidedTourDetail = () => import('./views/GuidedTourDetail.vue')
+const GuidedToursPage = () => import('./views/GuidedToursPage.vue')
+const SupportCenter = () => import('./views/SupportCenter.vue')
+const ApiReference = () => import('./views/ApiReference.vue')
+const GettingStarted = () => import('./views/GettingStarted.vue')
+const BudgetsPage = () => import('./views/BudgetsPage.vue')
+const OrganizationPage = () => import('./views/OrganizationPage.vue')
+const OrganizationModulePage = () => import('./views/OrganizationModulePage.vue')
+const ApprovalsPage = () => import('./views/ApprovalsPage.vue')
+const SchedulesPage = () => import('./views/SchedulesPage.vue')
 const AgentLibrary = () => import('./views/AgentLibrary.vue')
 const AgentPlayground = () => import('./views/AgentPlayground.vue')
+const AgentOverview = () => import('./views/AgentOverview.vue')
 const AgentBuilderCanvas = () => import('./views/AgentBuilderCanvas.vue')
+const AgentEditor = () => import('./views/AgentEditor.vue')
 const AgentMonitor = () => import('./views/AgentMonitor.vue')
 const LandingPage = () => import('./views/LandingPage.vue')
 const Features = () => import('./views/Features.vue')
@@ -60,6 +82,7 @@ const Billing = () => import('./views/Billing.vue')
 
 // v2 app shell + chat workspace + tabbed settings (also lazy)
 const AppShell = () => import('./components/app-shell/AppShell.vue')
+const HomeDashboard = () => import('./components/app-shell/HomeDashboard.vue')
 const ChatWorkspace = () => import('./components/chat/ChatWorkspace.vue')
 const SettingsLayout = () => import('./components/settings/SettingsLayout.vue')
 
@@ -176,7 +199,7 @@ const router = createRouter({
       component: AppShell,
       meta: { requiresAuth: true },
       children: [
-        { path: '', redirect: '/dashboard/chat/new' },
+        { path: '', name: 'dashboard-home', component: HomeDashboard },
         { path: 'chat/new', name: 'dashboard-chat-new', component: ChatWorkspace },
         { path: 'chat/:sessionId', name: 'dashboard-chat', component: ChatWorkspace },
         { path: 'lets-code', name: 'dashboard-lets-code', component: LetsCode },
@@ -184,20 +207,47 @@ const router = createRouter({
         // Legacy pages re-housed inside the shell so navigation never leaves it.
         // (The old top-level routes below remain for back-compat / deep links.)
         { path: 'agents', name: 'dashboard-agents', component: AgentLibrary },
-        { path: 'agents/new', name: 'dashboard-agent-new', component: AgentBuilderCanvas },
-        { path: 'agents/:id/configure', name: 'dashboard-agent-configure', component: AgentBuilderCanvas },
+        { path: 'agents/new', name: 'dashboard-agent-new', component: AgentEditor },
+        { path: 'agents/:id/editor', name: 'dashboard-agent-editor', component: AgentEditor },
+        { path: 'agents/:id/configure', redirect: to => `/dashboard/agents/${to.params.id}/editor` },
+        { path: 'agents/:id/advanced', name: 'dashboard-agent-advanced', component: AgentBuilderCanvas },
         { path: 'agents/:id/monitor', name: 'dashboard-agent-monitor', component: AgentMonitor },
-        { path: 'agents/:id', name: 'dashboard-agent-playground', component: AgentPlayground },
-        // Retired pages — the global Tools page was removed; Services / MCP / Workspaces fold into Connectors.
-        { path: 'tools', name: 'dashboard-tools', redirect: '/dashboard' },
+        { path: 'agents/:id/playground', name: 'dashboard-agent-playground', component: AgentPlayground },
+        { path: 'agents/:id', name: 'dashboard-agent-overview', component: AgentOverview },
+        // Tools library (Screen 24) — revived standalone page; Services / MCP / Workspaces still fold into Connectors.
+        { path: 'tools', name: 'dashboard-tools', component: ToolsPage },
         { path: 'services', name: 'dashboard-services', redirect: '/dashboard/connectors' },
         { path: 'mcp', name: 'dashboard-mcp', redirect: '/dashboard/connectors' },
         { path: 'connectors', name: 'dashboard-connectors', component: ConnectorsPage },
+        { path: 'integration-hub', redirect: '/dashboard/connectors' },
         // Workflow Builder (NEW node-canvas system — lazy-loaded; separate from old /workflows feature)
         { path: 'workflow-builder', name: 'dashboard-workflow-builder', component: () => import('./views/WorkflowsList.vue') },
         { path: 'workflow-builder/:id', name: 'dashboard-workflow-canvas', component: () => import('./views/WorkflowBuilder.vue') },
+        { path: 'schedules', name: 'dashboard-schedules', component: SchedulesPage },
         { path: 'workspaces', name: 'dashboard-workspaces', redirect: '/dashboard/connectors' },
+        { path: 'budgets', name: 'dashboard-budgets', component: BudgetsPage },
+        { path: 'organization', name: 'dashboard-organization', component: OrganizationPage },
+        { path: 'organization/:module', name: 'dashboard-organization-module', component: OrganizationModulePage },
+        { path: 'approvals', name: 'dashboard-approvals', component: ApprovalsPage },
         { path: 'activity', name: 'dashboard-activity', component: LLMDashboard },
+        { path: 'help-center', name: 'dashboard-help-center', component: HelpCenter },
+        { path: 'help-center/get-started', name: 'dashboard-help-get-started', component: GettingStarted },
+        { path: 'help-center/documentation', name: 'dashboard-help-documentation', redirect: '/dashboard/help-center/docs' },
+        { path: 'help-center/api-reference', name: 'dashboard-help-api-reference', component: ApiReference },
+        { path: 'help-center/tutorials', name: 'dashboard-help-tutorials', component: TutorialsLibrary },
+        { path: 'help-center/tutorials/:slug', name: 'dashboard-help-tutorial-detail', component: TutorialDetail },
+        { path: 'help-center/article/:slug', name: 'dashboard-help-article', component: HelpArticle },
+        { path: 'help-center/learning-paths', name: 'dashboard-help-learning-paths', component: LearningPaths },
+        { path: 'help-center/learning-paths/:slug', name: 'dashboard-help-learning-path', component: LearningPathDetail },
+        { path: 'help-center/docs', name: 'dashboard-help-docs', component: DocsBrowser },
+        { path: 'help-center/docs/:productArea', name: 'dashboard-help-docs-area', component: DocsBrowser },
+        { path: 'help-center/guided-tours', name: 'dashboard-help-guided-tours', component: GuidedToursLibrary },
+        { path: 'help-center/guided-tours/:slug', name: 'dashboard-help-guided-tour', component: GuidedTourDetail },
+        { path: 'help-center/support', name: 'dashboard-help-support', component: SupportCenter },
+        { path: 'documentation', name: 'dashboard-documentation', redirect: '/dashboard/help-center/docs' },
+        { path: 'tutorials', name: 'dashboard-tutorials', redirect: '/dashboard/help-center/tutorials' },
+        { path: 'guided-tours', name: 'dashboard-guided-tours', redirect: '/dashboard/help-center/guided-tours' },
+        { path: 'get-started', name: 'dashboard-get-started', redirect: '/dashboard/help-center/get-started' },
         { path: 'llm-context', name: 'dashboard-llm-context', redirect: '/admin-dashboard/llm-context' },
         { path: 'llm-settings', name: 'dashboard-llm-settings', component: LLMSettings },
         // Phase 5: previously top-level authed pages, re-housed inside the single shell.
@@ -234,6 +284,8 @@ const router = createRouter({
         { path: 'model-pricing', name: 'admin-model-pricing', component: ModelPricingPage },
         { path: 'llm-context', name: 'admin-llm-context', component: LLMContextDashboard },
         { path: 'crawler-export', name: 'admin-crawler-export', component: CrawlerExportAPI },
+        { path: 'api-reference', name: 'admin-api-reference', component: () => import('./views/admin/AdminApiReference.vue') },
+        { path: 'help-analytics', name: 'admin-help-analytics', component: () => import('./views/admin/AdminHelpAnalytics.vue') },
       ],
     },
     // ── Phase 5: legacy top-level authed paths now REDIRECT into the single shell.
@@ -277,7 +329,7 @@ router.beforeEach(async (to, from, next) => {
       try {
         const response = await api.checkAuth()
         if (response.data.authenticated) {
-          return next(to.name === 'landing' ? '/dashboard/chat/new' : '/dashboard')
+          return next('/dashboard')
         }
       } catch (error) {
         // Not authenticated, allow access to the public/login page

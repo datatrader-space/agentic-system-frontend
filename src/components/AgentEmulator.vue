@@ -401,7 +401,11 @@ function wsUrl() {
   // Same-origin (dev: Vite proxies /ws -> backend). Session cookie authenticates;
   // agentId pins the agent server-side.
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${scheme}://${window.location.host}/ws/chat/repository/0/`
+  // General agent chat (no repository) → dedicated /ws/chat/agent/ route. ?surface=builder opts THIS
+  // surface (the agent-builder emulator/debug view) into the 'builder' stream tier — raw tool names +
+  // args previews. The owner-facing New Chat omits it and gets the 'user' tier (friendly labels). Server
+  // still verifies the user is the authenticated owner before honoring the marker.
+  return `${scheme}://${window.location.host}/ws/chat/agent/?surface=builder`
 }
 
 function closeSocket() {
@@ -414,8 +418,16 @@ function closeSocket() {
 
 function connect() {
   if (!props.agentId) return
+  // Replacing an existing socket (e.g. Restart): DETACH its handlers before closing so its onclose can't
+  // fire scheduleReconnect() — otherwise replacing a socket kicks off a 1s reconnect storm.
+  if (ws.value) {
+    const old = ws.value
+    ws.value = null
+    try { old.onopen = old.onclose = old.onerror = old.onmessage = null; old.close() } catch (e) { /* noop */ }
+  }
+  // Cancel any pending reconnect from a prior drop — this connect supersedes it.
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
   intentionalClose = false
-  if (ws.value) { try { ws.value.close() } catch (e) { /* noop */ } ws.value = null }
   try {
     const sock = new WebSocket(wsUrl())
     ws.value = sock

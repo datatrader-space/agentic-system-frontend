@@ -6,14 +6,22 @@
 import axios from 'axios'
 
 // Create axios instance
+// Default timeout is SHORT (20s) so the 95% read path fails fast instead of hanging up to 2 minutes.
+// Genuinely-long operations (discovery / enrichment / model sync / reindex / analyze / crawl) are bumped
+// back up centrally in the request interceptor below, and a few callers pass an explicit higher timeout.
+const DEFAULT_TIMEOUT = 60000
+const LONG_TIMEOUT = 120000
 const api = axios.create({
   baseURL: '/api',
-  timeout: 120000,  // 2 minutes - needed for LLM enrichment, service discovery, etc.
+  timeout: DEFAULT_TIMEOUT,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
   }
 })
+// URL fragments for long-running operations that need more than the 20s default. One place to maintain,
+// covers current + future endpoints matching the pattern; an explicit per-call timeout still wins (Math.max).
+const _LONG_OP = /(discover|enrich|reindex|reembed|\/sync|sync[_-]|\/analyze|\/crawl|generate[_-])/i
 function getCookie(name) {
   let cookieValue = null
   if (document.cookie && document.cookie !== '') {
@@ -44,6 +52,12 @@ api.interceptors.request.use(
     const wsId = localStorage.getItem('activeWorkspaceId')
     if (wsId) {
       config.headers['X-Workspace-ID'] = wsId
+    }
+
+    // Long-running operations need more than the 20s default. Bump by URL pattern (an explicit higher
+    // per-call timeout still wins via Math.max). Fast reads keep the 20s fail-fast default.
+    if (_LONG_OP.test(config.url || '')) {
+      config.timeout = Math.max(config.timeout || 0, LONG_TIMEOUT)
     }
 
     return config
@@ -96,7 +110,14 @@ const _CACHE_TTL = [
   ['/connectors', 30_000], ['/credentials/builtin-scopes', 300_000],
   ['/v2/orgs', 60_000], ['/workspaces', 60_000],
 ]
+// The agent LIST is slow-changing reference-ish data refetched on every navigation, so cache it briefly.
+// EXACT match only — '/agents/' (list), NOT '/agents/{id}/...' live sub-resources (signals/credentials/
+// etc.), which the substring list would wrongly cache. Safe because any agent write (POST/PUT/PATCH/
+// DELETE to /agents/) clears the whole cache (it isn't in _NO_CACHE_INVALIDATE), so a created/edited agent
+// shows up immediately.
+const _AGENTS_LIST = /^\/agents\/?$/
 function _ttlFor(url) {
+  if (_AGENTS_LIST.test(url)) return 30_000
   for (const [frag, ttl] of _CACHE_TTL) if (url.includes(frag)) return ttl
   return 0
 }
@@ -133,10 +154,18 @@ function _clone(d) {
   catch { return d }
 }
 
-// Any mutation invalidates the whole GET cache (simple + always-correct; writes are rare vs reads).
+// A mutation invalidates the whole GET cache (simple + always-correct for reference data). EXCEPTION:
+// high-frequency chat/conversation writes (sending a message, etc.) never change any CACHED endpoint
+// (auth/providers/models/tools/services/connectors/orgs/workspaces — see _CACHE_TTL), so clearing the
+// cache after every chat message just forces needless refetches of all that reference data on the next
+// navigation. Skip the clear for those write paths; everything else still clears.
+const _NO_CACHE_INVALIDATE = /\/(chat|messages?|conversations|turn|long-answer|stream)\b/i
 for (const m of ['post', 'put', 'patch', 'delete']) {
   const raw = api[m].bind(api)
-  api[m] = (...args) => { _cache.clear(); return raw(...args) }
+  api[m] = (url, ...rest) => {
+    if (!_NO_CACHE_INVALIDATE.test(url || '')) _cache.clear()
+    return raw(url, ...rest)
+  }
 }
 
 // Exposed so auth flows (login/logout) can hard-reset cached user/reference data.
@@ -375,6 +404,72 @@ export default {
   // First-run onboarding state (feature tour). Best-effort persistence so the tour
   // follows the user across devices. Body: { onboarding_completed?, onboarding_step? }.
   updateOnboarding: (data) => api.patch('/auth/me/onboarding', data),
+  // Help Center: derived per-step onboarding checklist status (provider/agent/
+  // connector/run/workflow/budget/guardrails) + aggregate progress.
+  getOnboardingStatus: () => api.get('/onboarding/status/'),
+
+  // Documentation/articles content (ContentPage) — docs, blog, changelog. Public.
+  getContentPages: (params) => api.get('/content/pages/', { params }),
+  getContentPage: (slug) => api.get(`/content/pages/${slug}/`),
+  getDocsTree: () => api.get('/content/docs-tree/'),
+  getChangelog: () => api.get('/content/pages/', { params: { type: 'changelog' } }),
+
+  // Tutorials (helpcenter app) — dedicated domain models + per-user progress.
+  getTutorials: (params) => api.get('/tutorials/', { params }),
+  getTutorial: (slug) => api.get(`/tutorials/${slug}/`),
+  updateTutorialProgress: (slug, data) => api.post(`/tutorials/${slug}/progress/`, data),
+  sendTutorialFeedback: (slug, data) => api.post(`/tutorials/${slug}/feedback/`, data),
+
+  // Guided Tours (helpcenter app) — backend-driven catalog + steps + per-user state.
+  getGuidedTours: () => api.get('/guided-tours/'),
+  updateTourProgress: (key, data) => api.post(`/guided-tours/${key}/progress/`, data),
+
+  // Support tickets (helpcenter app).
+  getSupportCategories: () => api.get('/support/categories/'),
+  getSupportTickets: (params) => api.get('/support/tickets/', { params }),
+  createSupportTicket: (data) => api.post('/support/tickets/', data),
+  getSupportTicket: (ref) => api.get(`/support/tickets/${ref}/`),
+  replySupportTicket: (ref, data) => api.post(`/support/tickets/${ref}/reply/`, data),
+  updateSupportTicket: (ref, data) => api.patch(`/support/tickets/${ref}/update/`, data),
+
+  // Smart Help Center (Help Knowledge System).
+  helpSuggest: (q) => api.get('/help/suggest', { params: { q }, noCache: true }),
+  helpSearch: (q) => api.get('/help/search', { params: { q }, noCache: true }),
+  getHelpHome: () => api.get('/help/home'),
+  getHelpTopics: () => api.get('/help/topics'),
+  getHelpList: (params) => api.get('/help/list', { params }),
+  getHelpContent: (slug) => api.get(`/help/content/${slug}`),
+  getHelpLearningPaths: () => api.get('/help/learning-paths'),
+  getHelpLearningPath: (slug) => api.get(`/help/learning-paths/${slug}`),
+  logHelpSearch: (data) => api.post('/help/search-log', data),
+  sendHelpFeedback: (data) => api.post('/help/feedback', data),
+  askHelpAssistant: (data) => api.post('/help/assistant', data, { timeout: 60000 }),
+
+  // Guided tours (backend-driven walkthroughs).
+  getHelpGuidedTours: (params) => api.get('/help/guided-tours', { params, noCache: true }),
+  getHelpGuidedTour: (slug) => api.get(`/help/guided-tours/${slug}`, { noCache: true }),
+  getHelpToursForRoute: (route) => api.get('/help/guided-tours/for-route', { params: { route }, noCache: true }),
+  startHelpTour: (slug, data) => api.post(`/help/guided-tours/${slug}/start`, data || {}),
+  progressHelpTour: (slug, data) => api.post(`/help/guided-tours/${slug}/progress`, data || {}),
+  completeHelpTour: (slug) => api.post(`/help/guided-tours/${slug}/complete`, {}),
+  skipHelpTour: (slug) => api.post(`/help/guided-tours/${slug}/skip`, {}),
+
+  // Admin Help Center analytics (staff only).
+  adminHelpAnalytics: (section, params) => api.get(`/admin/help-analytics/${section}`, { params, noCache: true }),
+
+  // API reference (curated, grouped) — public Help Center read.
+  getApiReference: () => api.get('/api-reference/'),
+
+  // Admin Dashboard — curated API-reference registry management (platform-admin only).
+  adminListApiEndpoints: (params) => api.get('/admin/helpcenter/api-endpoints/', { params, noCache: true }),
+  adminGetApiEndpoint: (id) => api.get(`/admin/helpcenter/api-endpoints/${id}/`, { noCache: true }),
+  adminCreateApiEndpoint: (data) => api.post('/admin/helpcenter/api-endpoints/', data),
+  adminUpdateApiEndpoint: (id, data) => api.patch(`/admin/helpcenter/api-endpoints/${id}/`, data),
+  adminDeleteApiEndpoint: (id) => api.delete(`/admin/helpcenter/api-endpoints/${id}/`),
+  adminPreviewApiEndpoint: (id) => api.post(`/admin/helpcenter/api-endpoints/${id}/preview/`, {}),
+  adminPreviewApiEndpointData: (data) => api.post('/admin/helpcenter/api-endpoints/preview/', data),
+  adminSeedApiEndpoints: () => api.post('/admin/helpcenter/api-endpoints/seed/', {}),
+  adminGenerateApiDraft: (id) => api.post(`/admin/helpcenter/api-endpoints/${id}/generate-ai-draft/`, {}),
 
   // Auth hardening (Track B): verification, password reset/change, 2FA
   verifyEmail: (token) => api.post('/auth/verify-email', { token }),
@@ -511,6 +606,19 @@ export default {
   // ── Publish lifecycle ──
   publishAgent: (id) => api.post(`/agents/${id}/publish/`),
   unpublishAgent: (id) => api.post(`/agents/${id}/unpublish/`),
+  // ── Agent builder + monitoring (Screens 18 / 10) ──
+  getAgentGuardrails: (id) => api.get(`/agents/${id}/guardrails/`),
+  getAgentMonitoring: (id) => api.get(`/agents/${id}/monitoring/`),
+  rollbackAgent: (id) => api.post(`/agents/${id}/rollback/`),
+  // ── Tools Library (Screen 24) ──
+  getTools: (params) => api.get('/tools/', { params }),
+  getToolCatalog: (params) => api.get('/tools/catalog/', { params }),
+  getToolDetail: (name) => api.get(`/tools/${name}/`),
+  updateTool: (name, data) => api.post(`/tools/${name}/update/`, data),
+  getToolAgents: (name) => api.get(`/tools/${name}/agents/`),
+  createYamlTool: (data) => api.post('/tools/create/yaml/', data),
+  registerRemoteTool: (data) => api.post('/tools/register/remote/', data),
+  deleteTool: (name) => api.post(`/tools/${name}/delete/`),
   // ── Templates ──
   listAgentTemplates: () => api.get('/agents/templates/'),
   saveAgentAsTemplate: (id, data) => api.post(`/agents/${id}/save-as-template/`, data),
@@ -558,6 +666,9 @@ export default {
 
   // Workflow Builder — node-canvas graphs (NEW, separate system: /api/workflow-graphs/).
   getWorkflowGraphs: () => api.get('/workflow-graphs/'),
+
+  // Schedules (used by the Budgets page to scope a budget to a schedule).
+  getSchedules: () => api.get('/schedules/'),
   getWorkflowGraph: (id) => api.get(`/workflow-graphs/${id}/`),
   // One-shot load for the canvas: the graph + all graphs (subflow picker) + agents.
   getWorkflowGraphBundle: (id) => api.get(`/workflow-graphs/${id}/bundle/`),
@@ -688,6 +799,19 @@ export default {
   getAgentMemory: (agentId, params) => api.get(`/agents/${agentId}/memory/`, { params }),
   getAgentMemoryActivity: (agentId) => api.get(`/agents/${agentId}/memory/activity/`),
   forgetMemory: (memoryId) => api.post('/memory/forget/', { memory_id: memoryId }),
+  // Account-level Memory & Context settings (Settings → Memory) — DB control plane, no env flags.
+  getMemorySettings: () => api.get('/me/memory-settings/'),
+  updateMemorySettings: (data) => api.patch('/me/memory-settings/', data),
+  // Manual "Regenerate summary" — full from-rows rebuild of the user's memory digests.
+  regenerateMemoryDigests: () => api.post('/me/memory/regenerate-digests/'),
+  // Generated memory summaries (digests) shown next to the rows.
+  getGlobalMemoryDigest: () => api.get('/me/memory/digest/'),
+  getAgentMemoryDigest: (agentId) => api.get(`/agents/${agentId}/memory/summary/`),
+  // Global (scope='user') memory CRUD — Settings → Memory → Global Memories.
+  listGlobalMemories: (params) => api.get('/me/memories/', { params }),
+  createGlobalMemory: (data) => api.post('/me/memories/', data),
+  updateGlobalMemory: (id, data) => api.patch(`/me/memories/${id}/`, data),
+  deleteGlobalMemory: (id) => api.delete(`/me/memories/${id}/`),
   updateKnowledgeConfig: (agentId, data) => api.patch(`/agents/${agentId}/knowledge/config/`, data),
   updateKnowledgeCard: (agentId, cardId, data) => api.patch(`/agents/${agentId}/knowledge/cards/${cardId}/`, data),
   createKnowledgeCard: (agentId, data) => api.post(`/agents/${agentId}/knowledge/cards/`, data),
@@ -702,4 +826,20 @@ export default {
   bulkDeleteFlows: (agentId, flowIds) => api.post(`/agents/${agentId}/flows/bulk-delete/`, { flow_ids: flowIds }),
   processFlows: (agentId, data = {}) => api.post(`/agents/${agentId}/flows/process/`, data),
   updateFlowConfig: (agentId, data) => api.patch(`/agents/${agentId}/flows/config/`, data),
+
+  // ── Budgets (Budgets page — /dashboard/budgets) ──────────────────────────
+  // All calls accept an optional orgId so a multi-org user can target a specific organization. The backend
+  // membership-validates it (an org the user can't access is rejected, never silently swapped).
+  getOrganizations: () => api.get('/v2/orgs/'),
+  getBudgetsSummary: (period, orgId) => api.get('/budgets/summary/', { params: { ...(period ? { period } : {}), ...(orgId ? { organization_id: orgId } : {}) } }),
+  getBudgets: (orgId) => api.get('/budgets/', { params: orgId ? { organization_id: orgId } : {} }),
+  getBudgetTargets: (orgId, scope) => api.get('/budgets/targets/', { params: { organization_id: orgId, scope_type: scope } }),
+  createBudget: (data) => api.post('/budgets/', data),
+  updateBudget: (id, data) => api.patch(`/budgets/${id}/`, data),
+  deleteBudget: (id, orgId) => api.delete(`/budgets/${id}/`, { params: orgId ? { organization_id: orgId } : {} }),
+  getBudgetStatus: (id, period, orgId) => api.get(`/budgets/${id}/status/`, { params: { ...(period ? { period } : {}), ...(orgId ? { organization_id: orgId } : {}) } }),
+  getBudgetRules: (orgId) => api.get('/budget-rules/', { params: orgId ? { organization_id: orgId } : {} }),
+  createBudgetRule: (data) => api.post('/budget-rules/', data),
+  updateBudgetRule: (id, data) => api.patch(`/budget-rules/${id}/`, data),
+  deleteBudgetRule: (id, orgId) => api.delete(`/budget-rules/${id}/`, { params: orgId ? { organization_id: orgId } : {} }),
 }

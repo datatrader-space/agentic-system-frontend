@@ -58,6 +58,10 @@ export default {
     updateWorkspace: (wsId, data) => tenancyApi.patch(`/workspaces/${wsId}/`, data),
     deleteWorkspace: (wsId) => tenancyApi.delete(`/workspaces/${wsId}/`),
 
+    // ── Org Dashboard aggregates ───────────────────────────────────────────────
+    getOrgOverview: (orgSlug) => tenancyApi.get(`/orgs/${orgSlug}/overview/`),
+    getOrgActivity: (orgSlug, params = {}) => tenancyApi.get(`/orgs/${orgSlug}/activity/`, { params }),
+
     // ── Org Members ────────────────────────────────────────────────────────────
     getOrgMembers: (orgSlug) => tenancyApi.get(`/orgs/${orgSlug}/members/`),
     inviteOrgMember: (orgSlug, data) => tenancyApi.post(`/orgs/${orgSlug}/members/`, data),

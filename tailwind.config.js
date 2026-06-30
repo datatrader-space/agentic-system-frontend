@@ -1,7 +1,7 @@
-/** @type {import('tailwindcss').Config} */
+﻿/** @type {import('tailwindcss').Config} */
 // ============================================================
-//  Agentic — "Vibrant Light Mesh" design system (APPROVED)
-//  Single source of truth for the new UI. See REDESIGN_PLAN.md §2.
+//  Aadml â€” "Vibrant Light Mesh" design system (APPROVED)
+//  Single source of truth for the new UI. See REDESIGN_PLAN.md Â§2.
 //  Light theme only. Tokens are mirrored as CSS variables in style.css
 //  so plain CSS / scoped <style> blocks can use var(--token) too.
 // ============================================================
@@ -21,10 +21,10 @@ export default {
         },
         surface: { DEFAULT: "#FFFFFF", soft: "#F1F5F9" },
         // Brand blue is kept under the legacy "violet" name so existing utility
-        // classes (bg-violet, text-violet-d, …) re-skin to blue automatically.
+        // classes (bg-violet, text-violet-d, â€¦) re-skin to blue automatically.
         violet: { DEFAULT: "#2563EB", d: "#1D4ED8", soft: "#EFF6FF" },
         primary: { DEFAULT: "#2563EB", d: "#1D4ED8", soft: "#EFF6FF" },
-        pink: { DEFAULT: "#1E40AF" },          // candy pink → deep navy
+        pink: { DEFAULT: "#1E40AF" },          // candy pink â†’ deep navy
         amber: { DEFAULT: "#F59E0B" },         // warning only
         teal: { DEFAULT: "#14B8A6" },          // accent
         accent: { DEFAULT: "#14B8A6", soft: "#CCFBF1" },
@@ -100,3 +100,4 @@ export default {
   },
   plugins: [],
 }
+

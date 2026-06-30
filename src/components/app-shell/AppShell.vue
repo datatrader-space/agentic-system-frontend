@@ -1,17 +1,17 @@
-<template>
+﻿<template>
   <div class="app-shell">
     <!-- Global animated color-mesh canvas (Vibrant Light Mesh) -->
     <MeshBackground />
 
-    <!-- Left sidebar — inline on desktop (≥1024px) -->
+    <!-- Left sidebar â€” inline on desktop (â‰¥1024px) -->
     <LeftSidebar class="sidebar-desktop" />
 
-    <!-- Left sidebar — slide-out drawer on mobile/tablet (<1024px) -->
+    <!-- Left sidebar â€” slide-out drawer on mobile/tablet (<1024px) -->
     <MobileSidebarDrawer />
 
     <!-- Center column -->
     <div class="center-col">
-      <!-- Compact top bar — only below xl (<1280px), since the global header is hidden here -->
+      <!-- Compact top bar â€” only below xl (<1280px), since the global header is hidden here -->
       <div class="compact-bar">
         <button class="bar-btn nav-toggle" title="Menu" aria-label="Open navigation menu" @click="layout.openMobileNav()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" /></svg>
@@ -20,7 +20,7 @@
           <span class="bar-mark">
             <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" /></svg>
           </span>
-          <span class="bar-title">Agentic<span class="bar-v">v2</span></span>
+          <span class="bar-title">Aadml<span class="bar-v">v2</span></span>
         </div>
         <button class="bar-btn" title="Search (Ctrl/Cmd+K)" aria-label="Open command palette" @click="paletteOpen = true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4-4" stroke-linecap="round" /></svg>
@@ -30,7 +30,34 @@
       <main class="center-main">
         <router-view v-slot="{ Component }">
           <transition name="vm-page" mode="out-in">
-            <component :is="Component" />
+            <Suspense>
+              <component :is="Component" :key="route.fullPath" />
+              <template #fallback>
+                <div class="route-loading">
+                  <div class="route-skeleton__toolbar">
+                    <span class="vm-skel route-skeleton__search"></span>
+                    <span class="vm-skel route-skeleton__filter"></span>
+                    <span class="vm-skel route-skeleton__filter short"></span>
+                  </div>
+                  <div class="route-skeleton__grid">
+                    <article v-for="item in 6" :key="item" class="route-skeleton__card">
+                      <div class="route-skeleton__top">
+                        <span class="vm-skel route-skeleton__avatar"></span>
+                        <span class="vm-skel route-skeleton__pill"></span>
+                      </div>
+                      <span class="vm-skel route-skeleton__line title"></span>
+                      <span class="vm-skel route-skeleton__line"></span>
+                      <span class="vm-skel route-skeleton__line wide"></span>
+                      <span class="vm-skel route-skeleton__line mid"></span>
+                      <div class="route-skeleton__foot">
+                        <span class="vm-skel"></span>
+                        <span class="vm-skel"></span>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+              </template>
+            </Suspense>
           </transition>
         </router-view>
       </main>
@@ -41,6 +68,9 @@
 
     <!-- First-run onboarding: welcome modal + feature spotlight tour -->
     <FeatureTour />
+
+    <!-- Help Center backend-driven guided tours (runs on any product page) -->
+    <GuidedTourOverlay />
   </div>
 </template>
 
@@ -54,13 +84,14 @@ import MobileSidebarDrawer from './MobileSidebarDrawer.vue'
 import MeshBackground from './MeshBackground.vue'
 import CommandPalette from './CommandPalette.vue'
 import FeatureTour from '../onboarding/FeatureTour.vue'
+import GuidedTourOverlay from '../help/GuidedTourOverlay.vue'
 
 const layout = useLayoutStore()
 const chat = useChatStore()
 const route = useRoute()
 const router = useRouter()
 
-// Command palette (Cmd/Ctrl+K) — power-up #2
+// Command palette (Cmd/Ctrl+K) â€” power-up #2
 const paletteOpen = ref(false)
 
 // Close transient overlays whenever the route changes.
@@ -108,7 +139,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   font-family: var(--vm-font-sans);
 }
 
-/* Center column — min-width:0 is critical to prevent horizontal overflow.
+/* Center column â€” min-width:0 is critical to prevent horizontal overflow.
    position/z-index lift it above the decorative MeshBackground (z-index:-1). */
 .center-col {
   position: relative;
@@ -122,6 +153,98 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  background: var(--vm-bg);
+}
+.route-loading {
+  width: 100%;
+  min-height: 320px;
+  padding: 32px;
+}
+.route-skeleton__toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.route-skeleton__search {
+  width: min(420px, 52%);
+  height: 40px;
+  border-radius: 9px;
+}
+.route-skeleton__filter {
+  width: 140px;
+  height: 40px;
+  border-radius: 9px;
+}
+.route-skeleton__filter.short {
+  width: 110px;
+}
+.route-skeleton__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+.route-skeleton__card {
+  min-height: 238px;
+  border: 1px solid #dfe7f2;
+  border-radius: 10px;
+  background: #fff;
+  padding: 22px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .035);
+}
+.route-skeleton__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.route-skeleton__avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+}
+.route-skeleton__pill {
+  width: 54px;
+  height: 22px;
+  border-radius: 999px;
+}
+.route-skeleton__line {
+  display: block;
+  width: 78%;
+  height: 13px;
+  margin-top: 12px;
+}
+.route-skeleton__line.title {
+  width: 56%;
+  height: 18px;
+  margin-top: 18px;
+}
+.route-skeleton__line.wide {
+  width: 100%;
+}
+.route-skeleton__line.mid {
+  width: 88%;
+  margin-top: 8px;
+}
+.route-skeleton__foot {
+  display: flex;
+  gap: 9px;
+  margin-top: 20px;
+}
+.route-skeleton__foot span {
+  flex: 1;
+  height: 38px;
+}
+@media (max-width: 680px) {
+  .route-loading {
+    padding: 22px 16px;
+  }
+  .route-skeleton__toolbar {
+    flex-direction: column;
+  }
+  .route-skeleton__search,
+  .route-skeleton__filter,
+  .route-skeleton__filter.short {
+    width: 100%;
+  }
 }
 
 /* Sidebar visibility by breakpoint */
@@ -136,7 +259,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   .right-desktop { display: flex; }
 }
 
-/* Compact top bar — shown below xl only */
+/* Compact top bar â€” shown below xl only */
 .compact-bar {
   display: flex;
   align-items: center;
@@ -226,3 +349,4 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 .sheet-enter-from .right-sheet,
 .sheet-leave-to .right-sheet { transform: translateX(100%); }
 </style>
+
