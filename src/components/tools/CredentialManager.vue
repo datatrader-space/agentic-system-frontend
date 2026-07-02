@@ -638,7 +638,13 @@ export default {
     }
 
     const deleteCredential = async (credential) => {
-      if (await confirm({ title: 'Delete credential?', message: `Delete credential "${credential.credential_name}"?`, confirmText: 'Delete', danger: true })) {
+      // Agent-attached credentials (shown with a 🤖 <agent> badge) are detached
+      // from the agent and then deleted — warn the user of that impact first.
+      const attachedAgent = !credential.is_global ? credential.agent_profile_name : null
+      const message = attachedAgent
+        ? `"${credential.credential_name}" is attached to ${attachedAgent} — it will be detached from that agent and permanently deleted. Continue?`
+        : `Delete credential "${credential.credential_name}"?`
+      if (await confirm({ title: 'Delete credential?', message, confirmText: 'Delete', danger: true })) {
         try {
           if (credential.is_global || isGlobalMode.value) {
             await credentialsApi.deleteGlobal(credential.id)

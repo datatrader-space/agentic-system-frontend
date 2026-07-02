@@ -32,18 +32,32 @@
       </div>
 
       <div v-for="(m, i) in messages" :key="i" class="flex" :class="m.role === 'user' ? 'justify-end' : 'justify-start'">
+        <!-- user: plain text -->
         <div
-          class="max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed"
-          :class="m.role === 'user'
-            ? 'bg-[#2563EB] text-white'
-            : (m.error ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-[#0F172A]')"
+          v-if="m.role === 'user'"
+          class="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-[#2563EB] px-3.5 py-2 text-[13px] leading-relaxed text-white"
         >{{ m.content }}</div>
+        <!-- assistant: rendered markdown -->
+        <div
+          v-else
+          class="qt-md max-w-[85%] rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed"
+          :class="m.error ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-[#0F172A]'"
+          v-html="render(m.content)"
+        />
       </div>
 
       <!-- streaming bubble -->
       <div v-if="streaming" class="flex justify-start">
-        <div class="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-slate-100 px-3.5 py-2 text-[13px] leading-relaxed text-[#0F172A]">
-          {{ streamBuf || '…' }}<span class="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse bg-slate-400 align-middle" />
+        <div class="qt-md max-w-[85%] rounded-2xl bg-slate-100 px-3.5 py-2 text-[13px] leading-relaxed text-[#0F172A]">
+          <!-- typing indicator until the first chunk lands, then streamed markdown -->
+          <span v-if="!streamBuf" class="flex items-center gap-1 py-0.5">
+            <span class="qt-dot" />
+            <span class="qt-dot" style="animation-delay:0.15s" />
+            <span class="qt-dot" style="animation-delay:0.3s" />
+          </span>
+          <template v-else>
+            <span v-html="render(streamBuf)" /><span class="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse bg-slate-400 align-middle" />
+          </template>
         </div>
       </div>
     </div>
@@ -81,7 +95,14 @@
 <script setup>
 import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { FlaskConical, Send, Square } from 'lucide-vue-next'
+import { marked } from 'marked'
+import { enhanceChatMedia } from '../../utils/chatMedia'
 import { ChatConnection } from '../../services/chatService'
+
+marked.setOptions({ breaks: true, gfm: true })
+function render(text) {
+  return enhanceChatMedia(marked.parse(text || ''))
+}
 
 const props = defineProps({
   agentId: { type: [String, Number], required: true },
@@ -199,3 +220,85 @@ function clearChat() {
 onMounted(ensureConn)
 onBeforeUnmount(() => { try { conn?.close() } catch (e) { /* noop */ } })
 </script>
+
+<style scoped>
+/* Typing indicator dots */
+.qt-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #94a3b8;
+  animation: qt-bounce 1.2s infinite ease-in-out;
+}
+@keyframes qt-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* Rendered markdown inside assistant bubbles */
+.qt-md :deep(p) { margin: 0 0 8px; }
+.qt-md :deep(p:last-child) { margin-bottom: 0; }
+.qt-md :deep(ul),
+.qt-md :deep(ol) { margin: 0 0 8px; padding-left: 20px; }
+.qt-md :deep(li) { margin: 2px 0; }
+.qt-md :deep(h1),
+.qt-md :deep(h2),
+.qt-md :deep(h3) { font-weight: 600; margin: 6px 0 6px; line-height: 1.3; }
+.qt-md :deep(h1) { font-size: 1.15em; }
+.qt-md :deep(h2) { font-size: 1.08em; }
+.qt-md :deep(h3) { font-size: 1em; }
+.qt-md :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  background: rgba(15, 23, 42, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.qt-md :deep(pre) {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  overflow-x: auto;
+  margin: 0 0 8px;
+}
+.qt-md :deep(pre code) { background: none; padding: 0; color: inherit; }
+.qt-md :deep(strong) { font-weight: 600; }
+.qt-md :deep(a) { color: #2563eb; text-decoration: underline; }
+.qt-md :deep(blockquote) {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  border-left: 3px solid #cbd5e1;
+  color: #475569;
+}
+
+/* Tables (GFM) — scroll horizontally rather than overflow the panel */
+.qt-md :deep(table) {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 4px 0 10px;
+  font-size: 0.92em;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  display: table;
+}
+.qt-md :deep(thead th) {
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 600;
+  text-align: left;
+}
+.qt-md :deep(th),
+.qt-md :deep(td) {
+  padding: 6px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  vertical-align: top;
+}
+.qt-md :deep(th:last-child),
+.qt-md :deep(td:last-child) { border-right: none; }
+.qt-md :deep(tbody tr:last-child td) { border-bottom: none; }
+.qt-md :deep(tbody tr:nth-child(even)) { background: #fafbfc; }
+</style>

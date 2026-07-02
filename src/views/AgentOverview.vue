@@ -126,6 +126,7 @@ import {
   ChevronLeft, FlaskConical, Settings2, AlertTriangle, Dot,
 } from 'lucide-vue-next'
 import api from '../services/api'
+import { setBreadcrumbLabel } from '@/composables/useBreadcrumbs'
 
 import AgentSummaryCards from '../components/agent-overview/AgentSummaryCards.vue'
 import AgentBrainPreview from '../components/agent-overview/AgentBrainPreview.vue'
@@ -140,6 +141,8 @@ const agentId = computed(() => route.params.id)
 const agent = ref({})
 const loading = ref(true)
 const error = ref(false)
+
+setBreadcrumbLabel(() => agent.value?.name)
 
 const credentials = ref([])
 const credLoading = ref(true)

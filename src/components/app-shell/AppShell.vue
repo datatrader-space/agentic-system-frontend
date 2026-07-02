@@ -28,6 +28,7 @@
       </div>
 
       <main class="center-main">
+        <AppBreadcrumbs />
         <router-view v-slot="{ Component }">
           <transition name="vm-page" mode="out-in">
             <Suspense>
@@ -71,6 +72,9 @@
 
     <!-- Help Center backend-driven guided tours (runs on any product page) -->
     <GuidedTourOverlay />
+
+    <!-- Product-wide AI Help Assistant (FAB + chat widget) on every product page -->
+    <GlobalHelpAssistant />
   </div>
 </template>
 
@@ -85,6 +89,8 @@ import MeshBackground from './MeshBackground.vue'
 import CommandPalette from './CommandPalette.vue'
 import FeatureTour from '../onboarding/FeatureTour.vue'
 import GuidedTourOverlay from '../help/GuidedTourOverlay.vue'
+import GlobalHelpAssistant from '../help/GlobalHelpAssistant.vue'
+import AppBreadcrumbs from '../common/AppBreadcrumbs.vue'
 
 const layout = useLayoutStore()
 const chat = useChatStore()

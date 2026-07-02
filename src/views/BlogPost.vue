@@ -1,12 +1,6 @@
 <template>
   <PublicLayout>
     <article class="mx-auto max-w-3xl px-4 pb-10 pt-10 sm:px-6 lg:px-8">
-      <!-- Breadcrumb -->
-      <nav class="flex items-center gap-2 text-sm text-ink-faint">
-        <router-link to="/blog" class="text-violet">Blog</router-link>
-        <span>/</span><span>{{ post.category }}</span>
-      </nav>
-
       <!-- Header -->
       <header class="mt-6 text-center">
         <div class="flex items-center justify-center gap-3 text-sm">
@@ -88,11 +82,14 @@ import PublicLayout from '../components/public/PublicLayout.vue'
 import { useMeta } from '../composables/useMeta'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
+import { setBreadcrumbLabel } from '@/composables/useBreadcrumbs'
 
 const route = useRoute()
 const loading = ref(false)
 const post = ref({ slug: '', title: 'Loading…', author: '', date: '', readTime: 5, category: '', tags: [], content: '' })
 const relatedPosts = ref([])
+
+setBreadcrumbLabel(() => post.value?.title)
 
 const bodyHtml = computed(() => post.value.content_html || post.value.content || '')
 const heroBg = computed(() => cardBg(post.value))

@@ -1,14 +1,14 @@
 <template>
-  <div class="mx-auto w-full max-w-[1840px] px-8 pb-10 font-[Inter,system-ui,sans-serif]">
-    <div class="mb-5">
+  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif]">
+    <div class="mb-4">
       <h2 class="text-[22px] font-bold tracking-tight text-[#0F172A]">Attach Credentials from Vault</h2>
       <p class="mt-1 text-[13.5px] text-[#64748B]">Attach secure, reusable credentials from your vault. Credentials are encrypted and can be shared across agents and workspaces.</p>
     </div>
 
-    <div class="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
-      <div class="space-y-5">
-        <section class="rounded-2xl border border-[#CFE0FF] bg-[#F8FBFF] p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-          <div class="flex items-center gap-6">
+    <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div class="space-y-4">
+        <section class="rounded-xl border border-[#CFE0FF] bg-[#F8FBFF] p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+          <div class="flex items-center gap-5">
             <span class="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-[#2563EB] text-white shadow-[0_12px_24px_rgba(37,99,235,.24)]">
               <LockKeyhole :size="30" :stroke-width="2" />
             </span>
@@ -96,7 +96,15 @@
                   </td>
                   <td class="px-4 py-3 text-[12.5px] text-[#475569]">{{ lastUsed(cred) }}</td>
                   <td class="px-4 py-3 text-right">
-                    <button class="attach-btn" :disabled="attachingId === cred.id" @click="attach(cred)">
+                    <div v-if="isAttached(cred)" class="inline-flex items-center gap-2">
+                      <span class="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[12px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
+                        <Check :size="13" :stroke-width="2.5" /> Attached
+                      </span>
+                      <button class="detach-btn" :disabled="detachingId === cred.id" @click="detach(cred)">
+                        {{ detachingId === cred.id ? 'Detaching...' : 'Detach' }}
+                      </button>
+                    </div>
+                    <button v-else class="attach-btn" :disabled="attachingId === cred.id" @click="attach(cred)">
                       {{ attachingId === cred.id ? 'Attaching...' : 'Attach' }}
                     </button>
                   </td>
@@ -119,13 +127,13 @@
         </section>
       </div>
 
-      <aside class="rounded-2xl border border-[#E5E7EB] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-        <div class="mb-5 flex items-center gap-3">
+      <aside class="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+        <div class="mb-4 flex items-center gap-3">
           <span class="grid h-10 w-10 place-items-center rounded-xl bg-violet-50 text-violet-600"><ShieldCheck :size="20" /></span>
           <h3 class="text-[16px] font-semibold text-[#0F172A]">Understanding Permissions</h3>
         </div>
-        <p class="mb-6 text-[13px] leading-6 text-[#64748B]">Control how agents and users can interact with each credential.</p>
-        <div class="space-y-6">
+        <p class="mb-5 text-[13px] leading-6 text-[#64748B]">Control how agents and users can interact with each credential.</p>
+        <div class="space-y-5">
           <div v-for="mode in permissionModes" :key="mode.title" class="flex gap-3">
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl" :class="mode.tint">
               <component :is="mode.icon" :size="20" :stroke-width="2" />
@@ -137,7 +145,7 @@
             </div>
           </div>
         </div>
-        <div class="mt-8 rounded-xl border border-[#DCE6FB] bg-[#EFF4FF] p-4 text-[12.5px] leading-5 text-[#475569]">
+        <div class="mt-6 rounded-xl border border-[#DCE6FB] bg-[#EFF4FF] p-4 text-[12.5px] leading-5 text-[#475569]">
           <p class="font-medium text-[#0F172A]">You can change permissions anytime from the credential settings in the vault.</p>
           <button class="mt-3 font-semibold text-[#2563EB]">Learn more about permissions <ExternalLink :size="12" class="inline" /></button>
         </div>
@@ -165,6 +173,23 @@ const typeFilter = ref('all')
 const page = ref(1)
 const pageSize = 5
 const attachingId = ref(null)
+const detachingId = ref(null)
+
+// A credential's scope (one per service / builtin tool) — the backend allows only one attachment per scope.
+function scopeKey(c) {
+  return `${c.scope_type || 'service'}:${c.service_id ?? c.service_name ?? ''}`
+}
+// Map scope → the id of the copy already attached to THIS agent (listGlobal returns agent-scoped copies too).
+const attachedByScope = computed(() => {
+  const map = {}
+  for (const c of rows.value) {
+    if (String(c.agent_profile_id) === String(props.agent.id)) map[scopeKey(c)] = c.id
+  }
+  return map
+})
+function isAttached(c) {
+  return scopeKey(c) in attachedByScope.value
+}
 
 const securityPoints = [
   'Stored encrypted at rest and in transit',
@@ -229,10 +254,31 @@ async function attach(cred) {
   try {
     await credentialsApi.assign(props.agent.id, cred.id)
     notify.success('Credential attached')
+    await loadCredentials()   // refresh so the attached state (and Detach) reflects the backend
   } catch (e) {
-    notify.error(e?.response?.data?.error || 'Could not attach credential')
+    // 409 = already attached to this agent; just resync state instead of erroring.
+    if (e?.response?.status === 409) {
+      await loadCredentials()
+    } else {
+      notify.error(e?.response?.data?.error || 'Could not attach credential')
+    }
   } finally {
     attachingId.value = null
+  }
+}
+async function detach(cred) {
+  if (!props.agent.id) return
+  const attachedId = attachedByScope.value[scopeKey(cred)]
+  if (!attachedId) return
+  detachingId.value = cred.id
+  try {
+    await credentialsApi.delete(props.agent.id, attachedId)
+    notify.success('Credential detached')
+    await loadCredentials()
+  } catch (e) {
+    notify.error(e?.response?.data?.error || 'Could not detach credential')
+  } finally {
+    detachingId.value = null
   }
 }
 
@@ -245,6 +291,9 @@ onMounted(loadCredentials)
 .attach-btn { border: 1px solid #9DB7F8; color: #155EEF; background: #fff; border-radius: 9px; padding: 7px 14px; font-size: 12.5px; font-weight: 650; }
 .attach-btn:hover:not(:disabled) { background: #EFF4FF; border-color: #2563EB; }
 .attach-btn:disabled { opacity: .6; cursor: not-allowed; }
+.detach-btn { border: 1px solid #FDA29B; color: #B42318; background: #fff; border-radius: 9px; padding: 7px 12px; font-size: 12.5px; font-weight: 650; }
+.detach-btn:hover:not(:disabled) { background: #FEF3F2; border-color: #F04438; }
+.detach-btn:disabled { opacity: .6; cursor: not-allowed; }
 .page-btn, .page-num { display: grid; height: 32px; min-width: 32px; place-items: center; border-radius: 8px; font-size: 12.5px; font-weight: 650; }
 .page-btn:disabled { opacity: .4; }
 .page-btn:hover:not(:disabled), .page-num:hover { background: #F1F5F9; }

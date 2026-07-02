@@ -105,9 +105,12 @@
       </section>
 
       <section class="help-section">
-        <h2>Browse help topics</h2>
+        <div class="section-title-row">
+          <h2>Browse help topics</h2>
+          <RouterLink to="/dashboard/help-center/topics">View all topics</RouterLink>
+        </div>
         <div class="topic-grid">
-          <article v-for="topic in topics" :key="topic.title" class="topic-card" :class="{ clickable: topic.to }" @click="topic.to && goTo(topic.to)">
+          <article v-for="topic in visibleTopics" :key="topic.title" class="topic-card" :class="{ clickable: topic.to }" @click="topic.to && goTo(topic.to)">
             <span :class="['topic-icon', topic.tone]"><Icon :icon="topic.icon" /></span>
             <div>
               <h3>{{ topic.title }}</h3>
@@ -160,7 +163,7 @@
       <section class="rail-card recommended">
         <h2>Recommended next steps</h2>
         <p>Based on your current setup</p>
-        <article v-for="step in recommended" :key="step.title" class="next-step">
+        <article v-for="step in recommendedSteps" :key="step.key" class="next-step">
           <span><Icon :icon="step.icon" /></span>
           <div>
             <h3>{{ step.title }}</h3>
@@ -168,6 +171,10 @@
             <button @click="goTo(step.route)">{{ step.action }}</button>
           </div>
         </article>
+        <div v-if="!recommendedSteps.length" class="all-set">
+          <Icon icon="lucide:check-circle-2" />
+          <p>You're all set — every setup step is complete.</p>
+        </div>
         <RouterLink to="/dashboard/help-center/get-started" class="link-action">
           View full checklist
           <Icon icon="lucide:arrow-right" />
@@ -197,11 +204,6 @@
       </section>
     </aside>
 
-    <HelpAssistant v-model:open="assistantOpen" :initial-question="assistantQuestion" current-page="help-home" />
-
-    <button class="chat-fab" aria-label="Ask the Help Assistant" @click="openAssistant()">
-      <Icon icon="lucide:message-circle" />
-    </button>
   </main>
 </template>
 
@@ -210,18 +212,20 @@ import { ref, computed, onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
-import HelpAssistant from '../components/help/HelpAssistant.vue'
+import { useHelpAssistant } from '../composables/useHelpAssistant'
+import { resolveSearchDestination } from '../utils/helpSearchNav'
 
 const router = useRouter()
 const search = ref('')
 const searchFocused = ref(false)
 
-// AI Help Assistant modal
-const assistantOpen = ref(false)
-const assistantQuestion = ref('')
-function openAssistant(q = '') { assistantQuestion.value = q; assistantOpen.value = true; searchFocused.value = false }
+// AI Help Assistant — delegate to the product-wide assistant (FAB + widget live in AppShell).
+const { openAssistant: openGlobalAssistant } = useHelpAssistant()
+function openAssistant(q = '') { searchFocused.value = false; openGlobalAssistant(q) }
 
-const popularSearches = ['Create an agent', 'Add a connector', 'Build a workflow', 'Scheduled runs']
+// Curated default (cold start) — overridden at runtime by the real, evolving top search
+// terms from GET /help/popular-searches when there's enough signal.
+const popularSearches = ref(['Create an agent', 'Add a connector', 'Build a workflow', 'Scheduled runs'])
 
 // ── Smart search (backend /help/suggest + /help/search) ─────────────────────
 const searchResults = ref([])   // section-level targets from the backend
@@ -272,6 +276,9 @@ async function runSuggest(q) {
 
 const showResults = computed(() => searchFocused.value && search.value.trim().length >= 2)
 
+// Clicking a SPECIFIC suggestion = navigate to exactly that item (explicit user choice:
+// an article opens that article; an ACTION opens that app action). This is intentionally
+// separate from submit (Enter), which never defaults to a suggestion.
 function goResult(r) {
   searchFocused.value = false
   api.logHelpSearch({ query: search.value.trim(), had_results: true }).catch(() => {})
@@ -282,17 +289,24 @@ function applyDidYouMean() {
   search.value = didYouMean.value
   runSuggest(didYouMean.value)
 }
-async function onEnter() {
-  if (searchResults.value.length) { goResult(searchResults.value[0]); return }
-  // No suggestions — run a full search; navigate to the top result or log a miss.
-  const q = search.value.trim()
+
+// SUBMIT (Enter / "Search all help" / popular search) runs the SMART search endpoint
+// (/help/search) and navigates to the top section's exact article + anchor — it does
+// NOT use the suggest dropdown's first item (which may be an app ACTION). This is what
+// makes "how to add new agent" land on .../create-your-first-agent#create-the-agent.
+async function executeSearch(rawQ) {
+  const q = (rawQ ?? search.value).trim()
   if (!q) return
+  searchFocused.value = false
+  let results = []
   try {
     const { data } = await api.helpSearch(q)
-    if (data?.results?.length) { searchFocused.value = false; router.push(data.results[0].url); return }
-  } catch (e) { /* fall through */ }
-  runSearch()
+    results = data?.results || []
+  } catch (e) { /* network error → fall back to the docs list below */ }
+  api.logHelpSearch({ query: q, had_results: !!results.length, result_count: results.length }).catch(() => {})
+  router.push(resolveSearchDestination(results, q))
 }
+function onEnter() { executeSearch() }
 
 // Live onboarding checklist (derived) — see GET /onboarding/status/.
 const done = ref({})
@@ -308,19 +322,22 @@ const hubCompleted = computed(() => checklist.value.filter(c => c.done).length)
 const hubPercent = computed(() => Math.round((hubCompleted.value / checklist.value.length) * 100))
 
 function goTo(route) { if (route) router.push(route) }
-function runSearch() {
-  const q = search.value.trim()
-  router.push({ path: '/dashboard/help-center/docs', query: q ? { q } : {} })
-}
-function searchFor(term) {
-  router.push({ path: '/dashboard/help-center/docs', query: { q: term } })
-}
+// "Search all help for …" — same smart-search submit path.
+function runSearch() { executeSearch() }
+// Popular searches / how-to chips — run the smart search and land on the best section.
+function searchFor(term) { search.value = term; executeSearch(term) }
 
 onMounted(async () => {
   try {
     const { data } = await api.getOnboardingStatus()
     done.value = data?.done || {}
   } catch (e) { /* checklist degrades to all not-done */ }
+  // Real, evolving popular searches — only override the curated default with enough signal.
+  try {
+    const { data } = await api.getPopularSearches()
+    const terms = (data?.popular_searches || []).filter(Boolean)
+    if (terms.length >= 3) popularSearches.value = terms.slice(0, 6)
+  } catch (e) { /* keep curated default */ }
   try {
     const { data } = await api.getTutorials()
     const rows = data?.tutorials || []
@@ -345,7 +362,9 @@ onMounted(async () => {
         copy: `${x.count} article${x.count === 1 ? '' : 's'}`,
         icon: x.icon || TOPIC_ICONS[i % TOPIC_ICONS.length],
         tone: x.tone || TOPIC_TONES[i % TOPIC_TONES.length],
-        to: x.url,
+        // Open the dedicated Topics page pre-filtered to this product_area. Derived from
+        // the title (not x.url) so an older self-link can't bounce us back here.
+        to: `/dashboard/help-center/topics?area=${encodeURIComponent(x.title)}`,
         subtopics: x.subtopics || [],
       }))
     }
@@ -354,20 +373,25 @@ onMounted(async () => {
 
 const TOPIC_ICONS = ['lucide:bot', 'lucide:workflow', 'lucide:link-2', 'lucide:book-open', 'lucide:credit-card', 'lucide:shield', 'lucide:wrench']
 const TOPIC_TONES = ['blue', 'violet', 'teal', 'coral']
+const topicLink = (title) => `/dashboard/help-center/topics?area=${encodeURIComponent(title)}`
 const topics = ref([
-  { title: 'Agents', copy: 'Create and manage agents', icon: 'lucide:bot', tone: 'blue' },
-  { title: 'Workflows', copy: 'Build automation flows', icon: 'lucide:workflow', tone: 'violet' },
-  { title: 'Connectors', copy: 'Integrate your tools', icon: 'lucide:link-2', tone: 'blue' },
-  { title: 'Tools', copy: 'Use and configure tools', icon: 'lucide:wrench', tone: 'violet' },
-  { title: 'Scheduling', copy: 'Automate and schedule runs', icon: 'lucide:calendar-days', tone: 'teal' },
-  { title: 'Billing', copy: 'Manage plans and usage', icon: 'lucide:credit-card', tone: 'teal' },
-  { title: 'Security', copy: 'Permissions and data privacy', icon: 'lucide:shield', tone: 'blue' },
+  { title: 'Agents', copy: 'Create and manage agents', icon: 'lucide:bot', tone: 'blue', to: topicLink('Agents') },
+  { title: 'Workflows', copy: 'Build automation flows', icon: 'lucide:workflow', tone: 'violet', to: topicLink('Workflows') },
+  { title: 'Connectors', copy: 'Integrate your tools', icon: 'lucide:link-2', tone: 'blue', to: topicLink('Integrations') },
+  { title: 'Tools', copy: 'Use and configure tools', icon: 'lucide:wrench', tone: 'violet', to: topicLink('Tools') },
+  { title: 'Scheduling', copy: 'Automate and schedule runs', icon: 'lucide:calendar-days', tone: 'teal', to: topicLink('Scheduling') },
+  { title: 'Billing', copy: 'Manage plans and usage', icon: 'lucide:credit-card', tone: 'teal', to: topicLink('Billing') },
+  { title: 'Security', copy: 'Permissions and data privacy', icon: 'lucide:shield', tone: 'blue', to: topicLink('Security') },
 ])
+
+// Show only the first 6 topic cards on the hub; the rest live on the dedicated
+// "View all topics" page (/dashboard/help-center/topics).
+const visibleTopics = computed(() => topics.value.slice(0, 6))
 
 const helpLibrary = [
   { title: 'Getting Started', copy: 'Onboarding checklist and first-agent setup.', icon: 'lucide:rocket', tone: 'blue', to: '/dashboard/help-center/get-started' },
   { title: 'Learning Paths', copy: 'Guided, ordered tracks from zero to confident.', icon: 'lucide:graduation-cap', tone: 'blue', to: '/dashboard/help-center/learning-paths' },
-  { title: 'Documentation', copy: 'Browse concepts, references, and guides.', icon: 'lucide:file-text', tone: 'violet', to: '/dashboard/help-center/docs' },
+  { title: 'Documentation', copy: 'Browse concepts, references, and guides.', icon: 'lucide:file-text', tone: 'violet', to: '/dashboard/help-center/documentation' },
   { title: 'Tutorials', copy: 'Step-by-step learning paths and videos.', icon: 'lucide:play-circle', tone: 'teal', to: '/dashboard/help-center/tutorials' },
   { title: 'Guided Tours', copy: 'Interactive walkthroughs for key workflows.', icon: 'lucide:route', tone: 'coral', to: '/dashboard/help-center/guided-tours' },
 ]
@@ -392,15 +416,19 @@ const guides = [
   'Monitor failed runs',
 ]
 
+// `key` maps each step to its onboarding-status flag (GET /onboarding/status/ → done{}),
+// so completed steps are hidden. Keys match HUB_STEPS.
 const recommended = [
-  { title: 'Connect a model provider', copy: 'Add OpenAI, Anthropic, or another provider to power your agents.', action: 'Add provider', icon: 'lucide:shield-check', route: '/dashboard/llm-settings' },
-  { title: 'Create your first agent', copy: 'Build an agent and give it instructions to get started.', action: 'Create agent', icon: 'lucide:rocket', route: '/dashboard/agents/new' },
-  { title: 'Build your first workflow', copy: 'Automate a process using steps, tools, and conditions.', action: 'Create workflow', icon: 'lucide:scan-line', route: '/dashboard/workflow-builder' },
-  { title: 'Run your first agent', copy: 'Test your agent and view results in the Activity log.', action: 'Run now', icon: 'lucide:circle-play', route: '/dashboard/chat/new' },
+  { key: 'provider', title: 'Connect a model provider', copy: 'Add OpenAI, Anthropic, or another provider to power your agents.', action: 'Add provider', icon: 'lucide:shield-check', route: '/dashboard/llm-settings' },
+  { key: 'agent', title: 'Create your first agent', copy: 'Build an agent and give it instructions to get started.', action: 'Create agent', icon: 'lucide:rocket', route: '/dashboard/agents/new' },
+  { key: 'workflow', title: 'Build your first workflow', copy: 'Automate a process using steps, tools, and conditions.', action: 'Create workflow', icon: 'lucide:scan-line', route: '/dashboard/workflow-builder' },
+  { key: 'first_run', title: 'Run your first agent', copy: 'Test your agent and view results in the Activity log.', action: 'Run now', icon: 'lucide:circle-play', route: '/dashboard/chat/new' },
 ]
+// Show ONLY steps not yet completed (reacts to the live onboarding status).
+const recommendedSteps = computed(() => recommended.filter(s => !done.value[s.key]))
 
 const support = [
-  { title: 'Open docs', copy: 'Visit documentation hub', icon: 'lucide:book-open', tone: 'blue', to: '/dashboard/help-center/docs' },
+  { title: 'Open docs', copy: 'Visit documentation hub', icon: 'lucide:book-open', tone: 'blue', to: '/dashboard/help-center/documentation' },
   { title: 'Contact support', copy: 'Chat with our team', icon: 'lucide:message-circle', tone: 'violet', to: '/dashboard/help-center/support' },
   { title: 'Submit a ticket', copy: 'We typically reply in 24h', icon: 'lucide:clipboard-list', tone: 'teal', to: '/dashboard/help-center/support?new=1' },
   { title: 'Book onboarding', copy: 'Schedule a 1:1 session', icon: 'lucide:calendar-check', tone: 'coral', to: '/dashboard/help-center/guided-tours' },
@@ -972,6 +1000,20 @@ const support = [
   font-weight: 850;
   text-decoration: none;
 }
+
+.all-set {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 4px 0 12px;
+  padding: 11px 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: #15803d;
+}
+.all-set svg { width: 18px; height: 18px; flex-shrink: 0; }
+.all-set p { margin: 0; font-size: 12.5px; font-weight: 700; }
 
 .tutorial-grid {
   display: grid;

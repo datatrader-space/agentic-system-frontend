@@ -67,7 +67,7 @@
                   <svg viewBox="0 0 20 20" fill="currentColor" class="ws-org-icon">
                     <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd"/>
                   </svg>
-                  {{ org.name }}
+                  <span class="ws-org-name" :title="org.name">{{ org.name }}</span>
                   <span v-if="org.is_personal" class="ws-personal-badge">Personal</span>
                 </div>
 
@@ -479,14 +479,20 @@ onUnmounted(() => {
 
 .ws-org-label {
   display: flex; align-items: center; gap: 6px;
-  padding: 7px 16px 6px;
+  padding: 8px 16px 6px;
   font-size: 10.5px; font-weight: 850;
   color: #64748b;
   text-transform: uppercase; letter-spacing: 0.04em;
+  min-width: 0;
 }
-.ws-org-icon { width: 12px; height: 12px; color: #94a3b8; }
+.ws-org-icon { width: 12px; height: 12px; color: #94a3b8; flex-shrink: 0; }
+.ws-org-name {
+  min-width: 0; flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  line-height: 1.35;
+}
 .ws-personal-badge {
-  margin-left: auto;
+  flex-shrink: 0;
   background: #eef4ff;
   color: #2563eb;
   padding: 2px 7px;

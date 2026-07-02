@@ -1,7 +1,7 @@
 <template>
-  <teleport to="body">
-    <div v-if="open" class="fixed inset-0 z-[60] bg-black/50 flex justify-end" @click.self="close">
-      <div class="h-full w-full sm:w-[520px] bg-white shadow-2xl flex flex-col">
+  <teleport to="body" :disabled="embedded">
+    <div v-if="open" :class="embedded ? 'w-full' : 'fixed inset-0 z-[60] bg-black/50 flex justify-end'" @click.self="!embedded && close()">
+      <div :class="embedded ? 'w-full min-h-[72vh] bg-white rounded-2xl border border-gray-200 shadow-[0_1px_2px_rgba(16,24,40,0.04)] flex flex-col' : 'h-full w-full sm:w-[520px] bg-white shadow-2xl flex flex-col'">
         <!-- header -->
         <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 shrink-0">
           <div class="flex items-center gap-2">
@@ -13,7 +13,7 @@
             <button @click="loadWorkspace" :disabled="loading" title="Refresh" class="p-1.5 hover:bg-gray-100 rounded text-gray-500">
               <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
             </button>
-            <button @click="close" title="Close" class="p-1.5 hover:bg-gray-100 rounded text-gray-500">
+            <button @click="close" :title="embedded ? 'Back to agents' : 'Close'" class="p-1.5 hover:bg-gray-100 rounded text-gray-500">
               <X class="w-4 h-4" />
             </button>
           </div>
@@ -101,6 +101,9 @@ import { confirm } from '@/composables/useConfirm'
 const props = defineProps({
   agent: { type: Object, default: null },
   modelValue: { type: Boolean, default: false },
+  // When true, render full-width IN THE PAGE (no drawer/backdrop) — used by the dedicated
+  // /dashboard/agents/:id/workspace page.
+  embedded: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -209,5 +212,7 @@ function getFileIcon(filename) {
   return icons[ext] || '📎'
 }
 
-watch(open, (v) => { if (v) { checkRouting(); loadWorkspace() } })
+// immediate: in embedded (page) mode `open` starts true and never transitions, so without this the
+// initial load never fires. In drawer mode `open` starts false, so the guard skips until it opens.
+watch(open, (v) => { if (v && props.agent && props.agent.id) { checkRouting(); loadWorkspace() } }, { immediate: true })
 </script>

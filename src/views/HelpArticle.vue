@@ -1,14 +1,6 @@
 <template>
   <main class="ha-page">
     <section class="ha-main" v-if="content">
-      <nav class="breadcrumbs">
-        <template v-for="(b, i) in content.breadcrumbs" :key="i">
-          <RouterLink v-if="b.url" :to="b.url">{{ b.label }}</RouterLink>
-          <span v-else>{{ b.label }}</span>
-          <Icon v-if="i < content.breadcrumbs.length - 1" icon="lucide:chevron-right" class="bc-sep" />
-        </template>
-      </nav>
-
       <header class="ha-head">
         <span :class="['type-badge', content.tone || 'blue']">{{ typeLabel(content.type) }}</span>
         <h1>{{ content.title }}</h1>
@@ -91,12 +83,11 @@
 
       <section class="rail-card need-help">
         <h3>Still need help?</h3>
-        <button class="help-cta ghost" @click="assistantOpen = true"><Icon icon="lucide:sparkles" /> Ask the Help Assistant</button>
+        <button class="help-cta ghost" @click="openAssistant()"><Icon icon="lucide:sparkles" /> Ask the Help Assistant</button>
         <RouterLink to="/dashboard/help-center/support" class="help-cta"><Icon icon="lucide:life-buoy" /> Contact support</RouterLink>
       </section>
     </aside>
 
-    <HelpAssistant v-model:open="assistantOpen" :current-page="`article:${route.params.slug}`" :product-area="content && content.product_area" />
   </main>
 </template>
 
@@ -106,12 +97,13 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { marked } from 'marked'
 import api from '../services/api'
-import HelpAssistant from '../components/help/HelpAssistant.vue'
+import { useHelpAssistant } from '../composables/useHelpAssistant'
 import { useGuidedTour } from '../composables/useGuidedTour'
+import { setBreadcrumbTrail } from '@/composables/useBreadcrumbs'
 
 const route = useRoute()
 const router = useRouter()
-const assistantOpen = ref(false)
+const { openAssistant } = useHelpAssistant()
 const { launch: launchTour } = useGuidedTour()
 const guidedTours = ref([])
 function startTour(slug) { launchTour(slug) }
@@ -126,6 +118,8 @@ const highlightAnchor = ref('')
 const sectionEls = reactive({})
 const prevItem = ref(null)
 const nextItem = ref(null)
+
+setBreadcrumbTrail(() => content.value?.breadcrumbs)
 
 const TYPE_LABEL = { doc: 'Documentation', guide: 'Guide', tutorial: 'Tutorial', integration: 'Integration', faq: 'FAQ', learning_path: 'Learning path', guided_tour: 'Guided tour' }
 const REL_LABEL = { related: 'Related', prerequisite: 'Prerequisites', next_step: 'Next steps', tutorial: 'Tutorials', documentation: 'Documentation', guided_tour: 'Guided tours', integration: 'Integrations', troubleshooting: 'Troubleshooting' }
@@ -204,12 +198,24 @@ watch(() => route.hash, handleHash)
 </script>
 
 <style scoped>
-.ha-page { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 32px; min-height: 100%; padding: 30px 36px 60px; background: #f8fbff; color: #0f172a; }
-.ha-main { max-width: 760px; width: 100%; justify-self: center; }
-.breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; margin-bottom: 16px; }
-.breadcrumbs a { color: #2563eb; text-decoration: none; font-weight: 700; }
-.breadcrumbs span { color: #64748b; }
-.bc-sep { width: 13px; height: 13px; color: #cbd5e1; }
+.ha-page {
+  display: grid;
+  grid-template-columns: minmax(0, 820px) minmax(280px, 320px);
+  justify-content: center;
+  gap: 28px;
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  padding: 30px 32px 60px;
+  background: #f8fbff;
+  color: #0f172a;
+}
+.ha-main {
+  width: 100%;
+  min-width: 0;
+  justify-self: stretch;
+}
 .ha-head { border-bottom: 1px solid #e9eef5; padding-bottom: 20px; margin-bottom: 8px; }
 .type-badge { display: inline-block; border-radius: 6px; padding: 3px 9px; font-size: 11px; font-weight: 850; }
 .ha-head h1 { margin: 12px 0 0; font-size: 27px; font-weight: 850; line-height: 1.2; }
@@ -251,20 +257,34 @@ watch(() => route.hash, handleHash)
 .pn small { display: block; color: #94a3b8; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
 .pn strong { display: block; margin-top: 3px; font-size: 13.5px; font-weight: 800; }
 @media (max-width: 680px) { .ha-prevnext { grid-template-columns: 1fr; } }
-.ha-rail { display: grid; align-content: start; gap: 16px; }
-.rail-card { border: 1px solid #dfe7f2; border-radius: 13px; background: #fff; padding: 16px 18px; box-shadow: 0 8px 22px rgba(15, 23, 42, .04); }
+.ha-rail {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 16px;
+}
+.rail-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dfe7f2;
+  border-radius: 13px;
+  background: #fff;
+  padding: 16px 18px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, .04);
+}
 .rail-card h3 { margin: 0 0 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #64748b; font-weight: 850; }
 .toc { position: sticky; top: 24px; }
 .toc a { display: block; padding: 6px 0 6px 12px; border-left: 2px solid transparent; color: #64748b; font-size: 12.5px; font-weight: 650; text-decoration: none; }
 .toc a:hover { color: #334155; }
 .toc a.active { border-color: #2563eb; color: #2563eb; }
-.related-row { display: flex; align-items: center; gap: 11px; padding: 8px 0; text-decoration: none; color: inherit; }
+.related-row { display: flex; min-width: 0; align-items: center; gap: 11px; padding: 8px 0; text-decoration: none; color: inherit; }
+.related-row > span:last-child { min-width: 0; flex: 1; }
 .related-row + .related-row { border-top: 1px solid #f1f5f9; }
 .r-icon { display: grid; width: 32px; height: 32px; flex-shrink: 0; place-items: center; border-radius: 8px; }
 .r-icon svg { width: 16px; height: 16px; }
 .blue { background: #eef4ff; color: #2563eb; } .violet { background: #f2efff; color: #7c3aed; }
 .teal { background: #e7fbf6; color: #0faaa5; } .coral { background: #fff1ed; color: #f15b3d; }
-.tour-row { display: flex; align-items: center; gap: 11px; padding: 8px 0; }
+.tour-row { display: flex; min-width: 0; align-items: center; gap: 11px; padding: 8px 0; }
 .tour-row + .tour-row { border-top: 1px solid #f1f5f9; }
 .t-meta { min-width: 0; flex: 1; }
 .t-meta strong { display: block; font-size: 12.5px; font-weight: 800; }
@@ -272,8 +292,14 @@ watch(() => route.hash, handleHash)
 .t-start { display: inline-flex; align-items: center; gap: 5px; height: 30px; border: 0; border-radius: 8px; background: #4f46e5; color: #fff; padding: 0 12px; font-size: 11.5px; font-weight: 800; cursor: pointer; }
 .t-start svg { width: 12px; height: 12px; }
 .related-row strong { display: block; font-size: 12.5px; font-weight: 800; }
+.related-row strong,
+.t-meta strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .related-row small { display: block; margin-top: 2px; color: #94a3b8; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.need-help .help-cta { display: flex; align-items: center; gap: 8px; width: 100%; height: 40px; border: 1px solid #dbe4f0; border-radius: 9px; background: #fff; padding: 0 14px; margin-top: 8px; color: #334155; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.need-help .help-cta { display: flex; min-width: 0; align-items: center; gap: 8px; width: 100%; height: 40px; border: 1px solid #dbe4f0; border-radius: 9px; background: #fff; padding: 0 14px; margin-top: 8px; color: #334155; font-size: 13px; font-weight: 700; text-decoration: none; cursor: pointer; }
 .need-help .help-cta.ghost { color: #4f46e5; }
 .need-help .help-cta svg { width: 16px; height: 16px; }
 .empty { color: #64748b; font-size: 15px; }

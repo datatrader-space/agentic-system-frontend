@@ -6,7 +6,7 @@
           <h1>Documentation</h1>
           <p>Everything you need to build, integrate, and scale with Aadml.</p>
         </div>
-        <button class="changelog-btn">
+        <button class="changelog-btn" @click="openChangelog">
           <Icon icon="lucide:clipboard-list" />
           View changelog
         </button>
@@ -19,20 +19,52 @@
       </div>
 
       <nav class="doc-tabs" aria-label="Documentation categories">
-        <button v-for="tab in tabs" :key="tab" :class="{ active: tab === activeTab }" @click="activeTab = tab">
+        <button :class="{ active: !activeArea }" @click="selectArea('')">All</button>
+        <button v-for="tab in tabs" :key="tab" :class="{ active: tab === activeArea }" @click="selectArea(tab)">
           {{ tab }}
         </button>
       </nav>
 
       <section id="categories" class="category-grid">
-        <article v-for="category in categories" :key="category.title" class="category-card" @click="activeTab = category.title">
+        <article v-for="category in displayedCategoryCards" :key="category.title"
+                 class="category-card clickable" :class="{ active: category.title === activeArea }"
+                 @click="selectArea(category.title)">
           <span :class="['category-icon', category.tone]"><Icon :icon="category.icon" /></span>
           <div>
             <h2>{{ category.title }}</h2>
-            <span>{{ categoryCount(category) }}</span>
+            <span>{{ category.countLabel }}</span>
             <p>{{ category.copy }}</p>
           </div>
         </article>
+      </section>
+      <div v-if="hasMoreCategories" class="category-load-row">
+        <RouterLink to="/dashboard/help-center/topics" class="view-all-topics">
+          View all topics
+          <Icon icon="lucide:arrow-right" />
+        </RouterLink>
+      </div>
+
+      <!-- One doc system: all Help Center articles, filtered by the selected category/search -->
+      <section v-if="showArticleSection" id="area-articles" class="area-articles">
+        <div class="section-row">
+          <div>
+            <h2>{{ listTitle }}</h2>
+            <p>{{ displayArticles.length }} article{{ displayArticles.length === 1 ? '' : 's' }}</p>
+          </div>
+          <button v-if="activeArea || query" class="link-btn" @click="clearArticleSection">Hide</button>
+        </div>
+        <div v-if="loading" class="area-state">Loading…</div>
+        <div v-else-if="!displayArticles.length" class="area-state">No articles found.</div>
+        <div v-else class="area-grid">
+          <button v-for="a in displayArticles" :key="a.slug" class="area-card" @click="openDoc(a)">
+            <span class="doc-file"><Icon :icon="a.icon || 'lucide:file-text'" /></span>
+            <span class="area-card-body">
+              <strong>{{ a.title }}</strong>
+              <small>{{ a.summary }}</small>
+            </span>
+            <em v-if="a.difficulty" :class="['area-diff', a.difficulty]">{{ a.difficulty }}</em>
+          </button>
+        </div>
       </section>
 
       <section id="quickstart" class="hero-grid">
@@ -59,15 +91,16 @@
         <article id="api-reference" class="api-card">
           <h2>API reference</h2>
           <p>Integrate with Aadml using our REST API.</p>
+          <!-- Display-only preview rows (full, interactive list lives on the API reference page). -->
           <div class="api-list">
-            <button v-for="endpoint in endpoints" :key="endpoint.title">
+            <div v-for="endpoint in endpoints" :key="endpoint.title" class="api-row">
               <span class="doc-file"><Icon icon="lucide:file-text" /></span>
               <span>
                 <strong>{{ endpoint.title }}</strong>
                 <small>{{ endpoint.copy }}</small>
               </span>
               <em :class="endpoint.method.toLowerCase()">{{ endpoint.method }}</em>
-            </button>
+            </div>
           </div>
           <button class="link-btn" @click="goTo('/dashboard/help-center/api-reference')">
             View full API reference
@@ -81,16 +114,16 @@
           <h2>SDKs & CLI</h2>
           <p>Build faster with our official SDKs and CLI.</p>
           <div class="sdk-list">
-            <button v-for="sdk in sdks" :key="sdk.title">
+            <div v-for="sdk in sdks" :key="sdk.title" class="sdk-row">
               <span :class="['sdk-icon', sdk.tone]"><Icon :icon="sdk.icon" /></span>
               <span>
                 <strong>{{ sdk.title }}</strong>
                 <small>{{ sdk.copy }}</small>
               </span>
               <em>v2.1.0</em>
-            </button>
+            </div>
           </div>
-          <button class="link-btn">
+          <button class="link-btn" @click="scrollToId('sdks-cli')">
             View all SDKs & CLI
             <Icon icon="lucide:arrow-right" />
           </button>
@@ -102,28 +135,29 @@
               <h2>Code examples</h2>
               <p>Copy, paste, and start building.</p>
             </div>
-            <button class="copy-btn"><Icon icon="lucide:copy" /> Copy</button>
+            <button class="copy-btn" @click="copyCode">
+              <Icon :icon="copyState === 'copied' ? 'lucide:check' : (copyState === 'error' ? 'lucide:x' : 'lucide:copy')" />
+              {{ copyState === 'copied' ? 'Copied!' : (copyState === 'error' ? 'Press Ctrl+C' : 'Copy') }}
+            </button>
           </div>
           <div class="code-tabs">
-            <button class="active">JavaScript</button>
-            <button>Python</button>
-            <button>cURL</button>
+            <button v-for="lang in LANGS" :key="lang" :class="{ active: lang === activeLang }" @click="activeLang = lang">{{ lang }}</button>
           </div>
-          <pre><code>{{ codeExample }}</code></pre>
+          <pre><code>{{ activeSnippet }}</code></pre>
         </article>
 
         <article id="popular-articles" class="panel article-panel">
           <h2>Popular articles</h2>
           <div class="article-list">
-            <button v-for="article in articles" :key="article.title" @click="openDoc(article)">
+            <button v-for="article in popularArticles" :key="article.slug" @click="openDoc(article)">
               <span class="doc-file"><Icon icon="lucide:file-text" /></span>
               <span>
                 <strong>{{ article.title }}</strong>
-                <small>{{ article.copy }}</small>
+                <small>{{ article.summary }}</small>
               </span>
             </button>
           </div>
-          <button class="link-btn" @click="goTo('/docs')">
+          <button class="link-btn" @click="selectArea('')">
             Browse all articles
             <Icon icon="lucide:arrow-right" />
           </button>
@@ -131,7 +165,7 @@
       </section>
 
       <p class="docs-footnote">
-        Can't find what you need? <button>Search docs</button> or <button>contact support</button>.
+        Can't find what you need? <button @click="selectArea('')">Browse all</button> or <button @click="goTo('/dashboard/help-center/support')">contact support</button>.
       </p>
     </section>
 
@@ -148,11 +182,11 @@
 
       <section class="rail-card">
         <h2>Recommended docs</h2>
-        <button v-for="doc in recommendedDocs" :key="doc.title" class="rail-doc" @click="openDoc(doc)">
+        <button v-for="doc in recommendedDocs" :key="doc.slug" class="rail-doc" @click="openDoc(doc)">
           <span class="doc-file"><Icon icon="lucide:file-text" /></span>
           <span>
             <strong>{{ doc.title }}</strong>
-            <small>{{ doc.copy }}</small>
+            <small>{{ doc.summary }}</small>
           </span>
         </button>
       </section>
@@ -175,74 +209,151 @@
       </section>
     </aside>
 
-    <button class="chat-fab" aria-label="Open support chat" @click="goTo('/dashboard/chat/new')">
-      <Icon icon="lucide:message-circle" />
-    </button>
+    <!-- Changelog panel — reads existing changelog ContentPages (no new backend). -->
+    <div v-if="changelogOpen" class="cl-backdrop" @click.self="changelogOpen = false">
+      <aside class="cl-panel" role="dialog" aria-label="Changelog">
+        <header class="cl-head">
+          <h2><Icon icon="lucide:clipboard-list" /> Changelog</h2>
+          <button class="cl-x" aria-label="Close" @click="changelogOpen = false"><Icon icon="lucide:x" /></button>
+        </header>
+        <div class="cl-body">
+          <div v-if="changelogLoading" class="cl-state">Loading…</div>
+          <div v-else-if="!changelogItems.length" class="cl-state">
+            <Icon icon="lucide:clipboard-list" />
+            <p>No changelog entries yet.</p>
+            <small>Product updates will appear here once published.</small>
+          </div>
+          <ul v-else class="cl-list">
+            <li v-for="c in changelogItems" :key="c.slug || c.title">
+              <div class="cl-row-head">
+                <strong>{{ c.title }}</strong>
+                <span v-if="c.date" class="cl-date">{{ c.date }}</span>
+              </div>
+              <p v-if="c.excerpt">{{ c.excerpt }}</p>
+              <button v-if="c.slug" class="cl-read" @click="openChangelogEntry(c)">Read more <Icon icon="lucide:arrow-right" /></button>
+            </li>
+          </ul>
+        </div>
+      </aside>
+    </div>
   </main>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { RouterLink, useRouter, useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
+import { setBreadcrumbLabel } from '@/composables/useBreadcrumbs'
 
 const router = useRouter()
 const route = useRoute()
 const query = ref(typeof route.query.q === 'string' ? route.query.q : '')
-const activeTab = ref('Getting Started')
 
-const tabs = ['Getting Started', 'Agents', 'Workflows', 'Connectors', 'Tools', 'API', 'Security']
+// ONE doc system: every article comes from the Help Center (HelpContent via /help/list).
+// Articles open in the in-app Help Center article viewer (public_route) — never the
+// legacy DocsBrowser cards page.
+const allContent = ref([])   // [{title, slug, summary, product_area, difficulty, icon, tone, url, view_count}]
+const areaFacets = ref([])   // [{name, count}] — real product areas from the backend
+const loading = ref(true)
 
-// Live docs from ContentPage (page_type='doc'); empty until loaded → static fallback.
-const docs = ref([])
+// Which product_area is being browsed in-page ('' = all). Seedable from the route so
+// "Browse help topics" / deep links land pre-filtered.
+function routeArea() {
+  return route.params.productArea || (typeof route.query.area === 'string' ? route.query.area : '')
+}
+const activeArea = ref(routeArea())
+const showArticleSection = computed(() => !!activeArea.value || !!query.value.trim())
 
-function categoryCount(category) {
-  const n = docs.value.filter(d => (d.category || '').toLowerCase() === category.title.toLowerCase()).length
-  return n ? `${n} guide${n === 1 ? '' : 's'}` : category.count
+// Only meaningful for the dashboard-help-docs-area route (productArea present); a falsy
+// value falls back to the generic breadcrumb config label.
+setBreadcrumbLabel(() => activeArea.value)
+
+const AREA_ICONS = {
+  'Getting Started': 'lucide:rocket', 'Agents': 'lucide:bot', 'Knowledge Base': 'lucide:book-open',
+  'Workflows': 'lucide:workflow', 'Integrations': 'lucide:link-2', 'Connectors': 'lucide:link-2',
+  'Billing': 'lucide:credit-card', 'API & Developers': 'lucide:code', 'Troubleshooting': 'lucide:life-buoy',
+  'Security': 'lucide:shield', 'Account Settings': 'lucide:user', 'Tools': 'lucide:wrench', 'General': 'lucide:file-text',
+}
+const AREA_COPY = {
+  'Getting Started': 'Quickstart, concepts, and key things to get you up and running.',
+  'Agents': 'Create, configure, and deploy agents that act on your behalf.',
+  'Workflows': 'Automate processes and orchestrate actions with powerful workflows.',
+  'Integrations': 'Integrate with your favorite apps, services, and data sources.',
+  'Connectors': 'Integrate with your favorite apps, services, and data sources.',
+  'Billing': 'Plans, usage, invoices, and payment methods.',
+  'API & Developers': 'REST API, authentication, webhooks, and SDKs.',
+  'Knowledge Base': 'Give your agents documents and data to retrieve from.',
+  'Troubleshooting': 'Fix common issues and understand error messages.',
+  'Security': 'Permissions, scopes, and best security practices.',
+  'Account Settings': 'Manage your profile, team, and preferences.',
+  'Tools': 'Extend the platform with tools, capabilities, and custom actions.',
+}
+const TONES = ['blue', 'violet', 'teal', 'orange', 'rose', 'green']
+function areaIcon(name) { return AREA_ICONS[name] || 'lucide:folder' }
+
+// Category cards = the REAL product areas from the backend, with live article counts.
+const categoryCards = computed(() => areaFacets.value.map((a, i) => ({
+  title: a.name,
+  count: a.count,
+  countLabel: `${a.count} ${a.count === 1 ? 'article' : 'articles'}`,
+  icon: areaIcon(a.name),
+  tone: TONES[i % TONES.length],
+  copy: AREA_COPY[a.name] || `Guides and references for ${a.name}.`,
+})))
+// Preview the first 5 topics here; the rest live on the dedicated Topics page.
+const CATEGORY_PREVIEW = 5
+const displayedCategoryCards = computed(() => categoryCards.value.slice(0, CATEGORY_PREVIEW))
+const hasMoreCategories = computed(() => categoryCards.value.length > CATEGORY_PREVIEW)
+const tabs = computed(() => categoryCards.value.map(c => c.title))
+
+// The in-page article list: filtered by the selected area and/or the search query.
+const displayArticles = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  let list = allContent.value
+  if (activeArea.value) list = list.filter(a => (a.product_area || 'General').toLowerCase() === activeArea.value.toLowerCase())
+  if (q) list = list.filter(a => `${a.title} ${a.summary || ''}`.toLowerCase().includes(q))
+  return list
+})
+const listTitle = computed(() => query.value.trim() ? 'Search results' : (activeArea.value || 'All articles'))
+
+const popularArticles = computed(() =>
+  [...allContent.value].sort((a, b) => (b.view_count || 0) - (a.view_count || 0)).slice(0, 5))
+const recommendedDocs = computed(() => allContent.value.slice(0, 5))
+
+function openDoc(item) {
+  if (item && item.url) router.push(item.url)
+  else if (item && item.slug) router.push(`/dashboard/help-center/article/${item.slug}`)
+}
+function goTo(r) { if (r) router.push(r) }
+function clearArticleSection() {
+  activeArea.value = ''
+  query.value = ''
+}
+async function selectArea(name) {
+  activeArea.value = name || ''
+  query.value = ''
+  await nextTick()
+  document.getElementById('area-articles')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
-const allArticles = computed(() => docs.value.length
-  ? docs.value.map(d => ({ title: d.title, copy: d.excerpt || '', slug: d.slug, category: d.category || '' }))
-  : staticArticles)
-
-const articles = computed(() => {
-  let list = allArticles.value
-  const q = query.value.trim().toLowerCase()
-  if (q) list = list.filter(a => `${a.title} ${a.copy}`.toLowerCase().includes(q))
-  if (docs.value.length && activeTab.value) {
-    const tabMatches = list.some(a => a.category.toLowerCase() === activeTab.value.toLowerCase())
-    if (tabMatches) list = list.filter(a => a.category.toLowerCase() === activeTab.value.toLowerCase())
-  }
-  return list.slice(0, 5)
-})
-
-const recommendedDocs = computed(() => docs.value.length
-  ? docs.value.slice(0, 5).map(d => ({ title: d.title, copy: d.excerpt || '', slug: d.slug }))
-  : staticRecommendedDocs)
-
-function openDoc(item) { if (item && item.slug) router.push(`/docs/${item.slug}`) }
-function goTo(route) { if (route) router.push(route) }
-
-onMounted(async () => {
+async function load() {
+  loading.value = true
   try {
-    const { data } = await api.getContentPages({ type: 'doc' })
-    docs.value = data?.pages || []
-  } catch (e) { /* keep static fallback content */ }
+    const { data } = await api.getHelpList({})   // all published Help Center content + area facets
+    allContent.value = data?.results || []
+    areaFacets.value = data?.areas || []
+  } catch (e) { allContent.value = []; areaFacets.value = [] }
   try {
     const { data } = await api.getApiReference()
     apiRef.value = data
   } catch (e) { /* keep static API endpoints */ }
-})
+  loading.value = false
+}
 
-const categories = [
-  { title: 'Getting Started', count: '5 guides', copy: 'Quickstart, concepts, and key things to get you up and running.', icon: 'lucide:rocket', tone: 'blue' },
-  { title: 'Agents', count: '12 guides', copy: 'Create, configure, and deploy agents that act on your behalf.', icon: 'lucide:bot', tone: 'violet' },
-  { title: 'Workflows', count: '8 guides', copy: 'Automate processes and orchestrate actions with powerful workflows.', icon: 'lucide:workflow', tone: 'teal' },
-  { title: 'Connectors', count: '24 guides', copy: 'Integrate with your favorite apps, services, and data sources.', icon: 'lucide:link-2', tone: 'blue' },
-  { title: 'Tools', count: '9 guides', copy: 'Extend Aadml with tools, capabilities, and custom actions.', icon: 'lucide:wrench', tone: 'blue' },
-  { title: 'Security', count: '7 guides', copy: 'Learn about permissions, scopes, and best security practices.', icon: 'lucide:shield', tone: 'orange' },
-]
+// Re-sync the in-page filter when the URL area changes (deep links / back-forward).
+watch(() => route.fullPath, () => { const a = routeArea(); if (a) activeArea.value = a })
+onMounted(load)
 
 const staticEndpoints = [
   { title: 'Authentication', copy: 'Learn how to authenticate requests', method: 'GET' },
@@ -271,22 +382,6 @@ const sdks = [
   { title: 'Aadml CLI', copy: 'Command-line tools for Aadml', icon: 'lucide:terminal-square', tone: 'dark' },
 ]
 
-const staticArticles = [
-  { title: 'How Aadml works', copy: 'A high-level overview of the platform' },
-  { title: 'Create your first agent', copy: 'Step-by-step guide to building an agent' },
-  { title: 'Workflows 101', copy: 'Automate tasks with workflows' },
-  { title: 'Connect your data', copy: 'Integrate and sync your data sources' },
-  { title: 'Best practices', copy: 'Tips for building reliable agents' },
-]
-
-const staticRecommendedDocs = [
-  { title: 'Core concepts', copy: 'Understand the basics of Aadml' },
-  { title: 'Authentication guide', copy: 'Securely authenticate your requests' },
-  { title: 'Rate limits', copy: 'Understand limits and best practices' },
-  { title: 'Webhooks overview', copy: 'Real-time events and notifications' },
-  { title: 'Error handling', copy: 'Handle errors like a pro' },
-]
-
 const helpLinks = [
   { title: 'Join our Discord', copy: 'Chat with the community', icon: 'lucide:message-circle', tone: 'blue', route: '/dashboard/help-center' },
   { title: 'Contact support', copy: 'Get help from our team', icon: 'lucide:life-buoy', tone: 'blue', route: '/dashboard/help-center/support' },
@@ -294,7 +389,12 @@ const helpLinks = [
   { title: 'Status page', copy: 'View system status and uptime', icon: 'lucide:activity', tone: 'green', route: '/dashboard/help-center' },
 ]
 
-const codeExample = `import { Aadml } from '@Aadml/sdk';
+// Code examples — one snippet per language. The tabs switch the visible snippet and the
+// Copy button copies whichever is active.
+const LANGS = ['JavaScript', 'Python', 'cURL']
+const activeLang = ref('JavaScript')
+const codeExamples = {
+  JavaScript: `import { Aadml } from '@Aadml/sdk';
 
 const client = new Aadml({
   apiKey: 'agntc_live_xxxxxxxxxxxxxxxxxxxxxxxx',
@@ -305,7 +405,73 @@ const run = await client.runs.create({
   input: { message: 'Summarize this document' },
 });
 
-console.log(run.status);`
+console.log(run.status);`,
+  Python: `from aadml import Aadml
+
+client = Aadml(api_key="agntc_live_xxxxxxxxxxxxxxxxxxxxxxxx")
+
+run = client.runs.create(
+    agent_id="agent_12345",
+    input={"message": "Summarize this document"},
+)
+
+print(run.status)`,
+  cURL: `curl https://api.aadml.com/v2/agents/agent_12345/runs \\
+  -H "Authorization: Bearer agntc_live_xxxxxxxxxxxxxxxxxxxxxxxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{ "input": { "message": "Summarize this document" } }'`,
+}
+const activeSnippet = computed(() => codeExamples[activeLang.value] || '')
+
+// Copy the active snippet with a transient "Copied!" state; degrade gracefully.
+const copyState = ref('')   // '' | 'copied' | 'error'
+let _copyTimer = null
+async function copyCode() {
+  clearTimeout(_copyTimer)
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(activeSnippet.value)
+    } else {
+      throw new Error('no-clipboard-api')
+    }
+    copyState.value = 'copied'
+  } catch (e) {
+    copyState.value = 'error'   // e.g. insecure context / denied → prompt manual copy
+  }
+  _copyTimer = setTimeout(() => { copyState.value = '' }, 1500)
+}
+
+function scrollToId(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+// Changelog — opens a panel populated from existing changelog ContentPages. Real empty
+// state when none exist. No new backend endpoint.
+const changelogOpen = ref(false)
+const changelogLoading = ref(false)
+const changelogItems = ref([])
+let _changelogLoaded = false
+async function openChangelog() {
+  changelogOpen.value = true
+  if (_changelogLoaded) return
+  changelogLoading.value = true
+  try {
+    const { data } = await api.getChangelog()
+    const pages = data?.pages || data?.results || []
+    changelogItems.value = pages.map(p => ({
+      title: p.title,
+      slug: p.slug,
+      excerpt: p.excerpt || p.summary || '',
+      date: p.published_at ? new Date(p.published_at).toLocaleDateString() : '',
+    }))
+    _changelogLoaded = true
+  } catch (e) { changelogItems.value = [] }
+  changelogLoading.value = false
+}
+function openChangelogEntry(c) {
+  changelogOpen.value = false
+  if (c.slug) router.push(`/docs/${c.slug}`)
+}
 </script>
 
 <style scoped>
@@ -441,7 +607,7 @@ console.log(run.status);`
 
 .category-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -511,6 +677,55 @@ console.log(run.status);`
 .yellow { background: #fff8d8; color: #ca8a04; }
 .white { background: #f8fafc; color: #2563eb; border: 1px solid #e5ebf3; }
 .dark { background: #111827; color: #fff; }
+
+.category-card.clickable { cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease, transform .12s ease; }
+.category-card.clickable:hover { border-color: #c7d2fe; box-shadow: 0 10px 26px rgba(37, 99, 235, .10); transform: translateY(-2px); }
+.category-card.active { border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb inset; }
+
+.category-load-row {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0 0;
+}
+
+.category-load-row .view-all-topics {
+  display: inline-flex;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #d8e2f0;
+  border-radius: 9px;
+  background: #fff;
+  padding: 0 18px;
+  color: #2563eb;
+  font-size: 12.5px;
+  font-weight: 850;
+  text-decoration: none;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, .045);
+}
+.category-load-row .view-all-topics:hover { border-color: #93c5fd; }
+
+.category-load-row .view-all-topics svg {
+  width: 15px;
+  height: 15px;
+}
+
+.area-articles { margin-top: 22px; border: 1px solid #dfe7f2; border-radius: 10px; background: #fff; padding: 20px; box-shadow: 0 7px 20px rgba(15, 23, 42, .035); }
+.area-articles .section-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 6px; }
+.area-articles h2 { margin: 0; font-size: 15px; font-weight: 850; color: #0f172a; }
+.area-articles .section-row p { margin: 4px 0 0; color: #64748b; font-size: 12.5px; }
+.area-state { padding: 26px 0; color: #94a3b8; font-size: 13px; }
+.area-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.area-card { display: flex; align-items: center; gap: 11px; width: 100%; border: 1px solid #eef2f7; border-radius: 10px; background: #fbfdff; padding: 12px 13px; text-align: left; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.area-card:hover { border-color: #c7d2fe; background: #f5f8ff; }
+.area-card-body { min-width: 0; flex: 1; }
+.area-card .doc-file { width: 30px; height: 30px; }
+.area-card .doc-file svg { width: 15px; height: 15px; }
+.area-diff { flex-shrink: 0; border-radius: 6px; padding: 3px 8px; font-size: 10px; font-style: normal; font-weight: 850; text-transform: capitalize; background: #eef2ff; color: #4f46e5; }
+.area-diff.beginner { background: #dcfce7; color: #16a34a; }
+.area-diff.advanced { background: #fef2f2; color: #dc2626; }
+@media (max-width: 720px) { .area-grid { grid-template-columns: 1fr; } }
 
 .hero-grid {
   display: grid;
@@ -653,8 +868,8 @@ console.log(run.status);`
   margin-top: 18px;
 }
 
-.api-list button,
-.sdk-list button,
+.api-list .api-row,
+.sdk-list .sdk-row,
 .article-list button,
 .rail-doc,
 .help-row {
@@ -670,7 +885,7 @@ console.log(run.status);`
   text-align: left;
 }
 
-.api-list button:first-child,
+.api-list .api-row:first-child,
 .article-list button:first-child,
 .rail-doc:first-of-type {
   border-top: 0;
@@ -778,7 +993,7 @@ small {
   height: 14px;
 }
 
-.sdk-list button {
+.sdk-list .sdk-row {
   border-top: 0;
   padding: 10px 0;
 }
@@ -940,7 +1155,7 @@ code {
 
 @media (max-width: 1440px) {
   .category-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
@@ -960,6 +1175,9 @@ code {
 }
 
 @media (max-width: 960px) {
+  .category-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .hero-grid,
   .bottom-grid,
   .docs-rail {
@@ -987,5 +1205,33 @@ code {
     display: none;
   }
 }
-</style>
 
+/* Display-only preview rows (not interactive) */
+.api-list .api-row, .sdk-list .sdk-row { cursor: default; }
+
+/* Copy button */
+.copy-btn { cursor: pointer; }
+
+/* Changelog panel */
+.cl-backdrop { position: fixed; inset: 0; z-index: 80; background: rgba(15, 23, 42, .45); display: flex; justify-content: flex-end; }
+.cl-panel { width: 440px; max-width: 100%; height: 100vh; background: #fff; display: flex; flex-direction: column; box-shadow: -18px 0 48px rgba(15, 23, 42, .2); }
+.cl-head { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid #eef2f7; }
+.cl-head h2 { margin: 0; display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 850; }
+.cl-head h2 svg { width: 18px; height: 18px; color: #2563eb; }
+.cl-x { display: grid; place-items: center; width: 32px; height: 32px; border: 0; background: transparent; border-radius: 8px; color: #64748b; cursor: pointer; }
+.cl-x:hover { background: #eef2f7; color: #0f172a; } .cl-x svg { width: 18px; height: 18px; }
+.cl-body { flex: 1; overflow-y: auto; padding: 16px 20px; }
+.cl-state { padding: 48px 12px; text-align: center; color: #94a3b8; }
+.cl-state svg { width: 30px; height: 30px; margin-bottom: 10px; }
+.cl-state p { margin: 0; font-weight: 700; color: #64748b; font-size: 14px; }
+.cl-state small { display: block; margin-top: 5px; font-size: 12.5px; }
+.cl-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.cl-list li { border: 1px solid #eef2f7; border-radius: 10px; padding: 13px 14px; }
+.cl-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.cl-row-head strong { font-size: 13.5px; font-weight: 850; color: #0f172a; }
+.cl-date { flex-shrink: 0; color: #94a3b8; font-size: 11.5px; font-weight: 700; }
+.cl-list p { margin: 6px 0 0; color: #475569; font-size: 12.5px; line-height: 1.55; }
+.cl-read { display: inline-flex; align-items: center; gap: 6px; margin-top: 9px; border: 0; background: transparent; padding: 0; color: #2563eb; font-size: 12px; font-weight: 800; cursor: pointer; }
+.cl-read svg { width: 13px; height: 13px; }
+@media (max-width: 520px) { .cl-panel { width: 100%; } }
+</style>

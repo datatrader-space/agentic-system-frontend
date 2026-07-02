@@ -91,6 +91,9 @@
 
     <!-- â”€â”€ Page content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
     <main class="pl-main">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <AppBreadcrumbs contained />
+      </div>
       <slot />
     </main>
 
@@ -146,6 +149,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import CookieConsent from './CookieConsent.vue'
+import AppBreadcrumbs from '../common/AppBreadcrumbs.vue'
 
 const route = useRoute()
 const scrollEl = ref(null)

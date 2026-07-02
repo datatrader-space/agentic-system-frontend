@@ -23,6 +23,8 @@ export const useBudgetStore = defineStore('budgets', {
     rules: [],
     alerts: [],
     budgets: [],          // full Budget objects (for edit modals)
+    approvals: [],        // pending budget approval requests (manager queue)
+    events: [],           // recent budget enforcement events (audit trail)
     hasBudget: false,
     organization: null,   // the active org for the current view {id, name}
     organizations: [],    // orgs the user can access (for the selector) [{id, name, is_personal}]
@@ -98,6 +100,7 @@ export const useBudgetStore = defineStore('budgets', {
         // Lock the selected org to whatever the server resolved, so subsequent writes target the same org.
         if (this.organization?.id) this.selectedOrgId = this.organization.id
         await this.loadBudgets()
+        await this.loadApprovalsAndEvents()
         this.loaded = true
       } catch (e) {
         this.error = e?.response?.data?.error || e?.message || 'Failed to load budgets'
@@ -110,6 +113,20 @@ export const useBudgetStore = defineStore('budgets', {
         const { data } = await api.getBudgets(this.selectedOrgId)
         this.budgets = Array.isArray(data) ? data : (data?.results || [])
       } catch { /* non-fatal: summary already drives the view */ }
+    },
+    async loadApprovalsAndEvents() {
+      try {
+        const [ap, ev] = await Promise.all([
+          api.getBudgetApprovals(),
+          api.getBudgetEvents(this.selectedOrgId),
+        ])
+        this.approvals = Array.isArray(ap.data) ? ap.data : (ap.data?.results || [])
+        this.events = Array.isArray(ev.data) ? ev.data : (ev.data?.results || [])
+      } catch { /* non-fatal */ }
+    },
+    async decideApproval(eventId, decision) {
+      await api.decideBudgetApproval(eventId, decision)
+      await this.load()
     },
     async setPeriod(period) {
       await this.load(period)

@@ -43,6 +43,7 @@
 
     <!-- Footer: user + collapse toggle -->
     <div class="sidebar-footer">
+      <NotificationBell :collapsed="collapsed" />
       <button class="take-tour" :class="{ collapsed }" :title="collapsed ? 'Take a tour' : ''" aria-label="Take a tour" @click="startTour">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke-linecap="round" stroke-linejoin="round" /><line x1="12" y1="17" x2="12.01" y2="17" stroke-linecap="round" /></svg>
         <span v-if="!collapsed">Take a tour</span>
@@ -77,6 +78,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { useChatStore } from '../../stores/useChatStore'
 import SidebarNavItem from './SidebarNavItem.vue'
+import NotificationBell from './NotificationBell.vue'
 import WorkspaceSwitcher from '../layout/WorkspaceSwitcher.vue'
 import { useOnboarding } from '../../composables/useOnboarding'
 
@@ -107,16 +109,15 @@ const initials = computed(() => {
 // stay alive through Phase 5; dashboard children render inside this shell).
 const primaryNav = [
   { to: '/dashboard', exact: true, label: 'Home', 'data-tour': 'home', icon: ['M3 12l9-9 9 9', 'M5 10v10h14V10'] },
-  { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", 'data-tour': 'lets-code', icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6'] },
+  // Hidden for now (routes/pages still work directly): Let's Code + Workflow Builder.
+  // { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", 'data-tour': 'lets-code', icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6'] },
   { to: '/dashboard/agents', match: '/dashboard/agents', label: 'Agents', 'data-tour': 'agents', icon: ['M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93', 'M12 18a8 8 0 0 1-8-8', 'M20 10a8 8 0 0 1-8 8', 'M12 11.5a1.5 1.5 0 1 0 0 .01'] },
   { to: '/dashboard/connectors', label: 'Connectors', 'data-tour': 'connectors', icon: ['M13.83 10.17a4 4 0 0 0-5.66 0l-4 4a4 4 0 1 0 5.66 5.66l1.1-1.1', 'M10.17 13.83a4 4 0 0 0 5.66 0l4-4a4 4 0 1 0-5.66-5.66l-1.1 1.1'] },
-  { to: '/dashboard/tools', label: 'Tools', 'data-tour': 'tools', icon: ['M14.7 6.3a4 4 0 0 1-5.6 5.6L4 17v3h3l5.1-5.1a4 4 0 0 1 5.6-5.6l-2.6 2.6-2-2 2.6-2.6z'] },
-  { to: '/dashboard/workflow-builder', match: '/dashboard/workflow-builder', label: 'Workflow Builder', 'data-tour': 'workflow', icon: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M10 7h4a3 3 0 0 1 3 3v4'] },
+  // { to: '/dashboard/workflow-builder', match: '/dashboard/workflow-builder', label: 'Workflow Builder', 'data-tour': 'workflow', icon: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M10 7h4a3 3 0 0 1 3 3v4'] },
   { to: '/dashboard/schedules', label: 'Schedules', 'data-tour': 'schedules', icon: ['M8 2v4', 'M16 2v4', 'M3 10h18', 'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z', 'M12 14v3l2 1'] },
-  { to: '/dashboard/organization', match: '/dashboard/organization', label: 'Organization', 'data-tour': 'organization', icon: ['M3 21h18', 'M5 21V7l7-4 7 4v14', 'M9 21v-6h6v6', 'M9 9h.01', 'M15 9h.01'] },
-  { to: '/dashboard/budgets', label: 'Budgets', 'data-tour': 'budgets', icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6'] },
-  { to: '/dashboard/approvals', label: 'Approvals', 'data-tour': 'approvals', icon: ['M9 12l2 2 4-4', 'M12 2 5 5v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V7z'] },
   { to: '/dashboard/activity', label: 'Activity', 'data-tour': 'activity', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
+  { to: '/dashboard/budgets', label: 'Budgets', 'data-tour': 'budgets', icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6'] },
+  { to: '/dashboard/organization', match: '/dashboard/organization', label: 'Organization', 'data-tour': 'organization', icon: ['M3 21h18', 'M5 21V7l7-4 7 4v14', 'M9 21v-6h6v6', 'M9 9h.01', 'M15 9h.01'] },
   { to: '/admin-dashboard', match: '/admin-dashboard', label: 'Admin', adminOnly: true, icon: ['M12 2 4 5v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V5z', 'M9 12l2 2 4-4'] },
   { to: '/dashboard/settings/general', match: '/dashboard/settings', label: 'Settings', 'data-tour': 'settings', icon: ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82'] },
   { to: '/dashboard/help-center', match: '/dashboard/help-center', label: 'Help Center', 'data-tour': 'help-center', icon: ['M9.09 9a3 3 0 1 1 5.83 1c0 2-3 2.25-3 4', 'M12 17h.01', 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z'] },

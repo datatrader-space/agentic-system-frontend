@@ -55,6 +55,10 @@
                   <span class="add-menu-title">Register service</span>
                   <span class="add-menu-sub">From OpenAPI / Postman spec</span>
                 </button>
+                <button @click="openOAuthProvider" class="add-menu-item">
+                  <span class="add-menu-title">Register OAuth Provider</span>
+                  <span class="add-menu-sub">OAuth client and scopes flow</span>
+                </button>
                 <button @click="openDrafts" class="add-menu-item">
                   <span class="add-menu-title">Service drafts</span>
                   <span class="add-menu-sub">Resume or delete drafts</span>
@@ -376,11 +380,15 @@
     <!-- Manage MCP server in-page (reuses MCPServerDetailModal) — no redirect to /dashboard/mcp -->
     <MCPServerDetailModal v-if="mcpDetail" :server="mcpDetail" @close="closeMcpDetail" @updated="openMcpManageRefresh" @edit="onMcpDetailEdit" />
 
-    <!-- Register a service in-page (reuses ServiceRegistrationModal) — no redirect to the wizard page -->
-    <ServiceRegistrationModal v-if="showServiceReg" @close="showServiceReg = false" @registered="onServiceRegistered" />
-
     <!-- Full service management in-page (edit actions, test, share, activate, delete) -->
     <ServiceDetailModal v-if="serviceManage" :service="serviceManage" @close="closeServiceManage" @updated="loadConnectors" />
+
+    <!-- Register service / tool integration (legacy backend flow restored) -->
+    <ServiceRegistrationModal
+      v-if="showServiceReg"
+      @close="showServiceReg = false"
+      @registered="onServiceRegistered"
+    />
 
     <!-- Service drafts (resume / delete incomplete registrations) -->
     <div v-if="showDrafts" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" @click.self="showDrafts = false">
@@ -432,7 +440,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import PageLoader from '../components/common/PageLoader.vue'
@@ -442,14 +450,15 @@ import { connectOAuth } from '@/composables/useOAuthConnect'
 import CredentialManager from '../components/tools/CredentialManager.vue'
 import MCPServerModal from '../components/mcp/MCPServerModal.vue'
 import MCPServerDetailModal from '../components/mcp/MCPServerDetailModal.vue'
-import ServiceRegistrationModal from '../components/services/ServiceRegistrationModal.vue'
 import ServiceDetailModal from '../components/services/ServiceDetailModal.vue'
+import ServiceRegistrationModal from '../components/services/ServiceRegistrationModal.vue'
 import WorkspaceManageModal from '../components/connectors/WorkspaceManageModal.vue'
 import IntegrationHubModal from '../components/connectors/IntegrationHubModal.vue'
 import ConnectorTabs from '../components/connectors/ConnectorTabs.vue'
 import ConnectorGettingStartedSidebar from '../components/connectors/ConnectorGettingStartedSidebar.vue'
 
 const route = useRoute()
+const router = useRouter()
 
 const loading = ref(true)
 const error = ref('')
@@ -501,8 +510,8 @@ const actionLoading = ref(false)
 const credModalConnector = ref(null)
 const addMenuOpen = ref(false)
 const showMcpModal = ref(false)
-const showServiceReg = ref(false)
 const showHub = ref(false)
+const showServiceReg = ref(false)
 const mcpDetail = ref(null) // fetched { server, tools, ... } for the MCP manage modal
 const editMcpServer = ref(null) // server object when editing config from the detail modal
 
@@ -518,6 +527,14 @@ function openBrowse() {
 function openRegisterService() {
   addMenuOpen.value = false
   showServiceReg.value = true
+}
+function openOAuthProvider() {
+  addMenuOpen.value = false
+  router.push('/dashboard/connectors/oauth-provider/new')
+}
+function onServiceRegistered() {
+  showServiceReg.value = false
+  loadConnectors()
 }
 
 // ── Full service management (ServiceDetailModal: edit/test/share/activate/delete) ──
@@ -568,12 +585,6 @@ function onMcpSaved() {
   notify.success('MCP server saved')
   loadConnectors()
 }
-function onServiceRegistered() {
-  showServiceReg.value = false
-  notify.success('Service registered')
-  loadConnectors()
-}
-
 // Remove (delete) an MCP server connector entirely — in-page, with confirm.
 async function handleRemoveMcp(c) {
   if (!(await confirm({

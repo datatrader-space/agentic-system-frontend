@@ -1,12 +1,6 @@
 <template>
   <main class="lp-page">
     <section class="lp-main">
-      <nav class="breadcrumbs">
-        <RouterLink to="/dashboard/help-center">Help Center</RouterLink>
-        <Icon icon="lucide:chevron-right" class="bc-sep" />
-        <span>Learning paths</span>
-      </nav>
-
       <header class="lp-head">
         <div>
           <h1>Learning paths</h1>
@@ -75,10 +69,6 @@ onMounted(load)
 <style scoped>
 .lp-page { min-height: 100%; padding: 30px 36px 60px; background: #f8fbff; color: #0f172a; }
 .lp-main { max-width: 1040px; margin: 0 auto; }
-.breadcrumbs { display: flex; align-items: center; gap: 6px; font-size: 12.5px; margin-bottom: 16px; }
-.breadcrumbs a { color: #2563eb; text-decoration: none; font-weight: 700; }
-.breadcrumbs span { color: #64748b; }
-.bc-sep { width: 13px; height: 13px; color: #cbd5e1; }
 .lp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
 .lp-head h1 { margin: 0; font-size: 25px; font-weight: 850; }
 .lp-head p { margin: 8px 0 0; color: #64748b; font-size: 14px; max-width: 560px; }

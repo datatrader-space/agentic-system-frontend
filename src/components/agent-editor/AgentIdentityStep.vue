@@ -1,6 +1,6 @@
 <template>
-  <div class="mx-auto w-full max-w-[1840px] px-8 pb-10 font-[Inter,system-ui,sans-serif]">
-    <header v-if="isNew" class="mb-8 text-center">
+  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif]">
+    <header v-if="isNew" class="mb-6 text-center">
       <h2 class="text-[28px] font-bold tracking-tight text-[#0F172A]">Let's build your agent</h2>
       <p class="mt-2 text-[15px] text-[#64748B]">Choose a starting point and confirm the basics for this agent.</p>
     </header>
@@ -9,14 +9,14 @@
       <p class="mt-0.5 text-[13.5px] text-[#64748B]">Your agent's name, purpose, and where it lives.</p>
     </header>
 
-    <section v-if="isNew" class="mx-auto mb-6 max-w-[1120px]">
+    <section v-if="isNew" class="mx-auto mb-5 max-w-[1120px]">
       <p class="mb-3 text-[13px] font-semibold text-[#0F172A]">Choose a starting point</p>
-      <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
         <button
           v-for="template in visibleTemplates"
           :key="template.key"
           type="button"
-          class="relative min-h-[150px] rounded-2xl border bg-white p-5 text-left shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:border-[#2563EB]"
+          class="relative min-h-[144px] rounded-xl border bg-white p-4 text-left shadow-[0_1px_2px_rgba(16,24,40,0.04)] transition hover:border-[#2563EB]"
           :class="selectedTemplate === template.key ? 'border-[#2563EB] ring-1 ring-[#2563EB]' : 'border-[#E5E7EB]'"
           @click="selectTemplate(template)"
         >
@@ -35,18 +35,18 @@
         <button
           type="button"
           class="inline-flex items-center gap-2 rounded-[10px] border border-[#C7D7F7] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#2563EB] shadow-[0_1px_2px_rgba(16,24,40,0.04)] hover:border-[#2563EB] hover:bg-[#EFF4FF]"
-          @click="showMoreTemplates = !showMoreTemplates"
+          @click="router.push({ name: 'builtin-agent-library' })"
         >
-          {{ showMoreTemplates ? 'Show fewer templates' : 'View more templates' }}
-          <ChevronDown :size="15" :stroke-width="2" class="transition" :class="showMoreTemplates ? 'rotate-180' : ''" />
+          View all built-in agents to clone
+          <ArrowRight :size="15" :stroke-width="2" />
         </button>
       </div>
     </section>
 
-    <section class="mx-auto max-w-[1120px] rounded-2xl border border-[#E5E7EB] bg-white p-7 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-      <h3 class="mb-5 text-base font-semibold text-[#0F172A]">Agent basics</h3>
+    <section class="mx-auto max-w-[1120px] rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <h3 class="mb-4 text-base font-semibold text-[#0F172A]">Agent basics</h3>
 
-      <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label class="mb-1.5 block text-[13px] font-semibold text-[#344054]">Agent name</label>
           <input v-model="agent.name" type="text" placeholder="e.g., My Lead Intake Agent" class="field" />
@@ -59,17 +59,17 @@
         </div>
       </div>
 
-      <div class="mt-5">
+      <div class="mt-4">
         <label class="mb-1.5 block text-[13px] font-semibold text-[#344054]">Workspace</label>
         <select v-model="selectedWorkspace" class="field">
           <option :value="null">Select a workspace</option>
-          <option v-for="w in workspaces" :key="w.id" :value="w.id">{{ w.name }}</option>
+          <option v-for="w in workspaces" :key="w.id" :value="w.id">{{ w.org_name ? `${w.org_name} · ${w.name}` : w.name }}</option>
         </select>
         <p class="mt-1.5 text-xs text-[#667085]">Choose where this agent will live and which data it can access.</p>
       </div>
     </section>
 
-    <section v-if="isNew" class="mx-auto mt-6 flex max-w-[1120px] items-center justify-between gap-4 rounded-2xl border border-[#DCE6FB] bg-[#EFF4FF] px-5 py-4">
+    <section v-if="isNew" class="mx-auto mt-5 flex max-w-[1120px] items-center justify-between gap-4 rounded-xl border border-[#DCE6FB] bg-[#EFF4FF] px-5 py-4">
       <div class="flex items-start gap-3">
         <Lightbulb :size="20" :stroke-width="2" class="mt-0.5 shrink-0 text-[#2563EB]" />
         <div>
@@ -83,9 +83,12 @@
 
 <script setup>
 import { computed, ref, onMounted, watch } from 'vue'
-import { Check, ChevronDown, Database, FileText, Lightbulb, MessageCircle, Plus, Search, Sparkles, Users } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { ArrowRight, Check, ChevronDown, Database, FileText, Lightbulb, MessageCircle, Plus, Search, Sparkles, Users } from 'lucide-vue-next'
 import api from '../../services/api'
+import tenancyApi from '../../services/tenancyApi'
 
+const router = useRouter()
 const props = defineProps({
   agent: { type: Object, required: true },
   isNew: { type: Boolean, default: false },
@@ -129,7 +132,11 @@ watch(selectedWorkspace, (id) => { props.agent.workspace = id })
 
 onMounted(async () => {
   try {
-    const res = await api.get('/workspaces/')
+    // Tenancy workspaces (agent.workspace is a FK to tenancy.Workspace) — the same
+    // workspaces shown in the Organization page / workspace switcher. NOTE: the legacy
+    // /api/workspaces/ endpoint returns Let's-Code WorkspaceConnection rows instead and
+    // would never match this FK, so we go through the v2 tenancy API here.
+    const res = await tenancyApi.getAllWorkspaces()
     workspaces.value = Array.isArray(res.data) ? res.data : (res.data?.results || [])
   } catch (e) {
     workspaces.value = []

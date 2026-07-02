@@ -38,6 +38,7 @@
 
     <!-- Main -->
     <main class="admin-main">
+      <AppBreadcrumbs />
       <router-view v-slot="{ Component }">
         <Suspense>
           <component :is="Component" :key="route.fullPath" />
@@ -76,6 +77,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
+import AppBreadcrumbs from '../common/AppBreadcrumbs.vue'
 
 const route = useRoute()
 const user = ref(null)
@@ -83,12 +85,14 @@ const user = ref(null)
 const nav = [
   { to: '/admin-dashboard/overview', label: 'Overview', icon: ['M3 13h8V3H3zM13 21h8V3h-8zM3 21h8v-6H3z'] },
   { to: '/admin-dashboard/platform', label: 'Platform & Users', icon: ['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', 'M9 7a4 4 0 1 0 0 .01', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'] },
+  { to: '/admin-dashboard/guardrails', label: 'System Guardrails', icon: ['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'] },
   { to: '/admin-dashboard/knowledge', label: 'Knowledge & Crawl', icon: ['M2 12a10 10 0 1 0 20 0 10 10 0 1 0-20 0', 'M2 12h20', 'M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20'] },
   { to: '/admin-dashboard/model-pricing', label: 'Model Pricing', icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'] },
   { to: '/admin-dashboard/llm-context', label: 'LLM Context', icon: ['M4 7V4h16v3', 'M9 20h6', 'M12 4v16', 'M4 12h16'] },
   { to: '/admin-dashboard/crawler-export', label: 'Crawler Export API', icon: ['M21 2H3v16h5v4l4-4h5l4-4z', 'M8 9h8', 'M8 13h6'] },
-  { to: '/admin-dashboard/api-reference', label: 'API Reference', icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6', 'M14 4l-4 16'] },
+  { to: '/admin-dashboard/help-center', match: '/admin-dashboard/help-center', label: 'Help Center', icon: ['M4 4h16v16H4z', 'M8 8h8', 'M8 12h8', 'M8 16h5'] },
   { to: '/admin-dashboard/help-analytics', label: 'Help Analytics', icon: ['M3 3v18h18', 'M7 16l4-4 3 3 5-6'] },
+  { to: '/admin-dashboard/builtin-agents', label: 'Built-in Agents', icon: ['M12 8V4H8', 'M4 12a8 8 0 0 1 8-8', 'M2 14h2', 'M20 14h2', 'M15 13v2', 'M9 13v2', 'M6 10h12v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z'] },
 ]
 
 // Django admin lives on the backend (:8000 in dev; same origin in prod).

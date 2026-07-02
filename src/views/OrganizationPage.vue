@@ -3,7 +3,6 @@
     <section class="org-main">
       <header class="page-head">
         <div>
-          <nav class="crumbs">Organizations <span>/</span> {{ org?.name || '—' }}</nav>
           <div class="title-row">
             <h1>{{ orgTitle }}</h1>
             <span class="status-pill">Active</span>
@@ -180,7 +179,7 @@
             <span><Icon icon="lucide:shield-check" />{{ guardrail }}</span>
             <button class="switch"><i /></button>
           </div>
-          <RouterLink class="full-link" to="/dashboard/organization/policies-controls">Edit guardrails</RouterLink>
+          <RouterLink class="full-link" to="/dashboard/org-guardrails">Edit guardrails &amp; approvals</RouterLink>
         </article>
       </section>
     </section>
@@ -237,24 +236,71 @@
       <transition name="org-modal">
         <div v-if="invite.open" class="org-backdrop" @click.self="invite.open = false">
           <div class="org-modal" role="dialog" aria-modal="true">
-            <h3>Invite Member</h3>
+            <h3>Invite / Add Member</h3>
+
             <div class="form-row">
-              <label>Email</label>
-              <input v-model="invite.email" type="email" placeholder="colleague@company.com" @keydown.enter="submitInvite" />
+              <label>Add to</label>
+              <div class="scope-toggle">
+                <button :class="{ active: invite.scope === 'org' }" @click="invite.scope = 'org'">Organization</button>
+                <button :class="{ active: invite.scope === 'workspace' }" @click="setWorkspaceScope">Workspace</button>
+              </div>
             </div>
-            <div class="form-row">
-              <label>Role</label>
-              <select v-model="invite.role">
-                <option value="member">Member</option>
-                <option value="admin">Admin</option>
-                <option value="viewer">Viewer</option>
-                <option value="billing">Billing</option>
-              </select>
-            </div>
+
+            <!-- Organization scope: email invite -->
+            <template v-if="invite.scope === 'org'">
+              <div class="form-row">
+                <label>Email</label>
+                <input v-model="invite.email" type="email" placeholder="colleague@company.com" @keydown.enter="submitInvite" />
+              </div>
+              <div class="form-row">
+                <label>Role</label>
+                <select v-model="invite.role">
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                  <option value="viewer">Viewer</option>
+                  <option value="billing">Billing</option>
+                </select>
+              </div>
+              <p class="scope-hint">Sends an email invite to join the organization.</p>
+            </template>
+
+            <!-- Workspace scope: add an existing org member to a workspace -->
+            <template v-else>
+              <div class="form-row">
+                <label>Workspace</label>
+                <select v-model="invite.workspaceId" @change="onInviteWorkspaceChange">
+                  <option value="" disabled>Select a workspace…</option>
+                  <option v-for="w in store.workspaces" :key="w.id" :value="w.id">{{ w.name }}</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label>Member</label>
+                <select v-model="invite.userId" :disabled="!invite.workspaceId">
+                  <option value="" disabled>{{ invite.candidatesLoading ? 'Loading…' : 'Select an org member…' }}</option>
+                  <option v-for="c in invite.candidates" :key="c.user" :value="c.user">{{ c.username || c.email }}</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label>Role</label>
+                <select v-model="invite.wsRole">
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                  <option value="viewer">Viewer</option>
+                </select>
+              </div>
+              <p v-if="invite.workspaceId && !invite.candidates.length && !invite.candidatesLoading" class="scope-hint">
+                Everyone in the org is already in this workspace. Invite new people to the org first.
+              </p>
+              <p v-else class="scope-hint">Adds an existing organization member to the selected workspace.</p>
+            </template>
+
             <div class="modal-actions">
               <button class="btn-cancel" @click="invite.open = false">Cancel</button>
-              <button class="btn-primary" :disabled="invite.busy || !invite.email.trim()" @click="submitInvite">
+              <button v-if="invite.scope === 'org'" class="btn-primary" :disabled="invite.busy || !invite.email.trim()" @click="submitInvite">
                 {{ invite.busy ? 'Sending…' : 'Send Invite' }}
+              </button>
+              <button v-else class="btn-primary" :disabled="invite.busy || !invite.workspaceId || !invite.userId" @click="submitWorkspaceAdd">
+                {{ invite.busy ? 'Adding…' : 'Add to Workspace' }}
               </button>
             </div>
           </div>
@@ -303,12 +349,53 @@ const isAdmin = computed(() => store.isAdmin)
 
 onMounted(() => { if (!store.loaded) store.load() })
 
-// ── Invite member modal ─────────────────────────────────────────────────────
-const invite = reactive({ open: false, email: '', role: 'member', busy: false })
+// ── Invite / add member modal (org or workspace scope) ──────────────────────
+const invite = reactive({
+  open: false, busy: false,
+  scope: 'org',
+  // org scope
+  email: '', role: 'member',
+  // workspace scope
+  workspaceId: '', userId: '', wsRole: 'member',
+  candidates: [], candidatesLoading: false,
+})
 function openInvite() {
+  invite.scope = 'org'
   invite.email = ''
   invite.role = 'member'
+  invite.workspaceId = ''
+  invite.userId = ''
+  invite.wsRole = 'member'
+  invite.candidates = []
   invite.open = true
+}
+function setWorkspaceScope() {
+  invite.scope = 'workspace'
+  // Preselect the first workspace if there's exactly one.
+  if (!invite.workspaceId && store.workspaces.length) {
+    invite.workspaceId = store.workspaces[0].id
+    onInviteWorkspaceChange()
+  }
+}
+async function onInviteWorkspaceChange() {
+  invite.userId = ''
+  invite.candidates = []
+  if (!invite.workspaceId || !store.orgSlug) return
+  invite.candidatesLoading = true
+  try {
+    const [wsRes, orgRes] = await Promise.all([
+      tenancyApi.getWSMembers(invite.workspaceId),
+      tenancyApi.getOrgMembers(store.orgSlug),
+    ])
+    const wsMembers = Array.isArray(wsRes.data) ? wsRes.data : (wsRes.data?.results || [])
+    const orgMembers = Array.isArray(orgRes.data) ? orgRes.data : (orgRes.data?.results || [])
+    const inWs = new Set(wsMembers.map((m) => m.user))
+    invite.candidates = orgMembers.filter((m) => !inWs.has(m.user))
+  } catch {
+    notify.error('Failed to load members')
+  } finally {
+    invite.candidatesLoading = false
+  }
 }
 async function submitInvite() {
   const email = invite.email.trim()
@@ -322,6 +409,20 @@ async function submitInvite() {
     store.loadMembers()
   } catch (err) {
     notify.error(err?.response?.data?.detail || err?.response?.data?.error || 'Invite failed')
+  } finally {
+    invite.busy = false
+  }
+}
+async function submitWorkspaceAdd() {
+  if (!invite.workspaceId || !invite.userId || invite.busy) return
+  invite.busy = true
+  try {
+    await tenancyApi.addWSMember(invite.workspaceId, { user_id: invite.userId, role: invite.wsRole })
+    notify.success('Member added to workspace')
+    invite.open = false
+    store.refresh()
+  } catch (err) {
+    notify.error(err?.response?.data?.detail || err?.response?.data?.error || 'Failed to add member')
   } finally {
     invite.busy = false
   }
@@ -470,8 +571,6 @@ const organizationModules = [
 }
 .org-main { max-width: 1280px; width: 100%; justify-self: center; }
 .page-head { display: flex; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
-.crumbs { color: #475569; font-size: 12px; font-weight: 750; margin-bottom: 8px; }
-.crumbs span { color: #94a3b8; padding: 0 12px; }
 .title-row { display: flex; align-items: center; gap: 10px; }
 h1, h2, p { margin: 0; }
 h1 { font-size: 26px; line-height: 1.1; font-weight: 850; letter-spacing: 0; }
@@ -633,12 +732,6 @@ dd { margin: 0; color: #0f172a; font-size: 12px; font-weight: 750; }
 .organization-page .page-head {
   align-items: flex-start;
   margin-bottom: 16px;
-}
-
-.organization-page .crumbs {
-  font-size: 11.5px !important;
-  font-weight: 650 !important;
-  margin-bottom: 8px;
 }
 
 .organization-page h1 {
@@ -1458,6 +1551,36 @@ dd { margin: 0; color: #0f172a; font-size: 12px; font-weight: 750; }
 .org-modal .btn-primary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+.org-modal .scope-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+.org-modal .scope-toggle button {
+  height: 34px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 750;
+  color: #475569;
+  cursor: pointer;
+}
+.org-modal .scope-toggle button.active {
+  background: #fff;
+  color: #1e293b;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+.org-modal .scope-hint {
+  margin: -4px 0 2px;
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 550;
+  line-height: 1.4;
 }
 .org-modal-enter-active,
 .org-modal-leave-active {

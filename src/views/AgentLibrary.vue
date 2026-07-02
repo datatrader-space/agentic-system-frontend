@@ -71,9 +71,19 @@
       </div>
 
       <!-- ===================== Agent grid ===================== -->
-      <div v-else class="grid">
+      <template v-else>
+      <!-- Paused agents banner + bulk resume -->
+      <div v-if="pausedAgents.length" class="paused-banner">
+        <Icon icon="lucide:pause-circle" />
+        <span><strong>{{ pausedAgents.length }} agent{{ pausedAgents.length === 1 ? '' : 's' }} paused</strong> — won't start new runs until resumed.</span>
+        <button class="resume-all" :disabled="resuming" @click="resumeAll">
+          <Icon :icon="resuming ? 'lucide:loader-2' : 'lucide:play'" :class="{ spin: resuming }" /> Resume all
+        </button>
+      </div>
+
+      <div class="grid">
         <article
-          v-for="(agent, i) in filteredAgents"
+          v-for="(agent, i) in pagedAgents"
           :key="agent.id"
           class="card"
           :class="themeOf(i)"
@@ -88,7 +98,10 @@
           <!-- top: icon tile + status -->
           <div class="card-top">
             <span class="tile" :class="themeOf(i)"><Icon :icon="iconOf(agent)" /></span>
-            <span class="badge" :class="agent.signal_enabled ? 'live' : 'idle'"
+            <span v-if="agent.is_paused" class="badge paused" title="Paused — won't start new runs">
+              <Icon icon="lucide:pause" /> Paused
+            </span>
+            <span v-else class="badge" :class="agent.signal_enabled ? 'live' : 'idle'"
                   :title="agent.signal_enabled ? 'External access (webhook / WebSocket) enabled' : 'Signals off'">
               <span class="vm-orb" :class="agent.signal_enabled ? 'is-live' : 'is-idle'"></span>
               {{ agent.signal_enabled ? 'Live' : 'Idle' }}
@@ -124,6 +137,7 @@
               <button class="b-more" :title="'More actions'" @click.stop="toggleMenu(agent.id)"><Icon icon="lucide:more-horizontal" /></button>
               <div v-if="openMenuId === agent.id" class="menu" @click.stop>
                 <button @click.stop="openMonitor(agent)"><Icon icon="lucide:activity" /> Monitor</button>
+                <button @click.stop="openWorkspace(agent)"><Icon icon="lucide:folder" /> Workspace</button>
                 <button @click.stop="openIntegrationGuide(agent)"><Icon icon="lucide:book-open" /> Integration Guide <Icon icon="lucide:external-link" class="ext" /></button>
                 <button @click.stop="duplicateAgent(agent)"><Icon icon="lucide:copy" /> Duplicate</button>
                 <button v-if="agent.is_owner !== false" class="danger" @click.stop="confirmDelete(agent); closeMenus()"><Icon icon="lucide:trash-2" /> Delete</button>
@@ -132,19 +146,27 @@
           </div>
         </article>
 
-        <!-- add-new card -->
-        <button class="card add" :style="{ animationDelay: (filteredAgents.length * 70 + 80) + 'ms' }" @click="createAgent">
+        <!-- add-new card (only on the last page so it isn't repeated across pages) -->
+        <button v-if="page >= totalPages" class="card add" @click="createAgent">
           <span class="plus"><Icon icon="lucide:plus" /></span>
           <b>Create a new agent</b>
           <span class="add-sub">Start from scratch or a template</span>
         </button>
       </div>
+
+      <!-- Pagination (10 per page) -->
+      <nav v-if="totalPages > 1" class="pager">
+        <button class="pg" :disabled="page <= 1" @click="page--"><Icon icon="lucide:chevron-left" /> Prev</button>
+        <button v-for="p in totalPages" :key="p" class="pg num" :class="{ on: p === page }" @click="page = p">{{ p }}</button>
+        <button class="pg" :disabled="page >= totalPages" @click="page++">Next <Icon icon="lucide:chevron-right" /></button>
+      </nav>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, h } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, h } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import api from '../services/api';
@@ -183,6 +205,30 @@ const filteredAgents = computed(() => {
     }
     return list;
 });
+
+// Client-side pagination (backend returns all agents in one response).
+const PER_PAGE = 8;
+const page = ref(1);
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredAgents.value.length / PER_PAGE)));
+const pagedAgents = computed(() => filteredAgents.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE));
+// Reset to page 1 whenever the filtered set changes (search / filter / sort), and clamp if the
+// current page falls out of range (e.g. after a delete).
+watch(() => filteredAgents.value.length, () => { if (page.value > totalPages.value) page.value = totalPages.value; });
+watch([searchQuery, statusFilter, sortBy, ownerFilter], () => { page.value = 1; });
+
+// Paused agents + bulk resume.
+const pausedAgents = computed(() => agents.value.filter(a => a.is_paused));
+const resuming = ref(false);
+async function resumeAll() {
+    if (resuming.value || !pausedAgents.value.length) return;
+    resuming.value = true;
+    const ids = pausedAgents.value.map(a => a.id);
+    const results = await Promise.allSettled(ids.map(id => api.unpauseAgent(id)));
+    let ok = 0;
+    results.forEach((r, i) => { if (r.status === 'fulfilled') { ok++; const a = agents.value.find(x => x.id === ids[i]); if (a) a.is_paused = false; } });
+    notify.success(`Resumed ${ok} agent${ok === 1 ? '' : 's'}`);
+    resuming.value = false;
+}
 
 /* ---- Stats (animated count-ups over real data) ---- */
 const totalCount = computed(() => agents.value.length);
@@ -258,6 +304,11 @@ const openChat = (agent) => {
 const openMonitor = (agent) => {
     openMenuId.value = null;
     router.push(`/dashboard/agents/${agent.id}/monitor`);
+};
+
+const openWorkspace = (agent) => {
+    openMenuId.value = null;
+    router.push(`/dashboard/agents/${agent.id}/workspace`);
 };
 
 const openIntegrationGuide = (agent) => {
@@ -433,6 +484,20 @@ EmptyArt.props = ['search'];
 
 .badge { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; padding: 5px 11px; border-radius: 999px; }
 .badge.live { background: rgba(16, 185, 129, .12); color: #059669; }
+.badge.paused { background: rgba(217, 119, 6, .13); color: #b45309; }
+.badge.paused svg { width: 13px; height: 13px; }
+.paused-banner { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 11px 15px; border: 1px solid #fde68a; border-radius: 12px; background: #fffbeb; color: #92400e; font-size: 13px; }
+.paused-banner > svg { width: 18px; height: 18px; flex-shrink: 0; }
+.resume-all { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; border: 0; border-radius: 9px; background: #b45309; color: #fff; padding: 7px 13px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.resume-all:disabled { opacity: .6; } .resume-all svg { width: 14px; height: 14px; }
+.spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
+.pager { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 26px; flex-wrap: wrap; }
+.pg { display: inline-flex; align-items: center; gap: 4px; height: 34px; min-width: 34px; padding: 0 11px; border: 1px solid #e5ebf3; border-radius: 9px; background: #fff; color: #475569; font-size: 13px; font-weight: 700; cursor: pointer; }
+.pg:hover:not(:disabled) { border-color: #c7d2fe; color: #4f46e5; }
+.pg:disabled { opacity: .45; cursor: not-allowed; }
+.pg.num { justify-content: center; padding: 0; }
+.pg.on { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+.pg svg { width: 15px; height: 15px; }
 .badge.idle { background: rgba(154, 147, 174, .14); color: var(--vm-ink-faint); }
 
 .name { font-family: var(--vm-font-display); font-size: 19px; font-weight: 700; margin-top: 18px; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color .2s; }

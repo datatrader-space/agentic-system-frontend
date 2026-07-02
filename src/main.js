@@ -36,7 +36,7 @@ const TutorialDetail = () => import('./views/TutorialDetail.vue')
 const HelpArticle = () => import('./views/HelpArticle.vue')
 const LearningPaths = () => import('./views/LearningPaths.vue')
 const LearningPathDetail = () => import('./views/LearningPathDetail.vue')
-const DocsBrowser = () => import('./views/DocsBrowser.vue')
+const HelpTopics = () => import('./views/HelpTopics.vue')
 const GuidedToursLibrary = () => import('./views/GuidedToursLibrary.vue')
 const GuidedTourDetail = () => import('./views/GuidedTourDetail.vue')
 const GuidedToursPage = () => import('./views/GuidedToursPage.vue')
@@ -46,7 +46,7 @@ const GettingStarted = () => import('./views/GettingStarted.vue')
 const BudgetsPage = () => import('./views/BudgetsPage.vue')
 const OrganizationPage = () => import('./views/OrganizationPage.vue')
 const OrganizationModulePage = () => import('./views/OrganizationModulePage.vue')
-const ApprovalsPage = () => import('./views/ApprovalsPage.vue')
+const AgentApprovalsPage = () => import('./views/AgentApprovalsPage.vue')
 const SchedulesPage = () => import('./views/SchedulesPage.vue')
 const AgentLibrary = () => import('./views/AgentLibrary.vue')
 const AgentPlayground = () => import('./views/AgentPlayground.vue')
@@ -63,6 +63,7 @@ const Pricing = () => import('./views/Pricing.vue')
 const About = () => import('./views/About.vue')
 const Contact = () => import('./views/Contact.vue')
 const ServiceRegistrationV2 = () => import('./views/ServiceRegistrationV2.vue')
+const OAuthProviderRegistration = () => import('./views/OAuthProviderRegistration.vue')
 const ServiceDrafts = () => import('./views/ServiceDrafts.vue')
 const OrgSettings = () => import('./views/OrgSettings.vue')
 const WorkspaceDashboard = () => import('./views/WorkspaceDashboard.vue')
@@ -207,8 +208,11 @@ const router = createRouter({
         // Legacy pages re-housed inside the shell so navigation never leaves it.
         // (The old top-level routes below remain for back-compat / deep links.)
         { path: 'agents', name: 'dashboard-agents', component: AgentLibrary },
+        { path: 'built-in-agents', name: 'builtin-agent-library', component: () => import('./views/BuiltinAgentLibrary.vue') },
         { path: 'agents/new', name: 'dashboard-agent-new', component: AgentEditor },
         { path: 'agents/:id/editor', name: 'dashboard-agent-editor', component: AgentEditor },
+        { path: 'agents/:id/workspace', name: 'dashboard-agent-workspace', component: () => import('./views/AgentWorkspacePage.vue') },
+        { path: 'agents/:id/guardrails', name: 'dashboard-agent-guardrails', component: AgentApprovalsPage },
         { path: 'agents/:id/configure', redirect: to => `/dashboard/agents/${to.params.id}/editor` },
         { path: 'agents/:id/advanced', name: 'dashboard-agent-advanced', component: AgentBuilderCanvas },
         { path: 'agents/:id/monitor', name: 'dashboard-agent-monitor', component: AgentMonitor },
@@ -228,23 +232,25 @@ const router = createRouter({
         { path: 'budgets', name: 'dashboard-budgets', component: BudgetsPage },
         { path: 'organization', name: 'dashboard-organization', component: OrganizationPage },
         { path: 'organization/:module', name: 'dashboard-organization-module', component: OrganizationModulePage },
-        { path: 'approvals', name: 'dashboard-approvals', component: ApprovalsPage },
         { path: 'activity', name: 'dashboard-activity', component: LLMDashboard },
         { path: 'help-center', name: 'dashboard-help-center', component: HelpCenter },
         { path: 'help-center/get-started', name: 'dashboard-help-get-started', component: GettingStarted },
-        { path: 'help-center/documentation', name: 'dashboard-help-documentation', redirect: '/dashboard/help-center/docs' },
+        { path: 'help-center/documentation', name: 'dashboard-help-documentation', component: DocumentationHome },
+        { path: 'help-center/topics', name: 'dashboard-help-topics', component: HelpTopics },
         { path: 'help-center/api-reference', name: 'dashboard-help-api-reference', component: ApiReference },
         { path: 'help-center/tutorials', name: 'dashboard-help-tutorials', component: TutorialsLibrary },
         { path: 'help-center/tutorials/:slug', name: 'dashboard-help-tutorial-detail', component: TutorialDetail },
         { path: 'help-center/article/:slug', name: 'dashboard-help-article', component: HelpArticle },
         { path: 'help-center/learning-paths', name: 'dashboard-help-learning-paths', component: LearningPaths },
         { path: 'help-center/learning-paths/:slug', name: 'dashboard-help-learning-path', component: LearningPathDetail },
-        { path: 'help-center/docs', name: 'dashboard-help-docs', component: DocsBrowser },
-        { path: 'help-center/docs/:productArea', name: 'dashboard-help-docs-area', component: DocsBrowser },
+        // One doc system: the docs URLs now render the new DocumentationHome (it reads
+        // :productArea to pre-filter). The legacy DocsBrowser cards page is retired.
+        { path: 'help-center/docs', name: 'dashboard-help-docs', component: DocumentationHome },
+        { path: 'help-center/docs/:productArea', name: 'dashboard-help-docs-area', component: DocumentationHome },
         { path: 'help-center/guided-tours', name: 'dashboard-help-guided-tours', component: GuidedToursLibrary },
         { path: 'help-center/guided-tours/:slug', name: 'dashboard-help-guided-tour', component: GuidedTourDetail },
         { path: 'help-center/support', name: 'dashboard-help-support', component: SupportCenter },
-        { path: 'documentation', name: 'dashboard-documentation', redirect: '/dashboard/help-center/docs' },
+        { path: 'documentation', name: 'dashboard-documentation', component: DocumentationHome },
         { path: 'tutorials', name: 'dashboard-tutorials', redirect: '/dashboard/help-center/tutorials' },
         { path: 'guided-tours', name: 'dashboard-guided-tours', redirect: '/dashboard/help-center/guided-tours' },
         { path: 'get-started', name: 'dashboard-get-started', redirect: '/dashboard/help-center/get-started' },
@@ -254,6 +260,7 @@ const router = createRouter({
         { path: 'systems/:id', name: 'dashboard-system-detail', component: SystemDetail },
         { path: 'systems/:systemId/repositories/:repoId', name: 'dashboard-repository-detail', component: RepositoryPage },
         { path: 'services/register', name: 'dashboard-service-register', component: ServiceRegistrationV2 },
+        { path: 'connectors/oauth-provider/new', name: 'dashboard-oauth-provider-new', component: OAuthProviderRegistration },
         { path: 'services/wizard', name: 'dashboard-service-wizard', component: ServiceRegistrationV2 },
         { path: 'services/drafts', name: 'dashboard-service-drafts', component: ServiceDrafts },
         { path: 'workspace/:wsId', name: 'dashboard-workspace', component: WorkspaceDashboard },
@@ -263,6 +270,7 @@ const router = createRouter({
         { path: 'integration-guide/:agentId?', name: 'dashboard-integration-guide', component: IntegrationGuide },
         { path: 'org/:orgSlug/settings', name: 'dashboard-org-settings', component: OrgSettings },
         { path: 'org/:orgSlug/settings/:tab', name: 'dashboard-org-settings-tab', component: OrgSettings },
+        { path: 'org-guardrails', name: 'dashboard-org-guardrails', component: () => import('./views/OrgGuardrails.vue') },
         { path: 'admin', name: 'dashboard-admin', redirect: '/admin-dashboard/platform' },
         { path: 'model-pricing', name: 'dashboard-model-pricing', redirect: '/admin-dashboard/model-pricing' },
         { path: 'billing', name: 'dashboard-billing', component: Billing },
@@ -280,12 +288,19 @@ const router = createRouter({
         { path: '', redirect: '/admin-dashboard/overview' },
         { path: 'overview', name: 'admin-overview', component: AdminOverview },
         { path: 'platform', name: 'admin-platform', component: AdminPanel },
+        { path: 'guardrails', name: 'admin-guardrails', component: () => import('./views/admin/AdminGuardrails.vue') },
         { path: 'knowledge', name: 'admin-knowledge', component: AdminKnowledge },
         { path: 'model-pricing', name: 'admin-model-pricing', component: ModelPricingPage },
         { path: 'llm-context', name: 'admin-llm-context', component: LLMContextDashboard },
         { path: 'crawler-export', name: 'admin-crawler-export', component: CrawlerExportAPI },
         { path: 'api-reference', name: 'admin-api-reference', component: () => import('./views/admin/AdminApiReference.vue') },
         { path: 'help-analytics', name: 'admin-help-analytics', component: () => import('./views/admin/AdminHelpAnalytics.vue') },
+        // Unified Help Center CMS hub (Content · Guided Tours · API Reference as tabs).
+        { path: 'help-center', name: 'admin-help-center', component: () => import('./views/admin/AdminHelpCms.vue') },
+        // Individual routes kept for deep links; the hub renders the same components as tabs.
+        { path: 'help-content', name: 'admin-help-content', component: () => import('./views/admin/AdminHelpContent.vue') },
+        { path: 'guided-tours', name: 'admin-guided-tours', component: () => import('./views/admin/AdminGuidedTours.vue') },
+        { path: 'builtin-agents', name: 'admin-builtin-agents', component: () => import('./views/admin/AdminBuiltinAgents.vue') },
       ],
     },
     // ── Phase 5: legacy top-level authed paths now REDIRECT into the single shell.

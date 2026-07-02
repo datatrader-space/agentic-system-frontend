@@ -169,7 +169,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 
@@ -288,10 +288,10 @@ const helpLinks = [
 .started-page {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) 292px;
+  gap: 16px;
   min-height: 100%;
-  padding: 28px 28px 54px;
+  padding: 28px 30px 54px;
   background: #f8fbff;
   color: #0f172a;
 }
@@ -303,7 +303,7 @@ const helpLinks = [
 }
 
 .started-main > h1 {
-  margin: 0 0 18px;
+  margin: 0 0 16px;
   font-size: 24px;
   line-height: 1.15;
   font-weight: 850;
@@ -324,9 +324,9 @@ const helpLinks = [
 .welcome-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 480px;
-  min-height: 190px;
+  min-height: 164px;
   overflow: hidden;
-  padding: 32px;
+  padding: 26px 32px;
 }
 
 .welcome-copy h2 {
@@ -350,7 +350,7 @@ const helpLinks = [
 .welcome-actions {
   display: flex;
   gap: 12px;
-  margin-top: 22px;
+  margin-top: 18px;
 }
 
 .primary,
@@ -385,7 +385,7 @@ const helpLinks = [
 
 .welcome-art {
   position: relative;
-  min-height: 150px;
+  min-height: 130px;
 }
 
 .welcome-art .dot {
@@ -404,7 +404,7 @@ const helpLinks = [
 .mini-card,
 .wide-card {
   position: absolute;
-  top: 42px;
+  top: 34px;
   border: 1px solid #e3eafd;
   border-radius: 12px;
   background: rgba(255, 255, 255, .86);
@@ -452,7 +452,7 @@ const helpLinks = [
 
 .block {
   position: absolute;
-  bottom: -34px;
+  bottom: -28px;
   width: 42px;
   height: 68px;
   border-radius: 14px 14px 0 0;
@@ -466,7 +466,7 @@ const helpLinks = [
 .templates-card,
 .guided-card {
   margin-top: 12px;
-  padding: 16px;
+  padding: 14px;
 }
 
 .section-head {
@@ -525,7 +525,7 @@ const helpLinks = [
 }
 
 .setup-list {
-  margin-top: 14px;
+  margin-top: 12px;
   overflow: hidden;
   border: 1px solid #edf2f7;
   border-radius: 8px;
@@ -536,9 +536,9 @@ const helpLinks = [
   grid-template-columns: 34px 22px minmax(0, 1fr) 106px 24px;
   align-items: center;
   gap: 10px;
-  min-height: 46px;
+  min-height: 42px;
   border-top: 1px solid #edf2f7;
-  padding: 8px 10px;
+  padding: 7px 10px;
 }
 
 .setup-row:first-child {
@@ -627,7 +627,7 @@ const helpLinks = [
   margin-top: 10px;
   border: 1px solid #edf2f7;
   border-radius: 8px;
-  padding: 12px;
+  padding: 10px 12px;
 }
 
 .checklist-footer div {
@@ -657,25 +657,30 @@ const helpLinks = [
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 14px;
+  margin-top: 12px;
 }
 
 .template-card,
 .guide-card {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
-  gap: 11px;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 10px;
   border: 1px solid #dfe7f2;
   border-radius: 8px;
-  padding: 12px;
+  padding: 10px;
+}
+
+.template-card {
+  align-content: start;
+  min-height: 118px;
 }
 
 .template-card > span,
 .guide-card > span,
 .rail-row > span:first-child {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   place-items: center;
   border-radius: 8px;
 }
@@ -709,9 +714,19 @@ const helpLinks = [
   line-height: 1.35;
 }
 
+.template-card p {
+  display: -webkit-box;
+  min-height: 30px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .template-card button {
   grid-column: 1 / -1;
   height: 27px;
+  align-self: end;
+  margin-top: 4px;
   border: 1px solid #dbe4f0;
   border-radius: 6px;
   background: #fff;
@@ -739,6 +754,7 @@ const helpLinks = [
   display: grid;
   align-content: start;
   gap: 14px;
+  margin-top: 52px;
 }
 
 .rail-card {
@@ -860,7 +876,8 @@ const helpLinks = [
 }
 
 .rail-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 16px;
   width: 100%;
   align-items: center;
   gap: 10px;
@@ -868,7 +885,7 @@ const helpLinks = [
   border: 1px solid #e5ebf3;
   border-radius: 8px;
   background: #fff;
-  padding: 10px;
+  padding: 8px 10px;
   text-align: left;
 }
 
@@ -879,7 +896,6 @@ const helpLinks = [
 
 .rail-row > span:nth-child(2) {
   min-width: 0;
-  flex: 1;
 }
 
 .rail-row strong,
@@ -891,17 +907,20 @@ const helpLinks = [
   color: #0f172a;
   font-size: 12px;
   font-weight: 850;
+  line-height: 1.2;
 }
 
 .rail-row small {
-  margin-top: 3px;
+  margin-top: 2px;
   color: #64748b;
   font-size: 11px;
+  line-height: 1.25;
 }
 
 .rail-row > svg {
   width: 14px;
   height: 14px;
+  justify-self: end;
   color: #64748b;
 }
 
@@ -1016,4 +1035,3 @@ const helpLinks = [
   }
 }
 </style>
-

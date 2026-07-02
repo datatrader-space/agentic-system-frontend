@@ -24,9 +24,11 @@
           <div class="flex flex-col items-end gap-1">
             <div class="flex items-center gap-2">
               <button class="btn-icon"><MoreHorizontal :size="16" :stroke-width="2" /></button>
+              <button v-if="agent.id" class="btn-secondary" :disabled="pausing" @click="togglePause">
+                <component :is="agent.is_paused ? Play : PauseIcon" :size="15" :stroke-width="2" />
+                {{ pausing ? '…' : (agent.is_paused ? 'Resume' : 'Pause') }}
+              </button>
               <button class="btn-secondary" @click="save"><Save :size="15" :stroke-width="2" /> {{ saving ? 'Saving…' : 'Save' }}</button>
-              <button class="btn-secondary" :disabled="!agent.id" @click="go(`/dashboard/agents/${agent.id}/playground`)"><Play :size="15" :stroke-width="2" /> Test Agent</button>
-              <button class="btn-secondary" :disabled="!agent.id" @click="step = 'final'"><UploadCloud :size="15" :stroke-width="2" /> Deploy</button>
               <div class="flex overflow-hidden rounded-[10px]">
                 <button class="btn-primary !rounded-none" @click="saveAndPublish"><Rocket :size="15" :stroke-width="2" /> Configure / Publish</button>
                 <button class="btn-primary !rounded-none border-l border-white/25 !px-2.5" :disabled="!agent.id" @click="go(`/dashboard/agents/${agent.id}/advanced`)"><ChevronDown :size="15" :stroke-width="2" /></button>
@@ -36,6 +38,15 @@
           </div>
         </div>
       </header>
+
+      <!-- Paused banner: a paused agent refuses to start new runs until resumed. -->
+      <div v-if="agent.is_paused" class="flex items-center gap-2.5 border-b border-[#FDE68A] bg-[#FFFBEB] px-6 py-2.5 text-[13px] text-[#92400E]">
+        <PauseIcon :size="16" :stroke-width="2" />
+        <span><strong>This agent is paused</strong> and won't start new runs.<span v-if="agent.paused_reason"> Reason: {{ agent.paused_reason }}.</span></span>
+        <button class="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-[#B45309] px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-60" :disabled="pausing" @click="togglePause">
+          <Play :size="13" :stroke-width="2" /> Resume
+        </button>
+      </div>
 
       <!-- Stepper (dashed connectors) -->
       <nav class="flex items-center gap-2 overflow-x-auto border-b border-[#E5E7EB] bg-white px-6 py-4">
@@ -52,13 +63,16 @@
         </template>
       </nav>
 
-      <!-- Body -->
-      <div class="min-h-0 flex-1 overflow-y-auto py-7">
+      <!-- Body — keyed on `step` so Vue always remounts the active step. Without this the heavy
+           v-if/v-else-if chain can skip a patch when the async save() reassigns `agent` mid-switch,
+           leaving the previous screen on-screen (the intermittent "screen didn't change" bug). -->
+      <div :key="step" class="min-h-0 flex-1 overflow-y-auto py-5">
         <AgentIdentityStep v-if="step === 'identity'" :agent="agent" :is-new="isNew" />
         <DefineBrainStep v-else-if="step === 'brain'" :agent="agent" />
         <KnowledgeToolsStep v-else-if="step === 'tools'" :agent="agent" />
         <CredentialsStep v-else-if="step === 'credentials'" :agent="agent" />
         <AutonomySafetyStep v-else-if="step === 'autonomy'" :agent="agent" />
+        <ScopeAssistantStep v-else-if="step === 'scope'" :agent="agent" />
         <TestPublishMonitorStep v-else-if="step === 'final'" :agent="agent" @published="mergeAgent" />
         <div v-else class="mx-auto max-w-3xl px-8 py-10 text-center">
           <div class="rounded-2xl border border-dashed border-[#E5E7EB] bg-white p-10">
@@ -85,7 +99,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChevronRight, ChevronDown, ArrowLeft, ArrowRight, Save, Play, Rocket, Pencil, MoreHorizontal, UploadCloud } from 'lucide-vue-next'
+import { ChevronRight, ChevronDown, ArrowLeft, ArrowRight, Save, Play, Pause as PauseIcon, Rocket, Pencil, MoreHorizontal, UploadCloud } from 'lucide-vue-next'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import DefineBrainStep from '../components/agent-editor/DefineBrainStep.vue'
@@ -93,6 +107,7 @@ import AgentIdentityStep from '../components/agent-editor/AgentIdentityStep.vue'
 import KnowledgeToolsStep from '../components/agent-editor/KnowledgeToolsStep.vue'
 import CredentialsStep from '../components/agent-editor/CredentialsStep.vue'
 import AutonomySafetyStep from '../components/agent-editor/AutonomySafetyStep.vue'
+import ScopeAssistantStep from '../components/agent-editor/ScopeAssistantStep.vue'
 import TestPublishMonitorStep from '../components/agent-editor/TestPublishMonitorStep.vue'
 import { ago } from '../components/dashboard/time'
 
@@ -113,16 +128,26 @@ function blankAgent() {
            tool_delivery_mode: 'default', stream_reasoning: false }
 }
 
-const steps = [
-  { key: 'identity', n: 1, title: 'Agent Identity', sub: 'Name, purpose & workspace' },
-  { key: 'brain', n: 2, title: 'Define Brain', sub: 'Behavior & instructions' },
-  { key: 'tools', n: 3, title: 'Knowledge & Tools', sub: 'Sources & capabilities' },
-  { key: 'credentials', n: 4, title: 'Credentials', sub: 'Vault & permissions' },
-  { key: 'autonomy', n: 5, title: 'Autonomy & Safety', sub: 'Controls & limits' },
-  { key: 'final', n: 6, title: 'Test, Publish & Monitor', sub: 'Validate & operate' },
+const isStaff = ref(false)
+const BASE_STEPS = [
+  { key: 'identity', title: 'Agent Identity', sub: 'Name, purpose & workspace' },
+  { key: 'brain', title: 'Define Brain', sub: 'Behavior & instructions' },
+  { key: 'tools', title: 'Knowledge & Tools', sub: 'Sources & capabilities' },
+  { key: 'credentials', title: 'Credentials', sub: 'Vault & permissions' },
+  { key: 'autonomy', title: 'Autonomy & Safety', sub: 'Controls & limits' },
+  // Staff-only "Scope & Assistant" is spliced in here (before the final step).
+  { key: 'final', title: 'Test, Publish & Monitor', sub: 'Validate & operate' },
 ]
-const stepIndex = computed(() => Math.max(0, steps.findIndex(s => s.key === step.value)))
-const currentStep = computed(() => steps[stepIndex.value] || steps[0])
+// Insert the staff-only step before 'final', then number sequentially.
+const steps = computed(() => {
+  const out = BASE_STEPS.slice()
+  if (isStaff.value) {
+    out.splice(out.length - 1, 0, { key: 'scope', title: 'Scope & Assistant', sub: 'Grounding, built-in & assistant' })
+  }
+  return out.map((s, i) => ({ ...s, n: i + 1 }))
+})
+const stepIndex = computed(() => Math.max(0, steps.value.findIndex(s => s.key === step.value)))
+const currentStep = computed(() => steps.value[stepIndex.value] || steps.value[0])
 const isFinalStep = computed(() => step.value === 'final' || currentStep.value.key === 'final')
 const nextLabel = computed(() => {
   if (isNew.value && step.value === 'identity') return 'Create Agent'
@@ -133,7 +158,7 @@ const nextLabel = computed(() => {
 })
 const stepDone = (i) => i < stepIndex.value
 async function next() {
-  if (stepIndex.value >= steps.length - 1) return
+  if (stepIndex.value >= steps.value.length - 1) return
   // New mode needs a name to create the draft.
   if (!agent.value.id && !(agent.value.name || '').trim()) {
     notify.warning('Please name your agent first.')
@@ -143,28 +168,43 @@ async function next() {
     // FIRST save must complete: we need the new draft's id before later steps can load/save against it.
     const ok = await save()
     if (!ok) return
-    step.value = steps[stepIndex.value + 1].key
+    step.value = steps.value[stepIndex.value + 1].key
     return
   }
   // Already created → advance the UI immediately and persist THIS step's changes in the background
   // (non-blocking, quiet — the header's "Last saved" reflects it). The trailing-save guard ensures rapid
   // Continue clicks don't drop edits.
-  step.value = steps[stepIndex.value + 1].key
+  step.value = steps.value[stepIndex.value + 1].key
   save({ quiet: true })
 }
-function prev() { if (stepIndex.value > 0) step.value = steps[stepIndex.value - 1].key }
+function prev() { if (stepIndex.value > 0) step.value = steps.value[stepIndex.value - 1].key }
 function applyQueryStep() {
   const q = String(route.query.step || '')
   if (q === 'test' || q === 'deploy' || q === 'publish') {
     step.value = 'final'
     return
   }
-  const hit = steps.find(s => s.key === q)
+  const hit = steps.value.find(s => s.key === q)
   if (hit) step.value = hit.key
 }
 
 function mergeAgent(data) {
   if (data) agent.value = { ...agent.value, ...data }
+}
+
+const pausing = ref(false)
+async function togglePause() {
+  if (!agent.value.id || pausing.value) return
+  pausing.value = true
+  try {
+    const wasPaused = agent.value.is_paused
+    const { data } = wasPaused
+      ? await api.unpauseAgent(agent.value.id)
+      : await api.pauseAgent(agent.value.id, 'Paused from the editor')
+    agent.value = { ...agent.value, ...data }
+    notify.success(wasPaused ? 'Agent resumed' : 'Agent paused — it won’t start new runs')
+  } catch (e) { notify.error('Could not update pause state') }
+  pausing.value = false
 }
 
 const lastSavedAt = ref(null)
@@ -244,7 +284,11 @@ async function saveAndPublish() {
 
 watch(() => route.params.id, load)
 watch(() => route.query.step, applyQueryStep)
-onMounted(() => { applyQueryStep(); load() })
+onMounted(() => {
+  applyQueryStep(); load()
+  // Reveal the staff-only "Scope & Assistant" step for staff users. /auth/me returns { user: {...} }.
+  api.getCurrentUser().then(({ data }) => { isStaff.value = !!(data?.user?.is_staff ?? data?.is_staff) }).catch(() => {})
+})
 </script>
 
 <style scoped>

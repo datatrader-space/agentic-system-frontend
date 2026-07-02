@@ -59,7 +59,7 @@
           </router-link>
           
           <button
-            v-if="isAdmin"
+            v-if="activeTab !== 'credentials' && isAdmin"
             @click="openCreateModal"
             class="px-5 py-2.5 bg-slate-900 text-white rounded-[10px] hover:bg-slate-800 transition-all font-semibold shadow-[0_2px_4px_rgba(0,0,0,0.1)] text-[13px] flex items-center gap-2"
           >
@@ -70,8 +70,26 @@
       </div>
 
       <!-- Credentials Tab Content -->
-      <div v-if="activeTab === 'credentials'" class="bg-white rounded-[16px] shadow-sm border border-slate-200/60" style="min-height: 500px;">
-        <CredentialManager />
+      <div v-if="activeTab === 'credentials'" class="credentials-workspace">
+        <section class="credentials-hero">
+          <div>
+            <span class="eyebrow">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+              Credential vault
+            </span>
+            <h2>Secure reusable credentials for agents</h2>
+            <p>Store service keys once, validate them, and attach them across agents without exposing secret values.</p>
+          </div>
+          <div class="vault-highlights">
+            <article><strong>Encrypted</strong><span>Secrets are stored securely at rest.</span></article>
+            <article><strong>Reusable</strong><span>Use credentials across agents and workflows.</span></article>
+            <article><strong>Validated</strong><span>Test credentials before assigning them.</span></article>
+          </div>
+        </section>
+
+        <section class="credentials-vault-card">
+          <CredentialManager ref="credManagerRef" />
+        </section>
       </div>
 
       <!-- OAuth Provider Content (shown for personal/organization tabs) -->
@@ -635,32 +653,32 @@
 
       <!-- ─── Configure Credentials Modal ─── -->
       <Teleport to="body">
-        <div v-if="showConfigureModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="closeConfigureModal">
-          <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+        <div v-if="showConfigureModal" class="modern-modal-overlay" @click.self="closeConfigureModal">
+          <div class="modern-credential-modal">
             <!-- Header -->
-            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <div class="flex items-center gap-3">
+            <div class="modern-modal-head">
+              <div class="modern-modal-title">
                 <div
-                  class="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
+                  class="provider-modal-icon"
                   :style="{ backgroundColor: (configureProvider?.color || '#6366f1') + '15' }"
                 >
                   {{ configureProvider?.icon || '🔗' }}
                 </div>
                 <div>
-                  <h2 class="text-lg font-bold text-gray-900">Configure {{ configureProvider?.name }}</h2>
-                  <p class="text-xs text-gray-500">Add OAuth client credentials</p>
+                  <h2>Configure {{ configureProvider?.name }}</h2>
+                  <p>Add OAuth client credentials</p>
                 </div>
               </div>
-              <button @click="closeConfigureModal" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>
+              <button @click="closeConfigureModal" class="modern-modal-close" aria-label="Close">&times;</button>
             </div>
 
             <!-- Body -->
-            <div class="px-6 py-5 space-y-4">
-              <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+            <div class="modern-modal-body">
+              <div class="security-callout">
                 <strong>🔒 Encrypted:</strong> Credentials are encrypted at rest and never exposed via API.
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Client ID *</label>
+              <div class="modern-field">
+                <label>Client ID *</label>
                 <input
                   v-model="configureForm.client_id"
                   type="text"
@@ -668,8 +686,8 @@
                   class="form-input"
                 />
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Client Secret *</label>
+              <div class="modern-field">
+                <label>Client Secret *</label>
                 <input
                   v-model="configureForm.client_secret"
                   type="password"
@@ -680,14 +698,14 @@
             </div>
 
             <!-- Footer -->
-            <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
-              <button @click="closeConfigureModal" class="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition">
+            <div class="modern-modal-footer">
+              <button @click="closeConfigureModal" class="modern-secondary">
                 Cancel
               </button>
               <button
                 @click="handleConfigure"
                 :disabled="savingConfigure || !configureForm.client_id || !configureForm.client_secret"
-                class="px-5 py-2 text-sm font-medium bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition disabled:opacity-50"
+                class="modern-primary"
               >
                 {{ savingConfigure ? 'Saving...' : 'Save Credentials' }}
               </button>
@@ -711,7 +729,8 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import api from '../services/api'
 import CredentialManager from '../components/tools/CredentialManager.vue'
 import { confirm } from '@/composables/useConfirm'
@@ -720,10 +739,22 @@ export default {
   name: 'Connections',
   components: { CredentialManager },
   setup() {
+    const route = useRoute()
+    const VALID_TABS = ['personal', 'organization', 'credentials']
     const providers = ref([])
     const orgData = ref(null)
     const loading = ref(false)
-    const activeTab = ref('personal')
+    // Honor a deep-link like /dashboard/connections?tab=credentials (e.g. the editor's "Manage Vault" button).
+    const activeTab = ref(VALID_TABS.includes(route.query.tab) ? route.query.tab : 'personal')
+    const credManagerRef = ref(null)
+
+    // Keep the tab in sync if the query param changes while the page stays mounted.
+    watch(() => route.query.tab, (tab) => {
+      if (VALID_TABS.includes(tab)) activeTab.value = tab
+    })
+
+    // Open CredentialManager's own "Add Credential" modal from the page header button.
+    const openAddCredential = () => credManagerRef.value?.openAddModal?.()
     const actionLoading = ref(null)
     const toast = ref({ show: false, success: true, message: '' })
     const isAdmin = ref(false)
@@ -1179,6 +1210,7 @@ export default {
     })
 
     return {
+      credManagerRef, openAddCredential,
       providers, orgData, loading, activeTab, actionLoading, toast, isAdmin,
       presets, selectedPreset, applyPreset,
       showModal, editingProvider, saving, form, availableScopes, defaultScopeSet, extraParamsInput,
@@ -1219,5 +1251,296 @@ export default {
   outline: none;
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.credentials-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.credentials-hero,
+.credentials-vault-card {
+  border: 1px solid #dfe7f2;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, .04);
+}
+
+.credentials-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, .82fr);
+  gap: 22px;
+  align-items: center;
+  padding: 22px 24px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.eyebrow svg {
+  width: 16px;
+  height: 16px;
+}
+
+.credentials-hero h2 {
+  margin: 9px 0 0;
+  color: #061735;
+  font-size: 24px;
+  line-height: 1.18;
+  font-weight: 900;
+}
+
+.credentials-hero p {
+  max-width: 620px;
+  margin: 8px 0 0;
+  color: #52617a;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.vault-highlights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.vault-highlights article {
+  min-height: 86px;
+  border: 1px solid #e6edf7;
+  border-radius: 10px;
+  background: #fbfdff;
+  padding: 13px;
+}
+
+.vault-highlights strong {
+  display: block;
+  color: #0f172a;
+  font-size: 12.5px;
+  font-weight: 900;
+}
+
+.vault-highlights span {
+  display: block;
+  margin-top: 5px;
+  color: #64748b;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.credentials-vault-card {
+  min-height: 500px;
+  overflow: hidden;
+}
+
+.credentials-vault-card :deep(.credential-manager) {
+  background: transparent;
+}
+
+.credentials-vault-card :deep(.credential-manager > div:first-child) {
+  border-color: #e6edf7;
+  padding: 18px 22px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.credentials-vault-card :deep(h2) {
+  color: #061735;
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 900;
+}
+
+.credentials-vault-card :deep(.credential-manager > div:first-child button) {
+  height: 38px;
+  border-radius: 9px;
+  background: #2563eb;
+  box-shadow: 0 10px 20px rgba(37, 99, 235, .16);
+  font-size: 12.5px;
+  font-weight: 850;
+}
+
+.credentials-vault-card :deep(table) {
+  min-width: 760px;
+}
+
+.credentials-vault-card :deep(thead) {
+  background: #f8fafc;
+}
+
+.credentials-vault-card :deep(th) {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .02em;
+}
+
+.credentials-vault-card :deep(td) {
+  color: #334155;
+  font-size: 12.5px;
+}
+
+.modern-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, .46);
+  padding: 20px;
+  backdrop-filter: blur(3px);
+}
+
+.modern-credential-modal {
+  width: min(100%, 520px);
+  overflow: hidden;
+  border: 1px solid #dfe7f2;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, .24);
+}
+
+.modern-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #e6edf7;
+  padding: 18px 20px;
+}
+
+.modern-modal-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.provider-modal-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 11px;
+  font-size: 20px;
+}
+
+.modern-modal-title h2 {
+  margin: 0;
+  color: #061735;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.modern-modal-title p {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.modern-modal-close {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  background: #fff;
+  color: #64748b;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.modern-modal-body {
+  display: grid;
+  gap: 15px;
+  padding: 20px;
+}
+
+.security-callout {
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+  padding: 12px 13px;
+  color: #1e40af;
+  font-size: 12px;
+}
+
+.modern-field label {
+  display: block;
+  margin-bottom: 7px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.modern-field .form-input {
+  height: 42px;
+  border-color: #d8e2f0;
+  border-radius: 9px;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.modern-field .form-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px #eaf0ff;
+}
+
+.modern-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid #e6edf7;
+  background: #fbfdff;
+  padding: 16px 20px;
+}
+
+.modern-secondary,
+.modern-primary {
+  display: inline-flex;
+  height: 38px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  padding: 0 16px;
+  font-size: 12.5px;
+  font-weight: 850;
+}
+
+.modern-secondary {
+  border: 1px solid #d8e2f0;
+  background: #fff;
+  color: #334155;
+}
+
+.modern-primary {
+  border: 0;
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 10px 20px rgba(37, 99, 235, .16);
+}
+
+.modern-primary:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+@media (max-width: 1100px) {
+  .credentials-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .vault-highlights {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

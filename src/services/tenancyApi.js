@@ -52,6 +52,8 @@ export default {
     deleteOrg: (slug) => tenancyApi.delete(`/orgs/${slug}/`),
 
     // ── Workspaces ─────────────────────────────────────────────────────────────
+    // All workspaces the current user belongs to, across every org (flat array).
+    getAllWorkspaces: () => tenancyApi.get('/workspaces/'),
     getWorkspaces: (orgSlug) => tenancyApi.get(`/orgs/${orgSlug}/workspaces/`),
     getWorkspace: (wsId) => tenancyApi.get(`/workspaces/${wsId}/`),
     createWorkspace: (orgSlug, data) => tenancyApi.post(`/orgs/${orgSlug}/workspaces/`, data),

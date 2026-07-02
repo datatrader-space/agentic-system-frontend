@@ -454,6 +454,24 @@
         :class="['space-y-6', layout === 'canvas' ? 'bg-white rounded-xl border border-gray-200 p-5 shadow-sm' : '']">
 
 
+      <!-- Shared knowledge sources (e.g. the system Help Center) -->
+      <div v-if="availableKbSources.length">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Knowledge sources</label>
+        <p class="text-xs text-gray-500 mb-2">Attach shared, ready-made knowledge (like the Help Center) so this agent can answer from it — no upload needed.</p>
+        <div class="space-y-2">
+          <label v-for="s in availableKbSources" :key="s.id"
+            class="flex items-center gap-3 p-2.5 rounded-lg border border-gray-200 hover:border-violet-300 cursor-pointer transition">
+            <input type="checkbox" class="accent-violet-600 w-4 h-4"
+              :checked="(internalAgent.knowledge_source_ids || []).includes(s.id)" @change="toggleKbSource(s.id)" />
+            <span class="flex-1 min-w-0">
+              <span class="text-sm font-semibold text-gray-800">{{ s.name }}</span>
+              <span class="ml-2 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{{ s.scope }}</span>
+              <span class="block text-xs text-gray-500 truncate">{{ s.description || (s.chunk_count + ' chunks') }}</span>
+            </span>
+          </label>
+        </div>
+      </div>
+
       <hr />
 
       <!-- Agent Knowledge Base -->
@@ -1477,6 +1495,7 @@ const internalAgent = ref({
     stream_reasoning: false,  // Phase 3 (b): stream the model's extended thinking into the timeline
     code_mode_enabled: false,  // Code Mode: search+execute vs individual tools
     code_mode_services: [],    // RemoteService IDs (empty = all credentialed)
+    knowledge_source_ids: [],  // shared KB sources (e.g. Help Center) attached to this agent
     builder_mode_enabled: false,  // Builder Mode: agent can register OAuth providers
     // Autonomous execution (v3) — defaults match the backend (manual / OFF).
     execution_mode: 'manual',
@@ -1495,6 +1514,9 @@ const internalAgent = ref({
     agent_policy: {},
     ...props.agent
 });
+// Seed the writable KB-source id list from the loaded read objects (edit reflects current sources).
+if (Array.isArray(internalAgent.value.knowledge_sources))
+    internalAgent.value.knowledge_source_ids = internalAgent.value.knowledge_sources.map(s => s.id);
 
 // Autonomy section: a small badge that reflects the resulting mode (Manual / Auto / Plan / Plan + Auto),
 // and a collapsed-by-default Advanced (checkpoints) sub-section.
@@ -1573,6 +1595,16 @@ const historyMode = computed({
     },
 });
 const availableTools = ref([]);
+const availableKbSources = ref([]);   // shared KnowledgeSources the user can attach
+async function loadKbSources() {
+  try { const { data } = await api.listKnowledgeSources(); availableKbSources.value = data?.sources || []; }
+  catch (e) { availableKbSources.value = []; }
+}
+function toggleKbSource(id) {
+  const ids = internalAgent.value.knowledge_source_ids || (internalAgent.value.knowledge_source_ids = []);
+  const i = ids.indexOf(id);
+  if (i === -1) ids.push(id); else ids.splice(i, 1);
+}
 const llmProviders = ref([]);
 const llmModels = ref([]);
 const selectedProviderId = ref(null);
@@ -2123,6 +2155,7 @@ const fetchTools = async () => {
 
         availableTools.value = allTools;
         console.log(`Loaded ${allTools.length} tools total`);
+        loadKbSources();
     } catch (e) {
         console.error("Failed to fetch tools", e);
     } finally {
@@ -2748,6 +2781,11 @@ watch(() => props.agent, (newVal) => {
     };
     // Ensure array exists
     if (!internalAgent.value.tool_ids) internalAgent.value.tool_ids = [];
+    // Derive the writable id list from the loaded read objects so edit reflects attached sources.
+    if (Array.isArray(newVal && newVal.knowledge_sources))
+        internalAgent.value.knowledge_source_ids = newVal.knowledge_sources.map(s => s.id);
+    else if (!internalAgent.value.knowledge_source_ids)
+        internalAgent.value.knowledge_source_ids = [];
 
     // Re-baseline the clean snapshot only when a DIFFERENT agent arrives (load, or a fresh id after
     // create) — not on the edit round-trip (same id), which would erase the dirty state.

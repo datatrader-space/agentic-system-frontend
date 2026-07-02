@@ -121,6 +121,7 @@ import { Icon } from '@iconify/vue'
 import PublicLayout from '../components/public/PublicLayout.vue'
 import { useMeta } from '../composables/useMeta'
 import api from '../services/api'
+import { setBreadcrumbLabel } from '@/composables/useBreadcrumbs'
 
 const route = useRoute()
 const tree = ref([])
@@ -135,6 +136,8 @@ const activeId = ref('')
 let spy = null
 
 const currentSlug = computed(() => route.params.slug || '')
+
+setBreadcrumbLabel(() => currentPage.value?.title)
 
 useMeta({
   title: computed(() => currentPage.value ? `${currentPage.value.title} — AADML Docs` : 'Documentation — AADML'),

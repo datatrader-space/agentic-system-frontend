@@ -2,13 +2,6 @@
   <main class="org-module-page" :class="`org-module-page--${active.key}`">
     <header class="module-head">
       <div>
-        <nav class="crumbs">
-          <RouterLink to="/dashboard/organization">Organizations</RouterLink>
-          <span>/</span>
-          <span>{{ orgName }}</span>
-          <span>/</span>
-          <strong>{{ active.title }}</strong>
-        </nav>
         <h1>{{ active.title }}</h1>
         <p>{{ active.copy }}</p>
       </div>
@@ -45,12 +38,36 @@
     <section v-if="active.key === 'workspaces'" class="content-grid single">
       <article class="panel">
         <div class="table-tools">
-          <div class="search"><Icon icon="lucide:search" /><input placeholder="Search workspaces..." /></div>
+          <div class="search"><Icon icon="lucide:search" /><input v-model="wsSearch" placeholder="Search workspaces..." /></div>
           <select><option>All Status</option></select>
           <select><option>All Owners</option></select>
           <button class="icon-btn"><Icon icon="lucide:layout-grid" /></button>
         </div>
-        <DataTable :columns="active.columns" :rows="active.rows" />
+        <div class="data-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Workspace</th><th>Owner</th><th>Members</th><th>Agents</th><th>Budget Used</th><th>Status</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="w in filteredWorkspaces" :key="w.id">
+                <td>{{ w.name }}</td>
+                <td>{{ w.owner }}</td>
+                <td>{{ w.members }}</td>
+                <td>{{ w.agents }}</td>
+                <td>{{ w.budgetLabel }}</td>
+                <td><span class="status active">Active</span></td>
+                <td class="ws-actions-cell">
+                  <button class="more" @click.stop="toggleRowMenu(w, $event)">...</button>
+                </td>
+              </tr>
+              <tr v-if="!filteredWorkspaces.length">
+                <td colspan="7" class="empty-row">{{ loading ? 'Loading…' : 'No workspaces yet.' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </article>
     </section>
 
@@ -208,16 +225,93 @@
         <DataTable :columns="active.secondary.columns" :rows="active.secondary.rows" />
       </article>
     </section>
+
+    <!-- Row action menu (teleported so the table's overflow can't clip it) -->
+    <Teleport to="body">
+      <div v-if="menuOpenId !== null" class="menu-backdrop" @click="closeRowMenu" />
+      <div v-if="menuOpenId !== null && menuWs" class="row-menu-fixed" :style="{ top: menuPos.top + 'px', left: menuPos.left + 'px' }">
+        <button @click="openMembers(menuWs)"><Icon icon="lucide:users" /> Manage members</button>
+        <button @click="openRename(menuWs)"><Icon icon="lucide:pencil" /> Rename</button>
+        <button class="danger" @click="deleteWorkspace(menuWs)"><Icon icon="lucide:trash-2" /> Delete</button>
+      </div>
+    </Teleport>
+
+    <!-- Rename workspace modal -->
+    <Teleport to="body">
+      <transition name="orgmod-modal">
+        <div v-if="renameModal.open" class="orgmod-backdrop" @click.self="renameModal.open = false">
+          <div class="orgmod-modal" role="dialog" aria-modal="true">
+            <h3>Rename Workspace</h3>
+            <div class="form-row">
+              <label>Name</label>
+              <input v-model="renameModal.name" @keydown.enter="submitRename" />
+            </div>
+            <div class="modal-actions">
+              <button class="btn-cancel" @click="renameModal.open = false">Cancel</button>
+              <button class="btn-primary" :disabled="renameModal.busy || !renameModal.name.trim()" @click="submitRename">
+                {{ renameModal.busy ? 'Saving…' : 'Save' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
+
+    <!-- Manage workspace members modal -->
+    <Teleport to="body">
+      <transition name="orgmod-modal">
+        <div v-if="membersModal.open" class="orgmod-backdrop" @click.self="membersModal.open = false">
+          <div class="orgmod-modal wide" role="dialog" aria-modal="true">
+            <h3>Members — {{ membersModal.ws?.name }}</h3>
+
+            <div class="add-member-row">
+              <select v-model="membersModal.addUserId">
+                <option value="" disabled>Add an org member…</option>
+                <option v-for="c in membersModal.candidates" :key="c.user" :value="c.user">
+                  {{ c.username || c.email }}
+                </option>
+              </select>
+              <select v-model="membersModal.addRole">
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+                <option value="viewer">Viewer</option>
+              </select>
+              <button class="btn-primary" :disabled="membersModal.busy || !membersModal.addUserId" @click="addWsMember">Add</button>
+            </div>
+            <p v-if="!membersModal.candidates.length && !membersModal.loading" class="muted-note add-hint">
+              Everyone in the org is already in this workspace. Invite new people to the org first (Overview → Invite Member).
+            </p>
+
+            <div class="members-list">
+              <p v-if="membersModal.loading" class="muted-note">Loading…</p>
+              <div v-for="m in membersModal.list" :key="m.id" class="member-row">
+                <span class="member-name">{{ m.username || m.email }}</span>
+                <span class="member-role">{{ m.role }}</span>
+                <button class="link-danger" @click="removeWsMember(m)"><Icon icon="lucide:x" /></button>
+              </div>
+              <p v-if="!membersModal.loading && !membersModal.list.length" class="muted-note">No members yet.</p>
+            </div>
+
+            <div class="modal-actions">
+              <button class="btn-cancel" @click="membersModal.open = false">Close</button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </Teleport>
   </main>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import tenancyApi from '../services/tenancyApi'
 import api from '../services/api'
 import { useOrganizationStore } from '../stores/useOrganizationStore'
+import { setBreadcrumbLabel } from '@/composables/useBreadcrumbs'
+import { notify } from '../composables/useNotify'
+import { confirm } from '../composables/useConfirm'
 
 const route = useRoute()
 const router = useRouter()
@@ -462,6 +556,129 @@ const activityPage = ref(1)
 const activityTotalPages = ref(1)
 const activityTotal = ref(0)
 
+// ── Workspace management (workspaces module) ────────────────────────────────
+const wsRows = ref([])          // raw workspace objects (id, name, slug, owner, members, agents, budgetLabel)
+const wsSearch = ref('')
+const filteredWorkspaces = computed(() => {
+  const q = wsSearch.value.trim().toLowerCase()
+  if (!q) return wsRows.value
+  return wsRows.value.filter((w) => w.name.toLowerCase().includes(q) || String(w.owner).toLowerCase().includes(q))
+})
+const menuOpenId = ref(null)    // which row's 3-dots menu is open
+const menuWs = ref(null)        // the workspace object for the open menu
+const menuPos = ref({ top: 0, left: 0 })
+const renameModal = reactive({ open: false, ws: null, name: '', busy: false })
+const membersModal = reactive({ open: false, ws: null, list: [], candidates: [], addUserId: '', addRole: 'member', busy: false, loading: false })
+
+function toggleRowMenu(w, ev) {
+  if (menuOpenId.value === w.id) { closeRowMenu(); return }
+  menuOpenId.value = w.id
+  menuWs.value = w
+  // Position the fixed menu just under the button, right-aligned to it.
+  const r = ev.currentTarget.getBoundingClientRect()
+  const width = 184
+  menuPos.value = {
+    top: r.bottom + 6,
+    left: Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8)),
+  }
+}
+function closeRowMenu() { menuOpenId.value = null; menuWs.value = null }
+
+// Rename
+function openRename(ws) {
+  closeRowMenu()
+  renameModal.ws = ws
+  renameModal.name = ws.name
+  renameModal.open = true
+}
+async function submitRename() {
+  const name = renameModal.name.trim()
+  if (!name || renameModal.busy) return
+  renameModal.busy = true
+  try {
+    await tenancyApi.updateWorkspace(renameModal.ws.id, { name })
+    notify.success('Workspace renamed')
+    renameModal.open = false
+    await loadModule()
+  } catch (e) {
+    notify.error(e?.response?.data?.detail || e?.response?.data?.error || 'Rename failed')
+  } finally {
+    renameModal.busy = false
+  }
+}
+
+// Delete
+async function deleteWorkspace(ws) {
+  closeRowMenu()
+  const ok = await confirm({
+    title: 'Delete workspace?',
+    message: `"${ws.name}" and its memberships will be permanently removed. This cannot be undone.`,
+    confirmText: 'Delete', danger: true,
+  })
+  if (!ok) return
+  try {
+    await tenancyApi.deleteWorkspace(ws.id)
+    notify.success('Workspace deleted')
+    await loadModule()
+  } catch (e) {
+    notify.error(e?.response?.data?.detail || e?.response?.data?.error || 'Delete failed')
+  }
+}
+
+// Manage members
+async function openMembers(ws) {
+  closeRowMenu()
+  membersModal.ws = ws
+  membersModal.open = true
+  membersModal.addUserId = ''
+  membersModal.addRole = 'member'
+  await refreshMembers()
+}
+async function refreshMembers() {
+  if (!membersModal.ws) return
+  membersModal.loading = true
+  try {
+    const [wsRes, orgRes] = await Promise.all([
+      tenancyApi.getWSMembers(membersModal.ws.id),
+      orgStore.orgSlug ? tenancyApi.getOrgMembers(orgStore.orgSlug) : Promise.resolve({ data: [] }),
+    ])
+    membersModal.list = Array.isArray(wsRes.data) ? wsRes.data : (wsRes.data?.results || [])
+    const orgMembers = Array.isArray(orgRes.data) ? orgRes.data : (orgRes.data?.results || [])
+    const inWs = new Set(membersModal.list.map((m) => m.user))
+    // Org members not already in this workspace = candidates to add.
+    membersModal.candidates = orgMembers.filter((m) => !inWs.has(m.user))
+  } catch (e) {
+    notify.error('Failed to load members')
+  } finally {
+    membersModal.loading = false
+  }
+}
+async function addWsMember() {
+  if (!membersModal.addUserId || membersModal.busy) return
+  membersModal.busy = true
+  try {
+    await tenancyApi.addWSMember(membersModal.ws.id, { user_id: membersModal.addUserId, role: membersModal.addRole })
+    notify.success('Member added to workspace')
+    membersModal.addUserId = ''
+    await refreshMembers()
+  } catch (e) {
+    notify.error(e?.response?.data?.detail || e?.response?.data?.error || 'Failed to add member')
+  } finally {
+    membersModal.busy = false
+  }
+}
+async function removeWsMember(m) {
+  const ok = await confirm({ title: 'Remove member?', message: `Remove ${m.username || m.email} from "${membersModal.ws.name}"?`, confirmText: 'Remove', danger: true })
+  if (!ok) return
+  try {
+    await tenancyApi.removeWSMember(membersModal.ws.id, m.user)
+    notify.success('Member removed')
+    await refreshMembers()
+  } catch (e) {
+    notify.error(e?.response?.data?.detail || 'Failed to remove member')
+  }
+}
+
 // Build an SVG line + area path (viewBox 0..760 x 0..220) from the live by_day series.
 const trend = computed(() => {
   const pts = byDay.value
@@ -523,6 +740,8 @@ const active = computed(() => {
   }
 })
 
+setBreadcrumbLabel(() => active.value?.title || active.value?.name)
+
 function resetLive() {
   liveMetrics.value = null
   liveColumns.value = null
@@ -552,6 +771,12 @@ async function loadModule() {
     if (key === 'workspaces') {
       const { data } = await tenancyApi.getOrgOverview(slug)
       const ws = data.workspaces || []
+      // Raw objects (with ids) power the interactive table + row actions.
+      wsRows.value = ws.map((w) => ({
+        id: w.id, name: w.name, slug: w.slug, owner: w.owner || '—',
+        members: w.members ?? 0, agents: w.agents ?? 0,
+        budgetLabel: w.budget_used_pct == null ? '—' : `${Math.round(w.budget_used_pct)}%`,
+      }))
       liveColumns.value = ['Workspace', 'Owner', 'Members', 'Agents', 'Budget Used', 'Status']
       liveRows.value = ws.map((w) => [
         w.name, w.owner || '—', String(w.members ?? 0), String(w.agents ?? 0),
@@ -713,21 +938,6 @@ export default {
   justify-content: space-between;
   gap: 18px;
   margin-bottom: 16px;
-}
-
-.crumbs {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: #53657f;
-  font-size: 12px;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-
-.crumbs a {
-  color: #53657f;
-  text-decoration: none;
 }
 
 h1,
@@ -1310,19 +1520,6 @@ select {
 
 .module-head > div:first-child {
   min-width: 0;
-}
-
-.crumbs {
-  gap: 10px !important;
-  margin-bottom: 8px !important;
-  color: #53657f !important;
-  font-size: 11px !important;
-  line-height: 1.2 !important;
-  font-weight: 700 !important;
-}
-
-.crumbs strong {
-  color: #07152f;
 }
 
 .module-head h1 {
@@ -2152,4 +2349,114 @@ select {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* ── Workspace row actions (3-dots menu) ─────────────────────────────────── */
+.ws-actions-cell {
+  position: relative;
+  text-align: right;
+  width: 40px;
+}
+.ws-actions-cell .more {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 800;
+  color: #64748b;
+  padding: 2px 8px;
+  border-radius: 6px;
+  letter-spacing: 1px;
+}
+.ws-actions-cell .more:hover { background: #eef2f8; }
+
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+}
+.row-menu-fixed {
+  position: fixed;
+  z-index: 901;
+  width: 184px;
+  background: #fff;
+  border: 1px solid #e2e8f2;
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+}
+.row-menu-fixed button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #334155;
+  cursor: pointer;
+  text-align: left;
+}
+.row-menu-fixed button:hover { background: #f1f5f9; }
+.row-menu-fixed button svg { width: 15px; height: 15px; }
+.row-menu-fixed button.danger { color: #dc2626; }
+.row-menu-fixed button.danger:hover { background: #fef2f2; }
+
+/* ── Modals (rename + members) ───────────────────────────────────────────── */
+.orgmod-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(2px);
+  padding: 20px;
+}
+.orgmod-modal {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border: 1px solid #e2e8f2;
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+}
+.orgmod-modal.wide { max-width: 520px; }
+.orgmod-modal h3 { margin: 0 0 16px; font-size: 17px; font-weight: 800; color: #0f172a; }
+.orgmod-modal .form-row { display: grid; gap: 6px; margin-bottom: 14px; }
+.orgmod-modal label { font-size: 12px; font-weight: 700; color: #475569; }
+.orgmod-modal input,
+.orgmod-modal select {
+  height: 40px; border: 1px solid #d9e3f0; border-radius: 9px; padding: 0 12px;
+  font: inherit; font-size: 13px; color: #0f172a; background: #fff; outline: none;
+}
+.orgmod-modal input:focus,
+.orgmod-modal select:focus { border-color: #3156e9; box-shadow: 0 0 0 3px rgba(49, 86, 233, 0.12); }
+.orgmod-modal .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.orgmod-modal .btn-cancel,
+.orgmod-modal .btn-primary {
+  height: 38px; padding: 0 18px; border-radius: 8px; font-size: 12px; font-weight: 800; cursor: pointer;
+}
+.orgmod-modal .btn-cancel { border: 1px solid #d9e3f0; background: #fff; color: #334155; }
+.orgmod-modal .btn-primary { border: 0; background: #3156e9; color: #fff; }
+.orgmod-modal .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+.add-member-row { display: grid; grid-template-columns: 1fr 120px auto; gap: 8px; margin-bottom: 8px; }
+.add-hint { margin: 2px 0 10px; }
+.members-list { display: grid; gap: 4px; max-height: 300px; overflow: auto; margin-top: 6px; }
+.member-row {
+  display: grid; grid-template-columns: 1fr auto 28px; align-items: center; gap: 10px;
+  padding: 9px 10px; border: 1px solid #eef2f8; border-radius: 9px;
+}
+.member-name { font-size: 12.5px; font-weight: 650; color: #0f172a; }
+.member-role { font-size: 11px; font-weight: 700; color: #475569; text-transform: capitalize; background: #f1f5f9; padding: 3px 8px; border-radius: 999px; }
+.link-danger { border: 0; background: transparent; color: #dc2626; cursor: pointer; display: grid; place-items: center; }
+.link-danger svg { width: 15px; height: 15px; }
+.orgmod-modal-enter-active,
+.orgmod-modal-leave-active { transition: opacity 0.16s ease; }
+.orgmod-modal-enter-from,
+.orgmod-modal-leave-to { opacity: 0; }
 </style>

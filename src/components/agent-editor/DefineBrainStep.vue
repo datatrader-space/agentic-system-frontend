@@ -1,6 +1,6 @@
 <template>
-  <div class="mx-auto w-full max-w-[1840px] px-8 pb-10 font-[Inter,system-ui,sans-serif]">
-    <div class="mb-5 flex items-start justify-between gap-4">
+  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif]">
+    <div class="mb-4 flex items-start justify-between gap-4">
       <div>
         <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A]">Agent Brain</h2>
         <p class="mt-0.5 text-[13.5px] text-[#64748B]">Define how your agent thinks, responds, and remembers.</p>
@@ -9,8 +9,8 @@
     </div>
 
     <div class="brain-grid">
-      <div class="flex flex-col gap-5">
-        <section class="brain-card">
+      <div class="flex flex-col gap-4">
+        <section class="brain-card model-card">
           <header class="card-head">
             <div class="flex items-start gap-3">
               <span class="icon-box bg-violet-50 text-violet-600"><Cpu :size="18" :stroke-width="2" /></span>
@@ -85,7 +85,7 @@
           </div>
         </section>
 
-        <section class="brain-card">
+        <section class="brain-card rules-card">
           <header class="card-head">
             <div class="flex items-start gap-3">
               <span class="icon-box bg-blue-50 text-blue-600"><ShieldCheck :size="18" :stroke-width="2" /></span>
@@ -112,7 +112,7 @@
           </div>
         </section>
 
-        <section class="brain-card">
+        <section class="brain-card memory-card">
           <header class="card-head">
             <div class="flex items-start gap-3">
               <span class="icon-box bg-amber-50 text-amber-600"><Database :size="18" :stroke-width="2" /></span>
@@ -150,6 +150,21 @@
                 <label class="text-[12px] font-medium text-[#475569]">Recent messages</label>
                 <input v-model.number="agent.max_history_messages" type="number" min="1" class="field !w-24 !py-1.5" />
               </div>
+            </div>
+          </div>
+
+          <!-- Context profile — token-budget behavior for conversation/retrieval/tool context this turn -->
+          <div class="mem-group">
+            <p class="mem-group-title">Context profile</p>
+            <div class="rounded-xl border border-[#EAECF0] bg-[#F9FAFB] px-4 py-3">
+              <ContextProfilePicker
+                compact
+                :model-value="contextProfile"
+                :profiles="availableProfiles"
+                :preview="profilePreview"
+                :matrix="profilesMatrix"
+                @update:model-value="onProfileChange"
+              />
             </div>
           </div>
 
@@ -198,41 +213,55 @@
 
           <!-- What this agent remembers: its memory summary + rows (agent scope only) -->
           <div v-if="agent.id" class="mem-group">
-            <p class="mem-group-title">What this agent remembers</p>
-            <!-- summary is being (re)generated -->
-            <div v-if="agentMemLoading" class="mb-2.5 flex items-center gap-2 rounded-xl border border-[#EAECF0] bg-[#F8FAFC] px-4 py-3 text-[12.5px] font-semibold text-[#4F46E5]">
-              <span class="dg-spin" /> Memory summary is being generated…
-            </div>
-            <div v-else-if="agentSummary && agentSummary.content" class="rounded-xl border border-[#EAECF0] bg-[#F8FAFC] px-4 py-3 mb-2.5">
-              <div class="mb-1 flex items-center justify-between">
-                <span class="text-[11px] font-bold uppercase tracking-wide text-[#98A2B3]">Agent memory summary</span>
-                <span class="rounded-full bg-[#EEF2FF] px-2 py-0.5 text-[10.5px] font-bold text-[#4F46E5]">{{ agentSummary.mode === 'compressed' ? 'AI-compressed' : 'Exact' }} · {{ agentSummary.source_count }}</span>
-              </div>
-              <p class="whitespace-pre-wrap text-[12.5px] leading-5 text-[#475569]">{{ agentSummary.content }}</p>
-            </div>
+            <button
+              type="button"
+              class="mem-collapse-trigger"
+              :aria-expanded="String(showAgentMemory)"
+              @click="showAgentMemory = !showAgentMemory"
+            >
+              <span>
+                <span class="mem-group-title !mb-0">What this agent remembers</span>
+                <small>{{ agentMemLoading ? 'Loading memories...' : `${agentMemRows.length} saved item${agentMemRows.length === 1 ? '' : 's'}` }}</small>
+              </span>
+              <ChevronDown :size="16" :stroke-width="2.2" :class="['mem-chevron', { open: showAgentMemory }]" />
+            </button>
 
-            <div v-if="agentMemLoading" class="px-1 py-2 text-xs text-[#98A2B3]">Loading memories…</div>
-            <div v-else-if="!agentMemRows.length" class="px-1 py-2 text-xs text-[#98A2B3]">No agent memories yet — they appear here as the agent learns or you save them.</div>
-            <template v-else>
-              <ul class="overflow-hidden rounded-xl border border-[#EAECF0]">
-                <li v-for="(m, i) in pagedAgentMem" :key="m.id"
-                    class="flex items-start gap-2.5 bg-white px-4 py-2.5" :class="i > 0 ? 'border-t border-[#F2F4F7]' : ''">
-                  <span class="mt-0.5 rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[10px] font-semibold text-[#64748B]">{{ m.kind }}</span>
-                  <p class="min-w-0 flex-1 text-[12.5px] leading-5 text-[#344054]">{{ m.content }}</p>
-                </li>
-              </ul>
-              <div v-if="agentMemRows.length > AGENT_PAGE_SIZE" class="mt-2 flex items-center justify-center gap-3">
-                <button type="button" class="mem-pg-btn" :disabled="agentMemPage <= 1" @click="agentMemPage--">Prev</button>
-                <span class="text-[11px] text-[#98A2B3]">{{ agentMemPage }} / {{ agentMemPages }} · {{ agentMemRows.length }} total</span>
-                <button type="button" class="mem-pg-btn" :disabled="agentMemPage >= agentMemPages" @click="agentMemPage++">Next</button>
+            <div v-if="showAgentMemory" class="mem-collapse-body">
+              <!-- summary is being (re)generated -->
+              <div v-if="agentMemLoading" class="mb-2.5 flex items-center gap-2 rounded-xl border border-[#EAECF0] bg-[#F8FAFC] px-4 py-3 text-[12.5px] font-semibold text-[#4F46E5]">
+                <span class="dg-spin" /> Memory summary is being generated...
               </div>
-            </template>
+              <div v-else-if="agentSummary && agentSummary.content" class="rounded-xl border border-[#EAECF0] bg-[#F8FAFC] px-4 py-3 mb-2.5">
+                <div class="mb-1 flex items-center justify-between">
+                  <span class="text-[11px] font-bold uppercase tracking-wide text-[#98A2B3]">Agent memory summary</span>
+                  <span class="rounded-full bg-[#EEF2FF] px-2 py-0.5 text-[10.5px] font-bold text-[#4F46E5]">{{ agentSummary.mode === 'compressed' ? 'AI-compressed' : 'Exact' }} · {{ agentSummary.source_count }}</span>
+                </div>
+                <p class="whitespace-pre-wrap text-[12.5px] leading-5 text-[#475569]">{{ agentSummary.content }}</p>
+              </div>
+
+              <div v-if="agentMemLoading" class="px-1 py-2 text-xs text-[#98A2B3]">Loading memories...</div>
+              <div v-else-if="!agentMemRows.length" class="px-1 py-2 text-xs text-[#98A2B3]">No agent memories yet — they appear here as the agent learns or you save them.</div>
+              <template v-else>
+                <ul class="overflow-hidden rounded-xl border border-[#EAECF0]">
+                  <li v-for="(m, i) in pagedAgentMem" :key="m.id"
+                      class="flex items-start gap-2.5 bg-white px-4 py-2.5" :class="i > 0 ? 'border-t border-[#F2F4F7]' : ''">
+                    <span class="mt-0.5 rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[10px] font-semibold text-[#64748B]">{{ m.kind }}</span>
+                    <p class="min-w-0 flex-1 text-[12.5px] leading-5 text-[#344054]">{{ m.content }}</p>
+                  </li>
+                </ul>
+                <div v-if="agentMemRows.length > AGENT_PAGE_SIZE" class="mt-2 flex items-center justify-center gap-3">
+                  <button type="button" class="mem-pg-btn" :disabled="agentMemPage <= 1" @click="agentMemPage--">Prev</button>
+                  <span class="text-[11px] text-[#98A2B3]">{{ agentMemPage }} / {{ agentMemPages }} · {{ agentMemRows.length }} total</span>
+                  <button type="button" class="mem-pg-btn" :disabled="agentMemPage >= agentMemPages" @click="agentMemPage++">Next</button>
+                </div>
+              </template>
+            </div>
           </div>
         </section>
       </div>
 
-      <div class="flex flex-col gap-5">
-        <section class="brain-card">
+      <div class="flex flex-col gap-4">
+        <section class="brain-card prompt-card">
           <header class="card-head">
             <div class="flex items-start gap-3">
               <span class="icon-box bg-emerald-50 text-emerald-600"><FileText :size="18" :stroke-width="2" /></span>
@@ -252,7 +281,7 @@
           </div>
         </section>
 
-        <section class="brain-card">
+        <section class="brain-card style-card">
           <header class="card-head">
             <div class="flex items-start gap-3">
               <span class="icon-box bg-blue-50 text-blue-600"><Activity :size="18" :stroke-width="2" /></span>
@@ -287,11 +316,36 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import { Activity, ArrowRight, CheckCircle2, Cpu, Database, ExternalLink, FileText, Info, Pencil, Plus, Settings2, ShieldCheck, X } from 'lucide-vue-next'
+import { Activity, ArrowRight, CheckCircle2, ChevronDown, Cpu, Database, ExternalLink, FileText, Info, Pencil, Plus, Settings2, ShieldCheck, X } from 'lucide-vue-next'
 import api from '../../services/api'
 import ModelPicker from '../common/ModelPicker.vue'
+import ContextProfilePicker from '../agent/ContextProfilePicker.vue'
 
 const props = defineProps({ agent: { type: Object, required: true } })
+
+// ── Context profile (agent_policy.context_profile) + effective-policy preview/matrix ──
+// For a new agent (no id) the exact-budget table isn't available yet; the picker still shows its dropdown.
+const availableProfiles = ref([])
+const profilePreview = ref(null)
+const profilesMatrix = ref(null)
+function _policy() {
+  if (!props.agent.agent_policy || typeof props.agent.agent_policy !== 'object' || Array.isArray(props.agent.agent_policy)) {
+    props.agent.agent_policy = {}
+  }
+  return props.agent.agent_policy
+}
+const contextProfile = computed(() => _policy().context_profile || '')   // '' = Automatic
+function onProfileChange(key) { props.agent.agent_policy = { ..._policy(), context_profile: key || '' } }
+async function loadEffectivePolicy() {
+  if (!props.agent.id) { availableProfiles.value = []; profilePreview.value = null; profilesMatrix.value = null; return }
+  try {
+    const d = (await api.getAgentEffectivePolicy(props.agent.id)).data || {}
+    availableProfiles.value = d.available_profiles || []
+    profilePreview.value = d.preview || null
+    profilesMatrix.value = d.profiles_matrix || null
+  } catch (e) { /* best-effort; picker still works with its fallback list */ }
+}
+watch(() => props.agent.id, loadEffectivePolicy)
 
 const editing = reactive({ model: false, prompt: false, rules: false, memory: false, style: false })
 const toggle = (k) => { editing[k] = !editing[k] }
@@ -324,6 +378,7 @@ const agentSummary = ref(null)
 const agentMemRows = ref([])
 const agentMemLoading = ref(false)
 const agentMemPage = ref(1)
+const showAgentMemory = ref(false)
 const agentMemPages = computed(() => Math.max(1, Math.ceil(agentMemRows.value.length / AGENT_PAGE_SIZE)))
 const pagedAgentMem = computed(() => {
   const start = (agentMemPage.value - 1) * AGENT_PAGE_SIZE
@@ -395,6 +450,7 @@ onMounted(async () => {
   // Account master switch — read-only here; controls live in Settings → Memory. Failure = assume on.
   try { account.value = (await api.getMemorySettings()).data } catch (e) { account.value = null }
   loadAgentMemory()
+  loadEffectivePolicy()
 })
 
 const showFull = ref(false)
@@ -430,9 +486,39 @@ watch(tone, syncStyle)
 </script>
 
 <style scoped>
-.brain-card { border: 1px solid #E5E7EB; background: #fff; border-radius: 16px; padding: 20px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
-.brain-grid { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); gap: 20px; }
-.card-head { margin-bottom: 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.brain-card { border: 1px solid #E5E7EB; background: #fff; border-radius: 12px; padding: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+.brain-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(390px, .94fr);
+  gap: 16px;
+  align-items: start;
+}
+.brain-grid > div {
+  display: contents;
+}
+.prompt-card {
+  grid-column: 1;
+  grid-row: 1;
+}
+.style-card {
+  grid-column: 1;
+  grid-row: 2;
+}
+.model-card {
+  grid-column: 1;
+  grid-row: 3;
+}
+.rules-card {
+  grid-column: 1;
+  grid-row: 4;
+}
+.memory-card {
+  grid-column: 2;
+  grid-row: 1 / span 4;
+  position: sticky;
+  top: 12px;
+}
+.card-head { margin-bottom: 13px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .icon-box { display: grid; height: 36px; width: 36px; flex-shrink: 0; place-items: center; border-radius: 10px; }
 .card-title { font-size: 14.5px; font-weight: 650; color: #0F172A; }
 .card-sub { font-size: 12px; color: #667085; }
@@ -450,6 +536,30 @@ watch(tone, syncStyle)
 .mem-group { margin-bottom: 14px; }
 .mem-group:last-child { margin-bottom: 0; }
 .mem-group-title { margin-bottom: 7px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #98A2B3; }
+.mem-collapse-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #EAECF0;
+  border-radius: 12px;
+  background: #F9FAFB;
+  padding: 11px 13px;
+  text-align: left;
+  transition: border-color .15s, background .15s;
+}
+.mem-collapse-trigger:hover { border-color: #CBD5E1; background: #fff; }
+.mem-collapse-trigger small {
+  display: block;
+  margin-top: 3px;
+  color: #64748B;
+  font-size: 12px;
+  font-weight: 600;
+}
+.mem-chevron { flex: 0 0 auto; color: #64748B; transition: transform .15s; }
+.mem-chevron.open { transform: rotate(180deg); color: #2563EB; }
+.mem-collapse-body { margin-top: 10px; }
 .mem-switch { position: relative; height: 22px; width: 38px; flex-shrink: 0; border-radius: 999px; border: none; cursor: pointer; transition: background .15s; padding: 0; }
 .mem-switch.on { background: #2563EB; }
 .mem-switch.off { background: #D0D5DD; }
@@ -466,5 +576,18 @@ watch(tone, syncStyle)
 @keyframes dg-rot { to { transform: rotate(360deg); } }
 @media (max-width: 900px) {
   .brain-grid { grid-template-columns: 1fr; }
+  .prompt-card,
+  .style-card,
+  .model-card,
+  .rules-card,
+  .memory-card {
+    grid-column: 1;
+    position: static;
+  }
+  .prompt-card { grid-row: 1; }
+  .style-card { grid-row: 2; }
+  .memory-card { grid-row: 3; }
+  .model-card { grid-row: 4; }
+  .rules-card { grid-row: 5; }
 }
 </style>

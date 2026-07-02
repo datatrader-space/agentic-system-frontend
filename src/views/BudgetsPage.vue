@@ -151,6 +151,62 @@
         </table>
         <button class="add-link" @click="openNewRule"><Icon icon="lucide:plus" /> Add rule</button>
       </section>
+
+      <section class="panel approvals-panel">
+        <header class="section-head compact">
+          <div>
+            <h2>Approval requests</h2>
+            <p>Runs paused because a budget requires approval. Approve to let them continue, or deny to keep them stopped.</p>
+          </div>
+          <span class="pill" :class="{ warn: store.approvals.length }">{{ store.approvals.length }} pending</span>
+        </header>
+        <table v-if="store.approvals.length">
+          <thead>
+            <tr><th>Scope</th><th>Rule</th><th>Current</th><th>Projected</th><th>Limit</th><th>Requested</th><th>Actions</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="a in store.approvals" :key="a.id">
+              <td>{{ (a.scope_type || 'org') }}</td>
+              <td>{{ ruleLabel(a.rule_type) }}</td>
+              <td>${{ money(a.current_spend) }}</td>
+              <td>${{ money(a.projected_spend) }}</td>
+              <td>{{ a.unit === 'tokens' ? Number(a.limit_value).toLocaleString() + ' tok' : '$' + money(a.limit_value) }}</td>
+              <td>${{ money(a.requested_amount) }}</td>
+              <td class="approve-actions">
+                <button class="mini approve" :disabled="!store.canManage" @click="decide(a, 'approve')">Approve</button>
+                <button class="mini deny" :disabled="!store.canManage" @click="decide(a, 'deny')">Deny</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="muted-row">No pending approvals.</p>
+      </section>
+
+      <section class="panel events-panel">
+        <header class="section-head compact">
+          <div>
+            <h2>Budget activity</h2>
+            <p>Recent warn, approval, and block events across your runs (audit trail).</p>
+          </div>
+        </header>
+        <table v-if="store.events.length">
+          <thead>
+            <tr><th>When</th><th>Action</th><th>Scope</th><th>Rule</th><th>Projected</th><th>Limit</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="e in store.events" :key="e.id">
+              <td>{{ shortTime(e.created_at) }}</td>
+              <td><b :class="eventTone(e.action)">{{ actionLabel(e.action) }}</b></td>
+              <td>{{ e.scope_type || 'org' }}</td>
+              <td>{{ ruleLabel(e.rule_type) }}</td>
+              <td>${{ money(e.projected_spend) }}</td>
+              <td>{{ e.unit === 'tokens' ? Number(e.limit_value).toLocaleString() + ' tok' : '$' + money(e.limit_value) }}</td>
+              <td><span class="status-tag" :class="e.status">{{ e.status }}</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="muted-row">No budget events yet.</p>
+      </section>
     </section>
 
     <aside class="budgets-rail">
@@ -257,6 +313,24 @@ const rulesView = computed(() => store.rules.map((r) => ({
 
 function onPeriodChange(e) { store.setPeriod(e.target.value) }
 function onOrgChange(e) { store.setOrg(Number(e.target.value)) }
+
+// ── Approvals + events helpers ───────────────────────────────────────────
+const RULE_LABELS = { monthly_cap: 'Monthly cap', daily_cap: 'Daily cap', per_run: 'Per-run',
+  per_turn: 'Per-turn', approval: 'Approval threshold', token_budget: 'Token budget',
+  provider_budget: 'Provider budget' }
+function ruleLabel(t) { return RULE_LABELS[t] || t || '—' }
+function money(v) { return Number(v || 0).toFixed(2) }
+function actionLabel(a) { return ({ warn: 'Warn', require_approval: 'Approval', block: 'Block' })[a] || a }
+function eventTone(a) { return ({ warn: 'amber', require_approval: 'blue', block: 'red' })[a] || 'slate' }
+function shortTime(iso) { try { return new Date(iso).toLocaleString() } catch { return iso } }
+async function decide(a, decision) {
+  if (decision === 'deny') {
+    const ok = await confirm({ title: 'Deny request?', message: 'Deny this budget approval? The run stays stopped.', confirmText: 'Deny', danger: true })
+    if (!ok) return
+  }
+  try { await store.decideApproval(a.id, decision); notify.success(decision === 'approve' ? 'Approved' : 'Denied') }
+  catch (e) { notify.error(e?.response?.data?.error || 'Failed to update approval') }
+}
 
 // Organization parent caps (the ceiling every child budget must stay under) — from the org scope row.
 const orgCaps = computed(() => {
@@ -489,6 +563,19 @@ td b { font-size: 11.5px; }
 
 /* Dynamic-state additions */
 .slate { color: #94a3b8 !important; }
+.pill { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px;
+  background: #eef2f7; color: #64748b; font-size: 11px; font-weight: 850; }
+.pill.warn { background: #fff7ed; color: #b45309; }
+.approve-actions { display: flex; gap: 8px; }
+.mini { height: 28px; padding: 0 12px; border-radius: 8px; font-size: 12px; font-weight: 800; border: 1px solid #dbe4f0; background: #fff; cursor: pointer; }
+.mini.approve { border: 0; background: #16a34a; color: #fff; }
+.mini.deny { border: 0; background: #ef4444; color: #fff; }
+.mini:disabled { opacity: .5; cursor: default; }
+.status-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 850; text-transform: capitalize; }
+.status-tag.pending { background: #fff7ed; color: #b45309; }
+.status-tag.approved { background: #e9fbf1; color: #16a34a; }
+.status-tag.denied { background: #fff1f1; color: #b91c1c; }
+.status-tag.logged { background: #eef2f7; color: #64748b; }
 .org-chip { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 14px; border-radius: 9px;
   border: 1px solid #dbe4f0; background: #fff; color: #334155; font-size: 12px; font-weight: 850; }
 .org-chip svg { width: 15px; height: 15px; color: #64748b; }

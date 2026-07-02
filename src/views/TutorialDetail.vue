@@ -79,11 +79,14 @@ import { ref, computed, onMounted } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
+import { setBreadcrumbLabel } from '@/composables/useBreadcrumbs'
 
 const route = useRoute()
 const slug = route.params.slug
 
 const tutorial = ref(null)
+
+setBreadcrumbLabel(() => tutorial.value?.title)
 const steps = ref([])
 const stepIndex = ref(0)
 const doneSteps = ref([])

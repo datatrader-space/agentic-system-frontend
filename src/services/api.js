@@ -404,6 +404,13 @@ export default {
   // First-run onboarding state (feature tour). Best-effort persistence so the tour
   // follows the user across devices. Body: { onboarding_completed?, onboarding_step? }.
   updateOnboarding: (data) => api.patch('/auth/me/onboarding', data),
+  // In-app notifications (bell)
+  getNotifications: (params) => api.get('/notifications/', { params, noCache: true }),
+  getNotifUnreadCount: () => api.get('/notifications/unread-count/', { noCache: true }),
+  markAllNotifsRead: () => api.post('/notifications/read-all/', {}),
+  markNotifRead: (id) => api.patch(`/notifications/${id}/read/`, {}),
+  getNotifPreferences: () => api.get('/notifications/preferences/', { noCache: true }),
+  updateNotifPreferences: (data) => api.put('/notifications/preferences/', data),
   // Help Center: derived per-step onboarding checklist status (provider/agent/
   // connector/run/workflow/budget/guardrails) + aggregate progress.
   getOnboardingStatus: () => api.get('/onboarding/status/'),
@@ -435,6 +442,7 @@ export default {
   // Smart Help Center (Help Knowledge System).
   helpSuggest: (q) => api.get('/help/suggest', { params: { q }, noCache: true }),
   helpSearch: (q) => api.get('/help/search', { params: { q }, noCache: true }),
+  getPopularSearches: () => api.get('/help/popular-searches'),
   getHelpHome: () => api.get('/help/home'),
   getHelpTopics: () => api.get('/help/topics'),
   getHelpList: (params) => api.get('/help/list', { params }),
@@ -444,6 +452,12 @@ export default {
   logHelpSearch: (data) => api.post('/help/search-log', data),
   sendHelpFeedback: (data) => api.post('/help/feedback', data),
   askHelpAssistant: (data) => api.post('/help/assistant', data, { timeout: 60000 }),
+  chatHelpAssistant: (data) => api.post('/help/assistant/chat', data, { timeout: 60000 }),
+  getBuiltinHelpAssistant: () => api.get('/agents/builtin/help-assistant/', { noCache: true }),
+  // AI Assistant slot — the agent that powers the widget (falls back to the built-in help-assistant).
+  getAssistantConfig: () => api.get('/assistant/config', { noCache: true }),
+  // Shared KB sources (e.g. Help Center) an agent can attach to.
+  listKnowledgeSources: () => api.get('/knowledge-sources/', { noCache: true }),
 
   // Guided tours (backend-driven walkthroughs).
   getHelpGuidedTours: (params) => api.get('/help/guided-tours', { params, noCache: true }),
@@ -456,6 +470,20 @@ export default {
 
   // Admin Help Center analytics (staff only).
   adminHelpAnalytics: (section, params) => api.get(`/admin/help-analytics/${section}`, { params, noCache: true }),
+
+  // Admin — built-in (system) agents (platform-admin only).
+  adminListBuiltinAgents: () => api.get('/admin/builtin-agents/', { noCache: true }),
+  adminCreateBuiltinAgent: (data) => api.post('/admin/builtin-agents/', data),
+  adminUpdateBuiltinAgent: (id, data) => api.patch(`/admin/builtin-agents/${id}/`, data),
+  adminDeleteBuiltinAgent: (id) => api.delete(`/admin/builtin-agents/${id}/`),
+  adminToggleBuiltinAgent: (id, enabled) => api.post(`/admin/builtin-agents/${id}/publish/`, { enabled }),
+  adminCloneBuiltinAgent: (id) => api.post(`/admin/builtin-agents/${id}/clone/`, {}),
+  cloneBuiltinAgent: (slug) => api.post(`/agents/builtin/${slug}/clone/`, {}),
+  listBuiltinAgents: () => api.get('/agents/builtin/', { noCache: true }),
+  adminBuiltinToolCatalog: () => api.get('/admin/builtin-agents/tool-catalog/', { noCache: true }),
+  // AI Assistant slot — which agent powers the widget (one at a time).
+  adminGetAssistantConfig: () => api.get('/admin/assistant/config', { noCache: true }),
+  adminSetAssistantAgent: (agentId) => api.put('/admin/assistant/config', { agent_id: agentId }),
 
   // API reference (curated, grouped) — public Help Center read.
   getApiReference: () => api.get('/api-reference/'),
@@ -470,6 +498,32 @@ export default {
   adminPreviewApiEndpointData: (data) => api.post('/admin/helpcenter/api-endpoints/preview/', data),
   adminSeedApiEndpoints: () => api.post('/admin/helpcenter/api-endpoints/seed/', {}),
   adminGenerateApiDraft: (id) => api.post(`/admin/helpcenter/api-endpoints/${id}/generate-ai-draft/`, {}),
+
+  // Admin — Help Center content management (CMS).
+  adminListHelpContent: (params) => api.get('/admin/helpcenter/content/', { params, noCache: true }),
+  adminGetHelpContent: (id) => api.get(`/admin/helpcenter/content/${id}/`, { noCache: true }),
+  adminCreateHelpContent: (data) => api.post('/admin/helpcenter/content/', data),
+  adminUpdateHelpContent: (id, data) => api.patch(`/admin/helpcenter/content/${id}/`, data),
+  adminDeleteHelpContent: (id) => api.delete(`/admin/helpcenter/content/${id}/`),
+  adminPublishHelpContent: (id, published) => api.post(`/admin/helpcenter/content/${id}/publish/`, { published }),
+  adminHelpContentMeta: () => api.get('/admin/helpcenter/content/meta/', { noCache: true }),
+  adminGenerateHelpEmbeddings: () => api.post('/admin/helpcenter/content/generate-embeddings/', {}),
+  adminHelpEmbeddingsStatus: () => api.get('/admin/helpcenter/content/generate-embeddings/status/', { noCache: true }),
+
+  // Admin — Help article relations (related / prerequisite / next_step …).
+  adminListRelations: (sourceId) => api.get('/admin/helpcenter/relations/', { params: { source: sourceId }, noCache: true }),
+  adminCreateRelation: (data) => api.post('/admin/helpcenter/relations/', data),
+  adminDeleteRelation: (id) => api.delete(`/admin/helpcenter/relations/${id}/`),
+  adminRelationTypes: () => api.get('/admin/helpcenter/relations/relation-types/', { noCache: true }),
+
+  // Admin — Guided Tours (CRUD + ordered steps).
+  adminListGuidedTours: (params) => api.get('/admin/helpcenter/guided-tours/', { params, noCache: true }),
+  adminGetGuidedTour: (id) => api.get(`/admin/helpcenter/guided-tours/${id}/`, { noCache: true }),
+  adminCreateGuidedTour: (data) => api.post('/admin/helpcenter/guided-tours/', data),
+  adminUpdateGuidedTour: (id, data) => api.patch(`/admin/helpcenter/guided-tours/${id}/`, data),
+  adminDeleteGuidedTour: (id) => api.delete(`/admin/helpcenter/guided-tours/${id}/`),
+  adminPublishGuidedTour: (id, published) => api.post(`/admin/helpcenter/guided-tours/${id}/publish/`, { published }),
+  adminGuidedTourMeta: () => api.get('/admin/helpcenter/guided-tours/meta/', { noCache: true }),
 
   // Auth hardening (Track B): verification, password reset/change, 2FA
   verifyEmail: (token) => api.post('/auth/verify-email', { token }),
@@ -606,8 +660,19 @@ export default {
   // ── Publish lifecycle ──
   publishAgent: (id) => api.post(`/agents/${id}/publish/`),
   unpublishAgent: (id) => api.post(`/agents/${id}/unpublish/`),
+  pauseAgent: (id, reason) => api.post(`/agents/${id}/pause/`, { reason }),
+  unpauseAgent: (id) => api.post(`/agents/${id}/unpause/`, {}),
+  // ── Admin: SYSTEM-wide Guardrails & Approvals floor (GlobalAgentPolicy). GET any authed user; PATCH staff-only. ──
+  getGlobalAgentPolicy: () => api.get('/global-agent-policy/'),
+  updateGlobalAgentPolicy: (data) => api.patch('/global-agent-policy/', data),
+  // ── Org-tier Guardrails & Approvals (OrgAgentPolicy). GET any member; PATCH org owner/admin. ──
+  getOrgAgentPolicy: (params = {}) => api.get('/org-agent-policy/', { params }),
+  updateOrgAgentPolicy: (data) => api.patch('/org-agent-policy/', data),
   // ── Agent builder + monitoring (Screens 18 / 10) ──
   getAgentGuardrails: (id) => api.get(`/agents/${id}/guardrails/`),
+  // P6: effective LLM turn-policy preview + selectable context profiles (read-only)
+  getAgentEffectivePolicy: (id, params = {}) => api.get(`/agents/${id}/effective-policy/`, { params }),
+  getAgentActionUsage: (id, params = {}) => api.get(`/agents/${id}/action-usage/`, { params }),
   getAgentMonitoring: (id) => api.get(`/agents/${id}/monitoring/`),
   rollbackAgent: (id) => api.post(`/agents/${id}/rollback/`),
   // ── Tools Library (Screen 24) ──
@@ -647,6 +712,12 @@ export default {
   getWebSourcePages: (id, params = {}) => api.get(`/web_sources/${id}/pages/`, { params }),
   addWebSourcePages: (id, urls) => api.post(`/web_sources/${id}/add_pages/`, { urls }),
   setWebSourceRecrawl: (id, recrawl_schedule) => api.post(`/web_sources/${id}/set_schedule/`, { recrawl_schedule }),
+  // ── Attached (shared) knowledge bases: reuse a file/website from the owner's OTHER agents ──
+  getAgentKnowledgeLibrary: (agentId) => api.get(`/agents/${agentId}/knowledge-library/`),
+  getAgentKnowledgeAttachments: (agentId) => api.get(`/agents/${agentId}/knowledge-attachments/`),
+  attachAgentKnowledge: (agentId, payload) => api.post(`/agents/${agentId}/knowledge-attachments/`, payload),
+  detachAgentKnowledge: (agentId, payload) => api.post(`/agents/${agentId}/knowledge-attachments/detach/`, payload),
+  refreshAgentKnowledge: (agentId, payload = {}) => api.post(`/agents/${agentId}/knowledge-attachments/refresh/`, payload),
   uploadConversationFile: (conversationPk, file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -669,6 +740,15 @@ export default {
 
   // Schedules (used by the Budgets page to scope a budget to a schedule).
   getSchedules: () => api.get('/schedules/'),
+  // Standalone Schedules page (/dashboard/schedules).
+  // List is cross-agent (AgentSchedule rows come back as `as_<id>` with agent_name).
+  // Create is agent-scoped (an AgentSchedule always belongs to one agent).
+  listSchedules: (params = {}) => api.get('/schedules/', { params }),
+  createAgentSchedule: (agentId, payload) => api.post(`/agents/${agentId}/schedules/`, payload),
+  updateSchedule: (id, payload) => api.put(`/schedules/${id}/`, payload),
+  deleteSchedule: (id) => api.delete(`/schedules/${id}/`),
+  runSchedule: (id) => api.post(`/schedules/${id}/run/`),
+  getScheduleRuns: (id) => api.get(`/schedules/${id}/runs/`),
   getWorkflowGraph: (id) => api.get(`/workflow-graphs/${id}/`),
   // One-shot load for the canvas: the graph + all graphs (subflow picker) + agents.
   getWorkflowGraphBundle: (id) => api.get(`/workflow-graphs/${id}/bundle/`),
@@ -817,6 +897,8 @@ export default {
   createKnowledgeCard: (agentId, data) => api.post(`/agents/${agentId}/knowledge/cards/`, data),
   deleteKnowledgeCard: (agentId, cardId) => api.delete(`/agents/${agentId}/knowledge/cards/${cardId}/delete/`),
   bulkDeleteKnowledgeCards: (agentId, cardIds) => api.post(`/agents/${agentId}/knowledge/cards/bulk-delete/`, { card_ids: cardIds }),
+  // RETIRED: dreaming is no longer active (knowledge lives in AgentMemory). Kept for reference; the
+  // backend endpoint now returns a {retired:true} notice and does not run a dream cycle. No active callers.
   triggerDream: (agentId) => api.post(`/agents/${agentId}/knowledge/dream/`),
 
   // Agent Flows
@@ -838,6 +920,9 @@ export default {
   updateBudget: (id, data) => api.patch(`/budgets/${id}/`, data),
   deleteBudget: (id, orgId) => api.delete(`/budgets/${id}/`, { params: orgId ? { organization_id: orgId } : {} }),
   getBudgetStatus: (id, period, orgId) => api.get(`/budgets/${id}/status/`, { params: { ...(period ? { period } : {}), ...(orgId ? { organization_id: orgId } : {}) } }),
+  getBudgetApprovals: () => api.get('/budgets/approvals/'),
+  decideBudgetApproval: (eventId, decision) => api.post(`/budgets/approvals/${eventId}/decide/`, { decision }),
+  getBudgetEvents: (orgId) => api.get('/budgets/events/', { params: orgId ? { organization_id: orgId } : {} }),
   getBudgetRules: (orgId) => api.get('/budget-rules/', { params: orgId ? { organization_id: orgId } : {} }),
   createBudgetRule: (data) => api.post('/budget-rules/', data),
   updateBudgetRule: (id, data) => api.patch(`/budget-rules/${id}/`, data),

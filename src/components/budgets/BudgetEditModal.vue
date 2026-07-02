@@ -64,16 +64,29 @@
             </label>
           </div>
 
-          <div class="bm-row">
-            <label class="bm-field">
+          <div v-if="showPerRun || showPerTurn" class="bm-row"
+               :class="{ 'bm-row--single': (showPerRun ? 1 : 0) + (showPerTurn ? 1 : 0) === 1 }">
+            <label v-if="showPerRun" class="bm-field">
               <span>Per-run max (USD)</span>
               <input v-model="form.per_run_max_usd" type="number" step="0.01" min="0" placeholder="No cap" />
+              <small class="bm-note">Max cost for a single {{ scopeLabel.toLowerCase() === 'target' ? 'run' : scopeLabel.toLowerCase() + ' run' }}.</small>
             </label>
-            <label class="bm-field">
+            <label v-if="showPerTurn" class="bm-field">
               <span>Per-turn max (USD)</span>
               <input v-model="form.per_turn_max_usd" type="number" step="0.0001" min="0" placeholder="No cap" />
+              <small class="bm-note">Global cap on any single chat turn across the organization.</small>
             </label>
           </div>
+
+          <label class="bm-field" v-if="form.monthly_limit_usd || form.daily_limit_usd">
+            <span>When the monthly/daily limit is exceeded</span>
+            <select v-model="form.enforcement_action">
+              <option value="warn">Warn only (alert, run continues)</option>
+              <option value="require_approval">Require approval (pause for a manager)</option>
+              <option value="block">Block (hard stop)</option>
+            </select>
+            <small class="bm-note">By default a limit only warns. Choose Block or Require approval to actually stop or pause runs at the limit.</small>
+          </label>
 
           <label class="bm-field">
             <span>Approval threshold (USD)</span>
@@ -124,13 +137,21 @@ const form = reactive({
   per_run_max_usd: b.per_run_max_usd ?? '',
   per_turn_max_usd: b.per_turn_max_usd ?? '',
   approval_threshold_usd: b.approval_threshold_usd ?? '',
+  enforcement_action: b.enforcement_action || 'warn',
 })
 const alertText = ref(Array.isArray(b.alert_thresholds)
   ? b.alert_thresholds.map((x) => Math.round(x * 100)).join(', ') : '')
 
 // ── Scope target options (populated from the backend per selected scope) ──
-const SCOPE_LABEL = { workspace: 'Workspace', agent: 'Agent', workflow: 'Workflow', schedule: 'Schedule' }
+const SCOPE_LABEL = { workspace: 'Workspace', agent: 'Agent', workflow: 'Workflow', schedule: 'Schedule', user: 'User' }
 const scopeLabel = computed(() => SCOPE_LABEL[form.scope_type] || 'Target')
+
+// Which execution caps apply per scope (matches backend enforcement):
+//  • Per-run max  → any run scope (org/workspace/agent/workflow/schedule); NOT a user budget.
+//  • Per-turn max → ORGANIZATION only — it's a single org-wide "max cost per chat turn" ceiling
+//    (turn_cost reads one org value); a per-turn value on any other scope is not enforced.
+const showPerRun = computed(() => form.scope_type !== 'user')
+const showPerTurn = computed(() => form.scope_type === 'org')
 const targets = ref([])
 const loadingTargets = ref(false)
 
@@ -193,9 +214,12 @@ function submit() {
     name: form.name,
     monthly_limit_usd: num(form.monthly_limit_usd),
     daily_limit_usd: num(form.daily_limit_usd),
-    per_run_max_usd: num(form.per_run_max_usd),
-    per_turn_max_usd: num(form.per_turn_max_usd),
+    // Only send caps that apply to this scope; hidden fields are cleared (null) so a stale value
+    // from another scope can never linger.
+    per_run_max_usd: showPerRun.value ? num(form.per_run_max_usd) : null,
+    per_turn_max_usd: showPerTurn.value ? num(form.per_turn_max_usd) : null,
     approval_threshold_usd: num(form.approval_threshold_usd),
+    enforcement_action: form.enforcement_action || 'warn',
     alert_thresholds: thresholds,
     enabled: true,
   }
@@ -215,6 +239,8 @@ function submit() {
 .bm-x svg { width: 18px; height: 18px; }
 .bm-body { padding: 18px 20px; overflow-y: auto; display: grid; gap: 14px; }
 .bm-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.bm-row--single { grid-template-columns: 1fr; }
+.bm-note { margin-top: 2px; color: #94a3b8; font-size: 10.5px; font-weight: 600; line-height: 1.3; }
 .bm-field { display: grid; gap: 6px; }
 .bm-field span { font-size: 11px; font-weight: 800; color: #475569; }
 .bm-hint { margin: -4px 0 0; color: #64748b; font-size: 12px; font-weight: 650; }

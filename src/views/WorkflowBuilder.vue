@@ -9,7 +9,7 @@
         <input v-if="renaming" ref="nameInputEl" v-model="nameDraft" class="name-in"
           @keydown.enter="commitRename" @keydown.esc="cancelRename" @blur="commitRename" />
         <button v-else class="name-display" @click="startRename" title="Click to rename">
-          {{ name || 'Customer intake automation' }}<span class="name-edit">âœŽ</span>
+          {{ name || 'Customer intake automation' }}<span class="name-edit">✎</span>
         </button>
         <span class="pill draft">Draft</span>
       </div>
@@ -28,11 +28,14 @@
           <button class="gbtn more-btn" @click="menuOpen = !menuOpen" title="More">...</button>
           <div v-if="menuOpen" class="wf-menu-back" @click="menuOpen = false"></div>
           <div v-if="menuOpen" class="wf-menu-pop" @click="menuOpen = false">
-            <button @click="loadOverviewDemo"><Icon icon="lucide:layout-dashboard" /> Overview demo</button>
-            <button @click="loadConditionDemo"><Icon icon="lucide:split" /> Branching demo</button>
-            <button @click="loadRunDemo"><Icon icon="lucide:activity" /> Run debug demo</button>
-            <button @click="duplicateWorkflow">â§‰ Duplicate</button>
-            <button class="danger" @click="deleteWorkflow">ðŸ—‘ Delete workflow</button>
+            <button @click="duplicateWorkflow">⧉ Duplicate</button>
+            <button class="danger" @click="deleteWorkflow">🗑 Delete workflow</button>
+            <template v-if="isDev">
+              <div class="wf-menu-sep">Examples (dev)</div>
+              <button @click="loadOverviewDemo"><Icon icon="lucide:layout-dashboard" /> Overview demo</button>
+              <button @click="loadConditionDemo"><Icon icon="lucide:split" /> Branching demo</button>
+              <button @click="loadRunDemo"><Icon icon="lucide:activity" /> Run debug demo</button>
+            </template>
           </div>
         </div>
       </div>
@@ -49,28 +52,28 @@
     <div class="wfb-body">
       <!-- Left palette (resizable, searchable, category-grouped) -->
       <aside v-show="!paletteCollapsed" class="wfb-palette" :style="{ width: paletteW + 'px' }">
-        <button class="add-node-btn" @click="openPalette()">ï¼‹ Add node <kbd>âŒ˜K</kbd></button>
-        <input v-model="sidebarSearch" class="pal-search" placeholder="Search nodesâ€¦" />
+        <button class="add-node-btn" @click="openPalette()">＋ Add node <kbd>⌘K</kbd></button>
+        <input v-model="sidebarSearch" class="pal-search" placeholder="Search nodes…" />
         <div class="pal-scroll">
-          <p v-if="!sidebarGroups.length" class="pal-empty">No nodes match â€œ{{ sidebarSearch }}â€.</p>
+          <p v-if="!sidebarGroups.length" class="pal-empty">No nodes match “{{ sidebarSearch }}â€.</p>
           <div v-for="g in sidebarGroups" :key="g.key" class="pal-cat">
             <div class="pal-cat-h">{{ g.label }}</div>
             <div v-for="p in g.items" :key="p.type" class="pal-card" :class="'fam-' + p.type.split('.')[0]"
-              draggable="true" @dragstart="onDragStart($event, p.type)" @click="addQuick(p.type)" :title="'Drag to canvas or click to add â€” ' + p.sub">
+              draggable="true" @dragstart="onDragStart($event, p.type)" @click="addQuick(p.type)" :title="'Drag to canvas or click to add — ' + p.sub">
               <span class="pal-card-ic"><Icon :icon="wfIcon(p.type)" /></span>
               <span class="pal-card-txt"><span class="pal-card-l">{{ p.label }}</span><span class="pal-card-s">{{ p.sub }}</span></span>
             </div>
           </div>
-          <button class="pal-more" @click="openPalette()">Browse tools &amp; MCP â†’</button>
+          <button class="pal-more" @click="openPalette()">Browse tools &amp; MCP →</button>
         </div>
         <div class="pal-footer" aria-label="Workflow builder shortcuts">
-          <button title="Docs">â–¡</button>
+          <button title="Docs">□</button>
           <button title="Help">?</button>
-          <button title="Settings">âš™</button>
+          <button title="Settings">⚙</button>
         </div>
       </aside>
       <div v-show="!paletteCollapsed" class="wfb-divider v" @pointerdown="startResize('palette', $event)"></div>
-      <button class="wfb-tab tab-left" :title="paletteCollapsed ? 'Show palette' : 'Hide palette'" @click="togglePalette">{{ paletteCollapsed ? 'Â»' : 'Â«' }}</button>
+      <button class="wfb-tab tab-left" :title="paletteCollapsed ? 'Show palette' : 'Hide palette'" @click="togglePalette">{{ paletteCollapsed ? '»' : '«' }}</button>
 
       <!-- Canvas -->
       <div class="canvas-wrap" @drop="onDrop" @dragover.prevent @dragenter.prevent>
@@ -79,22 +82,22 @@
           <Background pattern-color="#cbd5e1" :gap="18" />
           <Controls />
         </VueFlow>
-        <div v-if="loading" class="canvas-overlay">Loadingâ€¦</div>
+        <div v-if="loading" class="canvas-overlay">Loading…</div>
         <div v-if="running" class="run-banner">
           <div class="run-title">
             <Icon icon="lucide:loader-2" class="spin" />
             <div>
-              <h3>Test run in progress</h3>
-              <p>Started 2 minutes ago · Run ID: run_8f3d2a1c9e4b</p>
+              <h3>{{ runBannerTitle }}</h3>
+              <p>{{ runStartedLabel || 'Starting…' }}</p>
             </div>
-            <button>View full run details <Icon icon="lucide:arrow-right" /></button>
+            <button @click="openRuns()">View full run details <Icon icon="lucide:arrow-right" /></button>
           </div>
           <div class="run-metrics">
-            <span><small>Total nodes</small><b>5</b></span>
-            <span><small>Completed</small><b>2 <Icon icon="lucide:check-circle-2" /></b></span>
-            <span><small>Running</small><b>1 <Icon icon="lucide:loader-2" class="spin" /></b></span>
-            <span><small>Warnings</small><b>1 <Icon icon="lucide:triangle-alert" /></b></span>
-            <span><small>Failed</small><b>0 <Icon icon="lucide:x-circle" /></b></span>
+            <span><small>Total nodes</small><b>{{ runStats.total }}</b></span>
+            <span><small>Completed</small><b>{{ runStats.completed }} <Icon icon="lucide:check-circle-2" /></b></span>
+            <span><small>Running</small><b>{{ runStats.running }} <Icon icon="lucide:loader-2" class="spin" /></b></span>
+            <span><small>Skipped</small><b>{{ runStats.warnings }} <Icon icon="lucide:triangle-alert" /></b></span>
+            <span><small>Failed</small><b>{{ runStats.failed }} <Icon icon="lucide:x-circle" /></b></span>
           </div>
         </div>
 
@@ -114,17 +117,17 @@
         <!-- empty canvas hero -->
         <div v-if="!loading && !nodeCount" class="canvas-empty">
           <div class="ce-card">
-            <div class="ce-ic">ðŸ§©</div>
+            <div class="ce-ic">🧩</div>
             <h3 class="ce-title">Build your first workflow</h3>
             <p class="ce-sub">Start with a trigger, then add an agent or action. Drag from the left palette, or pick a starter:</p>
             <div class="ce-btns">
-              <button class="ce-btn" @click="addQuick('trigger.manual')">â–¶ Manual Trigger</button>
+              <button class="ce-btn" @click="addQuick('trigger.manual')">▶ Manual Trigger</button>
               <button class="ce-btn" @click="addQuick('trigger.schedule')">â° Schedule</button>
-              <button class="ce-btn" @click="addQuick('trigger.webhook')">ðŸ”— Webhook</button>
-              <button class="ce-btn" @click="addQuick('agent.run')">ðŸ¤– Agent</button>
+              <button class="ce-btn" @click="addQuick('trigger.webhook')">🔗 Webhook</button>
+              <button class="ce-btn" @click="addQuick('agent.run')">🤖 Agent</button>
               <button class="ce-btn" @click="addQuick('action.http')">ðŸŒ HTTP</button>
             </div>
-            <button class="ce-more" @click="openPalette()">Browse all nodes (âŒ˜K)</button>
+            <button class="ce-more" @click="openPalette()">Browse all nodes (⌘K)</button>
           </div>
         </div>
 
@@ -136,13 +139,13 @@
             <span class="log-summary" :class="{ running }">{{ runSummary }}</span>
             <div class="flex-1"></div>
             <button class="log-btn" :class="{ on: logErrorsOnly }" :disabled="!logErrorCount"
-              @click="logErrorsOnly = !logErrorsOnly" :title="logErrorsOnly ? 'Show all' : 'Errors only'">âš  {{ logErrorCount }}</button>
+              @click="logErrorsOnly = !logErrorsOnly" :title="logErrorsOnly ? 'Show all' : 'Errors only'">⚠ {{ logErrorCount }}</button>
             <button class="log-btn" :disabled="!logEntries.length" @click="copyLog">Copy</button>
             <button class="log-btn" :disabled="!logEntries.length" @click="resetLog()">Clear</button>
             <button class="log-btn" @click="toggleLog()">Hide</button>
           </div>
           <div class="log-body" ref="logBodyEl">
-            <p v-if="!visibleLog.length" class="log-empty">{{ logEntries.length ? 'No errors ðŸŽ‰' : 'No activity yet â€” Validate or â–¶ Run to see live logs here.' }}</p>
+            <p v-if="!visibleLog.length" class="log-empty">{{ logEntries.length ? 'No errors 🎉' : 'No activity yet — Validate or ▶ Run to see live logs here.' }}</p>
             <div v-for="(e, i) in visibleLog" :key="i" class="log-line" :class="'lv-' + e.level">
               <Icon :icon="logIcon(e.level)" class="log-ic" /><span class="log-t">{{ e.t }}</span><span class="log-msg">{{ e.text }}</span>
             </div>
@@ -151,21 +154,37 @@
         <!-- collapsed-log reopen pill -->
         <button v-else class="log-reopen" @click="toggleLog()"><Icon icon="lucide:activity" /> Run log <span class="log-summary">{{ runSummary }}</span></button>
 
-        <div v-if="running" class="run-timeline">
-          <div class="timeline-head"><strong>Run Timeline</strong><span>Latest run: 2 minutes ago</span><button>Collapse</button></div>
-          <button v-for="row in runTimelineRows" :key="row.id" class="timeline-row" @click="selectNode(row.id)">
-            <span>{{ row.time }}</span>
-            <Icon :icon="row.icon" :class="row.state" />
-            <strong>{{ row.title }}</strong>
-            <em>{{ row.sub }}</em>
-            <b :class="row.state">{{ row.status }}</b>
-          </button>
+        <div v-if="timelineRows.length && timelineOpen" class="run-timeline"
+          :style="{ bottom: (logOpen ? logH + 24 : 44) + 'px' }">
+          <div class="timeline-head">
+            <strong><Icon icon="lucide:list-tree" class="tl-head-ic" />Run Timeline</strong>
+            <span v-if="runDetail">Run #{{ runDetail.id }} · {{ runDetail.status }}<template v-if="runDetail.duration_ms != null"> · {{ fmtDuration(runDetail.duration_ms) }}</template></span>
+            <span v-else>Live</span>
+            <div class="flex-1"></div>
+            <button class="tl-head-btn" @click="timelineOpen = false">Collapse</button>
+          </div>
+          <div class="timeline-body">
+            <button v-for="row in timelineRows" :key="row.id" class="timeline-row"
+              :class="{ active: selected && selected.id === row.id }" @click="selectNode(row.id)">
+              <span>{{ row.time }}</span>
+              <Icon :icon="row.icon" :class="[row.state, { spin: row.running }]" />
+              <strong>{{ row.title }}</strong>
+              <em>{{ row.sub }}</em>
+              <span v-if="row.running" class="tl-badge">Running</span>
+              <b :class="row.state">{{ row.status }}</b>
+            </button>
+          </div>
         </div>
+        <!-- collapsed-timeline reopen pill -->
+        <button v-else-if="timelineRows.length && !timelineOpen" class="tl-reopen"
+          :style="{ bottom: (logOpen ? logH + 12 : 44) + 'px' }" @click="timelineOpen = true">
+          <Icon icon="lucide:list-tree" /> Run timeline <span class="log-summary">{{ timelineRows.length }} steps</span>
+        </button>
       </div>
 
       <!-- inspector divider + collapse tab -->
       <div v-show="!inspectorCollapsed" class="wfb-divider v" @pointerdown="startResize('inspector', $event)"></div>
-      <button class="wfb-tab tab-right" :title="inspectorCollapsed ? 'Show inspector' : 'Hide inspector'" @click="toggleInspector">{{ inspectorCollapsed ? 'Â«' : 'Â»' }}</button>
+      <button class="wfb-tab tab-right" :title="inspectorCollapsed ? 'Show inspector' : 'Hide inspector'" @click="toggleInspector">{{ inspectorCollapsed ? '«' : '»' }}</button>
 
       <!-- Inspector -->
       <aside class="inspector wfb-inspector" v-if="selected && !inspectorCollapsed" :style="{ width: inspectorW + 'px' }">
@@ -177,7 +196,10 @@
               <small>{{ nodeSubtitle(selected.type) }}</small>
             </span>
           </div>
-          <button class="del" @click="deleteSelected" title="Delete node">ðŸ—‘</button>
+          <div class="ins-h-actions">
+            <span class="ins-enabled">Enabled</span>
+            <button class="del" @click="deleteSelected" title="Delete node"><Icon icon="lucide:trash-2" /></button>
+          </div>
         </div>
         <!-- shared tool-name autocomplete (used by foreach inner-tool; SchemaForm makes its own per field) -->
         <datalist id="wf-tools"><option v-for="t in toolNames" :key="t" :value="t" /></datalist>
@@ -222,10 +244,10 @@
         <template v-else-if="selected.type === 'agent.run'">
           <label class="ins-l">Agent</label>
           <select v-model="selected.data.agent_id" class="ins-in" @change="onAgentPicked">
-            <option :value="null" disabled>Select an agentâ€¦</option>
+            <option :value="null" disabled>Select an agent…</option>
             <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
           </select>
-          <div class="lbl-row"><label class="ins-l">Prompt</label><button class="insvar" @click="openDataPicker('prompt')">ï¼‹ Insert variable</button></div>
+          <div class="lbl-row"><label class="ins-l">Prompt</label><button class="insvar" @click="openDataPicker('prompt')">＋ Insert variable</button></div>
           <textarea v-model="selected.data.prompt" rows="6" class="ins-in"
             placeholder="What should the agent do? Insert variables from previous nodes." @input="markDirty" @blur="onFieldBlur('prompt', $event)"></textarea>
           <label class="ins-l">Output</label>
@@ -242,7 +264,7 @@
                 <option>string</option><option>number</option><option>boolean</option><option>object</option><option>array</option>
               </select>
               <label class="req-chk" title="Required"><input type="checkbox" v-model="f.required" @change="markDirty" />req</label>
-              <button class="kv-del" @click="removeSchemaField(i)">Ã—</button>
+              <button class="kv-del" @click="removeSchemaField(i)">×</button>
             </div>
             <button class="kv-add" @click="addSchemaField">+ Add field</button>
             <p class="ins-hint">The model is forced to return JSON; fields become pickable as <code>nodes.&lt;id&gt;.output.&lt;field&gt;</code>.</p>
@@ -252,14 +274,14 @@
         <template v-else-if="selected.type === 'action.mcp_tool'">
           <label class="ins-l">Agent context</label>
           <select v-model="selected.data.agent_id" class="ins-in" @change="onMcpAgentPicked">
-            <option :value="null" disabled>Select an agentâ€¦</option>
+            <option :value="null" disabled>Select an agent…</option>
             <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
           </select>
           <label class="ins-l">MCP server</label>
           <input class="ins-in" :value="selected.data.server_name || ('#' + selected.data.server_id)" disabled />
           <label class="ins-l">MCP tool</label>
           <input class="ins-in mono" :value="selected.data.tool_name" disabled />
-          <div class="lbl-row"><label class="ins-l">Params (JSON)</label><button class="insvar" @click="openDataPicker('params_json')">ï¼‹ Insert variable</button></div>
+          <div class="lbl-row"><label class="ins-l">Params (JSON)</label><button class="insvar" @click="openDataPicker('params_json')">＋ Insert variable</button></div>
           <textarea v-model="selected.data.params_json" rows="5" class="ins-in mono" placeholder='{ "query": "{{trigger.keyword}}" }' @input="markDirty" @blur="onFieldBlur('params_json', $event)"></textarea>
           <p class="ins-hint">Deterministic single MCP call (no LLM). Runs with the agent's credentials &amp; assigned tools. Write/destructive MCP tools are blocked unattended.</p>
         </template>
@@ -293,7 +315,7 @@
             <div class="condition-head">
               <div>
                 <strong>Conditions</strong>
-                <span>If ALL conditions are met, go to True path.</span>
+                <span>{{ conditionJoin(selected) === 'OR' ? 'If ANY condition is met, go to True path.' : 'If ALL conditions are met, go to True path.' }}</span>
               </div>
             </div>
 
@@ -301,19 +323,18 @@
               <div v-for="(row, i) in conditionRows(selected)" :key="i" class="condition-row">
                 <label>
                   <span>Field</span>
-                  <select v-model="row.field" class="ins-in" @change="markDirty">
-                    <option value="lead_score">lead_score</option>
-                    <option value="source">source</option>
-                    <option value="company">company</option>
-                    <option value="intent">intent</option>
-                  </select>
+                  <input v-model="row.field" class="ins-in mono" list="wf-cond-fields"
+                    placeholder="{{nodes.x.output.score}}" @input="markDirty" />
                 </label>
                 <label>
                   <span>Operator</span>
                   <select v-model="row.operator" class="ins-in" @change="markDirty">
                     <option>&gt;</option>
                     <option>&lt;</option>
+                    <option>&gt;=</option>
+                    <option>&lt;=</option>
                     <option>=</option>
+                    <option>!=</option>
                     <option>contains</option>
                   </select>
                 </label>
@@ -325,7 +346,12 @@
                   <Icon icon="lucide:trash-2" />
                 </button>
               </div>
-              <select class="condition-join" disabled><option>AND</option></select>
+              <datalist id="wf-cond-fields"><option v-for="v in conditionVarSuggestions" :key="v" :value="v" /></datalist>
+              <select v-if="conditionRows(selected).length > 1" class="condition-join"
+                v-model="selected.data.join" @change="markDirty">
+                <option value="AND">Match ALL (AND)</option>
+                <option value="OR">Match ANY (OR)</option>
+              </select>
               <button class="condition-add" @click="addCondition"><Icon icon="lucide:plus" />Add condition</button>
             </div>
 
@@ -354,18 +380,23 @@
             placeholder="{{node.<id>.text}} or {{trigger.items}}" @input="markDirty" />
           <p class="ins-hint">A JSON array or comma-separated list. Each entry is available as <code>&#123;&#123;item&#125;&#125;</code>.</p>
           <label class="ins-l">Run per item</label>
-          <select v-model="selected.data.do.type" class="ins-in" @change="markDirty">
+          <select v-model="selected.data.do.type" class="ins-in" @change="onForeachTypeChange">
             <option value="action.channel">Send to channel</option>
             <option value="action.tool">Run tool</option>
             <option value="action.http">HTTP request</option>
+            <option value="agent.run">Run agent</option>
+            <option value="action.subworkflow">Run sub-workflow</option>
           </select>
           <template v-if="selected.data.do.type === 'action.channel'">
             <label class="ins-l">Channel</label>
             <select v-model="selected.data.do.data.kind" class="ins-in" @change="markDirty">
               <option value="log">Log</option><option value="slack">Slack</option><option value="webhook">Webhook</option>
+              <option value="telegram">Telegram</option><option value="email">Email</option>
             </select>
             <input v-if="selected.data.do.data.kind === 'slack'" v-model="selected.data.do.data.slack_channel" class="ins-in" placeholder="#general" @input="markDirty" />
-            <input v-if="selected.data.do.data.kind === 'webhook'" v-model="selected.data.do.data.url" class="ins-in" placeholder="https://â€¦" @input="markDirty" />
+            <input v-if="selected.data.do.data.kind === 'webhook'" v-model="selected.data.do.data.url" class="ins-in" placeholder="https://…" @input="markDirty" />
+            <input v-if="selected.data.do.data.kind === 'telegram'" v-model="selected.data.do.data.chat_id" class="ins-in" placeholder="Telegram chat id" @input="markDirty" />
+            <input v-if="selected.data.do.data.kind === 'email'" v-model="selected.data.do.data.to" class="ins-in" placeholder="to@example.com" @input="markDirty" />
             <label class="ins-l">Message</label>
             <textarea v-model="selected.data.do.data.message" rows="3" class="ins-in" placeholder="Hello {{item}}" @input="markDirty"></textarea>
           </template>
@@ -381,14 +412,31 @@
               <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
             </select>
             <label class="ins-l">URL</label>
-            <input v-model="selected.data.do.data.url" class="ins-in" placeholder="https://â€¦/{{item}}" @input="markDirty" />
+            <input v-model="selected.data.do.data.url" class="ins-in" placeholder="https://…/{{item}}" @input="markDirty" />
+          </template>
+          <template v-else-if="selected.data.do.type === 'agent.run'">
+            <label class="ins-l">Agent</label>
+            <select v-model="selected.data.do.data.agent_id" class="ins-in" @change="markDirty">
+              <option :value="undefined" disabled>Select an agent…</option>
+              <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
+            </select>
+            <label class="ins-l">Prompt</label>
+            <textarea v-model="selected.data.do.data.prompt" rows="3" class="ins-in" placeholder="Process {{item}}" @input="markDirty"></textarea>
+          </template>
+          <template v-else-if="selected.data.do.type === 'action.subworkflow'">
+            <label class="ins-l">Sub-workflow</label>
+            <select v-model="selected.data.do.data.graph_id" class="ins-in" @change="markDirty">
+              <option :value="undefined" disabled>Select a workflow…</option>
+              <option v-for="g in subgraphOptions" :key="g.id" :value="g.id">{{ g.name }}</option>
+            </select>
+            <p class="ins-hint">Each item runs the chosen workflow. <code>&#123;&#123;item&#125;&#125;</code> is passed in the trigger payload.</p>
           </template>
         </template>
 
         <!-- schema-driven config (manual / schedule / channel-trigger / tool / script / channel / http / condition / delay / approval / subworkflow) -->
         <template v-else>
           <SchemaForm :data="selected.data" :fields="defFields(selected.type) || []"
-            :lists="{ tools: toolNames, graphs: subgraphOptions.map(g => [g.id, g.name]) }"
+            :lists="{ tools: toolNames, graphs: subgraphOptions.map(g => [g.id, g.name]), scripts: scriptOptions }"
             @change="onSchemaChange" @insert="openDataPicker" @blur="onFieldBlur" />
           <p v-if="defHint(selected.type)" class="ins-hint">{{ defHint(selected.type) }}</p>
 
@@ -403,15 +451,15 @@
           <div v-if="defTail(selected.type) === 'approval' && selected.data.__status === 'waiting' && activeRunId" class="appr-box">
             <p class="appr-q">Awaiting your decision</p>
             <div class="appr-btns">
-              <button class="appr-yes" :disabled="busy" @click="decide('approve')">âœ“ Approve</button>
-              <button class="appr-no" :disabled="busy" @click="decide('reject')">âœ• Reject</button>
+              <button class="appr-yes" :disabled="busy" @click="decide('approve')">✓ Approve</button>
+              <button class="appr-no" :disabled="busy" @click="decide('reject')">✕ Reject</button>
             </div>
           </div>
         </template>
 
         <!-- shared reliability / advanced settings (failable nodes) -->
         <template v-if="hasReliability(selected.type)">
-          <div class="adv-h" @click="advOpen = !advOpen">{{ advOpen ? 'â–¾' : 'â–¸' }} Advanced Â· reliability</div>
+          <div class="adv-h" @click="advOpen = !advOpen">{{ advOpen ? '▾' : '▸' }} Advanced · reliability</div>
           <div v-if="advOpen" class="adv-body">
             <label class="ins-l">Retries</label>
             <input v-model.number="selected.data.retries" type="number" min="0" max="5" class="ins-in" placeholder="0" @input="markDirty" />
@@ -433,12 +481,12 @@
           <textarea v-model="selected.data.notes" rows="2" class="ins-in" placeholder="Optional note shown on the node" @input="markDirty"></textarea>
         </template>
 
-        <div v-if="selected.data.__error" class="ins-err">âš  {{ selected.data.__error }}</div>
+        <div v-if="selected.data.__error" class="ins-err">⚠ {{ selected.data.__error }}</div>
 
-        <!-- Node Output panel (Phase C) â€” last run's input/output/error -->
+        <!-- Node Output panel (Phase C) — last run's input/output/error -->
         <template v-if="selectedNodeRun">
           <div class="op-h">
-            <span>Last run Â· {{ selectedNodeRun.status }}</span>
+            <span>Last run · {{ selectedNodeRun.status }}</span>
             <span class="op-tabs">
               <button v-for="t in ['output','input','error']" :key="t" class="op-tab" :class="{ on: opTab === t }" @click="opTab = t">{{ t }}</button>
             </span>
@@ -447,8 +495,8 @@
         </template>
 
         <div v-if="showSharedActions(selected.type)" class="ins-actions">
-          <button class="rerun-here" @click="runUpTo(selected.id)" :disabled="running">â–¶ Test up to here</button>
-          <button v-if="activeRunId && !running" class="rerun-here" @click="rerun(selected.id)">â†» Re-run from here</button>
+          <button class="rerun-here" @click="runUpTo(selected.id)" :disabled="running">▶ Test up to here</button>
+          <button v-if="activeRunId && !running" class="rerun-here" @click="rerun(selected.id)">↻ Re-run from here</button>
         </div>
       </aside>
 
@@ -456,7 +504,7 @@
       <aside class="inspector wfb-inspector" v-else-if="selectedEdge && !inspectorCollapsed" :style="{ width: inspectorW + 'px' }">
         <div class="ins-h ins-sticky">
           <span>connection</span>
-          <button class="del" @click="deleteEdge" title="Delete connection">ðŸ—‘</button>
+          <button class="del" @click="deleteEdge" title="Delete connection">🗑</button>
         </div>
         <label class="ins-l">Edge label</label>
         <input v-model="edgeLabel" class="ins-in" placeholder="e.g. on success" @input="onEdgeLabel" />
@@ -478,15 +526,15 @@
       <div class="drawer">
         <div class="drawer-h">
           <b>Run history</b>
-          <button @click="showRuns = false" class="x">Ã—</button>
+          <button @click="showRuns = false" class="x">×</button>
         </div>
         <div v-if="metrics" class="metrics-bar">
-          <div class="met"><span class="met-v">{{ metrics.success_rate != null ? Math.round(metrics.success_rate * 100) + '%' : 'â€”' }}</span><span class="met-l">success</span></div>
+          <div class="met"><span class="met-v">{{ metrics.success_rate != null ? Math.round(metrics.success_rate * 100) + '%' : '—' }}</span><span class="met-l">success</span></div>
           <div class="met"><span class="met-v">{{ fmtDuration(metrics.avg_duration_ms) }}</span><span class="met-l">avg time</span></div>
           <div class="met"><span class="met-v">{{ fmtCost(metrics.total_cost) }}</span><span class="met-l">total cost</span></div>
           <div class="met"><span class="met-v">{{ metrics.total_runs }}</span><span class="met-l">runs</span></div>
         </div>
-        <div v-if="!runs.length" class="drawer-empty">No runs yet. Press â–¶ Run.</div>
+        <div v-if="!runs.length" class="drawer-empty">No runs yet. Press ▶ Run.</div>
         <div v-else class="drawer-list">
           <button v-for="r in runs" :key="r.id" class="run-row" @click="openRun(r.id)">
             <span class="w-2 h-2 rounded-full" :class="dotClass(r.status)"></span>
@@ -499,10 +547,10 @@
         </div>
         <div v-if="runDetail" class="run-detail">
           <div class="rd-h">
-            Run #{{ runDetail.id }} Â· {{ runDetail.status }}
+            Run #{{ runDetail.id }} · {{ runDetail.status }}
             <span v-if="runDetail.dry_run" class="run-dry">test</span>
-            <span class="rd-meta">{{ fmtDuration(runDetail.duration_ms) }}<template v-if="runDetail.cost"> Â· {{ fmtCost(runDetail.cost) }}</template></span>
-            <button v-if="runDetail.status === 'failed' && !running" class="rd-rerun" @click="rerun()">â†» Re-run failed</button>
+            <span class="rd-meta">{{ fmtDuration(runDetail.duration_ms) }}<template v-if="runDetail.cost"> · {{ fmtCost(runDetail.cost) }}</template></span>
+            <button v-if="runDetail.status === 'failed' && !running" class="rd-rerun" @click="rerun()">↻ Re-run failed</button>
           </div>
           <div v-for="nr in runDetail.node_runs" :key="nr.id" class="rd-node">
             <span class="w-2 h-2 rounded-full" :class="dotClass(nr.status)"></span>
@@ -520,7 +568,7 @@
     <!-- Run-with-inputs modal (manual trigger inputs) -->
     <div v-if="showRunForm" class="modal-scrim" @click.self="showRunForm = false">
       <div class="run-form">
-        <div class="rf-h">Run with inputs<button class="x" @click="showRunForm = false">Ã—</button></div>
+        <div class="rf-h">Run with inputs<button class="x" @click="showRunForm = false">×</button></div>
         <div class="rf-body">
           <div v-for="k in runFormFields" :key="k" class="rf-row">
             <label class="ins-l">{{ k }}</label>
@@ -529,7 +577,7 @@
         </div>
         <div class="rf-foot">
           <button class="gbtn" @click="showRunForm = false">Cancel</button>
-          <button class="gbtn run" @click="startRun({ ...runForm })">{{ pendingDry ? 'ðŸ§ª Test' : 'â–¶ Run' }}</button>
+          <button class="gbtn run" @click="startRun({ ...runForm })">{{ pendingDry ? '🧪 Test' : '▶ Run' }}</button>
         </div>
       </div>
     </div>
@@ -539,7 +587,7 @@
       <div class="drawer">
         <div class="drawer-h">
           <b>Version history</b>
-          <button @click="showVersions = false" class="x">Ã—</button>
+          <button @click="showVersions = false" class="x">×</button>
         </div>
         <p class="ver-hint">Published versions are snapshotted here. Restore rolls the canvas back to that snapshot.</p>
         <div v-if="!versions.length" class="drawer-empty">No saved versions yet. Publish to snapshot one.</div>
@@ -564,10 +612,10 @@
           <div class="cmd-search cmd-back"><button class="cmd-backbtn" @click="mcpPick = null">â†</button> Choose agent context</div>
           <div class="cmd-body cmd-ctx">
             <p class="cmd-ctx-h">{{ mcpPick.serverName }}: <b>{{ mcpPick.toolName }}</b></p>
-            <p class="cmd-ctx-note">MCP tools need an agent for credentials &amp; permissions. The agent must have the â€œ{{ mcpPick.serverName }}â€ server attached â€” the run fails clearly otherwise.</p>
+            <p class="cmd-ctx-note">MCP tools need an agent for credentials &amp; permissions. The agent must have the “{{ mcpPick.serverName }}â€ server attached — the run fails clearly otherwise.</p>
             <label class="ins-l">Agent</label>
             <select v-model="mcpPick.agentId" class="ins-in">
-              <option :value="null" disabled>Select an agentâ€¦</option>
+              <option :value="null" disabled>Select an agent…</option>
               <option v-for="a in mcpAgentOptions" :key="a.id" :value="a.id">{{ a.name }}</option>
             </select>
           </div>
@@ -578,13 +626,40 @@
         </template>
         <!-- step 1: searchable catalog -->
         <template v-else>
-          <input ref="palSearchEl" v-model="paletteSearch" class="cmd-search" placeholder="Search nodes, tools, connectors, MCPâ€¦" @keydown.esc="showPalette = false" />
+          <div class="cmd-head">
+            <div>
+              <h2>Add a node</h2>
+              <p>Choose a node to add to your workflow.</p>
+            </div>
+            <button class="cmd-close" @click="showPalette = false" aria-label="Close add node">×</button>
+          </div>
+          <div class="cmd-search-wrap">
+            <svg class="cmd-search-ic" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg>
+            <input ref="palSearchEl" v-model="paletteSearch" class="cmd-search" placeholder="Search nodes..." @keydown.esc="showPalette = false" />
+            <kbd>⌘ K</kbd>
+          </div>
+          <div class="cmd-tabs" role="tablist" aria-label="Node categories">
+            <button v-for="tab in paletteTabs" :key="tab.key" type="button" :class="{ active: activePaletteTab === tab.key }" @click="activePaletteTab = tab.key">{{ tab.label }}</button>
+          </div>
           <div class="cmd-body">
-            <p v-if="paletteLoading" class="cmd-empty">Loading catalogâ€¦</p>
-            <p v-else-if="!paletteGroups.length" class="cmd-empty">No matches for â€œ{{ paletteSearch }}â€.</p>
-            <div v-for="grp in paletteGroups" :key="grp.key" class="cmd-grp">
+            <p v-if="paletteLoading" class="cmd-empty">Loading catalog…</p>
+            <p v-else-if="!visiblePaletteGroups.length" class="cmd-empty">No matches for "{{ paletteSearch }}".</p>
+            <div v-else-if="featuredPaletteItems.length" class="cmd-featured">
+              <div class="cmd-section-head">
+                <span>Featured</span>
+                <button type="button" @click="activePaletteTab = 'all'">View all</button>
+              </div>
+              <div class="cmd-feature-grid">
+                <button v-for="it in featuredPaletteItems" :key="'featured:' + it.key" class="cmd-feature-card" @click="addFromPalette(it)">
+                  <span class="cmd-ic" :class="'fam-' + (it.family || 'action')"><Icon :icon="itemIcon(it)" /></span>
+                  <span class="cmd-feature-title">{{ it.label }}</span>
+                  <span class="cmd-feature-sub">{{ it.sub }}</span>
+                </button>
+              </div>
+            </div>
+            <div v-for="grp in visiblePaletteGroups" :key="grp.key" class="cmd-grp">
               <div class="cmd-grp-h" :class="{ 'cmd-grp-toggle': grp.collapsible }" @click="grp.collapsible && toggleGroup(grp)">
-                <span v-if="grp.collapsible" class="cmd-caret">{{ isGroupOpen(grp) ? 'â–¾' : 'â–¸' }}</span>
+                <span v-if="grp.collapsible" class="cmd-caret">{{ isGroupOpen(grp) ? '▾' : '▸' }}</span>
                 {{ grp.label }}<span class="cmd-grp-n">{{ grp.items.length }}</span>
               </div>
               <template v-if="isGroupOpen(grp)">
@@ -599,15 +674,15 @@
               </template>
             </div>
           </div>
-          <div class="cmd-foot"><kbd>Esc</kbd> close Â· click to add at canvas center</div>
+          <div class="cmd-foot"><kbd>Esc</kbd> close · click to add at canvas center</div>
         </template>
       </div>
     </div>
 
-    <!-- Data Picker: output-tree variable selector â€” click OR drag a field into the input -->
+    <!-- Data Picker: output-tree variable selector — click OR drag a field into the input -->
     <div v-if="showDataPicker" class="modal-scrim" @click.self="showDataPicker = false">
       <div class="cmd-pal">
-        <div class="cmd-search cmd-back">Insert variable<button class="cmd-backbtn" style="margin-left:auto" @click="showDataPicker = false">Ã—</button></div>
+        <div class="cmd-search cmd-back">Insert variable<button class="cmd-backbtn" style="margin-left:auto" @click="showDataPicker = false">×</button></div>
         <div class="cmd-body">
           <p v-if="!pickerSources.length" class="cmd-empty">No upstream data yet. Connect a previous node, or run / test to capture sample values.</p>
           <div v-for="src in pickerSources" :key="src.id" class="cmd-grp">
@@ -650,7 +725,7 @@ const {
 
 // Node types + palette + defaults now come from the central registry (wfNodeDefinitions.js).
 const nodeTypes = Object.fromEntries(WF_TYPES.map(t => [t, markRaw(WfNode)]))
-// Schema-form helpers (null fields â†’ the node keeps a bespoke inspector template).
+// Schema-form helpers (null fields → the node keeps a bespoke inspector template).
 const defFields = (type) => wfFields(type)
 const defHint = (type) => wfDef(type)?.hint || ''
 const defTail = (type) => wfDef(type)?.customTail || ''
@@ -731,6 +806,7 @@ const toolNames = ref([])
 const graphTriggers = ref([])
 const advOpen = ref(false)
 const allGraphs = ref([])      // for sub-workflow picker
+const scripts = ref([])        // for the action.script picker ([{id, name, file_path}])
 const showRunForm = ref(false)
 const runForm = ref({})
 const runFormFields = ref([])
@@ -748,6 +824,8 @@ const RELIABILITY_TYPES = ['agent.run', 'action.channel', 'action.tool', 'action
   'action.subworkflow', 'logic.foreach', 'logic.approval']
 const hasReliability = (t) => RELIABILITY_TYPES.includes(t)
 const subgraphOptions = computed(() => allGraphs.value.filter(g => String(g.id) !== String(graphId)))
+// [value, label] pairs for the action.script picker (SchemaForm enum optionsKey='scripts')
+const scriptOptions = computed(() => scripts.value.map(s => [s.id, s.name || s.file_path || `Script #${s.id}`]))
 
 function addInput() {
   if (!Array.isArray(selected.value.data.inputs)) selected.value.data.inputs = []
@@ -766,7 +844,7 @@ function onSubgraphPicked() {
   if (g) selected.value.data.graph_name = g.name
   markDirty()
 }
-// SchemaForm change â†’ mark dirty + derive companion fields (e.g. graph_id â†’ graph_name)
+// SchemaForm change → mark dirty + derive companion fields (e.g. graph_id → graph_name)
 function onSchemaChange(key, val) {
   markDirty()
   if (!selected.value) return
@@ -782,7 +860,7 @@ async function decide(decision) {
   busy.value = true
   try {
     await api.approveWorkflowGraphRun(activeRunId.value, selected.value.id, decision)
-    addLog('info', `${decision === 'approve' ? 'âœ“ Approved' : 'âœ• Rejected'} â€” resumingâ€¦`)
+    addLog('info', `${decision === 'approve' ? '✓ Approved' : '✕ Rejected'} — resuming…`)
     running.value = true
     openRunSocket(activeRunId.value)
     pollRun(activeRunId.value)
@@ -802,7 +880,7 @@ function channelFor(nodeId) {
   return t?.channel_path || ''
 }
 
-// â”€â”€ resizable layout (Phase 2C) â€” sizes + collapse flags persisted to localStorage only â”€â”€
+// ── resizable layout (Phase 2C) — sizes + collapse flags persisted to localStorage only ──
 const _lp = loadLayout()
 const paletteW = ref(_lp.paletteW)
 const inspectorW = ref(_lp.inspectorW)
@@ -840,7 +918,7 @@ function endResize() {
   persistLayout()
 }
 
-// â”€â”€ F3: user-visible run/validation log (so users don't need the server terminal) â”€â”€
+// ── F3: user-visible run/validation log (so users don't need the server terminal) ──
 const logOpen = ref(false)
 const logEntries = ref([])
 let _loggedKeys = new Set()
@@ -855,9 +933,9 @@ function addNodeLog(nodeId, status, extra = '') {
   _loggedKeys.add(key)
   const level = status === 'success' ? 'success'
     : status === 'skipped' ? 'warn' : status === 'running' ? 'info' : 'error'
-  addLog(level, `node ${nodeId} â†’ ${status}${extra ? ' Â· ' + String(extra).slice(0, 140) : ''}`)
+  addLog(level, `node ${nodeId} → ${status}${extra ? ' · ' + String(extra).slice(0, 140) : ''}`)
 }
-// â”€â”€ log UX (Phase 3C): auto-scroll, errors-only filter, copy â”€â”€
+// ── log UX (Phase 3C): auto-scroll, errors-only filter, copy ──
 const logBodyEl = ref(null)
 const logErrorsOnly = ref(false)
 const visibleLog = computed(() => logErrorsOnly.value ? logEntries.value.filter(e => e.level === 'error') : logEntries.value)
@@ -891,7 +969,7 @@ const PALETTE_SORT = {
   'logic.delay': 4,
 }
 
-// â”€â”€ left palette sidebar: searchable, category-grouped (base nodes; tools/MCP live in the + modal) â”€â”€
+// ── left palette sidebar: searchable, category-grouped (base nodes; tools/MCP live in the + modal) ──
 const sidebarSearch = ref('')
 const SIDEBAR_GROUPS = [
   { key: 'trigger', label: 'Triggers' }, { key: 'agent', label: 'AI / Agents' },
@@ -984,14 +1062,6 @@ function runDebugWorkflow() {
   return { nodes, edges, selectedId: 'wf_agent' }
 }
 
-const runTimelineRows = [
-  { id: 'wf_webhook', time: '2:14:32 PM', icon: 'lucide:check-circle-2', state: 'success', title: 'Webhook Trigger', sub: 'Inbound HTTP', status: '312ms' },
-  { id: 'wf_agent', time: '2:14:32 PM', icon: 'lucide:loader-2', state: 'running', title: 'Run Agent', sub: 'Intake Agent', status: 'Running · 1.8s' },
-  { id: 'wf_http', time: '2:14:33 PM', icon: 'lucide:check-circle-2', state: 'success', title: 'HTTP Request', sub: 'GET https://api.example.com', status: '642ms' },
-  { id: 'wf_channel', time: '2:14:34 PM', icon: 'lucide:check-circle-2', state: 'success', title: 'Send to Channel', sub: '#customer-intake', status: '210ms' },
-  { id: 'wf_script', time: '2:14:34 PM', icon: 'lucide:triangle-alert', state: 'warning', title: 'Run Script', sub: 'Enrich user data', status: 'Pending' },
-]
-
 function applyWorkflowState(state, isRun = false) {
   const hydrated = state.nodes.map(n => ({ ...n, data: hydrate(n.type, n.data || {}) }))
   setNodes(hydrated)
@@ -1013,14 +1083,67 @@ function selectNode(id) {
 // logs dock
 function toggleLog() { logOpen.value = !logOpen.value; persistLayout() }
 const runSummary = computed(() => {
-  if (running.value) return 'Runningâ€¦'
+  if (running.value) return 'Running…'
   const r = runDetail.value || runs.value[0]
   if (!r) return 'No runs yet'
-  const dur = r.duration_ms != null ? ' Â· ' + fmtDuration(r.duration_ms) : ''
-  return `Run #${r.id} Â· ${r.status}${dur}`
+  const dur = r.duration_ms != null ? ' · ' + fmtDuration(r.duration_ms) : ''
+  return `Run #${r.id} · ${r.status}${dur}`
 })
 
-// â”€â”€ command-palette (Add node) state + catalog â”€â”€
+// example/demo canvases are dev-only helpers (not shown to end users)
+const isDev = !!import.meta.env.DEV
+
+// ── live run overlay (banner + timeline) driven by the real run detail ──
+const timelineOpen = ref(true)
+const NODE_STATUS_ICON = {
+  success: 'lucide:check-circle-2', running: 'lucide:loader-2', failed: 'lucide:x-circle',
+  waiting: 'lucide:pause-circle', skipped: 'lucide:minus-circle', pending: 'lucide:circle-dashed',
+}
+function statusIcon(s) { return NODE_STATUS_ICON[s] || 'lucide:circle-dashed' }
+function fmtClock(iso) {
+  if (!iso) return '—'
+  try { return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }) }
+  catch { return '—' }
+}
+const nodeRuns = computed(() => (runDetail.value?.node_runs) || [])
+const timelineRows = computed(() => nodeRuns.value.map(nr => {
+  const node = getNodes.value.find(n => n.id === nr.node_id)
+  const st = nr.status || 'pending'
+  const dur = nr.duration_ms != null ? fmtDuration(nr.duration_ms) : (st === 'running' ? 'Running…' : st)
+  return {
+    id: nr.node_id,
+    time: fmtClock(nr.started_at),
+    icon: statusIcon(st),
+    state: st,
+    title: node?.data?.label || nodeLabel(nr.node_type) || nr.node_id,
+    sub: nodeSubtitle(nr.node_type) || nr.node_type,
+    status: dur,
+    running: st === 'running',
+  }
+}))
+const runStats = computed(() => {
+  const rows = nodeRuns.value
+  const by = s => rows.filter(r => r.status === s).length
+  return {
+    total: getNodes.value.length || rows.length,
+    completed: by('success'),
+    running: by('running') + by('waiting'),
+    warnings: by('skipped'),
+    failed: by('failed'),
+  }
+})
+const runBannerTitle = computed(() => {
+  const dry = runDetail.value ? runDetail.value.dry_run : pendingDry.value
+  return dry ? 'Test run in progress' : 'Run in progress'
+})
+const runStartedLabel = computed(() => {
+  const r = runDetail.value
+  if (!r) return ''
+  const started = fmtClock(r.started_at || r.created_at)
+  return `Started ${started}${activeRunId.value ? ' · Run ID: ' + activeRunId.value : ''}`
+})
+
+// ── command-palette (Add node) state + catalog ──
 const showPalette = ref(false)
 const paletteSearch = ref('')
 const paletteLoading = ref(false)
@@ -1029,7 +1152,7 @@ const mcpCatalog = ref({ enabled: false, servers: [] })  // {enabled, servers:[{
 const palSearchEl = ref(null)
 const mcpPick = ref(null)        // pending MCP-tool selection awaiting an agent context
 const quickAddSource = ref(null) // node id a quick-add (+) will auto-connect the new node from
-// WfNode's hover "+" calls this â†’ open palette pre-wired to connect from that node.
+// WfNode's hover "+" calls this → open palette pre-wired to connect from that node.
 provide('wfQuickAdd', (sourceId) => openPalette(sourceId))
 let _catalogLoaded = false
 
@@ -1039,6 +1162,16 @@ const NODE_GROUPS = [
   { key: 'action', label: 'Actions' },
   { key: 'logic', label: 'Logic' },
 ]
+const activePaletteTab = ref('all')
+const paletteTabs = [
+  { key: 'all', label: 'All' },
+  { key: 'trigger', label: 'Triggers' },
+  { key: 'agent', label: 'AI / Agents' },
+  { key: 'action', label: 'Actions' },
+  { key: 'logic', label: 'Logic' },
+  { key: 'data', label: 'Data' },
+  { key: 'integrations', label: 'Integrations' },
+]
 
 function _prettyCat(c) { return String(c || 'other').replace(/[._-]/g, ' ').replace(/\b\w/g, m => m.toUpperCase()) }
 const _CONNECTOR_CATS = new Set(['service', 'remote', 'github', 'slack', 'notion', 'gmail', 'mcp'])
@@ -1047,47 +1180,65 @@ const paletteGroups = computed(() => {
   const q = paletteSearch.value.trim().toLowerCase()
   const match = (...s) => !q || s.filter(Boolean).some(x => String(x).toLowerCase().includes(q))
   const groups = []
-  // base node types, grouped by family (exclude action.mcp_tool â€” reached via the MCP drill-in)
+  // base node types, grouped by family (exclude action.mcp_tool — reached via the MCP drill-in)
   for (const g of NODE_GROUPS) {
     const items = palette.filter(p => p.type.split('.')[0] === g.key && p.type !== 'action.mcp_tool' && match(p.label, p.sub, p.type))
       .map(p => ({ key: p.type, icon: p.icon, label: p.label, sub: p.sub, family: g.key, kind: 'node', nodeType: p.type }))
     if (items.length) groups.push({ key: g.key, label: g.label, items, collapsible: false })
   }
-  // tools & APIs â€” grouped by category (collapsed by default; one section per category/connector)
+  // tools & APIs — grouped by category (collapsed by default; one section per category/connector)
   const byCat = {}
   for (const t of catalogTools.value) {
     if (!match(t.name, t.description, t.category, t.category_label)) continue
     const cat = t.category || 'other'
     if (!byCat[cat]) byCat[cat] = { label: t.category_label || _prettyCat(cat), items: [] }
-    byCat[cat].items.push({ key: 'tool:' + t.name, icon: _CONNECTOR_CATS.has(cat) ? 'ðŸ”Œ' : 'ðŸ› ï¸',
+    byCat[cat].items.push({ key: 'tool:' + t.name, icon: _CONNECTOR_CATS.has(cat) ? '🔌' : 'ðŸ› ï¸',
       label: t.name, sub: t.description || cat, family: 'action', kind: 'tool', toolName: t.name,
       badge: _CONNECTOR_CATS.has(cat) ? 'connector' : null })
   }
   for (const cat of Object.keys(byCat).sort()) {
-    groups.push({ key: 'toolcat:' + cat, label: 'Tools Â· ' + byCat[cat].label,
+    groups.push({ key: 'toolcat:' + cat, label: 'Tools · ' + byCat[cat].label,
                   items: byCat[cat].items.slice(0, 50), collapsible: true })
   }
-  // MCP servers â†’ one collapsible section per server. Server row = Run agent (AI decides);
+  // MCP servers → one collapsible section per server. Server row = Run agent (AI decides);
   // individual tool = deterministic action.mcp_tool (after choosing an agent context).
   if (mcpCatalog.value.enabled) {
     for (const s of (mcpCatalog.value.servers || [])) {
       const items = []
       if (match(s.name, s.slug))
-        items.push({ key: 'mcpsrv:' + s.id, icon: 'ðŸ§©', label: `${s.name} (whole server)`,
-                     sub: 'AI decides â€” Run agent', family: 'agent', kind: 'mcp-server', mcpName: s.name, badge: 'via agent' })
+        items.push({ key: 'mcpsrv:' + s.id, icon: '🧩', label: `${s.name} (whole server)`,
+                     sub: 'AI decides — Run agent', family: 'agent', kind: 'mcp-server', mcpName: s.name, badge: 'via agent' })
       for (const t of (s.tools || [])) {
         if (match(t.name, t.description, s.name))
-          items.push({ key: `mcptool:${s.id}:${t.name}`, icon: 'ðŸ”§', label: t.name,
+          items.push({ key: `mcptool:${s.id}:${t.name}`, icon: '🔧', label: t.name,
                        sub: t.description || 'deterministic MCP tool', family: 'action', kind: 'mcp-tool',
                        serverId: s.id, serverName: s.name, toolName: t.name, badge: 'deterministic' })
       }
-      if (items.length) groups.push({ key: 'mcp:' + s.id, label: 'MCP Â· ' + s.name, items, collapsible: true })
+      if (items.length) groups.push({ key: 'mcp:' + s.id, label: 'MCP · ' + s.name, items, collapsible: true })
     }
   }
   return groups
 })
 
 const paletteSearching = computed(() => !!paletteSearch.value.trim())
+const visiblePaletteGroups = computed(() => {
+  const tab = activePaletteTab.value
+  if (tab === 'all') return paletteGroups.value
+  if (tab === 'integrations') return paletteGroups.value.filter(g => g.key.startsWith('toolcat:') || g.key.startsWith('mcp:'))
+  if (tab === 'data') {
+    const dataNames = new Set(['Transform data', 'Extract data', 'Database lookup', 'Set variable'])
+    return paletteGroups.value
+      .map(g => ({ ...g, items: g.items.filter(it => dataNames.has(it.label) || /data|database|variable|extract|transform/i.test(`${it.label} ${it.sub}`)) }))
+      .filter(g => g.items.length)
+  }
+  return paletteGroups.value.filter(g => g.key === tab)
+})
+const featuredPaletteItems = computed(() => {
+  if (paletteSearching.value) return []
+  const wanted = ['Webhook', 'Schedule', 'Run agent', 'Send to channel']
+  const all = paletteGroups.value.flatMap(g => g.items)
+  return wanted.map(name => all.find(it => it.label === name)).filter(Boolean)
+})
 const openGroups = ref(new Set())
 function isGroupOpen(g) { return !g.collapsible || paletteSearching.value || openGroups.value.has(g.key) }
 function toggleGroup(g) {
@@ -1103,6 +1254,7 @@ async function openPalette(fromNodeId = null) {
   quickAddSource.value = typeof fromNodeId === 'string' ? fromNodeId : null   // null on the normal "+ Add node"
   showPalette.value = true
   paletteSearch.value = ''
+  activePaletteTab.value = 'all'
   mcpPick.value = null
   await nextTick(); palSearchEl.value?.focus()
   if (_catalogLoaded) return
@@ -1153,10 +1305,10 @@ function addFromPalette(it) {
   if (it.kind === 'tool') {
     _dropNode('action.tool', { ...defaultData('action.tool'), tool: it.toolName, label: it.toolName })
   } else if (it.kind === 'mcp-server') {
-    // "AI decides how to use this server" â†’ a Run agent node
-    _dropNode('agent.run', { ...defaultData('agent.run'), notes: `Use an agent that has the â€œ${it.mcpName}â€ MCP server attached.` })
+    // "AI decides how to use this server" → a Run agent node
+    _dropNode('agent.run', { ...defaultData('agent.run'), notes: `Use an agent that has the “${it.mcpName}â€ MCP server attached.` })
   } else if (it.kind === 'mcp-tool') {
-    // deterministic MCP call â†’ first choose an agent context, then drop action.mcp_tool
+    // deterministic MCP call → first choose an agent context, then drop action.mcp_tool
     mcpPick.value = { serverId: it.serverId, serverName: it.serverName, toolName: it.toolName, agentId: null }
   } else {
     _dropNode(it.nodeType, defaultData(it.nodeType))
@@ -1183,7 +1335,7 @@ function defaultData(type) { return wfDefaultData(type) }   // from the central 
 
 function newId() { return 'n_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) }
 
-// â”€â”€ drag & drop from palette â”€â”€
+// ── drag & drop from palette ──
 function onDragStart(e, type) { e.dataTransfer.setData('application/wf-type', type); e.dataTransfer.effectAllowed = 'move' }
 function onDrop(e) {
   const type = e.dataTransfer.getData('application/wf-type')
@@ -1209,9 +1361,9 @@ function onMcpAgentPicked() {
   markDirty()
 }
 
-// â”€â”€ Data Picker (visual variable insertion) â”€â”€
+// ── Data Picker (visual variable insertion) ──
 const showDataPicker = ref(false)
-const activeField = ref(null)   // { key, start, end } â€” which inspector field receives the insert
+const activeField = ref(null)   // { key, start, end } — which inspector field receives the insert
 function onFieldBlur(key, e) {
   const el = e?.target
   activeField.value = { key, start: el?.selectionStart ?? null, end: el?.selectionEnd ?? null }
@@ -1255,10 +1407,10 @@ function _flattenPaths(obj, prefix = '', out = [], depth = 0) {
 function _sampleStr(v) {
   if (v === null || v === undefined) return ''
   const s = typeof v === 'object' ? JSON.stringify(v) : String(v)
-  return s.length > 40 ? s.slice(0, 40) + 'â€¦' : s
+  return s.length > 40 ? s.slice(0, 40) + '…' : s
 }
 // Output-tree sources for the Data Picker: trigger/inputs + upstream node outputs (+ loop item).
-// Sample = live last-run output â†’ agent schema fields â†’ registry outputSample â†’ {text:'â€¦'} fallback.
+// Sample = live last-run output → agent schema fields → registry outputSample → {text:'…'} fallback.
 const pickerSources = computed(() => {
   if (!selected.value) return []
   const out = []
@@ -1290,7 +1442,7 @@ function runUpTo(nodeId) {
   startRun({}, nodeId)
 }
 
-// â”€â”€ Node Output panel â”€â”€
+// ── Node Output panel ──
 const opTab = ref('output')
 const selectedNodeRun = computed(() => {
   if (!selected.value) return null
@@ -1312,16 +1464,29 @@ function deleteSelected() {
 
 function conditionRows(node) {
   if (!node?.data.conditions?.length) {
-    node.data.conditions = [
-      { field: 'lead_score', operator: '>', value: '70' },
-      { field: 'source', operator: '=', value: 'demo_request' },
-    ]
+    node.data.conditions = [{ field: '', operator: '=', value: '' }]
   }
   return node.data.conditions
 }
+function conditionJoin(node) { return String(node?.data?.join || 'AND').toUpperCase() }
+// reset the foreach inner-action config when its type changes (avoids stale fields from the old type)
+function onForeachTypeChange() {
+  const node = selected.value
+  if (!node?.data?.do) return
+  const t = node.data.do.type
+  const seed = {
+    'action.channel': { kind: 'log', message: 'item {{item}}' },
+    'action.tool': { tool: '', params_json: '{}' },
+    'action.http': { method: 'GET', url: '' },
+    'agent.run': { agent_id: undefined, prompt: 'Process {{item}}' },
+    'action.subworkflow': { graph_id: undefined },
+  }[t] || {}
+  node.data.do.data = seed
+  markDirty()
+}
 function addCondition() {
   if (!selected.value) return
-  conditionRows(selected.value).push({ field: 'lead_score', operator: '>', value: '' })
+  conditionRows(selected.value).push({ field: '', operator: '=', value: '' })
   markDirty()
 }
 function removeCondition(index) {
@@ -1331,10 +1496,20 @@ function removeCondition(index) {
 }
 function conditionSummary(data) {
   const rows = data?.conditions?.length ? data.conditions : []
-  return rows.map(r => `${r.field || 'field'} ${r.operator || '='} ${r.value || 'value'}`).join(' and ') || 'No conditions configured'
+  const joiner = String(data?.join || 'AND').toUpperCase() === 'OR' ? ' or ' : ' and '
+  return rows.map(r => `${r.field || 'field'} ${r.operator || '='} ${r.value || 'value'}`).join(joiner) || 'No conditions configured'
 }
+// suggest {{nodes.<id>.output...}} / {{trigger...}} / {{vars...}} variables for the field datalist
+const conditionVarSuggestions = computed(() => {
+  const out = ['{{trigger.}}', '{{vars.}}']
+  for (const n of getNodes.value) {
+    if (selected.value && n.id === selected.value.id) continue
+    out.push(`{{nodes.${n.id}.output.text}}`)
+  }
+  return out
+})
 
-// â”€â”€ edge labels â”€â”€
+// ── edge labels ──
 const edgeLabel = computed({
   get: () => selectedEdge.value?.label || '',
   set: (v) => { if (selectedEdge.value) selectedEdge.value.label = v },
@@ -1347,7 +1522,7 @@ function deleteEdge() {
   markDirty()
 }
 
-// â”€â”€ copy / paste selected nodes (Ctrl/Cmd+C / +V) â”€â”€
+// ── copy / paste selected nodes (Ctrl/Cmd+C / +V) ──
 function copySelection() {
   const sel = getNodes.value.filter(n => n.selected)
   if (!sel.length) return
@@ -1390,36 +1565,43 @@ function onKeydown(e) {
   else if (e.key === 'v') { pasteSelection() }
 }
 
-// â”€â”€ load / save â”€â”€
+// ── load / save ──
 async function load() {
   loading.value = true
   try {
     // One /workflow-graphs/<id>/bundle/ round-trip (graph + all_graphs + agents)
     // instead of 3 parallel calls. Fall back to the separate calls if unavailable.
-    let g, ag, allG
+    let g, ag, allG, scr
     try {
       const { data } = await api.getWorkflowGraphBundle(graphId)
       g = data.graph
       ag = data.agents
       allG = data.all_graphs
+      scr = data.scripts
     } catch (bundleErr) {
-      const [{ data: gd }, { data: agd }, gl] = await Promise.all([
+      const [{ data: gd }, { data: agd }, gl, sl] = await Promise.all([
         api.getWorkflowGraph(graphId),
         api.getAgents().catch(() => ({ data: [] })),
         api.getWorkflowGraphs().catch(() => ({ data: [] })),
+        api.get('/scripts/').catch(() => ({ data: [] })),
       ])
-      g = gd; ag = agd; allG = gl?.data
+      g = gd; ag = agd; allG = gl?.data; scr = sl?.data
     }
     name.value = g.name
     version.value = g.version || 1
     graphTriggers.value = g.triggers || []
     agents.value = (ag?.results || ag || [])
     allGraphs.value = (allG?.results || allG || [])
+    scripts.value = (scr?.results || scr || [])
     const graph = g.graph || {}
     const graphNodes = graph.nodes || []
     const useReferenceStarter = graphNodes.length <= 1
     const starter = useReferenceStarter ? starterWorkflow() : null
-    const hydratedNodes = (starter ? starter.nodes : graphNodes).map(n => ({ ...n, data: hydrate(n.type, n.data || {}) }))
+    // A pre-populated starter is an editable scaffold, not a completed run — drop the demo success badges.
+    const rawNodes = starter
+      ? starter.nodes.map(n => { const { __status, __error, ...data } = (n.data || {}); return { ...n, data } })
+      : graphNodes
+    const hydratedNodes = rawNodes.map(n => ({ ...n, data: hydrate(n.type, n.data || {}) }))
     setNodes(hydratedNodes)
     setEdges(starter ? starter.edges : (graph.edges || []))
     if (!starter && graph.viewport && setViewport) { try { setViewport(graph.viewport) } catch {} }
@@ -1437,7 +1619,7 @@ async function load() {
   }
 }
 
-// â”€â”€ dirty Save / Reset (Phase 3A) â”€â”€
+// ── dirty Save / Reset (Phase 3A) ──
 function _takeSnapshot(nm, graph) {
   try { savedSnapshot.value = JSON.parse(JSON.stringify({ name: nm, graph: graph || currentGraph() })) }
   catch { savedSnapshot.value = { name: nm, graph: graph || currentGraph() } }
@@ -1455,7 +1637,7 @@ async function resetChanges() {
   notify.info('Reverted to last saved version')
 }
 
-// â”€â”€ inline workflow rename (Phase 3A) â”€â”€
+// ── inline workflow rename (Phase 3A) ──
 function startRename() { nameDraft.value = name.value; renaming.value = true; nextTick(() => nameInputEl.value?.focus()) }
 function commitRename() {
   const v = (nameDraft.value || '').trim()
@@ -1464,7 +1646,7 @@ function commitRename() {
 }
 function cancelRename() { renaming.value = false }
 
-// hydrate stored node data into the editable shape (object â†’ JSON-text fields for the inspector)
+// hydrate stored node data into the editable shape (object → JSON-text fields for the inspector)
 function hydrate(type, data) {
   const d = { ...(data || {}) }
   if (type === 'action.tool') d.params_json = JSON.stringify(d.params || {}, null, 2)
@@ -1477,7 +1659,7 @@ function hydrate(type, data) {
   }
   return d
 }
-// serialize editable node data back to the backend shape (JSON-text fields â†’ objects; drop UI meta)
+// serialize editable node data back to the backend shape (JSON-text fields → objects; drop UI meta)
 function serializeData(type, data) {
   const { __status, __error, params_json, json_text, ...rest } = (data || {})
   if (type === 'action.tool' || type === 'action.mcp_tool') {
@@ -1559,11 +1741,11 @@ function openRunSocket(runId) {
           if (msg.event === 'node_started') addNodeLog(d.node_id, 'running')
           if (msg.event === 'node_finished') addNodeLog(d.node_id, d.status, (d.output && d.output.text) || d.error || (d.output && d.output.reason) || '')
         }
-        if (msg.event === 'run_finished') { running.value = false; addLog(d.status === 'success' ? 'success' : 'error', `â–  Run ${d.status || 'finished'}`); try { runSocket.close() } catch {}; loadRuns() }
+        if (msg.event === 'run_finished') { running.value = false; addLog(d.status === 'success' ? 'success' : 'error', `■ Run ${d.status || 'finished'}`); try { runSocket.close() } catch {}; loadRuns() }
       } catch {}
     }
     runSocket.onerror = () => { try { runSocket.close() } catch {} }
-  } catch { /* WS optional â€” polling covers it */ }
+  } catch { /* WS optional — polling covers it */ }
 }
 
 async function validateGraph() {
@@ -1572,8 +1754,8 @@ async function validateGraph() {
     getNodes.value.forEach(n => { delete n.data.__error })   // clear old
     const { data } = await api.validateWorkflowGraph(graphId, currentGraph())
     if (data.ok) {
-      notify.success(data.warnings?.length ? `Valid â€” ${data.warnings.length} warning(s)` : 'Graph is valid âœ“')
-      addLog('success', `âœ“ Validation passed${data.warnings?.length ? ` (${data.warnings.length} warning(s))` : ''}`)
+      notify.success(data.warnings?.length ? `Valid — ${data.warnings.length} warning(s)` : 'Graph is valid ✓')
+      addLog('success', `✓ Validation passed${data.warnings?.length ? ` (${data.warnings.length} warning(s))` : ''}`)
       for (const w of data.warnings || []) addLog('warn', `warning: ${w.node_id ? w.node_id + ': ' : ''}${w.message}`)
     } else {
       for (const err of data.errors || []) {
@@ -1581,7 +1763,7 @@ async function validateGraph() {
         if (n) n.data.__error = err.message
         addLog('error', `validation: ${err.node_id ? err.node_id + ': ' : ''}${err.message}`)
       }
-      notify.warning(`${(data.errors || []).length} issue(s) â€” see highlighted nodes`)
+      notify.warning(`${(data.errors || []).length} issue(s) — see highlighted nodes`)
     }
     logOpen.value = true
   } catch (e) {
@@ -1591,7 +1773,7 @@ async function validateGraph() {
   }
 }
 
-// â”€â”€ run + live status (poll) â”€â”€
+// ── run + live status (poll) ──
 function manualInputs() {
   const t = getNodes.value.find(n => n.type === 'trigger.manual')
   return (t?.data?.inputs || []).filter(i => i && i.key)
@@ -1612,7 +1794,8 @@ async function startRun(payload, until = null) {
   const dry = pendingDry.value
   if (dirty.value) await save()
   running.value = true
-  resetLog(); addLog(dry ? 'warn' : 'info', until ? `â–¶ Test up to ${until}` : (dry ? 'ðŸ§ª Test run (dry-run â€” no real side-effects)' : 'â–¶ Run started')); logOpen.value = true
+  timelineOpen.value = true
+  resetLog(); addLog(dry ? 'warn' : 'info', until ? `▶ Test up to ${until}` : (dry ? '🧪 Test run (dry-run — no real side-effects)' : '▶ Run started')); logOpen.value = true
   getNodes.value.forEach(n => { n.data.__status = 'pending' })
   try {
     const { data } = await api.runWorkflowGraph(graphId, { payload: payload || {}, dry_run: dry, until_node: until })
@@ -1625,7 +1808,7 @@ async function startRun(payload, until = null) {
     const errs = e?.response?.data?.errors
     if (Array.isArray(errs)) {
       for (const err of errs) { const n = getNodes.value.find(x => x.id === err.node_id); if (n) n.data.__error = err.message }
-      notify.warning('Graph is invalid â€” fix highlighted nodes')
+      notify.warning('Graph is invalid — fix highlighted nodes')
     } else {
       notify.error(e?.response?.data?.error || 'Run failed to start')
     }
@@ -1645,7 +1828,7 @@ function pollRun(runId) {
       for (const nr of data.node_runs || []) addNodeLog(nr.node_id, nr.status, (nr.output && nr.output.text) || nr.error || (nr.output && nr.output.reason) || '')
       if (['success', 'failed', 'cancelled'].includes(data.status)) {
         clearInterval(pollTimer); running.value = false
-        addLog(data.status === 'success' ? 'success' : 'error', `â–  Run #${runId}: ${data.status}`)
+        addLog(data.status === 'success' ? 'success' : 'error', `■ Run #${runId}: ${data.status}`)
         notify[data.status === 'success' ? 'success' : 'error'](`Run #${runId}: ${data.status}`)
         loadRuns()
       }
@@ -1661,7 +1844,7 @@ async function stopRun() {
   if (!activeRunId.value) return
   try {
     await api.cancelWorkflowGraphRun(activeRunId.value)
-    addLog('warn', 'â¹ Stop requested â€” halting at the next nodeâ€¦')
+    addLog('warn', 'â¹ Stop requested — halting at the next node…')
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Failed to stop')
   }
@@ -1670,7 +1853,7 @@ async function stopRun() {
 async function rerun(fromNode = null) {
   if (!activeRunId.value) { notify.info('Run the workflow first'); return }
   running.value = true
-  resetLog(); addLog('info', fromNode ? `â–¶ Re-running from ${fromNode}` : 'â–¶ Re-running failed nodes'); logOpen.value = true
+  resetLog(); addLog('info', fromNode ? `▶ Re-running from ${fromNode}` : '▶ Re-running failed nodes'); logOpen.value = true
   try {
     await api.rerunWorkflowGraphRun(activeRunId.value, fromNode)
     openRunSocket(activeRunId.value)
@@ -1695,7 +1878,7 @@ async function openRuns() {
   try { const { data } = await api.getWorkflowGraphMetrics(graphId); metrics.value = data } catch { metrics.value = null }
 }
 function fmtDuration(ms) {
-  if (ms == null) return 'â€”'
+  if (ms == null) return '—'
   if (ms < 1000) return `${ms}ms`
   if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
   return `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`
@@ -1719,7 +1902,7 @@ async function restoreVersion(v) {
     if (graph.viewport && setViewport) { try { setViewport(graph.viewport) } catch {} }
     dirty.value = false
     showVersions.value = false
-    notify.success(`Restored â€” now v${version.value}`)
+    notify.success(`Restored — now v${version.value}`)
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Failed to restore')
   }
@@ -1741,7 +1924,7 @@ async function openRun(runId) {
 
 function goBack() { router.push('/dashboard/workflow-builder') }
 
-// â”€â”€ workflow-level actions (Phase 3B) â”€â”€
+// ── workflow-level actions (Phase 3B) ──
 const menuOpen = ref(false)
 async function duplicateWorkflow() {
   busy.value = true
@@ -1756,7 +1939,7 @@ async function duplicateWorkflow() {
 }
 async function deleteWorkflow() {
   // Archive (soft-delete): keeps run history + any workflow budget's spend; hidden from the list.
-  if (!(await confirm({ title: 'Archive workflow?', message: `Archiveâ€œ${name.value}â€? It will be hidden from the list, but its run history and budget spend are kept.`, confirmText: 'Archive' }))) return
+  if (!(await confirm({ title: 'Archive workflow?', message: `Archive“${name.value}â€? It will be hidden from the list, but its run history and budget spend are kept.`, confirmText: 'Archive' }))) return
   try {
     await api.deleteWorkflowGraph(graphId)
     notify.success('Workflow archived')
@@ -1831,7 +2014,7 @@ onBeforeUnmount(() => { clearInterval(pollTimer); try { runSocket?.close() } cat
 .log-reopen .log-summary { color: #94a3b8; }
 
 .wfb-body { flex: 1; min-height: 0; display: flex; position: relative; }
-/* â”€â”€ resizable layout: dividers + collapse tabs â”€â”€ */
+/* ── resizable layout: dividers + collapse tabs ── */
 .wfb-divider { flex-shrink: 0; width: 5px; cursor: col-resize; background: transparent; position: relative; }
 .wfb-divider::after { content: ''; position: absolute; left: 2px; top: 0; bottom: 0; width: 1px; background: #e2e8f0; }
 .wfb-divider:hover::after { background: #a78bfa; width: 2px; left: 1.5px; }
@@ -1923,7 +2106,9 @@ onBeforeUnmount(() => { clearInterval(pollTimer); try { runSocket?.close() } cat
 .canvas-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(248,250,252,.7); font-size: 13px; color: #64748b; }
 .inspector { width: 300px; flex-shrink: 0; border-left: 1px solid #e2e8f0; background: #fff; padding: 14px; overflow-y: auto; }
 .ins-h { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; color: #7c3aed; margin-bottom: 10px; }
-.del { color: #ef4444; }
+.del { color: #ef4444; display: inline-flex; align-items: center; }
+.ins-h-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.ins-enabled { font-size: 11px; font-weight: 700; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 999px; padding: 3px 10px; }
 .ins-l { display: block; font-size: 11px; font-weight: 600; color: #475569; margin: 10px 0 4px; }
 .ins-in { width: 100%; font-size: 13px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
 .ins-in:focus { outline: none; border-color: #a78bfa; box-shadow: 0 0 0 3px rgba(167,139,250,.2); }
@@ -2961,13 +3146,13 @@ textarea.ins-in {
   border-color: #6bd6a8 !important;
 }
 .gbtn.run::after {
-  content: "âŒ„" !important;
+  content: "⌄" !important;
   display: inline !important;
   margin-left: 14px;
   color: #058047;
 }
 .gbtn.save::after {
-  content: "âŒ„" !important;
+  content: "⌄" !important;
   display: inline !important;
   margin-left: 12px;
 }
@@ -3008,7 +3193,7 @@ textarea.ins-in {
   background: #245cff !important;
 }
 .add-node-btn::after {
-  content: "âŒ„";
+  content: "⌄";
   margin-left: auto;
   font-size: 14px;
 }
@@ -3021,7 +3206,7 @@ textarea.ins-in {
   box-shadow: inset 0 0 0 1px #dce5f2;
 }
 .wfb-palette::before {
-  content: "âŒ•";
+  content: "⌕";
   position: absolute;
   left: 32px;
   top: 76px;
@@ -3523,14 +3708,30 @@ textarea.ins-in {
   position: absolute;
   left: 74px;
   right: 36px;
-  bottom: 36px;
-  z-index: 5;
-  padding: 18px 20px 20px;
+  bottom: 44px;
+  z-index: 6;
+  max-height: 42vh;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px 14px;
   border: 1px solid #dce5f2;
   border-radius: 14px;
   background: #ffffff;
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
 }
+.timeline-body { overflow-y: auto; }
+.tl-head-ic { vertical-align: -2px; margin-right: 6px; color: #2563eb; }
+.tl-head-btn { font-size: 12px; font-weight: 700; color: #2563eb; padding: 4px 10px; border-radius: 7px; }
+.tl-head-btn:hover { background: #eff4ff; }
+.tl-reopen {
+  position: absolute; left: 74px; z-index: 6;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 700; color: #2563eb;
+  background: #fff; border: 1px solid #dce5f2; border-radius: 9px;
+  padding: 6px 12px; box-shadow: 0 4px 14px rgba(15,23,42,.1);
+}
+.tl-reopen:hover { background: #f5f8ff; }
+.tl-reopen .log-summary { color: #94a3b8; font-weight: 600; }
 .timeline-head,
 .timeline-row {
   display: grid;
@@ -3590,6 +3791,12 @@ textarea.ins-in {
   color: #2563eb;
 }
 .timeline-row b.warning { color: #f59e0b; }
+.timeline-row svg.failed { color: #ef4444; }
+.timeline-row svg.skipped, .timeline-row svg.pending, .timeline-row svg.waiting { color: #94a3b8; }
+.timeline-row b.failed { color: #ef4444; }
+.timeline-row.active { background: #f1f5ff; box-shadow: inset 3px 0 0 #2563eb; }
+.tl-badge { padding: 3px 10px; border-radius: 999px; background: #eef4ff; color: #2563eb; font-size: 11px; font-weight: 750; justify-self: end; }
+.wf-menu-sep { margin: 6px 6px 3px; padding-top: 6px; border-top: 1px solid #eef2f7; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; }
 .condition-head {
   margin-top: 18px;
 }
@@ -3704,6 +3911,270 @@ textarea.ins-in {
 .canvas-wrap:has(.run-banner) .log-reopen,
 .canvas-wrap:has(.run-banner) .log-console {
   display: none !important;
+}
+
+/* Add-node modal: screen workflow-builder-screens reference */
+.pal-scrim {
+  align-items: flex-start;
+  background: rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(2px);
+}
+.cmd-pal {
+  width: min(760px, calc(100vw - 40px)) !important;
+  max-height: min(82vh, 890px) !important;
+  margin-top: 88px !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.18) !important;
+  overflow: hidden !important;
+}
+.cmd-pal::before {
+  display: none !important;
+}
+.cmd-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 26px 28px 12px;
+}
+.cmd-head h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #0f172a;
+}
+.cmd-head p {
+  margin: 7px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+}
+.cmd-close {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 20px;
+  line-height: 1;
+}
+.cmd-close:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+.cmd-search-wrap {
+  position: relative;
+  margin: 0 28px;
+}
+.cmd-search-wrap .cmd-search {
+  width: 100%;
+  height: 46px;
+  padding: 0 58px 0 42px !important;
+  border: 1px solid #dbe4f0 !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #0f172a !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+}
+.cmd-search-wrap .cmd-search:focus {
+  border-color: #93b4ff !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.11);
+}
+.cmd-search-ic {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: #8a98ad;
+  pointer-events: none;
+}
+.cmd-search-wrap kbd {
+  position: absolute;
+  right: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  color: #94a3b8;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 800;
+}
+.cmd-tabs {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin: 14px 28px 0;
+  border-bottom: 1px solid #e2e8f0;
+  overflow-x: auto;
+}
+.cmd-tabs button {
+  position: relative;
+  height: 42px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.cmd-tabs button.active {
+  color: #2563eb;
+}
+.cmd-tabs button.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: #2563eb;
+}
+.cmd-body {
+  padding: 18px 28px 26px !important;
+}
+.cmd-featured {
+  margin-bottom: 18px;
+}
+.cmd-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 900;
+}
+.cmd-section-head button {
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+}
+.cmd-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.cmd-feature-card {
+  min-height: 116px;
+  padding: 15px;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+}
+.cmd-feature-card:hover,
+.cmd-item:hover {
+  border-color: #b9cdfb;
+  background: #fbfdff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.07);
+}
+.cmd-feature-title {
+  display: block;
+  margin-top: 10px;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 900;
+}
+.cmd-feature-sub {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.cmd-grp {
+  margin: 18px 0 0 !important;
+}
+.cmd-grp-h {
+  padding: 0 0 9px !important;
+  color: #334155 !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+.cmd-grp-n {
+  margin-left: 4px;
+  color: #94a3b8;
+}
+.cmd-grp > template,
+.cmd-grp {
+  --cmd-row-gap: 10px;
+}
+.cmd-item {
+  display: inline-flex !important;
+  width: calc(25% - 9px) !important;
+  min-height: 58px;
+  margin: 0 8px 10px 0;
+  padding: 10px 12px !important;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px !important;
+  background: #fff;
+  vertical-align: top;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+}
+.cmd-ic {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 8px !important;
+}
+.cmd-ic.fam-trigger {
+  background: #ede9fe !important;
+  color: #7c3aed;
+}
+.cmd-ic.fam-agent {
+  background: #eef2ff !important;
+  color: #4f46e5;
+}
+.cmd-ic.fam-action {
+  background: #dcfce7 !important;
+  color: #059669;
+}
+.cmd-ic.fam-logic {
+  background: #fff7ed !important;
+  color: #f97316;
+}
+.cmd-l {
+  color: #0f172a !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+}
+.cmd-s {
+  color: #64748b !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+}
+.cmd-foot {
+  display: none !important;
+}
+@media (max-width: 820px) {
+  .cmd-pal {
+    margin-top: 34px !important;
+  }
+  .cmd-feature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cmd-item {
+    width: calc(50% - 8px) !important;
+  }
+}
+@media (max-width: 520px) {
+  .cmd-feature-grid {
+    grid-template-columns: 1fr;
+  }
+  .cmd-item {
+    width: 100% !important;
+    margin-right: 0;
+  }
 }
 </style>
 

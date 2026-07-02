@@ -1,14 +1,6 @@
 <template>
   <main class="gtd-page">
     <section class="gtd-main" v-if="tour">
-      <nav class="breadcrumbs">
-        <RouterLink to="/dashboard/help-center">Help Center</RouterLink>
-        <Icon icon="lucide:chevron-right" class="bc-sep" />
-        <RouterLink to="/dashboard/help-center/guided-tours">Guided tours</RouterLink>
-        <Icon icon="lucide:chevron-right" class="bc-sep" />
-        <span>{{ tour.title }}</span>
-      </nav>
-
       <header class="gtd-head">
         <span :class="['gtd-icon', tour.tone || 'blue']"><Icon :icon="tour.icon || 'lucide:route'" /></span>
         <div>
@@ -60,6 +52,7 @@ import { RouterLink, useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import { useGuidedTour } from '../composables/useGuidedTour'
+import { setBreadcrumbLabel } from '@/composables/useBreadcrumbs'
 
 const route = useRoute()
 const { launch } = useGuidedTour()
@@ -68,6 +61,8 @@ const tour = ref(null)
 const steps = ref([])
 const related = ref([])
 const loadError = ref(false)
+
+setBreadcrumbLabel(() => tour.value?.title)
 
 const ICONS = { doc: 'lucide:file-text', guide: 'lucide:book-open', tutorial: 'lucide:play-circle', integration: 'lucide:link-2', faq: 'lucide:help-circle', learning_path: 'lucide:rocket' }
 const TONES = { doc: 'blue', guide: 'blue', tutorial: 'teal', integration: 'violet', faq: 'coral', learning_path: 'blue' }
@@ -94,9 +89,6 @@ watch(() => route.params.slug, load)
 <style scoped>
 .gtd-page { min-height: 100%; padding: 30px 36px 60px; background: #f8fbff; color: #0f172a; }
 .gtd-main { max-width: 760px; margin: 0 auto; }
-.breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; margin-bottom: 18px; }
-.breadcrumbs a { color: #2563eb; text-decoration: none; font-weight: 700; } .breadcrumbs span { color: #64748b; }
-.bc-sep { width: 13px; height: 13px; color: #cbd5e1; }
 .gtd-head { display: flex; gap: 16px; align-items: flex-start; }
 .gtd-icon { display: grid; width: 52px; height: 52px; flex-shrink: 0; place-items: center; border-radius: 13px; } .gtd-icon svg { width: 26px; height: 26px; }
 .blue { background: #eef4ff; color: #2563eb; } .violet { background: #f2efff; color: #7c3aed; } .teal { background: #e7fbf6; color: #0faaa5; } .amber { background: #fff7e6; color: #d97706; } .coral { background: #fff1ed; color: #f15b3d; }

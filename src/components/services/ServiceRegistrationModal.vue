@@ -1,55 +1,80 @@
 <template>
-  <!-- Modal Overlay -->
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" @mousedown.self="$emit('close')">
-    <!-- Backdrop -->
-    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="$emit('close')"></div>
+    <div class="absolute inset-0 bg-slate-950/35 backdrop-blur-[5px]" @click="$emit('close')"></div>
 
-    <!-- Modal Card -->
-    <div class="relative w-full max-w-2xl bg-white rounded-[20px] shadow-[0_32px_64px_rgba(0,0,0,0.2)] overflow-hidden flex flex-col max-h-[90vh]">
+    <div class="relative w-full max-w-[980px] bg-white rounded-[12px] border border-slate-200 shadow-[0_28px_80px_rgba(15,23,42,0.24)] overflow-hidden flex flex-col max-h-[92vh]">
 
       <!-- Header -->
-      <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-6 shrink-0">
+      <div class="bg-white text-slate-950 px-8 pt-6 pb-4 shrink-0">
         <div class="flex items-start justify-between">
           <div>
-            <h2 class="text-[22px] font-extrabold tracking-tight">Register New Service</h2>
-            <p class="text-[13px] text-white/75 mt-1 font-medium">{{ stepDescriptions[currentStep] }}</p>
+            <h2 class="text-[20px] font-bold tracking-[-0.01em]">Register New Service</h2>
+            <p class="text-[13px] text-slate-500 mt-1 font-medium">Add a new service that your agents can use.</p>
           </div>
-          <button @click="$emit('close')" class="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors ml-4 shrink-0 mt-0.5">
+          <button @click="$emit('close')" class="w-9 h-9 rounded-[8px] border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:text-slate-900 flex items-center justify-center transition-colors ml-4 shrink-0 mt-0.5">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
 
         <!-- Progress Steps -->
-        <div class="flex items-end gap-2 mt-6">
-          <div v-for="(step, index) in steps" :key="index" class="flex-1">
-            <div class="h-1.5 rounded-full transition-all duration-300" :class="index <= currentStep ? 'bg-white' : 'bg-white/25'"></div>
-            <div class="text-[11px] text-white/65 mt-1.5 text-center font-bold uppercase tracking-wide">{{ step }}</div>
+        <div class="mt-5 rounded-[10px] border border-slate-200 bg-white px-8 py-5">
+          <div class="grid grid-cols-5 items-start">
+            <div v-for="(step, index) in steps" :key="index" class="relative flex flex-col items-center">
+              <div v-if="index > 0" class="absolute right-1/2 top-[13px] h-px w-full bg-slate-200"></div>
+              <div class="relative z-10 flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold transition-all" :class="index <= currentStep ? 'bg-violet-600 text-white shadow-[0_5px_16px_rgba(124,58,237,0.28)]' : 'bg-slate-100 text-slate-500'">{{ index + 1 }}</div>
+              <div class="mt-2 text-center text-[10px] font-bold leading-tight" :class="index === currentStep ? 'text-violet-700' : 'text-slate-500'">{{ step }}</div>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- Scrollable Body -->
-      <div class="flex-1 overflow-y-auto p-8">
+      <div class="flex-1 overflow-y-auto px-8 pb-4">
+        <div class="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+          <aside class="rounded-[10px] border border-slate-200 bg-white overflow-hidden">
+            <div class="flex min-h-[210px] items-center justify-center border-b border-slate-200 bg-[radial-gradient(circle_at_center,#ede9fe_0,#ede9fe_38%,#ffffff_39%,#ffffff_100%)]">
+              <div class="flex h-[116px] w-[116px] items-center justify-center rounded-full bg-violet-100">
+                <div class="flex h-[88px] w-[88px] items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 shadow-[0_18px_42px_rgba(124,58,237,0.38)]">
+                  <svg class="h-12 w-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M12 3.75 4.75 7.8 12 12l7.25-4.2L12 3.75Z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M4.75 7.8v8.1L12 20.25l7.25-4.35V7.8M12 12v8.25"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <div class="px-6 py-5">
+              <h3 class="text-[13px] font-bold text-slate-950">Why register a service?</h3>
+              <ul class="mt-4 space-y-4 text-[12px] font-medium leading-5 text-slate-600">
+                <li class="flex gap-3"><span class="mt-0.5 text-violet-600">✓</span><span>Agents can securely access your API endpoints</span></li>
+                <li class="flex gap-3"><span class="mt-0.5 text-violet-600">✓</span><span>Standardized authentication and security</span></li>
+                <li class="flex gap-3"><span class="mt-0.5 text-violet-600">✓</span><span>Define actions with structured schema</span></li>
+                <li class="flex gap-3"><span class="mt-0.5 text-violet-600">✓</span><span>Track usage, cost, and performance</span></li>
+              </ul>
+            </div>
+          </aside>
+
+          <section class="rounded-[10px] border border-slate-200 bg-white p-7">
 
         <!-- Step 1: Basic Info -->
         <div v-if="currentStep === 0" class="space-y-5">
+          <h3 class="text-[15px] font-bold text-slate-950">Basic Information</h3>
           <div>
-            <label class="block text-[13px] font-bold text-slate-700 mb-1.5">Service Name <span class="text-red-500">*</span></label>
+            <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Service Name <span class="text-red-500">*</span></label>
             <input
               v-model="formData.name"
               type="text"
-              placeholder="e.g., Jira, Slack, GitHub"
-              class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-[10px] text-slate-800 font-medium text-[14px] focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all placeholder:text-slate-400"
+              placeholder="Enter service name"
+              class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] text-slate-900 font-medium text-[13px] focus:outline-none focus:border-violet-400 focus:ring-3 focus:ring-violet-100 transition-all placeholder:text-slate-400"
             />
           </div>
 
           <div>
-            <label class="block text-[13px] font-bold text-slate-700 mb-1.5">Category</label>
+            <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Category <span class="text-red-500">*</span></label>
             <select
               v-model="formData.category"
-              class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-[10px] text-slate-800 font-medium text-[14px] focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+              class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] text-slate-900 font-medium text-[13px] focus:outline-none focus:border-violet-400 focus:ring-3 focus:ring-violet-100 transition-all"
             >
-              <option value="">Select category</option>
+              <option value="">Select a category</option>
               <option value="project_management">Project Management</option>
               <option value="communication">Communication</option>
               <option value="file_storage">File Storage</option>
@@ -63,25 +88,57 @@
           </div>
 
           <div>
-            <label class="block text-[13px] font-bold text-slate-700 mb-1.5">Description <span class="text-red-500">*</span></label>
+            <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Description <span class="text-red-500">*</span></label>
             <textarea
               v-model="formData.description"
-              rows="3"
-              placeholder="Describe what this service does"
-              class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-[10px] text-slate-800 font-medium text-[14px] focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all resize-none placeholder:text-slate-400"
+              rows="4"
+              maxlength="500"
+              placeholder="Describe what this service does, its main capabilities, and how agents will use it."
+              class="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-[8px] text-slate-900 font-medium text-[13px] leading-5 focus:outline-none focus:border-violet-400 focus:ring-3 focus:ring-violet-100 transition-all resize-none placeholder:text-slate-400"
             ></textarea>
+            <div class="mt-1 text-right text-[11px] font-medium text-slate-400">{{ formData.description.length }}/500</div>
           </div>
 
           <div>
-            <label class="block text-[13px] font-bold text-slate-700 mb-1.5">Icon (Emoji)</label>
+            <label class="block text-[12px] font-bold text-slate-700 mb-2">Icon <span class="font-medium text-slate-400">(Optional)</span></label>
             <input
               v-model="formData.icon"
               type="text"
-              placeholder="ðŸŒ"
+              placeholder="🌐"
               maxlength="2"
-              class="w-20 px-3 py-3 bg-slate-50 border border-slate-200 rounded-[10px] text-center text-2xl focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
+              class="w-20 h-10 px-3 bg-white border border-slate-200 rounded-[8px] text-center text-[13px] font-bold focus:outline-none focus:border-violet-400 focus:ring-3 focus:ring-violet-100 transition-all"
             />
           </div>
+
+          <div>
+            <label class="block text-[12px] font-bold text-slate-700 mb-2">Visibility <span class="text-red-500">*</span></label>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <label class="flex cursor-pointer items-start gap-3 rounded-[9px] border p-4 transition"
+                :class="formData.visibility === 'private' ? 'border-violet-500 bg-violet-50/40 shadow-[0_0_0_1px_rgba(124,58,237,0.12)]' : 'border-slate-200 bg-white hover:border-slate-300'">
+                <input type="radio" v-model="formData.visibility" value="private" class="mt-1 accent-violet-600" />
+                <span>
+                  <span class="block text-[13px] font-bold text-slate-900">Private</span>
+                  <span class="block text-[11px] font-medium text-slate-500">Only for this organization</span>
+                </span>
+              </label>
+              <label class="flex cursor-pointer items-start gap-3 rounded-[9px] border p-4 transition"
+                :class="formData.visibility === 'public' ? 'border-violet-500 bg-violet-50/40 shadow-[0_0_0_1px_rgba(124,58,237,0.12)]' : 'border-slate-200 bg-white hover:border-slate-300'">
+                <input type="radio" v-model="formData.visibility" value="public" class="mt-1 accent-violet-600" />
+                <span>
+                  <span class="block text-[13px] font-bold text-slate-900">Public</span>
+                  <span class="block text-[11px] font-medium text-slate-500">Available to all organizations</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <label class="flex items-start gap-3 border-t border-slate-100 pt-4">
+            <input type="checkbox" v-model="formData.enable_all_workspaces" class="mt-0.5 rounded accent-violet-600" />
+            <span>
+              <span class="block text-[12px] font-bold text-slate-900">Enable for all workspaces</span>
+              <span class="block text-[11px] font-medium text-slate-500">Allow access and usage of this service across all workspaces</span>
+            </span>
+          </label>
         </div>
 
         <!-- Step 2: API Configuration -->
@@ -121,7 +178,7 @@
             <div class="flex items-center gap-3"><div class="flex-1 h-px bg-slate-200"></div><span class="text-[12px] text-slate-400 font-medium">or upload file</span><div class="flex-1 h-px bg-slate-200"></div></div>
             <label class="flex items-center gap-3 p-3 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[10px] cursor-pointer hover:bg-indigo-50/50 hover:border-indigo-300 transition-all">
               <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-              <span class="text-[13px] text-slate-500 font-medium">{{ openAPISpec ? 'âœ… Spec file loaded' : 'Upload OpenAPI 3.0 or Swagger 2.0 (.json, .yaml, .yml)' }}</span>
+              <span class="text-[13px] text-slate-500 font-medium">{{ openAPISpec ? '✅ Spec file loaded' : 'Upload OpenAPI 3.0 or Swagger 2.0 (.json, .yaml, .yml)' }}</span>
               <input type="file" @change="handleOpenAPIUpload" accept=".json,.yaml,.yml" class="hidden" />
             </label>
           </div>
@@ -134,7 +191,7 @@
             <div class="flex items-center gap-3"><div class="flex-1 h-px bg-slate-200"></div><span class="text-[12px] text-slate-400 font-medium">or</span><div class="flex-1 h-px bg-slate-200"></div></div>
             <label class="flex items-center gap-3 p-3 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[10px] cursor-pointer hover:bg-indigo-50/50 hover:border-indigo-300 transition-all">
               <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-              <span class="text-[13px] text-slate-500 font-medium">{{ postmanCollection ? 'âœ… Collection loaded' : 'Upload Postman Collection v2.x (.json)' }}</span>
+              <span class="text-[13px] text-slate-500 font-medium">{{ postmanCollection ? '✅ Collection loaded' : 'Upload Postman Collection v2.x (.json)' }}</span>
               <input type="file" @change="handlePostmanUpload" accept=".json" class="hidden" />
             </label>
           </div>
@@ -147,7 +204,7 @@
             <div class="flex items-center gap-3"><div class="flex-1 h-px bg-slate-200"></div><span class="text-[12px] text-slate-400 font-medium">or upload schema file</span><div class="flex-1 h-px bg-slate-200"></div></div>
             <label class="flex items-center gap-3 p-3 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[10px] cursor-pointer hover:bg-indigo-50/50 hover:border-indigo-300 transition-all">
               <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-              <span class="text-[13px] text-slate-500 font-medium">{{ graphQLSchema ? 'âœ… Schema loaded' : 'Upload GraphQL SDL schema or introspection JSON' }}</span>
+              <span class="text-[13px] text-slate-500 font-medium">{{ graphQLSchema ? '✅ Schema loaded' : 'Upload GraphQL SDL schema or introspection JSON' }}</span>
               <input type="file" @change="handleGraphQLUpload" accept=".graphql,.gql,.json" class="hidden" />
             </label>
           </div>
@@ -159,7 +216,7 @@
               class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-[10px] font-mono text-[13px] focus:outline-none focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all" />
             <label class="flex items-center gap-3 p-3 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[10px] cursor-pointer hover:bg-amber-50/50 hover:border-amber-300 transition-all">
               <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-              <span class="text-[13px] text-slate-500 font-medium">{{ htmlDocsContent ? 'âœ… Documentation loaded' : 'Upload HTML, Markdown, or text docs' }}</span>
+              <span class="text-[13px] text-slate-500 font-medium">{{ htmlDocsContent ? '✅ Documentation loaded' : 'Upload HTML, Markdown, or text docs' }}</span>
               <input type="file" @change="handleHTMLDocsUpload" accept=".html,.htm,.md,.txt" class="hidden" />
             </label>
             <div class="bg-amber-50 border border-amber-200 rounded-[10px] px-4 py-3 flex items-start gap-2">
@@ -182,12 +239,12 @@
             class="w-full px-5 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-[12px] font-bold text-[14px] hover:opacity-90 transition-opacity disabled:opacity-50 shadow-md flex items-center justify-center gap-2"
           >
             <svg v-if="discovering" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-            {{ discovering ? 'Discovering Actions...' : 'ðŸ” Discover Actions' }}
+            {{ discovering ? 'Discovering Actions...' : '🔍 Discover Actions' }}
           </button>
 
           <!-- Discovery Results -->
           <div v-if="discoveredData" class="bg-emerald-50 border border-emerald-200 rounded-[12px] px-4 py-4 flex items-start gap-3">
-            <span class="text-emerald-600 text-xl leading-none">âœ…</span>
+            <span class="text-emerald-600 text-xl leading-none">✅</span>
             <div>
               <p class="text-[14px] font-bold text-emerald-800">Discovered {{ discoveredData.total_actions }} actions!</p>
               <p class="text-[12px] text-emerald-600 mt-0.5">Found {{ Object.keys(discoveredData.categories).length }} categories</p>
@@ -220,7 +277,7 @@
                 <div class="p-4 cursor-pointer hover:bg-slate-50 transition-colors flex items-center justify-between" @click="toggleCategoryExpanded(categoryName)">
                   <div class="flex items-center gap-3 flex-1">
                     <input type="checkbox" :checked="selectedCategories.includes(categoryName)" @click.stop="toggleCategory(categoryName)" class="rounded accent-indigo-600 w-4 h-4" />
-                    <span class="text-slate-400 text-sm">{{ expandedCategories.includes(categoryName) ? 'â–¼' : 'â–¶' }}</span>
+                    <span class="text-slate-400 text-sm">{{ expandedCategories.includes(categoryName) ? '▼' : '▶' }}</span>
                     <h4 class="font-bold text-slate-900 text-[14px]">{{ categoryData.name }}</h4>
                     <span class="px-2 py-0.5 text-[11px] bg-slate-100 text-slate-500 rounded-full font-bold">{{ getSelectedActionsInCategory(categoryName).length }}/{{ categoryData.count }}</span>
                     <span v-if="discoveredData.recommended_categories.includes(categoryName)" class="px-2 py-0.5 text-[11px] bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full font-bold">Recommended</span>
@@ -263,7 +320,7 @@
               <button @click="enrichWithAI" :disabled="enriching"
                 class="px-4 py-2 bg-purple-600 text-white rounded-[10px] hover:bg-purple-700 transition font-bold text-[13px] disabled:opacity-50 flex items-center gap-2">
                 <svg v-if="enriching" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                {{ enriching ? 'Enhancing...' : 'âœ¨ Enhance with AI' }}
+                {{ enriching ? 'Enhancing...' : '✨ Enhance with AI' }}
               </button>
             </div>
 
@@ -282,7 +339,7 @@
                         <span class="font-mono font-bold text-slate-800">{{ param.name }}</span>
                         <span class="text-slate-400">({{ param.type }})</span>
                         <span v-if="param.required" class="text-red-500 font-bold text-[11px]">required</span>
-                        <span v-if="param.example_source" class="text-[10px] px-1.5 py-0.5 rounded font-bold" :class="{ 'bg-emerald-100 text-emerald-700': param.example_source === 'spec', 'bg-purple-100 text-purple-700': param.example_source === 'llm', 'bg-blue-100 text-blue-700': param.example_source === 'user' }">{{ param.example_source === 'spec' ? 'ðŸ“„ spec' : param.example_source === 'llm' ? 'ðŸ¤– ai' : 'ðŸ‘¤ user' }}</span>
+                        <span v-if="param.example_source" class="text-[10px] px-1.5 py-0.5 rounded font-bold" :class="{ 'bg-emerald-100 text-emerald-700': param.example_source === 'spec', 'bg-purple-100 text-purple-700': param.example_source === 'llm', 'bg-blue-100 text-blue-700': param.example_source === 'user' }">{{ param.example_source === 'spec' ? '📄 spec' : param.example_source === 'llm' ? '🤖 ai' : '👤 user' }}</span>
                       </div>
                       <div class="text-slate-400 truncate mt-0.5">{{ param.description || 'No description' }}</div>
                     </div>
@@ -296,7 +353,7 @@
             </div>
 
             <div class="mt-4 bg-amber-50 border border-amber-200 rounded-[12px] px-4 py-3 flex items-start gap-2">
-              <span class="text-amber-500 shrink-0 mt-0.5">ðŸ’¡</span>
+              <span class="text-amber-500 shrink-0 mt-0.5">💡</span>
               <p class="text-[12px] text-amber-800 font-medium">Examples help the AI understand how to use these actions. You can edit them now or later.</p>
             </div>
           </div>
@@ -321,10 +378,12 @@
           </div>
         </div>
 
+          </section>
+        </div>
       </div><!-- end scrollable body -->
 
       <!-- Footer -->
-      <div class="shrink-0 border-t border-slate-100 bg-slate-50/80 px-8 py-5 flex items-center justify-between">
+      <div class="shrink-0 border-t border-slate-100 bg-white px-8 py-5 flex items-center justify-between">
         <button v-if="currentStep > 0" @click="currentStep--"
           class="px-5 py-2.5 text-[14px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-[10px] transition-all flex items-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
@@ -335,14 +394,14 @@
         <div class="flex items-center gap-3">
           <button @click="$emit('close')" class="px-5 py-2.5 text-[14px] font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-[10px] transition-all">Cancel</button>
           <button v-if="currentStep < steps.length - 1" @click="nextStep" :disabled="!canProceed"
-            class="px-6 py-2.5 text-[14px] font-bold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:opacity-90 rounded-[10px] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md flex items-center gap-2">
+            class="px-6 py-2.5 text-[14px] font-bold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:opacity-90 rounded-[8px] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md flex items-center gap-2">
             Next
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
           </button>
           <button v-else @click="registerService" :disabled="registering || !canProceed"
             class="px-6 py-2.5 text-[14px] font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-90 rounded-[10px] transition-all disabled:opacity-40 shadow-md flex items-center gap-2">
             <svg v-if="registering" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-            {{ registering ? 'Registering...' : 'âœ… Register Service' }}
+            {{ registering ? 'Registering...' : '✅ Register Service' }}
           </button>
         </div>
       </div>
@@ -368,11 +427,11 @@ export default {
     const enriching = ref(false)
 
     const discoveryMethods = [
-      { value: 'openapi', icon: 'ðŸ“„', label: 'OpenAPI/Swagger Spec', desc: 'Automatically discover from OpenAPI 3.0 or Swagger 2.0 specification' },
-      { value: 'postman', icon: 'ðŸ“®', label: 'Postman Collection',   desc: 'Import from Postman collection (v2.x format)' },
-      { value: 'graphql', icon: 'ðŸ”·', label: 'GraphQL Schema',        desc: 'Auto-discover from GraphQL endpoint using introspection' },
-      { value: 'html_docs', icon: 'ðŸ“–', label: 'HTML Documentation', desc: 'Extract endpoints from HTML documentation (experimental)' },
-      { value: 'manual',   icon: 'âœï¸', label: 'Manual Entry',         desc: "I'll add actions manually later" }
+      { value: 'openapi', icon: '📄', label: 'OpenAPI/Swagger Spec', desc: 'Automatically discover from OpenAPI 3.0 or Swagger 2.0 specification' },
+      { value: 'postman', icon: '📮', label: 'Postman Collection',   desc: 'Import from Postman collection (v2.x format)' },
+      { value: 'graphql', icon: '🔷', label: 'GraphQL Schema',        desc: 'Auto-discover from GraphQL endpoint using introspection' },
+      { value: 'html_docs', icon: '📖', label: 'HTML Documentation', desc: 'Extract endpoints from HTML documentation (experimental)' },
+      { value: 'manual',   icon: '✏️', label: 'Manual Entry',         desc: "I'll add actions manually later" }
     ]
 
     const steps = ['Basic Info', 'API Config', 'Select Actions', 'Schema Review', 'Review']
@@ -393,7 +452,9 @@ export default {
       api_spec_url: '',
       discovery_method: 'openapi',
       auth_type: 'bearer',
-      auth_config: {}
+      auth_config: {},
+      visibility: 'private',            // 'private' (creator only) | 'public' (all workspace members)
+      enable_all_workspaces: false      // link the service to every workspace in the org
     })
 
     const discoveredData = ref(null)
@@ -430,7 +491,7 @@ export default {
             postmanCollection.value = JSON.parse(e.target.result)
             console.log('Postman collection loaded:', postmanCollection.value)
             const actionCount = postmanCollection.value?.item?.length || 0
-            notify.success(`âœ… Postman collection loaded successfully! Found ${actionCount} items.`)
+            notify.success(`✅ Postman collection loaded successfully! Found ${actionCount} items.`)
           } catch (error) {
             console.error('Failed to parse Postman collection:', error)
             notify.error('Failed to parse Postman collection: ' + error.message)
@@ -455,7 +516,7 @@ export default {
               openAPISpec.value = { _raw: content, _format: 'yaml' }
             }
             console.log('OpenAPI spec loaded:', file.name)
-            notify.success('âœ… OpenAPI spec loaded successfully!')
+            notify.success('✅ OpenAPI spec loaded successfully!')
           } catch (error) {
             console.error('Failed to parse OpenAPI spec:', error)
             notify.error('Failed to parse OpenAPI spec: ' + error.message)
@@ -480,7 +541,7 @@ export default {
               graphQLSchema.value = { _sdl: content }
             }
             console.log('GraphQL schema loaded:', file.name)
-            notify.success('âœ… GraphQL schema loaded successfully!')
+            notify.success('✅ GraphQL schema loaded successfully!')
           } catch (error) {
             console.error('Failed to parse GraphQL schema:', error)
             notify.error('Failed to parse GraphQL schema: ' + error.message)
@@ -497,7 +558,7 @@ export default {
         reader.onload = (e) => {
           htmlDocsContent.value = e.target.result
           console.log('HTML docs loaded:', file.name, '- Length:', htmlDocsContent.value.length)
-          notify.success('âœ… Documentation file loaded successfully!')
+          notify.success('✅ Documentation file loaded successfully!')
         }
         reader.readAsText(file)
       }
@@ -670,13 +731,13 @@ export default {
           
           // Show detailed success message
           const stats = response.data.stats
-          let message = `âœ¨ Enrichment complete!\n\n`
-          message += `âœ… Enriched: ${stats.enriched}/${stats.total}\n`
+          let message = `✨ Enrichment complete!\n\n`
+          message += `✅ Enriched: ${stats.enriched}/${stats.total}\n`
           if (stats.validated > 0) {
-            message += `âœ“ Validated: ${stats.validated}\n`
+            message += `✓ Validated: ${stats.validated}\n`
           }
           if (stats.repaired > 0) {
-            message += `ðŸ”§ Auto-repaired: ${stats.repaired}\n`
+            message += `🔧 Auto-repaired: ${stats.repaired}\n`
           }
           if (stats.skipped > 0) {
             message += `âš ï¸ Skipped (errors): ${stats.skipped}\n`
@@ -717,7 +778,9 @@ export default {
           auth_type: formData.value.auth_type,
           auth_config: formData.value.auth_config,
           discovery_method: formData.value.discovery_method,
-          api_spec_url: formData.value.api_spec_url
+          api_spec_url: formData.value.api_spec_url,
+          visibility: formData.value.visibility,
+          enable_all_workspaces: formData.value.enable_all_workspaces
         })
 
         const serviceId = serviceResponse.data.service_id
@@ -739,7 +802,7 @@ export default {
                   parameters: action.parameters,
                   request_body_schema: action.request_body_schema,
                   response_schema: action.response_schema,
-                  // ðŸ†• Include enriched data if available
+                  // 🆕 Include enriched data if available
                   invocation_schema: action.invocation_schema,
                   llm_notes: action.llm_notes,
                   risk_level: action.risk_level,
@@ -767,10 +830,10 @@ export default {
     }
 
     const reviewItems = computed(() => [
-      { label: 'Name',        value: formData.value.name || 'â€”' },
+      { label: 'Name',        value: formData.value.name || '—' },
       { label: 'Category',    value: formData.value.category || 'N/A' },
-      { label: 'Base URL',    value: formData.value.base_url || 'â€”' },
-      { label: 'Auth Type',   value: formData.value.auth_type || 'â€”' },
+      { label: 'Base URL',    value: formData.value.base_url || '—' },
+      { label: 'Auth Type',   value: formData.value.auth_type || '—' },
       { label: 'Categories',  value: String(selectedCategories.value.length) },
       { label: 'Total Actions', value: String(getTotalSelectedActions()) }
     ])

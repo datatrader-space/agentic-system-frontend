@@ -1,14 +1,6 @@
 <template>
   <main class="lpd-page">
     <section class="lpd-main" v-if="path">
-      <nav class="breadcrumbs">
-        <RouterLink to="/dashboard/help-center">Help Center</RouterLink>
-        <Icon icon="lucide:chevron-right" class="bc-sep" />
-        <RouterLink to="/dashboard/help-center/learning-paths">Learning paths</RouterLink>
-        <Icon icon="lucide:chevron-right" class="bc-sep" />
-        <span>{{ path.title }}</span>
-      </nav>
-
       <header class="lpd-head">
         <span :class="['lpd-icon', path.tone || 'blue']"><Icon :icon="path.icon || 'lucide:rocket'" /></span>
         <div>
@@ -87,6 +79,7 @@ import { Icon } from '@iconify/vue'
 import { marked } from 'marked'
 import api from '../services/api'
 import { isStepDone, toggleStep, setPathTotal, getCompleted } from '../composables/useHelpProgress'
+import { setBreadcrumbLabel } from '@/composables/useBreadcrumbs'
 
 const route = useRoute()
 const router = useRouter()
@@ -96,6 +89,8 @@ const steps = ref([])
 const relations = ref({})
 const totalMinutes = ref(0)
 const loadError = ref(false)
+
+setBreadcrumbLabel(() => path.value?.title)
 const tick = ref(0)  // bump to recompute progress after toggles
 
 const REL_LABEL = { related: 'Related', prerequisite: 'Prerequisites', next_step: 'Next steps', tutorial: 'Tutorials', documentation: 'Documentation', guided_tour: 'Guided tours', integration: 'Integrations', troubleshooting: 'Troubleshooting' }
@@ -143,10 +138,6 @@ watch(slug, load)
 <style scoped>
 .lpd-page { min-height: 100%; padding: 30px 36px 60px; background: #f8fbff; color: #0f172a; }
 .lpd-main { max-width: 800px; margin: 0 auto; }
-.breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; margin-bottom: 18px; }
-.breadcrumbs a { color: #2563eb; text-decoration: none; font-weight: 700; }
-.breadcrumbs span { color: #64748b; }
-.bc-sep { width: 13px; height: 13px; color: #cbd5e1; }
 .lpd-head { display: flex; gap: 16px; align-items: flex-start; }
 .lpd-icon { display: grid; width: 52px; height: 52px; flex-shrink: 0; place-items: center; border-radius: 13px; }
 .lpd-icon svg { width: 26px; height: 26px; }
