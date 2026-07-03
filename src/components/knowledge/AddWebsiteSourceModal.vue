@@ -87,6 +87,18 @@
           </div>
 
           <p v-if="error" class="text-[12px] text-red-600">{{ error }}</p>
+
+          <!-- OR divider -->
+          <div class="relative py-0.5">
+            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-100"></div></div>
+            <div class="relative flex justify-center"><span class="bg-white px-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Or</span></div>
+          </div>
+
+          <!-- Single document / YouTube link (unified MarkItDown pipeline). Independent of the
+               website crawl above: adds ONE page/document/video, converts + indexes it directly. -->
+          <div class="rounded-lg border border-slate-200 bg-slate-50/60 px-3.5 py-3">
+            <AddDocumentUrl :agent-id="agentId" scope="agent_knowledge" @added="onDocAdded" />
+          </div>
         </template>
 
         <!-- DISCOVERED phase: page tree -->
@@ -154,9 +166,14 @@
 import { ref, reactive, computed, onBeforeUnmount } from 'vue'
 import api from '../../services/api'
 import { notify } from '../../composables/useNotify'
+import AddDocumentUrl from './AddDocumentUrl.vue'
 
 const props = defineProps({ agentId: { type: [Number, String], default: null } })
-const emit = defineEmits(['close', 'added'])
+const emit = defineEmits(['close', 'added', 'discarded', 'doc-added'])
+
+// A single document/YouTube URL was queued (converts + indexes on its own) — bubble up so the
+// parent refreshes its Files list. The modal stays open so the user can add more or a website.
+function onDocAdded(src) { emit('doc-added', src) }
 
 const mode = ref('full_site')
 const url = ref('')

@@ -257,7 +257,7 @@
                       <p class="truncate text-[16px] font-bold text-[#111827]">{{ tool.display_name || tool.name }}</p>
                       <span class="tool-chip">{{ tool.category_label || tool.category || 'Tool' }}</span>
                     </div>
-                    <p class="mt-1 text-[14px] leading-5 text-[#475569]">{{ tool.description || 'No description available.' }}</p>
+                    <p class="mt-1 line-clamp-2 text-[14px] leading-5 text-[#475569]" :title="tool.description || ''">{{ tool.description || 'No description available.' }}</p>
                     <div class="mt-2 flex flex-wrap items-center gap-2">
                       <span v-for="tag in toolTags(tool)" :key="tag" class="tool-chip">{{ tag }}</span>
                     </div>
@@ -362,10 +362,6 @@
               <button class="icon-x" @click="removeUrl(w)"><X :size="14" :stroke-width="2" /></button>
             </div>
           </div>
-          <div class="border-t border-[#F1F5F9] px-6 py-4">
-            <!-- Approved URL / YouTube document ingestion (unified MarkItDown pipeline). -->
-            <AddDocumentUrl :agent-id="agentId" scope="agent_knowledge" @added="loadFiles" />
-          </div>
           <footer class="flex items-center justify-end gap-3 border-t border-[#F1F5F9] px-6 py-4">
             <button class="add-btn" @click="openAddWebsite"><Plus :size="13" :stroke-width="2" /> Add website</button>
             <button class="modal-secondary" @click="urlsModalOpen = false">Close</button>
@@ -451,7 +447,7 @@
     </Teleport>
 
     <!-- Reused legacy knowledge modals: discover-website flow + per-source pages detail -->
-    <AddWebsiteSourceModal v-if="addWebsiteOpen" :agent-id="agentId" @close="addWebsiteOpen = false" @added="onWebsiteAdded" @discarded="onWebsiteDiscarded" />
+    <AddWebsiteSourceModal v-if="addWebsiteOpen" :agent-id="agentId" @close="addWebsiteOpen = false" @added="onWebsiteAdded" @discarded="onWebsiteDiscarded" @doc-added="onDocAdded" />
     <WebSourcePagesModal v-if="pagesModalSource" :source="pagesModalSource" @close="pagesModalSource = null" @updated="loadUrls" />
     <!-- Connect / manage connectors inline (no redirect) -->
     <IntegrationHubModal v-if="showHub" :connectors="allConnectors" @close="showHub = false" @installed="onHubInstalled" />
@@ -467,7 +463,6 @@ import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { ago } from '../dashboard/time'
 import AddWebsiteSourceModal from '../knowledge/AddWebsiteSourceModal.vue'
-import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import WebSourcePagesModal from '../knowledge/WebSourcePagesModal.vue'
 import IntegrationHubModal from '../connectors/IntegrationHubModal.vue'
 import ToolIcon from '../knowledge/ToolIcon.js'
@@ -623,6 +618,9 @@ function openAddWebsite() {
 }
 function onWebsiteAdded() { addWebsiteOpen.value = false; connectKbWs(); loadUrls() }
 function onWebsiteDiscarded() { loadUrls() }
+// A single URL/YouTube document was queued from inside the Add-URL modal (it converts + indexes
+// itself and lands in the Files list). Keep the modal open; just refresh Files + live progress.
+function onDocAdded() { connectKbWs(); loadFiles() }
 function openPages(w) { pagesModalSource.value = w }
 async function reindexUrl(w) {
   try { await api.reindexWebSource(w.id); notify.success('Re-indexing started'); connectKbWs(); loadUrls() } catch (e) { notify.error('Could not re-index') }
