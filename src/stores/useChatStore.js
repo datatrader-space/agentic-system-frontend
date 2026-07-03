@@ -194,7 +194,10 @@ export const useChatStore = defineStore('chat', {
         this.reset()
         return
       }
-      if (String(this.conversationId) === String(id) && this.messages.length) return
+      // Already pointed at this conversation with a live socket or loaded history → no-op. This also
+      // covers the case where ensureConversation() just created the id (to ingest a link before the
+      // first message) and the URL replace re-entered here — we must NOT re-clear staged attachments.
+      if (String(this.conversationId) === String(id) && (this.messages.length || this._conn)) return
       this._clearTurnState()   // switch conversation: clear UI state but KEEP the shared socket
       this.conversationId = String(id)
       this.messages = []
@@ -263,6 +266,33 @@ export const useChatStore = defineStore('chat', {
       this.pendingAttachments.splice(i, 1)
     },
 
+    // Create (or return) the conversation for the selected agent WITHOUT sending a message. Used so the
+    // composer "+" menu can ingest a link/file into a conversation-scoped DocumentSource on a brand-new
+    // chat — ChatGPT-style, the chat quietly starts the moment you attach something. Returns the
+    // conversation id, or null if it couldn't start (no agent / API error).
+    async ensureConversation() {
+      if (this.conversationId) return this.conversationId
+      if (!this.selectedAgentId) {
+        this.error = 'Select an agent to start chatting.'
+        notify.warning('Select an agent to start chatting.')
+        return null
+      }
+      try {
+        const res = await api.startAgentChat(this.selectedAgentId)
+        const d = res.data || {}
+        this.conversationId = String(d.conversation_id ?? d.profile_id ?? '')
+        this.repoId = d.repository_id || 0
+        if (!this.conversationId) throw new Error('no conversation id')
+        this._connect()
+        this.loadSessions()          // surface the new chat in the sidebar
+        this.loadAllSessions(true)   // force-refresh the global recent-chats list + search
+        return this.conversationId
+      } catch {
+        this.error = 'Failed to start chat.'
+        return null
+      }
+    },
+
     async sendMessage(text) {
       const content = (text || '').trim()
       const atts = this.pendingAttachments.slice()
@@ -275,26 +305,11 @@ export const useChatStore = defineStore('chat', {
         return
       }
 
-      // Start a conversation on the first message.
+      // Start a conversation on the first message (or reuse one already created — e.g. by
+      // ensureConversation() when the user added a link before typing).
       if (!this.conversationId) {
-        if (!this.selectedAgentId) {
-          this.error = 'Select an agent to start chatting.'
-          notify.warning('Select an agent to start chatting.')
-          return
-        }
-        try {
-          const res = await api.startAgentChat(this.selectedAgentId)
-          const d = res.data || {}
-          this.conversationId = String(d.conversation_id ?? d.profile_id ?? '')
-          this.repoId = d.repository_id || 0
-          if (!this.conversationId) throw new Error('no conversation id')
-          this._connect()
-          this.loadSessions() // surface the new chat in the sidebar
-          this.loadAllSessions(true) // force-refresh the global recent-chats list + search
-        } catch {
-          this.error = 'Failed to start chat.'
-          return
-        }
+        const cid = await this.ensureConversation()
+        if (!cid) return
       } else if (!this._conn) {
         this._connect()
       }
@@ -308,16 +323,44 @@ export const useChatStore = defineStore('chat', {
       this._beginAssistant()
 
       // Upload attachments to the conversation BEFORE sending the text — the backend auto-attaches
-      // recent images (within one message) to the vision model, so they must exist first.
+      // recent images (within one message) to the vision model, so they must exist first. Non-image
+      // documents become conversation-scoped RAG sources (MarkItDown): converted once, then searchable.
       if (atts.length) {
-        try {
-          for (const a of atts) await api.uploadConversationFile(this.conversationId, a.file)
-        } catch {
-          this.error = 'Failed to upload an attachment.'
+        let docQueued = false
+        for (const a of atts) {
+          try {
+            const res = await api.uploadConversationFile(this.conversationId, a.file)
+            const fileId = res?.data?.id
+            if (!a.isImage && fileId != null) {
+              docQueued = true
+              this._pollAttachmentIngest(fileId, a.name)  // fire-and-forget status watcher
+            }
+          } catch {
+            this.error = 'Failed to upload an attachment.'
+          }
+        }
+        if (docQueued) {
+          notify.info('Document attached — converting & indexing it now. It becomes searchable in a few seconds.')
         }
       }
 
       this._conn?.sendMessage(content, this.selectedAgentId)
+    },
+
+    // Watch a just-uploaded document attachment through the MarkItDown pipeline and surface terminal
+    // state to the user. The chat answer already handles the not-ready case server-side.
+    async _pollAttachmentIngest(fileId, name) {
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 2000))
+        let d
+        try { d = (await api.getAgentFileStatus(fileId)).data } catch { continue }
+        const st = d?.index_status
+        if (st === 'ready') { notify.success(`Document ready: ${name || 'file'} — you can ask about it now.`); return }
+        if (st === 'failed') {
+          notify.error(`Could not process ${name || 'document'}${d?.error_code ? ` (${d.error_code})` : ''}.`)
+          return
+        }
+      }
     },
 
     stop() {

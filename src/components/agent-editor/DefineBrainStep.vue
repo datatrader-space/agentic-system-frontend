@@ -45,17 +45,33 @@
                 <p class="text-xs font-semibold text-[#344054]">Capability models <span class="font-normal text-[#98A2B3]">- optional</span></p>
                 <p class="mb-2.5 text-[11px] leading-snug text-[#667085]">Use a specialized model for tasks the main model can't do. Leave on Auto to use the main model.</p>
                 <div class="space-y-3">
-                  <div v-for="c in CAPS" :key="c.field">
+                  <div v-for="c in CAPS" :key="c.field" :data-test="`cap-${c.field}`">
                     <div class="mb-1 flex items-center justify-between">
                       <label class="text-[11.5px] font-medium text-[#475569]">{{ c.label }}</label>
                       <button v-if="agent[c.field]" type="button" class="text-[11px] font-semibold text-[#2563EB]" @click="agent[c.field] = null">Reset to Auto</button>
                     </div>
+                    <p v-if="c.hint" class="mb-1 text-[10.5px] leading-snug text-[#98A2B3]">{{ c.hint }}</p>
                     <ModelPicker
                       :model-value="agent[c.field]"
                       :models="filteredModels"
                       placeholder="Auto (use main model)"
                       @update:model-value="agent[c.field] = $event"
                     />
+                  </div>
+
+                  <!-- YouTube transcript provider — a behaviour setting, not a model picker -->
+                  <div data-test="cap-youtube_transcript_provider">
+                    <label class="mb-1 block text-[11.5px] font-medium text-[#475569]">YouTube transcript provider</label>
+                    <p class="mb-1 text-[10.5px] leading-snug text-[#98A2B3]">How uploaded YouTube URLs are indexed. Captions first; audio fallback downloads audio and transcribes with your Audio transcription model (heavier, opt-in).</p>
+                    <select
+                      :value="agent.youtube_transcript_provider || 'auto'"
+                      @change="agent.youtube_transcript_provider = $event.target.value"
+                      class="w-full rounded-lg border border-[#E2E8F0] px-2.5 py-2 text-[12.5px]"
+                    >
+                      <option value="auto">Auto (captions only)</option>
+                      <option value="disabled">Disabled</option>
+                      <option value="audio_fallback">Audio fallback (download + transcribe)</option>
+                    </select>
                   </div>
                 </div>
               </div>
@@ -408,11 +424,16 @@ const selectedProvider = ref(null)
 
 const CAPS = [
   { field: 'image_model', label: 'Image generation' },
-  { field: 'vision_model', label: 'Image input (vision)' },
-  { field: 'audio_model', label: 'Audio generation' },
+  { field: 'vision_model', label: 'Image input (vision)', hint: 'Also powers image OCR / scanned-document vision for document ingestion.' },
+  // Audio TRANSCRIPTION (speech-to-text) — distinct from Audio generation (text-to-speech) below.
+  { field: 'audio_transcription_model', label: 'Audio transcription', hint: 'Used to convert uploaded audio/video speech into text for document indexing. Not the same as Audio generation.' },
+  { field: 'audio_model', label: 'Audio generation', hint: 'Text-to-speech output. Not used for transcribing uploaded audio.' },
   { field: 'video_model', label: 'Video generation' },
 ]
-const capCount = computed(() => CAPS.filter(c => props.agent[c.field]).length)
+// youtube_transcript_provider is a select (not a model), so it isn't in CAPS but counts as configured when non-default.
+const capCount = computed(() =>
+  CAPS.filter(c => props.agent[c.field]).length
+  + ((props.agent.youtube_transcript_provider && props.agent.youtube_transcript_provider !== 'auto') ? 1 : 0))
 
 const modelProvider = (m) => m.provider ?? m.provider_id ?? (m.provider && m.provider.id) ?? null
 const filteredModels = computed(() =>

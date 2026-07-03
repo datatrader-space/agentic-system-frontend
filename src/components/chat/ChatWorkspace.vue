@@ -97,12 +97,14 @@
 
     <!-- Composer (thread mode; welcome screen has its own) -->
     <div v-if="!chat.isEmpty" class="chat-footer">
-      <!-- agent-id comes from selectedAgentId (always set once a conversation loads), NOT
-           currentAgent — the latter only resolves if the agent is in the workspace-scoped
-           agents list, so it would hide the mode picker for cross-workspace/unloaded agents.
-           AgentModePicker re-fetches the agent's mode itself on mount, so the id is enough. -->
+      <!-- URL/YouTube import lives in the composer "+" menu (conversation-scoped DocumentSource →
+           MarkItDown pipeline). Explicit action only; we never auto-ingest URLs typed in a message.
+           agent-id comes from selectedAgentId (always set once a conversation loads), NOT
+           currentAgent — the latter only resolves if the agent is in the workspace-scoped agents
+           list, so it would hide the mode picker for cross-workspace/unloaded agents. -->
       <ChatComposer :streaming="chat.isStreaming" :attachments="chat.pendingAttachments"
         :agent-id="chat.selectedAgentId"
+        :conversation-id="chat.conversationId"
         :execution-mode="chat.currentAgent && chat.currentAgent.execution_mode"
         :plan-mode="chat.currentAgent && chat.currentAgent.plan_mode_enabled"
         @send="onSend" @stop="chat.stop()" @mode-change="onModeChange"

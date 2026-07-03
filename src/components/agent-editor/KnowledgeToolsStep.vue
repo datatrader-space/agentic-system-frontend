@@ -362,6 +362,10 @@
               <button class="icon-x" @click="removeUrl(w)"><X :size="14" :stroke-width="2" /></button>
             </div>
           </div>
+          <div class="border-t border-[#F1F5F9] px-6 py-4">
+            <!-- Approved URL / YouTube document ingestion (unified MarkItDown pipeline). -->
+            <AddDocumentUrl :agent-id="agentId" scope="agent_knowledge" @added="loadFiles" />
+          </div>
           <footer class="flex items-center justify-end gap-3 border-t border-[#F1F5F9] px-6 py-4">
             <button class="add-btn" @click="openAddWebsite"><Plus :size="13" :stroke-width="2" /> Add website</button>
             <button class="modal-secondary" @click="urlsModalOpen = false">Close</button>
@@ -463,6 +467,7 @@ import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { ago } from '../dashboard/time'
 import AddWebsiteSourceModal from '../knowledge/AddWebsiteSourceModal.vue'
+import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import WebSourcePagesModal from '../knowledge/WebSourcePagesModal.vue'
 import IntegrationHubModal from '../connectors/IntegrationHubModal.vue'
 import ToolIcon from '../knowledge/ToolIcon.js'
@@ -502,7 +507,9 @@ function fmtCost(v) {
 const files = ref([])
 const uploading = ref(false)
 const indexProgress = ref({})   // { [docId]: { stage, percent, message, chunkCount } }
-const STAGE_LABELS = { queued: 'Queued…', pending: 'Preparing…', reading: 'Reading document…', chunking: 'Splitting into chunks…', embedding: 'Generating embeddings…' }
+// Unified MarkItDown pipeline statuses (DocumentSource.conversion_status): queued → converting →
+// chunking → embedding → ready | failed. 'reading' kept for backward-compat with older events.
+const STAGE_LABELS = { queued: 'Queued…', pending: 'Preparing…', converting: 'Converting document…', reading: 'Converting document…', chunking: 'Splitting into chunks…', embedding: 'Generating embeddings…' }
 async function loadFiles() {
   try { const r = await api.get('/context_files/', { params: { agent_id: agentId.value } }); files.value = Array.isArray(r.data) ? r.data : (r.data?.results || []) } catch (e) { files.value = [] }
   // Resume the status poll for anything still indexing (e.g. the page was reloaded mid-index), so the

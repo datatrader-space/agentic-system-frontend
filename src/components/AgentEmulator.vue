@@ -127,8 +127,10 @@
           </div>
           <div class="flex items-start gap-1.5">
             <input
+              ref="emuInputEl"
               v-model="input"
               @keydown.enter="send"
+              @paste="onPaste"
               @focus="inputFocused = true"
               @blur="inputFocused = false"
               :disabled="busy"
@@ -144,11 +146,51 @@
           </div>
           <div class="flex items-center justify-between gap-2 mt-1.5">
             <div class="flex items-center gap-1.5">
-              <input ref="emuFileEl" type="file" accept="image/*" multiple class="hidden" @change="onEmuFiles" />
-              <button type="button" @click="emuFileEl?.click()" title="Attach image"
-                      class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-violet-600 hover:bg-violet-50 transition">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="w-4 h-4"><path d="M12 5v14m-7-7h14"/></svg>
-              </button>
+              <!-- Accept everything: images (native vision) + documents/PDF/sheets/audio (MarkItDown RAG). -->
+              <input ref="emuFileEl" type="file" multiple class="hidden" @change="onEmuFiles" />
+              <!-- ChatGPT-style "+" menu: add files, or ask about a link / YouTube. -->
+              <div class="relative">
+                <button type="button" @click.stop="plusOpen = !plusOpen" title="Add photos & files"
+                        aria-haspopup="menu" :aria-expanded="plusOpen ? 'true' : 'false'" aria-label="Add attachment"
+                        data-test="emu-plus"
+                        class="w-7 h-7 flex items-center justify-center rounded-lg transition"
+                        :class="plusOpen ? 'text-violet-600 bg-violet-50' : 'text-gray-400 hover:text-violet-600 hover:bg-violet-50'">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                       class="w-4 h-4 transition-transform" :class="plusOpen ? 'rotate-45' : ''"><path d="M12 5v14m-7-7h14"/></svg>
+                </button>
+                <!-- options card -->
+                <div v-if="plusOpen" data-test="emu-plus-menu" @click.stop
+                     class="absolute bottom-full left-0 mb-2 z-50 w-72 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5">
+                  <button type="button" data-test="emu-plus-files" @click="pickFiles"
+                          class="w-full flex items-start gap-2.5 p-2 rounded-lg text-left hover:bg-slate-50 transition">
+                    <span class="grid place-items-center w-8 h-8 rounded-lg bg-violet-50 text-violet-600 shrink-0">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                    <span class="min-w-0">
+                      <span class="block text-[12.5px] font-semibold text-gray-900">Add photos &amp; files</span>
+                      <span class="block text-[11px] text-gray-400 leading-snug">Upload documents, images, PDFs, spreadsheets, audio, and more.</span>
+                    </span>
+                  </button>
+                  <button type="button" data-test="emu-plus-link" @click="openUrl" :disabled="!agentId || urlBusy"
+                          :title="agentId ? '' : 'Save the agent first'"
+                          class="w-full flex items-start gap-2.5 p-2 rounded-lg text-left hover:bg-slate-50 transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+                    <span class="grid place-items-center w-8 h-8 rounded-lg bg-violet-50 text-violet-600 shrink-0">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                    <span class="min-w-0">
+                      <span class="block text-[12.5px] font-semibold text-gray-900">Ask about a link or YouTube</span>
+                      <span class="block text-[11px] text-gray-400 leading-snug">{{ urlBusy ? 'Starting chat…' : 'Paste a webpage or YouTube video link.' }}</span>
+                    </span>
+                  </button>
+                </div>
+                <!-- URL/YouTube importer (conversation-scoped DocumentSource → MarkItDown pipeline) -->
+                <div v-if="urlOpen" data-test="emu-url-panel" @click.stop
+                     class="absolute bottom-full left-0 mb-2 z-50 w-80 bg-white border border-gray-200 rounded-xl shadow-lg p-3">
+                  <AddDocumentUrl :conversation-id="conversationId" scope="conversation" @added="onEmuUrlAdded" />
+                </div>
+                <!-- click-away overlay -->
+                <div v-if="plusOpen || urlOpen" class="fixed inset-0 z-40" @click="plusOpen = false; urlOpen = false"></div>
+              </div>
               <AgentModePicker v-if="agentId" :agent-id="agentId" placement="up" />
             </div>
             <button v-if="busy" @click="stop" title="Stop"
@@ -196,7 +238,9 @@ import SourcesList from './chat/SourcesList.vue'
 import ProvenanceFooter from './chat/ProvenanceFooter.vue'
 import HITLModal from './HITLModal.vue'
 import AgentModePicker from './agent/AgentModePicker.vue'
+import AddDocumentUrl from './knowledge/AddDocumentUrl.vue'
 import PlanApprovalCard from './agent/PlanApprovalCard.vue'
+import { notify } from '@/composables/useNotify'
 import { useHitl } from '../composables/useHitl'
 import { useAgentTimeline } from '../composables/useAgentTimeline'
 import api from '../services/api'
@@ -231,17 +275,108 @@ const copied = ref(false)
 // Voice input (mic) — appends the transcript to whatever's typed. Hidden when unsupported.
 const speech = useSpeech({ onResult: (text) => { input.value = input.value ? `${input.value} ${text}` : text } })
 
-// ── Attachments (images) staged for the next message ──
+// Long pasted text becomes a .txt attachment instead of a giant inline blob (matches New Chat).
+const LONG_PASTE_CHAR_LIMIT = 8000
+const LONG_PASTE_LINE_LIMIT = 150
+
+// ── Attachments (images + documents) staged for the next message ──
 const emuFileEl = ref(null)
+const emuInputEl = ref(null)
 const emuAttachments = ref([])   // { file, name, isImage, url }
-function onEmuFiles(e) {
-  const files = e.target.files
+function stageEmuFiles(files) {
   for (const file of Array.from(files || [])) {
     if (!file) continue
     const isImage = /^image\//.test(file.type)
     emuAttachments.value.push({ file, name: file.name, isImage, url: isImage ? URL.createObjectURL(file) : '' })
   }
+}
+function onEmuFiles(e) {
+  stageEmuFiles(e.target.files)
   e.target.value = ''
+}
+
+// ── "+" menu (files / ask-about-link) ──
+const plusOpen = ref(false)
+const urlOpen = ref(false)
+const urlBusy = ref(false)
+function pickFiles() { plusOpen.value = false; emuFileEl.value?.click() }
+// Ask-about-a-link before the first message: pre-create the emulator's conversation via REST so the URL
+// can become a conversation-scoped DocumentSource, then point the live socket at it (ChatGPT-style —
+// the test chat starts the moment you attach). The WS reuses this conversation_id on the next turn.
+async function openUrl() {
+  if (!props.agentId || urlBusy.value) return
+  if (!conversationId.value) {
+    urlBusy.value = true
+    try {
+      const res = await api.startAgentChat(props.agentId)
+      const d = res.data || {}
+      conversationId.value = String(d.conversation_id ?? d.profile_id ?? '')
+      if (conversationId.value) {
+        saveConv()   // remember it so a refresh restores this thread
+        if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+          try { ws.value.send(JSON.stringify({ type: 'resume', conversation_id: conversationId.value })) } catch { /* noop */ }
+        }
+      }
+    } catch {
+      error.value = 'Failed to start chat.'
+    }
+    urlBusy.value = false
+    if (!conversationId.value) return
+  }
+  plusOpen.value = false
+  urlOpen.value = true
+}
+function onEmuUrlAdded() { /* keep the panel open so the status badge stays visible */ }
+
+// ── Paste: clipboard image → attach; long text → .txt; else normal ──
+function emuStamp() {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
+function clipboardImages(cd) {
+  const out = []
+  for (const item of Array.from(cd.items || [])) {
+    if (item.kind === 'file' && /^image\//.test(item.type || '')) {
+      const f = item.getAsFile()
+      if (!f) continue
+      const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+      out.push(new File([f], `pasted-image-${emuStamp()}.${ext}`, { type: f.type || 'image/png' }))
+    }
+  }
+  return out
+}
+function isLongPaste(text) {
+  return text.length > LONG_PASTE_CHAR_LIMIT || text.split('\n').length > LONG_PASTE_LINE_LIMIT
+}
+function attachLongText(text) {
+  stageEmuFiles([new File([text], `pasted-text-${emuStamp()}.txt`, { type: 'text/plain' })])
+  notify.info('Long pasted text was attached as a text file.')
+}
+function insertAtCursor(text) {
+  const el = emuInputEl.value
+  if (!el) { input.value += text; return }
+  const start = el.selectionStart ?? input.value.length
+  const end = el.selectionEnd ?? input.value.length
+  input.value = input.value.slice(0, start) + text + input.value.slice(end)
+  nextTick(() => { try { el.selectionStart = el.selectionEnd = start + text.length } catch { /* ignore */ } })
+}
+function onPaste(e) {
+  if (busy.value) return
+  const cd = e.clipboardData || window.clipboardData
+  if (!cd) return
+  let images = []
+  try { images = clipboardImages(cd) } catch { images = [] }
+  const text = (() => { try { return cd.getData('text/plain') || '' } catch { return '' } })()
+  const long = text && isLongPaste(text)
+  if (images.length) {
+    e.preventDefault()
+    stageEmuFiles(images)
+    if (long) attachLongText(text)
+    else if (text) insertAtCursor(text)
+    return
+  }
+  if (long) { e.preventDefault(); attachLongText(text) }
 }
 function removeEmuAttachment(i) {
   const a = emuAttachments.value[i]
@@ -812,9 +947,16 @@ function onAgentIdChanged() {
   }, 300)
 }
 
+// Escape closes the "+" menu / URL panel (click-away is handled by the overlay).
+function onEmuKey(e) { if (e.key === 'Escape' && (plusOpen.value || urlOpen.value)) { plusOpen.value = false; urlOpen.value = false } }
+
 watch(() => props.agentId, onAgentIdChanged)
-onMounted(() => { restore() })
-onBeforeUnmount(() => { if (agentIdDebounce) clearTimeout(agentIdDebounce); closeSocket() })
+onMounted(() => { restore(); document.addEventListener('keydown', onEmuKey) })
+onBeforeUnmount(() => {
+  if (agentIdDebounce) clearTimeout(agentIdDebounce)
+  document.removeEventListener('keydown', onEmuKey)
+  closeSocket()
+})
 </script>
 
 <style scoped>

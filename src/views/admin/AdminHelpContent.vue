@@ -7,6 +7,14 @@
           embedded sections. Use <strong>Generate KB embeddings</strong> to index any content that isn't embedded yet.</p>
       </div>
       <div class="hc-head-actions">
+        <!-- Import a document → MarkItDown converts it → a DRAFT article you edit, then Generate KB. -->
+        <input ref="importInput" type="file" class="hidden" style="display:none"
+               accept=".pdf,.docx,.doc,.pptx,.xlsx,.txt,.md,.csv,.html,.epub"
+               @change="onImportFile" />
+        <button class="btn ghost" :disabled="importing" @click="importInput?.click()" data-test="hc-import-btn">
+          <Icon :icon="importing ? 'lucide:loader-2' : 'lucide:file-up'" :class="{ spin: importing }" />
+          {{ importing ? 'Importing…' : 'Import document' }}
+        </button>
         <button class="btn ghost" :disabled="embedding" @click="generateEmbeddings" :title="embedPhase">
           <Icon :icon="embedding ? 'lucide:loader-2' : 'lucide:sparkles'" :class="{ spin: embedding }" />
           {{ embedding ? (embedPhase || 'Indexing…') : 'Generate KB embeddings' }}
@@ -193,6 +201,37 @@ const showPreview = ref(false)
 const form = reactive({})
 const tagsText = ref('')
 const keywordsText = ref('')
+
+// ── Import document → draft article (MarkItDown) ────────────────────────────
+const importing = ref(false)
+const importInput = ref(null)
+async function onImportFile(e) {
+  const file = e.target.files && e.target.files[0]
+  if (e.target) e.target.value = ''
+  if (!file) return
+  importing.value = true
+  try {
+    const { data } = await api.adminImportHelpDocument(file)
+    const sid = data.source_id
+    notify('Converting document…', 'info')
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 2000))
+      let s
+      try { s = (await api.getDocumentSource(sid)).data } catch { continue }
+      if (s.status === 'ready') {
+        notify('Draft article created — review the metadata, publish, then Generate KB.', 'success')
+        await load()
+        return
+      }
+      if (s.status === 'failed') { notify(`Import failed${s.error_code ? ` (${s.error_code})` : ''}`, 'error'); return }
+    }
+    notify('Still converting — your draft will appear shortly.', 'info')
+  } catch (err) {
+    notify(err?.response?.data?.error || 'Import failed', 'error')
+  } finally {
+    importing.value = false
+  }
+}
 
 const confirmRow = ref(null)
 const embedding = ref(false)

@@ -50,7 +50,8 @@
             <button type="button" class="attach-x" title="Remove" @click="chat.removeAttachment(i)">×</button>
           </div>
         </div>
-        <input ref="fileEl" type="file" accept="image/*" multiple class="file-hidden" @change="onFiles" />
+        <!-- Accept everything: images (native vision) + documents/PDF/sheets/audio (MarkItDown RAG). -->
+        <input ref="fileEl" type="file" multiple class="file-hidden" @change="onFiles" />
         <div class="composer-top">
           <textarea
             ref="inputEl"
@@ -62,6 +63,7 @@
             :placeholder="chat.needsAgent ? 'Create an agent to start chatting…' : 'Message your agent…'"
             @input="autoGrow"
             @keydown="onKeydown"
+            @paste="onPaste"
           ></textarea>
           <button v-if="speech.supported" type="button" class="composer-mic" :class="{ live: speech.listening.value }"
                   :title="speech.listening.value ? 'Stop dictation' : 'Voice input'" @click="speech.toggle()">
@@ -71,9 +73,40 @@
         <!-- Bottom toolbar: + attach + mode pill (left), send (right) -->
         <div class="composer-actions">
           <div class="composer-bar-left" data-tour="chat-controls">
-            <button type="button" class="composer-attach" title="Attach image" @click="fileEl?.click()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m-7-7h14" stroke-linecap="round" /></svg>
-            </button>
+            <!-- ChatGPT-style "+" menu: add files, or (once the chat exists) ask about a link. -->
+            <div ref="plusRootEl" class="plus-wrap">
+              <button type="button" class="composer-attach" :class="{ active: menuOpen }" title="Add photos & files"
+                      aria-haspopup="menu" :aria-expanded="menuOpen ? 'true' : 'false'" aria-label="Add attachment"
+                      data-test="welcome-plus" @click.stop="toggleMenu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m-7-7h14" stroke-linecap="round" /></svg>
+              </button>
+              <div v-if="menuOpen" class="plus-menu" role="menu" data-test="welcome-plus-menu" @click.stop>
+                <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-files" @click="pickFiles">
+                  <span class="plus-ic">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                  <span class="plus-txt">
+                    <strong>Add photos &amp; files</strong>
+                    <small>Upload documents, images, PDFs, spreadsheets, audio, and more.</small>
+                  </span>
+                </button>
+                <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-link"
+                        :disabled="chat.needsAgent || urlBusy" @click="openUrl">
+                  <span class="plus-ic">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </span>
+                  <span class="plus-txt">
+                    <strong>Ask about a link or YouTube</strong>
+                    <small>{{ urlBusy ? 'Starting chat…' : 'Paste a webpage or YouTube video link.' }}</small>
+                  </span>
+                </button>
+              </div>
+              <!-- URL/YouTube importer — starts the chat on demand so a conversation-scoped source can
+                   be created even from the brand-new screen (ChatGPT-style). -->
+              <div v-if="urlOpen" class="plus-url" data-test="welcome-url-panel" @click.stop>
+                <AddDocumentUrl :conversation-id="chat.conversationId" scope="conversation" @added="() => {}" />
+              </div>
+            </div>
             <!-- searchable agent picker (autocomplete, ~5 visible) -->
             <AgentSelect :agents="chat.agents" :selected-id="chat.selectedAgentId" @select="onSelectAgent" />
             <AgentModePicker v-if="chat.currentAgent"
@@ -93,13 +126,19 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '../../stores/useChatStore'
 import api from '../../services/api'
 import AgentModePicker from '../agent/AgentModePicker.vue'
 import AgentSelect from './AgentSelect.vue'
+import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import { useSpeech } from '../../composables/useSpeech'
+import { notify } from '../../composables/useNotify'
+
+// Long pasted text becomes a .txt attachment instead of a giant inline blob (matches ChatComposer).
+const LONG_PASTE_CHAR_LIMIT = 8000
+const LONG_PASTE_LINE_LIMIT = 150
 
 const emit = defineEmits(['submit'])
 const chat = useChatStore()
@@ -144,6 +183,97 @@ const onFiles = (e) => {
   const files = e.target.files
   if (files && files.length) chat.addAttachments(files)
   e.target.value = ''
+}
+
+// ── "+" menu (toggle · outside-click · Escape) ──
+const menuOpen = ref(false)
+const urlOpen = ref(false)
+const urlBusy = ref(false)
+const plusRootEl = ref(null)
+const closeMenu = () => { menuOpen.value = false; urlOpen.value = false }
+const toggleMenu = () => {
+  if (menuOpen.value || urlOpen.value) { closeMenu(); return }
+  menuOpen.value = true
+}
+const pickFiles = () => { menuOpen.value = false; fileEl.value?.click() }
+// Ask-about-a-link on a brand-new chat: quietly start the conversation first so the URL can become a
+// conversation-scoped DocumentSource (ChatGPT-style — the chat starts the moment you attach).
+const openUrl = async () => {
+  if (chat.needsAgent || urlBusy.value) return
+  if (!chat.conversationId) {
+    urlBusy.value = true
+    const cid = await chat.ensureConversation()
+    urlBusy.value = false
+    if (!cid) return
+  }
+  menuOpen.value = false
+  urlOpen.value = true
+}
+const onDocClick = (e) => {
+  if (!menuOpen.value && !urlOpen.value) return
+  if (plusRootEl.value && !plusRootEl.value.contains(e.target)) closeMenu()
+}
+const onDocKey = (e) => { if (e.key === 'Escape' && (menuOpen.value || urlOpen.value)) closeMenu() }
+onMounted(() => {
+  document.addEventListener('click', onDocClick)
+  document.addEventListener('keydown', onDocKey)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick)
+  document.removeEventListener('keydown', onDocKey)
+})
+
+// ── Paste handling (clipboard image → attach; long text → .txt; else normal) ──
+const stamp = () => {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
+const clipboardImages = (cd) => {
+  const out = []
+  for (const item of Array.from(cd.items || [])) {
+    if (item.kind === 'file' && /^image\//.test(item.type || '')) {
+      const f = item.getAsFile()
+      if (!f) continue
+      const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+      out.push(new File([f], `pasted-image-${stamp()}.${ext}`, { type: f.type || 'image/png' }))
+    }
+  }
+  return out
+}
+const insertTextAtCursor = (text) => {
+  const el = inputEl.value
+  if (!el) { draft.value += text; return }
+  const start = el.selectionStart ?? draft.value.length
+  const end = el.selectionEnd ?? draft.value.length
+  draft.value = draft.value.slice(0, start) + text + draft.value.slice(end)
+  resizeSoon()
+}
+const attachLongText = (text) => {
+  chat.addAttachments([new File([text], `pasted-text-${stamp()}.txt`, { type: 'text/plain' })])
+  notify.info('Long pasted text was attached as a text file.')
+}
+const isLongText = (text) =>
+  text.length > LONG_PASTE_CHAR_LIMIT || text.split('\n').length > LONG_PASTE_LINE_LIMIT
+const onPaste = (e) => {
+  if (chat.needsAgent) return   // composer is disabled until an agent exists
+  const cd = e.clipboardData || window.clipboardData
+  if (!cd) return
+  let images = []
+  try { images = clipboardImages(cd) } catch { images = [] }
+  const text = (() => { try { return cd.getData('text/plain') || '' } catch { return '' } })()
+  const longText = text && isLongText(text)
+  if (images.length) {
+    e.preventDefault()
+    chat.addAttachments(images)
+    if (longText) attachLongText(text)
+    else if (text) insertTextAtCursor(text)
+    return
+  }
+  if (longText) {
+    e.preventDefault()
+    attachLongText(text)
+  }
 }
 
 onMounted(async () => {
@@ -361,7 +491,60 @@ const submit = () => {
   border: none; border-radius: 9px; background: transparent; color: #94a3b8; cursor: pointer;
 }
 .composer-attach:hover { color: var(--vm-violet); background: var(--vm-violet-soft); }
-.composer-attach svg { width: 18px; height: 18px; }
+.composer-attach.active { color: var(--vm-violet); background: var(--vm-violet-soft); }
+.composer-attach.active svg { transform: rotate(45deg); }
+.composer-attach svg { width: 18px; height: 18px; transition: transform .15s var(--vm-ease); }
+
+/* "+" menu */
+.plus-wrap { position: relative; }
+.plus-menu {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: 320px;
+  max-width: min(320px, calc(100vw - 40px));
+  padding: 6px;
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-line);
+  border-radius: 14px;
+  box-shadow: var(--vm-shadow-l, 0 20px 48px rgba(15, 23, 42, .18));
+  z-index: 40;
+  animation: plus-in .12s var(--vm-ease);
+}
+@keyframes plus-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.plus-item {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%;
+  padding: 9px 10px; border: none; border-radius: 10px;
+  background: transparent; text-align: left; cursor: pointer;
+  transition: background .13s var(--vm-ease);
+}
+.plus-item:hover:not(:disabled) { background: var(--vm-bg); }
+.plus-item:disabled { opacity: .5; cursor: not-allowed; }
+.plus-ic {
+  display: grid; place-items: center; flex-shrink: 0;
+  width: 34px; height: 34px; border-radius: 9px;
+  background: var(--vm-violet-soft); color: var(--vm-violet);
+}
+.plus-ic svg { width: 18px; height: 18px; }
+.plus-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.plus-txt strong { font-size: 0.8125rem; font-weight: 650; color: var(--vm-ink); }
+.plus-txt small { font-size: 0.6875rem; line-height: 1.35; color: var(--vm-ink-faint); }
+.plus-url {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: 360px;
+  max-width: min(360px, calc(100vw - 40px));
+  padding: 12px;
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-line);
+  border-radius: 14px;
+  box-shadow: var(--vm-shadow-l, 0 20px 48px rgba(15, 23, 42, .18));
+  z-index: 40;
+  animation: plus-in .12s var(--vm-ease);
+}
+@media (max-width: 560px) { .plus-menu, .plus-url { width: calc(100vw - 40px); } }
+
 .file-hidden { display: none; }
 .attach-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .attach-chip {

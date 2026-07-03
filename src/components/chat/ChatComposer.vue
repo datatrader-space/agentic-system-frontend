@@ -1,5 +1,5 @@
 <template>
-  <div class="composer-shell">
+  <div ref="rootEl" class="composer-shell">
     <!-- Staged attachments (images/files) to send with the next message -->
     <div v-if="attachments.length" class="attach-strip">
       <div v-for="(a, i) in attachments" :key="i" class="attach-chip">
@@ -12,7 +12,8 @@
 
     <!-- Single unified container: text area on top, action toolbar on the bottom. -->
     <form class="composer" :class="{ focused }" @submit.prevent="onSubmit">
-      <input ref="fileEl" type="file" accept="image/*" multiple class="file-hidden" @change="onFiles" />
+      <!-- Accept everything: images (native vision) + documents/PDF/sheets/audio (MarkItDown RAG). -->
+      <input ref="fileEl" type="file" multiple class="file-hidden" @change="onFiles" />
 
       <div class="composer-top">
         <textarea
@@ -24,6 +25,7 @@
           aria-label="Message your agent"
           @input="autoGrow"
           @keydown="onKeydown"
+          @paste="onPaste"
           @focus="focused = true"
           @blur="focused = false"
         ></textarea>
@@ -35,12 +37,47 @@
         </button>
       </div>
 
-      <!-- Bottom toolbar: attach + mode pill (left), send/stop (right) -->
+      <!-- Bottom toolbar: "+" attach menu + mode pill (left), send/stop (right) -->
       <div class="composer-bar">
         <div class="bar-left">
-          <button type="button" class="ghost-btn" title="Attach image" aria-label="Attach image" @click="fileEl?.click()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14m-7-7h14" stroke-linecap="round"/></svg>
-          </button>
+          <!-- ChatGPT-style "+" menu: add files, or ask about a link / YouTube. -->
+          <div class="plus-wrap">
+            <button type="button" class="ghost-btn" :class="{ active: menuOpen }" title="Add photos & files"
+                    aria-haspopup="menu" :aria-expanded="menuOpen ? 'true' : 'false'" aria-label="Add attachment"
+                    data-test="composer-plus" @click.stop="toggleMenu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14m-7-7h14" stroke-linecap="round"/></svg>
+            </button>
+
+            <!-- Floating options card (opens above the composer) -->
+            <div v-if="menuOpen" class="plus-menu" role="menu" data-test="composer-plus-menu" @click.stop>
+              <button type="button" class="plus-item" role="menuitem" data-test="plus-add-files" @click="pickFiles">
+                <span class="plus-ic">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <span class="plus-txt">
+                  <strong>Add photos &amp; files</strong>
+                  <small>Upload documents, images, PDFs, spreadsheets, audio, and more.</small>
+                </span>
+              </button>
+              <button type="button" class="plus-item" role="menuitem" data-test="plus-add-link"
+                      :disabled="!conversationId" :title="conversationId ? '' : 'Send a message first to start the chat'"
+                      @click="openUrl">
+                <span class="plus-ic">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+                <span class="plus-txt">
+                  <strong>Ask about a link or YouTube</strong>
+                  <small>Paste a webpage or YouTube video link.</small>
+                </span>
+              </button>
+            </div>
+
+            <!-- URL/YouTube importer (conversation-scoped DocumentSource → MarkItDown pipeline). -->
+            <div v-if="urlOpen" class="plus-url" data-test="composer-url-panel" @click.stop>
+              <AddDocumentUrl :conversation-id="conversationId" scope="conversation" @added="onUrlAdded" />
+            </div>
+          </div>
+
           <AgentModePicker v-if="agentId" :agent-id="agentId" :execution-mode="executionMode"
                            :plan-mode="planMode" placement="up" @change="$emit('mode-change', $event)" />
         </div>
@@ -60,9 +97,17 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import AgentModePicker from '../agent/AgentModePicker.vue'
+import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import { useSpeech } from '../../composables/useSpeech'
+import { notify } from '../../composables/useNotify'
+
+// Long pasted text becomes a .txt attachment instead of a giant inline blob (which would bloat the
+// prompt and can't be retrieved/cited). Threshold is intentionally generous — normal messages,
+// short snippets, and small code blocks paste normally.
+const LONG_PASTE_CHAR_LIMIT = 8000
+const LONG_PASTE_LINE_LIMIT = 150
 
 const props = defineProps({
   streaming: { type: Boolean, default: false },
@@ -72,13 +117,18 @@ const props = defineProps({
   agentId: { type: [Number, String], default: null },
   executionMode: { type: String, default: 'manual' },
   planMode: { type: Boolean, default: false },
+  // Conversation id — required to attach a URL/YouTube link (conversation-scoped DocumentSource).
+  conversationId: { type: [Number, String], default: null },
 })
 const emit = defineEmits(['send', 'stop', 'attach', 'remove-attach', 'mode-change'])
 
 const draft = ref('')
 const inputEl = ref(null)
 const fileEl = ref(null)
+const rootEl = ref(null)
 const focused = ref(false)
+const menuOpen = ref(false)
+const urlOpen = ref(false)
 
 // Voice input appends the transcript to whatever's already typed.
 const speech = useSpeech({
@@ -88,10 +138,110 @@ const speech = useSpeech({
   },
 })
 
+// ── "+" menu open/close (toggle · outside-click · Escape) ──
+const closeMenu = () => { menuOpen.value = false; urlOpen.value = false }
+const toggleMenu = () => {
+  if (menuOpen.value || urlOpen.value) { closeMenu(); return }
+  menuOpen.value = true
+}
+const pickFiles = () => { menuOpen.value = false; fileEl.value?.click() }
+const openUrl = () => {
+  if (!props.conversationId) return
+  menuOpen.value = false
+  urlOpen.value = true
+}
+const onUrlAdded = () => { /* keep the panel open so the user still sees the status badge */ }
+
+const onDocClick = (e) => {
+  if (!menuOpen.value && !urlOpen.value) return
+  if (rootEl.value && !rootEl.value.contains(e.target)) closeMenu()
+}
+const onDocKey = (e) => { if (e.key === 'Escape' && (menuOpen.value || urlOpen.value)) closeMenu() }
+onMounted(() => {
+  document.addEventListener('click', onDocClick)
+  document.addEventListener('keydown', onDocKey)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick)
+  document.removeEventListener('keydown', onDocKey)
+})
+
 const onFiles = (e) => {
   const files = e.target.files
   if (files && files.length) emit('attach', files)
   e.target.value = '' // allow re-selecting the same file
+}
+
+// ── Paste handling ──
+// Priority: clipboard image → attach as image file (native vision path, no base64 in the box).
+// Long pasted text → attach as a .txt file (enters the RAG pipeline). Everything else pastes normally.
+const stamp = () => {
+  const d = new Date()
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`
+}
+
+const clipboardImages = (cd) => {
+  const out = []
+  for (const item of Array.from(cd.items || [])) {
+    if (item.kind === 'file' && /^image\//.test(item.type || '')) {
+      const f = item.getAsFile()
+      if (!f) continue
+      // Screenshots arrive as a generic "image.png" — give them a stable, human name.
+      const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
+      const named = new File([f], `pasted-image-${stamp()}.${ext}`, { type: f.type || 'image/png' })
+      out.push(named)
+    }
+  }
+  return out
+}
+
+const insertTextAtCursor = (text) => {
+  const el = inputEl.value
+  if (!el) { draft.value += text; return }
+  const start = el.selectionStart ?? draft.value.length
+  const end = el.selectionEnd ?? draft.value.length
+  draft.value = draft.value.slice(0, start) + text + draft.value.slice(end)
+  nextTick(() => {
+    autoGrow()
+    const pos = start + text.length
+    try { el.selectionStart = el.selectionEnd = pos } catch { /* ignore */ }
+  })
+}
+
+const attachLongText = (text) => {
+  const file = new File([text], `pasted-text-${stamp()}.txt`, { type: 'text/plain' })
+  emit('attach', [file])
+  notify.info('Long pasted text was attached as a text file.')
+}
+
+const isLongText = (text) =>
+  text.length > LONG_PASTE_CHAR_LIMIT || text.split('\n').length > LONG_PASTE_LINE_LIMIT
+
+const onPaste = (e) => {
+  const cd = e.clipboardData || window.clipboardData
+  if (!cd) return
+  let images = []
+  try { images = clipboardImages(cd) } catch { images = [] }
+  const text = (() => { try { return cd.getData('text/plain') || '' } catch { return '' } })()
+  const longText = text && isLongText(text)
+
+  // Image present → never dump base64 into the box. Attach the image; preserve any accompanying text.
+  if (images.length) {
+    e.preventDefault()
+    emit('attach', images)
+    if (longText) attachLongText(text)
+    else if (text) insertTextAtCursor(text)
+    return
+  }
+
+  // No image, but a long text blob → attach as .txt instead of inlining it.
+  if (longText) {
+    e.preventDefault()
+    attachLongText(text)
+    return
+  }
+  // Otherwise: ordinary paste — let the browser insert the text as usual.
 }
 
 const autoGrow = () => {
@@ -124,6 +274,7 @@ const onKeydown = (e) => {
 
 <style scoped>
 .composer-shell {
+  position: relative;
   max-width: 760px;
   margin: 0 auto;
   padding: 8px 16px 14px;
@@ -172,8 +323,60 @@ const onKeydown = (e) => {
   color: var(--vm-ink-faint); cursor: pointer; transition: .15s var(--vm-ease);
 }
 .ghost-btn:hover { color: var(--vm-violet); background: var(--vm-violet-soft); }
+.ghost-btn.active { color: var(--vm-violet); background: var(--vm-violet-soft); }
+.ghost-btn.active svg { transform: rotate(45deg); }
 .ghost-btn:disabled { opacity: 0.5; cursor: default; }
-.ghost-btn svg { width: 18px; height: 18px; }
+.ghost-btn svg { width: 18px; height: 18px; transition: transform .15s var(--vm-ease); }
+
+/* "+" menu */
+.plus-wrap { position: relative; }
+.plus-menu {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: 320px;
+  max-width: min(320px, calc(100vw - 40px));
+  padding: 6px;
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-line);
+  border-radius: 14px;
+  box-shadow: var(--vm-shadow-l, 0 20px 48px rgba(15, 23, 42, .18));
+  z-index: 40;
+  animation: plus-in .12s var(--vm-ease);
+}
+@keyframes plus-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.plus-item {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%;
+  padding: 9px 10px; border: none; border-radius: 10px;
+  background: transparent; text-align: left; cursor: pointer;
+  transition: background .13s var(--vm-ease);
+}
+.plus-item:hover:not(:disabled) { background: var(--vm-bg); }
+.plus-item:disabled { opacity: .5; cursor: not-allowed; }
+.plus-ic {
+  display: grid; place-items: center; flex-shrink: 0;
+  width: 34px; height: 34px; border-radius: 9px;
+  background: var(--vm-violet-soft); color: var(--vm-violet);
+}
+.plus-ic svg { width: 18px; height: 18px; }
+.plus-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.plus-txt strong { font-size: 0.8125rem; font-weight: 650; color: var(--vm-ink); }
+.plus-txt small { font-size: 0.6875rem; line-height: 1.35; color: var(--vm-ink-faint); }
+
+.plus-url {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: 360px;
+  max-width: min(360px, calc(100vw - 40px));
+  padding: 12px;
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-line);
+  border-radius: 14px;
+  box-shadow: var(--vm-shadow-l, 0 20px 48px rgba(15, 23, 42, .18));
+  z-index: 40;
+  animation: plus-in .12s var(--vm-ease);
+}
 
 .mic-btn {
   display: flex; align-items: center; justify-content: center;
@@ -220,5 +423,9 @@ const onKeydown = (e) => {
   text-align: center;
   font-size: 0.6875rem;
   color: var(--vm-ink-faint);
+}
+
+@media (max-width: 560px) {
+  .plus-menu, .plus-url { width: calc(100vw - 40px); }
 }
 </style>

@@ -508,6 +508,12 @@ export default {
   adminPublishHelpContent: (id, published) => api.post(`/admin/helpcenter/content/${id}/publish/`, { published }),
   adminHelpContentMeta: () => api.get('/admin/helpcenter/content/meta/', { noCache: true }),
   adminGenerateHelpEmbeddings: () => api.post('/admin/helpcenter/content/generate-embeddings/', {}),
+  // Upload a document (PDF/DOCX/…) → MarkItDown converts it → a DRAFT HelpContent is created to edit.
+  adminImportHelpDocument: (file) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post('/admin/helpcenter/content/import-document/', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
   adminHelpEmbeddingsStatus: () => api.get('/admin/helpcenter/content/generate-embeddings/status/', { noCache: true }),
 
   // Admin — Help article relations (related / prerequisite / next_step …).
@@ -712,6 +718,11 @@ export default {
   getWebSourcePages: (id, params = {}) => api.get(`/web_sources/${id}/pages/`, { params }),
   addWebSourcePages: (id, urls) => api.post(`/web_sources/${id}/add_pages/`, { urls }),
   setWebSourceRecrawl: (id, recrawl_schedule) => api.post(`/web_sources/${id}/set_schedule/`, { recrawl_schedule }),
+  // Approved URL / YouTube document ingestion (SSRF-gated → DocumentSource → MarkItDown). YouTube URLs
+  // enter here too (captions-first). payload: { url, scope?, agent_id?, conversation_id? }.
+  addDocumentUrl: (payload) => api.post('/document_sources/url/', payload),
+  getDocumentSource: (id) => api.get(`/document_sources/${id}/`),
+  listDocumentSources: (params = {}) => api.get('/document_sources/', { params }),
   // ── Attached (shared) knowledge bases: reuse a file/website from the owner's OTHER agents ──
   getAgentKnowledgeLibrary: (agentId) => api.get(`/agents/${agentId}/knowledge-library/`),
   getAgentKnowledgeAttachments: (agentId) => api.get(`/agents/${agentId}/knowledge-attachments/`),
