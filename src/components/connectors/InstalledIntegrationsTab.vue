@@ -4,7 +4,7 @@
     <h3 class="iit-title">Installed integrations</h3>
     <p class="iit-sub">Connectors connected in this scope.</p>
 
-    <p v-if="!items.length" class="iit-empty">Nothing installed yet â€” connect one from the connector catalog.</p>
+    <p v-if="!items.length" class="iit-empty">Nothing installed yet — connect one from the connector catalog.</p>
 
     <div v-else class="iit-grid">
       <button

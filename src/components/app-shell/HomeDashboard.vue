@@ -1,5 +1,5 @@
 ﻿<template>
-  <!-- Screen 21 â€” Home dashboard. Aadml (design.md Â§3): white cards on #F8FAFC, blue accent,
+  <!-- Screen 21 — Home dashboard. Aadml (design.md §3): white cards on #F8FAFC, blue accent,
        soft borders, Inter. Built from small reusable components; data from /dashboard/summary. -->
   <div class="min-h-full bg-[#F8FAFC] px-6 py-8 font-[Inter,system-ui,sans-serif] lg:px-10">
     <DashboardHeader :first-name="firstName" @new-agent="go('/dashboard/agents/new')" />
@@ -87,9 +87,9 @@ const metrics = computed(() => {
     { key: 'runs_24h', label: 'Runs (24h)', icon: Play, tint: 'bg-violet-50 text-violet-600', round: false,
       value: fmtInt(k.runs_24h?.value), delta: k.runs_24h?.delta, unit: k.runs_24h?.delta_unit },
     { key: 'success_rate', label: 'Success Rate', icon: CheckCircle2, tint: 'bg-emerald-50 text-emerald-600', round: true,
-      value: k.success_rate?.value != null ? `${k.success_rate.value}%` : 'â€”', delta: k.success_rate?.delta, unit: k.success_rate?.delta_unit },
+      value: k.success_rate?.value != null ? `${k.success_rate.value}%` : '—', delta: k.success_rate?.delta, unit: k.success_rate?.delta_unit },
     { key: 'total_cost_24h', label: 'Total Cost (24h)', icon: WalletCards, tint: 'bg-amber-50 text-amber-600', round: false,
-      value: k.total_cost_24h?.value != null ? `$${k.total_cost_24h.value.toFixed(2)}` : 'â€”', delta: k.total_cost_24h?.delta, unit: k.total_cost_24h?.delta_unit },
+      value: k.total_cost_24h?.value != null ? `$${k.total_cost_24h.value.toFixed(2)}` : '—', delta: k.total_cost_24h?.delta, unit: k.total_cost_24h?.delta_unit },
   ]
 })
 
@@ -100,7 +100,7 @@ const quickStart = [
   { label: 'Explore Docs', desc: 'Browse guides and API documentation.', to: '/dashboard/settings/general', icon: BookOpen, tint: 'bg-amber-50 text-amber-600' },
 ]
 
-function fmtInt(v) { return v == null ? 'â€”' : Number(v).toLocaleString() }
+function fmtInt(v) { return v == null ? '—' : Number(v).toLocaleString() }
 
 onMounted(async () => {
   try {

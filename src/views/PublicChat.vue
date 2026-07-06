@@ -1,8 +1,8 @@
 ﻿<!--
-  PublicChat â€” the standalone, no-login chat for a shared/published agent. Loads the
+  PublicChat — the standalone, no-login chat for a shared/published agent. Loads the
   secret-free public config by share token (or slug), connects the chat WS authenticated by
   the public token (ws_auth pins the agent), and reuses the live ActivityStream transcript.
-  Routes: /a/:token (full page Â· Preview/Share) and /embed/:token (embed Â· widget iframe).
+  Routes: /a/:token (full page · Preview/Share) and /embed/:token (embed · widget iframe).
   Branded from share_settings (name, avatar, theme color, greeting).
 -->
 <template>
@@ -10,7 +10,7 @@
     <div v-if="offline" class="pc-offline">
       <div class="pc-offline-card">
         <div class="pc-offline-ico">ðŸš«</div>
-        <p>This assistant isnâ€™t available right now.</p>
+        <p>This assistant isn’t available right now.</p>
       </div>
     </div>
 
@@ -43,7 +43,7 @@
               <span class="pc-msg-av" :style="avatarStyle"><img v-if="cfg.avatar_url" :src="cfg.avatar_url" alt="" /><span v-else>ðŸ¤–</span></span>
               <div class="pc-asst">
                 <!-- Public-safe rich timeline when rich events are present; otherwise the existing
-                     ActivityStream â€” so flag-OFF / no-rich-events behaviour is unchanged. Never debug. -->
+                     ActivityStream — so flag-OFF / no-rich-events behaviour is unchanged. Never debug. -->
                 <AgentActivityTimeline
                   v-if="m.streaming ? richActive : !!m.timeline"
                   :public-safe="true"
@@ -69,9 +69,9 @@
       <!-- input -->
       <footer class="pc-foot">
         <div class="pc-inwrap">
-          <input v-model="input" @keydown.enter="send" :disabled="busy" placeholder="Type your messageâ€¦" />
+          <input v-model="input" @keydown.enter="send" :disabled="busy" placeholder="Type your message…" />
           <button v-if="busy" class="pc-ib pc-stop" @click="stop" title="Stop">â– </button>
-          <button v-else class="pc-ib pc-send" :disabled="!input.trim()" @click="send" title="Send">â†‘</button>
+          <button v-else class="pc-ib pc-send" :disabled="!input.trim()" @click="send" title="Send">↑</button>
         </div>
         <div v-if="cfg.show_branding !== false" class="pc-brand">âš¡ Powered by Aadml</div>
       </footer>
@@ -109,11 +109,11 @@ let intentionalClose = false
 let reconnectAttempts = 0
 let reconnectTimer = null
 
-// Rich streaming activity (AgentRunner rich events) â€” PUBLIC tier. Entirely additive: when
+// Rich streaming activity (AgentRunner rich events) — PUBLIC tier. Entirely additive: when
 // AGENTRUNNER_RICH_STREAMING_ENABLED is OFF none of these events arrive, `richActive` stays false,
 // and the widget keeps using the existing ActivityStream exactly as today. The backend already
 // suppresses raw internal events for the public tier; the frontend stays defensive by rendering the
-// timeline with `public-safe` (never debug) â€” only friendly labels + status + source names.
+// timeline with `public-safe` (never debug) — only friendly labels + status + source names.
 const {
   currentStatus: liveStatus,
   steps: liveSteps,
@@ -136,7 +136,7 @@ function attachTimelineSnapshot() {
 }
 
 // Stop a live rich timeline that can't finish (socket dropped / cancelled) so no step spins forever.
-// Rich-path only â€” when the flag is OFF (richActive false) this is a no-op and the old behaviour stays.
+// Rich-path only — when the flag is OFF (richActive false) this is a no-op and the old behaviour stays.
 function interruptRich(note) {
   if (!richActive.value || liveComplete.value) return
   const m = streamingAssistant()
@@ -166,18 +166,18 @@ function connect() {
     const sock = new WebSocket(wsUrl())
     ws.value = sock
     sock.onopen = () => {
-      reconnectAttempts = 0                            // healthy â€” clear backoff
-      // Prewarm the token-pinned agent runtime before the first message (no agent_id needed â€” the
+      reconnectAttempts = 0                            // healthy — clear backoff
+      // Prewarm the token-pinned agent runtime before the first message (no agent_id needed — the
       // backend resolves it from the WS token). Best-effort.
       try { sock.send(JSON.stringify({ type: 'agent_prewarm' })) } catch (e) { /* noop */ }
     }
     sock.onmessage = (e) => handleEvent(e.data)
     sock.onerror = () => { interruptRich('The connection was interrupted.') }
-    // Bounded reconnect: exponential backoff (1s,2s,4sâ€¦ cap 10s) then a slow 30s self-heal retry, so a
+    // Bounded reconnect: exponential backoff (1s,2s,4s… cap 10s) then a slow 30s self-heal retry, so a
     // rejecting/closing socket can't be hammered every 1.5s (reconnect-storm guard).
     sock.onclose = () => {
       if (intentionalClose) return
-      // Public has no turn-resume, so a dropped mid-turn won't come back â€” stop the rich spinner.
+      // Public has no turn-resume, so a dropped mid-turn won't come back — stop the rich spinner.
       interruptRich('The connection was interrupted.')
       const delay = reconnectAttempts < 6 ? Math.min(1000 * Math.pow(2, reconnectAttempts++), 10000) : 30000
       if (reconnectTimer) clearTimeout(reconnectTimer)
@@ -200,7 +200,7 @@ function currentAssistant() {
 function handleEvent(raw) {
   let evt; try { evt = JSON.parse(raw) } catch (e) { return }
   // Rich streaming activity events (public tier, flag-gated on the backend). Drive the public-safe
-  // timeline and stop â€” the turn lifecycle (busy/streaming) stays driven by the raw chunk/complete.
+  // timeline and stop — the turn lifecycle (busy/streaming) stays driven by the raw chunk/complete.
   if (ingestTimeline(evt)) {
     richActive.value = true
     if (evt.type === 'agent_turn_summary') attachTimelineSnapshot()

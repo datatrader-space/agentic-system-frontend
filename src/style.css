@@ -456,18 +456,18 @@ samp {
 }
 
 /* ============================================================
-   VIBRANT LIGHT MESH â€” design tokens (APPROVED Â· REDESIGN_PLAN.md Â§2)
+   VIBRANT LIGHT MESH — design tokens (APPROVED · REDESIGN_PLAN.md §2)
    ============================================================
    Additive layer for the new UI. New token names (no clash with the
    legacy bg/text vars above, which are removed in the Phase 7
    cleanup). Mirror of tailwind.config.js so scoped styles can use them.
    ============================================================ */
 :root {
-  /* â”€â”€ Aadml design language (design.md Â§3) â€” clean white surfaces on a soft
+  /* â”€â”€ Aadml design language (design.md §3) — clean white surfaces on a soft
         blue-tinted canvas, blue primary, teal/green accents, very soft shadows, Inter.
         THE single source of truth: token NAMES kept from the legacy vibrant-mesh system
         so every existing component re-skins automatically. The old purple/glass theme is
-        retired â€” these values ARE the Aadml palette. â”€â”€ */
+        retired — these values ARE the Aadml palette. â”€â”€ */
   --vm-bg: #F8FBFF;            /* page background */
   --vm-ink: #0F172A;           /* text strong */
   --vm-ink-soft: #334155;      /* text normal */
@@ -502,7 +502,7 @@ samp {
   --vm-warning: #F79009;
   --vm-focus: #2E90FA;
 
-  /* Subtle, professional gradients (Aadml blueâ†’teal; no candy) */
+  /* Subtle, professional gradients (Aadml blue→teal; no candy) */
   --vm-g-brand: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
   --vm-g-cool: linear-gradient(135deg, #2563EB 0%, #14B8A6 100%);
   --vm-g-warm: linear-gradient(135deg, #F8FBFF 0%, #EEF4FF 100%);
@@ -521,16 +521,16 @@ samp {
   --vm-r: 10px;
   --vm-r-l: 10px;
 
-  /* design.md typography: one primary font â€” Inter */
+  /* design.md typography: one primary font — Inter */
   --vm-font-display: var(--font-sans);
   --vm-font-sans: var(--font-sans);
   --vm-font-mono: var(--font-mono);
 }
 
 /* ============================================================
-   DARK THEME (beta) â€” overrides the var-driven --vm-* tokens so every
+   DARK THEME (beta) — overrides the var-driven --vm-* tokens so every
    component built on them re-skins automatically. Same token NAMES, dark
-   values. Equal specificity to :root, declared after it â†’ wins when
+   values. Equal specificity to :root, declared after it → wins when
    <html data-theme="dark"> is set. (Brand/semantic accents read fine on
    dark, so only the neutral surface/text/border tokens are remapped.)
    ============================================================ */
@@ -559,7 +559,7 @@ samp {
   --vm-shadow-l: 0 24px 60px rgba(0, 0, 0, .55), 0 8px 24px rgba(0, 0, 0, .4);
 }
 
-/* ---- Mesh keyframes (transform/opacity only â€” GPU cheap) ---- */
+/* ---- Mesh keyframes (transform/opacity only — GPU cheap) ---- */
 @keyframes vmDrift1 { 50% { transform: translate(8vw, 6vw) scale(1.15); } }
 @keyframes vmDrift2 { 50% { transform: translate(-7vw, 8vw) scale(1.1); } }
 @keyframes vmDrift3 { 50% { transform: translate(6vw, -7vw) scale(1.2); } }
@@ -586,7 +586,7 @@ samp {
   animation: vmFlow 8s linear infinite;
 }
 
-/* Let's Code â€” inline diff decorations (Monaco renders outside scoped styles, so global). */
+/* Let's Code — inline diff decorations (Monaco renders outside scoped styles, so global). */
 .lc-add-line { background: rgba(34, 197, 94, .16); }
 .lc-add-gutter { background: #22c55e; width: 3px !important; margin-left: 3px; }
 

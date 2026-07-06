@@ -31,7 +31,7 @@
         <input
           :value="query"
           @input="$emit('update:query', $event.target.value)"
-          placeholder="Search connectorsâ€¦"
+          placeholder="Search connectors…"
           class="ct-search-input"
         />
       </div>

@@ -117,7 +117,7 @@
               <span class="font-display text-base font-extrabold text-ink">AADML</span>
             </div>
             <p class="mt-4 max-w-xs text-sm leading-relaxed text-ink-soft">
-              The Aadml OS for coding and knowledge work â€” code-aware, context-aware, and cost-aware automation. Self-hostable and built for teams.
+              The Aadml OS for coding and knowledge work — code-aware, context-aware, and cost-aware automation. Self-hostable and built for teams.
             </p>
           </div>
           <div v-for="col in footerCols" :key="col.title">
@@ -131,7 +131,7 @@
           </div>
         </div>
         <div class="mt-12 flex flex-col items-center justify-between gap-4 border-t border-line pt-6 text-sm text-ink-faint sm:flex-row">
-          <span>Â© {{ year }} AADML. All rights reserved.</span>
+          <span>© {{ year }} AADML. All rights reserved.</span>
           <div class="flex gap-5">
             <router-link to="/docs" class="pl-foot-link">Docs</router-link>
             <router-link to="/pricing" class="pl-foot-link">Pricing</router-link>

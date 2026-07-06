@@ -7,7 +7,7 @@
         <span class="iis-title">About these connectors</span>
       </div>
       <p class="iis-body">
-        Integrations connect your agents to outside platforms â€” GitHub, Slack, email, payments and more.
+        Integrations connect your agents to outside platforms — GitHub, Slack, email, payments and more.
         Connect once with your own account; the platform stores credentials encrypted server-side and
         manages runtime access for every agent you own.
       </p>
@@ -32,7 +32,7 @@
       <ol class="iis-steps">
         <li><span class="iis-step-n">1</span><span>Pick an integration and open it.</span></li>
         <li><span class="iis-step-n">2</span><span>Connect with OAuth (recommended) or a personal access token.</span></li>
-        <li><span class="iis-step-n">3</span><span>Credentials are validated and stored encrypted â€” never exposed to the browser.</span></li>
+        <li><span class="iis-step-n">3</span><span>Credentials are validated and stored encrypted — never exposed to the browser.</span></li>
         <li><span class="iis-step-n">4</span><span>Tools become available to your agents immediately.</span></li>
       </ol>
     </div>

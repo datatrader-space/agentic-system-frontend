@@ -37,7 +37,7 @@
         />
       </nav>
 
-      <!-- Recent chats â€” global across agents: preview line + agent Â· time,
+      <!-- Recent chats — global across agents: preview line + agent · time,
            capped per group with a per-group "Show more". -->
     </div>
 
@@ -105,7 +105,7 @@ const initials = computed(() => {
   return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
 })
 
-// Nav items â€” each `to` points at a working route (existing top-level routes
+// Nav items — each `to` points at a working route (existing top-level routes
 // stay alive through Phase 5; dashboard children render inside this shell).
 const primaryNav = [
   { to: '/dashboard', exact: true, label: 'Home', 'data-tour': 'home', icon: ['M3 12l9-9 9 9', 'M5 10v10h14V10'] },
@@ -123,7 +123,7 @@ const primaryNav = [
   { to: '/dashboard/help-center', match: '/dashboard/help-center', label: 'Help Center', 'data-tour': 'help-center', icon: ['M9.09 9a3 3 0 1 1 5.83 1c0 2-3 2.25-3 4', 'M12 17h.01', 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z'] },
 ]
 
-// Admin-only nav entries (e.g. LLM Context â€” ops stats, backed by an IsAdminUser endpoint)
+// Admin-only nav entries (e.g. LLM Context — ops stats, backed by an IsAdminUser endpoint)
 // are hidden from non-staff users. `is_staff` comes from /auth/me (UserSerializer).
 const isAdmin = computed(() => !!(currentUser.value && currentUser.value.is_staff))
 const visibleNav = computed(() => primaryNav.filter((item) => {

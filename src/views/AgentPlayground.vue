@@ -19,7 +19,7 @@
                 <button v-if="agent.id && isOwner" @click="toggleWorkspace"
                     class="h-9 px-3 rounded-lg border transition-all flex items-center gap-2 group text-xs font-semibold"
                     :class="showWorkspace ? 'bg-blue-50 border-blue-200 text-blue-600' : wsRouting?.routed ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'"
-                    :title="wsRouting?.routed ? `Routed â†’ ${wsRouting.workspace.workspace_name}` : 'Workspace'">
+                    :title="wsRouting?.routed ? `Routed → ${wsRouting.workspace.workspace_name}` : 'Workspace'">
                     <svg class="w-4 h-4 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -125,8 +125,8 @@
                             </div>
                             <p class="text-xs text-green-700 leading-relaxed">
                                 Tools execute on <strong>{{ wsRouting.workspace.workspace_name }}</strong>
-                                <span v-if="wsRouting.workspace.workspace_path"> Â· {{ wsRouting.workspace.workspace_path }}</span>
-                                <span v-if="wsRouting.workspace.agent_version"> Â· v{{ wsRouting.workspace.agent_version }}</span>
+                                <span v-if="wsRouting.workspace.workspace_path"> · {{ wsRouting.workspace.workspace_path }}</span>
+                                <span v-if="wsRouting.workspace.agent_version"> · v{{ wsRouting.workspace.agent_version }}</span>
                             </p>
                         </div>
                         <!-- Antigravity Status Badge (always visible when workspace is routed) -->
@@ -1186,7 +1186,7 @@ const loadWorkspace = async () => {
         // If routing is active, fetch remote files from workspace agent
         if (wsRouting.value?.routed) {
             const wsId = wsRouting.value.workspace.workspace_id;
-            // Cross-platform Python one-liner â€” works on Windows and Linux
+            // Cross-platform Python one-liner — works on Windows and Linux
             const pyCmd = `python -c "import os,json;print(json.dumps([{'name':e,'type':'directory' if os.path.isdir(e) else 'file','size':os.path.getsize(e) if os.path.isfile(e) else 0} for e in sorted(os.listdir('.'))]))"`;
             const { data } = await api.executeWorkspaceCommand(wsId, pyCmd, 10);
             if (data.success && data.output) {
@@ -1210,12 +1210,12 @@ const loadWorkspace = async () => {
 };
 
 /**
- * Parse remote file listing â€” expects JSON array from Python one-liner.
+ * Parse remote file listing — expects JSON array from Python one-liner.
  * Fallback: tries line-by-line parsing for non-JSON output.
  */
 const parseRemoteListing = (output) => {
     if (!output || typeof output !== 'string') return [];
-    // The output may have a command echo prefix â€” find the JSON array
+    // The output may have a command echo prefix — find the JSON array
     const jsonStart = output.indexOf('[');
     const jsonEnd = output.lastIndexOf(']');
     if (jsonStart !== -1 && jsonEnd !== -1) {
@@ -1747,13 +1747,13 @@ const fetchCascadeSessions = async () => {
             const aadmlConvs = conversations.value.filter(c => c._source !== 'cascade');
             conversations.value = [...aadmlConvs, ...cascadeSessions.value]
                 .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-            // Sessions loaded â†’ AG is definitely available, refresh status
+            // Sessions loaded → AG is definitely available, refresh status
             if (!cascadeStatus.value?.available) {
                 fetchCascadeStatus();
             }
         }
     } catch (e) {
-        // Cascade not available â€” that's fine
+        // Cascade not available — that's fine
         console.debug('Cascade sessions unavailable:', e.message);
     }
 };
@@ -1950,7 +1950,7 @@ const loadCascadeSteps = async (cascadeId, wsId) => {
 
 // Map AG step type to chat event type
 const mapStepType = (stepType) => {
-    // Only 'user' and 'assistant' are safe â€” the chat feed has no template for other types
+    // Only 'user' and 'assistant' are safe — the chat feed has no template for other types
     if (stepType === 'CORTEX_STEP_TYPE_USER_INPUT') return 'user';
     return 'assistant'; // Everything else renders as assistant message
 };
@@ -2246,7 +2246,7 @@ const unescapeHTML = (str) => {
 const parseWireframe = (text) => {
     // Clean box drawing characters
     const cleanLines = text.split('\n')
-        .map(line => line.replace(/[â”Œâ”â””â”˜â”œâ”¤â”€â”‚â€¢]/g, '').trim())
+        .map(line => line.replace(/[â”Œâ”â””â”˜â”œâ”¤â”€â”‚•]/g, '').trim())
         .filter(line => line.length > 0);
 
     const data = {
@@ -2374,7 +2374,7 @@ const renderWireframeUI = (text) => {
 renderer.code = function ({ text, lang }) {
     const language = lang?.toLowerCase() || 'plaintext';
     
-    // Wireframe Detection â€” only for explicitly tagged blocks
+    // Wireframe Detection — only for explicitly tagged blocks
     const isWireframe = language === 'wireframe';
     
     if (isWireframe) {
@@ -2583,7 +2583,7 @@ const connectWebSocket = (repoId) => {
                     event._nextRenderAt = now + 400;
                     requestAnimationFrame(() => {
                         event.renderedHtml = formatMarkdown(event.content);
-                        // Inline scroll â€” avoids nextTick() overhead
+                        // Inline scroll — avoids nextTick() overhead
                         if (feed.value) {
                             const c = feed.value;
                             if (c.scrollHeight - c.scrollTop - c.clientHeight < 150) {
@@ -2603,7 +2603,7 @@ const connectWebSocket = (repoId) => {
                     data
                 });
             }
-            // Don't scrollToBottom() on every chunk â€” handled by the throttled rAF above
+            // Don't scrollToBottom() on every chunk — handled by the throttled rAF above
         } else if (data.type === 'assistant_message_complete') {
             // Check ignore flag before finalizing
             if (ignoringMessages.value) {
@@ -2878,14 +2878,14 @@ const connectWebSocket = (repoId) => {
                 interaction_type: data.interaction_type,
                 response_type: data.response_type,
                 summary: data.summary,
-                services: data.services || [],          // â† credential_setup rows
+                services: data.services || [],          // ← credential_setup rows
                 payload: data.payload || {},
                 options: data.options || [],
                 urgency: data.urgency || 'medium',
                 timeout_at: data.timeout_at || null
             });
         } else if (data.type === 'hitl_response_ack') {
-            // HITL: backend acknowledged our response â€” remove from queue
+            // HITL: backend acknowledged our response — remove from queue
             console.log('[HITL] Response acknowledged:', data.request_id);
             hitlRequests.value = hitlRequests.value.filter(
                 r => r.request_id !== data.request_id
@@ -2932,7 +2932,7 @@ const connectWebSocket = (repoId) => {
 // â”€â”€ HITL Handlers â”€â”€
 const handleHitlRespond = ({ request_id, response_value, feedback }) => {
     if (!ws.value || ws.value.readyState !== WebSocket.OPEN) {
-        console.error('[HITL] Cannot send response â€” WebSocket not connected');
+        console.error('[HITL] Cannot send response — WebSocket not connected');
         return;
     }
     console.log('[HITL] Sending response for', request_id);
@@ -3286,7 +3286,7 @@ let streamScrollRafId = null;
 let streamScrollFrame = 0;
 let lastUserScrollTime = 0;
 const STREAM_SCROLL_PAUSE_MS = 2000;  // resume 2s after last manual scroll
-const SCROLL_THROTTLE_FRAMES = 8;     // run every 8 frames (~7fps) â€” smooth feel
+const SCROLL_THROTTLE_FRAMES = 8;     // run every 8 frames (~7fps) — smooth feel
 
 const handleFeedScroll = () => {
     if (!isProcessing.value) return;
@@ -3295,7 +3295,7 @@ const handleFeedScroll = () => {
 
 const startStreamScroll = () => {
     streamScrollFrame = 0;
-    lastUserScrollTime = 0; // fresh start â€” immediately scroll on new message
+    lastUserScrollTime = 0; // fresh start — immediately scroll on new message
     const loop = () => {
         if (!isProcessing.value) {
             streamScrollRafId = null;
@@ -3626,7 +3626,7 @@ kbd {
     word-wrap: break-word;
 }
 
-/* Table scroll wrapper â€” only the table scrolls, not the whole message */
+/* Table scroll wrapper — only the table scrolls, not the whole message */
 :deep(.table-scroll-wrapper) {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -3675,7 +3675,7 @@ kbd {
     overflow-x: hidden;
 }
 
-/* Text wrapping for prose content â€” avoid break-all which breaks mid-word */
+/* Text wrapping for prose content — avoid break-all which breaks mid-word */
 :deep(.prose p),
 :deep(.prose li),
 :deep(.prose h1),

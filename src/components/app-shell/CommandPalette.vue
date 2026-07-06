@@ -9,7 +9,7 @@
             ref="inputEl"
             v-model="query"
             type="text"
-            placeholder="Search pages and actionsâ€¦"
+            placeholder="Search pages and actions…"
             @keydown.down.prevent="move(1)"
             @keydown.up.prevent="move(-1)"
             @keydown.enter.prevent="run(filtered[active])"
@@ -37,13 +37,13 @@
               <span class="cmdk-kind">{{ item.kind }}</span>
             </button>
           </template>
-          <div v-else class="cmdk-empty">No matches for â€œ{{ query }}â€.</div>
+          <div v-else class="cmdk-empty">No matches for “{{ query }}”.</div>
         </div>
 
         <div class="cmdk-foot">
-          <span><kbd>â†‘</kbd><kbd>â†“</kbd> navigate</span>
+          <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
           <span><kbd>â†µ</kbd> open</span>
-          <span class="brandline">Aadml Â· âŒ˜K</span>
+          <span class="brandline">Aadml · âŒ˜K</span>
         </div>
       </div>
     </div>

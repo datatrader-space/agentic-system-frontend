@@ -254,9 +254,12 @@ export const useChatStore = defineStore('chat', {
       for (const file of Array.from(files || [])) {
         if (!file) continue
         const isImage = /^image\//.test(file.type)
+        // Blob URL for EVERY attachment (not just images) so the message bubble can open a
+        // preview/download window for the exact bytes the user attached — images render inline, docs open
+        // in a new tab. Persisted across the send (the bubble keeps it); revoked on removeAttachment.
         this.pendingAttachments.push({
-          file, name: file.name, isImage,
-          url: isImage ? URL.createObjectURL(file) : '',
+          file, name: file.name, isImage, mime: file.type || '',
+          url: URL.createObjectURL(file),
         })
       }
     },
@@ -317,7 +320,7 @@ export const useChatStore = defineStore('chat', {
       // Show the user turn (with attachment previews) and the assistant placeholder up-front.
       this.messages.push({
         id: nid(), role: 'user', content, status: 'done',
-        attachments: atts.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url })),
+        attachments: atts.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url, mime: a.mime })),
       })
       this.pendingAttachments = [] // claimed by this turn; the message bubble keeps the preview urls
       this._beginAssistant()
@@ -325,42 +328,54 @@ export const useChatStore = defineStore('chat', {
       // Upload attachments to the conversation BEFORE sending the text — the backend auto-attaches
       // recent images (within one message) to the vision model, so they must exist first. Non-image
       // documents become conversation-scoped RAG sources (MarkItDown): converted once, then searchable.
+      //
+      // ChatGPT-style: when a document is attached WITH the question, HOLD the turn until the doc has
+      // finished converting/indexing so the agent has the content on its FIRST answer (no "your file is
+      // still being processed" reply). We show a "Reading your document…" state on the assistant bubble
+      // instead of a toast, and the composer stays disabled (isStreaming) meanwhile. Images need only the
+      // upload (auto-attached to vision), so they don't gate the send.
       if (atts.length) {
-        let docQueued = false
+        const assistantMsg = this._cur()
+        const docs = []
         for (const a of atts) {
           try {
             const res = await api.uploadConversationFile(this.conversationId, a.file)
             const fileId = res?.data?.id
-            if (!a.isImage && fileId != null) {
-              docQueued = true
-              this._pollAttachmentIngest(fileId, a.name)  // fire-and-forget status watcher
-            }
+            if (!a.isImage && fileId != null) docs.push({ id: fileId, name: a.name })
           } catch {
             this.error = 'Failed to upload an attachment.'
           }
         }
-        if (docQueued) {
-          notify.info('Document attached — converting & indexing it now. It becomes searchable in a few seconds.')
+        if (docs.length && assistantMsg) {
+          assistantMsg.prepStatus = docs.length > 1
+            ? `Reading your ${docs.length} documents…`
+            : `Reading ${docs[0].name}…`
+          for (const d of docs) {
+            const st = await this._awaitAttachmentIngest(d.id)
+            if (st === 'failed') notify.error(`Could not process ${d.name}.`)
+            // 'timeout' → fall through and send anyway; the backend gives the honest "still processing"
+            // answer and a safety-wait covers the last-mile race.
+          }
+          assistantMsg.prepStatus = ''
         }
       }
 
       this._conn?.sendMessage(content, this.selectedAgentId)
     },
 
-    // Watch a just-uploaded document attachment through the MarkItDown pipeline and surface terminal
-    // state to the user. The chat answer already handles the not-ready case server-side.
-    async _pollAttachmentIngest(fileId, name) {
+    // Await a just-uploaded document through the MarkItDown pipeline. Resolves 'ready' | 'failed' |
+    // 'timeout'. WS push is primary for index status, but polling is the reliable gate the composer
+    // awaits before firing the turn. Bounded (~60s) so a stuck conversion can never hang the send.
+    async _awaitAttachmentIngest(fileId) {
       for (let i = 0; i < 40; i++) {
-        await new Promise((r) => setTimeout(r, 2000))
         let d
-        try { d = (await api.getAgentFileStatus(fileId)).data } catch { continue }
+        try { d = (await api.getAgentFileStatus(fileId)).data } catch { d = null }
         const st = d?.index_status
-        if (st === 'ready') { notify.success(`Document ready: ${name || 'file'} — you can ask about it now.`); return }
-        if (st === 'failed') {
-          notify.error(`Could not process ${name || 'document'}${d?.error_code ? ` (${d.error_code})` : ''}.`)
-          return
-        }
+        if (st === 'ready') return 'ready'
+        if (st === 'failed') return 'failed'
+        await new Promise((r) => setTimeout(r, 1500))
       }
+      return 'timeout'
     },
 
     stop() {

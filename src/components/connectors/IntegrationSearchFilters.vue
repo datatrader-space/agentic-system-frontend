@@ -39,7 +39,7 @@ defineProps({
   category: { type: String, default: 'Popular' },
   typeFilter: { type: String, default: 'all' },
   categories: { type: Array, default: () => [] },
-  searchPlaceholder: { type: String, default: 'Search integrationsâ€¦' },
+  searchPlaceholder: { type: String, default: 'Search integrations…' },
   typeOptions: {
     type: Array,
     default: () => [

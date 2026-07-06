@@ -3,15 +3,15 @@
     <!-- Global animated color-mesh canvas (Vibrant Light Mesh) -->
     <MeshBackground />
 
-    <!-- Left sidebar â€” inline on desktop (â‰¥1024px) -->
+    <!-- Left sidebar — inline on desktop (â‰¥1024px) -->
     <LeftSidebar class="sidebar-desktop" />
 
-    <!-- Left sidebar â€” slide-out drawer on mobile/tablet (<1024px) -->
+    <!-- Left sidebar — slide-out drawer on mobile/tablet (<1024px) -->
     <MobileSidebarDrawer />
 
     <!-- Center column -->
     <div class="center-col">
-      <!-- Compact top bar â€” only below xl (<1280px), since the global header is hidden here -->
+      <!-- Compact top bar — only below xl (<1280px), since the global header is hidden here -->
       <div class="compact-bar">
         <button class="bar-btn nav-toggle" title="Menu" aria-label="Open navigation menu" @click="layout.openMobileNav()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" /></svg>
@@ -97,7 +97,7 @@ const chat = useChatStore()
 const route = useRoute()
 const router = useRouter()
 
-// Command palette (Cmd/Ctrl+K) â€” power-up #2
+// Command palette (Cmd/Ctrl+K) — power-up #2
 const paletteOpen = ref(false)
 
 // Close transient overlays whenever the route changes.
@@ -145,7 +145,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   font-family: var(--vm-font-sans);
 }
 
-/* Center column â€” min-width:0 is critical to prevent horizontal overflow.
+/* Center column — min-width:0 is critical to prevent horizontal overflow.
    position/z-index lift it above the decorative MeshBackground (z-index:-1). */
 .center-col {
   position: relative;
@@ -265,7 +265,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   .right-desktop { display: flex; }
 }
 
-/* Compact top bar â€” shown below xl only */
+/* Compact top bar — shown below xl only */
 .compact-bar {
   display: flex;
   align-items: center;

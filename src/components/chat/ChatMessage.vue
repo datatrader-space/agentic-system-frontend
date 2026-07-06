@@ -24,6 +24,12 @@
           :running="isStreaming" />
         <ActivityStream v-else :activity="message.activity" />
 
+        <!-- Attachment prep: while a document sent WITH the question is still converting/indexing, we
+             hold the turn and show this instead of answering "your file is still being processed". -->
+        <div v-if="message.status === 'streaming' && message.prepStatus" class="prep-status">
+          <span class="prep-spinner"></span>{{ message.prepStatus }}
+        </div>
+
         <!-- Rendered markdown content (full answer if rehydrated, else stored stub) -->
         <div v-if="displayContent" class="bubble assistant" v-html="rendered"></div>
 
@@ -109,7 +115,10 @@
         <div v-else class="bubble user" :class="{ collapsed: isLong && !expanded }">
           <div v-if="message.attachments && message.attachments.length" class="user-attach">
             <template v-for="(a, i) in message.attachments" :key="i">
-              <img v-if="a.isImage && a.url" :src="a.url" class="user-attach-thumb" :alt="a.name" />
+              <img v-if="a.isImage && a.url" :src="a.url" class="user-attach-thumb" :alt="a.name"
+                   title="Click to open preview" @click="openAttachment(a)" />
+              <a v-else-if="a.url" class="user-attach-file" :href="a.url" :download="a.name"
+                 target="_blank" rel="noopener" title="Open / download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>{{ a.name }}</a>
               <span v-else class="user-attach-file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>{{ a.name }}</span>
             </template>
           </div>
@@ -157,6 +166,12 @@ const props = defineProps({
   message: { type: Object, required: true },
 })
 const emit = defineEmits(['retry', 'regenerate', 'edit', 'feedback'])
+
+// Open an attachment in a preview window (image → new tab shows it full-size; the file chip is a plain
+// download link handled in the template). Guarded so a missing url is a no-op.
+function openAttachment(a) {
+  if (a && a.url) window.open(a.url, '_blank', 'noopener')
+}
 
 marked.setOptions({ breaks: true, gfm: true })
 
@@ -311,9 +326,30 @@ const copy = async () => {
   box-shadow: var(--vm-glow-v);
 }
 .user-attach { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
-.user-attach-thumb { max-width: 160px; max-height: 160px; border-radius: 8px; border: 1px solid rgba(255,255,255,.5); }
-.user-attach-file { display: inline-flex; align-items: center; gap: 5px; font-size: 0.8125rem; color: #fff; opacity: .95; }
+.user-attach-thumb { max-width: 160px; max-height: 160px; border-radius: 8px; border: 1px solid rgba(255,255,255,.5); cursor: zoom-in; transition: filter .12s ease; }
+.user-attach-thumb:hover { filter: brightness(1.05); }
+.user-attach-file { display: inline-flex; align-items: center; gap: 5px; font-size: 0.8125rem; color: #fff; opacity: .95; text-decoration: none; }
+a.user-attach-file { cursor: pointer; border-bottom: 1px solid rgba(255,255,255,.35); }
+a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8); }
 .user-attach-file svg { width: 14px; height: 14px; }
+
+.prep-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--vm-text-muted, #6b7280);
+  margin: 2px 0 4px;
+}
+.prep-spinner {
+  width: 12px; height: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: .7;
+  animation: prep-spin 0.7s linear infinite;
+}
+@keyframes prep-spin { to { transform: rotate(360deg); } }
 
 .error-row {
   display: flex;

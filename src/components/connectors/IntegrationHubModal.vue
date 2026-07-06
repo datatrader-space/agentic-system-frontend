@@ -72,7 +72,7 @@
             <div v-if="isInstalled(detailItem)" class="flex items-center justify-between px-4 py-3 text-[12px] border-b border-slate-100">
               <div class="flex gap-6">
                 <div><div class="text-ink-faint">Version</div><div class="font-semibold text-ink">{{ detailItem.version }}</div></div>
-                <div><div class="text-ink-faint">{{ detailItem.name }}</div><a class="font-semibold text-violet-700 hover:underline" :href="detailItem.sourceUrl" target="_blank" rel="noopener">Source Code â†—</a></div>
+                <div><div class="text-ink-faint">{{ detailItem.name }}</div><a class="font-semibold text-violet-700 hover:underline" :href="detailItem.sourceUrl" target="_blank" rel="noopener">Source Code ↗</a></div>
               </div>
               <span class="text-ink-faint">About Integration</span>
             </div>
@@ -81,9 +81,9 @@
               <div class="flex items-center justify-between gap-3 mb-3">
                 <span class="text-[13px] font-bold text-ink">Connections</span>
                 <select v-model="connMethod" class="px-3 py-1.5 text-[12px] font-semibold text-ink bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300">
-                  <option v-if="authMethods.includes('oauth2')" value="oauth">Connect with OAuth â€” Recommended</option>
-                  <option v-if="authMethods.includes('github_app')" value="app">Configure with your own GitHub App â€” Advanced</option>
-                  <option v-if="authMethods.includes('personal_access_token')" value="pat">Personal Access Token â€” Advanced / Manual</option>
+                  <option v-if="authMethods.includes('oauth2')" value="oauth">Connect with OAuth — Recommended</option>
+                  <option v-if="authMethods.includes('github_app')" value="app">Configure with your own GitHub App — Advanced</option>
+                  <option v-if="authMethods.includes('personal_access_token')" value="pat">Personal Access Token — Advanced / Manual</option>
                 </select>
               </div>
 
@@ -95,11 +95,11 @@
                   <span class="text-[10px] font-semibold text-emerald-700 bg-emerald-100 rounded px-1.5 py-0.5 capitalize">{{ (current?.auth_method || '').replace(/_/g, ' ') }}</span>
                 </div>
                 <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
-                  <div><dt class="text-emerald-700/70">Account</dt><dd class="font-semibold text-emerald-900">{{ current?.account_login || 'â€”' }}</dd></div>
+                  <div><dt class="text-emerald-700/70">Account</dt><dd class="font-semibold text-emerald-900">{{ current?.account_login || '—' }}</dd></div>
                   <div><dt class="text-emerald-700/70">Status</dt><dd class="font-semibold text-emerald-900 capitalize">{{ current?.status }}</dd></div>
                   <div class="col-span-2">
                     <dt class="text-emerald-700/70">Granted scopes</dt>
-                    <dd class="font-semibold text-emerald-900">{{ (current?.scopes_granted?.length ? current.scopes_granted.join(', ') : 'â€”') }}</dd>
+                    <dd class="font-semibold text-emerald-900">{{ (current?.scopes_granted?.length ? current.scopes_granted.join(', ') : '—') }}</dd>
                   </div>
                   <div class="col-span-2">
                     <dt class="text-emerald-700/70 mb-1">Available tools ({{ current?.capabilities?.length || 0 }})</dt>
@@ -117,7 +117,7 @@
                   <template v-if="current?.oauth_configured">
                     <p class="text-[13px] text-ink-soft">You are not connected to {{ detailItem.name }}</p>
                     <button @click="connectWithOAuth" :disabled="busy" class="mt-3 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 inline-flex items-center gap-2">
-                      <Icon icon="lucide:lock" class="w-4 h-4" /> {{ busy ? 'Connectingâ€¦' : 'Connect with OAuth' }}
+                      <Icon icon="lucide:lock" class="w-4 h-4" /> {{ busy ? 'Connecting…' : 'Connect with OAuth' }}
                     </button>
                     <p class="text-[11px] text-ink-faint mt-2">Requesting scopes: <code class="hub-code">{{ (current?.requested_scopes || []).join(' ') }}</code>. Tokens are stored encrypted server-side.</p>
                   </template>
@@ -129,7 +129,7 @@
                   </template>
                 </div>
 
-                <!-- GitHub App (advanced) â€” honest not-configured -->
+                <!-- GitHub App (advanced) — honest not-configured -->
                 <div v-else-if="connMethod === 'app'" class="text-center py-3">
                   <Icon icon="lucide:info" class="w-6 h-6 text-amber-500 mx-auto" />
                   <p class="mt-2 text-[13px] font-semibold text-ink">GitHub App setup is not fully configured yet</p>
@@ -140,10 +140,10 @@
                 <!-- PAT (advanced / manual) -->
                 <div v-else>
                   <label class="block text-[12px] font-semibold text-ink mb-1">{{ detailItem.name }} {{ detailItem.id === 'slack' ? 'token' : 'Personal Access Token' }}</label>
-                  <input v-model="token" type="password" :placeholder="detailItem.id === 'slack' ? 'xoxb-â€¦ or xoxp-â€¦' : 'ghp_â€¦'" class="w-full px-3 py-2.5 text-[13px] text-ink bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300" />
-                  <p class="text-[11px] text-ink-faint mt-1.5">Validated against {{ detailItem.name }} and stored encrypted server-side â€” never exposed to the browser.</p>
+                  <input v-model="token" type="password" :placeholder="detailItem.id === 'slack' ? 'xoxb-… or xoxp-…' : 'ghp_…'" class="w-full px-3 py-2.5 text-[13px] text-ink bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                  <p class="text-[11px] text-ink-faint mt-1.5">Validated against {{ detailItem.name }} and stored encrypted server-side — never exposed to the browser.</p>
                   <button @click="installWithToken" :disabled="!token.trim() || busy" class="mt-3 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 flex items-center gap-2">
-                    <Icon icon="lucide:lock" class="w-4 h-4" /> {{ busy ? 'Connectingâ€¦' : 'Connect with token' }}
+                    <Icon icon="lucide:lock" class="w-4 h-4" /> {{ busy ? 'Connecting…' : 'Connect with token' }}
                   </button>
                 </div>
               </div>
@@ -281,7 +281,7 @@
         <div v-if="false" class="hub-search px-5 pt-4 shrink-0">
           <div class="relative">
             <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4-4"/></svg>
-            <input v-model="query" placeholder="Search integrationsâ€¦" class="w-full pl-9 pr-3 py-2.5 text-[13px] text-ink bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300 focus:bg-white" />
+            <input v-model="query" placeholder="Search integrations…" class="w-full pl-9 pr-3 py-2.5 text-[13px] text-ink bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-300 focus:bg-white" />
           </div>
         </div>
 
@@ -297,7 +297,7 @@
             <div v-if="view === 'installed'">
               <h3 class="text-[15px] font-bold text-ink mb-1">Installed integrations</h3>
               <p class="text-[12px] text-ink-faint mb-4">Connectors connected in this scope.</p>
-              <p v-if="!installedItems.length" class="py-10 text-center text-[13px] text-ink-faint">Nothing installed yet â€” connect one from the connector catalog.</p>
+              <p v-if="!installedItems.length" class="py-10 text-center text-[13px] text-ink-faint">Nothing installed yet — connect one from the connector catalog.</p>
               <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                 <div v-for="c in installedItems" :key="c.kind + c.id" class="hub-installed-card rounded-xl border border-slate-200 p-4 flex items-center gap-2.5">
                   <span class="w-9 h-9 rounded-lg bg-white border border-slate-200/60 flex items-center justify-center overflow-hidden shrink-0">
@@ -340,7 +340,7 @@
                   </div>
                 </div>
               </template>
-              <p v-if="!visibleGroups.length" class="py-12 text-center text-[13px] text-ink-faint">No integrations match â€œ{{ query }}â€.</p>
+              <p v-if="!visibleGroups.length" class="py-12 text-center text-[13px] text-ink-faint">No integrations match “{{ query }}”.</p>
             </div>
           </div>
         </div>
@@ -413,16 +413,16 @@ const GITHUB = {
   sourceUrl: 'https://docs.github.com/en/rest',
   desc: 'Manage GitHub issues, pull requests, and repositories.',
   longDesc:
-    'Streamline your development workflow by seamlessly integrating GitHub. This integration lets you manage and automate your GitHub repositories, issues, and pull requests directly from your agents â€” collaborate effectively, track progress, and ensure smooth development cycles with features like real-time notifications, issue management, and pull request merging.',
+    'Streamline your development workflow by seamlessly integrating GitHub. This integration lets you manage and automate your GitHub repositories, issues, and pull requests directly from your agents — collaborate effectively, track progress, and ensure smooth development cycles with features like real-time notifications, issue management, and pull request merging.',
   migration: [
     'The integration now supports both GitHub Apps and personal access tokens for authentication. GitHub Apps are recommended for organizations, while personal access tokens are suitable for individual users.',
-    'The "Find Target" action now requires the repo field to be specified â€” it should contain the repository name. The discussion channel was removed from this action.',
+    'The "Find Target" action now requires the repo field to be specified — it should contain the repository name. The discussion channel was removed from this action.',
     'The number tag on channels was removed. Pull requests now have a pullRequestNumber tag, and issues have an issueNumber tag.',
   ],
   config: [
     { title: 'Automatic configuration with OAuth (recommended)', body: 'Authorize the platform GitHub app with least-privilege scopes (read:user, user:email, repo). The token is stored encrypted server-side and used to authenticate API calls. Requires GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET on the backend.' },
-    { title: 'Personal Access Token (manual)', body: 'Generate a fine-grained GitHub personal access token with Repository permissions (Issues + Pull requests: Read & write). Paste it under "Install Integration" â†’ Personal Access Token. Validated against GitHub and stored encrypted server-side.' },
-    { title: 'Custom GitHub App (advanced)', body: 'Create your own GitHub App and provide its credentials. Not fully wired yet â€” use OAuth or a Personal Access Token for now.' },
+    { title: 'Personal Access Token (manual)', body: 'Generate a fine-grained GitHub personal access token with Repository permissions (Issues + Pull requests: Read & write). Paste it under "Install Integration" → Personal Access Token. Validated against GitHub and stored encrypted server-side.' },
+    { title: 'Custom GitHub App (advanced)', body: 'Create your own GitHub App and provide its credentials. Not fully wired yet — use OAuth or a Personal Access Token for now.' },
   ],
   cards: {
     actions: [
@@ -445,10 +445,10 @@ const SLACK = {
   sourceUrl: 'https://api.slack.com/web',
   desc: 'List channels, read messages, list users, and post to Slack.',
   longDesc:
-    'Connect Slack to let your agents read channel activity and post messages on your behalf. Authenticate once with OAuth (or a Slack token) and the platform manages credentials and runtime access â€” no manual bot setup per agent.',
+    'Connect Slack to let your agents read channel activity and post messages on your behalf. Authenticate once with OAuth (or a Slack token) and the platform manages credentials and runtime access — no manual bot setup per agent.',
   config: [
     { title: 'Connect with OAuth (recommended)', body: 'Authorize a Slack app to grant least-privilege bot scopes (channels:read, channels:history, chat:write, users:read). Requires SLACK_CLIENT_ID / SLACK_CLIENT_SECRET configured on the backend.' },
-    { title: 'Connect with a token (manual)', body: 'Paste a Slack bot token (xoxb-â€¦) or user token (xoxp-â€¦). It is validated via auth.test and stored encrypted server-side.' },
+    { title: 'Connect with a token (manual)', body: 'Paste a Slack bot token (xoxb-…) or user token (xoxp-…). It is validated via auth.test and stored encrypted server-side.' },
   ],
   cards: {
     actions: [
@@ -534,7 +534,7 @@ function _logoFor(item) {
   return _LOGO_BY_KEY[key] || null                                       // null -> letter fallback
 }
 // Dedupe key: a built-in service can appear BOTH in props.connectors (kind='builtin') and in the
-// services map â€” without this, GitHub shows twice. Normalize on provider/name so each platform is one.
+// services map — without this, GitHub shows twice. Normalize on provider/name so each platform is one.
 function _identityKey(item) {
   return String(item.provider_slug || item.name || item.id || '')
     .toLowerCase().replace(/\s+/g, '')
@@ -552,7 +552,7 @@ const installedItems = computed(() => {
   for (const c of props.connectors) {
     if (c.connected) add({ kind: c.kind, id: c.id, name: c.name, icon: c.icon, provider_slug: c.provider_slug })
   }
-  // Built-in services fetched here â€” only added if not already represented above (dedupe).
+  // Built-in services fetched here — only added if not already represented above (dedupe).
   for (const s of Object.values(services.value)) {
     if (s.connected) add({ kind: 'service', id: s.key, name: s.name, provider_slug: s.key })
   }
@@ -579,7 +579,7 @@ async function afterChange() {
   emit('installed') // parent reloads its connector list too
 }
 
-// OAuth â€” only when the backend reports the provider is configured; otherwise honest message.
+// OAuth — only when the backend reports the provider is configured; otherwise honest message.
 async function connectWithOAuth() {
   const svc = detailItem.value
   if (!current.value?.oauth_configured) {

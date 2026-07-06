@@ -55,7 +55,7 @@
         <button class="add-node-btn" @click="openPalette()">＋ Add node <kbd>⌘K</kbd></button>
         <input v-model="sidebarSearch" class="pal-search" placeholder="Search nodes…" />
         <div class="pal-scroll">
-          <p v-if="!sidebarGroups.length" class="pal-empty">No nodes match “{{ sidebarSearch }}â€.</p>
+          <p v-if="!sidebarGroups.length" class="pal-empty">No nodes match “{{ sidebarSearch }}”.</p>
           <div v-for="g in sidebarGroups" :key="g.key" class="pal-cat">
             <div class="pal-cat-h">{{ g.label }}</div>
             <div v-for="p in g.items" :key="p.type" class="pal-card" :class="'fam-' + p.type.split('.')[0]"
@@ -609,10 +609,10 @@
       <div class="cmd-pal">
         <!-- step 2: choose an agent context for a deterministic MCP tool -->
         <template v-if="mcpPick">
-          <div class="cmd-search cmd-back"><button class="cmd-backbtn" @click="mcpPick = null">â†</button> Choose agent context</div>
+          <div class="cmd-search cmd-back"><button class="cmd-backbtn" @click="mcpPick = null">←</button> Choose agent context</div>
           <div class="cmd-body cmd-ctx">
             <p class="cmd-ctx-h">{{ mcpPick.serverName }}: <b>{{ mcpPick.toolName }}</b></p>
-            <p class="cmd-ctx-note">MCP tools need an agent for credentials &amp; permissions. The agent must have the “{{ mcpPick.serverName }}â€ server attached — the run fails clearly otherwise.</p>
+            <p class="cmd-ctx-note">MCP tools need an agent for credentials &amp; permissions. The agent must have the “{{ mcpPick.serverName }}” server attached — the run fails clearly otherwise.</p>
             <label class="ins-l">Agent</label>
             <select v-model="mcpPick.agentId" class="ins-in">
               <option :value="null" disabled>Select an agent…</option>
@@ -1306,7 +1306,7 @@ function addFromPalette(it) {
     _dropNode('action.tool', { ...defaultData('action.tool'), tool: it.toolName, label: it.toolName })
   } else if (it.kind === 'mcp-server') {
     // "AI decides how to use this server" → a Run agent node
-    _dropNode('agent.run', { ...defaultData('agent.run'), notes: `Use an agent that has the “${it.mcpName}â€ MCP server attached.` })
+    _dropNode('agent.run', { ...defaultData('agent.run'), notes: `Use an agent that has the “${it.mcpName}” MCP server attached.` })
   } else if (it.kind === 'mcp-tool') {
     // deterministic MCP call → first choose an agent context, then drop action.mcp_tool
     mcpPick.value = { serverId: it.serverId, serverName: it.serverName, toolName: it.toolName, agentId: null }
@@ -1939,7 +1939,7 @@ async function duplicateWorkflow() {
 }
 async function deleteWorkflow() {
   // Archive (soft-delete): keeps run history + any workflow budget's spend; hidden from the list.
-  if (!(await confirm({ title: 'Archive workflow?', message: `Archive“${name.value}â€? It will be hidden from the list, but its run history and budget spend are kept.`, confirmText: 'Archive' }))) return
+  if (!(await confirm({ title: 'Archive workflow?', message: `Archive“${name.value}”? It will be hidden from the list, but its run history and budget spend are kept.`, confirmText: 'Archive' }))) return
   try {
     await api.deleteWorkflowGraph(graphId)
     notify.success('Workflow archived')

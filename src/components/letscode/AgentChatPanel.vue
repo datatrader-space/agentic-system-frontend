@@ -42,7 +42,7 @@
             <ol><li v-for="(s, si) in m.task.plan" :key="si">{{ s }}</li></ol>
           </div>
           <div v-if="isRunning(m.task)" class="ai-run">
-            <span class="vm-orb is-live"></span> {{ statusLabel(m.task) }}â€¦
+            <span class="vm-orb is-live"></span> {{ statusLabel(m.task) }}…
           </div>
           <div v-if="m.task && m.task.error_message" class="ai-err">
             <Icon icon="lucide:alert-triangle" /> {{ m.task.error_message }}
@@ -70,11 +70,11 @@
     </div>
 
     <div class="acp-composer">
-      <div v-if="!crsReady" class="acp-gate"><span class="vm-orb is-idle"></span> Indexing project â€” chat unlocks when ready.</div>
+      <div v-if="!crsReady" class="acp-gate"><span class="vm-orb is-idle"></span> Indexing project — chat unlocks when ready.</div>
       <div class="acp-input">
         <textarea
           v-model="input" rows="2" :disabled="!crsReady || sending"
-          placeholder="Ask Aadml AI to code, refactor or debugâ€¦"
+          placeholder="Ask Aadml AI to code, refactor or debug…"
           @keydown.enter.exact.prevent="send()"
         ></textarea>
         <button class="send" :disabled="!crsReady || sending || !input.trim()" @click="send()">
@@ -155,7 +155,7 @@ function pollTask(msg) {
 async function send(text) {
   const prompt = (text || input.value).trim()
   if (!prompt) return
-  if (!props.crsReady) { notify.warning('The project is still indexing â€” please wait.'); return }
+  if (!props.crsReady) { notify.warning('The project is still indexing — please wait.'); return }
   messages.value.push({ role: 'user', text: prompt })
   input.value = ''
   sending.value = true
@@ -188,7 +188,7 @@ async function onExport(m) {
   try {
     const { data } = await api.exportCodingTask(props.systemId, props.repoId, m.task.id)
     m.task = data
-    notify.info('Opening branch + PRâ€¦')
+    notify.info('Opening branch + PR…')
     pollExport(m)
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Export failed'); exporting.value = false
@@ -242,12 +242,12 @@ async function onCopy(m) {
 function onClarify(m, o) {
   const base = (m.task && m.task.prompt) || ''
   if (!o || o.id === 'CUSTOM' || (o.label || '').toLowerCase() === 'custom') {
-    input.value = base ? `${base} â€” ` : ''
+    input.value = base ? `${base} — ` : ''
     notify.info('Type your specific instruction, then send')
     nextTick(() => { const el = scrollEl.value?.parentElement?.querySelector('textarea'); el && el.focus() })
     return
   }
-  const clarified = `${base}\n\nClarification: ${o.label}${o.description ? ' â€” ' + o.description : ''}`
+  const clarified = `${base}\n\nClarification: ${o.label}${o.description ? ' — ' + o.description : ''}`
   send(clarified)
 }
 

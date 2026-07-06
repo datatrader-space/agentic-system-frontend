@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="cfg-root">
     <div v-if="loading" class="cfg-loading">
-      <span class="spin"></span> Loading agentâ€¦
+      <span class="spin"></span> Loading agent…
     </div>
 
     <div v-else class="cfg">
@@ -21,7 +21,7 @@
             <div class="save-split" :class="needsPublish ? 'is-dirty' : 'is-ok'">
               <button class="save-main" :disabled="saving" @click="triggerSave">
                 <Icon v-if="!saving" :icon="needsPublish ? 'lucide:upload-cloud' : 'lucide:check-circle-2'" />
-                {{ saving ? 'Savingâ€¦' : (needsPublish ? 'Save & Publish' : 'Saved & Published') }}
+                {{ saving ? 'Saving…' : (needsPublish ? 'Save & Publish' : 'Saved & Published') }}
               </button>
               <button class="save-caret" :disabled="saving" @click="showSaveMenu = !showSaveMenu"><Icon icon="lucide:chevron-down" /></button>
             </div>
@@ -30,13 +30,13 @@
               <button @click="triggerSaveDraft(); showSaveMenu = false"><Icon icon="lucide:file-text" /> Save as draft</button>
               <div class="div"></div>
               <button :disabled="!(agent && agent.id)" @click="saveAsTemplate(); showSaveMenu = false"><Icon icon="lucide:layout-template" /> Save as template</button>
-              <button :disabled="!(agent && agent.id)" @click="showDeploy = true; showSaveMenu = false"><Icon icon="lucide:share-2" /> Deploy &amp; Shareâ€¦</button>
+              <button :disabled="!(agent && agent.id)" @click="showDeploy = true; showSaveMenu = false"><Icon icon="lucide:share-2" /> Deploy &amp; Share…</button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ===================== Step rail (only in the advanced/legacy editor â€” the create flow has no stepper) ===================== -->
+      <!-- ===================== Step rail (only in the advanced/legacy editor — the create flow has no stepper) ===================== -->
       <div v-if="!wizard" class="rail vm-scroll" data-tour="agent-rail">
         <button
           v-for="(s, i) in railSteps"
@@ -54,17 +54,17 @@
       <!-- ===================== Body ===================== -->
       <div class="cfg-body" :class="{ wizard }">
         <div class="builder-col">
-          <!-- Step 0 â€” blank vs template chooser -->
+          <!-- Step 0 — blank vs template chooser -->
           <div v-if="atStart" class="start-host vm-scroll">
             <AgentStartStep :creating-id="creatingId" @blank="nextStep" @use-template="useTemplate" />
           </div>
 
-          <!-- Step 1 â€” agent basics (name / purpose / workspace â†’ Create Agent) -->
+          <!-- Step 1 — agent basics (name / purpose / workspace → Create Agent) -->
           <div v-else-if="wizard" class="start-host vm-scroll">
             <AgentBasicsStep :agent="agent" :creating="saving" @create="createFromBasics" @back="prevStep" />
           </div>
 
-          <!-- Editor (existing agent) â€” full builder with scroll-spy -->
+          <!-- Editor (existing agent) — full builder with scroll-spy -->
           <div v-else ref="builderHost" class="builder-host">
             <AgentBuilder
               ref="builderRef"
@@ -91,7 +91,7 @@
             <span class="ring"><Icon icon="lucide:lock" /></span>
             <b>Publish to test your agent</b>
             <p>The live preview unlocks once you Save &amp; Publish your changes.</p>
-            <button class="mini" :disabled="saving" @click="triggerSave">{{ saving ? 'Savingâ€¦' : 'Save & Publish' }}</button>
+            <button class="mini" :disabled="saving" @click="triggerSave">{{ saving ? 'Saving…' : 'Save & Publish' }}</button>
           </div>
         </div>
       </div>
@@ -131,7 +131,7 @@ const builderHost = ref(null)
 const publishAfterSave = ref(false)
 
 // Publish state: the form is "dirty" when it differs from what's saved. A never-saved agent (no id)
-// always needs publishing. The live Emulator stays disabled â€” and Save & Publish stays red â€” until
+// always needs publishing. The live Emulator stays disabled — and Save & Publish stays red — until
 // the agent is published clean. `publishedVersion` bumps on each publish to remount the Emulator so
 // it always reflects the saved agent (incl. its saved mode).
 const dirty = ref(false)
@@ -159,12 +159,12 @@ const activeIndex = computed(() => Math.max(0, steps.findIndex(s => s.id === act
    The 7 builder sections are flat siblings in AgentBuilder's canvas. While creating a
    new agent we show ONE grouped step at a time (Back/Next + validation); once the agent
    is saved (has an id) we fall back to the free-scroll + scroll-spy editor. AgentBuilder
-   itself is untouched â€” we just toggle the visibility of its top-level section nodes. */
+   itself is untouched — we just toggle the visibility of its top-level section nodes. */
 const isNew = computed(() => !(agent.value && agent.value.id))
 const wizard = computed(() => isNew.value)
 
 // Create flow = two custom steps. Deep configuration happens AFTER creation, in the editor
-// (the agent overview â†’ Configure), so the create wizard stays minimal.
+// (the agent overview → Configure), so the create wizard stays minimal.
 const wizardSteps = [
   { id: 'start', n: 1, label: 'Get Started', sections: [],
     title: 'Create a new agent', help: 'Start from scratch or use a template to build your agent.' },
@@ -217,7 +217,7 @@ function applyWizardStep(retry = 0) {
     el.__sec = cur
   }
   // bottom-up: an element "has active content" if it (or any descendant) is owned by an active
-  // section, or it sits before the first anchor (chrome â†’ always shown).
+  // section, or it sits before the first anchor (chrome → always shown).
   const hasActive = new Map()
   for (let i = all.length - 1; i >= 0; i--) {
     const el = all[i]
@@ -256,10 +256,10 @@ function nextStep() {
 function prevStep() { if (wizardIndex.value > 0) wizardIndex.value-- }
 function createFromWizard() {
   if (!canNext.value) { notify.warning('Please give your agent a name first.'); return }
-  triggerSaveDraft()   // creates the agent (no publish) â†’ navigates to the editor
+  triggerSaveDraft()   // creates the agent (no publish) → navigates to the editor
 }
 
-// Basics step â†’ "Create Agent": create the agent (name/purpose), then land on the agent overview.
+// Basics step → "Create Agent": create the agent (name/purpose), then land on the agent overview.
 async function createFromBasics() {
   if (!(agent.value && (agent.value.name || '').trim())) {
     notify.warning('Please give your agent a name first.')
@@ -271,7 +271,7 @@ async function createFromBasics() {
     const id = res.data && res.data.id
     if (id) {
       notify.success('Agent created')
-      router.push(`/dashboard/agents/${id}/editor`)   // â†’ new editor (Define Brain, Screen 14)
+      router.push(`/dashboard/agents/${id}/editor`)   // → new editor (Define Brain, Screen 14)
     } else {
       notify.error('Could not create the agent')
     }
@@ -282,7 +282,7 @@ async function createFromBasics() {
   }
 }
 
-// Start step â†’ "use template": clone the builtin template into a new agent, open it in the editor.
+// Start step → "use template": clone the builtin template into a new agent, open it in the editor.
 async function useTemplate(t) {
   if (creatingId.value) return
   creatingId.value = t.id
@@ -290,7 +290,7 @@ async function useTemplate(t) {
     const res = await api.createAgentFromTemplate({ template_id: t.id })
     const id = res.data && res.data.id
     if (id) {
-      notify.success(`Created from â€œ${t.name}â€`)
+      notify.success(`Created from “${t.name}”`)
       router.push(`/dashboard/agents/${id}/editor`)
     } else {
       notify.error('Could not create from template')
@@ -348,7 +348,7 @@ function triggerSave() {
   publishAfterSave.value = true
   if (builderRef.value && builderRef.value.save) builderRef.value.save()
 }
-// Save as draft: persist edits only â€” does NOT publish (the live/public agent keeps its snapshot).
+// Save as draft: persist edits only — does NOT publish (the live/public agent keeps its snapshot).
 function triggerSaveDraft() {
   publishAfterSave.value = false
   if (builderRef.value && builderRef.value.save) builderRef.value.save()
@@ -358,7 +358,7 @@ async function saveAsTemplate() {
   if (!(agent.value && agent.value.id)) return
   try {
     await api.saveAgentAsTemplate(agent.value.id, { name: `${agent.value.name} Template` })
-    notify.success('Saved as template â€” available when creating a new agent')
+    notify.success('Saved as template — available when creating a new agent')
   } catch (e) {
     notify.error('Failed to save template')
   }
@@ -374,7 +374,7 @@ function extractApiError(e) {
   try {
     return Object.entries(d)
       .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
-      .join(' Â· ')
+      .join(' · ')
   } catch (_) {
     return (e && e.message) || 'Request failed'
   }
@@ -440,7 +440,7 @@ async function saveAgent(agentData) {
       try {
         const pres = await api.publishAgent(a.id)
         if (pres.data) a = pres.data
-      } catch (e) { /* non-fatal â€” the save itself succeeded */ }
+      } catch (e) { /* non-fatal — the save itself succeeded */ }
     }
     publishAfterSave.value = false
     if (!a.tool_ids && a.tools) a.tool_ids = a.tools.map(t => t.id)
@@ -479,14 +479,14 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* ===== Aadml â€” flat, clean light wizard (design.md Â§3). No glass/blur, soft shadows. ===== */
+/* ===== Aadml — flat, clean light wizard (design.md §3). No glass/blur, soft shadows. ===== */
 .cfg-root { height: 100%; font-family: var(--vm-font-sans); color: var(--vm-ink); background: var(--vm-bg); }
 .cfg { display: flex; flex-direction: column; height: 100%; }
 .cfg-loading { display: flex; align-items: center; justify-content: center; gap: 10px; height: 100%; color: var(--vm-ink-faint); font-size: 14px; }
 .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--vm-line-2); border-top-color: var(--vm-primary); animation: vmSpin .8s linear infinite; }
 @keyframes vmSpin { to { transform: rotate(360deg); } }
 
-/* top bar â€” flat white */
+/* top bar — flat white */
 .cfg-bar { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 13px 24px; background: var(--vm-surface); border-bottom: 1px solid var(--vm-border); flex: 0 0 auto; }
 .cfg-switch { position: absolute; left: 50%; transform: translateX(-50%); display: none; }
 @media (min-width: 1280px) { .cfg-switch { display: inline-flex; } }
@@ -526,7 +526,7 @@ onBeforeUnmount(() => {
 .save-menu button :deep(svg) { width: 15px; height: 15px; }
 .save-menu .div { height: 1px; background: var(--vm-border); margin: 5px 0; }
 
-/* wizard rail â€” flat connected stepper */
+/* wizard rail — flat connected stepper */
 .rail { display: flex; gap: 8px; padding: 14px 24px; overflow-x: auto; flex: 0 0 auto; border-bottom: 1px solid var(--vm-border); background: var(--vm-surface); }
 .rail::-webkit-scrollbar { height: 0; }
 .step { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; border: 1px solid var(--vm-border); background: var(--vm-surface); cursor: pointer; padding: 7px 14px; border-radius: 10px; font: 600 12.5px var(--vm-font-sans); color: var(--vm-ink-faint); transition: .15s var(--vm-ease2); }
@@ -543,7 +543,7 @@ onBeforeUnmount(() => {
 .cfg-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
 .builder-col { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
 .builder-host { flex: 1; min-width: 0; min-height: 0; }
-/* Start step (chooser) â€” scrolls within the builder column, flat light canvas */
+/* Start step (chooser) — scrolls within the builder column, flat light canvas */
 .start-host { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; background: var(--vm-bg); padding-top: 6px; }
 
 /* Wizard step heading (between rail and builder) */
@@ -579,7 +579,7 @@ onBeforeUnmount(() => {
 /* ===== Restyle the inner builder canvas (presentational only, via :deep) ===== */
 .builder-host { height: 100%; }
 .builder-host :deep(.agent-builder) { background: transparent; }
-/* Flat light canvas â€” no radial gradients. */
+/* Flat light canvas — no radial gradients. */
 .builder-host :deep(.agent-builder > .flex-1) { background: var(--vm-bg) !important; }
 .builder-host :deep(.vm-anchor) { scroll-margin-top: 16px; }
 .builder-host :deep(.wiz-hidden) { display: none !important; }
@@ -587,7 +587,7 @@ onBeforeUnmount(() => {
 /* comfortable canvas width */
 .builder-host :deep(.agent-builder .max-w-3xl) { max-width: 780px !important; }
 
-/* section cards â†’ solid white, soft border + shadow (flat) */
+/* section cards → solid white, soft border + shadow (flat) */
 .builder-host :deep(.agent-builder .bg-white.rounded-xl) {
   background: var(--vm-surface) !important;
   border-radius: 16px !important;
@@ -596,7 +596,7 @@ onBeforeUnmount(() => {
   padding: 22px !important;
 }
 
-/* section header number badge â†’ soft tinted square (flat, not gradient) */
+/* section header number badge → soft tinted square (flat, not gradient) */
 .builder-host :deep(.agent-builder .w-7.h-7.rounded-lg) {
   width: 38px !important; height: 38px !important;
   border-radius: 11px !important;
@@ -607,7 +607,7 @@ onBeforeUnmount(() => {
 .builder-host :deep(.agent-builder .w-7.h-7.bg-emerald-600) { background: #E3F8F4 !important; color: #0E9384 !important; }
 .builder-host :deep(.agent-builder .w-7.h-7.bg-violet-600) { background: var(--vm-primary-soft) !important; color: var(--vm-primary) !important; }
 
-/* inputs / textareas / selects â†’ rounded + blue focus ring */
+/* inputs / textareas / selects → rounded + blue focus ring */
 .builder-host :deep(.agent-builder input[type="text"]),
 .builder-host :deep(.agent-builder input:not([type])),
 .builder-host :deep(.agent-builder textarea),
@@ -622,7 +622,7 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 3px var(--vm-primary-soft) !important;
 }
 
-/* ===== Remap legacy indigo/violet/purple accents â†’ Aadml blue (presentational) =====
+/* ===== Remap legacy indigo/violet/purple accents → Aadml blue (presentational) =====
    AgentBuilder.vue is heavy on Tailwind indigo/violet utilities (the old purple-ish accent).
    Rather than touch 3000 lines, retarget those utility classes to the v2 blue tokens. */
 .builder-host :deep(.bg-indigo-600), .builder-host :deep(.bg-indigo-700),

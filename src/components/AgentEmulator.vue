@@ -62,7 +62,22 @@
             <!-- user bubble -->
             <div v-if="m.role === 'user'"
                  class="max-w-[85%] px-3 py-2 rounded-2xl text-sm bg-indigo-100 text-indigo-900 whitespace-pre-wrap break-words">
-              {{ m.content }}
+              <div v-if="m.attachments && m.attachments.length" class="flex flex-wrap gap-1.5 mb-1.5">
+                <template v-for="(a, i) in m.attachments" :key="i">
+                  <img v-if="a.isImage && a.url" :src="a.url" :alt="a.name" title="Click to open preview"
+                       class="max-w-[140px] max-h-[140px] rounded-lg border border-indigo-200 cursor-zoom-in"
+                       @click="openEmuAttachment(a)" />
+                  <a v-else-if="a.url" :href="a.url" :download="a.name" target="_blank" rel="noopener"
+                     title="Open / download"
+                     class="inline-flex items-center gap-1 text-xs text-indigo-800 opacity-90 hover:opacity-100 underline decoration-indigo-300">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>{{ a.name }}
+                  </a>
+                  <span v-else class="inline-flex items-center gap-1 text-xs text-indigo-800 opacity-90">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>{{ a.name }}
+                  </span>
+                </template>
+              </div>
+              <span v-if="m.content">{{ m.content }}</span>
             </div>
 
             <!-- assistant: live activity timeline + markdown answer + token usage -->
@@ -83,6 +98,10 @@
                 :running="m.streaming"
               />
               <ActivityStream v-else :activity="m.activity" />
+              <!-- Attachment prep: holding the turn while an attached document finishes indexing. -->
+              <div v-if="m.streaming && m.prepStatus" class="flex items-center gap-2 text-sm text-gray-500 mt-1">
+                <span class="inline-block w-3 h-3 border-2 border-gray-400 border-r-transparent rounded-full animate-spin"></span>{{ m.prepStatus }}
+              </div>
               <div v-if="m.content"
                    class="emu-prose text-sm text-gray-800 break-words mt-1"
                    v-html="renderMarkdown(m.content)"></div>
@@ -287,7 +306,7 @@ function stageEmuFiles(files) {
   for (const file of Array.from(files || [])) {
     if (!file) continue
     const isImage = /^image\//.test(file.type)
-    emuAttachments.value.push({ file, name: file.name, isImage, url: isImage ? URL.createObjectURL(file) : '' })
+    emuAttachments.value.push({ file, name: file.name, isImage, mime: file.type || '', url: URL.createObjectURL(file) })
   }
 }
 function onEmuFiles(e) {
@@ -378,25 +397,49 @@ function onPaste(e) {
   }
   if (long) { e.preventDefault(); attachLongText(text) }
 }
+function openEmuAttachment(a) {
+  if (a && a.url) window.open(a.url, '_blank', 'noopener')
+}
 function removeEmuAttachment(i) {
   const a = emuAttachments.value[i]
   if (a && a.url) { try { URL.revokeObjectURL(a.url) } catch { /* ignore */ } }
   emuAttachments.value.splice(i, 1)
 }
 // Upload staged files to the current conversation (the backend auto-attaches recent images to the
-// vision model). Returns true once they're uploaded + cleared. No-op without a conversation yet.
+// vision model). Returns the list of non-image DOCUMENTS { id, name } that were queued for MarkItDown
+// conversion — the caller holds the turn until they finish indexing. No-op without a conversation yet.
 async function uploadEmuAttachments() {
-  if (!emuAttachments.value.length || !conversationId.value) return false
+  if (!emuAttachments.value.length || !conversationId.value) return []
   const items = emuAttachments.value.slice()
+  const docs = []
   try {
-    for (const a of items) await api.uploadConversationFile(conversationId.value, a.file)
+    for (const a of items) {
+      const res = await api.uploadConversationFile(conversationId.value, a.file)
+      const fileId = res?.data?.id
+      if (!a.isImage && fileId != null) docs.push({ id: fileId, name: a.name })
+    }
   } catch {
     error.value = 'Failed to upload an attachment.'
-    return false
+    return []
   }
-  for (const a of items) { if (a.url) { try { URL.revokeObjectURL(a.url) } catch { /* ignore */ } } }
+  // NOTE: do NOT revoke the object URLs here — the message bubble keeps them as previews (mirrors New
+  // Chat). They're released when the transcript is cleared / the page unloads.
   emuAttachments.value = []
-  return true
+  return docs
+}
+
+// Await a queued document through the MarkItDown pipeline (mirror of the New Chat gate). Resolves
+// 'ready' | 'failed' | 'timeout'; bounded (~60s) so a stuck conversion can never hang the send.
+async function awaitEmuIngest(fileId) {
+  for (let i = 0; i < 40; i++) {
+    let d
+    try { d = (await api.getAgentFileStatus(fileId)).data } catch { d = null }
+    const st = d?.index_status
+    if (st === 'ready') return 'ready'
+    if (st === 'failed') return 'failed'
+    await new Promise((r) => setTimeout(r, 1500))
+  }
+  return 'timeout'
 }
 
 // ⋯ options
@@ -430,7 +473,7 @@ const lastUserMessage = ref('')
 // One assistant turn's data, including the Inspector capture buffers.
 function newAssistantMessage() {
   return {
-    role: 'assistant', content: '', streaming: true,
+    role: 'assistant', content: '', streaming: true, prepStatus: '',
     activity: createActivity(), usage: null,
     events: [], toolIO: [], knowledge: [],
   }
@@ -796,20 +839,23 @@ async function send() {
   if (busy.value || (!text && !hasAtt) || !props.agentId) return
   input.value = ''
   lastUserMessage.value = text
-  // Upload staged images first (when a conversation exists) so the backend attaches them to the
-  // vision model. On the very first message there's no conversation yet — they upload on
-  // conversation_created and apply to the next turn.
-  if (hasAtt && conversationId.value) await uploadEmuAttachments()
-  dispatch(text || 'Please look at the attached image.')
+  // Snapshot previews BEFORE upload so the user bubble shows the attached image/file chips.
+  const previews = emuAttachments.value.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url }))
+  // Upload staged files first (when a conversation exists) so the backend attaches images to the vision
+  // model and queues documents for MarkItDown. On the very first message there's no conversation yet —
+  // they upload on conversation_created and apply to the next turn.
+  let docs = []
+  if (hasAtt && conversationId.value) docs = await uploadEmuAttachments()
+  dispatch(text || 'Please look at the attached image.', { previews, holdDocs: docs })
 }
 
 // Send a chat_message turn. `resume` re-sends the original instruction after a plan approval and so
 // does not add a second user bubble (the original is already shown).
-function dispatch(text, { resume = false } = {}) {
+function dispatch(text, { resume = false, previews = [], holdDocs = [] } = {}) {
   if (!text || !props.agentId) return
   if (!ws.value || ws.value.readyState !== WebSocket.OPEN) connect()
 
-  if (!resume) messages.value.push({ role: 'user', content: text })
+  if (!resume) messages.value.push({ role: 'user', content: text, attachments: previews })
   // Fresh rich-activity timeline for the new turn.
   resetTimeline()
   richActive.value = false
@@ -837,7 +883,23 @@ function dispatch(text, { resume = false } = {}) {
       error.value = 'Could not connect to the chat server.'
     }
   }
-  trySend()
+
+  // ChatGPT-style: when a document was attached WITH the question, HOLD the WS turn until it finishes
+  // converting/indexing so the agent has the content on its FIRST answer (no "still being processed").
+  // The assistant bubble shows a "Reading…" status meanwhile; images don't gate (auto-attached to vision).
+  if (holdDocs.length) {
+    a.prepStatus = holdDocs.length > 1 ? `Reading your ${holdDocs.length} documents…` : `Reading ${holdDocs[0].name}…`
+    ;(async () => {
+      for (const d of holdDocs) {
+        const st = await awaitEmuIngest(d.id)
+        if (st === 'failed') notify.error(`Could not process ${d.name}.`)
+      }
+      a.prepStatus = ''
+      trySend()
+    })()
+  } else {
+    trySend()
+  }
 }
 
 function stop() {
