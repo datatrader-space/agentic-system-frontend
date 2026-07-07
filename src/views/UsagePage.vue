@@ -190,6 +190,8 @@
                 <th>Request Type</th>
                 <th>Input</th>
                 <th>Output</th>
+                <th>Cached</th>
+                <th>Reasoning</th>
                 <th>Latency</th>
                 <th>Cost (USD)</th>
                 <th>Status</th>
@@ -208,6 +210,8 @@
                 <td>{{ row.type }}</td>
                 <td>{{ row.input }}</td>
                 <td>{{ row.output }}</td>
+                <td>{{ row.cached }}</td>
+                <td>{{ row.reasoning }}</td>
                 <td>{{ row.latency }}</td>
                 <td>{{ row.cost }}</td>
                 <td><span :class="['status-pill', row.statusTone]"><i />{{ row.status }}</span></td>
@@ -273,64 +277,43 @@ const pageSize = ref(10)
 const agents = ref([])
 const stats = ref({})
 const usageRows = ref([])
+const usageData = ref({})   // full llm_usage payload: cost_by_model / _agent / _provider / _user / totals
 const requestRows = ref([])
 const auditEntries = ref([])
 const serverTotal = ref(0)
 
-const fallbackUsage = [
-  { label: 'May 12', cost: 2.9, requests: 212, tokens: 258000 },
-  { label: 'May 13', cost: 5.5, requests: 316, tokens: 472000 },
-  { label: 'May 14', cost: 2.8, requests: 221, tokens: 240000 },
-  { label: 'May 15', cost: 5.0, requests: 294, tokens: 416000 },
-  { label: 'May 16', cost: 6.0, requests: 358, tokens: 520000 },
-  { label: 'May 17', cost: 3.4, requests: 246, tokens: 304000 },
-  { label: 'May 18', cost: 4.4, requests: 195, tokens: 278000 },
-]
-
-const fallbackRequests = [
-  { id: 'r1', time: 'May 18, 2025 12:30 PM', agent: 'Content Writer', provider: 'OpenAI', model: 'GPT-4o', type: 'Chat Completion', input: '3,245', output: '1,024', latency: '1.28s', cost: '$0.0821', status: 'Success', statusTone: 'success' },
-  { id: 'r2', time: 'May 18, 2025 12:28 PM', agent: 'Research Assistant', provider: 'OpenAI', model: 'GPT-4 Turbo', type: 'Chat Completion', input: '2,103', output: '892', latency: '1.15s', cost: '$0.0418', status: 'Success', statusTone: 'success' },
-  { id: 'r3', time: 'May 18, 2025 12:26 PM', agent: 'Data Analyst', provider: 'Anthropic', model: 'Claude 3.5 Sonnet', type: 'Chat Completion', input: '4,156', output: '1,432', latency: '1.94s', cost: '$0.0673', status: 'Success', statusTone: 'success' },
-  { id: 'r4', time: 'May 18, 2025 12:24 PM', agent: 'Support Agent', provider: 'OpenAI', model: 'GPT-4o', type: 'Chat Completion', input: '1,512', output: '612', latency: '0.98s', cost: '$0.0196', status: 'Success', statusTone: 'success' },
-]
-
-const fallbackStats = {
-  total_requests: 1842,
-  total_cost: 24.68,
-  avg_latency_seconds: 1.42,
-  top_model: 'GPT-4o',
-  top_model_share: 60,
-  knowledge_cost: 4.21,
-  embedding_cost: 2.84,
-  completion_cost: 17.63,
-}
-
-const fallbackAudit = [
-  { id: 'a1', title: 'Provider pricing synced', copy: 'OpenAI and Anthropic model pricing refreshed', time: '2h ago' },
-  { id: 'a2', title: 'Usage export downloaded', copy: 'Finance exported 7 day usage report', time: '5h ago' },
-  { id: 'a3', title: 'Budget threshold checked', copy: 'Workspace spend remains inside policy', time: '1d ago' },
-]
+// No fabricated fallbacks — an empty account must read as real zeros, not fake demo data.
+const fallbackUsage = []
+const fallbackRequests = []
+const fallbackStats = {}
+const fallbackAudit = []
 
 const normalizedUsage = computed(() => usageRows.value.length ? usageRows.value : fallbackUsage)
-const normalizedStats = computed(() => ({ ...fallbackStats, ...(stats.value || {}) }))
+const normalizedStats = computed(() => ({ ...(stats.value || {}) }))
 
-const totalCost = computed(() => pickNumber(normalizedStats.value.total_cost, normalizedStats.value.cost, normalizedStats.value.total_cost_usd) || sum(normalizedUsage.value, 'cost'))
-const totalRequestsMetric = computed(() => pickNumber(normalizedStats.value.total_requests, normalizedStats.value.requests) || sum(normalizedUsage.value, 'requests'))
-const avgLatency = computed(() => pickNumber(normalizedStats.value.avg_latency_seconds, normalizedStats.value.avg_latency, normalizedStats.value.avg_latency_ms / 1000) || 1.42)
-const topModel = computed(() => normalizedStats.value.top_model || normalizedStats.value.model || 'GPT-4o')
-const topModelShare = computed(() => pickNumber(normalizedStats.value.top_model_share, normalizedStats.value.top_model_percent) || 60)
-const knowledgeCost = computed(() => pickNumber(normalizedStats.value.knowledge_cost, normalizedStats.value.kb_cost) || totalCost.value * 0.17)
-const embeddingCost = computed(() => pickNumber(normalizedStats.value.embedding_cost, normalizedStats.value.embeddings_cost) || totalCost.value * 0.12)
-const completionCost = computed(() => pickNumber(normalizedStats.value.completion_cost, normalizedStats.value.chat_cost) || Math.max(0, totalCost.value - knowledgeCost.value - embeddingCost.value))
+// Prefer the real llm_usage payload (cost_by_* + totals) for headline metrics; fall back to llm_stats.
+const totalCost = computed(() => pickNumber(usageData.value.total_cost, normalizedStats.value.total_cost, normalizedStats.value.cost) || 0)
+const totalRequestsMetric = computed(() => pickNumber(normalizedStats.value.total_requests, normalizedStats.value.requests) || sum(usageData.value.cost_by_provider || [], 'requests') || 0)
+const avgLatency = computed(() => pickNumber(normalizedStats.value.avg_latency_seconds, normalizedStats.value.avg_latency, normalizedStats.value.avg_latency_ms / 1000) || 0)
+const topModel = computed(() => (usageData.value.cost_by_model || [])[0]?.model_name || '—')
+const topModelShare = computed(() => {
+  const rows = usageData.value.cost_by_model || []
+  const total = rows.reduce((s, r) => s + Number(r.cost || 0), 0) || 1
+  return rows.length ? Math.round((Number(rows[0].cost || 0) / total) * 100) : 0
+})
+const knowledgeCost = computed(() => pickNumber(usageData.value.kb_cost, normalizedStats.value.kb_cost) || 0)
+const embeddingCost = computed(() => pickNumber(usageData.value.embedding_cost, normalizedStats.value.embedding_cost) || 0)
+const completionCost = computed(() => pickNumber(usageData.value.chat_cost, normalizedStats.value.chat_cost) || Math.max(0, totalCost.value - knowledgeCost.value - embeddingCost.value))
 
+const _pct = (part) => (totalCost.value > 0 ? Math.round((part / totalCost.value) * 100) : 0)
 const metricCards = computed(() => [
-  { label: 'Total Requests', value: formatNumber(totalRequestsMetric.value), copy: '12% vs previous 7 days', good: true, icon: 'lucide:zap', tone: 'blue' },
-  { label: 'Total Cost', value: formatMoney(totalCost.value), copy: '8% vs previous 7 days', good: true, icon: 'lucide:circle-dollar-sign', tone: 'green' },
-  { label: 'Avg Latency', value: `${avgLatency.value.toFixed(2)}s`, copy: '13% vs previous 7 days', good: true, icon: 'lucide:clock-3', tone: 'violet' },
+  { label: 'Total Requests', value: formatNumber(totalRequestsMetric.value), copy: 'across selected window', good: true, icon: 'lucide:zap', tone: 'blue' },
+  { label: 'Total Cost', value: formatMoney(totalCost.value), copy: 'across selected window', good: true, icon: 'lucide:circle-dollar-sign', tone: 'green' },
+  { label: 'Avg Latency', value: `${avgLatency.value.toFixed(2)}s`, copy: 'mean response time', good: true, icon: 'lucide:clock-3', tone: 'violet' },
   { label: 'Top Model', value: topModel.value, copy: `${topModelShare.value}% of total cost`, icon: 'lucide:sun', tone: 'amber' },
-  { label: 'Knowledge Base Cost', value: formatMoney(knowledgeCost.value), copy: '17% of total cost', icon: 'lucide:book-open', tone: 'indigo' },
-  { label: 'Embedding Cost', value: formatMoney(embeddingCost.value), copy: '12% of total cost', icon: 'lucide:panel-top', tone: 'cyan' },
-  { label: 'Chat / Completion Cost', value: formatMoney(completionCost.value), copy: '71% of total cost', icon: 'lucide:message-circle', tone: 'teal' },
+  { label: 'Knowledge Base Cost', value: formatMoney(knowledgeCost.value), copy: `${_pct(knowledgeCost.value)}% of total cost`, icon: 'lucide:book-open', tone: 'indigo' },
+  { label: 'Embedding Cost', value: formatMoney(embeddingCost.value), copy: `${_pct(embeddingCost.value)}% of total cost`, icon: 'lucide:panel-top', tone: 'cyan' },
+  { label: 'Chat / Completion Cost', value: formatMoney(completionCost.value), copy: `${_pct(completionCost.value)}% of total cost`, icon: 'lucide:message-circle', tone: 'teal' },
 ])
 
 const chartPoints = computed(() => {
@@ -349,17 +332,22 @@ const chartPoints = computed(() => {
 const linePath = computed(() => chartPoints.value.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' '))
 const areaPath = computed(() => `${linePath.value} L ${chartPoints.value.at(-1)?.x || 58} 218 L ${chartPoints.value[0]?.x || 58} 218 Z`)
 
+const MODEL_COLORS = ['#3156e9', '#16b981', '#8b5cf6', '#f59e0b', '#ec4899', '#0ea5e9', '#94a3b8']
+
+// Top Models by Cost — REAL data from llm_usage.cost_by_model (was hardcoded 60/21/13/6 percentages).
 const modelRows = computed(() => {
-  const total = totalCost.value || 1
-  return [
-    { name: 'GPT-4o', cost: total * 0.6, share: 60, color: '#3156e9' },
-    { name: 'GPT-4 Turbo', cost: total * 0.21, share: 21, color: '#16b981' },
-    { name: 'Claude 3.5', cost: total * 0.13, share: 13, color: '#8b5cf6' },
-    { name: 'Other', cost: total * 0.06, share: 6, color: '#94a3b8' },
-  ]
+  const rows = usageData.value.cost_by_model || []
+  const total = rows.reduce((s, r) => s + Number(r.cost || 0), 0) || 1
+  return rows.slice(0, 6).map((r, i) => ({
+    name: r.model_name || r.provider_type || 'unknown',
+    cost: Number(r.cost || 0),
+    share: Math.round((Number(r.cost || 0) / total) * 100),
+    color: MODEL_COLORS[i % MODEL_COLORS.length],
+  }))
 })
 
 const donutGradient = computed(() => {
+  if (!modelRows.value.length) return 'conic-gradient(#e2e8f0 0% 100%)'  // neutral ring when no data
   let start = 0
   const stops = modelRows.value.map((row) => {
     const end = start + row.share
@@ -370,23 +358,43 @@ const donutGradient = computed(() => {
   return `conic-gradient(${stops.join(', ')})`
 })
 
+// Cost by Agent — REAL data from llm_usage.cost_by_agent (was hardcoded 40/25/16/11/7 percentages).
 const agentCostRows = computed(() => {
-  const rows = [
-    { name: 'Content Writer', cost: totalCost.value * 0.4 },
-    { name: 'Research Assistant', cost: totalCost.value * 0.25 },
-    { name: 'Data Analyst', cost: totalCost.value * 0.16 },
-    { name: 'Support Agent', cost: totalCost.value * 0.11 },
-    { name: 'Other Agents', cost: totalCost.value * 0.07 },
-  ]
+  const rows = (usageData.value.cost_by_agent || []).map((r) => ({
+    name: r.agent_name || 'No agent', cost: Number(r.cost || 0),
+  }))
+  const max = Math.max(...rows.map((row) => row.cost), 1)
+  return rows.slice(0, 8).map((row) => ({ ...row, width: Math.round((row.cost / max) * 100) }))
+})
+
+// Cost by Provider + Cost by User — real breakdowns (rendered if the template has panels for them).
+const providerCostRows = computed(() => {
+  const rows = (usageData.value.cost_by_provider || []).map((r) => ({
+    name: r.provider_type || 'unknown', cost: Number(r.cost || 0),
+    requests: r.requests || 0,
+  }))
   const max = Math.max(...rows.map((row) => row.cost), 1)
   return rows.map((row) => ({ ...row, width: Math.round((row.cost / max) * 100) }))
 })
 
-const costDrivers = computed(() => [
-  `Chat/Completion usage ${Math.round((completionCost.value / Math.max(totalCost.value, 1)) * 100)}% of total cost`,
-  `Top model: ${topModel.value} ${topModelShare.value}% of total cost`,
-  'Highest agent: Content Writer 40% of total cost',
-])
+const userCostRows = computed(() => {
+  const rows = (usageData.value.cost_by_user || []).map((r) => ({
+    name: r.user_email || 'Unknown', cost: Number(r.cost || 0), requests: r.requests || 0,
+  }))
+  const max = Math.max(...rows.map((row) => row.cost), 1)
+  return rows.slice(0, 8).map((row) => ({ ...row, width: Math.round((row.cost / max) * 100) }))
+})
+
+const costDrivers = computed(() => {
+  const out = []
+  if (totalCost.value > 0) {
+    out.push(`Chat/Completion usage ${_pct(completionCost.value)}% of total cost`)
+    if (modelRows.value.length) out.push(`Top model: ${topModel.value} ${topModelShare.value}% of total cost`)
+    const topAgent = agentCostRows.value[0]
+    if (topAgent) out.push(`Highest agent: ${topAgent.name} ${_pct(topAgent.cost)}% of total cost`)
+  }
+  return out.length ? out : ['No usage recorded in the selected window']
+})
 
 const reductionTips = ['Use GPT-4 Turbo for routine tasks', 'Limit context and system prompts', 'Leverage caching and reuse results', 'Monitor low-value or test traffic']
 
@@ -451,7 +459,8 @@ function formatTime(value) {
 }
 
 function normalizeRequest(row, index) {
-  const agentName = row.agent_name || row.agent || row.agent_profile_name || 'Content Writer'
+  // Honest defaults — never fabricate an agent/provider/model name for a real row.
+  const agentName = row.agent_name || row.agent || row.agent_profile_name || 'No agent'
   const status = row.status || (row.success === false ? 'Error' : 'Success')
   const statusTone = String(status).toLowerCase().includes('error') || String(status).toLowerCase().includes('fail') ? 'error' : 'success'
   return {
@@ -459,13 +468,15 @@ function normalizeRequest(row, index) {
     time: formatTime(row.created_at || row.timestamp || row.time),
     agent: agentName,
     agentInitial: agentName.charAt(0).toUpperCase(),
-    provider: row.provider || row.provider_name || 'OpenAI',
-    model: row.model || row.model_name || 'GPT-4o',
-    type: row.request_type || row.operation || row.type || 'Chat Completion',
+    provider: row.provider || row.provider_name || 'unknown',
+    model: row.model || row.model_name || 'unknown',
+    type: row.request_type || row.operation || row.type || 'completion',
     input: formatNumber(row.input_tokens || row.prompt_tokens || row.input || 0),
     output: formatNumber(row.output_tokens || row.completion_tokens || row.output || 0),
-    latency: row.latency || row.duration || `${((row.latency_ms || row.duration_ms || 1280) / 1000).toFixed(2)}s`,
-    cost: row.cost ? formatMoney(row.cost) : row.cost_usd ? formatMoney(row.cost_usd) : '$0.0000',
+    cached: formatNumber(row.cached_tokens || 0),
+    reasoning: formatNumber(row.reasoning_tokens || 0),
+    latency: row.latency || row.duration || (row.latency_ms != null ? `${(row.latency_ms / 1000).toFixed(2)}s` : '—'),
+    cost: (row.cost || row.cost_usd) ? formatMoney(row.cost || row.cost_usd) : '$0.0000',
     status: statusTone === 'success' ? 'Success' : 'Error',
     statusTone,
   }
@@ -493,7 +504,11 @@ async function reload() {
     ])
     if (agentRes.status === 'fulfilled') agents.value = unwrapList(agentRes.value.data, 'agents')
     if (statsRes.status === 'fulfilled') stats.value = statsRes.value.data || {}
-    if (usageRes.status === 'fulfilled') usageRows.value = unwrapList(usageRes.value.data, 'usage', 'data', 'series')
+    if (usageRes.status === 'fulfilled') {
+      usageData.value = usageRes.value.data || {}
+      // Optional time-series (if the backend ever returns one); the breakdown panels read usageData directly.
+      usageRows.value = unwrapList(usageRes.value.data, 'usage', 'series')
+    }
     if (requestsRes.status === 'fulfilled') {
       requestRows.value = unwrapList(requestsRes.value.data, 'requests')
       serverTotal.value = requestsRes.value.data?.count || requestRows.value.length

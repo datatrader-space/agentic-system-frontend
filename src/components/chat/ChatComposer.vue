@@ -82,12 +82,14 @@
                            :plan-mode="planMode" placement="up" @change="$emit('mode-change', $event)" />
         </div>
 
-        <button v-if="streaming" type="button" class="action-btn stop" title="Stop generating"
+        <!-- While the agent runs: empty input → Stop; typed input → Send (queues as mid-run steering). -->
+        <button v-if="streaming && !draft.trim()" type="button" class="action-btn stop" title="Stop generating"
                 aria-label="Stop generating" @click="$emit('stop')">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2" /></svg>
         </button>
         <button v-else type="submit" class="action-btn send"
-                :disabled="!draft.trim() && attachments.length === 0" title="Send" aria-label="Send message">
+                :disabled="!draft.trim() && attachments.length === 0"
+                :title="streaming ? 'Send to the running agent' : 'Send'" aria-label="Send message">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </button>
       </div>
@@ -259,7 +261,9 @@ const reset = async () => {
 
 const onSubmit = () => {
   const text = draft.value.trim()
-  if ((!text && props.attachments.length === 0) || props.streaming) return
+  if (!text && props.attachments.length === 0) return
+  // While the agent is running, only TEXT is accepted (queued as steering) — no attachment-only sends.
+  if (props.streaming && !text) return
   emit('send', text)
   reset()
 }

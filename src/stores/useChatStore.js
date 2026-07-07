@@ -39,6 +39,9 @@ export const useChatStore = defineStore('chat', {
 
     // Human-in-the-loop approval queue (tools the backend gated for approval). Rendered by HITLModal.
     hitlRequests: [],
+    // True while ≥1 approval card is pending. Keeps the turn "active" (not "Done") so the card + Stop
+    // stay visible even if the task/CRS path emitted a premature completion for the step-0 text.
+    awaitingApproval: false,
 
     // Manual Mode plan awaiting human approval (v3 Layer 2). Rendered by PlanApprovalCard; null when
     // none pending. Approving resumes the run (re-sends the last user message).
@@ -299,7 +302,17 @@ export const useChatStore = defineStore('chat', {
     async sendMessage(text) {
       const content = (text || '').trim()
       const atts = this.pendingAttachments.slice()
-      if ((!content && atts.length === 0) || this.isStreaming) return
+      if (!content && atts.length === 0) return
+
+      // Mid-run STEERING: the agent is already running. Don't start a second turn and don't drop the
+      // message — send it as a steering message. The backend queues it and the running agent observes it
+      // between steps (deciding whether to change course now or handle it after). Text only mid-run.
+      if (this.isStreaming) {
+        if (!content || !this.conversationId || !this._conn) return
+        this.messages.push({ id: nid(), role: 'user', content, status: 'done', queued: true })
+        this._conn.sendMessage(content, this.selectedAgentId)
+        return
+      }
 
       // No agents at all → don't silently swallow the message. Tell the user what to do.
       if (this.needsAgent) {
@@ -380,6 +393,10 @@ export const useChatStore = defineStore('chat', {
 
     stop() {
       this._conn?.stop()
+      // Clear any pending approval so _endAssistant is allowed to finalize (Stop must always end the
+      // turn, even mid-approval). The backend's stop_execution also cancels the server-side HITL wait.
+      this.hitlRequests = []
+      this.awaitingApproval = false
       this._endAssistant()
     },
 
@@ -388,10 +405,12 @@ export const useChatStore = defineStore('chat', {
       this._conn?.sendHitlResponse(request_id, response_value, feedback)
       // Optimistically clear; the hitl_response_ack will also clear it.
       this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== request_id)
+      if (this.hitlRequests.length === 0) this.awaitingApproval = false
     },
 
     dismissHitl(requestId) {
       this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== requestId)
+      if (this.hitlRequests.length === 0) this.awaitingApproval = false
     },
 
     // ── Manual Mode plan approval (v3 Layer 2) ──
@@ -429,6 +448,7 @@ export const useChatStore = defineStore('chat', {
 
     skipHitl(requestId) {
       this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== requestId)
+      if (this.hitlRequests.length === 0) this.awaitingApproval = false
     },
 
     retryLast() {
@@ -637,6 +657,11 @@ export const useChatStore = defineStore('chat', {
     },
 
     _endAssistant() {
+      // While a human approval is pending, DON'T finalize the turn. The task/CRS path can emit a
+      // premature "complete" for the step-0 text while the agent is actually blocked on an approval
+      // card; finalizing here would show "Done", hide the Stop button, and orphan the pending card.
+      // The REAL completion (after the human responds, once hitlRequests is empty) ends the turn.
+      if (this.hitlRequests.length > 0) return
       const m = this._cur()
       if (m) {
         if (m.activity) finishActivity(m.activity)
@@ -761,11 +786,38 @@ export const useChatStore = defineStore('chat', {
               timeout_at: msg.timeout_at || null,
             })
           }
+          // Keep the turn ALIVE while this approval is pending. The task/CRS path can emit a premature
+          // "complete" for the step-0 text BEFORE this card arrives — which already flipped the turn to
+          // "Done" and hid the Stop control. Re-open the streaming turn (re-binding the assistant
+          // bubble if it was finalized) so the timeline shows "awaiting approval" and the card + Stop
+          // stay visible until the human responds.
+          this.awaitingApproval = true
+          this.isStreaming = true
+          {
+            const cur = this._cur()
+              || this.messages.filter((x) => x.role === 'assistant').slice(-1)[0]
+            if (cur) {
+              if (this._assistantId == null) this._assistantId = cur.id
+              if (cur.status === 'done') cur.status = 'streaming'
+            }
+          }
           break
         }
         case 'hitl_response_ack':
           this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== msg.request_id)
+          if (this.hitlRequests.length === 0) this.awaitingApproval = false
           break
+        // ── Mid-run steering: a message the user sent while the agent was working ──
+        case 'message_queued':
+          // ack that the backend queued the steering message (the optimistic bubble already shows it).
+          break
+        case 'steering_applied': {
+          // the running agent picked up a queued message — drop the "queued" flag on that bubble.
+          const qm = [...this.messages].reverse().find(
+            (m) => m.role === 'user' && m.queued && (m.content || '') === (msg.message || ''))
+          if (qm) qm.queued = false
+          break
+        }
         // ── v3 Plan Gate (Manual Mode): a plan is ready and awaits a human. The timeline label is
         // already shown via the catch-all ingest above; surface the approval card with the content.
         case 'plan_approval_required':

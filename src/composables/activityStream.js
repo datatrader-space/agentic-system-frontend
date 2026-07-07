@@ -186,6 +186,49 @@ export function ingest(activity, evt) {
       return
     }
 
+    // ── Task/CRS path planning phase (agent_runner emits agent_planning → agent_plan_generated).
+    // Without these the timeline sits on the seeded "Thinking" step for the WHOLE (silent, non-
+    // streaming) plan LLM call, so the user sees a stuck spinner. Surface the phase + step count.
+    case 'agent_planning': {
+      let s = lastActive(activity)
+      if (!s || s.phase !== 'thinking') s = openStep(activity, { phase: 'thinking', label: 'Planning your approach' }, t)
+      else s.label = 'Planning your approach'
+      // Show the backend's status line as expandable detail (skip the generic placeholder).
+      if (evt.message && evt.message !== 'Thinking...') s.thinkingText = evt.message
+      return
+    }
+    case 'agent_plan_generated': {
+      const rawSteps = (evt.plan && Array.isArray(evt.plan.steps)) ? evt.plan.steps : []
+      const n = evt.step_count != null ? evt.step_count : rawSteps.length
+      let s = [...activity.steps].reverse().find((x) => x.phase === 'thinking' && ACTIVE_STATUSES.has(x.status))
+        || lastActive(activity)
+      if (!s) s = openStep(activity, { phase: 'thinking', label: 'Planning your approach' }, t)
+      s.status = 'done'
+      s.endTs = t
+      const done = evt.progress?.done || rawSteps.filter((x) => String(x.status).toLowerCase() === 'completed').length
+      s.label = evt.resumed
+        ? `Resuming plan — ${done}/${n} step${n === 1 ? '' : 's'} done`
+        : (n ? `Planned ${n} step${n === 1 ? '' : 's'}` : 'Plan ready')
+      // Durable-plan checklist: keep the steps on the activity so the UI renders a live todo-list and
+      // ticks each off as plan_step_completed events arrive (survives reconnect via persisted events).
+      activity.plan = {
+        resumed: !!evt.resumed,
+        steps: rawSteps.map((st) => ({
+          id: st.id,
+          description: st.description || st.title || '',
+          done: String(st.status).toLowerCase() === 'completed',
+        })),
+      }
+      return
+    }
+    case 'plan_step_completed': {
+      if (activity.plan && Array.isArray(activity.plan.steps)) {
+        const st = activity.plan.steps.find((x) => String(x.id) === String(evt.step_id))
+        if (st) st.done = true
+      }
+      return
+    }
+
     // Phase 1 — derive from existing events ---------------------------------
     case 'assistant_typing':
       if (evt.typing === false) return

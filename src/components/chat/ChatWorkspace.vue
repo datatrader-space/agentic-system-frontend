@@ -117,9 +117,11 @@
     <!-- Human-in-the-loop approval modal: appears when the backend gates a tool for approval. -->
     <HITLModal
       :requests="chat.hitlRequests"
+      :show-stop="true"
       @respond="chat.respondHitl"
       @dismiss="chat.dismissHitl"
       @skip="chat.skipHitl"
+      @stop="chat.stop"
     />
   </div>
 </template>

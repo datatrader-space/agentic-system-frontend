@@ -51,6 +51,13 @@
                   Reject
                 </button>
               </div>
+              <!-- Approve this tool for the rest of the session (don't ask again) -->
+              <button v-if="currentRequest.payload?.session_approval" @click="respondSession"
+                      class="btn btn-approve-session"
+                      title="Approve now and stop asking for this tool for the rest of this session">
+                <svg class="btn-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                Approve &amp; don't ask again this session
+              </button>
               <!-- Redirect: run something different instead of the proposed call -->
               <div v-if="currentRequest.payload?.kind === 'tool_approval'" class="instruction-row">
                 <input v-model="instruction" type="text" class="instruction-input"
@@ -60,6 +67,11 @@
                   Run this instead
                 </button>
               </div>
+              <!-- Cancel this request AND stop the agent's run entirely -->
+              <button v-if="isToolApproval && showStop" @click="stopAgent" class="btn btn-stop-agent"
+                      title="Cancel this request and stop the agent">
+                Stop agent
+              </button>
             </div>
 
             <!-- Choice Response (Multiple Options) -->
@@ -274,10 +286,16 @@ const props = defineProps({
   requests: {
     type: Array,
     default: () => []
+  },
+  // Show the "Stop agent" control on tool-approval cards. Only enabled on surfaces that actually
+  // handle @stop (main chat, emulator) so it's never a dead button.
+  showStop: {
+    type: Boolean,
+    default: false
   }
 });
 
-const emit = defineEmits(['respond', 'dismiss', 'skip']);
+const emit = defineEmits(['respond', 'dismiss', 'skip', 'stop']);
 
 // State
 const textResponse = ref('');
@@ -423,6 +441,16 @@ const respond = (value, feedbackOverride = null) => {
 const sendInstruction = () => {
   const t = instruction.value.trim();
   if (t) respond(false, `Do not run that as-is. Instead: ${t}`);
+};
+
+// "Approve & don't ask again this session": approve NOW and tell the backend to whitelist this tool
+// for the rest of the session (session_approvals) so the same tool won't prompt again this run.
+const respondSession = () => respond({ approved: true, scope: 'session' });
+
+// "Stop agent": cancel this request and abort the whole run. The parent handles the actual stop
+// (sends stop_execution, which also cancels the server-side approval wait).
+const stopAgent = () => {
+  emit('stop', currentRequest.value?.request_id);
 };
 
 const dismiss = () => {
@@ -921,6 +949,34 @@ watch(currentRequest, () => {
   background: #dc2626;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+/* Secondary "approve for the whole session" — full-width, softer than the primary Approve. */
+.btn-approve-session {
+  width: 100%;
+  margin-top: 10px;
+  gap: 6px;
+  background: rgba(16, 185, 129, 0.10);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.btn-approve-session:hover {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.55);
+}
+
+/* "Stop agent" — quiet, destructive-tinted link-style button under the approval controls. */
+.btn-stop-agent {
+  width: 100%;
+  margin-top: 10px;
+  background: transparent;
+  color: #b91c1c;
+  border: 1px solid rgba(185, 28, 28, 0.30);
+  font-size: 0.82rem;
+}
+.btn-stop-agent:hover {
+  background: rgba(185, 28, 28, 0.08);
+  border-color: rgba(185, 28, 28, 0.5);
 }
 
 .btn-submit {

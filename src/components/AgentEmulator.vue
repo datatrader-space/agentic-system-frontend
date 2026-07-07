@@ -237,9 +237,11 @@
     <!-- Human-in-the-loop approval modal (shared handler): appears when a tool is gated. -->
     <HITLModal
       :requests="hitlRequests"
+      :show-stop="true"
       @respond="respondHitl"
       @dismiss="dismissHitl"
       @skip="skipHitl"
+      @stop="stop"
     />
   </div>
 </template>

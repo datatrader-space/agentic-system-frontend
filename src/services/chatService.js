@@ -39,6 +39,36 @@ export class ChatConnection {
     this._reconnectAttempts = 0
     this._reconnectTimer = null
     this._prewarmAgentId = null   // agent to pre-build server-side before the first message
+    this._wakeInstalled = false
+    this._installWakeListeners()
+  }
+
+  // Recover a long-dead socket the INSTANT the environment comes back — network back online, tab
+  // refocused, or visibility restored — without waiting out the backoff or forcing a manual refresh.
+  // This is what makes a laptop that slept for an hour (or a phone that backgrounded the tab)
+  // reconnect on wake instead of sitting on "Lost connection — please refresh".
+  _installWakeListeners() {
+    if (this._wakeInstalled || typeof window === 'undefined') return
+    this._wake = () => {
+      if (this.closedByUs) return
+      if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return
+      this._reconnectAttempts = 0   // fresh reconnect budget on a real environment change
+      if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null }
+      this.connect(this.repoId)
+    }
+    this._onVisible = () => { if (!document.hidden) this._wake() }
+    window.addEventListener('online', this._wake)
+    window.addEventListener('focus', this._wake)
+    document.addEventListener('visibilitychange', this._onVisible)
+    this._wakeInstalled = true
+  }
+
+  _removeWakeListeners() {
+    if (!this._wakeInstalled || typeof window === 'undefined') return
+    window.removeEventListener('online', this._wake)
+    window.removeEventListener('focus', this._wake)
+    document.removeEventListener('visibilitychange', this._onVisible)
+    this._wakeInstalled = false
   }
 
   // Pre-build the agent runtime on the server (runner + workspace + KB-exists) during the idle window
@@ -143,7 +173,10 @@ export class ChatConnection {
       this.handlers.onError?.('Lost connection — please refresh.')
       return
     }
-    const delay = Math.min(1000 * 2 ** this._reconnectAttempts, RECONNECT_CAP_MS)
+    // Exponential backoff with 50–100% jitter so many clients reconnecting after a backend redeploy
+    // don't stampede in lockstep at the same 1/2/4/8/10s boundaries (thundering herd).
+    const base = Math.min(1000 * 2 ** this._reconnectAttempts, RECONNECT_CAP_MS)
+    const delay = Math.round(base * (0.5 + Math.random() * 0.5))
     this._reconnectAttempts += 1
     this._reconnectTimer = setTimeout(() => {
       this._reconnectTimer = null
@@ -218,6 +251,7 @@ export class ChatConnection {
   close() {
     this.closedByUs = true
     this._stopHeartbeat()
+    this._removeWakeListeners()
     if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null }
     try {
       this.ws?.close()
