@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#f7f4ed; --paper-2:#fffdf8; --ink:#14221d; --muted:#5f6d66; --line:#d9ded8;
+    --green:#165f46; --green-2:#d8eee4; --blue:#1c54d9; --blue-2:#dfe8ff;
+    --red:#d84d37; --red-2:#f7dfda; --amber:#c9851f; --amber-2:#f8ead1;
+    --violet:#6e55c7; --violet-2:#e9e3fb; --teal:#2a9bb8; --teal-2:#d6eef4;
+    --shadow:0 22px 70px rgba(42,61,52,.10); --shadow-sm:0 10px 30px rgba(42,61,52,.08);
+    --serif:Georgia,'Times New Roman',serif;
+    --sans:'Inter',ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+    --acc:#1c54d9; --pad:24px; --gap:16px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    color:var(--ink);
+    background:
+      radial-gradient(circle at 6% 2%, rgba(216,238,228,.7), transparent 26rem),
+      radial-gradient(circle at 96% 6%, rgba(223,232,255,.75), transparent 30rem),
+      var(--paper);
+    font-family:var(--sans); line-height:1.5;
+  }
+  @keyframes aadPulse{0%,100%{opacity:.25;transform:scale(.96)}50%{opacity:.8;transform:scale(1.03)}}
+  @keyframes aadRing{0%{transform:scale(.7);opacity:.5}70%{transform:scale(2.3);opacity:0}100%{opacity:0}}
+  @keyframes aadIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .aad-scroll::-webkit-scrollbar{width:10px;height:10px}
+  .aad-scroll::-webkit-scrollbar-thumb{background:rgba(20,34,29,.18);border-radius:9px;border:3px solid transparent;background-clip:padding-box}
+  .aad-scroll::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+
+<div data-screen-label="Dashboard" style="display:grid;grid-template-columns:252px 1fr;height:100vh;overflow:hidden;font-family:var(--sans)">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="aad-scroll" style="background:var(--paper-2);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow-y:auto;padding:20px 16px">
+    <a href="index.html" style="display:flex;align-items:center;gap:11px;font-weight:900;font-size:21px;letter-spacing:-.04em;color:var(--ink);text-decoration:none;padding:4px 6px 0">
+      <span style="width:32px;height:32px;border:1.8px solid var(--ink);border-radius:50%;position:relative;display:grid;place-items:center">
+        <span style="position:absolute;width:15px;height:1.6px;background:var(--ink);transform:rotate(45deg)"></span>
+        <span style="position:absolute;width:15px;height:1.6px;background:var(--ink);transform:rotate(-45deg)"></span>
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--red);display:block;position:relative;z-index:1"></span>
+      </span>
+      AADML
+    </a>
+
+    <!-- workspace switcher -->
+    <button style="margin:20px 4px 4px;display:flex;align-items:center;gap:10px;width:calc(100% - 8px);text-align:left;border:1px solid var(--line);background:#fff;border-radius:13px;padding:10px 12px;cursor:pointer" style-hover="border:1px solid var(--ink);background:#fff;border-radius:13px;padding:10px 12px;cursor:pointer;margin:20px 4px 4px;display:flex;align-items:center;gap:10px;width:calc(100% - 8px);text-align:left">
+      <span style="width:28px;height:28px;border-radius:8px;background:var(--ink);color:#fff;display:grid;place-items:center;font-family:var(--serif);font-size:15px;flex:0 0 auto">N</span>
+      <span style="min-width:0;flex:1">
+        <span style="display:block;font-size:13px;font-weight:800;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">North Rays</span>
+        <span style="display:block;font:700 10px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em">Production org</span>
+      </span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M8 9l4-4 4 4M16 15l-4 4-4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+
+    <div style="font:800 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:18px 10px 8px">Operate</div>
+    <nav style="display:flex;flex-direction:column;gap:3px">
+      <a href="#" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:700;color:#fff;background:var(--ink);text-decoration:none">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+        Overview
+      </a>
+      <a href="#" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:#4f5c55;text-decoration:none" style-hover="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:var(--ink);text-decoration:none;background:rgba(20,34,29,.05)">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="9"/></svg>
+        Missions
+        <span style="margin-left:auto;font:800 10px var(--mono);background:var(--blue-2);color:var(--blue);border-radius:999px;padding:2px 7px">7</span>
+      </a>
+      <a href="workflow-builder.html" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:#4f5c55;text-decoration:none" style-hover="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:var(--ink);text-decoration:none;background:rgba(20,34,29,.05)">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18" r="2.2"/><path d="M7 6h10M6 8l5 8M18 8l-5 8" stroke-linecap="round"/></svg>
+        Workflows
+      </a>
+      <a href="#" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:#4f5c55;text-decoration:none" style-hover="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:var(--ink);text-decoration:none;background:rgba(20,34,29,.05)">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l2.2 5.3L20 10l-5.8 1.7L12 17l-2.2-5.3L4 10l5.8-1.7z"/></svg>
+        Agents
+      </a>
+      <a href="#" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:#4f5c55;text-decoration:none" style-hover="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:var(--ink);text-decoration:none;background:rgba(20,34,29,.05)">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="15" rx="2"/><path d="M3 9h18" stroke-linecap="round"/></svg>
+        Workspaces
+        <span style="margin-left:auto;font:800 10px var(--mono);background:var(--green-2);color:var(--green);border-radius:999px;padding:2px 7px">5</span>
+      </a>
+    </nav>
+
+    <div style="font:800 10px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:18px 10px 8px">Connect & govern</div>
+    <nav style="display:flex;flex-direction:column;gap:3px">
+      <a href="#" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:#4f5c55;text-decoration:none" style-hover="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:var(--ink);text-decoration:none;background:rgba(20,34,29,.05)">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 7V3M15 7V3M7 7h10v3a5 5 0 0 1-10 0zM12 15v6"/></svg>
+        Connectors
+      </a>
+      <a href="#" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:#4f5c55;text-decoration:none" style-hover="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:var(--ink);text-decoration:none;background:rgba(20,34,29,.05)">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+        Signals
+      </a>
+      <a href="#" style="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:#4f5c55;text-decoration:none" style-hover="display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:11px;font-size:13.5px;font-weight:650;color:var(--ink);text-decoration:none;background:rgba(20,34,29,.05)">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3l8 3v5c0 5-3.4 8-8 10-4.6-2-8-5-8-10V6z"/></svg>
+        Governance
+        <span style="margin-left:auto;font:800 10px var(--mono);background:var(--red-2);color:var(--red);border-radius:999px;padding:2px 7px">3</span>
+      </a>
+    </nav>
+
+    <div style="margin-top:auto;padding-top:20px">
+      <!-- spend mini -->
+      <div style="border:1px solid var(--line);border-radius:14px;background:var(--paper);padding:13px 14px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <span style="font:800 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Spend · June</span>
+          <span style="font:700 10px var(--mono);color:var(--muted)">43%</span>
+        </div>
+        <div style="font-family:var(--serif);font-size:22px;margin:7px 0 9px">$1,284<span style="font-size:13px;color:var(--muted)"> / $3,000</span></div>
+        <div style="height:6px;border-radius:99px;background:var(--line);overflow:hidden"><div style="width:43%;height:100%;background:var(--amber)"></div></div>
+      </div>
+      <!-- user -->
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 6px">
+        <span style="width:32px;height:32px;border-radius:50%;background:var(--violet-2);color:var(--violet);display:grid;place-items:center;font-weight:800;font-size:13px;flex:0 0 auto">AO</span>
+        <span style="min-width:0;flex:1">
+          <span style="display:block;font-size:12.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Adaeze Okafor</span>
+          <span style="display:block;font:700 10px var(--mono);color:var(--muted)">Operations lead</span>
+        </span>
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--muted)" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div style="display:flex;flex-direction:column;min-width:0;overflow:hidden">
+
+    <!-- topbar -->
+    <header style="flex:0 0 auto;height:66px;display:flex;align-items:center;gap:16px;padding:0 var(--pad);border-bottom:1px solid var(--line);background:rgba(247,244,237,.86);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)">
+      <div style="display:flex;align-items:center;gap:9px;font:700 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">
+        North Rays <span style="opacity:.5">/</span> <span style="color:var(--ink)">Overview</span>
+      </div>
+      <label style="margin-left:8px;flex:1;max-width:440px;display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:#fff;border-radius:11px;padding:9px 13px">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--muted)" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg>
+        <input placeholder="Search missions, workflows, signals…" style="border:0;outline:0;background:transparent;font-family:inherit;font-size:13.5px;color:var(--ink);width:100%" />
+        <span style="font:700 10px var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:2px 6px">⌘K</span>
+      </label>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+        <button title="Notifications" style="position:relative;width:40px;height:40px;border:1px solid var(--line);background:#fff;border-radius:11px;display:grid;place-items:center;cursor:pointer" style-hover="position:relative;width:40px;height:40px;border:1px solid var(--ink);background:#fff;border-radius:11px;display:grid;place-items:center;cursor:pointer">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="var(--ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span style="position:absolute;top:8px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--red);border:1.5px solid #fff"></span>
+        </button>
+        <button onClick="{{ newMission }}" style="display:inline-flex;align-items:center;gap:8px;border:1px solid var(--ink);background:var(--ink);color:#fff;border-radius:999px;padding:10px 16px;font-weight:800;font-size:13px;cursor:pointer" style-hover="display:inline-flex;align-items:center;gap:8px;border:1px solid var(--ink);background:var(--acc);color:#fff;border-radius:999px;padding:10px 16px;font-weight:800;font-size:13px;cursor:pointer">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+          New mission
+        </button>
+      </div>
+    </header>
+
+    <!-- scroll content -->
+    <main class="aad-scroll" style="flex:1;min-height:0;overflow-y:auto;padding:var(--pad)">
+
+      <!-- greeting -->
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:22px">
+        <div>
+          <div style="display:inline-flex;align-items:center;gap:9px;font:800 11px var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--green)"><span style="width:7px;height:7px;border-radius:50%;background:var(--green)"></span>Mission control · {{ today }}</div>
+          <h1 style="font-family:var(--serif);font-weight:500;font-size:clamp(34px,4vw,48px);line-height:1;letter-spacing:-.04em;margin:12px 0 6px">{{ greet }}</h1>
+          <p style="margin:0;color:var(--muted);font-size:15.5px;max-width:60ch">Seven missions are executing across five domains. Three actions are waiting on your authority.</p>
+        </div>
+        <div style="display:flex;gap:9px;flex-wrap:wrap">
+          <a href="workflow-builder.html" style="display:inline-flex;align-items:center;gap:8px;border:1px solid var(--ink);background:transparent;color:var(--ink);border-radius:999px;padding:10px 15px;font-weight:800;font-size:13px;text-decoration:none" style-hover="display:inline-flex;align-items:center;gap:8px;border:1px solid var(--ink);background:#fff;color:var(--ink);border-radius:999px;padding:10px 15px;font-weight:800;font-size:13px;text-decoration:none;box-shadow:var(--shadow-sm)">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18" r="2.2"/><path d="M7 6h10M6 8l5 8M18 8l-5 8" stroke-linecap="round"/></svg>
+            New workflow
+          </a>
+          <button style="display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:10px 15px;font-weight:800;font-size:13px;cursor:pointer" style-hover="display:inline-flex;align-items:center;gap:8px;border:1px solid var(--ink);background:#fff;color:var(--ink);border-radius:999px;padding:10px 15px;font-weight:800;font-size:13px;cursor:pointer">Invite operator</button>
+        </div>
+      </div>
+
+      <!-- KPI row -->
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:var(--gap);margin-bottom:var(--gap)">
+        <div style="background:var(--paper-2);border:1px solid var(--line);border-top:3px solid var(--blue);border-radius:16px;padding:16px 16px 14px">
+          <div style="font:800 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Active missions</div>
+          <div style="font-family:var(--serif);font-size:38px;line-height:1;margin:12px 0 6px">7</div>
+          <div style="font:700 11px var(--mono);color:var(--green)">+2 since yesterday</div>
+        </div>
+        <div style="background:var(--paper-2);border:1px solid var(--line);border-top:3px solid var(--red);border-radius:16px;padding:16px 16px 14px">
+          <div style="font:800 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Pending approvals</div>
+          <div style="font-family:var(--serif);font-size:38px;line-height:1;margin:12px 0 6px">{{ pendingCount }}</div>
+          <div style="font:700 11px var(--mono);color:var(--red)">Needs your authority</div>
+        </div>
+        <div style="background:var(--paper-2);border:1px solid var(--line);border-top:3px solid var(--green);border-radius:16px;padding:16px 16px 14px">
+          <div style="font:800 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Signals today</div>
+          <div style="font-family:var(--serif);font-size:38px;line-height:1;margin:12px 0 6px">{{ signalsToday }}</div>
+          <div style="font:700 11px var(--mono);color:var(--green)">+34 vs. avg</div>
+        </div>
+        <div style="background:var(--paper-2);border:1px solid var(--line);border-top:3px solid var(--violet);border-radius:16px;padding:16px 16px 14px">
+          <div style="font:800 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Workspaces</div>
+          <div style="font-family:var(--serif);font-size:38px;line-height:1;margin:12px 0 6px">5</div>
+          <div style="font:700 11px var(--mono);color:var(--muted)">running now</div>
+        </div>
+        <div style="background:var(--paper-2);border:1px solid var(--line);border-top:3px solid var(--amber);border-radius:16px;padding:16px 16px 14px">
+          <div style="font:800 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Success rate</div>
+          <div style="font-family:var(--serif);font-size:38px;line-height:1;margin:12px 0 6px">98.2%</div>
+          <div style="font:700 11px var(--mono);color:var(--green)">7-day · 412 runs</div>
+        </div>
+      </div>
+
+      <!-- two-column grid -->
+      <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:var(--gap);align-items:start">
+
+        <!-- LEFT COLUMN -->
+        <div style="display:flex;flex-direction:column;gap:var(--gap)">
+
+          <!-- active missions -->
+          <section style="background:var(--paper-2);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow-sm);overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)">
+              <div style="display:flex;align-items:center;gap:12px">
+                <h2 style="font-family:var(--serif);font-weight:500;font-size:21px;letter-spacing:-.02em;margin:0">Active missions</h2>
+                <span style="display:inline-flex;align-items:center;gap:6px;font:700 10px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--green)"><span style="width:7px;height:7px;border-radius:50%;background:#1da56d"></span>live</span>
+              </div>
+              <div style="display:flex;gap:7px">
+                <sc-for list="{{ missionChips }}" as="c" hint-placeholder-count="3">
+                  <button onClick="{{ c.onClick }}" style="{{ c.style }}">{{ c.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="padding:6px 20px 10px">
+              <sc-for list="{{ missionsView }}" as="m" hint-placeholder-count="5">
+                <div style="display:grid;grid-template-columns:1fr;gap:8px;padding:15px 0;border-bottom:1px solid #edf0ec">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <span style="width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:{{ m.color }}"></span>
+                    <span style="font:750 13px var(--mono);letter-spacing:-.01em">{{ m.name }}</span>
+                    <span style="font:700 10px var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted)">{{ m.domain }}</span>
+                    <sc-if value="{{ m.gate }}" hint-placeholder-val="{{ true }}">
+                      <span style="display:inline-flex;align-items:center;gap:5px;font:800 9px var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--red);background:var(--red-2);border-radius:999px;padding:3px 8px">● gate</span>
+                    </sc-if>
+                    <span style="margin-left:auto;font:800 9px var(--mono);text-transform:uppercase;letter-spacing:.07em;border-radius:999px;padding:4px 10px;color:{{ m.stateColor }};background:{{ m.stateBg }}">{{ m.state }}</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:12px;padding-left:21px">
+                    <span style="font-size:11.5px;color:var(--muted)">{{ m.step }}</span>
+                    <span style="margin-left:auto;display:flex;align-items:center;gap:10px;min-width:200px">
+                      <span style="flex:1;height:5px;border-radius:99px;background:var(--line);overflow:hidden"><span style="display:block;height:100%;background:{{ m.color }};width:{{ m.progress }}"></span></span>
+                      <span style="font:700 10px var(--mono);color:var(--muted);width:34px;text-align:right">{{ m.progress }}</span>
+                    </span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="padding:13px 20px;border-top:1px solid var(--line);background:var(--paper);display:flex;justify-content:space-between;align-items:center">
+              <span style="font:700 11px var(--mono);color:var(--muted)">{{ missionsView.length }} shown · across 5 domains</span>
+              <a href="#" style="font-size:12.5px;font-weight:800;color:var(--acc);text-decoration:none">View all missions →</a>
+            </div>
+          </section>
+
+          <!-- spend & usage -->
+          <section style="background:var(--paper-2);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow-sm);overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)">
+              <h2 style="font-family:var(--serif);font-weight:500;font-size:21px;letter-spacing:-.02em;margin:0">Spend &amp; execution · 14 days</h2>
+              <div style="display:flex;gap:16px;align-items:center">
+                <span style="display:inline-flex;align-items:center;gap:6px;font:700 10px var(--mono);color:var(--muted)"><span style="width:10px;height:10px;border-radius:3px;background:var(--blue-2)"></span>within budget</span>
+                <span style="display:inline-flex;align-items:center;gap:6px;font:700 10px var(--mono);color:var(--muted)"><span style="width:10px;height:10px;border-radius:3px;background:var(--red-2)"></span>peak day</span>
+              </div>
+            </div>
+            <div style="padding:20px">
+              <div style="display:flex;align-items:baseline;gap:14px;margin-bottom:18px">
+                <span style="font-family:var(--serif);font-size:34px;line-height:1">$1,284</span>
+                <span style="font:700 11px var(--mono);color:var(--muted)">of $3,000 monthly ceiling · 18.4M tokens</span>
+              </div>
+              <div style="height:150px;display:flex;align-items:flex-end;gap:7px">
+                <sc-for list="{{ spendBars }}" as="b" hint-placeholder-count="14">
+                  <span title="{{ b.label }}" style="flex:1;border-radius:4px 4px 0 0;min-height:6px;background:{{ b.color }};height:{{ b.h }}"></span>
+                </sc-for>
+              </div>
+              <div style="display:flex;justify-content:space-between;font:700 9px var(--mono);color:var(--muted);margin-top:9px;text-transform:uppercase;letter-spacing:.06em">
+                <span>Jun 4</span><span>Jun 11</span><span>Today</span>
+              </div>
+            </div>
+          </section>
+
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div style="display:flex;flex-direction:column;gap:var(--gap)">
+
+          <!-- approvals -->
+          <section style="background:var(--paper-2);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow-sm);overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)">
+              <h2 style="font-family:var(--serif);font-weight:500;font-size:20px;letter-spacing:-.02em;margin:0">Human approvals</h2>
+              <span style="font:800 10px var(--mono);background:var(--red-2);color:var(--red);border-radius:999px;padding:3px 9px">{{ pendingCount }} pending</span>
+            </div>
+            <div style="padding:6px 18px 14px">
+              <sc-for list="{{ approvals }}" as="a" hint-placeholder-count="3">
+                <div style="padding:15px 0;border-bottom:1px solid #edf0ec">
+                  <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">
+                    <span style="width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:{{ a.color }}"></span>
+                    <span style="font-size:14px;font-weight:800;letter-spacing:-.01em">{{ a.title }}</span>
+                  </div>
+                  <div style="font-size:12px;color:var(--muted);line-height:1.55;margin:0 0 6px 17px">{{ a.context }}</div>
+                  <div style="display:flex;align-items:center;gap:8px;margin:0 0 11px 17px;font:700 10px var(--mono);color:var(--muted)"><span style="text-transform:uppercase;letter-spacing:.06em;color:{{ a.color }}">{{ a.domain }}</span><span style="opacity:.5">·</span>{{ a.who }}<span style="opacity:.5">·</span>{{ a.ago }}</div>
+                  <div style="display:flex;gap:8px;margin-left:17px">
+                    <sc-if value="{{ a.done }}" hint-placeholder-val="{{ false }}">
+                      <span style="display:inline-flex;align-items:center;gap:6px;font:800 11px var(--mono);color:var(--green);background:var(--green-2);border-radius:999px;padding:8px 14px">✓ Approved</span>
+                    </sc-if>
+                    <sc-if value="{{ a.pending }}" hint-placeholder-val="{{ true }}">
+                      <button onClick="{{ a.onApprove }}" style="border:1px solid var(--ink);background:var(--ink);color:#fff;border-radius:999px;padding:8px 15px;font-weight:800;font-size:12px;cursor:pointer" style-hover="border:1px solid var(--ink);background:var(--green);color:#fff;border-radius:999px;padding:8px 15px;font-weight:800;font-size:12px;cursor:pointer">Approve</button>
+                      <button style="border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:8px 15px;font-weight:800;font-size:12px;cursor:pointer" style-hover="border:1px solid var(--ink);background:#fff;color:var(--ink);border-radius:999px;padding:8px 15px;font-weight:800;font-size:12px;cursor:pointer">Review</button>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+
+          <!-- live signal feed -->
+          <section style="background:var(--paper-2);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow-sm);overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:18px 20px 12px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <h2 style="font-family:var(--serif);font-weight:500;font-size:20px;letter-spacing:-.02em;margin:0">Signal feed</h2>
+                <span style="position:relative;width:8px;height:8px"><span style="position:absolute;inset:0;border-radius:50%;background:var(--green)"></span><span style="position:absolute;inset:-3px;border-radius:50%;background:var(--green);opacity:.4;animation:aadRing 1.8s ease-out infinite"></span></span>
+              </div>
+            </div>
+            <div style="display:flex;gap:7px;padding:0 20px 12px;flex-wrap:wrap">
+              <sc-for list="{{ signalTabs }}" as="t" hint-placeholder-count="4">
+                <button onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</button>
+              </sc-for>
+            </div>
+            <div class="aad-scroll" style="max-height:360px;overflow-y:auto;padding:0 20px 8px">
+              <sc-for list="{{ signalsView }}" as="s" hint-placeholder-count="6">
+                <div style="display:grid;grid-template-columns:64px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid #edf0ec;animation:aadIn .35s ease both">
+                  <span style="font:700 10px var(--mono);color:var(--muted);padding-top:2px">{{ s.time }}</span>
+                  <div style="min-width:0">
+                    <div style="display:flex;align-items:center;gap:8px"><span style="font:750 11.5px var(--mono);color:{{ s.color }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.event }}</span></div>
+                    <div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:2px">{{ s.desc }}</div>
+                    <span style="display:inline-block;margin-top:6px;font:800 9px var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px">{{ s.route }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+
+          <!-- workspaces -->
+          <section style="background:var(--paper-2);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow-sm);overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)">
+              <h2 style="font-family:var(--serif);font-weight:500;font-size:20px;letter-spacing:-.02em;margin:0">Workspaces</h2>
+              <a href="#" style="font-size:12px;font-weight:800;color:var(--acc);text-decoration:none">Manage →</a>
+            </div>
+            <div style="padding:6px 20px 12px">
+              <sc-for list="{{ workspaces }}" as="w" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #edf0ec">
+                  <span style="width:32px;height:32px;border-radius:9px;flex:0 0 auto;display:grid;place-items:center;font:800 11px var(--mono);color:{{ w.color }};background:{{ w.bg }}">{{ w.icon }}</span>
+                  <div style="min-width:0;flex:1">
+                    <div style="font:750 12px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ w.name }}</div>
+                    <div style="font-size:10.5px;color:var(--muted)">{{ w.type }}</div>
+                  </div>
+                  <span style="font:700 10px var(--mono);color:var(--muted)">{{ w.runtime }}</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px;font:800 9px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:{{ w.statusColor }}"><span style="width:7px;height:7px;border-radius:50%;background:{{ w.statusColor }}"></span>{{ w.status }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+
+          <!-- connectors health -->
+          <section style="background:var(--paper-2);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow-sm);overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)">
+              <h2 style="font-family:var(--serif);font-weight:500;font-size:20px;letter-spacing:-.02em;margin:0">Connectors</h2>
+              <span style="font:700 10px var(--mono);color:var(--muted)">6 healthy · 1 degraded</span>
+            </div>
+            <div style="padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:9px">
+              <sc-for list="{{ connectors }}" as="c" hint-placeholder-count="6">
+                <div style="display:flex;align-items:center;gap:9px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff">
+                  <span style="width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:{{ c.color }}"></span>
+                  <span style="font:750 11.5px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">{{ c.name }}</span>
+                  <span style="font:700 9px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:{{ c.color }}">{{ c.status }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+
+        </div>
+      </div>
+
+      <div style="height:8px"></div>
+    </main>
+  </div>
+</div>
+
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <rect width="100" height="100" fill="#f7f4ed"/>
+    <circle cx="50" cy="42" r="20" fill="none" stroke="#14221d" stroke-width="2.4"/>
+    <line x1="40" y1="32" x2="60" y2="52" stroke="#14221d" stroke-width="2.4"/>
+    <line x1="60" y1="32" x2="40" y2="52" stroke="#14221d" stroke-width="2.4"/>
+    <circle cx="50" cy="42" r="5" fill="#d84d37"/>
+    <rect x="26" y="72" width="48" height="6" rx="3" fill="#1c54d9"/>
+  </svg>
+</template>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;$preview&quot;: { &quot;width&quot;: 1440, &quot;height&quot;: 940 },
+  &quot;accentTone&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;blue&quot;, &quot;options&quot;: [&quot;blue&quot;, &quot;green&quot;, &quot;violet&quot;, &quot;amber&quot;], &quot;tsType&quot;: &quot;string&quot; },
+  &quot;density&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;comfortable&quot;, &quot;options&quot;: [&quot;comfortable&quot;, &quot;compact&quot;], &quot;tsType&quot;: &quot;string&quot; },
+  &quot;liveFeed&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot; }
+}">
+class Component extends DCLogic {
+  state = {
+    missionFilter: 'all',
+    signalFilter: 'all',
+    now: new Date(),
+    approvals: [
+      { id: 'a1', title: 'Release protocol deviation', context: 'Variance on control C-3 in run lab-run-042. Agent recommends release with annotation; human authority required.', domain: 'Laboratory', color: 'var(--blue)', who: 'Dr. I. Okafor', ago: '4m ago', done: false },
+      { id: 'a2', title: 'Issue benefits notice', context: 'Eligibility path assembled for case-21874 with citations. Final issuance is gated to a caseworker.', domain: 'Government', color: 'var(--red)', who: 'J. Alvarez', ago: '11m ago', done: false },
+      { id: 'a3', title: 'Approve production deploy', context: 'Patch passed 48/48 tests in daytona-fix-482. Rollback checkpoint prepared; deploy blocked until authorized.', domain: 'Software', color: 'var(--violet)', who: 'on-call SRE', ago: '18m ago', done: false },
+    ],
+    signals: [
+      { time: '08:36:03', event: 'approval.granted', desc: 'Workflow resumed from checkpoint and completed the authorized action.', route: 'Governance', type: 'approval', color: 'var(--green)' },
+      { time: '08:29:18', event: 'workspace.test.failed', desc: 'Daytona emitted diagnostic artifact; remediation branch opened.', route: 'Engineering', type: 'deploy', color: 'var(--violet)' },
+      { time: '08:22:41', event: 'android.device.available', desc: 'Device assigned to controlled mobile workflow; session isolated.', route: 'Mobile fleet', type: 'signal', color: 'var(--teal)' },
+      { time: '08:19:05', event: 'citizen.case.documents.received', desc: 'Documents classified, missing evidence identified, caseworker notified.', route: 'Public service', type: 'signal', color: 'var(--red)' },
+      { time: '08:14:12', event: 'laboratory.control.failed', desc: 'Quality threshold exceeded; protocol review workflow created.', route: 'Lab mission', type: 'signal', color: 'var(--blue)' },
+      { time: '08:09:55', event: 'deploy.succeeded', desc: 'Service rollout completed; canary healthy for 10m.', route: 'Engineering', type: 'deploy', color: 'var(--green)' },
+    ],
+  };
+
+  componentDidMount() {
+    this.applyTheme();
+    this._clock = setInterval(() => this.setState({ now: new Date() }), 30000);
+    if (this.props.liveFeed ?? true) this._feed = setInterval(() => this.pushSignal(), 6500);
+  }
+  componentDidUpdate() { this.applyTheme(); }
+  componentWillUnmount() { clearInterval(this._clock); clearInterval(this._feed); }
+
+  applyTheme() {
+    const accents = { blue: '#1c54d9', green: '#165f46', violet: '#6e55c7', amber: '#c9851f' };
+    const root = document.documentElement;
+    root.style.setProperty('--acc', accents[this.props.accentTone] || accents.blue);
+    const compact = this.props.density === 'compact';
+    root.style.setProperty('--pad', compact ? '16px' : '24px');
+    root.style.setProperty('--gap', compact ? '12px' : '16px');
+  }
+
+  pushSignal() {
+    const pool = [
+      { event: 'signal.threshold.crossed', desc: 'Sensor in region-7 crossed limit; severity assessed.', route: 'Field ops', type: 'signal', color: 'var(--teal)' },
+      { event: 'workspace.snapshot.created', desc: 'Reproducible environment snapshot attached to run.', route: 'Engineering', type: 'deploy', color: 'var(--violet)' },
+      { event: 'approval.requested', desc: 'Consequential action paused at a human gate.', route: 'Governance', type: 'approval', color: 'var(--red)' },
+      { event: 'redis.queue.drained', desc: 'Backlog cleared; checkpoints committed.', route: 'Event fabric', type: 'signal', color: 'var(--green)' },
+      { event: 'browser.session.opened', desc: 'Authenticated portal session started under policy.', route: 'Public service', type: 'signal', color: 'var(--blue)' },
+    ];
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    const t = this.fmtTime(new Date());
+    const next = [{ ...pick, time: t }, ...this.state.signals].slice(0, 14);
+    this.setState({ signals: next });
+  }
+
+  fmtTime(d) {
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  }
+
+  setMissionFilter(f) { this.setState({ missionFilter: f }); }
+  setSignalFilter(f) { this.setState({ signalFilter: f }); }
+  approve(id) {
+    this.setState({ approvals: this.state.approvals.map(a => a.id === id ? { ...a, done: true } : a) });
+  }
+
+  renderVals() {
+    const acc = '#1c54d9';
+    const chipBase = 'border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font:800 11.5px var(--sans);color:#536159;cursor:pointer;transition:.15s ease';
+    const chipActive = 'border:1px solid var(--ink);background:var(--ink);color:#fff;border-radius:999px;padding:6px 12px;font:800 11.5px var(--sans);cursor:pointer;transition:.15s ease';
+
+    const missions = [
+      { id: 'm1', name: 'assay-anomaly-review', domain: 'Laboratory', color: 'var(--blue)', progress: '72%', state: 'Running', step: 'Running computational review in Daytona', gate: false },
+      { id: 'm2', name: 'public-benefits-case', domain: 'Government', color: 'var(--red)', progress: '45%', state: 'Blocked', step: 'Awaiting caseworker decision', gate: true },
+      { id: 'm3', name: 'production-remediation', domain: 'Software', color: 'var(--violet)', progress: '88%', state: 'Running', step: 'Patch and run tests · 48 checks', gate: false },
+      { id: 'm4', name: 'field-incident-respond', domain: 'Field ops', color: 'var(--teal)', progress: '30%', state: 'Running', step: 'Opening operational portals', gate: false },
+      { id: 'm5', name: 'referral-coordination', domain: 'Healthcare', color: 'var(--amber)', progress: '60%', state: 'Blocked', step: 'Awaiting clinical review', gate: true },
+    ];
+    const stateStyle = (s) => s === 'Running'
+      ? { stateColor: 'var(--green)', stateBg: 'var(--green-2)' }
+      : s === 'Blocked'
+        ? { stateColor: 'var(--red)', stateBg: 'var(--red-2)' }
+        : { stateColor: 'var(--muted)', stateBg: 'rgba(20,34,29,.06)' };
+    const mf = this.state.missionFilter;
+    const missionsView = missions
+      .filter(m => mf === 'all' || (mf === 'running' && m.state === 'Running') || (mf === 'blocked' && m.state === 'Blocked'))
+      .map(m => ({ ...m, ...stateStyle(m.state) }));
+
+    const missionChips = [
+      { key: 'all', label: 'All' },
+      { key: 'running', label: 'Running' },
+      { key: 'blocked', label: 'Blocked' },
+    ].map(c => ({ ...c, style: mf === c.key ? chipActive : chipBase, onClick: () => this.setMissionFilter(c.key) }));
+
+    const sf = this.state.signalFilter;
+    const signalsView = this.state.signals.filter(s => sf === 'all' || s.type === sf);
+    const signalTabs = [
+      { key: 'all', label: 'All' },
+      { key: 'signal', label: 'Signals' },
+      { key: 'approval', label: 'Approvals' },
+      { key: 'deploy', label: 'Deploys' },
+    ].map(t => ({ ...t, style: sf === t.key ? chipActive : chipBase, onClick: () => this.setSignalFilter(t.key) }));
+
+    const approvals = this.state.approvals.map(a => ({ ...a, pending: !a.done, onApprove: () => this.approve(a.id) }));
+    const pendingCount = this.state.approvals.filter(a => !a.done).length;
+
+    const heights = [38, 52, 44, 61, 49, 70, 58, 83, 64, 72, 55, 96, 78, 67];
+    const spendBars = heights.map((h, i) => ({
+      h: h + '%',
+      color: h >= 90 ? 'var(--red-2)' : 'var(--blue-2)',
+      label: 'Day ' + (i + 1),
+    }));
+
+    const workspaces = [
+      { name: 'lab-run-042', type: 'Daytona workspace', icon: '◇', color: 'var(--violet)', bg: 'var(--violet-2)', runtime: '3h 12m', status: 'Running', statusColor: 'var(--green)' },
+      { name: 'daytona-fix-482', type: 'Daytona workspace', icon: '◇', color: 'var(--violet)', bg: 'var(--violet-2)', runtime: '41m', status: 'Running', statusColor: 'var(--green)' },
+      { name: 'case-21874', type: 'Browser session', icon: '↗', color: 'var(--blue)', bg: 'var(--blue-2)', runtime: '1h 06m', status: 'Running', statusColor: 'var(--green)' },
+      { name: 'region-7-incident', type: 'Android device', icon: '⌁', color: 'var(--amber)', bg: 'var(--amber-2)', runtime: '12m', status: 'Idle', statusColor: 'var(--muted)' },
+      { name: 'patient-op-771', type: 'Remote runner', icon: '⌂', color: 'var(--green)', bg: 'var(--green-2)', runtime: '22m', status: 'Running', statusColor: 'var(--green)' },
+    ];
+
+    const connectors = [
+      { name: 'Postgres', status: 'Healthy', color: 'var(--green)' },
+      { name: 'Redis streams', status: 'Healthy', color: 'var(--green)' },
+      { name: 'Slack', status: 'Healthy', color: 'var(--green)' },
+      { name: 'MCP · filesystem', status: 'Healthy', color: 'var(--green)' },
+      { name: 'Browserbase', status: 'Healthy', color: 'var(--green)' },
+      { name: 'ADB device farm', status: 'Degraded', color: 'var(--amber)' },
+    ];
+
+    const h = this.state.now.getHours();
+    const part = h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening';
+    const greet = `Good ${part}, Adaeze.`;
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const p2 = (n) => String(n).padStart(2, '0');
+    const today = `${days[this.state.now.getDay()]} · ${p2(this.state.now.getHours())}:${p2(this.state.now.getMinutes())}`;
+
+    return {
+      greet, today,
+      missionsView, missionChips,
+      signalsView, signalTabs,
+      approvals, pendingCount,
+      signalsToday: 218,
+      spendBars, workspaces, connectors,
+      newMission: () => {},
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,413 +1,140 @@
 <template>
-  <div class="about-page">
-    <div class="page-header">
-      <h1>About Us</h1>
-      <p>Building the future of AI-powered development</p>
-    </div>
-
-    <div class="about-container">
-      <section class="mission-section">
-        <h2>Our Mission</h2>
-        <p class="lead">
-          We believe developers should spend their time solving creative problems, not fighting with boilerplate code and repetitive tasks. 
-          Our mission is to empower every developer, team, and organization with intelligent AI agents that augment human creativity and accelerate innovation.
-        </p>
-      </section>
-
-      <section class="story-section">
-        <div class="story-content">
-          <h2>Our Story</h2>
-          <p>
-            Founded in 2024 by a team of developers frustrated with the slow pace of traditional development workflows, 
-            we set out to build a platform that would fundamentally change how software is created.
-          </p>
-          <p>
-            After experiencing firsthand the power of AI language models for code generation, we realized the missing piece 
-            wasn't just better models—it was intelligent orchestration, tool integration, and deep codebase understanding.
-          </p>
-          <p>
-            Today, we're proud to serve developers, businesses, enterprises, and agencies worldwide, helping them ship 
-            features faster, reduce technical debt, and focus on what matters: building amazing products.
-          </p>
-        </div>
-        <div class="story-image">
-          <div class="image-placeholder">
-            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
-            </svg>
+  <PublicLayout>
+    <div ref="pageRoot" class="page-main">
+      <!-- ── Hero ─────────────────────────────────────────────────────── -->
+      <section class="page-hero" id="top">
+        <div class="shell page-hero-grid">
+          <div class="reveal">
+            <div class="section-kicker">About AADML</div>
+            <h1>Intelligence should <em>act</em>—responsibly.</h1>
+            <p>
+              AADML is the governed execution layer for intelligent systems. We build the layer
+              between capable models and the environments where consequential work actually
+              happens—so autonomy stays accountable.
+            </p>
+            <div class="hero-actions">
+              <router-link class="btn" to="/features">See what we build <span>→</span></router-link>
+              <router-link class="btn secondary" to="/contact">Talk to us</router-link>
+            </div>
+          </div>
+          <div class="diagram-card reveal">
+            <div class="platform-stack">
+              <div v-for="s in beliefs" :key="s.name" class="stack-row"><b>{{ s.name }}</b><span>{{ s.desc }}</span></div>
+            </div>
+            <div class="stack-caption">A North Rays platform · built for consequential work</div>
           </div>
         </div>
       </section>
 
-      <section class="values-section">
-        <h2>Our Values</h2>
-        <div class="values-grid">
-          <div class="value-card">
-            <div class="value-icon">🎯</div>
-            <h3>Developer-First</h3>
-            <p>Every decision we make starts with asking: "Will this make developers' lives better?"</p>
+      <!-- ── Mission statement + principles ───────────────────────────── -->
+      <section class="content-section" id="mission">
+        <div class="shell intro-grid">
+          <div class="reveal">
+            <div class="section-kicker">Why we exist</div>
+            <h2 class="statement">Models produce intelligence. <strong>We make it accountable.</strong></h2>
           </div>
-          <div class="value-card">
-            <div class="value-icon">🔓</div>
-            <h3>Open & Transparent</h3>
-            <p>We believe in open source, transparent pricing, and honest communication with our users.</p>
-          </div>
-          <div class="value-card">
-            <div class="value-icon">⚡</div>
-            <h3>Innovation</h3>
-            <p>We push the boundaries of what's possible with AI while maintaining practical, production-ready solutions.</p>
-          </div>
-          <div class="value-card">
-            <div class="value-icon">🤝</div>
-            <h3>Community</h3>
-            <p>We're building more than software—we're building a community of developers shaping the future of coding.</p>
+          <div class="principles stagger">
+            <article v-for="p in principles" :key="p.num" class="principle">
+              <div class="num">{{ p.num }}</div>
+              <h3>{{ p.title }}</h3>
+              <p>{{ p.body }}</p>
+            </article>
           </div>
         </div>
       </section>
 
-      <section class="team-section">
-        <h2>Leadership Team</h2>
-        <div class="team-grid">
-          <div class="team-member">
-            <div class="member-avatar">SC</div>
-            <h3>Sarah Chen</h3>
-            <p class="role">Co-Founder & CEO</p>
-            <p class="bio">Former engineering lead at Google, passionate about democratizing AI for developers.</p>
+      <!-- ── Stats ────────────────────────────────────────────────────── -->
+      <section class="content-section soft" id="scale">
+        <div class="shell">
+          <div class="section-head-wide reveal">
+            <div><div class="section-kicker">Built for scale</div><h2>One model, many domains.</h2></div>
+            <p>The same execution layer runs beneath research, public administration, infrastructure, field operations, healthcare, and software.</p>
           </div>
-          <div class="team-member">
-            <div class="member-avatar">MP</div>
-            <h3>Michael Park</h3>
-            <p class="role">Co-Founder & CTO</p>
-            <p class="bio">AI researcher with a background in compiler design and distributed systems.</p>
-          </div>
-          <div class="team-member">
-            <div class="member-avatar">AR</div>
-            <h3>Aisha Rahman</h3>
-            <p class="role">VP of Engineering</p>
-            <p class="bio">Infrastructure expert who scaled platforms at Netflix and Stripe.</p>
-          </div>
-          <div class="team-member">
-            <div class="member-avatar">DL</div>
-            <h3>David Lee</h3>
-            <p class="role">Head of Product</p>
-            <p class="bio">Product leader focused on developer experience and enterprise adoption.</p>
+          <div class="infra-boxes stagger">
+            <div v-for="s in stats" :key="s.label" class="infra-box">
+              <strong>{{ s.value }}</strong><b>{{ s.label }}</b><p>{{ s.note }}</p>
+            </div>
           </div>
         </div>
       </section>
 
-      <section class="stats-section">
-        <div class="stats-grid">
-          <div class="stat">
-            <div class="stat-number">10k+</div>
-            <div class="stat-label">Active Developers</div>
+      <!-- ── Values ───────────────────────────────────────────────────── -->
+      <section class="content-section" id="values">
+        <div class="shell governance-grid">
+          <div class="reveal">
+            <div class="section-kicker">How we build</div>
+            <h2>Principles we don't trade away.</h2>
+            <p class="section-copy">
+              Governance is not a feature bolted on at the end. It is the reason the platform exists,
+              and it shapes every decision we make.
+            </p>
           </div>
-          <div class="stat">
-            <div class="stat-number">500+</div>
-            <div class="stat-label">Enterprise Customers</div>
-          </div>
-          <div class="stat">
-            <div class="stat-number">1M+</div>
-            <div class="stat-label">AI Sessions Per Month</div>
-          </div>
-          <div class="stat">
-            <div class="stat-number">50+</div>
-            <div class="stat-label">Countries Worldwide</div>
+          <div class="gov-cards stagger">
+            <article v-for="v in values" :key="v.title" class="gov-card">
+              <div class="mini">{{ v.mini }}</div>
+              <b>{{ v.title }}</b><p>{{ v.body }}</p>
+            </article>
           </div>
         </div>
       </section>
 
-      <section class="cta-section">
-        <h2>Join Us on This Journey</h2>
-        <p>Whether you're a developer, team lead, or enterprise decision-maker, we'd love to have you as part of our community.</p>
-        <div class="cta-buttons">
-          <router-link to="/login" class="btn btn-primary">Get Started Free</router-link>
-          <router-link to="/contact" class="btn btn-secondary">Contact Us</router-link>
+      <!-- ── CTA ──────────────────────────────────────────────────────── -->
+      <section class="cta" id="contact">
+        <div class="shell">
+          <div class="cta-panel reveal">
+            <div><h2>Build the layer between intelligence and the world.</h2></div>
+            <div class="cta-copy">
+              <p>Join the teams putting governed AI agents to work on consequential problems.</p>
+              <div class="cta-actions">
+                <router-link class="btn light" to="/login">Get started <span>↗</span></router-link>
+                <router-link class="btn secondary" style="border-color:rgba(255,255,255,.55);color:white" to="/contact">Contact the team</router-link>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </div>
-  </div>
+  </PublicLayout>
 </template>
 
 <script setup>
-// No reactive data needed for this static page
+import { ref } from 'vue'
+import PublicLayout from '../components/public/PublicLayout.vue'
+import { useMeta } from '../composables/useMeta'
+import { useReveal } from '../composables/useReveal'
+
+useMeta({
+  title: 'About — AADML',
+  description: 'AADML is the governed execution layer for intelligent systems—built by North Rays for consequential work across science, government, infrastructure, and software.',
+})
+
+const pageRoot = ref(null)
+useReveal(pageRoot)
+
+const beliefs = [
+  { name: 'Execution', desc: 'Intelligence must act in real environments, not just chat' },
+  { name: 'Governance', desc: 'Autonomy is only acceptable when it is accountable' },
+  { name: 'Evidence', desc: 'Every decision and artifact is preserved for review' },
+  { name: 'Human authority', desc: 'People stay in control of consequential decisions' },
+]
+
+const principles = [
+  { num: '01', title: 'Execution over demos', body: 'We measure success by governed work completed in real systems—not by chat transcripts.' },
+  { num: '02', title: 'Accountability by design', body: 'Identity, budgets, approvals, and audit trails are built into the runtime, not bolted on.' },
+  { num: '03', title: 'Human authority retained', body: 'The most consequential decisions always remain with a person, by design.' },
+  { num: '04', title: 'One model, many domains', body: 'The same execution layer serves a single workflow and an entire institution.' },
+]
+
+const stats = [
+  { value: '6', label: 'Execution surfaces', note: 'Browser, Android, Daytona, remote runners, and more.' },
+  { value: '150+', label: 'Built-in tools', note: 'Plus any MCP server, REST/GraphQL API, or database you connect.' },
+  { value: '100%', label: 'Actions audited', note: 'Every privileged, denied, and approved action is recorded.' },
+]
+
+const values = [
+  { mini: 'Trust', title: 'Governed autonomy', body: 'Every agent is an identity in a bounded environment—where it works, what it sees, and what it may spend.' },
+  { mini: 'Clarity', title: 'Make it inspectable', body: 'Operations become systems people can read: visible workflows, traces, and evidence for every run.' },
+  { mini: 'Safety', title: 'Fail toward humans', body: 'When confidence falls or an action is consequential, work escalates to a person instead of proceeding.' },
+  { mini: 'Sovereignty', title: 'Your data, your rules', body: 'Deploy in cloud, VPC, on-premise, or air-gapped environments with residency and retention controls.' },
+]
 </script>
-
-<style scoped>
-.about-page {
-  min-height: 100vh;
-  background: #f9fafb;
-}
-
-.page-header {
-  text-align: center;
-  padding: 6rem 2rem 4rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.page-header h1 {
-  font-size: 3rem;
-  font-weight: 800;
-  margin-bottom: 1rem;
-}
-
-.page-header p {
-  font-size: 1.5rem;
-  opacity: 0.95;
-}
-
-.about-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 4rem 2rem;
-}
-
-section {
-  margin-bottom: 6rem;
-}
-
-h2 {
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: #1f2937;
-  text-align: center;
-  margin-bottom: 3rem;
-}
-
-.mission-section {
-  text-align: center;
-}
-
-.lead {
-  font-size: 1.5rem;
-  color: #4b5563;
-  line-height: 1.8;
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-.story-section {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4rem;
-  align-items: center;
-}
-
-.story-content h2 {
-  text-align: left;
-  margin-bottom: 2rem;
-}
-
-.story-content p {
-  color: #4b5563;
-  font-size: 1.125rem;
-  line-height: 1.8;
-  margin-bottom: 1.5rem;
-}
-
-.story-image {
-  height: 400px;
-}
-
-.image-placeholder {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.image-placeholder .icon {
-  width: 120px;
-  height: 120px;
-  color: white;
-  opacity: 0.8;
-}
-
-.values-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 2rem;
-}
-
-.value-card {
-  background: white;
-  padding: 2.5rem 2rem;
-  border-radius: 1rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  text-align: center;
-  transition: all 0.3s ease;
-}
-
-.value-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 12px 24px rgba(102, 126, 234, 0.15);
-}
-
-.value-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-}
-
-.value-card h3 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #1f2937;
-  margin-bottom: 1rem;
-}
-
-.value-card p {
-  color: #6b7280;
-  line-height: 1.6;
-}
-
-.team-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 3rem;
-}
-
-.team-member {
-  text-align: center;
-}
-
-.member-avatar {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  font-size: 2rem;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 1.5rem;
-}
-
-.team-member h3 {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #1f2937;
-  margin-bottom: 0.5rem;
-}
-
-.role {
-  color: #667eea;
-  font-weight: 600;
-  margin-bottom: 1rem;
-}
-
-.bio {
-  color: #6b7280;
-  line-height: 1.6;
-  font-size: 0.875rem;
-}
-
-.stats-section {
-  background: white;
-  padding: 4rem 2rem;
-  border-radius: 1rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 3rem;
-  text-align: center;
-}
-
-.stat-number {
-  font-size: 3rem;
-  font-weight: 800;
-  color: #667eea;
-  margin-bottom: 0.5rem;
-}
-
-.stat-label {
-  color: #6b7280;
-  font-size: 1rem;
-}
-
-.cta-section {
-  text-align: center;
-  padding: 4rem 2rem;
-  background: linear-gradient(135deg, #2563EB 0%, #1E40AF 100%);
-  border-radius: 1rem;
-  color: white;
-}
-
-.cta-section h2 {
-  color: white;
-}
-
-.cta-section p {
-  font-size: 1.25rem;
-  opacity: 0.9;
-  margin-bottom: 2rem;
-  max-width: 700px;
-  margin-left: auto;
-  margin-right:auto;
-}
-
-.cta-buttons {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.btn {
-  padding: 1rem 2rem;
-  border-radius: 0.5rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition: all 0.2s ease;
-  display: inline-block;
-}
-
-.btn-primary {
-  background: white;
-  color: #1f2937;
-}
-
-.btn-primary:hover {
-  background: #f3f4f6;
-  transform: translateY(-2px);
-}
-
-.btn-secondary {
-  background: transparent;
-  color: white;
-  border: 2px solid white;
-}
-
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-@media (max-width: 768px) {
-  .page-header h1 {
-    font-size: 2rem;
-  }
-  
-  .story-section {
-    grid-template-columns: 1fr;
-  }
-  
-  .story-content h2 {
-    text-align: center;
-  }
-  
-  h2 {
-    font-size: 2rem;
-  }
-  
-  .lead {
-    font-size: 1.125rem;
-  }
-}
-</style>

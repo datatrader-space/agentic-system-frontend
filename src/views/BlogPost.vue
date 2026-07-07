@@ -1,75 +1,83 @@
 <template>
   <PublicLayout>
-    <article class="mx-auto max-w-3xl px-4 pb-10 pt-10 sm:px-6 lg:px-8">
-      <!-- Header -->
-      <header class="mt-6 text-center">
-        <div class="flex items-center justify-center gap-3 text-sm">
+    <div class="shell page-main">
+      <article class="post-article">
+        <!-- Header -->
+        <nav class="crumb">
+          <router-link to="/blog">Blog</router-link>
+          <span aria-hidden="true">›</span>
+          <span>{{ post.category }}</span>
+        </nav>
+        <div class="post-cat-line">
           <span class="cat">{{ post.category }}</span>
-          <span class="text-ink-faint">{{ readLabel(post) }}</span>
+          <span class="dim">{{ readLabel(post) }}</span>
         </div>
-        <h1 class="mt-5 font-display text-4xl font-extrabold leading-tight tracking-tight text-ink">{{ post.title }}</h1>
-        <div class="mt-6 flex items-center justify-center gap-3 border-t border-line pt-6">
-          <img :src="avatarUrl" alt="" class="h-11 w-11 rounded-full" />
-          <div class="text-left">
-            <div class="font-semibold text-ink">By {{ post.author || 'AADML Team' }}</div>
-            <div class="text-sm text-ink-faint">{{ post.date }}</div>
+        <h1 class="post-title">{{ post.title }}</h1>
+        <div class="post-author">
+          <span class="who" :style="avatarStyle">{{ initial(post.author) }}</span>
+          <div>
+            <div class="who-name">By {{ post.author || 'AADML Team' }}</div>
+            <div class="who-date">{{ post.date }}</div>
           </div>
         </div>
-      </header>
 
-      <!-- Hero image -->
-      <div class="mt-8 h-72 w-full overflow-hidden rounded-2xl" :style="heroBg"></div>
+        <!-- Hero image -->
+        <div class="post-hero" :style="heroBg"></div>
 
-      <!-- Body -->
-      <div v-if="loading" class="mt-10 space-y-4">
-        <div class="vm-skel h-4 w-full"></div>
-        <div class="vm-skel h-4 w-11/12"></div>
-        <div class="vm-skel h-4 w-3/4"></div>
-      </div>
-      <div v-else class="post-body mt-10" v-html="bodyHtml"></div>
+        <!-- Body -->
+        <div v-if="loading" class="mt-10 space-y-4">
+          <div class="vm-skel h-4 w-full"></div>
+          <div class="vm-skel h-4 w-11/12"></div>
+          <div class="vm-skel h-4 w-3/4"></div>
+        </div>
+        <div v-else class="post-body" v-html="bodyHtml"></div>
 
-      <!-- Footer -->
-      <footer class="mt-12 flex flex-col gap-6 border-t border-line pt-8 sm:flex-row sm:items-start sm:justify-between">
-        <div v-if="post.tags?.length">
-          <h4 class="text-xs font-semibold uppercase tracking-wider text-ink-faint">Tags</h4>
-          <div class="mt-3 flex flex-wrap gap-2">
-            <span v-for="tag in post.tags" :key="tag" class="tag">#{{ tag }}</span>
+        <!-- Footer -->
+        <footer class="post-foot-bar">
+          <div v-if="post.tags?.length">
+            <h4>Tags</h4>
+            <div class="tag-row">
+              <span v-for="tag in post.tags" :key="tag" class="tag">#{{ tag }}</span>
+            </div>
+          </div>
+          <div>
+            <h4>Share</h4>
+            <div class="share-row">
+              <button class="share" title="Copy link" @click="copyLink"><Icon icon="lucide:link" class="h-4 w-4" /></button>
+              <a class="share" :href="shareX" target="_blank" rel="noopener" title="Share on X"><Icon icon="lucide:twitter" class="h-4 w-4" /></a>
+              <a class="share" :href="shareLinkedIn" target="_blank" rel="noopener" title="Share on LinkedIn"><Icon icon="lucide:linkedin" class="h-4 w-4" /></a>
+            </div>
+          </div>
+        </footer>
+      </article>
+
+      <!-- Related -->
+      <section v-if="relatedPosts.length" class="related">
+        <h3 class="related-title">You might also like</h3>
+        <div class="blog-grid">
+          <router-link v-for="r in relatedPosts" :key="r.slug" :to="`/blog/${r.slug}`" class="post-card">
+            <div class="post-art" :style="cardBg(r)"><span class="post-tag">{{ r.category || 'Article' }}</span></div>
+            <div class="post-body-card">
+              <h3>{{ r.title }}</h3>
+              <p class="dim">{{ r.date }}</p>
+            </div>
+          </router-link>
+        </div>
+      </section>
+
+      <!-- CTA -->
+      <section class="cta" style="padding:40px 0 90px">
+        <div class="cta-panel">
+          <div><h2>Ready to transform your workflow?</h2></div>
+          <div class="cta-copy">
+            <p>Join the teams using governed AI agents to ship faster—code-aware, context-aware, and cost-aware.</p>
+            <div class="cta-actions">
+              <router-link to="/login" class="btn light">Get started free <span>↗</span></router-link>
+            </div>
           </div>
         </div>
-        <div>
-          <h4 class="text-xs font-semibold uppercase tracking-wider text-ink-faint">Share</h4>
-          <div class="mt-3 flex gap-2">
-            <button class="share" title="Copy link" @click="copyLink"><Icon icon="lucide:link" class="h-4 w-4" /></button>
-            <a class="share" :href="shareX" target="_blank" rel="noopener" title="Share on X"><Icon icon="lucide:twitter" class="h-4 w-4" /></a>
-            <a class="share" :href="shareLinkedIn" target="_blank" rel="noopener" title="Share on LinkedIn"><Icon icon="lucide:linkedin" class="h-4 w-4" /></a>
-          </div>
-        </div>
-      </footer>
-    </article>
-
-    <!-- Related -->
-    <section v-if="relatedPosts.length" class="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
-      <h3 class="mb-6 font-display text-2xl font-extrabold text-ink">You might also like</h3>
-      <div class="grid gap-6 sm:grid-cols-3">
-        <router-link v-for="r in relatedPosts" :key="r.slug" :to="`/blog/${r.slug}`" class="rel-card">
-          <div class="h-36 w-full" :style="cardBg(r)"></div>
-          <div class="p-5">
-            <span class="cat">{{ r.category || 'Article' }}</span>
-            <h4 class="mt-2 line-clamp-2 font-bold text-ink">{{ r.title }}</h4>
-            <p class="mt-1 text-sm text-ink-faint">{{ r.date }}</p>
-          </div>
-        </router-link>
-      </div>
-    </section>
-
-    <!-- CTA -->
-    <section class="mx-auto max-w-5xl px-4 pb-24 sm:px-6 lg:px-8">
-      <div class="cta-box">
-        <h2 class="font-display text-3xl font-extrabold text-white">Ready to transform your workflow?</h2>
-        <p class="mx-auto mt-3 max-w-lg text-blue-100">Join the developers using AI agents to ship faster.</p>
-        <router-link to="/login" class="mt-7 inline-flex rounded-xl bg-white px-7 py-3 font-bold text-violet transition-transform hover:-translate-y-0.5">Get started free</router-link>
-      </div>
-    </section>
+      </section>
+    </div>
   </PublicLayout>
 </template>
 
@@ -93,13 +101,13 @@ setBreadcrumbLabel(() => post.value?.title)
 
 const bodyHtml = computed(() => post.value.content_html || post.value.content || '')
 const heroBg = computed(() => cardBg(post.value))
-const avatarUrl = computed(() => `https://ui-avatars.com/api/?name=${encodeURIComponent(post.value.author || 'AADML')}&background=2563EB&color=fff`)
+const avatarStyle = computed(() => avatarBg(post.value.author))
 const shareX = computed(() => `https://twitter.com/intent/tweet?url=${encodeURIComponent(currentUrl())}&text=${encodeURIComponent(post.value.title || '')}`)
 const shareLinkedIn = computed(() => `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(currentUrl())}`)
 
 useMeta({
   title: computed(() => post.value.title ? `${post.value.title} — AADML Blog` : 'Blog — AADML'),
-  description: computed(() => post.value.excerpt || 'Insights on AI agents and automation.'),
+  description: computed(() => post.value.excerpt || 'Field notes on governed execution.'),
   ogType: 'article',
   image: computed(() => post.value.image || post.value.og_image_url || ''),
   jsonLd: computed(() => ({
@@ -115,12 +123,24 @@ function currentUrl() { return typeof window !== 'undefined' ? window.location.h
 function cardBg(p) {
   if (!p) return {}
   if (p.image || p.og_image_url) return { backgroundImage: `url(${p.image || p.og_image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-  return { background: p.gradient || p.color || p.hero_gradient || 'linear-gradient(135deg,#2563EB,#14B8A6)' }
+  return { background: p.gradient || p.color || p.hero_gradient || 'linear-gradient(135deg,var(--blue-2),var(--green-2))' }
 }
 function readLabel(p) {
   const t = p.readTime
   if (typeof t === 'string') return t.includes('read') ? t : `${t} min read`
   return `${t || 5} min read`
+}
+function initial(name) { return (name || 'A').trim().charAt(0).toUpperCase() }
+function avatarBg(name) {
+  const pairs = [
+    { background: 'var(--green-2)', color: 'var(--green)' },
+    { background: 'var(--blue-2)', color: 'var(--blue)' },
+    { background: 'var(--red-2)', color: 'var(--red)' },
+    { background: 'var(--amber-2)', color: '#8b5b14' },
+    { background: 'var(--violet-2)', color: 'var(--violet)' },
+  ]
+  const h = (name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0)
+  return pairs[h % pairs.length]
 }
 
 async function loadPost() {
@@ -168,49 +188,59 @@ onMounted(loadPost)
 </script>
 
 <style scoped>
-.cat {
-  display: inline-block; padding: 3px 11px; border-radius: 999px;
-  font-size: .7rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
-  color: var(--vm-primary); background: var(--vm-primary-soft);
-}
-.tag {
-  padding: 6px 12px; border-radius: 8px; font-size: .85rem;
-  color: var(--vm-ink-soft); border: 1px solid var(--vm-border); background: var(--vm-surface);
-}
-.share {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 40px; height: 40px; border-radius: 10px; cursor: pointer;
-  color: var(--vm-ink-soft); border: 1px solid var(--vm-border); background: var(--vm-surface);
-  transition: all .15s;
-}
-.share:hover { color: #fff; background: var(--vm-primary); border-color: var(--vm-primary); transform: translateY(-2px); }
+.page-main { padding-bottom: 20px; }
+.post-article { max-width: 780px; margin: 0 auto; padding: 30px 0 20px; }
 
-.rel-card {
-  display: block; overflow: hidden; border-radius: 16px;
-  border: 1px solid var(--vm-border); background: var(--vm-surface);
-  text-decoration: none; box-shadow: var(--vm-shadow-s);
-  transition: transform .2s var(--vm-ease), box-shadow .2s, border-color .2s;
-}
-.rel-card:hover { transform: translateY(-4px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
+.crumb { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--muted); margin-bottom: 22px; }
+.crumb a { color: var(--muted); text-decoration: none; }
+.crumb a:hover { color: var(--blue); }
 
-.cta-box {
-  border-radius: 26px; padding: 56px 32px; text-align: center;
-  background: var(--vm-g-multi); box-shadow: var(--vm-shadow-l);
-}
+.post-cat-line { display: flex; align-items: center; gap: 12px; }
+.cat { font: 800 10px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--green); }
+.dim { color: var(--muted); font-size: .85rem; }
 
-/* rendered markdown / html body */
-.post-body { font-size: 1.08rem; line-height: 1.85; color: var(--vm-ink-soft); }
-.post-body :deep(.lead) { font-size: 1.25rem; color: var(--vm-ink); margin-bottom: 2rem; }
-.post-body :deep(h2) { font-size: 1.7rem; font-weight: 800; color: var(--vm-ink); margin: 2.6rem 0 1rem; }
-.post-body :deep(h3) { font-size: 1.25rem; font-weight: 700; color: var(--vm-ink); margin: 1.8rem 0 .6rem; }
-.post-body :deep(p) { margin-bottom: 1.4rem; }
-.post-body :deep(ul), .post-body :deep(ol) { padding-left: 1.4rem; margin-bottom: 1.4rem; }
-.post-body :deep(li) { margin-bottom: .6rem; }
-.post-body :deep(strong) { color: var(--vm-ink); }
-.post-body :deep(a) { color: var(--vm-primary); text-decoration: none; }
+.post-title { font-family: var(--serif); font-weight: 500; font-size: clamp(36px, 5vw, 62px); line-height: 1.02; letter-spacing: -.035em; color: var(--ink); margin: 14px 0 24px; }
+
+.post-author { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); padding-top: 22px; }
+.who { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font: 800 14px var(--mono); }
+.who-name { font-weight: 700; color: var(--ink); }
+.who-date { font-size: .85rem; color: var(--muted); }
+
+.post-hero { margin-top: 26px; height: 300px; width: 100%; border-radius: 24px; border: 1px solid var(--line); overflow: hidden; }
+
+/* Rendered article body */
+.post-body { margin-top: 34px; font-size: 1.08rem; line-height: 1.85; color: #3a4a43; }
+.post-body :deep(.lead) { font-size: 1.25rem; color: var(--ink); margin-bottom: 2rem; }
+.post-body :deep(h2) { font-family: var(--serif); font-weight: 500; font-size: 1.9rem; letter-spacing: -.02em; color: var(--ink); margin: 2.6rem 0 1rem; }
+.post-body :deep(h3) { font-size: 1.25rem; font-weight: 800; color: var(--ink); margin: 1.8rem 0 .6rem; }
+.post-body :deep(p) { margin-bottom: 1.1rem; }
+.post-body :deep(ul), .post-body :deep(ol) { padding-left: 1.4rem; margin-bottom: 1.1rem; }
+.post-body :deep(li) { margin-bottom: .5rem; }
+.post-body :deep(strong) { color: var(--ink); }
+.post-body :deep(a) { color: var(--blue); text-decoration: none; }
 .post-body :deep(a:hover) { text-decoration: underline; }
-.post-body :deep(blockquote) { border-left: 4px solid var(--vm-primary); background: var(--vm-primary-soft); padding: 1.2rem 1.5rem; margin: 2rem 0; border-radius: 0 12px 12px 0; font-style: italic; color: var(--vm-ink); }
-.post-body :deep(code) { background: var(--vm-primary-soft); color: var(--vm-primary-d); padding: .12rem .4rem; border-radius: 5px; font-size: .88em; font-family: 'JetBrains Mono', monospace; }
-.post-body :deep(pre) { background: #0d1117; color: #e6edf3; border-radius: 12px; padding: 1.1rem 1.4rem; overflow-x: auto; margin: 1.4rem 0; }
+.post-body :deep(blockquote) { border-left: 4px solid var(--blue); background: var(--blue-2); padding: 1.2rem 1.5rem; margin: 2rem 0; border-radius: 0 12px 12px 0; font-style: italic; color: var(--ink); }
+.post-body :deep(code) { background: var(--blue-2); color: var(--blue); padding: .12rem .4rem; border-radius: 5px; font-size: .88em; font-family: var(--mono); }
+.post-body :deep(pre) { background: #0d1117; color: #e6edf3; padding: 16px 18px; border-radius: 14px; overflow-x: auto; margin: 1.4rem 0; }
 .post-body :deep(pre code) { background: none; color: inherit; padding: 0; }
+.post-body :deep(img) { max-width: 100%; border-radius: 14px; margin: 1.4rem 0; }
+
+.post-foot-bar { margin-top: 40px; display: flex; flex-wrap: wrap; gap: 28px; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 26px; }
+.post-foot-bar h4 { font: 800 10px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+.tag-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag { border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 700; color: #536159; background: var(--paper-2); }
+.share-row { display: flex; gap: 8px; }
+.share {
+  display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px;
+  color: var(--muted); border: 1px solid var(--line); background: var(--paper-2);
+  cursor: pointer; transition: transform .2s ease, background .2s, color .2s, border-color .2s;
+}
+.share:hover { color: #fff; background: var(--ink); border-color: var(--ink); transform: translateY(-2px); }
+
+/* Related */
+.related { padding: 20px 0 10px; }
+.related-title { font-family: var(--serif); font-weight: 500; font-size: 2rem; letter-spacing: -.02em; color: var(--ink); margin: 0 0 24px; }
+.post-card { color: inherit; text-decoration: none; }
+.post-body-card { padding: 18px 20px 22px; }
+.post-body-card h3 { font-family: var(--serif); font-weight: 500; font-size: 20px; line-height: 1.15; color: var(--ink); margin: 0 0 6px; }
 </style>

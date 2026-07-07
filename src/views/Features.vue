@@ -1,161 +1,243 @@
-﻿<template>
+<template>
   <PublicLayout>
-    <!-- Header -->
-    <section class="relative overflow-hidden">
-      <HeroBackdrop />
-      <div class="relative z-10 mx-auto max-w-7xl px-4 pb-10 pt-16 text-center sm:px-6 lg:px-8 lg:pt-24">
-        <span v-reveal class="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-soft shadow-s">
-          <Icon icon="lucide:sparkles" class="h-4 w-4 text-violet" /> Platform capabilities
-        </span>
-        <h1 v-reveal class="mx-auto mt-6 max-w-3xl font-display text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-5xl">
-          One platform. Every capability an agent needs.
-        </h1>
-        <p v-reveal class="mx-auto mt-5 max-w-2xl text-lg text-ink-soft">
-          From a browser-based coding agent to webhook automation and multi-tenant governance — accurate to what ships today, with beta work clearly marked.
-        </p>
-      </div>
-    </section>
-
-    <!-- Groups -->
-    <section class="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
-      <div v-for="group in groups" :key="group.title" class="mb-16" v-reveal>
-        <div class="mb-6 flex items-center gap-3">
-          <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-soft text-violet">
-            <Icon :icon="group.icon" class="h-5 w-5" />
-          </span>
-          <h2 class="font-display text-2xl font-extrabold tracking-tight text-ink">{{ group.title }}</h2>
-        </div>
-        <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <article v-for="f in group.items" :key="f.title" class="feature-card">
-            <div class="flex items-start justify-between gap-3">
-              <span class="feature-icon"><Icon :icon="f.icon" class="h-5 w-5" /></span>
-              <span class="status" :class="f.status === 'Beta' ? 'is-beta' : 'is-shipped'">{{ f.status }}</span>
+    <div ref="pageRoot" class="page-main">
+      <!-- ── Hero ─────────────────────────────────────────────────────── -->
+      <section class="page-hero" id="top">
+        <div class="shell page-hero-grid">
+          <div class="reveal">
+            <div class="section-kicker">Complete feature system</div>
+            <h1>Everything an agent needs to <em>finish the work.</em></h1>
+            <p>
+              From a streaming, tool-using agent to coding sandboxes, visual workflows,
+              browser and Android execution, cited knowledge, event infrastructure,
+              observability, and institutional governance—one coherent platform.
+            </p>
+            <div class="hero-actions">
+              <a class="btn" href="#build">Explore the feature system <span>→</span></a>
+              <router-link class="btn secondary" to="/how-it-works">See platform architecture</router-link>
             </div>
-            <h3 class="mt-4 font-bold text-ink">{{ f.title }}</h3>
-            <p class="mt-2 text-sm leading-relaxed text-ink-soft">{{ f.desc }}</p>
-          </article>
-        </div>
-      </div>
-    </section>
+            <div class="feature-index">
+              <a v-for="f in featureIndex" :key="f.id" :href="`#${f.id}`">{{ f.label }}</a>
+            </div>
+          </div>
 
-    <!-- CTA -->
-    <section class="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
-      <div class="flex flex-col items-center justify-between gap-6 rounded-2xl border border-line bg-surface p-10 text-center shadow-m sm:flex-row sm:text-left" v-reveal>
-        <div>
-          <h2 class="font-display text-2xl font-extrabold text-ink">See it on your own repo</h2>
-          <p class="mt-2 text-ink-soft">Start free, bring your own model keys, and self-host in minutes.</p>
+          <!-- Capability card -->
+          <div class="cap-card reveal">
+            <div class="cap-head">
+              <span class="cap-dots"><i style="background:var(--blue)"></i><i style="background:var(--green)"></i><i style="background:var(--green)"></i></span>
+              <span class="cap-host"><b>aadml</b> <span>· what your agents can do</span></span>
+              <span class="cap-verify"><span style="width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block"></span>Verified</span>
+            </div>
+            <div class="cap-title-wrap">
+              <h3 class="cap-title">One platform — every capability</h3>
+              <div class="cap-sub">Capabilities · 100% active</div>
+            </div>
+            <div class="cap-rows">
+              <div v-for="(c, i) in capabilities" :key="c.label" class="cap-row" :style="{ '--d': (0.12 * (i + 1)).toFixed(2) + 's' }">
+                <span class="cap-check">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>
+                </span>
+                <span class="cap-label">{{ c.label }}</span>
+                <span class="cap-cat">{{ c.cat }}</span>
+              </div>
+            </div>
+            <div class="cap-foot">
+              <b>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+                Verified · ticket #4821 resolved
+              </b>
+              <span>release v2.14.1 deployed · 48 tests passed</span>
+            </div>
+          </div>
         </div>
-        <div class="flex shrink-0 gap-3">
-          <router-link to="/login" class="cta-primary">Get started</router-link>
-          <router-link to="/pricing" class="cta-ghost">Pricing</router-link>
+      </section>
+
+      <!-- ── Feature groups ───────────────────────────────────────────── -->
+      <section
+        v-for="(group, gi) in groups"
+        :key="group.kicker"
+        class="content-section"
+        :class="{ soft: gi % 2 === 1 }"
+        :id="group.anchor"
+      >
+        <div class="shell">
+          <div class="group-title reveal">
+            <div>
+              <div class="section-kicker">{{ group.kicker }}</div>
+              <h2>{{ group.title }}</h2>
+            </div>
+            <p>{{ group.copy }}</p>
+          </div>
+
+          <div
+            v-for="block in group.blocks"
+            :key="block.id"
+            class="feature-block"
+            :class="{ reverse: block.reverse }"
+            :id="block.id"
+          >
+            <div class="feature-copy reveal" :style="{ '--tone': block.tone }">
+              <div class="slug">{{ block.slug }}</div>
+              <h3>{{ block.title }}</h3>
+              <p>{{ block.body }}</p>
+              <ul><li v-for="li in block.items" :key="li">{{ li }}</li></ul>
+              <div v-if="block.cta" class="hero-actions">
+                <router-link class="btn" :to="block.cta.to">{{ block.cta.label }} <span>→</span></router-link>
+              </div>
+            </div>
+            <!-- The UI mockup markup varies per block; rendered via a sub-component -->
+            <FeatureMock class="reveal" :block="block" />
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <!-- ── CTA ──────────────────────────────────────────────────────── -->
+      <section class="cta" id="contact">
+        <div class="shell">
+          <div class="cta-panel reveal">
+            <div><h2>One platform. The whole agent lifecycle.</h2></div>
+            <div class="cta-copy">
+              <p>
+                Define, execute, supervise, inspect, and improve—without stitching together
+                five disconnected products.
+              </p>
+              <div class="cta-actions">
+                <router-link class="btn light" to="/how-it-works">See the platform <span>→</span></router-link>
+                <router-link class="btn secondary" style="border-color:rgba(255,255,255,.55);color:white" to="/contact">Talk to North Rays</router-link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
   </PublicLayout>
 </template>
 
 <script setup>
-import { Icon } from '@iconify/vue'
+import { ref } from 'vue'
 import PublicLayout from '../components/public/PublicLayout.vue'
-import HeroBackdrop from '../components/public/HeroBackdrop.vue'
-import { useMeta } from '../composables/useMeta'
+import FeatureMock from '../components/public/FeatureMock.vue'
+import { useReveal } from '../composables/useReveal'
 
-useMeta({
-  title: 'Features — AADML',
-  description: 'Explore AADML: the Let’s Code Aadml IDE, 1,800+ tools, code intelligence, knowledge & RAG, webhook/cron automation, multi-tenant governance, and full cost observability.',
-})
+const pageRoot = ref(null)
+useReveal(pageRoot)
+
+const featureIndex = [
+  { id: 'agent-studio', label: 'Agent Studio' },
+  { id: 'knowledge', label: 'Knowledge & RAG' },
+  { id: 'connectors', label: 'Connectors & MCP' },
+  { id: 'code', label: 'Daytona coding' },
+  { id: 'workflow', label: 'Workflow Builder' },
+  { id: 'browser', label: 'Browser' },
+  { id: 'android', label: 'Android' },
+  { id: 'signals', label: 'Signals' },
+  { id: 'media', label: 'Media' },
+  { id: 'observability', label: 'Observability' },
+  { id: 'governance', label: 'Governance' },
+]
+
+const capabilities = [
+  { label: 'Write & review code', cat: "Let's Code" },
+  { label: 'Deploy to AWS', cat: 'DevOps' },
+  { label: 'Run browsers & Android', cat: 'Execution' },
+  { label: 'Query databases & APIs', cat: 'Tools' },
+  { label: 'Build visual workflows', cat: 'Workflows' },
+  { label: 'Ground answers in knowledge', cat: 'RAG' },
+  { label: 'Monitor & auto-fix prod', cat: 'Signals' },
+  { label: 'Govern every action', cat: 'Security' },
+]
 
 const groups = [
   {
-    title: 'Core agent engine',
-    icon: 'lucide:cpu',
-    items: [
-      { icon: 'lucide:repeat', title: 'ReAct agent runtime', desc: 'Multi-step reasoning with streaming tool calls over WebSocket, with full event replay on reconnect.', status: 'Shipped' },
-      { icon: 'lucide:user-check', title: 'Human-in-the-loop', desc: 'Agents request approval for risky tools, ask to clarify when unsure, and pause for your decision.', status: 'Shipped' },
-      { icon: 'lucide:bot', title: 'Autonomous runner', desc: 'Background execution for signals and schedules with planning, working memory, and budget guardrails.', status: 'Shipped' },
+    anchor: 'build',
+    kicker: 'Build intelligence',
+    title: 'Shape the agent brain, knowledge, and tools.',
+    copy: 'Define reusable agent profiles, ground them in institutional knowledge, and expose exactly the systems and actions they are allowed to use.',
+    blocks: [
+      {
+        id: 'agent-studio', slug: 'Agent Studio', tone: 'var(--blue)', mock: 'agent',
+        title: 'Configure reusable agents once. Run them everywhere.',
+        body: 'Set the system prompt, model, tools, knowledge, execution mode, policies, and publishing surface in one editor. Organization policy merges into each agent at runtime.',
+        items: ['Manual, assisted, or autonomous execution', 'Prompt, model, tools, knowledge, and budgets in one profile', 'Public widgets with token-scoped access', 'Organization-level forbidden tools and risk ceilings'],
+      },
+      {
+        id: 'knowledge', slug: 'Knowledge & RAG', tone: 'var(--green)', reverse: true, mock: 'knowledge',
+        title: 'Ground every answer in your own content.',
+        body: 'Upload documents or crawl entire sites. AADML chunks, embeds, indexes, retrieves, and cites the exact passages used during a run.',
+        items: ['Files and website crawls indexed automatically', 'Top-k retrieval inside a guarded context block', 'Citation chips link to exact source passages', 'Scheduled re-crawls keep institutional knowledge fresh'],
+      },
+      {
+        id: 'connectors', slug: 'Connectors & MCP', tone: 'var(--red)', mock: 'connectors',
+        title: 'Connect anything. Control every action.',
+        body: 'Manage OAuth and PAT accounts, REST and GraphQL services, databases, and MCP servers in one registry. AADML discovers schemas and classifies actions by risk.',
+        items: ['Native connectors plus any API or MCP server', 'Read, write, and destructive action classification', 'Per-tool allow · ask · deny at organization and agent scope', 'Connection health, circuit breakers, and credential vaults'],
+      },
     ],
   },
   {
-    title: 'Code intelligence & Let’s Code',
-    icon: 'lucide:code-2',
-    items: [
-      { icon: 'lucide:panel-left', title: 'Let’s Code IDE', desc: 'Clone a GitHub repo, browse files, and chat with an agent that proposes diffs you review and export as a PR.', status: 'Shipped' },
-      { icon: 'lucide:git-compare', title: 'Reviewable diffs', desc: 'Per-file and per-hunk accept/revert against a clone — focused verify runs before anything ships.', status: 'Shipped' },
-      { icon: 'lucide:network', title: 'Graph-aware retrieval', desc: 'Symbol and call-graph indexing (CRS) grounds edits in callers, callees, imports, and related tests.', status: 'Beta' },
+    anchor: 'execute',
+    kicker: 'Execute in real environments',
+    title: 'Code, web, mobile, and operational workflows.',
+    copy: 'Agents move through governed environments that expose files, terminals, browsers, devices, databases, and people while preserving artifacts and approval history.',
+    blocks: [
+      {
+        id: 'code', slug: "Let's Code + Daytona", tone: 'var(--green)', mock: 'code',
+        title: 'A web IDE where the agent writes, tests, and proposes code.',
+        body: 'Clone a real repository into a Daytona sandbox and pair it with a coding agent. The agent plans, edits, runs tests, and produces a reviewable diff.',
+        items: ['Fast isolated workspace creation', 'Clone, index, edit, terminal, dependencies, and preview', 'File- and hunk-level diff acceptance', 'Export to a GitHub pull request—never directly to main'],
+      },
+      {
+        id: 'workflow', slug: 'Workflow Builder', tone: 'var(--blue)', mock: 'workflow',
+        title: 'Compose agents, tools, logic, and humans.',
+        body: 'Build visible, reusable systems from triggers, agent runs, tool actions, conditions, loops, delays, approvals, and sub-workflows.',
+        items: ['Manual, schedule, webhook, Slack, Telegram, and email triggers', 'Agent, action, logic, approval, foreach, and sub-workflow nodes', 'Templated data flow and drag-to-insert outputs', 'Dry run, live overlays, retries, replay, versions, and node-level I/O'],
+        cta: { to: '/how-it-works', label: 'Open the Workflow Builder page' },
+      },
+      {
+        id: 'browser', slug: 'Browser automation', tone: 'var(--amber)', reverse: true, mock: 'browser',
+        title: 'Operate authenticated web systems with evidence.',
+        body: 'Use controlled browser sessions for research, public portals, enterprise applications, data extraction, testing, forms, and file exchange.',
+        items: ['DOM, screenshot, network, download, and upload tools', 'Multi-tab navigation and authenticated sessions', 'Recordings, artifacts, and step-level inspection', 'Approval before external submissions or irreversible actions'],
+      },
+      {
+        id: 'android', slug: 'Android device tools', tone: 'var(--violet)', mock: 'android',
+        title: 'Run governed workflows on real and virtual devices.',
+        body: 'Operate Android devices through ADB, Appium, accessibility services, emulators, and device farms with session isolation and full evidence.',
+        items: ['Tap, type, swipe, install, launch, inspect, and capture', 'Device assignment, locks, and session isolation', 'Logs, screen recordings, screenshots, and artifacts', 'Checkpoints and approvals before consequential actions'],
+      },
     ],
   },
   {
-    title: 'Knowledge & RAG',
-    icon: 'lucide:book-open',
-    items: [
-      { icon: 'lucide:file-text', title: 'Document knowledge', desc: 'Upload PDFs, text, and markdown — chunked and embedded for per-agent semantic retrieval.', status: 'Shipped' },
-      { icon: 'lucide:globe', title: 'Website crawler', desc: 'Index sites via sitemap or crawl, grouped as one source with live progress.', status: 'Shipped' },
-      { icon: 'lucide:brain', title: 'Self-learning (Dream)', desc: 'Agents distil knowledge cards from their own history and inject them into future runs.', status: 'Shipped' },
-    ],
-  },
-  {
-    title: 'Tools & integrations',
-    icon: 'lucide:wrench',
-    items: [
-      { icon: 'lucide:boxes', title: '1,800+ tools', desc: 'Builtin + MCP + OpenAPI/Postman services, lazily loaded and authorized per agent.', status: 'Shipped' },
-      { icon: 'lucide:search', title: 'Semantic tool discovery', desc: 'Agents find the right tool via embedding search instead of a bloated prompt.', status: 'Shipped' },
-      { icon: 'lucide:plug', title: 'MCP servers', desc: 'Connect stdio/HTTP/SSE MCP servers with credential injection and circuit breakers.', status: 'Shipped' },
-    ],
-  },
-  {
-    title: 'Automation',
-    icon: 'lucide:zap',
-    items: [
-      { icon: 'lucide:webhook', title: 'Signals (webhooks)', desc: 'External systems fire agents with idempotency, HMAC auth, retries, and a dead-letter queue.', status: 'Shipped' },
-      { icon: 'lucide:calendar-clock', title: 'Schedules (cron)', desc: 'Run agents periodically with per-schedule budgets, max runs, and auto-pause on failure.', status: 'Shipped' },
-      { icon: 'lucide:workflow', title: 'Workflow builder', desc: 'Compose multi-step automations on a node canvas with retries, approvals, and sub-workflows.', status: 'Beta' },
-    ],
-  },
-  {
-    title: 'Security, governance & cost',
-    icon: 'lucide:shield-check',
-    items: [
-      { icon: 'lucide:building-2', title: 'Multi-tenancy', desc: 'Organizations, workspaces, teams, and RBAC with workspace-scoped resources and audit trails.', status: 'Shipped' },
-      { icon: 'lucide:key-round', title: 'Encrypted credentials', desc: 'Fernet-encrypted vaults and OAuth connections — secrets are never exposed to agents or logs.', status: 'Shipped' },
-      { icon: 'lucide:bar-chart-3', title: 'Cost observability', desc: 'Every LLM call is logged with tokens, latency, and frozen cost — per user, agent, and source.', status: 'Shipped' },
+    anchor: 'operate',
+    kicker: 'Operate continuously',
+    title: 'Events, media, traces, and institutional control.',
+    copy: 'Turn one-off agent runs into reliable operating systems that react to events, preserve every artifact, and remain understandable to operators and auditors.',
+    blocks: [
+      {
+        id: 'signals', slug: 'Signals & schedules', tone: 'var(--red)', mock: 'signals',
+        title: 'Agents that work while you sleep.',
+        body: 'Cron schedules and inbound webhooks feed a Redis-backed durable queue with retries, dead-letter alerts, checkpoints, and budget caps.',
+        items: ['Auto-minted webhook URLs with HMAC verification', 'Cron schedules with daily budgets and read-only modes', 'Signals wake, route, resume, and escalate workflows', 'Queues, streams, locks, caches, and rate limits in Redis'],
+      },
+      {
+        id: 'media', slug: 'Media pipeline', tone: 'var(--amber)', reverse: true, mock: 'media',
+        title: 'Generate media end to end with agents.',
+        body: 'Orchestrate multi-stage media generation from brief to script, image, video, document, and publication while preserving every intermediate artifact.',
+        items: ['Image, video, and document generation as tools', 'Multi-stage pipelines with checkpoints and previews', 'Durable downloadable artifacts and reusable links', 'Insert generated outputs directly into chat or workflows'],
+      },
+      {
+        id: 'observability', slug: 'Observability', tone: 'var(--blue)', mock: 'observability',
+        title: 'Every token, trace, dollar, and artifact—visible.',
+        body: 'Transparent metering and tracing across chat, workflows, signals, schedules, devices, and coding workspaces.',
+        items: ['Per-response and per-session token and dollar metering', 'Request logs with drill-in to full run traces', 'Cost by source, provider, model, workspace, and mission', 'Stop reasons, cache hits, tool counts, latency, and replay'],
+      },
+      {
+        id: 'governance', slug: 'Team & governance', tone: 'var(--green)', reverse: true, mock: 'governance',
+        title: 'Collaborate with real access control.',
+        body: 'Organizations and workspaces carry roles, invitations, data boundaries, credential policies, budgets, and an immutable history of privileged and denied actions.',
+        items: ['Owner, admin, member, viewer, and billing roles', 'Workspace-scoped agents, data, connectors, and knowledge', 'Encrypted credential vaults and customer isolation', 'Immutable audit trail, retention, approvals, and escalation'],
+      },
     ],
   },
 ]
 </script>
-
-<style scoped>
-.feature-card {
-  border-radius: 16px;
-  border: 1px solid var(--vm-border);
-  background: var(--vm-surface);
-  padding: 22px;
-  box-shadow: var(--vm-shadow-s);
-  transition: transform .2s var(--vm-ease), box-shadow .2s, border-color .2s;
-}
-.feature-card:hover { transform: translateY(-3px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
-.feature-icon {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 42px; height: 42px; border-radius: 12px;
-  color: var(--vm-primary); background: var(--vm-primary-soft);
-}
-.status {
-  padding: 3px 9px; border-radius: 999px;
-  font-size: .65rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
-}
-.is-shipped { color: var(--vm-green); background: rgba(16,185,129,.12); }
-.is-beta { color: var(--vm-accent); background: var(--vm-accent-soft); }
-
-.cta-primary {
-  display: inline-flex; padding: 12px 24px; border-radius: 12px;
-  font-weight: 600; color: #fff; text-decoration: none; background: var(--vm-g-brand);
-  box-shadow: var(--vm-glow-p); transition: transform .18s var(--vm-ease);
-}
-.cta-primary:hover { transform: translateY(-2px); }
-.cta-ghost {
-  display: inline-flex; padding: 12px 24px; border-radius: 12px;
-  font-weight: 600; color: var(--vm-ink); text-decoration: none;
-  border: 1px solid var(--vm-border);
-}
-.cta-ghost:hover { border-color: var(--vm-primary); }
-</style>
-

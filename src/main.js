@@ -61,6 +61,7 @@ const Blog = () => import('./views/Blog.vue')
 const BlogPost = () => import('./views/BlogPost.vue')
 const Pricing = () => import('./views/Pricing.vue')
 const About = () => import('./views/About.vue')
+const Mission = () => import('./views/Mission.vue')
 const Contact = () => import('./views/Contact.vue')
 const ServiceRegistrationV2 = () => import('./views/ServiceRegistrationV2.vue')
 const OAuthProviderRegistration = () => import('./views/OAuthProviderRegistration.vue')
@@ -142,6 +143,12 @@ const router = createRouter({
       path: '/about',
       name: 'about',
       component: About,
+      meta: { requiresAuth: false, public: true }
+    },
+    {
+      path: '/mission',
+      name: 'mission',
+      component: Mission,
       meta: { requiresAuth: false, public: true }
     },
     {

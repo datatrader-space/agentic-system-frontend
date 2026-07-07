@@ -1,0 +1,99 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="description" content="Explore the AADML platform architecture: runtime, workspaces, knowledge, tools, signals, Redis, webhooks, governance, and deployment."><title>AADML Platform — A general execution layer</title><link rel="stylesheet" href="site.css"></head><body class="page-body">
+<div class="top-note"><div class="shell"><span>AADML</span> · governed execution for consequential work</div></div>
+<header>
+  <div class="shell nav">
+    <a class="brand" href="index.html#top"><span class="brand-mark"><i></i></span>AADML</a>
+    <nav class="nav-links">
+      <a href="platform.html" class="page-nav-active">Platform</a>
+      <a href="features.html" class="">Features</a>
+      <a href="docs.html" class="">Docs</a>
+      <a href="pricing.html" class="">Pricing</a>
+      <a href="blog.html" class="">Blog</a>
+    </nav>
+    <div class="nav-actions"><a class="text-link" href="features.html#developers">Developers</a><a class="btn" href="#contact">Enter the platform <span>↗</span></a></div>
+  </div>
+</header>
+<main class="page-main">
+<section class="page-hero" id="top">
+  <div class="shell page-hero-grid">
+    <div data-reveal><div class="section-kicker">Platform architecture</div><h1>A general execution layer for <em>intelligent systems.</em></h1><p>AADML joins agent intelligence to durable execution: persistent workspaces, event-driven jobs, governed tools, human authority, evidence, and infrastructure that can operate from one developer machine to a laboratory, enterprise, or public institution.</p><div class="hero-actions"><a class="btn" href="#architecture">Explore the architecture <span>→</span></a><a class="btn secondary" href="features.html">View every feature</a></div><div class="subnav"><a href="#lifecycle">Lifecycle</a><a href="#runtime">Runtime</a><a href="#execution-surfaces">Execution surfaces</a><a href="#event-fabric">Event fabric</a><a href="#deployment">Deployment</a></div></div>
+    <div class="diagram-card" data-reveal>
+      <div class="platform-stack">
+        <div class="stack-row"><b>Interfaces</b><span>Chat · API · SDKs · Webhooks · Slack · WhatsApp · Embedded applications</span></div>
+        <div class="stack-row"><b>Orchestration</b><span>Roles · Plans · Tasks · Multi-agent coordination · Evaluations · Policies</span></div>
+        <div class="stack-row"><b>Execution</b><span>Jobs · Queues · Schedulers · Retries · Checkpoints · Long-running state</span></div>
+        <div class="stack-row"><b>Workspaces</b><span>Files · Terminal · Browser · Code · Artifacts · Daytona · Remote machines</span></div>
+        <div class="stack-row"><b>Knowledge</b><span>Documents · RAG · Databases · Structured memory · Task history · Citations</span></div>
+        <div class="stack-row"><b>Tools</b><span>MCP · APIs · Python · Shell · SaaS · Android · Internal systems</span></div>
+        <div class="stack-row"><b>Event fabric</b><span>Signals · Redis queues · Streams · Webhooks · Cron · Dead-letter recovery</span></div>
+        <div class="stack-row"><b>Governance</b><span>RBAC · Credentials · Approvals · Budgets · Audit logs · Retention · Isolation</span></div>
+      </div><div class="stack-caption">One operating layer · from intelligence to accountable action</div>
+    </div>
+  </div>
+</section>
+
+<section class="content-section" id="lifecycle"><div class="shell"><div class="section-head-wide" data-reveal><div><div class="section-kicker">Execution model</div><h2>One system for the complete agent lifecycle.</h2></div><p>Define, execute, supervise, inspect, and improve. The platform keeps the mission, workspace, evidence, policies, and operational state together instead of scattering them across unrelated tools.</p></div><div class="lifecycle">
+  <article class="life-card" style="--tone:var(--blue)" data-reveal><small>01 · DEFINE</small><h3>Give the system a mission</h3><p>Set roles, objectives, models, tools, knowledge, permissions, budget, and operating limits.</p></article>
+  <article class="life-card" style="--tone:var(--green)" data-reveal><small>02 · EXECUTE</small><h3>Work inside real environments</h3><p>Agents plan and act in persistent workspaces rather than producing one disposable response.</p></article>
+  <article class="life-card" style="--tone:var(--red)" data-reveal><small>03 · SUPERVISE</small><h3>Keep people in authority</h3><p>Review activity, approve sensitive actions, intervene, pause, or allow policy-approved work to continue.</p></article>
+  <article class="life-card" style="--tone:var(--violet)" data-reveal><small>04 · INSPECT</small><h3>See the evidence</h3><p>Inspect tool calls, files, browser actions, device sessions, costs, state changes, errors, and outputs.</p></article>
+  <article class="life-card" style="--tone:var(--amber)" data-reveal><small>05 · IMPROVE</small><h3>Turn runs into capability</h3><p>Evaluate results, find failure patterns, update policies, and reuse successful execution paths.</p></article>
+</div></div></section>
+
+<section class="content-section soft" id="architecture"><div class="shell"><div class="section-head-wide" data-reveal><div><div class="section-kicker">Platform layers</div><h2>Every layer required to move from intent to outcome.</h2></div><p>AADML is not a model wrapper. It is a control and execution plane that makes models useful inside institutions, production systems, scientific work, public services, and physical devices.</p></div><div class="layer-table" data-reveal>
+  <div class="layer-row" id="interfaces"><div class="layer-name">Interfaces</div><div class="layer-caps"><span class="cap strong">Web console</span><span class="cap">REST API</span><span class="cap">SDKs</span><span class="cap">CLI</span><span class="cap">Webhooks</span><span class="cap">Slack</span><span class="cap">WhatsApp</span><span class="cap">Custom applications</span></div></div>
+  <div class="layer-row"><div class="layer-name">Agent orchestration</div><div class="layer-caps"><span class="cap strong">Goals & planning</span><span class="cap">Agent Studio</span><span class="cap">Multi-agent tasks</span><span class="cap">Policies</span><span class="cap">Evaluations</span><span class="cap">Routing</span></div></div>
+  <div class="layer-row"><div class="layer-name">Execution runtime</div><div class="layer-caps"><span class="cap strong">Long-running jobs</span><span class="cap">Queues</span><span class="cap">Retries</span><span class="cap">Schedulers</span><span class="cap">State</span><span class="cap">Checkpoints</span><span class="cap">Recovery</span></div></div>
+  <div class="layer-row"><div class="layer-name">Workspaces</div><div class="layer-caps"><span class="cap strong">Persistent files</span><span class="cap">Terminal</span><span class="cap">Browser</span><span class="cap">Daytona</span><span class="cap">Artifacts</span><span class="cap">Remote Runner</span></div></div>
+  <div class="layer-row"><div class="layer-name">Knowledge & memory</div><div class="layer-caps"><span class="cap strong">Cited RAG</span><span class="cap">Documents</span><span class="cap">Website crawls</span><span class="cap">Structured memory</span><span class="cap">Vector stores</span><span class="cap">Task history</span></div></div>
+  <div class="layer-row"><div class="layer-name">Tools & systems</div><div class="layer-caps"><span class="cap strong">MCP registry</span><span class="cap">REST / GraphQL</span><span class="cap">Databases</span><span class="cap">Python</span><span class="cap">Shell</span><span class="cap">Browser automation</span><span class="cap">Android / ADB / Appium</span></div></div>
+  <div class="layer-row"><div class="layer-name">Event infrastructure</div><div class="layer-caps"><span class="cap strong">Signals</span><span class="cap">Redis</span><span class="cap">Streams</span><span class="cap">Locks</span><span class="cap">Rate limits</span><span class="cap">Webhooks</span><span class="cap">Cron schedules</span><span class="cap">Dead-letter alerts</span></div></div>
+  <div class="layer-row"><div class="layer-name">Governance</div><div class="layer-caps"><span class="cap strong">RBAC</span><span class="cap">Credential vault</span><span class="cap">Approval gates</span><span class="cap">Budgets</span><span class="cap">Audit logs</span><span class="cap">Retention</span><span class="cap">Tenant isolation</span></div></div>
+</div></div></section>
+
+<section class="content-section" id="runtime"><div class="shell"><div class="section-head-wide" data-reveal><div><div class="section-kicker">Runtime</div><h2>Work does not always finish in one prompt.</h2></div><p>Operations can span hundreds of steps, multiple systems, waiting periods, approvals, retries, and changing conditions. AADML preserves the mission and state throughout the entire run.</p></div><div class="runtime-grid"><div class="runtime-board" data-reveal><div class="runtime-top"><span>mission · laboratory-quality-review</span><span>state persisted</span></div>
+  <div class="job-row"><div class="job-icon">1</div><div><b>Collect instrument output</b><span>3 files · checksums verified</span></div><div class="job-state">complete</div></div>
+  <div class="job-row"><div class="job-icon">2</div><div><b>Validate protocol and sample metadata</b><span>policy set · lab-qms-v4</span></div><div class="job-state">complete</div></div>
+  <div class="job-row active"><div class="job-icon">3</div><div><b>Run anomaly analysis</b><span>Daytona workspace · Python environment</span></div><div class="job-state">running</div></div>
+  <div class="job-row"><div class="job-icon">4</div><div><b>Wait for scientist review</b><span>checkpoint retained for 72 hours</span></div><div class="job-state">waiting</div></div>
+  <div class="job-row"><div class="job-icon">5</div><div><b>Publish signed evidence package</b><span>immutable artifact + notification webhook</span></div><div class="job-state">pending</div></div>
+</div><div class="runtime-side"><article class="info-card" data-reveal><div class="icon">∞</div><h3>Durable missions</h3><p>Pause, resume, retry, schedule, recover, split work into subordinate jobs, and preserve intermediate artifacts without losing operational context.</p><ul><li>Wait for events without losing state</li><li>Resume after human approval</li><li>Recover from model and tool failures</li></ul></article><article class="info-card" data-reveal><div class="icon">§</div><h3>Policy at execution time</h3><p>Permissions, approval requirements, spend limits, and data boundaries are evaluated when the action happens—not merely described in a prompt.</p><ul><li>Per-tool allow · ask · deny</li><li>Budget caps and read-only modes</li><li>Escalation when confidence is insufficient</li></ul></article></div></div></div></section>
+
+<section class="content-section soft" id="execution-surfaces"><div class="shell"><div class="section-head-wide" data-reveal><div><div class="section-kicker">Execution surfaces</div><h2>Agents work where the work lives.</h2></div><p>Web, mobile, code, private infrastructure, and internal systems become governed execution environments with isolation, recordings, artifacts, and human checkpoints.</p></div><div class="surfaces-grid">
+  <article class="surface" style="--tone:var(--blue)" data-reveal><div class="tag">Browser automation</div><h3>Authenticated web operations</h3><p>Controlled sessions for research, portals, forms, testing, extraction, downloads, and external submissions.</p><ul><li>DOM, screenshot, network, and download tools</li><li>Multi-tab navigation and file uploads</li><li>Approval gates before consequential submissions</li></ul></article>
+  <article class="surface" style="--tone:var(--violet)" data-reveal><div class="tag">Android device tools</div><h3>Operate real and virtual devices</h3><p>Run mobile workflows through ADB, Appium, accessibility, emulators, and device farms.</p><ul><li>Tap, type, swipe, install, launch, inspect</li><li>Device assignment and session isolation</li><li>Logs, recordings, artifacts, and checkpoints</li></ul></article>
+  <article class="surface" style="--tone:var(--green)" data-reveal><div class="tag">Daytona workspaces</div><h3>Reproducible coding environments</h3><p>Fast, isolated sandboxes with repositories, terminals, dependencies, previews, snapshots, and lifecycle control.</p><ul><li>Clone, index, edit, test, and review</li><li>Hunk-level diff acceptance</li><li>Export to pull request—not directly to main</li></ul></article>
+  <article class="surface" style="--tone:var(--red)" data-reveal><div class="tag">Remote Runner</div><h3>Reach private environments safely</h3><p>Connect laptops, servers, VMs, laboratories, and private networks while keeping commands permissioned and auditable.</p><ul><li>mTLS connection and scoped credentials</li><li>Allow or deny each command</li><li>Operate internal tools and local datasets</li></ul></article>
+</div></div></section>
+
+<section class="content-section" id="event-fabric"><div class="shell"><div class="event-grid"><div class="event-copy" data-reveal><div class="section-kicker" style="color:#9ed8c0">Event fabric</div><h2>Signals wake agents. <strong>Redis keeps work moving.</strong></h2><p>Activity across connected systems becomes normalized signals that start, wake, route, or escalate workflows. Redis-backed queues, streams, locks, caches, rate limits, and checkpoints keep long-running work coordinated.</p><div class="subnav"><a style="color:#fff;border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.06)" href="features.html#signals">Signals & schedules</a><a style="color:#fff;border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.06)" href="workflow-builder.html">Workflow Builder</a></div></div><div class="event-board" data-reveal>
+  <div class="runtime-top"><span>live signal stream</span><span style="color:var(--green)">connected</span></div>
+  <div class="signal-row"><div class="signal-time">10:42:12</div><div><b>lead.intent.detected</b><span>Lead exceeded institutional qualification threshold</span></div><div class="signal-state">routed</div></div>
+  <div class="signal-row"><div class="signal-time">10:42:18</div><div><b>payment.failed</b><span>Recovery workflow started from Stripe webhook</span></div><div class="signal-state">started</div></div>
+  <div class="signal-row"><div class="signal-time">10:42:24</div><div><b>android.device.available</b><span>Device assigned to a waiting automation run</span></div><div class="signal-state">resumed</div></div>
+  <div class="signal-row"><div class="signal-time">10:42:31</div><div><b>workspace.test.failed</b><span>Daytona emitted diagnostic artifact</span></div><div class="signal-state">escalated</div></div>
+  <div class="signal-row"><div class="signal-time">10:42:36</div><div><b>approval.granted</b><span>Deployment resumed from durable checkpoint</span></div><div class="signal-state">continued</div></div>
+</div></div></div></section>
+
+<section class="content-section soft" id="deployment"><div class="shell"><div class="section-head-wide" data-reveal><div><div class="section-kicker">Deployment</div><h2>One execution model, wherever authority and data must remain.</h2></div><p>Deploy in the shared cloud, a dedicated environment, your VPC, on premises, or behind a private-network runner. The operating model remains consistent as the institution expands.</p></div><div class="deployment-grid">
+  <article class="deploy-card" style="--tone:var(--blue-2)" data-reveal><div class="mark">☁</div><h3>Managed cloud</h3><p>Start quickly with managed infrastructure, elastic execution, observability, and platform updates.</p></article>
+  <article class="deploy-card" style="--tone:var(--green-2)" data-reveal><div class="mark">◇</div><h3>Dedicated environment</h3><p>Isolated compute, data, networking, and service boundaries for enterprise workloads.</p></article>
+  <article class="deploy-card" style="--tone:var(--amber-2)" data-reveal><div class="mark">⌂</div><h3>Private cloud or VPC</h3><p>Keep workloads and data inside customer-controlled cloud accounts and network policies.</p></article>
+  <article class="deploy-card" style="--tone:var(--violet-2)" data-reveal><div class="mark">▣</div><h3>On-premise & sovereign</h3><p>Operate inside institutional or national boundaries with local runners, retention controls, and audit evidence.</p></article>
+</div></div></section>
+
+<section class="cta" id="contact"><div class="shell"><div class="cta-panel reveal"><div><h2>Build the layer between intelligence and the world.</h2></div><div class="cta-copy"><p>Begin with one workflow, one laboratory, one department, or one operating team. Keep the same platform as the system expands.</p><div class="cta-actions"><a class="btn light" href="features.html">Explore all features <span>→</span></a><a class="btn secondary" style="border-color:rgba(255,255,255,.55);color:white" href="mailto:hello@northrays.com">Talk to North Rays</a></div></div></div></div></section>
+</main>
+<footer>
+  <div class="shell">
+    <div class="footer-grid">
+      <div class="footer-brand"><a class="brand" href="index.html#top"><span class="brand-mark"><i></i></span>AADML</a><p>The governed execution layer for intelligent systems across software, science, public institutions, infrastructure, and the physical world.</p></div>
+      <div><h4>Platform</h4><a href="platform.html">Platform overview</a><a href="features.html">All features</a><a href="workflow-builder.html">Workflow Builder</a><a href="index.html#missions">Missions</a></div>
+      <div><h4>Execution</h4><a href="features.html#browser">Browser automation</a><a href="features.html#android">Android tools</a><a href="features.html#code">Daytona workspaces</a><a href="platform.html#execution-surfaces">Remote runners</a></div>
+      <div><h4>Systems</h4><a href="index.html#science">Science & labs</a><a href="index.html#government">Government</a><a href="index.html#missions">Healthcare</a><a href="index.html#missions">Infrastructure</a></div>
+      <div><h4>Developers</h4><a href="platform.html#interfaces">API & SDKs</a><a href="features.html#connectors">MCP & tools</a><a href="platform.html#event-fabric">Signals & webhooks</a><a href="platform.html#event-fabric">Redis state</a></div>
+    </div>
+    <div class="footer-bottom"><span>© 2026 AADML · A North Rays platform</span><span>Built for consequential work</span></div>
+  </div>
+</footer>
+<script src="site.js"></script></body></html>

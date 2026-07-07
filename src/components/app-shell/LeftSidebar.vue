@@ -3,11 +3,7 @@
     <!-- Brand + workspace -->
     <div class="sidebar-top">
       <router-link to="/dashboard" class="brand" :title="collapsed ? 'Aadml' : ''">
-        <span class="brand-mark">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
-            <path d="M6 12.5l4 4L18 8" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        </span>
+        <AadmlMark :size="36" class="brand-mark-logo" />
         <span v-if="!collapsed" class="brand-text">Aadml<span class="brand-v">v2</span></span>
       </router-link>
 
@@ -80,6 +76,7 @@ import { useChatStore } from '../../stores/useChatStore'
 import SidebarNavItem from './SidebarNavItem.vue'
 import NotificationBell from './NotificationBell.vue'
 import WorkspaceSwitcher from '../layout/WorkspaceSwitcher.vue'
+import AadmlMark from '../common/AadmlMark.vue'
 import { useOnboarding } from '../../composables/useOnboarding'
 
 const props = defineProps({
@@ -177,19 +174,12 @@ const startTour = () => {
   gap: 11px;
   text-decoration: none;
 }
-.brand-mark {
-  width: 38px;
-  height: 38px;
+.brand-mark-logo {
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--vm-g-brand);
-  box-shadow: var(--vm-glow-v);
   animation: vmPop .7s var(--vm-ease) both;
 }
-.brand-mark svg { width: 21px; height: 21px; }
 .brand-letter {
   color: #fff;
   font-size: 1rem;
@@ -354,18 +344,10 @@ const startTour = () => {
 .brand {
   gap: 12px;
 }
-.brand-mark {
+.brand-mark-logo {
   width: 36px;
   height: 36px;
-  border-radius: 11px;
-  color: #fff;
-  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%);
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.22);
   animation: none;
-}
-.brand-mark svg {
-  width: 19px;
-  height: 19px;
 }
 .brand-letter {
   display: none;

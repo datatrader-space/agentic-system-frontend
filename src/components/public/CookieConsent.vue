@@ -34,25 +34,33 @@ function decline() {
 </script>
 
 <style scoped>
+/* Renders inside PublicLayout's .aadml-public root, so the paper tokens apply. */
 .cc {
   position: fixed;
   left: 16px; right: 16px; bottom: 16px;
   z-index: 80;
-  max-width: 560px;
+  max-width: 580px;
   margin: 0 auto;
-  border: 1px solid var(--vm-border);
-  background: var(--vm-glass-strong);
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 248, 0.92);
   backdrop-filter: blur(16px);
-  border-radius: 16px;
-  box-shadow: var(--vm-shadow-l);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
   padding: 16px 18px;
 }
 .cc-body { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.cc-text { flex: 1; min-width: 220px; font-size: .85rem; color: var(--vm-ink-soft); margin: 0; line-height: 1.5; }
-.cc-link { color: var(--vm-primary); text-decoration: none; font-weight: 600; }
+.cc-text { flex: 1; min-width: 220px; font-size: .85rem; color: var(--muted); margin: 0; line-height: 1.55; }
+.cc-link { color: var(--blue); text-decoration: none; font-weight: 700; }
+.cc-link:hover { text-decoration: underline; }
 .cc-actions { display: flex; gap: 8px; }
-.cc-btn { padding: 9px 18px; border-radius: 10px; font-size: .85rem; font-weight: 600; cursor: pointer; border: 1px solid var(--vm-border); background: #fff; color: var(--vm-ink); }
-.cc-btn.primary { color: #fff; background: var(--vm-g-brand); border: none; box-shadow: var(--vm-glow-p); }
+.cc-btn {
+  padding: 10px 18px; border-radius: 999px; font-size: .85rem; font-weight: 800; cursor: pointer;
+  border: 1px solid var(--line); background: #fff; color: var(--ink); transition: transform .18s ease, box-shadow .18s ease, border-color .15s;
+}
+.cc-btn.ghost:hover { border-color: var(--ink); transform: translateY(-1px); }
+.cc-btn.primary { color: #fff; background: var(--ink); border-color: var(--ink); }
+.cc-btn.primary:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
 .cc-fade-enter-active, .cc-fade-leave-active { transition: opacity .25s, transform .25s; }
 .cc-fade-enter-from, .cc-fade-leave-to { opacity: 0; transform: translateY(12px); }
 </style>

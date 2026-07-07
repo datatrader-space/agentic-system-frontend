@@ -1,568 +1,124 @@
 <template>
-  <div class="how-it-works-page">
-    <!-- Header -->
-    <div class="page-header">
-      <div class="header-bg"></div>
-      <h1 class="gradient-text">How It Works</h1>
-      <p>Four steps to deploy autonomous AI agents.</p>
-    </div>
+  <PublicLayout>
+    <div ref="pageRoot" class="page-main">
+      <!-- ── Hero ─────────────────────────────────────────────────────── -->
+      <section class="page-hero" id="top">
+        <div class="shell page-hero-grid">
+          <div class="reveal">
+            <div class="section-kicker">How it works</div>
+            <h1>From an idea to a <em>governed</em> operation.</h1>
+            <p>
+              Build an agent, ground it in knowledge and tools, wake it with signals, and keep a
+              human in the loop for the decisions that matter—inspecting every step along the way.
+            </p>
+            <div class="hero-actions">
+              <a class="btn" href="#lifecycle">See the lifecycle <span>→</span></a>
+              <router-link class="btn secondary" to="/features">Explore features</router-link>
+            </div>
+          </div>
+          <div class="diagram-card reveal">
+            <div class="platform-stack">
+              <div v-for="s in stack" :key="s.name" class="stack-row"><b>{{ s.name }}</b><span>{{ s.desc }}</span></div>
+            </div>
+            <div class="stack-caption">One model · configure once, run anywhere</div>
+          </div>
+        </div>
+      </section>
 
-    <!-- Interactive Timeline -->
-    <div class="timeline-container">
-      <div class="timeline-line"></div> <!-- The connecting line -->
-      
-      <div 
-        class="step-card" 
-        v-for="(step, index) in steps" 
-        :key="index"
-        :class="{ 'left': index % 2 === 0, 'right': index % 2 !== 0 }"
-      >
-        <div class="step-marker">
-          <span>{{ index + 1 }}</span>
-        </div>
-        
-        <div class="card-content">
-          <div class="icon-box">
-            <div v-html="step.icon" class="step-icon"></div>
+      <!-- ── Lifecycle ────────────────────────────────────────────────── -->
+      <section class="content-section" id="lifecycle">
+        <div class="shell">
+          <div class="section-head-wide reveal">
+            <div><div class="section-kicker">The lifecycle</div><h2>Five stages, one execution layer.</h2></div>
+            <p>Every mission moves through the same governed lifecycle—so a first workflow and an institutional deployment share one operating model.</p>
           </div>
-          <h2>{{ step.title }}</h2>
-          <p>{{ step.description }}</p>
+          <div class="lifecycle">
+            <article v-for="(l, i) in lifecycle" :key="l.title" class="life-card reveal" :style="{ '--tone': l.tone }">
+              <small>0{{ i + 1 }} · {{ l.tag }}</small>
+              <h3>{{ l.title }}</h3>
+              <p>{{ l.body }}</p>
+            </article>
+          </div>
         </div>
-      </div>
-    </div>
+      </section>
 
-    <!-- Live Simulation Section (The "Demo") -->
-    <div class="simulation-section">
-      <div class="container">
-        <div class="split-layout">
-          <div class="sim-text">
-            <h2>Watch AI Agents in Action</h2>
-            <p>See how the system analyzes context, generates code, and tests solutions in real-time.</p>
-            <ul class="check-list">
-              <li>Agents autonomously choose tools</li>
-              <li>Budget caps and auto-pause guardrails</li>
-              <li>Full audit trail on every action</li>
-            </ul>
+      <!-- ── Steps + runtime board ────────────────────────────────────── -->
+      <section class="content-section soft" id="steps">
+        <div class="shell">
+          <div class="section-head-wide reveal">
+            <div><div class="section-kicker">Build it</div><h2>Four steps to a working agent.</h2></div>
+            <p>Configure the brain, equip the tools, automate the trigger, and watch it run—each step visible and reversible.</p>
           </div>
-          
-          <!-- The "Terminal" Simulation -->
-          <div class="terminal-simulator">
-            <div class="term-header">
-              <span class="term-dot red"></span>
-              <span class="term-dot yellow"></span>
-              <span class="term-dot green"></span>
-              <span class="term-title">agent_execution.log</span>
+          <div class="runtime-grid">
+            <div class="runtime-board reveal">
+              <div class="runtime-top"><span>mission · onboarding-assistant</span><span>live</span></div>
+              <div v-for="(s, i) in steps" :key="s.title" class="job-row" :class="{ active: i === 2 }">
+                <div class="job-icon">{{ i + 1 }}</div>
+                <div><b>{{ s.title }}</b><span>{{ s.description }}</span></div>
+                <div class="job-state">{{ i < 2 ? 'done' : i === 2 ? 'running' : 'queued' }}</div>
+              </div>
             </div>
-            <div class="term-body">
-              <div class="log-line">
-                <span class="timestamp">[09:00:01]</span>
-                <span class="log-info">SIGNAL</span>
-                <span>Schedule "Bot Monitor" triggered (cron)</span>
-              </div>
-              <div class="log-line">
-                <span class="timestamp">[09:00:02]</span>
-                <span class="log-info">TOOL</span>
-                <span>SSH_EXEC → prod-server: docker ps</span>
-              </div>
-              <div class="log-line">
-                <span class="timestamp">[09:00:05]</span>
-                <span class="log-success">SUCCESS</span>
-                <span>3 containers healthy, 0 errors</span>
-              </div>
-              <div class="log-line">
-                <span class="timestamp">[09:00:06]</span>
-                <span class="log-info">TOOL</span>
-                <span>MANAGE_KNOWLEDGE → create "Health OK"</span>
-              </div>
-              <div class="log-line typing">
-                <span class="timestamp">[09:00:08]</span>
-                <span class="log-process">TOOL</span>
-                <span>REPORT_RESULTS → saving report_</span>
-                <span class="cursor">|</span>
-              </div>
+            <div class="runtime-side">
+              <article class="info-card reveal"><div class="icon">◎</div><h3>Governed by default</h3><p>Budgets, approval gates, and tool policy apply at execution time—no consequential action slips past a human.</p><ul><li>Per-mission and per-org budgets</li><li>Approval before external writes</li><li>Immutable activity history</li></ul></article>
+              <article class="info-card reveal"><div class="icon">↯</div><h3>Wake on any event</h3><p>Cron schedules, webhooks, and Redis signals start work the moment a condition changes.</p><ul><li>HMAC-verified webhooks</li><li>Durable queue with retries</li><li>Dead-letter recovery</li></ul></article>
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </section>
 
-    <!-- Tech Stack Section -->
-    <div class="tech-section">
-      <div class="container">
-        <h3 class="tech-title">Powered By Cutting-Edge Technology</h3>
-        <div class="tech-grid">
-          <div class="tech-pill">
-            <span class="pill-icon">🤖</span>
-            <div class="pill-text">
-              <strong>6 LLM Providers</strong>
-              <span>OpenRouter, OpenAI, Anthropic, xAI, Google, Ollama</span>
-            </div>
-          </div>
-          <div class="tech-pill">
-            <span class="pill-icon">🛠️</span>
-            <div class="pill-text">
-              <strong>140+ Tools</strong>
-              <span>SSH, Web, Media, Cloud, Knowledge</span>
-            </div>
-          </div>
-          <div class="tech-pill">
-            <span class="pill-icon">🔌</span>
-            <div class="pill-text">
-              <strong>MCP Protocol</strong>
-              <span>Unlimited external tool servers</span>
-            </div>
-          </div>
-          <div class="tech-pill">
-            <span class="pill-icon">🔒</span>
-            <div class="pill-text">
-              <strong>Self-Hosted</strong>
-              <span>Docker, RBAC, encrypted vaults</span>
+      <!-- ── CTA ──────────────────────────────────────────────────────── -->
+      <section class="cta" id="contact">
+        <div class="shell">
+          <div class="cta-panel reveal">
+            <div><h2>Start with one mission. Keep the same model as you scale.</h2></div>
+            <div class="cta-copy">
+              <p>Build your first agent free, then grow it into a governed institutional deployment.</p>
+              <div class="cta-actions">
+                <router-link class="btn light" to="/login">Get started <span>↗</span></router-link>
+                <router-link class="btn secondary" style="border-color:rgba(255,255,255,.55);color:white" to="/docs">Read the docs</router-link>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
-
-    <!-- CTA -->
-    <div class="cta-section">
-      <div class="container">
-        <div class="cta-box">
-          <h2>Ready to Deploy Your First Agent?</h2>
-          <p>Self-host AADML in minutes with Docker, or get started on our cloud.</p>
-          <router-link to="/login" class="btn-primary">
-            Start Free Trial
-          </router-link>
-        </div>
-      </div>
-    </div>
-  </div>
+  </PublicLayout>
 </template>
 
 <script setup>
 import { ref } from 'vue'
+import PublicLayout from '../components/public/PublicLayout.vue'
 import { useMeta } from '../composables/useMeta'
+import { useReveal } from '../composables/useReveal'
 
 useMeta({
   title: 'How It Works — AADML',
-  description: 'Four steps to deploy autonomous AI agents: configure, equip with tools, automate with signals, and monitor results.',
+  description: 'From configuring an agent to a governed operation: build, ground, automate with signals, and keep humans in the loop.',
 })
 
+const pageRoot = ref(null)
+useReveal(pageRoot)
+
+const stack = [
+  { name: 'Build', desc: 'Prompt, model, tools, knowledge, and budgets in one profile' },
+  { name: 'Ground', desc: 'Documents, RAG, databases, and structured memory' },
+  { name: 'Execute', desc: 'Browser, Android, Daytona, and remote runners' },
+  { name: 'Govern', desc: 'RBAC, approvals, budgets, and audit trails' },
+  { name: 'Operate', desc: 'Signals, schedules, retries, and replay' },
+]
+
+const lifecycle = [
+  { tone: 'var(--blue)', tag: 'BUILD', title: 'Configure the agent', body: 'Set the prompt, model, execution mode, tools, and budget once—organization policy merges in at runtime.' },
+  { tone: 'var(--green)', tag: 'GROUND', title: 'Add knowledge & tools', body: 'Index documents and sites for cited RAG, and expose exactly the systems and actions the agent may use.' },
+  { tone: 'var(--amber)', tag: 'EXECUTE', title: 'Run in real environments', body: 'Move through browsers, devices, and Daytona sandboxes while preserving one state and one audit trail.' },
+  { tone: 'var(--red)', tag: 'GOVERN', title: 'Keep humans in control', body: 'Gate consequential actions behind approval, apply budgets and ceilings, and preserve an immutable record.' },
+  { tone: 'var(--violet)', tag: 'OPERATE', title: 'Automate & observe', body: 'Wake work on signals and schedules, then inspect every token, trace, dollar, and artifact.' },
+]
+
 const steps = ref([
-  {
-    title: 'Configure Your Agent',
-    description: 'Create an agent, pick an LLM model (OpenRouter, OpenAI, Anthropic, or local Ollama), write a system prompt, and set budget guardrails.',
-    icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>'
-  },
-  {
-    title: 'Equip with Tools',
-    description: 'Assign from 140+ built-in tools (SSH, web search, media, cloud) or connect MCP servers for unlimited external capabilities.',
-    icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>'
-  },
-  {
-    title: 'Automate with Signals',
-    description: 'Set up cron schedules, webhook triggers, or manual chat. Agents execute autonomously with budget caps and auto-pause guardrails.',
-    icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>'
-  },
-  {
-    title: 'Monitor & Learn',
-    description: 'Review execution logs, cost analytics, and knowledge cards. Agents get smarter over time through the Dream consolidation pipeline.',
-    icon: '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>'
-  }
+  { title: 'Configure your agent', description: 'Pick a model, write a system prompt, and set budget guardrails.' },
+  { title: 'Equip with tools', description: 'Assign built-in tools or connect MCP servers for external capabilities.' },
+  { title: 'Automate with signals', description: 'Cron schedules, webhook triggers, or manual chat—executed under policy.' },
+  { title: 'Monitor & learn', description: 'Review execution logs, cost analytics, and traces for every run.' },
 ])
 </script>
-
-<style scoped>
-/* --- 1. THEME VARIABLES --- */
-/* --- 1. THEME VARIABLES --- */
-.how-it-works-page {
-  /* Most variables are now global */
-  width: 100%;
-  min-height: 100vh;
-  background-color: var(--bg-body);
-  color: var(--text-primary);
-  overflow-x: hidden;
-}
-
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1.5rem;
-}
-
-/* --- 2. HEADER --- */
-.page-header {
-  text-align: center;
-  padding: 6rem 1.5rem 5rem;
-  position: relative;
-}
-
-.header-bg {
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  width: 800px; height: 400px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
-  z-index: 0;
-  pointer-events: none;
-}
-
-.gradient-text {
-  background: var(--gradient-text);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-size: 3.5rem;
-  font-weight: 800;
-  margin-bottom: 1rem;
-  position: relative;
-  z-index: 1;
-}
-
-.page-header > p {
-  color: var(--text-muted);
-  font-size: 1.25rem;
-  position: relative;
-  z-index: 1;
-}
-
-/* --- 3. TIMELINE (HOW IT WORKS) --- */
-.timeline-container {
-  position: relative;
-  max-width: 1000px;
-  margin: 0 auto 8rem;
-  padding: 0 2rem;
-}
-
-/* The central vertical line */
-.timeline-line {
-  position: absolute;
-  left: 50%;
-  top: 0; bottom: 0;
-  width: 2px;
-  background: linear-gradient(180deg, var(--primary) 0%, transparent 100%);
-  opacity: 0.3;
-  transform: translateX(-50%);
-  z-index: 0;
-}
-
-.step-card {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 6rem;
-  z-index: 1;
-}
-
-/* Alternating Layout */
-.step-card.left { justify-content: flex-start; }
-.step-card.right { justify-content: flex-end; }
-
-/* The Circle Number */
-.step-marker {
-  position: absolute;
-  width: 50px; height: 50px;
-  border-radius: 50%;
-  background: var(--bg-body);
-  border: 2px solid var(--primary);
-  color: var(--primary);
-  font-weight: 800;
-  font-size: 1.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
-  box-shadow: 0 0 20px var(--primary-glow);
-}
-
-.step-card.left .step-marker { left: 50%; margin-left: -25px; }
-.step-card.right .step-marker { right: 50%; margin-right: -25px; }
-
-/* The Content Box */
-.card-content {
-  width: 45%;
-  background: var(--bg-glass);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 2.5rem;
-  position: relative;
-  transition: all 0.4s ease;
-}
-
-.card-content:hover {
-  transform: translateY(-5px);
-  border-color: var(--primary);
-  box-shadow: var(--shadow-xl);
-}
-
-.step-card.left .card-content { margin-left: 5%; } /* Offset for line */
-.step-card.right .card-content { margin-right: 5%; }
-
-/* Icons inside cards */
-.icon-box {
-  width: 56px; height: 56px;
-  background: var(--primary-light);
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 1.5rem;
-  color: var(--primary);
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.step-icon { width: 28px; height: 28px; }
-.step-icon :deep(svg) { width: 100%; height: 100%; }
-
-.card-content h2 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-bottom: 1rem;
-  color: var(--text-primary);
-}
-
-.card-content p {
-  color: var(--text-muted);
-  line-height: 1.6;
-  font-size: 1rem;
-}
-
-/* --- 4. SIMULATION SECTION (THE DEMO) --- */
-.simulation-section {
-  background: var(--gradient-surface);
-  padding: 6rem 0;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-}
-
-.split-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4rem;
-  align-items: center;
-}
-
-.sim-text h2 {
-  font-size: 2.5rem;
-  margin-bottom: 1.5rem;
-  background: var(--gradient-text);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.sim-text p {
-  color: var(--text-muted);
-  font-size: 1.125rem;
-  margin-bottom: 2rem;
-  line-height: 1.6;
-}
-
-.check-list {
-  list-style: none;
-  padding: 0;
-}
-
-.check-list li {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-  font-size: 1.1rem;
-  color: var(--text-secondary);
-}
-
-.check-list li::before {
-  content: '✓';
-  color: #10b981;
-  font-weight: bold;
-}
-
-/* The Terminal UI */
-.terminal-simulator {
-  background: #0d1117; /* Keep terminal dark always */
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: var(--shadow-xl);
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 0.9rem;
-}
-
-.term-header {
-  background: #161b22;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.term-dot { width: 10px; height: 10px; border-radius: 50%; }
-.red { background: #ff5f56; } .yellow { background: #ffbd2e; } .green { background: #27c93f; }
-
-.term-title {
-  flex-grow: 1;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
-
-.term-body {
-  padding: 1.5rem;
-  background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.05), transparent);
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.log-line {
-  display: flex;
-  gap: 1rem;
-  color: #d1d5db;
-}
-
-.timestamp { color: #6b7280; min-width: 80px; }
-.log-info { color: #60a5fa; font-weight: bold; min-width: 80px; }
-.log-success { color: #10b981; font-weight: bold; min-width: 80px; }
-.log-process { color: #2563EB; font-weight: bold; min-width: 100px; }
-
-/* Typing Animation */
-.typing .cursor {
-  display: inline-block;
-  width: 8px; height: 16px;
-  background: #2563EB;
-  animation: blink 1s step-end infinite;
-  vertical-align: middle;
-}
-
-@keyframes blink { 50% { opacity: 0; } }
-
-/* --- 5. TECH STACK --- */
-.tech-section {
-  padding: 6rem 0;
-}
-
-.tech-title {
-  text-align: center;
-  font-size: 2rem;
-  margin-bottom: 3rem;
-  color: var(--text-primary);
-}
-
-.tech-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-}
-
-.tech-pill {
-  background: var(--bg-glass);
-  border: 1px solid var(--border);
-  border-radius: 50px; /* Full rounded pill */
-  padding: 1rem 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  transition: 0.3s;
-  cursor: default;
-}
-
-.tech-pill:hover {
-  background: var(--primary-light);
-  border-color: var(--primary);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.pill-icon { font-size: 1.5rem; }
-.pill-text { display: flex; flex-direction: column; line-height: 1.2; }
-.pill-text strong { color: var(--text-primary); font-size: 1rem; }
-.pill-text span { color: var(--text-muted); font-size: 0.85rem; }
-
-/* --- 6. CTA --- */
-.cta-section {
-  padding-bottom: 8rem;
-}
-
-.cta-box {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 5rem 2rem;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.cta-box::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background: radial-gradient(circle at top left, rgba(139, 92, 246, 0.2), transparent);
-}
-
-.cta-box h2 {
-  font-size: 2.5rem;
-  color: var(--text-primary);
-  margin-bottom: 1rem;
-  position: relative;
-  z-index: 2;
-}
-
-.cta-box p {
-  color: var(--text-secondary);
-  font-size: 1.25rem;
-  margin-bottom: 2.5rem;
-  position: relative;
-  z-index: 2;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #2563EB 0%, #2563EB 100%);
-  color: white;
-  padding: 1rem 3rem;
-  border-radius: 12px;
-  font-weight: 700;
-  text-decoration: none;
-  display: inline-block;
-  transition: 0.3s;
-  position: relative;
-  z-index: 2;
-  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
-}
-
-.btn-primary:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 30px rgba(139, 92, 246, 0.5);
-}
-
-/* --- 7. RESPONSIVE --- */
-@media (max-width: 1024px) {
-  .timeline-line { left: 40px; }
-  
-  .step-card {
-    flex-direction: column;
-    align-items: flex-start;
-    padding-left: 90px; /* Space for the line */
-  }
-  
-  .step-card.left, .step-card.right {
-    justify-content: flex-start;
-  }
-  
-  .step-marker { left: 15px !important; margin-left: 0 !important; }
-  
-  .card-content { width: 100%; margin: 0 !important; }
-  
-  .split-layout { grid-template-columns: 1fr; }
-  .terminal-simulator { margin-top: 2rem; }
-}
-
-@media (max-width: 768px) {
-  .gradient-text { font-size: 2.5rem; }
-  .sim-text h2 { font-size: 2rem; }
-  .cta-box { padding: 3rem 1.5rem; }
-  .cta-box h2 { font-size: 2rem; }
-}
-</style>

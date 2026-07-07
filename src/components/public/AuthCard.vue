@@ -1,9 +1,9 @@
 <template>
-  <div class="auth-wrap">
-    <div class="auth-mesh" aria-hidden="true">
-      <span class="ab b1"></span><span class="ab b2"></span>
+  <div class="aadml-public auth-wrap">
+    <div class="auth-bg" aria-hidden="true">
+      <span class="ring r1"></span><span class="ring r2"></span>
     </div>
-    <div class="auth-card vm-glass-strong">
+    <div class="auth-card">
       <router-link to="/" class="back">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4">
           <path stroke-linecap="round" stroke-linejoin="round" d="M19 12H5M12 19l-7-7 7-7" />
@@ -11,16 +11,9 @@
         Back to home
       </router-link>
 
-      <div class="brand">
-        <span class="brand-logo">
-          <svg viewBox="0 0 32 32" fill="none">
-            <rect x="2" y="2" width="28" height="28" rx="8" stroke="url(#ac-g)" stroke-width="2.5" />
-            <path d="M10 16L14 20L22 12" stroke="url(#ac-g)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-            <defs><linearGradient id="ac-g" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#2563EB" /><stop offset="1" stop-color="#14B8A6" /></linearGradient></defs>
-          </svg>
-        </span>
-        <span class="font-display text-lg font-extrabold text-ink">AADML</span>
-      </div>
+      <router-link to="/" class="brand">
+        <AadmlMark :size="30" />AADML
+      </router-link>
 
       <h1 class="title">{{ title }}</h1>
       <p v-if="subtitle" class="subtitle">{{ subtitle }}</p>
@@ -31,6 +24,10 @@
 </template>
 
 <script setup>
+// Pull in the AADML paper theme (scoped under .aadml-public).
+import '../../styles/aadml-public.css'
+import AadmlMark from '../common/AadmlMark.vue'
+
 defineProps({ title: { type: String, required: true }, subtitle: { type: String, default: '' } })
 </script>
 
@@ -42,34 +39,40 @@ defineProps({ title: { type: String, required: true }, subtitle: { type: String,
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: var(--vm-bg);
   overflow: hidden;
+  color: var(--ink);
+  font-family: var(--sans);
 }
-.auth-mesh { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-.ab { position: absolute; border-radius: 50%; filter: blur(80px); opacity: .5; mix-blend-mode: multiply; }
-.b1 { width: 40vw; height: 40vw; left: -8vw; top: -10vw; background: radial-gradient(circle, #C7DBFF, transparent 70%); animation: vmDrift1 26s var(--vm-ease2) infinite; }
-.b2 { width: 36vw; height: 36vw; right: -6vw; bottom: -10vw; background: radial-gradient(circle, #CDEFE9, transparent 70%); animation: vmDrift3 30s var(--vm-ease2) infinite; }
+.auth-bg { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.ring { position: absolute; border-radius: 50%; }
+.r1 { width: 560px; height: 560px; border: 1px solid rgba(28, 84, 217, 0.14); right: -220px; top: -240px; }
+.r2 { width: 360px; height: 360px; border: 1px dashed rgba(216, 77, 55, 0.18); left: -150px; bottom: -170px; }
 
 .auth-card {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 420px;
-  border: 1px solid var(--vm-border);
-  border-radius: 22px;
-  padding: 32px;
-  box-shadow: var(--vm-shadow-l);
+  max-width: 440px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  padding: 34px;
+  box-shadow: var(--shadow);
 }
 .back {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: .8rem; font-weight: 500; color: var(--vm-ink-faint);
+  font-size: .82rem; font-weight: 650; color: var(--muted);
   text-decoration: none; margin-bottom: 18px;
 }
-.back:hover { color: var(--vm-ink); }
-.brand { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
-.brand-logo { display: inline-flex; width: 32px; height: 32px; }
-.brand-logo svg { width: 100%; height: 100%; }
-.title { font-family: var(--vm-font-display); font-size: 1.55rem; font-weight: 800; color: var(--vm-ink); }
-.subtitle { margin-top: 6px; font-size: .92rem; color: var(--vm-ink-soft); }
-@media (prefers-reduced-motion: reduce) { .ab { animation: none; } }
+.back:hover { color: var(--ink); }
+
+.brand { display: inline-flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 900; letter-spacing: -.04em; color: var(--ink); text-decoration: none; margin-bottom: 20px; }
+.brand-mark { width: 32px; height: 32px; border: 1.8px solid var(--ink); border-radius: 50%; position: relative; display: grid; place-items: center; }
+.brand-mark::before, .brand-mark::after { content: ""; position: absolute; background: var(--ink); width: 15px; height: 1.5px; }
+.brand-mark::before { transform: rotate(45deg); }
+.brand-mark::after { transform: rotate(-45deg); }
+.brand-mark i { width: 6px; height: 6px; border-radius: 50%; background: var(--red); display: block; }
+
+.title { font-family: var(--serif); font-weight: 500; font-size: 1.8rem; letter-spacing: -.03em; color: var(--ink); line-height: 1.05; margin: 0; }
+.subtitle { margin-top: 8px; font-size: .92rem; color: var(--muted); }
 </style>
