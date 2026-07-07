@@ -31,7 +31,7 @@
         </div>
 
         <!-- Rendered markdown content (full answer if rehydrated, else stored stub) -->
-        <div v-if="displayContent" class="bubble assistant md-content" v-html="rendered"></div>
+        <div v-if="displayContent" class="bubble assistant" v-html="rendered"></div>
 
         <!-- Private reasoning — FALLBACK only (flag-OFF / legacy path). When the rich timeline is shown
              (message.timeline), reasoning is folded INTO it, so we don't render this separate box. -->
@@ -151,9 +151,8 @@
 
 <script setup>
 import { computed, ref, nextTick } from 'vue'
-import { renderMarkdown } from '../../utils/markdown'
+import { marked } from 'marked'
 import { enhanceChatMedia } from '../../utils/chatMedia'
-import '../../styles/markdown.css'
 import api from '../../services/api'
 import ActivityStream from '../activity/ActivityStream.vue'
 import AgentActivityTimeline from '../AgentActivityTimeline.vue'
@@ -178,6 +177,7 @@ function openAttachment(a) {
   if (a && a.url) window.open(a.url, '_blank', 'noopener')
 }
 
+marked.setOptions({ breaks: true, gfm: true })
 
 // ── Long user-message collapse (Show more / Show less) ──
 const LONG_CHARS = 500
@@ -243,9 +243,7 @@ const fullContent = ref('')
 const loadingFull = ref(false)
 const fullError = ref('')
 const displayContent = computed(() => fullContent.value || props.message.content || '')
-// Parse (marked + syntax highlight) → sanitize (DOMPurify) via the shared pipeline,
-// then unfurl chat media (trusted app markup added after sanitization).
-const rendered = computed(() => enhanceChatMedia(renderMarkdown(displayContent.value)))
+const rendered = computed(() => enhanceChatMedia(marked.parse(displayContent.value)))
 const canShowFull = computed(
   () =>
     !isStreaming.value &&
@@ -471,6 +469,59 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 .ue-save { background: var(--vm-g-brand); color: #fff; border-color: transparent; }
 .ue-save:disabled { opacity: .5; cursor: not-allowed; }
 
-/* Rendered-markdown styling lives in src/styles/markdown.css (.md-content),
-   imported in <script> above and shared with MarkdownRenderer.vue. */
+/* Markdown content styling */
+.bubble.assistant :deep(p) { margin: 0 0 10px; }
+.bubble.assistant :deep(p:last-child) { margin-bottom: 0; }
+.bubble.assistant :deep(ul),
+.bubble.assistant :deep(ol) { margin: 0 0 10px; padding-left: 22px; }
+.bubble.assistant :deep(li) { margin: 3px 0; }
+.bubble.assistant :deep(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  background: rgba(15, 23, 42, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.bubble.assistant :deep(pre) {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  overflow-x: auto;
+  margin: 0 0 10px;
+}
+.bubble.assistant :deep(pre code) { background: none; padding: 0; color: inherit; }
+.bubble.assistant :deep(strong) { font-weight: 600; color: #0f172a; }
+.bubble.assistant :deep(a) { color: #4f46e5; text-decoration: underline; }
+
+/* Tables (GFM) */
+.bubble.assistant :deep(table) {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 4px 0 12px;
+  font-size: 0.9em;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  display: table;
+}
+.bubble.assistant :deep(thead th) {
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 600;
+  text-align: left;
+}
+.bubble.assistant :deep(th),
+.bubble.assistant :deep(td) {
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  vertical-align: top;
+}
+.bubble.assistant :deep(th:last-child),
+.bubble.assistant :deep(td:last-child) { border-right: none; }
+.bubble.assistant :deep(tbody tr:last-child td) { border-bottom: none; }
+.bubble.assistant :deep(tbody tr:nth-child(even)) { background: #fafbfc; }
+.bubble.assistant :deep(table code) { background: rgba(15, 23, 42, 0.06); }
 </style>
