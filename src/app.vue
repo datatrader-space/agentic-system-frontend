@@ -196,7 +196,7 @@ const isBareChat = computed(() => route.path.startsWith('/a/') || route.path.sta
 // not also render. (Login already self-hides via its own isLoginPage check.)
 const marketingRoutes = new Set([
   'landing', 'features', 'how-it-works', 'blog', 'blog-post',
-  'pricing', 'about', 'mission', 'contact', 'docs', 'docs-page',
+  'pricing', 'about', 'contact', 'docs', 'docs-page',
   'signup', 'forgot-password', 'reset-password', 'verify-email',
 ])
 const isMarketingPage = computed(() => marketingRoutes.has(route.name))

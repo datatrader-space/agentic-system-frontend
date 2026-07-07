@@ -1,116 +1,117 @@
-<template>
+﻿<template>
   <PublicLayout>
-    <div ref="pageRoot" class="page-main">
-      <!-- ── Hero + category filter ───────────────────────────────────── -->
-      <section class="page-hero" id="top" style="padding-bottom:34px">
-        <div class="shell">
-          <div class="reveal" style="max-width:760px">
-            <div class="section-kicker">The AADML blog</div>
-            <h1 style="max-width:14ch">Field notes on <em>governed</em> execution.</h1>
-            <p>
-              Engineering deep-dives, operating patterns, and lessons from running agents in
-              laboratories, public services, infrastructure, and software—where consequences are real.
-            </p>
-          </div>
-          <div class="blog-cats reveal">
-            <a href="#" :class="{ on: activeCat === 'All Posts' }" @click.prevent="activeCat = 'All Posts'">All</a>
-            <a v-for="c in categories" :key="c" href="#" :class="{ on: activeCat === c }" @click.prevent="activeCat = c">{{ c }}</a>
+    <!-- Hero -->
+    <section class="relative overflow-hidden">
+      <HeroBackdrop />
+      <div class="relative z-10 mx-auto max-w-7xl px-4 pt-16 sm:px-6 lg:px-8 lg:pt-24">
+      <div class="grid items-start gap-8 lg:grid-cols-[1.5fr_1fr]">
+        <div v-reveal>
+          <div class="eyebrow">Engineering Journal</div>
+          <h1 class="hero-title">Thoughts on the <span class="vm-grad-text">Aadml era</span>.</h1>
+          <p class="hero-sub">In-depth technical analysis, product updates, and philosophical musings on the future of autonomous systems and developer workflows.</p>
+        </div>
+        <div v-reveal class="lg:pt-10">
+          <div class="search">
+            <Icon icon="lucide:search" class="h-4 w-4 text-ink-faint" />
+            <input v-model="query" type="text" placeholder="Search articles…" />
           </div>
         </div>
-      </section>
+      </div>
+      <div class="mt-8 border-b border-line"></div>
+      </div>
+    </section>
 
-      <!-- ── Loading skeleton ─────────────────────────────────────────── -->
-      <section v-if="loading" class="content-section" style="padding-top:30px">
-        <div class="shell">
-          <div class="vm-skel" style="height:380px;border-radius:30px"></div>
-        </div>
-      </section>
+    <!-- Body -->
+    <section class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
+      <div v-if="loading" class="grid gap-6 lg:grid-cols-[2fr_1fr]">
+        <div class="vm-skel h-80 rounded-2xl"></div>
+        <div class="vm-skel h-80 rounded-2xl"></div>
+      </div>
 
-      <template v-else>
-        <!-- ── Featured post ──────────────────────────────────────────── -->
-        <section v-if="featured" class="content-section" style="padding-top:30px">
-          <div class="shell">
-            <router-link :to="`/blog/${featured.slug}`" class="blog-feature reveal">
-              <div class="blog-feature-art" :style="bg(featured)">
-                <span class="blog-feature-tag">Featured · {{ featured.category }}</span>
-                <div class="blog-feature-orb">{{ orbLabel(featured) }}</div>
-              </div>
-              <div class="blog-feature-body">
-                <div class="section-kicker">{{ featured.category }}</div>
-                <h2>{{ featured.title }}</h2>
-                <p>{{ featured.excerpt }}</p>
-                <div class="blog-meta">
-                  <span class="who" :style="avatarBg(featured.author)">{{ initial(featured.author) }}</span>
-                  {{ featured.author }}<template v-if="featured.readTime"> · {{ featured.readTime }} min read</template><template v-if="featured.date"> · {{ featured.date }}</template>
-                </div>
-              </div>
-            </router-link>
-          </div>
-        </section>
+      <div v-else-if="!filtered.length" class="py-20 text-center text-ink-soft">No articles found.</div>
 
-        <!-- ── Recent grid ────────────────────────────────────────────── -->
-        <section class="content-section soft" style="padding-top:64px">
-          <div class="shell">
-            <div class="section-head-wide reveal">
-              <div><div class="section-kicker">Latest</div><h2>Recent writing.</h2></div>
-              <p>Patterns, postmortems, and product notes from the team building the governed execution layer.</p>
+      <div v-else class="blog-grid">
+        <!-- Featured -->
+        <router-link v-if="featured" :to="`/blog/${featured.slug}`" class="featured" v-reveal>
+          <div class="featured-img" :style="bg(featured)"></div>
+          <div class="featured-body">
+            <div class="meta-row">
+              <span class="cat">{{ featured.category }}</span>
+              <span class="muted">{{ featured.readTime }} min read</span>
             </div>
-
-            <div v-if="rest.length" class="blog-grid stagger">
-              <router-link v-for="p in rest" :key="p.slug" :to="`/blog/${p.slug}`" class="post-card">
-                <div class="post-art" :style="bg(p)"><span class="post-tag">{{ p.category }}</span><span class="sym">{{ symbolFor(p.category) }}</span></div>
-                <div class="post-body">
-                  <h3>{{ p.title }}</h3>
-                  <p>{{ p.excerpt }}</p>
-                  <div class="post-foot"><span class="who" :style="avatarBg(p.author)">{{ initial(p.author) }}</span>{{ p.author }}<template v-if="p.readTime"> · {{ p.readTime }} min</template></div>
-                </div>
-              </router-link>
-            </div>
-            <p v-else class="blog-empty">No posts match your filter yet.</p>
-
-            <!-- Pagination -->
-            <div v-if="totalPages > 1" class="blog-pager">
-              <button v-for="n in pageList" :key="n" class="pg-btn" :class="{ on: n === page }" :disabled="n === '…'" @click="n !== '…' && go(n)">{{ n }}</button>
+            <h2 class="featured-title">{{ featured.title }}</h2>
+            <p class="featured-excerpt">{{ featured.excerpt }}</p>
+            <div class="author">
+              <span class="avatar" :style="avatarBg(featured.author)">{{ initial(featured.author) }}</span>
+              <div><div class="a-name">{{ featured.author || 'AADML Team' }}</div><div class="a-role">Author</div></div>
             </div>
           </div>
-        </section>
-      </template>
+        </router-link>
 
-      <!-- ── Newsletter ───────────────────────────────────────────────── -->
-      <section class="content-section" style="padding-top:30px">
-        <div class="shell">
-          <div class="news-band reveal">
-            <div>
-              <div class="section-kicker" style="color:#9ed8c0">Field notes, monthly</div>
-              <h2>Get new writing on governed execution.</h2>
+        <!-- Sidebar -->
+        <aside class="aside" v-reveal>
+          <div class="card">
+            <h3>Categories</h3>
+            <div class="chips">
+              <button class="chip" :class="{ active: activeCat === 'All Posts' }" @click="activeCat = 'All Posts'">All Posts</button>
+              <button v-for="c in categories" :key="c" class="chip" :class="{ active: activeCat === c }" @click="activeCat = c">{{ c }}</button>
             </div>
-            <form class="news-form" @submit.prevent="subscribe">
-              <input v-model="email" type="email" placeholder="you@institution.org" aria-label="Email address" required />
-              <button class="btn light" type="submit">Subscribe <span>↗</span></button>
+          </div>
+
+          <div class="protocol">
+            <h3>The Protocol</h3>
+            <p>Get bi-weekly updates on Aadml workflows and platform updates delivered to your inbox.</p>
+            <form @submit.prevent="subscribe">
+              <input v-model="email" type="email" required placeholder="email@example.com" class="p-input" />
+              <button type="submit" class="p-btn">Subscribe</button>
             </form>
           </div>
+        </aside>
+
+        <!-- Card grid -->
+        <div class="cards">
+          <router-link v-for="post in rest" :key="post.slug" :to="`/blog/${post.slug}`" class="post-card" v-reveal>
+            <div class="card-img" :style="bg(post)"></div>
+            <div class="card-body">
+              <span class="cat-label">{{ post.category }}</span>
+              <h3 class="card-title">{{ post.title }}</h3>
+              <p class="card-excerpt">{{ post.excerpt }}</p>
+              <div class="card-foot">
+                <span class="author sm">
+                  <span class="avatar sm" :style="avatarBg(post.author)">{{ initial(post.author) }}</span>
+                  <span class="a-name">{{ post.author || 'AADML' }}</span>
+                </span>
+                <span class="muted">{{ post.date }}</span>
+              </div>
+            </div>
+          </router-link>
         </div>
-      </section>
-    </div>
+
+        <!-- Pagination -->
+        <div v-if="totalPages > 1" class="pager">
+          <button class="pg-arrow" :disabled="page === 1" @click="go(page - 1)"><Icon icon="lucide:chevron-left" class="h-4 w-4" /></button>
+          <button v-for="n in pageList" :key="n" class="pg" :class="{ active: n === page, dots: n === '…' }" :disabled="n === '…'" @click="n !== '…' && go(n)">{{ n }}</button>
+          <button class="pg-arrow" :disabled="page === totalPages" @click="go(page + 1)"><Icon icon="lucide:chevron-right" class="h-4 w-4" /></button>
+        </div>
+      </div>
+    </section>
   </PublicLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { blogPosts as staticPosts } from '../data/blogPosts'
+import { Icon } from '@iconify/vue'
 import PublicLayout from '../components/public/PublicLayout.vue'
+import HeroBackdrop from '../components/public/HeroBackdrop.vue'
 import { useMeta } from '../composables/useMeta'
-import { useReveal } from '../composables/useReveal'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 
 useMeta({
   title: 'Blog — AADML',
-  description: 'Field notes on governed execution — engineering deep-dives, operating patterns, and product updates from the AADML team.',
+  description: 'Thoughts on the Aadml era — technical analysis, product updates, and the future of autonomous developer workflows.',
 })
-
-const pageRoot = ref(null)
-useReveal(pageRoot)
 
 const PAGE_SIZE = 7
 const loading = ref(true)
@@ -140,14 +141,14 @@ function mapApi(p) {
     slug: p.slug, title: p.title, excerpt: p.excerpt, category: p.category || 'Engineering',
     author: p.author, readTime: p.read_time_minutes || 5,
     date: p.published_at ? new Date(p.published_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : '',
-    gradient: p.hero_gradient || 'linear-gradient(135deg,var(--blue-2),var(--green-2))', image: p.og_image_url || '',
+    gradient: p.hero_gradient || 'linear-gradient(135deg,#2563EB,#14B8A6)', image: p.og_image_url || '',
   }
 }
 function mapStatic(p) {
   return {
     slug: p.slug, title: p.title, excerpt: p.excerpt, category: p.category || 'Engineering',
     author: p.author, readTime: typeof p.readTime === 'number' ? p.readTime : 6, date: p.date || '',
-    gradient: p.gradient || p.color || 'linear-gradient(135deg,var(--blue-2),var(--green-2))', image: p.image || '',
+    gradient: p.gradient || p.color || 'linear-gradient(135deg,#2563EB,#14B8A6)', image: p.image || '',
   }
 }
 
@@ -187,43 +188,88 @@ watch([query, activeCat], () => { page.value = 1 })
 
 function initial(name) { return (name || 'A').trim().charAt(0).toUpperCase() }
 function avatarBg(name) {
-  const pairs = [
-    { background: 'var(--green-2)', color: 'var(--green)' },
-    { background: 'var(--blue-2)', color: 'var(--blue)' },
-    { background: 'var(--red-2)', color: 'var(--red)' },
-    { background: 'var(--amber-2)', color: '#8b5b14' },
-    { background: 'var(--violet-2)', color: 'var(--violet)' },
-  ]
+  const hues = ['#2563EB', '#14B8A6', '#7c3aed', '#0891b2', '#1e40af']
   const h = (name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0)
-  return pairs[h % pairs.length]
+  return { background: hues[h % hues.length] }
 }
 function bg(p) {
   if (p.image) return { backgroundImage: `url(${p.image})`, backgroundSize: 'cover', backgroundPosition: 'center' }
   return { background: p.gradient }
 }
-function orbLabel(p) {
-  // Two short words from the title for the featured orb.
-  return (p.title || 'AADML').split(/\s+/).slice(0, 2).join(' ')
-}
-const SYMBOLS = { Engineering: '◇', Workflows: '⬡', Governance: '§', 'Field report': '↯', 'Field reports': '↯', Product: '↗' }
-function symbolFor(cat) { return SYMBOLS[cat] || '§' }
 function subscribe() { notify.success(`Subscribed: ${email.value}`); email.value = '' }
 </script>
 
 <style scoped>
-.page-main { padding-bottom: 40px; }
-.blog-empty { text-align: center; color: var(--muted); padding: 40px 0; }
+.eyebrow { font-size: .8rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--vm-primary); }
+.hero-title { margin-top: 12px; font-family: var(--vm-font-display); font-size: clamp(2.2rem, 5vw, 3.4rem); font-weight: 800; letter-spacing: -.02em; color: var(--vm-ink); line-height: 1.05; }
+.hero-sub { margin-top: 16px; max-width: 560px; font-size: 1.02rem; line-height: 1.65; color: var(--vm-ink-soft); }
+.search { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--vm-border); background: var(--vm-surface); box-shadow: var(--vm-shadow-s); }
+.search input { flex: 1; border: none; outline: none; background: transparent; font-size: .92rem; color: var(--vm-ink); }
 
-/* Featured card + post cards are router-links; keep them looking like blocks. */
-.blog-feature, .post-card { color: inherit; text-decoration: none; cursor: pointer; }
+.blog-grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.muted { color: var(--vm-ink-faint); font-size: .8rem; }
+.cat { display: inline-block; padding: 4px 10px; border-radius: 7px; font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--vm-primary); background: var(--vm-primary-soft); }
+.cat-label { font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--vm-primary); }
 
-.blog-pager { display: flex; justify-content: center; gap: 8px; margin-top: 36px; }
-.pg-btn {
-  min-width: 40px; height: 40px; padding: 0 12px;
-  border: 1px solid var(--line); border-radius: 12px; background: var(--paper-2);
-  font-weight: 800; font-size: 13px; color: #536159; cursor: pointer;
+/* Featured */
+.featured { grid-column: 1; display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; border-radius: 20px; border: 1px solid var(--vm-border); background: var(--vm-surface); box-shadow: var(--vm-shadow-s); text-decoration: none; transition: transform .2s var(--vm-ease), box-shadow .2s, border-color .2s; }
+.featured:hover { transform: translateY(-3px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
+.featured-img { min-height: 340px; }
+.featured-body { padding: 30px; display: flex; flex-direction: column; }
+.meta-row { display: flex; align-items: center; gap: 12px; }
+.featured-title { margin-top: 16px; font-family: var(--vm-font-display); font-size: 1.7rem; font-weight: 800; line-height: 1.15; color: var(--vm-ink); }
+.featured-excerpt { margin-top: 12px; color: var(--vm-ink-soft); line-height: 1.6; flex: 1; }
+.author { display: flex; align-items: center; gap: 10px; margin-top: 22px; }
+.author.sm { margin-top: 0; gap: 8px; }
+.avatar { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; color: #fff; font-weight: 700; font-size: .9rem; }
+.avatar.sm { width: 26px; height: 26px; font-size: .72rem; }
+.a-name { font-weight: 600; font-size: .85rem; color: var(--vm-ink); }
+.a-role { font-size: .76rem; color: var(--vm-ink-faint); }
+
+/* Sidebar */
+.aside { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: 22px; }
+.card { border: 1px solid var(--vm-border); border-radius: 18px; background: var(--vm-surface); padding: 24px; box-shadow: var(--vm-shadow-s); }
+.card h3 { font-size: 1.25rem; font-weight: 800; color: var(--vm-ink); }
+.chips { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px; }
+.chip { padding: 8px 16px; border-radius: 999px; border: none; font-size: .82rem; font-weight: 600; color: var(--vm-ink-soft); background: var(--vm-surface-soft); cursor: pointer; transition: background .15s, color .15s; }
+.chip.active { color: #fff; background: var(--vm-primary); }
+.chip:hover:not(.active) { background: #e2e8f0; }
+
+.protocol { border-radius: 18px; padding: 24px; color: #fff; background: var(--vm-g-brand); box-shadow: var(--vm-glow-p); position: relative; overflow: hidden; }
+.protocol h3 { font-size: 1.3rem; font-weight: 800; }
+.protocol p { margin-top: 10px; font-size: .88rem; line-height: 1.55; color: rgba(255,255,255,.85); }
+.p-input { width: 100%; margin-top: 16px; padding: 11px 14px; border-radius: 10px; border: none; background: rgba(255,255,255,.18); color: #fff; outline: none; font-size: .88rem; }
+.p-input::placeholder { color: rgba(255,255,255,.7); }
+.p-btn { width: 100%; margin-top: 10px; padding: 11px; border-radius: 10px; border: none; font-weight: 700; color: var(--vm-primary); background: #fff; cursor: pointer; }
+
+/* Card grid */
+.cards { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 8px; }
+.post-card { display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; border: 1px solid var(--vm-border); background: var(--vm-surface); box-shadow: var(--vm-shadow-s); text-decoration: none; transition: transform .2s var(--vm-ease), box-shadow .2s, border-color .2s; }
+.post-card:hover { transform: translateY(-4px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
+.card-img { height: 180px; }
+.card-body { padding: 20px; display: flex; flex-direction: column; flex: 1; }
+.card-title { margin-top: 8px; font-size: 1.1rem; font-weight: 700; line-height: 1.3; color: var(--vm-ink); }
+.card-excerpt { margin-top: 8px; font-size: .85rem; line-height: 1.55; color: var(--vm-ink-soft); flex: 1; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.card-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
+
+/* Pagination */
+.pager { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 36px; }
+.pg, .pg-arrow { min-width: 40px; height: 40px; padding: 0 10px; border-radius: 11px; border: 1px solid var(--vm-border); background: var(--vm-surface); color: var(--vm-ink-soft); font-weight: 600; font-size: .88rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.pg.active { background: var(--vm-primary); color: #fff; border-color: transparent; }
+.pg.dots { border: none; background: none; cursor: default; }
+.pg-arrow:disabled { opacity: .4; cursor: not-allowed; }
+
+@media (max-width: 1023px) {
+  .blog-grid { grid-template-columns: 1fr; }
+  .aside { grid-column: 1; grid-row: auto; flex-direction: row; flex-wrap: wrap; }
+  .aside .card, .aside .protocol { flex: 1; min-width: 260px; }
+  .featured { grid-column: 1; }
+  .cards { grid-template-columns: repeat(2, 1fr); }
 }
-.pg-btn:hover:not(:disabled) { border-color: var(--ink); color: var(--ink); }
-.pg-btn.on { background: var(--ink); border-color: var(--ink); color: #fff; }
-.pg-btn:disabled { cursor: default; opacity: .6; }
+@media (max-width: 640px) {
+  .featured { grid-template-columns: 1fr; }
+  .featured-img { min-height: 200px; }
+  .cards { grid-template-columns: 1fr; }
+}
 </style>
+
