@@ -42,6 +42,10 @@ export const useChatStore = defineStore('chat', {
     // True while ≥1 approval card is pending. Keeps the turn "active" (not "Done") so the card + Stop
     // stay visible even if the task/CRS path emitted a premature completion for the step-0 text.
     awaitingApproval: false,
+    // True while a multi-step TASK/CRS run is in progress. Such a run streams an assistant_message_complete
+    // after EVERY ReAct step, so the turn must NOT end on those — only on the run's terminal
+    // agent_session_complete / agent_event session_complete.
+    _taskRunActive: false,
 
     // Manual Mode plan awaiting human approval (v3 Layer 2). Rendered by PlanApprovalCard; null when
     // none pending. Approving resumes the run (re-sends the last user message).
@@ -632,6 +636,7 @@ export const useChatStore = defineStore('chat', {
 
     _beginAssistant() {
       this._recovering = false   // fresh turn must never inherit a stale "reconnecting" state
+      this._taskRunActive = false   // a new turn hasn't entered a multi-step task run yet
       const activity = createActivity()
       startActivity(activity)
       this.messages.push({
@@ -670,6 +675,7 @@ export const useChatStore = defineStore('chat', {
         if (m.status === 'streaming') m.status = 'done'
       }
       this.isStreaming = false
+      this._taskRunActive = false
       this._assistantId = null
     },
 
@@ -698,6 +704,7 @@ export const useChatStore = defineStore('chat', {
         if (_tl.hasActivity()) m.timeline = _tl.snapshot()
       }
       this.isStreaming = false
+      this._taskRunActive = false
       this._assistantId = null
     },
 
@@ -741,6 +748,13 @@ export const useChatStore = defineStore('chat', {
           if (m && msg.stop_reason) { m.stopReason = msg.stop_reason; m.confidence = msg.confidence }
           if (m && Array.isArray(msg.citations)) m.citations = msg.citations // P6: KB sources
           if (m && msg.answer_basis) m.answerBasis = msg.answer_basis // provenance footer + cited-or-top4
+          // TASK/CRS runs stream an assistant_message_complete after EVERY ReAct step (agent_runner
+          // _ask_llm), not just the last one — the run keeps going (planning → 13 steps → tools). Those
+          // are INTERMEDIATE: update the bubble text but DON'T end the turn, or the UI shows "Done" while
+          // the agent is still working. The turn ends only on the real completion signal
+          // (agent_session_complete / agent_event session_complete). For the normal chat path (no task
+          // run active) this remains the terminal event.
+          if (this._taskRunActive) break
           this._endAssistant()
           this._persistTurnMeta(m)   // snapshot the finished timeline so it survives a refresh
           break
@@ -816,6 +830,27 @@ export const useChatStore = defineStore('chat', {
           const qm = [...this.messages].reverse().find(
             (m) => m.role === 'user' && m.queued && (m.content || '') === (msg.message || ''))
           if (qm) qm.queued = false
+          break
+        }
+        // ── Task/CRS run lifecycle: a multi-step run (plan → tools) streams an assistant_message_complete
+        //    PER step; the turn must end only on the run's terminal event, not the first step. ──
+        case 'agent_planning':
+        case 'agent_plan_generated':
+          this._taskRunActive = true   // a multi-step task run is in progress
+          break
+        case 'agent_session_complete':
+        case 'agent_session_stopped':
+        case 'agent_session_error':
+          this._taskRunActive = false
+          this._endAssistant()
+          break
+        case 'agent_event': {
+          const aev = msg.event || msg.data?.event
+          if (aev === 'session_start') this._taskRunActive = true
+          else if (aev === 'session_complete' || aev === 'session_error') {
+            this._taskRunActive = false
+            this._endAssistant()
+          }
           break
         }
         // ── v3 Plan Gate (Manual Mode): a plan is ready and awaits a human. The timeline label is
