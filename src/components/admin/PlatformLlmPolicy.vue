@@ -55,6 +55,25 @@ function setThreshold(e) {
   emit('update:modelValue', next)
   emit('change')
 }
+// ── Prompt caching (DB-backed; segmented prefix cache) ──
+const CACHE_BOOLS = [
+  { key: 'prompt_cache_enabled', label: 'Prompt caching', dflt: true,
+    desc: 'Master switch for provider prompt caching (Anthropic/Claude explicit cache; OpenAI/Gemini cache automatically). Off = never send cache markers.' },
+  { key: 'cache_segmentation_enabled', label: 'Segmented caching', dflt: true,
+    desc: 'Cache the stable tool-docs/system prefix INDEPENDENTLY of the volatile blocks, so a per-turn memory/vector/RAG change doesn’t bust the expensive tool-docs cache. Strongly recommended ON.' },
+  { key: 'cache_kb_volatile', label: 'Keep RAG out of the stable block', dflt: true,
+    desc: 'Emit per-query RAG/knowledge as its own volatile block instead of baking it into the stable prompt — required for the stable cache to actually stay stable.' },
+  { key: 'openrouter_session_stickiness_enabled', label: 'OpenRouter sticky routing', dflt: true,
+    desc: 'Send a stable session id per conversation so OpenRouter keeps later turns on the same provider endpoint (keeps the cache warm).' },
+  { key: 'prompt_cache_diagnostics_enabled', label: 'Cache diagnostics logging', dflt: true,
+    desc: 'Log per-turn cache read/write/hit-rate + prompt/tool-manifest hashes for debugging cache misses.' },
+  { key: 'cache_history_enabled', label: 'Cache conversation history (Phase 2)', dflt: false,
+    desc: 'Add cache breakpoints inside history so long chats don’t re-read history every turn. Requires moving volatile context to the tail first — leave OFF until Phase 2.' },
+]
+function cacheBool(f) { const v = props.modelValue[f.key]; return v === undefined || v === null ? f.dflt : !!v }
+function setStr(key, e) { emit('update:modelValue', { ...props.modelValue, [key]: e.target.value }); emit('change') }
+const ragPlacement = computed(() => props.modelValue.cache_rag_placement || 'tail')
+const stableTtl = computed(() => props.modelValue.cache_stable_prefix_ttl || '5m')
 const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleString())
 </script>
 
@@ -124,6 +143,41 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
         <small class="plp-desc">Master switch for the model-aware context management (tool ledger, history trimming, conversation checkpoints, image de-duplication). Leave ON unless you have a specific reason — turning it off disables all of the above.</small>
       </label>
     </div>
+
+    <h4 class="plp-subhead">Prompt caching</h4>
+    <p class="plp-note">
+      Segmented prefix caching: the stable tool-docs/system prompt is cached separately from the volatile
+      per-turn context (memory, vector recall, RAG, checkpoint), so stable content keeps hitting the cache even
+      as the conversation changes. Applies to providers with explicit caching (Anthropic/Claude); others cache
+      automatically.
+    </p>
+    <div class="plp-grid">
+      <label v-for="f in CACHE_BOOLS" :key="f.key" class="plp-field plp-toggle" :data-test="`plp-${f.key}`">
+        <span class="plp-toggle-row">
+          <span class="plp-lbl">{{ f.label }}</span>
+          <input type="checkbox" :checked="cacheBool(f)" :disabled="disabled" @change="setBool(f.key, $event)" />
+        </span>
+        <small class="plp-desc">{{ f.desc }}</small>
+      </label>
+
+      <label class="plp-field" data-test="plp-cache_stable_prefix_ttl">
+        <span class="plp-lbl">Stable-prefix cache TTL</span>
+        <small class="plp-desc">How long the stable cache lives. 5 minutes suits most chats; 1 hour helps long coding/agent sessions with pauses over 5 minutes (Anthropic 1-hour cache).</small>
+        <select class="plp-select" :value="stableTtl" :disabled="disabled" @change="setStr('cache_stable_prefix_ttl', $event)">
+          <option value="5m">5 minutes</option>
+          <option value="1h">1 hour</option>
+        </select>
+      </label>
+
+      <label class="plp-field" data-test="plp-cache_rag_placement">
+        <span class="plp-lbl">RAG / retrieved-context placement</span>
+        <small class="plp-desc">Where per-turn RAG/vector/memory goes. "Tail" (after history) is required to cache history in Phase 2; "System inline" keeps it in the volatile system block (current behavior).</small>
+        <select class="plp-select" :value="ragPlacement" :disabled="disabled" @change="setStr('cache_rag_placement', $event)">
+          <option value="tail">Tail (after history)</option>
+          <option value="system_inline">System (volatile block)</option>
+        </select>
+      </label>
+    </div>
   </div>
 </template>
 
@@ -137,6 +191,7 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
 .plp-unit { font-weight: 400; color: var(--text-muted, #94a3b8); font-size: 11px; }
 .plp-desc { font-size: 11.5px; line-height: 1.5; color: var(--text-muted, #64748b); }
 .plp-field input[type="number"] { margin-top: 2px; padding: 8px 10px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; font-size: 14px; }
+.plp-select { margin-top: 2px; padding: 8px 10px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; font-size: 14px; background: #fff; }
 .plp-field input:disabled { opacity: .6; }
 .plp-hint { font-size: 11px; color: var(--text-muted, #94a3b8); }
 .plp-err { font-size: 11px; color: #dc2626; font-weight: 600; }
