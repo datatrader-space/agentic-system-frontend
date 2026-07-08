@@ -230,6 +230,7 @@
     <Teleport to="body">
       <div v-if="menuOpenId !== null" class="menu-backdrop" @click="closeRowMenu" />
       <div v-if="menuOpenId !== null && menuWs" class="row-menu-fixed" :style="{ top: menuPos.top + 'px', left: menuPos.left + 'px' }">
+        <button @click="openWorkspaceSettings(menuWs)"><Icon icon="lucide:settings" /> Settings &amp; guardrails</button>
         <button @click="openMembers(menuWs)"><Icon icon="lucide:users" /> Manage members</button>
         <button @click="openRename(menuWs)"><Icon icon="lucide:pencil" /> Rename</button>
         <button class="danger" @click="deleteWorkspace(menuWs)"><Icon icon="lucide:trash-2" /> Delete</button>
@@ -583,6 +584,12 @@ function toggleRowMenu(w, ev) {
   }
 }
 function closeRowMenu() { menuOpenId.value = null; menuWs.value = null }
+
+// Open the workspace dashboard on its Settings tab (name/slug + LLM guardrails editor).
+function openWorkspaceSettings(ws) {
+  closeRowMenu()
+  router.push(`/dashboard/workspace/${ws.id}/settings`)
+}
 
 // Rename
 function openRename(ws) {

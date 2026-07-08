@@ -291,6 +291,20 @@
             </div>
           </div>
 
+          <!-- LLM guardrails for this workspace: system → org → WORKSPACE → agent (tighten-only) -->
+          <div class="settings-card">
+            <h3 class="panel-section-title" style="margin-top:0">LLM Guardrails</h3>
+            <p class="wsd-hint">Ceilings for agents in this workspace (max steps per run, token &amp; image limits).
+              You can only <strong>tighten</strong> below the platform and organisation limits — higher values are
+              rejected. Leave a field blank to inherit the organisation/platform value.</p>
+            <PlatformLlmPolicy v-model="wsLlmPolicy" :absolute="wsLlmAbsolute" :errors="wsLlmErrors" />
+            <div class="settings-card-footer">
+              <button class="btn-primary" @click="saveLlmPolicy" :disabled="savingLlm">
+                {{ savingLlm ? 'Saving…' : 'Save Guardrails' }}
+              </button>
+            </div>
+          </div>
+
           <div class="danger-zone">
             <h3 class="danger-title">Danger Zone</h3>
             <div class="danger-card">
@@ -359,6 +373,7 @@ import api from '../services/api'
 import tenancyApi from '../services/tenancyApi'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import PlatformLlmPolicy from '@/components/admin/PlatformLlmPolicy.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -378,6 +393,12 @@ const activeTab     = ref(route.params.tab || 'overview')
 const wsForm   = ref({ name: '', slug: '' })
 const savingWs = ref(false)
 const deletingWs = ref(false)
+
+// ── Workspace LLM guardrails (system → org → WORKSPACE → agent chain) ──
+const wsLlmPolicy   = ref({})    // this workspace's llm_policy overrides
+const wsLlmAbsolute = ref({})    // code ABSOLUTE ceilings (for the "max N" hints)
+const wsLlmErrors   = ref({})    // server validation messages per field
+const savingLlm     = ref(false)
 
 // Add member
 const showAddMember = ref(false)
@@ -437,7 +458,10 @@ async function loadAll() {
     if (wsRes) {
       workspace.value = wsRes.data
       wsForm.value = { name: wsRes.data.name, slug: wsRes.data.slug }
+      wsLlmPolicy.value = (wsRes.data.llm_policy && typeof wsRes.data.llm_policy === 'object') ? { ...wsRes.data.llm_policy } : {}
     }
+    // Absolute code ceilings (shown as the read-only "max N" next to each field).
+    api.getGlobalAgentPolicy().then(r => { wsLlmAbsolute.value = r.data?.llm_policy_absolute || {} }).catch(() => {})
 
     const o = orgSlug.value
     const w = wsSlug.value
@@ -470,6 +494,33 @@ async function saveWorkspace() {
     notify.error(err?.response?.data?.detail || 'Failed to save')
   }
   savingWs.value = false
+}
+
+async function saveLlmPolicy() {
+  savingLlm.value = true
+  wsLlmErrors.value = {}
+  try {
+    const res = await tenancyApi.updateWorkspace(wsId.value, { llm_policy: wsLlmPolicy.value })
+    wsLlmPolicy.value = { ...(res.data?.llm_policy || {}) }   // reflect server clamp/normalization
+    notify.success('Workspace guardrails saved')
+  } catch (err) {
+    const data = err?.response?.data
+    // DRF field errors come back as { llm_policy: [messages] }; surface them on the fields.
+    const msgs = data?.llm_policy || data?.detail
+    if (Array.isArray(msgs)) {
+      // Map "'max_tool_iterations' (300) exceeds the limit above it (200)" → field-keyed error.
+      const map = {}
+      for (const m of msgs) {
+        const k = String(m).match(/'([a-z_]+)'/)?.[1]
+        if (k) map[k] = String(m)
+      }
+      wsLlmErrors.value = map
+      notify.error(msgs[0] || 'Some values exceed the allowed limit')
+    } else {
+      notify.error(data?.detail || 'Failed to save guardrails')
+    }
+  }
+  savingLlm.value = false
 }
 
 async function deleteWorkspace() {
@@ -785,6 +836,7 @@ onMounted(loadAll)
 .placeholder-icon { font-size: 48px; margin-bottom: 16px; }
 .placeholder-title { font-size: 18px; font-weight: 700; color: #191427; margin: 0 0 8px; }
 .placeholder-desc { font-size: 14px; color: #6B7280; max-width: 440px; margin: 0 auto 28px; line-height: 1.6; }
+.wsd-hint { font-size: 13px; color: #6B7280; line-height: 1.55; margin: 0 0 14px; }
 .placeholder-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; text-align: left; max-width: 600px; margin: 0 auto 24px; }
 .placeholder-feature { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border-radius: 10px; background: rgba(25,20,39,0.03); border: 1px solid rgba(25,20,39,0.06); }
 .pf-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }

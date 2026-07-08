@@ -40,11 +40,12 @@ describe('PlatformLlmPolicy', () => {
     expect('max_input_tokens' in last).toBe(false)   // unset -> falls back to ABSOLUTE
   })
 
-  it('shows the ABSOLUTE max as a read-only hint (not an editable field)', () => {
+  it('shows the ABSOLUTE default (blank = this) as a read-only hint, plus a description', () => {
     const w = mount(PlatformLlmPolicy, { props: { modelValue: {}, absolute: ABSOLUTE } })
     const field = w.find('[data-test="plp-max_input_tokens"]')
-    expect(field.text()).toContain('max 500,000')
-    // exactly one editable input in the field (the ceiling value) — ABSOLUTE is text, not an input
+    expect(field.text()).toContain('default 500,000')      // model B: absolute is the DEFAULT when blank
+    expect(field.text().toLowerCase()).toContain('sent to the model')  // per-field description present
+    // exactly one editable input in the field (the value) — the default is text, not an input
     expect(field.findAll('input').length).toBe(1)
   })
 
@@ -63,10 +64,11 @@ describe('PlatformLlmPolicy', () => {
     expect(last.image_downscale_enabled).toBe(false)
   })
 
-  it('explains platform ceilings vs absolute code guards', () => {
+  it('explains that blank = the absolute default and a set value overrides it', () => {
     const w = mount(PlatformLlmPolicy, { props: { modelValue: {}, absolute: ABSOLUTE } })
-    expect(w.text().toLowerCase()).toContain('platform ceilings')
-    expect(w.text().toLowerCase()).toContain('absolute emergency limits are still enforced in code')
+    expect(w.text().toLowerCase()).toContain('platform defaults')
+    expect(w.text().toLowerCase()).toContain('overrides')
+    expect(w.text().toLowerCase()).toContain('tighten')
   })
 
   it('disables all inputs when disabled (non-admin)', () => {

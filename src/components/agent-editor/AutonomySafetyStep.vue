@@ -253,8 +253,14 @@
 
         <div class="mt-5 space-y-4">
           <label class="field-row">
-            <span>Max actions per run</span>
-            <input v-model="maxActionsPerRun" class="control" type="number" min="1" placeholder="Default (25)" />
+            <span>Max steps per run
+              <small class="block text-[11px] font-normal text-[#94A3B8]">Also called max actions / tool iterations</small>
+            </span>
+            <span class="flex flex-col items-end">
+              <input v-model="maxActionsPerRun" class="control" type="number" min="1" :max="actionsCeiling"
+                     :placeholder="`Default (${DEFAULT_MAX_STEPS})`" />
+              <small class="mt-1 text-[11px] text-[#94A3B8]">Platform limit: {{ actionsCeiling }}</small>
+            </span>
           </label>
           <label class="field-row">
             <span>Max runs per day</span>
@@ -282,7 +288,7 @@
           <p>Your agent will <strong class="text-[#2563EB]">{{ summaryMode }}</strong>.</p>
           <p>It can spend up to <strong class="text-[#2563EB]">{{ budgetPerRun ? '$' + budgetPerRun : 'unlimited' }}</strong> per run and <strong class="text-[#2563EB]">{{ budgetPerDay ? '$' + budgetPerDay : 'unlimited' }}</strong> per day.</p>
           <p>It will follow <strong class="text-[#2563EB]">{{ activeGuardrailCount }} guardrails</strong> and ask for approval on <strong class="text-[#0F172A]">{{ riskCeiling }}</strong> impact actions.</p>
-          <p>It can take up to <strong class="text-[#2563EB]">{{ maxActionsPerRun || 25 }} actions per run</strong> and <strong class="text-[#2563EB]">{{ maxRunsPerDay || 'unlimited' }} runs per day</strong>.</p>
+          <p>It can take up to <strong class="text-[#2563EB]">{{ maxActionsPerRun || DEFAULT_MAX_STEPS }} steps per run</strong> and <strong class="text-[#2563EB]">{{ maxRunsPerDay || 'unlimited' }} runs per day</strong>.</p>
         </div>
 
         <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -593,17 +599,38 @@ const dailyBudget = computed({
   get: () => formatMoneyInput(props.agent.daily_budget_usd ?? '2000.00'),
   set: (value) => { props.agent.daily_budget_usd = parseMoney(value) },
 })
+// Platform ceiling for "max actions per run" (= max steps / tool iterations). Model B: the agent may only
+// TIGHTEN below the platform ceiling; when the platform admin set nothing, that ceiling IS the absolute
+// default (500). The platform value may itself exceed the absolute (admin is unbounded), so the agent cap
+// = the platform value if set, else the absolute default.
+const DEFAULT_MAX_STEPS = 500          // absolute default used when nothing is set
+const actionsCeiling = ref(DEFAULT_MAX_STEPS)
+async function loadPlatformLimits() {
+  try {
+    const r = await api.getGlobalAgentPolicy()
+    const pol = r.data?.llm_policy || {}
+    const abs = r.data?.llm_policy_absolute || {}
+    const absMax = Number(abs.max_tool_iterations) || DEFAULT_MAX_STEPS
+    // Platform value wins as the ceiling; if unset the absolute default applies. Agent tightens below this.
+    actionsCeiling.value = Number(pol.max_tool_iterations) || absMax
+    // If a stored agent value exceeds the ceiling, clamp it down so the editor never shows an over-limit
+    // number that the backend would reduce at runtime.
+    const cur = Number(policy.value.max_actions_per_run)
+    if (Number.isFinite(cur) && cur > actionsCeiling.value) _setLimit('max_actions_per_run', actionsCeiling.value, actionsCeiling.value)
+  } catch (e) { /* keep safe defaults */ }
+}
 // Empty = inherit the system default (env fallback). Only a positive number is stored as an override.
-function _setLimit(key, value) {
+// `max` (when given) clamps the value so a user can never store more than the platform/absolute ceiling.
+function _setLimit(key, value, max) {
   const n = Number(value)
   const p = { ...policy.value }
-  if (Number.isFinite(n) && n > 0) p[key] = n
+  if (Number.isFinite(n) && n > 0) p[key] = (max && n > max) ? max : n
   else delete p[key]
   policy.value = p
 }
 const maxActionsPerRun = computed({
   get: () => policy.value.max_actions_per_run ?? '',
-  set: (value) => _setLimit('max_actions_per_run', value),
+  set: (value) => _setLimit('max_actions_per_run', value, actionsCeiling.value),
 })
 const maxRunsPerDay = computed({
   get: () => policy.value.max_runs_per_day ?? '',
@@ -719,7 +746,7 @@ function fmtWhen(iso) {
 function fmtDur(ms) { if (!ms) return '—'; return ms >= 1000 ? (ms / 1000).toFixed(1) + 's' : ms + 'ms' }
 
 watch(() => props.agent.id, () => { loadGuardrails(); loadAgentBudget() })
-onMounted(() => { loadGuardrails(); loadToolDefs(); loadAgentBudget() })
+onMounted(() => { loadGuardrails(); loadToolDefs(); loadAgentBudget(); loadPlatformLimits() })
 </script>
 
 <style scoped>

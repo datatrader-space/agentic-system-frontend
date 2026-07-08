@@ -34,20 +34,18 @@ const PROFILES = [
 // always renders even if the API `absolute` prop hasn't loaded yet.
 const ABSOLUTE_DEFAULTS = {
   max_input_tokens: 500000,
-  max_tool_iterations: 50,
-  max_tool_result_tokens: 50000,
-  max_total_tool_context_tokens: 200000,
+  max_tool_iterations: 500,
   max_images_per_turn: 20,
   max_image_bytes: 20971520,
   max_image_width: 8192,
   max_image_height: 8192,
 }
 
+// Tool-output size is governed by artifactization (LLM_ARTIFACTIZE_LONG_OUTPUTS); the per-result / total
+// tool-token caps were removed as policy fields.
 const NUM_FIELDS = [
   { key: 'max_input_tokens', label: 'Max input tokens', hint: 'Ceiling on prompt tokens per turn.' },
-  { key: 'max_tool_iterations', label: 'Max tool iterations', hint: 'Ceiling on tool-call rounds per turn.' },
-  { key: 'max_tool_result_tokens', label: 'Max tool result tokens', hint: 'Per tool-result cap.' },
-  { key: 'max_total_tool_context_tokens', label: 'Total tool context tokens', hint: 'All tool context per turn.' },
+  { key: 'max_tool_iterations', label: 'Max steps per run', hint: 'Ceiling on tool-call rounds ("steps") per run.' },
   { key: 'max_images_per_turn', label: 'Max images per turn', hint: 'Reject beyond this many images.' },
   { key: 'max_image_bytes', label: 'Max image size (bytes)', hint: 'Downscale/reject larger images.' },
   { key: 'max_image_width', label: 'Max image width (px)', hint: '' },
@@ -123,8 +121,9 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
 // Preview rows: label + platform ceiling + org value + final resolved + binding source.
 const PREVIEW_ROWS = [
   { key: 'hard_input_limit', label: 'Input tokens', pol: 'max_input_tokens' },
-  { key: 'max_tool_iterations', label: 'Tool iterations', pol: 'max_tool_iterations' },
-  { key: 'total_tool_context_budget', label: 'Total tool context', pol: 'max_total_tool_context_tokens' },
+  { key: 'max_tool_iterations', label: 'Max steps per run', pol: 'max_tool_iterations' },
+  // "Total tool context" is now profile-only (no admin cap) — shown for reference, no policy mapping.
+  { key: 'total_tool_context_budget', label: 'Total tool context (profile)', pol: null },
 ]
 const previewProfile = computed(() => props.preview?.profile || '—')
 const previewProfileSrc = computed(() => props.preview?.profile_source || '—')
