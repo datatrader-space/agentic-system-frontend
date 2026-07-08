@@ -76,11 +76,26 @@ function cacheBool(f) { const v = props.modelValue[f.key]; return v === undefine
 function setStr(key, e) { emit('update:modelValue', { ...props.modelValue, [key]: e.target.value }); emit('change') }
 const ragPlacement = computed(() => props.modelValue.cache_rag_placement || 'tail')
 const stableTtl = computed(() => props.modelValue.cache_stable_prefix_ttl || '5m')
+const contextStrategy = computed(() => props.modelValue.conversation_context_strategy || 'legacy_count')
 function setCheckpointTokens(e) {
   const raw = e.target.value
   const next = { ...props.modelValue }
   if (raw === '' || raw === null) delete next.checkpoint_trigger_tokens
   else next.checkpoint_trigger_tokens = Math.max(0, Math.trunc(Number(raw)))
+  emit('update:modelValue', next); emit('change')
+}
+// Generic positive-int setter (blank = use the platform default). Optional min/max clamp.
+function setPlpInt(key, e, min, max) {
+  const raw = e.target.value
+  const next = { ...props.modelValue }
+  if (raw === '' || raw === null) { delete next[key] }
+  else {
+    let n = Math.trunc(Number(raw))
+    if (Number.isNaN(n)) return
+    if (min != null) n = Math.max(min, n)
+    if (max != null) n = Math.min(max, n)
+    next[key] = n
+  }
   emit('update:modelValue', next); emit('change')
 }
 const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleString())
@@ -192,6 +207,44 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
         <small class="plp-desc">Keep raw conversation history (byte-stable → cacheable) until it reaches this many tokens, then summarize old turns and freeze that summary. 0 = legacy behaviour (summarize by message count). Try 60,000–80,000 for long sessions; pairs with "Cache conversation history".</small>
         <input type="number" min="0" :step="1000" :disabled="disabled"
                :value="modelValue.checkpoint_trigger_tokens ?? ''" @input="setCheckpointTokens" placeholder="0 (legacy)" />
+      </label>
+
+      <label class="plp-field" data-test="plp-conversation_context_strategy">
+        <span class="plp-lbl">History strategy (Long-Context Mode)</span>
+        <small class="plp-desc">How conversation history is managed. "Legacy (count-based)" summarizes old turns by message count (default — unchanged). "Compress-late" keeps raw history until the threshold above, then freezes one summary. "Raw until limit (Long-Context)" keeps FULL raw history until ~80% of the model’s usable window, then makes one large structured summary — only engages on large-window models (≥400K) and auto-caches the frozen history; smaller models are unaffected regardless of this setting.</small>
+        <select class="plp-select" :value="contextStrategy" :disabled="disabled" @change="setStr('conversation_context_strategy', $event)">
+          <option value="legacy_count">Legacy (count-based) — default</option>
+          <option value="compress_late">Compress-late (token-triggered freeze)</option>
+          <option value="raw_chunks_until_limit">Raw until limit (Long-Context, ≥ min-window models)</option>
+        </select>
+      </label>
+
+      <label class="plp-field" data-test="plp-long_context_min_window">
+        <span class="plp-lbl">Long-Context: min model window <span class="plp-unit">(tokens)</span></span>
+        <small class="plp-desc">Long-Context Mode engages on cache-capable models whose context window is at least this large; smaller (or non-caching) models always use legacy behaviour regardless of the strategy. Default 128,000.</small>
+        <input type="number" min="128000" :step="50000" :disabled="disabled"
+               :value="modelValue.long_context_min_window ?? ''" @input="setPlpInt('long_context_min_window', $event, 100000, 100000000)" placeholder="128,000" />
+      </label>
+
+      <label class="plp-field" data-test="plp-long_context_chunk_tokens">
+        <span class="plp-lbl">Long-Context: frozen-chunk / tail size cap <span class="plp-unit">(tokens)</span></span>
+        <small class="plp-desc">Upper bound on a frozen history chunk / the recent raw tail (and the cache-breakpoint boundary). Auto-shrinks to ≤25% of the usable window on smaller models, so a large value is safe. Default 60,000.</small>
+        <input type="number" min="1000" :step="5000" :disabled="disabled"
+               :value="modelValue.long_context_chunk_tokens ?? ''" @input="setPlpInt('long_context_chunk_tokens', $event, 1000, 10000000)" placeholder="60,000" />
+      </label>
+
+      <label class="plp-field" data-test="plp-long_context_trigger_pct">
+        <span class="plp-lbl">Long-Context: compaction trigger <span class="plp-unit">(% of usable window)</span></span>
+        <small class="plp-desc">Keep full raw history until it reaches this percentage of the model’s usable window, then run one large compaction. Default 80. Range 10–95.</small>
+        <input type="number" min="10" max="95" :step="5" :disabled="disabled"
+               :value="modelValue.long_context_trigger_pct ?? ''" @input="setPlpInt('long_context_trigger_pct', $event, 10, 95)" placeholder="80" />
+      </label>
+
+      <label class="plp-field" data-test="plp-long_context_summary_pct">
+        <span class="plp-lbl">Long-Context: summary budget <span class="plp-unit">(% of window)</span></span>
+        <small class="plp-desc">Target size of the large structured compaction summary, as a percentage of the model window (replaces the old 1,500-token cap). Default 15. Range 1–40.</small>
+        <input type="number" min="1" max="40" :step="1" :disabled="disabled"
+               :value="modelValue.long_context_summary_pct ?? ''" @input="setPlpInt('long_context_summary_pct', $event, 1, 40)" placeholder="15" />
       </label>
 
       <label class="plp-field plp-toggle" data-test="plp-durable_steps_enabled">
