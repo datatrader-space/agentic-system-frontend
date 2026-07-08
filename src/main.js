@@ -292,6 +292,7 @@ const router = createRouter({
         { path: 'knowledge', name: 'admin-knowledge', component: AdminKnowledge },
         { path: 'model-pricing', name: 'admin-model-pricing', component: ModelPricingPage },
         { path: 'llm-context', name: 'admin-llm-context', component: LLMContextDashboard },
+        { path: 'conversation-steps', name: 'admin-conversation-steps', component: () => import('./views/admin/AdminConversationSteps.vue') },
         { path: 'crawler-export', name: 'admin-crawler-export', component: CrawlerExportAPI },
         { path: 'api-reference', name: 'admin-api-reference', component: () => import('./views/admin/AdminApiReference.vue') },
         { path: 'help-analytics', name: 'admin-help-analytics', component: () => import('./views/admin/AdminHelpAnalytics.vue') },

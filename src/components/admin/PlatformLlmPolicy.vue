@@ -47,6 +47,8 @@ const downscale = computed(() => props.modelValue.image_downscale_enabled !== fa
 // Tool-output handling (DB-backed, default ON). Blank threshold = default 8000.
 const artifactize = computed(() => props.modelValue.artifactize_long_outputs !== false)
 const budgetSystem = computed(() => props.modelValue.tool_context_budget_enabled !== false)
+// H3 durable tool-step transcript (DB-backed, default ON). Blank int = default.
+const durableSteps = computed(() => props.modelValue.durable_steps_enabled !== false)
 function setThreshold(e) {
   const raw = e.target.value
   const next = { ...props.modelValue }
@@ -74,6 +76,13 @@ function cacheBool(f) { const v = props.modelValue[f.key]; return v === undefine
 function setStr(key, e) { emit('update:modelValue', { ...props.modelValue, [key]: e.target.value }); emit('change') }
 const ragPlacement = computed(() => props.modelValue.cache_rag_placement || 'tail')
 const stableTtl = computed(() => props.modelValue.cache_stable_prefix_ttl || '5m')
+function setCheckpointTokens(e) {
+  const raw = e.target.value
+  const next = { ...props.modelValue }
+  if (raw === '' || raw === null) delete next.checkpoint_trigger_tokens
+  else next.checkpoint_trigger_tokens = Math.max(0, Math.trunc(Number(raw)))
+  emit('update:modelValue', next); emit('change')
+}
 const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleString())
 </script>
 
@@ -176,6 +185,42 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
           <option value="tail">Tail (after history)</option>
           <option value="system_inline">System (volatile block)</option>
         </select>
+      </label>
+
+      <label class="plp-field" data-test="plp-checkpoint_trigger_tokens">
+        <span class="plp-lbl">Compress-late threshold <span class="plp-unit">(tokens)</span></span>
+        <small class="plp-desc">Keep raw conversation history (byte-stable → cacheable) until it reaches this many tokens, then summarize old turns and freeze that summary. 0 = legacy behaviour (summarize by message count). Try 60,000–80,000 for long sessions; pairs with "Cache conversation history".</small>
+        <input type="number" min="0" :step="1000" :disabled="disabled"
+               :value="modelValue.checkpoint_trigger_tokens ?? ''" @input="setCheckpointTokens" placeholder="0 (legacy)" />
+      </label>
+
+      <label class="plp-field plp-toggle" data-test="plp-durable_steps_enabled">
+        <span class="plp-toggle-row">
+          <span class="plp-lbl">Durable tool-step transcript</span>
+          <input type="checkbox" :checked="durableSteps" :disabled="disabled"
+                 @change="setBool('durable_steps_enabled', $event)" />
+        </span>
+        <small class="plp-desc">When ON, every tool call / result / error is saved as a durable step (separate from the visible chat) so the full trace is replayable and even small tool results can be reloaded after the turn ends. When OFF, only large results are kept (legacy behaviour).</small>
+      </label>
+
+      <label class="plp-field" data-test="plp-durable_step_max_bytes">
+        <span class="plp-lbl">Inline step size limit <span class="plp-unit">(bytes)</span></span>
+        <small class="plp-desc">A tool output up to this size is stored inline in the step (durable, exact). Larger outputs are offloaded to the artifact store. Default 32,768 (32 KB).</small>
+        <input type="number" min="1" :step="1024" :disabled="disabled || !durableSteps"
+               :value="modelValue.durable_step_max_bytes ?? ''" @input="setNum('durable_step_max_bytes', $event)"
+               placeholder="32768" />
+        <small class="plp-hint"><span v-if="!(modelValue.durable_step_max_bytes)">Blank = default 32,768 bytes</span></small>
+        <small v-if="errors.durable_step_max_bytes" class="plp-err">{{ errors.durable_step_max_bytes }}</small>
+      </label>
+
+      <label class="plp-field" data-test="plp-durable_steps_max_per_conversation">
+        <span class="plp-lbl">Max steps per conversation</span>
+        <small class="plp-desc">Keep at most this many step rows per conversation (oldest pruned) so storing every result can’t grow without limit. Default 1,000; set a large value for effectively unlimited.</small>
+        <input type="number" min="1" :step="100" :disabled="disabled || !durableSteps"
+               :value="modelValue.durable_steps_max_per_conversation ?? ''"
+               @input="setNum('durable_steps_max_per_conversation', $event)" placeholder="1000" />
+        <small class="plp-hint"><span v-if="!(modelValue.durable_steps_max_per_conversation)">Blank = default 1,000</span></small>
+        <small v-if="errors.durable_steps_max_per_conversation" class="plp-err">{{ errors.durable_steps_max_per_conversation }}</small>
       </label>
     </div>
   </div>

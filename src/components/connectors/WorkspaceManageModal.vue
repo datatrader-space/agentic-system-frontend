@@ -40,6 +40,11 @@
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
               </button>
             </div>
+            <p class="text-[10.5px] text-ink-faint mt-1 leading-snug">
+              Replace <code class="text-[10px]">&lt;PATH-TO-YOUR-PROJECT&gt;</code> with the folder your agent should work in
+              (e.g. <code class="text-[10px]">E:\my-project</code> on Windows or <code class="text-[10px]">/home/you/my-project</code> on Mac/Linux).
+              Agents can only read and write files <span class="font-semibold">inside</span> this folder. If you omit it, the agent won't see your code.
+            </p>
             <div class="text-[11px] font-semibold text-ink-faint uppercase tracking-wide mt-2 mb-1">Or Docker <span class="normal-case font-normal text-[10px]">(no install needed — pulls the image)</span></div>
             <div class="flex items-center gap-2">
               <code class="flex-1 text-[11px] text-ink bg-white border border-slate-200 rounded-lg px-3 py-2 overflow-x-auto whitespace-nowrap">{{ dockerCommand }}</code>
@@ -200,11 +205,14 @@ const wsServerUrl = computed(() => {
 // One-time prerequisite for the Python path: the `agent_runtime` module ships in this package, so it must
 // be pip-installed before the run command works. (The Docker path pulls the image instead — no pip needed.)
 const pipInstallCommand = 'pip install darrxscale-workspace-agent==1.1.0'
+// --workspace is REQUIRED: without it the agent defaults to `/workspace` (which becomes an empty
+// `E:\workspace` on Windows), so file tools can't see the user's code. The placeholder makes users
+// aware they must point it at their project directory — see the note rendered under Step 2.
 const pythonCommand = computed(
-  () => `python -m agent_runtime --server ${wsServerUrl.value} --token ${ws.value.token || '<TOKEN>'}`
+  () => `python -m agent_runtime --server ${wsServerUrl.value} --token ${ws.value.token || '<TOKEN>'} --workspace <PATH-TO-YOUR-PROJECT>`
 )
 const dockerCommand = computed(
-  () => `docker run -d --restart unless-stopped -e SERVER=${wsServerUrl.value} -e TOKEN=${ws.value.token || '<TOKEN>'} -v /path/to/workspace:/workspace darrxscale/workspace-agent:latest`
+  () => `docker run -d --restart unless-stopped -e SERVER=${wsServerUrl.value} -e TOKEN=${ws.value.token || '<TOKEN>'} -v <PATH-TO-YOUR-PROJECT>:/workspace darrxscale/workspace-agent:latest`
 )
 const assignedIds = computed(() => new Set(assignments.value.map((a) => a.agent_profile_id ?? a.agent_id)))
 const assignableAgents = computed(() => availableAgents.value.filter((a) => !assignedIds.value.has(a.id)))
