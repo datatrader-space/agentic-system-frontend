@@ -31,7 +31,7 @@
         </div>
 
         <!-- Rendered markdown content (full answer if rehydrated, else stored stub) -->
-        <div v-if="displayContent" class="bubble assistant" v-html="rendered"></div>
+        <div v-if="displayContent" class="bubble assistant" v-html="rendered" @click="onCodeCopy"></div>
 
         <!-- Private reasoning — FALLBACK only (flag-OFF / legacy path). When the rich timeline is shown
              (message.timeline), reasoning is folded INTO it, so we don't render this separate box. -->
@@ -179,6 +179,19 @@ function openAttachment(a) {
 
 marked.setOptions({ breaks: true, gfm: true })
 
+// Wrap each fenced code block with a copy button. Pure string transform on marked's output
+// (`<pre><code …>…</code></pre>`) so it's independent of the marked renderer version. The click is
+// handled by onCodeCopy via event delegation on the bubble (v-html content isn't Vue-reactive).
+function addCodeCopyButtons(html) {
+  if (!html || html.indexOf('<pre><code') === -1) return html
+  return html
+    .replaceAll(
+      '<pre><code',
+      '<div class="code-block"><button class="code-copy" type="button" title="Copy code" aria-label="Copy code">Copy</button><pre><code',
+    )
+    .replaceAll('</code></pre>', '</code></pre></div>')
+}
+
 // ── Long user-message collapse (Show more / Show less) ──
 const LONG_CHARS = 500
 const isLong = computed(() =>
@@ -243,7 +256,22 @@ const fullContent = ref('')
 const loadingFull = ref(false)
 const fullError = ref('')
 const displayContent = computed(() => fullContent.value || props.message.content || '')
-const rendered = computed(() => enhanceChatMedia(marked.parse(displayContent.value)))
+const rendered = computed(() => addCodeCopyButtons(enhanceChatMedia(marked.parse(displayContent.value))))
+
+// Event-delegated copy for per-code-block buttons injected by addCodeCopyButtons.
+const onCodeCopy = async (e) => {
+  const btn = e.target?.closest?.('.code-copy')
+  if (!btn) return
+  const pre = btn.parentElement?.querySelector('pre')
+  const text = pre ? (pre.innerText ?? pre.textContent ?? '') : ''
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    btn.classList.add('is-copied')
+    btn.textContent = 'Copied'
+    setTimeout(() => { btn.classList.remove('is-copied'); btn.textContent = 'Copy' }, 1500)
+  } catch { /* clipboard blocked — ignore */ }
+}
 const canShowFull = computed(
   () =>
     !isStreaming.value &&
@@ -491,6 +519,37 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   margin: 0 0 10px;
 }
 .bubble.assistant :deep(pre code) { background: none; padding: 0; color: inherit; }
+
+/* Per-code-block copy button (injected by addCodeCopyButtons) */
+.bubble.assistant :deep(.code-block) { position: relative; }
+.bubble.assistant :deep(.code-block > pre) { margin: 0 0 10px; }
+.bubble.assistant :deep(.code-copy) {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 500 11px/1 ui-sans-serif, system-ui, -apple-system, sans-serif;
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.16);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 6px;
+  padding: 5px 9px;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.bubble.assistant :deep(.code-block:hover .code-copy),
+.bubble.assistant :deep(.code-copy:focus-visible) { opacity: 1; }
+.bubble.assistant :deep(.code-copy:hover) { background: rgba(148, 163, 184, 0.3); color: #f1f5f9; }
+.bubble.assistant :deep(.code-copy.is-copied) {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(52, 211, 153, 0.12);
+  opacity: 1;
+}
 .bubble.assistant :deep(strong) { font-weight: 600; color: #0f172a; }
 .bubble.assistant :deep(a) { color: #4f46e5; text-decoration: underline; }
 
