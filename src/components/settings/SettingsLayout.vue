@@ -114,7 +114,7 @@ const go = (key) => {
   padding: 24px 24px 48px;
 }
 .settings--usage {
-  padding: 30px 30px 48px;
+  padding: 34px 28px 48px;
   background: #f8fbff;
 }
 .settings-header {
@@ -220,7 +220,7 @@ const go = (key) => {
   display: block;
 }
 .settings-grid.wide {
-  max-width: 1700px;
+  max-width: 1320px;
   display: block;
 }
 
@@ -237,7 +237,9 @@ const go = (key) => {
 }
 
 @media (max-width: 1200px) {
-  .settings-grid.wide { max-width: 1700px; }
+  .settings--usage { padding-inline: 20px; }
+  .settings-grid.wide { max-width: 100%; }
+  .settings-content.wide :deep(.head-actions) { margin-right: 0; }
 }
 
 @media (max-width: 768px) {

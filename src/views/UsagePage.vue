@@ -123,20 +123,6 @@
           </div>
           <button class="link-btn">View all agents <Icon icon="lucide:arrow-right" /></button>
         </article>
-
-        <aside class="panel cost-help">
-          <h2>Understanding Costs</h2>
-          <p>Costs come from model usage, embeddings, and knowledge base operations.</p>
-          <h3>Top cost drivers</h3>
-          <ul class="driver-list">
-            <li v-for="item in costDrivers" :key="item">{{ item }}</li>
-          </ul>
-          <h3>How to reduce costs</h3>
-          <ul class="reduce-list">
-            <li v-for="item in reductionTips" :key="item"><Icon icon="lucide:check" />{{ item }}</li>
-          </ul>
-          <button class="link-btn">Learn more in docs <Icon icon="lucide:arrow-right" /></button>
-        </aside>
       </section>
 
       <section class="request-panel">
@@ -631,7 +617,7 @@ onMounted(reload)
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
   margin-bottom: 16px;
 }
@@ -651,6 +637,8 @@ onMounted(reload)
   display: flex;
   justify-content: space-between;
   gap: 14px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .metric-card:nth-child(n + 5) {
@@ -674,9 +662,10 @@ onMounted(reload)
   display: block;
   margin-top: 18px;
   color: #061733;
-  font-size: 27px;
+  font-size: clamp(22px, 1.7vw, 27px);
   line-height: 1;
   font-weight: 850;
+  overflow-wrap: anywhere;
 }
 
 .metric-card small {
@@ -713,9 +702,13 @@ onMounted(reload)
 
 .analytics-grid {
   display: grid;
-  grid-template-columns: 1.25fr 1fr 1fr .75fr;
+  grid-template-columns: minmax(420px, 1.35fr) minmax(300px, 1fr) minmax(300px, 1fr);
   gap: 16px;
   margin-bottom: 16px;
+}
+
+.chart-panel {
+  min-height: 436px;
 }
 
 .panel {
@@ -797,7 +790,10 @@ onMounted(reload)
 }
 
 .donut-wrap {
-  gap: 24px;
+  display: grid;
+  grid-template-columns: minmax(122px, 142px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
 }
 
 .donut {
@@ -826,10 +822,10 @@ onMounted(reload)
 
 .donut-wrap li {
   display: grid;
-  grid-template-columns: 10px 1fr auto;
+  grid-template-columns: 10px minmax(0, 1fr);
   gap: 8px;
-  align-items: center;
-  margin-bottom: 14px;
+  align-items: start;
+  margin-bottom: 12px;
   color: #263852;
   font-size: 12px;
   font-weight: 750;
@@ -842,24 +838,39 @@ onMounted(reload)
 }
 
 .donut-wrap li em {
+  grid-column: 2;
   color: #60718f;
   font-style: normal;
   font-weight: 750;
+  line-height: 1.25;
+}
+
+.donut-wrap li strong {
+  min-width: 0;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .agent-bars {
   display: grid;
-  gap: 18px;
+  gap: 14px;
   margin-top: 22px;
 }
 
 .agent-bar {
   display: grid;
-  grid-template-columns: 130px 1fr 62px;
-  gap: 12px;
+  grid-template-columns: minmax(112px, 1.15fr) minmax(70px, .9fr) 62px;
+  gap: 10px;
+  align-items: center;
   color: #344865;
   font-size: 12px;
   font-weight: 750;
+}
+
+.agent-bar span {
+  min-width: 0;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .agent-bar div {
@@ -1217,7 +1228,11 @@ onMounted(reload)
   }
 
   .analytics-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .chart-panel {
+    grid-column: 1 / -1;
   }
 
   .cost-help {
