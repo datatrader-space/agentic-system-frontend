@@ -108,7 +108,7 @@
         <div><span class="pk-q-k">Auth header</span><code>Authorization: Bearer &lt;key&gt;</code></div>
       </div>
       <ol class="pk-steps">
-        <li><strong>Create</strong> — <code>POST {{ baseUrl }}</code> with <code>{"name":"…","workspace_name":"…"}</code>.</li>
+        <li><strong>Create</strong> — <code>POST {{ baseUrl }}</code> with <code>{"name":"…","prompt":"…","workspace_name":"…"}</code>.</li>
         <li><strong>List</strong> — <code>GET {{ baseUrl }}</code> → the partner's own agents.</li>
         <li><strong>Manage</strong> — <code>GET/PATCH/DELETE {{ baseUrl }}&lt;id&gt;/</code>, plus <code>/pause/</code> &amp; <code>/unpause/</code>.</li>
       </ol>
