@@ -188,6 +188,16 @@ export default {
   getCrawlerExportDocs: () => api.get('/admin/crawler-export/docs/'),
   embedWebSource: (id) => api.post(`/admin/web-sources/${id}/embed/`),
 
+  // Partner Agent API — admin key management + integration guide (staff-only)
+  getPartnerKeys: () => api.get('/admin/partner-keys/'),
+  createPartnerKey: (userId, name) => api.post('/admin/partner-keys/', { user_id: userId, name }),
+  revokePartnerKey: (id) => api.post(`/admin/partner-keys/${id}/revoke/`),
+  togglePartnerKey: (id, revoked) => api.post(`/admin/partner-keys/${id}/toggle/`, { revoked }),
+  rotatePartnerKey: (id) => api.post(`/admin/partner-keys/${id}/rotate/`),
+  deletePartnerKey: (id) => api.delete(`/admin/partner-keys/${id}/`),
+  getPartnerDocs: () => api.get('/admin/partner-keys/docs/'),
+  searchPartnerUsers: (search) => api.get('/admin/users/', { params: { search, limit: 20 } }),
+
   // Systems
   getSystems: () => api.get('/systems/'),
   getSystem: (id) => api.get(`/systems/${id}/`),
