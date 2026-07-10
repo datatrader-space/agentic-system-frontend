@@ -61,7 +61,8 @@
                 <span class="block truncate text-[12.5px] font-medium text-[#0F172A]">{{ w.url || w.root_url || 'url' }}</span>
                 <span class="block text-[11px] text-[#98A2B3]">{{ urlMeta(w) }}</span>
               </span>
-              <button class="icon-x" @click="removeUrl(w)"><X :size="13" :stroke-width="2" /></button>
+              <button v-if="WS_INDEXING.has(w.status)" class="icon-x text-amber-500 hover:text-amber-600" title="Stop crawling &amp; indexing" @click="cancelUrl(w)"><Ban :size="14" :stroke-width="2" /></button>
+              <button class="icon-x" :title="WS_INDEXING.has(w.status) ? 'Remove (deletes the source)' : 'Remove'" @click="removeUrl(w)"><X :size="13" :stroke-width="2" /></button>
             </li>
             <li v-if="!webSources.length" class="py-2 text-[12px] text-[#98A2B3]">No URLs yet.</li>
           </ul>
