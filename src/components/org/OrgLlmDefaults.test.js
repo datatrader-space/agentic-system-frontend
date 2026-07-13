@@ -3,15 +3,15 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import OrgLlmDefaults from './OrgLlmDefaults.vue'
 
-const PLATFORM = { max_input_tokens: 250000, max_tool_iterations: 50 }
+const PLATFORM = { max_input_tokens: 250000 }
 const ABSOLUTE = {
-  max_input_tokens: 500000, max_tool_iterations: 50, max_images_per_turn: 20,
+  max_input_tokens: 500000, max_images_per_turn: 20,
   max_image_bytes: 20971520, max_image_width: 8192, max_image_height: 8192,
 }
 const PREVIEW = {
   profile: 'deep_research', profile_source: 'org_policy',
-  hard_input_limit: 120000, max_tool_iterations: 8, total_tool_context_budget: 30000,
-  sources: { hard_input_limit: 'org_policy', max_tool_iterations: 'org_policy', total_tool_context_budget: 'org_policy' },
+  hard_input_limit: 120000, total_tool_context_budget: 30000,
+  sources: { hard_input_limit: 'org_policy', total_tool_context_budget: 'org_policy' },
 }
 
 function mountIt(props = {}) {
@@ -25,7 +25,7 @@ describe('OrgLlmDefaults', () => {
     const w = mountIt()
     expect(w.find('[data-test="old-default_context_profile"]').exists()).toBe(true)
     expect(w.find('[data-test="old-max_input_tokens"]').exists()).toBe(true)
-    expect(w.find('[data-test="old-max_tool_iterations"]').exists()).toBe(true)
+    expect(w.find('[data-test="old-max_tool_iterations"]').exists()).toBe(false)
     expect(w.find('[data-test="old-image_downscale_enabled"]').exists()).toBe(true)
   })
 
@@ -111,7 +111,6 @@ describe('OrgLlmDefaults', () => {
     expect(input.attributes('max')).toBe('500000')
     expect(field.text()).toContain('max 500,000')
     // and every numeric field has a concrete cap, never "no limit"
-    expect(w.find('[data-test="old-max_tool_iterations"] input').attributes('placeholder')).toContain('absolute default: 50')
     expect(w.find('[data-test="old-max_image_bytes"] input').attributes('max')).toBe('20971520')
   })
 

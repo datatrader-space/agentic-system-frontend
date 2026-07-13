@@ -17,8 +17,6 @@ const emit = defineEmits(['update:modelValue', 'change'])
 const NUM_FIELDS = [
   { key: 'max_input_tokens', label: 'Max input tokens', unit: 'tokens',
     desc: 'The largest prompt (all context combined) sent to the model in one turn. The model’s own context window still applies on top of this.' },
-  { key: 'max_tool_iterations', label: 'Max steps per run', unit: 'steps',
-    desc: 'How many actions / tool-call rounds ("steps") an agent may take in a single run. Org, workspace and agents can only tighten below this — they can never raise it.' },
   { key: 'max_images_per_turn', label: 'Max images per turn', unit: 'images',
     desc: 'How many images an agent accepts in one message. Images beyond this count are dropped.' },
   { key: 'max_image_bytes', label: 'Max image size', unit: 'bytes',

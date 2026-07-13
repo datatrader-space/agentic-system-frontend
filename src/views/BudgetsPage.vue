@@ -383,9 +383,9 @@ async function deleteRule(raw) {
 
 // ── Presets ──────────────────────────────────────────────────────────────
 const PRESET_VALUES = {
-  Conservative: { monthly_limit_usd: 500, daily_limit_usd: 25, approval_threshold_usd: 50, per_turn_max_usd: 1 },
-  Balanced: { monthly_limit_usd: 2000, daily_limit_usd: 100, approval_threshold_usd: 100, per_turn_max_usd: 2.5 },
-  Scale: { monthly_limit_usd: 10000, daily_limit_usd: 500, approval_threshold_usd: 250, per_turn_max_usd: 5 },
+  Conservative: { monthly_limit_usd: 500, daily_limit_usd: 25, approval_threshold_usd: 50 },
+  Balanced: { monthly_limit_usd: 2000, daily_limit_usd: 100, approval_threshold_usd: 100 },
+  Scale: { monthly_limit_usd: 10000, daily_limit_usd: 500, approval_threshold_usd: 250 },
 }
 async function applyPreset(preset) {
   const vals = PRESET_VALUES[preset.title]

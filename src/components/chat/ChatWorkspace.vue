@@ -90,9 +90,6 @@
       <ChatMessageList v-else />
     </div>
 
-    <!-- Unified plan experience — the ONLY plan UI (approval + live execution checklist). -->
-    <UnifiedPlanTimeline :conversation-id="chat.conversationId" class="chat-plan" />
-
     <!-- Composer (thread mode; welcome screen has its own) -->
     <div v-if="!chat.isEmpty" class="chat-footer">
       <!-- URL/YouTube import lives in the composer "+" menu (conversation-scoped DocumentSource →
@@ -143,7 +140,6 @@ import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
 import CanvasShell from '../canvas/CanvasShell.vue'
 import HITLModal from '../HITLModal.vue'
-import UnifiedPlanTimeline from '../plan/UnifiedPlanTimeline.vue'
 import { fmtTokens, fmtCost } from '../../composables/tokens'
 import { previewOf, relTime, groupSessions } from '../../composables/useChatHistory'
 
@@ -550,7 +546,6 @@ watch(
 }
 
 .chat-body { flex: 1; min-height: 0; }
-.chat-plan { flex-shrink: 0; padding: 8px 20px 0; }
 .chat-footer { flex-shrink: 0; background: linear-gradient(to top, var(--vm-bg) 55%, transparent); }
 .session-meter {
   text-align: right; padding: 2px 20px 6px; font-size: 11px; color: var(--vm-text-3, #6b7280);

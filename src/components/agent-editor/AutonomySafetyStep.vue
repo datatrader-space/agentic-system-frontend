@@ -225,10 +225,6 @@
 
         <div class="mt-5 space-y-4">
           <label class="field-row">
-            <span>Per run</span>
-            <div class="money-input"><span>$</span><input v-model="budgetPerRun" class="control !pl-5" inputmode="decimal" placeholder="No limit" /></div>
-          </label>
-          <label class="field-row">
             <span>Per day</span>
             <div class="money-input"><span>$</span><input v-model="budgetPerDay" class="control !pl-5" inputmode="decimal" placeholder="No limit" /></div>
           </label>
@@ -253,8 +249,8 @@
 
         <div class="mt-5 space-y-4">
           <label class="field-row">
-            <span>Max steps per run
-              <small class="block text-[11px] font-normal text-[#94A3B8]">Also called max actions / tool iterations</small>
+            <span>Max steps
+              <small class="block text-[11px] font-normal text-[#94A3B8]">Max number of tool steps the agent may take in one run (default {{ DEFAULT_MAX_STEPS }}).</small>
             </span>
             <span class="flex flex-col items-end">
               <input v-model="maxActionsPerRun" class="control" type="number" min="1" :max="actionsCeiling"
@@ -286,7 +282,7 @@
 
         <div class="mt-4 rounded-xl bg-[#EEF4FF] p-5 text-[13px] leading-6 text-[#344054]">
           <p>Your agent will <strong class="text-[#2563EB]">{{ summaryMode }}</strong>.</p>
-          <p>It can spend up to <strong class="text-[#2563EB]">{{ budgetPerRun ? '$' + budgetPerRun : 'unlimited' }}</strong> per run and <strong class="text-[#2563EB]">{{ budgetPerDay ? '$' + budgetPerDay : 'unlimited' }}</strong> per day.</p>
+          <p>It can spend up to <strong class="text-[#2563EB]">{{ budgetPerDay ? '$' + budgetPerDay : 'unlimited' }}</strong> per day.</p>
           <p>It will follow <strong class="text-[#2563EB]">{{ activeGuardrailCount }} guardrails</strong> and ask for approval on <strong class="text-[#0F172A]">{{ riskCeiling }}</strong> impact actions.</p>
           <p>It can take up to <strong class="text-[#2563EB]">{{ maxActionsPerRun || DEFAULT_MAX_STEPS }} steps per run</strong> and <strong class="text-[#2563EB]">{{ maxRunsPerDay || 'unlimited' }} runs per day</strong>.</p>
         </div>
@@ -601,20 +597,21 @@ const dailyBudget = computed({
 // TIGHTEN below the platform ceiling; when the platform admin set nothing, that ceiling IS the absolute
 // default (500). The platform value may itself exceed the absolute (admin is unbounded), so the agent cap
 // = the platform value if set, else the absolute default.
-const DEFAULT_MAX_STEPS = 500          // absolute default used when nothing is set
-const actionsCeiling = ref(DEFAULT_MAX_STEPS)
+const DEFAULT_MAX_STEPS = 250          // default steps when the agent sets no explicit value
+const PLATFORM_CEILING_DEFAULT = 500   // absolute platform ceiling fallback when nothing is set
+const actionsCeiling = ref(PLATFORM_CEILING_DEFAULT)
 async function loadPlatformLimits() {
   try {
     const r = await api.getGlobalAgentPolicy()
     const pol = r.data?.llm_policy || {}
     const abs = r.data?.llm_policy_absolute || {}
-    const absMax = Number(abs.max_tool_iterations) || DEFAULT_MAX_STEPS
+    const absMax = Number(abs.max_tool_iterations) || PLATFORM_CEILING_DEFAULT
     // Platform value wins as the ceiling; if unset the absolute default applies. Agent tightens below this.
     actionsCeiling.value = Number(pol.max_tool_iterations) || absMax
     // If a stored agent value exceeds the ceiling, clamp it down so the editor never shows an over-limit
-    // number that the backend would reduce at runtime.
-    const cur = Number(policy.value.max_actions_per_run)
-    if (Number.isFinite(cur) && cur > actionsCeiling.value) _setLimit('max_actions_per_run', actionsCeiling.value, actionsCeiling.value)
+    // number that the backend would reduce at runtime. Prefer the new key, fall back to the legacy one.
+    const cur = Number(policy.value.max_steps ?? policy.value.max_actions_per_run)
+    if (Number.isFinite(cur) && cur > actionsCeiling.value) _setLimit('max_steps', actionsCeiling.value, actionsCeiling.value)
   } catch (e) { /* keep safe defaults */ }
 }
 // Empty = inherit the system default (env fallback). Only a positive number is stored as an override.
@@ -627,8 +624,10 @@ function _setLimit(key, value, max) {
   policy.value = p
 }
 const maxActionsPerRun = computed({
-  get: () => policy.value.max_actions_per_run ?? '',
-  set: (value) => _setLimit('max_actions_per_run', value, actionsCeiling.value),
+  // Read the new max_steps key, falling back to the legacy max_actions_per_run so already-configured
+  // agents still show their value. Writes always use the new max_steps key.
+  get: () => policy.value.max_steps ?? policy.value.max_actions_per_run ?? '',
+  set: (value) => _setLimit('max_steps', value, actionsCeiling.value),
 })
 const maxRunsPerDay = computed({
   get: () => policy.value.max_runs_per_day ?? '',
@@ -684,7 +683,6 @@ async function loadGuardrails() {
 
 // ── Spending limits — wired to the Budget system (agent-scoped Budget), not the agent record ──
 const budgetId = ref(null)
-const budgetPerRun = ref('')     // per_run_max_usd
 const budgetPerDay = ref('')     // daily_limit_usd
 const budgetSaving = ref(false)
 function _money(v) {
@@ -701,10 +699,9 @@ async function loadAgentBudget() {
     const b = (list || []).find(x => x.scope_type === 'agent' && String(x.scope_id) === String(props.agent.id))
     if (b) {
       budgetId.value = b.id
-      budgetPerRun.value = b.per_run_max_usd != null ? String(b.per_run_max_usd) : ''
       budgetPerDay.value = b.daily_limit_usd != null ? String(b.daily_limit_usd) : ''
     } else {
-      budgetId.value = null; budgetPerRun.value = ''; budgetPerDay.value = ''
+      budgetId.value = null; budgetPerDay.value = ''
     }
   } catch (e) { /* budgets optional — never block the step */ }
 }
@@ -715,7 +712,7 @@ async function saveAgentBudget() {
     // POST upserts the single enabled budget for (org, scope_type=agent, scope_id=agent.id).
     const r = await api.createBudget({
       scope_type: 'agent', scope_id: props.agent.id, name: `${props.agent.name || 'Agent'} spend limit`,
-      per_run_max_usd: _money(budgetPerRun.value), daily_limit_usd: _money(budgetPerDay.value),
+      daily_limit_usd: _money(budgetPerDay.value),
     })
     if (r.data?.id) budgetId.value = r.data.id
     notify.success('Spending limit saved')

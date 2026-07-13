@@ -12,10 +12,9 @@ const PREVIEW = {
   profile: 'code_repo', profile_source: 'agent_policy', model_context_window: 1000000,
   hard_input_limit: 500000, target_input_tokens: 300000, history_budget: 225000, memory_budget: 1500,
   vector_budget: 16000, tool_result_budget_per_iter: 12000, total_tool_context_budget: 60000,
-  max_tool_iterations: 25, turn_cost_ceiling_usd: 5.0,
+  turn_cost_ceiling_usd: 5.0,
   image: { max_images_per_turn: 4, max_image_width: 2048, max_image_height: 2048, estimator: 'openrouter_anthropic' },
-  sources: { hard_input_limit: 'platform_absolute', max_tool_iterations: 'deprecated_env_fallback:LLM_MAX_TOOL_ITERATIONS',
-             turn_cost_ceiling_usd: 'env_floor' },
+  sources: { hard_input_limit: 'platform_absolute', turn_cost_ceiling_usd: 'env_floor' },
 }
 
 const optionValues = (w) => w.findAll('option').map((o) => o.attributes('value'))

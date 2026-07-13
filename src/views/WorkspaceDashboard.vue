@@ -508,7 +508,7 @@ async function saveLlmPolicy() {
     // DRF field errors come back as { llm_policy: [messages] }; surface them on the fields.
     const msgs = data?.llm_policy || data?.detail
     if (Array.isArray(msgs)) {
-      // Map "'max_tool_iterations' (300) exceeds the limit above it (200)" → field-keyed error.
+      // Map "'max_input_tokens' (300000) exceeds the limit above it (200000)" → field-keyed error.
       const map = {}
       for (const m of msgs) {
         const k = String(m).match(/'([a-z_]+)'/)?.[1]

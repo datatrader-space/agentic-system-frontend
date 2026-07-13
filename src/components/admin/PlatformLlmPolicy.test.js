@@ -4,7 +4,7 @@ import { mount } from '@vue/test-utils'
 import PlatformLlmPolicy from './PlatformLlmPolicy.vue'
 
 const ABSOLUTE = {
-  max_input_tokens: 500000, max_tool_iterations: 50, max_images_per_turn: 20,
+  max_input_tokens: 500000, max_images_per_turn: 20,
   max_image_bytes: 20971520, max_image_width: 8192, max_image_height: 8192,
 }
 
@@ -12,7 +12,7 @@ describe('PlatformLlmPolicy', () => {
   it('renders the platform LLM policy fields', () => {
     const w = mount(PlatformLlmPolicy, { props: { modelValue: {}, absolute: ABSOLUTE } })
     expect(w.find('[data-test="plp-max_input_tokens"]').exists()).toBe(true)
-    expect(w.find('[data-test="plp-max_tool_iterations"]').exists()).toBe(true)
+    expect(w.find('[data-test="plp-max_tool_iterations"]').exists()).toBe(false)
     expect(w.find('[data-test="plp-max_images_per_turn"]').exists()).toBe(true)
     expect(w.find('[data-test="plp-image_downscale_enabled"]').exists()).toBe(true)
   })
