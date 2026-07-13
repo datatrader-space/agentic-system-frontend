@@ -860,8 +860,15 @@ export const useChatStore = defineStore('chat', {
         // ── Task/CRS run lifecycle: a multi-step run (plan → tools) streams an assistant_message_complete
         //    PER step; the turn must end only on the run's terminal event, not the first step. ──
         case 'agent_planning':
-        case 'agent_plan_generated':
           this._taskRunActive = true   // a multi-step task run is in progress
+          break
+        case 'agent_plan_generated':
+          // A `display_only` plan comes from the native chat path purely to render the plan in the
+          // timeline — it is NOT a multi-step TASK run and this turn ends on assistant_message_complete
+          // (no agent_session_complete follows). Flipping _taskRunActive here would suppress that end
+          // signal and lock the composer in steering mode forever. Only real task runs (no display_only)
+          // set the flag.
+          if (!msg.display_only) this._taskRunActive = true
           break
         case 'agent_session_complete':
         case 'agent_session_stopped':
