@@ -70,10 +70,34 @@
            the expanded done view. Never on the public tier (and the backend never sends reasoning there). -->
       <div v-if="!publicSafe && reasoning && reasoning.length && (!isComplete || expanded)"
            class="at-reasoning" :class="{ 'at-rows-done': isComplete }">
-        <div v-for="(it, i) in reasoning" :key="`r${i}`" class="at-reason-item">
-          <div class="at-reason-phrase">{{ it.label || 'Thinking' }}</div>
-          <div v-if="it.text" class="at-reason-text">{{ it.text }}</div>
-        </div>
+        <!-- Done + expanded: the full reasoning history. -->
+        <template v-if="isComplete">
+          <div v-for="(it, i) in reasoning" :key="`r${i}`" class="at-reason-item">
+            <div class="at-reason-phrase">{{ it.label || 'Thinking' }}</div>
+            <div v-if="it.text" class="at-reason-text">{{ it.text }}</div>
+          </div>
+        </template>
+        <!-- Live: show ONLY the latest thought so the chat stays compact; earlier thoughts fold
+             behind a one-click toggle instead of stacking up and eating the whole viewport. -->
+        <template v-else>
+          <button v-if="reasoning.length > 1" type="button" class="at-reason-toggle"
+                  @click="showEarlierThoughts = !showEarlierThoughts">
+            <svg class="at-reason-caret" :class="{ open: showEarlierThoughts }" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.3 5.3a1 1 0 0 1 1.4 0l4 4a1 1 0 0 1 0 1.4l-4 4a1 1 0 1 1-1.4-1.4L10.6 10 7.3 6.7a1 1 0 0 1 0-1.4Z" clip-rule="evenodd"/>
+            </svg>
+            {{ showEarlierThoughts ? 'Hide' : 'Show' }} {{ reasoning.length - 1 }} earlier thought{{ reasoning.length - 1 === 1 ? '' : 's' }}
+          </button>
+          <template v-if="showEarlierThoughts">
+            <div v-for="(it, i) in earlierReasoning" :key="`re${i}`" class="at-reason-item at-reason-earlier">
+              <div class="at-reason-phrase">{{ it.label || 'Thinking' }}</div>
+              <div v-if="it.text" class="at-reason-text">{{ it.text }}</div>
+            </div>
+          </template>
+          <div v-if="latestReasoning" class="at-reason-item">
+            <div class="at-reason-phrase">{{ latestReasoning.label || 'Thinking' }}</div>
+            <div v-if="latestReasoning.text" class="at-reason-text">{{ latestReasoning.text }}</div>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -150,6 +174,16 @@ const props = defineProps({
 // Collapsed by default once the turn is done (matches the legacy "Done · N steps" card); the user
 // expands to see the full step detail. While running, rows are always shown.
 const expanded = ref(false)
+
+// While streaming we surface ONLY the latest thought (the tail of `reasoning`) so live reasoning
+// doesn't stack up and swallow the chat. Earlier thoughts fold behind this toggle.
+const showEarlierThoughts = ref(false)
+const latestReasoning = computed(() =>
+  props.reasoning && props.reasoning.length ? props.reasoning[props.reasoning.length - 1] : null,
+)
+const earlierReasoning = computed(() =>
+  props.reasoning && props.reasoning.length > 1 ? props.reasoning.slice(0, -1) : [],
+)
 
 const show = computed(
   () =>
@@ -302,6 +336,18 @@ function fmtDuration(ms) {
 }
 .at-reason-text {
   @apply mt-0.5 text-[12px] text-gray-500 italic whitespace-pre-wrap break-words;
+}
+.at-reason-toggle {
+  @apply flex items-center gap-1 text-[11px] font-medium text-gray-400 hover:text-gray-600 select-none transition-colors;
+}
+.at-reason-caret {
+  @apply w-3 h-3 transition-transform;
+}
+.at-reason-caret.open {
+  @apply rotate-90;
+}
+.at-reason-earlier {
+  @apply opacity-70;
 }
 .agent-step {
   @apply flex items-start gap-2;
