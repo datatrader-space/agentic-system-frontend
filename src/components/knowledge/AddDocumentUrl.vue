@@ -16,6 +16,9 @@ const props = defineProps({
   agentId: { type: [Number, String], default: null },
   conversationId: { type: [Number, String], default: null },
   scope: { type: String, default: 'agent_knowledge' },
+  // Standalone user Knowledge & RAG: anchor to a user KnowledgeSource instead of an agent.
+  standalone: { type: Boolean, default: false },
+  knowledgeSourceId: { type: [Number, String], default: null },
 })
 const emit = defineEmits(['added'])
 
@@ -34,6 +37,8 @@ async function submit() {
     const payload = { url: u, scope: props.scope }
     if (props.agentId != null) payload.agent_id = props.agentId
     if (props.conversationId != null) payload.conversation_id = props.conversationId
+    if (props.knowledgeSourceId != null) payload.knowledge_source_id = props.knowledgeSourceId
+    else if (props.standalone) payload.standalone = true
     const res = await api.addDocumentUrl(payload)
     const src = res.data || {}
     sources.value.unshift(src)

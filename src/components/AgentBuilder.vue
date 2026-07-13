@@ -932,50 +932,18 @@
         </div>
 
         <div class="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100 shadow-sm overflow-hidden">
-          <!-- Auto Mode -->
-          <div class="flex items-start justify-between gap-4 p-4">
-            <div class="flex items-start gap-3 min-w-0">
-              <div class="mt-0.5 w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                <Zap class="w-[18px] h-[18px]" />
-              </div>
-              <div class="min-w-0">
-                <div class="text-sm font-medium text-gray-900">Auto Mode</div>
-                <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Runs tools automatically, including scheduled runs. Risky actions are reviewed by the AI safety policy instead of waiting for your approval.</p>
-              </div>
-            </div>
-            <button type="button" role="switch" :aria-checked="internalAgent.execution_mode === 'autonomous'"
-              @click="toggleAutoMode()"
-              :class="['relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500',
-                       internalAgent.execution_mode === 'autonomous' ? 'bg-teal-600' : 'bg-gray-200']">
-              <span :class="['inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
-                             internalAgent.execution_mode === 'autonomous' ? 'translate-x-[22px]' : 'translate-x-0.5']" />
-            </button>
-          </div>
-
-          <!-- Planning Mode -->
-          <div class="p-4">
-            <div class="flex items-start justify-between gap-4">
-              <div class="flex items-start gap-3 min-w-0">
-                <div class="mt-0.5 w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                  <ClipboardList class="w-[18px] h-[18px]" />
-                </div>
-                <div class="min-w-0">
-                  <div class="text-sm font-medium text-gray-900">Planning Mode</div>
-                  <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">The agent drafts a plan and gets it approved before taking any action.</p>
-                </div>
-              </div>
-              <button type="button" role="switch" :aria-checked="internalAgent.plan_mode_enabled"
-                @click="internalAgent.plan_mode_enabled = !internalAgent.plan_mode_enabled"
-                :class="['relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500',
-                         internalAgent.plan_mode_enabled ? 'bg-indigo-600' : 'bg-gray-200']">
-                <span :class="['inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
-                               internalAgent.plan_mode_enabled ? 'translate-x-[22px]' : 'translate-x-0.5']" />
-              </button>
-            </div>
-            <label v-if="internalAgent.plan_mode_enabled" class="mt-3 ml-12 flex items-start gap-2.5 text-xs text-gray-600 cursor-pointer">
-              <input type="checkbox" v-model="internalAgent.plan_approval_required"
-                class="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-              <span>Require plan approval. <span class="text-gray-400">Off + Auto Mode → the AI policy reviews the plan automatically.</span></span>
+          <!-- Run mode — a single canonical agent_run_mode with four options -->
+          <div class="p-4 space-y-2">
+            <label v-for="opt in RUN_MODE_OPTIONS" :key="opt.key"
+              class="flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors"
+              :class="internalAgent.agent_run_mode === opt.key ? 'border-teal-500 bg-teal-50/50' : 'border-gray-200 hover:border-gray-300'">
+              <input type="radio" class="mt-0.5 h-4 w-4 text-teal-600 focus:ring-teal-500"
+                :value="opt.key" :checked="internalAgent.agent_run_mode === opt.key"
+                @change="selectRunMode(opt.key)" />
+              <span class="min-w-0">
+                <span class="block text-sm font-medium text-gray-900">{{ opt.title }}</span>
+                <span class="block text-xs text-gray-500 mt-0.5 leading-relaxed">{{ opt.desc }}</span>
+              </span>
             </label>
           </div>
 
@@ -1087,9 +1055,7 @@
 
           <!-- Autonomy Summary (deterministic, client-side) -->
           <AutonomySummary
-            :execution-mode="internalAgent.execution_mode"
-            :plan-mode-enabled="internalAgent.plan_mode_enabled"
-            :plan-approval-required="internalAgent.plan_approval_required"
+            :run-mode="internalAgent.agent_run_mode"
             :risk-ceiling="riskCeiling"
             :max-cost-per-run="internalAgent.max_cost_per_run_usd"
             :daily-budget="internalAgent.daily_budget_usd"
@@ -1450,7 +1416,7 @@ import { Upload, Globe, Table2, Search, Type, FileText, Braces, Folder, Zap, Cli
 import AutonomySummary from './agent-builder/AutonomySummary.vue';
 import PermissionExplainer from './agent-builder/PermissionExplainer.vue';
 import StartingPointCards from './agent-builder/StartingPointCards.vue';
-import { modeKey, modeLabel } from '../composables/agentModes';
+import { modeKey, modeLabel, isAutonomous, MODE_OPTIONS } from '../composables/agentModes';
 import { Icon } from '@iconify/vue';
 import { notify } from '@/composables/useNotify';
 import { confirm } from '@/composables/useConfirm';
@@ -1497,10 +1463,8 @@ const internalAgent = ref({
     code_mode_services: [],    // RemoteService IDs (empty = all credentialed)
     knowledge_source_ids: [],  // shared KB sources (e.g. Help Center) attached to this agent
     builder_mode_enabled: false,  // Builder Mode: agent can register OAuth providers
-    // Autonomous execution (v3) — defaults match the backend (manual / OFF).
-    execution_mode: 'manual',
-    plan_mode_enabled: false,
-    plan_approval_required: true,
+    // Run mode — the single canonical field (defaults to manual, matching the backend).
+    agent_run_mode: 'manual',
     checkpoint_every_n_steps: null,
     checkpoint_on_phase_boundary: false,
     verify_after_completion: false,
@@ -1518,30 +1482,31 @@ const internalAgent = ref({
 if (Array.isArray(internalAgent.value.knowledge_sources))
     internalAgent.value.knowledge_source_ids = internalAgent.value.knowledge_sources.map(s => s.id);
 
-// Autonomy section: a small badge that reflects the resulting mode (Manual / Auto / Plan / Plan + Auto),
-// and a collapsed-by-default Advanced (checkpoints) sub-section.
+// Autonomy section: a small badge that reflects the resulting run mode, and a collapsed-by-default
+// Advanced (checkpoints) sub-section. The four run-mode options come from the canonical module.
 const showCheckpoints = ref(false);
-const autonomyMode = computed(() => modeKey(internalAgent.value.execution_mode, internalAgent.value.plan_mode_enabled));
-const autonomyLabel = computed(() => modeLabel(internalAgent.value.execution_mode, internalAgent.value.plan_mode_enabled));
+const RUN_MODE_OPTIONS = MODE_OPTIONS;
+const autonomyMode = computed(() => modeKey(internalAgent.value.agent_run_mode));
+const autonomyLabel = computed(() => modeLabel(internalAgent.value.agent_run_mode));
 const autonomyBadgeClass = computed(() => ({
   manual: 'bg-gray-100 text-gray-600',
-  auto: 'bg-teal-50 text-teal-700',
-  plan: 'bg-indigo-50 text-indigo-700',
-  plan_auto: 'bg-violet-50 text-violet-700',
+  autonomous: 'bg-teal-50 text-teal-700',
+  plan_review_manual: 'bg-indigo-50 text-indigo-700',
+  plan_review_autonomous: 'bg-violet-50 text-violet-700',
 }[autonomyMode.value] || 'bg-gray-100 text-gray-600'));
 
-// Auto Mode toggle (with a confirm before enabling autonomous execution).
-async function toggleAutoMode() {
-    if (internalAgent.value.execution_mode === 'autonomous') {
-        internalAgent.value.execution_mode = 'manual';
-        return;
+// Select a run mode (confirm before enabling an autonomous variant).
+async function selectRunMode(key) {
+    if (internalAgent.value.agent_run_mode === key) return;
+    if (isAutonomous(key)) {
+        const ok = await confirm({
+            title: 'Enable autonomous execution?',
+            message: 'This agent will choose and run tools automatically, including during scheduled runs. Risky actions are reviewed by the AI safety policy instead of waiting for your approval.',
+            confirmText: 'Enable',
+        });
+        if (!ok) return;
     }
-    const ok = await confirm({
-        title: 'Enable Auto Mode?',
-        message: 'This agent will choose and run tools automatically, including during scheduled runs. Risky actions are reviewed by the AI safety policy instead of waiting for your approval.',
-        confirmText: 'Enable Auto Mode',
-    });
-    if (ok) internalAgent.value.execution_mode = 'autonomous';
+    internalAgent.value.agent_run_mode = key;
 }
 
 // ── Approval Rules (Screen 18) — surface agent_policy.risk_ceiling as a simple select.

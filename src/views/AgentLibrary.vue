@@ -334,6 +334,7 @@ const duplicateAgent = async (agent) => {
             code_mode_enabled: full.code_mode_enabled,
             code_mode_services: full.code_mode_services || [],
             builder_mode_enabled: full.builder_mode_enabled,
+            agent_run_mode: full.agent_run_mode || 'manual',
             tool_ids: (full.tools || []).map(t => t.id),
         };
         const created = await api.post('/agents/', copy);

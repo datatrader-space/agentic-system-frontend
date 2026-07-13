@@ -425,7 +425,11 @@ async function load() {
 async function saveAgent(agentData) {
   try {
     saving.value = true
-    const dataToSave = agentData || agent.value
+    const dataToSave = { ...(agentData || agent.value) }
+    // Run mode is a single canonical field now — never send the retired two-field mode payload.
+    delete dataToSave.execution_mode
+    delete dataToSave.plan_mode_enabled
+    delete dataToSave.plan_approval_required
     let res
     if (dataToSave.id) {
       res = await api.patch(`/agents/${dataToSave.id}/`, dataToSave)

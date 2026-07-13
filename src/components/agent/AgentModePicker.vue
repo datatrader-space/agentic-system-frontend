@@ -33,12 +33,11 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import api from '../../services/api'
 import { confirm } from '../../composables/useConfirm'
-import { modeKey, modeLabel, modeDotClass, MODE_OPTIONS } from '../../composables/agentModes'
+import { modeKey, modeLabel, modeDotClass, MODE_OPTIONS, normalizeRunMode, isAutonomous } from '../../composables/agentModes'
 
 const props = defineProps({
   agentId: { type: [Number, String], default: null },
-  executionMode: { type: String, default: 'manual' },   // 'manual' | 'autonomous'
-  planMode: { type: Boolean, default: false },
+  runMode: { type: String, default: 'manual' },   // canonical agent_run_mode
   // 'down' (header use) or 'up' (composer bottom-bar use — opens above the button).
   placement: { type: String, default: 'down' },
 })
@@ -47,18 +46,16 @@ const emit = defineEmits(['change'])
 const open = ref(false)
 const saving = ref(false)
 const error = ref('')
-const mode = ref(props.executionMode || 'manual')
-const plan = ref(!!props.planMode)
+const mode = ref(normalizeRunMode(props.runMode))
 
-watch(() => props.executionMode, (v) => { mode.value = v || 'manual' })
-watch(() => props.planMode, (v) => { plan.value = !!v })
+watch(() => props.runMode, (v) => { mode.value = normalizeRunMode(v) })
 
-// The 4-mode ↔ (execution_mode, plan_mode_enabled) mapping lives in one pure module (agentModes.js)
-// so it stays the single source of truth and is unit-tested independently of this component.
-const isAuto = computed(() => mode.value === 'autonomous')
-const activeKey = computed(() => modeKey(mode.value, plan.value))
-const label = computed(() => modeLabel(mode.value, plan.value))
-const dotClass = computed(() => modeDotClass(mode.value, plan.value))
+// The 4 canonical run modes live in one pure module (agentModes.js) so it stays the single source
+// of truth and is unit-tested independently of this component.
+const isAuto = computed(() => isAutonomous(mode.value))
+const activeKey = computed(() => modeKey(mode.value))
+const label = computed(() => modeLabel(mode.value))
+const dotClass = computed(() => modeDotClass(mode.value))
 
 const options = computed(() => MODE_OPTIONS.map((o) => ({ ...o, active: o.key === activeKey.value })))
 
@@ -68,19 +65,18 @@ onMounted(async () => {
   try {
     const res = await api.getAgent(props.agentId)
     const a = res?.data || {}
-    if (a.execution_mode) mode.value = a.execution_mode
-    plan.value = !!a.plan_mode_enabled
+    if (a.agent_run_mode) mode.value = normalizeRunMode(a.agent_run_mode)
   } catch { /* keep prop values */ }
 })
 
 async function select(opt) {
   if (opt.active || saving.value || !props.agentId) { open.value = false; return }
   // Confirm before enabling autonomous execution.
-  if (opt.patch.execution_mode === 'autonomous') {
+  if (isAutonomous(opt.patch.agent_run_mode)) {
     const ok = await confirm({
-      title: 'Enable Auto Mode?',
+      title: 'Enable autonomous execution?',
       message: 'This agent will choose and run tools automatically, including during scheduled runs. Risky actions are reviewed by the AI safety policy instead of waiting for your approval.',
-      confirmText: 'Enable Auto Mode',
+      confirmText: 'Enable',
     })
     if (!ok) {
       open.value = false
@@ -90,8 +86,7 @@ async function select(opt) {
   saving.value = true; error.value = ''
   try {
     await api.updateAgent(props.agentId, opt.patch)
-    mode.value = opt.patch.execution_mode
-    plan.value = opt.patch.plan_mode_enabled
+    mode.value = opt.patch.agent_run_mode
     emit('change', { ...opt.patch })
     open.value = false
   } catch (e) {

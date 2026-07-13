@@ -17,11 +17,10 @@
 <script setup>
 import { computed } from 'vue'
 import { Sparkles, ShieldCheck } from 'lucide-vue-next'
+import { isAutonomous, isPlanReview } from '../../composables/agentModes'
 
 const props = defineProps({
-  executionMode: { type: String, default: 'manual' },
-  planModeEnabled: { type: Boolean, default: false },
-  planApprovalRequired: { type: Boolean, default: true },
+  runMode: { type: String, default: 'manual' },
   riskCeiling: { type: String, default: null },
   maxCostPerRun: { type: [Number, String], default: null },
   dailyBudget: { type: [Number, String], default: null },
@@ -37,20 +36,15 @@ function num(v) {
 const summary = computed(() => {
   const parts = []
 
-  // Execution mode
-  if (props.executionMode === 'autonomous') {
+  // Plan review (drafts a plan before acting)
+  if (isPlanReview(props.runMode)) {
+    parts.push(isAutonomous(props.runMode)
+      ? 'This agent drafts a plan that is reviewed automatically, then runs autonomously'
+      : 'This agent drafts a plan and waits for your approval before acting')
+  } else if (isAutonomous(props.runMode)) {
     parts.push('This agent runs tools automatically and resolves risky stops with the AI safety policy')
-  } else if (props.executionMode === 'assisted') {
-    parts.push('This agent works alongside you, pausing for confirmation on important steps')
   } else {
     parts.push('This agent asks for your approval before running any tool')
-  }
-
-  // Plan mode
-  if (props.planModeEnabled) {
-    parts.push(props.planApprovalRequired
-      ? 'it drafts a plan and waits for your approval before acting'
-      : 'it drafts a plan that is reviewed automatically before acting')
   }
 
   // Risk ceiling

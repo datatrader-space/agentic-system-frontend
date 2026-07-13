@@ -9,96 +9,119 @@
 
     <!-- ============ Knowledge Sources ============ -->
     <section class="mb-4 rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-      <h3 class="text-base font-semibold text-[#0F172A]">Knowledge Sources</h3>
-      <p class="mb-4 text-[13px] text-[#64748B]">Add and manage the knowledge your agent can use to answer questions and complete tasks.</p>
+      <h3 class="text-base font-semibold text-[#0F172A]">Knowledge &amp; Connectors</h3>
+      <p class="mb-4 text-[13px] text-[#64748B]">Attach knowledge bases and connectors your agent can use to answer questions and take action.</p>
 
-      <div class="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <!-- Uploaded Files -->
-        <div class="flex flex-col rounded-xl border border-[#E5E7EB] p-4">
-          <div class="mb-1 flex items-start justify-between">
-            <div class="flex items-start gap-2.5">
-              <span class="grid h-9 w-9 place-items-center rounded-[10px] bg-blue-50 text-blue-600"><FileText :size="18" :stroke-width="2" /></span>
-              <div>
-                <p class="text-[14px] font-semibold text-[#0F172A]">Uploaded Files</p>
-                <p class="text-[11.5px] text-[#667085]">Add PDFs, docs, spreadsheets, and more.</p>
-              </div>
-            </div>
-            <span class="badge bg-blue-50 text-blue-600">{{ files.length }} files</span>
+      <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <!-- Card 1: attach any of the user's Knowledge & RAG resources to this agent. Creation/upload
+           lives on the standalone Knowledge & RAG page; here the user only picks what to attach. -->
+      <div class="flex flex-col rounded-xl border border-[#E5E7EB] p-4">
+        <div class="mb-3 flex items-center justify-between gap-3 flex-wrap">
+          <div class="relative flex-1 min-w-[200px] max-w-md">
+            <Search :size="15" :stroke-width="2" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#98A2B3]" />
+            <input v-model="kbFilter" placeholder="Search your knowledge bases…"
+                   class="w-full rounded-lg border border-[#E5E7EB] bg-white py-2 pl-8 pr-3 text-[13px] focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
           </div>
-          <ul class="my-3 flex-1 space-y-2.5">
-            <li v-for="f in files.slice(0, 3)" :key="f.id" class="group flex items-center gap-2.5">
-              <FileType :size="16" :stroke-width="2" class="shrink-0 text-[#98A2B3]" />
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-[12.5px] font-medium text-[#0F172A]">{{ f.filename || f.name || 'file' }}</span>
-                <span class="block text-[11px] text-[#98A2B3]">{{ fileMeta(f) }}</span>
-              </span>
-              <button class="icon-x" @click="removeFile(f)"><X :size="13" :stroke-width="2" /></button>
-            </li>
-            <li v-if="!files.length" class="py-2 text-[12px] text-[#98A2B3]">No files yet.</li>
-          </ul>
-          <div class="mt-auto flex items-center justify-between border-t border-[#F2F4F7] pt-3">
-            <button class="view-link" @click="filesModalOpen = true">View all files <ChevronRight :size="13" :stroke-width="2" /></button>
-            <label class="add-btn"><Plus :size="13" :stroke-width="2" /> {{ uploading ? 'Uploading…' : 'Add Files' }}<input type="file" class="hidden" :disabled="uploading" @change="onUpload" /></label>
+          <div class="flex items-center gap-3">
+            <span class="text-[12px] font-semibold text-[#667085]">{{ attachedKsIds.length }} attached</span>
+            <router-link to="/dashboard/knowledge" class="text-[12px] font-semibold text-indigo-600 hover:text-indigo-700">
+              + Create / manage in Knowledge &amp; RAG →
+            </router-link>
           </div>
         </div>
 
-        <!-- URLs -->
-        <div class="flex flex-col rounded-xl border border-[#E5E7EB] p-4">
-          <div class="mb-1 flex items-start justify-between">
-            <div class="flex items-start gap-2.5">
-              <span class="grid h-9 w-9 place-items-center rounded-[10px] bg-emerald-50 text-emerald-600"><Globe :size="18" :stroke-width="2" /></span>
-              <div>
-                <p class="text-[14px] font-semibold text-[#0F172A]">URLs</p>
-                <p class="text-[11.5px] text-[#667085]">Add website links and online resources.</p>
-              </div>
-            </div>
-            <span class="badge bg-emerald-50 text-emerald-600">{{ webSources.length }} URLs</span>
-          </div>
-          <ul class="my-3 flex-1 space-y-2.5">
-            <li v-for="w in webSources.slice(0, 3)" :key="w.id" class="flex items-center gap-2.5">
-              <Link2 :size="16" :stroke-width="2" class="shrink-0 text-[#98A2B3]" />
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-[12.5px] font-medium text-[#0F172A]">{{ w.url || w.root_url || 'url' }}</span>
-                <span class="block text-[11px] text-[#98A2B3]">{{ urlMeta(w) }}</span>
-              </span>
-              <button v-if="WS_INDEXING.has(w.status)" class="icon-x text-amber-500 hover:text-amber-600" title="Stop crawling &amp; indexing" @click="cancelUrl(w)"><Ban :size="14" :stroke-width="2" /></button>
-              <button class="icon-x" :title="WS_INDEXING.has(w.status) ? 'Remove (deletes the source)' : 'Remove'" @click="removeUrl(w)"><X :size="13" :stroke-width="2" /></button>
-            </li>
-            <li v-if="!webSources.length" class="py-2 text-[12px] text-[#98A2B3]">No URLs yet.</li>
-          </ul>
-          <div class="mt-auto flex items-center justify-between border-t border-[#F2F4F7] pt-3">
-            <button class="view-link" @click="urlsModalOpen = true">View all URLs <ChevronRight :size="13" :stroke-width="2" /></button>
-            <button class="add-btn" @click="openAddWebsite"><Plus :size="13" :stroke-width="2" /> Add URL</button>
-          </div>
+        <div v-if="userKbLoading" class="py-10 text-center text-[12.5px] text-[#98A2B3]">Loading your knowledge…</div>
+        <div v-else-if="!filteredUserKb.length" class="py-10 text-center">
+          <Database :size="26" :stroke-width="1.5" class="mx-auto text-[#CBD5E1]" />
+          <p class="mt-2 text-[13px] font-semibold text-[#475467]">{{ userKbResources.length ? 'No matches' : 'No knowledge bases yet' }}</p>
+          <router-link to="/dashboard/knowledge" class="mt-1 inline-block text-[12px] font-semibold text-indigo-600 hover:text-indigo-700">
+            {{ userKbResources.length ? '' : 'Create your first knowledge base →' }}
+          </router-link>
         </div>
 
-        <!-- Memory Sources -->
-        <div class="flex flex-col rounded-xl border border-[#E5E7EB] p-4">
-          <div class="mb-1 flex items-start justify-between">
-            <div class="flex items-start gap-2.5">
-              <span class="grid h-9 w-9 place-items-center rounded-[10px] bg-amber-50 text-amber-600"><Database :size="18" :stroke-width="2" /></span>
-              <div>
-                <p class="text-[14px] font-semibold text-[#0F172A]">Memory Sources</p>
-                <p class="text-[11.5px] text-[#667085]">Use existing memories and knowledge bases.</p>
+        <ul v-else class="divide-y divide-[#F2F4F7]">
+          <li v-for="r in pagedUserKb" :key="r.id" class="flex items-center gap-3 py-2.5">
+            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg"
+                  :class="r.kind === 'website' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'">
+              <Globe v-if="r.kind === 'website'" :size="15" :stroke-width="2" />
+              <FileText v-else :size="15" :stroke-width="2" />
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-[13px] font-medium text-[#0F172A]" :title="r.name">{{ r.name }}</div>
+              <div class="truncate text-[11px] text-[#98A2B3]">
+                {{ r.kind }} · {{ r.chunk_count }} chunks<template v-if="r.status"> · {{ r.status }}</template>
               </div>
             </div>
-            <span class="badge bg-amber-50 text-amber-600">{{ memorySources.length }} sources</span>
+            <button @click="toggleAttach(r)" :disabled="ksSaving"
+                    class="shrink-0 rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition disabled:opacity-50"
+                    :class="isAttached(r.id) ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                             : 'border-indigo-200 bg-white text-indigo-600 hover:bg-indigo-50'">
+              {{ isAttached(r.id) ? '✓ Attached' : 'Attach' }}
+            </button>
+          </li>
+        </ul>
+        <div v-if="!userKbLoading && filteredUserKb.length && kbTotalPages > 1"
+             class="mt-2 flex items-center justify-end gap-2 text-[12px] text-[#667085]">
+          <button @click="kbPage > 1 && kbPage--" :disabled="kbPage <= 1"
+                  class="h-7 w-7 grid place-items-center rounded-lg border border-[#E5E7EB] text-[#475467] hover:bg-[#F8FAFC] disabled:opacity-40">←</button>
+          <span>Page {{ kbPage }} of {{ kbTotalPages }}</span>
+          <button @click="kbPage < kbTotalPages && kbPage++" :disabled="kbPage >= kbTotalPages"
+                  class="h-7 w-7 grid place-items-center rounded-lg border border-[#E5E7EB] text-[#475467] hover:bg-[#F8FAFC] disabled:opacity-40">→</button>
+        </div>
+        <p class="mt-auto border-t border-[#F2F4F7] pt-3 text-[11.5px] text-[#98A2B3]">
+          Attaching is by reference — updates to a knowledge base reflect on every agent using it. Memories are captured automatically.
+        </p>
+      </div>
+
+      <!-- Card 2: Connectors — assign a connected connector; ALL its tools are added to this agent. -->
+      <div class="flex flex-col rounded-xl border border-[#E5E7EB] p-4">
+        <div class="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p class="text-[14px] font-semibold text-[#0F172A]">Connectors</p>
+            <p class="text-[11.5px] text-[#64748B]">Assign a connector — its tools are added to this agent. Click <strong>Assign</strong> again to unassign.</p>
           </div>
-          <ul class="my-3 flex-1 space-y-2.5">
-            <li v-for="m in memorySources.slice(0, 3)" :key="m.id" class="flex items-center gap-2.5">
-              <BarChart3 :size="16" :stroke-width="2" class="shrink-0 text-[#98A2B3]" />
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-[12.5px] font-medium text-[#0F172A]">{{ m.name }}</span>
-                <span class="block text-[11px] text-[#98A2B3]">{{ m.meta }}</span>
-              </span>
-            </li>
-            <li v-if="!memorySources.length" class="py-2 text-[12px] text-[#98A2B3]">Memories are captured automatically.</li>
-          </ul>
-          <div class="mt-auto flex items-center justify-between border-t border-[#F2F4F7] pt-3">
-            <button class="view-link" @click="sourcesModalOpen = true">View all sources <ChevronRight :size="13" :stroke-width="2" /></button>
-            <button class="add-btn" @click="openSourcePicker"><Plus :size="13" :stroke-width="2" /> Add Source</button>
+          <button class="btn-outline shrink-0" @click="openConnectorsHub"><Link2 :size="15" :stroke-width="2" /> Manage</button>
+        </div>
+
+        <p v-if="connectorsLoading" class="py-8 text-center text-[12px] text-[#98A2B3]">Loading connectors…</p>
+        <div v-else-if="connectorsError" class="rounded-xl border border-dashed border-red-200 bg-red-50/60 px-4 py-4 text-center">
+          <p class="text-[12.5px] font-medium text-red-600">Couldn't load connectors: {{ connectorsError }}</p>
+          <button class="mt-2 rounded-lg bg-white px-3 py-1.5 text-[12px] font-semibold text-[#344054] border border-[#E5E7EB]" @click="loadConnectors">Retry</button>
+        </div>
+        <div v-else-if="!connectors.length" class="flex-1 rounded-xl border border-dashed border-[#E5E7EB] bg-[#F8FAFC] px-4 py-8 text-center">
+          <p class="text-[13px] font-medium text-[#475569]">No connected connectors yet</p>
+          <button class="mt-2 rounded-lg bg-[#EEF2FF] px-3 py-1.5 text-[12px] font-semibold text-[#4338CA]" @click="openConnectorsHub">Browse &amp; connect</button>
+        </div>
+        <div v-else class="flex-1">
+          <div class="space-y-2">
+            <div v-for="c in displayedConnectors" :key="c.kind + ':' + c.id"
+                 class="flex items-center gap-3 rounded-xl border border-[#E5E7EB] px-3.5 py-2.5">
+              <ToolIcon :name="String(c.slug || c.name || c.id || '')" :group="String(c.slug || c.id || c.name || '')" :size="30" :inner="16" />
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-[13px] font-semibold text-[#0F172A]">{{ c.name }}</p>
+                <p class="text-[11px] text-[#98A2B3]">
+                  {{ connectorKindLabel(c) }} · {{ connectorTools(c).length }} tools
+                  <span v-if="!connectorTools(c).length" class="text-amber-500">(none synced yet)</span>
+                </p>
+              </div>
+              <button type="button" :disabled="!connectorTools(c).length" @click="toggleConnector(c)"
+                      :class="['rounded-lg px-3 py-1.5 text-[12px] font-semibold transition',
+                               connectorAssigned(c) ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                                                    : 'border border-[#E5E7EB] bg-white text-[#344054] hover:bg-[#F8FAFC]',
+                               !connectorTools(c).length ? 'opacity-50 !cursor-not-allowed' : '']">
+                {{ connectorAssigned(c) ? '✓ Assigned' : 'Assign' }}
+              </button>
+            </div>
+          </div>
+          <div v-if="connTotalPages > 1" class="mt-2 flex items-center justify-end gap-2 text-[12px] text-[#667085]">
+            <button @click="connPage > 1 && connPage--" :disabled="connPage <= 1"
+                    class="h-7 w-7 grid place-items-center rounded-lg border border-[#E5E7EB] text-[#475467] hover:bg-[#F8FAFC] disabled:opacity-40">←</button>
+            <span>Page {{ connPage }} of {{ connTotalPages }}</span>
+            <button @click="connPage < connTotalPages && connPage++" :disabled="connPage >= connTotalPages"
+                    class="h-7 w-7 grid place-items-center rounded-lg border border-[#E5E7EB] text-[#475467] hover:bg-[#F8FAFC] disabled:opacity-40">→</button>
           </div>
         </div>
+      </div>
       </div>
     </section>
 
@@ -141,54 +164,6 @@
           </div>
         </div>
         <p v-if="!toolGroups.length" class="text-[13px] text-[#667085]">No tools available.</p>
-      </div>
-
-      <!-- Connectors — assign a connected connector; ALL its tools are added to this agent. -->
-      <div class="mt-5 border-t border-[#F2F4F7] pt-4">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <h4 class="text-[14px] font-semibold text-[#0F172A]">Connectors</h4>
-            <p class="text-[12.5px] text-[#64748B]">Assign a connected connector — its tools are added to this agent. Click <strong>Assign</strong> again to unassign.</p>
-          </div>
-          <button class="btn-outline" @click="openConnectorsHub"><Link2 :size="15" :stroke-width="2" /> Manage Connectors</button>
-        </div>
-
-        <p v-if="connectorsLoading" class="mt-3 text-[12px] text-[#98A2B3]">Loading connectors…</p>
-        <div v-else-if="connectorsError" class="mt-3 rounded-xl border border-dashed border-red-200 bg-red-50/60 px-4 py-4 text-center">
-          <p class="text-[12.5px] font-medium text-red-600">Couldn't load connectors: {{ connectorsError }}</p>
-          <button class="mt-2 rounded-lg bg-white px-3 py-1.5 text-[12px] font-semibold text-[#344054] border border-[#E5E7EB]" @click="loadConnectors">Retry</button>
-        </div>
-        <div v-else-if="!connectors.length" class="mt-3 rounded-xl border border-dashed border-[#E5E7EB] bg-[#F8FAFC] px-4 py-5 text-center">
-          <p class="text-[13px] font-medium text-[#475569]">No connected connectors yet</p>
-          <button class="mt-2 rounded-lg bg-[#EEF2FF] px-3 py-1.5 text-[12px] font-semibold text-[#4338CA]" @click="openConnectorsHub">Browse &amp; connect</button>
-        </div>
-        <div v-else class="mt-3">
-          <div :class="['space-y-2', showAllConnectors ? 'max-h-72 overflow-y-auto pr-1' : '']">
-            <div v-for="c in displayedConnectors" :key="c.kind + ':' + c.id"
-                 class="flex items-center gap-3 rounded-xl border border-[#E5E7EB] px-3.5 py-2.5">
-              <ToolIcon :name="String(c.slug || c.name || c.id || '')" :group="String(c.slug || c.id || c.name || '')" :size="30" :inner="16" />
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-[13px] font-semibold text-[#0F172A]">{{ c.name }}</p>
-                <p class="text-[11px] text-[#98A2B3]">
-                  {{ connectorKindLabel(c) }} · {{ connectorTools(c).length }} tools
-                  <span v-if="!connectorTools(c).length" class="text-amber-500">(none synced yet)</span>
-                </p>
-              </div>
-              <button type="button" :disabled="!connectorTools(c).length" @click="toggleConnector(c)"
-                      :class="['rounded-lg px-3 py-1.5 text-[12px] font-semibold transition',
-                               connectorAssigned(c) ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                                                    : 'border border-[#E5E7EB] bg-white text-[#344054] hover:bg-[#F8FAFC]',
-                               !connectorTools(c).length ? 'opacity-50 !cursor-not-allowed' : '']">
-                {{ connectorAssigned(c) ? '✓ Assigned' : 'Assign' }}
-              </button>
-            </div>
-          </div>
-          <button v-if="connectors.length > 5" type="button" class="view-link mt-2" @click="showAllConnectors = !showAllConnectors">
-            {{ showAllConnectors ? 'Show less' : `Show ${connectors.length - 5} more` }}
-          </button>
-          <p class="mt-2 text-[11px] text-[#98A2B3]">Fine-tune per-tool approval on the
-            <button type="button" class="font-semibold text-[#4F46E5] hover:underline" @click="openConnectorsHub">Connectors page</button>.</p>
-        </div>
       </div>
 
     </section>
@@ -624,7 +599,7 @@ function onWebsiteDiscarded() { loadUrls() }
 function onDocAdded() { connectKbWs(); loadFiles() }
 function openPages(w) { pagesModalSource.value = w }
 async function reindexUrl(w) {
-  try { await api.reindexWebSource(w.id); notify.success('Re-indexing started'); connectKbWs(); loadUrls() } catch (e) { notify.error('Could not re-index') }
+  try { await api.reindexWebSource(w.id); notify.success('Re-indexing started'); connectKbWs(); loadUrls() } catch (e) { notify.error(e.response?.data?.error || 'Could not re-index') }
 }
 async function cancelUrl(w) {
   try { await api.cancelWebSource(w.id); notify.success('Cancelled'); loadUrls() } catch (e) { notify.error('Could not cancel') }
@@ -775,6 +750,57 @@ async function saveKsIds(next) {
   props.agent.knowledge_source_ids = next
 }
 
+// ── User Knowledge & RAG resources (the single "attach" card) ──
+// Lists the user's standalone KB resources (files + websites) from /api/knowledge/. Attaching adds the
+// resource's KnowledgeSource id to the agent's knowledge_source_ids (reference, no chunk copy).
+const userKbResources = ref([])
+const userKbLoading = ref(true)
+const kbFilter = ref('')
+const ksSaving = ref(false)
+
+const filteredUserKb = computed(() => {
+  const t = kbFilter.value.trim().toLowerCase()
+  if (!t) return userKbResources.value
+  return userKbResources.value.filter(r =>
+    (r.name || '').toLowerCase().includes(t) || (r.root_url || '').toLowerCase().includes(t))
+})
+const KB_PAGE_SIZE = 5
+const kbPage = ref(1)
+const kbTotalPages = computed(() => Math.max(1, Math.ceil(filteredUserKb.value.length / KB_PAGE_SIZE)))
+const pagedUserKb = computed(() =>
+  filteredUserKb.value.slice((kbPage.value - 1) * KB_PAGE_SIZE, kbPage.value * KB_PAGE_SIZE))
+watch(kbFilter, () => { kbPage.value = 1 })
+watch(kbTotalPages, (tp) => { if (kbPage.value > tp) kbPage.value = tp })
+function isAttached(id) { return attachedKsIds.value.includes(id) }
+
+async function loadUserKb() {
+  userKbLoading.value = true
+  try {
+    const r = await api.listKnowledge()
+    userKbResources.value = r.data?.resources || []
+  } catch (e) {
+    userKbResources.value = []
+  } finally {
+    userKbLoading.value = false
+  }
+}
+
+async function toggleAttach(r) {
+  ensureKsIds()
+  ksSaving.value = true
+  const wasAttached = isAttached(r.id)
+  const cur = [...attachedKsIds.value]
+  const next = wasAttached ? cur.filter(x => x !== r.id) : [...cur, r.id]
+  try {
+    await saveKsIds(next)
+    notify.success(wasAttached ? `Detached “${r.name}”` : `Attached “${r.name}”`)
+  } catch (e) {
+    notify.error('Could not update attachment')
+  } finally {
+    ksSaving.value = false
+  }
+}
+
 // ── Live indexing WebSocket (files + web sources), unified per agent ──
 const kbWs = ref(null)
 function kbWsUrl(id) {
@@ -870,7 +896,12 @@ const showHub = ref(false)           // IntegrationHubModal open state
 const connectorsLoading = ref(false)
 const connectorsError = ref('')
 const showAllConnectors = ref(false)
-const displayedConnectors = computed(() => showAllConnectors.value ? connectors.value : connectors.value.slice(0, 5))
+const CONN_PAGE_SIZE = 5
+const connPage = ref(1)
+const connTotalPages = computed(() => Math.max(1, Math.ceil(connectors.value.length / CONN_PAGE_SIZE)))
+const displayedConnectors = computed(() =>
+  connectors.value.slice((connPage.value - 1) * CONN_PAGE_SIZE, connPage.value * CONN_PAGE_SIZE))
+watch(connTotalPages, (tp) => { if (connPage.value > tp) connPage.value = tp })
 async function loadConnectors() {
   connectorsLoading.value = true
   connectorsError.value = ''
@@ -1047,7 +1078,7 @@ function disableAllModalTools() {
   props.agent.tool_ids = props.agent.tool_ids.filter(id => !remove.has(id))
 }
 
-onMounted(() => { loadFiles(); loadUrls(); loadTools(); loadKbCost(); loadAttachedSources(); loadSharedSources(); ensureKsIds(); connectKbWs(); loadConnectors() })
+onMounted(() => { loadFiles(); loadUrls(); loadTools(); loadKbCost(); loadAttachedSources(); loadSharedSources(); loadUserKb(); ensureKsIds(); connectKbWs(); loadConnectors() })
 // The agent prop can populate AFTER mount (parent fetches it async) — (re)connect the WS + reload the
 // per-agent data when the id first becomes available, mirroring the legacy builder.
 watch(agentId, (id, prev) => {

@@ -44,6 +44,7 @@ import {
   ChevronRight, Target, BookOpen, Wrench, KeyRound, ShieldCheck, FlaskConical,
 } from 'lucide-vue-next'
 import StatusBadge from '../dashboard/StatusBadge.vue'
+import { modeLabel, isPlanReview } from '../../composables/agentModes'
 
 const props = defineProps({
   agent: { type: Object, default: () => ({}) },
@@ -64,10 +65,7 @@ const knowledgeCount = computed(() =>
   Array.isArray(props.agent?.knowledge_files) ? props.agent.knowledge_files.length : 0,
 )
 
-const autonomyLabel = computed(() => {
-  const mode = props.agent?.execution_mode || 'manual'
-  return mode.charAt(0).toUpperCase() + mode.slice(1)
-})
+const autonomyLabel = computed(() => modeLabel(props.agent?.agent_run_mode))
 
 const lastTestValue = computed(() => {
   if (!props.lastTest) return 'Not tested yet'
@@ -123,7 +121,7 @@ const cards = computed(() => [
     icon: ShieldCheck,
     tint: 'bg-indigo-50 text-indigo-600',
     value: autonomyLabel.value,
-    sub: props.agent?.plan_mode_enabled ? 'Plan mode on' : 'Direct execution',
+    sub: isPlanReview(props.agent?.agent_run_mode) ? 'Plan review on' : 'Direct execution',
     to: `${configureBase.value}?step=autonomy`,
   },
   {

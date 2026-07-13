@@ -402,7 +402,7 @@ export default {
   // Agents
   getAgents: () => api.get('/agents/'),
   getAgent: (id) => api.get(`/agents/${id}/`),
-  // Update agent fields (used by the chat Modes picker to persist execution_mode / plan_mode).
+  // Update agent fields (used by the chat Modes picker to persist the canonical agent_run_mode).
   updateAgent: (id, data) => api.patch(`/agents/${id}/`, data),
 
   // Authentication
@@ -717,6 +717,22 @@ export default {
   indexAgentFile: (fileId) => api.post(`/context_files/${fileId}/index/`),
   // Poll fallback for index status (WS push is primary).
   getAgentFileStatus: (fileId) => api.get(`/context_files/${fileId}/status/`),
+  // ── Standalone user-scoped Knowledge & RAG (KnowledgeSource-backed, assignable to any agent) ──
+  listKnowledge: (scope) => api.get('/knowledge/', { params: scope ? { scope } : {} }),
+  getKnowledge: (id) => api.get(`/knowledge/${id}/`),
+  deleteKnowledge: (id) => api.delete(`/knowledge/${id}/`),
+  uploadKnowledgeFile: (file, name) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    if (name) fd.append('name', name);
+    return api.post('/knowledge/', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  // Website resource: reuses the SAME crawl pipeline as the agent editor, anchored to a KnowledgeSource.
+  crawlKnowledgeWebsite: (data) => api.post('/web_sources/discover/', { ...data, standalone: true }),
+  exportKnowledge: (id) => api.get(`/knowledge/${id}/export/`, { responseType: 'blob' }),
+  // List the current user's assignable KnowledgeSources for the agent editor picker.
+  listUserKnowledgeSources: () => api.get('/knowledge/'),
+
   // ── Website knowledge sources (crawl → index → RAG). Live progress on the knowledge-index WS. ──
   discoverWebSource: (data) => api.post('/web_sources/discover/', data),
   getWebSource: (id) => api.get(`/web_sources/${id}/`),

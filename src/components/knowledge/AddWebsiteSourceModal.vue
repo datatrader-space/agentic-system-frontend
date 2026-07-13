@@ -12,7 +12,7 @@
 
       <div class="px-6 py-5 space-y-5">
         <!-- Unsaved-agent hint: the source attaches to the agent, which must exist first. -->
-        <div v-if="!agentId" class="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        <div v-if="!agentId && !standalone" class="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           Tip: give your agent a name + system prompt so it saves automatically — then this website attaches to it.
         </div>
 
@@ -97,7 +97,9 @@
           <!-- Single document / YouTube link (unified MarkItDown pipeline). Independent of the
                website crawl above: adds ONE page/document/video, converts + indexes it directly. -->
           <div class="rounded-lg border border-slate-200 bg-slate-50/60 px-3.5 py-3">
-            <AddDocumentUrl :agent-id="agentId" scope="agent_knowledge" @added="onDocAdded" />
+            <AddDocumentUrl :agent-id="standalone ? null : agentId" scope="agent_knowledge"
+                            :standalone="standalone" :knowledge-source-id="ksId"
+                            @added="onDocAdded" />
           </div>
         </template>
 
@@ -168,12 +170,28 @@ import api from '../../services/api'
 import { notify } from '../../composables/useNotify'
 import AddDocumentUrl from './AddDocumentUrl.vue'
 
-const props = defineProps({ agentId: { type: [Number, String], default: null } })
+const props = defineProps({
+  agentId: { type: [Number, String], default: null },
+  // Standalone user Knowledge & RAG: crawl anchors to a user KnowledgeSource instead of an agent.
+  standalone: { type: Boolean, default: false },
+})
 const emit = defineEmits(['close', 'added', 'discarded', 'doc-added'])
+
+// In standalone mode the first discover creates a user KnowledgeSource; reuse its id for any further
+// discover/URL adds in this modal session so everything lands in the SAME resource.
+const ksId = ref(null)
+function _sourceScope(extra = {}) {
+  if (props.standalone) return ksId.value ? { knowledge_source_id: ksId.value, ...extra }
+                                          : { standalone: true, ...extra }
+  return { agent_id: props.agentId, ...extra }
+}
 
 // A single document/YouTube URL was queued (converts + indexes on its own) — bubble up so the
 // parent refreshes its Files list. The modal stays open so the user can add more or a website.
-function onDocAdded(src) { emit('doc-added', src) }
+function onDocAdded(src) {
+  if (src && src.knowledge_source_id) ksId.value = src.knowledge_source_id
+  emit('doc-added', src)
+}
 
 const mode = ref('full_site')
 const url = ref('')
@@ -276,11 +294,12 @@ async function discover() {
   busy.value = true
   connectProgressWs()                 // subscribe before kicking off so we don't miss early pages
   try {
-    const r = await api.discoverWebSource({
-      agent_id: props.agentId, url: url.value.trim(), mode: mode.value,
+    const r = await api.discoverWebSource(_sourceScope({
+      url: url.value.trim(), mode: mode.value,
       render_js: renderJs.value, max_pages: maxPages.value, max_depth: maxDepth.value,
-    })
+    }))
     sourceId.value = r.data.id
+    if (r.data.knowledge_source_id) ksId.value = r.data.knowledge_source_id
     await pollUntilDiscovered()
   } catch (e) {
     error.value = e.response?.data?.error || e.message || 'Discovery failed'
@@ -327,10 +346,11 @@ async function addManual() {
   error.value = ''
   busy.value = true
   try {
-    const r = await api.discoverWebSource({
-      agent_id: props.agentId, mode: 'specific_pages', urls: manualLines.value,
-    })
+    const r = await api.discoverWebSource(_sourceScope({
+      mode: 'specific_pages', urls: manualLines.value,
+    }))
     sourceId.value = r.data.id
+    if (r.data.knowledge_source_id) ksId.value = r.data.knowledge_source_id
     // specific_pages finishes discovery quickly; poll then add all.
     for (let i = 0; i < 30; i++) {
       const s = (await api.getWebSource(sourceId.value)).data

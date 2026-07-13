@@ -27,7 +27,9 @@ describe('useChatStore — attachments', () => {
     chat.addAttachments([imgFile('pic.png'), txtFile('notes.txt')])
     expect(chat.pendingAttachments).toHaveLength(2)
     expect(chat.pendingAttachments[0]).toMatchObject({ name: 'pic.png', isImage: true, url: 'blob:x' })
-    expect(chat.pendingAttachments[1]).toMatchObject({ name: 'notes.txt', isImage: false, url: '' })
+    // addAttachments intentionally blob-URLs EVERY file (not just images) so the message bubble can
+    // open a preview/download for docs too (useChatStore.addAttachments). So a .txt also gets a url.
+    expect(chat.pendingAttachments[1]).toMatchObject({ name: 'notes.txt', isImage: false, url: 'blob:x' })
   })
 
   it('removeAttachment drops the right one', () => {

@@ -15,7 +15,7 @@
             <!-- Right: Actions -->
             <div class="flex items-center gap-2 flex-shrink-0">
                 <AgentModePicker v-if="agent.id" :agent-id="agent.id"
-                    :execution-mode="agent.execution_mode" :plan-mode="agent.plan_mode_enabled" />
+                    :run-mode="agent.agent_run_mode" />
                 <button v-if="agent.id && isOwner" @click="toggleWorkspace"
                     class="h-9 px-3 rounded-lg border transition-all flex items-center gap-2 group text-xs font-semibold"
                     :class="showWorkspace ? 'bg-blue-50 border-blue-200 text-blue-600' : wsRouting?.routed ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'"
@@ -2210,7 +2210,11 @@ const fetchAgent = async (id) => {
 const saveAgent = async (agentData) => {
     try {
         saving.value = true;
-        const dataToSave = agentData || agent.value;
+        const dataToSave = { ...(agentData || agent.value) };
+        // Run mode is a single canonical field now — never send the retired two-field mode payload.
+        delete dataToSave.execution_mode;
+        delete dataToSave.plan_mode_enabled;
+        delete dataToSave.plan_approval_required;
         let res;
         if (dataToSave.id) {
             res = await api.patch(`/agents/${dataToSave.id}/`, dataToSave);

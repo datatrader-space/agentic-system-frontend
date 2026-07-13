@@ -27,7 +27,6 @@
           <span v-if="liveTokens.estimated" class="text-emerald-500 text-[10px]">▲</span>
         </span>
       </div>
-      <PlanChecklist v-if="plan" :plan="plan" :done="planDone" :running="true" />
       <ActivityStep v-for="s in activity.steps" :key="s.id" :step="s" />
     </div>
 
@@ -40,7 +39,6 @@
         <svg class="w-3.5 h-3.5 ml-auto text-gray-400 transition-transform" :class="{ 'rotate-180': expanded }" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4Z" clip-rule="evenodd"/></svg>
       </button>
       <div v-if="expanded" class="px-3 pb-2 pt-1 border-t border-gray-100">
-        <PlanChecklist v-if="plan" :plan="plan" :done="planDone" />
         <ActivityStep v-for="s in activity.steps" :key="s.id" :step="s" />
       </div>
     </div>
@@ -53,7 +51,6 @@ import { activitySummary } from '../../composables/activityStream'
 import { fmtTokens } from '../../composables/tokens'
 import { useClock } from '../../composables/useClock'
 import ActivityStep from './ActivityStep.vue'
-import PlanChecklist from './PlanChecklist.vue'
 
 const props = defineProps({
   activity: { type: Object, default: null },

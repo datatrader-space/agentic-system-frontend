@@ -1,5 +1,15 @@
 <template>
   <div ref="rootEl" class="composer-shell">
+    <!-- Canvas click-to-select: the element your next message will edit. -->
+    <div v-if="canvas.selectedElement" class="cv-sel-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7 18 2-7 7-2z" stroke-linejoin="round"/></svg>
+      <span v-if="canvas.selectedElement.provider === 'web_builder'">Editing <strong>{{ canvas.selectedElement.tag ? '<' + canvas.selectedElement.tag + '>' : canvas.selectedElement.element_id }}</strong>
+        <em v-if="canvas.selectedElement.label">{{ canvas.selectedElement.label }}</em></span>
+      <span v-else>Editing <strong>&lt;{{ canvas.selectedElement.tag }}&gt;</strong>
+        <em v-if="canvas.selectedElement.label">{{ canvas.selectedElement.label }}</em></span>
+      <button type="button" class="cv-sel-banner-x" title="Clear selection" @click="canvas.clearSelection()">×</button>
+    </div>
+
     <!-- Staged attachments (images/files) to send with the next message -->
     <div v-if="attachments.length" class="attach-strip">
       <div v-for="(a, i) in attachments" :key="i" class="attach-chip">
@@ -70,6 +80,16 @@
                   <small>Paste a webpage or YouTube video link.</small>
                 </span>
               </button>
+              <button type="button" class="plus-item" role="menuitem" data-test="plus-canvas"
+                      :class="{ 'is-on': canvasMode }" @click="toggleCanvasFromMenu">
+                <span class="plus-ic">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9" stroke-linecap="round"/></svg>
+                </span>
+                <span class="plus-txt">
+                  <strong>Design in Canvas <span v-if="canvasMode" class="plus-on-tag">On</span></strong>
+                  <small>Build a web page — the agent renders a live preview in a side panel.</small>
+                </span>
+              </button>
             </div>
 
             <!-- URL/YouTube importer (conversation-scoped DocumentSource → MarkItDown pipeline). -->
@@ -78,8 +98,18 @@
             </div>
           </div>
 
-          <AgentModePicker v-if="agentId" :agent-id="agentId" :execution-mode="executionMode"
-                           :plan-mode="planMode" placement="up" @change="$emit('mode-change', $event)" />
+          <AgentModePicker v-if="agentId" :agent-id="agentId" :run-mode="runMode"
+                           placement="up" @change="$emit('mode-change', $event)" />
+
+          <!-- Sticky Canvas-mode chip (toggle lives in the "+" menu; × turns it off). -->
+          <span v-if="canvasMode" class="canvas-chip" title="Canvas mode on — designs open in the live preview">
+            <span class="canvas-chip-body" title="Open the live preview" @click="canvas.show()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9" stroke-linecap="round"/></svg>
+              <span>Canvas</span>
+            </span>
+            <button type="button" class="canvas-chip-x" title="Turn off Canvas mode" aria-label="Turn off Canvas mode"
+                    @click.stop="canvas.setMode(false)">×</button>
+          </span>
         </div>
 
         <!-- While the agent runs: empty input → Stop; typed input → Send (queues as mid-run steering). -->
@@ -99,11 +129,26 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import AgentModePicker from '../agent/AgentModePicker.vue'
 import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import { useSpeech } from '../../composables/useSpeech'
 import { notify } from '../../composables/useNotify'
+import { useCanvasStore } from '../../stores/useCanvasStore'
+
+const canvas = useCanvasStore()
+// Canvas mode lives in the canvas store (single source of truth so the chat store can read it when
+// sending). When on, the agent renders designs into the live preview and the backend auto-exposes
+// GENERATE_STATIC_PAGE for the turn.
+const canvasMode = computed(() => canvas.mode)
+const toggleCanvas = () => { canvas.setMode(!canvas.mode) }
+const toggleCanvasFromMenu = () => {
+  toggleCanvas()
+  closeMenu()
+  notify.info(canvas.mode
+    ? 'Canvas mode on — the agent will design in a live preview panel.'
+    : 'Canvas mode off.')
+}
 
 // Long pasted text becomes a .txt attachment instead of a giant inline blob (which would bloat the
 // prompt and can't be retrieved/cited). Threshold is intentionally generous — normal messages,
@@ -117,8 +162,7 @@ const props = defineProps({
   attachments: { type: Array, default: () => [] },
   // Agent + mode (so the mode pill lives inside the composer, Claude-style).
   agentId: { type: [Number, String], default: null },
-  executionMode: { type: String, default: 'manual' },
-  planMode: { type: Boolean, default: false },
+  runMode: { type: String, default: 'manual' },
   // Conversation id — required to attach a URL/YouTube link (conversation-scoped DocumentSource).
   conversationId: { type: [Number, String], default: null },
 })
@@ -264,6 +308,9 @@ const onSubmit = () => {
   if (!text && props.attachments.length === 0) return
   // While the agent is running, only TEXT is accepted (queued as steering) — no attachment-only sends.
   if (props.streaming && !text) return
+  // Canvas mode is signalled to the backend via the `canvas_mode` flag on the WS message (which
+  // auto-exposes GENERATE_STATIC_PAGE + injects the render nudge server-side) — NOT by mangling the
+  // user's visible text.
   emit('send', text)
   reset()
 }
@@ -318,7 +365,32 @@ const onKeydown = (e) => {
 
 /* bottom toolbar */
 .composer-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cv-sel-banner { display: flex; align-items: center; gap: 7px; margin: 0 auto 6px; max-width: 760px; padding: 6px 12px; border: 1px solid var(--vm-violet, #c4b5fd); background: var(--vm-violet-soft, #f5f3ff); color: var(--vm-violet, #6d28d9); border-radius: 10px; font-size: 0.78rem; font-weight: 600; }
+.cv-sel-banner svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.cv-sel-banner em { font-style: normal; font-weight: 500; opacity: .8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cv-sel-banner-x { margin-left: auto; width: 20px; height: 20px; display: inline-grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--vm-violet, #6d28d9); font-size: 15px; cursor: pointer; flex: 0 0 auto; }
+.cv-sel-banner-x:hover { background: rgba(109,40,217,.14); }
+
 .bar-left { display: flex; align-items: center; gap: 6px; }
+
+.canvas-chip {
+  display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0;
+  height: 32px; padding: 0 4px 0 10px;
+  background: var(--vm-violet-soft, #f5f3ff); border: 1px solid var(--vm-violet, #c4b5fd); border-radius: 10px;
+  color: var(--vm-violet, #6d28d9); font-size: 0.78rem; font-weight: 600;
+}
+.canvas-chip-body { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.canvas-chip-body:hover { filter: brightness(0.96); }
+.canvas-chip svg { width: 15px; height: 15px; }
+.canvas-chip-x {
+  display: inline-grid; place-items: center; width: 20px; height: 20px; margin-left: 2px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--vm-violet, #6d28d9);
+  font-size: 16px; line-height: 1; cursor: pointer;
+}
+.canvas-chip-x:hover { background: rgba(109, 40, 217, .14); }
+/* "+" menu Canvas item on-state */
+.plus-item.is-on { background: var(--vm-violet-soft, #f5f3ff); }
+.plus-on-tag { margin-left: 6px; padding: 0 6px; border-radius: 9999px; background: var(--vm-violet, #6d28d9); color: #fff; font-size: 0.6rem; font-weight: 700; vertical-align: middle; }
 
 .ghost-btn {
   display: flex; align-items: center; justify-content: center;

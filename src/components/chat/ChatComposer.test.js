@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { setActivePinia, createPinia } from 'pinia'
 
 const { notify } = vi.hoisted(() => ({
   notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
@@ -39,6 +40,8 @@ const dispatchPaste = async (w, { text = '', files = [] } = {}) => {
 }
 
 beforeEach(() => {
+  // ChatComposer calls useCanvasStore() in setup — a fresh active Pinia is required per test.
+  setActivePinia(createPinia())
   Object.values(notify).forEach((fn) => fn.mockClear())
 })
 

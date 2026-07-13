@@ -18,63 +18,77 @@ const PREVIEW = {
              turn_cost_ceiling_usd: 'env_floor' },
 }
 
+const optionValues = (w) => w.findAll('option').map((o) => o.attributes('value'))
+
 describe('ContextProfilePicker', () => {
-  it('renders the picker with an Automatic option and all profiles', () => {
+  it('renders a <select> with an Automatic option and all API profiles', () => {
     const w = mount(ContextProfilePicker, { props: { modelValue: '', profiles: PROFILES } })
-    expect(w.find('[data-test="profile-automatic"]').exists()).toBe(true)
-    expect(w.find('[data-test="profile-fast"]').exists()).toBe(true)
-    expect(w.find('[data-test="profile-code_repo"]').exists()).toBe(true)
+    expect(w.find('select').exists()).toBe(true)
+    const values = optionValues(w)
+    expect(values).toContain('')          // Automatic (Recommended)
+    expect(values).toContain('fast')
+    expect(values).toContain('code_repo')
+    // the Automatic option carries the friendly recommended label
+    const auto = w.findAll('option').find((o) => o.attributes('value') === '')
+    expect(auto.text()).toContain('Automatic')
     // no raw env/token-knob inputs
     expect(w.findAll('input').length).toBe(0)
     expect(w.html()).not.toMatch(/LLM_[A-Z_]+/)   // no env var names leaked into the UI
   })
 
-  it('highlights Automatic when modelValue is empty', () => {
+  it('selects Automatic (empty value) when modelValue is empty', () => {
     const w = mount(ContextProfilePicker, { props: { modelValue: '', profiles: PROFILES } })
-    expect(w.find('[data-test="profile-automatic"]').classes()).toContain('active')
-    expect(w.find('[data-test="profile-fast"]').classes()).not.toContain('active')
+    expect(w.find('select').element.value).toBe('')
   })
 
-  it('loads the current profile as selected', () => {
+  it('loads the current profile as the selected value', () => {
     const w = mount(ContextProfilePicker, { props: { modelValue: 'code_repo', profiles: PROFILES } })
-    expect(w.find('[data-test="profile-code_repo"]').classes()).toContain('active')
+    expect(w.find('select').element.value).toBe('code_repo')
   })
 
-  it('emits update:modelValue with the profile key when a card is clicked', async () => {
+  it('emits update:modelValue with the profile key when a new option is chosen', async () => {
     const w = mount(ContextProfilePicker, { props: { modelValue: '', profiles: PROFILES } })
-    await w.find('[data-test="profile-fast"]').trigger('click')
+    await w.find('select').setValue('fast')
     expect(w.emitted('update:modelValue')[0]).toEqual(['fast'])
   })
 
   it('emits empty string when Automatic is chosen (clears override)', async () => {
     const w = mount(ContextProfilePicker, { props: { modelValue: 'fast', profiles: PROFILES } })
-    await w.find('[data-test="profile-automatic"]').trigger('click')
+    await w.find('select').setValue('')
     expect(w.emitted('update:modelValue')[0]).toEqual([''])
   })
 
-  it('renders the effective policy preview with source labels', () => {
+  it('renders the effective preview rows when a preview is provided', async () => {
     const w = mount(ContextProfilePicker, { props: { modelValue: 'code_repo', profiles: PROFILES, preview: PREVIEW } })
-    const prev = w.find('[data-test="policy-preview"]')
-    expect(prev.exists()).toBe(true)
-    expect(prev.text()).toContain('500,000')          // hard input limit formatted
-    expect(prev.text()).toContain('Agent policy')     // profile source label
-    expect(prev.text()).toContain('env fallback')     // deprecated env source shown as friendly label
+    // previewRows are inside the details popover — open it first.
+    await w.find('.ctx-details-btn').trigger('click')
+    const live = w.find('.ctx-live-preview')
+    expect(live.exists()).toBe(true)
+    expect(live.text()).toContain('Effective profile')
+    expect(live.text()).toContain('Hard input limit')
+    expect(live.text()).toContain('500,000')   // hard_input_limit formatted via toLocaleString
+    // no raw env var names leaked into the preview
+    expect(live.html()).not.toMatch(/LLM_[A-Z_]+/)
   })
 
-  it('does not render the preview when none is provided', () => {
+  it('does not render the live preview section when no preview is provided', () => {
     const w = mount(ContextProfilePicker, { props: { modelValue: '', profiles: PROFILES } })
-    expect(w.find('[data-test="policy-preview"]').exists()).toBe(false)
+    expect(w.find('.ctx-live-preview').exists()).toBe(false)
   })
 
   it('does not emit when disabled', async () => {
     const w = mount(ContextProfilePicker, { props: { modelValue: '', profiles: PROFILES, disabled: true } })
-    await w.find('[data-test="profile-fast"]').trigger('click')
+    expect(w.find('select').attributes('disabled')).toBeDefined()
+    await w.find('select').setValue('fast')
     expect(w.emitted('update:modelValue')).toBeFalsy()
   })
 
   it('falls back to a built-in profile list when none passed', () => {
     const w = mount(ContextProfilePicker, { props: { modelValue: '' } })
-    expect(w.find('[data-test="profile-deep_research"]').exists()).toBe(true)
-    expect(w.find('[data-test="profile-data_analysis"]').exists()).toBe(true)
+    const values = optionValues(w)
+    expect(values).toContain('deep_research')
+    expect(values).toContain('data_analysis')
+    expect(values).toContain('fast')
+    expect(values).toContain('code_repo')
   })
 })

@@ -181,8 +181,8 @@
             </select>
           </label>
           <label class="checkbox-row">
-            <input type="checkbox" :checked="execMode === 'manual'" :disabled="!canEdit"
-                   @change="execMode = $event.target.checked ? 'manual' : 'autonomous'; mark()" />
+            <input type="checkbox" :checked="!isAutonomous(runMode)" :disabled="!canEdit"
+                   @change="setApprovalRequired($event.target.checked); mark()" />
             <span>Require approval before taking actions (manual mode)</span>
           </label>
         </article>
@@ -369,8 +369,9 @@ import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import ContextProfilePicker from '@/components/agent/ContextProfilePicker.vue'
+import { normalizeRunMode, isAutonomous, isPlanReview } from '@/composables/agentModes'
 
-// ── Wired to the PER-AGENT policy (AgentProfile.agent_policy) + execution_mode. ──
+// ── Wired to the PER-AGENT policy (AgentProfile.agent_policy) + agent_run_mode. ──
 // Per-agent policy can only TIGHTEN the org GlobalAgentPolicy floor; the backend clamps any
 // weakening value at save time. This page never edits the org policy.
 const route = useRoute()
@@ -381,7 +382,14 @@ const canEdit = ref(true)
 const dirty = ref(false)
 const saving = ref(false)
 const rawPolicy = ref({})            // full agent_policy as loaded, so we preserve unknown keys on save
-const execMode = ref('manual')       // AgentProfile.execution_mode (real enforced field)
+const runMode = ref('manual')        // AgentProfile.agent_run_mode (canonical enforced field)
+
+// The checkbox is a coarse manual/autonomous toggle; preserve the plan-review dimension across it.
+function setApprovalRequired(required) {
+  const plan = isPlanReview(runMode.value)
+  if (required) runMode.value = plan ? 'plan_review_manual' : 'manual'
+  else runMode.value = plan ? 'plan_review_autonomous' : 'autonomous'
+}
 
 // P6: context profile (agent_policy.context_profile) + effective-policy preview.
 const contextProfile = ref('')       // '' = Automatic (request-type default)
@@ -489,7 +497,7 @@ async function loadPolicy() {
     applyPolicy(a.agent_policy || {})
     contextProfile.value = (a.agent_policy && a.agent_policy.context_profile) || ''   // P6
     loadEffectivePolicy()                                                              // P6 (best-effort)
-    execMode.value = a.execution_mode || 'manual'
+    runMode.value = normalizeRunMode(a.agent_run_mode)
     // GET returns `tools` (full objects); `tool_ids` is write-only. Derive ids from whichever is present.
     toolIds.value = Array.isArray(a.tool_ids) ? a.tool_ids
       : (Array.isArray(a.tools) ? a.tools.map(t => t.id) : [])
@@ -559,12 +567,12 @@ async function saveGuardrails() {
       escalation_rules: pol.escalation_rules,
       context_profile: contextProfile.value || '',   // P6: '' clears the override (Automatic)
     }
-    const r = await api.updateAgent(agentId.value, { agent_policy, execution_mode: execMode.value })
+    const r = await api.updateAgent(agentId.value, { agent_policy, agent_run_mode: runMode.value })
     const saved = (r.data || {}).agent_policy || agent_policy
     applyPolicy(saved)   // reflect the server-clamped result
     contextProfile.value = saved.context_profile || ''   // P6: reflect cleared/normalized value
     loadEffectivePolicy()                                  // P6: refresh the preview for the new profile
-    execMode.value = (r.data || {}).execution_mode || execMode.value
+    if ((r.data || {}).agent_run_mode) runMode.value = normalizeRunMode(r.data.agent_run_mode)
     notify.success('Agent guardrails saved')
   } catch (e) {
     notify.error(e.response?.status === 403 ? 'You can only edit your own agent’s guardrails' : 'Failed to save guardrails')

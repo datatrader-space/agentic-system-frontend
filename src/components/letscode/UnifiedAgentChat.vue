@@ -134,7 +134,7 @@
             </div>
             <AgentModePicker
               v-if="agentId" :agent-id="agentId"
-              :execution-mode="agentMeta.execution_mode" :plan-mode="agentMeta.plan_mode_enabled"
+              :run-mode="agentMeta.agent_run_mode"
               placement="up" @change="onModeChange"
             />
             <select v-model="modelId" class="uac-sel" title="Model">
@@ -215,7 +215,7 @@ const CODING_MODES = [
   { id: 'patch', label: 'Patch', hint: 'Legacy one-shot diff' },
 ]
 const agentId = ref('')           // the project's coding agent (the Modes target); from unified-config
-const agentMeta = ref({ execution_mode: 'manual', plan_mode_enabled: false })
+const agentMeta = ref({ agent_run_mode: 'manual' })
 const sending = ref(false)
 const connected = ref(false)
 const conversationId = ref(null)
@@ -498,9 +498,9 @@ async function loadModels() {
 }
 
 async function loadAgentForProject() {
-  // The project's coding agent is the Modes target (AgentModePicker persists Manual/Auto/Plan/Plan+Auto
-  // to it; the backend reads execution_mode/plan_mode during the turn). The picker self-syncs the exact
-  // mode via getAgent() on mount, so defaults here are fine.
+  // The project's coding agent is the Modes target (AgentModePicker persists the canonical
+  // agent_run_mode to it). The picker self-syncs the exact mode via getAgent() on mount, so defaults
+  // here are fine.
   try {
     const { data } = await api.unifiedConfig(props.systemId)
     if (data?.agent_id) {
@@ -511,7 +511,7 @@ async function loadAgentForProject() {
   } catch (e) { /* picker just stays hidden until an agent exists */ }
 }
 function onModeChange(patch) {
-  agentMeta.value = { execution_mode: patch.execution_mode, plan_mode_enabled: patch.plan_mode_enabled }
+  agentMeta.value = { agent_run_mode: patch.agent_run_mode }
 }
 
 onMounted(() => { connect(); loadModels(); loadAgentForProject() })

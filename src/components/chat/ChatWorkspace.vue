@@ -1,5 +1,6 @@
 <template>
-  <div class="chat-workspace">
+  <div class="chat-split" ref="splitEl" :class="{ 'canvas-open': canvasOpen, 'canvas-mobile': canvasOpen && isMobile }">
+   <div class="chat-workspace" :style="canvasOpen && !isMobile ? { flex: `1 1 0`, minWidth: '360px' } : null">
     <div v-if="chat.isEmpty" class="floating-history">
       <button class="icon-btn" title="Chat history" aria-label="Chat history" @click.stop="toggleHistory">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 3v6h6" /><path d="M12 7v5l3 2" /></svg>
@@ -89,11 +90,8 @@
       <ChatMessageList v-else />
     </div>
 
-    <!-- Manual Mode plan approval card (Planning Mode ON + Manual): approve resumes the run. -->
-    <div v-if="chat.pendingPlan" class="chat-plan">
-      <PlanApprovalCard :plan="chat.pendingPlan" :busy="chat.isStreaming"
-        @approve="chat.approvePlan" @reject="chat.rejectPlan" @revise="chat.revisePlan" />
-    </div>
+    <!-- Unified plan experience — the ONLY plan UI (approval + live execution checklist). -->
+    <UnifiedPlanTimeline :conversation-id="chat.conversationId" class="chat-plan" />
 
     <!-- Composer (thread mode; welcome screen has its own) -->
     <div v-if="!chat.isEmpty" class="chat-footer">
@@ -105,8 +103,7 @@
       <ChatComposer :streaming="chat.isStreaming" :attachments="chat.pendingAttachments"
         :agent-id="chat.selectedAgentId"
         :conversation-id="chat.conversationId"
-        :execution-mode="chat.currentAgent && chat.currentAgent.execution_mode"
-        :plan-mode="chat.currentAgent && chat.currentAgent.plan_mode_enabled"
+        :run-mode="chat.currentAgent && chat.currentAgent.agent_run_mode"
         @send="onSend" @stop="chat.stop()" @mode-change="onModeChange"
         @attach="chat.addAttachments" @remove-attach="chat.removeAttachment" />
       <div v-if="chat.sessionTokens" class="session-meter" :title="`Total tokens used in this chat`">
@@ -123,26 +120,85 @@
       @skip="chat.skipHitl"
       @stop="chat.stop"
     />
+   </div>
+
+    <!-- Canvas + Live Preview side panel (opens when the agent produces a design). -->
+    <div v-if="canvasOpen && !isMobile" class="cv-resize" @mousedown="startResize" title="Drag to resize"></div>
+    <CanvasShell
+      v-if="canvasOpen"
+      class="cv-pane"
+      :style="isMobile ? null : { flex: `0 0 ${canvasWidth}px` }"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, watch, onMounted, ref } from 'vue'
+import { computed, watch, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useChatStore } from '../../stores/useChatStore'
+import { useCanvasStore } from '../../stores/useCanvasStore'
+import { useLayoutStore } from '../../stores/useLayoutStore'
 import ChatWelcome from './ChatWelcome.vue'
 import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
+import CanvasShell from '../canvas/CanvasShell.vue'
 import HITLModal from '../HITLModal.vue'
-import PlanApprovalCard from '../agent/PlanApprovalCard.vue'
+import UnifiedPlanTimeline from '../plan/UnifiedPlanTimeline.vue'
 import { fmtTokens, fmtCost } from '../../composables/tokens'
 import { previewOf, relTime, groupSessions } from '../../composables/useChatHistory'
 
 const chat = useChatStore()
+const canvas = useCanvasStore()
+const layout = useLayoutStore()
 const route = useRoute()
 const router = useRouter()
 const historyOpen = ref(false)
 const historyQuery = ref('')
+
+// ── Canvas side panel (resizable) ────────────────────────────────────────────────────────────────
+const canvasOpen = computed(() => canvas.open && canvas.hasCanvas)
+const isMobile = ref(typeof window !== 'undefined' && window.innerWidth < 768)
+
+// Auto-collapse the left side navigation while the Canvas panel is open (more room for the preview),
+// then restore whatever the user had before. Transient — we don't persist this over their real
+// sidebar preference.
+let _prevSidebarCollapsed = null
+watch(canvasOpen, (open) => {
+  if (open) {
+    if (_prevSidebarCollapsed === null) _prevSidebarCollapsed = layout.sidebarCollapsed
+    layout.sidebarCollapsed = true
+  } else if (_prevSidebarCollapsed !== null) {
+    layout.sidebarCollapsed = _prevSidebarCollapsed
+    _prevSidebarCollapsed = null
+  }
+})
+const splitEl = ref(null)
+const canvasWidth = ref(Number(localStorage.getItem('cv.width')) || 620)
+let _resizing = false
+const onWinResize = () => { isMobile.value = window.innerWidth < 768 }
+
+function startResize(e) {
+  _resizing = true
+  const startX = e.clientX
+  const startW = canvasWidth.value
+  const total = splitEl.value ? splitEl.value.clientWidth : window.innerWidth
+  const onMove = (ev) => {
+    if (!_resizing) return
+    // dragging left grows the canvas (it's the right pane)
+    const next = startW + (startX - ev.clientX)
+    canvasWidth.value = Math.max(380, Math.min(total - 360, next))
+  }
+  const onUp = () => {
+    _resizing = false
+    localStorage.setItem('cv.width', String(canvasWidth.value))
+    window.removeEventListener('mousemove', onMove)
+    window.removeEventListener('mouseup', onUp)
+    document.body.style.userSelect = ''
+  }
+  document.body.style.userSelect = 'none'
+  window.addEventListener('mousemove', onMove)
+  window.addEventListener('mouseup', onUp)
+}
 
 const title = computed(() => {
   const first = chat.messages.find((m) => m.role === 'user')
@@ -177,8 +233,7 @@ const openSession = (id) => {
 // Persist the mode change locally so the picker + any badges reflect it immediately.
 const onModeChange = (patch) => {
   if (chat.currentAgent) {
-    chat.currentAgent.execution_mode = patch.execution_mode
-    chat.currentAgent.plan_mode_enabled = patch.plan_mode_enabled
+    chat.currentAgent.agent_run_mode = patch.agent_run_mode
   }
 }
 
@@ -190,16 +245,28 @@ const startNew = () => {
 }
 
 onMounted(async () => {
+  window.addEventListener('resize', onWinResize)
   await chat.loadAgents()
   chat.loadAllSessions()
   const sid = route.params.sessionId
   if (sid) {
     chat.openConversation(sid)
+    canvas.adoptConversation(sid)
   } else {
     if (chat.conversationId) chat.reset()
+    canvas.close()
     // New chat: open the socket + pre-build the (auto-)selected agent now, during the idle window
     // before the user sends — so the first message reuses the runner (no ~6.6s cold build).
     chat.prewarmAgent()
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onWinResize)
+  // Don't leave the sidebar collapsed after navigating away with Canvas open.
+  if (_prevSidebarCollapsed !== null) {
+    layout.sidebarCollapsed = _prevSidebarCollapsed
+    _prevSidebarCollapsed = null
   }
 })
 
@@ -207,8 +274,8 @@ onMounted(async () => {
 watch(
   () => route.params.sessionId,
   (id) => {
-    if (id) chat.openConversation(id)
-    else chat.reset()
+    if (id) { chat.openConversation(id); canvas.adoptConversation(id) }
+    else { chat.reset(); canvas.close() }
   }
 )
 
@@ -226,13 +293,39 @@ watch(
 </script>
 
 <style scoped>
+.chat-split {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
 .chat-workspace {
   position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  flex: 1 1 auto;
+  min-width: 0;
   font-family: var(--vm-font-sans);
+}
+.cv-resize {
+  flex: 0 0 6px;
+  cursor: col-resize;
+  background: var(--vm-line, #e5e7eb);
+  position: relative;
+  z-index: 5;
+}
+.cv-resize:hover { background: #c4b5fd; }
+.cv-pane { height: 100%; min-height: 0; }
+/* Mobile: canvas takes over full screen. */
+.chat-split.canvas-mobile .chat-workspace { display: none; }
+.chat-split.canvas-mobile .cv-pane {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  width: 100vw;
 }
 .chat-header {
   position: relative;

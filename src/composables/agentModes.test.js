@@ -1,46 +1,61 @@
 import { describe, it, expect } from 'vitest'
-import { modeKey, modeLabel, modeDotClass, MODE_OPTIONS, isAutonomous } from './agentModes'
+import {
+  RUN_MODES, normalizeRunMode, isAutonomous, isPlanReview,
+  modeKey, modeLabel, modeDotClass, MODE_OPTIONS,
+} from './agentModes'
 
-describe('agentModes — the 4 product modes are the 2×2 of (execution_mode, plan_mode_enabled)', () => {
-  it('maps every (execution_mode, plan) pair to the right mode key', () => {
-    expect(modeKey('manual', false)).toBe('manual')
-    expect(modeKey('autonomous', false)).toBe('auto')
-    expect(modeKey('manual', true)).toBe('plan')
-    expect(modeKey('autonomous', true)).toBe('plan_auto')
+describe('agentModes — the single canonical agent_run_mode field', () => {
+  it('exposes exactly the four product run modes', () => {
+    expect(RUN_MODES).toEqual(['manual', 'autonomous', 'plan_review_manual', 'plan_review_autonomous'])
   })
 
-  it('treats truthy plan + assisted/unknown execution modes safely', () => {
-    expect(isAutonomous('autonomous')).toBe(true)
+  it('normalizes unknown / legacy values to manual', () => {
+    expect(normalizeRunMode('manual')).toBe('manual')
+    expect(normalizeRunMode('plan_review_autonomous')).toBe('plan_review_autonomous')
+    expect(normalizeRunMode('assisted')).toBe('manual')
+    expect(normalizeRunMode(undefined)).toBe('manual')
+    expect(normalizeRunMode(null)).toBe('manual')
+  })
+
+  it('classifies autonomy correctly', () => {
     expect(isAutonomous('manual')).toBe(false)
-    expect(isAutonomous('assisted')).toBe(false)       // only "autonomous" is auto
-    expect(modeKey('assisted', true)).toBe('plan')      // non-autonomous + plan => Planning
+    expect(isAutonomous('autonomous')).toBe(true)
+    expect(isAutonomous('plan_review_manual')).toBe(false)
+    expect(isAutonomous('plan_review_autonomous')).toBe(true)
   })
 
-  it('labels each mode for the picker button', () => {
-    expect(modeLabel('manual', false)).toBe('Manual mode')
-    expect(modeLabel('autonomous', false)).toBe('Auto mode')
-    expect(modeLabel('manual', true)).toBe('Plan mode')
-    expect(modeLabel('autonomous', true)).toBe('Plan + Auto')
+  it('classifies plan-review correctly', () => {
+    expect(isPlanReview('manual')).toBe(false)
+    expect(isPlanReview('autonomous')).toBe(false)
+    expect(isPlanReview('plan_review_manual')).toBe(true)
+    expect(isPlanReview('plan_review_autonomous')).toBe(true)
+  })
+
+  it('labels each mode', () => {
+    expect(modeLabel('manual')).toBe('Manual')
+    expect(modeLabel('autonomous')).toBe('Autonomous')
+    expect(modeLabel('plan_review_manual')).toBe('Plan review → Manual')
+    expect(modeLabel('plan_review_autonomous')).toBe('Plan review → Autonomous')
   })
 
   it('picks a distinct dot color per family', () => {
-    expect(modeDotClass('manual', false)).toBe('amp-dot-manual')
-    expect(modeDotClass('manual', true)).toBe('amp-dot-plan')
-    expect(modeDotClass('autonomous', false)).toBe('amp-dot-auto')
-    expect(modeDotClass('autonomous', true)).toBe('amp-dot-auto')   // auto color wins
+    expect(modeDotClass('manual')).toBe('amp-dot-manual')
+    expect(modeDotClass('plan_review_manual')).toBe('amp-dot-plan')
+    expect(modeDotClass('autonomous')).toBe('amp-dot-auto')
+    expect(modeDotClass('plan_review_autonomous')).toBe('amp-dot-auto')  // auto color wins
   })
 
-  it('each menu option persists exactly the two backend booleans', () => {
+  it('each menu option persists exactly the single agent_run_mode field', () => {
     const byKey = Object.fromEntries(MODE_OPTIONS.map((o) => [o.key, o.patch]))
-    expect(byKey.manual).toEqual({ execution_mode: 'manual', plan_mode_enabled: false })
-    expect(byKey.auto).toEqual({ execution_mode: 'autonomous', plan_mode_enabled: false })
-    expect(byKey.plan).toEqual({ execution_mode: 'manual', plan_mode_enabled: true })
-    expect(byKey.plan_auto).toEqual({ execution_mode: 'autonomous', plan_mode_enabled: true })
+    expect(byKey.manual).toEqual({ agent_run_mode: 'manual' })
+    expect(byKey.autonomous).toEqual({ agent_run_mode: 'autonomous' })
+    expect(byKey.plan_review_manual).toEqual({ agent_run_mode: 'plan_review_manual' })
+    expect(byKey.plan_review_autonomous).toEqual({ agent_run_mode: 'plan_review_autonomous' })
   })
 
   it('the option a mode resolves to round-trips back to that mode', () => {
     for (const o of MODE_OPTIONS) {
-      expect(modeKey(o.patch.execution_mode, o.patch.plan_mode_enabled)).toBe(o.key)
+      expect(modeKey(o.patch.agent_run_mode)).toBe(o.key)
     }
   })
 })

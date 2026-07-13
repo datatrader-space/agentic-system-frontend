@@ -100,6 +100,16 @@
                     <small>{{ urlBusy ? 'Starting chat…' : 'Paste a webpage or YouTube video link.' }}</small>
                   </span>
                 </button>
+                <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-canvas"
+                        :class="{ 'is-on': canvasMode }" @click="toggleCanvasFromMenu">
+                  <span class="plus-ic">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9" stroke-linecap="round"/></svg>
+                  </span>
+                  <span class="plus-txt">
+                    <strong>Design in Canvas <span v-if="canvasMode" class="plus-on-tag">On</span></strong>
+                    <small>Build a web page — the agent renders a live preview in a side panel.</small>
+                  </span>
+                </button>
               </div>
               <!-- URL/YouTube importer — starts the chat on demand so a conversation-scoped source can
                    be created even from the brand-new screen (ChatGPT-style). -->
@@ -112,9 +122,17 @@
             <AgentModePicker v-if="chat.currentAgent"
               :key="chat.currentAgent.id"
               :agent-id="chat.currentAgent.id"
-              :execution-mode="chat.currentAgent.execution_mode"
-              :plan-mode="chat.currentAgent.plan_mode_enabled"
+              :run-mode="chat.currentAgent.agent_run_mode"
               placement="up" @change="onModeChange" />
+            <!-- Sticky Canvas-mode chip (toggle lives in the "+" menu; × turns it off). -->
+            <span v-if="canvasMode" class="canvas-chip" title="Canvas mode on — designs open in the live preview">
+              <span class="canvas-chip-body" title="Open the live preview" @click="canvas.show()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9" stroke-linecap="round"/></svg>
+                <span>Canvas</span>
+              </span>
+              <button type="button" class="canvas-chip-x" title="Turn off Canvas mode" aria-label="Turn off Canvas mode"
+                      @click.stop="canvas.setMode(false)">×</button>
+            </span>
           </div>
           <button type="submit" class="composer-send" :disabled="chat.needsAgent || (!draft.trim() && !chat.pendingAttachments.length)" title="Send">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z" stroke-linecap="round" stroke-linejoin="round" /></svg>
@@ -126,9 +144,10 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '../../stores/useChatStore'
+import { useCanvasStore } from '../../stores/useCanvasStore'
 import api from '../../services/api'
 import AgentModePicker from '../agent/AgentModePicker.vue'
 import AgentSelect from './AgentSelect.vue'
@@ -196,6 +215,16 @@ const toggleMenu = () => {
   menuOpen.value = true
 }
 const pickFiles = () => { menuOpen.value = false; fileEl.value?.click() }
+// Canvas mode (single source of truth in the canvas store; read by the chat store when sending).
+const canvas = useCanvasStore()
+const canvasMode = computed(() => canvas.mode)
+const toggleCanvasFromMenu = () => {
+  canvas.setMode(!canvas.mode)
+  closeMenu()
+  notify.info(canvas.mode
+    ? 'Canvas mode on — the agent will design in a live preview panel.'
+    : 'Canvas mode off.')
+}
 // Ask-about-a-link on a brand-new chat: quietly start the conversation first so the URL can become a
 // conversation-scoped DocumentSource (ChatGPT-style — the chat starts the moment you attach).
 const openUrl = async () => {
@@ -288,8 +317,7 @@ const onSelectAgent = (a) => { if (a && a.id != null) chat.setAgent(a.id) }
 // Reflect a mode change immediately on the selected agent (the picker also PATCHes the backend).
 const onModeChange = (patch) => {
   if (chat.currentAgent) {
-    chat.currentAgent.execution_mode = patch.execution_mode
-    chat.currentAgent.plan_mode_enabled = patch.plan_mode_enabled
+    chat.currentAgent.agent_run_mode = patch.agent_run_mode
   }
 }
 
@@ -520,6 +548,23 @@ const submit = () => {
 }
 .plus-item:hover:not(:disabled) { background: var(--vm-bg); }
 .plus-item:disabled { opacity: .5; cursor: not-allowed; }
+.plus-item.is-on { background: var(--vm-violet-soft); }
+.plus-on-tag { margin-left: 6px; padding: 0 6px; border-radius: 9999px; background: var(--vm-violet); color: #fff; font-size: 0.6rem; font-weight: 700; vertical-align: middle; }
+.canvas-chip {
+  display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0;
+  height: 32px; padding: 0 4px 0 10px;
+  background: var(--vm-violet-soft); border: 1px solid var(--vm-violet); border-radius: 10px;
+  color: var(--vm-violet); font-size: 0.78rem; font-weight: 600;
+}
+.canvas-chip-body { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.canvas-chip-body:hover { filter: brightness(0.96); }
+.canvas-chip svg { width: 15px; height: 15px; }
+.canvas-chip-x {
+  display: inline-grid; place-items: center; width: 20px; height: 20px; margin-left: 2px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--vm-violet);
+  font-size: 16px; line-height: 1; cursor: pointer;
+}
+.canvas-chip-x:hover { background: rgba(109, 40, 217, .14); }
 .plus-ic {
   display: grid; place-items: center; flex-shrink: 0;
   width: 34px; height: 34px; border-radius: 9px;

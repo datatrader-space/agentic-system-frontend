@@ -223,6 +223,7 @@ const router = createRouter({
         { path: 'services', name: 'dashboard-services', redirect: '/dashboard/connectors' },
         { path: 'mcp', name: 'dashboard-mcp', redirect: '/dashboard/connectors' },
         { path: 'connectors', name: 'dashboard-connectors', component: ConnectorsPage },
+        { path: 'knowledge', name: 'dashboard-knowledge', component: () => import('./views/KnowledgeRag.vue') },
         { path: 'integration-hub', redirect: '/dashboard/connectors' },
         // Workflow Builder (NEW node-canvas system — lazy-loaded; separate from old /workflows feature)
         { path: 'workflow-builder', name: 'dashboard-workflow-builder', component: () => import('./views/WorkflowsList.vue') },

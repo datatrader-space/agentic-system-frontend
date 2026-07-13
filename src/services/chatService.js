@@ -208,13 +208,17 @@ export class ChatConnection {
     this.conversationId = conversationId
   }
 
-  sendMessage(text, agentId, modelId = null) {
+  sendMessage(text, agentId, modelId = null, opts = {}) {
     this._send({
       type: 'chat_message',
       message: text,
       conversation_id: this.conversationId,
       agentId: agentId || undefined,
       model_id: modelId || undefined,
+      // Canvas mode: auto-expose GENERATE_STATIC_PAGE for this turn (backend gates on this flag).
+      canvas_mode: opts.canvasMode || undefined,
+      // Canvas click-to-select (Phase 5): the element the user clicked, so "change this" targets it.
+      canvas_selection: opts.canvasSelection || undefined,
     })
   }
 

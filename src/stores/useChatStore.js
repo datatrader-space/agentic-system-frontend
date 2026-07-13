@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import api from '../services/api'
 import { notify } from '../composables/useNotify'
 import { ChatConnection } from '../services/chatService'
+import { useCanvasStore } from './useCanvasStore'
 import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity, interrupt as interruptActivity } from '../composables/activityStream'
 import { useAgentTimeline, isRichEvent } from '../composables/useAgentTimeline'
 
@@ -47,8 +48,9 @@ export const useChatStore = defineStore('chat', {
     // agent_session_complete / agent_event session_complete.
     _taskRunActive: false,
 
-    // Manual Mode plan awaiting human approval (v3 Layer 2). Rendered by PlanApprovalCard; null when
-    // none pending. Approving resumes the run (re-sends the last user message).
+    // Legacy native plan-mode WS approval signal (vestigial). The unified plan UI now handles
+    // approval via the run-coordinator API (UnifiedPlanCard); this field feeds the low-level WS
+    // resume mechanic only and is removed when that loop is internalized into the coordinator.
     pendingPlan: null,
 
     // Staged attachments (images/files) to send with the next message. Each:
@@ -303,6 +305,24 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    // Canvas signalling for the WS message: `canvas_mode` auto-exposes the design tools for the turn,
+    // and `canvas_selection` targets a specific element. For web_builder we send the STABLE element id
+    // (not outerHTML) so the backend's builder tools can edit that exact entity (Phase 3B A13/A14);
+    // static keeps sending the captured element markup.
+    _canvasSendOpts() {
+      let canvas
+      try { canvas = useCanvasStore() } catch (_e) { return {} }
+      const opts = {}
+      if (canvas.mode) opts.canvasMode = true
+      const sel = canvas.selectedElement
+      if (sel) {
+        opts.canvasSelection = canvas.provider === 'web_builder'
+          ? { provider: 'web_builder', element_id: sel.element_id, route: canvas.route, page_id: canvas.pageId }
+          : sel
+      }
+      return opts
+    },
+
     async sendMessage(text) {
       const content = (text || '').trim()
       const atts = this.pendingAttachments.slice()
@@ -314,7 +334,7 @@ export const useChatStore = defineStore('chat', {
       if (this.isStreaming) {
         if (!content || !this.conversationId || !this._conn) return
         this.messages.push({ id: nid(), role: 'user', content, status: 'done', queued: true })
-        this._conn.sendMessage(content, this.selectedAgentId)
+        this._conn.sendMessage(content, this.selectedAgentId, null, this._canvasSendOpts())
         return
       }
 
@@ -377,7 +397,7 @@ export const useChatStore = defineStore('chat', {
         }
       }
 
-      this._conn?.sendMessage(content, this.selectedAgentId)
+      this._conn?.sendMessage(content, this.selectedAgentId, null, this._canvasSendOpts())
     },
 
     // Await a just-uploaded document through the MarkItDown pipeline. Resolves 'ready' | 'failed' |
@@ -711,6 +731,11 @@ export const useChatStore = defineStore('chat', {
     _onEvent(msg) {
       const t = msg?.type
       if (t === 'ping') return   // server keepalive heartbeat — nothing to render
+      // Canvas + Live Preview events (static + web_builder providers) are owned by the canvas store —
+      // it reacts to canvas_session_started / preview_ready / preview_updated / preview_failed / etc.
+      // handleEvent() returns true when it consumed the event, so we don't also run it through the chat
+      // switch below (these carry no chat content/usage).
+      try { if (useCanvasStore().handleEvent(msg)) return } catch (_e) { /* canvas store optional */ }
       // Rich streaming: friendly, param-free activity (Searching → Generating). Feed the shared
       // timeline reducer and stop — these 6 events carry no content/usage to process further.
       if (isRichEvent(msg)) { _tl.ingest(msg); return }

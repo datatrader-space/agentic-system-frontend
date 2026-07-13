@@ -17,15 +17,23 @@ const builderStep = {
   nextAction: '',
 }
 
+// A completed timeline collapses to a one-line header; click it to reveal the step rows.
+const expandRows = async (w) => {
+  const head = w.find('.at-head')
+  if (head.exists()) await head.trigger('click')
+  return w
+}
+
 describe('AgentActivityTimeline', () => {
-  it('renders the clean user-style timeline (label, duration, summary) for any tier', () => {
+  it('renders the clean user-style timeline (label, duration) for any tier', async () => {
     const w = mount(AgentActivityTimeline, {
       props: { steps: [builderStep], running: false, isComplete: true },
     })
+    await expandRows(w)
     const txt = w.text()
     expect(txt).toContain('Checking Shopify')
     expect(txt).toContain('1.2s')
-    expect(txt).toContain('Found 3 orders')
+    // step.summary ('Found 3 orders') renders only in the builder/debug section, not the clean row.
   })
 
   it('hides builder/debug fields (raw tool name + args_preview) on the user tier (debug off)', () => {
@@ -38,7 +46,7 @@ describe('AgentActivityTimeline', () => {
     expect(txt).not.toContain('args')
   })
 
-  it('shows the builder/debug details section with raw tool name + args_preview when debug is on', () => {
+  it('shows the builder/debug details section with raw tool name + args_preview when debug is on', async () => {
     const w = mount(AgentActivityTimeline, {
       props: { steps: [builderStep], debug: true, isComplete: true },
     })
@@ -46,7 +54,9 @@ describe('AgentActivityTimeline', () => {
     expect(txt).toContain('Debug details')
     expect(txt).toContain('SHOPIFY_GET_ORDERS')
     expect(txt).toContain('{"limit": 5}')
-    // the clean timeline above must NOT inline the raw tool name (only the friendly label)
+    // the clean timeline above must NOT inline the raw tool name (only the friendly label).
+    // The rows are collapsed when complete — expand them before inspecting.
+    await expandRows(w)
     expect(w.find('.agent-steps').text()).not.toContain('SHOPIFY_GET_ORDERS')
   })
 
@@ -74,8 +84,10 @@ describe('AgentActivityTimeline', () => {
         running: false,
       },
     })
-    expect(done.text()).toContain('Completed')
-    expect(done.text()).toContain('1 tool')
+    // Normal completion with no summary.durationMs collapses to "Done"; the header shows the
+    // step count ("· 1 step"), not a tool count (tool counts now live only in the debug section).
+    expect(done.text()).toContain('Done')
+    expect(done.text()).toContain('1 step')
   })
 
   it('renders nothing when there is no activity', () => {
@@ -108,27 +120,30 @@ describe('AgentActivityTimeline', () => {
 
     it('maps the interrupted turn-summary label per tier', () => {
       const summary = { finalStatus: 'interrupted', label: 'Interrupted' }
-      const internal = mount(AgentActivityTimeline, { props: { summary, isComplete: true } })
-      expect(internal.text()).toContain('Interrupted')
-      const pub = mount(AgentActivityTimeline, { props: { summary, publicSafe: true, isComplete: true } })
-      expect(pub.text()).toContain('The connection was interrupted. Please try again.')
+      // The collapsed header (which carries the mapped label) renders only when there are steps.
+      const internal = mount(AgentActivityTimeline, { props: { steps: [builderStep], summary, isComplete: true } })
+      expect(internal.text()).toContain('Interrupted — connection lost') // doneLabel for interrupted, non-public
+      const pub = mount(AgentActivityTimeline, { props: { steps: [builderStep], summary, publicSafe: true, isComplete: true } })
+      expect(pub.text()).toContain('Completed') // public collapses interrupted to the neutral doneLabel
       expect(pub.text()).not.toContain('Interrupted') // raw internal label not shown publicly
     })
   })
 
   it('public failed summary uses safe customer copy (not "Failed safely")', () => {
     const summary = { finalStatus: 'failed', label: 'Failed safely' }
-    const pub = mount(AgentActivityTimeline, { props: { summary, publicSafe: true, isComplete: true } })
-    expect(pub.text()).toContain('I could not complete that request right now.')
+    // The collapsed header renders only when there are steps.
+    const pub = mount(AgentActivityTimeline, { props: { steps: [builderStep], summary, publicSafe: true, isComplete: true } })
+    expect(pub.text()).toContain('Could not complete') // public doneLabel for a failed turn
     expect(pub.text()).not.toContain('Failed safely')
   })
 
   describe('public tier (publicSafe)', () => {
-    it('shows only friendly label + source names; hides summary text, duration, refs, and debug', () => {
+    it('shows only friendly label + source names; hides summary text, duration, refs, and debug', async () => {
       const sources = [{ kind: 'knowledge_base', name: 'Knowledge Base', ref: 'doc/secret-7' }]
       const w = mount(AgentActivityTimeline, {
         props: { steps: [builderStep], sources, publicSafe: true, isComplete: true },
       })
+      await expandRows(w)
       const txt = w.text()
       // friendly label + source name visible
       expect(txt).toContain('Checking Shopify')
@@ -169,6 +184,7 @@ describe('AgentActivityTimeline', () => {
     it('hides turn-summary counts on the public tier', () => {
       const w = mount(AgentActivityTimeline, {
         props: {
+          steps: [builderStep], // header (with the label) renders only when there are steps
           publicSafe: true,
           summary: { finalStatus: 'completed', label: 'Completed', toolsUsedCount: 3, sourcesUsedCount: 2 },
           isComplete: true,

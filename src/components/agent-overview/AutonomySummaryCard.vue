@@ -46,6 +46,7 @@
 <script setup>
 import { computed } from 'vue'
 import { ShieldCheck, ChevronRight, Check, X } from 'lucide-vue-next'
+import { modeLabel } from '../../composables/agentModes'
 
 const props = defineProps({
   agent: { type: Object, default: () => ({}) },
@@ -60,9 +61,7 @@ const rows = computed(() => {
   const a = props.agent || {}
   const bool = (v) => ({ value: v ? 'On' : 'Off', on: !!v, icon: v ? Check : X })
   return [
-    { label: 'Execution Mode', value: cap(a.execution_mode || 'manual'), icon: null, on: false },
-    { label: 'Plan Mode', ...bool(a.plan_mode_enabled) },
-    { label: 'Plan Approval', ...bool(a.plan_approval_required) },
+    { label: 'Run Mode', value: modeLabel(a.agent_run_mode), icon: null, on: false },
     { label: 'Verify After Run', ...bool(a.verify_after_completion) },
     {
       label: 'Checkpoint Every',

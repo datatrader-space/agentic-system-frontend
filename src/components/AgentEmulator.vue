@@ -126,10 +126,8 @@
         </div>
       </div>
 
-      <!-- Manual Mode plan approval card (Planning Mode ON + Manual): approve resumes the run. -->
-      <div v-if="pendingPlan" class="px-3 pb-2 shrink-0">
-        <PlanApprovalCard :plan="pendingPlan" :busy="busy" @approve="approvePlan" @reject="rejectPlan" @revise="revisePlan" />
-      </div>
+      <!-- Unified plan experience — the ONLY plan UI (approval + live execution checklist). -->
+      <UnifiedPlanTimeline :conversation-id="conversationId" class="px-3 pb-2 shrink-0" />
 
       <div class="px-3 pb-3 shrink-0">
         <!-- Unified composer: input on top, + attach + mode pill (upward) + send on the bottom toolbar -->
@@ -260,7 +258,7 @@ import ProvenanceFooter from './chat/ProvenanceFooter.vue'
 import HITLModal from './HITLModal.vue'
 import AgentModePicker from './agent/AgentModePicker.vue'
 import AddDocumentUrl from './knowledge/AddDocumentUrl.vue'
-import PlanApprovalCard from './agent/PlanApprovalCard.vue'
+import UnifiedPlanTimeline from './plan/UnifiedPlanTimeline.vue'
 import { notify } from '@/composables/useNotify'
 import { useHitl } from '../composables/useHitl'
 import { useAgentTimeline } from '../composables/useAgentTimeline'

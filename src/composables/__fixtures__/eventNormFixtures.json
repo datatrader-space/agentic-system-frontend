@@ -1,0 +1,26 @@
+{
+  "_comment": "CANONICAL event-normalization contract fixtures. This file MUST be byte-identical to the frontend copy at agentic-system-frontend/src/composables/__fixtures__/eventNormFixtures.json. Both backend (event_norm.py) and frontend (planEvents.js) normalizers are validated against it so the two hand-written maps cannot drift apart. cases[].input is a raw legacy ws event; expect_type is the unified frontend event type (or null if not a plan event); expect_safe drops any keys not in the safe allow-list.",
+  "cases": [
+    { "name": "plan_created direct", "input": { "type": "plan_created" }, "expect_type": "plan_created" },
+    { "name": "plan_created legacy alias", "input": { "type": "agent_plan_generated" }, "expect_type": "plan_created" },
+    { "name": "plan_updated", "input": { "type": "plan_updated" }, "expect_type": "plan_updated" },
+    { "name": "plan_progress alias", "input": { "type": "plan_progress" }, "expect_type": "plan_updated" },
+    { "name": "plan_approval_required", "input": { "type": "plan_approval_required" }, "expect_type": "plan_approval_required" },
+    { "name": "plan_approved", "input": { "type": "plan_approved" }, "expect_type": "plan_approved" },
+    { "name": "plan_changes_requested via plan_revise", "input": { "type": "plan_revise" }, "expect_type": "plan_changes_requested" },
+    { "name": "plan_rejected", "input": { "type": "plan_rejected" }, "expect_type": "plan_rejected" },
+    { "name": "plan_step_started", "input": { "type": "step_started", "step_uid": "s1" }, "expect_type": "plan_step_started" },
+    { "name": "plan_step_completed", "input": { "type": "step_completed", "step_uid": "s1" }, "expect_type": "plan_step_completed" },
+    { "name": "plan_step_completed via phase_complete", "input": { "type": "phase_complete" }, "expect_type": "plan_step_completed" },
+    { "name": "plan_step_failed", "input": { "type": "step_failed", "step_uid": "s2" }, "expect_type": "plan_step_failed" },
+    { "name": "run_paused", "input": { "type": "run_paused" }, "expect_type": "run_paused" },
+    { "name": "run_resumed", "input": { "type": "run_resumed" }, "expect_type": "run_resumed" },
+    { "name": "run_completed via session_complete", "input": { "type": "session_complete" }, "expect_type": "run_completed" },
+    { "name": "run_failed via agent_session_error", "input": { "type": "agent_session_error" }, "expect_type": "run_failed" },
+    { "name": "run_cancelled via agent_session_stopped", "input": { "type": "agent_session_stopped" }, "expect_type": "run_cancelled" },
+    { "name": "unsupported non-plan event", "input": { "type": "assistant_message_chunk" }, "expect_type": null },
+    { "name": "unsupported empty", "input": { "type": "" }, "expect_type": null },
+    { "name": "missing id still normalizes", "input": { "type": "plan_approved", "sequence_number": 3 }, "expect_type": "plan_approved" },
+    { "name": "malformed payload sanitized", "input": { "type": "plan_step_completed", "step_uid": "s1", "payload": { "status": "completed", "secret": "x", "tool_args": { "k": "v" } } }, "expect_type": "plan_step_completed", "expect_safe_payload_keys": ["status"], "expect_dropped_payload_keys": ["secret", "tool_args"] }
+  ]
+}

@@ -18,13 +18,13 @@
         </div>
 
         <div class="space-y-4">
-          <!-- Decision mode (Manual / Plan First / Auto) -->
-            <div class="grid gap-3 md:grid-cols-3">
+          <!-- Run mode — the single canonical agent_run_mode (four options) -->
+            <div class="grid gap-3 md:grid-cols-2">
             <button
-              v-for="mode in executionModes"
+              v-for="mode in runModes"
               :key="mode.key"
               class="mode-card"
-              :class="executionMode === mode.key ? 'mode-card-active' : ''"
+              :class="runMode === mode.key ? 'mode-card-active' : ''"
               @click="selectMode(mode.key)"
             >
               <span class="flex items-start justify-between gap-3">
@@ -431,6 +431,7 @@ import {
   Zap,
 } from 'lucide-vue-next'
 import api from '../../services/api'
+import { normalizeRunMode, isAutonomous, isPlanReview } from '../../composables/agentModes'
 
 const props = defineProps({ agent: { type: Object, required: true } })
 const router = useRouter()
@@ -464,10 +465,11 @@ function actionLabel(action) {
   return { ask: 'Ask approval', block: 'Block', guardrail: 'Guardrail', allow: 'Allow' }[action] || action
 }
 
-const executionModes = [
+const runModes = [
   { key: 'manual', title: 'Manual', desc: 'Agent asks every time before taking action.', icon: Hand, iconClass: 'text-violet-600' },
-  { key: 'assisted', title: 'Plan First', desc: 'Agent plans, shows steps for approval, then acts.', icon: ListChecks, iconClass: 'text-[#2563EB]', recommended: true },
-  { key: 'autonomous', title: 'Auto', desc: 'Agent acts automatically within defined guardrails.', icon: Zap, iconClass: 'text-emerald-600' },
+  { key: 'autonomous', title: 'Autonomous', desc: 'Agent acts automatically within defined guardrails.', icon: Zap, iconClass: 'text-emerald-600' },
+  { key: 'plan_review_manual', title: 'Plan review → Manual', desc: 'Agent plans, you approve the plan, then approve each action.', icon: ListChecks, iconClass: 'text-[#2563EB]', recommended: true },
+  { key: 'plan_review_autonomous', title: 'Plan review → Autonomous', desc: 'Agent plans (reviewed automatically), then runs autonomously.', icon: ListChecks, iconClass: 'text-emerald-600' },
 ]
 const policy = computed({
   get() {
@@ -481,13 +483,9 @@ const policy = computed({
   },
 })
 
-const executionMode = computed({
-  get: () => props.agent.execution_mode || (props.agent.plan_mode_enabled ? 'assisted' : 'manual'),
-  set: (value) => {
-    props.agent.execution_mode = value
-    props.agent.plan_mode_enabled = value === 'assisted'
-    props.agent.plan_approval_required = value !== 'autonomous'
-  },
+const runMode = computed({
+  get: () => normalizeRunMode(props.agent.agent_run_mode),
+  set: (value) => { props.agent.agent_run_mode = normalizeRunMode(value) },
 })
 const riskCeiling = computed({
   get: () => policy.value.risk_ceiling || 'high',
@@ -647,13 +645,17 @@ const serviceSetupEnabled = computed({
 })
 const activeGuardrailCount = computed(() => Math.max(agentGuardrailsList.value.length, effectiveGuardrails.value.length))
 const summaryMode = computed(() => {
-  if (executionMode.value === 'autonomous') return 'act automatically within guardrails'
-  if (executionMode.value === 'assisted') return 'plan before acting and wait for approval'
+  if (isPlanReview(runMode.value)) {
+    return isAutonomous(runMode.value)
+      ? 'plan first, then run autonomously'
+      : 'plan before acting and wait for approval'
+  }
+  if (isAutonomous(runMode.value)) return 'act automatically within guardrails'
   return 'ask before every action'
 })
 
 function selectMode(value) {
-  executionMode.value = value
+  runMode.value = value
 }
 function parseMoney(value) {
   const n = Number(String(value).replace(/[$,]/g, ''))

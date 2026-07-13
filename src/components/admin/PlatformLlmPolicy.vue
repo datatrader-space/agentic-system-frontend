@@ -241,8 +241,8 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
       </label>
 
       <label class="plp-field" data-test="plp-long_context_summary_pct">
-        <span class="plp-lbl">Long-Context: summary budget <span class="plp-unit">(% of window)</span></span>
-        <small class="plp-desc">Target size of the large structured compaction summary, as a percentage of the model window (replaces the old 1,500-token cap). Default 15. Range 1–40.</small>
+        <span class="plp-lbl">Long-Context: summary budget <span class="plp-unit">(%)</span></span>
+        <small class="plp-desc">Controls the compaction summary size: the summarizer aims to keep about this percentage of the history it compacts, and the summary can never exceed this percentage of the model window (the hard cap). Higher = richer, more faithful summaries; lower = more aggressive compression. Default 15. Range 1–40.</small>
         <input type="number" min="1" max="40" :step="1" :disabled="disabled"
                :value="modelValue.long_context_summary_pct ?? ''" @input="setPlpInt('long_context_summary_pct', $event, 1, 40)" placeholder="15" />
       </label>
