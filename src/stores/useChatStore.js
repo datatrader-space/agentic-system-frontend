@@ -8,6 +8,8 @@ import api from '../services/api'
 import { notify } from '../composables/useNotify'
 import { ChatConnection } from '../services/chatService'
 import { useCanvasStore } from './useCanvasStore'
+import { usePlanStore } from './usePlanStore'
+import { INLINE_PLAN_ARTIFACT } from '../config/features'
 import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity, interrupt as interruptActivity } from '../composables/activityStream'
 import { useAgentTimeline, isRichEvent } from '../composables/useAgentTimeline'
 
@@ -85,6 +87,10 @@ export const useChatStore = defineStore('chat', {
   }),
   getters: {
     isEmpty: (s) => s.messages.length === 0,
+    // Inline plan artifact: true when the loaded history carries durable plan anchors AND the feature
+    // is on — drives the render-by-plan_id path (vs the legacy detached card + polling fallback).
+    hasDurablePlanAnchors: (s) => INLINE_PLAN_ARTIFACT
+      && s.messages.some((m) => Array.isArray(m.planArtifacts) && m.planArtifacts.length > 0),
     // True once we know the user has zero agents — drives the "create an agent first"
     // empty state and the disabled composer on the welcome screen.
     needsAgent: (s) => s.agentsLoaded && s.agents.length === 0,
@@ -249,8 +255,14 @@ export const useChatStore = defineStore('chat', {
           // cited-or-top-4 sources, so a reopened chat shows the SAME footer + clickable panel.
           answerBasis: (m.model_info && m.model_info.answer_basis) || null,
           citations: (m.model_info && m.model_info.answer_basis && m.model_info.answer_basis.citations) || [],
+          // Inline plan artifact: durable anchor(s) linking this message to its plan(s). Present only
+          // when the backend flag is on; drives inline-by-plan_id rendering (no runtime anchor).
+          planArtifacts: pickArray(m.plan_artifacts),
           conversationId: String(id),
         }))
+        // Hydrate + reconcile any plans anchored in the loaded history so the inline cards render on
+        // open (durable-anchor path). No-op when the feature is off (no plan_artifacts present).
+        this._hydratePlanAnchors(id)
         this.repoId = data.repository?.id || data.repository_id || 0
         // Backend serializes agent_profile as a bare PK (integer), with the human name
         // exposed separately as agent_profile_name — so read the id directly (older code
@@ -378,13 +390,18 @@ export const useChatStore = defineStore('chat', {
       // still being processed" reply). We show a "Reading your document…" state on the assistant bubble
       // instead of a toast, and the composer stays disabled (isStreaming) meanwhile. Images need only the
       // upload (auto-attached to vision), so they don't gate the send.
+      // Collected in upload order so the backend binds them to THIS message with the correct ordinal
+      // (turn-level attachment binding). We echo back the stable `attachment_id` (uuid), not the DB pk.
+      const attachmentIds = []
       if (atts.length) {
         const assistantMsg = this._cur()
         const docs = []
         for (const a of atts) {
           try {
             const res = await api.uploadConversationFile(this.conversationId, a.file)
+            const attId = res?.data?.attachment_id
             const fileId = res?.data?.id
+            if (attId) attachmentIds.push(attId)
             if (!a.isImage && fileId != null) docs.push({ id: fileId, name: a.name })
           } catch {
             this.error = 'Failed to upload an attachment.'
@@ -404,7 +421,13 @@ export const useChatStore = defineStore('chat', {
         }
       }
 
-      this._conn?.sendMessage(content, this.selectedAgentId, null, this._canvasSendOpts())
+      // Bind attachments to THIS exact message via explicit ids (+ a client message id for idempotency),
+      // instead of the backend guessing "newest upload in the conversation".
+      this._conn?.sendMessage(content, this.selectedAgentId, null, {
+        ...this._canvasSendOpts(),
+        attachmentIds,
+        clientMessageId: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
     },
 
     // Await a just-uploaded document through the MarkItDown pipeline. Resolves 'ready' | 'failed' |
@@ -642,12 +665,58 @@ export const useChatStore = defineStore('chat', {
           confidence: (m.model_info && m.model_info.confidence) || '',
           trace: (m.model_info && m.model_info.trace) || [],
           activity: (m.model_info && m.model_info.activity) || null,
+          planArtifacts: pickArray(m.plan_artifacts),
           conversationId: String(this.conversationId),
         }))
+        this._hydratePlanAnchors(this.conversationId)
         return true
       } catch {
         return false
       }
+    },
+
+    // Inline plan artifact: hydrate snapshots for plans anchored in the loaded history so their inline
+    // cards render on open. If no anchor is present but an assistant turn exists, attempt ONE lazy
+    // reconcile (idempotent) to upgrade a legacy plan, then reload history to pick up its anchor.
+    // Gated + safe: a complete no-op when the feature is off.
+    _hydratePlanAnchors(cid) {
+      if (!INLINE_PLAN_ARTIFACT || cid == null) return
+      try {
+        const plan = usePlanStore()
+        const runIds = new Set()
+        for (const m of this.messages) {
+          for (const a of (m.planArtifacts || [])) if (a && a.run_id) runIds.add(a.run_id)
+        }
+        if (runIds.size) { for (const rid of runIds) plan.hydrateRun(rid); return }
+        if (!this.messages.some((m) => m.role === 'assistant')) return   // no plan possible
+        plan.reconcileConversation(cid).then((r) => {
+          if (r && r.created > 0 && String(cid) === String(this.conversationId)) {
+            this._reloadHistoryForAnchors(cid)
+          }
+        })
+      } catch (_e) { /* plan store optional */ }
+    },
+
+    // After a lazy reconcile attaches anchors, re-map plan_artifacts onto the in-memory messages (by
+    // assistant order — message order is stable) and hydrate the newly-anchored runs.
+    async _reloadHistoryForAnchors(cid) {
+      try {
+        const res = await api.getConversation(cid)
+        if (String(cid) !== String(this.conversationId)) return
+        const assistantRows = pickArray((res.data || {}).messages).filter((m) => m.role === 'assistant')
+        let ai = 0
+        for (const m of this.messages) {
+          if (m.role !== 'assistant') continue
+          const src = assistantRows[ai++]
+          if (src && Array.isArray(src.plan_artifacts) && src.plan_artifacts.length) {
+            m.planArtifacts = src.plan_artifacts
+          }
+        }
+        const plan = usePlanStore()
+        for (const m of this.messages) {
+          for (const a of (m.planArtifacts || [])) if (a && a.run_id) plan.hydrateRun(a.run_id)
+        }
+      } catch (_e) { /* noop */ }
     },
 
     _teardown(clearStreaming = true) {
@@ -673,6 +742,7 @@ export const useChatStore = defineStore('chat', {
         status: 'streaming',
         error: '',
         toolCalls: [],
+        planArtifacts: [], // inline plan anchors attached live from plan_event (durable-anchor path)
         citations: [], // P6: KB sources for the "Sources" panel (set on assistant_message_complete)
         answerBasis: null, // provenance envelope (label + cited-or-top4) set on assistant_message_complete
         activity, // legacy raw timeline (see activityStream.js) — fallback when rich streaming is OFF
@@ -738,6 +808,32 @@ export const useChatStore = defineStore('chat', {
     _onEvent(msg) {
       const t = msg?.type
       if (t === 'ping') return   // server keepalive heartbeat — nothing to render
+      // Inline plan artifact (INLINE_PLAN_ARTIFACT_PLAN.md): a pushed, exact-version plan snapshot.
+      // Owned entirely by the plan store — it carries no chat content/usage. Scope to THIS window's
+      // conversation (the frame is broadcast to the user group with conversation_id inside). The store
+      // applies by (version, sequence) and dedups by event_id; this handler never derives state.
+      if (t === 'plan_event') {
+        if (!INLINE_PLAN_ARTIFACT) return
+        const pcid = msg.conversation_id
+        if (pcid == null || this.conversationId == null || String(pcid) === String(this.conversationId)) {
+          try {
+            usePlanStore().applyPlanEvent(msg)
+            // Live anchor: attach this plan to the current assistant turn so its inline card renders
+            // immediately (before the durable anchor is persisted + reloaded on next open). This matches
+            // the eventual server anchor (same turn's assistant message).
+            const cur = this._cur() || this.messages.filter((x) => x.role === 'assistant').slice(-1)[0]
+            const pid = msg.plan_id || (msg.plan_view && msg.plan_view.plan_id)
+            const rid = msg.run_id || (msg.plan_view && msg.plan_view.run_id)
+            if (cur && pid && rid) {
+              if (!Array.isArray(cur.planArtifacts)) cur.planArtifacts = []
+              if (!cur.planArtifacts.some((a) => a.plan_id === pid)) {
+                cur.planArtifacts.push({ plan_id: pid, run_id: rid, ordinal: cur.planArtifacts.length })
+              }
+            }
+          } catch (_e) { /* plan store optional */ }
+        }
+        return
+      }
       // Canvas + Live Preview events (static + web_builder providers) are owned by the canvas store —
       // it reacts to canvas_session_started / preview_ready / preview_updated / preview_failed / etc.
       // handleEvent() returns true when it consumed the event, so we don't also run it through the chat

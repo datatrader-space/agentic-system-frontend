@@ -31,6 +31,8 @@ export const usePlanStore = defineStore('plan', {
       .map((rid) => s.plansByRunId[rid]).filter(Boolean),
     isHydrating: (s) => (runId) => s.hydrationStatusByRunId[runId] === 'loading',
     isActionPending: (s) => (runId) => !!s.pendingActionByRunId[runId],
+    // Connection/freshness state for a run — drives the card's "reconnecting…" indicator.
+    connStateFor: (s) => (runId) => s.hydrationStatusByRunId[runId] || 'idle',
     // Compact progress for the conversation's LATEST run — drives the "✓ Step N done · X/total" line
     // that surfaces at the bottom of the thread on each step completion. null when there's no plan.
     progressForConversation: (s) => (cid) => {
@@ -156,6 +158,48 @@ export const usePlanStore = defineStore('plan', {
       plan.completed_step_count = plan.steps.filter((s) => s.status === 'completed').length
       const next = plan.steps.find((s) => s.status !== 'completed' && s.status !== 'skipped')
       plan.current_step_id = next ? next.step_id : null
+    },
+
+    // ── inline plan artifact: pushed `plan_event` frame (INLINE_PLAN_ARTIFACT_PLAN.md §6) ──────
+    // The frame carries the EXACT committed plan_view. We apply the FULL snapshot, gated so the card
+    // can never regress: strictly newer by (plan_version, then sequence) wins; older/duplicate is
+    // ignored; a sequence gap triggers ONE reconcile hydrate (while still applying this committed view).
+    // Returns 'applied' | 'duplicate' | 'ignored'.
+    applyPlanEvent(evt) {
+      const view = evt && evt.plan_view
+      const rid = (evt && evt.run_id) || (view && view.run_id)
+      if (!rid || !view) return 'ignored'
+      const seen = this._seen(rid)
+      const key = (evt.event_id != null) ? `e:${evt.event_id}` : `${rid}:${evt.sequence}`
+      if (seen.has(key)) return 'duplicate'
+
+      const current = this.plansByRunId[rid]
+      const curSeq = this.latestSequenceByRunId[rid] ?? -1
+      const curV = current ? (current.version_number ?? -1) : -1
+      const incSeq = evt.sequence ?? view.latest_sequence ?? 0
+      const incV = evt.plan_version ?? view.version_number ?? 0
+
+      // Never regress: ignore an event that is not strictly newer by version, then sequence.
+      if (current && (incV < curV || (incV === curV && incSeq <= curSeq))) { seen.add(key); return 'ignored' }
+      seen.add(key)
+      // Gap → reconcile with the authoritative snapshot (still apply THIS committed view immediately).
+      if (current && incSeq > curSeq + 1 && this.hydrationStatusByRunId[rid] === 'ready') {
+        this.hydrationStatusByRunId[rid] = 'stale'
+        this.hydrateRun(rid)
+      }
+      this._applySnapshot(view)   // full canonical snapshot; sets the cursor from view.latest_sequence
+      return 'applied'
+    },
+
+    // Lazy anchor reconciliation for a conversation whose plan predates the durable anchor
+    // (INLINE_PLAN_ARTIFACT_PLAN.md §14). Authenticated + idempotent; returns the server result or null.
+    async reconcileConversation(conversationId) {
+      try {
+        const res = await api.post(`/run-coordinator/conversations/${conversationId}/reconcile-anchors/`)
+        return res.data
+      } catch (e) {
+        return null
+      }
     },
 
     // ── WS event entry point (from the chat store's event router) ──────────────────

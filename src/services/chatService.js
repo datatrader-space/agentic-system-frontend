@@ -215,6 +215,11 @@ export class ChatConnection {
       conversation_id: this.conversationId,
       agentId: agentId || undefined,
       model_id: modelId || undefined,
+      // Turn-level attachment binding: the exact attachment ids (uuids, in order) the user attached to
+      // THIS message. The backend binds them to the created ChatMessage — it does not guess by recency.
+      attachment_ids: (opts.attachmentIds && opts.attachmentIds.length) ? opts.attachmentIds : undefined,
+      // Client-generated id for message idempotency (retries/reconnects don't double-create/rebind).
+      client_message_id: opts.clientMessageId || undefined,
       // Canvas mode: auto-expose GENERATE_STATIC_PAGE for this turn (backend gates on this flag).
       canvas_mode: opts.canvasMode || undefined,
       // Canvas click-to-select (Phase 5): the element the user clicked, so "change this" targets it.

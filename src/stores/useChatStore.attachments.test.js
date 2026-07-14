@@ -51,7 +51,8 @@ describe('useChatStore — attachments', () => {
 
     expect(api.uploadConversationFile).toHaveBeenCalledTimes(2)
     expect(api.uploadConversationFile).toHaveBeenNthCalledWith(1, 'c1', expect.objectContaining({ name: 'a.png' }))
-    expect(sendMessage).toHaveBeenCalledWith('look at these', 7)
+    expect(sendMessage).toHaveBeenCalledWith('look at these', 7, null,
+      expect.objectContaining({ attachmentIds: expect.any(Array), clientMessageId: expect.any(String) }))
     expect(chat.pendingAttachments).toHaveLength(0)
     // the user bubble keeps the attachment previews
     const userMsg = chat.messages.find((m) => m.role === 'user')
@@ -69,7 +70,8 @@ describe('useChatStore — attachments', () => {
     await chat.sendMessage('')
 
     expect(api.uploadConversationFile).toHaveBeenCalledTimes(1)
-    expect(sendMessage).toHaveBeenCalledWith('', 7)
+    expect(sendMessage).toHaveBeenCalledWith('', 7, null,
+      expect.objectContaining({ attachmentIds: expect.any(Array), clientMessageId: expect.any(String) }))
   })
 
   it('does nothing when there is neither text nor attachments', async () => {

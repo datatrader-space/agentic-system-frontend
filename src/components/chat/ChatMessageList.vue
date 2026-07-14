@@ -9,16 +9,22 @@
           @edit="chat.editAndResend(m.id, $event)"
           @feedback="chat.setFeedback(m.id, $event)"
         />
-        <!-- The plan card sits INLINE right after the assistant turn that created it, so it stays in
-             chronological order and scrolls UP into history as the agent posts more (it is NOT pinned to
-             the bottom). Aligned to the same 760px content column as the bubbles. -->
-        <div v-if="anchorInMessages && String(m.id) === String(anchorId)" class="msg-plan">
+        <!-- Inline plan artifact (durable-anchor path): render the plan card(s) this message introduced,
+             keyed by plan_id, in exact chronological place. Active only when the feature is on AND the
+             message carries a durable anchor. -->
+        <template v-if="useDurable && m.planArtifacts && m.planArtifacts.length">
+          <div v-for="a in m.planArtifacts" :key="a.plan_id" class="msg-plan">
+            <InlinePlanArtifact :run-id="a.run_id" :plan-id="a.plan_id" />
+          </div>
+        </template>
+        <!-- Legacy path: the detached card anchored via the runtime anchor id (fallback, unchanged). -->
+        <div v-else-if="!useDurable && anchorInMessages && String(m.id) === String(anchorId)" class="msg-plan">
           <UnifiedPlanTimeline :conversation-id="chat.conversationId" />
         </div>
       </template>
-      <!-- Fallback: no anchored assistant message in view (e.g. an older conversation reloaded before
-           the plan turn re-streams) → render the card at the end so it is never lost. -->
-      <div v-if="!anchorInMessages" class="msg-plan">
+      <!-- Legacy fallback: no anchored assistant message in view → render the card at the end so it is
+           never lost. Not used on the durable-anchor path (anchors are always in the message stream). -->
+      <div v-if="!useDurable && !anchorInMessages" class="msg-plan">
         <UnifiedPlanTimeline :conversation-id="chat.conversationId" />
       </div>
       <!-- Compact progress line — surfaces at the bottom each time a step completes (or the plan
@@ -40,9 +46,14 @@ import { useChatStore } from '../../stores/useChatStore'
 import { usePlanStore } from '../../stores/usePlanStore'
 import ChatMessage from './ChatMessage.vue'
 import UnifiedPlanTimeline from '../plan/UnifiedPlanTimeline.vue'
+import InlinePlanArtifact from '../plan/InlinePlanArtifact.vue'
 
 const chat = useChatStore()
 const plan = usePlanStore()
+
+// Durable-anchor path (inline plan artifact) vs the legacy detached-card path. Driven by the store
+// getter, which is true only when the feature flag is on AND the loaded history carries plan anchors.
+const useDurable = computed(() => chat.hasDurablePlanAnchors)
 const scrollEl = ref(null)
 
 // Where the plan card renders: right after the assistant message that created it. When that anchor
