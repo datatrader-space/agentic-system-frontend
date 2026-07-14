@@ -31,6 +31,24 @@ export const usePlanStore = defineStore('plan', {
       .map((rid) => s.plansByRunId[rid]).filter(Boolean),
     isHydrating: (s) => (runId) => s.hydrationStatusByRunId[runId] === 'loading',
     isActionPending: (s) => (runId) => !!s.pendingActionByRunId[runId],
+    // Compact progress for the conversation's LATEST run — drives the "✓ Step N done · X/total" line
+    // that surfaces at the bottom of the thread on each step completion. null when there's no plan.
+    progressForConversation: (s) => (cid) => {
+      const ids = s.activeRunIdsByConversation[String(cid)] || []
+      const runId = ids[ids.length - 1]
+      const p = runId ? s.plansByRunId[runId] : null
+      if (!p) return null
+      const steps = p.steps || []
+      const total = steps.length || p.step_count || 0
+      if (!total) return null
+      const doneList = steps.filter((x) => x.status === 'completed' || x.status === 'skipped')
+      const last = doneList[doneList.length - 1]
+      return {
+        runId, done: doneList.length, total,
+        lastTitle: (last && (last.title || last.description)) || '',
+        status: p.plan_status, purpose: p.plan_purpose || 'execution',
+      }
+    },
   },
 
   actions: {

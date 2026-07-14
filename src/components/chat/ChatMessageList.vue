@@ -1,21 +1,35 @@
 <template>
   <div ref="scrollEl" class="msg-list">
     <div class="msg-list-inner" role="log" aria-live="polite" aria-label="Conversation">
-      <ChatMessage
-        v-for="m in chat.messages"
-        :key="m.id"
-        :message="m"
-        @retry="chat.retryLast()"
-        @regenerate="chat.regenerate(m.id)"
-        @edit="chat.editAndResend(m.id, $event)"
-        @feedback="chat.setFeedback(m.id, $event)"
-      />
-      <!-- Plan lives INLINE in the conversation (Claude-style), aligned to the same 760px content
-           column. While the run is active it PINS just above the composer so it stays visible and its
-           steps tick in place instead of drifting down and hiding as new step-messages arrive; once
-           the turn finishes it settles back into the normal scroll flow. -->
-      <UnifiedPlanTimeline :conversation-id="chat.conversationId"
-        class="msg-plan" :class="{ 'msg-plan--live': chat.isStreaming }" />
+      <template v-for="m in chat.messages" :key="m.id">
+        <ChatMessage
+          :message="m"
+          @retry="chat.retryLast()"
+          @regenerate="chat.regenerate(m.id)"
+          @edit="chat.editAndResend(m.id, $event)"
+          @feedback="chat.setFeedback(m.id, $event)"
+        />
+        <!-- The plan card sits INLINE right after the assistant turn that created it, so it stays in
+             chronological order and scrolls UP into history as the agent posts more (it is NOT pinned to
+             the bottom). Aligned to the same 760px content column as the bubbles. -->
+        <div v-if="anchorInMessages && String(m.id) === String(anchorId)" class="msg-plan">
+          <UnifiedPlanTimeline :conversation-id="chat.conversationId" />
+        </div>
+      </template>
+      <!-- Fallback: no anchored assistant message in view (e.g. an older conversation reloaded before
+           the plan turn re-streams) → render the card at the end so it is never lost. -->
+      <div v-if="!anchorInMessages" class="msg-plan">
+        <UnifiedPlanTimeline :conversation-id="chat.conversationId" />
+      </div>
+      <!-- Compact progress line — surfaces at the bottom each time a step completes (or the plan
+           finishes), so you see progress without scrolling. Click to jump to the full card in history. -->
+      <button v-if="planProgress && planProgress.done > 0" type="button"
+              class="msg-plan-progress" :class="{ done: planProgress.done >= planProgress.total }"
+              @click="scrollToPlan">
+        <span class="mpp-check" aria-hidden="true">✓</span>
+        <span class="mpp-text">{{ progressLabel }}</span>
+        <span class="mpp-count">{{ planProgress.done }}/{{ planProgress.total }}</span>
+      </button>
     </div>
   </div>
 </template>
@@ -23,11 +37,32 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useChatStore } from '../../stores/useChatStore'
+import { usePlanStore } from '../../stores/usePlanStore'
 import ChatMessage from './ChatMessage.vue'
 import UnifiedPlanTimeline from '../plan/UnifiedPlanTimeline.vue'
 
 const chat = useChatStore()
+const plan = usePlanStore()
 const scrollEl = ref(null)
+
+// Where the plan card renders: right after the assistant message that created it. When that anchor
+// isn't among the loaded messages, fall back to rendering the card at the end (exactly one instance).
+const anchorId = computed(() => chat.planAnchorMsgId)
+const anchorInMessages = computed(() =>
+  anchorId.value != null && chat.messages.some((m) => String(m.id) === String(anchorId.value)))
+
+const planProgress = computed(() => plan.progressForConversation(chat.conversationId))
+const progressLabel = computed(() => {
+  const p = planProgress.value
+  if (!p) return ''
+  if (p.done >= p.total) return 'Plan complete'
+  return p.lastTitle ? `Step done — ${p.lastTitle}` : 'Step done'
+})
+
+function scrollToPlan() {
+  const el = scrollEl.value && scrollEl.value.querySelector('.msg-plan')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
 
 const scrollToBottom = () => {
   const el = scrollEl.value
@@ -56,16 +91,21 @@ onMounted(() => nextTick(scrollToBottom))
 .msg-list-inner {
   padding: 28px 16px 16px;
 }
-/* Plan card aligned to the same centered content column as the message bubbles. */
+/* Plan card aligned to the same centered content column as the message bubbles. It flows with the
+   conversation (in chronological order) — no sticky/pinned behaviour. */
 .msg-plan { max-width: 760px; margin: 0 auto 22px; }
-/* While a run streams, pin the plan just above the composer so it stays visible and ticks in place
-   instead of scrolling off. It un-pins (normal flow) once the turn ends. Capped so a long plan
-   scrolls internally rather than covering the whole thread. */
-.msg-plan--live {
-  position: sticky;
-  bottom: 8px;
-  z-index: 2;
-  max-height: 45vh;
-  overflow-y: auto;
+
+/* Compact progress line that surfaces at the bottom on each step completion. */
+.msg-plan-progress {
+  display: flex; align-items: center; gap: 8px;
+  max-width: 760px; margin: 0 auto 18px; width: 100%;
+  padding: 8px 12px; border: 1px solid var(--vm-border, #e5e7eb); border-radius: 10px;
+  background: var(--vm-bg-soft, #f8fafc); color: var(--vm-text-2, #374151);
+  font-size: 0.82rem; text-align: left; cursor: pointer;
 }
+.msg-plan-progress:hover { background: var(--vm-bg-hover, #eef2f7); }
+.msg-plan-progress .mpp-check { color: #1a7f3c; font-weight: 700; }
+.msg-plan-progress.done { border-color: #ABEFC6; background: #E6F7EE; color: #027A48; }
+.msg-plan-progress .mpp-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-plan-progress .mpp-count { font-variant-numeric: tabular-nums; font-weight: 600; opacity: 0.8; }
 </style>

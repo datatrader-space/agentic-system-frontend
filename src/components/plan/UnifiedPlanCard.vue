@@ -40,6 +40,11 @@ const expanded = ref(false)
 const _defaultExpanded = () => isRoadmap.value || ['pending_approval', 'changes_requested', 'rejected', 'failed'].includes(status.value)
 watch(status, () => { expanded.value = _defaultExpanded() }, { immediate: true })
 
+// Per-step "Details" disclosure (deep plans only carry step.details). Collapsed by default; keyed by
+// step_id so each step toggles independently. A step with no details renders no toggle at all.
+const openDetails = ref({})
+function toggleDetails(id) { openDetails.value = { ...openDetails.value, [id]: !openDetails.value[id] } }
+
 const showRevise = ref(false)
 const reviseText = ref('')
 const reviseBox = ref(null)
@@ -94,6 +99,15 @@ const progressPct = computed(() => (total.value ? Math.round((completed.value / 
           <span class="uplan__steptxt">
             <span class="uplan__steptitle">{{ s.title || s.description }}</span>
             <span v-if="!readOnly && s.failure_summary" class="uplan__stepfail">{{ s.failure_summary }}</span>
+            <!-- optional per-step DETAILS (deep plans) — collapsed disclosure; nothing when empty -->
+            <template v-if="s.details">
+              <button type="button" class="uplan__detailstoggle" :aria-expanded="!!openDetails[s.step_id]"
+                      @click="toggleDetails(s.step_id)">
+                <span class="uplan__detailscaret" :class="{ open: openDetails[s.step_id] }" aria-hidden="true">▸</span>
+                Details
+              </button>
+              <span v-if="openDetails[s.step_id]" class="uplan__stepdetails">{{ s.details }}</span>
+            </template>
           </span>
           <span class="uplan__stepstatus visually-hidden">{{ s.status }}</span>
         </li>
@@ -163,6 +177,13 @@ const progressPct = computed(() => (total.value ? Math.round((completed.value / 
 .uplan__step.step-failed .uplan__stepicon { color: #a1281f; }
 .uplan__steptxt { display: flex; flex-direction: column; gap: 2px; }
 .uplan__stepfail { font-size: 12px; color: #a1281f; }
+.uplan__detailstoggle { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: 0; cursor: pointer; padding: 0; font: inherit; font-size: 12px;
+  color: var(--muted-fg, #666); font-weight: 600; }
+.uplan__detailscaret { transition: transform .15s ease; display: inline-block; font-size: 10px; }
+.uplan__detailscaret.open { transform: rotate(90deg); }
+.uplan__stepdetails { font-size: 12.5px; color: var(--muted-fg, #555); line-height: 1.45;
+  background: var(--muted, #f7f7fa); padding: 6px 8px; border-radius: 6px; margin-top: 2px; white-space: pre-wrap; }
 .uplan__note { font-size: 12.5px; color: var(--muted-fg, #555); background: var(--muted, #f7f7fa);
   padding: 6px 8px; border-radius: 6px; margin: 0; }
 .uplan__revise textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--border, #ccc);
@@ -177,7 +198,7 @@ const progressPct = computed(() => (total.value ? Math.round((completed.value / 
 .uplan__ro { font-size: 12px; color: var(--muted-fg, #888); margin: 0; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
   overflow: hidden; clip: rect(0 0 0 0); border: 0; }
-@media (prefers-reduced-motion: reduce) { .uplan__caret, .uplan__fill { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .uplan__caret, .uplan__fill, .uplan__detailscaret { transition: none; } }
 @media (prefers-color-scheme: dark) {
   .uplan { background: var(--surface, #1c1c1f); border-color: var(--border, #333); }
 }
