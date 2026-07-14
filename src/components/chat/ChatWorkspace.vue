@@ -108,7 +108,8 @@
       </div>
     </div>
 
-    <!-- Human-in-the-loop approval modal: appears when the backend gates a tool for approval. -->
+    <!-- Human-in-the-loop approval modal: appears when the backend gates a tool for approval, AND for the
+         max-steps pause-and-ask (Stop / Continue / Continue-for-chat) — same hitl_request mechanism. -->
     <HITLModal
       :requests="chat.hitlRequests"
       :show-stop="true"

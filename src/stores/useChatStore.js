@@ -38,7 +38,8 @@ export const useChatStore = defineStore('chat', {
     conversationId: null,
     repoId: 0,
 
-    // Human-in-the-loop approval queue (tools the backend gated for approval). Rendered by HITLModal.
+    // Human-in-the-loop approval queue (tools the backend gated for approval + the max-steps
+    // pause-and-ask). Rendered by HITLModal.
     hitlRequests: [],
     // True while ≥1 approval card is pending. Keeps the turn "active" (not "Done") so the card + Stop
     // stay visible even if the task/CRS path emitted a premature completion for the step-0 text.
