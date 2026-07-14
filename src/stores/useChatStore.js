@@ -80,15 +80,11 @@ export const useChatStore = defineStore('chat', {
 
     _conn: null,
     _assistantId: null,
-    // Id of the assistant message that created the active plan — the plan card renders AFTER it so it
-    // sits in chronological order and recedes into history (not pinned at the bottom). Reset per chat.
-    _planAnchorMsgId: null,
   }),
   getters: {
     isEmpty: (s) => s.messages.length === 0,
-    // Inline plan artifact: true when the loaded history carries durable plan anchors — drives the
-    // render-by-plan_id path. A conversation with no anchors (pre-anchor/legacy) still renders via the
-    // detached-card fallback, so this is a per-conversation, data-driven switch.
+    // Inline plan artifact: true when the loaded history carries durable plan anchors. Drives the
+    // active-plan chip near the composer (the plan card itself always renders inline at its anchor).
     hasDurablePlanAnchors: (s) =>
       s.messages.some((m) => Array.isArray(m.planArtifacts) && m.planArtifacts.length > 0),
     // True once we know the user has zero agents — drives the "create an agent first"
@@ -96,7 +92,6 @@ export const useChatStore = defineStore('chat', {
     needsAgent: (s) => s.agentsLoaded && s.agents.length === 0,
     currentAgent: (s) =>
       s.agents.find((a) => String(a.id) === String(s.selectedAgentId)) || null,
-    planAnchorMsgId: (s) => s._planAnchorMsgId,
     // Running session totals (this chat). Prefer a turn's EXACT completed usage; while a turn is
     // still streaming, fall back to its live activity-token counter so the footer ticks up mid-run
     // and finalises exactly. Turns with neither contribute 0; auto-resets when messages clear.
@@ -195,7 +190,6 @@ export const useChatStore = defineStore('chat', {
       // conversation (the first message creates a new one and conversation_created sets the id).
       this._clearTurnState()
       this.messages = []
-      this._planAnchorMsgId = null
       this.conversationId = null
       this.error = ''
       this.pendingPlan = null
@@ -222,7 +216,6 @@ export const useChatStore = defineStore('chat', {
       this._clearTurnState()   // switch conversation: clear UI state but KEEP the shared socket
       this.conversationId = String(id)
       this.messages = []
-      this._planAnchorMsgId = null
       this.pendingPlan = null
       this._clearAttachments()
       this.loadingHistory = true
@@ -971,9 +964,8 @@ export const useChatStore = defineStore('chat', {
           // signal and lock the composer in steering mode forever. Only real task runs (no display_only)
           // set the flag.
           if (!msg.display_only) this._taskRunActive = true
-          // Anchor the plan card to the assistant turn that created it, so it sits in chronological
-          // order and scrolls UP into history (instead of staying pinned at the bottom). Set once.
-          if (this._planAnchorMsgId == null) this._planAnchorMsgId = this._assistantId
+          // The inline plan card is anchored durably via the message's plan_artifacts (persisted +
+          // pushed via plan_event), not a runtime anchor id — nothing to set here.
           break
         case 'agent_session_complete':
         case 'agent_session_stopped':
