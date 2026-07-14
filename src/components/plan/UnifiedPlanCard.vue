@@ -21,6 +21,9 @@ const STEP_ICON = { pending: '○', started: '◐', completed: '✓', failed: '�
 
 const status = computed(() => props.plan?.plan_status || 'draft')
 const statusLabel = computed(() => STATUS_LABEL[status.value] || status.value)
+// A ROADMAP is a strategic display artifact (non-executable) — render milestones, NOT an execution
+// checklist: no progress bar, no ✓/current-step states, a distinct "Roadmap" badge, expanded by default.
+const isRoadmap = computed(() => props.plan?.plan_purpose === 'roadmap')
 const steps = computed(() => props.plan?.steps || [])
 const total = computed(() => props.plan?.total_step_count ?? steps.value.length)
 const completed = computed(() => props.plan?.completed_step_count ?? 0)
@@ -34,7 +37,7 @@ const awaitingApproval = computed(() => status.value === 'pending_approval' || s
 
 // Default expansion: expanded while awaiting approval / changes / rejected / failed; collapsed when completed.
 const expanded = ref(false)
-const _defaultExpanded = () => ['pending_approval', 'changes_requested', 'rejected', 'failed'].includes(status.value)
+const _defaultExpanded = () => isRoadmap.value || ['pending_approval', 'changes_requested', 'rejected', 'failed'].includes(status.value)
 watch(status, () => { expanded.value = _defaultExpanded() }, { immediate: true })
 
 const showRevise = ref(false)
@@ -66,8 +69,8 @@ const progressPct = computed(() => (total.value ? Math.round((completed.value / 
         <span class="uplan__caret" :class="{ open: expanded }" aria-hidden="true">▸</span>
         <span class="uplan__title">{{ plan.title || 'Plan' }}</span>
       </button>
-      <span class="uplan__badge" :class="`badge-${status}`" role="status" aria-live="polite">
-        {{ statusLabel }}
+      <span class="uplan__badge" :class="isRoadmap ? 'badge-roadmap' : `badge-${status}`" role="status" aria-live="polite">
+        {{ isRoadmap ? 'Roadmap' : statusLabel }}
       </span>
       <span v-if="plan.version_number" class="uplan__ver" :title="`Plan version ${plan.version_number}`">
         v{{ plan.version_number }}
@@ -76,17 +79,18 @@ const progressPct = computed(() => (total.value ? Math.round((completed.value / 
 
     <p v-if="plan.summary && expanded" class="uplan__summary">{{ plan.summary }}</p>
 
-    <!-- progress -->
-    <div v-if="total" class="uplan__progress" :aria-label="`${completed} of ${total} steps complete`">
+    <!-- progress (execution only — a roadmap is not executed, so no ✓ progress) -->
+    <div v-if="total && !isRoadmap" class="uplan__progress" :aria-label="`${completed} of ${total} steps complete`">
       <div class="uplan__bar"><div class="uplan__fill" :style="{ width: progressPct + '%' }" /></div>
       <span class="uplan__count" aria-hidden="true">{{ completed }}/{{ total }}</span>
     </div>
 
     <div v-if="expanded" class="uplan__body">
       <!-- steps / live checklist -->
-      <ol class="uplan__steps" role="list">
-        <li v-for="s in steps" :key="s.step_id" class="uplan__step" :class="[`step-${s.status}`, { current: s.step_id === currentStepId }]">
-          <span class="uplan__stepicon" aria-hidden="true">{{ STEP_ICON[s.status] || '○' }}</span>
+      <ol class="uplan__steps" :class="{ 'is-roadmap': isRoadmap }" role="list">
+        <li v-for="(s, i) in steps" :key="s.step_id" class="uplan__step"
+            :class="isRoadmap ? 'is-milestone' : [`step-${s.status}`, { current: s.step_id === currentStepId }]">
+          <span class="uplan__stepicon" aria-hidden="true">{{ isRoadmap ? `M${i + 1}` : (STEP_ICON[s.status] || '○') }}</span>
           <span class="uplan__steptxt">
             <span class="uplan__steptitle">{{ s.title || s.description }}</span>
             <span v-if="!readOnly && s.failure_summary" class="uplan__stepfail">{{ s.failure_summary }}</span>
@@ -138,6 +142,14 @@ const progressPct = computed(() => (total.value ? Math.round((completed.value / 
 .badge-completed { background: #e3f6e8; color: #1a7f3c; }
 .badge-failed, .badge-rejected { background: #fde2e1; color: #a1281f; }
 .badge-changes_requested { background: #fdebd0; color: #92510a; }
+/* Roadmap = strategic display artifact (distinct from execution states). */
+.badge-roadmap { background: #ede9fe; color: #6d28d9; }
+.uplan__steps.is-roadmap { counter-reset: none; }
+.uplan__step.is-milestone .uplan__stepicon {
+  font-size: 11px; font-weight: 700; color: #6d28d9;
+  background: #ede9fe; border-radius: 6px; padding: 1px 5px; min-width: 22px; text-align: center;
+}
+.uplan__step.is-milestone { opacity: 1; }   /* no execution dimming/current-step highlight */
 .uplan__ver { font-size: 12px; color: var(--muted-fg, #888); }
 .uplan__summary { margin: 0; color: var(--muted-fg, #555); }
 .uplan__progress { display: flex; align-items: center; gap: 8px; }
