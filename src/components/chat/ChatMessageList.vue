@@ -29,7 +29,9 @@
       </div>
       <!-- Compact progress line — surfaces at the bottom each time a step completes (or the plan
            finishes), so you see progress without scrolling. Click to jump to the full card in history. -->
-      <button v-if="planProgress && planProgress.done > 0" type="button"
+      <!-- Legacy path only: the durable-anchor path surfaces progress via the active-plan chip near
+           the composer (ChatWorkspace), so we don't show this in-list line there. -->
+      <button v-if="!useDurable && planProgress && planProgress.done > 0" type="button"
               class="msg-plan-progress" :class="{ done: planProgress.done >= planProgress.total }"
               @click="scrollToPlan">
         <span class="mpp-check" aria-hidden="true">✓</span>

@@ -9,7 +9,6 @@ import { notify } from '../composables/useNotify'
 import { ChatConnection } from '../services/chatService'
 import { useCanvasStore } from './useCanvasStore'
 import { usePlanStore } from './usePlanStore'
-import { INLINE_PLAN_ARTIFACT } from '../config/features'
 import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity, interrupt as interruptActivity } from '../composables/activityStream'
 import { useAgentTimeline, isRichEvent } from '../composables/useAgentTimeline'
 
@@ -87,10 +86,11 @@ export const useChatStore = defineStore('chat', {
   }),
   getters: {
     isEmpty: (s) => s.messages.length === 0,
-    // Inline plan artifact: true when the loaded history carries durable plan anchors AND the feature
-    // is on — drives the render-by-plan_id path (vs the legacy detached card + polling fallback).
-    hasDurablePlanAnchors: (s) => INLINE_PLAN_ARTIFACT
-      && s.messages.some((m) => Array.isArray(m.planArtifacts) && m.planArtifacts.length > 0),
+    // Inline plan artifact: true when the loaded history carries durable plan anchors — drives the
+    // render-by-plan_id path. A conversation with no anchors (pre-anchor/legacy) still renders via the
+    // detached-card fallback, so this is a per-conversation, data-driven switch.
+    hasDurablePlanAnchors: (s) =>
+      s.messages.some((m) => Array.isArray(m.planArtifacts) && m.planArtifacts.length > 0),
     // True once we know the user has zero agents — drives the "create an agent first"
     // empty state and the disabled composer on the welcome screen.
     needsAgent: (s) => s.agentsLoaded && s.agents.length === 0,
@@ -680,7 +680,7 @@ export const useChatStore = defineStore('chat', {
     // reconcile (idempotent) to upgrade a legacy plan, then reload history to pick up its anchor.
     // Gated + safe: a complete no-op when the feature is off.
     _hydratePlanAnchors(cid) {
-      if (!INLINE_PLAN_ARTIFACT || cid == null) return
+      if (cid == null) return
       try {
         const plan = usePlanStore()
         const runIds = new Set()
@@ -813,7 +813,6 @@ export const useChatStore = defineStore('chat', {
       // conversation (the frame is broadcast to the user group with conversation_id inside). The store
       // applies by (version, sequence) and dedups by event_id; this handler never derives state.
       if (t === 'plan_event') {
-        if (!INLINE_PLAN_ARTIFACT) return
         const pcid = msg.conversation_id
         if (pcid == null || this.conversationId == null || String(pcid) === String(this.conversationId)) {
           try {

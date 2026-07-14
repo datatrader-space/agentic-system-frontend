@@ -3,8 +3,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-// Feature ON for these tests (mirrors backend INLINE_PLAN_ARTIFACT_ENABLED).
-vi.mock('../config/features', () => ({ INLINE_PLAN_ARTIFACT: true }))
 vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
 
 import { useChatStore } from './useChatStore'

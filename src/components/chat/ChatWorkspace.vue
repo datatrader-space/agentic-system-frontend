@@ -92,6 +92,14 @@
 
     <!-- Composer (thread mode; welcome screen has its own) -->
     <div v-if="!chat.isEmpty" class="chat-footer">
+      <!-- Active-plan navigation chip: scrolls back to the inline plan card when it's out of view. -->
+      <button v-if="activePlan" type="button" class="active-plan-chip" @click="scrollToActivePlan"
+              aria-label="Jump to the active plan">
+        <span class="apc-dot" aria-hidden="true"></span>
+        <span class="apc-label">Active plan</span>
+        <span class="apc-count">{{ activePlan.done }}/{{ activePlan.total }}</span>
+        <span class="apc-arrow" aria-hidden="true">↑</span>
+      </button>
       <!-- URL/YouTube import lives in the composer "+" menu (conversation-scoped DocumentSource →
            MarkItDown pipeline). Explicit action only; we never auto-ingest URLs typed in a message.
            agent-id comes from selectedAgentId (always set once a conversation loads), NOT
@@ -136,6 +144,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useChatStore } from '../../stores/useChatStore'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import { useLayoutStore } from '../../stores/useLayoutStore'
+import { usePlanStore } from '../../stores/usePlanStore'
 import ChatWelcome from './ChatWelcome.vue'
 import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
@@ -147,8 +156,23 @@ import { previewOf, relTime, groupSessions } from '../../composables/useChatHist
 const chat = useChatStore()
 const canvas = useCanvasStore()
 const layout = useLayoutStore()
+const plan = usePlanStore()
 const route = useRoute()
 const router = useRouter()
+
+// Active-plan navigation chip (inline plan artifact — approved wireframe §4). A nav aid only: it shows
+// the live plan's progress near the composer and scrolls back to the anchored card. NOT a second card
+// and NOT a second source of state. Shown on the durable-anchor path while a plan is still incomplete.
+const activePlan = computed(() => {
+  if (!chat.hasDurablePlanAnchors) return null
+  const p = plan.progressForConversation(chat.conversationId)
+  if (!p || (p.total > 0 && p.done >= p.total)) return null   // hide once complete / no steps
+  return p
+})
+function scrollToActivePlan() {
+  const el = typeof document !== 'undefined' && document.querySelector('.msg-list .msg-plan')
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
 const historyOpen = ref(false)
 const historyQuery = ref('')
 
@@ -552,4 +576,16 @@ watch(
   text-align: right; padding: 2px 20px 6px; font-size: 11px; color: var(--vm-text-3, #6b7280);
   font-variant-numeric: tabular-nums; user-select: none;
 }
+/* Active-plan navigation chip — a small pill centered above the composer (approved wireframe §4). */
+.active-plan-chip {
+  display: flex; align-items: center; gap: 8px; margin: 0 auto 8px; padding: 6px 13px;
+  border: 1px solid var(--vm-border, #e4e8ee); border-radius: 999px;
+  background: var(--vm-surface, #fff); color: var(--vm-text, #1a1d23); font-size: 12.5px;
+  cursor: pointer; box-shadow: 0 3px 10px rgba(20, 24, 33, .08); font-family: inherit;
+}
+.active-plan-chip:hover { background: var(--vm-bg-soft, #f2f4f7); }
+.active-plan-chip:focus-visible { outline: 2px solid var(--vm-accent, #3a5bd9); outline-offset: 2px; }
+.active-plan-chip .apc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vm-accent, #3a5bd9); flex: none; }
+.active-plan-chip .apc-count { font-variant-numeric: tabular-nums; color: var(--vm-text-2, #5b6472); font-weight: 600; }
+.active-plan-chip .apc-arrow { color: var(--vm-text-3, #8a92a0); }
 </style>
