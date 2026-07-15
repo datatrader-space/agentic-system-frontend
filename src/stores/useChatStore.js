@@ -335,6 +335,32 @@ export const useChatStore = defineStore('chat', {
       return opts
     },
 
+    // Upload staged attachments to the current conversation and return their stable attachment_ids (in
+    // order) plus the doc entries that still need ingest-waiting. Shared by the normal + steering send
+    // paths so BOTH reliably echo attachment_ids back to the backend (the binding key). Awaited fully
+    // before the WS message is sent, so a message never races ahead of its uploads.
+    async _uploadAttachments(atts) {
+      const attachmentIds = []
+      const docs = []
+      for (const a of atts) {
+        try {
+          const res = await api.uploadConversationFile(this.conversationId, a.file)
+          const attId = res?.data?.attachment_id
+          const fileId = res?.data?.id
+          if (attId) attachmentIds.push(attId)
+          if (!a.isImage && fileId != null) docs.push({ id: fileId, name: a.name })
+        } catch {
+          this.error = 'Failed to upload an attachment.'
+        }
+      }
+      if (atts.length && attachmentIds.length === 0) {
+        // Uploads ran but no ids came back — the backend safety net (turn-scoped binding) still covers
+        // this, but log it so a real regression is visible rather than silent.
+        console.warn('[chat] attachments uploaded but no attachment_id returned — relying on backend fallback')
+      }
+      return { attachmentIds, docs }
+    },
+
     async sendMessage(text) {
       const content = (text || '').trim()
       const atts = this.pendingAttachments.slice()
@@ -342,11 +368,22 @@ export const useChatStore = defineStore('chat', {
 
       // Mid-run STEERING: the agent is already running. Don't start a second turn and don't drop the
       // message — send it as a steering message. The backend queues it and the running agent observes it
-      // between steps (deciding whether to change course now or handle it after). Text only mid-run.
+      // between steps. If the user ATTACHED files, upload them first and send their attachment_ids so the
+      // reference is bound to this steering message too (previously attachments were silently dropped here,
+      // which is one way the "agent can't see the uploaded image" race happened).
       if (this.isStreaming) {
-        if (!content || !this.conversationId || !this._conn) return
-        this.messages.push({ id: nid(), role: 'user', content, status: 'done', queued: true })
-        this._conn.sendMessage(content, this.selectedAgentId, null, this._canvasSendOpts())
+        if ((!content && atts.length === 0) || !this.conversationId || !this._conn) return
+        this.messages.push({
+          id: nid(), role: 'user', content, status: 'done', queued: true,
+          attachments: atts.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url, mime: a.mime })),
+        })
+        this.pendingAttachments = []
+        const { attachmentIds: steerIds } = await this._uploadAttachments(atts)
+        this._conn.sendMessage(content, this.selectedAgentId, null, {
+          ...this._canvasSendOpts(),
+          attachmentIds: steerIds,
+          clientMessageId: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        })
         return
       }
 
@@ -385,21 +422,12 @@ export const useChatStore = defineStore('chat', {
       // upload (auto-attached to vision), so they don't gate the send.
       // Collected in upload order so the backend binds them to THIS message with the correct ordinal
       // (turn-level attachment binding). We echo back the stable `attachment_id` (uuid), not the DB pk.
-      const attachmentIds = []
+      let attachmentIds = []
       if (atts.length) {
         const assistantMsg = this._cur()
-        const docs = []
-        for (const a of atts) {
-          try {
-            const res = await api.uploadConversationFile(this.conversationId, a.file)
-            const attId = res?.data?.attachment_id
-            const fileId = res?.data?.id
-            if (attId) attachmentIds.push(attId)
-            if (!a.isImage && fileId != null) docs.push({ id: fileId, name: a.name })
-          } catch {
-            this.error = 'Failed to upload an attachment.'
-          }
-        }
+        const uploaded = await this._uploadAttachments(atts)
+        attachmentIds = uploaded.attachmentIds
+        const docs = uploaded.docs
         if (docs.length && assistantMsg) {
           assistantMsg.prepStatus = docs.length > 1
             ? `Reading your ${docs.length} documents…`
@@ -740,6 +768,8 @@ export const useChatStore = defineStore('chat', {
         answerBasis: null, // provenance envelope (label + cited-or-top4) set on assistant_message_complete
         activity, // legacy raw timeline (see activityStream.js) — fallback when rich streaming is OFF
         timeline: null, // rich-streaming snapshot, pinned on completion (friendly, param-free)
+        media: [], // generated media (images/video) from tool_result media_artifacts — rendered in the bubble
+        _mediaSeen: null, // de-dupe set (by url/id) so retries/re-emits don't double-render
         _serverMid: null, // §4b: server's per-turn message_id, adopted from the first stamped event
       })
       this._assistantId = this.messages[this.messages.length - 1].id
@@ -896,6 +926,27 @@ export const useChatStore = defineStore('chat', {
               m.toolCalls.find((x) => x.name === name) ||
               m.toolCalls[m.toolCalls.length - 1]
             if (tc) tc.status = msg.success === false ? 'error' : 'done'
+            // Generated media (GENERATE_IMAGE/VIDEO etc.) arrives on tool_result as media_artifacts —
+            // attach it to the bubble so it renders. Without this the TASK/agent-runner path produced a
+            // real image that never showed (media lived on tool_result, not in the final assistant text).
+            const arts = Array.isArray(msg.media_artifacts) ? msg.media_artifacts : []
+            if (arts.length) {
+              if (!m.media) m.media = []
+              if (!m._mediaSeen) m._mediaSeen = new Set()
+              for (const a of arts) {
+                const url = a.url || a.file_url
+                const key = a.attachment_id || a.id || url
+                if (!url || (key && m._mediaSeen.has(key))) continue
+                if (key) m._mediaSeen.add(key)
+                m.media.push({
+                  url,
+                  type: a.type || a.media_type || 'image',
+                  mime: a.mime_type,
+                  filename: a.filename,
+                  attachment_id: a.attachment_id,
+                })
+              }
+            }
           }
           break
         }

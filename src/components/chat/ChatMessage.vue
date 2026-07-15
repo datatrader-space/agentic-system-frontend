@@ -33,6 +33,11 @@
         <!-- Rendered markdown content (full answer if rehydrated, else stored stub) -->
         <div v-if="displayContent" class="bubble assistant" v-html="rendered" @click="onCodeCopy"></div>
 
+        <!-- Generated media (images/video) from tool_result media_artifacts. Rendered here so an image the
+             agent produced shows in the bubble even when the final answer text doesn't embed its URL
+             (the TASK/agent-runner path delivers media on tool_result, not in the assistant text). -->
+        <MediaRenderer v-if="message.media && message.media.length" :artifacts="message.media" class="mt-2" />
+
         <!-- Private reasoning — FALLBACK only (flag-OFF / legacy path). When the rich timeline is shown
              (message.timeline), reasoning is folded INTO it, so we don't render this separate box. -->
         <ReasoningPanel v-if="message.status !== 'streaming' && !message.timeline" :activity="message.activity" />
@@ -161,6 +166,7 @@ import ReasoningPanel from '../activity/ReasoningPanel.vue'
 import { reasoningItems } from '../../composables/activityStream'
 import SourcesList from './SourcesList.vue'
 import ProvenanceFooter from './ProvenanceFooter.vue'
+import MediaRenderer from '../MediaRenderer.vue'
 import { stopReasonBadge } from '../../composables/stopReason'
 import { useChatStore } from '../../stores/useChatStore'
 
