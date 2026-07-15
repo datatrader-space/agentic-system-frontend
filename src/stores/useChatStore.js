@@ -287,9 +287,29 @@ export const useChatStore = defineStore('chat', {
         })
       }
     },
+    // Attach EXISTING media (from the Media gallery) to the next message. These already have a stable
+    // attachment_id, so they bind to the message by id on send — NO re-upload. Shape mirrors a staged
+    // attachment but carries `attachment_id` and no `file`. De-duped by attachment_id.
+    addExistingMedia(items) {
+      for (const m of Array.from(items || [])) {
+        if (!m || !m.attachment_id) continue
+        if (this.pendingAttachments.some((a) => a.attachment_id === m.attachment_id)) continue
+        this.pendingAttachments.push({
+          attachment_id: m.attachment_id,
+          name: m.filename || 'media',
+          isImage: m.type === 'image',
+          mime: m.mime_type || '',
+          url: m.url || '',        // served URL — the bubble preview + gallery thumbnail
+          existing: true,          // marks "no upload needed" for _uploadAttachments
+        })
+      }
+    },
     removeAttachment(i) {
       const a = this.pendingAttachments[i]
-      if (a && a.url) { try { URL.revokeObjectURL(a.url) } catch { /* ignore */ } }
+      // Only revoke blob URLs we created (uploads); gallery items use a served URL — don't revoke it.
+      if (a && a.url && !a.existing && a.url.startsWith('blob:')) {
+        try { URL.revokeObjectURL(a.url) } catch { /* ignore */ }
+      }
       this.pendingAttachments.splice(i, 1)
     },
 
@@ -346,6 +366,11 @@ export const useChatStore = defineStore('chat', {
       const attachmentIds = []
       const docs = []
       for (const a of atts) {
+        // Gallery-selected EXISTING media already have an attachment_id — bind by id, no upload.
+        if (a.existing && a.attachment_id) {
+          attachmentIds.push(a.attachment_id)
+          continue
+        }
         try {
           const res = await api.uploadConversationFile(this.conversationId, a.file)
           const attId = res?.data?.attachment_id
@@ -584,9 +609,12 @@ export const useChatStore = defineStore('chat', {
       return {
         onEvent: (msg) => this._onEvent(msg),
         onOpen: () => {
-          // Reconnected after a mid-turn drop. The backend keeps the turn alive and PERSISTS its
-          // answer (turn lifetime is decoupled from the socket), so recover by reloading history.
-          if (this._recovering) this._recoverAfterReconnect()
+          // Reconnected after a mid-turn drop. The backend keeps the turn alive and PERSISTS its answer
+          // (turn lifetime is decoupled from the socket), so recover by reloading history. Trigger whenever
+          // a turn was in flight — NOT only when _recovering was set: a backgrounded tab throttles the
+          // keepalive ping and the socket can drop without onClose flagging _recovering, yet the turn still
+          // completes server-side. Without this, the answer only appears after a manual refresh.
+          if (this._recovering || this.isStreaming || this._taskRunActive) this._recoverAfterReconnect()
         },
         onError: (em) => {
           if (!this.isStreaming) return
@@ -656,25 +684,30 @@ export const useChatStore = defineStore('chat', {
       this._recovering = false
       const m = this._cur()
       if (m && m.activity) m.activity.reconnecting = false
-      const hadAssistantBefore = this.messages.filter((x) => x.role === 'assistant').length
-      for (let i = 0; i < 10; i++) {
-        const landed = await this._refreshHistory(hadAssistantBefore)
-        if (landed) { this.isStreaming = false; this._assistantId = null; return }
+      // Poll ~30s for the backend to persist the turn's final answer, then swap in the server's truth.
+      for (let i = 0; i < 12; i++) {
+        const landed = await this._refreshHistory()
+        if (landed) { this.isStreaming = false; this._taskRunActive = false; this._assistantId = null; return }
         if (!this.isStreaming) return
         await new Promise((r) => setTimeout(r, 2500))
       }
-      // Waited ~25s and the turn never landed — clear the spinner without a scary error.
+      // Waited ~30s and the turn never landed — clear the spinner without a scary error.
       this._endAssistant()
     },
 
-    // Re-fetch conversation messages from the server. Returns true once the turn that was running
-    // during the drop has been persisted (a new assistant message is present).
-    async _refreshHistory(prevAssistantCount = 0) {
+    // Re-fetch conversation messages from the server. Returns true once the turn that was running during
+    // the drop has been persisted. Detection: the NEWEST saved message is an assistant with content — the
+    // backend saves the user message at turn start, so a mid-flight turn ends in a 'user' row until done.
+    // (The old assistant-COUNT delta was broken: the optimistic streaming bubble is already counted, so a
+    // completed turn never increased the count → recovery gave up and the answer only showed on refresh.)
+    async _refreshHistory() {
       try {
         const res = await api.getConversation(this.conversationId)
         const rows = pickArray((res.data || {}).messages)
-        const assistantCount = rows.filter((m) => (m.role === 'assistant')).length
-        if (assistantCount <= prevAssistantCount) return false   // turn not persisted yet
+        if (!rows.length) return false
+        const last = rows[rows.length - 1]
+        const landed = last && last.role === 'assistant' && (last.content || '').trim().length > 0
+        if (!landed) return false
         this.messages = rows.map((m) => ({
           id: nid(),
           role: m.role === 'assistant' ? 'assistant' : 'user',

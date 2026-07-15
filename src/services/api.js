@@ -761,6 +761,10 @@ export default {
     return api.post(`/conversations/${conversationPk}/files/`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
   getContextFiles: (conversationPk) => api.get(`/conversations/${conversationPk}/files/`),
+  // Media gallery: generated + uploaded images/video for this conversation (scope='conversation') or
+  // every conversation of this agent (scope='agent'). Optional source/type filters. Returns { media: [] }.
+  getConversationMedia: (conversationPk, params = {}) =>
+    api.get(`/conversations/${conversationPk}/media/`, { params }),
   deleteContextFile: (conversationPk, fileId) => api.delete(`/conversations/${conversationPk}/files/${fileId}/`),
   deleteGenericFile: (fileId) => api.delete(`/context_files/${fileId}/`),
 

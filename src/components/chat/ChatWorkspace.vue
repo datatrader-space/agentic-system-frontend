@@ -110,7 +110,8 @@
         :conversation-id="chat.conversationId"
         :run-mode="chat.currentAgent && chat.currentAgent.agent_run_mode"
         @send="onSend" @stop="chat.stop()" @mode-change="onModeChange"
-        @attach="chat.addAttachments" @remove-attach="chat.removeAttachment" />
+        @attach="chat.addAttachments" @remove-attach="chat.removeAttachment"
+        @open-media="mediaOpen = true" />
       <div v-if="chat.sessionTokens" class="session-meter" :title="`Total tokens used in this chat`">
         Session {{ fmtTokens(chat.sessionTokens) }}<span v-if="chat.sessionCost"> · {{ fmtCost(chat.sessionCost) }}</span>
       </div>
@@ -126,6 +127,11 @@
       @skip="chat.skipHitl"
       @stop="chat.stop"
     />
+
+    <!-- Media gallery: browse this chat's (or the whole agent's) generated + uploaded media and attach
+         selected items to the next message BY ID (no re-upload) so the agent can reference/edit them. -->
+    <MediaGallery :open="mediaOpen" :conversation-id="chat.conversationId"
+                  @close="mediaOpen = false" @attach="onAttachMedia" />
    </div>
 
     <!-- Canvas + Live Preview side panel (opens when the agent produces a design). -->
@@ -150,6 +156,7 @@ import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
 import CanvasShell from '../canvas/CanvasShell.vue'
 import HITLModal from '../HITLModal.vue'
+import MediaGallery from './MediaGallery.vue'
 import { fmtTokens, fmtCost } from '../../composables/tokens'
 import { previewOf, relTime, groupSessions } from '../../composables/useChatHistory'
 
@@ -259,6 +266,10 @@ const onModeChange = (patch) => {
 }
 
 const onSend = (text) => chat.sendMessage(text)
+
+// Media gallery open state + attach handler (bind chosen existing media to the next message BY ID).
+const mediaOpen = ref(false)
+const onAttachMedia = (items) => chat.addExistingMedia(items)
 
 const startNew = () => {
   chat.reset()

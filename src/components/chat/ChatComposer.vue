@@ -98,6 +98,13 @@
             </div>
           </div>
 
+          <!-- Media gallery: browse/attach previously generated + uploaded media of this chat/agent. -->
+          <button type="button" class="ghost-btn media-btn" title="Browse media" aria-label="Browse media"
+                  :disabled="!conversationId" data-test="composer-media" @click.stop="$emit('open-media')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="media-btn-txt">Media</span>
+          </button>
+
           <AgentModePicker v-if="agentId" :agent-id="agentId" :run-mode="runMode"
                            placement="up" @change="$emit('mode-change', $event)" />
 
@@ -166,7 +173,7 @@ const props = defineProps({
   // Conversation id — required to attach a URL/YouTube link (conversation-scoped DocumentSource).
   conversationId: { type: [Number, String], default: null },
 })
-const emit = defineEmits(['send', 'stop', 'attach', 'remove-attach', 'mode-change'])
+const emit = defineEmits(['send', 'stop', 'attach', 'remove-attach', 'mode-change', 'open-media'])
 
 const draft = ref('')
 const inputEl = ref(null)
@@ -403,6 +410,9 @@ const onKeydown = (e) => {
 .ghost-btn.active svg { transform: rotate(45deg); }
 .ghost-btn:disabled { opacity: 0.5; cursor: default; }
 .ghost-btn svg { width: 18px; height: 18px; transition: transform .15s var(--vm-ease); }
+/* Media button: icon + label, auto width (the "+" stays icon-only). */
+.media-btn { width: auto; gap: 5px; padding: 0 10px; font-size: 13px; font-weight: 600; }
+.media-btn .media-btn-txt { line-height: 1; }
 
 /* "+" menu */
 .plus-wrap { position: relative; }
