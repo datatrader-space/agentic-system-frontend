@@ -32,7 +32,10 @@
               <option value="new">Newest first</option>
               <option value="old">Oldest first</option>
             </select>
-            <span class="mg-count">{{ sortedMedia.length }} item{{ sortedMedia.length === 1 ? '' : 's' }}</span>
+            <span class="mg-count">
+              <template v-if="sortedMedia.length">{{ rangeStart }}–{{ rangeEnd }} of {{ sortedMedia.length }}</template>
+              <template v-else>0 items</template>
+            </span>
           </div>
 
           <!-- Grid -->
@@ -40,7 +43,7 @@
             <div v-if="loading" class="mg-empty">Loading…</div>
             <div v-else-if="!sortedMedia.length" class="mg-empty">No media in this {{ scope === 'agent' ? 'agent' : 'chat' }} yet.</div>
             <div v-else class="mg-grid">
-              <div v-for="m in sortedMedia" :key="m.attachment_id"
+              <div v-for="m in pagedMedia" :key="m.attachment_id"
                    class="mg-cell" :class="{ sel: selected.has(m.attachment_id) }"
                    @click="toggle(m)">
                 <div class="mg-thumb">
@@ -62,11 +65,21 @@
             </div>
           </div>
 
+          <!-- Pagination -->
+          <div v-if="totalPages > 1" class="mg-pager">
+            <button class="mg-pg" :disabled="currentPage === 1" @click="goPage(currentPage - 1)" aria-label="Previous page">‹ Prev</button>
+            <span class="mg-pg-info">Page {{ currentPage }} / {{ totalPages }}</span>
+            <button class="mg-pg" :disabled="currentPage === totalPages" @click="goPage(currentPage + 1)" aria-label="Next page">Next ›</button>
+          </div>
+
           <!-- Footer -->
           <div class="mg-foot">
             <span class="mg-selcount">{{ selected.size }} selected</span>
             <div class="mg-actions">
               <button class="mg-btn ghost" @click="close">Cancel</button>
+              <button class="mg-btn ghost" :disabled="!selected.size || downloading" @click="downloadSelected">
+                {{ downloading ? 'Downloading…' : `Download${selected.size ? ` (${selected.size})` : ''}` }}
+              </button>
               <button class="mg-btn primary" :disabled="!selected.size" @click="attachSelected">
                 Attach selected{{ selected.size ? ` (${selected.size})` : '' }}
               </button>
@@ -96,6 +109,10 @@ const sourceFilter = ref('')
 const typeFilter = ref('')
 const sortOrder = ref('new')
 const selected = ref(new Set())
+const downloading = ref(false)
+
+const PAGE_SIZE = 24
+const currentPage = ref(1)
 
 const sortedMedia = computed(() => {
   const list = [...media.value]
@@ -104,6 +121,28 @@ const sortedMedia = computed(() => {
     return sortOrder.value === 'new' ? bv.localeCompare(av) : av.localeCompare(bv)
   })
   return list
+})
+
+const totalPages = computed(() => Math.max(1, Math.ceil(sortedMedia.value.length / PAGE_SIZE)))
+const pagedMedia = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return sortedMedia.value.slice(start, start + PAGE_SIZE)
+})
+const rangeStart = computed(() => (sortedMedia.value.length ? (currentPage.value - 1) * PAGE_SIZE + 1 : 0))
+const rangeEnd = computed(() => Math.min(currentPage.value * PAGE_SIZE, sortedMedia.value.length))
+
+function goPage(p) {
+  currentPage.value = Math.min(totalPages.value, Math.max(1, p))
+  // Scroll the grid back to the top on page change.
+  const body = document.querySelector('.mg-body')
+  if (body) body.scrollTop = 0
+}
+
+// Reset to first page whenever the visible set changes (filters, sort, scope, reload).
+watch([sortOrder, sourceFilter, typeFilter, scope], () => { currentPage.value = 1 })
+// If the list shrinks below the current page (e.g. a filter), clamp into range.
+watch(() => sortedMedia.value.length, () => {
+  if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
 })
 
 async function load() {
@@ -146,6 +185,22 @@ async function download(m) {
   }
 }
 
+// Download every selected item (works across pages; selection is not page-scoped).
+async function downloadSelected() {
+  const chosen = sortedMedia.value.filter((m) => selected.value.has(m.attachment_id))
+  if (!chosen.length || downloading.value) return
+  downloading.value = true
+  try {
+    for (const m of chosen) {
+      await download(m)
+      // Small gap so browsers don't collapse/block the rapid multi-download sequence.
+      await new Promise((r) => setTimeout(r, 300))
+    }
+  } finally {
+    downloading.value = false
+  }
+}
+
 function attachSelected() {
   const chosen = sortedMedia.value.filter((m) => selected.value.has(m.attachment_id))
   if (!chosen.length) return
@@ -159,7 +214,7 @@ function close() {
 }
 
 // Load whenever the modal opens.
-watch(() => props.open, (v) => { if (v) { selected.value = new Set(); load() } })
+watch(() => props.open, (v) => { if (v) { selected.value = new Set(); currentPage.value = 1; load() } })
 </script>
 
 <style scoped>
@@ -194,6 +249,10 @@ watch(() => props.open, (v) => { if (v) { selected.value = new Set(); load() } }
 .mg-src.generated { background: #ede9fe; color: #6d28d9; }
 .mg-src.uploaded { background: #dbeafe; color: #1d4ed8; }
 .mg-name { font-size: 11px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mg-pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 18px; border-top: 1px solid #f1f2f6; }
+.mg-pg { border: 1px solid #e5e7eb; background: #fff; border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; color: #374151; cursor: pointer; }
+.mg-pg:disabled { opacity: .45; cursor: not-allowed; }
+.mg-pg-info { font-size: 12px; color: #6b7280; min-width: 96px; text-align: center; }
 .mg-foot { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-top: 1px solid #eef0f4; }
 .mg-selcount { font-size: 13px; color: #6b7280; }
 .mg-actions { display: flex; gap: 10px; }
@@ -211,6 +270,8 @@ watch(() => props.open, (v) => { if (v) { selected.value = new Set(); load() } }
   .mg-seg { border-color: #3a4150; } .mg-seg button { background: #262c38; color: #cbd5e1; }
   .mg-sel { background: #262c38; border-color: #3a4150; color: #cbd5e1; }
   .mg-thumb, .mg-noimg { background: #262c38; }
+  .mg-pager { border-color: #333a48; }
+  .mg-pg { background: #262c38; border-color: #3a4150; color: #cbd5e1; }
   .mg-btn.ghost { background: #262c38; border-color: #3a4150; color: #cbd5e1; }
 }
 </style>
