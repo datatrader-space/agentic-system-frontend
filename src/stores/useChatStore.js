@@ -768,8 +768,6 @@ export const useChatStore = defineStore('chat', {
         answerBasis: null, // provenance envelope (label + cited-or-top4) set on assistant_message_complete
         activity, // legacy raw timeline (see activityStream.js) — fallback when rich streaming is OFF
         timeline: null, // rich-streaming snapshot, pinned on completion (friendly, param-free)
-        media: [], // generated media (images/video) from tool_result media_artifacts — rendered in the bubble
-        _mediaSeen: null, // de-dupe set (by url/id) so retries/re-emits don't double-render
         _serverMid: null, // §4b: server's per-turn message_id, adopted from the first stamped event
       })
       this._assistantId = this.messages[this.messages.length - 1].id
@@ -926,27 +924,6 @@ export const useChatStore = defineStore('chat', {
               m.toolCalls.find((x) => x.name === name) ||
               m.toolCalls[m.toolCalls.length - 1]
             if (tc) tc.status = msg.success === false ? 'error' : 'done'
-            // Generated media (GENERATE_IMAGE/VIDEO etc.) arrives on tool_result as media_artifacts —
-            // attach it to the bubble so it renders. Without this the TASK/agent-runner path produced a
-            // real image that never showed (media lived on tool_result, not in the final assistant text).
-            const arts = Array.isArray(msg.media_artifacts) ? msg.media_artifacts : []
-            if (arts.length) {
-              if (!m.media) m.media = []
-              if (!m._mediaSeen) m._mediaSeen = new Set()
-              for (const a of arts) {
-                const url = a.url || a.file_url
-                const key = a.attachment_id || a.id || url
-                if (!url || (key && m._mediaSeen.has(key))) continue
-                if (key) m._mediaSeen.add(key)
-                m.media.push({
-                  url,
-                  type: a.type || a.media_type || 'image',
-                  mime: a.mime_type,
-                  filename: a.filename,
-                  attachment_id: a.attachment_id,
-                })
-              }
-            }
           }
           break
         }
