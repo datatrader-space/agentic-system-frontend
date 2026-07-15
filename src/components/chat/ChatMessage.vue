@@ -148,11 +148,19 @@
         </div>
       </div>
     </template>
+
+    <!-- Click-to-preview lightbox for rendered chat images. Teleported to body so it overlays the app. -->
+    <Teleport to="body">
+      <div v-if="previewSrc" class="img-lightbox" @click="previewSrc = null">
+        <img :src="previewSrc" class="img-lightbox-img" alt="preview" @click.stop />
+        <button type="button" class="img-lightbox-close" aria-label="Close" @click="previewSrc = null">×</button>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, nextTick } from 'vue'
+import { computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
 import { enhanceChatMedia } from '../../utils/chatMedia'
 import api from '../../services/api'
@@ -176,7 +184,10 @@ const emit = defineEmits(['retry', 'regenerate', 'edit', 'feedback'])
 // Open an attachment in a preview window (image → new tab shows it full-size; the file chip is a plain
 // download link handled in the template). Guarded so a missing url is a no-op.
 function openAttachment(a) {
-  if (a && a.url) window.open(a.url, '_blank', 'noopener')
+  // Images open in the in-chat preview lightbox; other files open in a new tab.
+  if (!a || !a.url) return
+  if (a.isImage) previewSrc.value = a.url
+  else window.open(a.url, '_blank', 'noopener')
 }
 
 marked.setOptions({ breaks: true, gfm: true })
@@ -261,7 +272,20 @@ const displayContent = computed(() => fullContent.value || props.message.content
 const rendered = computed(() => addCodeCopyButtons(enhanceChatMedia(marked.parse(displayContent.value))))
 
 // Event-delegated copy for per-code-block buttons injected by addCodeCopyButtons.
+// Click-to-preview: clicking a rendered chat image opens a full-screen lightbox. The download button
+// (.chat-media-dl, a sibling <a>) is unaffected — clicking it never matches an <img>, so it still
+// downloads. Delegated here because v-html content isn't Vue-reactive.
+const previewSrc = ref(null)
+const _onEsc = (e) => { if (e.key === 'Escape' && previewSrc.value) previewSrc.value = null }
+onMounted(() => window.addEventListener('keydown', _onEsc))
+onUnmounted(() => window.removeEventListener('keydown', _onEsc))
 const onCodeCopy = async (e) => {
+  const img = e.target?.closest?.('img.chat-media-img')
+  if (img && img.getAttribute('src')) {
+    e.preventDefault()
+    previewSrc.value = img.getAttribute('src')
+    return
+  }
   const btn = e.target?.closest?.('.code-copy')
   if (!btn) return
   const pre = btn.parentElement?.querySelector('pre')
@@ -313,6 +337,44 @@ const copy = async () => {
 </script>
 
 <style scoped>
+/* Rendered chat images are clickable → open the preview lightbox. */
+:deep(.chat-media-img) { cursor: zoom-in; }
+
+.img-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  cursor: zoom-out;
+}
+.img-lightbox-img {
+  max-width: 95vw;
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  cursor: default;
+}
+.img-lightbox-close {
+  position: fixed;
+  top: 16px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+.img-lightbox-close:hover { background: rgba(255, 255, 255, 0.3); }
+
 .msg {
   display: flex;
   gap: 12px;

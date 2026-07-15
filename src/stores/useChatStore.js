@@ -251,6 +251,9 @@ export const useChatStore = defineStore('chat', {
           // Inline plan artifact: durable anchor(s) linking this message to its plan(s). Present only
           // when the backend flag is on; drives inline-by-plan_id rendering (no runtime anchor).
           planArtifacts: pickArray(m.plan_artifacts),
+          // User-uploaded attachments bound to this message (turn-level binding) — served /media/ URLs so
+          // the thumbnail survives refresh (the live send-time blob URL is ephemeral).
+          attachments: pickArray(m.attachments),
           conversationId: String(id),
         }))
         // Hydrate + reconcile any plans anchored in the loaded history so the inline cards render on
@@ -687,6 +690,8 @@ export const useChatStore = defineStore('chat', {
           trace: (m.model_info && m.model_info.trace) || [],
           activity: (m.model_info && m.model_info.activity) || null,
           planArtifacts: pickArray(m.plan_artifacts),
+          // User-uploaded attachments bound to this message (served URLs; survive refresh).
+          attachments: pickArray(m.attachments),
           conversationId: String(this.conversationId),
         }))
         this._hydratePlanAnchors(this.conversationId)
