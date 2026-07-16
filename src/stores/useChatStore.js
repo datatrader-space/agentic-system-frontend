@@ -50,6 +50,11 @@ export const useChatStore = defineStore('chat', {
     // agent_session_complete / agent_event session_complete.
     _taskRunActive: false,
 
+    // Once-guard: event_ids of plan DECISION events (approved / changes_requested / cancelled) already
+    // bridged to a resume. The canonical outbox may re-deliver a plan_event (sweeper / reconnect), so
+    // this prevents an approved run from being re-sent (and re-executed) more than once.
+    _resolvedDecisionEventIds: new Set(),
+
     // Legacy native plan-mode WS approval signal (vestigial). The unified plan UI now handles
     // approval via the run-coordinator API (UnifiedPlanCard); this field feeds the low-level WS
     // resume mechanic only and is removed when that loop is internalized into the coordinator.
@@ -887,6 +892,29 @@ export const useChatStore = defineStore('chat', {
               if (!cur.planArtifacts.some((a) => a.plan_id === pid)) {
                 cur.planArtifacts.push({ plan_id: pid, run_id: rid, ordinal: cur.planArtifacts.length })
               }
+            }
+            // ── Bridge a human plan DECISION to the run's resume plumbing ──────────────────────────
+            // The inline card's decision is a REST call that only RECORDS the decision + pushes this
+            // outbox event; nothing else re-invokes the agent (that's why "Approve"/"Send changes" did
+            // nothing). Wire the canonical change_type to the same resume the legacy WS path used:
+            //   approved          → re-send the original instruction; the run executes the approved plan
+            //   changes_requested → re-send the feedback as the next instruction; the agent re-plans
+            //   cancelled (reject)→ end the turn
+            // Guarded once-per-event_id: the canonical outbox may re-deliver a plan_event (sweeper /
+            // reconnect), so an approved run can never be re-sent (and re-executed) twice. We do NOT gate
+            // on isStreaming/_taskRunActive here — a plan pause returns WITHOUT session_complete, so those
+            // flags can still read "active" for the just-paused turn; the event_id guard is what keeps
+            // this idempotent. _taskRunActive is cleared before re-sending so the new turn starts clean.
+            const ct = msg.change_type
+            const eid = msg.event_id
+            if ((ct === 'approved' || ct === 'changes_requested' || ct === 'cancelled')
+                && (!eid || !this._resolvedDecisionEventIds.has(eid))) {
+              if (eid) this._resolvedDecisionEventIds.add(eid)
+              this.pendingPlan = null
+              this._taskRunActive = false
+              if (ct === 'approved') this._resumeAfterPlan()
+              else if (ct === 'changes_requested') this._resumeAfterRevise(msg.feedback)
+              else this._endAssistant()
             }
           } catch (_e) { /* plan store optional */ }
         }
