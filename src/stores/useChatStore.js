@@ -990,6 +990,21 @@ export const useChatStore = defineStore('chat', {
               m.toolCalls.find((x) => x.name === name) ||
               m.toolCalls[m.toolCalls.length - 1]
             if (tc) tc.status = msg.success === false ? 'error' : 'done'
+            // Live media render (delivery-path-independent): the runner emits generated images as
+            // tool_result.media_artifacts. The body only renders images from message.content markdown,
+            // so append each image URL here — this makes it show LIVE the moment it's generated, on EVERY
+            // completion path (direct_answer / has_generated_media / fast_path), not just one branch. The
+            // !includes(url) guard keeps it idempotent with the persisted markdown, so a refresh (which
+            // loads the same embedded markdown) never double-renders it.
+            for (const a of (msg.media_artifacts || [])) {
+              // Prefer the ABSOLUTE url (the TASK/runner path adds abs_url); only append absolute URLs so a
+              // relative /media/ path (which 404s on the SPA origin) is never injected. The chat path lacks
+              // abs_url and renders media through its own final-answer embed, so it's simply skipped here.
+              const url = a && (a.abs_url || a.url || a.file_url)
+              if (!url || !/^https?:\/\//.test(url) || (m.content || '').includes(url)) continue
+              const md = a.type === 'video' ? url : `![image](${url})`
+              m.content = (m.content ? m.content.replace(/\s+$/, '') + '\n\n' : '') + md
+            }
           }
           break
         }
@@ -1063,16 +1078,21 @@ export const useChatStore = defineStore('chat', {
           break
         case 'agent_session_complete':
         case 'agent_session_stopped':
-        case 'agent_session_error':
+        case 'agent_session_error': {
           this._taskRunActive = false
+          const _tm = this._cur()   // capture before _endAssistant nulls _assistantId
           this._endAssistant()
+          if (_tm) this._persistTurnMeta(_tm)   // persist the TASK timeline so "Done · N steps" survives refresh
           break
+        }
         case 'agent_event': {
           const aev = msg.event || msg.data?.event
           if (aev === 'session_start') this._taskRunActive = true
           else if (aev === 'session_complete' || aev === 'session_error') {
             this._taskRunActive = false
+            const _tm2 = this._cur()
             this._endAssistant()
+            if (_tm2) this._persistTurnMeta(_tm2)   // persist the TASK timeline (steps) on the run's terminal event
           }
           break
         }

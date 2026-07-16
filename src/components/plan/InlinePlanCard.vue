@@ -18,7 +18,7 @@ const emit = defineEmits(['decide'])
 const PLAN_MAP = {
   draft: 'draft', planning: 'draft', pending_approval: 'awaiting_approval', approved: 'active',
   executing: 'active', paused: 'paused', blocked: 'blocked', completed: 'completed', failed: 'failed',
-  cancelled: 'cancelled', changes_requested: 'revised', rejected: 'cancelled', superseded: 'revised',
+  cancelled: 'cancelled', changes_requested: 'revised', rejected: 'cancelled', superseded: 'superseded',
 }
 const STEP_MAP = {
   pending: 'pending', started: 'in_progress', completed: 'completed', skipped: 'skipped',
@@ -27,6 +27,7 @@ const STEP_MAP = {
 const PLAN_LABEL = {
   draft: 'Planning', awaiting_approval: 'Awaiting approval', active: 'Active', paused: 'Paused',
   blocked: 'Blocked', failed: 'Failed', completed: 'Completed', cancelled: 'Cancelled', revised: 'Revised',
+  superseded: 'Superseded',
 }
 const STEP_ICON = {
   pending: '', in_progress: '●', completed: '✓', blocked: '!', failed: '×', skipped: '–',
@@ -51,10 +52,10 @@ const canAct = computed(() => !props.readOnly
   && props.plan.available_actions.includes('approve'))
 const awaiting = computed(() => planState.value === 'awaiting_approval' || planState.value === 'revised')
 
-// Expansion: collapsed when completed/cancelled (compact); expanded otherwise. Roadmaps expanded.
+// Expansion: collapsed when completed/cancelled/superseded (compact); expanded otherwise. Roadmaps expanded.
 const expanded = ref(true)
 watch(planState, (s) => {
-  expanded.value = isRoadmap.value || !['completed', 'cancelled'].includes(s)
+  expanded.value = isRoadmap.value || !['completed', 'cancelled', 'superseded'].includes(s)
 }, { immediate: true })
 
 // Transient "updated" indicator on a version bump.
