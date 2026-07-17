@@ -329,9 +329,7 @@ const { hitlRequests, handleHitlEvent, respondHitl, dismissHitl, skipHitl } = us
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj))
 }, () => conversationId.value)
 
-// Rich streaming activity (AgentRunner rich events). Entirely additive: when the backend flag
-// AGENTRUNNER_RICH_STREAMING_ENABLED is OFF none of these events arrive, `richActive` stays false,
-// and the chat behaves exactly as before.
+// Live activity timeline (agent activity events) — the sole activity renderer.
 const {
   currentStatus: liveStatus,
   steps: liveSteps,

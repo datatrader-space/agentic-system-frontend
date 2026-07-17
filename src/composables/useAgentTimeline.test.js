@@ -161,4 +161,35 @@ describe('useAgentTimeline — rich streaming render model', () => {
     expect(snap.steps.length).toBe(1)
     expect(snap.steps[0].status).toBe('ok')
   })
+
+  it('segments reasoning into one item per thought (reasoning_done closes a burst)', () => {
+    const t = useAgentTimeline()
+    // first thought
+    t.ingest({ type: 'reasoning_delta', text: 'Let me search ' })
+    t.ingest({ type: 'reasoning_delta', text: 'the knowledge base.' })
+    t.ingest({ type: 'reasoning_done', duration_ms: 1200 })
+    // second thought (a fresh burst — must NOT append to the first)
+    t.ingest({ type: 'reasoning_delta', text: 'Now build the page.' })
+    t.ingest({ type: 'reasoning_done', duration_ms: 3000 })
+    // exactly two reasoning items — the LATEST is the tail (what the UI shows while streaming)
+    expect(t.reasoning.value.length).toBe(2)
+    expect(t.reasoning.value[0].text).toBe('Let me search the knowledge base.')
+    expect(t.reasoning.value[1].text).toBe('Now build the page.')
+    // reasoning rows carry a 'reasoning' phase so the timeline can keep them OUT of the action list
+    expect(t.steps.value.every((s) => s.phase === 'reasoning')).toBe(true)
+  })
+
+  it('folds live token metering from token_usage + reconciles on complete', () => {
+    const t = useAgentTimeline()
+    t.ingest({ type: 'token_usage', total_tokens: 900, cost_usd: 0.004, estimated: true })
+    expect(t.tokens.value.total).toBe(900)
+    // an exact tick must not be regressed by a smaller estimate
+    t.ingest({ type: 'token_usage', total_tokens: 1200, cost_usd: 0.006 })
+    t.ingest({ type: 'token_usage', total_tokens: 1100, cost_usd: 0.005, estimated: true })
+    expect(t.tokens.value.total).toBe(1200)
+    // final exact usage reconciles the counter
+    t.ingest({ type: 'assistant_message_complete', usage: { total_tokens: 1300, cost_usd: 0.007 } })
+    expect(t.tokens.value.total).toBe(1300)
+    expect(t.tokens.value.estimated).toBe(false)
+  })
 })

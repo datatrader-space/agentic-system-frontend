@@ -222,6 +222,9 @@ export class ChatConnection {
       client_message_id: opts.clientMessageId || undefined,
       // Canvas mode: auto-expose GENERATE_STATIC_PAGE for this turn (backend gates on this flag).
       canvas_mode: opts.canvasMode || undefined,
+      // Create-Image mode: run the agent as a focused image assistant for this turn (image toolset +
+      // guided pipeline prompt). Backend gates on this flag + the agent having an image model.
+      image_mode: opts.imageMode || undefined,
       // Canvas click-to-select (Phase 5): the element the user clicked, so "change this" targets it.
       canvas_selection: opts.canvasSelection || undefined,
     })

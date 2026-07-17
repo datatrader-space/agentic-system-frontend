@@ -76,6 +76,17 @@
 
             <!-- Choice Response (Multiple Options) -->
             <div v-else-if="currentRequest.response_type === 'choice'" class="response-section">
+              <!-- Optional guidance the user types BEFORE choosing an option (attached as feedback to
+                   whichever option is clicked). Used by the repetition-guard "agent is stuck" pause. -->
+              <div v-if="currentRequest.payload?.text_label" class="choice-guidance-row">
+                <label class="choice-guidance-label">{{ currentRequest.payload.text_label }}</label>
+                <textarea
+                  v-model="feedback"
+                  class="text-input choice-guidance-input"
+                  rows="2"
+                  placeholder="e.g. the nav list id is main-nav, not nav"
+                ></textarea>
+              </div>
               <div class="choice-options">
                 <button
                   v-for="option in currentRequest.options"
@@ -321,7 +332,7 @@ const isToolApproval = computed(() => currentRequest.value?.payload?.kind === 't
 const isDocked = computed(() => isCompactAsk.value || isToolApproval.value);
 
 // Control-only payload keys that should NOT surface a "View Details" dump to the user.
-const CONTROL_PAYLOAD_KEYS = ['allow_text', 'interpretation', 'confidence',
+const CONTROL_PAYLOAD_KEYS = ['allow_text', 'text_label', 'interpretation', 'confidence',
   'original_interpretation', 'ambiguities', 'suggested_plan'];
 
 // Payload has meaningful (user-facing) content worth a "View Details" expander. We DON'T show raw
@@ -1054,6 +1065,22 @@ watch(currentRequest, () => {
 .risk-badge.risk-low { background: #d1fae5; color: #065f46; }
 .risk-badge.risk-medium { background: #fed7aa; color: #92400e; }
 .risk-badge.risk-high { background: #fecaca; color: #991b1b; }
+
+/* Optional guidance box shown ABOVE the option buttons (repetition-guard "agent is stuck" pause) */
+.choice-guidance-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.choice-guidance-label {
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+.choice-guidance-input {
+  resize: vertical;
+  width: 100%;
+}
 
 /* "…or type your own answer" row under the option buttons */
 .choice-text-row {

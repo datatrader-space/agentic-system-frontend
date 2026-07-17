@@ -81,35 +81,56 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m-7-7h14" stroke-linecap="round" /></svg>
               </button>
               <div v-if="menuOpen" class="plus-menu" role="menu" data-test="welcome-plus-menu" @click.stop>
-                <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-files" @click="pickFiles">
-                  <span class="plus-ic">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </span>
-                  <span class="plus-txt">
-                    <strong>Add photos &amp; files</strong>
-                    <small>Upload documents, images, PDFs, spreadsheets, audio, and more.</small>
-                  </span>
-                </button>
-                <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-link"
-                        :disabled="chat.needsAgent || urlBusy" @click="openUrl">
-                  <span class="plus-ic">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </span>
-                  <span class="plus-txt">
-                    <strong>Ask about a link or YouTube</strong>
-                    <small>{{ urlBusy ? 'Starting chat…' : 'Paste a webpage or YouTube video link.' }}</small>
-                  </span>
-                </button>
-                <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-canvas"
-                        :class="{ 'is-on': canvasMode }" @click="toggleCanvasFromMenu">
-                  <span class="plus-ic">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9" stroke-linecap="round"/></svg>
-                  </span>
-                  <span class="plus-txt">
-                    <strong>Design in Canvas <span v-if="canvasMode" class="plus-on-tag">On</span></strong>
-                    <small>Build a web page — the agent renders a live preview in a side panel.</small>
-                  </span>
-                </button>
+                <div class="plus-list">
+                  <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-files"
+                          v-show="pShow('add photos files upload computer documents pdf')" @click="pickFiles">
+                    <span class="plus-ic plus-ic--files">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M21.44 11.05l-9.19 9.19a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                    <span class="plus-body"><span class="plus-title">Add photos &amp; files</span>
+                      <span class="plus-desc">Upload from your computer</span></span>
+                  </button>
+
+                  <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-image-mode"
+                          :class="{ 'is-on': imageMode }" :disabled="!hasImageModel && !imageMode"
+                          v-show="pShow('create image generate edit visualize picture')"
+                          @click="toggleImageModeFromMenu">
+                    <span class="plus-ic plus-ic--image">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z" stroke-linejoin="round"/><path d="M19 15l.6 1.7 1.7.6-1.7.6L19 20l-.6-1.7-1.7-.6 1.7-.6L19 15z" stroke-linejoin="round"/></svg>
+                    </span>
+                    <span class="plus-body"><span class="plus-title">Create image</span>
+                      <span class="plus-desc">{{ hasImageModel ? 'Generate &amp; edit images' : 'Assign an image model first' }}</span></span>
+                    <span v-if="imageMode" class="plus-badge">On</span>
+                  </button>
+
+                  <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-link"
+                          :disabled="chat.needsAgent || urlBusy" v-show="pShow('ask link youtube webpage url paste video')"
+                          @click="openUrl">
+                    <span class="plus-ic plus-ic--link">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </span>
+                    <span class="plus-body"><span class="plus-title">Ask about a link</span>
+                      <span class="plus-desc">{{ urlBusy ? 'Starting chat…' : 'Paste a webpage or YouTube link' }}</span></span>
+                  </button>
+
+                  <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-canvas"
+                          :class="{ 'is-on': canvasMode }" v-show="pShow('design canvas web page live preview build')"
+                          @click="toggleCanvasFromMenu">
+                    <span class="plus-ic plus-ic--canvas">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9" stroke-linecap="round"/></svg>
+                    </span>
+                    <span class="plus-body"><span class="plus-title">Design in Canvas</span>
+                      <span class="plus-desc">Build a live web page in a side panel</span></span>
+                    <span v-if="canvasMode" class="plus-badge">On</span>
+                  </button>
+                </div>
+
+                <div class="plus-search">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg>
+                  <input v-model="plusQuery" type="text" class="plus-search-input"
+                         placeholder="Type to search plugins, files, folders &amp; skills"
+                         data-test="welcome-plus-search" @click.stop @keydown.stop />
+                </div>
               </div>
               <!-- URL/YouTube importer — starts the chat on demand so a conversation-scoped source can
                    be created even from the brand-new screen (ChatGPT-style). -->
@@ -132,6 +153,15 @@
               </span>
               <button type="button" class="canvas-chip-x" title="Turn off Canvas mode" aria-label="Turn off Canvas mode"
                       @click.stop="canvas.setMode(false)">×</button>
+            </span>
+            <!-- Sticky Create-Image chip (toggle lives in the "+" menu; × turns it off). -->
+            <span v-if="imageMode" class="canvas-chip image-chip" title="Create-Image mode on — the agent focuses on images">
+              <span class="canvas-chip-body">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9L12 3z" stroke-linejoin="round"/></svg>
+                <span>Create Image</span>
+              </span>
+              <button type="button" class="canvas-chip-x" title="Turn off Create-Image mode" aria-label="Turn off Create-Image mode"
+                      @click.stop="chat.imageMode = false">×</button>
             </span>
           </div>
           <button type="submit" class="composer-send" :disabled="chat.needsAgent || (!draft.trim() && !chat.pendingAttachments.length)" title="Send">
@@ -209,7 +239,13 @@ const menuOpen = ref(false)
 const urlOpen = ref(false)
 const urlBusy = ref(false)
 const plusRootEl = ref(null)
-const closeMenu = () => { menuOpen.value = false; urlOpen.value = false }
+// "+" menu search: filter the visible items by a free-text query (ChatGPT-style footer). Reset on close.
+const plusQuery = ref('')
+const pShow = (keywords) => {
+  const q = plusQuery.value.trim().toLowerCase()
+  return !q || keywords.toLowerCase().includes(q)
+}
+const closeMenu = () => { menuOpen.value = false; urlOpen.value = false; plusQuery.value = '' }
 const toggleMenu = () => {
   if (menuOpen.value || urlOpen.value) { closeMenu(); return }
   menuOpen.value = true
@@ -224,6 +260,21 @@ const toggleCanvasFromMenu = () => {
   notify.info(canvas.mode
     ? 'Canvas mode on — the agent will design in a live preview panel.'
     : 'Canvas mode off.')
+}
+// Create-Image mode (sticky in the chat store; sent as the `image_mode` flag). Gated on the selected
+// agent having an image model — the "+" item is disabled otherwise (backend also blocks it).
+const imageMode = computed(() => chat.imageMode)
+const hasImageModel = computed(() => !!(chat.currentAgent && chat.currentAgent.image_model))
+const toggleImageModeFromMenu = () => {
+  if (!hasImageModel.value && !chat.imageMode) {
+    notify.info('Assign an image model to this agent first, then Create-Image mode becomes available.')
+    return
+  }
+  chat.imageMode = !chat.imageMode
+  closeMenu()
+  notify.info(chat.imageMode
+    ? 'Create-Image mode on — the agent will focus on generating and editing images.'
+    : 'Create-Image mode off.')
 }
 // Ask-about-a-link on a brand-new chat: quietly start the conversation first so the URL can become a
 // conversation-scoped DocumentSource (ChatGPT-style — the chat starts the moment you attach).
@@ -523,32 +574,48 @@ const submit = () => {
 .composer-attach.active svg { transform: rotate(45deg); }
 .composer-attach svg { width: 18px; height: 18px; transition: transform .15s var(--vm-ease); }
 
-/* "+" menu */
+/* "+" menu — ChatGPT-style: clean list (icon + inline label/desc) + a search footer. */
 .plus-wrap { position: relative; }
 .plus-menu {
   position: absolute;
   bottom: calc(100% + 10px);
   left: 0;
-  width: 320px;
-  max-width: min(320px, calc(100vw - 40px));
-  padding: 6px;
+  width: 430px;
+  max-width: min(430px, calc(100vw - 32px));
+  padding: 8px;
   background: var(--vm-surface);
   border: 1px solid var(--vm-line);
-  border-radius: 14px;
-  box-shadow: var(--vm-shadow-l, 0 20px 48px rgba(15, 23, 42, .18));
+  border-radius: 18px;
+  box-shadow: var(--vm-shadow-l, 0 24px 56px rgba(15, 23, 42, .20));
   z-index: 40;
-  animation: plus-in .12s var(--vm-ease);
+  animation: plus-in .14s var(--vm-ease2, cubic-bezier(.2,.8,.2,1));
 }
-@keyframes plus-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes plus-in { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
+.plus-list { display: flex; flex-direction: column; }
 .plus-item {
-  display: flex; align-items: flex-start; gap: 10px; width: 100%;
-  padding: 9px 10px; border: none; border-radius: 10px;
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 9px 10px; border: none; border-radius: 12px;
   background: transparent; text-align: left; cursor: pointer;
-  transition: background .13s var(--vm-ease);
+  transition: background .12s var(--vm-ease);
 }
 .plus-item:hover:not(:disabled) { background: var(--vm-bg); }
-.plus-item:disabled { opacity: .5; cursor: not-allowed; }
+.plus-item:disabled { opacity: .45; cursor: not-allowed; }
 .plus-item.is-on { background: var(--vm-violet-soft); }
+.plus-ic { display: grid; place-items: center; flex-shrink: 0; width: 26px; height: 26px; color: var(--vm-ink-soft, #475569); }
+.plus-ic svg { width: 21px; height: 21px; }
+.plus-ic--files  { color: #2563eb; }
+.plus-ic--image  { color: var(--vm-violet, #7c3aed); }
+.plus-ic--link   { color: #0284c7; }
+.plus-ic--canvas { color: #d97706; }
+.plus-item:disabled .plus-ic { color: var(--vm-ink-faint); }
+.plus-body { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1; }
+.plus-title { font-size: 0.875rem; font-weight: 600; color: var(--vm-ink); white-space: nowrap; }
+.plus-desc { font-size: 0.8125rem; color: var(--vm-ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.plus-badge { margin-left: auto; flex-shrink: 0; padding: 1px 8px; border-radius: 9999px; background: var(--vm-violet, #6d28d9); color: #fff; font-size: 0.625rem; font-weight: 700; letter-spacing: .02em; }
+.plus-search { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 9px 11px; border-top: 1px solid var(--vm-line); }
+.plus-search svg { width: 16px; height: 16px; color: var(--vm-ink-faint); flex-shrink: 0; }
+.plus-search-input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: inherit; font-size: 0.8125rem; color: var(--vm-ink); }
+.plus-search-input::placeholder { color: var(--vm-ink-faint); }
 .plus-on-tag { margin-left: 6px; padding: 0 6px; border-radius: 9999px; background: var(--vm-violet); color: #fff; font-size: 0.6rem; font-weight: 700; vertical-align: middle; }
 .canvas-chip {
   display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0;
@@ -578,8 +645,8 @@ const submit = () => {
   position: absolute;
   bottom: calc(100% + 10px);
   left: 0;
-  width: 360px;
-  max-width: min(360px, calc(100vw - 40px));
+  width: 430px;
+  max-width: min(430px, calc(100vw - 32px));
   padding: 12px;
   background: var(--vm-surface);
   border: 1px solid var(--vm-line);

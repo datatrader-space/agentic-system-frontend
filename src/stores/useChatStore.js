@@ -9,7 +9,6 @@ import { notify } from '../composables/useNotify'
 import { ChatConnection } from '../services/chatService'
 import { useCanvasStore } from './useCanvasStore'
 import { usePlanStore } from './usePlanStore'
-import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity, interrupt as interruptActivity } from '../composables/activityStream'
 import { useAgentTimeline, isRichEvent } from '../composables/useAgentTimeline'
 
 // One shared live timeline for the currently-streaming assistant message (only one streams at a time).
@@ -38,6 +37,12 @@ export const useChatStore = defineStore('chat', {
     isStreaming: false,
     conversationId: null,
     repoId: 0,
+
+    // Create-Image mode (per-turn signal, sticky in the composer). When on, the backend runs the agent as
+    // a focused image generation/editing assistant (image toolset + guided pipeline prompt). Sent as
+    // `image_mode` on each WS message while on. Requires the agent to have an image model (composer blocks
+    // the toggle otherwise).
+    imageMode: false,
 
     // Human-in-the-loop approval queue (tools the backend gated for approval + the max-steps
     // pause-and-ask). Rendered by HITLModal.
@@ -98,16 +103,17 @@ export const useChatStore = defineStore('chat', {
     currentAgent: (s) =>
       s.agents.find((a) => String(a.id) === String(s.selectedAgentId)) || null,
     // Running session totals (this chat). Prefer a turn's EXACT completed usage; while a turn is
-    // still streaming, fall back to its live activity-token counter so the footer ticks up mid-run
+    // still streaming, fall back to the live timeline token counter so the footer ticks up mid-run
     // and finalises exactly. Turns with neither contribute 0; auto-resets when messages clear.
     sessionTokens: (s) => s.messages.reduce((a, m) =>
-      a + ((m.usage && m.usage.total_tokens) || (m.activity && m.activity.tokens && m.activity.tokens.total) || 0), 0),
+      a + ((m.usage && m.usage.total_tokens)
+           || (m.status === 'streaming' && _tl.tokens.value && _tl.tokens.value.total) || 0), 0),
     sessionCost: (s) => s.messages.reduce((a, m) =>
-      a + ((m.usage && m.usage.cost_usd) || (m.activity && m.activity.tokens && m.activity.tokens.cost) || 0), 0),
+      a + ((m.usage && m.usage.cost_usd)
+           || (m.status === 'streaming' && _tl.tokens.value && _tl.tokens.value.cost) || 0), 0),
 
-    // ── Rich-streaming live timeline (the currently-streaming message) ──
-    // Mirrors the Emulator so New Chat renders the SAME friendly, param-free activity (Searching →
-    // Generating) via AgentActivityTimeline instead of the raw ActivityStream/ActivityStep tool I/O.
+    // ── Live activity timeline (the currently-streaming message) — the SOLE activity renderer
+    // (AgentActivityTimeline): friendly, param-free steps (Searching → Generating), reasoning, tokens. ──
     richActive: () => _tl.hasActivity(),
     liveStatus: () => _tl.currentStatus.value,
     liveSteps: () => _tl.steps.value,
@@ -115,6 +121,7 @@ export const useChatStore = defineStore('chat', {
     liveSummary: () => _tl.summary.value,
     liveComplete: () => _tl.isComplete.value,
     liveHasFailures: () => _tl.hasFailures.value,
+    liveReasoning: () => _tl.reasoning.value,
   },
   actions: {
     // ---- Agents + history ----
@@ -245,9 +252,8 @@ export const useChatStore = defineStore('chat', {
           stopReason: (m.model_info && m.model_info.stop_reason) || '',
           confidence: (m.model_info && m.model_info.confidence) || '',
           trace: (m.model_info && m.model_info.trace) || [],
-          activity: (m.model_info && m.model_info.activity) || null,   // legacy raw timeline (fallback)
-          // Rich timeline replay: restore the masked snapshot so a reopened chat shows the friendly
-          // Searching → Generating timeline instead of falling back to the raw ActivityStream.
+          // Timeline replay: restore the masked snapshot so a reopened chat shows the friendly
+          // Searching → Generating activity timeline (with reasoning) as it was.
           timeline: (m.model_info && m.model_info.timeline) || null,
           // Provenance replay (decision #4): the answer_basis envelope carries the label + the
           // cited-or-top-4 sources, so a reopened chat shows the SAME footer + clickable panel.
@@ -414,6 +420,7 @@ export const useChatStore = defineStore('chat', {
         const { attachmentIds: steerIds } = await this._uploadAttachments(atts)
         this._conn.sendMessage(content, this.selectedAgentId, null, {
           ...this._canvasSendOpts(),
+          imageMode: this.imageMode || undefined,
           attachmentIds: steerIds,
           clientMessageId: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         })
@@ -479,6 +486,7 @@ export const useChatStore = defineStore('chat', {
       // instead of the backend guessing "newest upload in the conversation".
       this._conn?.sendMessage(content, this.selectedAgentId, null, {
         ...this._canvasSendOpts(),
+        imageMode: this.imageMode || undefined,
         attachmentIds,
         clientMessageId: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
@@ -680,7 +688,7 @@ export const useChatStore = defineStore('chat', {
       if (this._recovering) return
       this._recovering = true
       const m = this._cur()
-      if (m && m.activity) m.activity.reconnecting = true
+      if (m) m.reconnecting = true
     },
 
     // Socket came back after a drop: the turn likely finished on the backend while we were away.
@@ -688,7 +696,7 @@ export const useChatStore = defineStore('chat', {
     async _recoverAfterReconnect() {
       this._recovering = false
       const m = this._cur()
-      if (m && m.activity) m.activity.reconnecting = false
+      if (m) m.reconnecting = false
       // Poll ~30s for the backend to persist the turn's final answer, then swap in the server's truth.
       for (let i = 0; i < 12; i++) {
         const landed = await this._refreshHistory()
@@ -726,7 +734,9 @@ export const useChatStore = defineStore('chat', {
           stopReason: (m.model_info && m.model_info.stop_reason) || '',
           confidence: (m.model_info && m.model_info.confidence) || '',
           trace: (m.model_info && m.model_info.trace) || [],
-          activity: (m.model_info && m.model_info.activity) || null,
+          // Timeline replay: restore the pinned activity-timeline snapshot (steps + reasoning) so the
+          // "Done · N steps" accordion and reasoning survive a reconnect/refresh (same as the main loader).
+          timeline: (m.model_info && m.model_info.timeline) || null,
           planArtifacts: pickArray(m.plan_artifacts),
           // User-uploaded attachments bound to this message (served URLs; survive refresh).
           attachments: pickArray(m.attachments),
@@ -797,8 +807,6 @@ export const useChatStore = defineStore('chat', {
     _beginAssistant() {
       this._recovering = false   // fresh turn must never inherit a stale "reconnecting" state
       this._taskRunActive = false   // a new turn hasn't entered a multi-step task run yet
-      const activity = createActivity()
-      startActivity(activity)
       this.messages.push({
         id: nid(),
         role: 'assistant',
@@ -809,13 +817,12 @@ export const useChatStore = defineStore('chat', {
         planArtifacts: [], // inline plan anchors attached live from plan_event (durable-anchor path)
         citations: [], // P6: KB sources for the "Sources" panel (set on assistant_message_complete)
         answerBasis: null, // provenance envelope (label + cited-or-top4) set on assistant_message_complete
-        activity, // legacy raw timeline (see activityStream.js) — fallback when rich streaming is OFF
-        timeline: null, // rich-streaming snapshot, pinned on completion (friendly, param-free)
+        timeline: null, // activity-timeline snapshot, pinned on completion (friendly, param-free)
         _serverMid: null, // §4b: server's per-turn message_id, adopted from the first stamped event
       })
       this._assistantId = this.messages[this.messages.length - 1].id
       this.isStreaming = true
-      _tl.reset()   // fresh rich-streaming timeline for this turn
+      _tl.reset()   // fresh live activity timeline for this turn
     },
 
     _cur() {
@@ -830,9 +837,8 @@ export const useChatStore = defineStore('chat', {
       if (this.hitlRequests.length > 0) return
       const m = this._cur()
       if (m) {
-        if (m.activity) finishActivity(m.activity)
         _tl.finalize()
-        if (_tl.hasActivity()) m.timeline = _tl.snapshot()   // pin the rich timeline onto this message
+        if (_tl.hasActivity()) m.timeline = _tl.snapshot()   // pin the activity timeline onto this message
         if (m.status === 'streaming') m.status = 'done'
       }
       this.isStreaming = false
@@ -845,12 +851,9 @@ export const useChatStore = defineStore('chat', {
       // accordion + reasoning survive a page refresh (usage/stop are already persisted server-side).
       // Best-effort: the row was just saved by the turn, so the backend attaches this to it.
       try {
-        if (!m || !m.activity || !this.conversationId || !this._conn) return
-        const activity = JSON.parse(JSON.stringify(m.activity))
-        // Also persist the rich-streaming timeline snapshot so a refresh renders the masked timeline
-        // (Searching → Generating, friendly labels) instead of falling back to the raw ActivityStream.
-        const timeline = m.timeline ? JSON.parse(JSON.stringify(m.timeline)) : null
-        this._conn.send({ type: 'persist_turn_meta', conversation_id: this.conversationId, activity, timeline })
+        if (!m || !m.timeline || !this.conversationId || !this._conn) return
+        const timeline = JSON.parse(JSON.stringify(m.timeline))
+        this._conn.send({ type: 'persist_turn_meta', conversation_id: this.conversationId, timeline })
       } catch { /* best-effort — never block the turn */ }
     },
 
@@ -860,7 +863,6 @@ export const useChatStore = defineStore('chat', {
         m.status = 'error'
         m.error = err || 'Something went wrong.'
         // interrupt (not finish): the live timeline collapses to "Interrupted", not "Done".
-        if (m.activity) interruptActivity(m.activity, m.error)
         _tl.interrupt(m.error)
         if (_tl.hasActivity()) m.timeline = _tl.snapshot()
       }
@@ -937,9 +939,9 @@ export const useChatStore = defineStore('chat', {
         if (m._serverMid == null) m._serverMid = msg.message_id
         else if (m._serverMid !== msg.message_id) return
       }
-      // Feed the live activity timeline (Thinking → tools → Generating → Done). The
-      // 'error' type is fed inside its case below (after the benign-rejection filter).
-      if (m && m.activity && t !== 'error') ingestActivity(m.activity, msg)
+      // Feed the live activity timeline (Thinking → tools → Generating → Done). Rich events already
+      // returned above; this also folds in reasoning + token metering (no-op for other event types).
+      if (m && t !== 'error') _tl.ingest(msg)
       switch (t) {
         case 'turn_resumed':
           // We reconnected (e.g. after a refresh) to a turn still running on the server. Open a fresh
@@ -1127,8 +1129,7 @@ export const useChatStore = defineStore('chat', {
           // Benign control-message rejections (e.g. "Unknown message type: ...")
           // must not fail the turn — the actual chat_message still streams/saves.
           if (/unknown message type/i.test(em)) break
-          if (m && m.activity) ingestActivity(m.activity, msg) // mark active step red
-          this._errAssistant(em)
+          this._errAssistant(em)   // marks any still-running timeline step interrupted
           break
         }
         default:

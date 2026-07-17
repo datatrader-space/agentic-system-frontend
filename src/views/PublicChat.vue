@@ -42,8 +42,7 @@
             <template v-else>
               <span class="pc-msg-av" :style="avatarStyle"><img v-if="cfg.avatar_url" :src="cfg.avatar_url" alt="" /><span v-else>ðŸ¤–</span></span>
               <div class="pc-asst">
-                <!-- Public-safe rich timeline when rich events are present; otherwise the existing
-                     ActivityStream — so flag-OFF / no-rich-events behaviour is unchanged. Never debug. -->
+                <!-- Public-safe activity timeline — the sole renderer. Never debug, never reasoning/tokens. -->
                 <AgentActivityTimeline
                   v-if="m.streaming ? richActive : !!m.timeline"
                   :public-safe="true"
@@ -55,7 +54,6 @@
                   :has-failures="m.streaming ? liveHasFailures : m.timeline.hasFailures"
                   :running="m.streaming"
                 />
-                <ActivityStream v-else :activity="m.activity" />
                 <div v-if="m.content" class="pc-md" v-html="md(m.content)"></div>
                 <!-- Provenance label (public-safe: the basis line only, never the source names/urls). -->
                 <ProvenanceFooter v-if="!m.streaming && m.answerBasis" :basis="m.answerBasis" />
@@ -84,10 +82,8 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { marked } from 'marked'
 import api from '../services/api'
-import ActivityStream from '../components/activity/ActivityStream.vue'
 import AgentActivityTimeline from '../components/AgentActivityTimeline.vue'
 import ProvenanceFooter from '../components/chat/ProvenanceFooter.vue'
-import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity } from '../composables/activityStream'
 import { useAgentTimeline } from '../composables/useAgentTimeline'
 import { enhanceChatMedia } from '../utils/chatMedia'
 
@@ -109,11 +105,9 @@ let intentionalClose = false
 let reconnectAttempts = 0
 let reconnectTimer = null
 
-// Rich streaming activity (AgentRunner rich events) — PUBLIC tier. Entirely additive: when
-// AGENTRUNNER_RICH_STREAMING_ENABLED is OFF none of these events arrive, `richActive` stays false,
-// and the widget keeps using the existing ActivityStream exactly as today. The backend already
-// suppresses raw internal events for the public tier; the frontend stays defensive by rendering the
-// timeline with `public-safe` (never debug) — only friendly labels + status + source names.
+// Live activity timeline — PUBLIC tier (the sole activity renderer). The backend suppresses raw internal
+// events for the public tier; the frontend stays defensive by rendering the timeline with `public-safe`
+// (never debug) — only friendly labels + status + source names.
 const {
   currentStatus: liveStatus,
   steps: liveSteps,
@@ -141,7 +135,7 @@ function interruptRich(note) {
   if (!richActive.value || liveComplete.value) return
   const m = streamingAssistant()
   interruptTimeline(note)
-  if (m) { m.timeline = snapshotTimeline(); finishActivity(m.activity); m.streaming = false }
+  if (m) { m.timeline = snapshotTimeline(); m.streaming = false }
   busy.value = false
 }
 
@@ -192,7 +186,7 @@ function streamingAssistant() {
 }
 function currentAssistant() {
   return streamingAssistant() || (() => {
-    const m = { role: 'assistant', content: '', streaming: true, activity: createActivity() }
+    const m = { role: 'assistant', content: '', streaming: true }
     messages.value.push(m); return m
   })()
 }
@@ -212,14 +206,13 @@ function handleEvent(raw) {
     case 'assistant_typing':
     case 'tool_call':
     case 'tool_result':
-    case 'agent_progress': { const m = streamingAssistant(); if (m) { ingestActivity(m.activity, evt); scrollToBottom() } break }
-    case 'assistant_message_chunk': { const m = currentAssistant(); ingestActivity(m.activity, evt); m.content += (evt.chunk || ''); scrollToBottom(); break }
+    case 'agent_progress': { if (streamingAssistant()) scrollToBottom(); break }
+    case 'assistant_message_chunk': { const m = currentAssistant(); m.content += (evt.chunk || ''); scrollToBottom(); break }
     case 'assistant_message_complete': {
       const m = streamingAssistant()
       if (m) {
         if (evt.full_message) m.content = evt.full_message
         if (evt.answer_basis) m.answerBasis = evt.answer_basis   // provenance label (public-safe)
-        finishActivity(m.activity)
         if (richActive.value) { finalizeTimeline(); m.timeline = snapshotTimeline() }
         m.streaming = false
       }
@@ -229,7 +222,7 @@ function handleEvent(raw) {
     case 'assistant_message':
     case 'assistant': {
       const text = evt.full_message || evt.content || evt.message || ''
-      if (text) { const m = streamingAssistant() || currentAssistant(); m.content = text; finishActivity(m.activity); m.streaming = false }
+      if (text) { const m = streamingAssistant() || currentAssistant(); m.content = text; m.streaming = false }
       busy.value = false; scrollToBottom(); break
     }
     case 'error': {
@@ -237,7 +230,6 @@ function handleEvent(raw) {
       if (/unknown message type/i.test(em)) break
       const m = streamingAssistant()
       if (m) {
-        finishActivity(m.activity)
         if (richActive.value && !liveComplete.value) { interruptTimeline(''); m.timeline = snapshotTimeline() }
         m.streaming = false
       }
@@ -246,7 +238,7 @@ function handleEvent(raw) {
       error.value = 'Something went wrong. Please try again, or contact support if this continues.'
       busy.value = false; break
     }
-    case 'stop_acknowledged': { const m = streamingAssistant(); if (m) { finishActivity(m.activity); m.streaming = false }; busy.value = false; break }
+    case 'stop_acknowledged': { const m = streamingAssistant(); if (m) { if (richActive.value && !liveComplete.value) { finalizeTimeline(); m.timeline = snapshotTimeline() } m.streaming = false }; busy.value = false; break }
   }
 }
 
@@ -254,10 +246,10 @@ function send() {
   const text = input.value.trim()
   if (busy.value || !text || !wsToken.value) return
   if (!ws.value || ws.value.readyState !== WebSocket.OPEN) connect()
-  resetTimeline(); richActive.value = false   // fresh rich-activity timeline for the new turn
+  resetTimeline(); richActive.value = false   // fresh activity timeline for the new turn
   messages.value.push({ role: 'user', content: text })
-  const a = { role: 'assistant', content: '', streaming: true, activity: createActivity() }
-  startActivity(a.activity); messages.value.push(a)
+  const a = { role: 'assistant', content: '', streaming: true }
+  messages.value.push(a)
   input.value = ''; error.value = ''; busy.value = true; scrollToBottom()
   const payload = { type: 'chat_message', message: text }
   if (conversationId.value) payload.conversation_id = conversationId.value
@@ -265,7 +257,7 @@ function send() {
   const trySend = () => {
     if (ws.value && ws.value.readyState === WebSocket.OPEN) ws.value.send(JSON.stringify(payload))
     else if (tries++ < 25) setTimeout(trySend, 200)
-    else { finishActivity(a.activity); a.streaming = false; busy.value = false; error.value = 'Could not connect.' }
+    else { a.streaming = false; busy.value = false; error.value = 'Could not connect.' }
   }
   trySend()
 }
@@ -275,7 +267,6 @@ function stop() {
   }
   const m = streamingAssistant()
   if (m) {
-    finishActivity(m.activity)
     if (richActive.value && !liveComplete.value) { interruptTimeline('Stopped.'); m.timeline = snapshotTimeline() }
     m.streaming = false
   }

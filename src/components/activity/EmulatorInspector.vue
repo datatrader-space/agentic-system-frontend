@@ -35,7 +35,7 @@
       <section class="bg-white border border-gray-200 rounded-xl p-3">
         <h4 class="text-[11px] font-semibold uppercase tracking-wide text-gray-500 mb-2">Trace</h4>
         <div v-if="cur.activity?.steps?.length" class="space-y-1">
-          <div v-for="s in cur.activity.steps" :key="s.id" class="flex items-center gap-2">
+          <div v-for="s in cur.activity.steps" :key="s.stepId || s.id" class="flex items-center gap-2">
             <span class="w-1.5 h-1.5 rounded-full shrink-0"
                   :class="s.status === 'error' ? 'bg-red-500' : (s.status === 'running' ? 'bg-indigo-500' : 'bg-emerald-500')"></span>
             <span class="flex-1 min-w-0 truncate" :class="s.status === 'error' ? 'text-red-600' : 'text-gray-700'">{{ s.label }}</span>
@@ -114,7 +114,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import api from '../../services/api'
-import { stepSeconds } from '../../composables/activityStream'
+import { stepSeconds } from '../../composables/useAgentTimeline'
 
 const props = defineProps({
   agentId: { type: [Number, String], default: null },

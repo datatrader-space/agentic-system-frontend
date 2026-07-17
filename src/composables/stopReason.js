@@ -8,7 +8,8 @@ const LABELS = {
   user_input_required: 'Needs your input',
   blocked_by_policy: 'Blocked by policy',
   tool_failure: 'Stopped — tool failed',
-  max_iterations_reached: 'Stopped — reached limit',
+  max_steps_reached: 'Stopped — reached limit',
+  max_iterations_reached: 'Stopped — reached limit',   // back-compat: old persisted runs (pre-rename)
   token_budget_reached: 'Stopped — context limit',
   duplicate_loop_detected: 'Stopped — loop detected',
   stopped_by_user: 'Stopped by you',

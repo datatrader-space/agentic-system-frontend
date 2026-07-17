@@ -6,10 +6,9 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
       </div>
       <div class="bubble-wrap">
-        <!-- Live activity timeline (rich streaming): Thinking → Searching → Generating → Done.
-             Renders ONLY friendly, param-free labels — never raw tool calls / params / output. Live
-             values come from the store while streaming; a pinned snapshot after. Falls back to the
-             legacy raw ActivityStream only when rich streaming is OFF (no rich events arrived). -->
+        <!-- Live activity timeline: Thinking → Searching → Generating → Done. Renders ONLY friendly,
+             param-free labels — never raw tool calls / params / output. Live values come from the store
+             while streaming; a pinned snapshot after. This is the sole activity renderer. -->
         <AgentActivityTimeline
           v-if="isStreaming ? chat.richActive : !!message.timeline"
           :debug="false"
@@ -20,9 +19,8 @@
           :is-complete="!isStreaming"
           :has-failures="isStreaming ? chat.liveHasFailures : message.timeline.hasFailures"
           :tokens="(message.usage && message.usage.total_tokens) || null"
-          :reasoning="reasoningItems(message.activity)"
+          :reasoning="isStreaming ? chat.liveReasoning : reasoningItems(message.timeline && message.timeline.steps)"
           :running="isStreaming" />
-        <ActivityStream v-else :activity="message.activity" />
 
         <!-- Attachment prep: while a document sent WITH the question is still converting/indexing, we
              hold the turn and show this instead of answering "your file is still being processed". -->
@@ -34,10 +32,6 @@
              embedded as /media/... markdown in the answer text by the backend and rendered by
              enhanceChatMedia — a single, refresh-stable mechanism (no separate media list). -->
         <div v-if="displayContent" class="bubble assistant" v-html="rendered" @click="onCodeCopy"></div>
-
-        <!-- Private reasoning — FALLBACK only (flag-OFF / legacy path). When the rich timeline is shown
-             (message.timeline), reasoning is folded INTO it, so we don't render this separate box. -->
-        <ReasoningPanel v-if="message.status !== 'streaming' && !message.timeline" :activity="message.activity" />
 
         <!-- Why the run ended (backend-determined stop reason + confidence) -->
         <div v-if="message.status !== 'streaming' && stopBadge" class="mt-1.5">
@@ -164,11 +158,9 @@ import { computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
 import { enhanceChatMedia } from '../../utils/chatMedia'
 import api from '../../services/api'
-import ActivityStream from '../activity/ActivityStream.vue'
 import AgentActivityTimeline from '../AgentActivityTimeline.vue'
 import TokenUsage from '../activity/TokenUsage.vue'
-import ReasoningPanel from '../activity/ReasoningPanel.vue'
-import { reasoningItems } from '../../composables/activityStream'
+import { reasoningItems } from '../../composables/useAgentTimeline'
 import SourcesList from './SourcesList.vue'
 import ProvenanceFooter from './ProvenanceFooter.vue'
 import { stopReasonBadge } from '../../composables/stopReason'

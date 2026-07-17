@@ -18,17 +18,22 @@ describe('useChatStore — session token totals', () => {
     expect(chat.sessionCost).toBeCloseTo(0.08, 5)
   })
 
-  it('ticks live from a streaming turn’s activity tokens, then prefers exact usage', () => {
+  it('ticks live from a streaming turn’s timeline tokens, then prefers exact usage', () => {
     const chat = useChatStore()
-    // mid-stream: no usage yet, but the live activity counter is set
+    // a prior completed turn with exact usage…
     chat.messages = [
-      { id: 'a1', role: 'assistant', content: 'done', usage: { total_tokens: 4000, cost_usd: 0.01 } },
-      { id: 'a2', role: 'assistant', content: '', activity: { tokens: { total: 1200, cost: 0.004 } } },
+      { id: 'a1', role: 'assistant', content: 'done', status: 'done', usage: { total_tokens: 4000, cost_usd: 0.01 } },
     ]
+    // …plus a live streaming turn: no usage yet, but the shared timeline's token counter ticks via a
+    // token_usage event routed through the real _onEvent pipeline.
+    chat._beginAssistant()
+    chat._onEvent({ type: 'token_usage', total_tokens: 1200, cost_usd: 0.004 })
     expect(chat.sessionTokens).toBe(5200)            // 4000 exact + 1200 live
     expect(chat.sessionCost).toBeCloseTo(0.014, 5)
     // when the turn completes, exact usage wins over the (now stale) live counter
-    chat.messages[1].usage = { total_tokens: 1300, cost_usd: 0.005 }
+    const cur = chat.messages[chat.messages.length - 1]
+    cur.usage = { total_tokens: 1300, cost_usd: 0.005 }
+    cur.status = 'done'
     expect(chat.sessionTokens).toBe(5300)
   })
 

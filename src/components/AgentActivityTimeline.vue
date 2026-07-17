@@ -4,9 +4,9 @@
          "✓ Done · N steps · Xs · Yk tokens" header; click to expand the full row detail. -->
     <div class="at-card" :class="{ 'at-warn': summaryWarn }">
       <!-- DONE: collapsible summary header -->
-      <button v-if="isComplete && steps && steps.length" type="button" class="at-head" @click="expanded = !expanded">
+      <button v-if="isComplete && (visibleSteps.length || (reasoning && reasoning.length))" type="button" class="at-head" @click="expanded = !expanded">
         <svg class="at-check" :class="summaryWarn ? 'warn' : 'ok'" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.3 3.29 6.8-6.8a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-        <span class="at-head-text">{{ headLabel }}<span v-if="steps.length"> · {{ steps.length }} step{{ steps.length === 1 ? '' : 's' }}</span><span v-if="tokensText && !publicSafe"> · {{ tokensText }}</span></span>
+        <span class="at-head-text">{{ headLabel }}<span v-if="visibleSteps.length"> · {{ visibleSteps.length }} step{{ visibleSteps.length === 1 ? '' : 's' }}</span><span v-if="tokensText && !publicSafe"> · {{ tokensText }}</span></span>
         <svg class="at-chevron" :class="{ open: expanded }" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4Z" clip-rule="evenodd"/></svg>
       </button>
 
@@ -17,10 +17,11 @@
         <span v-if="tokensText && !publicSafe" class="at-head-tok">· {{ tokensText }}</span>
       </div>
 
-      <!-- Rows: shown live while running; when done, only after expanding. -->
-      <ul v-if="steps && steps.length && (!isComplete || expanded)" class="agent-steps" :class="{ 'at-rows-done': isComplete }">
+      <!-- Rows: shown live while running; when done, only after expanding. Reasoning ("thinking") rows are
+           excluded here — they're surfaced in the collapsible reasoning panel below (latest-thought only). -->
+      <ul v-if="visibleSteps.length && (!isComplete || expanded)" class="agent-steps" :class="{ 'at-rows-done': isComplete }">
         <li
-          v-for="step in steps"
+          v-for="step in visibleSteps"
           :key="step.stepId"
           class="agent-step"
           :class="`is-${step.status}`"
@@ -36,8 +37,6 @@
               <span class="agent-step-label">{{ step.label }}</span>
               <span v-if="step.durationMs != null && !publicSafe" class="agent-step-dur">{{ fmtDuration(step.durationMs) }}</span>
             </div>
-            <!-- Streamed model reasoning folded under its step (ChatGPT-style). Never on public. -->
-            <div v-if="step.reasoningText && !publicSafe" class="at-reason-text">{{ step.reasoningText }}</div>
             <!-- Only safe, backend-provided fields. No raw args/prompts/internals. On the public tier
                  (publicSafe) we refuse to render reason/next_action even if the backend accidentally sent
                  them — only a generic friendly failure note. Summaries are kept out of the main row to
@@ -183,6 +182,12 @@ const latestReasoning = computed(() =>
 )
 const earlierReasoning = computed(() =>
   props.reasoning && props.reasoning.length > 1 ? props.reasoning.slice(0, -1) : [],
+)
+
+// Action rows only — reasoning ("thinking") rows are rendered in the collapsible reasoning panel, never
+// inline in the step list (that would defeat the latest-thought-only collapse and stack the whole chain).
+const visibleSteps = computed(() =>
+  (props.steps || []).filter((s) => s.phase !== 'reasoning'),
 )
 
 const show = computed(

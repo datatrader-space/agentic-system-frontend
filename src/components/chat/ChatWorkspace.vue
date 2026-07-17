@@ -109,6 +109,7 @@
         :agent-id="chat.selectedAgentId"
         :conversation-id="chat.conversationId"
         :run-mode="chat.currentAgent && chat.currentAgent.agent_run_mode"
+        :has-image-model="!!(chat.currentAgent && chat.currentAgent.image_model)"
         @send="onSend" @stop="chat.stop()" @mode-change="onModeChange"
         @attach="chat.addAttachments" @remove-attach="chat.removeAttachment"
         @open-media="mediaOpen = true" />

@@ -82,8 +82,7 @@
 
             <!-- assistant: live activity timeline + markdown answer + token usage -->
             <div v-else class="max-w-[92%] w-full">
-              <!-- Rich streaming timeline (builder/debug tier) when rich events are present; otherwise
-                   the existing raw-derived ActivityStream — so flag-OFF behaviour is unchanged. -->
+              <!-- Live activity timeline (builder/debug tier) — the sole activity renderer. -->
               <AgentActivityTimeline
                 v-if="m.streaming ? richActive : !!m.timeline"
                 :debug="true"
@@ -94,10 +93,9 @@
                 :is-complete="m.streaming ? liveComplete : true"
                 :has-failures="m.streaming ? liveHasFailures : m.timeline.hasFailures"
                 :tokens="(m.usage && m.usage.total_tokens) || null"
-                :reasoning="reasoningItems(m.activity)"
+                :reasoning="m.streaming ? liveReasoning : reasoningItems(m.timeline && m.timeline.steps)"
                 :running="m.streaming"
               />
-              <ActivityStream v-else :activity="m.activity" />
               <!-- Attachment prep: holding the turn while an attached document finishes indexing. -->
               <div v-if="m.streaming && m.prepStatus" class="flex items-center gap-2 text-sm text-gray-500 mt-1">
                 <span class="inline-block w-3 h-3 border-2 border-gray-400 border-r-transparent rounded-full animate-spin"></span>{{ m.prepStatus }}
@@ -110,7 +108,6 @@
               <!-- KB sources panel (clickable): cited-or-top-4 when provenance is on, else full list -->
               <SourcesList v-if="!m.streaming && emuPanelCitations(m).length"
                            :citations="emuPanelCitations(m)" />
-              <ReasoningPanel v-if="!m.streaming && !m.timeline" :activity="m.activity" />
               <div v-if="!m.streaming && stopBadge(m)" class="mt-1.5">
                 <span class="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full ring-1"
                       :class="[stopBadge(m).tone.bg, stopBadge(m).tone.text, stopBadge(m).tone.ring]"
@@ -247,9 +244,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { marked } from 'marked'
-import ActivityStream from './activity/ActivityStream.vue'
-import ReasoningPanel from './activity/ReasoningPanel.vue'
-import { reasoningItems } from '../composables/activityStream'
+import { reasoningItems } from '../composables/useAgentTimeline'
 import TokenUsage from './activity/TokenUsage.vue'
 import EmulatorInspector from './activity/EmulatorInspector.vue'
 import AgentActivityTimeline from './AgentActivityTimeline.vue'
@@ -264,7 +259,6 @@ import { useHitl } from '../composables/useHitl'
 import { useAgentTimeline } from '../composables/useAgentTimeline'
 import api from '../services/api'
 import { showMemorySavedToast } from '@/composables/useMemoryToast'
-import { createActivity, start as startActivity, ingest as ingestActivity, finish as finishActivity, interrupt as interruptActivity } from '../composables/activityStream'
 import { fmtTokens, fmtCost } from '../composables/tokens'
 import { useSpeech } from '../composables/useSpeech'
 import { stopReasonBadge } from '../composables/stopReason'
@@ -474,17 +468,17 @@ const lastUserMessage = ref('')
 function newAssistantMessage() {
   return {
     role: 'assistant', content: '', streaming: true, prepStatus: '',
-    activity: createActivity(), usage: null,
+    timeline: null, usage: null,
     events: [], toolIO: [], knowledge: [],
   }
 }
 
 // Running session totals (this emulator session). Prefer a turn's exact completed usage; while a
-// turn streams, fall back to its live activity-token counter so the footer ticks up and finalises exactly.
+// turn streams, fall back to the live timeline token counter so the footer ticks up and finalises exactly.
 const sessionTokens = computed(() => messages.value.reduce((a, m) =>
-  a + ((m.usage && m.usage.total_tokens) || (m.activity && m.activity.tokens && m.activity.tokens.total) || 0), 0))
+  a + ((m.usage && m.usage.total_tokens) || (m.streaming && liveTokens.value && liveTokens.value.total) || 0), 0))
 const sessionCost = computed(() => messages.value.reduce((a, m) =>
-  a + ((m.usage && m.usage.cost_usd) || (m.activity && m.activity.tokens && m.activity.tokens.cost) || 0), 0))
+  a + ((m.usage && m.usage.cost_usd) || (m.streaming && liveTokens.value && liveTokens.value.cost) || 0), 0))
 
 // Inspector view: one entry per assistant turn (with the preceding user prompt).
 const inspectorTurns = computed(() => {
@@ -495,7 +489,7 @@ const inspectorTurns = computed(() => {
     let prompt = ''
     for (let j = i - 1; j >= 0; j--) { if (msgs[j].role === 'user') { prompt = msgs[j].content; break } }
     const m = msgs[i]
-    out.push({ prompt, content: m.content, activity: m.activity, usage: m.usage, toolIO: m.toolIO, knowledge: m.knowledge, events: m.events })
+    out.push({ prompt, content: m.content, activity: m.timeline, usage: m.usage, toolIO: m.toolIO, knowledge: m.knowledge, events: m.events })
   }
   return out
 })
@@ -528,11 +522,9 @@ const { hitlRequests, handleHitlEvent, respondHitl, dismissHitl, skipHitl } = us
   if (ws.value && ws.value.readyState === WebSocket.OPEN) ws.value.send(JSON.stringify(obj))
 }, () => conversationId.value)
 
-// Rich streaming activity (AgentRunner rich events) — builder/debug tier in the emulator. Entirely
-// additive: when AGENTRUNNER_RICH_STREAMING_ENABLED is OFF none of these events arrive, `richActive`
-// stays false, and the emulator keeps using the existing ActivityStream timeline exactly as today.
-// The raw events still feed `m.activity` (Inspector / ReasoningPanel / token metering) unchanged — we
-// only swap the *visible* timeline to the rich one when rich events are present.
+// Live activity timeline (builder/debug tier in the emulator) — the sole activity renderer. It folds in
+// friendly steps, sources, reasoning, and token metering; a snapshot is pinned onto the message on
+// completion and drives the Inspector's step trace.
 const {
   currentStatus: liveStatus,
   steps: liveSteps,
@@ -540,6 +532,8 @@ const {
   summary: liveSummary,
   hasFailures: liveHasFailures,
   isComplete: liveComplete,
+  tokens: liveTokens,
+  reasoning: liveReasoning,
   ingest: ingestTimeline,
   reset: resetTimeline,
   finalize: finalizeTimeline,
@@ -668,8 +662,7 @@ function streamingAssistant() {
 function interruptStreaming(note) {
   const m = streamingAssistant()
   if (!m) { busy.value = false; return }
-  interruptActivity(m.activity, note)
-  // Also stop the rich timeline (if active) so no rich step spins forever; pin its interrupted snapshot.
+  // Stop the live timeline (if active) so no step spins forever; pin its interrupted snapshot.
   if (richActive.value && !liveComplete.value) { interruptTimeline(note); m.timeline = snapshotTimeline() }
   m.streaming = false
   if (!m.content) m.content = '_⚠️ ' + note + '_'
@@ -715,7 +708,6 @@ function handleEvent(raw) {
       // land; assistant_message_complete finalizes it. Guard against double-starting.
       if (!streamingAssistant()) {
         const a = newAssistantMessage()
-        startActivity(a.activity)
         messages.value.push(a)
       }
       busy.value = true
@@ -739,15 +731,12 @@ function handleEvent(raw) {
     case 'auto_status':
     case 'work_summary':
     case 'tool_blocked': {
-      const m = streamingAssistant()
-      if (m) { ingestActivity(m.activity, evt); scrollToBottom() }
+      if (streamingAssistant()) scrollToBottom()
       break
     }
     // v3 Plan Gate (Manual Mode): a plan is ready and awaits a human. Show the timeline label AND
     // surface the approval card with the plan content.
     case 'plan_approval_required': {
-      const m = streamingAssistant()
-      if (m) ingestActivity(m.activity, evt)
       pendingPlan.value = evt.plan || {}
       scrollToBottom()
       break
@@ -773,7 +762,6 @@ function handleEvent(raw) {
     }
     case 'assistant_message_chunk': {
       const m = currentAssistant() // real content — create if needed (streamed answer)
-      ingestActivity(m.activity, evt)
       m.content += (evt.chunk || '')
       scrollToBottom()
       break
@@ -786,8 +774,7 @@ function handleEvent(raw) {
         if (evt.answer_basis) m.answerBasis = evt.answer_basis          // provenance footer + cited-or-top4
         if (evt.usage) m.usage = evt.usage
         if (evt.stop_reason) { m.stopReason = evt.stop_reason; m.confidence = evt.confidence }
-        finishActivity(m.activity)
-        // Close the rich timeline (if any) and pin its snapshot onto this message.
+        // Close the live timeline (if any) and pin its snapshot onto this message.
         if (richActive.value) { finalizeTimeline(); m.timeline = snapshotTimeline() }
         m.streaming = false
       }
@@ -807,7 +794,6 @@ function handleEvent(raw) {
       if (text) {
         const m = streamingAssistant() || currentAssistant()
         m.content = text
-        finishActivity(m.activity)
         m.streaming = false
       }
       busy.value = false
@@ -819,14 +805,20 @@ function handleEvent(raw) {
       // Benign control-message rejections must not fail the turn.
       if (/unknown message type/i.test(em)) break
       const m = streamingAssistant()
-      if (m) { ingestActivity(m.activity, evt); finishActivity(m.activity); m.streaming = false }
+      if (m) {
+        if (richActive.value && !liveComplete.value) { interruptTimeline(em); m.timeline = snapshotTimeline() }
+        m.streaming = false
+      }
       error.value = em
       busy.value = false
       break
     }
     case 'stop_acknowledged': {
       const m = streamingAssistant()
-      if (m) { finishActivity(m.activity); m.streaming = false }
+      if (m) {
+        if (richActive.value && !liveComplete.value) { finalizeTimeline(); m.timeline = snapshotTimeline() }
+        m.streaming = false
+      }
       busy.value = false
       break
     }
@@ -859,9 +851,8 @@ function dispatch(text, { resume = false, previews = [], holdDocs = [] } = {}) {
   // Fresh rich-activity timeline for the new turn.
   resetTimeline()
   richActive.value = false
-  // Create the assistant message up-front with a live activity timeline ("Thinking…").
+  // Create the assistant message up-front; the live timeline seeds "Thinking…" from backend events.
   const a = newAssistantMessage()
-  startActivity(a.activity)
   messages.value.push(a)
   error.value = ''
   busy.value = true
@@ -877,7 +868,6 @@ function dispatch(text, { resume = false, previews = [], holdDocs = [] } = {}) {
     } else if (tries++ < 25) {
       setTimeout(trySend, 200)
     } else {
-      finishActivity(a.activity)
       a.streaming = false
       busy.value = false
       error.value = 'Could not connect to the chat server.'
@@ -908,7 +898,6 @@ function stop() {
   }
   const m = messages.value[messages.value.length - 1]
   if (m && m.role === 'assistant' && m.streaming) {
-    finishActivity(m.activity)
     if (richActive.value && !liveComplete.value) { interruptTimeline('Stopped.'); m.timeline = snapshotTimeline() }
     m.streaming = false
   }
@@ -948,8 +937,7 @@ async function loadHistory(id) {
       if (m.role === 'assistant' || m.role === 'agent') {
         const a = newAssistantMessage()
         a.content = m.content || ''
-        a.streaming = false
-        finishActivity(a.activity)   // historical turn — no live timeline
+        a.streaming = false   // historical turn — no live timeline
         return a
       }
       return { role: 'user', content: m.content || '' }

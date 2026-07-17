@@ -314,9 +314,9 @@
             <template v-else>
               <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div class="stat">
-                  <p class="stat-k">Max actions / run</p>
-                  <p class="stat-v">{{ usage.limits.max_actions_per_run.effective }}</p>
-                  <span class="src" :class="usage.limits.max_actions_per_run.source === 'agent' ? 'src-a' : 'src-d'">{{ usage.limits.max_actions_per_run.source === 'agent' ? 'This agent' : 'Default' }}</span>
+                  <p class="stat-k">Max steps / run</p>
+                  <p class="stat-v">{{ usage.limits.max_steps.effective }}</p>
+                  <span class="src" :class="usage.limits.max_steps.source === 'agent' ? 'src-a' : 'src-d'">{{ usage.limits.max_steps.source === 'agent' ? 'This agent' : 'Default' }}</span>
                 </div>
                 <div class="stat">
                   <p class="stat-k">Max runs / day</p>
@@ -605,12 +605,12 @@ async function loadPlatformLimits() {
     const r = await api.getGlobalAgentPolicy()
     const pol = r.data?.llm_policy || {}
     const abs = r.data?.llm_policy_absolute || {}
-    const absMax = Number(abs.max_tool_iterations) || PLATFORM_CEILING_DEFAULT
+    const absMax = Number(abs.max_steps) || PLATFORM_CEILING_DEFAULT
     // Platform value wins as the ceiling; if unset the absolute default applies. Agent tightens below this.
-    actionsCeiling.value = Number(pol.max_tool_iterations) || absMax
+    actionsCeiling.value = Number(pol.max_steps) || absMax
     // If a stored agent value exceeds the ceiling, clamp it down so the editor never shows an over-limit
-    // number that the backend would reduce at runtime. Prefer the new key, fall back to the legacy one.
-    const cur = Number(policy.value.max_steps ?? policy.value.max_actions_per_run)
+    // number that the backend would reduce at runtime.
+    const cur = Number(policy.value.max_steps)
     if (Number.isFinite(cur) && cur > actionsCeiling.value) _setLimit('max_steps', actionsCeiling.value, actionsCeiling.value)
   } catch (e) { /* keep safe defaults */ }
 }
@@ -624,9 +624,8 @@ function _setLimit(key, value, max) {
   policy.value = p
 }
 const maxActionsPerRun = computed({
-  // Read the new max_steps key, falling back to the legacy max_actions_per_run so already-configured
-  // agents still show their value. Writes always use the new max_steps key.
-  get: () => policy.value.max_steps ?? policy.value.max_actions_per_run ?? '',
+  // max_steps is the only step-cap key.
+  get: () => policy.value.max_steps ?? '',
   set: (value) => _setLimit('max_steps', value, actionsCeiling.value),
 })
 const maxRunsPerDay = computed({

@@ -1,7 +1,5 @@
-// useAgentTimeline — render model for AgentRunner *rich streaming* events.
-//
-// The backend (flag AGENTRUNNER_RICH_STREAMING_ENABLED) emits a safe, tier-redacted
-// activity stream alongside the existing raw events:
+// useAgentTimeline — the SOLE render model for the agent activity timeline (the legacy raw
+// ActivityStream was retired). The backend emits a safe, tier-redacted activity stream:
 //   agent_status         { phase, label }
 //   agent_step_started   { step_id, phase, label, tool_call_id?, tool?, coalesced_count? }
 //   agent_step_completed { step_id, label, status, tool_call_id?, summary?, duration_ms? }
@@ -9,13 +7,12 @@
 //   source_citation      { kind, name, ref? }
 //   agent_turn_summary   { final_status, tools_used_count?, sources_used_count?, had_failures?, had_approval?, duration_ms? }
 //
-// This composable turns that stream into a clean render model (status line + step
-// timeline + sources + turn summary). It ONLY consumes the 6 rich events — when the
-// backend flag is OFF none of them arrive and the host UI behaves exactly as before.
+// This composable turns that stream into a clean render model (status line + step timeline + sources +
+// turn summary), and additionally folds in streamed reasoning (reasoning_delta/_done) and live token
+// metering (token_usage + assistant_message_complete usage) so it's the one source per turn.
 //
-// We render ONLY backend-provided, already-safe fields (label/status/summary/reason/
-// next_action/duration). No raw args, prompts, reasoning, secrets, model internals, or
-// private debug fields are ever read or shown here.
+// We render ONLY backend-provided, already-safe fields (label/status/summary/reason/next_action/
+// duration). No raw args, prompts, secrets, model internals, or private debug fields are read here.
 
 import { ref, computed } from 'vue'
 
@@ -63,6 +60,10 @@ export function useAgentTimeline() {
   const summary = ref(null) // { finalStatus, label, toolsUsedCount, sourcesUsedCount, hadFailures, hadApproval, durationMs } | null
   const isComplete = ref(false)
   const interrupted = ref(false) // socket dropped / cancelled mid-turn (no backend terminal event)
+  // Live token metering for this turn (fed by `token_usage`, reconciled by assistant_message_complete):
+  // the latest running snapshot { total, prompt, completion, cached, cost, estimated }. null until the
+  // first tick. Powers the live session token/cost footer while streaming.
+  const tokens = ref(null)
 
   // step status vocabulary: 'running' | 'ok' | 'failed'
   const activeStep = computed(() => {
@@ -83,6 +84,7 @@ export function useAgentTimeline() {
     summary.value = null
     isComplete.value = false
     interrupted.value = false
+    tokens.value = null
   }
 
   function _find(stepId) {
@@ -120,16 +122,57 @@ export function useAgentTimeline() {
     // sends reasoning on the public tier, so public timelines never carry it.
     if (evt && (evt.type === 'reasoning_delta' || evt.type === 'reasoning_done')) {
       if (isComplete.value) return true
-      let s = null
-      for (let i = steps.value.length - 1; i >= 0; i--) {
-        if (steps.value[i].phase === 'reasoning') { s = steps.value[i]; break }
+      const last = steps.value[steps.value.length - 1]
+      const openReasoning = (last && last.phase === 'reasoning' && last.status === 'running') ? last : null
+      // A reasoning_done CLOSES the current thought so the NEXT reasoning_delta opens a fresh row. This
+      // segmentation is what lets the UI collapse to just the LATEST thought while streaming (each burst
+      // is its own item) instead of one ever-growing blob.
+      if (evt.type === 'reasoning_done') {
+        if (openReasoning) {
+          if (evt.duration_ms != null) openReasoning.durationMs = evt.duration_ms
+          _closeRow(openReasoning, 'ok')
+        }
+        return true
       }
+      // reasoning_delta: append to the open burst, or start a new one. Strip any <think> tags the
+      // backend wrapped native reasoning in so they never show literally.
+      let s = openReasoning
       if (!s) { s = _phaseRow('reasoning', 'Thinking'); steps.value.push(s) }
-      // Strip any <think> tags the backend wrapped native reasoning in, so they never show literally.
-      if (evt.type === 'reasoning_delta' && evt.text) {
-        s.reasoningText = ((s.reasoningText || '') + evt.text).replace(/<\/?think>/gi, '')
+      if (evt.text) s.reasoningText = ((s.reasoningText || '') + evt.text).replace(/<\/?think>/gi, '')
+      return true
+    }
+
+    // Live token metering. `token_usage` streams a running counter; `assistant_message_complete` carries
+    // the final exact usage that reconciles it. Prefer an exact tick over an estimate at the same total.
+    if (evt && evt.type === 'token_usage') {
+      const prompt = evt.prompt_tokens != null ? evt.prompt_tokens : null
+      const completion = evt.completion_tokens != null ? evt.completion_tokens : null
+      const total = evt.total_tokens != null ? evt.total_tokens : (((prompt || 0) + (completion || 0)) || 0)
+      if (!total) return true
+      const prev = tokens.value
+      if (prev && evt.estimated && !prev.estimated && total < prev.total) return true
+      tokens.value = {
+        total, prompt, completion,
+        cached: evt.cached_tokens != null ? evt.cached_tokens : (prev ? prev.cached : null),
+        cost: evt.cost_usd != null ? evt.cost_usd : (prev ? prev.cost : null),
+        estimated: !!evt.estimated,
       }
       return true
+    }
+    if (evt && evt.type === 'assistant_message_complete' && evt.usage) {
+      const u = evt.usage
+      const prompt = u.prompt_tokens != null ? u.prompt_tokens : (u.input_tokens != null ? u.input_tokens : null)
+      const completion = u.completion_tokens != null ? u.completion_tokens : (u.output_tokens != null ? u.output_tokens : null)
+      const total = u.total_tokens != null ? u.total_tokens : (((prompt || 0) + (completion || 0)) || 0)
+      if (total) {
+        tokens.value = {
+          total, prompt, completion,
+          cached: u.cached_tokens != null ? u.cached_tokens : null,
+          cost: u.cost_usd != null ? u.cost_usd : null,
+          estimated: false,
+        }
+      }
+      // fall through: not a rich event, returns false below so the host still processes it normally
     }
     if (!isRichEvent(evt)) return false
     switch (evt.type) {
@@ -325,7 +368,12 @@ export function useAgentTimeline() {
   // True if anything worth rendering has been received this turn.
   function hasActivity() {
     return steps.value.length > 0 || sources.value.length > 0 || !!currentStatus.value || !!summary.value
+      || !!tokens.value
   }
+
+  // Model reasoning items [{ label, text }] folded from the timeline's steps — the ChatGPT-style
+  // "Thinking" panel (AgentActivityTimeline consumes this via its `reasoning` prop).
+  const reasoning = computed(() => reasoningItems(steps.value))
 
   return {
     currentStatus,
@@ -336,6 +384,8 @@ export function useAgentTimeline() {
     hasFailures,
     isComplete,
     interrupted,
+    tokens,
+    reasoning,
     ingest,
     reset,
     finalize,
@@ -344,6 +394,37 @@ export function useAgentTimeline() {
     hasActivity,
     isRichEvent,
   }
+}
+
+// ── Pure view helpers (shared by hosts + the done-snapshot render; no reactive state) ───────────
+// Strip any literal <think>…</think> tags the backend wraps native reasoning in.
+export function stripThinkTags(s) {
+  return String(s || '').replace(/<\/?think>/gi, '').trim()
+}
+
+// One entry per reasoning fragment carried on a timeline step — the phrase label + streamed text.
+// Works on both the live `steps` and a pinned `timeline.steps` snapshot. Deduplicates identical items.
+export function reasoningItems(steps) {
+  if (!Array.isArray(steps)) return []
+  const out = [], seen = new Set()
+  for (const s of steps) {
+    const text = stripThinkTags(s.reasoningText)
+    if (!text) continue
+    const label = s.phase === 'reasoning' ? stripThinkTags(s.label) : ''
+    const key = `${label}|${text}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ label: label || 'Thinking', text })
+  }
+  return out
+}
+
+// Elapsed seconds for a finished step (or null while running / unknown).
+export function stepSeconds(s) {
+  if (!s) return null
+  if (s.durationMs != null) return Math.max(0, s.durationMs / 1000)
+  if (s.endTs && s.startTs) return Math.max(0, (s.endTs - s.startTs) / 1000)
+  return null
 }
 
 export default useAgentTimeline
