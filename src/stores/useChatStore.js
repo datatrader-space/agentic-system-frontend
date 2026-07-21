@@ -591,6 +591,12 @@ export const useChatStore = defineStore('chat', {
       }
       const userMsg = this.messages[userIdx]
       if (!userMsg || userMsg.role !== 'user') return
+      // ARTC: the answer being regenerated is an implicit negative — record it (best-effort).
+      try {
+        if (this.conversationId) api.submitTrainingFeedback({
+          conversation_id: this.conversationId, label_type: 'regenerate',
+        })
+      } catch (_) { /* never block regeneration */ }
       this.messages = this.messages.slice(0, userIdx + 1)   // keep the user turn, drop the rest
       if (!this._conn && this.conversationId) this._connect()
       this._beginAssistant()
@@ -604,6 +610,12 @@ export const useChatStore = defineStore('chat', {
       const idx = this.messages.findIndex((m) => m.id === messageId)
       if (idx < 0 || this.messages[idx].role !== 'user') return
       this.messages[idx].content = text
+      // ARTC: an edit-and-resend signals the prior turn was unsatisfactory — record it (best-effort).
+      try {
+        if (this.conversationId) api.submitTrainingFeedback({
+          conversation_id: this.conversationId, label_type: 'user_edit',
+        })
+      } catch (_) { /* never block resend */ }
       this.messages = this.messages.slice(0, idx + 1)
       if (!this._conn && this.conversationId) this._connect()
       this._beginAssistant()
@@ -615,6 +627,12 @@ export const useChatStore = defineStore('chat', {
     setFeedback(messageId, value) {
       const m = this.messages.find((x) => x.id === messageId)
       if (m) m.feedback = m.feedback === value ? null : value
+      // ARTC: send the thumb as a training label (best-effort; never blocks the UI).
+      try {
+        if (this.conversationId) api.submitTrainingFeedback({
+          conversation_id: this.conversationId, label_type: 'thumb', value,
+        })
+      } catch (_) { /* ignore */ }
     },
 
     // ---- Connection + streaming internals ----

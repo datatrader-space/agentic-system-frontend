@@ -198,6 +198,12 @@ export default {
   getPartnerDocs: () => api.get('/admin/partner-keys/docs/'),
   searchPartnerUsers: (search) => api.get('/admin/users/', { params: { search, limit: 20 } }),
 
+  // ARTC — Agent-Run Training Corpus: feedback labels / consent / governed pull of own runs
+  submitTrainingFeedback: (payload) => api.post('/run-trace/feedback/', payload),
+  getTrainingConsent: () => api.get('/run-trace/consent/'),
+  setTrainingConsent: (payload) => api.post('/run-trace/consent/', payload),
+  pullTrainingCorpus: (format = 'sft') => api.get('/run-trace/corpus/', { params: { fmt: format } }),
+
   // Systems
   getSystems: () => api.get('/systems/'),
   getSystem: (id) => api.get(`/systems/${id}/`),

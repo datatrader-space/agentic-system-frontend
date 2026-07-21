@@ -231,6 +231,7 @@ const router = createRouter({
         { path: 'schedules', name: 'dashboard-schedules', component: SchedulesPage },
         { path: 'workspaces', name: 'dashboard-workspaces', redirect: '/dashboard/connectors' },
         { path: 'budgets', name: 'dashboard-budgets', component: BudgetsPage },
+        { path: 'training-data', name: 'dashboard-training-data', component: () => import('./views/TrainingDataPage.vue') },
         { path: 'organization', name: 'dashboard-organization', component: OrganizationPage },
         { path: 'organization/:module', name: 'dashboard-organization-module', component: OrganizationModulePage },
         { path: 'activity', name: 'dashboard-activity', component: LLMDashboard },
