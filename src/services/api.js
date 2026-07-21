@@ -354,6 +354,8 @@ export default {
   getLlmUsage: (params) => api.get('/llm/usage/', { params }),
   getLlmRequests: (params) => api.get('/llm/requests/', { params }),
   getLlmAudit: (params) => api.get('/llm/audit/', { params }),
+  // Per-conversation cost breakdown (Usage → Cost Breakdown tab): totals + by-source + by-model + calls.
+  getLlmCostByConversation: (params) => api.get('/llm/conversation-breakdown/', { params }),
   // One-shot loads: Activity page (agents+stats+usage+requests+audit) and
   // Settings → LLM tab (providers+models+stats+operation-models).
   getLlmDashboard: (params) => api.get('/llm/dashboard/', { params }),
@@ -364,6 +366,8 @@ export default {
   syncOpenRouterPricing: () => api.post('/admin/model-pricing/sync-openrouter/', {}),
 
   // Admin — RAG Knowledge console (P9/P8/P10; staff only, backend enforces IsAdminUser)
+  kbSettings: () => api.get('/admin/knowledge/settings/', { noCache: true }),
+  kbUpdateSettings: (data) => api.put('/admin/knowledge/settings/', data),
   kbOverview: (params) => api.get('/admin/knowledge/overview/', { params, noCache: true }),
   kbTopQuestions: (params) => api.get('/admin/knowledge/top-questions/', { params, noCache: true }),
   kbUnanswered: (params) => api.get('/admin/knowledge/unanswered/', { params, noCache: true }),

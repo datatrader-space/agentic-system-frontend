@@ -107,6 +107,37 @@
         </button>
       </div>
 
+      <div class="card ctx-card">
+        <div class="ctx-head">
+          <div class="ctx-text">
+            <h3>Contextual retrieval <span class="muted small">— LLM-written chunk context</span></h3>
+            <p class="muted small">
+              When <b>ON</b>, an LLM writes a 1–2 sentence context for every chunk before it is embedded and
+              searched — e.g. turning a bare <i>“Then select Apply.”</i> into <i>“the final confirmation step
+              of the change-wallpaper procedure.”</i> This makes otherwise-ambiguous chunks far easier to
+              find, so <b>retrieval recall improves</b> on procedures, tables, and short snippets.
+            </p>
+            <p class="muted small">
+              <b>Cost:</b> one LLM call <b>per chunk</b> at index / re-embed time — it uses the
+              <b>RAG Contextual LLM</b> model (Settings → Internal &amp; Embedding), which defaults to the
+              agent’s main model, so point it at a cheap/fast model for large KBs.
+              When <b>OFF</b> (default), a free deterministic <code>Document | Section</code> prefix is used.
+            </p>
+            <p class="muted small">
+              <b>Applies to new uploads and any KB you re-embed</b> — existing chunks keep their current
+              context until re-embedded (use the re-embed action above, or <code>manage.py rag_contextualize</code>).
+            </p>
+          </div>
+          <div class="ctx-toggle">
+            <button class="btn" :class="{ primary: ragSettings.contextual_llm_enabled }"
+                    :disabled="savingSettings" @click="toggleContextualLlm(!ragSettings.contextual_llm_enabled)">
+              {{ savingSettings ? 'Saving…' : (ragSettings.contextual_llm_enabled ? 'ON · LLM context' : 'OFF · structural (free)') }}
+            </button>
+            <p v-if="ragSettings.updated_by" class="muted small">last changed by {{ ragSettings.updated_by }}</p>
+          </div>
+        </div>
+      </div>
+
       <div class="stats">
         <div class="stat"><div class="v">{{ health.web_sources?.total ?? '—' }}</div><div class="l">Web sources</div></div>
         <div class="stat"><div class="v">{{ health.files?.total ?? '—' }}</div><div class="l">Files</div></div>
@@ -275,6 +306,9 @@ const evalRunning = ref(false)
 const healthScope = ref('')
 const health = ref({})
 const reembedding = ref(false)
+// Global RAG settings (dynamic toggle — DB-backed, not .env)
+const ragSettings = ref({ contextual_llm_enabled: false, updated_by: null })
+const savingSettings = ref(false)
 const needsReviewCount = ref(0)
 const embedding = ref(new Set())   // web-source ids currently being embedded on demand
 
@@ -332,6 +366,28 @@ async function embedSource (s) {
     embedding.value.delete(s.id); embedding.value = new Set(embedding.value)
   }
 }
+async function loadRagSettings () {
+  try {
+    const r = await api.kbSettings()
+    ragSettings.value = r.data
+  } catch (e) { /* non-fatal: toggle just shows default OFF */ }
+}
+
+async function toggleContextualLlm (val) {
+  savingSettings.value = true
+  try {
+    const r = await api.kbUpdateSettings({ contextual_llm_enabled: val })
+    ragSettings.value = r.data
+    notify.success(val
+      ? 'Contextual retrieval ON — new & re-embedded chunks get LLM-written context'
+      : 'Contextual retrieval OFF — using free structural context')
+  } catch (e) {
+    notify.error('Could not update the setting')
+  } finally {
+    savingSettings.value = false
+  }
+}
+
 async function reembed () {
   reembedding.value = true
   try {
@@ -444,6 +500,7 @@ watch(tab, (t) => {
 onMounted(async () => {
   try { const r = await api.getAgents(); agents.value = r.data.results || r.data || []; if (agents.value.length) agentId.value = agents.value[0].id } catch (e) {}
   loadMonitoring()
+  loadRagSettings()
 })
 </script>
 
@@ -477,6 +534,14 @@ onMounted(async () => {
 .seg button, .btn { border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 600; color: #475569; cursor: pointer; }
 .seg { display: inline-flex; gap: 4px; } .seg button.active { background: rgba(79,70,229,.1); color: #4f46e5; border-color: #c7d2fe; }
 .btn.primary { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+.ctx-card .ctx-head { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; }
+.ctx-card .ctx-text { flex: 1; min-width: 0; }
+.ctx-card .ctx-text h3 { margin-bottom: 6px; }
+.ctx-card .ctx-text p { margin: 8px 0 0; line-height: 1.55; }
+.ctx-card .ctx-toggle { flex: none; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.ctx-card .ctx-toggle .btn { white-space: nowrap; }
+.ctx-card code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+@media (max-width: 640px) { .ctx-card .ctx-head { flex-direction: column; } .ctx-card .ctx-toggle { align-items: flex-start; } }
 .btn.tiny { padding: 3px 8px; font-size: 11px; } .btn.danger { color: #dc2626; border-color: #fecaca; }
 .btn:disabled { opacity: .5; cursor: default; }
 .sel, .inp { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 13px; }

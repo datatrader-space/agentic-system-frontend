@@ -129,9 +129,32 @@
         <nav class="log-tabs" aria-label="Usage logs">
           <button :class="{ active: logTab === 'requests' }" @click="logTab = 'requests'">Request Log</button>
           <button :class="{ active: logTab === 'audit' }" @click="logTab = 'audit'">Audit Trail</button>
+          <button :class="{ active: logTab === 'cost' }" @click="onCostTab">Cost Breakdown</button>
         </nav>
 
-        <div class="log-filters">
+        <!-- Cost Breakdown filters: pick a conversation to see its full per-call cost breakdown. -->
+        <div class="log-filters" v-if="logTab === 'cost'">
+          <label class="wide">
+            <select v-model="costConvId" @change="loadCostBreakdown">
+              <option value="">Select a conversation…</option>
+              <option v-for="c in costConvs" :key="c.id" :value="c.id">{{ c.label }}</option>
+            </select>
+            <Icon icon="lucide:chevron-down" />
+          </label>
+          <label>
+            <select v-model="costSource" @change="loadCostBreakdown">
+              <option value="">All sources</option>
+              <option value="chat">Chat</option>
+              <option value="embedding">Embedding</option>
+              <option value="system">System</option>
+              <option value="workflow">Workflow</option>
+            </select>
+            <Icon icon="lucide:chevron-down" />
+          </label>
+          <button class="icon-btn" aria-label="Refresh" @click="loadCostBreakdown"><Icon icon="lucide:refresh-cw" /></button>
+        </div>
+
+        <div class="log-filters" v-if="logTab === 'requests'">
           <label>
             <select v-model="providerFilter">
               <option value="">All Providers</option>
@@ -206,7 +229,7 @@
             </tbody>
           </table>
 
-          <div v-else class="audit-list">
+          <div v-else-if="logTab === 'audit'" class="audit-list">
             <article v-for="entry in auditRows" :key="entry.id">
               <span><Icon icon="lucide:file-clock" /></span>
               <div>
@@ -216,9 +239,71 @@
               <time>{{ entry.time }}</time>
             </article>
           </div>
+
+          <div v-else-if="logTab === 'cost'" class="cost-breakdown">
+            <p v-if="!costConvId" class="cost-empty">Pick a conversation above to see its full per-call cost breakdown.</p>
+            <p v-else-if="costLoading" class="cost-empty">Loading…</p>
+            <template v-else-if="costData && costData.totals && costData.totals.calls">
+              <div class="cost-summary">
+                <div><b>{{ costData.totals.calls }}</b><span>calls</span></div>
+                <div><b>{{ fmtTokens(costData.totals.total_tokens) }}</b><span>tokens</span></div>
+                <div><b>{{ fmtTokens(costData.totals.cached_tokens) }}</b><span>cached ({{ costData.totals.cached_pct }}%)</span></div>
+                <div class="cost-total"><b>{{ fmtCost(costData.totals.cost) }}</b><span>total cost</span></div>
+              </div>
+
+              <h4 class="cost-h">By source</h4>
+              <table class="cost-table">
+                <thead><tr><th>Source</th><th>Calls</th><th>Tokens</th><th>Cached</th><th>Cost</th></tr></thead>
+                <tbody>
+                  <tr v-for="r in costData.by_source" :key="r.source">
+                    <td><span class="src-pill" :class="r.source">{{ r.source }}</span></td>
+                    <td>{{ r.calls }}</td>
+                    <td>{{ fmtTokens(r.tokens) }}</td>
+                    <td>{{ fmtTokens(r.cached) }}</td>
+                    <td class="num">{{ fmtCost(r.cost) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h4 class="cost-h">By model</h4>
+              <table class="cost-table">
+                <thead><tr><th>Model</th><th>Provider</th><th>Calls</th><th>Tokens</th><th>Cached</th><th>Cost</th></tr></thead>
+                <tbody>
+                  <tr v-for="r in costData.by_model" :key="r.provider + '/' + r.model">
+                    <td>{{ r.model }}</td>
+                    <td>{{ r.provider }}</td>
+                    <td>{{ r.calls }}</td>
+                    <td>{{ fmtTokens(r.tokens) }}</td>
+                    <td>{{ fmtTokens(r.cached) }}</td>
+                    <td class="num">{{ fmtCost(r.cost) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <h4 class="cost-h">Calls <small>({{ costData.count }})</small></h4>
+              <table class="cost-table">
+                <thead><tr><th>Time</th><th>Source</th><th>Type</th><th>Model</th><th>Input</th><th>Output</th><th>Cached</th><th>Reason</th><th>Cost</th><th>Pricing</th></tr></thead>
+                <tbody>
+                  <tr v-for="c in costData.calls" :key="c.id">
+                    <td>{{ formatTime(c.created_at) }}</td>
+                    <td><span class="src-pill" :class="c.request_source">{{ c.request_source }}</span></td>
+                    <td>{{ c.request_type }}</td>
+                    <td>{{ c.model }}</td>
+                    <td>{{ fmtTokens(c.prompt_tokens) }}</td>
+                    <td>{{ fmtTokens(c.completion_tokens) }}</td>
+                    <td>{{ fmtTokens(c.cached_tokens) }}</td>
+                    <td>{{ fmtTokens(c.reasoning_tokens) }}</td>
+                    <td class="num">{{ fmtCost(c.cost) }}</td>
+                    <td><span class="pricing-pill" :class="c.pricing_status">{{ c.pricing_status || '—' }}</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </template>
+            <p v-else class="cost-empty">No LLM calls recorded for this conversation.</p>
+          </div>
         </div>
 
-        <footer class="table-footer">
+        <footer class="table-footer" v-if="logTab === 'requests'">
           <span>Showing {{ rangeStart }} to {{ rangeEnd }} of {{ totalRequests }} requests</span>
           <div class="pager">
             <button :disabled="page === 1" @click="page--"><Icon icon="lucide:chevron-left" /></button>
@@ -246,6 +331,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import PageLoader from '../components/common/PageLoader.vue'
+import { fmtTokens, fmtCost } from '../composables/tokens'
 
 const loading = ref(false)
 const hasLoaded = ref(false)
@@ -256,6 +342,12 @@ const modelFilter = ref('')
 const statusFilter = ref('')
 const search = ref('')
 const logTab = ref('requests')
+// Cost Breakdown tab state
+const costConvId = ref('')
+const costSource = ref('')
+const costConvs = ref([])
+const costData = ref(null)
+const costLoading = ref(false)
 const chartMode = ref('daily')
 const page = ref(1)
 const pageSize = ref(10)
@@ -503,6 +595,41 @@ async function reload() {
   } finally {
     hasLoaded.value = true
     loading.value = false
+  }
+}
+
+// ── Cost Breakdown tab ──────────────────────────────────────────────────────
+async function onCostTab() {
+  logTab.value = 'cost'
+  if (!costConvs.value.length) await loadCostConversations()
+}
+
+async function loadCostConversations() {
+  try {
+    const res = await api.getConversations({ ordering: '-updated_at', page_size: 100 })
+    costConvs.value = unwrapList(res.data, 'results', 'conversations').map((c) => ({
+      id: c.id,
+      label: `${c.title || 'Untitled'} · #${c.id}`,
+    }))
+  } catch (e) {
+    costConvs.value = []
+  }
+}
+
+async function loadCostBreakdown() {
+  if (!costConvId.value) { costData.value = null; return }
+  costLoading.value = true
+  try {
+    const res = await api.getLlmCostByConversation({
+      conversation_id: costConvId.value,
+      source: costSource.value || undefined,
+      page_size: 500,
+    })
+    costData.value = res.data || null
+  } catch (e) {
+    costData.value = null
+  } finally {
+    costLoading.value = false
   }
 }
 
@@ -1267,4 +1394,38 @@ onMounted(reload)
     overflow-x: auto;
   }
 }
+
+/* ── Cost Breakdown tab ──────────────────────────────────────────────────── */
+.log-filters label.wide { flex: 1 1 260px; min-width: 200px; }
+.cost-breakdown { padding: 12px; overflow-x: auto; }
+.cost-empty { padding: 40px 16px; text-align: center; color: #60718f; font-weight: 700; font-size: 13px; }
+.cost-summary { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+.cost-summary > div {
+  flex: 1 1 120px; min-width: 110px; padding: 12px 14px;
+  border: 1px solid #dbe5f2; border-radius: 10px; background: #f8fafc;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.cost-summary b { font-size: 18px; font-weight: 850; color: #061733; font-variant-numeric: tabular-nums; }
+.cost-summary span { font-size: 11px; font-weight: 750; color: #60718f; }
+.cost-summary .cost-total { background: #eaf1ff; border-color: #cddcff; }
+.cost-summary .cost-total b { color: #3156e9; }
+.cost-h { margin: 16px 2px 6px; font-size: 12px; font-weight: 850; color: #31425f; letter-spacing: .04em; text-transform: uppercase; }
+.cost-h small { color: #8a99b3; font-weight: 700; text-transform: none; }
+.cost-table { width: 100%; border-collapse: collapse; border: 1px solid #dbe5f2; border-radius: 10px; }
+.cost-table th, .cost-table td {
+  height: 40px; padding: 0 12px; border-bottom: 1px solid #e5ebf3;
+  text-align: left; font-size: 12px; font-weight: 700; color: #31425f; white-space: nowrap;
+}
+.cost-table th { height: 38px; background: #f8fafc; color: #60718f; font-size: 11px; font-weight: 850; }
+.cost-table tr:last-child td { border-bottom: 0; }
+.cost-table td.num { font-variant-numeric: tabular-nums; }
+.src-pill, .pricing-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 850; text-transform: capitalize; }
+.src-pill { color: #3156e9; background: #eaf1ff; }
+.src-pill.embedding { color: #0891b2; background: #e0f6fb; }
+.src-pill.system { color: #7c3aed; background: #f0e9ff; }
+.src-pill.workflow { color: #b45309; background: #fef1dc; }
+.pricing-pill { color: #059669; background: #ddf8eb; text-transform: none; }
+.pricing-pill.fallback { color: #b45309; background: #fef1dc; }
+.pricing-pill.missing { color: #e23b3b; background: #fee2e2; }
+.pricing-pill.local_free { color: #60718f; background: #eef2f7; }
 </style>
