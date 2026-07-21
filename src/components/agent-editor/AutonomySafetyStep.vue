@@ -106,6 +106,39 @@
                   </div>
                 </div>
               </div>
+
+              <!-- Canvas Mode -->
+              <div class="rounded-xl border p-4 transition-colors" :class="canvasModeEnabled ? 'border-sky-300 bg-gradient-to-r from-sky-50 to-cyan-50' : 'border-[#E5E7EB] bg-white'">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-100 text-sky-600">
+                      <LayoutTemplate :size="18" :stroke-width="2" />
+                    </span>
+                    <div>
+                      <div class="text-[13.5px] font-semibold text-[#0F172A]">Canvas Mode</div>
+                      <div class="mt-0.5 text-[12px] text-[#64748B]">Always run in Canvas mode so the agent can design + preview pages — even when driven headlessly over WebSocket.</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    :aria-checked="canvasModeEnabled"
+                    @click="canvasModeEnabled = !canvasModeEnabled"
+                    :class="['relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2', canvasModeEnabled ? 'bg-sky-600' : 'bg-gray-300']"
+                  >
+                    <span :class="['inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform', canvasModeEnabled ? 'translate-x-6' : 'translate-x-1']" />
+                  </button>
+                </div>
+                <div v-if="canvasModeEnabled" class="mt-3 border-t border-sky-200/60 pt-3">
+                  <div class="flex items-start gap-2 text-[12px] text-[#475569]">
+                    <span class="mt-0.5 text-sky-500">ℹ</span>
+                    <div>
+                      <p class="mb-1">The agent's Canvas design + live-preview tools (e.g. <strong>OPEN_CANVAS_PREVIEW</strong>) are exposed on every turn and the Canvas prompt loads automatically.</p>
+                      <p class="text-[#94A3B8]">Turn this on when another application operates the agent headlessly over WebSocket — there's no chat composer to toggle Canvas per message.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -416,6 +449,7 @@ import {
   ClipboardCheck,
   Code2,
   Hand,
+  LayoutTemplate,
   ListChecks,
   Lock,
   Play,
@@ -640,6 +674,12 @@ const codeModeEnabled = computed({
 const serviceSetupEnabled = computed({
   get: () => !!props.agent.builder_mode_enabled,
   set: (value) => { props.agent.builder_mode_enabled = value },
+})
+// Canvas Mode — always run in Canvas mode (design/preview tools), even when the agent is driven headlessly
+// over WebSocket by another application (no chat composer to toggle Canvas per message). Default off.
+const canvasModeEnabled = computed({
+  get: () => !!props.agent.canvas_mode,
+  set: (value) => { props.agent.canvas_mode = value },
 })
 const activeGuardrailCount = computed(() => Math.max(agentGuardrailsList.value.length, effectiveGuardrails.value.length))
 const summaryMode = computed(() => {

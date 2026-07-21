@@ -87,13 +87,12 @@ const HomeDashboard = () => import('./components/app-shell/HomeDashboard.vue')
 const ChatWorkspace = () => import('./components/chat/ChatWorkspace.vue')
 const SettingsLayout = () => import('./components/settings/SettingsLayout.vue')
 
-// Iconify: bundle icon sets so brand/colored logos work OFFLINE (no API fetch).
-// 'logos' = full-color brand logos; 'lucide' = generic icons used as iconify strings.
-import { addCollection } from '@iconify/vue'
-import logosIcons from '@iconify-json/logos/icons.json'
-import lucideIconSet from '@iconify-json/lucide/icons.json'
-addCollection(logosIcons)
-addCollection(lucideIconSet)
+// Iconify: icons are fetched on-demand from the Iconify API at runtime and cached
+// in the browser, instead of bundling the full lucide + logos collections (~7.9 MB)
+// into every page load. Both static (`icon="lucide:bot"`) and data-driven (`:icon="c.icon"`)
+// names resolve the same way, so nothing else needs to change. Requires the browser to
+// reach api.iconify.design; to keep this fully in-house, run a self-hosted Iconify API
+// and set it via `import { setConfig } from '@iconify/vue'` before the app mounts.
 
 // Create router
 const router = createRouter({
