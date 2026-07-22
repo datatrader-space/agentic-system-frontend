@@ -227,6 +227,10 @@ export class ChatConnection {
       image_mode: opts.imageMode || undefined,
       // Canvas click-to-select (Phase 5): the element the user clicked, so "change this" targets it.
       canvas_selection: opts.canvasSelection || undefined,
+      // Full-document cost gate: the user's decision on the re-sent turn — {decision, focus_query}.
+      // approve = read the whole (context-overflowing) doc; reject = targeted on the original question;
+      // focus = targeted on focus_query. Per-turn only; absent on a normal message.
+      rag_cost_decision: opts.ragCostDecision || undefined,
     })
   }
 

@@ -55,7 +55,7 @@
               </tr>
             </thead>
             <tbody>
-              <template v-for="s in steps" :key="s.id">
+              <template v-for="s in pagedSteps" :key="s.id">
                 <tr class="border-b border-slate-50 hover:bg-slate-50/40 align-top">
                   <td class="px-4 py-3 font-mono text-slate-500 whitespace-nowrap">{{ s.turn_id || '—' }} · {{ s.seq }}</td>
                   <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-[11px] font-semibold" :class="typeClass(s.step_type)">{{ s.step_type }}</span></td>
@@ -95,6 +95,31 @@
         </div>
       </div>
 
+      <div v-if="steps.length" class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 text-[13px]">
+        <div class="text-slate-500 font-medium">
+          Showing <span class="font-bold text-slate-700">{{ rangeStart }}</span>–<span class="font-bold text-slate-700">{{ rangeEnd }}</span>
+          of <span class="font-bold text-slate-700">{{ steps.length }}</span> step(s)
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-slate-400 font-medium">Per page</label>
+          <select v-model.number="pageSize"
+            class="bg-white text-slate-700 border border-slate-200 rounded-[8px] px-2 py-1 text-[13px] font-medium outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900">
+            <option :value="25">25</option>
+            <option :value="50">50</option>
+            <option :value="100">100</option>
+          </select>
+          <button type="button" :disabled="page <= 1" @click="page--"
+            class="px-3 py-1 rounded-[8px] border border-slate-200 text-slate-600 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-colors">
+            Prev
+          </button>
+          <span class="font-mono text-slate-600 tabular-nums">{{ page }} / {{ totalPages }}</span>
+          <button type="button" :disabled="page >= totalPages" @click="page++"
+            class="px-3 py-1 rounded-[8px] border border-slate-200 text-slate-600 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-colors">
+            Next
+          </button>
+        </div>
+      </div>
+
       <p class="text-[12px] text-slate-400 mt-4 font-medium">
         Internal trace — never shown to end users or the public widget. Secrets in tool arguments are
         redacted at capture; raw output loads only through an explicit, scope-checked per-step request.
@@ -108,7 +133,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed, watch } from 'vue'
 import api from '../../services/api'
 import PageLoader from '../../components/common/PageLoader.vue'
 
@@ -118,6 +143,17 @@ const steps = ref([])
 const loading = ref(false)
 const hasLoaded = ref(false)
 const error = ref('')
+
+// Client-side pagination — the endpoint returns the whole timeline in one shot, so paginate the
+// RENDER here so a long conversation doesn't produce a giant unusable table.
+const page = ref(1)
+const pageSize = ref(25)
+const totalPages = computed(() => Math.max(1, Math.ceil(steps.value.length / pageSize.value)))
+const pagedSteps = computed(() =>
+  steps.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value))
+const rangeStart = computed(() => (steps.value.length ? (page.value - 1) * pageSize.value + 1 : 0))
+const rangeEnd = computed(() => Math.min(page.value * pageSize.value, steps.value.length))
+watch(pageSize, () => { page.value = 1 })
 
 const rawOpen = reactive({})
 const rawContent = reactive({})
@@ -150,6 +186,7 @@ async function load() {
     const res = await api.get(`/admin/conversations/${conversationId.value}/steps/`)
     steps.value = res.data?.steps || []
     loadedId.value = res.data?.conversation_id
+    page.value = 1
     // reset any open raw panels
     Object.keys(rawOpen).forEach((k) => delete rawOpen[k])
   } catch (e) {

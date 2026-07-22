@@ -150,6 +150,24 @@
             />
           </section>
 
+          <section class="ag-card" data-test="context-profiles">
+            <div class="ag-card-head">
+              <div>
+                <h2>Context Profiles</h2>
+                <p>Per-profile context budgets (history, retrieval, tool, memory). An agent picks one — the resolver splits its token budget accordingly.</p>
+              </div>
+              <span class="ag-card-badge">Platform</span>
+            </div>
+            <ContextProfilesEditor
+              :profiles="contextProfiles"
+              :defaults="contextProfileDefaults"
+              :display="contextProfileDisplay"
+              :disabled="!canEdit"
+              @update="onContextProfilesUpdate"
+              @change="onLlmPolicyChange"
+            />
+          </section>
+
           <section class="ag-card">
             <div class="ag-card-head">
               <div>
@@ -229,6 +247,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import PlatformLlmPolicy from '@/components/admin/PlatformLlmPolicy.vue'
+import ContextProfilesEditor from '@/components/admin/ContextProfilesEditor.vue'
 
 const loading = ref(true)
 const saving = ref(false)
@@ -268,6 +287,16 @@ const llmPolicyAbsolute = ref({})
 const llmPolicyErrors = ref({})
 function onLlmPolicyChange() { dirty.value = true; llmPolicyErrors.value = {} }
 
+// Context profiles (per-profile context budgets) — effective values + code defaults from the policy GET.
+const contextProfiles = ref({})
+const contextProfileDefaults = ref({})
+const contextProfileDisplay = ref([])
+function onContextProfilesUpdate(cps) {
+  // Store the edited budgets as the context_profiles override inside llm_policy — sent on save.
+  llmPolicy.value = { ...llmPolicy.value, context_profiles: cps }
+  dirty.value = true
+}
+
 function mark() { dirty.value = true }
 
 function apply(d) {
@@ -275,6 +304,9 @@ function apply(d) {
   llmPolicy.value = (d.llm_policy && typeof d.llm_policy === 'object') ? { ...d.llm_policy } : {}
   llmPolicyAbsolute.value = (d.llm_policy_absolute && typeof d.llm_policy_absolute === 'object') ? { ...d.llm_policy_absolute } : {}
   llmPolicyErrors.value = {}
+  contextProfiles.value = (d.context_profiles && typeof d.context_profiles === 'object') ? d.context_profiles : {}
+  contextProfileDefaults.value = (d.context_profile_defaults && typeof d.context_profile_defaults === 'object') ? d.context_profile_defaults : {}
+  contextProfileDisplay.value = Array.isArray(d.context_profile_display) ? d.context_profile_display : []
   pol.enabled = d.enabled !== false
   pol.risk_ceiling = d.risk_ceiling || ''
   pol.allow_external_write = d.allow_external_write !== false

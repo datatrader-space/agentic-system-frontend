@@ -118,7 +118,6 @@ const primaryNav = [
   { to: '/dashboard/schedules', label: 'Schedules', 'data-tour': 'schedules', icon: ['M8 2v4', 'M16 2v4', 'M3 10h18', 'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z', 'M12 14v3l2 1'] },
   { to: '/dashboard/activity', label: 'Activity', 'data-tour': 'activity', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
   { to: '/dashboard/budgets', label: 'Budgets', 'data-tour': 'budgets', icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6'] },
-  { to: '/dashboard/training-data', match: '/dashboard/training-data', label: 'Training Data', 'data-tour': 'training-data', icon: ['M4 6c0-1.66 3.58-3 8-3s8 1.34 8 3-3.58 3-8 3-8-1.34-8-3z', 'M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6', 'M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6'] },
   { to: '/dashboard/organization', match: '/dashboard/organization', label: 'Organization', 'data-tour': 'organization', icon: ['M3 21h18', 'M5 21V7l7-4 7 4v14', 'M9 21v-6h6v6', 'M9 9h.01', 'M15 9h.01'] },
   { to: '/admin-dashboard', match: '/admin-dashboard', label: 'Admin', adminOnly: true, icon: ['M12 2 4 5v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V5z', 'M9 12l2 2 4-4'] },
   { to: '/dashboard/settings/general', match: '/dashboard/settings', label: 'Settings', 'data-tour': 'settings', icon: ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82'] },

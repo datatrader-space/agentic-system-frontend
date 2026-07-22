@@ -115,6 +115,12 @@ export const useCanvasStore = defineStore('canvas', {
     // Re-key the web_builder iframe whenever the signed URL or revision changes so a mutation swaps in
     // a fresh render instead of the browser reusing the (now-stale) previous document.
     previewSrcKey: (s) => `${s.previewUrl}:${s.revision}:${s.frameKey}`,
+    // The revision to SHOW. web_builder has no numeric CanvasRevision — its progress is the per-edit
+    // counter (activeRevision, bumped server-side per edit) or, failing that, the count of append-only
+    // builder versions. Static keeps the classic revision/activeRevision. Stops the permanent "rev 0".
+    displayRevision: (s) => (s.provider === 'web_builder'
+      ? (s.activeRevision || s.revision || (s.builderVersions ? s.builderVersions.length : 0))
+      : (s.revision || s.activeRevision)),
   },
 
   actions: {
@@ -149,17 +155,22 @@ export const useCanvasStore = defineStore('canvas', {
           if (msg.title) this.title = msg.title
           if (msg.viewport) this.designWidth = msg.viewport
           if (Array.isArray(msg.pages)) this.pages = msg.pages
-          if (msg.route != null) this.route = msg.route
           if (msg.page_id != null) this.pageId = msg.page_id
           if (msg.trusted_origin) this.trustedOrigin = msg.trusted_origin
           this.activeRevision = msg.revision || this.activeRevision
+          // FOLLOW the page that was actually edited: prefer an explicit route, else derive it from the
+          // edited page_id via the known pages, else keep the current route. Without this the panel stayed
+          // pinned to the first-opened page (and the path selector to "/") when an edit event omitted route.
+          const followRoute = msg.route != null ? msg.route
+            : (msg.page_id != null ? this._routeForPageId(msg.page_id) : null)
+          if (followRoute != null) this.route = followRoute
           // First preview opens the panel automatically; subsequent updates refresh in place.
           if (msg.type === 'preview_ready' || msg.first) this.open = true
           if (this.provider === 'web_builder') {
             // Keep the last-good signed URL visible; loadPreviewUrl swaps it only on success.
             if (msg.type === 'preview_updated' && this.previewUrl) this.status = 'updating'
             else this.status = 'live'
-            this.loadPreviewUrl(msg.route != null ? msg.route : this.route)
+            this.loadPreviewUrl(this.route)
           } else {
             this.status = 'live'
             // Load the freshly-produced revision into the frame (srcdoc).
@@ -311,6 +322,14 @@ export const useCanvasStore = defineStore('canvas', {
       } catch (e) {
         notify.error('Could not restore that revision.')
       }
+    },
+
+    // Map an edited page_id → its storefront route/handle via the known pages list (used to follow the
+    // edited page when an edit event carries page_id but not route). Returns null when unknown.
+    _routeForPageId(pageId) {
+      if (pageId == null) return null
+      const p = (this.pages || []).find((x) => String(x.id) === String(pageId))
+      return p ? (p.route ?? p.handle ?? null) : null
     },
 
     // web_builder route switch (A12): point the preview at another page/route → new signed URL.

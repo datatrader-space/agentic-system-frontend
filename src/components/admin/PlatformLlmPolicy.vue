@@ -74,7 +74,7 @@ function cacheBool(f) { const v = props.modelValue[f.key]; return v === undefine
 function setStr(key, e) { emit('update:modelValue', { ...props.modelValue, [key]: e.target.value }); emit('change') }
 const ragPlacement = computed(() => props.modelValue.cache_rag_placement || 'tail')
 const stableTtl = computed(() => props.modelValue.cache_stable_prefix_ttl || '5m')
-const contextStrategy = computed(() => props.modelValue.conversation_context_strategy || 'legacy_count')
+const contextStrategy = computed(() => props.modelValue.conversation_context_strategy || 'compact_within_profile')
 function setCheckpointTokens(e) {
   const raw = e.target.value
   const next = { ...props.modelValue }
@@ -207,15 +207,10 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
                :value="modelValue.checkpoint_trigger_tokens ?? ''" @input="setCheckpointTokens" placeholder="0 (legacy)" />
       </label>
 
-      <label class="plp-field" data-test="plp-conversation_context_strategy">
-        <span class="plp-lbl">History strategy (Long-Context Mode)</span>
-        <small class="plp-desc">How conversation history is managed. "Legacy (count-based)" summarizes old turns by message count (default — unchanged). "Compress-late" keeps raw history until the threshold above, then freezes one summary. "Raw until limit (Long-Context)" keeps FULL raw history until ~80% of the model’s usable window, then makes one large structured summary — only engages on large-window models (≥400K) and auto-caches the frozen history; smaller models are unaffected regardless of this setting.</small>
-        <select class="plp-select" :value="contextStrategy" :disabled="disabled" @change="setStr('conversation_context_strategy', $event)">
-          <option value="legacy_count">Legacy (count-based) — default</option>
-          <option value="compress_late">Compress-late (token-triggered freeze)</option>
-          <option value="raw_chunks_until_limit">Raw until limit (Long-Context, ≥ min-window models)</option>
-        </select>
-      </label>
+      <div class="plp-field" data-test="plp-history-strategy-note">
+        <span class="plp-lbl">History strategy</span>
+        <small class="plp-desc">Conversation history uses a single strategy: it keeps FULL raw history until ~80% of the agent PROFILE's input target, then compacts the older turns into ONE structured, cache-stable summary — preserving them (never dropping) and scaling to whichever profile the agent uses. The tuning below (compaction trigger %, summary %, chunk size, min window for caching) controls it. Legacy drop/count strategies were removed; a final token-fit at the model's hard ceiling is the only safety trim.</small>
+      </div>
 
       <label class="plp-field" data-test="plp-long_context_min_window">
         <span class="plp-lbl">Long-Context: min model window <span class="plp-unit">(tokens)</span></span>

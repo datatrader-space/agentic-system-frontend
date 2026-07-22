@@ -64,6 +64,9 @@ export const useChatStore = defineStore('chat', {
     // approval via the run-coordinator API (UnifiedPlanCard); this field feeds the low-level WS
     // resume mechanic only and is removed when that loop is internalized into the coordinator.
     pendingPlan: null,
+    // Full-document cost gate (manual / plan-review): a complete-mode KB scope overflowed the model
+    // window. Holds { conversationId, question, cost, actions } while the user decides; cleared on resolve.
+    fullDocCostGate: null,
 
     // Staged attachments (images/files) to send with the next message. Each:
     // { file: File, name, isImage, url }. Uploaded to the conversation on send; the backend
@@ -205,6 +208,7 @@ export const useChatStore = defineStore('chat', {
       this.conversationId = null
       this.error = ''
       this.pendingPlan = null
+      this.fullDocCostGate = null
       this._clearAttachments()
       this._conn?.setConversation(null)
     },
@@ -565,6 +569,27 @@ export const useChatStore = defineStore('chat', {
     skipHitl(requestId) {
       this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== requestId)
       if (this.hitlRequests.length === 0) this.awaitingApproval = false
+    },
+
+    // ── Full-document cost gate resolution ──
+    // Re-send the original question carrying the user's decision. approve → the backend reads the whole
+    // document; reject → targeted top-k on the original question; focus → targeted on the focused question.
+    // (focus is shown as its own user turn so the thread reflects what was actually asked.)
+    resolveFullDocCost(decision, focusQuery = '') {
+      const gate = this.fullDocCostGate
+      this.fullDocCostGate = null
+      if (!gate) return
+      if (!this._conn && this.conversationId) this._connect()
+      const _dec = (decision || '').toLowerCase()
+      const focus = (focusQuery || '').trim()
+      if (_dec === 'focus' && focus) {
+        this.messages.push({ id: nid(), role: 'user', content: focus, status: 'done' })
+      }
+      const outgoing = (_dec === 'focus' && focus) ? focus : (gate.question || '')
+      this._beginAssistant()
+      this._conn?.sendMessage(outgoing, this.selectedAgentId, null, {
+        ragCostDecision: { decision: _dec, focus_query: focus || undefined },
+      })
     },
 
     retryLast() {
@@ -1136,6 +1161,21 @@ export const useChatStore = defineStore('chat', {
           this.pendingPlan = null
           this._resumeAfterRevise(msg.feedback)
           break
+        // ── Full-document cost gate (manual / plan-review): a complete-mode KB scope overflowed the model
+        //    window. The backend already streamed the explanatory note (assistant_message_complete) and
+        //    ended the turn; surface the cost card so the user can approve / reject / ask something focused.
+        case 'full_doc_cost_approval': {
+          const _fcid = msg.conversation_id
+          if (_fcid && this.conversationId && String(_fcid) !== String(this.conversationId)) break
+          this.fullDocCostGate = {
+            conversationId: _fcid || this.conversationId,
+            question: msg.question || '',
+            reason: msg.reason || 'context_overflow',
+            cost: msg.cost || {},
+            actions: msg.actions || [],
+          }
+          break
+        }
         case 'agent_session_complete':
           this._endAssistant()
           break

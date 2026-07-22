@@ -129,6 +129,10 @@
       @stop="chat.stop"
     />
 
+    <!-- Full-document cost gate: appears when a complete-mode KB read overflows the model window (manual /
+         plan-review only). Approve to read it all, keep it targeted, or ask something specific. -->
+    <FullDocCostCard />
+
     <!-- Media gallery: browse this chat's (or the whole agent's) generated + uploaded media and attach
          selected items to the next message BY ID (no re-upload) so the agent can reference/edit them. -->
     <MediaGallery :open="mediaOpen" :conversation-id="chat.conversationId"
@@ -157,6 +161,7 @@ import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
 import CanvasShell from '../canvas/CanvasShell.vue'
 import HITLModal from '../HITLModal.vue'
+import FullDocCostCard from './FullDocCostCard.vue'
 import MediaGallery from './MediaGallery.vue'
 import { fmtTokens, fmtCost } from '../../composables/tokens'
 import { previewOf, relTime, groupSessions } from '../../composables/useChatHistory'

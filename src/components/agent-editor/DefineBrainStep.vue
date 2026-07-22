@@ -148,28 +148,8 @@
             </p>
           </div>
 
-          <!-- Conversation Context -->
-          <div class="mem-group">
-            <p class="mem-group-title">Conversation context</p>
-            <div class="rounded-xl border border-[#EAECF0] bg-[#F9FAFB] px-4 py-3">
-              <div class="flex items-center justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="text-[13px] font-semibold text-[#0F172A]">Choose how much recent chat this agent can see</p>
-                  <p class="text-xs text-[#667085]">Auto is recommended.</p>
-                </div>
-                <div class="seg-pill">
-                  <button type="button" class="seg-pill-btn" :class="{ active: !agent.max_history_messages }" @click="agent.max_history_messages = 0">Auto</button>
-                  <button type="button" class="seg-pill-btn" :class="{ active: !!agent.max_history_messages }" @click="agent.max_history_messages = agent.max_history_messages || 10">Manual</button>
-                </div>
-              </div>
-              <div v-if="agent.max_history_messages" class="mt-2.5 flex items-center gap-2">
-                <label class="text-[12px] font-medium text-[#475569]">Recent messages</label>
-                <input v-model.number="agent.max_history_messages" type="number" min="1" class="field !w-24 !py-1.5" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Context profile — token-budget behavior for conversation/retrieval/tool context this turn -->
+          <!-- Context profile — the single conversation/retrieval/tool context control (the old Auto/Manual
+               "recent chat" count was removed: history is now kept-then-compacted within the profile budget). -->
           <div class="mem-group">
             <p class="mem-group-title">Context profile</p>
             <div class="rounded-xl border border-[#EAECF0] bg-[#F9FAFB] px-4 py-3">

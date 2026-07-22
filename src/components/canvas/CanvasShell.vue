@@ -6,7 +6,7 @@
         <span class="cv-dot" :class="statusClass" :title="canvas.status"></span>
         <h3 class="cv-title" :title="canvas.title">{{ canvas.title || defaultTitle }}</h3>
         <span v-if="cap.storeInfo && canvas.route" class="cv-store-chip" :title="'Route: ' + canvas.route">{{ canvas.route }}</span>
-        <span v-if="canvas.activeRevision" class="cv-rev">Revision {{ canvas.revision || canvas.activeRevision }}</span>
+        <span v-if="canvas.displayRevision" class="cv-rev">Revision {{ canvas.displayRevision }}</span>
       </div>
       <div class="cv-head-actions">
         <button v-if="cap.publish" class="cv-publish" title="Publish the storefront (goes live once approved)"
@@ -177,7 +177,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
           <div>
             <strong>index.html</strong>
-            <small>{{ fmtKB(currentSize) }} · HTML Document · rev {{ canvas.revision || canvas.activeRevision }}</small>
+            <small>{{ fmtKB(currentSize) }} · HTML Document · rev {{ canvas.displayRevision }}</small>
           </div>
         </div>
         <button v-if="cap.download" class="cv-foot-btn" @click="download" :disabled="!canvas.html">Download</button>
@@ -188,7 +188,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9" stroke-linecap="round"/></svg>
           <div>
             <strong>{{ canvas.title || 'Storefront' }}</strong>
-            <small>{{ canvas.route }} · Web Builder · rev {{ canvas.revision || canvas.activeRevision }}</small>
+            <small>{{ canvas.route }} · Web Builder · rev {{ canvas.displayRevision }}</small>
           </div>
         </div>
       </template>
