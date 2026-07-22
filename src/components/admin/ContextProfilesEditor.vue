@@ -1,9 +1,9 @@
 <template>
   <div class="cpe">
     <p class="cpe-intro">
-      Per-profile context budgets. An agent picks a profile (or Automatic); each budget is a share of the
-      model's input window (percentages) or a fixed token cap. Raise or lower any value — blank resets it to
-      the default shown beneath. Org, workspace, and agent settings can only tighten below these.
+      Each context tier is set by just <strong>three knobs</strong>: the total token budget, the share for
+      conversation history, and when history compacts. Retrieval, memory, and tool budgets are derived
+      automatically from the remainder. Blank resets a value to the default shown beneath.
     </p>
 
     <div v-for="p in orderedProfiles" :key="p.key" class="cpe-card">
@@ -31,6 +31,7 @@
             @input="onInput(p.key, f, $event)"
           />
           <span class="cpe-hint">default: {{ defaultLabel(p.key, f) }}</span>
+          <span v-if="f.help" class="cpe-help">{{ f.help }}</span>
         </label>
       </div>
     </div>
@@ -53,17 +54,14 @@ const props = defineProps({
 })
 const emit = defineEmits(['update', 'change'])
 
-// key, label, whether it's a fraction (shown as %) or a raw token count.
+// The three tier knobs. `pct` renders a fraction (0–1) as a percentage; otherwise a raw token count.
 const FIELDS = [
-  { key: 'target_frac', label: 'Overall target', pct: true },
-  { key: 'history_frac', label: 'History', pct: true },
-  { key: 'target_cap', label: 'Target cap', pct: false },
-  { key: 'history_cap', label: 'History cap', pct: false },
-  { key: 'memory', label: 'Memory', pct: false },
-  { key: 'vector', label: 'Retrieval (RAG)', pct: false },
-  { key: 'durable', label: 'Durable tool mem', pct: false },
-  { key: 'tool_result', label: 'Tool result / iter', pct: false },
-  { key: 'tool_total', label: 'Tool total', pct: false },
+  { key: 'total_input_tokens', label: 'Total input tokens', pct: false,
+    help: 'Overall token budget for a turn (clamped to the model window).' },
+  { key: 'history_pct', label: 'History', pct: true,
+    help: 'Share of the budget for conversation history. The rest holds retrieval, memory, and tool context.' },
+  { key: 'compaction_trigger_pct', label: 'Compaction trigger', pct: true,
+    help: 'How full the history window gets before old turns compact into a summary.' },
 ]
 
 // Local editable copy — re-synced whenever the loaded effective profiles change.
@@ -141,6 +139,7 @@ function emitChange() {
 .cpe-input:focus { outline: 2px solid var(--accent, #6d28d9); outline-offset: -1px; }
 .cpe-input:disabled { background: var(--surface-2, #f8fafc); opacity: 0.7; }
 .cpe-hint { font-size: 11px; color: var(--text-muted, #98a2b3); font-variant-numeric: tabular-nums; }
+.cpe-help { font-size: 11px; color: var(--text-muted, #667085); line-height: 1.35; margin-top: 2px; }
 @media (prefers-color-scheme: dark) {
   .cpe-card { background: #0f1729; border-color: #1f2a44; }
   .cpe-input { background: #0b1220; border-color: #1f2a44; color: #e5e7eb; }
