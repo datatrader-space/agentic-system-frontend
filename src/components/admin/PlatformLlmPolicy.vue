@@ -75,6 +75,7 @@ function setStr(key, e) { emit('update:modelValue', { ...props.modelValue, [key]
 const ragPlacement = computed(() => props.modelValue.cache_rag_placement || 'tail')
 const stableTtl = computed(() => props.modelValue.cache_stable_prefix_ttl || '5m')
 const contextStrategy = computed(() => props.modelValue.conversation_context_strategy || 'compact_within_profile')
+const platformDefaultProfile = computed(() => props.modelValue.default_context_profile || '')
 function setCheckpointTokens(e) {
   const raw = e.target.value
   const next = { ...props.modelValue }
@@ -205,6 +206,17 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
         <small class="plp-desc">Keep raw conversation history (byte-stable → cacheable) until it reaches this many tokens, then summarize old turns and freeze that summary. 0 = legacy behaviour (summarize by message count). Try 60,000–80,000 for long sessions; pairs with "Cache conversation history".</small>
         <input type="number" min="0" :step="1000" :disabled="disabled"
                :value="modelValue.checkpoint_trigger_tokens ?? ''" @input="setCheckpointTokens" placeholder="0 (legacy)" />
+      </label>
+
+      <label class="plp-field" data-test="plp-default_context_profile">
+        <span class="plp-lbl">Default context profile</span>
+        <small class="plp-desc">The platform-wide default context <strong>size</strong> an agent uses when it's on <strong>Automatic</strong>. Set here, it <strong>overrides each org's default</strong> — only an agent's own pinned size beats it. Precedence: agent's own profile → <strong>this</strong> → org default → per-request-type. Choose <strong>Automatic</strong> to keep per-request adaptivity (trivial turn → Short, normal → Medium, deep/multi-step task → Long).</small>
+        <select class="plp-select" :value="platformDefaultProfile" :disabled="disabled" @change="setStr('default_context_profile', $event)">
+          <option value="">Automatic (adapt per request type)</option>
+          <option value="short">Short context</option>
+          <option value="medium">Medium context</option>
+          <option value="long">Long context</option>
+        </select>
       </label>
 
       <div class="plp-field" data-test="plp-history-strategy-note">

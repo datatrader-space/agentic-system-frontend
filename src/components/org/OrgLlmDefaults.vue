@@ -22,11 +22,9 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'change'])
 
 const PROFILES = [
-  { key: 'fast', label: 'Fast' },
-  { key: 'balanced', label: 'Balanced' },
-  { key: 'deep_research', label: 'Deep Research' },
-  { key: 'code_repo', label: 'Code / Repo' },
-  { key: 'data_analysis', label: 'Data Analysis' },
+  { key: 'short', label: 'Short context' },
+  { key: 'medium', label: 'Medium context' },
+  { key: 'long', label: 'Long context' },
 ]
 
 // ABSOLUTE_* code guards (agent/services/llm_policy.py: PLATFORM_LLM_INT_KEYS). These are compile-time
@@ -144,8 +142,9 @@ function finalSrc(row) { return props.preview?.sources?.[row.key] || '—' }
         <option v-for="p in PROFILES" :key="p.key" :value="p.key">{{ p.label }}</option>
       </select>
       <small class="old-hint">
-        Used when an agent has no explicit profile of its own. An agent's own profile always wins;
-        with <strong>Auto</strong>, each turn falls back to the request-type default.
+        Used when an agent has no profile of its own <em>and</em> the platform sets no default of its own.
+        An agent's own profile always wins, and a platform-wide default (LLM Policy) overrides this org
+        default; with <strong>Auto</strong>, each turn falls back to the request-type default.
       </small>
       <small v-if="errors.default_context_profile" class="old-err" data-test="err-default_context_profile">
         {{ errors.default_context_profile }}

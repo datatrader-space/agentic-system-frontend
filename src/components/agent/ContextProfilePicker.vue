@@ -22,27 +22,38 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const FALLBACK = [
-  { key: 'fast', label: 'Fast', short: 'Low-cost, short-answer mode.', description: 'For short, low-cost answers. Uses smaller history, retrieval, and tool context budgets.' },
-  { key: 'balanced', label: 'Balanced', short: 'Default everyday assistant mode.', description: 'Default general-purpose mode. Good for normal assistants and everyday tasks.' },
-  { key: 'deep_research', label: 'Deep Research', short: 'Large retrieval and history budgets.', description: 'For long documents, research, and multi-source reasoning. Allows larger history and retrieval context when budget permits.' },
-  { key: 'code_repo', label: 'Code / Repo', short: 'Higher code, repo, and tool context.', description: 'For repository, implementation, debugging, and multi-step code tasks.' },
-  { key: 'data_analysis', label: 'Data Analysis', short: 'Prioritizes files, logs, tables, and tool results.', description: 'For files, tables, logs, reports, and data-heavy tasks. Prioritizes tool/result context and artifacts.' },
+  { key: 'short', label: 'Short context', short: 'Small budgets for quick, low-cost turns.', description: 'Keeps history, retrieval, and tool context tight for fast, low-cost turns (greetings, quick questions).' },
+  { key: 'medium', label: 'Medium context', short: 'Default everyday assistant budget.', description: 'Default general-purpose budget. Good for everyday assistants and normal tool use.' },
+  { key: 'long', label: 'Long context', short: 'Large budgets for deep, multi-step work.', description: 'Largest budgets — generous history, retrieval, and tool/result context for deep tasks, long documents, and multi-step work when the model window permits.' },
 ]
 
 const DETAIL_BY_KEY = {
   '': {
     label: 'Automatic',
-    short: 'Uses the best default profile for the request type.',
-    description: 'No explicit override is stored. Chat uses Balanced, code uses Code / Repo, and research can use a larger research profile when available.',
+    short: 'Picks a context size to match how heavy each turn is.',
+    description: 'No explicit override is stored. A trivial turn uses Short, a normal turn uses Medium, and a deep/multi-step task uses Long — unless the platform or your org sets a default.',
     rows: [
       ['Stored override', 'None'],
-      ['Selection logic', 'Request-type default'],
+      ['Selection logic', 'Per-request (by turn heaviness)'],
       ['Best for', 'General use'],
     ],
   },
-  balanced: {
-    label: 'Balanced agent',
-    short: 'Default profile for normal agents and everyday tasks.',
+  short: {
+    label: 'Short context',
+    short: 'Small context budget for quick, low-cost answers.',
+    description: 'Keeps history, retrieval, and tool context tight for fast, lightweight responses.',
+    rows: [
+      ['Model context', '1,000,000'],
+      ['Hard input limit', '500,000'],
+      ['Target input', '10K-20K'],
+      ['History', 'Small'],
+      ['Vector', 'Small'],
+      ['Tool context', 'Small'],
+    ],
+  },
+  medium: {
+    label: 'Medium context',
+    short: 'Default budget for normal agents and everyday tasks.',
     description: 'A steady middle setting for conversation, retrieval, and tool context.',
     rows: [
       ['Model context', '1,000,000'],
@@ -53,55 +64,16 @@ const DETAIL_BY_KEY = {
       ['Tool context', 'Medium'],
     ],
   },
-  code_repo: {
-    label: 'Code / Repo agent',
-    short: 'Higher budgets for repositories, debugging, and implementation.',
-    description: 'Allows more code, tool-result, and repository context when the model and cost limits permit.',
-    rows: [
-      ['Model context', '1,000,000'],
-      ['Hard input limit', '500,000'],
-      ['Target input', '100K+'],
-      ['History', 'Higher'],
-      ['Vector/code context', 'Higher'],
-      ['Tool result context', 'Higher'],
-    ],
-  },
-  fast: {
-    label: 'Fast agent',
-    short: 'Small context budget for quick, low-cost answers.',
-    description: 'Keeps history, retrieval, and tool context tight for faster lightweight responses.',
-    rows: [
-      ['Model context', '1,000,000'],
-      ['Hard input limit', '500,000'],
-      ['Target input', '10K-20K'],
-      ['History', 'Small'],
-      ['Vector', 'Small'],
-      ['Tool context', 'Small'],
-    ],
-  },
-  deep_research: {
-    label: 'Deep Research',
-    short: 'Large retrieval and history budgets for research tasks.',
-    description: 'Best for long documents, multi-source reasoning, and larger retrieval context when budget permits.',
+  long: {
+    label: 'Long context',
+    short: 'Large history, retrieval, and tool budgets for deep work.',
+    description: 'Best for long documents, deep multi-step tasks, and larger retrieval/tool context when budget permits.',
     rows: [
       ['Model context', '1,000,000'],
       ['Hard input limit', '500,000'],
       ['Target input', 'Large'],
       ['History', 'Higher'],
       ['Vector', 'Higher'],
-      ['Tool context', 'Higher'],
-    ],
-  },
-  data_analysis: {
-    label: 'Data Analysis',
-    short: 'Prioritizes files, logs, tables, and tool results.',
-    description: 'Best for data-heavy tasks where artifacts and tool output need more context.',
-    rows: [
-      ['Model context', '1,000,000'],
-      ['Hard input limit', '500,000'],
-      ['Target input', 'Medium-large'],
-      ['History', 'Medium'],
-      ['Vector', 'Medium'],
       ['Tool context', 'Higher'],
     ],
   },

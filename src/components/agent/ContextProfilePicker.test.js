@@ -4,12 +4,12 @@ import { mount } from '@vue/test-utils'
 import ContextProfilePicker from './ContextProfilePicker.vue'
 
 const PROFILES = [
-  { key: 'fast', label: 'Fast', description: 'Short answers.' },
-  { key: 'balanced', label: 'Balanced', description: 'Default mode.' },
-  { key: 'code_repo', label: 'Code / Repo', description: 'Code tasks.' },
+  { key: 'short', label: 'Short context', description: 'Small budgets.' },
+  { key: 'medium', label: 'Medium context', description: 'Default mode.' },
+  { key: 'long', label: 'Long context', description: 'Large budgets.' },
 ]
 const PREVIEW = {
-  profile: 'code_repo', profile_source: 'agent_policy', model_context_window: 1000000,
+  profile: 'long', profile_source: 'agent_policy', model_context_window: 1000000,
   hard_input_limit: 500000, target_input_tokens: 300000, history_budget: 225000, memory_budget: 1500,
   vector_budget: 16000, tool_result_budget_per_iter: 12000, total_tool_context_budget: 60000,
   turn_cost_ceiling_usd: 5.0,
@@ -25,8 +25,8 @@ describe('ContextProfilePicker', () => {
     expect(w.find('select').exists()).toBe(true)
     const values = optionValues(w)
     expect(values).toContain('')          // Automatic (Recommended)
-    expect(values).toContain('fast')
-    expect(values).toContain('code_repo')
+    expect(values).toContain('short')
+    expect(values).toContain('long')
     // the Automatic option carries the friendly recommended label
     const auto = w.findAll('option').find((o) => o.attributes('value') === '')
     expect(auto.text()).toContain('Automatic')
@@ -41,24 +41,24 @@ describe('ContextProfilePicker', () => {
   })
 
   it('loads the current profile as the selected value', () => {
-    const w = mount(ContextProfilePicker, { props: { modelValue: 'code_repo', profiles: PROFILES } })
-    expect(w.find('select').element.value).toBe('code_repo')
+    const w = mount(ContextProfilePicker, { props: { modelValue: 'long', profiles: PROFILES } })
+    expect(w.find('select').element.value).toBe('long')
   })
 
   it('emits update:modelValue with the profile key when a new option is chosen', async () => {
     const w = mount(ContextProfilePicker, { props: { modelValue: '', profiles: PROFILES } })
-    await w.find('select').setValue('fast')
-    expect(w.emitted('update:modelValue')[0]).toEqual(['fast'])
+    await w.find('select').setValue('short')
+    expect(w.emitted('update:modelValue')[0]).toEqual(['short'])
   })
 
   it('emits empty string when Automatic is chosen (clears override)', async () => {
-    const w = mount(ContextProfilePicker, { props: { modelValue: 'fast', profiles: PROFILES } })
+    const w = mount(ContextProfilePicker, { props: { modelValue: 'short', profiles: PROFILES } })
     await w.find('select').setValue('')
     expect(w.emitted('update:modelValue')[0]).toEqual([''])
   })
 
   it('renders the effective preview rows when a preview is provided', async () => {
-    const w = mount(ContextProfilePicker, { props: { modelValue: 'code_repo', profiles: PROFILES, preview: PREVIEW } })
+    const w = mount(ContextProfilePicker, { props: { modelValue: 'long', profiles: PROFILES, preview: PREVIEW } })
     // previewRows are inside the details popover — open it first.
     await w.find('.ctx-details-btn').trigger('click')
     const live = w.find('.ctx-live-preview')
@@ -78,16 +78,15 @@ describe('ContextProfilePicker', () => {
   it('does not emit when disabled', async () => {
     const w = mount(ContextProfilePicker, { props: { modelValue: '', profiles: PROFILES, disabled: true } })
     expect(w.find('select').attributes('disabled')).toBeDefined()
-    await w.find('select').setValue('fast')
+    await w.find('select').setValue('short')
     expect(w.emitted('update:modelValue')).toBeFalsy()
   })
 
   it('falls back to a built-in profile list when none passed', () => {
     const w = mount(ContextProfilePicker, { props: { modelValue: '' } })
     const values = optionValues(w)
-    expect(values).toContain('deep_research')
-    expect(values).toContain('data_analysis')
-    expect(values).toContain('fast')
-    expect(values).toContain('code_repo')
+    expect(values).toContain('short')
+    expect(values).toContain('medium')
+    expect(values).toContain('long')
   })
 })

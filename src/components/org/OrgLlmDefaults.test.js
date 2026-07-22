@@ -9,7 +9,7 @@ const ABSOLUTE = {
   max_image_bytes: 20971520, max_image_width: 8192, max_image_height: 8192,
 }
 const PREVIEW = {
-  profile: 'deep_research', profile_source: 'org_policy',
+  profile: 'long', profile_source: 'org_policy',
   hard_input_limit: 120000, total_tool_context_budget: 30000,
   sources: { hard_input_limit: 'org_policy', total_tool_context_budget: 'org_policy' },
 }
@@ -29,31 +29,31 @@ describe('OrgLlmDefaults', () => {
     expect(w.find('[data-test="old-image_downscale_enabled"]').exists()).toBe(true)
   })
 
-  it('lists all five context profiles plus the no-default option', () => {
+  it('lists the three context-size tiers plus the no-default option', () => {
     const w = mountIt()
     const opts = w.find('[data-test="old-default_context_profile"] select').findAll('option')
-    // 5 profiles + 1 "no org default"
-    expect(opts.length).toBe(6)
+    // 3 tiers + 1 "no org default"
+    expect(opts.length).toBe(4)
     const values = opts.map((o) => o.element.value)
-    expect(values).toEqual(['', 'fast', 'balanced', 'deep_research', 'code_repo', 'data_analysis'])
+    expect(values).toEqual(['', 'short', 'medium', 'long'])
   })
 
   it('loads the current default profile', () => {
-    const w = mountIt({ modelValue: { default_context_profile: 'code_repo' } })
+    const w = mountIt({ modelValue: { default_context_profile: 'long' } })
     const sel = w.find('[data-test="old-default_context_profile"] select')
-    expect(sel.element.value).toBe('code_repo')
+    expect(sel.element.value).toBe('long')
   })
 
   it('emits the chosen profile', async () => {
     const w = mountIt()
-    await w.find('[data-test="old-default_context_profile"] select').setValue('deep_research')
+    await w.find('[data-test="old-default_context_profile"] select').setValue('long')
     const last = w.emitted('update:modelValue').at(-1)[0]
-    expect(last.default_context_profile).toBe('deep_research')
+    expect(last.default_context_profile).toBe('long')
     expect(w.emitted('change')).toBeTruthy()
   })
 
   it('clears the profile key when "no org default" is selected', async () => {
-    const w = mountIt({ modelValue: { default_context_profile: 'fast' } })
+    const w = mountIt({ modelValue: { default_context_profile: 'short' } })
     await w.find('[data-test="old-default_context_profile"] select').setValue('')
     const last = w.emitted('update:modelValue').at(-1)[0]
     expect('default_context_profile' in last).toBe(false)
@@ -133,7 +133,7 @@ describe('OrgLlmDefaults', () => {
   it('renders the effective preview with the binding source', () => {
     const w = mountIt()
     const prof = w.find('[data-test="preview-profile"]')
-    expect(prof.text()).toContain('deep_research')
+    expect(prof.text()).toContain('long')
     expect(prof.text()).toContain('org_policy')
     const inputRow = w.find('[data-test="preview-hard_input_limit"]')
     expect(inputRow.text()).toContain('120,000')     // final resolved
