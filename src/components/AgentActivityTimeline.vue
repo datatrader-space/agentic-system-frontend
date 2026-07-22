@@ -72,8 +72,8 @@
         <!-- Done + expanded: the full reasoning history. -->
         <template v-if="isComplete">
           <div v-for="(it, i) in reasoning" :key="`r${i}`" class="at-reason-item">
-            <div class="at-reason-phrase">{{ it.label || 'Thinking' }}</div>
-            <div v-if="it.text" class="at-reason-text">{{ it.text }}</div>
+            <div class="at-reason-phrase" v-html="renderInlineMarkdown(it.label || 'Thinking')"></div>
+            <div v-if="it.text" class="at-reason-text" v-html="renderInlineMarkdown(it.text)"></div>
           </div>
         </template>
         <!-- Live: show ONLY the latest thought so the chat stays compact; earlier thoughts fold
@@ -88,13 +88,13 @@
           </button>
           <template v-if="showEarlierThoughts">
             <div v-for="(it, i) in earlierReasoning" :key="`re${i}`" class="at-reason-item at-reason-earlier">
-              <div class="at-reason-phrase">{{ it.label || 'Thinking' }}</div>
-              <div v-if="it.text" class="at-reason-text">{{ it.text }}</div>
+              <div class="at-reason-phrase" v-html="renderInlineMarkdown(it.label || 'Thinking')"></div>
+              <div v-if="it.text" class="at-reason-text" v-html="renderInlineMarkdown(it.text)"></div>
             </div>
           </template>
           <div v-if="latestReasoning" class="at-reason-item">
-            <div class="at-reason-phrase">{{ latestReasoning.label || 'Thinking' }}</div>
-            <div v-if="latestReasoning.text" class="at-reason-text">{{ latestReasoning.text }}</div>
+            <div class="at-reason-phrase" v-html="renderInlineMarkdown(latestReasoning.label || 'Thinking')"></div>
+            <div v-if="latestReasoning.text" class="at-reason-text" v-html="renderInlineMarkdown(latestReasoning.text)"></div>
           </div>
         </template>
       </div>
@@ -146,6 +146,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { fmtTokens } from '../composables/tokens'
+import { renderInlineMarkdown } from '../utils/inlineMarkdown'
 
 const props = defineProps({
   statusLabel: { type: String, default: '' },
