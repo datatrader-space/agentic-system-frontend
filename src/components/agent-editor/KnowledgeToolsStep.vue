@@ -926,6 +926,14 @@ function connectorTools(c) {
     return tools.filter(t => { const cat = (t.category || '').toLowerCase(); return cat === k || cat.startsWith(k + '.') })
   }
   if (c.kind === 'mcp') {
+    // Use the backend's EXACT per-server tool ids. The old `startsWith('MCP_'+slug+'_')` over the GLOBAL
+    // tool list wrongly swept in sibling servers whose slug extends this one (e.g. 'kurumera' matched
+    // 'kurumera-mcp-server', 'kurumera-*-store', …) — inflating the count AND mis-assigning their tools.
+    if (Array.isArray(c.tool_ids)) {
+      const idset = new Set(c.tool_ids.map(String))
+      return tools.filter(t => idset.has(String(t.id)))
+    }
+    // Fallback for an older API response without tool_ids (kept only so nothing breaks pre-deploy).
     const slug = String(c.slug || '').toUpperCase().replace(/[-\s]/g, '_')
     if (!slug) return []
     return tools.filter(t => String(t.name || '').toUpperCase().startsWith('MCP_' + slug + '_'))
