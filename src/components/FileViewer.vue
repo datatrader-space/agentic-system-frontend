@@ -206,6 +206,9 @@ const mediaUrl = ref('');
 const fileModified = ref(null);
 const fileSize = ref(0);
 const activeAgentId = ref(null);
+// URL-mode (WORKSPACE_* scoped files): when set, content/download go through this /api path (relative to the
+// axios baseURL '/api') instead of the coding-agent (agentId, path) API. Empty string = coding-agent mode.
+const urlDownloadPath = ref('');
 
 // PDF state
 const pdfCanvas = ref(null);
@@ -467,6 +470,7 @@ const open = async (pathOrEntry, agentId = null, siblings = null) => {
   if (agentId) activeAgentId.value = agentId;
   if (siblings) siblingFiles.value = siblings;
   isOpen.value = true;
+  urlDownloadPath.value = '';   // coding-agent mode (fetch by agentId + path)
   currentPath.value = entry.path || entry;
   content.value = '';
   error.value = '';
@@ -519,13 +523,66 @@ const open = async (pathOrEntry, agentId = null, siblings = null) => {
   }
 };
 
+// Open a WORKSPACE_* scoped file (agent working-memory file) straight from its served URL — no agentId
+// needed. Reuses every render mode (markdown/code/json/csv/pdf/image/binary) via the filename's extension.
+// `file` = { path|name, view_url, download_url, size } as emitted in tool metadata.workspace_file.
+const openUrl = async (file) => {
+  const f = file || {};
+  isOpen.value = true;
+  activeAgentId.value = null;
+  siblingFiles.value = [];
+  currentPath.value = f.path || f.name || 'file';   // drives fileExt / renderMode / fileName
+  content.value = '';
+  error.value = '';
+  if (mediaUrl.value) URL.revokeObjectURL(mediaUrl.value);
+  mediaUrl.value = '';
+  loading.value = true;
+  fileModified.value = f.updated_at || null;
+  fileSize.value = f.size || 0;
+  pdfDoc.value = null;
+  pdfPageCount.value = 0;
+  pdfPage.value = 1;
+
+  // Card URLs already carry the '/api' prefix; the axios instance also prefixes baseURL '/api', so strip it.
+  const viewPath = (f.view_url || f.download_url || '').replace(/^\/api/, '');
+  urlDownloadPath.value = (f.download_url || f.view_url || '').replace(/^\/api/, '').replace(/\?inline=1$/, '');
+  const ext = fileExt.value;
+  try {
+    if (!viewPath) throw new Error('This file has no download URL.');
+    if (IMAGE_EXTS.includes(ext) || VIDEO_EXTS.includes(ext)) {
+      const res = await api.get(viewPath, { responseType: 'blob' });
+      mediaUrl.value = URL.createObjectURL(res.data);
+    } else if (ext === 'pdf') {
+      const res = await api.get(viewPath, { responseType: 'blob' });
+      await loadPdf(res.data);
+    } else if (BINARY_EXTS.includes(ext)) {
+      // binary card — no inline content, Download only
+    } else {
+      const res = await api.get(viewPath, { responseType: 'text' });
+      content.value = typeof res.data === 'string' ? res.data : (res.data?.content ?? '');
+    }
+  } catch (e) {
+    console.error('Failed to load workspace file:', e);
+    error.value = e.response?.data?.error || e.message || 'Failed to load file';
+  } finally {
+    loading.value = false;
+  }
+};
+
 const downloadFile = async () => {
-  const aid = resolvedAgentId();
-  if (!aid) return;
   downloading.value = true;
   try {
-    const res = await api.downloadWorkspaceFile(aid, currentPath.value);
-    const url = URL.createObjectURL(res.data);
+    let blob;
+    if (urlDownloadPath.value) {
+      const res = await api.get(urlDownloadPath.value, { responseType: 'blob' });
+      blob = res.data;
+    } else {
+      const aid = resolvedAgentId();
+      if (!aid) return;
+      const res = await api.downloadWorkspaceFile(aid, currentPath.value);
+      blob = res.data;
+    }
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = fileName.value;
@@ -546,7 +603,7 @@ const close = () => {
   isOpen.value = false;
 };
 
-defineExpose({ open, close });
+defineExpose({ open, openUrl, close });
 </script>
 
 <style scoped>

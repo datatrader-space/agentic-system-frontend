@@ -150,6 +150,10 @@
         <button type="button" class="img-lightbox-close" aria-label="Close" @click="previewSrc = null">×</button>
       </div>
     </Teleport>
+
+    <!-- Workspace-file preview modal: opened when a /api/workspace/files/… link in the answer is clicked
+         (see onCodeCopy). Renders markdown/code/json/csv/pdf/image by extension, with a Download button. -->
+    <FileViewer ref="fileViewer" />
   </div>
 </template>
 
@@ -163,6 +167,7 @@ import TokenUsage from '../activity/TokenUsage.vue'
 import { reasoningItems } from '../../composables/useAgentTimeline'
 import SourcesList from './SourcesList.vue'
 import ProvenanceFooter from './ProvenanceFooter.vue'
+import FileViewer from '../FileViewer.vue'
 import { stopReasonBadge } from '../../composables/stopReason'
 import { useChatStore } from '../../stores/useChatStore'
 
@@ -271,11 +276,26 @@ const previewSrc = ref(null)
 const _onEsc = (e) => { if (e.key === 'Escape' && previewSrc.value) previewSrc.value = null }
 onMounted(() => window.addEventListener('keydown', _onEsc))
 onUnmounted(() => window.removeEventListener('keydown', _onEsc))
+const fileViewer = ref(null)
 const onCodeCopy = async (e) => {
   const img = e.target?.closest?.('img.chat-media-img')
   if (img && img.getAttribute('src')) {
     e.preventDefault()
     previewSrc.value = img.getAttribute('src')
+    return
+  }
+  // Workspace file link (agent working-memory file): open the preview modal instead of downloading. The
+  // link text is the filename (its extension drives the render mode); the modal has its own Download button.
+  // If JS ever fails, the <a> still downloads as a graceful fallback. Refresh-stable — reads the rendered
+  // answer, no store/persistence needed.
+  const wsLink = e.target?.closest?.('a[href*="/api/workspace/files/"]')
+  if (wsLink) {
+    e.preventDefault()
+    const href = wsLink.getAttribute('href') || ''
+    const base = href.replace(/[?&]inline=1$/, '')            // strip any inline flag (?inline=1 or &inline=1)
+    const sep = base.includes('?') ? '&' : '?'                // token URL already carries ?t=… → join with &
+    const name = (wsLink.textContent || '').trim() || 'file'
+    fileViewer.value?.openUrl({ path: name, download_url: base, view_url: base + sep + 'inline=1' })
     return
   }
   const btn = e.target?.closest?.('.code-copy')
