@@ -124,8 +124,10 @@ const step = ref('identity')
 // One editor, two modes: "new" (no id yet — created on the first Continue/Save) and "edit".
 const isNew = computed(() => !(agent.value && agent.value.id))
 function blankAgent() {
+  // canvas_mode is explicitly OFF for new agents — the per-message composer toggle still works when off;
+  // the stored flag is only for headless-over-WS operation (see AutonomySafetyStep Canvas Mode card).
   return { name: '', description: '', tool_ids: [], prompt_mode: 'append', max_history_messages: 0,
-           tool_delivery_mode: 'default', stream_reasoning: false }
+           tool_delivery_mode: 'default', stream_reasoning: false, canvas_mode: false }
 }
 
 const isStaff = ref(false)
