@@ -256,7 +256,10 @@
                   </div>
                   <p>{{ item.desc }}</p>
                   <div class="catalog-tags"><span v-for="tag in item.tags" :key="tag">{{ tag }}</span></div>
-                  <button class="catalog-connect" @click.stop="openDetail(item)"><Icon icon="lucide:plus" /> {{ item.id === 'custom-mcp' ? 'Add Custom' : 'Connect' }}</button>
+                  <button class="catalog-connect" :class="{ 'is-connected': isInstalled(item) }" @click.stop="openDetail(item)">
+                    <template v-if="isInstalled(item)"><Icon icon="lucide:check" /> Connected</template>
+                    <template v-else><Icon icon="lucide:plus" /> {{ item.id === 'custom-mcp' ? 'Add Custom' : 'Connect' }}</template>
+                  </button>
                 </article>
               </div>
               <p v-if="view !== 'installed' && !catalogItems.length" class="catalog-empty">No integrations match "{{ query }}".</p>
@@ -562,35 +565,59 @@ function notifyGithubApp() {
   notify.info('GitHub App setup is not fully configured yet. Use OAuth or a Personal Access Token for now.')
 }
 
-// ── Kurumera (MCP OAuth) connect ─────────────────────────────────────────────
+// ── Kurumera / MCP OAuth connect ─────────────────────────────────────────────
 const mcpServer = computed(() => _mcpServerFor(detailItem.value))
+let _oauthPollIv = null
+let _oauthDone = false
+function _finishMcpOauth() {
+  if (_oauthDone) return                                     // dedupe poll vs postMessage
+  _oauthDone = true
+  if (_oauthPollIv) { clearInterval(_oauthPollIv); _oauthPollIv = null }
+  busy.value = false
+  notify.success(`Connected to ${detailItem.value?.name || 'the server'}`)
+  const srv = mcpServer.value
+  if (srv?.id) api.refreshMCPTools(srv.id).catch(() => {})   // fetch its tools
+  afterChange()                                              // reload connectors → card flips to Connected
+}
 function _onMcpOauthMsg(ev) {
   const d = ev && ev.data
   if (!d || d.type !== 'mcp_oauth_result') return
-  busy.value = false
-  if (d.ok) {
-    notify.success(`Connected to ${detailItem.value?.name || 'the server'}`)
-    const srv = mcpServer.value
-    if (srv?.id) api.refreshMCPTools(srv.id).catch(() => {})   // fetch its tools
-    afterChange()                                              // reload the connector list → card flips to Connected
-  } else {
-    notify.error(d.message || 'Connection failed')
-  }
+  if (d.ok) _finishMcpOauth()
+  else { busy.value = false; notify.error(d.message || 'Connection failed') }
 }
 onMounted(() => window.addEventListener('message', _onMcpOauthMsg))
-onBeforeUnmount(() => window.removeEventListener('message', _onMcpOauthMsg))
+onBeforeUnmount(() => {
+  window.removeEventListener('message', _onMcpOauthMsg)
+  if (_oauthPollIv) clearInterval(_oauthPollIv)
+})
 
 async function connectMcpOAuth() {
   const srv = mcpServer.value
   if (!srv?.id) { notify.error('This connector isn\'t available yet — reload and try again.'); return }
   busy.value = true
+  _oauthDone = false
   try {
     const { data } = await api.mcpOauthInitiate({ server_id: srv.id })
     const url = data && data.authorize_url
     if (!url) throw new Error('No authorization URL returned.')
-    const popup = window.open(url, 'mcp_oauth', 'width=560,height=720')
-    if (!popup) { busy.value = false; notify.error('Popup blocked — allow popups for this site and try again.') }
-    // busy stays true until the popup posts back (_onMcpOauthMsg clears it).
+    window.open(url, 'mcp_oauth', 'width=560,height=720')
+    // The popup's postMessage is often severed by the browser's Cross-Origin-Opener-Policy after a
+    // cross-origin OAuth redirect — so don't depend on it. Poll the connection status (backend = source of
+    // truth); _onMcpOauthMsg still fires when the opener isn't severed, deduped via _finishMcpOauth.
+    const connId = data && data.connection_id
+    if (connId) {
+      if (_oauthPollIv) clearInterval(_oauthPollIv)
+      let tries = 0
+      _oauthPollIv = setInterval(async () => {
+        tries++
+        try {
+          const { data: st } = await api.mcpOauthStatus(connId)
+          if (st?.connected) return _finishMcpOauth()
+          if (st?.status === 'error') { clearInterval(_oauthPollIv); _oauthPollIv = null; busy.value = false; notify.error(st.error || 'Connection failed') }
+        } catch { /* keep polling */ }
+        if (tries >= 90) { clearInterval(_oauthPollIv); _oauthPollIv = null; busy.value = false }   // ~3 min timeout
+      }, 2000)
+    }
   } catch (e) {
     busy.value = false
     notify.error(e?.response?.data?.error || e?.message || 'Could not start OAuth for this connector.')
@@ -956,6 +983,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .catalog-connect svg {
   width: 14px;
   height: 14px;
+}
+.catalog-connect.is-connected {
+  color: #047857;
+  border-color: #A7F3D0;
+  background: #ECFDF5;
 }
 .catalog-request {
   display: flex;
