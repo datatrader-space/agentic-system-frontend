@@ -107,6 +107,32 @@
           <section class="ag-card">
             <div class="ag-card-head">
               <div>
+                <h2>Answer Assurance</h2>
+                <p>Verify every answer before it ships — final verifier, LLM grounding judge, and per-claim evidence ledger.</p>
+              </div>
+              <span class="ag-card-badge">Verification</span>
+            </div>
+            <div class="ag-control-grid">
+              <label class="ag-field ag-switch-row">
+                <span>
+                  <b>Verify answers before sending</b>
+                  <small>When OFF, the model's answer ships as-is (sanitize + citations only) — no grounding checks, judge, or repair. Turn off if the verifier is over-blocking.</small>
+                </span>
+                <button
+                  :class="['ag-switch', { on: pol.final_assurance_enabled }]"
+                  type="button"
+                  :disabled="!canEdit"
+                  @click="pol.final_assurance_enabled = !pol.final_assurance_enabled; mark()"
+                >
+                  <i />
+                </button>
+              </label>
+            </div>
+          </section>
+
+          <section class="ag-card">
+            <div class="ag-card-head">
+              <div>
                 <h2>Tool-Call Budget</h2>
                 <p>Anti-runaway limits enforced on every agent turn.</p>
               </div>
@@ -261,6 +287,7 @@ const pol = reactive({
   tool_call_budget: 4,
   on_budget_exceeded: 'ask_llm',
   max_tool_calls_hard: 25,
+  final_assurance_enabled: true,
   forbidden_tools: [],
   guardrails: [],
   tool_permissions: {},
@@ -313,6 +340,7 @@ function apply(d) {
   pol.tool_call_budget = d.tool_call_budget ?? 4
   pol.on_budget_exceeded = d.on_budget_exceeded || 'ask_llm'
   pol.max_tool_calls_hard = d.max_tool_calls_hard ?? 25
+  pol.final_assurance_enabled = d.final_assurance_enabled !== false
   pol.forbidden_tools = Array.isArray(d.forbidden_tools) ? [...d.forbidden_tools] : []
   pol.guardrails = Array.isArray(d.guardrails) ? [...d.guardrails] : []
   pol.tool_permissions = d.tool_permissions && typeof d.tool_permissions === 'object' ? { ...d.tool_permissions } : {}
@@ -381,6 +409,7 @@ async function save() {
       tool_call_budget: pol.tool_call_budget,
       on_budget_exceeded: pol.on_budget_exceeded,
       max_tool_calls_hard: pol.max_tool_calls_hard,
+      final_assurance_enabled: pol.final_assurance_enabled,
       forbidden_tools: pol.forbidden_tools,
       guardrails: pol.guardrails,
       tool_permissions: pol.tool_permissions,
