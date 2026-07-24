@@ -299,6 +299,10 @@ export default {
   getMCPServers: (params) => api.get('/mcp/servers/', { params }),
   getMCPServer: (id) => api.get(`/mcp/servers/${id}/`),
   createMCPServer: (data) => api.post('/mcp/servers/create/', data),
+  // MCP OAuth 2.1 connect (Phase 1)
+  mcpOauthInitiate: (data) => api.post('/mcp/oauth/initiate/', data),
+  mcpOauthStatus: (connectionId) => api.get(`/mcp/oauth/status/${connectionId}/`),
+  mcpOauthDisconnect: (connectionId) => api.post(`/mcp/oauth/disconnect/${connectionId}/`),
   updateMCPServer: (id, data) => api.post(`/mcp/servers/${id}/update/`, data),
   deleteMCPServer: (id) => api.post(`/mcp/servers/${id}/delete/`),
   refreshMCPTools: (id) => api.post(`/mcp/servers/${id}/refresh-tools/`),

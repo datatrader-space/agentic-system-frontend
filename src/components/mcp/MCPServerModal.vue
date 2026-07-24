@@ -51,6 +51,7 @@
             <select v-model="form.auth.type" @change="headersTouched = true"
               class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none bg-white">
               <option value="none">No — it's open</option>
+              <option value="oauth">OAuth — sign in</option>
               <option value="bearer">Bearer token</option>
               <option value="api_key">API key (header)</option>
               <option value="custom">Custom header</option>
@@ -58,7 +59,35 @@
             <p v-if="isEditMode && form.auth.type === 'none'" class="text-[11px] text-slate-400 mt-1">
               Existing credentials are kept unless you choose a type and enter a new value.
             </p>
-            <div v-if="form.auth.type !== 'none'" class="mt-2 space-y-2">
+            <!-- OAuth connect: sign in to the server instead of pasting a key -->
+            <div v-if="form.auth.type === 'oauth'" class="mt-2">
+              <div v-if="oauth.connected"
+                class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-[13px] text-emerald-700">
+                <span><span>✅</span> Connected — you can add the server now.</span>
+                <button type="button" @click="oauth.connected = false; oauth.connectionId = null"
+                  class="text-[12px] font-semibold text-slate-500 hover:text-slate-700">Reconnect</button>
+              </div>
+              <template v-else>
+                <button type="button" @click="startOauth"
+                  :disabled="!form.endpoint_url.trim() || oauth.busy"
+                  class="w-full px-3 py-2 text-[14px] font-semibold rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                  {{ oauth.busy ? 'Waiting for authorization…' : 'Connect with OAuth' }}
+                </button>
+                <p v-if="oauth.error" class="text-[12px] text-red-600 mt-1.5">{{ oauth.error }}</p>
+                <p v-else class="text-[11px] text-slate-400 mt-1.5">
+                  Enter the server URL above, then Connect — its sign-in page opens in a new window.
+                </p>
+                <!-- Advanced: for servers without automatic client registration -->
+                <button type="button" @click="oauth.showManual = !oauth.showManual"
+                  class="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 mt-1.5">
+                  {{ oauth.showManual ? 'Hide' : 'Server needs a client ID?' }}
+                </button>
+                <input v-if="oauth.showManual" v-model="oauth.clientId" type="text"
+                  placeholder="Client ID (optional — only if auto-registration fails)"
+                  class="w-full mt-1.5 px-3 py-2 text-[13px] border border-slate-200 rounded-lg focus:outline-none focus:border-indigo-500 font-mono">
+              </template>
+            </div>
+            <div v-else-if="form.auth.type !== 'none'" class="mt-2 space-y-2">
               <input v-if="form.auth.type === 'api_key' || form.auth.type === 'custom'"
                 v-model="form.auth.header_name" @input="headersTouched = true" type="text"
                 :placeholder="form.auth.type === 'api_key' ? 'Header name (e.g. X-API-Key)' : 'Header name (e.g. Authorization)'"
@@ -157,7 +186,7 @@
 </template>
 
 <script>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 
@@ -208,12 +237,52 @@ export default {
     const argsArray = () => (form._argsEdited ? (form._argsRaw || '') : (Array.isArray(s.args) ? s.args.join('\n') : ''))
       .split('\n').map(a => a.trim()).filter(Boolean)
 
-    const canSave = computed(() =>
-      form.name.trim() && (form.mode === 'hosted' ? form.endpoint_url.trim() : form.command.trim()))
+    // ── MCP OAuth connect ──────────────────────────────────────────────────────────────────────
+    const oauth = reactive({ connected: false, busy: false, error: '', connectionId: null, showManual: false, clientId: '' })
+    function _onOauthMessage(ev) {
+      const d = ev && ev.data
+      if (!d || d.type !== 'mcp_oauth_result') return
+      oauth.busy = false
+      if (d.ok && d.connection_id) { oauth.connected = true; oauth.connectionId = d.connection_id; oauth.error = '' }
+      else { oauth.error = d.message || 'Authorization failed.' }
+    }
+    onMounted(() => window.addEventListener('message', _onOauthMessage))
+    onUnmounted(() => window.removeEventListener('message', _onOauthMessage))
+    // Changing the URL invalidates any prior connection (tokens are bound to the server URL).
+    watch(() => form.endpoint_url, () => { oauth.connected = false; oauth.connectionId = null; oauth.error = '' })
+
+    async function startOauth() {
+      oauth.error = ''; oauth.connected = false; oauth.connectionId = null; oauth.busy = true
+      try {
+        const _body = { endpoint_url: form.endpoint_url.trim(), name: form.name.trim() }
+        if (oauth.clientId.trim()) _body.client_id = oauth.clientId.trim()   // manual client fallback (no DCR)
+        const res = await api.mcpOauthInitiate(_body)
+        const url = res.data && res.data.authorize_url
+        if (!url) throw new Error('No authorization URL returned.')
+        const popup = window.open(url, 'mcp_oauth', 'width=560,height=720')
+        if (!popup) { oauth.busy = false; oauth.error = 'Popup blocked — allow popups for this site and try again.' }
+      } catch (e) {
+        oauth.busy = false
+        oauth.error = e.response?.data?.error || e.message || 'Could not start OAuth for this server.'
+      }
+    }
+
+    const canSave = computed(() => {
+      if (!form.name.trim()) return false
+      if (form.mode === 'local') return !!form.command.trim()
+      if (!form.endpoint_url.trim()) return false
+      if (form.auth.type === 'oauth') return oauth.connected   // must complete the sign-in first
+      return true
+    })
 
     function buildPayload() {
       if (form.mode === 'hosted') {
         const p = { name: form.name, description: form.description, transport_type: 'http', endpoint_url: form.endpoint_url }
+        // OAuth: auth is handled server-side via the linked connection — send its id, not a key/header set.
+        if (form.auth.type === 'oauth') {
+          if (oauth.connectionId) p.oauth_connection_id = oauth.connectionId
+          return p
+        }
         // Only send headers when the user set/changed them (so editing doesn't wipe stored ones).
         // auth + extra_headers are sent together as the full header set.
         if (!isEditMode.value || headersTouched.value) {
@@ -267,7 +336,7 @@ export default {
 
     const finish = () => { emit('saved'); emit('close') }
 
-    return { form, argsText, saving, savedOk, testResult, headersTouched, isEditMode, canSave, handleSubmit, finish }
+    return { form, argsText, saving, savedOk, testResult, headersTouched, isEditMode, canSave, handleSubmit, finish, oauth, startOauth }
   }
 }
 </script>

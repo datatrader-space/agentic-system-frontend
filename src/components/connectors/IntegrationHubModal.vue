@@ -77,7 +77,7 @@
               <span class="text-ink-faint">About Integration</span>
             </div>
 
-            <div class="p-4">
+            <div class="p-4" v-if="!detailItem.mcpSlug">
               <div class="flex items-center justify-between gap-3 mb-3">
                 <span class="text-[13px] font-bold text-ink">Connections</span>
                 <select v-model="connMethod" class="px-3 py-1.5 text-[12px] font-semibold text-ink bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-300">
@@ -146,6 +146,25 @@
                     <Icon icon="lucide:lock" class="w-4 h-4" /> {{ busy ? 'Connecting…' : 'Connect with token' }}
                   </button>
                 </div>
+              </div>
+            </div>
+
+            <!-- Kurumera / MCP OAuth connect (sibling of the service panel above) -->
+            <div class="p-4" v-else>
+              <div class="mb-3"><span class="text-[13px] font-bold text-ink">Connection</span></div>
+              <div v-if="isInstalled(detailItem)" class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-5">
+                <div class="flex items-center gap-2">
+                  <Icon icon="lucide:check-circle" class="w-5 h-5 text-emerald-500" />
+                  <p class="text-[13px] font-bold text-emerald-800">Connected to {{ detailItem.name }}</p>
+                </div>
+                <p class="text-[12px] text-emerald-700/80 mt-2">{{ mcpServer?.tool_count_total || 0 }} tool{{ (mcpServer?.tool_count_total || 0) === 1 ? '' : 's' }} available to your agents.</p>
+              </div>
+              <div v-else class="rounded-xl border border-slate-200 bg-slate-50/40 p-5 text-center py-4">
+                <p class="text-[13px] text-ink-soft">Sign in to {{ detailItem.name }} to give your agents its tools.</p>
+                <button @click="connectMcpOAuth" :disabled="busy" class="mt-3 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 inline-flex items-center gap-2">
+                  <Icon icon="lucide:lock" class="w-4 h-4" /> {{ busy ? 'Waiting for authorization…' : 'Connect with OAuth' }}
+                </button>
+                <p class="text-[11px] text-ink-faint mt-2">Opens the {{ detailItem.name }} sign-in in a new window. Tokens are stored encrypted server-side and refreshed automatically.</p>
               </div>
             </div>
           </div>
@@ -468,9 +487,35 @@ const SLACK = {
   },
 }
 
+const KURUMERA = {
+  id: 'kurumera', name: 'Kurumera', author: 'Aadml', verified: true, popular: true,
+  category: 'E-commerce & Payments', icon: 'lucide:store', version: '1.0.0',
+  mcpSlug: 'kurumera',            // links this card to the seeded system-default Kurumera MCP server
+  provider_slug: 'kurumera',
+  sourceUrl: 'https://kurumera.com',
+  desc: 'Build and manage your storefront pages with the Kurumera website builder.',
+  longDesc:
+    'Connect Kurumera to let your agents create, edit, and publish storefront pages. Sign in once with OAuth — the platform completes the MCP handshake, stores tokens encrypted server-side (auto-refreshed), and your agents get the Kurumera page-builder tools automatically.',
+  config: [
+    { title: 'Connect with OAuth (recommended)', body: 'Sign in to Kurumera in a popup; the platform completes the MCP OAuth handshake (discovery + PKCE) and stores tokens encrypted server-side, refreshing them automatically.' },
+  ],
+  cards: {
+    actions: [
+      { name: 'Create Page', desc: 'Create a new storefront page' },
+      { name: 'Edit Page', desc: 'Edit an existing page' },
+      { name: 'Publish Page', desc: 'Publish page changes' },
+    ],
+    triggers: [
+      { name: 'List Pages', desc: 'List storefront pages' },
+      { name: 'Get Page', desc: 'Read a page document' },
+    ],
+  },
+}
+
 const CATALOG = [
   { ...GITHUB, tags: ['Developer Tools', 'Code Hosting'] },
   { ...SLACK, tags: ['Communication', 'Messaging'] },
+  { ...KURUMERA, tags: ['E-commerce', 'Website Builder'] },
   { id: 'gmail', name: 'Gmail', author: 'Aadml', verified: true, soon: true, category: 'Marketing & Email', icon: 'logos:google-gmail', desc: 'Read, send, and organize emails from Gmail.', tags: ['Email'] },
   { id: 'stripe', name: 'Stripe', author: 'Aadml', verified: true, soon: true, category: 'E-commerce & Payments', icon: 'logos:stripe', desc: 'Manage payments, customers, and subscriptions.', tags: ['Payments', 'Billing'] },
   { id: 'notion', name: 'Notion', author: 'Aadml', verified: true, soon: true, category: 'Business Operations', icon: 'logos:notion-icon', desc: 'Read and update Notion pages and databases.', tags: ['Productivity', 'Docs'] },
@@ -480,7 +525,14 @@ const CATALOG = [
   { id: 'custom-mcp', name: 'Custom / MCP', author: 'Aadml', verified: false, soon: false, category: 'Developer Tools', icon: 'lucide:link', desc: 'Connect any MCP-compatible or custom API.', tags: ['Custom', 'Advanced'] },
 ]
 
+// The seeded system-default MCP server behind an `mcpSlug` card (Kurumera), from the unified connector list.
+function _mcpServerFor(item) {
+  if (!item?.mcpSlug) return null
+  return props.connectors.find(c => c.kind === 'mcp'
+    && (c.slug === item.mcpSlug || String(c.name || '').toLowerCase() === item.mcpSlug)) || null
+}
 function isInstalled(item) {
+  if (item.mcpSlug) return !!_mcpServerFor(item)?.connected
   return !!services.value[item.id]?.connected
 }
 
@@ -600,6 +652,41 @@ async function connectWithOAuth() {
 
 function notifyGithubApp() {
   notify.info('GitHub App setup is not fully configured yet. Use OAuth or a Personal Access Token for now.')
+}
+
+// ── Kurumera (MCP OAuth) connect ─────────────────────────────────────────────
+const mcpServer = computed(() => _mcpServerFor(detailItem.value))
+function _onMcpOauthMsg(ev) {
+  const d = ev && ev.data
+  if (!d || d.type !== 'mcp_oauth_result') return
+  busy.value = false
+  if (d.ok) {
+    notify.success(`Connected to ${detailItem.value?.name || 'the server'}`)
+    const srv = mcpServer.value
+    if (srv?.id) api.refreshMCPTools(srv.id).catch(() => {})   // fetch its tools
+    afterChange()                                              // reload the connector list → card flips to Connected
+  } else {
+    notify.error(d.message || 'Connection failed')
+  }
+}
+onMounted(() => window.addEventListener('message', _onMcpOauthMsg))
+onBeforeUnmount(() => window.removeEventListener('message', _onMcpOauthMsg))
+
+async function connectMcpOAuth() {
+  const srv = mcpServer.value
+  if (!srv?.id) { notify.error('This connector isn\'t available yet — reload and try again.'); return }
+  busy.value = true
+  try {
+    const { data } = await api.mcpOauthInitiate({ server_id: srv.id })
+    const url = data && data.authorize_url
+    if (!url) throw new Error('No authorization URL returned.')
+    const popup = window.open(url, 'mcp_oauth', 'width=560,height=720')
+    if (!popup) { busy.value = false; notify.error('Popup blocked — allow popups for this site and try again.') }
+    // busy stays true until the popup posts back (_onMcpOauthMsg clears it).
+  } catch (e) {
+    busy.value = false
+    notify.error(e?.response?.data?.error || e?.message || 'Could not start OAuth for this connector.')
+  }
 }
 
 async function installWithToken() {
