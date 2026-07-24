@@ -1,15 +1,16 @@
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-sm" @click.self="close">
-    <div class="bg-[#1e1e2e] rounded-2xl shadow-2xl w-full max-w-6xl h-[92vh] flex flex-col overflow-hidden border border-white/10">
+    <div class="fv-root rounded-2xl shadow-2xl w-full max-w-6xl h-[92vh] flex flex-col overflow-hidden"
+         :class="isDark ? 'fv-dark' : 'fv-light'">
 
       <!-- ═══ Header ═══ -->
-      <div class="flex items-center justify-between px-4 py-2.5 bg-[#181825] border-b border-white/10 shrink-0">
+      <div class="fv-bar flex items-center justify-between px-4 py-2.5 border-b shrink-0">
         <div class="flex items-center gap-2.5 min-w-0">
           <span class="text-lg flex-shrink-0">{{ fileIcon }}</span>
           <div class="min-w-0">
-            <h3 class="text-sm font-bold text-gray-100 truncate">{{ fileName }}</h3>
-            <div class="flex items-center gap-2 text-[10px] text-gray-500">
-              <span v-if="languageLabel" class="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 font-mono uppercase tracking-wide">{{ languageLabel }}</span>
+            <h3 class="fv-strong text-sm font-bold truncate">{{ fileName }}</h3>
+            <div class="fv-muted flex items-center gap-2 text-[10px]">
+              <span v-if="languageLabel" class="fv-accent px-1.5 py-0.5 rounded font-mono uppercase tracking-wide">{{ languageLabel }}</span>
               <span v-if="lineCount && renderMode === 'code'">{{ lineCount }} lines</span>
               <span v-if="pdfPageCount">{{ pdfPageCount }} pages</span>
               <span v-if="fileSize">{{ formatBytes(fileSize) }}</span>
@@ -20,39 +21,39 @@
           <!-- File navigation (prev/next in folder) -->
           <template v-if="siblingFiles.length > 1">
             <button @click="goToFile(-1)" :disabled="currentFileIndex <= 0"
-              class="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
+              class="fv-iconbtn disabled:opacity-30"
               title="Previous file (←)">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             </button>
             <span class="text-[10px] text-gray-500 font-mono tabular-nums min-w-[3ch] text-center">{{ currentFileIndex + 1 }}/{{ siblingFiles.length }}</span>
             <button @click="goToFile(1)" :disabled="currentFileIndex >= siblingFiles.length - 1"
-              class="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition disabled:opacity-30"
+              class="fv-iconbtn disabled:opacity-30"
               title="Next file (→)">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
-            <div class="w-px h-5 bg-white/10 mx-1"></div>
+            <div class="fv-divider w-px h-5 mx-1"></div>
           </template>
           <!-- PDF page nav -->
           <template v-if="renderMode === 'pdf' && pdfPageCount > 1">
             <button @click="pdfPage = Math.max(1, pdfPage - 1)" :disabled="pdfPage <= 1"
-              class="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition disabled:opacity-30">
+              class="fv-iconbtn disabled:opacity-30">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
             </button>
             <span class="text-xs text-gray-400 font-mono tabular-nums">{{ pdfPage }}/{{ pdfPageCount }}</span>
             <button @click="pdfPage = Math.min(pdfPageCount, pdfPage + 1)" :disabled="pdfPage >= pdfPageCount"
-              class="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition disabled:opacity-30">
+              class="fv-iconbtn disabled:opacity-30">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
-            <div class="w-px h-5 bg-white/10 mx-1"></div>
+            <div class="fv-divider w-px h-5 mx-1"></div>
           </template>
           <!-- Download -->
           <button @click="downloadFile" :disabled="downloading"
-            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 transition border border-blue-500/20">
+            class="fv-accent-btn flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
             {{ downloading ? '...' : 'Download' }}
           </button>
           <!-- Close -->
-          <button @click="close" class="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition">
+          <button @click="close" class="fv-iconbtn">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -93,30 +94,29 @@
           <iframe :srcdoc="content" sandbox="allow-same-origin" class="w-full h-full border-0" title="HTML Preview"></iframe>
         </div>
 
-        <!-- Markdown -->
-        <div v-else-if="renderMode === 'markdown'" class="p-6 sm:p-10 bg-[#1e1e2e] max-w-4xl mx-auto">
-          <div class="prose prose-invert prose-sm max-w-none prose-headings:text-gray-100 prose-p:text-gray-300 prose-a:text-blue-400 prose-code:text-pink-300 prose-code:bg-white/5 prose-pre:bg-[#11111b] prose-pre:border prose-pre:border-white/5 prose-strong:text-gray-200 prose-blockquote:border-blue-500/50 prose-blockquote:text-gray-400 prose-table:text-gray-300 prose-th:text-gray-200 prose-td:border-white/10 prose-th:border-white/10"
-            v-html="renderedMarkdown"></div>
+        <!-- Markdown (fully self-styled — the @tailwindcss/typography `prose` plugin is not installed) -->
+        <div v-else-if="renderMode === 'markdown'" class="p-6 sm:p-10 max-w-4xl mx-auto">
+          <div class="fv-md" v-html="renderedMarkdown"></div>
         </div>
 
         <!-- CSV/TSV Table -->
         <div v-else-if="renderMode === 'csv'" class="p-4 overflow-auto">
-          <div class="rounded-xl border border-white/10 overflow-hidden">
+          <div class="fv-bd rounded-xl border overflow-hidden">
             <table class="w-full text-xs text-left">
-              <thead class="bg-[#181825] sticky top-0 z-10">
+              <thead class="fv-bar sticky top-0 z-10">
                 <tr>
                   <th v-for="(header, hi) in csvData.headers" :key="hi"
-                    class="px-4 py-2.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider border-b border-white/10 whitespace-nowrap">
+                    class="fv-muted fv-bd px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider border-b whitespace-nowrap">
                     {{ header }}
                   </th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="(row, ri) in csvData.rows" :key="ri"
-                  class="border-b border-white/5 hover:bg-white/5 transition-colors"
+                  class="fv-bd border-b hover:bg-black/5 transition-colors"
                   :class="ri % 2 === 0 ? 'bg-transparent' : 'bg-white/[0.02]'">
                   <td v-for="(cell, ci) in row" :key="ci"
-                    class="px-4 py-2 text-gray-300 font-mono whitespace-nowrap">{{ cell }}</td>
+                    class="fv-text px-4 py-2 font-mono whitespace-nowrap">{{ cell }}</td>
                 </tr>
               </tbody>
             </table>
@@ -162,20 +162,20 @@
 
         <!-- Plain text fallback -->
         <div v-else class="relative">
-          <pre class="p-4 sm:p-6 font-mono text-sm text-gray-300 leading-relaxed whitespace-pre">{{ content }}</pre>
+          <pre class="fv-body p-4 sm:p-6 font-mono text-sm leading-relaxed whitespace-pre">{{ content }}</pre>
         </div>
       </div>
 
       <!-- ═══ Footer ═══ -->
-      <div class="px-4 py-2 bg-[#181825] border-t border-white/10 flex items-center justify-between text-[10px] text-gray-600 shrink-0">
+      <div class="fv-bar fv-muted px-4 py-2 border-t flex items-center justify-between text-[10px] shrink-0">
         <div class="flex items-center gap-3">
-          <span v-if="renderMode" class="px-1.5 py-0.5 rounded bg-white/5 text-gray-500 uppercase tracking-wider font-bold">{{ renderMode }}</span>
+          <span v-if="renderMode" class="fv-chip px-1.5 py-0.5 rounded uppercase tracking-wider font-bold">{{ renderMode }}</span>
           <span v-if="lineCount && renderMode === 'code'">{{ lineCount }} lines</span>
           <span v-if="content">{{ content.length.toLocaleString() }} chars</span>
         </div>
         <div class="flex items-center gap-3">
           <span v-if="fileModified" :title="fileModified">{{ timeAgo(fileModified) }}</span>
-          <span class="text-gray-700">Read-only</span>
+          <span>Read-only</span>
         </div>
       </div>
     </div>
@@ -188,6 +188,9 @@ import api from '../services/api';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark-dimmed.css';
 import { marked } from 'marked';
+import { useTheme } from '../composables/useTheme';
+
+const { isDark } = useTheme();   // follow the app theme (light default; toggled via data-theme)
 
 const props = defineProps({
   agentId: { type: [String, Number], default: null },
@@ -300,7 +303,8 @@ const contentBg = computed(() => {
   const mode = renderMode.value;
   if (mode === 'image' || mode === 'video' || mode === 'pdf') return 'bg-[#11111b]';
   if (mode === 'html') return 'bg-white';
-  return 'bg-[#1e1e2e]';
+  if (mode === 'code' || mode === 'json') return 'fv-codepanel';   // dark editor surface (hljs theme)
+  return 'fv-body';                                                 // markdown / csv / text — theme-aware
 });
 
 const fileIcon = computed(() => {
@@ -607,8 +611,60 @@ defineExpose({ open, openUrl, close });
 </script>
 
 <style scoped>
-/* Scrollbar styling for dark theme */
-:deep(.hljs) {
-  background: transparent !important;
+:deep(.hljs) { background: transparent !important; }
+
+/* ── Theme tokens — the modal follows the app theme (useTheme → data-theme; light by default) ── */
+.fv-light {
+  --fv-panel:#ffffff; --fv-bar:#f8fafc; --fv-body:#ffffff;
+  --fv-text:#1f2937; --fv-strong:#0f172a; --fv-muted:#64748b;
+  --fv-border:rgba(15,23,42,.12); --fv-hover:rgba(15,23,42,.06); --fv-divider:rgba(15,23,42,.12);
+  --fv-code-bg:#eef2f7; --fv-fence-bg:#f6f8fa; --fv-fence-text:#1f2937;
 }
+.fv-dark {
+  --fv-panel:#1e1e2e; --fv-bar:#181825; --fv-body:#1e1e2e;
+  --fv-text:#e5e7eb; --fv-strong:#f3f4f6; --fv-muted:#9aa0aa;
+  --fv-border:rgba(255,255,255,.10); --fv-hover:rgba(255,255,255,.10); --fv-divider:rgba(255,255,255,.10);
+  --fv-code-bg:rgba(255,255,255,.06); --fv-fence-bg:#11111b; --fv-fence-text:#e5e7eb;
+}
+
+/* ── Surfaces ── */
+.fv-root { background:var(--fv-panel); color:var(--fv-text); border:1px solid var(--fv-border); }
+.fv-bar { background:var(--fv-bar); border-color:var(--fv-border); }
+.fv-body { background:var(--fv-body); color:var(--fv-text); }
+.fv-codepanel { background:#1e1e2e; color:#e5e7eb; }   /* code / JSON: always a dark editor surface (hljs theme) */
+.fv-strong { color:var(--fv-strong); }
+.fv-muted { color:var(--fv-muted); }
+.fv-bd { border-color:var(--fv-border) !important; }
+.fv-divider { background:var(--fv-divider); }
+.fv-chip { background:var(--fv-hover); color:var(--fv-muted); }
+.fv-iconbtn { color:var(--fv-muted); border-radius:.5rem; padding:.375rem; transition:color .15s, background .15s; }
+.fv-iconbtn:hover:not(:disabled) { color:var(--fv-strong); background:var(--fv-hover); }
+.fv-accent { background:rgba(59,130,246,.14); color:#2563eb; }
+.fv-dark .fv-accent { color:#93c5fd; }
+.fv-accent-btn { background:rgba(59,130,246,.14); color:#2563eb; border:1px solid rgba(59,130,246,.28); }
+.fv-accent-btn:hover:not(:disabled) { background:rgba(59,130,246,.22); }
+.fv-dark .fv-accent-btn { color:#93c5fd; }
+
+/* ── Markdown (rendered from v-html → descendants need :deep; the `prose` plugin isn't installed) ── */
+.fv-md { color:var(--fv-text); font-size:.92rem; line-height:1.7; word-wrap:break-word; }
+.fv-md :deep(:is(h1,h2,h3,h4,h5,h6)) { color:var(--fv-strong); font-weight:700; line-height:1.3; margin:1.3em 0 .5em; }
+.fv-md :deep(h1) { font-size:1.6em; }
+.fv-md :deep(h2) { font-size:1.35em; }
+.fv-md :deep(h3) { font-size:1.15em; }
+.fv-md :deep(p) { margin:.7em 0; }
+.fv-md :deep(a) { color:#3b82f6; text-decoration:underline; text-underline-offset:2px; }
+.fv-md :deep(:is(ul,ol)) { margin:.7em 0; padding-left:1.5em; }
+.fv-md :deep(li) { margin:.3em 0; }
+.fv-md :deep(strong) { color:var(--fv-strong); font-weight:700; }
+.fv-md :deep(code) { background:var(--fv-code-bg); padding:.12em .4em; border-radius:.35em; font-size:.86em;
+  font-family:ui-monospace,"Cascadia Code",Consolas,monospace; }
+.fv-md :deep(pre) { background:var(--fv-fence-bg); color:var(--fv-fence-text); padding:1em 1.1em;
+  border-radius:.6em; overflow-x:auto; border:1px solid var(--fv-border); margin:.9em 0; }
+.fv-md :deep(pre code) { background:transparent; padding:0; font-size:.85em; }
+.fv-md :deep(blockquote) { border-left:3px solid #3b82f6; margin:.9em 0; padding:.1em 0 .1em 1em; color:var(--fv-muted); }
+.fv-md :deep(table) { border-collapse:collapse; margin:.9em 0; width:100%; display:block; overflow-x:auto; }
+.fv-md :deep(:is(th,td)) { border:1px solid var(--fv-border); padding:.45em .75em; text-align:left; }
+.fv-md :deep(th) { color:var(--fv-strong); font-weight:700; }
+.fv-md :deep(hr) { border:0; border-top:1px solid var(--fv-border); margin:1.3em 0; }
+.fv-md :deep(img) { max-width:100%; border-radius:.4em; }
 </style>
