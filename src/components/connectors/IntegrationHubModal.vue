@@ -425,105 +425,13 @@ function categoryIcon(c) {
   }[c] || 'lucide:circle'
 }
 
-const GITHUB = {
-  id: 'github', name: 'GitHub', author: 'Aadml', verified: true, popular: true,
-  category: 'Developer Tools', icon: 'logos:github-icon', version: '1.0.0',
-  provider_slug: 'github',
-  sourceUrl: 'https://docs.github.com/en/rest',
-  desc: 'Manage GitHub issues, pull requests, and repositories.',
-  longDesc:
-    'Streamline your development workflow by seamlessly integrating GitHub. This integration lets you manage and automate your GitHub repositories, issues, and pull requests directly from your agents — collaborate effectively, track progress, and ensure smooth development cycles with features like real-time notifications, issue management, and pull request merging.',
-  migration: [
-    'The integration now supports both GitHub Apps and personal access tokens for authentication. GitHub Apps are recommended for organizations, while personal access tokens are suitable for individual users.',
-    'The "Find Target" action now requires the repo field to be specified — it should contain the repository name. The discussion channel was removed from this action.',
-    'The number tag on channels was removed. Pull requests now have a pullRequestNumber tag, and issues have an issueNumber tag.',
-  ],
-  config: [
-    { title: 'Automatic configuration with OAuth (recommended)', body: 'Authorize the platform GitHub app with least-privilege scopes (read:user, user:email, repo). The token is stored encrypted server-side and used to authenticate API calls. Requires GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET on the backend.' },
-    { title: 'Personal Access Token (manual)', body: 'Generate a fine-grained GitHub personal access token with Repository permissions (Issues + Pull requests: Read & write). Paste it under "Install Integration" → Personal Access Token. Validated against GitHub and stored encrypted server-side.' },
-    { title: 'Custom GitHub App (advanced)', body: 'Create your own GitHub App and provide its credentials. Not fully wired yet — use OAuth or a Personal Access Token for now.' },
-  ],
-  cards: {
-    actions: [
-      { name: 'Create Issue', desc: 'Open an issue in a repository' },
-      { name: 'Comment on Issue', desc: 'Add a comment to an issue' },
-    ],
-    triggers: [
-      { name: 'List Repositories', desc: 'List accessible repositories' }, { name: 'Get Repository', desc: 'Get repository details' },
-      { name: 'List Branches', desc: 'List repository branches' }, { name: 'Read File', desc: 'Read a file from a repo' },
-      { name: 'List Directory', desc: 'List files and folders' }, { name: 'Search Repositories', desc: 'Search repositories' },
-      { name: 'Search Code', desc: 'Search code in repos' }, { name: 'List Issues', desc: 'List issues in a repo' },
-    ],
-  },
+// Catalog is BACKEND-DRIVEN (GET /api/connectors/catalog/) — services + system-default MCP + coming
+// soon are assembled server-side; nothing about the catalog is hardcoded here.
+const catalog = ref([])
+async function loadCatalog() {
+  try { const { data } = await api.getConnectorCatalog(); catalog.value = data.items || [] }
+  catch { /* leave as-is */ }
 }
-
-const SLACK = {
-  id: 'slack', name: 'Slack', author: 'Aadml', verified: true, popular: true,
-  category: 'Communication & Channels', icon: 'logos:slack-icon', version: '1.0.0',
-  provider_slug: 'slack',
-  sourceUrl: 'https://api.slack.com/web',
-  desc: 'List channels, read messages, list users, and post to Slack.',
-  longDesc:
-    'Connect Slack to let your agents read channel activity and post messages on your behalf. Authenticate once with OAuth (or a Slack token) and the platform manages credentials and runtime access — no manual bot setup per agent.',
-  config: [
-    { title: 'Connect with OAuth (recommended)', body: 'Authorize a Slack app to grant least-privilege bot scopes (channels:read, channels:history, chat:write, users:read). Requires SLACK_CLIENT_ID / SLACK_CLIENT_SECRET configured on the backend.' },
-    { title: 'Connect with a token (manual)', body: 'Paste a Slack bot token (xoxb-…) or user token (xoxp-…). It is validated via auth.test and stored encrypted server-side.' },
-  ],
-  cards: {
-    actions: [
-      { name: 'Post Message', desc: 'Send a message to a channel' },
-      { name: 'Reply to Thread', desc: 'Reply in a thread' },
-      { name: 'Add Reaction', desc: 'React to a message' },
-      { name: 'Upload File', desc: 'Upload a file to a channel' },
-    ],
-    triggers: [
-      { name: 'List Channels', desc: 'Channels the account can see' },
-      { name: 'Read Channel History', desc: 'Recent messages in a channel' },
-      { name: 'List Users', desc: 'Workspace members' },
-      { name: 'Search Messages', desc: 'Search messages (user token)' },
-      { name: 'List Files', desc: 'Files in the workspace' },
-      { name: 'Get Team Info', desc: 'Connected workspace info' },
-    ],
-  },
-}
-
-const KURUMERA = {
-  id: 'kurumera', name: 'Kurumera', author: 'Aadml', verified: true, popular: true,
-  category: 'E-commerce & Payments', icon: 'lucide:store', version: '1.0.0',
-  mcpSlug: 'kurumera',            // links this card to the seeded system-default Kurumera MCP server
-  provider_slug: 'kurumera',
-  sourceUrl: 'https://kurumera.com',
-  desc: 'Build and manage your storefront pages with the Kurumera website builder.',
-  longDesc:
-    'Connect Kurumera to let your agents create, edit, and publish storefront pages. Sign in once with OAuth — the platform completes the MCP handshake, stores tokens encrypted server-side (auto-refreshed), and your agents get the Kurumera page-builder tools automatically.',
-  config: [
-    { title: 'Connect with OAuth (recommended)', body: 'Sign in to Kurumera in a popup; the platform completes the MCP OAuth handshake (discovery + PKCE) and stores tokens encrypted server-side, refreshing them automatically.' },
-  ],
-  cards: {
-    actions: [
-      { name: 'Create Page', desc: 'Create a new storefront page' },
-      { name: 'Edit Page', desc: 'Edit an existing page' },
-      { name: 'Publish Page', desc: 'Publish page changes' },
-    ],
-    triggers: [
-      { name: 'List Pages', desc: 'List storefront pages' },
-      { name: 'Get Page', desc: 'Read a page document' },
-    ],
-  },
-}
-
-const CATALOG = [
-  { ...GITHUB, tags: ['Developer Tools', 'Code Hosting'] },
-  { ...SLACK, tags: ['Communication', 'Messaging'] },
-  { ...KURUMERA, tags: ['E-commerce', 'Website Builder'] },
-  { id: 'gmail', name: 'Gmail', author: 'Aadml', verified: true, soon: true, category: 'Marketing & Email', icon: 'logos:google-gmail', desc: 'Read, send, and organize emails from Gmail.', tags: ['Email'] },
-  { id: 'stripe', name: 'Stripe', author: 'Aadml', verified: true, soon: true, category: 'E-commerce & Payments', icon: 'logos:stripe', desc: 'Manage payments, customers, and subscriptions.', tags: ['Payments', 'Billing'] },
-  { id: 'notion', name: 'Notion', author: 'Aadml', verified: true, soon: true, category: 'Business Operations', icon: 'logos:notion-icon', desc: 'Read and update Notion pages and databases.', tags: ['Productivity', 'Docs'] },
-  { id: 'hubspot', name: 'HubSpot', author: 'Aadml', verified: true, soon: true, category: 'CRM & Sales', icon: 'logos:hubspot', desc: 'Sync contacts, deals, and marketing data.', tags: ['CRM', 'Marketing'] },
-  { id: 'salesforce', name: 'Salesforce', author: 'Aadml', verified: true, soon: true, category: 'CRM & Sales', icon: 'logos:salesforce', desc: 'Access and sync Salesforce records and objects.', tags: ['CRM', 'Sales'] },
-  { id: 'google-drive', name: 'Google Drive', author: 'Aadml', verified: true, soon: true, category: 'File Management', icon: 'logos:google-drive', desc: 'Search, upload, and manage files in Drive.', tags: ['Storage', 'Files'] },
-  { id: 'custom-mcp', name: 'Custom / MCP', author: 'Aadml', verified: false, soon: false, category: 'Developer Tools', icon: 'lucide:link', desc: 'Connect any MCP-compatible or custom API.', tags: ['Custom', 'Advanced'] },
-]
 
 // The seeded system-default MCP server behind an `mcpSlug` card (Kurumera), from the unified connector list.
 function _mcpServerFor(item) {
@@ -542,14 +450,14 @@ const matchesQuery = (item) => {
   return item.name.toLowerCase().includes(q) || (item.desc || '').toLowerCase().includes(q)
 }
 const catalogItems = computed(() => {
-  let items = CATALOG.filter(matchesQuery)
+  let items = catalog.value.filter(matchesQuery)
   if (activeCategory.value && activeCategory.value !== 'Popular' && activeCategory.value !== 'All Categories') {
     items = items.filter((i) => i.category === activeCategory.value)
   }
   return items
 })
 const visibleGroups = computed(() => {
-  const items = CATALOG.filter(matchesQuery)
+  const items = catalog.value.filter(matchesQuery)
   if (activeCategory.value === 'Popular' && !query.value.trim()) {
     const groups = []
     const popular = items.filter((i) => i.popular)
@@ -745,6 +653,7 @@ function onKey(e) {
   }
 }
 onMounted(() => {
+  loadCatalog()
   refreshServices()
   window.addEventListener('keydown', onKey)
 })

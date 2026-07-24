@@ -241,6 +241,7 @@ export default {
   // Built-in connector services (GitHub, Slack, ...). Service-generic, keyed by service.
   // OAuth reuses startConnection(provider_slug).
   getConnectorServices: () => api.get('/connectors/services'),
+  getConnectorCatalog: () => api.get('/connectors/catalog/'),
   getServiceStatus: (key) => api.get(`/connectors/svc/${key}/status`),
   connectServicePat: (key, token) => api.post(`/connectors/svc/${key}/connect-pat`, { token }),
   disconnectService: (key) => api.post(`/connectors/svc/${key}/disconnect`),
