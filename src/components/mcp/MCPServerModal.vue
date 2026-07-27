@@ -239,29 +239,53 @@ export default {
 
     // ── MCP OAuth connect ──────────────────────────────────────────────────────────────────────
     const oauth = reactive({ connected: false, busy: false, error: '', connectionId: null, showManual: false, clientId: '' })
+    let _pollIv = null
+    function _clearPoll() { if (_pollIv) { clearInterval(_pollIv); _pollIv = null } }
+    function _finishOauth(connId) {
+      if (oauth.connected) return                 // dedupe: poll vs postMessage
+      _clearPoll()
+      oauth.busy = false; oauth.connected = true; oauth.connectionId = connId; oauth.error = ''
+    }
     function _onOauthMessage(ev) {
       const d = ev && ev.data
       if (!d || d.type !== 'mcp_oauth_result') return
-      oauth.busy = false
-      if (d.ok && d.connection_id) { oauth.connected = true; oauth.connectionId = d.connection_id; oauth.error = '' }
-      else { oauth.error = d.message || 'Authorization failed.' }
+      if (d.ok && d.connection_id) _finishOauth(d.connection_id)
+      else { _clearPoll(); oauth.busy = false; oauth.error = d.message || 'Authorization failed.' }
     }
     onMounted(() => window.addEventListener('message', _onOauthMessage))
-    onUnmounted(() => window.removeEventListener('message', _onOauthMessage))
+    onUnmounted(() => { window.removeEventListener('message', _onOauthMessage); _clearPoll() })
     // Changing the URL invalidates any prior connection (tokens are bound to the server URL).
-    watch(() => form.endpoint_url, () => { oauth.connected = false; oauth.connectionId = null; oauth.error = '' })
+    watch(() => form.endpoint_url, () => { _clearPoll(); oauth.connected = false; oauth.connectionId = null; oauth.error = ''; oauth.busy = false })
 
     async function startOauth() {
+      _clearPoll()
       oauth.error = ''; oauth.connected = false; oauth.connectionId = null; oauth.busy = true
       try {
         const _body = { endpoint_url: form.endpoint_url.trim(), name: form.name.trim() }
         if (oauth.clientId.trim()) _body.client_id = oauth.clientId.trim()   // manual client fallback (no DCR)
         const res = await api.mcpOauthInitiate(_body)
         const url = res.data && res.data.authorize_url
+        const connId = res.data && res.data.connection_id
         if (!url) throw new Error('No authorization URL returned.')
         const popup = window.open(url, 'mcp_oauth', 'width=560,height=720')
-        if (!popup) { oauth.busy = false; oauth.error = 'Popup blocked — allow popups for this site and try again.' }
+        if (!popup) { oauth.busy = false; oauth.error = 'Popup blocked — allow popups for this site and try again.'; return }
+        // The popup's postMessage is usually severed by the browser's Cross-Origin-Opener-Policy after a
+        // cross-origin OAuth redirect — so don't depend on it. Poll the connection status (backend = source
+        // of truth); _onOauthMessage still fires when the opener isn't severed, deduped via _finishOauth.
+        if (connId) {
+          let tries = 0
+          _pollIv = setInterval(async () => {
+            tries++
+            try {
+              const { data: st } = await api.mcpOauthStatus(connId)
+              if (st?.connected) return _finishOauth(connId)
+              if (st?.status === 'error') { _clearPoll(); oauth.busy = false; oauth.error = st.error || 'Authorization failed.' }
+            } catch { /* keep polling */ }
+            if (tries >= 90) { _clearPoll(); oauth.busy = false }   // ~3 min timeout
+          }, 2000)
+        }
       } catch (e) {
+        _clearPoll()
         oauth.busy = false
         oauth.error = e.response?.data?.error || e.message || 'Could not start OAuth for this server.'
       }
