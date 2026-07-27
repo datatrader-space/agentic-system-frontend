@@ -9,6 +9,20 @@ import 'vue-toastification/dist/index.css'
 import api from './services/api'
 import axios from 'axios'
 import { trackPageview } from './composables/useAnalytics'
+import { addIcon } from '@iconify/vue'
+
+// Brand logo for the Kurumera connector — registered as a local Iconify icon so `icon="kurumera:logo"`
+// renders it everywhere (catalog cards, detail header) exactly like any other `logos:*` mark, with no
+// per-render <img> special-casing. Colored (explicit fills), so it keeps its brand green + amber.
+addIcon('kurumera:logo', {
+  width: 48,
+  height: 48,
+  body:
+    '<rect width="48" height="48" rx="11" fill="#0F4C3A"/>' +
+    '<g fill="none" stroke="#3AA980" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M16.5 13.5V34.5"/><path d="M16.5 24L31 13.5"/><path d="M16.5 24L31 34.5"/></g>' +
+    '<path d="M27 19.5L31.5 28H22.5Z" fill="#F2A01E"/>',
+})
 
 // Set global axios defaults
 axios.defaults.withCredentials = true

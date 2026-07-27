@@ -152,7 +152,12 @@
             <!-- Kurumera / MCP OAuth connect (sibling of the service panel above) -->
             <div class="p-4" v-else>
               <div class="mb-3"><span class="text-[13px] font-bold text-ink">Connection</span></div>
-              <div v-if="isInstalled(detailItem)" class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-5">
+              <div v-if="syncingTools" class="rounded-xl border border-slate-200 bg-slate-50/40 p-5 text-center py-6">
+                <Icon icon="lucide:loader-2" class="w-6 h-6 text-slate-500 animate-spin mx-auto" />
+                <p class="text-[13px] font-semibold text-ink-soft mt-2">Discovering tools…</p>
+                <p class="text-[11px] text-ink-faint mt-1">Signing in and loading {{ detailItem.name }}'s tools — this takes a few seconds.</p>
+              </div>
+              <div v-else-if="isInstalled(detailItem)" class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-5">
                 <div class="flex items-center gap-2">
                   <Icon icon="lucide:check-circle" class="w-5 h-5 text-emerald-500" />
                   <p class="text-[13px] font-bold text-emerald-800">Connected to {{ detailItem.name }}</p>
@@ -569,15 +574,27 @@ function notifyGithubApp() {
 const mcpServer = computed(() => _mcpServerFor(detailItem.value))
 let _oauthPollIv = null
 let _oauthDone = false
-function _finishMcpOauth() {
+const syncingTools = ref(false)
+async function _finishMcpOauth() {
   if (_oauthDone) return                                     // dedupe poll vs postMessage
   _oauthDone = true
   if (_oauthPollIv) { clearInterval(_oauthPollIv); _oauthPollIv = null }
   busy.value = false
-  notify.success(`Connected to ${detailItem.value?.name || 'the server'}`)
   const srv = mcpServer.value
-  if (srv?.id) api.refreshMCPTools(srv.id).catch(() => {})   // fetch its tools
-  afterChange()                                              // reload connectors → card flips to Connected
+  // Discover the server's tools NOW (synchronous endpoint: handshake → list_tools → tools_cache →
+  // reconcile onto agents) so the connector is fully usable the instant we say "Connected" — never a
+  // "0 tools" flash that a background job fills in seconds later.
+  let count = null
+  if (srv?.id) {
+    syncingTools.value = true
+    try { const { data } = await api.refreshMCPTools(srv.id); count = data?.tools_count ?? null }
+    catch { /* not fatal — tools still sync on first agent use */ }
+    syncingTools.value = false
+  }
+  await afterChange()                                        // reload connectors + catalog → count/cards update
+  notify.success(count != null
+    ? `Connected — ${count} tool${count === 1 ? '' : 's'} ready`
+    : `Connected to ${detailItem.value?.name || 'the server'}`)
 }
 function _onMcpOauthMsg(ev) {
   const d = ev && ev.data

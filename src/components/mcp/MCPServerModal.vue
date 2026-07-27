@@ -155,6 +155,23 @@
             class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none">
         </div>
 
+        <!-- Tool discovery (both) — how the agent runtime keeps this server's tools fresh -->
+        <div>
+          <label class="block text-[13px] font-semibold text-slate-700 mb-1">Tool discovery <span class="text-[11px] font-normal text-slate-400">— how the agent refreshes this server's tools</span></label>
+          <select v-model="form.discovery_mode"
+            class="w-full px-3 py-2 text-[14px] border border-slate-200 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none">
+            <option value="hybrid">Hybrid — cache, re-check when stale (recommended)</option>
+            <option value="dynamic">Dynamic — re-check every run (freshest, slight latency)</option>
+            <option value="cached">Cached — only on manual / scheduled refresh</option>
+          </select>
+          <div v-if="form.discovery_mode === 'hybrid'" class="mt-2 flex items-center gap-2">
+            <span class="text-[12px] text-slate-600">Refresh after</span>
+            <input v-model.number="form.tools_cache_ttl_minutes" type="number" min="1" placeholder="15"
+              class="w-20 px-2 py-1.5 text-[13px] border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none">
+            <span class="text-[12px] text-slate-500">minutes <span class="text-slate-400">(blank = default 15)</span></span>
+          </div>
+        </div>
+
         <!-- Result -->
         <div v-if="testResult" class="p-3 rounded-xl text-[13px]"
           :class="testResult.success ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200'">
@@ -228,6 +245,9 @@ export default {
       envVars: Object.entries(s.env_config || {})
         .filter(([k]) => k.toLowerCase() !== 'authorization' && !k.toUpperCase().startsWith('HEADER_'))
         .map(([key, value]) => ({ key, value: '' })),
+      // Tool-discovery freshness — how the agent runtime refreshes THIS server's tools before use.
+      discovery_mode: s.discovery_mode || 'hybrid',
+      tools_cache_ttl_minutes: s.tools_cache_ttl_minutes || null,
     })
 
     const argsText = computed({
@@ -300,8 +320,13 @@ export default {
     })
 
     function buildPayload() {
+      // Tool-discovery freshness — sent on every branch. Empty TTL → omit (backend falls back to default).
+      const discovery = { discovery_mode: form.discovery_mode }
+      if (form.discovery_mode === 'hybrid' && form.tools_cache_ttl_minutes) {
+        discovery.tools_cache_ttl_minutes = Number(form.tools_cache_ttl_minutes)
+      }
       if (form.mode === 'hosted') {
-        const p = { name: form.name, description: form.description, transport_type: 'http', endpoint_url: form.endpoint_url }
+        const p = { name: form.name, description: form.description, transport_type: 'http', endpoint_url: form.endpoint_url, ...discovery }
         // OAuth: auth is handled server-side via the linked connection — send its id, not a key/header set.
         if (form.auth.type === 'oauth') {
           if (oauth.connectionId) p.oauth_connection_id = oauth.connectionId
@@ -320,7 +345,7 @@ export default {
       const env = {}
       form.envVars.forEach(r => { if (r.key.trim() && r.value) env[r.key.trim()] = r.value })
       return { name: form.name, description: form.description, transport_type: 'stdio',
-               command: form.command, args: argsArray(), env_config: env }
+               command: form.command, args: argsArray(), env_config: env, ...discovery }
     }
 
     async function handleSubmit() {
