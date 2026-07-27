@@ -303,6 +303,7 @@ export default {
   // MCP OAuth 2.1 connect (Phase 1)
   mcpOauthInitiate: (data) => api.post('/mcp/oauth/initiate/', data),
   mcpOauthStatus: (connectionId) => api.get(`/mcp/oauth/status/${connectionId}/`),
+  mcpOauthRetrySync: (connectionId) => api.post(`/mcp/oauth/retry-sync/${connectionId}/`),
   mcpOauthDisconnect: (connectionId) => api.post(`/mcp/oauth/disconnect/${connectionId}/`),
   updateMCPServer: (id, data) => api.post(`/mcp/servers/${id}/update/`, data),
   deleteMCPServer: (id) => api.post(`/mcp/servers/${id}/delete/`),

@@ -154,8 +154,16 @@
               <div class="mb-3"><span class="text-[13px] font-bold text-ink">Connection</span></div>
               <div v-if="syncingTools" class="rounded-xl border border-slate-200 bg-slate-50/40 p-5 text-center py-6">
                 <Icon icon="lucide:loader-2" class="w-6 h-6 text-slate-500 animate-spin mx-auto" />
-                <p class="text-[13px] font-semibold text-ink-soft mt-2">Discovering tools…</p>
-                <p class="text-[11px] text-ink-faint mt-1">Signing in and loading {{ detailItem.name }}'s tools — this takes a few seconds.</p>
+                <p class="text-[13px] font-semibold text-ink-soft mt-2">Syncing tools…</p>
+                <p class="text-[11px] text-ink-faint mt-1">Signed in — loading {{ detailItem.name }}'s tools. This connector will show as connected once they're all synced.</p>
+              </div>
+              <div v-else-if="mcpSyncError" class="rounded-xl border border-amber-200 bg-amber-50/60 p-5 text-center py-5">
+                <Icon icon="lucide:alert-triangle" class="w-6 h-6 text-amber-500 mx-auto" />
+                <p class="text-[13px] font-semibold text-amber-800 mt-2">Couldn’t load tools</p>
+                <p class="text-[11px] text-amber-700/80 mt-1">{{ mcpSyncError }} You’re signed in — no need to re-authorize.</p>
+                <button @click="retryMcpSync" class="mt-3 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-slate-900 hover:bg-slate-800 inline-flex items-center gap-2">
+                  <Icon icon="lucide:refresh-cw" class="w-4 h-4" /> Retry sync
+                </button>
               </div>
               <div v-else-if="isInstalled(detailItem)" class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-5">
                 <div class="flex items-center gap-2">
@@ -574,45 +582,75 @@ function notifyGithubApp() {
 const mcpServer = computed(() => _mcpServerFor(detailItem.value))
 let _oauthPollIv = null
 let _oauthDone = false
-const syncingTools = ref(false)
-async function _finishMcpOauth() {
+const syncingTools = ref(false)                              // true while the backend is discovering tools
+const mcpSyncError = ref('')                                 // set when the tool sync failed → show Retry
+const mcpConnId = ref(null)                                  // the connection we're waiting on (for Retry)
+
+function _stopMcpPoll() { if (_oauthPollIv) { clearInterval(_oauthPollIv); _oauthPollIv = null } }
+
+// Called ONLY when the backend reports status='connected' — i.e. the token is valid AND tools are fully
+// synced. There is no client-side tool fetch anymore: the backend discovers tools while the connection is
+// 'syncing' and only flips to 'connected' once they're in. We just reflect the finished state.
+async function _finishMcpOauth(count) {
   if (_oauthDone) return                                     // dedupe poll vs postMessage
   _oauthDone = true
-  if (_oauthPollIv) { clearInterval(_oauthPollIv); _oauthPollIv = null }
+  _stopMcpPoll()
   busy.value = false
-  const srv = mcpServer.value
-  // Discover the server's tools NOW (synchronous endpoint: handshake → list_tools → tools_cache →
-  // reconcile onto agents) so the connector is fully usable the instant we say "Connected" — never a
-  // "0 tools" flash that a background job fills in seconds later.
-  let count = null
-  if (srv?.id) {
-    syncingTools.value = true
-    try { const { data } = await api.refreshMCPTools(srv.id); count = data?.tools_count ?? null }
-    catch { /* not fatal — tools still sync on first agent use */ }
-    syncingTools.value = false
-  }
+  syncingTools.value = false
+  mcpSyncError.value = ''
   await afterChange()                                        // reload connectors + catalog → count/cards update
   notify.success(count != null
     ? `Connected — ${count} tool${count === 1 ? '' : 's'} ready`
     : `Connected to ${detailItem.value?.name || 'the server'}`)
 }
+
+// Poll the connection until it reaches a terminal state. 'syncing' keeps the "Syncing tools…" spinner up;
+// 'connected' finishes; 'error' surfaces Retry. Shared by the initial connect and the Retry action.
+function _startMcpStatusPoll(connId) {
+  mcpConnId.value = connId
+  _oauthDone = false
+  mcpSyncError.value = ''
+  _stopMcpPoll()
+  let tries = 0
+  _oauthPollIv = setInterval(async () => {
+    tries++
+    try {
+      const { data: st } = await api.mcpOauthStatus(connId)
+      if (st?.status === 'connected') return _finishMcpOauth(st.tools_count)
+      if (st?.status === 'error') {
+        _stopMcpPoll(); busy.value = false; syncingTools.value = false
+        mcpSyncError.value = st.error || 'Could not load this connector’s tools.'
+        notify.error(mcpSyncError.value)
+        return
+      }
+      if (st?.status === 'syncing') { busy.value = false; syncingTools.value = true }   // token in, tools loading
+    } catch { /* transient — keep polling */ }
+    if (tries >= 120) {   // ~4 min — treat a stuck sync as retryable, don't leave a dead spinner
+      _stopMcpPoll(); busy.value = false; syncingTools.value = false
+      mcpSyncError.value = 'Syncing tools is taking longer than expected.'
+    }
+  }, 2000)
+}
+
 function _onMcpOauthMsg(ev) {
   const d = ev && ev.data
   if (!d || d.type !== 'mcp_oauth_result') return
-  if (d.ok) _finishMcpOauth()
-  else { busy.value = false; notify.error(d.message || 'Connection failed') }
+  // Auth done ≠ connected. The popup only tells us the token was (or wasn't) obtained; tools still sync on
+  // the backend. Show the syncing state and let the status poll carry it to 'connected'/'error'.
+  if (d.ok) { busy.value = false; syncingTools.value = true }
+  else { busy.value = false; syncingTools.value = false; notify.error(d.message || 'Connection failed') }
 }
 onMounted(() => window.addEventListener('message', _onMcpOauthMsg))
 onBeforeUnmount(() => {
   window.removeEventListener('message', _onMcpOauthMsg)
-  if (_oauthPollIv) clearInterval(_oauthPollIv)
+  _stopMcpPoll()
 })
 
 async function connectMcpOAuth() {
   const srv = mcpServer.value
   if (!srv?.id) { notify.error('This connector isn\'t available yet — reload and try again.'); return }
   busy.value = true
-  _oauthDone = false
+  mcpSyncError.value = ''
   try {
     const { data } = await api.mcpOauthInitiate({ server_id: srv.id })
     const url = data && data.authorize_url
@@ -620,24 +658,28 @@ async function connectMcpOAuth() {
     window.open(url, 'mcp_oauth', 'width=560,height=720')
     // The popup's postMessage is often severed by the browser's Cross-Origin-Opener-Policy after a
     // cross-origin OAuth redirect — so don't depend on it. Poll the connection status (backend = source of
-    // truth); _onMcpOauthMsg still fires when the opener isn't severed, deduped via _finishMcpOauth.
+    // truth); _onMcpOauthMsg still fires when the opener isn't severed. Connected only shows after sync.
     const connId = data && data.connection_id
-    if (connId) {
-      if (_oauthPollIv) clearInterval(_oauthPollIv)
-      let tries = 0
-      _oauthPollIv = setInterval(async () => {
-        tries++
-        try {
-          const { data: st } = await api.mcpOauthStatus(connId)
-          if (st?.connected) return _finishMcpOauth()
-          if (st?.status === 'error') { clearInterval(_oauthPollIv); _oauthPollIv = null; busy.value = false; notify.error(st.error || 'Connection failed') }
-        } catch { /* keep polling */ }
-        if (tries >= 90) { clearInterval(_oauthPollIv); _oauthPollIv = null; busy.value = false }   // ~3 min timeout
-      }, 2000)
-    }
+    if (connId) _startMcpStatusPoll(connId)
   } catch (e) {
     busy.value = false
     notify.error(e?.response?.data?.error || e?.message || 'Could not start OAuth for this connector.')
+  }
+}
+
+// Retry the tool sync after a failure — re-runs discovery on the backend WITHOUT another OAuth login.
+async function retryMcpSync() {
+  const connId = mcpConnId.value
+  if (!connId) { return connectMcpOAuth() }                  // no connection to retry → start fresh
+  mcpSyncError.value = ''
+  syncingTools.value = true
+  try {
+    await api.mcpOauthRetrySync(connId)
+    _startMcpStatusPoll(connId)
+  } catch (e) {
+    syncingTools.value = false
+    mcpSyncError.value = e?.response?.data?.error || e?.message || 'Could not restart the tool sync.'
+    notify.error(mcpSyncError.value)
   }
 }
 
