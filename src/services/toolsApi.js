@@ -199,6 +199,18 @@ export const credentialsApi = {
      */
     testGlobal: (credentialId) =>
         api.post(`/credentials/${credentialId}/test/`),
+
+    /**
+     * Workspaces the user can share a credential with (create-modal picker)
+     */
+    listCredentialWorkspaces: () =>
+        api.get(`/credentials/workspaces/`),
+
+    /**
+     * Delete a workspace-SHARED credential (WorkspaceCredential)
+     */
+    deleteWorkspaceCredential: (credentialId) =>
+        api.delete(`/workspace-credentials/${credentialId}/delete/`),
 }
 
 export default {

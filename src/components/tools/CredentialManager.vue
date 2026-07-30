@@ -188,8 +188,9 @@
             <td class="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium text-gray-900">
               {{ credential.credential_name }}
               <span v-if="credential.is_default" class="ml-1 text-xs text-yellow-600">★ Default</span>
-              <br v-if="credential.is_global || credential.agent_profile_name" />
-              <span v-if="credential.is_global" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 mt-0.5">🌐 Global</span>
+              <br v-if="credential.is_global || credential.is_workspace || credential.agent_profile_name" />
+              <span v-if="credential.is_workspace" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 mt-0.5">👥 Shared{{ credential.workspace_name ? ' · ' + credential.workspace_name : '' }}</span>
+              <span v-else-if="credential.is_global" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 mt-0.5">🔒 Private</span>
               <span v-else-if="credential.agent_profile_name" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 mt-0.5">🤖 {{ credential.agent_profile_name }}</span>
             </td>
             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">{{ credential.service_name }}</td>
@@ -208,7 +209,8 @@
             </td>
             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm space-x-2">
               <button v-if="credential.scope_type === 'service'" @click="testCredential(credential)" class="text-blue-600 hover:text-blue-800 font-medium">Test</button>
-              <button @click="deleteCredential(credential)" class="text-red-600 hover:text-red-800 font-medium">Delete</button>
+              <button v-if="!credential.is_workspace || credential.can_manage" @click="deleteCredential(credential)" class="text-red-600 hover:text-red-800 font-medium">Delete</button>
+              <span v-else class="text-gray-400 text-xs italic" title="Only the creator or a workspace admin can remove this">shared</span>
             </td>
           </tr>
         </tbody>
@@ -396,6 +398,31 @@
           </label>
         </div>
 
+        <!-- Visibility (global vault): private to my agents, or shared with a workspace -->
+        <div v-if="isGlobalMode" class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Who can use this credential?</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" @click="form.visibility = 'private'"
+              :class="['px-3 py-2 rounded-lg border text-sm font-medium text-left transition', form.visibility === 'private' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50']">
+              🔒 Private
+              <span class="block text-[11px] font-normal text-gray-500 mt-0.5">Only my agents</span>
+            </button>
+            <button type="button" @click="form.visibility = 'workspace'"
+              :class="['px-3 py-2 rounded-lg border text-sm font-medium text-left transition', form.visibility === 'workspace' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50']">
+              👥 Shared with workspace
+              <span class="block text-[11px] font-normal text-gray-500 mt-0.5">All members' agents</span>
+            </button>
+          </div>
+          <div v-if="form.visibility === 'workspace'" class="mt-3">
+            <label class="block text-sm font-medium text-gray-700 mb-1.5">Workspace</label>
+            <select v-model="form.workspaceId" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              <option value="" disabled>Select a workspace…</option>
+              <option v-for="ws in workspaces" :key="ws.id" :value="ws.id">{{ ws.name }}</option>
+            </select>
+            <p v-if="!workspaces.length" class="mt-1.5 text-[11px] text-amber-600">You're not a member of any workspace yet.</p>
+          </div>
+        </div>
+
         <!-- Error -->
         <div v-if="formError" class="mb-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg">
           {{ formError }}
@@ -445,6 +472,7 @@ export default {
     const formError = ref('')
     const builtinScopes = ref([])
     const services = ref([])
+    const workspaces = ref([])   // workspaces the user can share a credential with (global vault)
     const workspaceLink = ref(null)
     const isOwner = ref(true)
 
@@ -459,6 +487,8 @@ export default {
       credentialName: '',
       baseUrlOverride: '',
       makeGlobal: false,   // agent context: default agent-scoped; opt in to global
+      visibility: 'private',   // global vault: 'private' (my agents) | 'workspace' (shared with members)
+      workspaceId: '',
       credentials: {}
     })
 
@@ -475,6 +505,8 @@ export default {
         credentialName: '',
         baseUrlOverride: '',
         makeGlobal: false,
+        visibility: 'private',
+        workspaceId: '',
         credentials: {}
       }
       formError.value = ''
@@ -603,10 +635,21 @@ export default {
         }
       }
 
+      // Global vault: a credential is either PRIVATE (personal — all my agents) or shared with a WORKSPACE
+      // (all members). Attach the visibility so the backend routes it to the right store.
+      if (isGlobalMode.value && form.value.visibility === 'workspace') {
+        if (!form.value.workspaceId) {
+          formError.value = 'Pick a workspace to share this credential with'
+          return
+        }
+        payload.visibility = 'workspace'
+        payload.workspace_id = form.value.workspaceId
+      }
+
       try {
         submitting.value = true
-        // Scope: the global manager always creates global; the agent manager creates agent-scoped
-        // UNLESS the user opted in to "make available to all my agents".
+        // Scope: the global manager creates a global/workspace credential; the agent manager creates
+        // agent-scoped UNLESS the user opted in to "make available to all my agents".
         if (isGlobalMode.value || form.value.makeGlobal) {
           await credentialsApi.createGlobal(payload)
         } else {
@@ -646,7 +689,9 @@ export default {
         : `Delete credential "${credential.credential_name}"?`
       if (await confirm({ title: 'Delete credential?', message, confirmText: 'Delete', danger: true })) {
         try {
-          if (credential.is_global || isGlobalMode.value) {
+          if (credential.kind === 'workspace' || credential.is_workspace) {
+            await credentialsApi.deleteWorkspaceCredential(credential.id)
+          } else if (credential.is_global || isGlobalMode.value) {
             await credentialsApi.deleteGlobal(credential.id)
           } else {
             await credentialsApi.delete(agentId.value, credential.id)
@@ -669,11 +714,26 @@ export default {
       }
     }
 
+    const loadWorkspaces = async () => {
+      try {
+        const res = await credentialsApi.listCredentialWorkspaces()
+        workspaces.value = res.data?.workspaces || []
+        // Default the picker to the first workspace so "Shared" is usable immediately.
+        if (!form.value.workspaceId && workspaces.value.length) {
+          form.value.workspaceId = workspaces.value[0].id
+        }
+      } catch (error) {
+        workspaces.value = []
+      }
+    }
+
     onMounted(() => {
       loadCredentials()
       loadBuiltinScopes()
       loadServices()
-      if (!isGlobalMode.value) {
+      if (isGlobalMode.value) {
+        loadWorkspaces()
+      } else {
         loadWorkspaceRouting()
       }
     })
@@ -686,6 +746,7 @@ export default {
       formError,
       builtinScopes,
       services,
+      workspaces,
       form,
       selectedScope,
       workspaceLink,

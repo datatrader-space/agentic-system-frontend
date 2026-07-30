@@ -84,9 +84,9 @@
                   </td>
                   <td class="px-4 py-3 text-[12.5px] text-[#475569]">
                     <div class="flex items-center gap-2">
-                      <Users v-if="cred.is_global || cred.shared" :size="15" :stroke-width="2" class="text-[#667085]" />
+                      <Users v-if="cred.is_global" :size="15" :stroke-width="2" class="text-[#667085]" />
                       <Lock v-else :size="15" :stroke-width="2" class="text-[#667085]" />
-                      <span>{{ cred.is_global || cred.shared ? 'Shared' : 'Private' }}</span>
+                      <span>{{ cred.is_global ? 'Global' : 'Agent' }}</span>
                     </div>
                   </td>
                   <td class="px-4 py-3">
@@ -175,21 +175,30 @@ const pageSize = 5
 const attachingId = ref(null)
 const detachingId = ref(null)
 
-// A credential's scope (one per service / builtin tool) — the backend allows only one attachment per scope.
-function scopeKey(c) {
-  return `${c.scope_type || 'service'}:${c.service_id ?? c.service_name ?? ''}`
+// Identity of a SPECIFIC credential = its scope (service / builtin tool) + its name. Keyed per-CREDENTIAL,
+// never per-scope: two credentials of the same scope (e.g. two ssh_exec servers) must be tracked
+// separately, otherwise attaching one wrongly marks every sibling of that scope as "Attached".
+function credKey(c) {
+  const scope = `${c.scope_type || 'service'}:${c.service_id ?? c.service_name ?? ''}`
+  return `${scope}::${(c.credential_name || c.name || '').trim().toLowerCase()}`
 }
-// Map scope → the id of the copy already attached to THIS agent (listGlobal returns agent-scoped copies too).
-const attachedByScope = computed(() => {
+// Attaching COPIES a vault credential into an agent-scoped copy (same name + scope). Map each copy that
+// belongs to THIS agent by its identity → the copy's id (used for Detach). listGlobal returns these copies.
+const attachedCopies = computed(() => {
   const map = {}
   for (const c of rows.value) {
-    if (String(c.agent_profile_id) === String(props.agent.id)) map[scopeKey(c)] = c.id
+    if (c.agent_profile_id != null && String(c.agent_profile_id) === String(props.agent.id)) {
+      map[credKey(c)] = c.id
+    }
   }
   return map
 })
 function isAttached(c) {
-  return scopeKey(c) in attachedByScope.value
+  return credKey(c) in attachedCopies.value
 }
+// The vault panel lists the reusable GLOBAL credentials only. The agent-scoped copies are attachment STATE
+// (they drive isAttached / Detach), NOT extra vault rows — otherwise attaching shows a confusing duplicate.
+const vaultRows = computed(() => rows.value.filter(c => c.is_global))
 
 const securityPoints = [
   'Stored encrypted at rest and in transit',
@@ -203,10 +212,10 @@ const permissionModes = [
   { title: 'Edit', desc: 'Agent can update the credential value, description, and sharing.', icon: Pencil, tint: 'bg-orange-50 text-orange-600' },
 ]
 
-const typeOptions = computed(() => [...new Set(rows.value.map(credType).filter(Boolean))])
+const typeOptions = computed(() => [...new Set(vaultRows.value.map(credType).filter(Boolean))])
 const filteredRows = computed(() => {
   const q = search.value.trim().toLowerCase()
-  return rows.value.filter(c => {
+  return vaultRows.value.filter(c => {
     const type = credType(c)
     const matchesType = typeFilter.value === 'all' || type === typeFilter.value
     const text = [c.credential_name, c.name, c.service_name, c.auth_type, c.scope_type].filter(Boolean).join(' ').toLowerCase()
@@ -256,8 +265,10 @@ async function attach(cred) {
     notify.success('Credential attached')
     await loadCredentials()   // refresh so the attached state (and Detach) reflects the backend
   } catch (e) {
-    // 409 = already attached to this agent; just resync state instead of erroring.
+    // 409 = the agent already has a credential for THIS scope (the backend allows one per scope). Surface
+    // it — silently resyncing made the click look like it did nothing.
     if (e?.response?.status === 409) {
+      notify.error(e?.response?.data?.error || 'This agent already has a credential for this scope — detach it first.')
       await loadCredentials()
     } else {
       notify.error(e?.response?.data?.error || 'Could not attach credential')
@@ -268,7 +279,7 @@ async function attach(cred) {
 }
 async function detach(cred) {
   if (!props.agent.id) return
-  const attachedId = attachedByScope.value[scopeKey(cred)]
+  const attachedId = attachedCopies.value[credKey(cred)]
   if (!attachedId) return
   detachingId.value = cred.id
   try {
