@@ -83,6 +83,8 @@ export function normalizeEvent(raw, runId = null) {
     event_type: ftype,
     timestamp: raw.timestamp ?? raw.ts ?? null,
     step_id: raw.step_id ?? raw.step_uid ?? null,
+    // acceptance tier the runner verified a completed step at — drives the "how verified" badge.
+    tier: raw.tier ?? (raw.payload && raw.payload.tier) ?? null,
     payload: safePayload(raw.payload || {}),
   }
   evt.dedup_key = dedupKey(evt)

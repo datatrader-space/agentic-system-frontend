@@ -19,6 +19,20 @@ const STATUS_LABEL = {
 }
 const STEP_ICON = { pending: '○', started: '◐', completed: '✓', failed: '✕', skipped: '–' }
 
+// Verification-tier badge on a completed step — HOW the runner verified its outcome (runner-owned, not a
+// model claim). outcome = a provider receipt / read-back; artifact = structure/schema validation; semantic =
+// a bounded semantic check; presence = the deliverable exists (honestly weaker than outcome-verified).
+const TIER_META = {
+  outcome_verified: { label: 'Verified', cls: 'outcome', title: 'Outcome verified by a provider receipt or read-back reconciliation' },
+  artifact_verified: { label: 'Validated', cls: 'artifact', title: 'Output structure / schema validation passed' },
+  semantically_verified: { label: 'Reviewed', cls: 'semantic', title: 'Passed a bounded semantic acceptance check' },
+  presence_verified: { label: 'Produced', cls: 'presence', title: 'Deliverable is present (presence-verified, not outcome-verified)' },
+}
+const tierMeta = (t) => TIER_META[String(t || '').toLowerCase()] || null
+const tierLabel = (t) => tierMeta(t)?.label || ''
+const tierTitle = (t) => tierMeta(t)?.title || ''
+const tierClass = (t) => tierMeta(t)?.cls || 'presence'
+
 const status = computed(() => props.plan?.plan_status || 'draft')
 const statusLabel = computed(() => STATUS_LABEL[status.value] || status.value)
 // A ROADMAP is a strategic display artifact (non-executable) — render milestones, NOT an execution
@@ -98,6 +112,8 @@ const progressPct = computed(() => (total.value ? Math.round((completed.value / 
           <span class="uplan__stepicon" aria-hidden="true">{{ isRoadmap ? `M${i + 1}` : (STEP_ICON[s.status] || '○') }}</span>
           <span class="uplan__steptxt">
             <span class="uplan__steptitle">{{ s.title || s.description }}</span>
+            <span v-if="s.status === 'completed' && tierLabel(s.tier)" class="uplan__tier"
+                  :class="`tier-${tierClass(s.tier)}`" :title="tierTitle(s.tier)">{{ tierLabel(s.tier) }}</span>
             <span v-if="!readOnly && s.failure_summary" class="uplan__stepfail">{{ s.failure_summary }}</span>
             <!-- optional per-step DETAILS (deep plans) — collapsed disclosure; nothing when empty -->
             <template v-if="s.details">
@@ -201,5 +217,19 @@ const progressPct = computed(() => (total.value ? Math.round((completed.value / 
 @media (prefers-reduced-motion: reduce) { .uplan__caret, .uplan__fill, .uplan__detailscaret { transition: none; } }
 @media (prefers-color-scheme: dark) {
   .uplan { background: var(--surface, #1c1c1f); border-color: var(--border, #333); }
+}
+/* Verification-tier badge on a completed step */
+.uplan__tier { display: inline-block; margin-left: 8px; font-size: 10px; font-weight: 700;
+  letter-spacing: .04em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px;
+  border: 1px solid transparent; vertical-align: middle; }
+.uplan__tier.tier-outcome { color: #0b7a4b; background: #e4f6ee; border-color: #bfe6d6; }
+.uplan__tier.tier-artifact { color: #1d5fb8; background: #e6effb; border-color: #c6dbf5; }
+.uplan__tier.tier-semantic { color: #7a53c9; background: #efe9fb; border-color: #ddd0f5; }
+.uplan__tier.tier-presence { color: #8a6d1a; background: #f7efd9; border-color: #ecdcaf; }
+@media (prefers-color-scheme: dark) {
+  .uplan__tier.tier-outcome { color: #3ddba0; background: #12291f; border-color: #1f4536; }
+  .uplan__tier.tier-artifact { color: #7fb0f5; background: #142033; border-color: #26364f; }
+  .uplan__tier.tier-semantic { color: #b9a4f0; background: #211a33; border-color: #38305a; }
+  .uplan__tier.tier-presence { color: #e2c266; background: #2a2410; border-color: #493d18; }
 }
 </style>

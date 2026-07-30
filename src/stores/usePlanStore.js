@@ -139,7 +139,7 @@ export const usePlanStore = defineStore('plan', {
         case 'plan_changes_requested': p.plan_status = 'changes_requested'; p.approval_status = 'changes_requested'; break
         case 'plan_rejected': p.plan_status = 'rejected'; p.approval_status = 'rejected'; p.available_actions = []; break
         case 'plan_step_started': this._setStep(p, evt.step_id, 'started'); break
-        case 'plan_step_completed': this._setStep(p, evt.step_id, 'completed'); break
+        case 'plan_step_completed': this._setStep(p, evt.step_id, 'completed', null, evt.tier); break
         case 'plan_step_failed': this._setStep(p, evt.step_id, 'failed', evt.payload?.reason); break
         case 'run_paused': p.plan_status = 'paused'; break
         case 'run_resumed': p.plan_status = 'executing'; break
@@ -151,10 +151,10 @@ export const usePlanStore = defineStore('plan', {
       this.plansByRunId[runId] = p
     },
 
-    _setStep(plan, stepId, status, failure) {
+    _setStep(plan, stepId, status, failure, tier) {
       if (!stepId || !Array.isArray(plan.steps)) return
       plan.steps = plan.steps.map((s) => (s.step_id === stepId
-        ? { ...s, status, failure_summary: failure || s.failure_summary } : s))
+        ? { ...s, status, failure_summary: failure || s.failure_summary, tier: tier || s.tier } : s))
       plan.completed_step_count = plan.steps.filter((s) => s.status === 'completed').length
       const next = plan.steps.find((s) => s.status !== 'completed' && s.status !== 'skipped')
       plan.current_step_id = next ? next.step_id : null
