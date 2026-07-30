@@ -180,6 +180,7 @@
               <td>{{ schedule.runs }}</td>
               <td class="actions">
                 <button title="Run now" @click="runNow(schedule)"><Icon icon="lucide:play" /></button>
+                <button title="Run history" @click="openRuns(schedule)"><Icon icon="lucide:history" /></button>
                 <button title="Edit" @click="editSchedule(schedule)"><Icon icon="lucide:pencil" /></button>
                 <div class="menu-wrap">
                   <button title="More" @click="toggleMenu(schedule.id)"><Icon icon="lucide:more-vertical" /></button>
@@ -238,6 +239,42 @@
     </aside>
 
     <div v-if="openMenuId" class="menu-backdrop" @click="openMenuId = null"></div>
+
+    <!-- Run history -->
+    <div v-if="runsModal" class="runs-modal-backdrop" @click.self="closeRuns">
+      <div class="runs-modal">
+        <header class="runs-head">
+          <div class="runs-head-txt">
+            <h3>Run history</h3>
+            <p>{{ runsModal.name }}</p>
+          </div>
+          <button class="runs-close" title="Close" @click="closeRuns"><Icon icon="lucide:x" /></button>
+        </header>
+        <div class="runs-body">
+          <div v-if="runsLoading" class="runs-state"><Icon icon="lucide:loader-2" class="spin" /> Loading runs…</div>
+          <div v-else-if="!runsList.length" class="runs-state">
+            <Icon icon="lucide:calendar-clock" />
+            <span>No runs yet — this schedule hasn't fired.</span>
+          </div>
+          <ul v-else class="runs-list">
+            <li v-for="run in runsList" :key="run.id" class="run-item">
+              <div class="run-top">
+                <span class="run-dot" :class="'dot-' + run.status"></span>
+                <span class="run-status">{{ run.status }}</span>
+                <span v-if="run.manual" class="run-badge">manual</span>
+                <span class="run-meta">
+                  <span v-if="run.duration_seconds != null">{{ run.duration_seconds }}s</span>
+                  <span v-if="run.cost_usd && run.cost_usd !== '0'">${{ run.cost_usd }}</span>
+                  <span>{{ fmtDate(run.started_at) }}</span>
+                </span>
+              </div>
+              <p v-if="run.error" class="run-error">{{ run.error }}</p>
+              <p v-else-if="runAnswer(run)" class="run-answer">{{ runAnswer(run) }}</p>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
   </main>
 </template>
 
@@ -259,6 +296,11 @@ const copied = ref(false)
 const search = ref('')
 const statusFilter = ref('')
 const openMenuId = ref(null)
+
+// Run history drill-down (per-schedule ScheduleRun list, fetched on open)
+const runsModal = ref(null)     // the schedule row whose runs are shown, or null
+const runsList = ref([])
+const runsLoading = ref(false)
 
 const form = reactive({
   id: null,               // 'as_<n>' when editing
@@ -329,6 +371,30 @@ function fmtDate(iso) {
       month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
     })
   } catch { return iso }
+}
+
+// ---- run history ----------------------------------------------------------
+async function openRuns(schedule) {
+  openMenuId.value = null
+  runsModal.value = schedule
+  runsList.value = []
+  runsLoading.value = true
+  try {
+    const res = await api.getScheduleRuns(schedule.id)
+    runsList.value = res.data?.runs || []
+  } catch (e) {
+    notify.error('Could not load run history')
+    runsList.value = []
+  } finally {
+    runsLoading.value = false
+  }
+}
+function closeRuns() {
+  runsModal.value = null
+  runsList.value = []
+}
+function runAnswer(run) {
+  return (run && run.task_results && run.task_results.final_answer) || ''
 }
 
 // ---- table rows -----------------------------------------------------------
@@ -758,4 +824,51 @@ td b {
   .schedule-table-card { overflow-x: auto; }
   table { min-width: 820px; }
 }
+
+/* ── Run history modal ─────────────────────────────────────────────────── */
+.runs-modal-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.runs-modal {
+  width: 100%; max-width: 620px; max-height: 80vh;
+  display: flex; flex-direction: column;
+  background: #fff; border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(16, 24, 40, 0.24); overflow: hidden;
+}
+.runs-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid #eef2f6;
+}
+.runs-head-txt h3 { margin: 0; font-size: 16px; font-weight: 700; color: #0f172a; }
+.runs-head-txt p { margin: 2px 0 0; font-size: 13px; color: #64748b; }
+.runs-close {
+  display: grid; place-items: center; width: 32px; height: 32px;
+  border: none; border-radius: 8px; background: #f1f5f9; color: #475569; cursor: pointer;
+}
+.runs-close:hover { background: #e2e8f0; }
+.runs-body { padding: 12px 16px; overflow-y: auto; }
+.runs-state {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 40px 20px; color: #64748b; font-size: 13px; text-align: center;
+}
+.runs-state svg { width: 22px; height: 22px; }
+.runs-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.run-item { border: 1px solid #eef2f6; border-radius: 10px; padding: 10px 12px; background: #fbfdff; }
+.run-top { display: flex; align-items: center; gap: 8px; }
+.run-dot { width: 8px; height: 8px; border-radius: 999px; background: #cbd5e1; flex: none; }
+.dot-completed { background: #10b981; }
+.dot-running { background: #f59e0b; }
+.dot-failed, .dot-dead { background: #ef4444; }
+.run-status { font-size: 12.5px; font-weight: 650; color: #0f172a; text-transform: capitalize; }
+.run-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 6px; background: #eef2ff; color: #4f46e5; }
+.run-meta { margin-left: auto; display: flex; gap: 12px; font-size: 12px; color: #64748b; }
+.run-error {
+  margin: 6px 0 0; font-size: 12px; color: #b42318;
+  background: #fef3f2; border-radius: 6px; padding: 6px 8px; white-space: pre-wrap;
+}
+.run-answer { margin: 6px 0 0; font-size: 12.5px; color: #334155; white-space: pre-wrap; overflow-wrap: anywhere; }
+.spin { animation: runs-spin 0.9s linear infinite; }
+@keyframes runs-spin { to { transform: rotate(360deg); } }
 </style>
