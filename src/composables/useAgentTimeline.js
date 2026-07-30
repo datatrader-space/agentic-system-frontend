@@ -1,6 +1,6 @@
 // useAgentTimeline — the SOLE render model for the agent activity timeline (the legacy raw
 // ActivityStream was retired). The backend emits a safe, tier-redacted activity stream:
-//   agent_status         { phase, label }
+//   agent_status         { phase, label, reason? }   reason = assistance code (e.g. AUTHENTICATION_REQUIRED)
 //   agent_step_started   { step_id, phase, label, tool_call_id?, tool?, coalesced_count? }
 //   agent_step_completed { step_id, label, status, tool_call_id?, summary?, duration_ms? }
 //   agent_step_failed    { step_id, label, reason, tool_call_id?, next_action? }
@@ -181,7 +181,10 @@ export function useAgentTimeline() {
         if (isComplete.value) return true
         const phase = evt.phase || ''
         const label = evt.label || ''
-        currentStatus.value = { phase, label }
+        // Optional assistance reason code (e.g. AUTHENTICATION_REQUIRED) — carried so the UI can explain
+        // WHY the runtime paused; it's already reflected in `label`, this is the machine-readable form.
+        const reason = evt.reason || ''
+        currentStatus.value = { phase, label, reason }
         if (!label) return true
         // Reflect the phase as an accumulating ROW so the timeline reads as a clean sequence
         // (Thinking → Searching the knowledge base → Generating response) instead of one replacing
@@ -189,11 +192,13 @@ export function useAgentTimeline() {
         // step the normalizer emits for it), just relabel — never duplicate.
         const last = steps.value[steps.value.length - 1]
         if (last && last.status === 'running' && last.phase === phase) {
-          if (last.isPhase) last.label = label
+          if (last.isPhase) { last.label = label; if (reason) last.reason = reason }
           return true
         }
         if (last && last.status === 'running' && last.isPhase) _closeRow(last, 'ok')
-        steps.value.push(_phaseRow(phase, label))
+        const row = _phaseRow(phase, label)
+        if (reason) row.reason = reason
+        steps.value.push(row)
         return true
       }
 
