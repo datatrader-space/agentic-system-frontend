@@ -82,17 +82,57 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    name: Deploy to EC2
+    name: Deploy to EC2 via SSM
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || inputs.deploy
     steps:
-      - name: Pull and restart on the frontend host
-        uses: appleboy/ssh-action@v1
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          # deploy.sh health-gates the new container and rolls back on failure,
-          # so a non-zero exit here means the site is still on the old image.
-          script: /opt/aadml-frontend/deploy.sh ${{ needs.build.outputs.image_tag }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # SSM rather than SSH: no private key lives in GitHub and port 22 stays shut
+      # to the internet. deploy.sh health-gates the new container and rolls back on
+      # failure, so a non-zero exit here means the site is still on the old image.
+      - name: Run deploy.sh on the instance
+        env:
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          TAG: ${{ needs.build.outputs.image_tag }}
+        run: |
+          set -euo pipefail
+
+          # Run as ubuntu, not root: SSM executes as root, and deploy.sh rewrites
+          # IMAGE_TAG in .deploy.env via `sed -i`, which would leave that file
+          # root-owned and break later manual `./deploy.sh` runs as ubuntu.
+          PARAMS=$(jq -nc --arg c "runuser -l ubuntu -c '/opt/aadml-frontend/deploy.sh $TAG'" \
+            '{commands: [$c], executionTimeout: ["900"]}')
+
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "deploy aadml-frontend $TAG" \
+            --parameters "$PARAMS" \
+            --query 'Command.CommandId' --output text)
+          echo "SSM command: $CMD_ID"
+
+          # Poll instead of `aws ssm wait command-executed`: that waiter gives up
+          # after ~100s, but an image pull plus the health gate can exceed that.
+          STATUS=Pending
+          for _ in $(seq 1 90); do
+            STATUS=$(aws ssm get-command-invocation --command-id "$CMD_ID" \
+              --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in Success|Failed|Cancelled|TimedOut) break ;; esac
+            sleep 5
+          done
+
+          echo "--- deploy.sh stdout ---"
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query StandardOutputContent --output text
+          echo "--- deploy.sh stderr ---"
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query StandardErrorContent --output text
+
+          echo "final status: $STATUS"
+          [ "$STATUS" = "Success" ]

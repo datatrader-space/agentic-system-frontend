@@ -105,18 +105,23 @@ Also make sure the AWS CLI and `docker compose` v2 are installed on the host.
 | `AWS_REGION`     | `us-west-1`      |
 | `ECR_REPOSITORY` | `aadml-frontend` |
 
+| `EC2_INSTANCE_ID` | `i-0cf64bf864021d64c` |
+
 **Secrets:**
 
 | Name                  | Value                                               |
 | --------------------- | --------------------------------------------------- |
 | `AWS_DEPLOY_ROLE_ARN` | `arn:aws:iam::<ACCOUNT_ID>:role/<gh-actions-role>`  |
-| `EC2_HOST`            | frontend instance public IP / DNS                    |
-| `EC2_USER`            | `ubuntu`                                             |
-| `EC2_SSH_KEY`         | contents of the `.pem` private key                   |
 
-The instance security group must allow SSH from GitHub Actions runners. If you'd
-rather not open SSH at all, swap the `deploy` job for an
-`aws ssm send-command` step — the host side (`deploy.sh`) is unchanged.
+The deploy job reaches the box over **AWS SSM**, not SSH — so no private key is
+stored in GitHub and port 22 never has to accept GitHub runner IPs. The role in
+Step 4 therefore also needs `ssm:SendCommand` on the instance and the
+`AWS-RunShellScript` document, plus `ssm:GetCommandInvocation`.
+
+SSM runs commands as root, so the job wraps the call in
+`runuser -l ubuntu -c '…'`. That matters: `deploy.sh` rewrites `IMAGE_TAG` with
+`sed -i`, which as root would leave `.deploy.env` root-owned and break later
+manual runs as `ubuntu`.
 
 ---
 
