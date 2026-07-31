@@ -72,6 +72,10 @@ typings/
 .env.*
 !.env.example
 
+# Per-host deploy config (registry + pinned IMAGE_TAG). Lives on the server only —
+# note it is NOT matched by the .env/.env.* patterns above.
+.deploy.env
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

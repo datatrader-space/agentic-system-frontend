@@ -1,0 +1,13 @@
+# Local-build override — DEV ONLY, never used on the production host.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# Production deploys go through ./deploy.sh, which passes --no-build so a build
+# can never accidentally start on the server.
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${ECR_REGISTRY:-local}/${ECR_REPOSITORY:-aadml-frontend}:${IMAGE_TAG:-dev}

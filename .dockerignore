@@ -1,6 +1,31 @@
+# VCS + CI
+.git
+.github
+
+# Reinstalled / rebuilt inside the image
 node_modules
 dist
-.git
-*.md
+
+# Never bake local env into the image. Every VITE_* var in src/ has a runtime
+# fallback (window.location.origin / window.location.host), so the build needs
+# none of them — the API host is chosen at container start via BACKEND_URL.
 .env
 .env.*
+
+# Docs, logs, tooling scratch
+*.md
+*.log
+.claude
+.vault
+
+# Not part of the build: nothing in index.html, src/, or tailwind's content globs
+# references these. AADML_Agentic_UIUX alone is ~47 MB of build context.
+AADML_Agentic_UIUX
+old_design
+tests
+scripts
+
+# Build/deploy plumbing — used to produce the image, not needed inside it
+Dockerfile*
+docker-compose*.yml
+deploy.sh

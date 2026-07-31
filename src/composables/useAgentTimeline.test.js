@@ -14,7 +14,7 @@ describe('useAgentTimeline — rich streaming render model', () => {
   it('agent_status updates the live status line', () => {
     const t = useAgentTimeline()
     expect(t.ingest({ type: 'agent_status', phase: 'retrieving_context', label: 'Searching the knowledge base…' })).toBe(true)
-    expect(t.currentStatus.value).toEqual({ phase: 'retrieving_context', label: 'Searching the knowledge base…' })
+    expect(t.currentStatus.value).toEqual({ phase: 'retrieving_context', label: 'Searching the knowledge base…', reason: '' })
   })
 
   it('agent_step_started creates a running step + sets activeStep', () => {

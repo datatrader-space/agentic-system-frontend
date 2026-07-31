@@ -38,7 +38,7 @@
         <div class="create-body">
           <section class="schedule-basics">
             <article class="step-field agent-field">
-              <h3><Icon icon="lucide:user-round" /> <span>1. Agent</span></h3>
+              <h3><Icon icon="lucide:user-round" /> <span>① Agent</span></h3>
               <select v-model="form.agent_id">
                 <option value="" disabled>Select an agent…</option>
                 <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
@@ -46,12 +46,12 @@
             </article>
 
             <article class="step-field name-field">
-              <h3><Icon icon="lucide:tag" /> <span>2. Schedule Name</span></h3>
+              <h3><Icon icon="lucide:tag" /> <span>② Schedule</span></h3>
               <input v-model="form.name" placeholder="e.g. Daily report, Hourly sync..." />
             </article>
 
             <article class="step-field task-field">
-              <h3><Icon icon="lucide:target" /> <span>3. What should the agent do?</span></h3>
+              <h3><Icon icon="lucide:target" /> <span>③ Task</span></h3>
               <div class="textarea-wrap">
                 <textarea
                   v-model="form.prompt"
@@ -64,7 +64,7 @@
           </section>
 
           <section class="when-panel form-panel">
-            <h3 class="panel-title"><Icon icon="lucide:clock-3" /> <span>4. When to run</span></h3>
+            <h3 class="panel-title"><Icon icon="lucide:clock-3" /> <span>④ Timing</span></h3>
             <div class="when-grid">
               <label>
                 <span>Frequency</span>
@@ -139,7 +139,7 @@
 
           <section class="settings-grid">
             <article class="form-panel advanced-panel">
-              <h3 class="panel-title"><Icon icon="lucide:sliders-horizontal" /> <span>5. Advanced (Optional)</span></h3>
+              <h3 class="panel-title"><Icon icon="lucide:sliders-horizontal" /> <span>⑤ Advanced <small>Optional</small></span></h3>
               <div class="advanced-grid">
                 <label>
                   <span>Model Override</span>
@@ -156,7 +156,7 @@
             </article>
 
             <article class="form-panel limits-panel">
-              <h3 class="panel-title"><Icon icon="lucide:shield" /> <span>6. Limits &amp; Controls</span></h3>
+              <h3 class="panel-title"><Icon icon="lucide:shield" /> <span>⑥ Limits &amp; Controls</span></h3>
               <div class="limit-grid">
                 <label>
                   <span>Budget per run ($)</span>
@@ -185,7 +185,7 @@
 
           <section class="bottom-grid">
             <article class="form-panel safety-panel">
-              <h3 class="panel-title"><Icon icon="lucide:shield" /> <span>7. Safety</span></h3>
+              <h3 class="panel-title"><Icon icon="lucide:shield" /> <span>⑦ Safety</span></h3>
               <label class="toggle-row">
                 <input type="checkbox" v-model="form.read_only" />
                 <span class="toggle" aria-hidden="true"></span>
@@ -813,15 +813,19 @@ const tips = [
 <style scoped>
 .schedules-page {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(0, 72fr) minmax(280px, 28fr);
+  gap: 24px;
+  width: 100%;
+  max-width: 1600px;
   min-height: 100%;
-  padding: 24px;
+  margin: 0 auto;
+  padding: 20px 24px 28px;
+  box-sizing: border-box;
   background: #f7f9fc;
   color: #111936;
 }
-.schedules-main { max-width: 1500px; width: 100%; justify-self: center; }
-.page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
+.schedules-main { min-width: 0; max-width: none; width: 100%; justify-self: stretch; }
+.page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
 h1, h2, h3, p { margin: 0; }
 h1 { font-size: 23px; line-height: 1.12; font-weight: 850; letter-spacing: 0; }
 .page-head p, .create-head p, .form-section p, .rail-card p, .showing { color: #5c6d85; font-size: 11.5px; line-height: 1.45; }
@@ -898,39 +902,39 @@ input::placeholder, textarea::placeholder { color: #94a3b8; font-weight: 500; }
 .create-card {
   position: relative;
   overflow: hidden;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   border-color: #e5e9f1;
-  border-radius: 18px;
-  box-shadow: 0 12px 36px rgba(28,35,55,.07);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(28,35,55,.055);
 }
 .create-head {
-  padding: 24px 30px;
+  padding: 16px 20px;
   border-bottom-color: #e8ebf1;
 }
-.head-title { gap: 18px; }
+.head-title { gap: 12px; }
 .head-title > span {
-  width: 64px;
-  height: 64px;
-  border-radius: 15px;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
   flex: 0 0 auto;
   background: linear-gradient(145deg, #f0efff, #f8f7ff);
   color: #654cff;
 }
-.head-title svg { width: 34px; height: 34px; }
+.head-title svg { width: 24px; height: 24px; }
 .create-head h2 {
-  font-size: 27px;
+  font-size: 19px;
   line-height: 1.15;
-  font-weight: 780;
-  letter-spacing: -.45px;
+  font-weight: 750;
+  letter-spacing: -.15px;
 }
-.create-head p { margin-top: 6px; color: #65708b; font-size: 16px; }
+.create-head p { margin-top: 4px; color: #65708b; font-size: 12.5px; }
 .template-picker { position: relative; }
 .template-btn {
-  height: 48px;
-  padding: 0 20px;
-  border-radius: 9px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 8px;
   color: #4657f5;
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 750;
 }
 .template-btn svg { width: 19px; height: 19px; }
@@ -965,35 +969,36 @@ input::placeholder, textarea::placeholder { color: #94a3b8; font-weight: 500; }
 .template-menu small { margin-top: 2px; color: #77819b; font-size: 11px; }
 .create-body {
   display: grid;
-  gap: 16px;
-  padding: 30px 20px 24px;
+  gap: 20px;
+  padding: 24px;
 }
 .schedule-basics {
   display: grid;
   grid-template-columns: 1.05fr 1.05fr 1.5fr;
-  gap: 44px;
-  padding: 0 10px 10px;
+  gap: 20px;
+  padding: 0;
 }
 .step-field h3, .panel-title {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 16px;
-  color: #111936;
-  font-size: 16px;
-  font-weight: 760;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: #202944;
+  font-size: 14px;
+  font-weight: 680;
 }
 .step-field h3 svg, .panel-title svg {
-  width: 22px;
-  height: 22px;
-  color: #604cff;
+  width: 17px;
+  height: 17px;
+  color: #6b59e8;
 }
+.panel-title small { margin-left: 4px; color: #8b93a8; font-size: 10px; font-weight: 600; }
 .create-card label {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   color: #3e4966;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 650;
 }
 .create-card input, .create-card select, .create-card textarea {
   width: 100%;
@@ -1005,13 +1010,13 @@ input::placeholder, textarea::placeholder { color: #94a3b8; font-weight: 500; }
   font-weight: 500;
   outline: none;
 }
-.create-card input, .create-card select { height: 47px; padding: 0 16px; }
+.create-card input, .create-card select { height: 44px; padding: 0 14px; }
 .create-card input:focus, .create-card select:focus, .create-card textarea:focus {
   border-color: #7357f3;
   box-shadow: 0 0 0 2px rgba(115,87,243,.08);
 }
 .create-card input:disabled { background: #f1f5f9; color: #94a3b8; }
-.create-card textarea { height: 98px; padding: 15px 16px 30px; resize: vertical; }
+.create-card textarea { height: 80px; padding: 12px 14px 28px; resize: vertical; }
 .create-card input::placeholder, .create-card textarea::placeholder { color: #8b93aa; font-weight: 500; }
 .textarea-wrap { position: relative; }
 .textarea-wrap > span {
@@ -1026,11 +1031,11 @@ input::placeholder, textarea::placeholder { color: #94a3b8; font-weight: 500; }
   border-radius: 10px;
   background: #fff;
 }
-.when-panel { padding: 24px 16px 26px; }
+.when-panel { padding: 18px 20px; }
 .when-grid {
   display: grid;
-  grid-template-columns: 1fr 1.04fr 1.02fr .78fr;
-  gap: 36px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 16px;
   align-items: end;
 }
 .field-control { position: relative; }
@@ -1077,40 +1082,43 @@ input::placeholder, textarea::placeholder { color: #94a3b8; font-weight: 500; }
 .label-with-icon { display: inline-flex; align-items: center; gap: 8px; }
 .label-with-icon svg { width: 17px; height: 17px; }
 .next-run {
-  min-height: 112px;
+  grid-column: 1 / -1;
+  min-height: 54px;
   display: flex;
   align-items: center;
-  gap: 17px;
-  padding: 20px;
-  border-radius: 10px;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
   background: linear-gradient(135deg, #f1efff, #f9f7ff);
   color: #5744f4;
 }
-.next-run > svg { width: 25px; height: 25px; flex: 0 0 auto; }
-.next-run strong { display: block; margin-bottom: 6px; color: #202947; font-size: 13px; }
-.next-run p, .next-run small { display: block; color: #6254e9; font-size: 13px; line-height: 1.45; }
+.next-run > svg { width: 20px; height: 20px; flex: 0 0 auto; }
+.next-run > div { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.next-run strong { display: block; margin: 0; color: #202947; font-size: 12px; }
+.next-run p, .next-run small { display: block; color: #6254e9; font-size: 12px; line-height: 1.35; }
 .settings-grid, .bottom-grid {
   display: grid;
-  grid-template-columns: .93fr 1.07fr;
-  gap: 22px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 20px;
 }
-.advanced-panel, .limits-panel { min-height: 270px; padding: 22px 16px; }
+.advanced-panel, .limits-panel { height: 100%; min-height: 0; padding: 18px 20px; }
 .advanced-grid {
   display: grid;
   grid-template-columns: 1fr 1.16fr;
-  gap: 17px 34px;
+  gap: 14px;
 }
 .system-prompt { grid-column: 1 / -1; }
 .show-more {
-  margin-top: 15px;
+  margin-top: 12px;
   color: #4657f5;
   gap: 7px;
   font-size: 13px;
   font-weight: 750;
 }
-.limit-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-.limits-panel > p { margin-top: 15px; color: #707991; font-size: 12px; }
-.safety-panel, .preview { min-height: 116px; padding: 20px 16px; }
+.limit-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.limits-panel > p { margin-top: 12px; color: #707991; font-size: 11px; }
+.safety-panel, .preview { height: 100%; min-height: 104px; padding: 16px 20px; }
 .toggle-row { display: flex !important; align-items: center; gap: 14px !important; cursor: pointer; }
 .toggle-row input { position: absolute; opacity: 0; pointer-events: none; }
 .toggle {
@@ -1171,15 +1179,15 @@ input::placeholder, textarea::placeholder { color: #94a3b8; font-weight: 500; }
 }
 .create-actions { padding: 0 24px 20px; }
 .create-actions .ghost, .create-actions .primary {
-  height: 49px;
-  border-radius: 9px;
-  font-size: 14px;
+  height: 44px;
+  border-radius: 8px;
+  font-size: 13px;
   font-weight: 750;
 }
 .create-actions .ghost { padding: 0 24px; color: #26314e; }
 .create-actions .primary {
-  min-width: 246px;
-  padding: 0 34px;
+  min-width: 210px;
+  padding: 0 26px;
   background: linear-gradient(135deg, #6946ef, #563df0);
   box-shadow: 0 12px 24px rgba(91,63,239,.2);
 }
@@ -1230,19 +1238,23 @@ td b {
 .showing { padding: 12px 18px; }
 .schedule-rail {
   width: 100%;
-  max-width: 1500px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 14px;
   align-content: start;
-  justify-self: center;
-  margin-top: 0;
+  align-self: start;
+  position: sticky;
+  top: 24px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
 }
-.rail-card { padding: 18px; }
-.how-card > p, .templates-card > p { margin: 10px 0 18px; }
-.how-card article { display: flex; gap: 14px; align-items: flex-start; margin-top: 18px; }
+.rail-card { padding: 16px; }
+.how-card > p, .templates-card > p { margin: 8px 0 14px; }
+.how-card article { display: flex; gap: 11px; align-items: flex-start; margin-top: 13px; }
 .how-card article > span, .templates-card button > span:first-child {
-  width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; flex: 0 0 auto;
+  width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: 0 0 auto;
 }
 .blue { background: #eef4ff; color: #3156e9; }
 .violet { background: #f1efff; color: #6d5dfc; }
@@ -1250,50 +1262,54 @@ td b {
 .amber { background: #fff7ed; color: #f59e0b; }
 .how-card strong, .templates-card strong { display: block; font-size: 11.5px; font-weight: 850; margin-bottom: 5px; }
 .templates-card button {
-  width: 100%; min-height: 56px; border: 1px solid #dfe7f2; border-radius: 8px; background: #fff; display: grid; grid-template-columns: 38px 1fr 16px; gap: 12px; align-items: center; padding: 10px; text-align: left; margin-top: 10px;
+  width: 100%; min-height: 50px; border: 1px solid #dfe7f2; border-radius: 8px; background: #fff; display: grid; grid-template-columns: 34px 1fr 16px; gap: 10px; align-items: center; padding: 8px; text-align: left; margin-top: 8px;
 }
 .templates-card small { color: #64748b; font-size: 10.5px; font-weight: 700; }
 .templates-card button > svg { color: #94a3b8; }
-.tips-card ul { list-style: none; padding: 0; margin: 14px 0 18px; display: grid; gap: 12px; }
+.tips-card ul { list-style: none; padding: 0; margin: 12px 0 15px; display: grid; gap: 9px; }
 .tips-card li { display: flex; gap: 9px; align-items: flex-start; color: #52637a; font-size: 10.75px; line-height: 1.35; font-weight: 750; }
 .tips-card li svg { color: #16a34a; flex: 0 0 auto; width: 14px; height: 14px; }
 .tips-card button {
   border: 0; background: transparent; color: #3156e9; padding: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 850;
 }
-@media (max-width: 1320px) {
+@media (max-width: 1200px) {
   .schedules-page { grid-template-columns: 1fr; }
-  .schedule-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 0; }
-  .when-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
-  .next-run { min-height: 96px; }
+  .schedule-rail {
+    position: static;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
 }
-@media (max-width: 1050px) {
+@media (max-width: 900px) {
   .form-grid.top, .form-grid.middle, .safety-row { grid-template-columns: 1fr; }
   .form-section, .safety-row article { border-right: 0; border-bottom: 1px solid #e8eef7; }
-  .schedule-basics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  .schedule-basics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
   .task-field { grid-column: 1 / -1; }
   .settings-grid, .bottom-grid { grid-template-columns: 1fr; }
-  .schedule-rail { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
   .schedules-page { padding: 12px; }
   .page-head, .create-head, .table-headline, .table-tools { flex-direction: column; align-items: stretch; }
   .demo-btn, .template-btn, .table-tools label, .table-tools select { width: 100%; }
   .two-fields, .limit-grid { grid-template-columns: 1fr; }
-  .create-head { padding: 20px; }
+  .create-head { padding: 16px; }
   .head-title { align-items: flex-start; }
-  .head-title > span { width: 52px; height: 52px; }
-  .head-title svg { width: 28px; height: 28px; }
-  .create-head h2 { font-size: 22px; }
-  .create-head p { font-size: 14px; }
+  .head-title > span { width: 42px; height: 42px; }
+  .head-title svg { width: 23px; height: 23px; }
+  .create-head h2 { font-size: 18px; }
+  .create-head p { font-size: 12px; }
   .template-menu { left: 0; right: auto; width: 100%; }
-  .create-body { padding: 22px 14px 18px; }
-  .schedule-basics, .when-grid, .advanced-grid { grid-template-columns: 1fr; gap: 20px; padding-left: 0; padding-right: 0; }
+  .create-body { gap: 16px; padding: 16px; }
+  .schedule-basics, .when-grid, .advanced-grid { grid-template-columns: 1fr; gap: 16px; padding-left: 0; padding-right: 0; }
   .task-field, .system-prompt { grid-column: auto; }
-  .when-panel, .advanced-panel, .limits-panel, .safety-panel, .preview { padding: 18px 14px; }
+  .when-panel, .advanced-panel, .limits-panel, .safety-panel, .preview { padding: 16px; }
   .preview div { flex-wrap: wrap; }
   .preview p { flex-basis: 100%; }
-  .create-actions { gap: 12px; padding: 0 14px 18px; }
+  .create-actions { flex-direction: column; gap: 10px; padding: 0 16px 16px; }
   .create-actions .ghost, .create-actions .primary { width: 100%; min-width: 0; padding: 0 16px; }
+  .schedule-rail { grid-template-columns: 1fr; }
   .schedule-table-card { overflow-x: auto; }
   table { min-width: 820px; }
 }

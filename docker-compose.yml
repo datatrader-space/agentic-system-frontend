@@ -1,18 +1,36 @@
-# Frontend Deployment — runs on its own instance
-# Usage: docker compose up -d --build
+# Frontend Deployment — runs on its own instance.
 #
-# Set BACKEND_URL to your backend instance's IP:port or domain
-# Example: BACKEND_URL=api.yourdomain.com:8000
-
-version: '3.8'
+# This file PULLS a prebuilt image. It never builds. Images are built and pushed
+# to ECR by .github/workflows/deploy.yml; the host only swaps containers:
+#
+#   ./deploy.sh <image-tag>          # normal path (login + pull + up + health-gate)
+#
+# To build an image locally instead (dev only, never on the prod host):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# Config lives in .deploy.env next to this file (git-ignored) — see DEPLOY.md.
 
 services:
   frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${ECR_REGISTRY}/${ECR_REPOSITORY:-aadml-frontend}:${IMAGE_TAG:-latest}
+    container_name: aadml-frontend
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8002}:80"
     environment:
       - BACKEND_URL=${BACKEND_URL:-172.31.6.43:8000}
+    healthcheck:
+      # 127.0.0.1, not localhost: inside the container localhost resolves to ::1
+      # first, and nginx `listen 80` binds IPv4 only — busybox wget then gets
+      # ECONNREFUSED and the container is permanently "unhealthy". Verified.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
