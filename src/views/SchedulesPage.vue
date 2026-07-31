@@ -162,7 +162,14 @@
                 <span class="toggle" aria-hidden="true"></span>
                 <span><strong>Read-only mode</strong><small>Allow the agent to read data but prevent any changes.</small></span>
               </label>
-              <p class="safety-note">Spend and run limits are governed by the agent’s budget (and its workspace / organization) — set those in the agent’s configuration, not per schedule.</p>
+              <label class="expires-field">
+                <span class="label-with-icon"><Icon icon="lucide:calendar-x-2" /> Auto-stop date <small>(optional)</small></span>
+                <div class="field-control">
+                  <Icon icon="lucide:calendar-x-2" />
+                  <input type="date" v-model="form.expires_at" />
+                </div>
+              </label>
+              <p class="safety-note">Runs until you pause it (or the optional stop date). Spend and run limits are governed by the agent’s budget (and its workspace / organization) — set those in the agent’s configuration, not per schedule.</p>
             </article>
           </section>
 
@@ -361,6 +368,7 @@ const form = reactive({
   model: '',
   system_prompt: '',
   read_only: true,
+  expires_at: '',         // optional auto-stop date (YYYY-MM-DD); '' = runs indefinitely
 })
 
 // ---- cron helpers ---------------------------------------------------------
@@ -544,6 +552,8 @@ function buildPayload(extra = {}) {
     timezone: extractTz(form.timezone),
     profile_overrides: overrides,
     read_only: !!form.read_only,
+    // Optional auto-stop: end of the chosen day (backend parses the datetime); '' → null = runs indefinitely.
+    expires_at: form.expires_at ? `${form.expires_at}T23:59:59` : null,
     ...extra,
   }
 }
@@ -640,6 +650,7 @@ function editSchedule(row) {
   if (tz.includes('Karachi')) form.timezone = '(UTC +05:00) Asia/Karachi'
   else if (tz.includes('Eastern')) form.timezone = '(UTC -05:00) US/Eastern'
   form.read_only = !!s.read_only
+  form.expires_at = s.expires_at ? String(s.expires_at).slice(0, 10) : ''
   openMenuId.value = null
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
@@ -657,6 +668,7 @@ function resetForm() {
   form.model = ''
   form.system_prompt = ''
   form.read_only = true
+  form.expires_at = ''
 }
 
 async function runNow(row) {

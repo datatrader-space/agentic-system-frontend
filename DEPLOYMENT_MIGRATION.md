@@ -21,11 +21,12 @@ day-to-day runbook and one-time setup instructions, see [DEPLOY.md](DEPLOY.md).
 | Server disk | **99% full** (257 MB free) | 39%, with an ECR lifecycle policy |
 | Dependency install | `npm install` (non-reproducible) | `npm ci` (lockfile-exact) |
 | Tests before deploy | None | 257 tests gate every image |
-| Rollback | Rebuild from source | `./deploy.sh <older-sha>`, no rebuild |
+| Rollback | Rebuild from source | `git deploy <older-sha>`, no rebuild |
 | Failed deploy | Manual recovery | Auto health-gate + rollback to previous tag |
 | Credentials | — | No AWS keys, no SSH key in GitHub |
+| Shipping to prod | Implicit — whoever deployed last | Explicit `git deploy`; pushing to main only publishes an image |
 
-Measured pipeline: **build 2m39s → deploy 13s.**
+Measured pipeline: **build 2m39s → deploy 13–23s.**
 
 ---
 
@@ -101,7 +102,8 @@ unchanged.
 | `docker-compose.build.yml` | **new** | Local-build override so a build can never start on the prod host by accident |
 | `nginx.conf` | modified | Added `location = /healthz` returning `200 "ok"` |
 | `deploy.sh` | **new** | ECR login → pull → `up -d --no-build` → health-gate → **auto-rollback** on failure |
-| `.github/workflows/deploy.yml` | **new** | `npm ci` → `npm test` → buildx → ECR → SSM deploy |
+| `.github/workflows/build.yml` | **new** | push to `main`: `npm ci` → `npm test` → buildx → ECR. Never touches the server (added in Phase 2, §11) |
+| `.github/workflows/deploy.yml` | **new** | `workflow_dispatch` only: SSM → `deploy.sh <tag>` on the box |
 | `.gitattributes` | **new** | `*.sh text eol=lf` — a CRLF `deploy.sh` fails on Linux with `bad interpreter: ...^M` |
 | `.gitignore` | modified | Added `.deploy.env` (**not** matched by the existing `.env` / `.env.*` patterns) |
 | `DEPLOY.md` | **new** | Setup + runbook |
@@ -384,13 +386,13 @@ tag is a no-op, not a restart.
 ### Deliberately kept
 
 - **`agentic-system-frontend-frontend:latest`** (81 MB) — the last locally-built
-  image, as a rollback escape hatch while ECR holds only one build:
+  image, kept as a rollback escape hatch while ECR held only one build:
   ```bash
   docker run -d -p 8002:80 -e BACKEND_URL=172.31.6.43:8000 \
     agentic-system-frontend-frontend:latest
   ```
-  Delete it once ECR has a few builds, at which point `./deploy.sh <older-sha>` is
-  the better path.
+  **Now obsolete** — ECR holds `1a5adb1` and `061b9d0`, so `git deploy <older-sha>`
+  is the real rollback path. Safe to delete.
 - **sztax images, containers, and nginx config** — a co-hosted site on the same box,
   out of scope and untouched.
 - **Old stopped one-off containers** (~12 MB) — negligible, not ours.
@@ -442,7 +444,107 @@ accident.
 
 ---
 
-## 11. Not done / possible next steps
+## 11. Phase 2 — decoupling deploy from push
+
+Shipped the same day, immediately after the migration above.
+
+### Why
+
+The original design deployed automatically on every push to `main`. That couples
+"I merged code" to "production changed", which is fine for some teams and wrong for
+others — there's no window to merge work and ship it deliberately, and no way to
+land several commits before a single release.
+
+### What changed
+
+The single workflow was split in two:
+
+| Workflow | Trigger | Does |
+| --- | --- | --- |
+| `build.yml` | push to `main`, or manual | tests → builds → pushes to ECR, **stops** |
+| `deploy.yml` | `workflow_dispatch` **only** | SSM → `deploy.sh <tag>` on the box |
+
+`deploy.yml` has **no `push:` trigger at all**, so merging to main physically cannot
+reach production. `build.yml` writes a job summary naming the tag it published and
+the command to ship it, so the SHA never has to be hunted for in the log.
+
+`deploy.yml` takes an optional `image_tag` input. Blank means "the short SHA of the
+branch this was dispatched against" — which is what `git deploy` with no argument
+means. Supplying a tag is how rollback works.
+
+### The `git deploy` command
+
+A git alias wrapping the GitHub CLI:
+
+```bash
+git config --global alias.deploy '!f() { gh workflow run deploy.yml -R datatrader-space/agentic-system-frontend ${1:+-f image_tag="$1"}; }; f'
+```
+
+```bash
+git deploy              # ship current main
+git deploy 1a5adb1      # ship/roll back to a specific build
+```
+
+Two gotchas worth recording:
+
+- **Set the alias from Git Bash, not PowerShell.** PowerShell strips the inner
+  double quotes when passing the value to `git`, storing `image_tag=$1` instead of
+  `image_tag="$1"`. Harmless for SHA tags, wrong in general.
+- **`gh` won't exist in terminals opened before it was installed** — including
+  VS Code's integrated terminal, which inherits PATH from the VS Code process.
+  Opening a new terminal *tab* doesn't help; VS Code itself must restart.
+
+The alias is a convenience only. **Actions → Deploy to EC2 → Run workflow** does
+the same thing from the browser.
+
+### Verification
+
+Commit `061b9d0` was pushed to `main`:
+
+```
+ECR:
+  09:58   1a5adb1
+  10:48   061b9d0, latest      ← published by the push
+
+Server (immediately after the push):
+  IMAGE_TAG=1a5adb1
+  ...aadml-frontend:1a5adb1    Up 51 minutes (healthy)
+```
+
+The push published an image and the server **did not move** — container uptime
+unchanged at 51 minutes. That is the decoupling working.
+
+`git deploy` was then triggered, and the deploy workflow succeeded in 23s:
+
+| | Before deploy | After deploy |
+| --- | --- | --- |
+| Container | `:1a5adb1`, up 51 min | `:061b9d0`, up 46s (healthy) |
+| `IMAGE_TAG` | `1a5adb1` | `061b9d0` |
+| Served asset | `index-gR5jF4om.js` | `index-DOZeGZDf.js` |
+
+The changed asset hash is the proof the new build is genuinely being served rather
+than a cached old one. `.deploy.env` remained `ubuntu`-owned, confirming the
+`runuser` wrapper still holds. All endpoints 200, including the `/api/` proxy and
+the co-hosted sztax.ca.
+
+This was also the **first real container swap** — every earlier automated run
+redeployed the tag already running, which `deploy.sh` correctly treats as a no-op.
+
+### Known wart
+
+`deploy.sh` writes `IMAGE_TAG` to `.deploy.env` *before* pulling. Deploying a tag
+that hasn't been built yet therefore fails at the pull but leaves the file pointing
+at a nonexistent image, so a later bare `./deploy.sh` on the box would retry the bad
+tag. The running site is never affected.
+
+Fix, if it becomes annoying: pass `IMAGE_TAG` as a shell env override for the pull
+and `up` (shell env beats `--env-file` in Compose's precedence), and only write the
+file after the health gate passes — making `.deploy.env` always record the last
+*known-good* tag rather than the last *attempted* one.
+
+---
+
+## 12. Not done / possible next steps
 
 - **Zero-downtime.** The swap is ~8s. Host nginx already fronts the container, so
   blue/green is cheap when wanted: start the new tag on a second port, flip the
