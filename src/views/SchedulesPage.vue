@@ -307,8 +307,8 @@
             <span>No runs yet — this schedule hasn't fired.</span>
           </div>
           <ul v-else class="runs-list">
-            <li v-for="run in runsList" :key="run.id" class="run-item">
-              <div class="run-top">
+            <li v-for="run in runsList" :key="run.id" class="run-item" :class="{ open: expandedRunId === run.id }">
+              <button type="button" class="run-top" @click="toggleRun(run)">
                 <span class="run-dot" :class="'dot-' + run.status"></span>
                 <span class="run-status">{{ run.status }}</span>
                 <span v-if="run.manual" class="run-badge">manual</span>
@@ -317,9 +317,50 @@
                   <span v-if="run.cost_usd && run.cost_usd !== '0'">${{ run.cost_usd }}</span>
                   <span>{{ fmtDate(run.started_at) }}</span>
                 </span>
+                <Icon :icon="expandedRunId === run.id ? 'lucide:chevron-up' : 'lucide:chevron-down'" class="run-caret" />
+              </button>
+
+              <!-- collapsed one-line preview -->
+              <p v-if="expandedRunId !== run.id && run.error" class="run-error">{{ run.error }}</p>
+              <p v-else-if="expandedRunId !== run.id && runAnswer(run)" class="run-answer">{{ runAnswer(run) }}</p>
+
+              <!-- expanded full report -->
+              <div v-if="expandedRunId === run.id" class="run-detail">
+                <div v-if="runDetailLoading" class="runs-state small"><Icon icon="lucide:loader-2" class="spin" /> Loading report…</div>
+                <template v-else-if="runDetail">
+                  <div v-if="runDetail.prompt_sent" class="detail-block">
+                    <h4>Sent to agent</h4>
+                    <pre class="detail-pre">{{ runDetail.prompt_sent }}</pre>
+                  </div>
+                  <div v-if="(runDetail.timeline || []).length" class="detail-block">
+                    <h4>Execution timeline</h4>
+                    <ol class="tl">
+                      <li v-for="(t, i) in runDetail.timeline" :key="i" class="tl-item" :class="'tl-' + t.kind">
+                        <div class="tl-head">
+                          <span class="tl-tag">{{ tlLabel(t) }}</span>
+                          <span v-if="t.status" class="tl-status" :class="'st-' + t.status">{{ t.status }}</span>
+                          <span class="tl-time">{{ fmtTime(t.at) }}</span>
+                        </div>
+                        <pre v-if="t.kind !== 'tool'" class="tl-text">{{ t.text }}</pre>
+                        <template v-else>
+                          <pre v-if="hasArgs(t.args)" class="tl-args">{{ pretty(t.args) }}</pre>
+                          <pre v-if="t.summary" class="tl-text">{{ t.summary }}</pre>
+                        </template>
+                      </li>
+                    </ol>
+                  </div>
+                  <div v-if="runDetail.final_answer" class="detail-block">
+                    <h4>Result</h4>
+                    <pre class="detail-pre">{{ runDetail.final_answer }}</pre>
+                  </div>
+                  <div v-if="runDetail.error" class="detail-block">
+                    <h4>Error</h4>
+                    <pre class="detail-pre err">{{ runDetail.error }}</pre>
+                  </div>
+                  <p v-if="!runDetail.prompt_sent && !(runDetail.timeline || []).length && !runDetail.final_answer && !runDetail.error"
+                     class="runs-state small">No detailed report was captured for this run.</p>
+                </template>
               </div>
-              <p v-if="run.error" class="run-error">{{ run.error }}</p>
-              <p v-else-if="runAnswer(run)" class="run-answer">{{ runAnswer(run) }}</p>
             </li>
           </ul>
         </div>
@@ -353,6 +394,11 @@ const templateMenuOpen = ref(false)
 const runsModal = ref(null)     // the schedule row whose runs are shown, or null
 const runsList = ref([])
 const runsLoading = ref(false)
+// per-run expand + lazy-loaded full report (prompt + timeline + result)
+const expandedRunId = ref(null)
+const runDetail = ref(null)
+const runDetailLoading = ref(false)
+const runDetailCache = {}
 
 const form = reactive({
   id: null,               // 'as_<n>' when editing
@@ -491,9 +537,41 @@ async function openRuns(schedule) {
 function closeRuns() {
   runsModal.value = null
   runsList.value = []
+  expandedRunId.value = null
+  runDetail.value = null
 }
 function runAnswer(run) {
   return (run && run.task_results && run.task_results.final_answer) || ''
+}
+
+// Expand a run → lazy-load its full execution report (prompt sent, step timeline, result).
+async function toggleRun(run) {
+  if (expandedRunId.value === run.id) { expandedRunId.value = null; return }
+  expandedRunId.value = run.id
+  if (runDetailCache[run.id]) { runDetail.value = runDetailCache[run.id]; return }
+  runDetail.value = null
+  runDetailLoading.value = true
+  try {
+    const res = await api.getScheduleRunDetail(runsModal.value.id, run.id)
+    runDetailCache[run.id] = res.data
+    if (expandedRunId.value === run.id) runDetail.value = res.data
+  } catch (e) {
+    if (expandedRunId.value === run.id) runDetail.value = { timeline: [], error: 'Could not load this run’s report.' }
+  } finally {
+    runDetailLoading.value = false
+  }
+}
+function tlLabel(t) {
+  if (t.kind === 'user') return 'You → agent'
+  if (t.kind === 'assistant') return 'Agent'
+  return t.tool || (t.step_type || 'tool')
+}
+function hasArgs(a) { return a && typeof a === 'object' && Object.keys(a).length > 0 }
+function pretty(o) { try { return JSON.stringify(o, null, 2) } catch { return String(o) } }
+function fmtTime(iso) {
+  if (!iso) return ''
+  try { return new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }
+  catch { return '' }
 }
 
 // ---- table rows -----------------------------------------------------------
@@ -1329,7 +1407,9 @@ td b {
 .runs-state svg { width: 22px; height: 22px; }
 .runs-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .run-item { border: 1px solid #eef2f6; border-radius: 10px; padding: 10px 12px; background: #fbfdff; }
-.run-top { display: flex; align-items: center; gap: 8px; }
+.run-item.open { border-color: #d7e0ee; background: #fff; }
+.run-top { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: transparent; padding: 0; cursor: pointer; text-align: left; font: inherit; }
+.run-caret { color: #94a3b8; flex: none; }
 .run-dot { width: 8px; height: 8px; border-radius: 999px; background: #cbd5e1; flex: none; }
 .dot-completed { background: #10b981; }
 .dot-running { background: #f59e0b; }
@@ -1342,6 +1422,25 @@ td b {
   background: #fef3f2; border-radius: 6px; padding: 6px 8px; white-space: pre-wrap;
 }
 .run-answer { margin: 6px 0 0; font-size: 12.5px; color: #334155; white-space: pre-wrap; overflow-wrap: anywhere; }
+.runs-state.small { padding: 14px; font-size: 12px; }
+.run-detail { margin-top: 10px; border-top: 1px dashed #e6ebf2; padding-top: 10px; display: flex; flex-direction: column; gap: 12px; }
+.detail-block h4 { margin: 0 0 5px; font-size: 11px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; color: #94a3b8; }
+.detail-pre { margin: 0; font-size: 12px; line-height: 1.5; color: #334155; white-space: pre-wrap; overflow-wrap: anywhere; background: #f8fafc; border: 1px solid #eef2f6; border-radius: 8px; padding: 8px 10px; max-height: 220px; overflow-y: auto; }
+.detail-pre.err { color: #b42318; background: #fef3f2; border-color: #fee2e2; }
+.tl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tl-item { border-left: 2px solid #e2e8f0; padding: 2px 0 2px 10px; }
+.tl-user { border-left-color: #94a3b8; }
+.tl-assistant { border-left-color: #2563eb; }
+.tl-tool { border-left-color: #7c3aed; }
+.tl-head { display: flex; align-items: center; gap: 8px; }
+.tl-tag { font-size: 11.5px; font-weight: 750; color: #0f172a; }
+.tl-tool .tl-tag { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #6d28d9; }
+.tl-status { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 5px; background: #f1f5f9; color: #475569; text-transform: capitalize; }
+.st-success { background: #ecfdf3; color: #027a48; }
+.st-failure, .st-error { background: #fef3f2; color: #b42318; }
+.tl-time { margin-left: auto; font-size: 10.5px; color: #98a2b3; }
+.tl-text { margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: #475569; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tl-args { margin: 4px 0 0; font-size: 11px; line-height: 1.45; color: #475569; background: #faf5ff; border: 1px solid #f0e7ff; border-radius: 6px; padding: 5px 8px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 160px; overflow-y: auto; }
 .spin { animation: runs-spin 0.9s linear infinite; }
 @keyframes runs-spin { to { transform: rotate(360deg); } }
 </style>

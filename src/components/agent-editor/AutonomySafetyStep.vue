@@ -23,13 +23,17 @@
             <button
               v-for="mode in runModes"
               :key="mode.key"
+              type="button"
               class="mode-card"
               :class="runMode === mode.key ? 'mode-card-active' : ''"
+              :aria-pressed="runMode === mode.key"
               @click="selectMode(mode.key)"
             >
               <span class="flex items-start justify-between gap-3">
                 <component :is="mode.icon" :size="26" :stroke-width="2" :class="mode.iconClass" />
-                <span class="radio-dot" :class="executionMode === mode.key ? 'radio-dot-active' : ''" />
+                <span class="radio-dot" :class="runMode === mode.key ? 'radio-dot-active' : ''">
+                  <Check v-if="runMode === mode.key" :size="12" :stroke-width="3.5" />
+                </span>
               </span>
               <span class="mt-3 block text-[15px] font-semibold text-[#0F172A]">{{ mode.title }}</span>
               <span class="mt-1 block text-[13px] leading-5 text-[#475569]">{{ mode.desc }}</span>
@@ -443,6 +447,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   BookOpen,
+  Check,
   CheckCircle2,
   ChevronRight,
   CircleDollarSign,
@@ -949,11 +954,11 @@ onMounted(() => { loadGuardrails(); loadToolDefs(); loadAgentBudget(); loadPlatf
 .save-limit { height: 32px; border: 0; border-radius: 8px; background: #2563EB; color: #fff; padding: 0 16px; font-size: 12px; font-weight: 700; cursor: pointer; }
 .save-limit:hover:not(:disabled) { background: #1D4ED8; }
 .save-limit:disabled { opacity: .5; cursor: not-allowed; }
-.mode-card { min-height: 132px; border: 1px solid #E5E7EB; border-radius: 12px; background: #fff; padding: 16px; text-align: left; transition: border-color .15s, box-shadow .15s, background .15s; }
+.mode-card { min-height: 132px; border: 1px solid #E5E7EB; border-radius: 12px; background: #fff; padding: 16px; text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s; }
 .mode-card:hover { border-color: #BFD0FF; box-shadow: 0 8px 20px rgba(16,24,40,.06); }
-.mode-card-active { border-color: #2563EB; box-shadow: 0 0 0 1px #2563EB, 0 10px 24px rgba(37,99,235,.08); }
-.radio-dot { height: 17px; width: 17px; border-radius: 999px; border: 1.5px solid #98A2B3; background: #fff; }
-.radio-dot-active { border: 5px solid #2563EB; }
+.mode-card-active { border-color: #2563EB; background: #F5F8FF; box-shadow: 0 0 0 1px #2563EB, 0 10px 24px rgba(37,99,235,.08); }
+.radio-dot { display: grid; place-items: center; height: 20px; width: 20px; flex-shrink: 0; border-radius: 999px; border: 1.5px solid #CBD5E1; background: #fff; color: #fff; transition: background .15s, border-color .15s; }
+.radio-dot-active { border-color: #2563EB; background: #2563EB; }
 .config-card { border: 1px solid #E5E7EB; border-radius: 12px; background: #fff; padding: 18px; box-shadow: 0 1px 3px rgba(16,24,40,.06); }
 .field-row { display: grid; grid-template-columns: minmax(120px, .78fr) minmax(0, 1.22fr); align-items: center; gap: 16px; font-size: 13px; font-weight: 500; color: #475569; }
 .control { height: 38px; width: 100%; border: 1px solid #D0D5DD; border-radius: 8px; background: #fff; padding: 0 12px; font-size: 13px; font-weight: 600; color: #344054; outline: none; box-shadow: 0 1px 2px rgba(16,24,40,.03); }

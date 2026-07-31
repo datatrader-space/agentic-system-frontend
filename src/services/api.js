@@ -806,6 +806,7 @@ export default {
   deleteSchedule: (id) => api.delete(`/schedules/${id}/`),
   runSchedule: (id) => api.post(`/schedules/${id}/run/`),
   getScheduleRuns: (id) => api.get(`/schedules/${id}/runs/`),
+  getScheduleRunDetail: (id, runId) => api.get(`/schedules/${id}/runs/${runId}/`),
   getWorkflowGraph: (id) => api.get(`/workflow-graphs/${id}/`),
   // One-shot load for the canvas: the graph + all graphs (subflow picker) + agents.
   getWorkflowGraphBundle: (id) => api.get(`/workflow-graphs/${id}/bundle/`),
