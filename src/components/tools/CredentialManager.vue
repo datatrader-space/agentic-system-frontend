@@ -188,10 +188,11 @@
             <td class="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium text-gray-900">
               {{ credential.credential_name }}
               <span v-if="credential.is_default" class="ml-1 text-xs text-yellow-600">★ Default</span>
-              <br v-if="credential.is_global || credential.is_workspace || credential.agent_profile_name" />
+              <br v-if="credential.is_global || credential.is_workspace || (credential.attached_agents && credential.attached_agents.length) || credential.agent_profile_name" />
               <span v-if="credential.is_workspace" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 mt-0.5">👥 Shared{{ credential.workspace_name ? ' · ' + credential.workspace_name : '' }}</span>
               <span v-else-if="credential.is_global" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700 mt-0.5">🔒 Private</span>
-              <span v-else-if="credential.agent_profile_name" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 mt-0.5">🤖 {{ credential.agent_profile_name }}</span>
+              <!-- Agents this credential is attached to (deduped) — a global credential + its per-agent copies collapse to one row with a badge per agent. -->
+              <span v-for="a in (credential.attached_agents || (credential.agent_profile_name ? [credential.agent_profile_name] : []))" :key="a" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 mt-0.5 ml-1">🤖 {{ a }}</span>
             </td>
             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">{{ credential.service_name }}</td>
             <td class="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
@@ -681,20 +682,24 @@ export default {
     }
 
     const deleteCredential = async (credential) => {
-      // Agent-attached credentials (shown with a 🤖 <agent> badge) are detached
-      // from the agent and then deleted — warn the user of that impact first.
-      const attachedAgent = !credential.is_global ? credential.agent_profile_name : null
-      const message = attachedAgent
-        ? `"${credential.credential_name}" is attached to ${attachedAgent} — it will be detached from that agent and permanently deleted. Continue?`
+      // A deduped vault row can back several underlying rows (the global credential + its per-agent copies).
+      // Deleting it removes ALL of them, detaching from every agent it's attached to — warn about that first.
+      const agents = (credential.attached_agents && credential.attached_agents.length)
+        ? credential.attached_agents
+        : (!credential.is_global && credential.agent_profile_name ? [credential.agent_profile_name] : [])
+      const message = agents.length
+        ? `"${credential.credential_name}" is attached to ${agents.join(', ')} — it will be detached from ${agents.length > 1 ? 'those agents' : 'that agent'} and permanently deleted. Continue?`
         : `Delete credential "${credential.credential_name}"?`
       if (await confirm({ title: 'Delete credential?', message, confirmText: 'Delete', danger: true })) {
         try {
           if (credential.kind === 'workspace' || credential.is_workspace) {
             await credentialsApi.deleteWorkspaceCredential(credential.id)
-          } else if (credential.is_global || isGlobalMode.value) {
-            await credentialsApi.deleteGlobal(credential.id)
           } else {
-            await credentialsApi.delete(agentId.value, credential.id)
+            // Remove the whole group (global + per-agent copies); delete_global_credential accepts either scope.
+            const ids = (credential.member_ids && credential.member_ids.length) ? credential.member_ids : [credential.id]
+            for (const id of ids) {
+              await credentialsApi.deleteGlobal(id)
+            }
           }
           await loadCredentials()
         } catch (error) {
