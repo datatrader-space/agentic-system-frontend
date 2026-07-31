@@ -42,7 +42,7 @@
             </div>
           </div>
 
-          <button class="wide-btn mt-4" @click="go(`/dashboard/agents/${agent.id}/playground`)">View Full Test Details</button>
+          <button class="wide-btn mt-4" @click="go(`/dashboard/agents/${agent.id}/monitor`)">View Full Test Details</button>
         </section>
 
         <section class="panel">
@@ -148,7 +148,7 @@
       <section class="panel flex min-h-[620px] flex-col overflow-hidden p-0">
         <div class="flex items-center justify-between border-b border-[#EEF2F6] px-4 py-3">
           <h3 class="flex items-center gap-2 text-[15px] font-bold text-[#0F172A]"><Activity :size="17" class="text-[#2563EB]" /> Quick Test</h3>
-          <button v-if="published" class="text-[12px] font-semibold text-[#344054] hover:text-[#2563EB]" @click="go(`/dashboard/agents/${agent.id}/playground`)">Expand</button>
+          <button v-if="published" class="text-[12px] font-semibold text-[#344054] hover:text-[#2563EB]" @click="go(`/dashboard/agents/${agent.id}/monitor`)">Expand</button>
         </div>
 
         <!-- Locked until the agent is published (matches the legacy emulator gating) -->
@@ -239,7 +239,7 @@ const recentRuns = computed(() => {
   ]
 })
 const statusCards = computed(() => [
-  { title: 'Overall Status', value: publishStatus.value, sub: published.value ? 'Live and available' : 'Ready to publish', cta: 'Details', icon: CheckCircle2, tint: 'bg-emerald-50 text-emerald-600', valueClass: 'text-[#12B76A]', action: () => go(`/dashboard/agents/${props.agent.id}/advanced`) },
+  { title: 'Overall Status', value: publishStatus.value, sub: published.value ? 'Live and available' : 'Ready to publish', cta: 'Details', icon: CheckCircle2, tint: 'bg-emerald-50 text-emerald-600', valueClass: 'text-[#12B76A]', action: () => go(`/dashboard/agents/${props.agent.id}/monitor`) },
   { title: 'Health', value: healthLabel(health.value.status), sub: 'All systems operational', cta: 'Health', icon: ShieldCheck, tint: 'bg-emerald-50 text-emerald-600', valueClass: 'text-[#12B76A]', action: () => go(`/dashboard/agents/${props.agent.id}/monitor`) },
   { title: 'Success Rate (24h)', value: `${kpis.value.success_rate ?? 100}%`, sub: `${kpis.value.runs_24h ?? 0} runs in last 24h`, cta: 'Analytics', icon: LineChart, tint: 'bg-emerald-50 text-emerald-600', valueClass: 'text-[#12B76A]', action: () => go(`/dashboard/agents/${props.agent.id}/monitor`) },
   { title: 'Avg. Response Time', value: latencyLabel(kpis.value.avg_response_ms), sub: 'Based on recent runs', cta: 'Performance', icon: Clock3, tint: 'bg-violet-50 text-violet-600', valueClass: '', action: () => go(`/dashboard/agents/${props.agent.id}/monitor`) },
@@ -294,9 +294,6 @@ function runName(run) {
 }
 function agoLabel(value) {
   return value ? ago(value) : 'just now'
-}
-function openPlayground() {
-  go(`/dashboard/agents/${props.agent.id}/playground`)
 }
 async function loadMonitoring() {
   if (!props.agent.id) return

@@ -63,9 +63,7 @@ const OrganizationModulePage = () => import('./views/OrganizationModulePage.vue'
 const AgentApprovalsPage = () => import('./views/AgentApprovalsPage.vue')
 const SchedulesPage = () => import('./views/SchedulesPage.vue')
 const AgentLibrary = () => import('./views/AgentLibrary.vue')
-const AgentPlayground = () => import('./views/AgentPlayground.vue')
 const AgentOverview = () => import('./views/AgentOverview.vue')
-const AgentBuilderCanvas = () => import('./views/AgentBuilderCanvas.vue')
 const AgentEditor = () => import('./views/AgentEditor.vue')
 const AgentMonitor = () => import('./views/AgentMonitor.vue')
 const LandingPage = () => import('./views/LandingPage.vue')
@@ -227,9 +225,9 @@ const router = createRouter({
         { path: 'agents/:id/workspace', name: 'dashboard-agent-workspace', component: () => import('./views/AgentWorkspacePage.vue') },
         { path: 'agents/:id/guardrails', name: 'dashboard-agent-guardrails', component: AgentApprovalsPage },
         { path: 'agents/:id/configure', redirect: to => `/dashboard/agents/${to.params.id}/editor` },
-        { path: 'agents/:id/advanced', name: 'dashboard-agent-advanced', component: AgentBuilderCanvas },
+        { path: 'agents/:id/advanced', redirect: to => `/dashboard/agents/${to.params.id}/editor` },
         { path: 'agents/:id/monitor', name: 'dashboard-agent-monitor', component: AgentMonitor },
-        { path: 'agents/:id/playground', name: 'dashboard-agent-playground', component: AgentPlayground },
+        { path: 'agents/:id/playground', redirect: to => `/dashboard/agents/${to.params.id}` },
         { path: 'agents/:id', name: 'dashboard-agent-overview', component: AgentOverview },
         // Tools library (Screen 24) — revived standalone page; Services / MCP / Workspaces still fold into Connectors.
         { path: 'tools', name: 'dashboard-tools', component: ToolsPage },

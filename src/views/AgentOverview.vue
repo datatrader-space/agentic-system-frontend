@@ -152,7 +152,7 @@ const credError = ref(false)
 const lastTest = ref(null)
 
 const configureLink = computed(() => `/dashboard/agents/${agentId.value}/editor`)
-const playgroundLink = computed(() => `/dashboard/agents/${agentId.value}/playground`)
+const playgroundLink = computed(() => `/dashboard/agents/${agentId.value}/editor?step=final`)
 
 const publishPill = computed(() => {
   const s = agent.value?.publish_status

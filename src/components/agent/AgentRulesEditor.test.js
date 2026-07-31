@@ -1,21 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
 import { mount } from '@vue/test-utils'
 import AgentRulesEditor from './AgentRulesEditor.vue'
 import { cleanRules, rulesValid, MAX_RULE_LEN } from './agentRules'
 
-const builderSrc = readFileSync('src/components/AgentBuilder.vue', 'utf-8')
-
-describe('AgentRulesEditor (P15–P20)', () => {
-  // P15 / P16 — present on the agent create AND edit page. Both use the single AgentBuilder
-  // component, so wiring it into AgentBuilder = present on both surfaces.
-  it('P15/P16: AgentRulesEditor is wired into AgentBuilder (create + edit use the same component)', () => {
-    expect(builderSrc).toContain("import AgentRulesEditor from './agent/AgentRulesEditor.vue'")
-    expect(builderSrc).toContain('<AgentRulesEditor')
-    expect(builderSrc).toContain('v-model="internalAgent.agent_rules"')
-  })
-
+describe('AgentRulesEditor (P17–P20)', () => {
   // P17 — add appends a row; remove deletes the correct row.
   it('P17: add rule appends a row', async () => {
     const wrapper = mount(AgentRulesEditor, { props: { modelValue: [] } })

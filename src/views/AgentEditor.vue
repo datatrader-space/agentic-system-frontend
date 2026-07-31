@@ -29,10 +29,7 @@
                 {{ pausing ? '…' : (agent.is_paused ? 'Resume' : 'Pause') }}
               </button>
               <button class="btn-secondary" @click="save"><Save :size="15" :stroke-width="2" /> {{ saving ? 'Saving…' : 'Save' }}</button>
-              <div class="flex overflow-hidden rounded-[10px]">
-                <button class="btn-primary !rounded-none" @click="saveAndPublish"><Rocket :size="15" :stroke-width="2" /> Configure / Publish</button>
-                <button class="btn-primary !rounded-none border-l border-white/25 !px-2.5" :disabled="!agent.id" @click="go(`/dashboard/agents/${agent.id}/advanced`)"><ChevronDown :size="15" :stroke-width="2" /></button>
-              </div>
+              <button class="btn-primary" @click="saveAndPublish"><Rocket :size="15" :stroke-width="2" /> Configure / Publish</button>
             </div>
             <span v-if="lastSaved" class="text-[11.5px] text-[#98A2B3]">Last saved {{ lastSaved }}</span>
           </div>
@@ -77,8 +74,7 @@
         <div v-else class="mx-auto max-w-3xl px-8 py-10 text-center">
           <div class="rounded-2xl border border-dashed border-[#E5E7EB] bg-white p-10">
             <p class="text-[15px] font-semibold text-[#0F172A]">{{ currentStep.title }}</p>
-            <p class="mx-auto mt-1 max-w-md text-[13px] text-[#64748B]">This step is being redesigned next. For now you can manage it in the full editor.</p>
-            <button class="btn-primary mx-auto mt-4" @click="go(`/dashboard/agents/${agent.id}/advanced`)">Open full editor <ArrowRight :size="15" :stroke-width="2" /></button>
+            <p class="mx-auto mt-1 max-w-md text-[13px] text-[#64748B]">This step is being redesigned next.</p>
           </div>
         </div>
       </div>
