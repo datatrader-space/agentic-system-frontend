@@ -1,13 +1,13 @@
 <template>
   <main class="schedules-page">
-    <section class="schedules-main">
-      <header class="page-head">
-        <div>
-          <h1>Automation & Schedules</h1>
-          <p>Create recurring runs for your agent to automate tasks, reports, and workflows.</p>
-        </div>
-      </header>
+    <header class="page-head">
+      <div>
+        <h1>Automation & Schedules</h1>
+        <p>Create recurring runs for your agent to automate tasks, reports, and workflows.</p>
+      </div>
+    </header>
 
+    <section class="schedules-main">
       <section class="create-card">
         <header class="create-head">
           <div class="head-title">
@@ -38,7 +38,7 @@
         <div class="create-body">
           <section class="schedule-basics">
             <article class="step-field agent-field">
-              <h3><Icon icon="lucide:user-round" /> <span>① Agent</span></h3>
+              <h3><Icon icon="lucide:user-round" /><span class="step-index">1</span><span>Agent</span></h3>
               <select v-model="form.agent_id">
                 <option value="" disabled>Select an agent…</option>
                 <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
@@ -46,12 +46,12 @@
             </article>
 
             <article class="step-field name-field">
-              <h3><Icon icon="lucide:tag" /> <span>② Schedule</span></h3>
+              <h3><Icon icon="lucide:tag" /><span class="step-index">2</span><span>Schedule</span></h3>
               <input v-model="form.name" placeholder="e.g. Daily report, Hourly sync..." />
             </article>
 
             <article class="step-field task-field">
-              <h3><Icon icon="lucide:target" /> <span>③ Task</span></h3>
+              <h3><Icon icon="lucide:target" /><span class="step-index">3</span><span>Task</span></h3>
               <div class="textarea-wrap">
                 <textarea
                   v-model="form.prompt"
@@ -64,7 +64,7 @@
           </section>
 
           <section class="when-panel form-panel">
-            <h3 class="panel-title"><Icon icon="lucide:clock-3" /> <span>④ Timing</span></h3>
+            <h3 class="panel-title"><Icon icon="lucide:clock-3" /><span class="step-index">4</span><span>Timing</span></h3>
             <div class="when-grid">
               <label>
                 <span>Frequency</span>
@@ -139,7 +139,7 @@
 
           <section class="settings-grid">
             <article class="form-panel advanced-panel">
-              <h3 class="panel-title"><Icon icon="lucide:sliders-horizontal" /> <span>⑤ Advanced <small>Optional</small></span></h3>
+              <h3 class="panel-title"><Icon icon="lucide:sliders-horizontal" /><span class="step-index">5</span><span>Advanced <small>Optional</small></span></h3>
               <div class="advanced-grid">
                 <label>
                   <span>Model Override</span>
@@ -155,44 +155,18 @@
               </div>
             </article>
 
-            <article class="form-panel limits-panel">
-              <h3 class="panel-title"><Icon icon="lucide:shield" /> <span>⑥ Limits &amp; Controls</span></h3>
-              <div class="limit-grid">
-                <label>
-                  <span>Budget per run ($)</span>
-                  <div class="field-control"><b>$</b><input v-model="form.budget_per_run" placeholder="1.00" inputmode="decimal" /></div>
-                </label>
-                <label>
-                  <span>Max iterations</span>
-                  <div class="field-control"><Icon icon="lucide:refresh-cw" /><input v-model="form.max_iterations" placeholder="10" inputmode="numeric" /></div>
-                </label>
-                <label>
-                  <span>Daily budget cap ($)</span>
-                  <div class="field-control"><Icon icon="lucide:credit-card" /><input v-model="form.daily_budget_cap" placeholder="No limit" inputmode="decimal" /></div>
-                </label>
-                <label>
-                  <span>Max total runs</span>
-                  <div class="field-control"><Icon icon="lucide:infinity" /><input v-model="form.max_runs" placeholder="No limit" inputmode="numeric" /></div>
-                </label>
-                <label>
-                  <span>Pause after failures</span>
-                  <div class="field-control"><Icon icon="lucide:circle-pause" /><input v-model="form.auto_pause_on_failures" placeholder="3" inputmode="numeric" /></div>
-                </label>
-              </div>
-              <p>Set limits to control spend and ensure reliability.</p>
-            </article>
-          </section>
-
-          <section class="bottom-grid">
             <article class="form-panel safety-panel">
-              <h3 class="panel-title"><Icon icon="lucide:shield" /> <span>⑦ Safety</span></h3>
+              <h3 class="panel-title"><Icon icon="lucide:shield" /><span class="step-index">6</span><span>Safety</span></h3>
               <label class="toggle-row">
                 <input type="checkbox" v-model="form.read_only" />
                 <span class="toggle" aria-hidden="true"></span>
                 <span><strong>Read-only mode</strong><small>Allow the agent to read data but prevent any changes.</small></span>
               </label>
+              <p class="safety-note">Spend and run limits are governed by the agent’s budget (and its workspace / organization) — set those in the agent’s configuration, not per schedule.</p>
             </article>
+          </section>
 
+          <section class="bottom-grid">
             <article class="form-panel preview">
               <h3 class="panel-title preview-title"><Icon icon="lucide:calendar-days" /> <span>Schedule Preview</span></h3>
               <div>
@@ -386,11 +360,6 @@ const form = reactive({
   timezone: '(UTC +05:00) Asia/Karachi',
   model: '',
   system_prompt: '',
-  budget_per_run: '1.00',
-  max_iterations: '10',
-  daily_budget_cap: '',
-  max_runs: '',
-  auto_pause_on_failures: '3',
   read_only: true,
 })
 
@@ -562,16 +531,11 @@ function extractTz(label) {
 }
 
 function buildPayload(extra = {}) {
+  // Schedules carry NO limits — spend/iterations come from the agent's budget + config (enforced by the
+  // runtime's BudgetSession). Only the task, cadence, optional model/system-prompt, and read-only ship.
   const overrides = {}
   if (form.model) overrides.model_id = form.model   // model id from the picker; backend resolves it
   if (form.system_prompt) overrides.system_prompt = form.system_prompt
-  const bpr = numOrNull(form.budget_per_run)
-  if (bpr != null) overrides.budget_per_run = bpr
-  const mi = numOrNull(form.max_iterations)
-  if (mi != null) overrides.max_iterations = Math.round(mi)
-
-  const maxRuns = (form.max_runs === '' || form.max_runs === '∞') ? null : numOrNull(form.max_runs)
-  const dailyCap = (String(form.daily_budget_cap).toLowerCase().includes('limit')) ? null : numOrNull(form.daily_budget_cap)
 
   return {
     name: form.name.trim(),
@@ -579,9 +543,6 @@ function buildPayload(extra = {}) {
     schedule: buildCron(),
     timezone: extractTz(form.timezone),
     profile_overrides: overrides,
-    daily_budget_cap: dailyCap,
-    max_runs: maxRuns != null ? Math.round(maxRuns) : null,
-    auto_pause_on_failures: Math.round(numOrNull(form.auto_pause_on_failures) ?? 3),
     read_only: !!form.read_only,
     ...extra,
   }
@@ -678,11 +639,6 @@ function editSchedule(row) {
   const tz = s.timezone || 'UTC'
   if (tz.includes('Karachi')) form.timezone = '(UTC +05:00) Asia/Karachi'
   else if (tz.includes('Eastern')) form.timezone = '(UTC -05:00) US/Eastern'
-  form.budget_per_run = ov.budget_per_run != null ? String(ov.budget_per_run) : ''
-  form.max_iterations = ov.max_iterations != null ? String(ov.max_iterations) : ''
-  form.daily_budget_cap = s.daily_budget_cap != null ? String(s.daily_budget_cap) : ''
-  form.max_runs = s.max_runs != null ? String(s.max_runs) : ''
-  form.auto_pause_on_failures = s.auto_pause_on_failures != null ? String(s.auto_pause_on_failures) : '3'
   form.read_only = !!s.read_only
   openMenuId.value = null
   window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -700,11 +656,6 @@ function resetForm() {
   form.dow = 1
   form.model = ''
   form.system_prompt = ''
-  form.budget_per_run = '1.00'
-  form.max_iterations = '10'
-  form.daily_budget_cap = ''
-  form.max_runs = ''
-  form.auto_pause_on_failures = '3'
   form.read_only = true
 }
 
@@ -825,7 +776,14 @@ const tips = [
   color: #111936;
 }
 .schedules-main { min-width: 0; max-width: none; width: 100%; justify-self: stretch; }
-.page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.page-head {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: -4px;
+}
 h1, h2, h3, p { margin: 0; }
 h1 { font-size: 23px; line-height: 1.12; font-weight: 850; letter-spacing: 0; }
 .page-head p, .create-head p, .form-section p, .rail-card p, .showing { color: #5c6d85; font-size: 11.5px; line-height: 1.45; }
@@ -991,6 +949,20 @@ input::placeholder, textarea::placeholder { color: #94a3b8; font-weight: 500; }
   width: 17px;
   height: 17px;
   color: #6b59e8;
+}
+.step-index {
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid #ddd8ff;
+  border-radius: 6px;
+  background: #f5f3ff;
+  color: #6250dc;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 800;
 }
 .panel-title small { margin-left: 4px; color: #8b93a8; font-size: 10px; font-weight: 600; }
 .create-card label {

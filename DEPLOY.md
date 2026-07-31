@@ -4,10 +4,13 @@ Images are built in **GitHub Actions** and pushed to **Amazon ECR**. The EC2 hos
 only pulls and swaps containers — it never runs `npm install`, `vite build`, or
 `docker compose build`.
 
+Build and deploy are **separate and deliberately decoupled**. Pushing to main only
+publishes an artifact; nothing reaches production until you say so.
+
 ```
-push to main → GitHub Actions (npm ci → npm test → docker build) → ECR
-                                                                     ↓
-                                            EC2: deploy.sh <sha> → pull → up -d
+push to main → build.yml: npm ci → npm test → docker build → ECR   (STOPS HERE)
+
+you trigger  → deploy.yml: SSM → EC2: deploy.sh <tag> → pull → up -d → health gate
 ```
 
 Every image is tagged with the short commit SHA, so rollback is a re-deploy of an
@@ -129,9 +132,11 @@ manual runs as `ubuntu`.
 
 | Action | Command |
 | --- | --- |
-| Deploy | merge to `main` — the workflow does the rest |
-| Deploy a specific build | `./deploy.sh a84f6d2` |
-| Roll back | `./deploy.sh <previous-sha>` |
+| Build an image (no deploy) | push to `main` |
+| Deploy current `main` | `git deploy` — or Actions → *Deploy to EC2* → Run workflow |
+| Deploy a specific build | `git deploy a84f6d2` |
+| Roll back | `git deploy <previous-sha>` |
+| Deploy from the box directly | `./deploy.sh <sha>` |
 | See what's running | `grep IMAGE_TAG /opt/aadml-frontend/.deploy.env` |
 | Logs | `docker compose --env-file .deploy.env logs -f frontend` |
 

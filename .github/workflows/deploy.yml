@@ -1,17 +1,19 @@
-name: Build and deploy frontend
+name: Deploy to EC2
 
-# Builds the production image in CI and pushes it to ECR, then tells the EC2 host
-# to pull it. The host never runs npm install / vite build / docker build.
+# MANUAL ONLY. Pushing to main builds and publishes an image (build.yml) but never
+# deploys it. Shipping to production is always an explicit action:
+#
+#   Actions → Deploy to EC2 → Run workflow      (GitHub UI)
+#   git deploy                                  (alias — deploys current main)
+#   git deploy a84f6d2                          (alias — deploys/rolls back to a tag)
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
-      deploy:
-        description: Deploy to EC2 after a successful build
-        type: boolean
-        default: true
+      image_tag:
+        description: "Image tag to deploy (blank = short SHA of the selected branch)"
+        required: false
+        default: ""
 
 # Never let two deploys race the same host. Queue instead of cancelling, so a
 # half-finished container swap is never abandoned.
@@ -21,72 +23,29 @@ concurrency:
 
 permissions:
   contents: read
-  id-token: write # required for AWS OIDC — no long-lived AWS keys in GitHub
+  id-token: write # required for AWS OIDC
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
-  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'aadml-frontend' }}
 
 jobs:
-  build:
-    name: Build and push image
-    runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.meta.outputs.tag }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      # Gate the image on the suite — a red build must never reach ECR.
-      - name: Run tests
-        run: npm test
-
-      - name: Resolve image tag
-        id: meta
-        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Log in to Amazon ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          # ECR renders the provenance attestation as a stray untagged "unknown"
-          # manifest; we do not consume it, so skip it.
-          provenance: false
-          tags: |
-            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.tag }}
-            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
   deploy:
     name: Deploy to EC2 via SSM
-    needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || inputs.deploy
     steps:
+      - name: Resolve image tag
+        id: meta
+        env:
+          REQUESTED: ${{ inputs.image_tag }}
+        run: |
+          set -euo pipefail
+          TAG="${REQUESTED:-}"
+          # Blank input = deploy whatever commit this workflow was dispatched
+          # against, which is what `git deploy` with no argument means.
+          if [ -z "$TAG" ]; then TAG="${GITHUB_SHA::7}"; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Deploying tag: $TAG"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -99,7 +58,7 @@ jobs:
       - name: Run deploy.sh on the instance
         env:
           INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
-          TAG: ${{ needs.build.outputs.image_tag }}
+          TAG: ${{ steps.meta.outputs.tag }}
         run: |
           set -euo pipefail
 
@@ -135,4 +94,5 @@ jobs:
             --query StandardErrorContent --output text
 
           echo "final status: $STATUS"
+          echo "### Deployed \`$TAG\` — status: $STATUS" >> "$GITHUB_STEP_SUMMARY"
           [ "$STATUS" = "Success" ]
