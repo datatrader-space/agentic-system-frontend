@@ -6,7 +6,6 @@
           <h1>Automation & Schedules</h1>
           <p>Create recurring runs for your agent to automate tasks, reports, and workflows.</p>
         </div>
-        <button class="demo-btn"><Icon icon="lucide:play" /> Watch demo</button>
       </header>
 
       <section class="create-card">
@@ -15,132 +14,202 @@
             <span><Icon icon="lucide:calendar-clock" /></span>
             <div>
               <h2>{{ form.id ? 'Edit Scheduled Run' : 'Create a Scheduled Run' }}</h2>
-              <p>Define what your agent should do, when, and how often.</p>
+              <p>Schedule your agent to run automatically</p>
             </div>
           </div>
-          <button class="template-btn"><Icon icon="lucide:calendar-days" /> Use template <Icon icon="lucide:chevron-down" /></button>
+          <div class="template-picker">
+            <button type="button" class="template-btn" @click="templateMenuOpen = !templateMenuOpen">
+              <Icon icon="lucide:calendar-days" /> Use template <Icon icon="lucide:chevron-down" />
+            </button>
+            <div v-if="templateMenuOpen" class="template-menu">
+              <button
+                v-for="template in templates"
+                :key="template.title"
+                type="button"
+                @click="applyTemplate(template)"
+              >
+                <Icon :icon="template.icon" />
+                <span><strong>{{ template.title }}</strong><small>{{ template.copy }}</small></span>
+              </button>
+            </div>
+          </div>
         </header>
 
-        <section class="form-grid top">
-          <article class="form-section basic">
-            <h3><span>1</span> Basic Info</h3>
-            <label>
-              <span>Agent</span>
+        <div class="create-body">
+          <section class="schedule-basics">
+            <article class="step-field agent-field">
+              <h3><Icon icon="lucide:user-round" /> <span>1. Agent</span></h3>
               <select v-model="form.agent_id">
                 <option value="" disabled>Select an agent…</option>
                 <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
               </select>
-            </label>
-            <label>
-              <span>Schedule name</span>
-              <input v-model="form.name" placeholder="Daily report, Hourly sync..." />
-            </label>
-            <label>
-              <span>What should the agent do?</span>
-              <textarea v-model="form.prompt" placeholder="Describe the goal or task for each run..." />
-            </label>
-          </article>
+            </article>
 
-          <article class="form-section">
-            <h3><span>2</span> Run Frequency</h3>
-            <label>
-              <span>Frequency</span>
-              <select v-model="form.frequency">
-                <option>Daily</option>
-                <option>Hourly</option>
-                <option>Weekly</option>
-              </select>
-            </label>
-            <p>Choose how often this schedule should run.</p>
-          </article>
+            <article class="step-field name-field">
+              <h3><Icon icon="lucide:tag" /> <span>2. Schedule Name</span></h3>
+              <input v-model="form.name" placeholder="e.g. Daily report, Hourly sync..." />
+            </article>
 
-          <article class="form-section">
-            <h3><span>3</span> Timing</h3>
-            <label>
-              <span>Time of day</span>
-              <input v-model="form.time" type="time" :disabled="form.frequency === 'Hourly'" value="08:00" />
-            </label>
-            <label>
-              <span>Timezone</span>
-              <select v-model="form.timezone">
-                <option>(UTC +05:00) Asia/Karachi</option>
-                <option>(UTC -05:00) US/Eastern</option>
-              </select>
-            </label>
-          </article>
-        </section>
+            <article class="step-field task-field">
+              <h3><Icon icon="lucide:target" /> <span>3. What should the agent do?</span></h3>
+              <div class="textarea-wrap">
+                <textarea
+                  v-model="form.prompt"
+                  maxlength="500"
+                  placeholder="Describe the goal or task for each run..."
+                />
+                <span>{{ form.prompt.length }} / 500</span>
+              </div>
+            </article>
+          </section>
 
-        <section class="form-grid middle">
-          <article class="form-section advanced">
-            <h3><span>4</span> Advanced Settings</h3>
-            <div class="two-fields">
+          <section class="when-panel form-panel">
+            <h3 class="panel-title"><Icon icon="lucide:clock-3" /> <span>4. When to run</span></h3>
+            <div class="when-grid">
               <label>
-                <span>LLM Provider</span>
-                <select><option>All Providers</option></select>
+                <span>Frequency</span>
+                <div class="field-control">
+                  <Icon icon="lucide:calendar-days" />
+                  <select v-model="form.frequency">
+                    <option>Daily</option>
+                    <option>Hourly</option>
+                    <option>Every</option>
+                    <option>Weekly</option>
+                  </select>
+                </div>
+              </label>
+              <label v-if="form.frequency === 'Weekly'">
+                <span>Day of week</span>
+                <div class="field-control">
+                  <Icon icon="lucide:calendar" />
+                  <select v-model.number="form.dow">
+                    <option :value="1">Monday</option>
+                    <option :value="2">Tuesday</option>
+                    <option :value="3">Wednesday</option>
+                    <option :value="4">Thursday</option>
+                    <option :value="5">Friday</option>
+                    <option :value="6">Saturday</option>
+                    <option :value="0">Sunday</option>
+                  </select>
+                </div>
+              </label>
+              <label v-if="form.frequency === 'Every'">
+                <span>Repeat every</span>
+                <div class="interval-control">
+                  <Icon icon="lucide:timer-reset" />
+                  <input
+                    v-model="form.interval_value"
+                    type="number"
+                    min="1"
+                    :max="intervalMax"
+                    inputmode="numeric"
+                    aria-label="Repeat interval"
+                    @blur="normalizeIntervalInput"
+                  />
+                  <select v-model="form.interval_unit" aria-label="Repeat interval unit" @change="normalizeIntervalInput">
+                    <option>Minutes</option>
+                    <option>Hours</option>
+                  </select>
+                </div>
+              </label>
+              <label v-else>
+                <span>Time of day</span>
+                <div class="field-control">
+                  <Icon icon="lucide:clock-3" />
+                  <input v-model="form.time" type="time" :disabled="form.frequency === 'Hourly'" value="08:00" />
+                </div>
               </label>
               <label>
-                <span>Model Override (optional)</span>
-                <input v-model="form.model" placeholder="Select model" />
+                <span class="label-with-icon"><Icon icon="lucide:globe-2" /> Timezone</span>
+                <select v-model="form.timezone">
+                  <option>(UTC +05:00) Asia/Karachi</option>
+                  <option>(UTC -05:00) US/Eastern</option>
+                </select>
               </label>
+              <aside class="next-run">
+                <Icon icon="lucide:clock-arrow-up" />
+                <div>
+                  <strong>Next run</strong>
+                  <p>{{ nextRunLabel }}</p>
+                  <small>({{ timezoneName }})</small>
+                </div>
+              </aside>
             </div>
-            <label>
-              <span>System Prompt Override (optional)</span>
-              <input v-model="form.system_prompt" placeholder="Override agent system prompt for this schedule..." />
-            </label>
-            <button class="show-more">Show more options <Icon icon="lucide:chevron-down" /></button>
-          </article>
+          </section>
 
-          <article class="form-section limits">
-            <h3><span>5</span> Limits & Controls</h3>
-            <div class="limit-grid">
-              <label>
-                <span>Budget per run ($)</span>
-                <input v-model="form.budget_per_run" placeholder="1.00" />
-              </label>
-              <label>
-                <span>Max iterations</span>
-                <input v-model="form.max_iterations" placeholder="10" />
-              </label>
-              <label>
-                <span>Daily budget cap ($)</span>
-                <input v-model="form.daily_budget_cap" placeholder="No limit" />
-              </label>
-              <label>
-                <span>Max total runs</span>
-                <input v-model="form.max_runs" placeholder="∞" />
-              </label>
-              <label>
-                <span>Pause after failures</span>
-                <input v-model="form.auto_pause_on_failures" placeholder="3" />
-              </label>
-            </div>
-            <p>Set limits to control spend and ensure reliability.</p>
-          </article>
-        </section>
+          <section class="settings-grid">
+            <article class="form-panel advanced-panel">
+              <h3 class="panel-title"><Icon icon="lucide:sliders-horizontal" /> <span>5. Advanced (Optional)</span></h3>
+              <div class="advanced-grid">
+                <label>
+                  <span>Model Override</span>
+                  <select v-model="form.model">
+                    <option value="">Agent default</option>
+                    <option v-for="m in models" :key="m.id" :value="m.id">{{ m.name || m.model_id }}</option>
+                  </select>
+                </label>
+                <label class="system-prompt">
+                  <span>System Prompt Override</span>
+                  <input v-model="form.system_prompt" placeholder="Override agent system prompt for this schedule..." />
+                </label>
+              </div>
+            </article>
 
-        <section class="safety-row">
-          <article>
-            <h3><span>6</span> Safety</h3>
-            <label class="checkbox-row">
-              <input type="checkbox" v-model="form.read_only" />
-              <span><strong>Read-only mode</strong><small>Allow the agent to read data but prevent any changes.</small></span>
-            </label>
-          </article>
-          <article class="preview">
-            <span>Schedule preview</span>
-            <div>
-              <em>CRON</em>
-              <code>{{ cronPreview }}</code>
-              <p>{{ cronDescription }}</p>
-              <button @click="copyCron"><Icon icon="lucide:copy" /> {{ copied ? 'Copied' : 'Copy' }}</button>
-            </div>
-          </article>
-        </section>
+            <article class="form-panel limits-panel">
+              <h3 class="panel-title"><Icon icon="lucide:shield" /> <span>6. Limits &amp; Controls</span></h3>
+              <div class="limit-grid">
+                <label>
+                  <span>Budget per run ($)</span>
+                  <div class="field-control"><b>$</b><input v-model="form.budget_per_run" placeholder="1.00" inputmode="decimal" /></div>
+                </label>
+                <label>
+                  <span>Max iterations</span>
+                  <div class="field-control"><Icon icon="lucide:refresh-cw" /><input v-model="form.max_iterations" placeholder="10" inputmode="numeric" /></div>
+                </label>
+                <label>
+                  <span>Daily budget cap ($)</span>
+                  <div class="field-control"><Icon icon="lucide:credit-card" /><input v-model="form.daily_budget_cap" placeholder="No limit" inputmode="decimal" /></div>
+                </label>
+                <label>
+                  <span>Max total runs</span>
+                  <div class="field-control"><Icon icon="lucide:infinity" /><input v-model="form.max_runs" placeholder="No limit" inputmode="numeric" /></div>
+                </label>
+                <label>
+                  <span>Pause after failures</span>
+                  <div class="field-control"><Icon icon="lucide:circle-pause" /><input v-model="form.auto_pause_on_failures" placeholder="3" inputmode="numeric" /></div>
+                </label>
+              </div>
+              <p>Set limits to control spend and ensure reliability.</p>
+            </article>
+          </section>
+
+          <section class="bottom-grid">
+            <article class="form-panel safety-panel">
+              <h3 class="panel-title"><Icon icon="lucide:shield" /> <span>7. Safety</span></h3>
+              <label class="toggle-row">
+                <input type="checkbox" v-model="form.read_only" />
+                <span class="toggle" aria-hidden="true"></span>
+                <span><strong>Read-only mode</strong><small>Allow the agent to read data but prevent any changes.</small></span>
+              </label>
+            </article>
+
+            <article class="form-panel preview">
+              <h3 class="panel-title preview-title"><Icon icon="lucide:calendar-days" /> <span>Schedule Preview</span></h3>
+              <div>
+                <em>CRON</em>
+                <code>{{ cronPreview }}</code>
+                <p>{{ cronDescription }}</p>
+                <button type="button" @click="copyCron"><Icon icon="lucide:copy" /> {{ copied ? 'Copied' : 'Copy cron' }}</button>
+              </div>
+            </article>
+          </section>
+        </div>
 
         <footer class="create-actions">
-          <button class="ghost" v-if="form.id" @click="resetForm">Cancel edit</button>
-          <button class="ghost" v-else>Save as draft</button>
-          <button class="primary" :disabled="saving" @click="submitSchedule">
+          <button type="button" class="ghost" v-if="form.id" @click="resetForm">Cancel edit</button>
+          <button type="button" class="ghost" v-else :disabled="saving" @click="submitSchedule(true)"><Icon icon="lucide:bookmark" /> Save as draft</button>
+          <button type="button" class="primary" :disabled="saving" @click="submitSchedule(false)">
+            <Icon icon="lucide:calendar-days" />
             {{ saving ? 'Saving…' : (form.id ? 'Update Schedule' : 'Create Schedule') }}
           </button>
         </footer>
@@ -289,6 +358,7 @@ import { confirm } from '@/composables/useConfirm'
 const router = useRouter()
 
 const agents = ref([])
+const models = ref([])
 const rawSchedules = ref([])
 const loading = ref(true)
 const saving = ref(false)
@@ -296,6 +366,7 @@ const copied = ref(false)
 const search = ref('')
 const statusFilter = ref('')
 const openMenuId = ref(null)
+const templateMenuOpen = ref(false)
 
 // Run history drill-down (per-schedule ScheduleRun list, fetched on open)
 const runsModal = ref(null)     // the schedule row whose runs are shown, or null
@@ -309,12 +380,14 @@ const form = reactive({
   prompt: '',
   frequency: 'Daily',
   time: '08:00',
+  interval_value: '15',
+  interval_unit: 'Minutes',
   dow: 1,                 // day of week for Weekly (0=Sun … 6=Sat); no visible picker yet
   timezone: '(UTC +05:00) Asia/Karachi',
   model: '',
   system_prompt: '',
-  budget_per_run: '',
-  max_iterations: '',
+  budget_per_run: '1.00',
+  max_iterations: '10',
   daily_budget_cap: '',
   max_runs: '',
   auto_pause_on_failures: '3',
@@ -329,6 +402,13 @@ function buildCron() {
   const [h, m] = (form.time || '08:00').split(':')
   const hh = parseInt(h || '0', 10)
   const mm = parseInt(m || '0', 10)
+  if (form.frequency === 'Every') {
+    const max = form.interval_unit === 'Minutes' ? 59 : 23
+    const interval = Math.max(1, Math.min(max, parseInt(form.interval_value, 10) || 1))
+    return form.interval_unit === 'Minutes'
+      ? `*/${interval} * * * *`
+      : `0 */${interval} * * *`
+  }
   if (form.frequency === 'Hourly') return `${mm} * * * *`
   if (form.frequency === 'Weekly') return `${mm} ${hh} * * ${form.dow ?? 1}`
   return `${mm} ${hh} * * *`
@@ -339,6 +419,14 @@ function describeCron(cron) {
   const p = cron.trim().split(/\s+/)
   if (p.length < 5) return cron
   const [min, hr, , , dow] = p
+  if (min.startsWith('*/') && hr === '*') {
+    const interval = parseInt(min.slice(2), 10) || 1
+    return `Every ${interval} minute${interval === 1 ? '' : 's'}`
+  }
+  if (min === '0' && hr.startsWith('*/')) {
+    const interval = parseInt(hr.slice(2), 10) || 1
+    return `Every ${interval} hour${interval === 1 ? '' : 's'}`
+  }
   if (hr === '*') return 'Every hour'
   const t = `${pad(parseInt(hr, 10))}:${pad(parseInt(min, 10))}`
   if (dow && dow !== '*') {
@@ -349,9 +437,43 @@ function describeCron(cron) {
 }
 
 const cronPreview = computed(() => buildCron())
+const timezoneName = computed(() => (
+  form.timezone.match(/[A-Za-z_]+\/[A-Za-z_]+/)?.[0] || 'server time'
+))
 const cronDescription = computed(() => {
-  const tz = form.timezone.match(/[A-Za-z_]+\/[A-Za-z_]+/)?.[0] || 'server time'
-  return `${describeCron(cronPreview.value)} (${tz})`
+  return `${describeCron(cronPreview.value)} (${timezoneName.value})`
+})
+
+const formattedRunTime = computed(() => {
+  const [hours = '8', minutes = '00'] = (form.time || '08:00').split(':')
+  const hour = Number(hours)
+  const suffix = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  return `${String(displayHour).padStart(2, '0')}:${minutes} ${suffix}`
+})
+
+const intervalMax = computed(() => form.interval_unit === 'Minutes' ? 59 : 23)
+const normalizedInterval = computed(() => {
+  return Math.max(1, Math.min(intervalMax.value, parseInt(form.interval_value, 10) || 1))
+})
+
+function normalizeIntervalInput() {
+  form.interval_value = String(normalizedInterval.value)
+}
+
+const nextRunLabel = computed(() => {
+  if (form.frequency === 'Every') {
+    const unit = form.interval_unit === 'Minutes' ? 'minute' : 'hour'
+    return `In ${normalizedInterval.value} ${unit}${normalizedInterval.value === 1 ? '' : 's'}`
+  }
+  if (form.frequency === 'Hourly') return 'Within the next hour'
+  if (form.frequency === 'Weekly') return `Next ${DOW[form.dow ?? 1]} at ${formattedRunTime.value}`
+
+  const now = new Date()
+  const [hours = '8', minutes = '0'] = (form.time || '08:00').split(':')
+  const runMinutes = Number(hours) * 60 + Number(minutes)
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+  return `${runMinutes > currentMinutes ? 'Today' : 'Tomorrow'} at ${formattedRunTime.value}`
 })
 
 async function copyCron() {
@@ -434,9 +556,14 @@ function numOrNull(v) {
   return isNaN(n) ? null : n
 }
 
-function buildPayload() {
+// Extract the IANA name (e.g. "Asia/Karachi") from the dropdown label for the backend.
+function extractTz(label) {
+  return (label || '').match(/[A-Za-z_]+\/[A-Za-z_]+/)?.[0] || 'UTC'
+}
+
+function buildPayload(extra = {}) {
   const overrides = {}
-  if (form.model && form.model !== 'Select model') overrides.model = form.model
+  if (form.model) overrides.model_id = form.model   // model id from the picker; backend resolves it
   if (form.system_prompt) overrides.system_prompt = form.system_prompt
   const bpr = numOrNull(form.budget_per_run)
   if (bpr != null) overrides.budget_per_run = bpr
@@ -450,11 +577,13 @@ function buildPayload() {
     name: form.name.trim(),
     prompt: form.prompt.trim(),
     schedule: buildCron(),
+    timezone: extractTz(form.timezone),
     profile_overrides: overrides,
     daily_budget_cap: dailyCap,
     max_runs: maxRuns != null ? Math.round(maxRuns) : null,
     auto_pause_on_failures: Math.round(numOrNull(form.auto_pause_on_failures) ?? 3),
     read_only: !!form.read_only,
+    ...extra,
   }
 }
 
@@ -483,20 +612,30 @@ async function loadAgents() {
   }
 }
 
-async function submitSchedule() {
+async function loadModels() {
+  try {
+    const { data } = await api.getLLMModels()
+    models.value = data?.results || data || []
+  } catch {
+    models.value = []
+  }
+}
+
+async function submitSchedule(asDraft = false) {
   if (!form.agent_id) return notify.error('Please select an agent')
   if (!form.name.trim()) return notify.error('Schedule name is required')
   if (!form.prompt.trim()) return notify.error('Describe what the agent should do')
 
   saving.value = true
   try {
-    const payload = buildPayload()
+    // Drafts are created paused (active:false); editing never changes active from here.
+    const payload = form.id ? buildPayload() : buildPayload(asDraft ? { active: false } : {})
     if (form.id) {
       await api.updateSchedule(form.id, payload)
       notify.success('Schedule updated')
     } else {
       await api.createAgentSchedule(form.agent_id, payload)
-      notify.success('Schedule created')
+      notify.success(asDraft ? 'Saved as draft (paused)' : 'Schedule created')
     }
     resetForm()
     await loadSchedules()
@@ -518,15 +657,27 @@ function editSchedule(row) {
   form.prompt = s.prompt || ''
   // derive frequency / time from cron
   if (p.length >= 5) {
-    if (p[1] === '*') { form.frequency = 'Hourly'; form.time = '08:00' }
+    if (p[0]?.startsWith('*/') && p[1] === '*') {
+      form.frequency = 'Every'
+      form.interval_value = String(parseInt(p[0].slice(2), 10) || 1)
+      form.interval_unit = 'Minutes'
+    } else if (p[0] === '0' && p[1]?.startsWith('*/')) {
+      form.frequency = 'Every'
+      form.interval_value = String(parseInt(p[1].slice(2), 10) || 1)
+      form.interval_unit = 'Hours'
+    } else if (p[1] === '*') { form.frequency = 'Hourly'; form.time = '08:00' }
     else {
       form.time = `${pad(parseInt(p[1], 10))}:${pad(parseInt(p[0], 10))}`
       if (p[4] && p[4] !== '*') { form.frequency = 'Weekly'; form.dow = parseInt(p[4], 10) }
       else form.frequency = 'Daily'
     }
   }
-  form.model = ov.model || ''
+  form.model = ov.model_id || ov.model || ''
   form.system_prompt = ov.system_prompt || ''
+  // Map the stored IANA timezone back onto the dropdown label (two options today).
+  const tz = s.timezone || 'UTC'
+  if (tz.includes('Karachi')) form.timezone = '(UTC +05:00) Asia/Karachi'
+  else if (tz.includes('Eastern')) form.timezone = '(UTC -05:00) US/Eastern'
   form.budget_per_run = ov.budget_per_run != null ? String(ov.budget_per_run) : ''
   form.max_iterations = ov.max_iterations != null ? String(ov.max_iterations) : ''
   form.daily_budget_cap = s.daily_budget_cap != null ? String(s.daily_budget_cap) : ''
@@ -544,11 +695,13 @@ function resetForm() {
   form.prompt = ''
   form.frequency = 'Daily'
   form.time = '08:00'
+  form.interval_value = '15'
+  form.interval_unit = 'Minutes'
   form.dow = 1
   form.model = ''
   form.system_prompt = ''
-  form.budget_per_run = ''
-  form.max_iterations = ''
+  form.budget_per_run = '1.00'
+  form.max_iterations = '10'
   form.daily_budget_cap = ''
   form.max_runs = ''
   form.auto_pause_on_failures = '3'
@@ -598,6 +751,7 @@ function toggleMenu(id) {
 }
 
 function applyTemplate(t) {
+  templateMenuOpen.value = false
   form.id = null
   form.name = t.title
   form.prompt = t.prompt
@@ -615,6 +769,7 @@ function openDocs() {
 
 onMounted(() => {
   loadAgents()
+  loadModels()
   loadSchedules()
 })
 
@@ -658,14 +813,14 @@ const tips = [
 <style scoped>
 .schedules-page {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   min-height: 100%;
-  padding: 28px;
-  background: #f8fbff;
-  color: #0f172a;
+  padding: 24px;
+  background: #f7f9fc;
+  color: #111936;
 }
-.schedules-main { max-width: 1220px; width: 100%; justify-self: center; }
+.schedules-main { max-width: 1500px; width: 100%; justify-self: center; }
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
 h1, h2, h3, p { margin: 0; }
 h1 { font-size: 23px; line-height: 1.12; font-weight: 850; letter-spacing: 0; }
@@ -738,6 +893,296 @@ input::placeholder, textarea::placeholder { color: #94a3b8; font-weight: 500; }
   height: 29px; border: 1px solid #d9e3f0; border-radius: 7px; background: #fff; color: #52637a; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 10.5px; font-weight: 850;
 }
 .create-actions { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; }
+
+/* Screenshot-aligned scheduled-run form */
+.create-card {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 18px;
+  border-color: #e5e9f1;
+  border-radius: 18px;
+  box-shadow: 0 12px 36px rgba(28,35,55,.07);
+}
+.create-head {
+  padding: 24px 30px;
+  border-bottom-color: #e8ebf1;
+}
+.head-title { gap: 18px; }
+.head-title > span {
+  width: 64px;
+  height: 64px;
+  border-radius: 15px;
+  flex: 0 0 auto;
+  background: linear-gradient(145deg, #f0efff, #f8f7ff);
+  color: #654cff;
+}
+.head-title svg { width: 34px; height: 34px; }
+.create-head h2 {
+  font-size: 27px;
+  line-height: 1.15;
+  font-weight: 780;
+  letter-spacing: -.45px;
+}
+.create-head p { margin-top: 6px; color: #65708b; font-size: 16px; }
+.template-picker { position: relative; }
+.template-btn {
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 9px;
+  color: #4657f5;
+  font-size: 14px;
+  font-weight: 750;
+}
+.template-btn svg { width: 19px; height: 19px; }
+.template-menu {
+  position: absolute;
+  top: 56px;
+  right: 0;
+  z-index: 40;
+  width: 260px;
+  padding: 7px;
+  border: 1px solid #dde2ed;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 18px 42px rgba(23,30,55,.17);
+}
+.template-menu button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  align-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 10px;
+  color: #4f46e5;
+  text-align: left;
+}
+.template-menu button:hover { background: #f5f4ff; }
+.template-menu strong, .template-menu small { display: block; }
+.template-menu strong { color: #17203d; font-size: 12.5px; }
+.template-menu small { margin-top: 2px; color: #77819b; font-size: 11px; }
+.create-body {
+  display: grid;
+  gap: 16px;
+  padding: 30px 20px 24px;
+}
+.schedule-basics {
+  display: grid;
+  grid-template-columns: 1.05fr 1.05fr 1.5fr;
+  gap: 44px;
+  padding: 0 10px 10px;
+}
+.step-field h3, .panel-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  color: #111936;
+  font-size: 16px;
+  font-weight: 760;
+}
+.step-field h3 svg, .panel-title svg {
+  width: 22px;
+  height: 22px;
+  color: #604cff;
+}
+.create-card label {
+  display: grid;
+  gap: 8px;
+  color: #3e4966;
+  font-size: 13px;
+  font-weight: 700;
+}
+.create-card input, .create-card select, .create-card textarea {
+  width: 100%;
+  border: 1px solid #d6dcea;
+  border-radius: 9px;
+  background: #fff;
+  color: #29324d;
+  font-size: 14px;
+  font-weight: 500;
+  outline: none;
+}
+.create-card input, .create-card select { height: 47px; padding: 0 16px; }
+.create-card input:focus, .create-card select:focus, .create-card textarea:focus {
+  border-color: #7357f3;
+  box-shadow: 0 0 0 2px rgba(115,87,243,.08);
+}
+.create-card input:disabled { background: #f1f5f9; color: #94a3b8; }
+.create-card textarea { height: 98px; padding: 15px 16px 30px; resize: vertical; }
+.create-card input::placeholder, .create-card textarea::placeholder { color: #8b93aa; font-weight: 500; }
+.textarea-wrap { position: relative; }
+.textarea-wrap > span {
+  position: absolute;
+  right: 15px;
+  bottom: 12px;
+  color: #707991;
+  font-size: 12px;
+}
+.form-panel {
+  border: 1px solid #e1e5ee;
+  border-radius: 10px;
+  background: #fff;
+}
+.when-panel { padding: 24px 16px 26px; }
+.when-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.04fr 1.02fr .78fr;
+  gap: 36px;
+  align-items: end;
+}
+.field-control { position: relative; }
+.field-control > svg, .field-control > b {
+  position: absolute;
+  z-index: 1;
+  left: 13px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: #65708b;
+}
+.field-control > b { width: auto; height: auto; font-size: 19px; font-weight: 500; }
+.field-control input, .field-control select { padding-left: 40px; }
+.interval-control {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(72px, .75fr) minmax(110px, 1.25fr);
+}
+.interval-control > svg {
+  position: absolute;
+  z-index: 2;
+  left: 13px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  color: #65708b;
+  pointer-events: none;
+}
+.interval-control input {
+  padding-left: 40px;
+  border-radius: 9px 0 0 9px;
+}
+.interval-control select {
+  border-left: 0;
+  border-radius: 0 9px 9px 0;
+}
+.interval-control input:focus, .interval-control select:focus {
+  position: relative;
+  z-index: 1;
+}
+.label-with-icon { display: inline-flex; align-items: center; gap: 8px; }
+.label-with-icon svg { width: 17px; height: 17px; }
+.next-run {
+  min-height: 112px;
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  padding: 20px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f1efff, #f9f7ff);
+  color: #5744f4;
+}
+.next-run > svg { width: 25px; height: 25px; flex: 0 0 auto; }
+.next-run strong { display: block; margin-bottom: 6px; color: #202947; font-size: 13px; }
+.next-run p, .next-run small { display: block; color: #6254e9; font-size: 13px; line-height: 1.45; }
+.settings-grid, .bottom-grid {
+  display: grid;
+  grid-template-columns: .93fr 1.07fr;
+  gap: 22px;
+}
+.advanced-panel, .limits-panel { min-height: 270px; padding: 22px 16px; }
+.advanced-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.16fr;
+  gap: 17px 34px;
+}
+.system-prompt { grid-column: 1 / -1; }
+.show-more {
+  margin-top: 15px;
+  color: #4657f5;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 750;
+}
+.limit-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.limits-panel > p { margin-top: 15px; color: #707991; font-size: 12px; }
+.safety-panel, .preview { min-height: 116px; padding: 20px 16px; }
+.toggle-row { display: flex !important; align-items: center; gap: 14px !important; cursor: pointer; }
+.toggle-row input { position: absolute; opacity: 0; pointer-events: none; }
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 25px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #c9cede;
+  transition: background .2s ease;
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 5px rgba(22,28,45,.2);
+  transition: transform .2s ease;
+}
+.toggle-row input:checked + .toggle { background: linear-gradient(135deg, #7255f5, #5541ee); }
+.toggle-row input:checked + .toggle::after { transform: translateX(19px); }
+.toggle-row strong { display: block; color: #17203d; font-size: 13px; }
+.toggle-row small { display: block; margin-top: 4px; color: #737d94; font-size: 12px; font-weight: 500; }
+.preview-title { color: #17203d; }
+.preview-title svg { color: #24bd7a; }
+.preview > div { display: flex; align-items: center; gap: 12px; }
+.preview em {
+  border-radius: 9px;
+  background: #f1efff;
+  color: #5544ed;
+  padding: 7px 10px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 800;
+}
+.preview code {
+  border: 0;
+  border-radius: 9px;
+  background: #f1efff;
+  padding: 8px 14px;
+  color: #5544ed;
+  font-size: 12px;
+  font-weight: 800;
+}
+.preview p { color: #29324d; font-size: 12.5px; font-weight: 600; flex: 1; }
+.preview button {
+  height: 42px;
+  border: 1px solid #d9ddea;
+  border-radius: 9px;
+  color: #29324d;
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 750;
+}
+.create-actions { padding: 0 24px 20px; }
+.create-actions .ghost, .create-actions .primary {
+  height: 49px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 750;
+}
+.create-actions .ghost { padding: 0 24px; color: #26314e; }
+.create-actions .primary {
+  min-width: 246px;
+  padding: 0 34px;
+  background: linear-gradient(135deg, #6946ef, #563df0);
+  box-shadow: 0 12px 24px rgba(91,63,239,.2);
+}
 .schedule-table-card { overflow: hidden; }
 .table-headline { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 18px; border-bottom: 1px solid #e8eef7; }
 .table-headline h2 span { margin-left: 8px; border-radius: 999px; background: #edf2f7; color: #64748b; padding: 2px 8px; font-size: 11px; }
@@ -783,7 +1228,16 @@ td b {
 .empty-row strong { display: block; color: #334155; font-size: 12.5px; margin-top: 8px; }
 .empty-row small { display: block; color: #94a3b8; font-size: 11px; margin-top: 4px; }
 .showing { padding: 12px 18px; }
-.schedule-rail { display: grid; gap: 14px; align-content: start; margin-top: 56px; }
+.schedule-rail {
+  width: 100%;
+  max-width: 1500px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-content: start;
+  justify-self: center;
+  margin-top: 0;
+}
 .rail-card { padding: 18px; }
 .how-card > p, .templates-card > p { margin: 10px 0 18px; }
 .how-card article { display: flex; gap: 14px; align-items: flex-start; margin-top: 18px; }
@@ -809,18 +1263,37 @@ td b {
 @media (max-width: 1320px) {
   .schedules-page { grid-template-columns: 1fr; }
   .schedule-rail { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 0; }
+  .when-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+  .next-run { min-height: 96px; }
 }
 @media (max-width: 1050px) {
   .form-grid.top, .form-grid.middle, .safety-row { grid-template-columns: 1fr; }
   .form-section, .safety-row article { border-right: 0; border-bottom: 1px solid #e8eef7; }
+  .schedule-basics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+  .task-field { grid-column: 1 / -1; }
+  .settings-grid, .bottom-grid { grid-template-columns: 1fr; }
   .schedule-rail { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
-  .schedules-page { padding: 18px; }
+  .schedules-page { padding: 12px; }
   .page-head, .create-head, .table-headline, .table-tools { flex-direction: column; align-items: stretch; }
   .demo-btn, .template-btn, .table-tools label, .table-tools select { width: 100%; }
   .two-fields, .limit-grid { grid-template-columns: 1fr; }
+  .create-head { padding: 20px; }
+  .head-title { align-items: flex-start; }
+  .head-title > span { width: 52px; height: 52px; }
+  .head-title svg { width: 28px; height: 28px; }
+  .create-head h2 { font-size: 22px; }
+  .create-head p { font-size: 14px; }
+  .template-menu { left: 0; right: auto; width: 100%; }
+  .create-body { padding: 22px 14px 18px; }
+  .schedule-basics, .when-grid, .advanced-grid { grid-template-columns: 1fr; gap: 20px; padding-left: 0; padding-right: 0; }
+  .task-field, .system-prompt { grid-column: auto; }
+  .when-panel, .advanced-panel, .limits-panel, .safety-panel, .preview { padding: 18px 14px; }
   .preview div { flex-wrap: wrap; }
+  .preview p { flex-basis: 100%; }
+  .create-actions { gap: 12px; padding: 0 14px 18px; }
+  .create-actions .ghost, .create-actions .primary { width: 100%; min-width: 0; padding: 0 16px; }
   .schedule-table-card { overflow-x: auto; }
   table { min-width: 820px; }
 }
