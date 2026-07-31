@@ -296,9 +296,9 @@ const editAgent = (id) => {
 };
 
 const openChat = (agent) => {
-    // Open the unified Configure screen in edit mode (its right dock IS the live
-    // chat/emulator) — same place as Configure, focused on the Emulator tab.
-    router.push({ path: `/dashboard/agents/${agent.id}/editor`, query: { tab: 'emulator' } });
+    // Land directly in the chat composer for THIS agent — pre-selected via ?agent=<id> so the user can
+    // start chatting immediately, with no agent-picker step.
+    router.push({ path: '/dashboard/chat/new', query: { agent: agent.id } });
 };
 
 const openMonitor = (agent) => {

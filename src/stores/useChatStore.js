@@ -1058,8 +1058,12 @@ export const useChatStore = defineStore('chat', {
           // Scope to THIS window's conversation. HITL requests are broadcast to the user-level group,
           // so every open chat window/tab receives them; only show the card in the window whose
           // conversation triggered the turn (fall back to showing it when no id is present).
-          const _hcid = msg.conversation_id || msg.payload?.conversation_id
-          if (_hcid && this.conversationId && String(_hcid) !== String(this.conversationId)) break
+          // Strict per-conversation scoping: if the card names a conversation, show it ONLY in the window
+          // viewing that conversation — drop it in every other chat / agent / surface (e.g. the Kurumera
+          // integration and the Aadml dashboard are separate windows; a card must not leak across them). A
+          // legacy card with no conversation_id still falls through (never silently hide a real approval).
+          const _hcid = String(msg.conversation_id || msg.payload?.conversation_id || '')
+          if (_hcid && _hcid !== String(this.conversationId || '')) break
           // Avoid duplicates if the event is re-delivered.
           if (!this.hitlRequests.some((r) => r.request_id === msg.request_id)) {
             this.hitlRequests.push({
@@ -1092,6 +1096,9 @@ export const useChatStore = defineStore('chat', {
           break
         }
         case 'hitl_response_ack':
+        case 'hitl_resolved':
+          // hitl_response_ack = THIS socket answered; hitl_resolved = broadcast so EVERY window clears the
+          // card once it's answered anywhere (no stale card lingering on another window/surface).
           this.hitlRequests = this.hitlRequests.filter((r) => r.request_id !== msg.request_id)
           if (this.hitlRequests.length === 0) this.awaitingApproval = false
           break

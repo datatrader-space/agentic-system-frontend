@@ -293,11 +293,21 @@ onMounted(async () => {
   } else {
     if (chat.conversationId) chat.reset()
     canvas.close()
-    // New chat: open the socket + pre-build the (auto-)selected agent now, during the idle window
-    // before the user sends — so the first message reuses the runner (no ~6.6s cold build).
-    chat.prewarmAgent()
+    _startNewChat()
   }
 })
+
+// New chat. If we arrived from an agent card (/dashboard/chat/new?agent=<id>) pre-select THAT agent so the
+// user lands straight in its composer with no picker step; otherwise pre-build the (auto-)selected agent
+// now, during the idle window before the first message, so it reuses the runner (no ~6.6s cold build).
+function _startNewChat() {
+  const qAgent = route.query.agent
+  if (qAgent && chat.agents.some((a) => String(a.id) === String(qAgent))) {
+    chat.setAgent(String(qAgent))   // sets selectedAgentId + prewarms
+  } else {
+    chat.prewarmAgent()
+  }
+}
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onWinResize)
@@ -313,7 +323,18 @@ watch(
   () => route.params.sessionId,
   (id) => {
     if (id) { chat.openConversation(id); canvas.adoptConversation(id) }
-    else { chat.reset(); canvas.close() }
+    else { chat.reset(); canvas.close(); _startNewChat() }
+  }
+)
+
+// Clicking Chat on a DIFFERENT agent card while already on /dashboard/chat/new (path unchanged, only the
+// ?agent query changes) — re-select the new agent so the composer switches without a manual pick.
+watch(
+  () => route.query.agent,
+  (a) => {
+    if (a && !route.params.sessionId && chat.agents.some((x) => String(x.id) === String(a))) {
+      chat.setAgent(String(a))
+    }
   }
 )
 

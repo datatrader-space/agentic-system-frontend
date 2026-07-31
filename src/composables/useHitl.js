@@ -23,10 +23,11 @@ export function useHitl(sendFn, getConversationId = null) {
   function handleHitlEvent(evt) {
     if (!evt || !evt.type) return false
     if (evt.type === 'hitl_request') {
-      // Scope to this window's conversation (skip cards meant for another open window).
-      const cid = evt.conversation_id || evt.payload?.conversation_id
-      const mine = getConversationId ? getConversationId() : null
-      if (cid && mine && String(cid) !== String(mine)) return true
+      // Strict per-conversation scoping — show the card ONLY in the window viewing its conversation; drop it
+      // in every other chat / agent / surface. A legacy card with no conversation_id still falls through.
+      const cid = String(evt.conversation_id || evt.payload?.conversation_id || '')
+      const mine = String((getConversationId ? getConversationId() : '') || '')
+      if (cid && cid !== mine) return true
       if (!hitlRequests.value.some((r) => r.request_id === evt.request_id)) {
         hitlRequests.value.push({
           request_id: evt.request_id,
@@ -42,7 +43,8 @@ export function useHitl(sendFn, getConversationId = null) {
       }
       return true
     }
-    if (evt.type === 'hitl_response_ack') {
+    if (evt.type === 'hitl_response_ack' || evt.type === 'hitl_resolved') {
+      // answered on this socket (ack) OR resolved anywhere (broadcast) → clear the card in this window too.
       hitlRequests.value = hitlRequests.value.filter((r) => r.request_id !== evt.request_id)
       return true
     }
