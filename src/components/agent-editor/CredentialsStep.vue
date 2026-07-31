@@ -175,26 +175,11 @@ const pageSize = 5
 const attachingId = ref(null)
 const detachingId = ref(null)
 
-// Identity of a SPECIFIC credential = its scope (service / builtin tool) + its name. Keyed per-CREDENTIAL,
-// never per-scope: two credentials of the same scope (e.g. two ssh_exec servers) must be tracked
-// separately, otherwise attaching one wrongly marks every sibling of that scope as "Attached".
-function credKey(c) {
-  const scope = `${c.scope_type || 'service'}:${c.service_id ?? c.service_name ?? ''}`
-  return `${scope}::${(c.credential_name || c.name || '').trim().toLowerCase()}`
-}
-// Attaching COPIES a vault credential into an agent-scoped copy (same name + scope). Map each copy that
-// belongs to THIS agent by its identity → the copy's id (used for Detach). listGlobal returns these copies.
-const attachedCopies = computed(() => {
-  const map = {}
-  for (const c of rows.value) {
-    if (c.agent_profile_id != null && String(c.agent_profile_id) === String(props.agent.id)) {
-      map[credKey(c)] = c.id
-    }
-  }
-  return map
-})
+// Attaching LINKS a vault credential to this agent (a reference, no copy). Each vault row carries
+// attached_agent_ids — the agents it is linked to — so a credential is "Attached" here iff THIS agent's
+// id is among them. Multiple distinct servers of the same tool can each be attached independently.
 function isAttached(c) {
-  return credKey(c) in attachedCopies.value
+  return (c.attached_agent_ids || []).map(String).includes(String(props.agent.id))
 }
 // The vault panel lists the reusable GLOBAL credentials only. The agent-scoped copies are attachment STATE
 // (they drive isAttached / Detach), NOT extra vault rows — otherwise attaching shows a confusing duplicate.
@@ -268,7 +253,7 @@ async function attach(cred) {
     // 409 = the agent already has a credential for THIS scope (the backend allows one per scope). Surface
     // it — silently resyncing made the click look like it did nothing.
     if (e?.response?.status === 409) {
-      notify.error(e?.response?.data?.error || 'This agent already has a credential for this scope — detach it first.')
+      notify.error(e?.response?.data?.error || 'This credential is already attached to the agent.')
       await loadCredentials()
     } else {
       notify.error(e?.response?.data?.error || 'Could not attach credential')
@@ -279,11 +264,9 @@ async function attach(cred) {
 }
 async function detach(cred) {
   if (!props.agent.id) return
-  const attachedId = attachedCopies.value[credKey(cred)]
-  if (!attachedId) return
   detachingId.value = cred.id
   try {
-    await credentialsApi.delete(props.agent.id, attachedId)
+    await credentialsApi.detach(props.agent.id, cred.id)
     notify.success('Credential detached')
     await loadCredentials()
   } catch (e) {

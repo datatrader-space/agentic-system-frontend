@@ -147,10 +147,16 @@ export const credentialsApi = {
         api.post(`/agents/${agentId}/credentials/${credentialId}/set-default/`),
 
     /**
-     * Assign (copy) a credential from another agent/global to this agent
+     * Attach (LINK) a global/reusable credential to this agent — a reference, not a copy.
      */
     assign: (agentId, credentialId) =>
         api.post(`/agents/${agentId}/credentials/${credentialId}/assign/`),
+
+    /**
+     * Detach (unlink) a credential from this agent — removes the link only; the credential is untouched.
+     */
+    detach: (agentId, credentialId) =>
+        api.post(`/agents/${agentId}/credentials/${credentialId}/detach/`),
 
     /**
      * Get available built-in tool credential scopes
