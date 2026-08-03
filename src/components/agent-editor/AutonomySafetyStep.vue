@@ -1,6 +1,6 @@
 <template>
-  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif]">
-    <div class="mb-4 flex flex-wrap items-start justify-between gap-4">
+  <div class="autonomy-page font-[Inter,system-ui,sans-serif]">
+    <div class="autonomy-head">
       <div>
         <h2 class="text-[21px] font-bold tracking-tight text-[#0F172A]">Configure Autonomy &amp; Safety</h2>
         <p class="mt-1 text-[13.5px] text-[#475569]">Set how your agent works, when it acts, and the boundaries it must follow.</p>
@@ -10,16 +10,16 @@
       </button>
     </div>
 
-    <section class="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-[0_1px_3px_rgba(16,24,40,0.06)]">
-      <div class="grid gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-        <div>
+    <section class="execution-panel">
+      <div class="execution-layout">
+        <div class="execution-copy">
           <h3 class="text-[16px] font-semibold text-[#0F172A]">Execution Mode &amp; Controls</h3>
           <p class="mt-2 text-[13px] leading-5 text-[#64748B]">Choose how your agent makes decisions, then fine-tune the advanced capabilities it can use.</p>
         </div>
 
-        <div class="space-y-4">
+        <div class="execution-options">
           <!-- Run mode — the single canonical agent_run_mode (four options) -->
-            <div class="grid gap-3 md:grid-cols-2">
+            <div class="mode-grid">
             <button
               v-for="mode in runModes"
               :key="mode.key"
@@ -42,11 +42,11 @@
           </div>
 
           <!-- Advanced controls (Code Execution / Service Setup) -->
-          <div class="border-t border-[#EEF1F5] pt-4">
+          <div class="capabilities-block">
             <p class="mb-3 text-[11px] font-bold uppercase tracking-wide text-[#94A3B8]">Controls &amp; limits</p>
-            <div class="grid gap-3 md:grid-cols-2">
+            <div class="capability-grid">
               <!-- Code Execution (was "Code Mode") -->
-              <div class="rounded-xl border p-4 transition-colors" :class="codeModeEnabled ? 'border-violet-300 bg-gradient-to-r from-violet-50 to-indigo-50' : 'border-[#E5E7EB] bg-white'">
+              <div class="capability-card rounded-xl border transition-colors" :class="codeModeEnabled ? 'border-violet-300 bg-gradient-to-r from-violet-50 to-indigo-50' : 'border-[#E5E7EB] bg-white'">
                 <div class="flex items-center justify-between gap-3">
                   <div class="flex items-center gap-3">
                     <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-600">
@@ -79,7 +79,7 @@
               </div>
 
               <!-- Service Setup (was "Builder Mode") -->
-              <div class="rounded-xl border p-4 transition-colors" :class="serviceSetupEnabled ? 'border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50' : 'border-[#E5E7EB] bg-white'">
+              <div class="capability-card rounded-xl border transition-colors" :class="serviceSetupEnabled ? 'border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50' : 'border-[#E5E7EB] bg-white'">
                 <div class="flex items-center justify-between gap-3">
                   <div class="flex items-center gap-3">
                     <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-600">
@@ -112,7 +112,7 @@
               </div>
 
               <!-- Canvas Mode -->
-              <div class="rounded-xl border p-4 transition-colors" :class="canvasModeEnabled ? 'border-sky-300 bg-gradient-to-r from-sky-50 to-cyan-50' : 'border-[#E5E7EB] bg-white'">
+              <div class="capability-card rounded-xl border transition-colors" :class="canvasModeEnabled ? 'border-sky-300 bg-gradient-to-r from-sky-50 to-cyan-50' : 'border-[#E5E7EB] bg-white'">
                 <div class="flex items-center justify-between gap-3">
                   <div class="flex items-center gap-3">
                     <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-100 text-sky-600">
@@ -149,9 +149,9 @@
       </div>
     </section>
 
-    <div class="mt-4 grid gap-4 xl:grid-cols-3">
+    <div class="primary-grid">
       <!-- CARD 1 — Tool Permissions & Approvals (the tools chosen in Step 4) -->
-      <section class="config-card xl:col-span-2">
+      <section class="config-card permissions-card">
         <div class="flex items-start gap-3">
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-600">
             <ShieldCheck :size="21" :stroke-width="2" />
@@ -224,7 +224,7 @@
       </section>
 
       <!-- CARD 2 — Guardrails (boundaries the agent must always follow) -->
-      <section class="config-card">
+      <section class="config-card guardrails-card">
         <div class="flex items-start gap-3">
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600">
             <ShieldCheck :size="21" :stroke-width="2" />
@@ -248,8 +248,8 @@
 
     </div>
 
-    <div class="mt-4 grid gap-4 xl:grid-cols-2">
-      <section class="config-card">
+    <div class="secondary-grid">
+      <section class="config-card spending-card">
         <div class="flex items-start gap-3">
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange-50 text-orange-600">
             <CircleDollarSign :size="21" :stroke-width="2" />
@@ -273,7 +273,7 @@
         </div>
       </section>
 
-      <section class="config-card">
+      <section class="config-card action-card">
         <div class="flex items-start gap-3">
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600">
             <ClipboardCheck :size="21" :stroke-width="2" />
@@ -303,10 +303,7 @@
 
         <button class="link-btn mt-5" @click="openUsageModal">View usage <ChevronRight :size="15" /></button>
       </section>
-    </div>
-
-    <div class="mt-4">
-      <section class="config-card">
+      <section class="config-card planning-card">
         <div class="flex items-start gap-3">
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600">
             <ListChecks :size="21" :stroke-width="2" />
@@ -320,7 +317,7 @@
         <div class="mt-5 space-y-4">
           <div class="field-row">
             <span>Planning gate
-              <small class="block text-[11px] font-normal text-[#94A3B8]">On: a task with at least the "complex" number of operations gets a plan first (with a plan card). Smaller tasks always run straight through. Off: every task runs straight through — plan-review agents still pause for approval.</small>
+              <small class="block text-[11px] font-normal text-[#94A3B8]">Plans tasks that meet the complexity threshold. Simpler tasks run directly; plan-review modes still pause when approval is required.</small>
             </span>
             <div class="flex shrink-0 items-center gap-3">
               <label v-if="planningGateEnabled" class="flex items-center gap-1.5 whitespace-nowrap text-[12px] font-medium text-[#64748B]">
@@ -343,8 +340,8 @@
       </section>
     </div>
 
-    <div class="mt-4">
-      <section class="config-card">
+    <div class="summary-wrap">
+      <section class="config-card summary-card">
         <div class="flex items-start gap-3">
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
             <Sparkles :size="21" :stroke-width="2" />
@@ -355,14 +352,14 @@
           </div>
         </div>
 
-        <div class="mt-4 rounded-xl bg-[#EEF4FF] p-5 text-[13px] leading-6 text-[#344054]">
+        <div class="summary-grid">
           <p>Your agent will <strong class="text-[#2563EB]">{{ summaryMode }}</strong>.</p>
           <p>It can spend up to <strong class="text-[#2563EB]">{{ budgetPerDay ? '$' + budgetPerDay : 'unlimited' }}</strong> per day.</p>
           <p>It will follow <strong class="text-[#2563EB]">{{ activeGuardrailCount }} guardrails</strong> and ask for approval on <strong class="text-[#0F172A]">{{ riskCeiling }}</strong> impact actions.</p>
           <p>It can take up to <strong class="text-[#2563EB]">{{ maxActionsPerRun || DEFAULT_MAX_STEPS }} steps per run</strong> and <strong class="text-[#2563EB]">{{ maxRunsPerDay || 'unlimited' }} runs per day</strong>.</p>
         </div>
 
-        <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="summary-actions">
           <span class="inline-flex items-center gap-2 rounded-lg bg-[#E6F7EE] px-3 py-2 text-[13px] font-semibold text-[#027A48]">
             <CheckCircle2 :size="16" :stroke-width="2.4" /> Configuration looks good
           </span>
@@ -1022,6 +1019,140 @@ onMounted(() => { loadGuardrails(); loadToolDefs(); loadAgentBudget(); loadPlatf
 .check-row input { height: 16px; width: 16px; accent-color: #12B76A; }
 .link-btn { display: inline-flex; align-items: center; gap: 5px; color: #2563EB; font-size: 13px; font-weight: 700; }
 .test-btn { display: inline-flex; align-items: center; gap: 7px; height: 40px; border: 1px solid #D9E0EA; border-radius: 10px; background: #fff; padding: 0 16px; color: #2563EB; font-size: 13px; font-weight: 700; }
+
+/* Compact autonomy workspace */
+.autonomy-page {
+  width: 100%;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 0 20px 28px;
+  box-sizing: border-box;
+  color: #0f172a;
+}
+.autonomy-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 12px;
+}
+.execution-panel,
+.config-card {
+  border: 1px solid #e2e7ef;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16,24,40,.045);
+}
+.execution-panel { padding: 16px; }
+.execution-layout,
+.execution-options { display: grid; gap: 14px; }
+.execution-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eef1f5;
+}
+.execution-copy p { margin: 0; }
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.mode-card {
+  min-height: 108px;
+  padding: 13px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+.mode-card:hover { box-shadow: 0 5px 14px rgba(16,24,40,.055); }
+.mode-card-active { box-shadow: 0 0 0 1px #2563eb, 0 5px 14px rgba(37,99,235,.07); }
+.mode-card svg { width: 22px; height: 22px; }
+.mode-card > span:nth-child(2) { margin-top: 8px; font-size: 13.5px; }
+.mode-card > span:nth-child(3) { margin-top: 3px; font-size: 11.5px; line-height: 1.4; }
+.mode-card > span:nth-child(4) { margin-top: 7px; padding: 2px 8px; font-size: 9.5px; }
+.radio-dot { width: 18px; height: 18px; }
+.capabilities-block {
+  padding-top: 12px;
+  border-top: 1px solid #eef1f5;
+}
+.capability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.capability-card { min-height: 76px; padding: 11px 12px; }
+.capability-card > div:first-child { align-items: flex-start; }
+.capability-card > div:first-child > div:first-child { min-width: 0; }
+.capability-card > div:first-child > div:first-child > span { width: 32px; height: 32px; border-radius: 8px; }
+.capability-card > div:first-child > div:first-child > div { min-width: 0; }
+.capability-card [role="switch"] { margin-top: 4px; }
+.primary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 14px;
+  margin-top: 14px;
+  align-items: stretch;
+}
+.secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+  align-items: stretch;
+}
+.summary-wrap { margin-top: 14px; }
+.config-card { height: 100%; padding: 15px; }
+.config-card > div:first-child > span:first-child { width: 36px; height: 36px; border-radius: 10px; }
+.config-card h3 { font-size: 14px; }
+.config-card .field-row { gap: 12px; font-size: 12px; }
+.control { height: 36px; font-size: 12px; }
+.planning-card .field-row { grid-template-columns: 1fr; align-items: start; gap: 12px; }
+.planning-card .field-row > div { width: 100%; justify-content: space-between; }
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 22px;
+  margin-top: 12px;
+  border-radius: 10px;
+  background: #f2f6ff;
+  padding: 13px 15px;
+  color: #344054;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+@media (max-width: 1250px) {
+  .mode-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .secondary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .planning-card { grid-column: 1 / -1; }
+  .planning-card .field-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+}
+@media (max-width: 1000px) {
+  .primary-grid,
+  .secondary-grid { grid-template-columns: 1fr; }
+  .planning-card { grid-column: auto; }
+  .capability-grid { grid-template-columns: 1fr; }
+  .planning-card .field-row { grid-template-columns: 1fr; align-items: start; }
+}
+@media (max-width: 640px) {
+  .autonomy-page { padding: 0 12px 22px; }
+  .autonomy-head,
+  .execution-copy { flex-direction: column; align-items: stretch; gap: 8px; }
+  .guide-btn { width: 100%; justify-content: center; }
+  .mode-grid,
+  .summary-grid { grid-template-columns: 1fr; }
+  .execution-panel,
+  .config-card { padding: 13px; }
+}
 @media (max-width: 720px) {
   .legacy-safety-grid { grid-template-columns: 1fr; }
   .legacy-form label { grid-template-columns: 1fr; gap: 6px; }

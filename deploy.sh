@@ -35,12 +35,19 @@ AWS_REGION="$(cut -d. -f4 <<<"$ECR_REGISTRY")"
 
 # Rewrite IMAGE_TAG in place so `docker compose ps/logs/restart` on this box all
 # agree with what is actually running, and a bare ./deploy.sh is idempotent.
+#
+# The export is NOT optional. `set -a; source "$ENV_FILE"` above exported IMAGE_TAG with the
+# PREVIOUS tag, and Compose resolves ${IMAGE_TAG} from the shell environment BEFORE --env-file.
+# Rewriting only the file therefore left pull/up on the old image while every echo below claimed
+# the new one — a green deploy that shipped nothing, and a second run that "fixed it" only because
+# the file already held the requested tag. Keep both in sync in one place.
 write_tag() {
   if grep -q '^IMAGE_TAG=' "$ENV_FILE"; then
     sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=$1|" "$ENV_FILE"
   else
     printf 'IMAGE_TAG=%s\n' "$1" >> "$ENV_FILE"
   fi
+  export IMAGE_TAG="$1"
 }
 
 # Docker reports "starting" for the whole start_period, so poll rather than
