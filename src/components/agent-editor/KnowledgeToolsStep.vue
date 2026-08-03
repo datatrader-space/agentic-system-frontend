@@ -78,7 +78,7 @@
         <div class="mb-3 flex items-start justify-between gap-3">
           <div>
             <p class="text-[14px] font-semibold text-[#0F172A]">Connectors</p>
-            <p class="text-[11.5px] text-[#64748B]">Assign a connector — its tools are added to this agent. Click <strong>Assign</strong> again to unassign.</p>
+            <p class="text-[11.5px] text-[#64748B]">Assign a connector to add its tools to this agent.</p>
           </div>
           <button class="btn-outline shrink-0" @click="openConnectorsHub"><Link2 :size="15" :stroke-width="2" /> Manage</button>
         </div>
@@ -104,12 +104,25 @@
                   <span v-if="!connectorTools(c).length" class="text-amber-500">(none synced yet)</span>
                 </p>
               </div>
+              <!-- Assigned state doubles as the unassign control. It shows the STATE at rest and the ACTION
+                   on hover/focus, so the button reads as something you can act on — previously it said only
+                   "✓ Assigned", which looks like a status badge, and the card needed help text to explain
+                   that clicking it again unassigns. -->
               <button type="button" :disabled="!connectorTools(c).length" @click="toggleConnector(c)"
-                      :class="['rounded-lg px-3 py-1.5 text-[12px] font-semibold transition',
-                               connectorAssigned(c) ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                                                    : 'border border-[#E5E7EB] bg-white text-[#344054] hover:bg-[#F8FAFC]',
+                      :aria-pressed="connectorAssigned(c)"
+                      :title="connectorAssigned(c)
+                        ? `Unassign ${connectorTools(c).length} tool(s) from ${c.name}`
+                        : `Assign ${connectorTools(c).length} tool(s) from ${c.name}`"
+                      :class="['group rounded-lg px-3 py-1.5 text-[12px] font-semibold transition',
+                               connectorAssigned(c)
+                                 ? 'border border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:border-red-200 focus-visible:bg-red-50 focus-visible:text-red-700'
+                                 : 'border border-[#E5E7EB] bg-white text-[#344054] hover:bg-[#F8FAFC]',
                                !connectorTools(c).length ? 'opacity-50 !cursor-not-allowed' : '']">
-                {{ connectorAssigned(c) ? '✓ Assigned' : 'Assign' }}
+                <template v-if="connectorAssigned(c)">
+                  <span class="group-hover:hidden group-focus-visible:hidden">✓ Assigned</span>
+                  <span class="hidden group-hover:inline group-focus-visible:inline">Unassign</span>
+                </template>
+                <template v-else>Assign</template>
               </button>
             </div>
           </div>
