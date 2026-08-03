@@ -32,6 +32,23 @@ function pickArray(d) {
   return []
 }
 
+// One page of chat history. Deliberately small: the drawer opens on the recent page and pulls older
+// ones on demand, so a user with hundreds of chats doesn't pay for all of them to open a chat.
+const HISTORY_PAGE_SIZE = 25
+
+// DRF PageNumberPagination reports the full total in `count`. An unpaginated (bare-array) response
+// has no total — fall back to what we hold, which reads as "nothing more to load".
+function countOf(d, loaded) {
+  return d && typeof d.count === 'number' ? d.count : loaded
+}
+
+// Append a page, dropping ids we already hold. A conversation bumped to the top by new activity
+// between two page fetches would otherwise arrive twice and duplicate a row.
+function mergeById(current, incoming) {
+  const seen = new Set(current.map((s) => String(s.id)))
+  return current.concat(incoming.filter((s) => !seen.has(String(s.id))))
+}
+
 export const useChatStore = defineStore('chat', {
   state: () => ({
     messages: [],
@@ -44,6 +61,11 @@ export const useChatStore = defineStore('chat', {
     // `image_mode` on each WS message while on. Requires the agent to have an image model (composer blocks
     // the toggle otherwise).
     imageMode: false,
+
+    // Share sheet (ShareModal). `shareAnchorId` is a message's DB pk when the sheet was opened from a
+    // specific message — the snapshot is then cut at that message ("share up to here").
+    shareOpen: false,
+    shareAnchorId: null,
 
     // Human-in-the-loop approval queue (tools the backend gated for approval + the max-steps
     // pause-and-ask). Rendered by HITLModal.
@@ -80,15 +102,22 @@ export const useChatStore = defineStore('chat', {
     agentsLoaded: false,
     agentsLoading: false,
 
-    // Chat history for the CURRENTLY selected agent (history popover default scope)
+    // Chat history for the CURRENTLY selected agent (history drawer default scope).
+    // Paginated: the drawer opens on the most recent page and pulls older ones on demand.
     sessions: [],
-    sessionsLoading: false,
-    _sessionsAgentId: null,   // agent the cached `sessions` list belongs to — cache key
-    _sessionsAt: 0,           // last successful fetch (ms) — TTL cache
+    sessionsLoading: false,      // first page (drives skeletons)
+    sessionsLoadingMore: false,  // subsequent pages (drives the Load-more button)
+    sessionsPage: 0,             // highest page loaded
+    sessionsTotal: 0,            // server-reported total, for "N older"
+    _sessionsAgentId: null,      // agent the cached `sessions` list belongs to — cache key
+    _sessionsAt: 0,              // last successful fetch (ms) — TTL cache
 
-    // Global chat history across ALL agents (search modal + the popover's "All agents" scope)
+    // Global chat history across ALL agents (search modal + the drawer's "All agents" scope)
     allSessions: [],
     allSessionsLoading: false,
+    allSessionsLoadingMore: false,
+    allSessionsPage: 0,
+    allSessionsTotal: 0,
     _allSessionsAt: 0,   // last successful fetch (ms) — drives the TTL cache below
 
     loadingHistory: false,
@@ -108,6 +137,10 @@ export const useChatStore = defineStore('chat', {
     needsAgent: (s) => s.agentsLoaded && s.agents.length === 0,
     currentAgent: (s) =>
       s.agents.find((a) => String(a.id) === String(s.selectedAgentId)) || null,
+    // History pagination: is there an older page left to pull? Compared against the server's total
+    // rather than a `next` URL so it stays right even when rows are appended locally.
+    hasMoreSessions: (s) => s.sessions.length < s.sessionsTotal,
+    hasMoreAllSessions: (s) => s.allSessions.length < s.allSessionsTotal,
     // Running session totals (this chat). Prefer a turn's EXACT completed usage; while a turn is
     // still streaming, fall back to the live timeline token counter so the footer ticks up mid-run
     // and finalises exactly. Turns with neither contribute 0; auto-resets when messages clear.
@@ -168,34 +201,42 @@ export const useChatStore = defineStore('chat', {
     },
 
     // Recent chats for the CURRENTLY selected agent — the default (and only sensible) scope for the
-    // in-chat history popover: a conversation belongs to the agent that ran it, so showing another
+    // in-chat history drawer: a conversation belongs to the agent that ran it, so showing another
     // agent's chats there is both confusing and a cross-agent context leak. Server-side filtered by
     // agent_profile_id (never client-side over a global page, which would silently drop this agent's
     // older chats behind other agents' newer ones).
     //
-    // Cached per agent id for 60s. Switching agents clears the list FIRST so the popover can never
+    // PAGE 1 ONLY. Opening a chat must not drag the user's entire archive over the wire — the drawer
+    // shows the recent page and pulls older ones through loadMoreSessions() on demand.
+    //
+    // Cached per agent id for 60s. Switching agents clears the list FIRST so the drawer can never
     // render the previous agent's rows while the new list is in flight, and a late response for a
     // superseded agent is discarded.
     async loadSessions(force = false) {
       const agentId = this.selectedAgentId
       if (!agentId) {
         this.sessions = []
+        this.sessionsPage = 0
+        this.sessionsTotal = 0
         this._sessionsAgentId = null
         return
       }
       const sameAgent = String(this._sessionsAgentId) === String(agentId)
       if (this.sessionsLoading && sameAgent) return
       if (!force && sameAgent && (Date.now() - this._sessionsAt) < 60000) return
-      if (!sameAgent) this.sessions = []
+      if (!sameAgent) { this.sessions = []; this.sessionsPage = 0; this.sessionsTotal = 0 }
       this.sessionsLoading = true
       try {
         const res = await api.getConversations({
           agent_profile_id: agentId,
           ordering: '-updated_at',
-          page_size: 100,   // PageNumberPagination: `page_size` (max 100). `limit` is ignored.
+          page: 1,
+          page_size: HISTORY_PAGE_SIZE,   // PageNumberPagination: `page_size` (max 100), NOT `limit`.
         })
         if (String(this.selectedAgentId) !== String(agentId)) return   // agent switched mid-flight
         this.sessions = pickArray(res.data)
+        this.sessionsPage = 1
+        this.sessionsTotal = countOf(res.data, this.sessions.length)
         this._sessionsAgentId = String(agentId)
         this._sessionsAt = Date.now()
       } catch {
@@ -205,8 +246,35 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    // Global recent chats across every agent — powers the ⌘K search modal and the history popover's
-    // explicit "All agents" scope. Never the default in-chat view (see loadSessions).
+    // Append the next older page for the current agent. Kept separate from loadSessions so a
+    // "load more" can never be mistaken for a refresh (which would collapse the list back to page 1).
+    async loadMoreSessions() {
+      const agentId = this.selectedAgentId
+      if (!agentId || this.sessionsLoading || this.sessionsLoadingMore) return
+      if (!this.hasMoreSessions) return
+      const next = this.sessionsPage + 1
+      this.sessionsLoadingMore = true
+      try {
+        const res = await api.getConversations({
+          agent_profile_id: agentId,
+          ordering: '-updated_at',
+          page: next,
+          page_size: HISTORY_PAGE_SIZE,
+        })
+        if (String(this.selectedAgentId) !== String(agentId)) return   // agent switched mid-flight
+        this.sessions = mergeById(this.sessions, pickArray(res.data))
+        this.sessionsPage = next
+        this.sessionsTotal = countOf(res.data, this.sessions.length)
+      } catch {
+        /* non-fatal — the button stays available for a retry */
+      } finally {
+        this.sessionsLoadingMore = false
+      }
+    },
+
+    // Global recent chats across every agent — powers the ⌘K search modal and the history drawer's
+    // explicit "All agents" scope. Never the default in-chat view (see loadSessions). Also page 1
+    // only; loadMoreAllSessions() walks back through older pages.
     // Cached for 60s: re-opening the search modal or re-mounting the sidebar reuses the
     // list instead of refetching. Pass force=true after a mutation (e.g. a new chat).
     async loadAllSessions(force = false) {
@@ -214,13 +282,35 @@ export const useChatStore = defineStore('chat', {
       if (!force && this.allSessions.length && (Date.now() - this._allSessionsAt) < 60000) return
       this.allSessionsLoading = true
       try {
-        const res = await api.getConversations({ ordering: '-updated_at', page_size: 100 })
+        const res = await api.getConversations({
+          ordering: '-updated_at', page: 1, page_size: HISTORY_PAGE_SIZE,
+        })
         this.allSessions = pickArray(res.data)
+        this.allSessionsPage = 1
+        this.allSessionsTotal = countOf(res.data, this.allSessions.length)
         this._allSessionsAt = Date.now()
       } catch {
         /* non-fatal */
       } finally {
         this.allSessionsLoading = false
+      }
+    },
+
+    async loadMoreAllSessions() {
+      if (this.allSessionsLoading || this.allSessionsLoadingMore || !this.hasMoreAllSessions) return
+      const next = this.allSessionsPage + 1
+      this.allSessionsLoadingMore = true
+      try {
+        const res = await api.getConversations({
+          ordering: '-updated_at', page: next, page_size: HISTORY_PAGE_SIZE,
+        })
+        this.allSessions = mergeById(this.allSessions, pickArray(res.data))
+        this.allSessionsPage = next
+        this.allSessionsTotal = countOf(res.data, this.allSessions.length)
+      } catch {
+        /* non-fatal */
+      } finally {
+        this.allSessionsLoadingMore = false
       }
     },
 
@@ -266,11 +356,16 @@ export const useChatStore = defineStore('chat', {
         const data = res.data || {}
         this.messages = pickArray(data.messages).map((m) => ({
           id: nid(),
+          // The DATABASE pk, kept alongside the client-side id. Message actions that hit the
+          // backend (thumbs feedback) address this, not the local `id`.
+          serverId: m.id ?? null,
           role: m.role === 'assistant' ? 'assistant' : 'user',
           content: m.content || '',
           status: 'done',
           error: '',
           toolCalls: [],
+          // The caller's own thumb, restored from the server so it survives a reload.
+          feedback: m.feedback || null,
           // Long-answer stub: the stored content is a bounded stub; the full answer
           // is rehydrated on demand from the long-answer endpoint (see ChatMessage.vue).
           isLongResponse: !!(m.model_info && m.model_info.is_long_response),
@@ -675,17 +770,44 @@ export const useChatStore = defineStore('chat', {
       this._conn?.sendMessage(text, this.selectedAgentId)
     },
 
-    // Thumbs up/down on an assistant message (toggles). Stored on the message; ready to POST to a
-    // feedback endpoint later.
-    setFeedback(messageId, value) {
+    // ── Share sheet ──
+    // `anchorMessageId` is a message's DB pk; passing it shares the thread only up to that message.
+    openShare(anchorMessageId = null) {
+      if (!this.conversationId) {
+        notify.info('Send a message first — there is nothing to share yet.')
+        return
+      }
+      this.shareAnchorId = anchorMessageId || null
+      this.shareOpen = true
+    },
+    closeShare() {
+      this.shareOpen = false
+      this.shareAnchorId = null
+    },
+
+    // Thumbs up/down on an assistant message (toggles). PERSISTED: the thumb is written against the
+    // message's database row, so it survives a reload and is queryable server-side. The optimistic
+    // update is reverted if the write fails — a thumb that silently didn't save is worse than none.
+    //
+    // `reasons`/`comment` come from the thumbs-down detail sheet; they're where the usable signal is.
+    async setFeedback(messageId, value, { reasons = [], comment = '' } = {}) {
       const m = this.messages.find((x) => x.id === messageId)
-      if (m) m.feedback = m.feedback === value ? null : value
-      // ARTC: send the thumb as a training label (best-effort; never blocks the UI).
+      if (!m) return
+      const previous = m.feedback || null
+      const next = previous === value && !reasons.length && !comment ? null : value
+      m.feedback = next
+      if (!m.serverId) {
+        // No DB row yet (the save event hasn't landed, or this is a legacy in-memory bubble). Keep the
+        // optimistic UI, but say plainly that it isn't stored rather than pretending it was.
+        notify.info('Feedback noted for this session — reopen the chat to rate the saved message.')
+        return
+      }
       try {
-        if (this.conversationId) api.submitTrainingFeedback({
-          conversation_id: this.conversationId, label_type: 'thumb', value,
-        })
-      } catch (_) { /* ignore */ }
+        await api.setMessageFeedback(m.serverId, { value: next, reasons, comment })
+      } catch (e) {
+        m.feedback = previous
+        notify.error('Could not save your feedback. Please try again.')
+      }
     },
 
     // ---- Connection + streaming internals ----
@@ -880,6 +1002,8 @@ export const useChatStore = defineStore('chat', {
       this._taskRunActive = false   // a new turn hasn't entered a multi-step task run yet
       this.messages.push({
         id: nid(),
+        serverId: null, // DB pk — arrives on `message_saved`, after the answer is persisted
+        feedback: null, // thumbs up/down; needs serverId before it can be sent
         role: 'assistant',
         content: '',
         status: 'streaming',
@@ -1027,6 +1151,14 @@ export const useChatStore = defineStore('chat', {
       // returned above; this also folds in reasoning + token metering (no-op for other event types).
       if (m && t !== 'error') _tl.ingest(msg)
       switch (t) {
+        case 'message_saved': {
+          // The answer has been persisted; adopt its DB pk so the thumbs buttons have something to
+          // address. Emitted after `assistant_message_complete`, so the bubble may already be 'done' —
+          // bind to the last assistant message rather than only to a still-streaming one.
+          const target = m || [...this.messages].reverse().find((x) => x.role === 'assistant')
+          if (target && msg.message_id != null) target.serverId = msg.message_id
+          break
+        }
         case 'turn_resumed': {
           // We reconnected (e.g. after a refresh) to a turn STILL RUNNING on the server. Open a fresh
           // streaming assistant bubble so the live tokens land, and show the run's CURRENT status

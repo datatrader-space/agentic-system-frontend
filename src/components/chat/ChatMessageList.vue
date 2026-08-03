@@ -7,7 +7,7 @@
           @retry="chat.retryLast()"
           @regenerate="chat.regenerate(m.id)"
           @edit="chat.editAndResend(m.id, $event)"
-          @feedback="chat.setFeedback(m.id, $event)"
+          @feedback="(value, detail) => chat.setFeedback(m.id, value, detail)"
         />
         <!-- Inline live plan artifact — the ONLY plan UI in chat. Rendered at its durable anchor,
              keyed by plan_id, in exact chronological place. Updates in place from pushed plan_event

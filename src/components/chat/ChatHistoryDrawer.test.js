@@ -89,6 +89,56 @@ describe('ChatHistoryDrawer — scoping', () => {
   })
 })
 
+describe('ChatHistoryDrawer — paging', () => {
+  it('shows a Load-more button with the remaining count when older pages exist', async () => {
+    api.getConversations.mockResolvedValue({
+      data: { count: 40, results: [conv(1, 7, 'Web Builder', 'hi')] },
+    })
+    const { wrapper } = await openDrawer()
+
+    const more = wrapper.find('.chd-more')
+    expect(more.exists()).toBe(true)
+    expect(more.text()).toContain('Load 39 older')
+  })
+
+  it('hides the button once everything is loaded', async () => {
+    api.getConversations.mockResolvedValue({
+      data: { count: 1, results: [conv(1, 7, 'Web Builder', 'hi')] },
+    })
+    const { wrapper } = await openDrawer()
+    expect(wrapper.find('.chd-more').exists()).toBe(false)
+  })
+
+  it('clicking it appends the next page and disables while in flight', async () => {
+    api.getConversations.mockResolvedValueOnce({
+      data: { count: 3, results: [conv(1, 7, 'Web Builder', 'one')] },
+    })
+    const { wrapper } = await openDrawer()
+    expect(wrapper.findAll('.chd-row')).toHaveLength(1)
+
+    let resolve
+    api.getConversations.mockReturnValueOnce(new Promise((r) => { resolve = r }))
+    await wrapper.find('.chd-more').trigger('click')
+    expect(wrapper.find('.chd-more').attributes('disabled')).toBeDefined()
+
+    resolve({ data: { count: 3, results: [conv(2, 7, 'Web Builder', 'two')] } })
+    await flushPromises()
+    expect(wrapper.findAll('.chd-row')).toHaveLength(2)
+    expect(api.getConversations.mock.calls.at(-1)[0].page).toBe(2)
+  })
+
+  it('while searching, says so instead of implying the whole archive was searched', async () => {
+    api.getConversations.mockResolvedValue({
+      data: { count: 40, results: [conv(1, 7, 'Web Builder', 'landing page')] },
+    })
+    const { wrapper } = await openDrawer()
+
+    await wrapper.find('.chd-search input').setValue('zzz-no-match')
+    expect(wrapper.find('.chd-empty').text()).toBe('No matches in the chats loaded so far.')
+    expect(wrapper.find('.chd-more').text()).toContain('Load more to keep searching')
+  })
+})
+
 describe('ChatHistoryDrawer — collapse behaviour', () => {
   it('is rendered but collapsed (and inert) when closed', async () => {
     const wrapper = mount(ChatHistoryDrawer, { props: { open: false } })

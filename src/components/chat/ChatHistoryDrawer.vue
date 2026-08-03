@@ -81,6 +81,15 @@
           <small class="chd-row-time">{{ relTime(s) }}</small>
         </button>
       </section>
+
+      <!-- Older history is pulled on demand, never up front. While a search is active this also
+           widens what the filter can see, so the copy says so rather than implying a full-archive
+           search that isn't happening. -->
+      <button v-if="!loading && hasMore" class="chd-more" type="button"
+              :disabled="loadingMore" @click="loadMore">
+        <span v-if="loadingMore" class="chd-spin" aria-hidden="true"></span>
+        {{ loadingMore ? 'Loading…' : moreLabel }}
+      </button>
     </div>
   </aside>
 </template>
@@ -121,10 +130,31 @@ const loading = computed(() =>
     : chat.allSessionsLoading && !chat.allSessions.length
 )
 const emptyText = computed(() => {
-  if (query.value.trim()) return 'No chats match your search.'
+  if (query.value.trim()) {
+    // Be precise: the filter only sees what has been paged in so far.
+    return hasMore.value ? 'No matches in the chats loaded so far.' : 'No chats match your search.'
+  }
   if (scope.value === 'agent') return `No chats with ${agentLabel.value} yet.`
   return 'No chats yet.'
 })
+
+// ── Paging ──────────────────────────────────────────────────────────────────────────────────────
+const isAgentScope = computed(() => scope.value === 'agent')
+const hasMore = computed(() =>
+  isAgentScope.value ? chat.hasMoreSessions : chat.hasMoreAllSessions)
+const loadingMore = computed(() =>
+  isAgentScope.value ? chat.sessionsLoadingMore : chat.allSessionsLoadingMore)
+const remaining = computed(() => {
+  const total = isAgentScope.value ? chat.sessionsTotal : chat.allSessionsTotal
+  return Math.max(0, total - sourceList.value.length)
+})
+const moreLabel = computed(() =>
+  query.value.trim() ? 'Load more to keep searching' : `Load ${remaining.value} older`)
+
+function loadMore() {
+  if (isAgentScope.value) chat.loadMoreSessions()
+  else chat.loadMoreAllSessions()
+}
 
 const groups = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -432,6 +462,34 @@ onBeforeUnmount(() => {
 .chd-row-time { flex: 0 0 auto; font-size: .6875rem; color: var(--vm-ink-faint); font-variant-numeric: tabular-nums; }
 .chd-empty { margin: 28px 10px; text-align: center; font-size: .8125rem; color: var(--vm-ink-faint); }
 
+.chd-more {
+  width: calc(100% - 12px);
+  margin: 10px 6px 4px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--vm-line-2);
+  border-radius: var(--vm-r);
+  background: var(--vm-surface);
+  color: var(--vm-ink-soft);
+  font: 600 .75rem var(--vm-font-sans);
+  cursor: pointer;
+  transition: background .15s var(--vm-ease2), color .15s var(--vm-ease2);
+}
+.chd-more:hover:not(:disabled) { background: var(--vm-surface-soft); color: var(--vm-ink); }
+.chd-more:disabled { cursor: default; color: var(--vm-ink-faint); }
+.chd-spin {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--vm-line-2);
+  border-top-color: var(--vm-ink-faint);
+  border-radius: 50%;
+  animation: chd-spin .7s linear infinite;
+}
+@keyframes chd-spin { to { transform: rotate(360deg) } }
+
 .chd-skel { padding: 10px 6px; display: flex; flex-direction: column; gap: 14px; }
 .chd-skel-row { display: flex; flex-direction: column; gap: 6px; }
 .chd-skel-row i {
@@ -463,5 +521,6 @@ onBeforeUnmount(() => {
   .chd:not(.open) { transform: translateX(100%); }
   .chd-scrim { animation: none; }
   .chd-skel-row i { animation: none; }
+  .chd-spin { animation-duration: 1.6s; }   /* keep it, slowed: it's a genuine progress signal */
 }
 </style>

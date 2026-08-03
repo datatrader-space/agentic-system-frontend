@@ -644,6 +644,23 @@ export default {
   getConversation: (id) => api.get(`/conversations/${id}/`),
   createConversation: (data) => api.post('/conversations/', data),
 
+  // ── Conversation sharing (ChatGPT-style links) ──────────────────────────────────────────
+  // Owner surface. Creating a link FREEZES a snapshot — messages sent afterwards stay private
+  // until the owner explicitly refreshes the link.
+  getConversationShares: (conversationId) => api.get(`/conversations/${conversationId}/share/`),
+  createConversationShare: (conversationId, data = {}) =>
+    api.post(`/conversations/${conversationId}/share/`, data),
+  getMyShares: () => api.get('/shares/'),
+  updateShare: (token, data) => api.patch(`/shares/${token}/`, data),
+  revokeShare: (token) => api.delete(`/shares/${token}/`),
+  // Public surface — `share/` (singular) is anonymous-readable; it must NEVER be confused with
+  // the owner-only `shares/` (plural) routes above.
+  getSharedConversation: (token) => api.get(`/share/${token}/`),
+  forkSharedConversation: (token, data = {}) => api.post(`/share/${token}/fork/`, data),
+
+  // Durable thumbs up/down on ONE assistant message. Pass value:null to clear.
+  setMessageFeedback: (messageId, payload) => api.post(`/messages/${messageId}/feedback/`, payload),
+
   uploadContextFile: (conversationPk, file, agentId = null) => {
     const formData = new FormData()
     formData.append('file', file)

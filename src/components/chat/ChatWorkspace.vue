@@ -19,6 +19,10 @@
                 :aria-expanded="historyOpen" @click.stop="toggleHistory">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 3v6h6" /><path d="M12 7v5l3 2" /></svg>
         </button>
+        <button class="icon-btn" title="Share this conversation" aria-label="Share this conversation"
+                @click="chat.openShare()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+        </button>
         <button class="header-btn" title="New chat" @click="startNew">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m-7-7h14" stroke-linecap="round" /></svg>
           <span>New</span>
@@ -75,6 +79,11 @@
          plan-review only). Approve to read it all, keep it targeted, or ask something specific. -->
     <FullDocCostCard />
 
+    <!-- Share sheet: publishes a FROZEN snapshot of the thread at a private link (read-only, or
+         "anyone with the link can continue" — a continuation forks into the reader's own account). -->
+    <ShareModal :open="chat.shareOpen" :conversation-id="chat.conversationId" :title="title"
+                :up-to-message-id="chat.shareAnchorId" @close="chat.closeShare()" />
+
     <!-- Media gallery: browse this chat's (or the whole agent's) generated + uploaded media and attach
          selected items to the next message BY ID (no re-upload) so the agent can reference/edit them. -->
     <MediaGallery :open="mediaOpen" :conversation-id="chat.conversationId"
@@ -112,6 +121,7 @@ import CanvasShell from '../canvas/CanvasShell.vue'
 import HITLModal from '../HITLModal.vue'
 import FullDocCostCard from './FullDocCostCard.vue'
 import MediaGallery from './MediaGallery.vue'
+import ShareModal from './ShareModal.vue'
 import { fmtTokens, fmtCost } from '../../composables/tokens'
 
 const chat = useChatStore()

@@ -32,12 +32,13 @@ describe('useChatStore — chat history scoping', () => {
     expect(chat.sessions.map((s) => s.id)).toEqual([1])
   })
 
-  it('uses page_size (the backend paginator param) so the list is not silently capped at 30', async () => {
+  it('uses page/page_size (the backend paginator params), never the ignored `limit`', async () => {
     const chat = useChatStore()
     chat.selectedAgentId = '7'
     await chat.loadSessions()
     const params = api.getConversations.mock.calls[0][0]
-    expect(params.page_size).toBe(100)
+    expect(params.page).toBe(1)
+    expect(params.page_size).toBe(25)
     expect(params.limit).toBeUndefined()
   })
 
@@ -98,6 +99,103 @@ describe('useChatStore — chat history scoping', () => {
     await chat.loadAllSessions()
     const params = api.getConversations.mock.calls[0][0]
     expect(params.agent_profile_id).toBeUndefined()
-    expect(params.page_size).toBe(100)
+    expect(params.page).toBe(1)
+    expect(params.page_size).toBe(25)
+  })
+})
+
+describe('useChatStore — chat history paging', () => {
+  const page = (ids, count) => ({ data: { count, results: ids.map((i) => conv(i, 7, 'A')) } })
+
+  it('loads only the first page and reports how many are left', async () => {
+    const chat = useChatStore()
+    chat.selectedAgentId = '7'
+    api.getConversations.mockResolvedValueOnce(page([1, 2, 3], 40))
+
+    await chat.loadSessions()
+
+    expect(chat.sessions).toHaveLength(3)
+    expect(chat.sessionsTotal).toBe(40)
+    expect(chat.hasMoreSessions).toBe(true)
+  })
+
+  it('loadMoreSessions appends the NEXT page instead of replacing page 1', async () => {
+    const chat = useChatStore()
+    chat.selectedAgentId = '7'
+    api.getConversations.mockResolvedValueOnce(page([1, 2], 4))
+    await chat.loadSessions()
+
+    api.getConversations.mockResolvedValueOnce(page([3, 4], 4))
+    await chat.loadMoreSessions()
+
+    expect(api.getConversations.mock.calls[1][0].page).toBe(2)
+    expect(chat.sessions.map((s) => s.id)).toEqual([1, 2, 3, 4])
+    expect(chat.hasMoreSessions).toBe(false)
+  })
+
+  it('de-dupes a row that moved between pages instead of showing it twice', async () => {
+    const chat = useChatStore()
+    chat.selectedAgentId = '7'
+    api.getConversations.mockResolvedValueOnce(page([1, 2], 4))
+    await chat.loadSessions()
+
+    api.getConversations.mockResolvedValueOnce(page([2, 3], 3))   // id 2 bumped into page 2
+    await chat.loadMoreSessions()
+
+    expect(chat.sessions.map((s) => s.id)).toEqual([1, 2, 3])
+  })
+
+  it('does not fetch past the end, nor while a page is already in flight', async () => {
+    const chat = useChatStore()
+    chat.selectedAgentId = '7'
+    api.getConversations.mockResolvedValueOnce(page([1, 2], 2))
+    await chat.loadSessions()
+    expect(chat.hasMoreSessions).toBe(false)
+
+    await chat.loadMoreSessions()
+    expect(api.getConversations).toHaveBeenCalledTimes(1)   // no request — nothing left
+
+    chat.sessionsTotal = 10
+    chat.sessionsLoadingMore = true
+    await chat.loadMoreSessions()
+    expect(api.getConversations).toHaveBeenCalledTimes(1)   // no double-fire
+  })
+
+  it('a refresh collapses back to page 1 rather than compounding pages', async () => {
+    const chat = useChatStore()
+    chat.selectedAgentId = '7'
+    api.getConversations.mockResolvedValueOnce(page([1, 2], 4))
+    await chat.loadSessions()
+    api.getConversations.mockResolvedValueOnce(page([3, 4], 4))
+    await chat.loadMoreSessions()
+    expect(chat.sessions).toHaveLength(4)
+
+    api.getConversations.mockResolvedValueOnce(page([1, 2], 4))
+    await chat.loadSessions(true)
+
+    expect(chat.sessions.map((s) => s.id)).toEqual([1, 2])
+    expect(chat.sessionsPage).toBe(1)
+  })
+
+  it('paginates the All-agents scope the same way', async () => {
+    const chat = useChatStore()
+    api.getConversations.mockResolvedValueOnce(page([1, 2], 5))
+    await chat.loadAllSessions()
+    expect(chat.hasMoreAllSessions).toBe(true)
+
+    api.getConversations.mockResolvedValueOnce(page([3, 4], 5))
+    await chat.loadMoreAllSessions()
+
+    expect(api.getConversations.mock.calls[1][0].page).toBe(2)
+    expect(chat.allSessions.map((s) => s.id)).toEqual([1, 2, 3, 4])
+  })
+
+  it('treats a bare-array (unpaginated) response as complete', async () => {
+    const chat = useChatStore()
+    chat.selectedAgentId = '7'
+    api.getConversations.mockResolvedValueOnce({ data: [conv(1, 7, 'A')] })
+    await chat.loadSessions()
+    expect(chat.sessionsTotal).toBe(1)
+    expect(chat.hasMoreSessions).toBe(false)
   })
 })

@@ -74,10 +74,10 @@
 
         <!-- Hover actions: feedback · copy · share · regenerate -->
         <div v-if="message.content && message.status !== 'streaming'" class="msg-actions">
-          <button class="msg-action" :class="{ active: message.feedback === 'up' }" title="Good response" @click="$emit('feedback', 'up')">
+          <button class="msg-action" :class="{ active: message.feedback === 'up' }" title="Good response" @click="onThumb('up')">
             <svg viewBox="0 0 24 24" :fill="message.feedback === 'up' ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-          <button class="msg-action" :class="{ active: message.feedback === 'down' }" title="Bad response" @click="$emit('feedback', 'down')">
+          <button class="msg-action" :class="{ active: message.feedback === 'down' }" title="Bad response" @click="onThumb('down')">
             <svg viewBox="0 0 24 24" :fill="message.feedback === 'down' ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <button class="msg-action" :title="copied ? 'Copied' : 'Copy'" @click="copy">
@@ -90,6 +90,24 @@
           <button class="msg-action" title="Regenerate" @click="$emit('regenerate')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           </button>
+        </div>
+
+        <!-- Thumbs-down detail: optional, dismissible. The thumb itself is already recorded, so
+             skipping this costs nothing — it just adds the "why" when the user is willing. -->
+        <div v-if="showReasons" class="fb-sheet">
+          <div class="fb-head">
+            <span>What went wrong?</span>
+            <button class="fb-skip" @click="showReasons = false">Skip</button>
+          </div>
+          <div class="fb-chips">
+            <button v-for="[key, label] in REASONS" :key="key" class="fb-chip"
+                    :class="{ on: chosenReasons.includes(key) }" @click="toggleReason(key)">
+              {{ label }}
+            </button>
+          </div>
+          <textarea v-model="reasonComment" class="fb-note" rows="2"
+                    placeholder="Anything else? (optional)"></textarea>
+          <button class="fb-submit" @click="submitReasons">Send feedback</button>
         </div>
       </div>
     </template>
@@ -237,17 +255,48 @@ const autoGrowEdit = () => {
   el.style.height = Math.min(el.scrollHeight, 240) + 'px'
 }
 
-// ── Share (native share sheet where available, else copy) ──
-const share = async () => {
-  const text = displayContent.value
-  try {
-    if (navigator.share) await navigator.share({ text })
-    else {
-      await navigator.clipboard.writeText(text)
-      copied.value = true
-      setTimeout(() => (copied.value = false), 1500)
-    }
-  } catch { /* user dismissed the share sheet — ignore */ }
+// ── Share ──
+// Opens the share sheet anchored at THIS message, so the published snapshot ends here and nothing
+// said later in the thread goes out with it. (The old behavior — dumping the raw answer text into
+// the OS share sheet — shared no link and did nothing at all on desktop.)
+const share = () => chat.openShare(props.message.serverId || null)
+
+// ── Feedback ──
+// Thumbs-up posts straight through. Thumbs-down opens a short reason sheet first: "which answers
+// were bad" is far less actionable than "why", and the reason is the part that improves the agent.
+const showReasons = ref(false)
+const chosenReasons = ref([])
+const reasonComment = ref('')
+const REASONS = [
+  ['incorrect', "Not factually correct"],
+  ['not_helpful', "Didn't help"],
+  ['incomplete', 'Incomplete answer'],
+  ['didnt_follow_instructions', "Didn't follow instructions"],
+  ['too_long', 'Too long'],
+  ['unsafe', 'Unsafe or inappropriate'],
+]
+
+const onThumb = (value) => {
+  if (value === 'down' && props.message.feedback !== 'down') {
+    emit('feedback', 'down')
+    chosenReasons.value = []
+    reasonComment.value = ''
+    showReasons.value = true
+    return
+  }
+  showReasons.value = false
+  emit('feedback', value)
+}
+
+const toggleReason = (key) => {
+  const i = chosenReasons.value.indexOf(key)
+  if (i >= 0) chosenReasons.value.splice(i, 1)
+  else chosenReasons.value.push(key)
+}
+
+const submitReasons = () => {
+  emit('feedback', 'down', { reasons: [...chosenReasons.value], comment: reasonComment.value.trim() })
+  showReasons.value = false
 }
 
 const isStreaming = computed(() => props.message.status === 'streaming')
@@ -524,6 +573,23 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 .msg-action:hover { background: #f1f5f9; color: #475569; }
 .msg-action svg { width: 15px; height: 15px; }
 .msg-action.active { color: var(--vm-violet-d, #4f46e5); }
+
+/* Thumbs-down detail sheet — inline under the message actions, never a blocking dialog. */
+.fb-sheet { margin-top: 8px; padding: 12px 14px; border-radius: 12px; max-width: 480px;
+  border: 1px solid #e2e8f0; background: #f8fafc; }
+.fb-head { display: flex; align-items: center; justify-content: space-between; font-size: .8rem;
+  font-weight: 600; color: #334155; margin-bottom: 9px; }
+.fb-skip { background: none; border: 0; padding: 0; cursor: pointer; font-size: .76rem; color: #64748b; }
+.fb-skip:hover { color: #334155; }
+.fb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fb-chip { padding: 5px 10px; border-radius: 999px; border: 1px solid #cbd5e1; background: #fff;
+  color: #475569; font-size: .75rem; cursor: pointer; transition: all .12s; }
+.fb-chip:hover { border-color: #94a3b8; }
+.fb-chip.on { background: var(--vm-violet-d, #4f46e5); border-color: var(--vm-violet-d, #4f46e5); color: #fff; }
+.fb-note { width: 100%; margin-top: 9px; padding: 7px 9px; border-radius: 8px; border: 1px solid #cbd5e1;
+  font: inherit; font-size: .78rem; resize: vertical; color: #334155; background: #fff; }
+.fb-submit { margin-top: 8px; padding: 6px 14px; border: 0; border-radius: 8px;
+  background: var(--vm-violet-d, #4f46e5); color: #fff; font-size: .78rem; font-weight: 600; cursor: pointer; }
 
 /* User column: bubble + actions, right-aligned. margin-left:auto pushes it to the
    right; max-width caps it; children size by their own intrinsic width (fit-content). */

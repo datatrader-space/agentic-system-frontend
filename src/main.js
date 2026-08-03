@@ -84,6 +84,7 @@ const Connections = () => import('./views/Connections.vue')
 const ConnectionDocs = () => import('./views/ConnectionDocs.vue')
 const IntegrationGuide = () => import('./views/IntegrationGuide.vue')
 const PublicChat = () => import('./views/PublicChat.vue')
+const SharedConversation = () => import('./views/SharedConversation.vue')
 const Docs = () => import('./views/Docs.vue')
 const AdminPanel = () => import('./views/AdminPanel.vue')
 const ModelPricingPage = () => import('./views/ModelPricingPage.vue')
@@ -117,6 +118,10 @@ const router = createRouter({
       meta: { requiresAuth: false, public: true }
     },
     // Public shareable webchat (no login): full page + embed (runs in the widget iframe).
+    // Shared conversation snapshot (ChatGPT-style link). Public + read-only; "Continue this chat"
+    // forks it into the viewer's own account and bounces them through login if needed.
+    { path: '/share/:token', name: 'shared-conversation', component: SharedConversation,
+      meta: { requiresAuth: false, public: true } },
     { path: '/a/:token', name: 'public-chat', component: PublicChat, meta: { requiresAuth: false, public: true } },
     { path: '/embed/:token', name: 'public-chat-embed', component: PublicChat, meta: { requiresAuth: false, public: true } },
     {
