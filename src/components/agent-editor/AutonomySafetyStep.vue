@@ -308,6 +308,44 @@
     <div class="mt-4">
       <section class="config-card">
         <div class="flex items-start gap-3">
+          <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600">
+            <ListChecks :size="21" :stroke-width="2" />
+          </span>
+          <div>
+            <h3 class="text-[15px] font-semibold text-[#0F172A]">Planning</h3>
+            <p class="mt-1 text-[12.5px] leading-5 text-[#64748B]">Whether the agent drafts a plan before running a complex task.</p>
+          </div>
+        </div>
+
+        <div class="mt-5 space-y-4">
+          <div class="field-row">
+            <span>Planning gate
+              <small class="block text-[11px] font-normal text-[#94A3B8]">On: a task with at least the "complex" number of operations gets a plan first (with a plan card). Smaller tasks always run straight through. Off: every task runs straight through — plan-review agents still pause for approval.</small>
+            </span>
+            <div class="flex shrink-0 items-center gap-3">
+              <label v-if="planningGateEnabled" class="flex items-center gap-1.5 whitespace-nowrap text-[12px] font-medium text-[#64748B]">
+                Complex when ops ≥
+                <input v-model="planningMinSteps" class="control !w-[64px] !py-1 text-center" type="number" min="1" placeholder="3"
+                       title="Number of operations at/above which a task is treated as complex and earns a plan. Blank = default (3)." />
+              </label>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="planningGateEnabled"
+                @click="planningGateEnabled = !planningGateEnabled"
+                :class="['relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2', planningGateEnabled ? 'bg-sky-600' : 'bg-gray-300']"
+              >
+                <span :class="['inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform', planningGateEnabled ? 'translate-x-6' : 'translate-x-1']" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div class="mt-4">
+      <section class="config-card">
+        <div class="flex items-start gap-3">
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600">
             <Sparkles :size="21" :stroke-width="2" />
           </span>
@@ -670,6 +708,23 @@ const maxActionsPerRun = computed({
 const maxRunsPerDay = computed({
   get: () => policy.value.max_runs_per_day ?? '',
   set: (value) => _setLimit('max_runs_per_day', value),
+})
+// Planning gate — the admin switch (agent_policy.planning_gate_enabled). ON (default): a complex multi-step
+// task plans first; a simple task always runs straight through. OFF: every task runs straight through
+// (plan-review approval is independent and still applies). ON is the default, so it stores nothing.
+const planningGateEnabled = computed({
+  get: () => policy.value.planning_gate_enabled !== false,
+  set: (value) => {
+    const p = { ...policy.value }
+    if (value) delete p.planning_gate_enabled
+    else p.planning_gate_enabled = false
+    policy.value = p
+  },
+})
+// The operation-count at/above which a task earns a plan (agent_policy.planning_min_steps, default 3).
+const planningMinSteps = computed({
+  get: () => policy.value.planning_min_steps ?? '',
+  set: (value) => _setLimit('planning_min_steps', value),
 })
 // Advanced execution controls (mapped from the legacy "Code Mode" / "Builder Mode" fields).
 const codeModeEnabled = computed({

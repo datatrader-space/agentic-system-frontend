@@ -79,11 +79,13 @@ export const useChatStore = defineStore('chat', {
     agentsLoaded: false,
     agentsLoading: false,
 
-    // Sidebar history (current agent)
+    // Chat history for the CURRENTLY selected agent (history popover default scope)
     sessions: [],
     sessionsLoading: false,
+    _sessionsAgentId: null,   // agent the cached `sessions` list belongs to — cache key
+    _sessionsAt: 0,           // last successful fetch (ms) — TTL cache
 
-    // Global chat history across ALL agents (sidebar list + search modal)
+    // Global chat history across ALL agents (search modal + the popover's "All agents" scope)
     allSessions: [],
     allSessionsLoading: false,
     _allSessionsAt: 0,   // last successful fetch (ms) — drives the TTL cache below
@@ -164,16 +166,37 @@ export const useChatStore = defineStore('chat', {
       this.prewarmAgent()   // warm the newly-selected agent during the idle window before the 1st message
     },
 
-    async loadSessions() {
-      if (!this.selectedAgentId || this.sessionsLoading) return
+    // Recent chats for the CURRENTLY selected agent — the default (and only sensible) scope for the
+    // in-chat history popover: a conversation belongs to the agent that ran it, so showing another
+    // agent's chats there is both confusing and a cross-agent context leak. Server-side filtered by
+    // agent_profile_id (never client-side over a global page, which would silently drop this agent's
+    // older chats behind other agents' newer ones).
+    //
+    // Cached per agent id for 60s. Switching agents clears the list FIRST so the popover can never
+    // render the previous agent's rows while the new list is in flight, and a late response for a
+    // superseded agent is discarded.
+    async loadSessions(force = false) {
+      const agentId = this.selectedAgentId
+      if (!agentId) {
+        this.sessions = []
+        this._sessionsAgentId = null
+        return
+      }
+      const sameAgent = String(this._sessionsAgentId) === String(agentId)
+      if (this.sessionsLoading && sameAgent) return
+      if (!force && sameAgent && (Date.now() - this._sessionsAt) < 60000) return
+      if (!sameAgent) this.sessions = []
       this.sessionsLoading = true
       try {
         const res = await api.getConversations({
-          agent_profile_id: this.selectedAgentId,
+          agent_profile_id: agentId,
           ordering: '-updated_at',
-          limit: 30,
+          page_size: 100,   // PageNumberPagination: `page_size` (max 100). `limit` is ignored.
         })
+        if (String(this.selectedAgentId) !== String(agentId)) return   // agent switched mid-flight
         this.sessions = pickArray(res.data)
+        this._sessionsAgentId = String(agentId)
+        this._sessionsAt = Date.now()
       } catch {
         /* non-fatal */
       } finally {
@@ -181,7 +204,8 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
-    // Global recent chats across every agent — powers the sidebar list + search modal.
+    // Global recent chats across every agent — powers the ⌘K search modal and the history popover's
+    // explicit "All agents" scope. Never the default in-chat view (see loadSessions).
     // Cached for 60s: re-opening the search modal or re-mounting the sidebar reuses the
     // list instead of refetching. Pass force=true after a mutation (e.g. a new chat).
     async loadAllSessions(force = false) {
@@ -189,7 +213,7 @@ export const useChatStore = defineStore('chat', {
       if (!force && this.allSessions.length && (Date.now() - this._allSessionsAt) < 60000) return
       this.allSessionsLoading = true
       try {
-        const res = await api.getConversations({ ordering: '-updated_at', limit: 200 })
+        const res = await api.getConversations({ ordering: '-updated_at', page_size: 100 })
         this.allSessions = pickArray(res.data)
         this._allSessionsAt = Date.now()
       } catch {
@@ -346,7 +370,7 @@ export const useChatStore = defineStore('chat', {
         this.repoId = d.repository_id || 0
         if (!this.conversationId) throw new Error('no conversation id')
         this._connect()
-        this.loadSessions()          // surface the new chat in the sidebar
+        this.loadSessions(true)      // force-refresh this agent's history so the new chat shows up
         this.loadAllSessions(true)   // force-refresh the global recent-chats list + search
         return this.conversationId
       } catch {
