@@ -10,6 +10,7 @@ import { ChatConnection } from '../services/chatService'
 import { useCanvasStore } from './useCanvasStore'
 import { usePlanStore } from './usePlanStore'
 import { useAgentTimeline, isRichEvent } from '../composables/useAgentTimeline'
+import { ensureNotifyPermission, notifyRunFinished } from '../composables/useRunNotifications'
 
 // One shared live timeline for the currently-streaming assistant message (only one streams at a time).
 // Reset per turn, snapshotted onto the message on completion — the SAME reducer the Emulator uses, so
@@ -432,6 +433,9 @@ export const useChatStore = defineStore('chat', {
       const content = (text || '').trim()
       const atts = this.pendingAttachments.slice()
       if (!content && atts.length === 0) return
+      // Ask for browser-notification permission on this user gesture (once). Lets us notify the user when
+      // the run finishes if they've stepped away to another window/tab. No-op if already asked/decided.
+      ensureNotifyPermission()
 
       // Mid-run STEERING: the agent is already running. Don't start a second turn and don't drop the
       // message — send it as a steering message. The backend queues it and the running agent observes it
@@ -907,6 +911,14 @@ export const useChatStore = defineStore('chat', {
         _tl.finalize()
         if (_tl.hasActivity()) m.timeline = _tl.snapshot()   // pin the activity timeline onto this message
         if (m.status === 'streaming') m.status = 'done'
+        // Run finished — notify the browser/OS if the user stepped away (suppressed when actively viewing
+        // this chat). Clicking the notification focuses the tab and lands on this agent chat.
+        try {
+          notifyRunFinished({
+            agentName: (this.currentAgent && this.currentAgent.name) || '',
+            snippet: m.content, conversationId: this.conversationId,
+          })
+        } catch { /* best-effort — never block the turn */ }
       }
       this.isStreaming = false
       this._taskRunActive = false
@@ -996,7 +1008,12 @@ export const useChatStore = defineStore('chat', {
       try { if (useCanvasStore().handleEvent(msg)) return } catch (_e) { /* canvas store optional */ }
       // Rich streaming: friendly, param-free activity (Searching → Generating). Feed the shared
       // timeline reducer and stop — these 6 events carry no content/usage to process further.
-      if (isRichEvent(msg)) { _tl.ingest(msg); return }
+      if (isRichEvent(msg)) {
+        _tl.ingest(msg)
+        const _rm = this._cur()
+        if (_rm && _rm.prepStatus) _rm.prepStatus = ''   // live timeline now drives the status line
+        return
+      }
       const m = this._cur()
       // §4b stale/interrupted-stream guard (defense-in-depth — the backend also drops these
       // server-side). A streamed event carries the server's per-turn message_id; the first one we
@@ -1010,14 +1027,45 @@ export const useChatStore = defineStore('chat', {
       // returned above; this also folds in reasoning + token metering (no-op for other event types).
       if (m && t !== 'error') _tl.ingest(msg)
       switch (t) {
-        case 'turn_resumed':
-          // We reconnected (e.g. after a refresh) to a turn still running on the server. Open a fresh
-          // streaming assistant message so the live tokens land; assistant_message_complete will
-          // replace it with the full cleaned text. Guard against double-starting.
+        case 'turn_resumed': {
+          // We reconnected (e.g. after a refresh) to a turn STILL RUNNING on the server. Open a fresh
+          // streaming assistant bubble so the live tokens land, and show the run's CURRENT status
+          // (e.g. "Step 2 of 3: add products") immediately so it isn't blank until the next live event.
           if (!this.isStreaming) this._beginAssistant()
+          const rm = this._cur()
+          if (rm) { rm.reconnecting = false; rm.prepStatus = msg.status || 'Reconnected — the agent is still working…' }
           break
-        case 'turn_not_running':
-          break   // nothing in flight — saved history (if any) is already loaded
+        }
+        case 'turn_not_running': {
+          // Nothing in flight. But the turn may have FINISHED during the reload gap — only the user row is
+          // persisted mid-run, so the loaded history can end at the user's message. If so, re-fetch once to
+          // pull in the completed answer (no-op when there's nothing new).
+          const last = this.messages[this.messages.length - 1]
+          if (last && last.role === 'user') this._refreshHistory()
+          break
+        }
+        case 'run_finished': {
+          // Cross-tab / cross-worker completion push (over the user_<id> group). Fire the browser
+          // notification (deduped with the in-chat completion by the OS tag; suppressed when actively
+          // viewing this chat). And if this is THIS conversation and we're still mid-resume — e.g. a
+          // cross-worker reconnect where tokens streamed on the owner worker, not here — pull the finished
+          // answer from history and clear the streaming state.
+          try {
+            notifyRunFinished({
+              agentName: msg.agent_name, snippet: msg.snippet, conversationId: msg.conversation_id,
+            })
+          } catch { /* best-effort */ }
+          if (String(msg.conversation_id || '') === String(this.conversationId || '')
+              && (this.isStreaming || this._recovering)) {
+            this._refreshHistory().then((landed) => {
+              if (landed) {
+                this.isStreaming = false; this._assistantId = null
+                this._recovering = false; this._taskRunActive = false
+              }
+            })
+          }
+          break
+        }
         case 'assistant_message_chunk':
           if (m) m.content += msg.chunk || ''
           break
