@@ -1,13 +1,21 @@
 name: Deploy to EC2
 
-# MANUAL ONLY. Pushing to main builds and publishes an image (build.yml) but never
-# deploys it. Shipping to production is always an explicit action:
+# AUTOMATIC on push to main: build.yml publishes the image, and this workflow ships it the
+# moment that build SUCCEEDS. Chaining on `workflow_run` rather than on `push` is what makes
+# it safe — a push-triggered deploy races its own build and can try to pull a tag that is not
+# in ECR yet. Here the image provably exists before the pull, and a red test suite or a failed
+# build never reaches the server (the guard below requires conclusion == 'success').
 #
-#   Actions → Deploy to EC2 → Run workflow      (GitHub UI)
-#   git deploy                                  (alias — deploys current main)
-#   git deploy a84f6d2                          (alias — deploys/rolls back to a tag)
+# Manual dispatch is kept for ROLLBACKS and re-deploys only:
+#
+#   Actions → Deploy to EC2 → Run workflow      (pick a tag, or blank for current main)
+#   git deploy a84f6d2                          (alias — roll back to a known-good tag)
 
 on:
+  workflow_run:
+    workflows: ["Build and push image"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       image_tag:
@@ -32,19 +40,34 @@ jobs:
   deploy:
     name: Deploy to EC2 via SSM
     runs-on: ubuntu-latest
+    # Auto-runs deploy ONLY after a green build on main. A cancelled build (build.yml cancels
+    # superseded runs) or a failing test suite conclude as something other than 'success', so
+    # they stop here instead of shipping. Manual dispatch always proceeds.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     steps:
       - name: Resolve image tag
         id: meta
         env:
           REQUESTED: ${{ inputs.image_tag }}
+          # The commit the triggering build actually produced an image for. Empty on manual
+          # dispatch. Do NOT fall back to GITHUB_SHA on a workflow_run event without this —
+          # for workflow_run, GITHUB_SHA points at the default branch tip, which may already
+          # have moved past the commit that was built, and we would deploy a missing tag.
+          BUILT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
           TAG="${REQUESTED:-}"
           # Blank input = deploy whatever commit this workflow was dispatched
           # against, which is what `git deploy` with no argument means.
-          if [ -z "$TAG" ]; then TAG="${GITHUB_SHA::7}"; fi
+          if [ -z "$TAG" ]; then
+            SHA="${BUILT_SHA:-$GITHUB_SHA}"
+            TAG="${SHA:0:7}"
+          fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Deploying tag: $TAG"
+          echo "Deploying tag: $TAG (trigger: $GITHUB_EVENT_NAME)"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

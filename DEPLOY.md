@@ -4,14 +4,19 @@ Images are built in **GitHub Actions** and pushed to **Amazon ECR**. The EC2 hos
 only pulls and swaps containers — it never runs `npm install`, `vite build`, or
 `docker compose build`.
 
-Build and deploy are **separate and deliberately decoupled**. Pushing to main only
-publishes an artifact; nothing reaches production until you explicitly ship it.
+**Pushing to main ships to production.** The build gates it: `npm test` must pass and the
+image must reach ECR, and only then does `deploy.yml` fire — chained on `workflow_run`, not
+on `push`, so the image provably exists before the host tries to pull it.
 
 ```
-push to main → build.yml:  npm ci → npm test → docker build → ECR   (STOPS HERE)
-
-git deploy   → deploy.yml: SSM → EC2: deploy.sh <tag> → pull → up -d → health gate
+push to main → build.yml:  npm ci → npm test → docker build → ECR
+                              │ on success (workflow_run)
+                              ▼
+                deploy.yml: SSM → EC2: deploy.sh <tag> → pull → up -d → health gate
 ```
+
+A red suite, a failed build, or a build cancelled by a newer push all conclude as
+something other than `success`, so they stop before the server is touched.
 
 Every image is tagged with the short commit SHA, so rollback is a re-deploy of an
 older tag rather than a rebuild.
@@ -25,10 +30,9 @@ what was removed — see [DEPLOYMENT_MIGRATION.md](DEPLOYMENT_MIGRATION.md).
 
 | Action | Command |
 | --- | --- |
-| Build an image (no deploy) | push to `main` |
-| Deploy current `main` | `git deploy` — or Actions → *Deploy to EC2* → Run workflow |
-| Deploy a specific build | `git deploy a84f6d2` |
-| Roll back | `git deploy <previous-sha>` |
+| Build **and deploy** | push to `main` — nothing else to run |
+| Roll back | `git deploy <previous-sha>` — or Actions → *Deploy to EC2* → Run workflow |
+| Re-deploy a specific build | `git deploy a84f6d2` |
 | Watch a run | `gh run watch` |
 | List available images | `aws ecr describe-images --repository-name aadml-frontend --region us-west-1 --query 'sort_by(imageDetails,&imagePushedAt)[].imageTags' --output text` |
 | Deploy from the box directly | `./deploy.sh <sha>` in `/opt/aadml-frontend` |
@@ -43,10 +47,11 @@ healthy it dumps the last 50 log lines, restores the previous tag, brings it bac
 up, and exits non-zero — so a bad build fails the pipeline instead of taking the
 site down.
 
-> **Let the build finish before deploying.** `git deploy` with no argument targets
-> the current `main` SHA; if `build.yml` hasn't published that image yet the pull
-> fails. The site is unaffected, but `.deploy.env` is left pointing at a tag that
-> doesn't exist.
+> **On the automatic path there is nothing to wait for** — the deploy is triggered *by* the
+> build finishing, so the image always exists. That race only applies to a MANUAL `git deploy`
+> with no argument: it targets the current `main` SHA, and if `build.yml` hasn't published that
+> image yet the pull fails. The site is unaffected, but `.deploy.env` is left pointing at a tag
+> that doesn't exist. For rollbacks, always pass an explicit tag.
 
 Build locally (dev only — never on the prod host):
 
@@ -57,6 +62,9 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ---
 
 ## Setting up `git deploy` on a new machine
+
+Optional — normal shipping is just a push to `main`. This alias is for **rollbacks and
+re-deploys** of an existing tag.
 
 `git deploy` is a git alias wrapping the GitHub CLI. One-time per machine:
 

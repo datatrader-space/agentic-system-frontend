@@ -1,8 +1,9 @@
 name: Build and push image
 
 # Runs on every push to main: tests, builds the production image, pushes it to ECR.
-# It NEVER touches the server — deployment is a separate, manually triggered
-# workflow (deploy.yml). Pushing to main is safe: it only publishes an artifact.
+# On SUCCESS it chains straight into deploy.yml (`workflow_run`), so a push to main ships.
+# The suite gates that: a red test run or a failed build fails here, deploy.yml's guard sees a
+# non-success conclusion, and the server is never touched.
 
 on:
   push:
@@ -74,19 +75,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Tell the operator what was published and exactly how to ship it, so the
-      # tag never has to be hunted for in the log.
+      # Record the tag so a rollback never has to be hunted for in the log.
       - name: Summary
         run: |
           {
-            echo "### Image published — not deployed"
+            echo "### Image published — deploying now"
             echo
             echo '```'
             echo "tag: ${{ steps.meta.outputs.tag }}"
             echo '```'
-            echo "Deploy it with **Actions → Deploy to EC2 → Run workflow**, or:"
+            echo "**Deploy to EC2** starts automatically for this tag. To roll back later:"
             echo '```bash'
-            echo "git deploy                 # deploys current main"
-            echo "git deploy ${{ steps.meta.outputs.tag }}          # deploys this exact build"
+            echo "git deploy <older-tag>     # or Actions → Deploy to EC2 → Run workflow"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
