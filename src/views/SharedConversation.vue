@@ -3,7 +3,7 @@
      agent. When the sharer allowed it, "Continue this chat" forks the snapshot into the VIEWER'S OWN
      account and hands off to the normal chat view; the original thread is never written to. -->
 <template>
-  <div class="sc-page">
+  <div ref="pageEl" class="sc-page" :style="{ height: pageHeight }">
     <div v-if="loading" class="sc-state">Loading conversation…</div>
 
     <div v-else-if="notFound" class="sc-state">
@@ -86,7 +86,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../services/api'
 import { notify } from '../composables/useNotify'
@@ -95,6 +95,19 @@ import { renderUntrustedMarkdown } from '../utils/safeMarkdown'
 const brand = 'AADML'
 const route = useRoute()
 const router = useRouter()
+
+// This page owns its own scroll. `html, body { overflow: hidden }` is global (see style.css), so a
+// view that just grows tall is simply unreadable past the fold — every shell here scrolls
+// internally, as PublicLayout does. The height is MEASURED rather than hardcoded to
+// `100vh - 64px` because the app header above this page renders only for logged-OUT viewers; a
+// fixed offset would leave signed-in ones with 64px of dead space, and would silently break if the
+// header's height ever changed.
+const pageEl = ref(null)
+const pageHeight = ref('100vh')
+const fitToViewport = () => {
+  const top = pageEl.value?.getBoundingClientRect().top ?? 0
+  pageHeight.value = `${Math.max(320, Math.round(window.innerHeight - top))}px`
+}
 
 const loading = ref(true)
 const notFound = ref(false)
@@ -116,6 +129,8 @@ const snapshotDate = computed(() => {
 const renderMarkdown = (text) => renderUntrustedMarkdown(text)
 
 onMounted(async () => {
+  fitToViewport()
+  window.addEventListener('resize', fitToViewport)
   try {
     const res = await api.getSharedConversation(route.params.token)
     data.value = res.data
@@ -124,8 +139,14 @@ onMounted(async () => {
     notFound.value = true
   } finally {
     loading.value = false
+    // Re-measure after the header renders — the title bar only exists once data has loaded, so
+    // the element's offset at mount is not its final one.
+    await nextTick()
+    fitToViewport()
   }
 })
+
+onUnmounted(() => window.removeEventListener('resize', fitToViewport))
 
 const copyLink = async () => {
   // Copy the CANONICAL url, not window.location.href. A viewer who arrived via the Open Graph
@@ -167,11 +188,11 @@ const continueChat = async () => {
 </script>
 
 <style scoped>
-/* The app's AppHeader (64px, `position: sticky`, z-index 1000) renders ABOVE this page for
-   logged-out viewers and is hidden for signed-in ones. Hence: size to the viewport minus that
-   bar so a two-message conversation doesn't force a scrollbar, and — see .sc-head — no sticky
-   sub-header, which would slide under the nav in the first case and leave a gap in the second. */
-.sc-page { min-height: calc(100vh - 64px); background: #f8fafc; color: #0f172a; }
+/* Height comes from the inline style (measured — see fitToViewport). The scroll lives HERE:
+   `html, body { overflow: hidden }` is global, so without this the conversation is unreadable
+   past the first screen. `.sc-head` is deliberately not sticky — it would anchor to this
+   container while the app's own 64px header sits above it, and the two would overlap. */
+.sc-page { background: #f8fafc; color: #0f172a; overflow-y: auto; overflow-x: hidden; }
 .sc-state { max-width: 640px; margin: 0 auto; padding: 96px 24px; text-align: center; color: #475569; }
 .sc-404 { font-size: 1.35rem; margin: 0 0 8px; color: #0f172a; }
 .sc-cta { display: inline-block; margin-top: 18px; padding: 10px 18px; border-radius: 10px;
