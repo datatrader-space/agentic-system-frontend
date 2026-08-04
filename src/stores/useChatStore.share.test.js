@@ -99,6 +99,26 @@ describe('useChatStore — message feedback', () => {
     expect(api.setMessageFeedback).not.toHaveBeenCalled()
   })
 
+  it('flags forked messages as untrusted so the chat renders them with the strict markdown path', async () => {
+    // Content copied in from someone else's shared conversation. Without this flag it would hit
+    // the permissive renderer and `<img onerror=…>` would execute in THIS user's session.
+    api.getConversation = vi.fn(() => Promise.resolve({
+      data: {
+        messages: [
+          { id: 1, role: 'user', content: '<img src=x onerror=alert(1)>',
+            model_info: { from_shared_conversation: 'tok', untrusted_content: true } },
+          { id: 2, role: 'assistant', content: 'normal answer', model_info: {} },
+        ],
+      },
+    }))
+    const chat = useChatStore()
+    chat._connect = vi.fn()
+    chat._hydratePlanAnchors = vi.fn()
+    await chat.openConversation(42)
+    expect(chat.messages[0].untrusted).toBe(true)
+    expect(chat.messages[1].untrusted).toBe(false)
+  })
+
   it('adopts the DB pk from the message_saved event so thumbs become sendable', () => {
     const chat = useChatStore()
     chat._beginAssistant()

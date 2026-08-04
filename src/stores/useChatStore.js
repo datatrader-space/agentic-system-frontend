@@ -366,6 +366,10 @@ export const useChatStore = defineStore('chat', {
           toolCalls: [],
           // The caller's own thumb, restored from the server so it survives a reload.
           feedback: m.feedback || null,
+          // Content that came from ANOTHER user's account (a forked shared conversation). Renders
+          // through the untrusted markdown path — raw HTML escaped, script URLs stripped — because
+          // the normal path deliberately lets HTML through for agent-generated media.
+          untrusted: !!(m.model_info && m.model_info.untrusted_content),
           // Long-answer stub: the stored content is a bounded stub; the full answer
           // is rehydrated on demand from the long-answer endpoint (see ChatMessage.vue).
           isLongResponse: !!(m.model_info && m.model_info.is_long_response),

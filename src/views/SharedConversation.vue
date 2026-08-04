@@ -88,9 +88,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { marked } from 'marked'
 import api from '../services/api'
 import { notify } from '../composables/useNotify'
+import { renderUntrustedMarkdown } from '../utils/safeMarkdown'
 
 const brand = 'AADML'
 const route = useRoute()
@@ -110,10 +110,10 @@ const snapshotDate = computed(() => {
   } catch { return '' }
 })
 
-// The snapshot is other people's content rendered on our origin, so keep it inert: marked with no
-// raw-HTML passthrough, and every link forced through the browser's default (no script URLs render
-// as anchors because marked already escapes them).
-const renderMarkdown = (text) => marked.parse(text || '', { breaks: true, gfm: true })
+// This is SOMEONE ELSE'S content rendered with v-html on our origin, so it goes through the
+// untrusted renderer: raw HTML is escaped to text and javascript:/data: URLs are stripped from
+// links and images. Plain `marked` passes both straight through — see utils/safeMarkdown.js.
+const renderMarkdown = (text) => renderUntrustedMarkdown(text)
 
 onMounted(async () => {
   try {
@@ -128,8 +128,12 @@ onMounted(async () => {
 })
 
 const copyLink = async () => {
+  // Copy the CANONICAL url, not window.location.href. A viewer who arrived via the Open Graph
+  // bounce is on `/share/<token>?app=1`; copying that would spread the crawler-bypass marker
+  // around and, worse, make every reshared link unfurl blank.
+  const canonical = `${window.location.origin}/share/${route.params.token}`
   try {
-    await navigator.clipboard.writeText(window.location.href)
+    await navigator.clipboard.writeText(canonical)
     copied.value = true
     setTimeout(() => (copied.value = false), 1800)
   } catch {
@@ -163,13 +167,17 @@ const continueChat = async () => {
 </script>
 
 <style scoped>
-.sc-page { min-height: 100vh; background: #f8fafc; color: #0f172a; }
+/* The app's AppHeader (64px, `position: sticky`, z-index 1000) renders ABOVE this page for
+   logged-out viewers and is hidden for signed-in ones. Hence: size to the viewport minus that
+   bar so a two-message conversation doesn't force a scrollbar, and — see .sc-head — no sticky
+   sub-header, which would slide under the nav in the first case and leave a gap in the second. */
+.sc-page { min-height: calc(100vh - 64px); background: #f8fafc; color: #0f172a; }
 .sc-state { max-width: 640px; margin: 0 auto; padding: 96px 24px; text-align: center; color: #475569; }
 .sc-404 { font-size: 1.35rem; margin: 0 0 8px; color: #0f172a; }
 .sc-cta { display: inline-block; margin-top: 18px; padding: 10px 18px; border-radius: 10px;
   background: #4f46e5; color: #fff; text-decoration: none; font-weight: 600; font-size: .875rem; }
 
-.sc-head { border-bottom: 1px solid #e2e8f0; background: #fff; position: sticky; top: 0; z-index: 5; }
+.sc-head { border-bottom: 1px solid #e2e8f0; background: #fff; }
 .sc-head-inner { max-width: 860px; margin: 0 auto; padding: 18px 24px; display: flex;
   align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .sc-title { margin: 0; font-size: 1.1rem; font-weight: 650; }

@@ -179,6 +179,7 @@
 import { computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
 import { enhanceChatMedia } from '../../utils/chatMedia'
+import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
 import api from '../../services/api'
 import AgentActivityTimeline from '../AgentActivityTimeline.vue'
 import TokenUsage from '../activity/TokenUsage.vue'
@@ -315,7 +316,16 @@ const fullContent = ref('')
 const loadingFull = ref(false)
 const fullError = ref('')
 const displayContent = computed(() => fullContent.value || props.message.content || '')
-const rendered = computed(() => addCodeCopyButtons(enhanceChatMedia(marked.parse(displayContent.value))))
+// Messages copied in from someone else's shared conversation are rendered with raw HTML escaped
+// and script URLs stripped. Everything else keeps the permissive path, which agents rely on to
+// emit media. enhanceChatMedia works off markdown (`![](url)` and bare URLs), not raw HTML, so it
+// still unfurls images/video correctly under the strict renderer.
+const rendered = computed(() => {
+  const html = props.message.untrusted
+    ? renderUntrustedMarkdown(displayContent.value)
+    : marked.parse(displayContent.value)
+  return addCodeCopyButtons(enhanceChatMedia(html))
+})
 
 // Event-delegated copy for per-code-block buttons injected by addCodeCopyButtons.
 // Click-to-preview: clicking a rendered chat image opens a full-screen lightbox. The download button
