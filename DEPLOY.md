@@ -4,19 +4,25 @@ Images are built in **GitHub Actions** and pushed to **Amazon ECR**. The EC2 hos
 only pulls and swaps containers — it never runs `npm install`, `vite build`, or
 `docker compose build`.
 
-**Pushing to main ships to production.** The build gates it: `npm test` must pass and the
-image must reach ECR, and only then does `deploy.yml` fire — chained on `workflow_run`, not
-on `push`, so the image provably exists before the host tries to pull it.
+**Pushing to main ships to production.** One run does both: `build.yml` builds and pushes the
+image, then calls `deploy.yml` as its final job. `needs: build` means the deploy cannot start
+unless the suite was green and the image actually reached ECR.
 
 ```
-push to main → build.yml:  npm ci → npm test → docker build → ECR
-                              │ on success (workflow_run)
-                              ▼
-                deploy.yml: SSM → EC2: deploy.sh <tag> → pull → up -d → health gate
+push to main → build.yml
+                 job "build" :  npm ci → npm test → docker build → ECR
+                      │ needs: build   (same run — visible in one place)
+                      ▼
+                 job "deploy":  uses deploy.yml → SSM → EC2: deploy.sh <tag>
+                                → pull → up -d → health gate
 ```
 
-A red suite, a failed build, or a build cancelled by a newer push all conclude as
-something other than `success`, so they stop before the server is touched.
+`deploy.yml` is a **reusable workflow** (`workflow_call`), deliberately not a `workflow_run`
+chain. Cross-workflow triggers only fire from the default-branch copy of the file, run outside
+the build's own run, and give you nothing to look at when they don't fire — a `workflow_run`
+version of this shipped nothing across three consecutive pushes without producing a single
+failed run. `needs:` is plain job ordering: it either runs where you can see it, or the build
+failed.
 
 Every image is tagged with the short commit SHA, so rollback is a re-deploy of an
 older tag rather than a rebuild.
@@ -31,8 +37,8 @@ what was removed — see [DEPLOYMENT_MIGRATION.md](DEPLOYMENT_MIGRATION.md).
 | Action | Command |
 | --- | --- |
 | Build **and deploy** | push to `main` — nothing else to run |
-| Roll back | `git deploy <previous-sha>` — or Actions → *Deploy to EC2* → Run workflow |
-| Re-deploy a specific build | `git deploy a84f6d2` |
+| Roll back | Actions → *Deploy to EC2* → Run workflow → enter an older tag |
+| Re-deploy a specific build | same — enter that tag |
 | Watch a run | `gh run watch` |
 | List available images | `aws ecr describe-images --repository-name aadml-frontend --region us-west-1 --query 'sort_by(imageDetails,&imagePushedAt)[].imageTags' --output text` |
 | Deploy from the box directly | `./deploy.sh <sha>` in `/opt/aadml-frontend` |
@@ -47,11 +53,11 @@ healthy it dumps the last 50 log lines, restores the previous tag, brings it bac
 up, and exits non-zero — so a bad build fails the pipeline instead of taking the
 site down.
 
-> **On the automatic path there is nothing to wait for** — the deploy is triggered *by* the
-> build finishing, so the image always exists. That race only applies to a MANUAL `git deploy`
-> with no argument: it targets the current `main` SHA, and if `build.yml` hasn't published that
-> image yet the pull fails. The site is unaffected, but `.deploy.env` is left pointing at a tag
-> that doesn't exist. For rollbacks, always pass an explicit tag.
+> **On the automatic path there is nothing to wait for** — the deploy job receives the tag the
+> build just pushed, so the image always exists. The race only exists on a MANUAL run with a
+> blank tag field: that targets the current `main` SHA, and if no image was published for it the
+> pull fails. The site is unaffected, but `.deploy.env` is left pointing at a tag that doesn't
+> exist. **For rollbacks, always type an explicit tag.**
 
 Build locally (dev only — never on the prod host):
 
@@ -61,10 +67,11 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 ---
 
-## Setting up `git deploy` on a new machine
+## Optional: `git deploy` alias for rollbacks
 
-Optional — normal shipping is just a push to `main`. This alias is for **rollbacks and
-re-deploys** of an existing tag.
+**Not needed for shipping** — a push to `main` deploys on its own. This alias only saves a trip
+to the Actions tab when you need to **roll back** to an older tag; the browser route
+(**Actions → Deploy to EC2 → Run workflow**) does exactly the same thing.
 
 `git deploy` is a git alias wrapping the GitHub CLI. One-time per machine:
 

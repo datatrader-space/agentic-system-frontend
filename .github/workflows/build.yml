@@ -27,6 +27,10 @@ jobs:
   build:
     name: Build and push image
     runs-on: ubuntu-latest
+    outputs:
+      # Handed to the deploy job below so it ships exactly the image this run produced,
+      # rather than re-deriving a tag and risking a mismatch.
+      tag: ${{ steps.meta.outputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -84,8 +88,22 @@ jobs:
             echo '```'
             echo "tag: ${{ steps.meta.outputs.tag }}"
             echo '```'
-            echo "**Deploy to EC2** starts automatically for this tag. To roll back later:"
-            echo '```bash'
-            echo "git deploy <older-tag>     # or Actions → Deploy to EC2 → Run workflow"
-            echo '```'
+            echo "The **Deploy to EC2** job below ships this tag."
+            echo "To roll back: Actions → *Deploy to EC2* → Run workflow → enter an older tag."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Ship it. A called workflow, not a `workflow_run` chain: `needs` makes the ordering explicit
+  # and puts the deploy in THIS run, so a push to main visibly builds and deploys in one place.
+  # It cannot start unless `build` succeeded, so a red suite or a failed push to ECR stops here.
+  deploy:
+    name: Deploy
+    needs: build
+    uses: ./.github/workflows/deploy.yml
+    with:
+      image_tag: ${{ needs.build.outputs.tag }}
+    # The called workflow needs AWS_DEPLOY_ROLE_ARN for OIDC; `inherit` passes the repo secrets
+    # through without re-declaring each one.
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
