@@ -270,6 +270,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import api from '../services/api'
 import { Marked } from 'marked'
+import { renderUntrustedMarkdown } from '../utils/safeMarkdown'
 import { markedHighlight } from 'marked-highlight'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
@@ -773,7 +774,7 @@ const scrollToBottom = async (force = false) => {
 
 const formatMessage = (content) => {
   if (!content) return ''
-  return enhanceChatMedia(marked.parse(content))
+  return enhanceChatMedia(renderUntrustedMarkdown(content))
 }
 
 const activeModels = computed(() => models.value.filter((model) => model.is_active))

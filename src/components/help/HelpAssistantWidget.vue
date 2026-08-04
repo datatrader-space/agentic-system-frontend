@@ -64,6 +64,7 @@ import { ref, reactive, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { marked } from 'marked'
+import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
 import api from '../../services/api'
 import { useGuidedTour } from '../../composables/useGuidedTour'
 import { applyAssistantWsEvent } from '../../utils/assistantStream'
@@ -73,7 +74,7 @@ marked.setOptions({ breaks: true, gfm: true })
 // as New Chat; the widget just parses it instead of showing raw text.
 function renderMd(text) {
   if (!text) return ''
-  try { return marked.parse(String(text)) } catch (e) { return String(text) }
+  try { return renderUntrustedMarkdown(String(text)) } catch (e) { return String(text) }
 }
 
 const props = defineProps({

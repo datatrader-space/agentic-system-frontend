@@ -244,6 +244,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { marked } from 'marked'
+import { renderUntrustedMarkdown } from '../utils/safeMarkdown'
 import { reasoningItems } from '../composables/useAgentTimeline'
 import TokenUsage from './activity/TokenUsage.vue'
 import EmulatorInspector from './activity/EmulatorInspector.vue'
@@ -566,7 +567,7 @@ function stopBadge(m) {
 }
 
 function renderMarkdown(text) {
-  try { return enhanceChatMedia(marked.parse(text || '')) } catch { return text || '' }
+  try { return enhanceChatMedia(renderUntrustedMarkdown(text || '')) } catch { return text || '' }
 }
 
 function wsUrl() {

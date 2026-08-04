@@ -296,7 +296,12 @@ const toggleReason = (key) => {
 }
 
 const submitReasons = () => {
-  emit('feedback', 'down', { reasons: [...chosenReasons.value], comment: reasonComment.value.trim() })
+  const reasons = [...chosenReasons.value]
+  const comment = reasonComment.value.trim()
+  // The thumb itself was already recorded when the sheet opened. Sending again with nothing
+  // selected would be a second write that changes nothing, and — because an identical value is
+  // treated as a toggle — it would actually CLEAR the thumb the user just gave.
+  if (reasons.length || comment) emit('feedback', 'down', { reasons, comment })
   showReasons.value = false
 }
 
@@ -316,16 +321,15 @@ const fullContent = ref('')
 const loadingFull = ref(false)
 const fullError = ref('')
 const displayContent = computed(() => fullContent.value || props.message.content || '')
-// Messages copied in from someone else's shared conversation are rendered with raw HTML escaped
-// and script URLs stripped. Everything else keeps the permissive path, which agents rely on to
-// emit media. enhanceChatMedia works off markdown (`![](url)` and bare URLs), not raw HTML, so it
-// still unfurls images/video correctly under the strict renderer.
-const rendered = computed(() => {
-  const html = props.message.untrusted
-    ? renderUntrustedMarkdown(displayContent.value)
-    : marked.parse(displayContent.value)
-  return addCodeCopyButtons(enhanceChatMedia(html))
-})
+// Raw HTML is ESCAPED for every message, not just forked ones. Answer text is never fully
+// first-party: it is model output that routinely quotes web pages, KB documents and tool results,
+// so a hostile page reproduced verbatim would otherwise land live markup in this session — and a
+// forked shared conversation carries another user's text outright. Nothing is lost by being
+// strict: the backend embeds media as markdown `![](url)` (tool_media.pending_markdown), never as
+// HTML, and enhanceChatMedia unfurls bare URLs from marked's OUTPUT, so images and video still
+// render. Same rule ChatGPT and Claude apply to assistant markdown.
+const rendered = computed(() =>
+  addCodeCopyButtons(enhanceChatMedia(renderUntrustedMarkdown(displayContent.value))))
 
 // Event-delegated copy for per-code-block buttons injected by addCodeCopyButtons.
 // Click-to-preview: clicking a rendered chat image opens a full-screen lightbox. The download button

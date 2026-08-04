@@ -84,6 +84,16 @@ describe('useChatStore — message feedback', () => {
     })
   })
 
+  it('re-sending "down" with no reasons would CLEAR the thumb — so the sheet must not send it', async () => {
+    // Guards the interaction between the reason sheet and the toggle rule: the thumb is already
+    // recorded when the sheet opens, so a no-op "Send feedback" that re-sent the same value would
+    // be read as a toggle and silently wipe the rating the user just gave.
+    const chat = useChatStore()
+    const m = seed(chat, { feedback: 'down' })
+    await chat.setFeedback('a1', 'down')                    // what an empty re-send would do
+    expect(m.feedback).toBeNull()                            // ← proves the hazard is real
+  })
+
   it('reverts the optimistic thumb when the write fails', async () => {
     api.setMessageFeedback.mockRejectedValueOnce(new Error('boom'))
     const chat = useChatStore()

@@ -96,12 +96,13 @@
 import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { FlaskConical, Send, Square } from 'lucide-vue-next'
 import { marked } from 'marked'
+import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
 import { enhanceChatMedia } from '../../utils/chatMedia'
 import { ChatConnection } from '../../services/chatService'
 
 marked.setOptions({ breaks: true, gfm: true })
 function render(text) {
-  return enhanceChatMedia(marked.parse(text || ''))
+  return enhanceChatMedia(renderUntrustedMarkdown(text || ''))
 }
 
 const props = defineProps({

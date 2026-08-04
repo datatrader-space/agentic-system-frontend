@@ -81,6 +81,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { marked } from 'marked'
+import { renderUntrustedMarkdown } from '../utils/safeMarkdown'
 import api from '../services/api'
 import AgentActivityTimeline from '../components/AgentActivityTimeline.vue'
 import ProvenanceFooter from '../components/chat/ProvenanceFooter.vue'
@@ -140,7 +141,10 @@ function interruptRich(note) {
 }
 
 marked.setOptions({ breaks: true, gfm: true })
-const md = (t) => { try { return enhanceChatMedia(marked.parse(t || '')) } catch { return t || '' } }
+// Agent output rendered to ANONYMOUS visitors, on third-party sites via the embed widget — the
+// most exposed markdown surface we have. Raw HTML is escaped and script URLs stripped; media still
+// unfurls because enhanceChatMedia works on marked's output, not on raw tags.
+const md = (t) => { try { return enhanceChatMedia(renderUntrustedMarkdown(t || '')) } catch { return t || '' } }
 const accent = computed(() => cfg.value.theme_color || '#4f46e5')
 const themeVars = computed(() => ({ '--pc-accent': accent.value }))
 const avatarStyle = computed(() => (cfg.value.avatar_url ? {} : { background: accent.value }))

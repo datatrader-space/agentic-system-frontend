@@ -105,6 +105,7 @@
 <script setup>
 import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
 import { marked } from 'marked'
+import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
 import {
   FlaskConical, Sparkles, RotateCcw, ArrowUp, Square, AlertTriangle,
 } from 'lucide-vue-next'
@@ -145,7 +146,7 @@ const connDot = computed(() => {
 })
 
 // ---- markdown ----
-const renderMd = (t) => marked(t || '')
+const renderMd = (t) => renderUntrustedMarkdown(t || '')
 
 // ---- helpers ----
 const scrollDown = () => {

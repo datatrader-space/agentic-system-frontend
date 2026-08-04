@@ -143,6 +143,7 @@
 
 <script>
 import { marked } from 'marked'
+import { renderUntrustedMarkdown } from '../utils/safeMarkdown'
 import api from '../services/api'
 
 export default {
@@ -188,7 +189,7 @@ export default {
   },
   methods: {
     formatMarkdown(text) {
-        return marked(text || '')
+        return renderUntrustedMarkdown(text || '')
     },
     formatToolResult(result) {
         if (typeof result === 'object') return JSON.stringify(result, null, 2)

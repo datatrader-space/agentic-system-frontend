@@ -167,6 +167,7 @@
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import { Marked } from 'marked'
+import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
 import { markedHighlight } from 'marked-highlight'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
@@ -483,7 +484,7 @@ function displayText(t) {
 function renderMarkdown(t) {
   const clean = displayText(t)
   if (!clean) return ''
-  return enhanceChatMedia(marked.parse(clean))
+  return enhanceChatMedia(renderUntrustedMarkdown(clean))
 }
 function resolvedLabel(m) {
   return { accepted: 'Kept locally', discarded: 'Discarded', exported: 'PR opened', error: 'Action failed' }[m.resolved] || m.resolved
