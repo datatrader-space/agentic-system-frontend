@@ -304,6 +304,7 @@ const router = createRouter({
       children: [
         { path: '', redirect: '/admin-dashboard/overview' },
         { path: 'overview', name: 'admin-overview', component: AdminOverview },
+        { path: 'operations', name: 'admin-operations', component: () => import('./views/admin/AdminOperations.vue') },
         { path: 'platform', name: 'admin-platform', component: AdminPanel },
         { path: 'guardrails', name: 'admin-guardrails', component: () => import('./views/admin/AdminGuardrails.vue') },
         { path: 'knowledge', name: 'admin-knowledge', component: AdminKnowledge },

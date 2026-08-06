@@ -84,6 +84,7 @@ const user = ref(null)
 
 const nav = [
   { to: '/admin-dashboard/overview', label: 'Overview', icon: ['M3 13h8V3H3zM13 21h8V3h-8zM3 21h8v-6H3z'] },
+  { to: '/admin-dashboard/operations', label: 'Operations', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
   { to: '/admin-dashboard/platform', label: 'Platform & Users', icon: ['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', 'M9 7a4 4 0 1 0 0 .01', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'] },
   { to: '/admin-dashboard/guardrails', label: 'System Guardrails', icon: ['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'] },
   { to: '/admin-dashboard/knowledge', label: 'Knowledge & Crawl', icon: ['M2 12a10 10 0 1 0 20 0 10 10 0 1 0-20 0', 'M2 12h20', 'M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20'] },
