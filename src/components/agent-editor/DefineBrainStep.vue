@@ -36,7 +36,7 @@
                 <label class="field-label">Main model</label>
                 <ModelPicker
                   :model-value="agent.default_model"
-                  :models="filteredModels"
+                  :models="chatModels"
                   placeholder="Search and select a model..."
                   @update:model-value="agent.default_model = $event"
                 />
@@ -53,7 +53,7 @@
                     <p v-if="c.hint" class="mb-1 text-[10.5px] leading-snug text-[#98A2B3]">{{ c.hint }}</p>
                     <ModelPicker
                       :model-value="agent[c.field]"
-                      :models="filteredModels"
+                      :models="modelsFor(c.capability)"
                       placeholder="Auto (use main model)"
                       @update:model-value="agent[c.field] = $event"
                     />
@@ -402,14 +402,25 @@ const models = ref([])
 const providers = ref([])
 const selectedProvider = ref(null)
 
+// `capability` names the LLMModel flag a model must carry to be offerable for that role. Without it
+// every picker listed all ~2300 models, so a chat model could be assigned as the Video generation model
+// — a choice that can only fail at generation time, and one the user had no way to tell was wrong.
 const CAPS = [
-  { field: 'image_model', label: 'Image generation' },
-  { field: 'vision_model', label: 'Image input (vision)', hint: 'Also powers image OCR / scanned-document vision for document ingestion.' },
+  { field: 'image_model', label: 'Image generation', capability: 'can_generate_images' },
+  { field: 'vision_model', label: 'Image input (vision)', capability: 'supports_vision', hint: 'Also powers image OCR / scanned-document vision for document ingestion.' },
   // Audio TRANSCRIPTION (speech-to-text) — distinct from Audio generation (text-to-speech) below.
-  { field: 'audio_transcription_model', label: 'Audio transcription', hint: 'Used to convert uploaded audio/video speech into text for document indexing. Not the same as Audio generation.' },
-  { field: 'audio_model', label: 'Audio generation', hint: 'Text-to-speech output. Not used for transcribing uploaded audio.' },
-  { field: 'video_model', label: 'Video generation' },
+  { field: 'audio_transcription_model', label: 'Audio transcription', capability: 'can_transcribe_audio', hint: 'Used to convert uploaded audio/video speech into text for document indexing. Not the same as Audio generation.' },
+  { field: 'audio_model', label: 'Audio generation', capability: 'can_generate_audio', hint: 'Text-to-speech output. Not used for transcribing uploaded audio.' },
+  { field: 'video_model', label: 'Video generation', capability: 'can_generate_video', hint: 'Text-to-video and image-to-video. Powers both GENERATE_VIDEO and IMAGE_TO_VIDEO, and the video pipeline.' },
 ]
+
+// Models for one capability role. Falls back to the unfiltered list when nothing declares the flag, so
+// a provider whose catalog has not been re-synced still offers a choice instead of an empty dropdown.
+function modelsFor(capability) {
+  if (!capability) return filteredModels.value
+  const capable = filteredModels.value.filter(m => m[capability])
+  return capable.length ? capable : filteredModels.value
+}
 // youtube_transcript_provider is a select (not a model), so it isn't in CAPS but counts as configured when non-default.
 const capCount = computed(() =>
   CAPS.filter(c => props.agent[c.field]).length
@@ -419,6 +430,10 @@ const modelProvider = (m) => m.provider ?? m.provider_id ?? (m.provider && m.pro
 const filteredModels = computed(() =>
   selectedProvider.value == null ? models.value : models.value.filter(m => modelProvider(m) === selectedProvider.value)
 )
+// The MAIN model drives the conversation, so it must be able to chat and call tools. Video models are
+// media-only (the sync marks them supports_tools=false); offering one here would silently break the
+// agent's whole turn loop, not just its video calls.
+const chatModels = computed(() => filteredModels.value.filter(m => !(m.can_generate_video && m.supports_tools === false)))
 function onProviderChange() {
   const ok = new Set(filteredModels.value.map(m => m.id))
   if (props.agent.default_model && !ok.has(props.agent.default_model)) props.agent.default_model = null

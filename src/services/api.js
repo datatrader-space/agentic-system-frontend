@@ -77,6 +77,21 @@ api.interceptors.response.use(
     if (error.response) {
       // Server responded with error
       console.error('API Error:', error.response.status, error.response.data)
+      // Session died (expired/revoked). This global handler is what lets the router guard be
+      // OPTIMISTIC (navigate first, revalidate in background): any API call proves the session, so
+      // when one comes back 401 we clear cached auth state and land on /login. Skip when already on
+      // a public/login page, and skip the auth-check endpoint itself — the guard interprets that
+      // response body directly ({authenticated:false} is a 200; a genuine 401 here still applies).
+      if (error.response.status === 401) {
+        const path = window.location.pathname
+        const onPublicPage = path === '/login' || path === '/signup' || path === '/' ||
+          path.startsWith('/share/') || path.startsWith('/a/') || path.startsWith('/embed/')
+        if (!onPublicPage) {
+          clearApiCache()
+          try { localStorage.clear(); sessionStorage.clear() } catch { /* ignore */ }
+          window.location.assign('/login')
+        }
+      }
     } else if (error.request) {
       // Request made but no response
       console.error('Network Error:', error.request)
@@ -109,6 +124,11 @@ const _CACHE_TTL = [
   ['/tools/definitions', 60_000], ['/services/', 60_000], ['/mcp/servers', 60_000],
   ['/connectors', 30_000], ['/credentials/builtin-scopes', 300_000],
   ['/v2/orgs', 60_000], ['/workspaces', 60_000],
+  // The Platform Super Agent card — fetched on EVERY new-chat mount. Safe to cache briefly: the two
+  // things a user can change about it from chat (model / run mode) are POSTs, and any POST clears the
+  // cache, so the next read is fresh. Listed BEFORE nothing else matches '/agents/super-agent'
+  // (_AGENTS_LIST is an exact-match regex on '/agents/', so there is no conflict).
+  ['/agents/super-agent', 30_000],
 ]
 // The agent LIST is slow-changing reference-ish data refetched on every navigation, so cache it briefly.
 // EXACT match only — '/agents/' (list), NOT '/agents/{id}/...' live sub-resources (signals/credentials/
@@ -154,16 +174,29 @@ function _clone(d) {
   catch { return d }
 }
 
-// A mutation invalidates the whole GET cache (simple + always-correct for reference data). EXCEPTION:
+// A mutation invalidates the GET cache (simple + always-correct for reference data). EXCEPTION:
 // high-frequency chat/conversation writes (sending a message, etc.) never change any CACHED endpoint
 // (auth/providers/models/tools/services/connectors/orgs/workspaces — see _CACHE_TTL), so clearing the
 // cache after every chat message just forces needless refetches of all that reference data on the next
 // navigation. Skip the clear for those write paths; everything else still clears.
 const _NO_CACHE_INVALIDATE = /\/(chat|messages?|conversations|turn|long-answer|stream)\b/i
+// Entries that survive ordinary mutations: AUTH state only changes via /auth/* writes (login/logout —
+// those trigger a FULL clear below) or session expiry (the global 401 handler). Wiping it on every
+// unrelated save forced the router guard into a blocking /auth/check round trip on the very next
+// navigation — the "click does nothing for seconds" hang. Everything else still clears on write.
+const _KEEP_ON_WRITE = ['/auth/check', '/auth/me']
+function _invalidateForWrite(writeUrl) {
+  // An auth mutation (login/logout/password/2FA) invalidates auth state itself — full clear.
+  if (/\/auth\//i.test(writeUrl || '')) { _cache.clear(); return }
+  for (const key of _cache.keys()) {
+    const url = key.split('::')[0]
+    if (!_KEEP_ON_WRITE.some((frag) => url.includes(frag))) _cache.delete(key)
+  }
+}
 for (const m of ['post', 'put', 'patch', 'delete']) {
   const raw = api[m].bind(api)
   api[m] = (url, ...rest) => {
-    if (!_NO_CACHE_INVALIDATE.test(url || '')) _cache.clear()
+    if (!_NO_CACHE_INVALIDATE.test(url || '')) _invalidateForWrite(url)
     return raw(url, ...rest)
   }
 }
@@ -358,6 +391,8 @@ export default {
   checkLLMHealth: () => api.get('/llm/health/'),
   getLlmStats: (params) => api.get('/llm/stats/', { params }),
   getLlmUsage: (params) => api.get('/llm/usage/', { params }),
+  getSandboxUsage: (params) => api.get('/sandbox/usage/', { params }),
+  terminateSandboxLease: (leaseId) => api.post(`/sandbox/leases/${leaseId}/terminate/`),
   getLlmRequests: (params) => api.get('/llm/requests/', { params }),
   getLlmAudit: (params) => api.get('/llm/audit/', { params }),
   // Per-conversation cost breakdown (Usage → Cost Breakdown tab): totals + by-source + by-model + calls.
@@ -497,16 +532,29 @@ export default {
   // Admin Help Center analytics (staff only).
   adminHelpAnalytics: (section, params) => api.get(`/admin/help-analytics/${section}`, { params, noCache: true }),
 
-  // Admin — built-in (system) agents (platform-admin only).
-  adminListBuiltinAgents: () => api.get('/admin/builtin-agents/', { noCache: true }),
-  adminCreateBuiltinAgent: (data) => api.post('/admin/builtin-agents/', data),
-  adminUpdateBuiltinAgent: (id, data) => api.patch(`/admin/builtin-agents/${id}/`, data),
+  // Admin — built-in (system) agents console (platform-admin only). READ + destroy/publish/clone only:
+  // authoring/editing happens in the normal agent builder (make_builtin on /agents/) — one write path.
+  adminListBuiltinAgents: (params) => api.get('/admin/builtin-agents/', { noCache: true, params }),
   adminDeleteBuiltinAgent: (id) => api.delete(`/admin/builtin-agents/${id}/`),
   adminToggleBuiltinAgent: (id, enabled) => api.post(`/admin/builtin-agents/${id}/publish/`, { enabled }),
   adminCloneBuiltinAgent: (id) => api.post(`/admin/builtin-agents/${id}/clone/`, {}),
   cloneBuiltinAgent: (slug) => api.post(`/agents/builtin/${slug}/clone/`, {}),
   listBuiltinAgents: () => api.get('/agents/builtin/', { noCache: true }),
-  adminBuiltinToolCatalog: () => api.get('/admin/builtin-agents/tool-catalog/', { noCache: true }),
+
+  // The ONE shared Platform Super Agent (system-owned built-in; per-caller team/inventory/model).
+  // FULL payload — the Super Agent page + the admin console (capability inventory, tool catalog,
+  // delegation team, model options). Heavy by design; server-side cached per user.
+  getSuperAgent: () => api.get('/agents/super-agent/', { noCache: true }),
+  // SLIM card — what CHAT needs to open a conversation (identity + run mode + image model). Skips the
+  // capability inventory / tool catalog / model-options blocks entirely (~26 queries → a handful).
+  // The chat model picker fetches /agents/<id>/model-options/ separately when the user opens it.
+  getSuperAgentCard: () => api.get('/agents/super-agent/', { params: { slim: 1 } }),
+  // Shared-agent model picker: the caller's provider cards + models, and their sticky pick.
+  getAgentModelOptions: (id) => api.get(`/agents/${id}/model-options/`, { noCache: true }),
+  selectAgentModel: (id, modelId) => api.post(`/agents/${id}/select-model/`, { model_id: modelId }),
+  // Per-user run mode for SHARED agents. A plain updateAgent() would write the ONE shared row and
+  // change the mode for every user on the platform — this writes the caller's override only.
+  selectAgentRunMode: (id, runMode) => api.post(`/agents/${id}/select-run-mode/`, { agent_run_mode: runMode }),
   // AI Assistant slot — which agent powers the widget (one at a time).
   adminGetAssistantConfig: () => api.get('/admin/assistant/config', { noCache: true }),
   adminSetAssistantAgent: (agentId) => api.put('/admin/assistant/config', { agent_id: agentId }),
@@ -642,6 +690,10 @@ export default {
   // Context Files
   getConversations: (params) => api.get('/conversations/', { params }),
   getConversation: (id) => api.get(`/conversations/${id}/`),
+  // Older pages of one thread. The conversation endpoint returns only the most recent window, so a
+  // long chat opens fast; this walks backwards from the oldest message the client holds.
+  // `before` is an EXCLUSIVE message id (cursor, not an offset — safe while messages are appended).
+  getConversationMessages: (id, params) => api.get(`/conversations/${id}/messages/`, { params }),
   createConversation: (data) => api.post('/conversations/', data),
 
   // ── Conversation sharing (ChatGPT-style links) ──────────────────────────────────────────
@@ -722,6 +774,14 @@ export default {
   // P6: effective LLM turn-policy preview + selectable context profiles (read-only)
   getAgentEffectivePolicy: (id, params = {}) => api.get(`/agents/${id}/effective-policy/`, { params }),
   getAgentActionUsage: (id, params = {}) => api.get(`/agents/${id}/action-usage/`, { params }),
+  // ── Web Intelligence (WEB_SEARCH broker) ──
+  // The model list is capability-VERIFIED only (never "every model from this provider"); saving goes
+  // through its own validated endpoint, not the generic agent PATCH, so an unsupported search model
+  // is rejected server-side (400 WEB_SEARCH_MODEL_UNSUPPORTED) instead of failing at runtime.
+  getWebSearchModels: () => api.get('/models/web-search/'),
+  probeWebSearchModel: (provider, model_id) => api.post('/models/web-search/probe/', { provider, model_id }),
+  getAgentWebIntelligence: (id) => api.get(`/agents/${id}/web-intelligence/`),
+  updateAgentWebIntelligence: (id, data) => api.patch(`/agents/${id}/web-intelligence/`, data),
   getAgentMonitoring: (id) => api.get(`/agents/${id}/monitoring/`),
   rollbackAgent: (id) => api.post(`/agents/${id}/rollback/`),
   // ── Tools Library (Screen 24) ──

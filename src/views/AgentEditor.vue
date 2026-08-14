@@ -6,7 +6,8 @@
       <!-- Editor header -->
       <header class="border-b border-[#E5E7EB] bg-white px-6 pt-3 pb-4">
         <div class="mb-2 flex items-center gap-1.5 text-[12.5px] text-[#667085]">
-          <button class="font-medium text-[#475569] hover:text-[#2563EB]" @click="go('/dashboard/agents')">Agents</button>
+          <button class="font-medium text-[#475569] hover:text-[#2563EB]"
+                  @click="go(shellBase === '/admin-dashboard' ? '/admin-dashboard/builtin-agents' : '/dashboard/agents')">Agents</button>
           <ChevronRight :size="13" :stroke-width="2" class="text-[#98A2B3]" />
           <span class="font-semibold text-[#344054]">{{ agent.name || 'New Agent' }}</span>
           <Pencil :size="13" :stroke-width="2" class="cursor-pointer text-[#98A2B3] hover:text-[#2563EB]" />
@@ -67,6 +68,8 @@
         <AgentIdentityStep v-if="step === 'identity'" :agent="agent" :is-new="isNew" />
         <DefineBrainStep v-else-if="step === 'brain'" :agent="agent" />
         <KnowledgeToolsStep v-else-if="step === 'tools'" :agent="agent" />
+        <SubAgentsStep v-else-if="step === 'team'" :agent="agent" />
+        <SkillsStep v-else-if="step === 'skills'" :agent="agent" />
         <CredentialsStep v-else-if="step === 'credentials'" :agent="agent" />
         <AutonomySafetyStep v-else-if="step === 'autonomy'" :agent="agent" />
         <ScopeAssistantStep v-else-if="step === 'scope'" :agent="agent" />
@@ -101,6 +104,8 @@ import { notify } from '@/composables/useNotify'
 import DefineBrainStep from '../components/agent-editor/DefineBrainStep.vue'
 import AgentIdentityStep from '../components/agent-editor/AgentIdentityStep.vue'
 import KnowledgeToolsStep from '../components/agent-editor/KnowledgeToolsStep.vue'
+import SubAgentsStep from '../components/agent-editor/SubAgentsStep.vue'
+import SkillsStep from '../components/agent-editor/SkillsStep.vue'
 import CredentialsStep from '../components/agent-editor/CredentialsStep.vue'
 import AutonomySafetyStep from '../components/agent-editor/AutonomySafetyStep.vue'
 import ScopeAssistantStep from '../components/agent-editor/ScopeAssistantStep.vue'
@@ -110,6 +115,11 @@ import { ago } from '../components/dashboard/time'
 const route = useRoute()
 const router = useRouter()
 const go = (to) => router.push(to)
+
+// This editor is mounted in BOTH shells (/dashboard and /admin-dashboard). Every self-navigation
+// stays inside the shell it was opened from, so an admin editing a system agent is never bounced
+// into the user dashboard.
+const shellBase = computed(() => (route.path.startsWith('/admin-dashboard') ? '/admin-dashboard' : '/dashboard'))
 
 const loading = ref(true)
 const saving = ref(false)
@@ -131,6 +141,8 @@ const BASE_STEPS = [
   { key: 'identity', title: 'Agent Identity', sub: 'Name, purpose & workspace' },
   { key: 'brain', title: 'Define Brain', sub: 'Behavior & instructions' },
   { key: 'tools', title: 'Knowledge & Tools', sub: 'Sources & capabilities' },
+  { key: 'team', title: 'Team & Sub-Agents', sub: 'Delegate to your other agents' },
+  { key: 'skills', title: 'Skills', sub: 'Playbooks & know-how' },
   { key: 'credentials', title: 'Credentials', sub: 'Vault & permissions' },
   { key: 'autonomy', title: 'Autonomy & Safety', sub: 'Controls & limits' },
   // Staff-only "Scope & Assistant" is spliced in here (before the final step).
@@ -254,7 +266,7 @@ async function save({ quiet = false } = {}) {
       res = await api.post('/agents/', payload)
       agent.value = { ...agent.value, ...res.data }
       if (Array.isArray(res.data?.tools)) agent.value.tool_ids = res.data.tools.map(t => t.id)
-      if (agent.value.id) router.replace(`/dashboard/agents/${agent.value.id}/editor`)
+      if (agent.value.id) router.replace(`${shellBase.value}/agents/${agent.value.id}/editor`)
     }
     lastSavedAt.value = new Date().toISOString()
     if (!quiet) notify.success('Saved')

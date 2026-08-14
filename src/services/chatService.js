@@ -225,6 +225,9 @@ export class ChatConnection {
       // Create-Image mode: run the agent as a focused image assistant for this turn (image toolset +
       // guided pipeline prompt). Backend gates on this flag + the agent having an image model.
       image_mode: opts.imageMode || undefined,
+      // Per-turn reasoning effort: off | minimal | low | medium | high. Omitted when the user has made no
+      // choice, so the agent's own stream_reasoning default is left untouched.
+      reasoning_effort: opts.reasoningEffort || undefined,
       // Canvas click-to-select (Phase 5): the element the user clicked, so "change this" targets it.
       canvas_selection: opts.canvasSelection || undefined,
       // Full-document cost gate: the user's decision on the re-sent turn — {decision, focus_query}.

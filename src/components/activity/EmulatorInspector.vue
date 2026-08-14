@@ -49,6 +49,12 @@
                     class="w-full flex items-center gap-1.5 text-left hover:bg-slate-50 rounded px-1 py-0.5">
               <span :class="tio.ok === false ? 'text-red-500' : 'text-amber-600'">🔧</span>
               <span class="font-medium text-gray-700 truncate flex-1">{{ tio.name }}</span>
+              <!-- Delegation verification badge (Phase 4): only for DELEGATE_* tools whose captured
+                   output parses as a delegation verdict. -->
+              <VerificationBadge v-if="tioVerdict(tio)" compact
+                                 :verified="tioVerdict(tio).verified"
+                                 :status="tioVerdict(tio).status"
+                                 :note="tioVerdict(tio).note || ''" />
               <span v-if="tio.endTs" class="text-[10px] text-gray-400">{{ ((tio.endTs - tio.startTs) / 1000).toFixed(1) }}s</span>
               <span class="text-gray-300">{{ open.has('tio' + sel + '-' + i) ? '▾' : '▸' }}</span>
             </button>
@@ -115,6 +121,8 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import api from '../../services/api'
 import { stepSeconds } from '../../composables/useAgentTimeline'
+import VerificationBadge from '../common/VerificationBadge.vue'
+import { parseDelegationResult, isDelegationTool } from '../common/verificationBadge'
 
 const props = defineProps({
   agentId: { type: [Number, String], default: null },
@@ -136,6 +144,9 @@ const cur = computed(() => props.turns[sel.value] || {})
 
 const fmt = (n) => (n == null ? '—' : Number(n).toLocaleString())
 const secs = (s) => stepSeconds(s)
+// Delegation verdict for a raw tool I/O row — keyed on the tool NAME (never sniff other tools' output).
+const tioVerdict = (tio) =>
+  (tio && isDelegationTool(tio.name) ? parseDelegationResult(tio.output) : null)
 const pretty = (x) => {
   if (x == null) return '—'
   if (typeof x === 'string') return x

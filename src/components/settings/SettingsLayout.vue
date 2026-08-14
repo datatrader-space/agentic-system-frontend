@@ -72,6 +72,7 @@ import AdvancedSettings from './AdvancedSettings.vue'
 // Workspaces are primary sidebar destinations now, so they live there — not here).
 import LLMSettings from '../../views/LLMSettings.vue'
 import UsagePage from '../../views/UsagePage.vue'
+import SandboxesPage from '../../views/SandboxesPage.vue'
 import Billing from '../../views/Billing.vue'
 
 const route = useRoute()
@@ -83,6 +84,7 @@ const tabs = [
   { key: 'providers', label: 'AI Providers', component: LLMSettings },
   { key: 'memory', label: 'Memory', component: MemorySettings },
   { key: 'usage', label: 'Usage', component: UsagePage },
+  { key: 'sandboxes', label: 'Sandboxes', component: SandboxesPage },
   { key: 'billing', label: 'Billing', component: Billing },
   { key: 'security', label: 'Security', component: SecuritySettings },
   { key: 'notifications', label: 'Notifications', component: NotificationSettings },

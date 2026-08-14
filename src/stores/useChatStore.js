@@ -11,11 +11,13 @@ import { useCanvasStore } from './useCanvasStore'
 import { usePlanStore } from './usePlanStore'
 import { useAgentTimeline, isRichEvent } from '../composables/useAgentTimeline'
 import { ensureNotifyPermission, notifyRunFinished } from '../composables/useRunNotifications'
+import { stripThinkBlocks, ThinkStreamFilter } from '../utils/thinkFilter'
 
 // One shared live timeline for the currently-streaming assistant message (only one streams at a time).
 // Reset per turn, snapshotted onto the message on completion — the SAME reducer the Emulator uses, so
 // New Chat shows the identical friendly, param-free activity (Searching → Generating) instead of raw tool I/O.
 const _tl = useAgentTimeline()
+const _think = new ThinkStreamFilter()
 
 let _seq = 0
 const nid = () => `m${++_seq}`
@@ -61,6 +63,10 @@ export const useChatStore = defineStore('chat', {
     // `image_mode` on each WS message while on. Requires the agent to have an image model (composer blocks
     // the toggle otherwise).
     imageMode: false,
+    // Per-turn REASONING EFFORT ('' = no choice, use the agent's own setting). How hard the model should
+    // think about THIS message — the backend allow-lists the value and maps 'off' to no reasoning at all.
+    // Sticky across turns so a user who wants deep thinking does not re-pick it every message.
+    reasoningEffort: '',
 
     // Share sheet (ShareModal). `shareAnchorId` is a message's DB pk when the sheet was opened from a
     // specific message — the snapshot is then cut at that message ("share up to here").
@@ -101,6 +107,10 @@ export const useChatStore = defineStore('chat', {
     selectedAgentId: null,
     agentsLoaded: false,
     agentsLoading: false,
+    // In-flight /agents/ request shared by EVERY concurrent loadAgents() caller. The old dedup was a
+    // bare `if (agentsLoading) return` — the second caller resolved IMMEDIATELY against a possibly
+    // still-empty `agents`, which is exactly the race that made New Chat mount with no agents.
+    _agentsPromise: null,
 
     // Chat history for the CURRENTLY selected agent (history drawer default scope).
     // Paginated: the drawer opens on the most recent page and pulls older ones on demand.
@@ -121,6 +131,11 @@ export const useChatStore = defineStore('chat', {
     _allSessionsAt: 0,   // last successful fetch (ms) — drives the TTL cache below
 
     loadingHistory: false,
+    // Message windowing: the conversation endpoint returns the most recent page; these drive the
+    // "Load earlier messages" affordance at the top of the thread.
+    messagesHasMore: false,
+    messagesTotal: 0,
+    loadingOlder: false,
     error: '',
 
     _conn: null,
@@ -137,6 +152,13 @@ export const useChatStore = defineStore('chat', {
     needsAgent: (s) => s.agentsLoaded && s.agents.length === 0,
     currentAgent: (s) =>
       s.agents.find((a) => String(a.id) === String(s.selectedAgentId)) || null,
+    // SHARED system-owned agents (built-ins incl. the Platform Super Agent): the chat shows a fixed
+    // agent identity + a MODEL picker (each user runs them on their own provider) instead of the
+    // per-agent mode pill (their run mode is admin-set globally).
+    isSharedAgent() {
+      const a = this.currentAgent
+      return !!(a && (a.is_platform_super_agent || a.is_builtin_agent))
+    },
     // History pagination: is there an older page left to pull? Compared against the server's total
     // rather than a `next` URL so it stays right even when rows are appended locally.
     hasMoreSessions: (s) => s.sessions.length < s.sessionsTotal,
@@ -164,27 +186,44 @@ export const useChatStore = defineStore('chat', {
   },
   actions: {
     // ---- Agents + history ----
+    // Load the agent library. Concurrent callers (LeftSidebar / ChatWelcome / ChatWorkspace all mount
+    // together) share ONE in-flight request via `_agentsPromise` and every one of them resolves only
+    // once `agents` is actually populated — so callers can safely act on the list right after awaiting.
+    //
+    // force=true (after creating / editing / deleting an agent) bypasses the "already loaded"
+    // short-circuit; it still joins any in-flight load rather than firing a second request.
+    //
+    // NOTE: this no longer chains loadSessions(). History is the selected AGENT's concern and is
+    // triggered by setAgent(); chaining it here made the agent list artificially serial behind a
+    // second round trip on every chat mount.
     async loadAgents(force = false) {
-      // agentsLoading is set synchronously, so concurrent mount-time calls from
-      // LeftSidebar / ChatWelcome / ChatWorkspace collapse into a single request.
-      // force=true (after creating / editing / deleting an agent) bypasses the "already loaded"
-      // short-circuit so the change shows immediately without a full page refresh — still deduped
-      // against any in-flight load.
-      if (this.agentsLoading) return
+      if (this._agentsPromise) return this._agentsPromise
       if (this.agentsLoaded && !force) return
       this.agentsLoading = true
+      this._agentsPromise = this._fetchAgents().finally(() => {
+        this._agentsPromise = null
+        this.agentsLoading = false
+      })
+      return this._agentsPromise
+    },
+
+    async _fetchAgents() {
       try {
         const res = await api.getAgents()
+        // The library list NEVER contains shared system-owned agents (built-ins / the Platform Super
+        // Agent) — they're fetched by id (ensureSuperAgent / _selectAgentById). Preserve any already
+        // cached across reloads, or a forced refresh would wipe the active chat's agent.
+        const shared = this.agents.filter((a) => a.is_platform_super_agent || a.is_builtin_agent)
         this.agents = pickArray(res.data)
+        for (const s of shared) {
+          if (!this.agents.some((a) => String(a.id) === String(s.id))) this.agents.push(s)
+        }
         if (!this.selectedAgentId && this.agents.length) {
           this.selectedAgentId = String(this.agents[0].id)
         }
         this.agentsLoaded = true
-        await this.loadSessions()
       } catch {
         this.error = 'Failed to load agents'
-      } finally {
-        this.agentsLoading = false
       }
     },
 
@@ -194,9 +233,31 @@ export const useChatStore = defineStore('chat', {
       return this.loadAgents(true)
     },
 
+    // The ONE shared Platform Super Agent — the DEFAULT agent for a naked New Chat (no ?agent=…).
+    // Lazily fetched (the endpoint also provisions it server-side) and cached in the agents list so
+    // currentAgent/mode/model wiring all resolve normally. Returns the agent or null.
+    async ensureSuperAgent() {
+      let sa = this.agents.find((a) => a.is_platform_super_agent)
+      if (sa) return sa
+      try {
+        // SLIM card: chat only needs identity + run mode + image model. The full payload (capability
+        // inventory / tool catalog / model options) belongs to the Super Agent page, not to opening a chat.
+        const { data } = await api.getSuperAgentCard()
+        if (data && data.id) {
+          sa = data
+          if (!this.agents.some((a) => String(a.id) === String(data.id))) this.agents.push(data)
+          return sa
+        }
+      } catch { /* no super agent available (e.g. backend down) — caller falls back */ }
+      return null
+    },
+
     setAgent(id) {
       this.selectedAgentId = String(id)
-      this.loadSessions()
+      // History is NOT prefetched here. `sessions` has exactly one consumer — ChatHistoryDrawer —
+      // which is closed by default and fetches on open (with its own 60s per-agent cache). Warming it
+      // on every agent selection put a /conversations/ round trip on the chat-open critical path for
+      // a panel the user usually never opens.
       this.prewarmAgent()   // warm the newly-selected agent during the idle window before the 1st message
     },
 
@@ -322,6 +383,8 @@ export const useChatStore = defineStore('chat', {
       this.messages = []
       this.conversationId = null
       this.error = ''
+      this.messagesHasMore = false
+      this.messagesTotal = 0
       this.pendingPlan = null
       this.fullDocCostGate = null
       this._clearAttachments()
@@ -333,6 +396,79 @@ export const useChatStore = defineStore('chat', {
         if (a && a.url) { try { URL.revokeObjectURL(a.url) } catch { /* ignore */ } }
       }
       this.pendingAttachments = []
+    },
+
+    // ONE mapping from a server message row to the client message shape. Shared by the initial
+    // conversation load and by loadOlderMessages() so a prepended page restores attachments, thumbs,
+    // plan anchors, timeline and provenance EXACTLY like the first page does.
+    _mapServerMessage(m, conversationId) {
+      const info = m.model_info || {}
+      return {
+        id: nid(),
+        // The DATABASE pk, kept alongside the client-side id. Message actions that hit the
+        // backend (thumbs feedback) address this, not the local `id`.
+        serverId: m.id ?? null,
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: stripThinkBlocks(m.content || ''),
+        status: 'done',
+        error: '',
+        toolCalls: [],
+        // The caller's own thumb, restored from the server so it survives a reload.
+        feedback: m.feedback || null,
+        // Content that came from ANOTHER user's account (a forked shared conversation). Renders
+        // through the untrusted markdown path — raw HTML escaped, script URLs stripped — because
+        // the normal path deliberately lets HTML through for agent-generated media.
+        untrusted: !!info.untrusted_content,
+        // Long-answer stub: the stored content is a bounded stub; the full answer
+        // is rehydrated on demand from the long-answer endpoint (see ChatMessage.vue).
+        isLongResponse: !!info.is_long_response,
+        longAnswerRef: info.long_answer_ref || '',
+        // Restore per-turn metadata persisted in model_info so a refresh keeps the token/cost
+        // footer + stop badge (otherwise only the bare text survives reload).
+        usage: info.usage || null,
+        stopReason: info.stop_reason || '',
+        confidence: info.confidence || '',
+        trace: info.trace || [],
+        // Timeline replay: restore the masked snapshot so a reopened chat shows the friendly
+        // Searching → Generating activity timeline (with reasoning) as it was.
+        timeline: info.timeline || null,
+        // Provenance replay (decision #4): the answer_basis envelope carries the label + the
+        // cited-or-top-4 sources, so a reopened chat shows the SAME footer + clickable panel.
+        answerBasis: info.answer_basis || null,
+        citations: (info.answer_basis && info.answer_basis.citations) || [],
+        // Inline plan artifact: durable anchor(s) linking this message to its plan(s). Present only
+        // when the backend flag is on; drives inline-by-plan_id rendering (no runtime anchor).
+        planArtifacts: pickArray(m.plan_artifacts),
+        // User-uploaded attachments bound to this message (turn-level binding) — served /media/ URLs so
+        // the thumbnail survives refresh (the live send-time blob URL is ephemeral).
+        attachments: pickArray(m.attachments),
+        conversationId: String(conversationId),
+      }
+    },
+
+    // Prepend the next OLDER page of this conversation. Cursor-based (`before` = the oldest server id
+    // we hold) so a message arriving mid-scroll can't shift a page boundary and duplicate/skip rows.
+    async loadOlderMessages() {
+      const id = this.conversationId
+      if (!id || this.loadingOlder || !this.messagesHasMore) return
+      // The cursor must be a SERVER id; a locally-created (still-streaming) row has none.
+      const oldest = this.messages.find((m) => m.serverId)
+      if (!oldest) return
+      this.loadingOlder = true
+      try {
+        const res = await api.getConversationMessages(id, { before: oldest.serverId, limit: 50 })
+        if (String(this.conversationId) !== String(id)) return   // switched conversation mid-flight
+        const data = res.data || {}
+        const older = pickArray(data.results).map((m) => this._mapServerMessage(m, id))
+        this.messages = older.concat(this.messages)
+        this.messagesHasMore = !!data.has_more
+        // Newly-prepended rows may carry their own plan anchors — hydrate so their inline cards render.
+        this._hydratePlanAnchors(id)
+      } catch {
+        /* non-fatal — the button stays available for a retry */
+      } finally {
+        this.loadingOlder = false
+      }
     },
 
     async openConversation(id) {
@@ -347,6 +483,8 @@ export const useChatStore = defineStore('chat', {
       this._clearTurnState()   // switch conversation: clear UI state but KEEP the shared socket
       this.conversationId = String(id)
       this.messages = []
+      this.messagesHasMore = false   // recomputed from this conversation's response below
+      this.messagesTotal = 0
       this.pendingPlan = null
       this._clearAttachments()
       this.loadingHistory = true
@@ -354,47 +492,12 @@ export const useChatStore = defineStore('chat', {
       try {
         const res = await api.getConversation(id)
         const data = res.data || {}
-        this.messages = pickArray(data.messages).map((m) => ({
-          id: nid(),
-          // The DATABASE pk, kept alongside the client-side id. Message actions that hit the
-          // backend (thumbs feedback) address this, not the local `id`.
-          serverId: m.id ?? null,
-          role: m.role === 'assistant' ? 'assistant' : 'user',
-          content: m.content || '',
-          status: 'done',
-          error: '',
-          toolCalls: [],
-          // The caller's own thumb, restored from the server so it survives a reload.
-          feedback: m.feedback || null,
-          // Content that came from ANOTHER user's account (a forked shared conversation). Renders
-          // through the untrusted markdown path — raw HTML escaped, script URLs stripped — because
-          // the normal path deliberately lets HTML through for agent-generated media.
-          untrusted: !!(m.model_info && m.model_info.untrusted_content),
-          // Long-answer stub: the stored content is a bounded stub; the full answer
-          // is rehydrated on demand from the long-answer endpoint (see ChatMessage.vue).
-          isLongResponse: !!(m.model_info && m.model_info.is_long_response),
-          longAnswerRef: (m.model_info && m.model_info.long_answer_ref) || '',
-          // Restore per-turn metadata persisted in model_info so a refresh keeps the token/cost
-          // footer + stop badge (otherwise only the bare text survives reload).
-          usage: (m.model_info && m.model_info.usage) || null,
-          stopReason: (m.model_info && m.model_info.stop_reason) || '',
-          confidence: (m.model_info && m.model_info.confidence) || '',
-          trace: (m.model_info && m.model_info.trace) || [],
-          // Timeline replay: restore the masked snapshot so a reopened chat shows the friendly
-          // Searching → Generating activity timeline (with reasoning) as it was.
-          timeline: (m.model_info && m.model_info.timeline) || null,
-          // Provenance replay (decision #4): the answer_basis envelope carries the label + the
-          // cited-or-top-4 sources, so a reopened chat shows the SAME footer + clickable panel.
-          answerBasis: (m.model_info && m.model_info.answer_basis) || null,
-          citations: (m.model_info && m.model_info.answer_basis && m.model_info.answer_basis.citations) || [],
-          // Inline plan artifact: durable anchor(s) linking this message to its plan(s). Present only
-          // when the backend flag is on; drives inline-by-plan_id rendering (no runtime anchor).
-          planArtifacts: pickArray(m.plan_artifacts),
-          // User-uploaded attachments bound to this message (turn-level binding) — served /media/ URLs so
-          // the thumbnail survives refresh (the live send-time blob URL is ephemeral).
-          attachments: pickArray(m.attachments),
-          conversationId: String(id),
-        }))
+        this.messages = pickArray(data.messages).map((m) => this._mapServerMessage(m, id))
+        // Message windowing: the server returns the most recent page (see ChatConversationSerializer)
+        // and reports whether older ones exist. loadOlderMessages() walks backwards from the oldest
+        // row we hold. Older servers send neither field — then there is nothing more to fetch.
+        this.messagesHasMore = !!data.has_more_messages
+        this.messagesTotal = data.message_count || this.messages.length
         // Hydrate + reconcile any plans anchored in the loaded history so the inline cards render on
         // open (durable-anchor path). No-op when the feature is off (no plan_artifacts present).
         this._hydratePlanAnchors(id)
@@ -552,6 +655,7 @@ export const useChatStore = defineStore('chat', {
         this._conn.sendMessage(content, this.selectedAgentId, null, {
           ...this._canvasSendOpts(),
           imageMode: this.imageMode || undefined,
+          reasoningEffort: this.reasoningEffort || undefined,
           attachmentIds: steerIds,
           clientMessageId: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         })
@@ -618,6 +722,7 @@ export const useChatStore = defineStore('chat', {
       this._conn?.sendMessage(content, this.selectedAgentId, null, {
         ...this._canvasSendOpts(),
         imageMode: this.imageMode || undefined,
+          reasoningEffort: this.reasoningEffort || undefined,
         attachmentIds,
         clientMessageId: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
@@ -1021,6 +1126,7 @@ export const useChatStore = defineStore('chat', {
       })
       this._assistantId = this.messages[this.messages.length - 1].id
       this.isStreaming = true
+      _think.reset()
       _tl.reset()   // fresh live activity timeline for this turn
     },
 
@@ -1036,6 +1142,8 @@ export const useChatStore = defineStore('chat', {
       if (this.hitlRequests.length > 0) return
       const m = this._cur()
       if (m) {
+        const safeTail = _think.flush()
+        if (safeTail) m.content += safeTail
         _tl.finalize()
         if (_tl.hasActivity()) m.timeline = _tl.snapshot()   // pin the activity timeline onto this message
         if (m.status === 'streaming') m.status = 'done'
@@ -1203,14 +1311,24 @@ export const useChatStore = defineStore('chat', {
           break
         }
         case 'assistant_message_chunk':
-          if (m) m.content += msg.chunk || ''
+          // A multi-step run can invoke the model repeatedly. Its earlier prose is an in-progress draft,
+          // not another answer. The backend marks the first visible chunk of each invocation so the UI
+          // keeps one clean, current draft instead of accumulating repetitive paragraphs.
+          if (m && msg.replace) {
+            m.content = ''
+            _think.reset()
+          }
+          if (m) m.content += _think.feed(msg.chunk || '')
           break
         case 'assistant_message_complete':
           // The backend sends the CLEANED prose here (tool-call JSON stripped). Always
           // replace the live-streamed text with it so any raw JSON that streamed
           // token-by-token is corrected to clean prose. Tool calls still render as
           // cards via the tool_call/tool_result events + activity timeline.
-          if (m && msg.full_message != null) m.content = msg.full_message
+          if (m && msg.full_message != null) {
+            m.content = stripThinkBlocks(msg.full_message)
+            _think.reset()
+          }
           if (m && msg.usage) m.usage = msg.usage // per-response token counts
           if (m && msg.stop_reason) { m.stopReason = msg.stop_reason; m.confidence = msg.confidence }
           if (m && Array.isArray(msg.citations)) m.citations = msg.citations // P6: KB sources
@@ -1229,7 +1347,10 @@ export const useChatStore = defineStore('chat', {
         case 'assistant':
         case 'assistant_message': {
           const c = msg.content || msg.message || msg.full_message
-          if (m && c) m.content = c
+          if (m && c) {
+            m.content = stripThinkBlocks(c)
+            _think.reset()
+          }
           this._endAssistant()
           break
         }

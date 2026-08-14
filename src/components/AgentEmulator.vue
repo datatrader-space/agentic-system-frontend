@@ -509,7 +509,8 @@ function captureForInspector(m, evt) {
     const d = evt.data || evt
     const openIO = [...m.toolIO].reverse().find((x) => x.output === null)
     if (openIO) {
-      openIO.output = d.result != null ? d.result : (d.document || '')
+      // `result` (legacy/CRS frames) → `output` (G9 runtime ToolResult frames) → `document`.
+      openIO.output = d.result != null ? d.result : (d.output != null ? d.output : (d.document || ''))
       openIO.ok = d.success !== false
       openIO.endTs = Date.now()
     }

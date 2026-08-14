@@ -39,8 +39,39 @@
               <pre class="payload-content">{{ JSON.stringify(currentRequest.payload, null, 2) }}</pre>
             </details>
 
+            <!-- ── In-chat OAuth connect (CONNECT_SERVICE) ─────────────────────
+                 The agent needs an account the user hasn't authorized. One click opens the provider's
+                 consent screen; the backend's OAuth callback resolves this card and resumes the run, so
+                 there is nothing to confirm here afterwards — the card closes itself. -->
+            <div v-if="isOAuthConnect" class="response-section oauth-connect">
+              <p v-if="currentRequest.payload?.reason" class="oauth-reason">
+                {{ currentRequest.payload.reason }}
+              </p>
+              <a
+                :href="currentRequest.payload?.authorize_url"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-connect"
+                @click="markConnectOpened"
+              >
+                <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                {{ currentRequest.payload?.cta || 'Connect' }}
+              </a>
+              <p v-if="connectOpened" class="oauth-waiting">
+                <span class="oauth-spinner" aria-hidden="true"></span>
+                Waiting for you to finish authorizing… this closes on its own once you're connected.
+              </p>
+              <p v-else class="oauth-hint">
+                Opens {{ currentRequest.payload?.provider || 'the provider' }} in a new tab. You'll never
+                be asked for a password or API key here.
+              </p>
+              <button @click="respond(false)" class="btn btn-connect-cancel">
+                Not now
+              </button>
+            </div>
+
             <!-- Binary Response (Approve/Reject) -->
-            <div v-if="currentRequest.response_type === 'binary'" class="response-section">
+            <div v-else-if="currentRequest.response_type === 'binary'" class="response-section">
               <div class="button-group">
                 <button @click="respond(true)" class="btn btn-approve">
                   <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
@@ -327,9 +358,19 @@ const isCompactAsk = computed(() =>
 // A tool-approval card ("Approve SSH_EXEC?") — the command is shown in the action preview.
 const isToolApproval = computed(() => currentRequest.value?.payload?.kind === 'tool_approval');
 
+// An in-chat OAuth connect card (CONNECT_SERVICE): one link out to the provider's consent screen.
+// Unlike every other card this one is usually resolved by the BACKEND (the OAuth callback completes
+// the request and pushes hitl_resolved), not by a button here — "Not now" is the only local answer.
+const isOAuthConnect = computed(() => currentRequest.value?.payload?.kind === 'oauth_connect');
+
+// Set once the user opens the authorize link, so the card can switch to a "waiting" state instead of
+// looking like it did nothing. Reset whenever the shown request changes.
+const connectOpened = ref(false);
+const markConnectOpened = () => { connectOpened.value = true; };
+
 // Docked = a small card that sits just above the chat composer (Claude-style) instead of a
-// full-screen blocking modal. Used for quick decisions: clarifications AND tool approvals.
-const isDocked = computed(() => isCompactAsk.value || isToolApproval.value);
+// full-screen blocking modal. Used for quick decisions: clarifications, tool approvals, and connects.
+const isDocked = computed(() => isCompactAsk.value || isToolApproval.value || isOAuthConnect.value);
 
 // Control-only payload keys that should NOT surface a "View Details" dump to the user.
 const CONTROL_PAYLOAD_KEYS = ['allow_text', 'text_label', 'interpretation', 'confidence',
@@ -341,7 +382,8 @@ const CONTROL_PAYLOAD_KEYS = ['allow_text', 'text_label', 'interpretation', 'con
 const hasPayloadContent = computed(() => {
   const p = currentRequest.value?.payload;
   if (!p) return false;
-  if (isCompactAsk.value || isToolApproval.value) return false;
+  // Never dump the connect payload: it carries the authorize URL (a single-use, state-bearing link).
+  if (isCompactAsk.value || isToolApproval.value || isOAuthConnect.value) return false;
   return Object.keys(p).some(k => !CONTROL_PAYLOAD_KEYS.includes(k));
 });
 
@@ -363,6 +405,7 @@ const actionPreview = computed(() => {
 const approvalTitle = computed(() => {
   const p = currentRequest.value?.payload;
   if (p?.kind === 'tool_approval' && p.tool_name) return `Approve ${p.tool_name}?`;
+  if (p?.kind === 'oauth_connect') return `${p.provider || 'This service'} needs your authorization`;
   return currentRequest.value?.summary || '';
 });
 
@@ -393,6 +436,7 @@ const isNearTimeout = computed(() => {
 
 // Icon mapping
 const getIcon = (type) => {
+  if (isOAuthConnect.value) return '🔗';
   const icons = {
     'approval': '✓',
     'choice': '☰',
@@ -413,6 +457,7 @@ const getIcon = (type) => {
 
 // Title mapping
 const getTitle = (type) => {
+  if (isOAuthConnect.value) return 'Authorization Required';
   const titles = {
     'approval': 'Approval Required',
     'choice': 'Choose an Option',
@@ -615,6 +660,7 @@ const submitCredSetup = () => {
 watch(currentRequest, () => {
   textResponse.value = '';
   feedback.value = '';
+  connectOpened.value = false;
   credState.value = {};
   credKeys.value = {};
   selectedCreds.value = {};
@@ -974,6 +1020,70 @@ watch(currentRequest, () => {
 .btn-approve-session:hover {
   background: rgba(16, 185, 129, 0.18);
   border-color: rgba(16, 185, 129, 0.55);
+}
+
+/* ── In-chat OAuth connect card (CONNECT_SERVICE) ─────────────────────────────
+   One prominent link out to the provider, then a waiting state. Deliberately NOT green/red like an
+   approve/reject pair — this isn't a decision about a risky action, it's a hand-off to the provider. */
+.oauth-connect {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.oauth-reason {
+  margin: 0;
+  font-size: 13px;
+  color: #4b5563;
+  line-height: 1.5;
+}
+.btn-connect {
+  background: #4f46e5;
+  color: #fff;
+  text-decoration: none;
+  width: 100%;
+}
+.btn-connect:hover {
+  background: #4338ca;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+}
+.oauth-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+.oauth-waiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #4338ca;
+  line-height: 1.5;
+}
+.oauth-spinner {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  border: 2px solid rgba(79, 70, 229, 0.25);
+  border-top-color: #4f46e5;
+  border-radius: 50%;
+  animation: oauthSpin 0.7s linear infinite;
+}
+@keyframes oauthSpin { to { transform: rotate(360deg); } }
+.btn-connect-cancel {
+  width: 100%;
+  background: transparent;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+  font-size: 0.82rem;
+}
+.btn-connect-cancel:hover {
+  background: #f9fafb;
+  color: #374151;
+  border-color: #d1d5db;
 }
 
 /* "Stop agent" — quiet, destructive-tinted link-style button under the approval controls. */

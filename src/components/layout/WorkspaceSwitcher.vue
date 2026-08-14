@@ -382,7 +382,11 @@ onMounted(() => {
   document.addEventListener('mousedown', onClickOutside)
   window.addEventListener('scroll', onReposition, { passive: true })
   window.addEventListener('resize', onReposition, { passive: true })
-  loadMyOrgs()
+  // Deferred to idle, not to first-open: the switcher is shell chrome on every dashboard page, so its
+  // org list must not race the route's own data — but it still needs to be populated before the user
+  // opens the dropdown (loading it on open would flash an empty menu). The response is 60s-cached.
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(() => loadMyOrgs(), { timeout: 2000 })
+  else setTimeout(loadMyOrgs, 1500)
 })
 onUnmounted(() => {
   document.removeEventListener('mousedown', onClickOutside)

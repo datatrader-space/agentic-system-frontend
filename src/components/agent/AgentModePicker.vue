@@ -23,6 +23,10 @@
         </span>
         <svg v-if="opt.active" class="amp-check" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.3 3.29 6.8-6.8a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
       </button>
+      <!-- Own agents have no model pill, so their per-turn effort row lives here. Shared agents get
+           Mode + Effort together inside the model dropdown instead — one control, never two. -->
+      <div class="amp-sep"></div>
+      <EffortSlider />
       <div v-if="error" class="amp-error">{{ error }}</div>
     </div>
     <div v-if="open" class="amp-backdrop" @click="open = false"></div>
@@ -30,10 +34,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
-import api from '../../services/api'
-import { confirm } from '../../composables/useConfirm'
-import { modeKey, modeLabel, modeDotClass, MODE_OPTIONS, normalizeRunMode, isAutonomous } from '../../composables/agentModes'
+import EffortSlider from '../chat/EffortSlider.vue'
+import { ref } from 'vue'
+import { useAgentRunMode } from '../../composables/useAgentRunMode'
 
 const props = defineProps({
   agentId: { type: [Number, String], default: null },
@@ -44,57 +47,16 @@ const props = defineProps({
 const emit = defineEmits(['change'])
 
 const open = ref(false)
-const saving = ref(false)
-const error = ref('')
-const mode = ref(normalizeRunMode(props.runMode))
-
-watch(() => props.runMode, (v) => { mode.value = normalizeRunMode(v) })
-
-// The 4 canonical run modes live in one pure module (agentModes.js) so it stays the single source
-// of truth and is unit-tested independently of this component.
-const isAuto = computed(() => isAutonomous(mode.value))
-const activeKey = computed(() => modeKey(mode.value))
-const label = computed(() => modeLabel(mode.value))
-const dotClass = computed(() => modeDotClass(mode.value))
-
-const options = computed(() => MODE_OPTIONS.map((o) => ({ ...o, active: o.key === activeKey.value })))
-
-// Authoritatively sync the current mode from the backend on mount (surfaces may pass only agent-id).
-onMounted(async () => {
-  if (!props.agentId) return
-  try {
-    const res = await api.getAgent(props.agentId)
-    const a = res?.data || {}
-    if (a.agent_run_mode) mode.value = normalizeRunMode(a.agent_run_mode)
-  } catch { /* keep prop values */ }
-})
+// Load/choose/persist — shared with the Mode section inside the shared agent's model dropdown so the
+// autonomous confirmation and the shared-agent write rule can never drift between the two surfaces.
+const { mode, saving, error, isAuto, label, dotClass, options, select: apply } =
+  useAgentRunMode(() => props.agentId, () => props.runMode)
 
 async function select(opt) {
-  if (opt.active || saving.value || !props.agentId) { open.value = false; return }
-  // Confirm before enabling autonomous execution.
-  if (isAutonomous(opt.patch.agent_run_mode)) {
-    const ok = await confirm({
-      title: 'Enable autonomous execution?',
-      message: 'This agent will choose and run tools automatically, including during scheduled runs. Risky actions are reviewed by the AI safety policy instead of waiting for your approval.',
-      confirmText: 'Enable',
-    })
-    if (!ok) {
-      open.value = false
-      return
-    }
-  }
-  saving.value = true; error.value = ''
-  try {
-    await api.updateAgent(props.agentId, opt.patch)
-    mode.value = opt.patch.agent_run_mode
-    emit('change', { ...opt.patch })
-    open.value = false
-  } catch (e) {
-    error.value = 'Could not update mode.'
-  } finally {
-    saving.value = false
-  }
+  if (await apply(opt)) emit('change', { ...opt.patch })
+  open.value = false
 }
+
 </script>
 
 <style scoped>
@@ -126,4 +88,5 @@ async function select(opt) {
 .amp-item-desc { font-size: 0.68rem; color: #6b7280; }
 .amp-check { width: 15px; height: 15px; color: #14b8a6; margin-top: 2px; }
 .amp-error { font-size: 0.68rem; color: #dc2626; padding: 4px 8px; }
+.amp-sep { height: 1px; margin: 4px 8px; background: #ececec; }
 </style>

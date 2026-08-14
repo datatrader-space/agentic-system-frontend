@@ -32,7 +32,9 @@
         <router-view v-slot="{ Component }">
           <transition name="vm-page" mode="out-in">
             <Suspense>
-              <component :is="Component" :key="route.fullPath" />
+              <!-- Key on PATH, not fullPath: a query-only change (e.g. /chat/new?agent=5) must not
+                   destroy/recreate the whole view — ChatWorkspace watches route.query.agent itself. -->
+              <component :is="Component" :key="route.path" />
               <template #fallback>
                 <div class="route-loading">
                   <div class="route-skeleton__toolbar">

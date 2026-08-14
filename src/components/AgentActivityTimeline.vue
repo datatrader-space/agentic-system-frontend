@@ -34,7 +34,19 @@
           </span>
           <div class="agent-step-body">
             <div class="agent-step-head">
-              <span class="agent-step-label">{{ step.label }}</span>
+              <span class="agent-step-name">
+                <span class="agent-step-label">{{ step.label }}</span>
+                <!-- Delegation verification badge (Phase 4): rendered only when this step's
+                     tool result self-identifies as a DELEGATE_TO_AGENT / DELEGATE_PARALLEL
+                     verdict (see stepVerdicts). Never guessed, never on the public tier. -->
+                <VerificationBadge
+                  v-if="stepVerdicts[step.stepId]"
+                  compact
+                  :verified="stepVerdicts[step.stepId].verified"
+                  :status="stepVerdicts[step.stepId].status"
+                  :note="stepVerdicts[step.stepId].note || ''"
+                />
+              </span>
               <span v-if="step.durationMs != null && !publicSafe" class="agent-step-dur">{{ fmtDuration(step.durationMs) }}</span>
             </div>
             <!-- Only safe, backend-provided fields. No raw args/prompts/internals. On the public tier
@@ -147,6 +159,8 @@
 import { computed, ref } from 'vue'
 import { fmtTokens } from '../composables/tokens'
 import { renderInlineMarkdown } from '../utils/inlineMarkdown'
+import VerificationBadge from './common/VerificationBadge.vue'
+import { parseDelegationResult, isDelegationTool } from './common/verificationBadge'
 
 const props = defineProps({
   statusLabel: { type: String, default: '' },
@@ -190,6 +204,27 @@ const earlierReasoning = computed(() =>
 const visibleSteps = computed(() =>
   (props.steps || []).filter((s) => s.phase !== 'reasoning'),
 )
+
+// Delegation verification badges (Phase 4), stepId → {verified, status, note?}. This renderer receives
+// tool results GENERICALLY (no per-tool parsing), so the enhancement is contained here and keyed on the
+// tool name / a self-identifying payload:
+//  • the step summary parses as a DELEGATE_TO_AGENT / DELEGATE_PARALLEL result (carries verified+status), or
+//  • the step is a known delegation tool (builder tier sends `tool`) that FAILED — unambiguous without payload.
+// A successful delegation step whose payload was redacted by the tier gets NO badge (never guess a verdict).
+const stepVerdicts = computed(() => {
+  const map = Object.create(null)
+  if (props.publicSafe) return map
+  for (const s of props.steps || []) {
+    if (!s || s.phase === 'reasoning') continue
+    const parsed = parseDelegationResult(s.summary)
+    if (parsed) {
+      map[s.stepId] = parsed
+    } else if (isDelegationTool(s.tool) && s.status === 'failed') {
+      map[s.stepId] = { verified: false, status: 'failed' }
+    }
+  }
+  return map
+})
 
 const show = computed(
   () =>
@@ -375,6 +410,9 @@ function fmtDuration(ms) {
 }
 .agent-step-head {
   @apply flex items-center justify-between gap-2;
+}
+.agent-step-name {
+  @apply flex min-w-0 items-center gap-1.5;
 }
 .agent-step-label {
   @apply text-gray-700;

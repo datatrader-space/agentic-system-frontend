@@ -56,6 +56,25 @@ export default defineConfig(({ mode }) => {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
     },
+    // Dev-server prebundling. Without this, esbuild discovers deps lazily: the first route that pulls
+    // `lucide-vue-next` (48 files import named icons from the barrel) triggers a mid-session
+    // re-optimization, which forces a FULL page reload — the "clicked something, everything reloaded
+    // and took seconds" behaviour in local dev. Listing them up front pays that cost once at startup.
+    // Deliberately NOT listed: monaco-editor, pdfjs-dist and @vue-flow — they're route-level/dynamic
+    // imports, so prebundling them would slow cold dev start for routes most sessions never open.
+    optimizeDeps: {
+      include: [
+        'lucide-vue-next',
+        '@iconify/vue',
+        'marked',
+        'marked-highlight',
+        'highlight.js',
+        'axios',
+        'pinia',
+        'vue-router',
+        'vue-toastification',
+      ],
+    },
     server: {
       host: '0.0.0.0',  // Listen on all network interfaces
       port: 5173,

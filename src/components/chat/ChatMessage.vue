@@ -183,12 +183,13 @@ import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
 import api from '../../services/api'
 import AgentActivityTimeline from '../AgentActivityTimeline.vue'
 import TokenUsage from '../activity/TokenUsage.vue'
-import { reasoningItems } from '../../composables/useAgentTimeline'
 import SourcesList from './SourcesList.vue'
 import ProvenanceFooter from './ProvenanceFooter.vue'
 import FileViewer from '../FileViewer.vue'
 import { stopReasonBadge } from '../../composables/stopReason'
+import { reasoningItems } from '../../composables/useAgentTimeline'
 import { useChatStore } from '../../stores/useChatStore'
+import { stripThinkBlocks } from '../../utils/thinkFilter'
 
 const chat = useChatStore()
 
@@ -320,7 +321,7 @@ const panelCitations = computed(() => {
 const fullContent = ref('')
 const loadingFull = ref(false)
 const fullError = ref('')
-const displayContent = computed(() => fullContent.value || props.message.content || '')
+const displayContent = computed(() => stripThinkBlocks(fullContent.value || props.message.content || ''))
 // Raw HTML is ESCAPED for every message, not just forked ones. Answer text is never fully
 // first-party: it is model output that routinely quotes web pages, KB documents and tool results,
 // so a hostile page reproduced verbatim would otherwise land live markup in this session — and a
@@ -482,7 +483,15 @@ const copy = async () => {
   line-height: 1.6;
   word-wrap: break-word;
 }
-.bubble.assistant { color: var(--vm-ink); }
+.bubble.assistant {
+  max-width: 72ch;
+  margin-top: 12px;
+  color: var(--vm-ink);
+  font-size: 0.96875rem;
+  line-height: 1.72;
+  letter-spacing: -0.006em;
+  text-wrap: pretty;
+}
 .bubble.user {
   /* Width is capped by .user-col (max-width:80%). Using a % here too made the
      bubble's width depend on its auto-width parent (circular) → collapsed to ~1 char. */
@@ -653,12 +662,40 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 .ue-save { background: var(--vm-g-brand); color: #fff; border-color: transparent; }
 .ue-save:disabled { opacity: .5; cursor: not-allowed; }
 
-/* Markdown content styling */
-.bubble.assistant :deep(p) { margin: 0 0 10px; }
+/* Calm, readable answer typography: compact enough for chat, structured enough for long responses. */
+.bubble.assistant :deep(p) { margin: 0 0 14px; }
 .bubble.assistant :deep(p:last-child) { margin-bottom: 0; }
+.bubble.assistant :deep(h1),
+.bubble.assistant :deep(h2),
+.bubble.assistant :deep(h3) {
+  margin: 22px 0 9px;
+  color: #0f172a;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+.bubble.assistant :deep(h1:first-child),
+.bubble.assistant :deep(h2:first-child),
+.bubble.assistant :deep(h3:first-child) { margin-top: 0; }
+.bubble.assistant :deep(h1) { font-size: 1.35rem; }
+.bubble.assistant :deep(h2) { font-size: 1.16rem; }
+.bubble.assistant :deep(h3) { font-size: 1.02rem; }
 .bubble.assistant :deep(ul),
-.bubble.assistant :deep(ol) { margin: 0 0 10px; padding-left: 22px; }
-.bubble.assistant :deep(li) { margin: 3px 0; }
+.bubble.assistant :deep(ol) { margin: 2px 0 14px; padding-left: 24px; }
+.bubble.assistant :deep(li) { margin: 5px 0; padding-left: 2px; }
+.bubble.assistant :deep(li::marker) { color: #64748b; }
+.bubble.assistant :deep(blockquote) {
+  margin: 4px 0 14px;
+  padding: 2px 0 2px 14px;
+  color: #475569;
+  border-left: 3px solid #cbd5e1;
+}
+.bubble.assistant :deep(blockquote p) { margin-bottom: 7px; }
+.bubble.assistant :deep(hr) {
+  margin: 20px 0;
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+}
 .bubble.assistant :deep(code) {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85em;

@@ -138,7 +138,12 @@
                     @click.stop="chat.imageMode = false">×</button>
           </span>
 
-          <AgentModePicker v-if="agentId" :agent-id="agentId" :run-mode="runMode"
+          <!-- Shared (system-owned) agents: run mode is admin-set globally → the pill becomes the MODEL
+               picker (each user runs the shared agent on their own provider). Own agents keep the mode pill. -->
+          <!-- Shared (system-owned) agents run on ONE row for every user, so mode, model and effort are all
+               per-user settings resolved inside this one picker. Own agents keep the mode pill. -->
+          <AgentModelPicker v-if="agentId && isSharedAgent" :agent-id="agentId" />
+          <AgentModePicker v-else-if="agentId" :agent-id="agentId" :run-mode="runMode"
                            placement="up" @change="$emit('mode-change', $event)" />
 
           <!-- Sticky Canvas-mode chip (toggle lives in the "+" menu; × turns it off). -->
@@ -171,6 +176,7 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import AgentModePicker from '../agent/AgentModePicker.vue'
+import AgentModelPicker from '../agent/AgentModelPicker.vue'
 import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import { useSpeech } from '../../composables/useSpeech'
 import { notify } from '../../composables/useNotify'
@@ -182,6 +188,26 @@ const chat = useChatStore()
 // Create-Image mode lives in the chat store (single source of truth, read at send time to set the
 // `image_mode` WS flag). Sticky across turns until turned off. The composer only lets it turn on when the
 // agent has an image model (hasImageModel prop) — the backend also blocks it, this is the UX guard.
+// Per-turn REASONING EFFORT. '' means 'no choice' — the agent's own setting is left alone; that is why
+// the first pill is Auto and not Off. 'off' is a real instruction that switches reasoning off even on an
+// agent configured to use it, which is the whole point of having it in the composer. Sticky across turns.
+const effortOptions = [
+  { value: '',        label: 'Auto',    hint: "Use this agent's own setting" },
+  { value: 'off',     label: 'Off',     hint: 'No reasoning — fastest and cheapest' },
+  { value: 'minimal', label: 'Minimal', hint: 'The least the model will do' },
+  { value: 'low',     label: 'Low',     hint: 'A little thinking' },
+  { value: 'medium',  label: 'Medium',  hint: 'Balanced' },
+  { value: 'high',    label: 'High',    hint: 'Think hard — slower and more expensive' },
+]
+const reasoningEffort = computed(() => chat.reasoningEffort)
+const setEffort = (value) => {
+  chat.reasoningEffort = value
+  const opt = effortOptions.find(o => o.value === value)
+  notify.info(value
+    ? `Thinking effort: ${opt.label} — ${opt.hint.toLowerCase()}.`
+    : "Thinking effort: Auto — using this agent's own setting.")
+}
+
 const imageMode = computed(() => chat.imageMode)
 const toggleImageMode = () => {
   if (!props.hasImageModel && !chat.imageMode) {
@@ -232,6 +258,8 @@ const props = defineProps({
   conversationId: { type: [Number, String], default: null },
   // Whether the current agent has an image model — gates the Create-Image toggle (disabled otherwise).
   hasImageModel: { type: Boolean, default: false },
+  // SHARED system-owned agent (built-in / Platform Super Agent) → model pill instead of the mode pill.
+  isSharedAgent: { type: Boolean, default: false },
 })
 const emit = defineEmits(['send', 'stop', 'attach', 'remove-attach', 'mode-change', 'open-media'])
 
@@ -531,6 +559,23 @@ const onKeydown = (e) => {
   background: var(--vm-violet, #6d28d9); color: #fff; font-size: 0.625rem; font-weight: 700;
   letter-spacing: .02em;
 }
+/* Thinking-effort row — a static (non-clickable) plus-item whose body holds the choices. */
+.plus-item--static { cursor: default; }
+.plus-item--static:hover { background: transparent; }
+.effort-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.effort-pill {
+  padding: 2px 9px; border-radius: 9999px; cursor: pointer;
+  border: 1px solid var(--vm-line, #e5e7eb); background: transparent;
+  color: var(--vm-ink-faint); font-size: 0.6875rem; font-weight: 600; line-height: 1.6;
+  transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+.effort-pill:hover { border-color: var(--vm-violet, #6d28d9); color: var(--vm-ink, inherit); }
+.effort-pill:focus-visible { outline: 2px solid var(--vm-violet, #6d28d9); outline-offset: 1px; }
+.effort-pill.is-on {
+  background: var(--vm-violet, #6d28d9); border-color: var(--vm-violet, #6d28d9);
+  color: #fff;
+}
+
 /* Search footer */
 .plus-search {
   display: flex; align-items: center; gap: 8px;

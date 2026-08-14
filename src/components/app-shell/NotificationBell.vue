@@ -96,8 +96,31 @@ function ago(iso) {
   } catch { return '' }
 }
 
-onMounted(() => { loadCount(); poll = setInterval(loadCount, 30000) })
-onBeforeUnmount(() => { if (poll) clearInterval(poll) })
+// The bell lives in the shell, so it mounts on EVERY dashboard page. Two adjustments so it never
+// competes with the route's own data:
+//   1) The first count fetch waits for idle — the unread badge is ambient, the page's data is not.
+//   2) The 30s poll pauses while the tab is hidden (a background tab polled all day for nothing) and
+//      refreshes immediately on return, so the badge is still current when the user comes back.
+const _idle = (fn) => (typeof requestIdleCallback === 'function'
+  ? requestIdleCallback(fn, { timeout: 2000 })
+  : setTimeout(fn, 1500))
+
+function startPolling() {
+  if (poll) return
+  poll = setInterval(() => { if (!document.hidden) loadCount() }, 30000)
+}
+function onVisibility() {
+  if (!document.hidden) loadCount()
+}
+
+onMounted(() => {
+  _idle(() => { loadCount(); startPolling() })
+  document.addEventListener('visibilitychange', onVisibility)
+})
+onBeforeUnmount(() => {
+  if (poll) { clearInterval(poll); poll = null }
+  document.removeEventListener('visibilitychange', onVisibility)
+})
 </script>
 
 <style scoped>

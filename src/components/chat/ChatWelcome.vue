@@ -138,9 +138,17 @@
                 <AddDocumentUrl :conversation-id="chat.conversationId" scope="conversation" @added="() => {}" />
               </div>
             </div>
-            <!-- searchable agent picker (autocomplete, ~5 visible) -->
-            <AgentSelect :agents="chat.agents" :selected-id="chat.selectedAgentId" @select="onSelectAgent" />
-            <AgentModePicker v-if="chat.currentAgent"
+            <!-- The agent is FIXED — there is NO agent picker in the chat UI. A naked New Chat is the
+                 Platform Super Agent; a specific agent arrives from its card's Chat button (?agent=…). -->
+            <span v-if="chat.currentAgent" class="agent-chip" :class="{ super: chat.isSharedAgent }"
+                  :title="chat.currentAgent.description || chat.currentAgent.name">
+              <svg v-if="chat.isSharedAgent" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.4 5.4 5.6.6-4.2 3.9 1.2 5.6L12 14.9 7 17.5l1.2-5.6L4 8l5.6-.6L12 2z"/></svg>
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="8" width="14" height="10" rx="2"/><path d="M12 8V5M9 5h6M9 13h.01M15 13h.01"/></svg>
+              <span class="agent-chip-name">{{ chat.currentAgent.name }}</span>
+            </span>
+            <AgentModelPicker v-if="chat.currentAgent && chat.isSharedAgent"
+              :agent-id="chat.currentAgent.id" />
+            <AgentModePicker v-else-if="chat.currentAgent"
               :key="chat.currentAgent.id"
               :agent-id="chat.currentAgent.id"
               :run-mode="chat.currentAgent.agent_run_mode"
@@ -180,7 +188,7 @@ import { useChatStore } from '../../stores/useChatStore'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import api from '../../services/api'
 import AgentModePicker from '../agent/AgentModePicker.vue'
-import AgentSelect from './AgentSelect.vue'
+import AgentModelPicker from '../agent/AgentModelPicker.vue'
 import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import { useSpeech } from '../../composables/useSpeech'
 import { notify } from '../../composables/useNotify'
@@ -357,13 +365,14 @@ const onPaste = (e) => {
 }
 
 onMounted(async () => {
-  // Force a refresh so an agent created/edited elsewhere (e.g. the Agent Builder) shows up in the New
-  // Chat picker immediately — the store otherwise caches the list and a stale picker needed a page reload.
-  await chat.loadAgents(true)
+  // Ensure the agent list is present (mode / image-model wiring reads currentAgent). NOT force=true
+  // and NOT a second request: this joins the shared in-flight promise ChatWorkspace already started.
+  // Freshness after an agent create/edit is already covered — any agent write clears the api layer's
+  // 30s /agents/ cache entry, so the next load refetches.
+  await chat.loadAgents()
   // Only the zero-agent path needs the provider/model check (to order the CTA correctly).
   if (chat.needsAgent) checkModels()
 })
-const onSelectAgent = (a) => { if (a && a.id != null) chat.setAgent(a.id) }
 
 // Reflect a mode change immediately on the selected agent (the picker also PATCHes the backend).
 const onModeChange = (patch) => {
@@ -617,6 +626,17 @@ const submit = () => {
 .plus-search-input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: inherit; font-size: 0.8125rem; color: var(--vm-ink); }
 .plus-search-input::placeholder { color: var(--vm-ink-faint); }
 .plus-on-tag { margin-left: 6px; padding: 0 6px; border-radius: 9999px; background: var(--vm-violet); color: #fff; font-size: 0.6rem; font-weight: 700; vertical-align: middle; }
+/* Fixed agent identity chip — replaces the removed agent picker (the chat's agent is not a choice). */
+.agent-chip {
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 1; min-width: 0;
+  height: 32px; padding: 0 11px;
+  background: var(--vm-bg, #f8fafc); border: 1px solid var(--vm-line, #e2e8f0); border-radius: 9999px;
+  color: var(--vm-ink-soft, #475569); font-size: 0.78rem; font-weight: 700;
+}
+.agent-chip svg { width: 14px; height: 14px; flex-shrink: 0; }
+.agent-chip.super { background: var(--vm-violet-soft, #f5f3ff); border-color: #ddd6fe; color: var(--vm-violet, #6d28d9); }
+.agent-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+
 .canvas-chip {
   display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0;
   height: 32px; padding: 0 4px 0 10px;

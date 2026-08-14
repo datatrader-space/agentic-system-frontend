@@ -181,6 +181,12 @@
 
     </section>
 
+    <!-- ============ Web Intelligence (WEB_SEARCH routing) ============
+         Saves through its own validated endpoint, so it sits outside the step's Save flow. -->
+    <div class="mt-4">
+      <WebIntelligenceCard :agent="agent" />
+    </div>
+
     <Teleport to="body">
       <div v-if="toolsModalOpen" class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-5 py-8 backdrop-blur-sm" @click.self="closeToolsModal">
         <section class="flex max-h-[88vh] w-full max-w-[1040px] flex-col overflow-hidden rounded-[18px] border border-white/70 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.34)]">
@@ -454,6 +460,7 @@ import { ago } from '../dashboard/time'
 import AddWebsiteSourceModal from '../knowledge/AddWebsiteSourceModal.vue'
 import WebSourcePagesModal from '../knowledge/WebSourcePagesModal.vue'
 import IntegrationHubModal from '../connectors/IntegrationHubModal.vue'
+import WebIntelligenceCard from './WebIntelligenceCard.vue'
 import ToolIcon from '../knowledge/ToolIcon.js'
 
 const props = defineProps({ agent: { type: Object, required: true } })

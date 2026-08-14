@@ -10,6 +10,7 @@ import api from './services/api'
 import axios from 'axios'
 import { trackPageview } from './composables/useAnalytics'
 import { addIcon } from '@iconify/vue'
+import { startNavProgress, doneNavProgress } from './components/app-shell/NavProgress.vue'
 
 // Brand logo for the Kurumera connector — registered as a local Iconify icon so `icon="kurumera:logo"`
 // renders it everywhere (catalog cards, detail header) exactly like any other `logos:*` mark, with no
@@ -63,6 +64,9 @@ const OrganizationModulePage = () => import('./views/OrganizationModulePage.vue'
 const AgentApprovalsPage = () => import('./views/AgentApprovalsPage.vue')
 const SchedulesPage = () => import('./views/SchedulesPage.vue')
 const AgentLibrary = () => import('./views/AgentLibrary.vue')
+const SuperAgentView = () => import('./views/SuperAgentView.vue')
+const SkillsPage = () => import('./views/SkillsPage.vue')
+const DelegationsPage = () => import('./views/DelegationsPage.vue')
 const AgentOverview = () => import('./views/AgentOverview.vue')
 const AgentEditor = () => import('./views/AgentEditor.vue')
 const AgentMonitor = () => import('./views/AgentMonitor.vue')
@@ -224,6 +228,9 @@ const router = createRouter({
         // Legacy pages re-housed inside the shell so navigation never leaves it.
         // (The old top-level routes below remain for back-compat / deep links.)
         { path: 'agents', name: 'dashboard-agents', component: AgentLibrary },
+        { path: 'super-agent', name: 'dashboard-super-agent', component: SuperAgentView },
+        { path: 'skills', name: 'dashboard-skills', component: SkillsPage },
+        { path: 'delegations', name: 'dashboard-delegations', component: DelegationsPage },
         { path: 'built-in-agents', name: 'builtin-agent-library', component: () => import('./views/BuiltinAgentLibrary.vue') },
         { path: 'agents/new', name: 'dashboard-agent-new', component: AgentEditor },
         { path: 'agents/:id/editor', name: 'dashboard-agent-editor', component: AgentEditor },
@@ -322,6 +329,26 @@ const router = createRouter({
         { path: 'help-content', name: 'admin-help-content', component: () => import('./views/admin/AdminHelpContent.vue') },
         { path: 'guided-tours', name: 'admin-guided-tours', component: () => import('./views/admin/AdminGuidedTours.vue') },
         { path: 'builtin-agents', name: 'admin-builtin-agents', component: () => import('./views/admin/AdminBuiltinAgents.vue') },
+        // Agent builder inside the ADMIN shell. Same AgentEditor component as /dashboard (ONE editor,
+        // no fork) — admins editing a system/built-in agent stay on the admin side instead of being
+        // bounced into the user dashboard. AgentEditor derives its breadcrumb/redirect base from the
+        // active route, so both mounts navigate within their own shell.
+        { path: 'agents/new', name: 'admin-agent-new', component: AgentEditor },
+        { path: 'agents/:id/editor', name: 'admin-agent-editor', component: AgentEditor },
+        // The shared Platform Super Agent overview — the SAME view as /dashboard/super-agent, surfaced
+        // in the admin shell (the super agent is admin-configured; users just chat with it).
+        { path: 'super-agent', name: 'admin-super-agent', component: SuperAgentView },
+        // Phase 0 observability — trace waterfall (runs → spans/ledger/receipts) + eval snapshot.
+        { path: 'trace-waterfall', name: 'admin-trace-waterfall', component: () => import('./views/admin/AdminTraceWaterfall.vue') },
+        { path: 'eval-snapshot', name: 'admin-eval-snapshot', component: () => import('./views/admin/AdminEvalSnapshot.vue') },
+        // Phase 5/7 ops dashboards — cost per org, speed & cache, registry governance.
+        { path: 'cost', name: 'admin-cost-dashboard', component: () => import('./views/admin/AdminCostDashboard.vue') },
+        { path: 'speed-cache', name: 'admin-speed-cache', component: () => import('./views/admin/AdminSpeedCache.vue') },
+        { path: 'registry-governance', name: 'admin-registry-governance', component: () => import('./views/admin/AdminRegistryGovernance.vue') },
+        // Phase 1 follow-up — capability graph curation (lifecycle, aliases, edges, seed-from-tools).
+        { path: 'capability-graph', name: 'admin-capability-graph', component: () => import('./views/admin/AdminCapabilityGraph.vue') },
+        // Runtime metrics + scale proofs (backpressure, circuit breakers, thread-pool saturation).
+        { path: 'runtime-metrics', name: 'admin-runtime-metrics', component: () => import('./views/admin/AdminRuntimeMetrics.vue') },
       ],
     },
     // ── Phase 5: legacy top-level authed paths now REDIRECT into the single shell.
@@ -355,16 +382,43 @@ const router = createRouter({
   ]
 })
 
-// Route guards
+// ── Route guards: CACHE-FIRST OPTIMISTIC auth ────────────────────────────────────────────────────
+// The old guard awaited /auth/check before EVERY authed navigation. During that await nothing on
+// screen changes (the <Suspense> skeletons only render once route resolution starts, which is AFTER
+// the guard) — the "click does nothing for seconds" hang. Best-practice replacement:
+//   • Block on the network exactly ONCE per app load (auth snapshot unknown).
+//   • Every later navigation passes immediately from the in-memory snapshot and revalidates in the
+//     BACKGROUND (fire-and-forget — the api layer's 60s cache + in-flight dedup make it ~free).
+//   • Security is not the guard's job: the backend enforces auth/IsAdminUser on every API call, and
+//     the api.js 401 interceptor bounces a dead session to /login no matter what page is showing.
+let _auth = null   // { authenticated: bool, isStaff: bool } — populated by the first real check
+
+function _snapshotFrom(response) {
+  _auth = {
+    authenticated: !!response?.data?.authenticated,
+    isStaff: !!response?.data?.user?.is_staff,
+  }
+  return _auth
+}
+
 router.beforeEach(async (to, from, next) => {
+  // Progress bar + perf mark for every navigation (the bar only shows past its 120ms delay,
+  // so cached/instant navigations never flash it).
+  startNavProgress()
+  if (typeof performance !== 'undefined' && performance.mark) performance.mark('nav:start')
+
   // For routes that don't require auth, allow access immediately
   if (!to.meta.requiresAuth) {
     // Already-authenticated users shouldn't see the marketing landing page or the
     // login page — send them straight into the app.
     if (to.name === 'landing' || to.meta.requiresGuest) {
+      if (_auth) {
+        if (_auth.authenticated) return next('/dashboard')
+        return next()
+      }
       try {
         const response = await api.checkAuth()
-        if (response.data.authenticated) {
+        if (_snapshotFrom(response).authenticated) {
           return next('/dashboard')
         }
       } catch (error) {
@@ -374,14 +428,37 @@ router.beforeEach(async (to, from, next) => {
     return next()
   }
 
-  // For routes requiring authentication, ALWAYS check with server
-  // Don't trust localStorage alone - verify session is valid
+  // ── Fast path: snapshot known-AUTHENTICATED → navigate NOW, revalidate in background ──
+  // A NEGATIVE snapshot deliberately falls through to the server check below instead of bouncing:
+  // after an in-SPA login (router.push, no reload) the stale negative would otherwise loop the user
+  // straight back to /login. The login POST cleared the auth cache, so the check is a real one.
+  if (_auth && _auth.authenticated) {
+    if (to.meta.requiresAdmin && !_auth.isStaff) {
+      console.warn('Admin route blocked for non-staff user:', to.path)
+      return next('/dashboard/chat/new')
+    }
+    // Fire-and-forget revalidation. Served from the 60s api cache most of the time; when it does hit
+    // the network and the session is gone, redirect from here (the 401 interceptor covers API 401s,
+    // but /auth/check answers {authenticated:false} with HTTP 200, so handle that shape too).
+    api.checkAuth().then((response) => {
+      if (!_snapshotFrom(response).authenticated) {
+        localStorage.clear()
+        sessionStorage.clear()
+        router.push('/login')
+      } else if (to.meta.requiresAdmin && !_auth.isStaff) {
+        router.push('/dashboard/chat/new')
+      }
+    }).catch(() => { /* network blip — keep the session; the 401 interceptor handles real rejections */ })
+    return next()
+  }
+
+  // ── Slow path (once per app load): auth unknown → verify with the server before entering ──
   try {
     const response = await api.checkAuth()
-    if (response.data.authenticated) {
+    if (_snapshotFrom(response).authenticated) {
       // Admin-only routes (e.g. Model Pricing) additionally require is_staff.
       // Backend already enforces IsAdminUser; this blocks direct-URL access for UX/security.
-      if (to.meta.requiresAdmin && !response.data.user?.is_staff) {
+      if (to.meta.requiresAdmin && !_auth.isStaff) {
         console.warn('Admin route blocked for non-staff user:', to.path)
         return next('/dashboard/chat/new')
       }
@@ -399,12 +476,14 @@ router.beforeEach(async (to, from, next) => {
     if (status === 401 || status === 403) {
       // Explicit auth rejection — clear state and redirect
       console.warn('Authentication rejected (HTTP', status, ')')
+      _auth = { authenticated: false, isStaff: false }
       localStorage.clear()
       sessionStorage.clear()
       next('/login')
     } else {
       // Network error, server restart, timeout, etc.
-      // Don't nuke the session — allow through and let the page try
+      // Don't nuke the session — allow through and let the page try (snapshot stays unknown so the
+      // next navigation re-checks).
       console.warn('Auth check failed (network/server error), allowing through:', error?.message)
       next()
     }
@@ -414,10 +493,19 @@ router.beforeEach(async (to, from, next) => {
 // First-party analytics: record a pageview on public/marketing routes only
 // (no-op until the user grants cookie consent; never fires under Do-Not-Track).
 router.afterEach((to) => {
+  // Navigation finished (route component resolved) — complete the progress bar + measure.
+  doneNavProgress()
+  if (typeof performance !== 'undefined' && performance.mark) {
+    performance.mark('nav:end')
+    try { performance.measure('nav', 'nav:start', 'nav:end') } catch { /* no matching start */ }
+  }
   if (to.meta?.public && !to.path.startsWith('/a/') && !to.path.startsWith('/embed/')) {
     trackPageview(to)
   }
 })
+
+// A failed/aborted navigation must never leave the bar spinning.
+router.onError(() => doneNavProgress())
 
 // Create app
 const app = createApp(App)

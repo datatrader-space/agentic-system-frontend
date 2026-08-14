@@ -4,7 +4,7 @@
     <header class="ops-head">
       <div>
         <h1>Operations</h1>
-        <p>Platform health &amp; subsystem status — task outbox, capability broker, artifacts, ingestion, scripts.</p>
+        <p>Platform health &amp; subsystem status — task outbox, capability broker, artifacts, ingestion, scripts, delegation.</p>
       </div>
       <div class="ops-actions">
         <label class="ops-auto" :class="{ on: autoRefresh }">
@@ -136,12 +136,14 @@ const ICON = {
   artifacts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.27 6.96 8.73 5.05 8.73-5.05M12 22.08V12"/></svg>',
   pipeline: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
   scripts: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></svg>',
+  delegation: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+  governance: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
 }
 
 const sections = computed(() => {
   const m = metrics.value || {}
   const out = ok(m.outbox), led = ok(m.capability_ledger), art = ok(m.artifacts)
-  const pipe = ok(m.ingestion_pipeline), scr = ok(m.scripts)
+  const pipe = ok(m.ingestion_pipeline), scr = ok(m.scripts), del = ok(m.delegations), gov = ok(m.governance)
   const cur = pipe.current || {}
 
   const deadTone = (out.dead > 0) ? 'critical' : 'good'
@@ -199,6 +201,37 @@ const sections = computed(() => {
       tiles: [
         { label: 'Scripts', value: num(scr.scripts), tone: 'neutral', note: 'active' },
         { label: 'Versions', value: num(scr.versions), tone: 'neutral', note: 'immutable history' },
+      ],
+    },
+    {
+      key: 'delegations', title: 'Multi-Agent Delegation', icon: ICON.delegation, unavailable: !!del.error,
+      tiles: [
+        { label: 'Delegations', value: num(del.total), tone: 'neutral', note: 'total handoffs' },
+        { label: 'Verified', value: num(del.verified), tone: 'neutral',
+          note: `${del.completed ? Math.round(100 * del.verified / del.completed) : 0}% of completed` },
+        { label: 'Failed', value: num(del.failed), tone: (del.failed > 0) ? 'warning' : 'good',
+          status: del.failed > 0 ? 'attention' : 'clear',
+          note: del.failed > 0 ? 'sub-tasks failed' : 'none' },
+        { label: 'Unverified', value: num(del.unverified_completed),
+          tone: (del.unverified_completed > 0) ? 'warning' : 'good',
+          status: del.unverified_completed > 0 ? 'review' : 'clear',
+          note: 'completed but not verified' },
+        { label: 'Ephemeral agents', value: num(del.live_ephemeral_agents), tone: 'neutral',
+          note: 'live spawned specialists' },
+      ],
+    },
+    {
+      key: 'governance', title: 'Governance', icon: ICON.governance, unavailable: !!gov.error,
+      tiles: [
+        { label: 'Untrusted skills', value: num(gov.skills_untrusted), tone: 'neutral',
+          note: 'awaiting trust review' },
+        { label: 'Imported skills', value: num(gov.skills_imported),
+          tone: (gov.skills_imported > 0) ? 'warning' : 'good',
+          status: gov.skills_imported > 0 ? 'review' : 'clear', note: 'promote before scripts run' },
+        { label: 'Bare agents', value: num(gov.bare_agents),
+          tone: (gov.bare_agents > 0) ? 'warning' : 'good',
+          status: gov.bare_agents > 0 ? 'check' : 'clear', note: 'no tools or skills' },
+        { label: 'Paused agents', value: num(gov.paused_agents), tone: 'neutral' },
       ],
     },
   ]

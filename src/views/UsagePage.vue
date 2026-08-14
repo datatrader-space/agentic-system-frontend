@@ -355,7 +355,8 @@ const pageSize = ref(10)
 const agents = ref([])
 const stats = ref({})
 const usageRows = ref([])
-const usageData = ref({})   // full llm_usage payload: cost_by_model / _agent / _provider / _user / totals
+const usageData = ref({})
+const confirm = useConfirm()   // full llm_usage payload: cost_by_model / _agent / _provider / _user / totals
 const requestRows = ref([])
 const auditEntries = ref([])
 const serverTotal = ref(0)
@@ -525,8 +526,17 @@ function formatNumber(value) {
   return new Intl.NumberFormat('en-US').format(Math.round(Number(value || 0)))
 }
 
+
+
+
+
 function formatMoney(value) {
-  return `$${Number(value || 0).toFixed(2)}`
+  const n = Number(value || 0)
+  // A non-zero amount must never render as "$0.00". Sub-cent spend is real spend, and rounding it to
+  // zero is how a page tells someone their usage is free when it is not — the LLM panels hit this too
+  // (a $0.0009 supervisor call showed as $0.00). Below a cent, say so rather than lying with precision.
+  if (n > 0 && n < 0.005) return '<$0.01'
+  return `$${n.toFixed(2)}`
 }
 
 function formatTime(value) {
@@ -1428,4 +1438,5 @@ onMounted(reload)
 .pricing-pill.fallback { color: #b45309; background: #fef1dc; }
 .pricing-pill.missing { color: #e23b3b; background: #fee2e2; }
 .pricing-pill.local_free { color: #60718f; background: #eef2f7; }
+
 </style>

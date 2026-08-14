@@ -56,6 +56,7 @@
         :conversation-id="chat.conversationId"
         :run-mode="chat.currentAgent && chat.currentAgent.agent_run_mode"
         :has-image-model="!!(chat.currentAgent && chat.currentAgent.image_model)"
+        :is-shared-agent="chat.isSharedAgent"
         @send="onSend" @stop="chat.stop()" @mode-change="onModeChange"
         @attach="chat.addAttachments" @remove-attach="chat.removeAttachment"
         @open-media="mediaOpen = true" />
@@ -110,6 +111,7 @@
 import { computed, watch, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useChatStore } from '../../stores/useChatStore'
+import api from '../../services/api'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { usePlanStore } from '../../stores/usePlanStore'
@@ -229,10 +231,13 @@ const startNew = () => {
   if (route.path !== '/dashboard/chat/new') router.push('/dashboard/chat/new')
 }
 
-onMounted(async () => {
+onMounted(() => {
   window.addEventListener('resize', onWinResize)
-  await chat.loadAgents()   // also warms this agent's history (loadSessions) for the drawer
+  // PARALLEL, not serial. The agent library and the conversation/super-agent resolution are
+  // independent (_startNewChat resolves its agent BY ID; openConversation loads by conversation id),
+  // so awaiting the library first just added a round trip to every chat open.
   const sid = route.params.sessionId
+  chat.loadAgents()
   if (sid) {
     chat.openConversation(sid)
     canvas.adoptConversation(sid)
@@ -246,13 +251,30 @@ onMounted(async () => {
 // New chat. If we arrived from an agent card (/dashboard/chat/new?agent=<id>) pre-select THAT agent so the
 // user lands straight in its composer with no picker step; otherwise pre-build the (auto-)selected agent
 // now, during the idle window before the first message, so it reuses the runner (no ~6.6s cold build).
-function _startNewChat() {
-  const qAgent = route.query.agent
-  if (qAgent && chat.agents.some((a) => String(a.id) === String(qAgent))) {
-    chat.setAgent(String(qAgent))   // sets selectedAgentId + prewarms
-  } else {
-    chat.prewarmAgent()
+async function _selectAgentById(id) {
+  // The agent may not be in the loaded library list — e.g. the Platform Super Agent, which is hidden from
+  // the Agents library for normal users. It's still retrievable by id, so fetch + add it so chat can open it.
+  if (!chat.agents.some((a) => String(a.id) === String(id))) {
+    try {
+      const { data } = await api.getAgent(id)
+      if (data && data.id) chat.agents.push(data)
+    } catch (e) { return false }
   }
+  if (chat.agents.some((a) => String(a.id) === String(id))) {
+    chat.setAgent(String(id))   // sets selectedAgentId + prewarms
+    return true
+  }
+  return false
+}
+
+async function _startNewChat() {
+  const qAgent = route.query.agent
+  if (qAgent && await _selectAgentById(qAgent)) return
+  // No agent in the URL → the chat belongs to the Platform Super Agent (the product default).
+  // There is NO agent picker in the chat UI — specific agents are opened from their card's Chat button.
+  const sa = await chat.ensureSuperAgent()
+  if (sa) { chat.setAgent(String(sa.id)); return }
+  chat.prewarmAgent()
 }
 
 onBeforeUnmount(() => {
@@ -278,9 +300,7 @@ watch(
 watch(
   () => route.query.agent,
   (a) => {
-    if (a && !route.params.sessionId && chat.agents.some((x) => String(x.id) === String(a))) {
-      chat.setAgent(String(a))
-    }
+    if (a && !route.params.sessionId) _selectAgentById(a)
   }
 )
 

@@ -1,5 +1,9 @@
 <template>
   <div id="app" class="min-h-screen" :class="appBackgroundClass">
+    <!-- Navigation progress bar (top of viewport) — driven by router hooks in main.js.
+         Renders only when a navigation outlives its 120ms show-delay, so instant navs never flash. -->
+    <NavProgress />
+
     <!-- Public webchat (/a/:token, /embed/:token): bare full-bleed, no app header/shell -->
     <router-view v-if="isBareChat" v-slot="{ Component }">
       <Suspense>
@@ -154,6 +158,7 @@ import { useRouter, useRoute } from 'vue-router'
 import api from './services/api'
 import AppHeader from './components/layout/AppHeader.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
+import NavProgress from './components/app-shell/NavProgress.vue'
 import { useTheme } from './composables/useTheme'
 import { identify } from './composables/useAnalytics'
 

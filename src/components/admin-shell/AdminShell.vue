@@ -97,6 +97,14 @@ const nav = [
   { to: '/admin-dashboard/help-center', match: '/admin-dashboard/help-center', label: 'Help Center', icon: ['M4 4h16v16H4z', 'M8 8h8', 'M8 12h8', 'M8 16h5'] },
   { to: '/admin-dashboard/help-analytics', label: 'Help Analytics', icon: ['M3 3v18h18', 'M7 16l4-4 3 3 5-6'] },
   { to: '/admin-dashboard/builtin-agents', label: 'Built-in Agents', icon: ['M12 8V4H8', 'M4 12a8 8 0 0 1 8-8', 'M2 14h2', 'M20 14h2', 'M15 13v2', 'M9 13v2', 'M6 10h12v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z'] },
+  { to: '/admin-dashboard/super-agent', label: 'Super Agent', icon: ['M12 2l2.4 5.4 5.6.6-4.2 3.9 1.2 5.6L12 14.9 7 17.5l1.2-5.6L4 8l5.6-.6L12 2z'] },
+  { to: '/admin-dashboard/trace-waterfall', label: 'Trace Waterfall', icon: ['M3 3v18h18', 'M7 8h6', 'M7 12h10', 'M7 16h4'] },
+  { to: '/admin-dashboard/eval-snapshot', label: 'Eval Snapshot', icon: ['M3 3v18h18', 'M7 16l4-4 3 3 5-6'] },
+  { to: '/admin-dashboard/cost', label: 'Cost per Org', icon: ['M3 3v18h18', 'M7 16v-5', 'M12 16V8', 'M17 16v-3'] },
+  { to: '/admin-dashboard/speed-cache', label: 'Speed & Cache', icon: ['M13 2 3 14h9l-1 8 10-12h-9l1-8z'] },
+  { to: '/admin-dashboard/registry-governance', label: 'Registry Governance', icon: ['M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z', 'M9 12l2 2 4-4'] },
+  { to: '/admin-dashboard/capability-graph', label: 'Capability Graph', icon: ['M21 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0', 'M9 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0', 'M21 19a3 3 0 1 1-6 0 3 3 0 0 1 6 0', 'M8.59 13.51l6.83 3.98', 'M15.41 6.51l-6.82 3.98'] },
+  { to: '/admin-dashboard/runtime-metrics', label: 'Runtime Metrics', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
 ]
 
 // Django admin lives on the backend (:8000 in dev; same origin in prod).
