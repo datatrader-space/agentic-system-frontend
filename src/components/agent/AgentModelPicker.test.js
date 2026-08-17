@@ -14,15 +14,20 @@ const payload = {
       name: 'Anthropic',
       provider_type: 'anthropic',
       models: [
-        { id: 12, name: 'Sonnet 4.5', model_id: 'claude-sonnet-4-5' },
-        { id: 13, name: 'Opus 4.1', model_id: 'claude-opus-4-1' },
+        {
+          id: 12, name: 'Sonnet 4.5', model_id: 'claude-sonnet-4-5',
+          // Per-TOKEN decimals, exactly as the backend stores them in LLMModel.metadata.
+          context_window: 200000, pricing_input: '0.000003', pricing_output: '0.000015',
+        },
+        { id: 13, name: 'Opus 4.1', model_id: 'claude-opus-4-1', context_window: 200000 },
       ],
     },
     {
       id: 2,
       name: 'OpenAI',
       provider_type: 'openai',
-      models: [{ id: 21, name: 'GPT-5', model_id: 'gpt-5' }],
+      models: [{ id: 21, name: 'GPT-5', model_id: 'gpt-5',
+                 context_window: 0, pricing_input: '0', pricing_output: '0' }],
     },
   ],
 }
@@ -112,12 +117,15 @@ describe('AgentModelPicker', () => {
     await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
     await wrapper.findAll('.amp-provider')[0].trigger('click')
 
+    // Rows now carry a context/price meta line under the name, so match on the NAME element —
+    // the assertion is about which models survive the filter, not about row chrome.
+    const names = () => wrapper.findAll('.amp-model .amp-model-name').map((el) => el.text())
     const search = wrapper.get('[data-test="model-search"]')
     await search.setValue('opus')
-    expect(wrapper.findAll('.amp-model').map((model) => model.text())).toEqual(['Opus 4.1'])
+    expect(names()).toEqual(['Opus 4.1'])
 
     await search.setValue('claude-sonnet-4-5')
-    expect(wrapper.findAll('.amp-model').map((model) => model.text())).toEqual(['Sonnet 4.5'])
+    expect(names()).toEqual(['Sonnet 4.5'])
 
     await search.setValue('not-a-real-model')
     expect(wrapper.findAll('.amp-model')).toHaveLength(0)
@@ -154,6 +162,35 @@ describe('AgentModelPicker', () => {
     expect(api.selectAgentModel).toHaveBeenCalledWith(7, 13)
     expect(wrapper.find('[data-test="model-picker-menu"]').exists()).toBe(false)
     expect(wrapper.emitted('changed')).toBeTruthy()
+  })
+
+  it('shows each model’s context window and per-1M price', async () => {
+    const wrapper = mountPicker()
+    await flushPromises()
+    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
+    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
+    await wrapper.findAll('.amp-provider')[0].trigger('click')
+
+    const rows = wrapper.findAll('.amp-model')
+    // Per-token decimals are rendered per 1M, same formatting as the agent editor's picker.
+    expect(rows[0].text()).toContain('200K ctx')
+    expect(rows[0].text()).toContain('$3.00/$15.00 per 1M')
+    // Context known but no pricing → context only, no dangling separator.
+    expect(rows[1].text()).toContain('200K ctx')
+    expect(rows[1].text()).not.toContain('per 1M')
+    expect(rows[1].text()).not.toContain('·')
+  })
+
+  it('labels a zero-cost model Free and omits an unknown context window', async () => {
+    const wrapper = mountPicker()
+    await flushPromises()
+    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
+    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
+    await wrapper.findAll('.amp-provider')[1].trigger('click')
+
+    const row = wrapper.findAll('.amp-model')[0]
+    expect(row.text()).toContain('Free')
+    expect(row.text()).not.toContain('ctx')
   })
 
   it('closes the menu and flyout with Escape', async () => {

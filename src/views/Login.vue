@@ -302,6 +302,32 @@ import api from '../services/api'
 const router = useRouter()
 const route = useRoute()
 
+/**
+ * Go wherever `?next=` points — including OUT of the SPA.
+ *
+ * `router.push()` can only reach routes the Vue router owns. The MCP OAuth flow sends users here with
+ * `next=/api/mcp/oauth/authorize?...`, a SERVER path: pushing that hits the SPA's catch-all and the user
+ * lands on a 404 instead of the consent screen, having just logged in successfully. Anything outside the
+ * SPA's own routes therefore needs a real navigation.
+ *
+ * Only SAME-ORIGIN relative paths are honoured. `next` arrives in the URL and is attacker-controllable,
+ * so anything absolute (`https://evil.test`) or protocol-relative (`//evil.test`) is discarded rather
+ * than followed — that is the open-redirect this guard exists to prevent.
+ */
+function goNext(fallback = '/dashboard') {
+  const next = route.query.next
+  const target = typeof next === 'string' && next.startsWith('/') && !next.startsWith('//')
+    ? next
+    : fallback
+  // A path the router does not recognise is a backend route — hard-navigate so the browser actually
+  // requests it (and carries the freshly-issued session cookie with it).
+  if (router.resolve(target).matched.length === 0) {
+    window.location.assign(target)
+    return
+  }
+  router.push(target)
+}
+
 // State
 const isLogin = ref(route.path !== '/signup' && route.query.mode !== 'signup')
 const loading = ref(false)
@@ -442,7 +468,7 @@ const handleSubmit = async () => {
         localStorage.setItem('user', JSON.stringify(response.data.user))
 
         setTimeout(() => {
-          router.push(route.query.next || '/dashboard')
+          goNext()
         }, 800)
       }
     } else {
@@ -454,7 +480,7 @@ const handleSubmit = async () => {
         localStorage.setItem('user', JSON.stringify(response.data.user))
 
         setTimeout(() => {
-          router.push(route.query.next || '/dashboard')
+          goNext()
         }, 800)
       }
     }
@@ -474,7 +500,7 @@ const verify2fa = async () => {
     if (response.data.success) {
       success.value = 'Login successful! Redirecting...'
       localStorage.setItem('user', JSON.stringify(response.data.user))
-      setTimeout(() => router.push(route.query.next || '/dashboard'), 600)
+      setTimeout(() => goNext(), 600)
     }
   } catch (err) {
     error.value = err.response?.data?.error || 'Invalid code. Please try again.'

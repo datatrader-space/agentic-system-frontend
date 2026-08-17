@@ -29,7 +29,9 @@
             </button>
           </div>
           <footer v-if="hasNext" class="nb-foot">
-            <button class="nb-more" :disabled="loading" @click="loadMore">Load more</button>
+            <button class="nb-more" :disabled="loading" @click="loadMore">
+              {{ loading ? 'Loading…' : (remaining ? `Load more (${remaining})` : 'Load more') }}
+            </button>
           </footer>
         </section>
       </transition>
@@ -38,7 +40,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../../services/api'
@@ -46,29 +48,54 @@ import api from '../../services/api'
 defineProps({ collapsed: { type: Boolean, default: false } })
 const router = useRouter()
 
+// Opening the bell fetches ONE page of the newest notifications — a user with hundreds of rows
+// should not pay for all of them to render a panel that shows a handful. Every "Load more" click
+// appends the next page; the list itself scrolls.
+const PAGE_SIZE = 10
+
 const unread = ref(0)
 const items = ref([])
 const open = ref(false)
 const loading = ref(false)
 const page = ref(1)
 const hasNext = ref(false)
+const total = ref(0)
+
+// How many are still unfetched — surfaced on the button so "Load more" is not a blind click.
+const remaining = computed(() => Math.max(0, total.value - items.value.length))
+
 let poll = null
+// Reopening the panel mid-fetch must not let the older page land on top of the fresh list.
+let reqSeq = 0
 
 async function loadCount() {
   try { const { data } = await api.getNotifUnreadCount(); unread.value = data?.count || 0 } catch (e) { /* silent */ }
 }
 async function loadList(reset = true) {
+  if (loading.value && !reset) return
+  const seq = ++reqSeq
   loading.value = true
-  if (reset) { page.value = 1; items.value = [] }
+  if (reset) { page.value = 1; items.value = []; total.value = 0 }
   try {
-    const { data } = await api.getNotifications({ page: page.value, per_page: 15 })
+    const { data } = await api.getNotifications({ page: page.value, per_page: PAGE_SIZE })
+    if (seq !== reqSeq) return          // superseded by a reopen — drop this page
     items.value = reset ? (data?.results || []) : [...items.value, ...(data?.results || [])]
     hasNext.value = !!data?.has_next
+    total.value = data?.count ?? total.value
     unread.value = data?.unread_count ?? unread.value
-  } catch (e) { /* silent */ }
-  loading.value = false
+  } catch (e) {
+    // A failed "load more" must not strand the page counter ahead of what we actually hold,
+    // or the next click would silently skip a page.
+    if (!reset && seq === reqSeq) page.value = Math.max(1, page.value - 1)
+  } finally {
+    if (seq === reqSeq) loading.value = false
+  }
 }
-function loadMore() { page.value += 1; loadList(false) }
+function loadMore() {
+  if (loading.value || !hasNext.value) return
+  page.value += 1
+  loadList(false)
+}
 
 async function toggle() {
   open.value = !open.value
@@ -136,7 +163,9 @@ onBeforeUnmount(() => {
 .nb-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 15px; border-bottom: 1px solid #eef2f7; }
 .nb-head strong { font-size: 14px; font-weight: 800; color: #0f172a; }
 .nb-mark { border: 0; background: transparent; color: #4f46e5; font-size: 12px; font-weight: 700; cursor: pointer; }
-.nb-list { flex: 1; overflow-y: auto; }
+/* The panel is height-capped, so the list is the scroll region; `contain` stops the wheel from
+   chaining into the page behind once it bottoms out. */
+.nb-list { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
 .nb-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 16px; color: #94a3b8; font-size: 13px; }
 .nb-empty svg { width: 26px; height: 26px; }
 .nb-item { display: flex; align-items: flex-start; gap: 10px; width: 100%; border: 0; border-bottom: 1px solid #f4f6fa; background: transparent; padding: 12px 15px; text-align: left; cursor: pointer; }

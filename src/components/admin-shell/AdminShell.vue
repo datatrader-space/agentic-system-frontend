@@ -100,6 +100,7 @@ const nav = [
   { to: '/admin-dashboard/super-agent', label: 'Super Agent', icon: ['M12 2l2.4 5.4 5.6.6-4.2 3.9 1.2 5.6L12 14.9 7 17.5l1.2-5.6L4 8l5.6-.6L12 2z'] },
   { to: '/admin-dashboard/trace-waterfall', label: 'Trace Waterfall', icon: ['M3 3v18h18', 'M7 8h6', 'M7 12h10', 'M7 16h4'] },
   { to: '/admin-dashboard/eval-snapshot', label: 'Eval Snapshot', icon: ['M3 3v18h18', 'M7 16l4-4 3 3 5-6'] },
+  { to: '/admin-dashboard/learning', label: 'Learning Monitor', icon: ['M12 3 2 8l10 5 10-5z', 'M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5', 'M22 8v6'] },
   { to: '/admin-dashboard/cost', label: 'Cost per Org', icon: ['M3 3v18h18', 'M7 16v-5', 'M12 16V8', 'M17 16v-3'] },
   { to: '/admin-dashboard/speed-cache', label: 'Speed & Cache', icon: ['M13 2 3 14h9l-1 8 10-12h-9l1-8z'] },
   { to: '/admin-dashboard/registry-governance', label: 'Registry Governance', icon: ['M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z', 'M9 12l2 2 4-4'] },

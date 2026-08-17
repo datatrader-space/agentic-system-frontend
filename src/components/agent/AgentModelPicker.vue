@@ -157,7 +157,10 @@
                 :title="m.model_id"
                 @click="pick(m)"
               >
-                <span class="amp-model-name">{{ m.name }}</span>
+                <span class="amp-model-text">
+                  <span class="amp-model-name">{{ m.name }}</span>
+                  <span v-if="modelMeta(m)" class="amp-model-meta">{{ modelMeta(m) }}</span>
+                </span>
                 <svg v-if="current && current.id === m.id" class="amp-check" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 10 4 4 8-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
               <div v-if="!filteredModels.length" class="amp-model-empty" data-test="model-search-empty">
@@ -247,6 +250,27 @@ const filteredModels = computed(() => {
   return models.filter((model) =>
     [model.name, model.model_id].some((value) => String(value || '').toLowerCase().includes(query)))
 })
+
+// Context window + per-1M pricing, formatted exactly like the agent editor's model picker
+// (components/common/ModelPicker.vue) so the same model reads the same way in both places.
+// Prices arrive as per-TOKEN decimals; ×1e6 gives the familiar "$3.00/$15.00 per 1M".
+function formatContext(m) {
+  const c = Number(m.context_window)
+  if (!c) return ''
+  if (c >= 1000) return `${Math.round(c / 1000)}K ctx`
+  return `${c} ctx`
+}
+function formatPrice(m) {
+  const inp = parseFloat(m.pricing_input ?? '')
+  const out = parseFloat(m.pricing_output ?? '')
+  if (Number.isNaN(inp) || Number.isNaN(out)) return ''
+  if (inp === 0 && out === 0) return 'Free'
+  const fmt = (v) => `$${(v * 1e6).toFixed(2)}`
+  return `${fmt(inp)}/${fmt(out)} per 1M`
+}
+function modelMeta(m) {
+  return [formatContext(m), formatPrice(m)].filter(Boolean).join(' · ')
+}
 
 function applyPayload(data) {
   providers.value = data.providers || []
@@ -445,7 +469,13 @@ watch(() => props.agentId, () => {
   border: 0; border-radius: 8px; background: transparent; color: #303030; text-align: left; cursor: pointer; transition: background .12s ease; }
 .amp-model:hover, .amp-model.active { background: #f1f1f1; }
 .amp-model:disabled { opacity: .55; cursor: wait; }
+/* Two-line row: model name over its context-window + per-1M price (same info the agent editor's
+   ModelPicker shows). min-width:0 on the flex child is what lets the ellipsis actually kick in. */
+.amp-model-text { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
 .amp-model-name { overflow: hidden; font-size: 12.5px; font-weight: 480; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.amp-model-meta { overflow: hidden; color: #8a8a8a; font-size: 10.5px; font-variant-numeric: tabular-nums;
+  line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.amp-model.active .amp-model-meta, .amp-model:hover .amp-model-meta { color: #6f6f6f; }
 .amp-check { position: absolute; top: 50%; right: 9px; width: 15px; height: 15px; color: #2563eb; transform: translateY(-50%); }
 .amp-reset { display: flex; width: 100%; min-height: 38px; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px;
   padding: 7px 9px; border: 0; border-top: 1px solid #e5e5e5; background: transparent; color: #555; font-size: 11.5px;

@@ -265,6 +265,15 @@ export default {
       if (oauth.connected) return                 // dedupe: poll vs postMessage
       _clearPoll()
       oauth.busy = false; oauth.connected = true; oauth.connectionId = connId; oauth.error = ''
+      // Authorizing IS the last thing the user has to supply, so finish the job rather than parking them
+      // on a half-done form. Previously this only flipped a green "Connected — you can add the server now"
+      // banner at the TOP of a scrolling dialog while the actual "Add server" button sat below the fold:
+      // the popup closed, the banner said connected, and people reasonably stopped there — so the server
+      // was never created, no toast fired, and the connector list stayed empty. Auto-submitting removes
+      // the step that was being missed.
+      // Guarded on `canSave` because OAuth can only have been started from a valid name + URL; if some
+      // other field is somehow incomplete, fall back to the manual button rather than firing a doomed POST.
+      if (!isEditMode.value && canSave.value && !savedOk.value && !saving.value) handleSubmit()
     }
     function _onOauthMessage(ev) {
       const d = ev && ev.data
@@ -376,6 +385,11 @@ export default {
           }
         }
         notify.success(isEditMode.value ? 'Server updated' : 'Server added')
+        // Tell the parent to reload NOW, not when "Done" is finally clicked. The dialog deliberately stays
+        // open to show the connection test ("N tools found"), and while it did, the connector list behind
+        // it still showed the old set — so a server that had genuinely been created looked like it had not.
+        // `finish()` still emits this on close; the listener reloads, so emitting twice is harmless.
+        emit('saved')
       } catch (error) {
         notify.error('Failed to save: ' + (error.response?.data?.error || error.message))
       } finally {

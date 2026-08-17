@@ -329,6 +329,16 @@ export default {
   startOAuth: (serviceId) => api.get(`/oauth/start/${serviceId}/`),
   disconnectOAuth: (serviceId) => api.delete(`/oauth/disconnect/${serviceId}/`),
 
+  // ── AADML AS an MCP server (INBOUND: ChatGPT/Claude drive AADML) ──────────────────────────────────
+  // Not to be confused with the `getMCPServers` family directly below, which is the OUTBOUND direction:
+  // third-party MCP servers that AADML itself consumes. Same three letters, opposite arrows — the
+  // Integrations page labels them "AADML as an MCP server" vs "Connected MCP servers" for that reason.
+  // These three are session-authenticated on purpose: an MCP bearer token must never be able to manage
+  // the grants that authorize it (see mcp_gateway/views.py).
+  getAadmlMcpInfo: () => api.get('/mcp/info/'),
+  getAadmlMcpConnections: () => api.get('/mcp/connections/'),
+  revokeAadmlMcpConnection: (grantId) => api.post(`/mcp/connections/${grantId}/revoke/`),
+
   // MCP Server Management
   getMCPServers: (params) => api.get('/mcp/servers/', { params }),
   getMCPServer: (id) => api.get(`/mcp/servers/${id}/`),

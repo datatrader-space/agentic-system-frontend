@@ -170,13 +170,18 @@
     </Teleport>
 
     <!-- Workspace-file preview modal: opened when a /api/workspace/files/… link in the answer is clicked
-         (see onCodeCopy). Renders markdown/code/json/csv/pdf/image by extension, with a Download button. -->
-    <FileViewer ref="fileViewer" />
+         (see onCodeCopy). Renders markdown/code/json/csv/pdf/image by extension, with a Download button.
+         LOADED ON DEMAND: FileViewer statically imports highlight.js (~900 kB), which a static import
+         here dragged into the chat chunk for every conversation — while the modal only opens when a user
+         clicks a workspace-file link. Mounted via <component :is> off an ALREADY-RESOLVED component
+         (not defineAsyncComponent) so `fileViewer.value` is guaranteed populated by the time openFile()
+         calls openUrl on it — an unresolved async component would silently swallow the first click. -->
+    <component :is="FileViewerComp" v-if="FileViewerComp" ref="fileViewer" />
   </div>
 </template>
 
 <script setup>
-import { computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { computed, ref, shallowRef, nextTick, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
 import { enhanceChatMedia } from '../../utils/chatMedia'
 import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
@@ -185,7 +190,6 @@ import AgentActivityTimeline from '../AgentActivityTimeline.vue'
 import TokenUsage from '../activity/TokenUsage.vue'
 import SourcesList from './SourcesList.vue'
 import ProvenanceFooter from './ProvenanceFooter.vue'
-import FileViewer from '../FileViewer.vue'
 import { stopReasonBadge } from '../../composables/stopReason'
 import { reasoningItems } from '../../composables/useAgentTimeline'
 import { useChatStore } from '../../stores/useChatStore'
@@ -341,6 +345,23 @@ const _onEsc = (e) => { if (e.key === 'Escape' && previewSrc.value) previewSrc.v
 onMounted(() => window.addEventListener('keydown', _onEsc))
 onUnmounted(() => window.removeEventListener('keydown', _onEsc))
 const fileViewer = ref(null)
+// Resolved FileViewer component, loaded the first time a workspace-file link is clicked (see the
+// template note). shallowRef because this holds a component definition, not reactive data.
+const FileViewerComp = shallowRef(null)
+
+async function openFile(payload) {
+  if (!FileViewerComp.value) {
+    try {
+      FileViewerComp.value = (await import('../FileViewer.vue')).default
+    } catch {
+      return                              // chunk failed to load — the <a> href is the fallback
+    }
+    // The component is already resolved, so <component :is> renders it in this very tick and the
+    // template ref is populated. (defineAsyncComponent would need another resolution tick here.)
+    await nextTick()
+  }
+  fileViewer.value?.openUrl(payload)
+}
 const onCodeCopy = async (e) => {
   const img = e.target?.closest?.('img.chat-media-img')
   if (img && img.getAttribute('src')) {
@@ -359,7 +380,7 @@ const onCodeCopy = async (e) => {
     const base = href.replace(/[?&]inline=1$/, '')            // strip any inline flag (?inline=1 or &inline=1)
     const sep = base.includes('?') ? '&' : '?'                // token URL already carries ?t=… → join with &
     const name = (wsLink.textContent || '').trim() || 'file'
-    fileViewer.value?.openUrl({ path: name, download_url: base, view_url: base + sep + 'inline=1' })
+    openFile({ path: name, download_url: base, view_url: base + sep + 'inline=1' })
     return
   }
   const btn = e.target?.closest?.('.code-copy')

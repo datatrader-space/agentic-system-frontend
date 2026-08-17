@@ -43,6 +43,7 @@ const LLMSettings = () => import('./views/LLMSettings.vue')
 const LLMDashboard = () => import('./views/LLMDashboard.vue')
 const LLMContextDashboard = () => import('./views/LLMContextDashboard.vue')
 const ConnectorsPage = () => import('./views/ConnectorsPage.vue')
+const IntegrationsPage = () => import('./views/IntegrationsPage.vue')
 const ToolsPage = () => import('./views/ToolsPage.vue')
 const HelpCenter = () => import('./views/HelpCenter.vue')
 const DocumentationHome = () => import('./views/DocumentationHome.vue')
@@ -246,6 +247,10 @@ const router = createRouter({
         { path: 'services', name: 'dashboard-services', redirect: '/dashboard/connectors' },
         { path: 'mcp', name: 'dashboard-mcp', redirect: '/dashboard/connectors' },
         { path: 'connectors', name: 'dashboard-connectors', component: ConnectorsPage },
+        // Integrations — the consolidated home (INTEGRATIONS_HUB_PLAN.md). Ships with the AADML-MCP
+        // section only, so `connectors` stays a real page rather than a redirect: retiring it now would
+        // orphan services, MCP servers and tools before their sections exist.
+        { path: 'integrations', name: 'dashboard-integrations', component: IntegrationsPage },
         { path: 'knowledge', name: 'dashboard-knowledge', component: () => import('./views/KnowledgeRag.vue') },
         { path: 'integration-hub', redirect: '/dashboard/connectors' },
         // Workflow Builder (NEW node-canvas system — lazy-loaded; separate from old /workflows feature)
@@ -341,6 +346,9 @@ const router = createRouter({
         // Phase 0 observability — trace waterfall (runs → spans/ledger/receipts) + eval snapshot.
         { path: 'trace-waterfall', name: 'admin-trace-waterfall', component: () => import('./views/admin/AdminTraceWaterfall.vue') },
         { path: 'eval-snapshot', name: 'admin-eval-snapshot', component: () => import('./views/admin/AdminEvalSnapshot.vue') },
+        // Continuous learning: what the platform learned per run, the Memory v3 ledger, instincts,
+        // spend — plus the admin-owned cadence for the learning sweep (live, no redeploy).
+        { path: 'learning', name: 'admin-learning-monitor', component: () => import('./views/admin/AdminLearningMonitor.vue') },
         // Phase 5/7 ops dashboards — cost per org, speed & cache, registry governance.
         { path: 'cost', name: 'admin-cost-dashboard', component: () => import('./views/admin/AdminCostDashboard.vue') },
         { path: 'speed-cache', name: 'admin-speed-cache', component: () => import('./views/admin/AdminSpeedCache.vue') },

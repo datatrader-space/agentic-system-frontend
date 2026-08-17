@@ -83,6 +83,7 @@ export default {
   'admin-guided-tours': { label: 'Guided tours', parent: 'admin-overview' },
   'admin-help-analytics': { label: 'Help analytics', parent: 'admin-overview' },
   'admin-builtin-agents': { label: 'Built-in agents', parent: 'admin-overview' },
+  'admin-learning-monitor': { label: 'Learning monitor', parent: 'admin-overview' },
 
   // ── Public marketing (root: Home) ─────────────────────────────────────────
   'landing': { label: 'Home' },

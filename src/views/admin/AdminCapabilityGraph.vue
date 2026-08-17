@@ -59,6 +59,16 @@
             <span class="lc" :class="n.lifecycle">{{ n.lifecycle }}</span>
           </button>
         </div>
+        <!-- Server-side paging: one page of 50 per request instead of walking the whole graph on mount. -->
+        <div v-if="!loading && !error && totalPages > 1" class="pager">
+          <button class="pg-btn" :disabled="page <= 1" aria-label="Previous page" @click="goPage(page - 1)">
+            <Icon icon="lucide:chevron-left" />
+          </button>
+          <span class="pg-info">Page {{ page }} of {{ totalPages }} · {{ total }} node{{ total === 1 ? '' : 's' }}</span>
+          <button class="pg-btn" :disabled="page >= totalPages" aria-label="Next page" @click="goPage(page + 1)">
+            <Icon icon="lucide:chevron-right" />
+          </button>
+        </div>
       </section>
 
       <!-- Right: selected node detail -->
@@ -138,7 +148,8 @@
                 <option v-for="r in RELATIONS" :key="r" :value="r">{{ r }}</option>
               </select>
               <div class="dst-pick">
-                <input v-model="edgeQuery" placeholder="Search destination node…" @input="edgeDst = null" />
+                <input v-model="edgeQuery" placeholder="Search destination node…"
+                       @input="edgeDst = null; onEdgeQueryInput()" />
                 <div v-if="edgeQuery && !edgeDst && dstMatches.length" class="dst-menu">
                   <button v-for="m in dstMatches" :key="m.id" @click="pickDst(m)">
                     <strong>{{ m.slug }}</strong> <span>{{ m.name }}</span>
@@ -160,7 +171,7 @@
 // Curation console for the canonical capability graph (Phase 1 follow-up). The BACKEND is the sole
 // validator everywhere here: lifecycle legality, alias shape/dedupe and edge rules are enforced by
 // /capability-nodes/ — this page only surfaces the 400 details it returns.
-import { ref, computed, inject, onMounted } from 'vue'
+import { ref, computed, inject, onMounted, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '../../services/api'
 import { confirm } from '@/composables/useConfirm'
@@ -170,6 +181,9 @@ const RELATIONS = ['requires', 'provides', 'part_of', 'alternative_to']
 
 const notify = inject('notify', (m) => console.log(m))
 
+// `nodes` is now ONE PAGE, not the whole graph. Search, lifecycle filtering, counts and the edge-target
+// lookup are all server-side — the page used to walk every page on mount (1200+ nodes, 13 sequential
+// round trips before first paint) just to filter and tally them in JavaScript.
 const nodes = ref([])
 const gov = ref(null)
 const loading = ref(true)
@@ -181,76 +195,126 @@ const q = ref('')
 const tab = ref('all')
 const tabs = ['all', ...LIFECYCLES]
 const selectedId = ref(null)
+// The selected node is fetched in FULL (aliases + edges); the list rows are row-sized, and the
+// selection must survive paging away from the page it was picked on.
+const selectedNode = ref(null)
+const counts = ref({ all: 0 })
+const page = ref(1)
+const pageSize = 50
+const total = ref(0)
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
 const newAlias = ref('')
 const edgeRelation = ref('requires')
 const edgeQuery = ref('')
 const edgeDst = ref(null)
 
-const selected = computed(() => nodes.value.find((n) => n.id === selectedId.value) || null)
+const selected = computed(() => selectedNode.value)
 const otherLifecycles = computed(() => LIFECYCLES.filter((s) => s !== selected.value?.lifecycle))
 
-const counts = computed(() => {
-  const c = { all: nodes.value.length }
-  for (const n of nodes.value) c[n.lifecycle] = (c[n.lifecycle] || 0) + 1
-  return c
-})
+// The server already applied the search + lifecycle filter, so a page is rendered as-is.
+const visibleNodes = computed(() => nodes.value)
 
-const visibleNodes = computed(() => {
-  const needle = q.value.trim().toLowerCase()
-  return nodes.value.filter((n) => {
-    if (tab.value !== 'all' && n.lifecycle !== tab.value) return false
-    if (!needle) return true
-    return `${n.slug} ${n.name || ''} ${n.canonical_tool_name || ''}`.toLowerCase().includes(needle)
-  })
-})
-
-const dstMatches = computed(() => {
-  const needle = edgeQuery.value.trim().toLowerCase()
-  if (!needle) return []
-  return nodes.value
-    .filter((n) => n.id !== selected.value?.id)
-    .filter((n) => `${n.slug} ${n.name || ''}`.toLowerCase().includes(needle))
-    .slice(0, 8)
-})
+// Edge targets are looked up on the server too — the picker used to scan the full in-memory graph.
+const dstMatches = ref([])
+let _dstSeq = 0
+let _dstTimer = null
+function onEdgeQueryInput() {
+  clearTimeout(_dstTimer)
+  _dstTimer = setTimeout(searchDst, 200)
+}
+async function searchDst() {
+  const needle = edgeQuery.value.trim()
+  if (!needle) { dstMatches.value = []; return }
+  const seq = ++_dstSeq
+  try {
+    const { data } = await api.get('/capability-nodes/', { params: { q: needle, page_size: 8 } })
+    if (seq !== _dstSeq) return                     // a newer keystroke already won
+    const rows = Array.isArray(data) ? data : (data.results || [])
+    dstMatches.value = rows.filter((n) => n.id !== selected.value?.id)
+  } catch { dstMatches.value = [] }
+}
 
 function shortDate(d) { try { return new Date(d).toLocaleDateString() } catch { return '' } }
 
-function select(n) {
+// List rows are row-sized, so opening one fetches the full node (aliases + edges) for the detail pane.
+async function select(n) {
   selectedId.value = n.id
   newAlias.value = ''
   edgeQuery.value = ''
   edgeDst.value = null
+  dstMatches.value = []
+  selectedNode.value = n                      // render immediately from the row…
+  try {
+    const { data } = await api.get(`/capability-nodes/${n.id}/`)
+    if (selectedId.value === n.id) selectedNode.value = data   // …then fill in the detail
+  } catch { /* keep the row-level view; the detail blocks stay empty */ }
 }
 
-function jumpTo(nodeId) {
-  const n = nodes.value.find((x) => x.id === nodeId)
-  if (n) select(n)
+// An edge target may live on any page, so resolve it by id rather than hunting the loaded page.
+async function jumpTo(nodeId) {
+  const onPage = nodes.value.find((x) => x.id === nodeId)
+  if (onPage) return select(onPage)
+  try {
+    const { data } = await api.get(`/capability-nodes/${nodeId}/`)
+    selectedId.value = data.id
+    selectedNode.value = data
+    newAlias.value = ''
+    edgeQuery.value = ''
+    edgeDst.value = null
+    dstMatches.value = []
+  } catch { /* node not reachable — leave the current selection alone */ }
 }
 
 function pickDst(m) { edgeDst.value = m; edgeQuery.value = m.slug }
 
+// Curation actions return the refreshed node: it becomes the selection, and the matching list row is
+// updated in place when it happens to be on the current page.
 function replaceNode(updated) {
+  selectedNode.value = updated
   const i = nodes.value.findIndex((n) => n.id === updated.id)
   if (i >= 0) nodes.value.splice(i, 1, updated)
-  else nodes.value.push(updated)
 }
 
 async function loadNodes() {
   loading.value = true; error.value = false
   try {
-    const all = []
-    let page = 1
-    for (;;) {
-      const { data } = await api.get('/capability-nodes/', { params: { page_size: 100, page } })
-      const rows = Array.isArray(data) ? data : (data.results || [])
-      all.push(...rows)
-      if (Array.isArray(data) || !data.next || page >= 50) break
-      page += 1
+    const params = { page: page.value, page_size: pageSize }
+    if (q.value.trim()) params.q = q.value.trim()
+    if (tab.value !== 'all') params.lifecycle = tab.value
+    const { data } = await api.get('/capability-nodes/', { params })
+    if (Array.isArray(data)) {
+      nodes.value = data
+      total.value = data.length
+    } else {
+      nodes.value = data.results || []
+      total.value = data.count ?? nodes.value.length
     }
-    nodes.value = all
   } catch (e) { error.value = true }
   loading.value = false
+}
+
+async function loadCounts() {
+  try {
+    const params = q.value.trim() ? { q: q.value.trim() } : {}
+    const { data } = await api.get('/capability-nodes/counts/', { params })
+    counts.value = data || { all: 0 }
+  } catch { /* tabs just show 0 — non-fatal */ }
+}
+
+// Search is debounced so typing doesn't fire a request per keystroke; changing the search or the tab
+// always returns to page 1 (page 7 of a different filter is meaningless).
+let _searchTimer = null
+watch(q, () => {
+  clearTimeout(_searchTimer)
+  _searchTimer = setTimeout(() => { page.value = 1; loadNodes(); loadCounts() }, 250)
+})
+watch(tab, () => { page.value = 1; loadNodes() })
+watch(page, loadNodes)
+
+function goPage(n) {
+  const next = Math.min(Math.max(1, n), totalPages.value)
+  if (next !== page.value) page.value = next
 }
 
 async function loadGovernance() {
@@ -258,7 +322,8 @@ async function loadGovernance() {
   catch (e) { /* strip stays in its loading state; the list still works */ }
 }
 
-function loadAll() { loadNodes(); loadGovernance() }
+// Three independent reads, fired in PARALLEL — the list no longer blocks on anything else.
+function loadAll() { loadNodes(); loadCounts(); loadGovernance() }
 
 async function transitionTo(state) {
   transitioning.value = true
@@ -266,6 +331,11 @@ async function transitionTo(state) {
     const { data } = await api.post(`/capability-nodes/${selected.value.id}/transition/`, { to_state: state })
     replaceNode(data)
     notify(`${data.slug} → ${data.lifecycle}`, 'success')
+    // A lifecycle change moves the node between tabs, so both the tab totals and — when a lifecycle
+    // tab is active — the current page are now stale. Counts were free to recompute when the whole
+    // graph lived in memory; server-side they must be re-read.
+    loadCounts()
+    if (tab.value !== 'all') loadNodes()
     loadGovernance()
   } catch (e) {
     notify(e?.response?.data?.detail || 'Transition failed', 'error')
@@ -328,7 +398,7 @@ async function seedFromTools() {
   try {
     const { data } = await api.post('/capability-nodes/sync/', { apply: true })
     notify(data.created?.length ? `Seeded ${data.created.length} draft node(s)` : 'Nothing to seed — every tool is covered', 'success')
-    await Promise.all([loadNodes(), loadGovernance()])
+    await Promise.all([loadNodes(), loadCounts(), loadGovernance()])
   } catch (e) {
     notify(e?.response?.data?.detail || 'Seeding failed', 'error')
   }
@@ -381,6 +451,15 @@ onMounted(loadAll)
 .tab em { font-style: normal; opacity: .65; margin-left: 2px; }
 .tab.on { background: #4f46e5; color: #fff; }
 .rows { max-height: 62vh; overflow-y: auto; }
+/* Pager for the server-paged node list. */
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 12px; border-top: 1px solid #f1f5f9; }
+.pg-info { color: #64748b; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.pg-btn { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid #e2e8f0;
+  border-radius: 8px; background: #fff; color: #475569; cursor: pointer; }
+.pg-btn:hover:not(:disabled) { background: #f8fafc; color: #1e293b; }
+.pg-btn:disabled { opacity: .45; cursor: default; }
+.pg-btn svg { width: 15px; height: 15px; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent; padding: 11px 14px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
 .row:hover { background: #f8fafc; }
 .row.sel { background: #eef2ff; }
