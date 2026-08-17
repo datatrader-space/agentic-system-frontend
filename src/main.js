@@ -334,6 +334,7 @@ const router = createRouter({
         { path: 'help-content', name: 'admin-help-content', component: () => import('./views/admin/AdminHelpContent.vue') },
         { path: 'guided-tours', name: 'admin-guided-tours', component: () => import('./views/admin/AdminGuidedTours.vue') },
         { path: 'builtin-agents', name: 'admin-builtin-agents', component: () => import('./views/admin/AdminBuiltinAgents.vue') },
+        { path: 'builtin-skills', name: 'admin-builtin-skills', component: () => import('./views/admin/AdminBuiltinSkills.vue') },
         // Agent builder inside the ADMIN shell. Same AgentEditor component as /dashboard (ONE editor,
         // no fork) — admins editing a system/built-in agent stay on the admin side instead of being
         // bounced into the user dashboard. AgentEditor derives its breadcrumb/redirect base from the

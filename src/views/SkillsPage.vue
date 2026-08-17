@@ -52,14 +52,6 @@
         <textarea v-model="draft.body" rows="5" placeholder="Full instructions (Markdown)"
                   class="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[13px] font-mono focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"></textarea>
       </div>
-      <!-- Staff only: curate this as a BUILT-IN skill (system-owned, visible/assignable to every user) —
-           mirrors built-in agents; normal users never see this control. -->
-      <label v-if="isStaff" class="mt-3 flex items-center gap-2 text-[12.5px] font-semibold text-[#475467]">
-        <input type="checkbox" v-model="draft.makeSystem" :disabled="editingIsSystem"
-               class="h-4 w-4 rounded border-[#E5E7EB] text-indigo-600 focus:ring-indigo-500/30" />
-        Built-in skill — available to every user
-        <span v-if="editingIsSystem" class="font-normal text-[#98A2B3]">(already a built-in)</span>
-      </label>
       <div class="mt-3 flex items-center gap-2">
         <button type="button" @click="save" :disabled="creating || !canCreate"
                 class="rounded-lg bg-indigo-600 px-3.5 py-2 text-[12.5px] font-semibold text-white hover:bg-indigo-700 disabled:opacity-50">
@@ -105,14 +97,18 @@
         </div>
       </div>
 
-      <!-- Built-in library: curated SYSTEM skills as marketplace cards. Everyone assigns them to
-           agents; staff also curate (edit/trust/delete) straight from the card. -->
+      <!-- Built-in library: curated SYSTEM skills as marketplace cards. Read-only here for everyone —
+           users assign them to agents; ADMINS curate them on the Admin → Built-in Skills page. -->
       <section class="mb-6">
         <div class="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
           <h2 class="text-[15px] font-bold tracking-tight text-[#0F172A]">
             Built-in library <span class="font-semibold text-[#98A2B3]">{{ visibleBuiltin.length }}</span>
           </h2>
-          <span class="text-[11.5px] text-[#98A2B3]">Curated by the platform — assign them to any agent</span>
+          <span class="flex items-center gap-2 text-[11.5px] text-[#98A2B3]">
+            Curated by the platform — assign them to any agent
+            <router-link v-if="isStaff" to="/admin-dashboard/builtin-skills"
+                         class="font-semibold text-indigo-600 hover:underline">Manage in Admin →</router-link>
+          </span>
         </div>
 
         <div v-if="!visibleBuiltin.length"
@@ -121,8 +117,7 @@
             {{ builtinSkills.length ? 'No built-in skills match your search.' : 'No built-in skills yet' }}
           </p>
           <p v-if="!builtinSkills.length" class="mt-1 text-[12px] text-[#98A2B3]">
-            <template v-if="isStaff">Create or Import a skill and check “Built-in skill — available to every
-              user” to publish it here.</template>
+            <template v-if="isStaff">Publish built-in skills from Admin → Built-in Skills.</template>
             <template v-else>The platform hasn’t published curated skills yet — your own skills below work
               the same way.</template>
           </p>
@@ -151,14 +146,7 @@
               <router-link to="/dashboard/agents" class="text-[11.5px] font-semibold text-indigo-600 hover:underline">
                 Assign to agent →
               </router-link>
-              <div v-if="isStaff" class="flex items-center gap-1">
-                <button type="button" @click="startEdit(s)"
-                        class="rounded-md border border-[#E5E7EB] bg-white px-2 py-0.5 text-[10.5px] font-semibold text-[#475467] hover:bg-[#F8FAFC]">Edit</button>
-                <button type="button" @click="toggleTrust(s)"
-                        class="rounded-md border border-[#E5E7EB] bg-white px-2 py-0.5 text-[10.5px] font-semibold text-[#475467] hover:bg-[#F8FAFC]">{{ s.trust_status === 'trusted' ? 'Untrust' : 'Trust' }}</button>
-                <button type="button" @click="remove(s)"
-                        class="rounded-md border border-red-200 bg-white px-2 py-0.5 text-[10.5px] font-semibold text-red-600 hover:bg-red-50">Delete</button>
-              </div>
+              <span class="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-600">Built-in</span>
             </div>
           </div>
         </div>
@@ -263,9 +251,9 @@ const createMode = ref('fields')   // fields | paste | import (bundle: git URL o
 const skillMd = ref('')
 const importUrl = ref('')
 const zipEl = ref(null)
-const draft = ref({ name: '', description: '', body: '', makeSystem: false })
+const draft = ref({ name: '', description: '', body: '' })
 const editingId = ref(null)   // null = creating; an id = editing that skill
-const isStaff = ref(false)    // staff curate BUILT-IN (system) skills — same pattern as built-in agents
+const isStaff = ref(false)    // staff-only "Manage in Admin →" link; curation lives on the admin page
 
 // Marketplace state (9.6): one search + one category filter across BOTH sections. Filtering is
 // presentation-only (pure helpers) — visibility/trust stay whatever the backend returned.
@@ -312,11 +300,6 @@ const visibleMine = computed(() => {
 // Chips come from the SEARCH-visible set (not category-filtered — picking one must not hide the rest).
 const categories = computed(() => categoriesOf(filterSkills(skills.value, query.value)))
 const scriptCount = (s) => (s.files || []).filter(f => f.is_script).length
-
-const editingIsSystem = computed(() => {
-  const s = editingId.value && skills.value.find(x => x.id === editingId.value)
-  return !!(s && s.visibility === 'system')
-})
 
 const canCreate = computed(() => {
   if (editingId.value) return !!draft.value.name.trim()
@@ -373,7 +356,7 @@ watch(builtinPageCount, (n) => { if (builtinPage.value > n) builtinPage.value = 
 function newSkill() {
   editingId.value = null
   createMode.value = 'fields'
-  draft.value = { name: '', description: '', body: '', makeSystem: false }
+  draft.value = { name: '', description: '', body: '' }
   skillMd.value = ''
   importUrl.value = ''
   showCreate.value = true
@@ -382,62 +365,54 @@ function newSkill() {
 function startEdit(s) {
   editingId.value = s.id
   createMode.value = 'fields'
-  draft.value = { name: s.name || '', description: s.description || '', body: s.body || '',
-                  makeSystem: s.visibility === 'system' }
+  draft.value = { name: s.name || '', description: s.description || '', body: s.body || '' }
   showCreate.value = true
 }
 
 function resetForm() {
   editingId.value = null
-  draft.value = { name: '', description: '', body: '', makeSystem: false }
+  draft.value = { name: '', description: '', body: '' }
   skillMd.value = ''
   importUrl.value = ''
   showCreate.value = false
 }
 
-async function installBundle(makeSystem) {
+async function installBundle() {
   // Bundle install (git URL or zip) → POST /skills/install/ — lands imported+untrusted; scripts stay
-  // locked until the skill is trusted (the backend enforces both).
+  // locked until the skill is trusted (the backend enforces both). Always PRIVATE from this page —
+  // built-ins are published from Admin → Built-in Skills.
   const file = zipEl.value?.files?.[0]
   let res
   if (file) {
     const fd = new FormData()
     fd.append('zip_file', file)
-    if (makeSystem) fd.append('make_system', 'true')
     res = await api.post('/skills/install/', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
   } else {
-    const body = { git_url: importUrl.value.trim() }
-    if (makeSystem) body.make_system = true
-    res = await api.post('/skills/install/', body)
+    res = await api.post('/skills/install/', { git_url: importUrl.value.trim() })
   }
   return res.data
 }
 
 async function save() {
   creating.value = true
-  // make_system is staff-only intent (the backend strips it for everyone else) — sent only when the
-  // box is CHECKED and the skill isn't already a built-in (promote-on-edit works too).
-  const makeSystem = isStaff.value && draft.value.makeSystem && !editingIsSystem.value
   try {
     if (editingId.value) {
       const body = { name: draft.value.name.trim(), description: draft.value.description.trim(),
                      body: draft.value.body }
-      if (makeSystem) body.make_system = true
       const { data } = await api.patch(`/skills/${editingId.value}/`, body)
       skills.value = skills.value.map(s => s.id === data.id ? data : s)
       notify.success(`Updated ${data.name}`)
     } else if (createMode.value === 'import') {
-      const data = await installBundle(makeSystem)
+      const data = await installBundle()
       skills.value = [data, ...skills.value]
       notify.success(`Installed ${data.name} — mark it trusted to unlock its scripts`)
     } else {
       const payload = createMode.value === 'paste'
         ? { skill_md: skillMd.value }
         : { name: draft.value.name.trim(), description: draft.value.description.trim(), body: draft.value.body }
-      if (makeSystem) payload.make_system = true
       const { data } = await api.post('/skills/', payload)
       skills.value = [data, ...skills.value]
-      notify.success(makeSystem ? `Created built-in skill ${data.name}` : `Created ${data.name}`)
+      notify.success(`Created ${data.name}`)
     }
     resetForm()
   } catch (e) {

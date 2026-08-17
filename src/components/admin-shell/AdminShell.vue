@@ -97,6 +97,7 @@ const nav = [
   { to: '/admin-dashboard/help-center', match: '/admin-dashboard/help-center', label: 'Help Center', icon: ['M4 4h16v16H4z', 'M8 8h8', 'M8 12h8', 'M8 16h5'] },
   { to: '/admin-dashboard/help-analytics', label: 'Help Analytics', icon: ['M3 3v18h18', 'M7 16l4-4 3 3 5-6'] },
   { to: '/admin-dashboard/builtin-agents', label: 'Built-in Agents', icon: ['M12 8V4H8', 'M4 12a8 8 0 0 1 8-8', 'M2 14h2', 'M20 14h2', 'M15 13v2', 'M9 13v2', 'M6 10h12v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z'] },
+  { to: '/admin-dashboard/builtin-skills', label: 'Built-in Skills', icon: ['M12 3 2 8l10 5 10-5z', 'M4 10v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6', 'M8 12v5', 'M16 12v5'] },
   { to: '/admin-dashboard/super-agent', label: 'Super Agent', icon: ['M12 2l2.4 5.4 5.6.6-4.2 3.9 1.2 5.6L12 14.9 7 17.5l1.2-5.6L4 8l5.6-.6L12 2z'] },
   { to: '/admin-dashboard/trace-waterfall', label: 'Trace Waterfall', icon: ['M3 3v18h18', 'M7 8h6', 'M7 12h10', 'M7 16h4'] },
   { to: '/admin-dashboard/eval-snapshot', label: 'Eval Snapshot', icon: ['M3 3v18h18', 'M7 16l4-4 3 3 5-6'] },
