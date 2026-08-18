@@ -39,6 +39,10 @@
             <span class="stat-chip"><b>{{ mcpCount }}</b> MCP</span>
             <span class="stat-chip"><b>{{ customCount }}</b> custom</span>
           </div>
+          <button class="skills-btn" @click="openSkills" title="Reusable playbooks you assign to agents">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
+            Skills
+          </button>
           <div class="add-wrap">
             <button class="add-btn" @click="addMenuOpen = !addMenuOpen">
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v16m8-8H4"></path></svg>
@@ -375,7 +379,7 @@
     <MCPServerModal v-if="showMcpModal" :server="editMcpServer" @close="showMcpModal = false; editMcpServer = null" @saved="onMcpSaved" />
 
     <!-- Connector catalog directory (opened from + -> Browse) -->
-    <IntegrationHubModal v-if="showHub" :connectors="connectors" @close="showHub = false" @installed="loadConnectors" />
+    <IntegrationHubModal v-if="showHub" :connectors="connectors" :initial-view="hubView" @close="closeHub" @installed="loadConnectors" />
 
     <!-- Manage MCP server in-page (reuses MCPServerDetailModal) — no redirect to /dashboard/mcp -->
     <MCPServerDetailModal v-if="mcpDetail" :server="mcpDetail" @close="closeMcpDetail" @updated="openMcpManageRefresh" @edit="onMcpDetailEdit" />
@@ -511,6 +515,9 @@ const credModalConnector = ref(null)
 const addMenuOpen = ref(false)
 const showMcpModal = ref(false)
 const showHub = ref(false)
+// Which tab the catalog opens on: 'hub' | 'installed' | 'skills'. Skills lives in this modal now —
+// the retired /dashboard/skills route redirects here with ?tab=skills.
+const hubView = ref('hub')
 const showServiceReg = ref(false)
 const mcpDetail = ref(null) // fetched { server, tools, ... } for the MCP manage modal
 const editMcpServer = ref(null) // server object when editing config from the detail modal
@@ -522,7 +529,23 @@ function openCustomMcp() {
 }
 function openBrowse() {
   addMenuOpen.value = false
+  hubView.value = 'hub'
   showHub.value = true
+}
+function openSkills() {
+  addMenuOpen.value = false
+  hubView.value = 'skills'
+  showHub.value = true
+}
+// Closing drops ?tab= as well, so a refresh (or the browser Back button) doesn't reopen the modal
+// the user just dismissed.
+function closeHub() {
+  showHub.value = false
+  if (route.query.tab) {
+    const q = { ...route.query }
+    delete q.tab
+    router.replace({ path: route.path, query: q })
+  }
 }
 function openRegisterService() {
   addMenuOpen.value = false
@@ -895,6 +918,12 @@ onMounted(() => {
   if (typeof qScope === 'string' && (qScope === 'global' || qScope.startsWith('agent:'))) {
     scope.value = qScope
   }
+  // Deep-link: ?tab=skills|installed|catalog opens the catalog modal straight onto that tab.
+  const qTab = route.query.tab
+  if (typeof qTab === 'string' && ['skills', 'installed', 'catalog'].includes(qTab)) {
+    hubView.value = qTab === 'catalog' ? 'hub' : qTab
+    showHub.value = true
+  }
   loadConnectorsBundle()
 })
 </script>
@@ -928,6 +957,14 @@ onMounted(() => {
   font: 700 13px var(--vm-font-sans); box-shadow: var(--vm-glow-v); transition: transform .15s var(--vm-ease);
 }
 .add-btn:hover { transform: translateY(-1px); }
+/* Secondary to "Add connector": same row, quieter weight — skills are a sibling of connectors here. */
+.skills-btn {
+  display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--vm-line); cursor: pointer;
+  padding: 9px 14px; border-radius: 12px; background: var(--vm-glass-strong); color: var(--vm-ink);
+  font: 700 13px var(--vm-font-sans); transition: background .15s var(--vm-ease);
+}
+.skills-btn:hover { background: rgba(99,102,241,.08); }
+.skills-btn svg { width: 15px; height: 15px; }
 .add-btn svg { width: 15px; height: 15px; }
 .add-menu { position: absolute; right: 0; top: calc(100% + 8px); width: 230px; z-index: 20;
   background: var(--vm-glass-strong); backdrop-filter: blur(18px); border: 1px solid var(--vm-line);
@@ -1102,6 +1139,7 @@ onMounted(() => {
 .stat-chip { padding: 7px 14px; background: #F8FAFC; border-color: #E2E8F0; color: #0F172A; font-weight: 800; }
 .stat-chip b.ok { color: #10B981; }
 .add-btn { border-radius: 8px; background: #2563EB; box-shadow: 0 1px 2px rgba(37,99,235,.25); font-weight: 800; }
+.skills-btn { border-radius: 8px; background: #fff; border-color: #E2E8F0; color: #0F172A; font-weight: 800; }
 .add-menu { background: #fff; border-color: #E2E8F0; border-radius: 12px; box-shadow: 0 18px 38px rgba(15,23,42,.14); }
 .conn-grid { gap: 16px; }
 @media (min-width: 1024px) { .conn-grid { grid-template-columns: minmax(330px, 390px) minmax(0, 1fr); } }

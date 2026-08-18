@@ -66,7 +66,6 @@ const AgentApprovalsPage = () => import('./views/AgentApprovalsPage.vue')
 const SchedulesPage = () => import('./views/SchedulesPage.vue')
 const AgentLibrary = () => import('./views/AgentLibrary.vue')
 const SuperAgentView = () => import('./views/SuperAgentView.vue')
-const SkillsPage = () => import('./views/SkillsPage.vue')
 const DelegationsPage = () => import('./views/DelegationsPage.vue')
 const AgentOverview = () => import('./views/AgentOverview.vue')
 const AgentEditor = () => import('./views/AgentEditor.vue')
@@ -230,7 +229,9 @@ const router = createRouter({
         // (The old top-level routes below remain for back-compat / deep links.)
         { path: 'agents', name: 'dashboard-agents', component: AgentLibrary },
         { path: 'super-agent', name: 'dashboard-super-agent', component: SuperAgentView },
-        { path: 'skills', name: 'dashboard-skills', component: SkillsPage },
+        // Skills moved INTO the connector catalog modal (its Skills tab) — one home for the things
+        // you attach to an agent. Old links/bookmarks land on that tab.
+        { path: 'skills', name: 'dashboard-skills', redirect: '/dashboard/connectors?tab=skills' },
         { path: 'delegations', name: 'dashboard-delegations', component: DelegationsPage },
         { path: 'built-in-agents', name: 'builtin-agent-library', component: () => import('./views/BuiltinAgentLibrary.vue') },
         { path: 'agents/new', name: 'dashboard-agent-new', component: AgentEditor },

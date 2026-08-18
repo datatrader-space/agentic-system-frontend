@@ -1,4 +1,4 @@
-// Pure helpers for the Skills marketplace view (Phase 9.6) — extracted from SkillsPage.vue so the
+// Pure helpers for the Skills marketplace view (Phase 9.6) — extracted from SkillsLibraryPanel.vue so the
 // category derivation and search filtering are unit-testable without mounting the SFC. Presentation
 // logic ONLY: trust/visibility/script rules stay backend-enforced, these just organize what the
 // list endpoint already returned.

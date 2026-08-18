@@ -1,11 +1,12 @@
 <template>
   <!-- Skills library (Phase 9.3) — manage installable playbooks independent of any agent. Own skills are
-       editable/deletable + trust-toggle; curated system skills are read-only (assign them in an agent). -->
-  <div class="mx-auto w-full max-w-[980px] px-6 py-8 font-[Inter,system-ui,sans-serif]">
-    <div class="mb-5 flex items-start justify-between gap-3 flex-wrap">
+       editable/deletable + trust-toggle; curated system skills are read-only (assign them in an agent).
+       Rendered as the Skills tab of the Connector Catalog modal — it used to be /dashboard/skills. -->
+  <div class="skills-panel">
+    <div class="skills-head">
       <div>
-        <h1 class="text-[24px] font-bold tracking-tight text-[#0F172A]">Skills</h1>
-        <p class="mt-1 text-[13.5px] text-[#64748B]">
+        <h3>Skills</h3>
+        <p>
           Reusable playbooks — expert instructions you assign to agents. They inject know-how, not tools, and
           load on demand.
         </p>
@@ -101,13 +102,13 @@
            users assign them to agents; ADMINS curate them on the Admin → Built-in Skills page. -->
       <section class="mb-6">
         <div class="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
-          <h2 class="text-[15px] font-bold tracking-tight text-[#0F172A]">
+          <h4 class="text-[14px] font-bold tracking-tight text-[#0F172A]">
             Built-in library <span class="font-semibold text-[#98A2B3]">{{ visibleBuiltin.length }}</span>
-          </h2>
+          </h4>
           <span class="flex items-center gap-2 text-[11.5px] text-[#98A2B3]">
             Curated by the platform — assign them to any agent
-            <router-link v-if="isStaff" to="/admin-dashboard/builtin-skills"
-                         class="font-semibold text-indigo-600 hover:underline">Manage in Admin →</router-link>
+            <button v-if="isStaff" type="button" @click="go('/admin-dashboard/builtin-skills')"
+                    class="font-semibold text-indigo-600 hover:underline">Manage in Admin →</button>
           </span>
         </div>
 
@@ -123,7 +124,7 @@
           </p>
         </div>
 
-        <div v-else class="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+        <div v-else class="skills-grid">
           <div v-for="s in pagedBuiltin" :key="s.id"
                class="flex flex-col rounded-xl border border-[#E5E7EB] bg-white p-4">
             <div class="flex items-start justify-between gap-2">
@@ -143,16 +144,17 @@
                     class="font-semibold text-amber-600"> · scripts locked until trusted</span>
             </p>
             <div class="mt-auto flex items-center justify-between gap-2 pt-3">
-              <router-link to="/dashboard/agents" class="text-[11.5px] font-semibold text-indigo-600 hover:underline">
+              <button type="button" @click="go('/dashboard/agents')"
+                      class="text-[11.5px] font-semibold text-indigo-600 hover:underline">
                 Assign to agent →
-              </router-link>
+              </button>
               <span class="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-600">Built-in</span>
             </div>
           </div>
         </div>
 
         <!-- Pager — pages the FILTERED set; search/category/semantic changes reset to page 1. -->
-        <div v-if="builtinPageCount > 1" class="mt-3 flex items-center justify-center gap-1.5">
+        <div v-if="builtinPageCount > 1" class="mt-3 flex flex-wrap items-center justify-center gap-1.5">
           <button type="button" :disabled="builtinPage === 1" @click="builtinPage--"
                   class="rounded-md border border-[#E5E7EB] bg-white px-2.5 py-1 text-[12px] font-semibold text-[#475467] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-40">
             ‹ Prev
@@ -180,9 +182,9 @@
       <!-- My skills: the user's own playbooks — existing list treatment, full control. -->
       <section>
         <div class="mb-2.5 flex items-baseline gap-2">
-          <h2 class="text-[15px] font-bold tracking-tight text-[#0F172A]">
+          <h4 class="text-[14px] font-bold tracking-tight text-[#0F172A]">
             My skills <span class="font-semibold text-[#98A2B3]">{{ visibleMine.length }}</span>
-          </h2>
+          </h4>
         </div>
 
         <div v-if="!visibleMine.length"
@@ -238,10 +240,16 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { BookOpen, Search } from 'lucide-vue-next'
-import api from '../services/api'
+import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { skillCategory, filterSkills, categoriesOf } from './skillsMarketplace'
+
+// The panel lives inside the Connector Catalog modal, so it never routes on its own: it asks the host
+// to navigate and the host closes the modal first — otherwise the route changes underneath a modal
+// that is still mounted on top of it.
+const emit = defineEmits(['navigate', 'count'])
+const go = (path) => emit('navigate', path)
 
 const skills = ref([])
 const loading = ref(true)
@@ -307,6 +315,8 @@ const canCreate = computed(() => {
   if (createMode.value === 'import') return !!(importUrl.value.trim() || zipEl.value?.files?.length)
   return !!draft.value.name.trim()
 })
+
+watch(() => skills.value.length, (n) => emit('count', n))
 
 function pickArray(d) { return Array.isArray(d) ? d : (d?.results ?? []) }
 
@@ -451,3 +461,21 @@ onMounted(async () => {
   try { const { data } = await api.checkAuth(); isStaff.value = !!data?.user?.is_staff } catch { /* non-staff */ }
 })
 </script>
+
+<style scoped>
+.skills-panel { font-family: Inter, system-ui, sans-serif; }
+.skills-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+/* Same heading scale as the catalog tab so switching tabs doesn't shift the eye. */
+.skills-head h3 { margin: 0; font-size: 15px; font-weight: 800; color: #0F172A; }
+.skills-head p { margin: 6px 0 0; max-width: 62ch; font-size: 12.5px; color: #64748B; }
+.skills-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 1180px) { .skills-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 720px)  { .skills-grid { grid-template-columns: 1fr; } }
+</style>

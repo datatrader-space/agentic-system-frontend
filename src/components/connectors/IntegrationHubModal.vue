@@ -8,14 +8,17 @@
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
           </span>
           <div>
-            <h2 class="hub-title text-[15px] font-bold text-ink">Connector Catalog</h2>
-            <p class="hub-subtitle">Connect Aadml with the tools and services you use every day.</p>
+            <h2 class="hub-title text-[15px] font-bold text-ink">{{ view === 'skills' ? 'Skills &amp; Connectors' : 'Connector Catalog' }}</h2>
+            <p class="hub-subtitle">{{ view === 'skills'
+              ? 'Playbooks your agents load on demand — managed beside the tools they use.'
+              : 'Connect Aadml with the tools and services you use every day.' }}</p>
           </div>
         </div>
         <div class="flex items-center gap-2">
           <div v-if="!detailItem" class="hub-tabs flex gap-1 p-1 bg-slate-100 rounded-lg">
             <button @click="view = 'hub'" :class="['px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors', view === 'hub' ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700']">Catalog</button>
             <button @click="view = 'installed'" :class="['px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors', view === 'installed' ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700']">Installed Integrations <span class="hub-tab-count">{{ installedItems.length }}</span></button>
+            <button @click="view = 'skills'" :class="['px-3 py-1.5 rounded-md text-[12px] font-semibold transition-colors', view === 'skills' ? 'bg-white text-ink shadow-sm' : 'text-slate-500 hover:text-slate-700']">Skills <span v-if="skillCount" class="hub-tab-count">{{ skillCount }}</span></button>
           </div>
           <button @click="$emit('close')" class="hub-close px-3 py-1.5 rounded-lg text-[12px] font-semibold text-ink-soft bg-slate-100 hover:bg-slate-200 flex items-center gap-1.5">
             <Icon icon="lucide:x" class="h-4 w-4" />
@@ -234,7 +237,7 @@
       <!-- ============ GRID / DIRECTORY VIEW ============ -->
       <template v-else>
         <div class="catalog-shell flex-1 min-h-0 overflow-hidden">
-          <div class="catalog-toolbar">
+          <div v-if="view !== 'skills'" class="catalog-toolbar">
             <div class="catalog-search relative">
               <svg class="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path stroke-linecap="round" d="M21 21l-4-4"/></svg>
               <input v-model="query" placeholder="Search integrations..." />
@@ -246,6 +249,9 @@
 
           <div class="catalog-body">
             <main class="catalog-main">
+              <SkillsLibraryPanel v-if="view === 'skills'" @count="n => skillCount = n" @navigate="goTo" />
+
+              <template v-else>
               <h3>{{ view === 'installed' ? 'Installed Integrations' : 'All Integrations' }}</h3>
               <p>{{ view === 'installed' ? 'Connectors connected in this scope.' : 'Browse and connect integrations to extend Aadml.' }}</p>
 
@@ -277,9 +283,39 @@
               </div>
               <p v-if="view !== 'installed' && !catalogItems.length" class="catalog-empty">No integrations match "{{ query }}".</p>
               <button v-if="view !== 'installed'" class="catalog-request">Can't find what you need? Request an integration <Icon icon="lucide:external-link" /></button>
+              </template>
             </main>
 
-            <aside class="catalog-info">
+            <aside v-if="view === 'skills'" class="catalog-info">
+              <h4>About Skills</h4>
+              <section>
+                <Icon icon="lucide:book-open" />
+                <strong>What is a skill?</strong>
+                <p>A reusable playbook — expert instructions an agent loads on demand. Skills inject know-how; connectors give the agent tools to act with.</p>
+              </section>
+              <section>
+                <Icon icon="lucide:scan-line" />
+                <strong>Built-in vs your own</strong>
+                <p>Platform-curated skills are read-only here — assign them to any agent. Skills you create or import are yours to edit, trust and delete.</p>
+              </section>
+              <section>
+                <Icon icon="lucide:badge-check" />
+                <strong>How assigning works</strong>
+                <ol>
+                  <li>Find a skill in the library</li>
+                  <li>Open the agent you want to teach</li>
+                  <li>Add the skill in its Skills step</li>
+                  <li>The agent loads it when relevant</li>
+                </ol>
+              </section>
+              <div class="catalog-security">
+                <Icon icon="lucide:shield-check" />
+                <strong>Imported bundles start untrusted</strong>
+                <p>Scripts inside an imported skill bundle cannot run until you mark that skill trusted.</p>
+              </div>
+            </aside>
+
+            <aside v-else class="catalog-info">
               <h4>About Integrations</h4>
               <section>
                 <Icon icon="lucide:plug" />
@@ -386,18 +422,34 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { connectOAuth } from '@/composables/useOAuthConnect'
+import SkillsLibraryPanel from '../skills/SkillsLibraryPanel.vue'
 
 const props = defineProps({
   connectors: { type: Array, default: () => [] },
+  // Which tab opens first — 'hub' (catalog), 'installed', or 'skills'. /dashboard/skills redirects
+  // here with ?tab=skills, so a bookmark to the old page still lands on the right tab.
+  initialView: { type: String, default: 'hub' },
 })
 const emit = defineEmits(['close', 'installed'])
 
-const view = ref('hub')
+const router = useRouter()
+
+const view = ref(['hub', 'installed', 'skills'].includes(props.initialView) ? props.initialView : 'hub')
+// Reported by the Skills panel once its library loads — the tab badge stays quiet until then.
+const skillCount = ref(0)
+
+// The panel asks; we close first, then route. Leaving the modal mounted over a fresh page is the
+// bug this avoids.
+function goTo(path) {
+  emit('close')
+  router.push(path)
+}
 const query = ref('')
 const activeCategory = ref('All Categories')
 

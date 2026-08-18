@@ -1,5 +1,5 @@
 // Marketplace pure-function tests (9.6): category derivation + search/category filtering, exactly as
-// SkillsPage.vue consumes them via ./skillsMarketplace.js — no component mount needed.
+// SkillsLibraryPanel.vue consumes them via ./skillsMarketplace.js — no component mount needed.
 import { describe, it, expect } from 'vitest'
 import { skillCategory, matchesQuery, filterSkills, categoriesOf } from './skillsMarketplace'
 
