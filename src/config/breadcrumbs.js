@@ -84,6 +84,7 @@ export default {
   'admin-help-analytics': { label: 'Help analytics', parent: 'admin-overview' },
   'admin-builtin-agents': { label: 'Built-in agents', parent: 'admin-overview' },
   'admin-builtin-skills': { label: 'Built-in skills', parent: 'admin-overview' },
+  'admin-issues': { label: 'Issues', parent: 'admin-overview' },
   'admin-learning-monitor': { label: 'Learning monitor', parent: 'admin-overview' },
 
   // ── Public marketing (root: Home) ─────────────────────────────────────────
