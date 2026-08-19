@@ -1363,7 +1363,16 @@ export const useChatStore = defineStore('chat', {
             const tc =
               m.toolCalls.find((x) => x.name === name) ||
               m.toolCalls[m.toolCalls.length - 1]
-            if (tc) tc.status = msg.success === false ? 'error' : 'done'
+            if (tc) {
+              tc.status = msg.success === false ? 'error' : 'done'
+              // Surface the backend's user-facing failure text. Without this the card shows a bare
+              // "Tool failed" and the actionable message ("the image provider is rate-limiting this
+              // account — try again in a minute") is discarded, so the user has nothing to act on.
+              if (msg.success === false) {
+                tc.error = msg.error || ''
+                tc.failureKind = msg.failure_kind || ''
+              }
+            }
             // Live media render (delivery-path-independent): the runner emits generated images as
             // tool_result.media_artifacts. The body only renders images from message.content markdown,
             // so append each image URL here — this makes it show LIVE the moment it's generated, on EVERY
