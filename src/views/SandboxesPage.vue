@@ -32,47 +32,91 @@
       </p>
 
       <div class="exec-options">
-        <label
-          v-for="choice in execChoices"
-          :key="choice.value"
-          class="exec-option"
-          :class="{ 'is-active': execTarget === choice.value }"
-        >
+        <!-- The cloud sandbox, then ONE ENTRY PER CONNECTED MACHINE. A user can connect several, so
+             "my computer" is not a complete choice — it has to name one. -->
+        <label class="exec-option" :class="{ 'is-active': execTarget === 'daytona' }">
           <input
-            type="radio"
-            name="execution-target"
-            :value="choice.value"
-            :checked="execTarget === choice.value"
-            :disabled="savingTarget"
-            @change="onExecTargetChange(choice.value)"
+            type="radio" name="execution-target" value="daytona"
+            :checked="execTarget === 'daytona'" :disabled="savingTarget"
+            @change="selectCloud()"
           />
           <span class="exec-option-body">
             <span class="exec-option-title">
-              {{ choice.value === 'daytona' ? 'Isolated cloud sandbox' : 'My connected computer' }}
-              <em v-if="choice.value === 'daytona'" class="exec-tag exec-tag--safe">Recommended</em>
-              <em v-else class="exec-tag exec-tag--warn">Not sandboxed</em>
+              Isolated cloud sandbox
+              <em class="exec-tag exec-tag--safe">Recommended</em>
             </span>
             <span class="exec-option-desc">
-              <template v-if="choice.value === 'daytona'">
-                A fresh machine per task, with CPU and memory limits enforced. Nothing touches your own
-                computer.
-              </template>
-              <template v-else>
-                Runs in your connected workspace<template v-if="workspaceName"> ({{ workspaceName }})</template>.
-                This is a real folder on your machine: CPU and memory limits cannot be enforced there, only
-                a time limit.
-              </template>
+              A fresh machine per task, with CPU and memory limits enforced. Nothing touches your own
+              computer.
+            </span>
+          </span>
+        </label>
+
+        <label
+          v-for="ws in connectedWorkspaces"
+          :key="ws.id"
+          class="exec-option"
+          :class="{ 'is-active': execTarget === 'local_workspace' && selectedWorkspaceId === ws.id }"
+        >
+          <input
+            type="radio" name="execution-target" :value="ws.id"
+            :checked="execTarget === 'local_workspace' && selectedWorkspaceId === ws.id"
+            :disabled="savingTarget"
+            @change="selectWorkspace(ws.id)"
+          />
+          <span class="exec-option-body">
+            <span class="exec-option-title">
+              {{ ws.name }}
+              <em class="exec-tag exec-tag--live">Connected</em>
+              <em class="exec-tag exec-tag--warn">Not sandboxed</em>
+            </span>
+            <span class="exec-option-desc">
+              Runs on this machine<template v-if="ws.workspace_path"> in
+              <code>{{ ws.workspace_path }}</code></template>. A real folder on your computer: CPU and
+              memory limits cannot be enforced there, only a time limit.
+            </span>
+          </span>
+        </label>
+
+        <!-- The machine chosen earlier is no longer connected. Shown as a DISABLED row rather than
+             omitted, because a silently vanishing selection reads as "the setting was lost". -->
+        <label
+          v-if="selectedWorkspaceMissing"
+          class="exec-option is-active is-stale"
+        >
+          <input type="radio" checked disabled />
+          <span class="exec-option-body">
+            <span class="exec-option-title">
+              {{ workspaceName || 'Previously selected computer' }}
+              <em class="exec-tag exec-tag--off">Offline</em>
+            </span>
+            <span class="exec-option-desc">
+              Still selected, but not connected right now.
             </span>
           </span>
         </label>
       </div>
 
-      <!-- Chosen the local machine with nothing connected. Those calls are REFUSED rather than quietly
-           sent to the cloud, so say it here instead of letting a failed run explain it. -->
+      <p v-if="!connectedWorkspaces.length" class="exec-hint">
+        <Icon icon="lucide:monitor-smartphone" />
+        No computers connected. Connect one from
+        <RouterLink to="/dashboard/connectors">Connectors</RouterLink> to run code on your own machine.
+      </p>
+
+      <!-- The chosen machine is offline. Those calls are REFUSED rather than quietly sent to the cloud
+           — and never redirected to a DIFFERENT connected machine — so say so here rather than letting a
+           failed run explain it. -->
       <p v-if="localTargetUnavailable" class="exec-warn">
         <Icon icon="lucide:plug-zap" />
-        No computer is connected right now, so anything that needs to run will be refused rather than
-        sent to the cloud. Connect a workspace, or switch back to the cloud sandbox.
+        <span v-if="workspaceName">
+          <strong>{{ workspaceName }}</strong> is not connected right now, so anything that needs to run
+          will be refused — it will not be sent to the cloud or to another computer. Connect it, or pick
+          a different machine above.
+        </span>
+        <span v-else>
+          No machine is selected, so anything that needs to run will be refused. Pick one above, or
+          switch back to the cloud sandbox.
+        </span>
       </p>
     </section>
 
@@ -236,49 +280,67 @@ const sandboxPolicies = computed(() => sandboxUsage.value?.policies || [])
 // — so every agent they run follows it. Saved immediately on change (one field, instantly reversible);
 // a Save button for a single dropdown is friction with no payoff.
 const execTarget = ref('daytona')
-const execChoices = ref([])
+const selectedWorkspaceId = ref(null)
+const connectedWorkspaces = ref([])
 const workspaceConnected = ref(false)
 const workspaceName = ref('')
 const savingTarget = ref(false)
 
 const isLocalTarget = computed(() => execTarget.value === 'local_workspace')
-// The state worth warning about: the local machine is chosen and nothing is connected. Those calls are
-// REFUSED, never quietly redirected to the cloud, so the user should learn it here and not from a run.
+// The state worth warning about: a machine is chosen and it is NOT connected. Those calls are refused —
+// never redirected to the cloud, and never to a different machine that happens to be online — so the
+// user should learn it here rather than from a failed run.
 const localTargetUnavailable = computed(() => isLocalTarget.value && !workspaceConnected.value)
+// Chosen, but absent from the live list. Rendered as an offline row instead of disappearing, because a
+// selection that silently vanishes reads as "my setting was lost".
+const selectedWorkspaceMissing = computed(() =>
+  isLocalTarget.value &&
+  !connectedWorkspaces.value.some((w) => w.id === selectedWorkspaceId.value)
+)
+
+function applySettings(data) {
+  execTarget.value = data?.execution_target || 'daytona'
+  selectedWorkspaceId.value = data?.workspace ?? null
+  connectedWorkspaces.value = data?.connected_workspaces || []
+  workspaceConnected.value = !!data?.workspace_connected
+  workspaceName.value = data?.workspace_name || ''
+}
 
 async function loadSandboxSettings() {
   try {
     const { data } = await api.getSandboxSettings()
-    execTarget.value = data?.execution_target || 'daytona'
-    execChoices.value = data?.execution_target_choices || []
-    workspaceConnected.value = !!data?.workspace_connected
-    workspaceName.value = data?.workspace_name || ''
+    applySettings(data)
   } catch (e) {
-    execChoices.value = []
+    connectedWorkspaces.value = []
   }
 }
 
-async function onExecTargetChange(next) {
-  const previous = execTarget.value
-  execTarget.value = next
+async function save(payload, message) {
+  const previous = { execution_target: execTarget.value, workspace: selectedWorkspaceId.value }
   savingTarget.value = true
   try {
-    const { data } = await api.updateSandboxSettings({ execution_target: next })
-    execTarget.value = data?.execution_target || next
-    workspaceConnected.value = !!data?.workspace_connected
-    workspaceName.value = data?.workspace_name || ''
-    notify.success(
-      next === 'local_workspace'
-        ? 'Code will now run on your connected computer.'
-        : 'Code will now run in an isolated cloud sandbox.'
-    )
+    const { data } = await api.updateSandboxSettings(payload)
+    applySettings(data)
+    notify.success(message)
   } catch (e) {
-    // Revert the control so it never shows a selection the server did not accept.
-    execTarget.value = previous
-    notify.error('Could not change the execution target.')
+    // Revert so the control never shows a selection the server did not accept.
+    execTarget.value = previous.execution_target
+    selectedWorkspaceId.value = previous.workspace
+    notify.error('Could not change where code runs.')
   } finally {
     savingTarget.value = false
   }
+}
+
+const selectCloud = () =>
+  save({ execution_target: 'daytona' }, 'Code will now run in an isolated cloud sandbox.')
+
+// Picking a machine sets BOTH fields — a target of 'local_workspace' with no machine named is not a
+// state the UI should be able to produce.
+const selectWorkspace = (id) => {
+  const name = connectedWorkspaces.value.find((w) => w.id === id)?.name || 'your computer'
+  return save({ execution_target: 'local_workspace', workspace: id },
+              `Code will now run on ${name}.`)
 }
 
 async function reload() {
@@ -450,6 +512,24 @@ onMounted(reload)
   border-radius: 999px;
 }
 .exec-tag--safe { background: #e8f3ec; color: #1a7f47; }
+.exec-tag--live { background: #e8f3ec; color: #1a7f47; }
+.exec-tag--off { background: #eef1f5; color: #64748b; }
+.exec-option.is-stale { opacity: .68; cursor: default; }
+.exec-option-desc code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #eef2f8;
+  font-size: 11.5px;
+}
+.exec-hint {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: #5b6b82;
+}
+.exec-hint a { color: #2563eb; font-weight: 600; }
 /* Amber, not red: choosing your own machine is a legitimate decision, not an error. */
 .exec-tag--warn { background: #fdf1dc; color: #92610a; }
 .exec-warn {
