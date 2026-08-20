@@ -18,6 +18,64 @@
       </label>
     </header>
 
+    <!-- Where code runs. First panel on the page because it governs everything below it: the usage,
+         leases and costs shown further down only exist for the cloud option. -->
+    <section class="panel exec-panel" aria-label="Where code runs">
+      <div class="panel-head">
+        <h2>Where code runs</h2>
+        <span v-if="savingTarget" class="exec-saving">Saving…</span>
+      </div>
+
+      <p class="exec-intro">
+        Applies to every agent on your account — scripts, and file or shell steps that do not name a
+        machine themselves.
+      </p>
+
+      <div class="exec-options">
+        <label
+          v-for="choice in execChoices"
+          :key="choice.value"
+          class="exec-option"
+          :class="{ 'is-active': execTarget === choice.value }"
+        >
+          <input
+            type="radio"
+            name="execution-target"
+            :value="choice.value"
+            :checked="execTarget === choice.value"
+            :disabled="savingTarget"
+            @change="onExecTargetChange(choice.value)"
+          />
+          <span class="exec-option-body">
+            <span class="exec-option-title">
+              {{ choice.value === 'daytona' ? 'Isolated cloud sandbox' : 'My connected computer' }}
+              <em v-if="choice.value === 'daytona'" class="exec-tag exec-tag--safe">Recommended</em>
+              <em v-else class="exec-tag exec-tag--warn">Not sandboxed</em>
+            </span>
+            <span class="exec-option-desc">
+              <template v-if="choice.value === 'daytona'">
+                A fresh machine per task, with CPU and memory limits enforced. Nothing touches your own
+                computer.
+              </template>
+              <template v-else>
+                Runs in your connected workspace<template v-if="workspaceName"> ({{ workspaceName }})</template>.
+                This is a real folder on your machine: CPU and memory limits cannot be enforced there, only
+                a time limit.
+              </template>
+            </span>
+          </span>
+        </label>
+      </div>
+
+      <!-- Chosen the local machine with nothing connected. Those calls are REFUSED rather than quietly
+           sent to the cloud, so say it here instead of letting a failed run explain it. -->
+      <p v-if="localTargetUnavailable" class="exec-warn">
+        <Icon icon="lucide:plug-zap" />
+        No computer is connected right now, so anything that needs to run will be refused rather than
+        sent to the cloud. Connect a workspace, or switch back to the cloud sandbox.
+      </p>
+    </section>
+
     <p v-if="loading && !hasLoaded" class="loading-row">Loading sandboxes…</p>
 
   <!-- Sandbox time. Separate from the LLM cost panels above on purpose: this is PROVIDER
@@ -173,6 +231,56 @@ const sandboxRate = computed(() => sandboxUsage.value?.rate_card || {})
 const sandboxBudget = computed(() => sandboxUsage.value?.budget || {})
 const sandboxPolicies = computed(() => sandboxUsage.value?.policies || [])
 
+// ── Execution target ────────────────────────────────────────────────────────────────────────────────
+// ACCOUNT-level, not per-agent: what is being chosen is a MACHINE — this user's own connected workspace
+// — so every agent they run follows it. Saved immediately on change (one field, instantly reversible);
+// a Save button for a single dropdown is friction with no payoff.
+const execTarget = ref('daytona')
+const execChoices = ref([])
+const workspaceConnected = ref(false)
+const workspaceName = ref('')
+const savingTarget = ref(false)
+
+const isLocalTarget = computed(() => execTarget.value === 'local_workspace')
+// The state worth warning about: the local machine is chosen and nothing is connected. Those calls are
+// REFUSED, never quietly redirected to the cloud, so the user should learn it here and not from a run.
+const localTargetUnavailable = computed(() => isLocalTarget.value && !workspaceConnected.value)
+
+async function loadSandboxSettings() {
+  try {
+    const { data } = await api.getSandboxSettings()
+    execTarget.value = data?.execution_target || 'daytona'
+    execChoices.value = data?.execution_target_choices || []
+    workspaceConnected.value = !!data?.workspace_connected
+    workspaceName.value = data?.workspace_name || ''
+  } catch (e) {
+    execChoices.value = []
+  }
+}
+
+async function onExecTargetChange(next) {
+  const previous = execTarget.value
+  execTarget.value = next
+  savingTarget.value = true
+  try {
+    const { data } = await api.updateSandboxSettings({ execution_target: next })
+    execTarget.value = data?.execution_target || next
+    workspaceConnected.value = !!data?.workspace_connected
+    workspaceName.value = data?.workspace_name || ''
+    notify.success(
+      next === 'local_workspace'
+        ? 'Code will now run on your connected computer.'
+        : 'Code will now run in an isolated cloud sandbox.'
+    )
+  } catch (e) {
+    // Revert the control so it never shows a selection the server did not accept.
+    execTarget.value = previous
+    notify.error('Could not change the execution target.')
+  } finally {
+    savingTarget.value = false
+  }
+}
+
 async function reload() {
   loading.value = true
   try {
@@ -185,6 +293,7 @@ async function reload() {
     hasLoaded.value = true
     loading.value = false
   }
+  loadSandboxSettings()
 }
 
 // Closing DESTROYS the sandbox and everything in it that was not exported — a cloned repo, uncommitted
@@ -297,6 +406,63 @@ onMounted(reload)
   border-radius: 12px;
   background: #fff;
   min-width: 0;
+}
+
+/* ── Where code runs ─────────────────────────────────────────────────────── */
+.exec-panel { margin-bottom: 18px; }
+.exec-intro {
+  margin: 4px 0 14px;
+  font-size: 13px;
+  color: #5b6b82;
+}
+.exec-saving { font-size: 12px; color: #64748b; }
+.exec-options { display: grid; gap: 10px; }
+.exec-option {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  padding: 13px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.exec-option:hover { border-color: #c7d7ee; }
+.exec-option.is-active { border-color: #2563eb; background: #f6f9ff; }
+.exec-option input { margin-top: 3px; accent-color: #2563eb; flex: none; }
+.exec-option-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.exec-option-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0f172a;
+}
+.exec-option-desc { font-size: 12.5px; line-height: 1.5; color: #5b6b82; }
+.exec-tag {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+.exec-tag--safe { background: #e8f3ec; color: #1a7f47; }
+/* Amber, not red: choosing your own machine is a legitimate decision, not an error. */
+.exec-tag--warn { background: #fdf1dc; color: #92610a; }
+.exec-warn {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 13px 0 0;
+  padding: 11px 13px;
+  border-radius: 9px;
+  background: #fdf1dc;
+  color: #7c4a03;
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 .panel-head {

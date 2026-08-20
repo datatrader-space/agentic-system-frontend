@@ -1027,6 +1027,13 @@ export default {
   // Account-level Memory & Context settings (Settings → Memory) — DB control plane, no env flags.
   getMemorySettings: () => api.get('/me/memory-settings/'),
   updateMemorySettings: (data) => api.patch('/me/memory-settings/', data),
+
+  // Account-level execution target (Settings → Sandboxes). Account-level, not per-agent: the thing being
+  // chosen is a MACHINE — this user's own connected workspace — so every agent they run follows it.
+  // The GET also carries LIVE connection state (`workspace_connected`, `workspace_name`), because
+  // choosing the local machine while nothing is connected is savable and must be visibly flagged.
+  getSandboxSettings: () => api.get('/me/sandbox-settings/'),
+  updateSandboxSettings: (data) => api.patch('/me/sandbox-settings/', data),
   // Manual "Regenerate summary" — full from-rows rebuild of the user's memory digests.
   regenerateMemoryDigests: () => api.post('/me/memory/regenerate-digests/'),
   // Generated memory summaries (digests) shown next to the rows.
