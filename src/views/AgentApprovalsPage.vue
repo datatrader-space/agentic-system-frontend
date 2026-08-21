@@ -335,8 +335,6 @@
         <div v-if="audit.data" class="audit-stats">
           <div class="stat"><span>Runs today</span><strong>{{ audit.data.today?.runs ?? 0 }}</strong></div>
           <div class="stat"><span>Avg actions / run</span><strong>{{ audit.data.today?.avg_actions ?? 0 }}</strong></div>
-          <div class="stat"><span>Max steps / run</span><strong>{{ audit.data.limits?.max_steps?.effective ?? '—' }}</strong></div>
-          <div class="stat"><span>Runs / day limit</span><strong>{{ audit.data.limits?.max_runs_per_day?.unlimited ? 'Unlimited' : audit.data.limits?.max_runs_per_day?.effective }}</strong></div>
         </div>
 
         <div class="audit-list">

@@ -268,41 +268,15 @@
         </div>
 
         <div class="mt-4 flex items-center justify-between border-t border-[#F2F4F7] pt-3">
-          <button class="link-btn" @click="go('/dashboard/budgets')">Budgets <ChevronRight :size="14" /></button>
+          <div class="flex items-center gap-4">
+            <button class="link-btn" @click="go('/dashboard/budgets')">Budgets <ChevronRight :size="14" /></button>
+            <!-- Re-homed from the removed Action Limits card so the activity telemetry stays reachable. -->
+            <button class="link-btn" @click="openUsageModal">View usage <ChevronRight :size="15" /></button>
+          </div>
           <button class="save-limit" :disabled="budgetSaving || !agent.id" @click="saveAgentBudget">{{ budgetSaving ? 'Saving…' : 'Save limit' }}</button>
         </div>
       </section>
 
-      <section class="config-card action-card">
-        <div class="flex items-start gap-3">
-          <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600">
-            <ClipboardCheck :size="21" :stroke-width="2" />
-          </span>
-          <div>
-            <h3 class="text-[15px] font-semibold text-[#0F172A]">Action Limits</h3>
-            <p class="mt-1 text-[12.5px] leading-5 text-[#64748B]">Limit how often the agent can take actions.</p>
-          </div>
-        </div>
-
-        <div class="mt-5 space-y-4">
-          <label class="field-row">
-            <span>Max steps
-              <small class="block text-[11px] font-normal text-[#94A3B8]">Max number of tool steps the agent may take in one run (default {{ DEFAULT_MAX_STEPS }}).</small>
-            </span>
-            <span class="flex flex-col items-end">
-              <input v-model="maxActionsPerRun" class="control" type="number" min="1" :max="actionsCeiling"
-                     :placeholder="`Default (${DEFAULT_MAX_STEPS})`" />
-              <small class="mt-1 text-[11px] text-[#94A3B8]">Platform limit: {{ actionsCeiling }}</small>
-            </span>
-          </label>
-          <label class="field-row">
-            <span>Max runs per day</span>
-            <input v-model="maxRunsPerDay" class="control" type="number" min="1" placeholder="Unlimited" />
-          </label>
-        </div>
-
-        <button class="link-btn mt-5" @click="openUsageModal">View usage <ChevronRight :size="15" /></button>
-      </section>
       <section class="config-card planning-card">
         <div class="flex items-start gap-3">
           <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-emerald-600">
@@ -356,7 +330,6 @@
           <p>Your agent will <strong class="text-[#2563EB]">{{ summaryMode }}</strong>.</p>
           <p>It can spend up to <strong class="text-[#2563EB]">{{ budgetPerDay ? '$' + budgetPerDay : 'unlimited' }}</strong> per day.</p>
           <p>It will follow <strong class="text-[#2563EB]">{{ activeGuardrailCount }} guardrails</strong> and ask for approval on <strong class="text-[#0F172A]">{{ riskCeiling }}</strong> impact actions.</p>
-          <p>It can take up to <strong class="text-[#2563EB]">{{ maxActionsPerRun || DEFAULT_MAX_STEPS }} steps per run</strong> and <strong class="text-[#2563EB]">{{ maxRunsPerDay || 'unlimited' }} runs per day</strong>.</p>
         </div>
 
         <div class="summary-actions">
@@ -376,7 +349,7 @@
           <header class="flex items-center justify-between gap-4 border-b border-[#F1F5F9] px-6 py-4">
             <div>
               <h3 class="text-[17px] font-bold text-[#0F172A]">Action usage</h3>
-              <p class="text-[12.5px] text-[#64748B]">Effective limits and recent activity for this agent.</p>
+              <p class="text-[12.5px] text-[#64748B]">Recent activity for this agent.</p>
             </div>
             <button class="rules-close" aria-label="Close" @click="usageModalOpen = false"><X :size="20" :stroke-width="1.8" /></button>
           </header>
@@ -386,18 +359,8 @@
             <template v-else>
               <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 <div class="stat">
-                  <p class="stat-k">Max steps / run</p>
-                  <p class="stat-v">{{ usage.limits.max_steps.effective }}</p>
-                  <span class="src" :class="usage.limits.max_steps.source === 'agent' ? 'src-a' : 'src-d'">{{ usage.limits.max_steps.source === 'agent' ? 'This agent' : 'Default' }}</span>
-                </div>
-                <div class="stat">
-                  <p class="stat-k">Max runs / day</p>
-                  <p class="stat-v">{{ usage.limits.max_runs_per_day.unlimited ? 'Unlimited' : usage.limits.max_runs_per_day.effective }}</p>
-                  <span class="src" :class="usage.limits.max_runs_per_day.source === 'agent' ? 'src-a' : 'src-d'">{{ usage.limits.max_runs_per_day.source === 'agent' ? 'This agent' : 'Default' }}</span>
-                </div>
-                <div class="stat">
                   <p class="stat-k">Runs today</p>
-                  <p class="stat-v">{{ usage.today.runs }}<span v-if="usage.today.runs_remaining != null" class="text-[12px] font-medium text-[#98A2B3]"> · {{ usage.today.runs_remaining }} left</span></p>
+                  <p class="stat-v">{{ usage.today.runs }}</p>
                 </div>
                 <div class="stat">
                   <p class="stat-k">Avg actions / run</p>
@@ -486,7 +449,6 @@ import {
   CheckCircle2,
   ChevronRight,
   CircleDollarSign,
-  ClipboardCheck,
   Code2,
   Hand,
   LayoutTemplate,
@@ -671,23 +633,6 @@ const dailyBudget = computed({
 // TIGHTEN below the platform ceiling; when the platform admin set nothing, that ceiling IS the absolute
 // default (500). The platform value may itself exceed the absolute (admin is unbounded), so the agent cap
 // = the platform value if set, else the absolute default.
-const DEFAULT_MAX_STEPS = 250          // default steps when the agent sets no explicit value
-const PLATFORM_CEILING_DEFAULT = 500   // absolute platform ceiling fallback when nothing is set
-const actionsCeiling = ref(PLATFORM_CEILING_DEFAULT)
-async function loadPlatformLimits() {
-  try {
-    const r = await api.getGlobalAgentPolicy()
-    const pol = r.data?.llm_policy || {}
-    const abs = r.data?.llm_policy_absolute || {}
-    const absMax = Number(abs.max_steps) || PLATFORM_CEILING_DEFAULT
-    // Platform value wins as the ceiling; if unset the absolute default applies. Agent tightens below this.
-    actionsCeiling.value = Number(pol.max_steps) || absMax
-    // If a stored agent value exceeds the ceiling, clamp it down so the editor never shows an over-limit
-    // number that the backend would reduce at runtime.
-    const cur = Number(policy.value.max_steps)
-    if (Number.isFinite(cur) && cur > actionsCeiling.value) _setLimit('max_steps', actionsCeiling.value, actionsCeiling.value)
-  } catch (e) { /* keep safe defaults */ }
-}
 // Empty = inherit the system default (env fallback). Only a positive number is stored as an override.
 // `max` (when given) clamps the value so a user can never store more than the platform/absolute ceiling.
 function _setLimit(key, value, max) {
@@ -697,15 +642,6 @@ function _setLimit(key, value, max) {
   else delete p[key]
   policy.value = p
 }
-const maxActionsPerRun = computed({
-  // max_steps is the only step-cap key.
-  get: () => policy.value.max_steps ?? '',
-  set: (value) => _setLimit('max_steps', value, actionsCeiling.value),
-})
-const maxRunsPerDay = computed({
-  get: () => policy.value.max_runs_per_day ?? '',
-  set: (value) => _setLimit('max_runs_per_day', value),
-})
 // Planning gate — the admin switch (agent_policy.planning_gate_enabled). ON (default): a complex multi-step
 // task plans first; a simple task always runs straight through. OFF: every task runs straight through
 // (plan-review approval is independent and still applies). ON is the default, so it stores nothing.
@@ -841,7 +777,7 @@ function fmtWhen(iso) {
 function fmtDur(ms) { if (!ms) return '—'; return ms >= 1000 ? (ms / 1000).toFixed(1) + 's' : ms + 'ms' }
 
 watch(() => props.agent.id, () => { loadGuardrails(); loadAgentBudget() })
-onMounted(() => { loadGuardrails(); loadToolDefs(); loadAgentBudget(); loadPlatformLimits() })
+onMounted(() => { loadGuardrails(); loadToolDefs(); loadAgentBudget() })
 </script>
 
 <style scoped>
