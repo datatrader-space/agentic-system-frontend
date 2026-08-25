@@ -921,6 +921,16 @@ export default {
   createWorkflowGraphFromTemplate: (key, name) =>
     api.post('/workflow-graph-templates/create/', name ? { key, name } : { key }),
 
+  // ── Workflow operations (ADM-278 / P7) ───────────────────────────────────
+  // Cross-workflow, unlike getWorkflowGraphRuns(id) which serves the builder for ONE workflow. An
+  // operator asking "what needs me" cannot ask it of a single workflow.
+  getWorkflowOpsRuns: (params = {}) => api.get('/workflow-runs/', { params }),
+  getWorkflowRunTimeline: (runId) => api.get(`/workflow-graph-runs/${runId}/timeline/`),
+  // `reuse_input` is REQUIRED for replay and has no default: reusing the original trigger payload and
+  // starting fresh are materially different operations, and silence must not pick one.
+  controlWorkflowRun: (runId, action, payload = {}) =>
+    api.post(`/workflow-graph-runs/${runId}/control/`, { action, ...payload }),
+
   // Agent Chat
   startAgentChat: (agentProfileId, repositoryId = null) => {
     const payload = {};

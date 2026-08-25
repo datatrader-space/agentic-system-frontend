@@ -164,13 +164,18 @@
             <button class="tl-head-btn" @click="timelineOpen = false">Collapse</button>
           </div>
           <div class="timeline-body">
+            <!-- `row.id` is unique per ATTEMPT (a retried node appears more than once); `row.nodeId`
+                 is what selects a node on the canvas. Using row.id for either of those would break
+                 click-to-select and the active highlight. -->
             <button v-for="row in timelineRows" :key="row.id" class="timeline-row"
-              :class="{ active: selected && selected.id === row.id }" @click="selectNode(row.id)">
+              :class="{ active: selected && selected.id === row.nodeId, superseded: row.superseded }"
+              @click="selectNode(row.nodeId)">
               <span>{{ row.time }}</span>
               <Icon :icon="row.icon" :class="[row.state, { spin: row.running }]" />
               <strong>{{ row.title }}</strong>
               <em>{{ row.sub }}</em>
               <span v-if="row.running" class="tl-badge">Running</span>
+              <span v-if="row.errorCode" class="tl-errcode">{{ row.errorCode }}</span>
               <b :class="row.state">{{ row.status }}</b>
             </button>
           </div>
@@ -1106,19 +1111,58 @@ function fmtClock(iso) {
   catch { return '—' }
 }
 const nodeRuns = computed(() => (runDetail.value?.node_runs) || [])
-const timelineRows = computed(() => nodeRuns.value.map(nr => {
+
+/**
+ * Attempt history for the timeline (ADM-278).
+ *
+ * `runDetail.node_runs` is a PROJECTION: one row per node, showing only the LATEST attempt. That is
+ * right for watching a live run and lossy for a post-mortem — a node that failed twice and then
+ * succeeded shows only the success, so "did the earlier try already reach the provider?" becomes
+ * unanswerable from the canvas. `attemptRows` prefers the full attempt feed when the run detail
+ * carries it and falls back to the projection otherwise, so an older API response still renders.
+ *
+ * The attempt vocabulary (`succeeded`) is mapped to the projection's (`success`) here, because every
+ * icon, colour and filter downstream is keyed on the latter.
+ */
+const ATTEMPT_STATE = {
+  succeeded: 'success', failed: 'failed', skipped: 'skipped', waiting: 'waiting',
+  running: 'running', leased: 'running', pending: 'pending', reconciling: 'running', dead: 'failed',
+}
+const attemptRows = computed(() => {
+  const attempts = runDetail.value?.timeline
+  if (!Array.isArray(attempts) || !attempts.length) return null
+  return attempts.map(a => ({
+    node_id: a.node_id,
+    node_type: a.node_type,
+    status: ATTEMPT_STATE[a.status] || a.status,
+    duration_ms: a.duration_ms,
+    started_at: a.started_at,
+    attempt: a.attempt,
+    superseded: a.superseded,
+    error_code: a.error_code,
+  }))
+})
+
+const timelineRows = computed(() => (attemptRows.value || nodeRuns.value).map((nr, i) => {
   const node = getNodes.value.find(n => n.id === nr.node_id)
   const st = nr.status || 'pending'
   const dur = nr.duration_ms != null ? fmtDuration(nr.duration_ms) : (st === 'running' ? 'Running…' : st)
+  // A retried node appears more than once, so the key cannot be the node id alone — Vue would reuse
+  // one row for every attempt and only the last would render.
+  const attemptNo = nr.attempt || 1
   return {
-    id: nr.node_id,
+    id: `${nr.node_id}#${attemptNo}#${i}`,
+    nodeId: nr.node_id,
     time: fmtClock(nr.started_at),
     icon: statusIcon(st),
     state: st,
     title: node?.data?.label || nodeLabel(nr.node_type) || nr.node_id,
     sub: nodeSubtitle(nr.node_type) || nr.node_type,
-    status: dur,
+    // Attempt number only when there IS more than one — noise on the common path otherwise.
+    status: attemptNo > 1 ? `${dur} · try ${attemptNo}` : dur,
     running: st === 'running',
+    superseded: !!nr.superseded,
+    errorCode: nr.error_code || '',
   }
 }))
 const runStats = computed(() => {
@@ -3761,6 +3805,11 @@ textarea.ins-in {
   padding: 0 8px;
   border-top: 1px solid #edf2f7;
   text-align: left;
+}
+.timeline-row.superseded { opacity: .5; }
+.tl-errcode {
+  font-size: .75em; padding: .05rem .35rem; border-radius: 4px;
+  background: #fee2e2; color: #991b1b;
 }
 .timeline-row:hover {
   background: #f8fbff;

@@ -257,6 +257,9 @@ const router = createRouter({
         // Workflow Builder (NEW node-canvas system — lazy-loaded; separate from old /workflows feature)
         { path: 'workflow-builder', name: 'dashboard-workflow-builder', component: () => import('./views/WorkflowsList.vue') },
         { path: 'workflow-builder/:id', name: 'dashboard-workflow-canvas', component: () => import('./views/WorkflowBuilder.vue') },
+        // Operations view (ADM-278 / P7) — cross-workflow, because "what needs me right now" cannot be
+        // asked of a single workflow; the dead run is on whichever one you were not looking at.
+        { path: 'workflow-runs', name: 'dashboard-workflow-runs', component: () => import('./views/WorkflowRunsPage.vue') },
         { path: 'schedules', name: 'dashboard-schedules', component: SchedulesPage },
         { path: 'workspaces', name: 'dashboard-workspaces', redirect: '/dashboard/connectors' },
         { path: 'budgets', name: 'dashboard-budgets', component: BudgetsPage },
