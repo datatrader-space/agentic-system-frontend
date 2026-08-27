@@ -64,6 +64,34 @@ export const WF_NODE_DEFS = {
     defaults: { prompt: '', agent_id: null, agent_name: '' }, custom: true,   // agent picker + output-mode + schema editor
     outputSample: { text: 'agent reply text', agent: 'Agent name' },   // JSON/schema mode adds the declared fields
   },
+  // ONE structured model call — no tool loop, no planning. Separate from `agent.run` because the
+  // difference is cost: a workflow whose steps are known in advance needs the model only where language
+  // understanding is genuinely required, and paying for a planning loop there buys nothing. Every
+  // shipped template is built around exactly one of these.
+  'llm.call': {
+    category: 'agent', icon: '✨', label: 'Model call', sub: 'One structured LLM call',
+    defaults: { prompt: '', system: '', model_id: null, output_mode: 'text', output_schema_json: '' },
+    fields: [
+      { key: 'prompt', type: 'textarea', rows: 6, insertable: true, title: 'Prompt',
+        placeholder: 'Extract the decisions from {{nodes.fetch.output.text}}' },
+      { key: 'system', type: 'textarea', rows: 2, insertable: true, title: 'System prompt (optional)',
+        placeholder: 'You extract structured facts and never invent them.' },
+      { key: 'model_id', type: 'string', mono: true, title: 'Model (optional)',
+        placeholder: 'leave blank to use your default' },
+      { key: 'output_mode', type: 'enum', title: 'Output',
+        options: [['text', 'Text'], ['json', 'JSON object'], ['schema', 'JSON Schema']] },
+      // `*_json` is the builder's convention for a dict edited as text: hydrate() stringifies it and
+      // serialize() parses it back. There is no `json` field flag — the renderer would have shown a
+      // plain textarea and the dict would have been saved as a STRING the executor cannot read.
+      { key: 'output_schema_json', type: 'textarea', mono: true, rows: 6,
+        title: 'Output schema (JSON Schema)',
+        placeholder: '{ "type": "object", "properties": { "summary": { "type": "string" } }, "required": ["summary"] }' },
+    ],
+    hint: 'On JSON/Schema output a reply that does not parse, or that omits a required field, FAILS the '
+        + 'step. Partial data would let a downstream condition read a missing field, evaluate false and '
+        + 'take the wrong branch silently.',
+    outputSample: { text: 'model reply', model: 'Model name' },   // schema mode adds the declared fields
+  },
   'action.tool': {
     category: 'action', icon: '🛠️', label: 'Run tool', sub: 'Call a registered tool',
     defaults: { tool: '', params_json: '{}' },
@@ -153,7 +181,7 @@ export const WF_NODE_DEFS = {
 // Palette order (excludes paletteHidden entries like action.mcp_tool).
 export const WF_PALETTE_ORDER = [
   'trigger.manual', 'trigger.schedule', 'trigger.webhook', 'trigger.channel',
-  'agent.run', 'action.tool', 'action.script', 'action.channel', 'action.http',
+  'agent.run', 'llm.call', 'action.tool', 'action.script', 'action.channel', 'action.http',
   'logic.condition', 'logic.approval', 'logic.foreach', 'logic.delay', 'action.subworkflow',
 ]
 

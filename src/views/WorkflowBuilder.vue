@@ -24,6 +24,11 @@
         <button v-if="dirty" class="gbtn reset-action" :disabled="busy" @click="resetChanges" title="Discard unsaved changes">Reset</button>
         <button class="gbtn" :disabled="busy" @click="save"><Icon icon="lucide:save" />{{ busy ? 'Saving...' : 'Save' }}</button>
         <button class="gbtn save" :disabled="busy" @click="publish"><Icon icon="lucide:rocket" />Publish</button>
+        <!-- Pause/Resume is on the CANVAS, not only the runs page: the person who publishes a
+             misfiring schedule is looking at the thing they just published. -->
+        <button v-if="wfStatus === 'published'" class="gbtn" :disabled="busy" @click="setLifecycle('paused')" title="Stop new runs starting; runs in flight are left alone"><Icon icon="lucide:pause" />Pause</button>
+        <button v-else-if="wfStatus === 'paused'" class="gbtn run" :disabled="busy" @click="setLifecycle('published')" title="Allow runs to start again"><Icon icon="lucide:play-circle" />Resume</button>
+        <span class="wf-status" :class="wfStatus" :title="`Lifecycle status: ${wfStatus}`">{{ wfStatus }}</span>
         <div class="wf-menu">
           <button class="gbtn more-btn" @click="menuOpen = !menuOpen" title="More">...</button>
           <div v-if="menuOpen" class="wf-menu-back" @click="menuOpen = false"></div>
@@ -807,6 +812,10 @@ const runs = ref([])
 const runDetail = ref(null)
 const activeRunId = ref(null)
 const version = ref(1)
+// Optimistic-concurrency token from the server. Sent back on every content save so two open
+// tabs cannot silently overwrite each other; refreshed from every response that returns one.
+const etag = ref('')
+const wfStatus = ref('draft')
 const toolNames = ref([])
 const graphTriggers = ref([])
 const advOpen = ref(false)
@@ -1633,6 +1642,8 @@ async function load() {
     }
     name.value = g.name
     version.value = g.version || 1
+    etag.value = g.etag || ''
+    wfStatus.value = g.status || 'draft'
     graphTriggers.value = g.triggers || []
     agents.value = (ag?.results || ag || [])
     allGraphs.value = (allG?.results || allG || [])
@@ -1695,6 +1706,9 @@ function hydrate(type, data) {
   const d = { ...(data || {}) }
   if (type === 'action.tool') d.params_json = JSON.stringify(d.params || {}, null, 2)
   if (type === 'action.mcp_tool') d.params_json = JSON.stringify(d.params || {}, null, 2)
+  // Empty string rather than '{}' when there is no schema: a literal {} in the box reads as
+  // "a schema requiring nothing", which is a different statement from "no schema".
+  if (type === 'llm.call') d.output_schema_json = d.output_schema ? JSON.stringify(d.output_schema, null, 2) : ''
   if (type === 'action.http') d.json_text = d.json ? JSON.stringify(d.json, null, 2) : ''
   if (type === 'logic.foreach') {
     d.do = d.do || { type: 'action.channel', data: { kind: 'log', message: 'item {{item}}' } }
@@ -1705,12 +1719,20 @@ function hydrate(type, data) {
 }
 // serialize editable node data back to the backend shape (JSON-text fields → objects; drop UI meta)
 function serializeData(type, data) {
-  const { __status, __error, params_json, json_text, ...rest } = (data || {})
+  const { __status, __error, params_json, json_text, output_schema_json, ...rest } = (data || {})
   if (type === 'action.tool' || type === 'action.mcp_tool') {
     try { rest.params = params_json ? JSON.parse(params_json) : {} } catch { rest.params = {} }
   }
   if (type === 'action.http') {
     if (json_text && json_text.trim()) { try { rest.json = JSON.parse(json_text) } catch {} }
+  }
+  if (type === 'llm.call') {
+    const s = (output_schema_json || '').trim()
+    // Cleared box = no schema. Unparseable box = KEEP the schema already on the node: falling back to
+    // {} would turn a strict schema into one requiring nothing, so a typo while editing would silently
+    // stop enforcing the fields downstream nodes branch on.
+    if (!s) delete rest.output_schema
+    else { try { rest.output_schema = JSON.parse(s) } catch {} }
   }
   if (type === 'logic.foreach' && rest.do) {
     const inner = { type: rest.do.type, data: { ...(rest.do.data || {}) } }
@@ -1739,32 +1761,78 @@ async function loadToolNames() {
   } catch { /* optional */ }
 }
 
+// Applies whatever the server returned so the next save carries a fresh token. Without this the etag
+// goes stale after the FIRST save and every subsequent one is refused as a conflict.
+function _absorb(data) {
+  if (!data) return
+  version.value = data.version || version.value
+  if (data.etag) etag.value = data.etag
+  if (data.status) wfStatus.value = data.status
+  graphTriggers.value = data.triggers || graphTriggers.value   // webhook URLs / schedule status
+}
+
+// A conflict is NOT a generic failure: someone else's edit is on the server and the local canvas would
+// destroy it. It gets its own message telling the user what to do, and the returned etag is deliberately
+// NOT absorbed — adopting it would let the next click overwrite the very edit we just warned about.
+function _reportSaveError(e, fallback) {
+  const s = e?.response?.status
+  const d = e?.response?.data || {}
+  if (s === 409 || s === 428) return notify.error(d.error || 'Reload before saving — this workflow changed.')
+  if (s === 400 && Array.isArray(d.errors) && d.errors.length) {
+    const lines = d.errors.slice(0, 4).map(x => (x.node_id ? `${x.node_id}: ` : '') + (x.message || x))
+    return notify.error(`${d.error || 'Validation failed'} — ${lines.join('; ')}`)
+  }
+  notify.error(d.error || fallback)
+}
+
 async function save() {
   busy.value = true
   try {
-    const { data } = await api.saveWorkflowGraph(graphId, { name: name.value, graph: currentGraph() })
-    version.value = data.version || version.value
-    graphTriggers.value = data.triggers || graphTriggers.value   // webhook URLs / schedule status
+    const { data } = await api.saveWorkflowGraph(graphId, {
+      name: name.value, graph: currentGraph(), etag: etag.value,
+    })
+    _absorb(data)
     dirty.value = false
     _takeSnapshot(name.value, currentGraph())   // new Reset baseline
     notify.success('Workflow saved')
+    return true
   } catch (e) {
-    notify.error(e?.response?.data?.error || 'Failed to save')
+    _reportSaveError(e, 'Failed to save')
+    return false
   } finally {
     busy.value = false
   }
 }
 
+// SAVE THEN PUBLISH, as two calls. The server validates on publish and refuses a broken graph, so the
+// canvas has to be persisted first or the validation would be run against the previously saved version
+// and report errors the user cannot see on screen. Publishing freezes an immutable version; that is
+// what a TRIGGERED run executes, which is why it is worth the extra round-trip.
 async function publish() {
+  if (dirty.value && !(await save())) return   // save() already reported why
   busy.value = true
   try {
-    const { data } = await api.saveWorkflowGraph(graphId, { name: name.value, graph: currentGraph(), status: 'published' })
-    version.value = data.version || version.value
-    graphTriggers.value = data.triggers || graphTriggers.value
+    const { data } = await api.saveWorkflowGraph(graphId, { status: 'published' })
+    _absorb(data)
     dirty.value = false
     notify.success(`Published (v${version.value})`)
   } catch (e) {
-    notify.error(e?.response?.data?.error || 'Failed to publish')
+    _reportSaveError(e, 'Failed to publish')
+  } finally {
+    busy.value = false
+  }
+}
+
+// Pause stops NEW runs starting; runs already in flight are left alone, because an operator stopping a
+// misfiring schedule must not also destroy work that is halfway done.
+async function setLifecycle(next) {
+  busy.value = true
+  try {
+    const { data } = await api.saveWorkflowGraph(graphId, { status: next })
+    _absorb(data)
+    notify.success(next === 'paused' ? 'Paused — no new runs will start' : `Status: ${wfStatus.value}`)
+  } catch (e) {
+    _reportSaveError(e, `Failed to set status to ${next}`)
   } finally {
     busy.value = false
   }
@@ -1938,7 +2006,7 @@ async function restoreVersion(v) {
   if (!(await confirm({ title: 'Restore this version?', message: `Roll the canvas back to v${v.version}? Save your current canvas first if you want to keep it.`, confirmText: 'Restore' }))) return
   try {
     const { data } = await api.restoreWorkflowGraphVersion(graphId, v.id)
-    version.value = data.version || version.value
+    _absorb(data)
     // reload the canvas from the restored graph
     const graph = data.graph || {}
     setNodes((graph.nodes || []).map(n => ({ ...n, data: hydrate(n.type, n.data || {}) })))
@@ -1946,7 +2014,9 @@ async function restoreVersion(v) {
     if (graph.viewport && setViewport) { try { setViewport(graph.viewport) } catch {} }
     dirty.value = false
     showVersions.value = false
-    notify.success(`Restored — now v${version.value}`)
+    // Deliberately NOT "now v<n>". Restoring lands on the DRAFT canvas; triggered runs keep executing
+    // the published version until you publish. Saying otherwise is the illusion this used to create.
+    notify.success(`Restored v${v.version} onto the canvas — publish to make it live`)
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Failed to restore')
   }
@@ -1998,6 +2068,15 @@ onBeforeUnmount(() => { clearInterval(pollTimer); try { runSocket?.close() } cat
 </script>
 
 <style scoped>
+.wf-status {
+  margin-left: 6px; padding: 3px 8px; border-radius: 999px;
+  font-size: 10px; font-weight: 850; letter-spacing: .04em; text-transform: uppercase;
+  background: #eef2f7; color: #64748b; border: 1px solid #e2e8f0;
+}
+.wf-status.published { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.wf-status.paused    { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+.wf-status.retired   { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+
 .wfb-root { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--vm-bg, #f8fafc); }
 .wfb-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e2e8f0; }
 .bar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }

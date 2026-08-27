@@ -43,8 +43,10 @@
               <div class="text-[14px] font-bold text-ink truncate">{{ g.name }}</div>
               <div class="text-[11px] text-ink-faint mt-0.5">{{ g.node_count }} node{{ g.node_count === 1 ? '' : 's' }} · {{ g.run_count }} run{{ g.run_count === 1 ? '' : 's' }}</div>
             </div>
-            <span class="text-[10px] font-semibold rounded-md px-2 py-1 shrink-0"
-              :class="g.status === 'published' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">{{ g.status }}</span>
+            <!-- `paused` gets its own colour rather than sharing the neutral one with `draft`. It is
+                 the state where a workflow looks fine and quietly is not running, so it is the one that
+                 most needs to be legible at a glance in a list. -->
+            <span class="text-[10px] font-semibold rounded-md px-2 py-1 shrink-0" :class="statusClass(g.status)">{{ g.status }}</span>
           </div>
           <p v-if="g.description" class="mt-2 text-[12px] text-ink-soft line-clamp-2">{{ g.description }}</p>
           <div v-if="g.last_run" class="mt-3 flex items-center gap-1.5 text-[11px]">
@@ -75,6 +77,16 @@
             class="w-full text-left rounded-[8px] border border-[#dfe7f2] p-3 mb-2 hover:border-[#bcd0f7] hover:bg-[#f8fbff] disabled:opacity-60">
             <div class="text-[13px] font-bold text-ink">{{ t.name }}</div>
             <div class="text-[12px] text-ink-soft mt-0.5">{{ t.description }}</div>
+            <!-- Setup a template needs, shown BEFORE it is instantiated. A template that quietly
+                 requires a connector produces a workflow which fails partway through and reads as a
+                 product fault rather than as setup the user was never asked for. -->
+            <div v-if="needs(t).length" class="mt-2 flex flex-wrap gap-1">
+              <span v-for="n in needs(t)" :key="n.label"
+                class="text-[10px] font-semibold rounded px-1.5 py-0.5"
+                :class="n.kind === 'connection' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'">
+                {{ n.label }}
+              </span>
+            </div>
           </button>
         </div>
       </div>
@@ -100,6 +112,8 @@ const templates = ref([])
 const fileInput = ref(null)
 
 const dotClass = (s) => ({ success: 'bg-emerald-500', failed: 'bg-red-500', running: 'bg-indigo-500' }[s] || 'bg-slate-300')
+const statusClass = (s) => ({ published: 'bg-emerald-50 text-emerald-700', paused: 'bg-amber-50 text-amber-700',
+                             retired: 'bg-rose-50 text-rose-700' }[s] || 'bg-slate-100 text-slate-500')
 
 async function load() {
   loading.value = true
@@ -139,6 +153,17 @@ async function duplicate(g) {
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Failed to duplicate')
   }
+}
+
+// Reads the `requires` block the backend now passes through. Connections are called out separately
+// from vars because they are the ones the user cannot satisfy on the canvas — a missing var is typing,
+// a missing connector is an OAuth round-trip through another page.
+function needs(t) {
+  const r = t?.requires || {}
+  const out = (r.connections || []).map((c) => ({ kind: 'connection', label: `needs ${c}` }))
+  const varCount = Object.keys(r.vars || {}).length
+  if (varCount) out.push({ kind: 'vars', label: `${varCount} setting${varCount === 1 ? '' : 's'}` })
+  return out
 }
 
 async function openTemplates() {

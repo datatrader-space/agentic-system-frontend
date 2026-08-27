@@ -69,6 +69,10 @@ export function nodeConfigPreview(type, data) {
 }
 
 export const NODE_CATEGORY_ACCENTS = { trigger: '#0d9488', agent: '#4f46e5', action: '#7c3aed', logic: '#64748b' }
+// `llm.call` is its own type prefix but belongs to the model family visually, and there are no
+// `llm` styles. Without the alias it falls through to the grey default and reads as a logic node.
+const ACCENT_ALIAS = { llm: 'agent' }
 export function nodeAccent(type) {
-  return NODE_CATEGORY_ACCENTS[(type || '').split('.')[0]] || '#64748b'
+  const f = (type || '').split('.')[0]
+  return NODE_CATEGORY_ACCENTS[ACCENT_ALIAS[f] || f] || '#64748b'
 }

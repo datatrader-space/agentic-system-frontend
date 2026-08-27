@@ -109,7 +109,7 @@ const initials = computed(() => {
 // stay alive through Phase 5; dashboard children render inside this shell).
 const primaryNav = [
   { to: '/dashboard', exact: true, label: 'Home', 'data-tour': 'home', icon: ['M3 12l9-9 9 9', 'M5 10v10h14V10'] },
-  // Hidden for now (routes/pages still work directly): Let's Code + Workflow Builder.
+  // Hidden for now (route/page still works directly): Let's Code.
   // { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", 'data-tour': 'lets-code', icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6'] },
   { to: '/dashboard/agents', match: '/dashboard/agents', label: 'Agents', 'data-tour': 'agents', icon: ['M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93', 'M12 18a8 8 0 0 1-8-8', 'M20 10a8 8 0 0 1-8 8', 'M12 11.5a1.5 1.5 0 1 0 0 .01'] },
   // Hidden from the sidebar — the route stays live (/dashboard/super-agent), and DelegationsPage +
@@ -120,7 +120,10 @@ const primaryNav = [
   // (and services / tools / OAuth providers) once those sections land — see INTEGRATIONS_HUB_PLAN.md.
   { to: '/dashboard/integrations', match: '/dashboard/integrations', label: 'Integrations', 'data-tour': 'integrations', icon: ['M9 2v6', 'M15 2v6', 'M5 8h14v4a7 7 0 0 1-14 0z', 'M12 19v3'] },
   { to: '/dashboard/knowledge', match: '/dashboard/knowledge', label: 'Knowledge & RAG', 'data-tour': 'knowledge', icon: ['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'] },
-  // { to: '/dashboard/workflow-builder', match: '/dashboard/workflow-builder', label: 'Workflow Builder', 'data-tour': 'workflow', icon: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M10 7h4a3 3 0 0 1 3 3v4'] },
+  { to: '/dashboard/workflow-builder', match: '/dashboard/workflow-builder', label: 'Workflow Builder', 'data-tour': 'workflow', icon: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M10 7h4a3 3 0 0 1 3 3v4'] },
+  // Runs is a SEPARATE entry rather than a tab inside the builder: "what needs me right now" is a
+  // cross-workflow question, and the dead run is always on whichever workflow you were not looking at.
+  { to: '/dashboard/workflow-runs', match: '/dashboard/workflow-runs', label: 'Workflow Runs', 'data-tour': 'workflow-runs', icon: ['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z', 'M12 6v6l4 2'] },
   { to: '/dashboard/schedules', label: 'Schedules', 'data-tour': 'schedules', icon: ['M8 2v4', 'M16 2v4', 'M3 10h18', 'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z', 'M12 14v3l2 1'] },
   { to: '/dashboard/activity', label: 'Activity', 'data-tour': 'activity', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
   { to: '/dashboard/budgets', label: 'Budgets', 'data-tour': 'budgets', icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6'] },

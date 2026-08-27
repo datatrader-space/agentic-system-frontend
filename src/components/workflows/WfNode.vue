@@ -62,9 +62,14 @@ const quickAdd = inject('wfQuickAdd', null)
 const isTrigger = computed(() => (props.type || '').startsWith('trigger.'))
 const canError = computed(() => {
   const t = props.type || ''
-  return (t.startsWith('action.') || t === 'agent.run' || t === 'logic.foreach' || t === 'logic.approval')
+  return (t.startsWith('action.') || t === 'agent.run' || t === 'llm.call'
+          || t === 'logic.foreach' || t === 'logic.approval')
 })
-const family = computed(() => (props.type || '').split('.')[0])
+const FAMILY_ALIAS = { llm: 'agent' }   // no .fam-llm styles exist; a model call IS an agent-family node
+const family = computed(() => {
+  const f = (props.type || '').split('.')[0]
+  return FAMILY_ALIAS[f] || f
+})
 const familyClass = computed(() => `fam-${family.value}`)
 
 const accent = computed(() => nodeAccent(props.type))
@@ -75,6 +80,7 @@ const ICONS = {
   'trigger.webhook': 'lucide:webhook',
   'trigger.channel': 'lucide:message-square',
   'agent.run': 'lucide:bot',
+  'llm.call': 'lucide:sparkles',
   'action.channel': 'logos:slack-icon',
   'action.tool': 'lucide:wrench',
   'action.mcp_tool': 'lucide:plug-zap',
@@ -90,11 +96,16 @@ const icon = computed(() => ICONS[props.type] || 'lucide:square')
 
 const TITLES = {
   'trigger.manual': 'Manual trigger', 'agent.run': 'Run agent', 'action.channel': 'Send to channel',
+  'llm.call': 'Model call',
 }
 const title = computed(() => props.data?.label || TITLES[props.type] || props.type)
 
 const subtitle = computed(() => {
   if (props.type === 'agent.run') return props.data?.agent_name || props.data?.agent_id ? `Agent: ${props.data.agent_name || props.data.agent_id}` : 'Pick an agent'
+  if (props.type === 'llm.call') {
+    const mode = props.data?.output_mode || 'text'
+    return mode === 'text' ? 'One model call' : `One model call → ${mode}`
+  }
   if (props.type === 'action.channel') return props.data?.slack_channel || `Channel: ${props.data?.kind || 'log'}`
   if (props.type === 'trigger.webhook') return 'Inbound HTTP'
   if (props.type === 'trigger.schedule') return 'Cron trigger'
