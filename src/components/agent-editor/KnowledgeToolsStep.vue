@@ -939,29 +939,27 @@ async function loadConnectors() {
 }
 const connectorKindLabel = (c) => ({ builtin: 'Built-in service', mcp: 'MCP server', service: 'Service' }[c.kind] || 'Connector')
 // Map a connector to the tool objects it owns (built-in by category prefix, MCP by name prefix, service by id).
+// A connector's tools are the ones the BACKEND says it grants — `tool_ids`, nothing else.
+//
+// NO INFERENCE, NO FALLBACK. Both guesses this replaced were wrong in production and in the same way,
+// by treating a naming coincidence as membership:
+//   * builtin matched on the tool's `category`, so `GOOGLE_API` — a separate generic tool that happens
+//     to live in category "google" — counted as part of the Google connector. The editor showed 5
+//     tools where the connector grants 4, and assigning it would have handed over a tool the connector
+//     never declared.
+//   * MCP matched on `MCP_<slug>_`, so 'kurumera' swept in 'kurumera-mcp-server' and friends.
+//
+// An empty list now means the backend did not declare any, which is a real answer the caller can act
+// on. A fallback would turn that into a plausible wrong one — and a wrong tool list here does not just
+// misreport a count, it assigns tools to an agent.
 function connectorTools(c) {
   const tools = toolDefs.value || []
-  if (c.kind === 'builtin') {
-    const k = String(c.id).toLowerCase()
-    return tools.filter(t => { const cat = (t.category || '').toLowerCase(); return cat === k || cat.startsWith(k + '.') })
-  }
-  if (c.kind === 'mcp') {
-    // Use the backend's EXACT per-server tool ids. The old `startsWith('MCP_'+slug+'_')` over the GLOBAL
-    // tool list wrongly swept in sibling servers whose slug extends this one (e.g. 'kurumera' matched
-    // 'kurumera-mcp-server', 'kurumera-*-store', …) — inflating the count AND mis-assigning their tools.
-    if (Array.isArray(c.tool_ids)) {
-      const idset = new Set(c.tool_ids.map(String))
-      return tools.filter(t => idset.has(String(t.id)))
-    }
-    // Fallback for an older API response without tool_ids (kept only so nothing breaks pre-deploy).
-    const slug = String(c.slug || '').toUpperCase().replace(/[-\s]/g, '_')
-    if (!slug) return []
-    return tools.filter(t => String(t.name || '').toUpperCase().startsWith('MCP_' + slug + '_'))
-  }
   if (c.kind === 'service') {
     return tools.filter(t => String(t.service_id ?? (t.service && t.service.id) ?? t.service ?? '') === String(c.id))
   }
-  return []
+  if (!Array.isArray(c.tool_ids)) return []
+  const idset = new Set(c.tool_ids.map(String))
+  return tools.filter(t => idset.has(String(t.id)))
 }
 function connectorAssigned(c) {
   const ts = connectorTools(c)
