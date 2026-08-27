@@ -117,6 +117,9 @@ onMounted(load)
   <div class="wf-ops">
     <header class="wf-ops__head">
       <div>
+        <!-- This page has no sidebar entry of its own — it is reached from the Workflow Builder page.
+             The way back has to be ON the page, or the only route out is the browser's back button. -->
+        <router-link to="/dashboard/workflow-builder" class="wf-ops__back">← Workflow Builder</router-link>
         <h1>Workflow operations</h1>
         <p class="wf-ops__sub">Every workflow run, newest first — across all your workflows.</p>
       </div>
@@ -240,6 +243,12 @@ onMounted(load)
 </template>
 
 <style scoped>
+.wf-ops__back {
+  display: inline-block; margin-bottom: 6px; font-size: 12px; font-weight: 700;
+  color: #64748b; text-decoration: none;
+}
+.wf-ops__back:hover { color: #2563eb; }
+
 .wf-ops { padding: 1.5rem; }
 .wf-ops__head { display: flex; justify-content: space-between; align-items: flex-start; }
 .wf-ops__sub { color: var(--vm-text-muted, #6b7280); margin: .25rem 0 0; }

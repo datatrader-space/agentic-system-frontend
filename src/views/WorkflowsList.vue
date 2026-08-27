@@ -12,6 +12,15 @@
           <p class="mt-1.5 text-sm text-ink-soft">Drag-and-drop graphs of triggers, agents &amp; actions. <span class="text-amber-600 font-medium">Preview</span></p>
         </div>
         <div class="flex items-center gap-2">
+          <!-- Runs is CROSS-workflow, not the runs of one graph — an operator asking "what needs me
+               right now" cannot ask it of a single workflow, because the dead run is always on
+               whichever one they were not looking at. It lives here rather than in the sidebar so the
+               nav carries one line for the feature, not two. -->
+          <button @click="openRuns"
+            class="h-9 px-3 rounded-[8px] border border-[#d8e2f0] bg-white text-[12px] font-[850] text-[#334155] hover:bg-[#f8fbff] inline-flex items-center gap-1.5"
+            title="Every run across all your workflows — what failed, what needs a decision">
+            <Activity :size="15" :stroke-width="2" /> Workflow Runs
+          </button>
           <button @click="openTemplates"
             class="h-9 px-3 rounded-[8px] border border-[#d8e2f0] bg-white text-[12px] font-[850] text-[#334155] hover:bg-[#f8fbff] inline-flex items-center gap-1.5">
             <LayoutTemplate :size="15" :stroke-width="2" /> Templates
@@ -97,7 +106,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { LayoutTemplate, Plus, Upload, Workflow } from 'lucide-vue-next'
+import { Activity, LayoutTemplate, Plus, Upload, Workflow } from 'lucide-vue-next'
 import api from '../services/api'
 import PageLoader from '../components/common/PageLoader.vue'
 import { notify } from '@/composables/useNotify'
@@ -165,6 +174,8 @@ function needs(t) {
   if (varCount) out.push({ kind: 'vars', label: `${varCount} setting${varCount === 1 ? '' : 's'}` })
   return out
 }
+
+function openRuns() { router.push('/dashboard/workflow-runs') }
 
 async function openTemplates() {
   showTemplates.value = true
