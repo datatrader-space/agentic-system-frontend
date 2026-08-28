@@ -136,6 +136,7 @@
             <router-link to="/docs" class="pl-foot-link">Docs</router-link>
             <router-link to="/pricing" class="pl-foot-link">Pricing</router-link>
             <router-link to="/contact" class="pl-foot-link">Contact</router-link>
+            <router-link to="/privacy" class="pl-foot-link">Privacy Policy</router-link>
           </div>
         </div>
       </div>
@@ -181,6 +182,7 @@ const footerCols = [
       { label: 'About', to: '/about' },
       { label: 'Blog', to: '/blog' },
       { label: 'Contact', to: '/contact' },
+      { label: 'Privacy Policy', to: '/privacy' },
     ],
   },
   {

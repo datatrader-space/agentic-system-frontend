@@ -427,6 +427,7 @@ import { Icon } from '@iconify/vue'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import { clearApiCache } from '@/services/api'
 import { connectOAuth } from '@/composables/useOAuthConnect'
 import SkillsLibraryPanel from '../skills/SkillsLibraryPanel.vue'
 
@@ -603,6 +604,13 @@ function startInstall() {
 }
 
 async function afterChange() {
+  // CLEAR THE READ CACHE FIRST. `/connectors` is cached for 30s and only invalidated by an
+  // `api.post/put/patch/delete` — but a connection is created by the PROVIDER redirecting the popup to
+  // the backend callback, so this app issues no mutation at all. Both completion paths land here
+  // (OAuth and MCP), and without this the refresh that runs the instant the popup closes re-reads the
+  // pre-connect answer: a success toast beside a panel still saying "You are not connected", correcting
+  // itself half a minute later.
+  try { clearApiCache() } catch { /* a cache that will not clear must not fail the reload */ }
   await refreshServices()
   emit('installed') // parent reloads its connector list too
 }

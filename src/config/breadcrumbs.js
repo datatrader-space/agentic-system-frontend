@@ -100,4 +100,6 @@ export default {
   'blog-post': { label: 'Post', parent: 'blog', dynamic: true },
   'docs': { label: 'Docs', parent: 'landing' },
   'docs-page': { label: 'Doc', parent: 'docs', dynamic: true },
+  'privacy-policy': { label: 'Privacy Policy', parent: 'landing' },
+  'legal-page': { label: 'Legal', parent: 'landing', dynamic: true },
 }

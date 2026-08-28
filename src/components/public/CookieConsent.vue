@@ -4,7 +4,7 @@
       <div class="cc-body">
         <p class="cc-text">
           We use first-party cookies to understand site traffic and improve AADML. No third-party trackers.
-          <router-link to="/docs/privacy" class="cc-link">Learn more</router-link>.
+          <router-link to="/privacy" class="cc-link">Learn more</router-link>.
         </p>
         <div class="cc-actions">
           <button class="cc-btn ghost" @click="decline">Decline</button>

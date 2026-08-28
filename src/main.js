@@ -90,6 +90,8 @@ const IntegrationGuide = () => import('./views/IntegrationGuide.vue')
 const PublicChat = () => import('./views/PublicChat.vue')
 const SharedConversation = () => import('./views/SharedConversation.vue')
 const Docs = () => import('./views/Docs.vue')
+// Backend-managed legal documents (privacy policy, and anything else seeded as page_type='legal').
+const LegalPage = () => import('./views/LegalPage.vue')
 const AdminPanel = () => import('./views/AdminPanel.vue')
 const ModelPricingPage = () => import('./views/ModelPricingPage.vue')
 const AdminShell = () => import('./components/admin-shell/AdminShell.vue')
@@ -182,6 +184,24 @@ const router = createRouter({
       component: Docs,
       meta: { requiresAuth: false, public: true }
     },
+    // ── Legal ──────────────────────────────────────────────────────────────
+    // /privacy is the permanent public URL (footer + cookie banner); the CMS slug it
+    // resolves to lives in meta so a rename never breaks the link.
+    {
+      path: '/privacy',
+      name: 'privacy-policy',
+      component: LegalPage,
+      meta: { requiresAuth: false, public: true, legalSlug: 'privacy-policy' }
+    },
+    {
+      path: '/legal/:slug',
+      name: 'legal-page',
+      component: LegalPage,
+      meta: { requiresAuth: false, public: true }
+    },
+    // The cookie banner used to link at /docs/privacy. Static segments outrank the
+    // /docs/:slug param route, so this redirect wins wherever it is declared.
+    { path: '/docs/privacy', redirect: '/privacy' },
     { path: '/admin', name: 'admin', redirect: '/admin-dashboard/overview' },
     {
       path: '/login',

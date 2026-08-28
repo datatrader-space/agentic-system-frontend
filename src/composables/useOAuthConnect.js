@@ -23,9 +23,29 @@
 //   import { connectOAuth } from '@/composables/useOAuthConnect'
 //   await connectOAuth(api, providerSlug, { owner: 'org', scopes: 'a,b' })
 
+import { clearApiCache } from '@/services/api'
+
 // Written by the popup as a second channel in case the message is lost. Kept in sync with
 // `_STORAGE_KEY` in agent/services/oauth_popup.py.
 const RESULT_KEY = 'aadml:oauth-result'
+
+// A COMPLETED OAUTH CONNECT CHANGES SERVER STATE THAT NO SPA MUTATION TOUCHED.
+//
+// The GET cache is invalidated by `api.post/put/patch/delete` — a rule that holds for everything the
+// app writes itself. This flow writes nothing: `startConnection` is a GET, and the connection row is
+// created by GOOGLE redirecting the popup to the backend callback, entirely outside this axios
+// instance. So nothing ever cleared the cache, `/connectors` stayed valid for 30s, and the refresh
+// that runs the instant the popup closes re-read the pre-connect answer.
+//
+// The user saw the success toast and a panel still reading "You are not connected", which corrected
+// itself about half a minute later — the shape of a cache, not of a failed connection.
+function invalidateConnectionReads() {
+  try {
+    clearApiCache()
+  } catch {
+    /* a cache that cannot be cleared must not fail the connect that just succeeded */
+  }
+}
 
 function readStoredResult() {
   try {
@@ -93,8 +113,10 @@ export function connectOAuth(api, providerSlug, opts = {}) {
         const onMessage = (event) => {
           if (event.data?.type !== 'oauth-connection-result') return
           if (!cleanup()) return
-          if (event.data.status === 'success') resolve(true)
-          else reject(new Error(event.data.error || 'Connection failed'))
+          if (event.data.status === 'success') {
+            invalidateConnectionReads()
+            resolve(true)
+          } else reject(new Error(event.data.error || 'Connection failed'))
         }
         window.addEventListener('message', onMessage)
 
@@ -103,10 +125,20 @@ export function connectOAuth(api, providerSlug, opts = {}) {
         const settleFromServer = async (fallbackMessage) => {
           const stored = readStoredResult()
           if (stored) {
-            if (stored.status === 'success' || stored.ok) return resolve(true)
+            if (stored.status === 'success' || stored.ok) {
+              invalidateConnectionReads()
+              return resolve(true)
+            }
             return reject(new Error(stored.error || stored.message || fallbackMessage))
           }
-          if (await isConnected(api, providerSlug)) return resolve(true)
+          // Cleared BEFORE the check as well as after: `isConnected` reads `/connections/`, which is
+          // itself cached, so a stale entry here would report "not connected" for a connect that just
+          // succeeded and turn it into a false failure.
+          invalidateConnectionReads()
+          if (await isConnected(api, providerSlug)) {
+            invalidateConnectionReads()
+            return resolve(true)
+          }
           reject(new Error(fallbackMessage))
         }
 
