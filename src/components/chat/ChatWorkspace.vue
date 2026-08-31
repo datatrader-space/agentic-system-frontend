@@ -42,7 +42,19 @@
           <div v-if="moreOpen" class="more-menu" role="menu" @click.stop>
             <button role="menuitem" @click="openArtifacts">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/></svg>
-              Artifacts
+              <span class="mi-text">
+                Artifacts
+                <span class="mi-sub">Files this chat produced</span>
+              </span>
+            </button>
+            <button role="menuitem" :disabled="!chat.conversationId"
+                    :title="chat.conversationId ? '' : 'Send a message first to start the chat'"
+                    @click="openMedia">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+              <span class="mi-text">
+                Media gallery
+                <span class="mi-sub">Reuse this chat's images &amp; files</span>
+              </span>
             </button>
           </div>
         </div>
@@ -77,8 +89,7 @@
         :has-image-model="!!(chat.currentAgent && chat.currentAgent.image_model)"
         :is-shared-agent="chat.isSharedAgent"
         @send="onSend" @stop="chat.stop()" @mode-change="onModeChange"
-        @attach="chat.addAttachments" @remove-attach="chat.removeAttachment"
-        @open-media="mediaOpen = true" />
+        @attach="chat.addAttachments" @remove-attach="chat.removeAttachment" />
       <div v-if="chat.sessionTokens" class="session-meter" :title="`Total tokens used in this chat`">
         Session {{ fmtTokens(chat.sessionTokens) }}<span v-if="chat.sessionCost"> · {{ fmtCost(chat.sessionCost) }}</span>
       </div>
@@ -191,6 +202,14 @@ const moreOpen = ref(false)
 function openArtifacts() {
   moreOpen.value = false
   artifacts.openPanel(chat.conversationId)
+}
+// Moved here from the composer's "+" menu, which is for composing the NEXT message (attach, generate,
+// import a link). Browsing what the chat already holds belongs beside Artifacts: one lists everything
+// the chat produced, the other picks images out of it to reuse.
+function openMedia() {
+  moreOpen.value = false
+  if (!chat.conversationId) return
+  mediaOpen.value = true
 }
 function closeMoreOnOutside(e) {
   if (moreOpen.value && !(e.target.closest && e.target.closest('[data-chat-more]'))) moreOpen.value = false
@@ -499,7 +518,7 @@ watch(
   top: calc(100% + 6px);
   right: 0;
   z-index: 40;
-  min-width: 168px;
+  min-width: 216px;
   padding: 5px;
   background: var(--vm-surface);
   border: 1px solid var(--vm-line-2);
@@ -521,8 +540,11 @@ watch(
   text-align: left;
   cursor: pointer;
 }
-.more-menu button:hover { background: var(--vm-surface-2, #f1f5f9); color: var(--vm-violet-d); }
-.more-menu svg { width: 16px; height: 16px; flex-shrink: 0; }
+.more-menu button:hover:not(:disabled) { background: var(--vm-surface-2, #f1f5f9); color: var(--vm-violet-d); }
+.more-menu button:disabled { opacity: .45; cursor: not-allowed; }
+.more-menu svg { width: 17px; height: 17px; flex-shrink: 0; }
+.mi-text { display: flex; flex-direction: column; gap: 1px; line-height: 1.25; text-align: left; }
+.mi-sub { font-size: 0.6875rem; font-weight: 500; color: var(--vm-ink-dim, #94a3b8); }
 .floating-history {
   position: absolute;
   top: 16px;

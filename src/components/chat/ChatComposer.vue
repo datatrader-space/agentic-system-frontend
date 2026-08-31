@@ -82,16 +82,6 @@
                   <span v-if="imageMode" class="plus-badge">On</span>
                 </button>
 
-                <button type="button" class="plus-item" role="menuitem" data-test="plus-media"
-                        :disabled="!conversationId" :title="conversationId ? '' : 'Send a message first to start the chat'"
-                        v-show="pShow('browse media gallery images files reuse')" @click="openMediaFromMenu">
-                  <span class="plus-ic plus-ic--media">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </span>
-                  <span class="plus-body"><span class="plus-title">Browse media</span>
-                    <span class="plus-desc">Reuse this chat's images &amp; files</span></span>
-                </button>
-
                 <button type="button" class="plus-item" role="menuitem" data-test="plus-add-link"
                         :disabled="!conversationId" :title="conversationId ? '' : 'Send a message first to start the chat'"
                         v-show="pShow('ask link youtube webpage url paste video')" @click="openUrl">
@@ -223,11 +213,6 @@ const toggleImageModeFromMenu = () => {
   toggleImageMode()
   closeMenu()
 }
-const openMediaFromMenu = () => {
-  if (!props.conversationId) return
-  closeMenu()
-  emit('open-media')
-}
 // Canvas mode lives in the canvas store (single source of truth so the chat store can read it when
 // sending). When on, the agent renders designs into the live preview and the backend auto-exposes
 // GENERATE_STATIC_PAGE for the turn.
@@ -261,7 +246,7 @@ const props = defineProps({
   // SHARED system-owned agent (built-in / Platform Super Agent) → model pill instead of the mode pill.
   isSharedAgent: { type: Boolean, default: false },
 })
-const emit = defineEmits(['send', 'stop', 'attach', 'remove-attach', 'mode-change', 'open-media'])
+const emit = defineEmits(['send', 'stop', 'attach', 'remove-attach', 'mode-change'])
 
 const draft = ref('')
 const inputEl = ref(null)
@@ -544,7 +529,6 @@ const onKeydown = (e) => {
 /* Colorful per-item icon tints — ChatGPT-like, but drawn from the app palette. */
 .plus-ic--files  { color: #2563eb; }
 .plus-ic--image  { color: var(--vm-violet, #7c3aed); }
-.plus-ic--media  { color: #0d9488; }
 .plus-ic--link   { color: #0284c7; }
 .plus-ic--canvas { color: #d97706; }
 .plus-item:disabled .plus-ic { color: var(--vm-ink-faint); }
