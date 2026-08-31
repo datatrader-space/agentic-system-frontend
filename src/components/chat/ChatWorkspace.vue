@@ -1,6 +1,6 @@
 <template>
-  <div class="chat-split" ref="splitEl" :class="{ 'canvas-open': canvasOpen, 'canvas-mobile': canvasOpen && isMobile }">
-   <div class="chat-workspace" :style="canvasOpen && !isMobile ? { flex: `1 1 0`, minWidth: '360px' } : null">
+  <div class="chat-split" ref="splitEl" :class="{ 'canvas-open': dockOpen, 'canvas-mobile': dockOpen && isMobile }">
+   <div class="chat-workspace" :style="dockOpen && !isMobile ? { flex: `1 1 0`, minWidth: '360px' } : null">
     <div v-if="chat.isEmpty" class="floating-history" :class="{ tucked: historyOpen }">
       <button class="icon-btn" data-history-toggle title="Chat history" aria-label="Chat history"
               :aria-expanded="historyOpen" @click.stop="toggleHistory">
@@ -19,6 +19,10 @@
                 :aria-expanded="historyOpen" @click.stop="toggleHistory">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 3v6h6" /><path d="M12 7v5l3 2" /></svg>
         </button>
+        <button v-if="workspaceAgent" class="icon-btn" title="Agent workspace files" aria-label="Agent workspace files"
+                :aria-expanded="workspaceOpen" @click="workspaceOpen = true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.7.9l.8 1.2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        </button>
         <button class="icon-btn" title="Share this conversation" aria-label="Share this conversation"
                 @click="chat.openShare()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
@@ -27,6 +31,21 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m-7-7h14" stroke-linecap="round" /></svg>
           <span>New</span>
         </button>
+        <!-- Overflow menu: actions that don't earn a permanent slot in the header. -->
+        <div class="more-wrap" data-chat-more>
+          <button class="icon-btn" title="More actions" aria-label="More actions" aria-haspopup="menu"
+                  :aria-expanded="moreOpen" @click.stop="moreOpen = !moreOpen">
+            <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+          </button>
+          <span v-if="artifacts.unseen && !artifacts.open" class="more-dot"
+                :title="`${artifacts.unseen} new artifact(s)`"></span>
+          <div v-if="moreOpen" class="more-menu" role="menu" @click.stop>
+            <button role="menuitem" @click="openArtifacts">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/></svg>
+              Artifacts
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -90,6 +109,11 @@
     <MediaGallery :open="mediaOpen" :conversation-id="chat.conversationId"
                   @close="mediaOpen = false" @attach="onAttachMedia" />
 
+    <!-- Agent workspace: the SAME panel as /dashboard/agents/:id/workspace, opened here as a right drawer
+         (embedded=false) so the files this agent reads & writes are one click away without leaving the
+         thread. Only needs the agent's id, so it also works for agents absent from the loaded library. -->
+    <AgentWorkspacePanel v-if="workspaceAgent" v-model="workspaceOpen" :agent="workspaceAgent" />
+
     <!-- Chat history: a collapsible right drawer over the chat column. ONE instance for both triggers
          (welcome screen + thread header) so it survives the empty→thread switch and slides instead of
          popping. Agent-scoped by default; auto-collapses on outside click / Esc / when a turn starts. -->
@@ -97,10 +121,12 @@
                        @close="historyOpen = false" @select="openSession" @new-chat="startNewFromHistory" />
    </div>
 
-    <!-- Canvas + Live Preview side panel (opens when the agent produces a design). -->
-    <div v-if="canvasOpen && !isMobile" class="cv-resize" @mousedown="startResize" title="Drag to resize"></div>
-    <CanvasShell
-      v-if="canvasOpen"
+    <!-- Right dock: Canvas live preview + the Artifacts panel, sharing ONE resizable pane so the two
+         never fight for the same space. Opens when the agent produces a design or the user opens
+         Artifacts. -->
+    <div v-if="dockOpen && !isMobile" class="cv-resize" @mousedown="startResize" title="Drag to resize"></div>
+    <ChatDock
+      v-if="dockOpen"
       class="cv-pane"
       :style="isMobile ? null : { flex: `0 0 ${canvasWidth}px` }"
     />
@@ -115,21 +141,24 @@ import api from '../../services/api'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { usePlanStore } from '../../stores/usePlanStore'
+import { useArtifactsStore } from '../../stores/useArtifactsStore'
 import ChatWelcome from './ChatWelcome.vue'
 import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
 import ChatHistoryDrawer from './ChatHistoryDrawer.vue'
-import CanvasShell from '../canvas/CanvasShell.vue'
 import HITLModal from '../HITLModal.vue'
 import FullDocCostCard from './FullDocCostCard.vue'
 import MediaGallery from './MediaGallery.vue'
 import ShareModal from './ShareModal.vue'
+import AgentWorkspacePanel from '../AgentWorkspacePanel.vue'
+import ChatDock from './ChatDock.vue'
 import { fmtTokens, fmtCost } from '../../composables/tokens'
 
 const chat = useChatStore()
 const canvas = useCanvasStore()
 const layout = useLayoutStore()
 const plan = usePlanStore()
+const artifacts = useArtifactsStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -149,15 +178,35 @@ function scrollToActivePlan() {
 // Chat history drawer (collapsed by default; agent-scoped — see ChatHistoryDrawer.vue).
 const historyOpen = ref(false)
 
+// Workspace drawer (header "Workspace" button). currentAgent only resolves when the agent is in the
+// workspace-scoped agents list, so fall back to a stub carrying just the id — that's all the panel
+// needs to fetch routing + files, and it keeps the button working for cross-workspace agents.
+const workspaceOpen = ref(false)
+const workspaceAgent = computed(
+  () => chat.currentAgent || (chat.selectedAgentId ? { id: chat.selectedAgentId, name: '' } : null)
+)
+
+// Header overflow ("…") menu → Artifacts, which opens the right dock's Artifacts tab.
+const moreOpen = ref(false)
+function openArtifacts() {
+  moreOpen.value = false
+  artifacts.openPanel(chat.conversationId)
+}
+function closeMoreOnOutside(e) {
+  if (moreOpen.value && !(e.target.closest && e.target.closest('[data-chat-more]'))) moreOpen.value = false
+}
+function closeMoreOnEsc(e) { if (e.key === 'Escape') moreOpen.value = false }
+
 // ── Canvas side panel (resizable) ────────────────────────────────────────────────────────────────
 const canvasOpen = computed(() => canvas.open && canvas.hasCanvas)
+const dockOpen = computed(() => canvasOpen.value || artifacts.open)
 const isMobile = ref(typeof window !== 'undefined' && window.innerWidth < 768)
 
 // Auto-collapse the left side navigation while the Canvas panel is open (more room for the preview),
 // then restore whatever the user had before. Transient — we don't persist this over their real
 // sidebar preference.
 let _prevSidebarCollapsed = null
-watch(canvasOpen, (open) => {
+watch(dockOpen, (open) => {
   if (open) {
     if (_prevSidebarCollapsed === null) _prevSidebarCollapsed = layout.sidebarCollapsed
     layout.sidebarCollapsed = true
@@ -233,6 +282,8 @@ const startNew = () => {
 
 onMounted(() => {
   window.addEventListener('resize', onWinResize)
+  document.addEventListener('click', closeMoreOnOutside)
+  document.addEventListener('keydown', closeMoreOnEsc)
   // PARALLEL, not serial. The agent library and the conversation/super-agent resolution are
   // independent (_startNewChat resolves its agent BY ID; openConversation loads by conversation id),
   // so awaiting the library first just added a round trip to every chat open.
@@ -278,7 +329,10 @@ async function _startNewChat() {
 }
 
 onBeforeUnmount(() => {
+  artifacts.closePanel()
   window.removeEventListener('resize', onWinResize)
+  document.removeEventListener('click', closeMoreOnOutside)
+  document.removeEventListener('keydown', closeMoreOnEsc)
   // Don't leave the sidebar collapsed after navigating away with Canvas open.
   if (_prevSidebarCollapsed !== null) {
     layout.sidebarCollapsed = _prevSidebarCollapsed
@@ -302,6 +356,15 @@ watch(
   (a) => {
     if (a && !route.params.sessionId) _selectAgentById(a)
   }
+)
+
+// Keep the Artifacts panel pointed at the open conversation. Artifacts are conversation-scoped, so
+// carrying one chat's list into the next would read as a data leak; bind() resets on a real change and
+// no-ops otherwise. A new chat has no id yet — the panel binds the moment the first turn creates one.
+watch(
+  () => chat.conversationId,
+  (id) => { if (String(id || '') !== String(artifacts.conversationId || '')) artifacts.bind(id) },
+  { immediate: true }
 )
 
 // Once a brand-new chat gets a conversation id, reflect it in the URL so the
@@ -428,6 +491,38 @@ watch(
 }
 .icon-btn:hover { transform: translateY(-1px); box-shadow: var(--vm-shadow-s); color: var(--vm-violet-d); }
 .icon-btn svg { width: 17px; height: 17px; }
+.more-wrap { position: relative; display: inline-flex; }
+/* Unread marker on the "…" button: artifacts produced while the panel was closed. */
+.more-dot { position: absolute; top: 2px; right: 2px; width: 8px; height: 8px; border-radius: 9999px; background: var(--vm-violet-d, #4f46e5); box-shadow: 0 0 0 2px var(--vm-surface, #fff); pointer-events: none; }
+.more-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 168px;
+  padding: 5px;
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-line-2);
+  border-radius: 12px;
+  box-shadow: var(--vm-shadow-m, 0 12px 30px rgba(15, 23, 42, .14));
+}
+.more-menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--vm-ink-soft);
+  text-align: left;
+  cursor: pointer;
+}
+.more-menu button:hover { background: var(--vm-surface-2, #f1f5f9); color: var(--vm-violet-d); }
+.more-menu svg { width: 16px; height: 16px; flex-shrink: 0; }
 .floating-history {
   position: absolute;
   top: 16px;

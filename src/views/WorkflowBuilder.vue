@@ -616,7 +616,7 @@
 
     <!-- Command-palette: add node -->
     <div v-if="showPalette" class="modal-scrim pal-scrim" @click.self="showPalette = false">
-      <div class="cmd-pal">
+      <div class="cmd-pal" role="dialog" aria-modal="true" aria-label="Add a node">
         <!-- step 2: choose an agent context for a deterministic MCP tool -->
         <template v-if="mcpPick">
           <div class="cmd-search cmd-back"><button class="cmd-backbtn" @click="mcpPick = null">←</button> Choose agent context</div>
@@ -638,15 +638,15 @@
         <template v-else>
           <div class="cmd-head">
             <div>
-              <h2>Add a node</h2>
-              <p>Choose a node to add to your workflow.</p>
+              <h2 id="add-node-title">Add a node</h2>
+              <p id="add-node-description">Choose a node to add to your workflow.</p>
             </div>
             <button class="cmd-close" @click="showPalette = false" aria-label="Close add node">×</button>
           </div>
           <div class="cmd-search-wrap">
             <svg class="cmd-search-ic" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg>
-            <input ref="palSearchEl" v-model="paletteSearch" class="cmd-search" placeholder="Search nodes..." @keydown.esc="showPalette = false" />
-            <kbd>⌘ K</kbd>
+            <input ref="palSearchEl" v-model="paletteSearch" class="cmd-search" type="search" aria-label="Search nodes" placeholder="Search nodes..." @keydown.esc="showPalette = false" />
+            <kbd>Ctrl K</kbd>
           </div>
           <div class="cmd-tabs" role="tablist" aria-label="Node categories">
             <button v-for="tab in paletteTabs" :key="tab.key" type="button" :class="{ active: activePaletteTab === tab.key }" @click="activePaletteTab = tab.key">{{ tab.label }}</button>
@@ -4165,9 +4165,15 @@ textarea.ins-in {
   background: #2563eb;
 }
 .cmd-body {
+  display: block !important;
+  min-height: 0;
   padding: 18px 28px 26px !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 .cmd-featured {
+  display: block;
   margin-bottom: 18px;
 }
 .cmd-section-head {
@@ -4190,6 +4196,8 @@ textarea.ins-in {
   gap: 12px;
 }
 .cmd-feature-card {
+  display: flex;
+  min-width: 0;
   min-height: 116px;
   padding: 15px;
   border: 1px solid #dbe4f0;
@@ -4197,6 +4205,8 @@ textarea.ins-in {
   background: #fff;
   text-align: left;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+  flex-direction: column;
+  align-items: flex-start;
 }
 .cmd-feature-card:hover,
 .cmd-item:hover {
@@ -4206,6 +4216,7 @@ textarea.ins-in {
 }
 .cmd-feature-title {
   display: block;
+  width: 100%;
   margin-top: 10px;
   color: #0f172a;
   font-size: 13px;
@@ -4213,16 +4224,22 @@ textarea.ins-in {
 }
 .cmd-feature-sub {
   display: block;
+  width: 100%;
   margin-top: 4px;
   color: #64748b;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 .cmd-grp {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
   margin: 18px 0 0 !important;
 }
 .cmd-grp-h {
+  grid-column: 1 / -1;
   padding: 0 0 9px !important;
   color: #334155 !important;
   font-size: 12px !important;
@@ -4240,9 +4257,10 @@ textarea.ins-in {
 }
 .cmd-item {
   display: inline-flex !important;
-  width: calc(25% - 9px) !important;
+  width: 100% !important;
+  min-width: 0;
   min-height: 58px;
-  margin: 0 8px 10px 0;
+  margin: 0 !important;
   padding: 10px 12px !important;
   border: 1px solid #dbe4f0;
   border-radius: 8px !important;
@@ -4291,17 +4309,16 @@ textarea.ins-in {
   .cmd-feature-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .cmd-item {
-    width: calc(50% - 8px) !important;
+  .cmd-grp {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 520px) {
   .cmd-feature-grid {
     grid-template-columns: 1fr;
   }
-  .cmd-item {
-    width: 100% !important;
-    margin-right: 0;
+  .cmd-grp {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -25,6 +25,9 @@
           <div class="flex flex-col items-end gap-1">
             <div class="flex items-center gap-2">
               <button class="btn-icon"><MoreHorizontal :size="16" :stroke-width="2" /></button>
+              <button v-if="agent.id" class="btn-secondary" :disabled="saving" @click="openChat">
+                <MessageCircle :size="15" :stroke-width="2" /> Chat
+              </button>
               <button v-if="agent.id" class="btn-secondary" :disabled="pausing" @click="togglePause">
                 <component :is="agent.is_paused ? Play : PauseIcon" :size="15" :stroke-width="2" />
                 {{ pausing ? '…' : (agent.is_paused ? 'Resume' : 'Pause') }}
@@ -98,7 +101,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChevronRight, ChevronDown, ArrowLeft, ArrowRight, Save, Play, Pause as PauseIcon, Rocket, Pencil, MoreHorizontal, UploadCloud } from 'lucide-vue-next'
+import { ChevronRight, ChevronDown, ArrowLeft, ArrowRight, Save, Play, Pause as PauseIcon, Rocket, Pencil, MoreHorizontal, MessageCircle, UploadCloud } from 'lucide-vue-next'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import DefineBrainStep from '../components/agent-editor/DefineBrainStep.vue'
@@ -200,6 +203,16 @@ function applyQueryStep() {
 
 function mergeAgent(data) {
   if (data) agent.value = { ...agent.value, ...data }
+}
+
+// Header "Chat" — jump straight into a chat with THIS agent, pre-selected via ?agent=<id> exactly like
+// the Agents library card's Chat button (no picker step). Pending edits are flushed first so the chat
+// exercises the config that's on screen; a failed save keeps the user here with the error toast.
+// Chat only exists in the user dashboard shell, so an admin editing a system agent lands there too.
+async function openChat() {
+  if (!agent.value.id || saving.value) return
+  if (!(await save({ quiet: true }))) return
+  router.push({ path: '/dashboard/chat/new', query: { agent: agent.value.id } })
 }
 
 const pausing = ref(false)

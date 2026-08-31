@@ -977,6 +977,42 @@ export default {
   downloadWorkspaceFile: (agentId, path) => api.post(`/agents/${agentId}/workspace/download/`, { path }, { responseType: 'blob' }),
   previewAgentPrompt: (agentId) => api.get(`/agents/${agentId}/preview-prompt/`),
 
+  // ── Content artifacts (files this chat produced or received; the chat header's Artifacts panel) ──
+  // Server-side scope is always the caller's OWN + explicitly-granted artifacts; conversationId only
+  // NARROWS that to one chat. Downloads go through /api/artifacts/<uuid>/download/ (session cookie).
+  searchArtifacts: (opts = {}) => {
+    const params = new URLSearchParams()
+    if (opts.conversationId) params.set('conversation_id', String(opts.conversationId))
+    if (opts.q) params.set('q', opts.q)
+    if (opts.mediaType) params.set('media_type', opts.mediaType)
+    if (opts.origin) params.set('origin', opts.origin)
+    params.set('limit', String(opts.limit || 100))
+    if (opts.offset) params.set('offset', String(opts.offset))
+    return api.get(`/artifacts/search/?${params.toString()}`)
+  },
+
+  // Artifacts panel. Conversation scope is a server-side NARROWING of the caller's own + granted
+  // artifacts; conversation_id on the read calls also lets a chat-bound artifact resolve through its
+  // binding. Nothing here ever receives a storage path.
+  getConversationArtifacts: (conversationId, opts = {}) => {
+    const params = new URLSearchParams()
+    params.set('limit', String(opts.limit || 50))
+    if (opts.offset) params.set('offset', String(opts.offset))
+    if (opts.versions) params.set('versions', opts.versions)
+    if (opts.q) params.set('q', opts.q)
+    if (opts.origin) params.set('origin', opts.origin)
+    return api.get(`/conversations/${conversationId}/artifacts/?${params.toString()}`)
+  },
+  getArtifact: (uuid, conversationId) =>
+    api.get(`/artifacts/${uuid}/${conversationId ? `?conversation_id=${conversationId}` : ''}`),
+  getArtifactPreview: (uuid, conversationId) =>
+    api.get(`/artifacts/${uuid}/preview/${conversationId ? `?conversation_id=${conversationId}` : ''}`),
+  getArtifactVersions: (uuid, conversationId) =>
+    api.get(`/artifacts/${uuid}/versions/${conversationId ? `?conversation_id=${conversationId}` : ''}`),
+  renameArtifact: (uuid, name) => api.post(`/artifacts/${uuid}/rename/`, { name }),
+  pinArtifact: (uuid, pinned = true) => api.post(`/artifacts/${uuid}/pin/`, { pinned }),
+  deleteArtifact: (uuid) => api.delete(`/artifacts/${uuid}/delete/`),
+
   // ── Workspace Status (Live Polling) ──
   getWorkspaceStatusList: () => api.get('/workspace-status/'),
   getWorkspaceStatusDetail: (workspaceId) => api.get(`/workspace-status/${workspaceId}/`),

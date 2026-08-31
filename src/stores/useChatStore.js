@@ -8,6 +8,7 @@ import api from '../services/api'
 import { notify } from '../composables/useNotify'
 import { ChatConnection } from '../services/chatService'
 import { useCanvasStore } from './useCanvasStore'
+import { useArtifactsStore } from './useArtifactsStore'
 import { usePlanStore } from './usePlanStore'
 import { useAgentTimeline, isRichEvent } from '../composables/useAgentTimeline'
 import { ensureNotifyPermission, notifyRunFinished } from '../composables/useRunNotifications'
@@ -1242,6 +1243,13 @@ export const useChatStore = defineStore('chat', {
       // handleEvent() returns true when it consumed the event, so we don't also run it through the chat
       // switch below (these carry no chat content/usage).
       try { if (useCanvasStore().handleEvent(msg)) return } catch (_e) { /* canvas store optional */ }
+      // Artifacts: the runtime announces every durable file it produced (script source + output, canvas
+      // revision, generated media, promoted tool output) from ONE promotion chokepoint. Append it live so
+      // the panel is correct mid-turn instead of after a refetch. Carries no chat content/usage.
+      if (t === 'artifact_created') {
+        try { useArtifactsStore().onArtifactCreated(msg.artifact) } catch (_e) { /* store optional */ }
+        return
+      }
       // Rich streaming: friendly, param-free activity (Searching → Generating). Feed the shared
       // timeline reducer and stop — these 6 events carry no content/usage to process further.
       if (isRichEvent(msg)) {
