@@ -132,6 +132,9 @@
                picker (each user runs the shared agent on their own provider). Own agents keep the mode pill. -->
           <!-- Shared (system-owned) agents run on ONE row for every user, so mode, model and effort are all
                per-user settings resolved inside this one picker. Own agents keep the mode pill. -->
+          <!-- Agent picker: same control as the welcome screen. Mid-thread it opens a NEW chat with the
+               chosen agent (a conversation belongs to the agent that ran it). -->
+          <AgentSwitcher v-if="agentId" />
           <AgentModelPicker v-if="agentId && isSharedAgent" :agent-id="agentId" />
           <AgentModePicker v-else-if="agentId" :agent-id="agentId" :run-mode="runMode"
                            placement="up" @change="$emit('mode-change', $event)" />
@@ -167,6 +170,7 @@
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import AgentModePicker from '../agent/AgentModePicker.vue'
 import AgentModelPicker from '../agent/AgentModelPicker.vue'
+import AgentSwitcher from './AgentSwitcher.vue'
 import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import { useSpeech } from '../../composables/useSpeech'
 import { notify } from '../../composables/useNotify'

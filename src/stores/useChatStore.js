@@ -112,6 +112,7 @@ export const useChatStore = defineStore('chat', {
     // bare `if (agentsLoading) return` — the second caller resolved IMMEDIATELY against a possibly
     // still-empty `agents`, which is exactly the race that made New Chat mount with no agents.
     _agentsPromise: null,
+    _chattablePromise: null,        // single-flight for loadChattableAgents()
 
     // Chat history for the CURRENTLY selected agent (history drawer default scope).
     // Paginated: the drawer opens on the most recent page and pulls older ones on demand.
@@ -232,6 +233,35 @@ export const useChatStore = defineStore('chat', {
     // page refresh. Thin wrapper over loadAgents(force=true) for explicit, greppable call sites.
     async refreshAgents() {
       return this.loadAgents(true)
+    },
+
+    // Everything the user can actually START A CHAT WITH: their own agents (the library list), the
+    // built-ins they are scoped to run, and the Platform Super Agent. The last two are absent from
+    // /agents/ by design, so the in-chat agent picker has to merge them in explicitly.
+    //
+    // They are merged INTO `agents` rather than kept in a parallel list because _fetchAgents already
+    // preserves shared rows across a refresh — one list means a later refreshAgents() can't silently
+    // drop the built-ins out from under an open picker.
+    async loadChattableAgents() {
+      if (this._chattablePromise) return this._chattablePromise
+      this._chattablePromise = (async () => {
+        await Promise.all([
+          this.loadAgents(),
+          this.ensureSuperAgent().catch(() => null),
+          (async () => {
+            try {
+              const { data } = await api.listBuiltinAgents()
+              const rows = Array.isArray(data) ? data : (data && data.agents) || []
+              for (const b of rows) {
+                if (!b || b.id == null) continue
+                if (this.agents.some((a) => String(a.id) === String(b.id))) continue
+                this.agents.push({ ...b, is_builtin_agent: true })
+              }
+            } catch (e) { /* built-ins are optional — the picker still lists own agents */ }
+          })(),
+        ])
+      })().finally(() => { this._chattablePromise = null })
+      return this._chattablePromise
     },
 
     // The ONE shared Platform Super Agent — the DEFAULT agent for a naked New Chat (no ?agent=…).
