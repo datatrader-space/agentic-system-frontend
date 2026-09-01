@@ -1012,6 +1012,9 @@ export default {
   renameArtifact: (uuid, name) => api.post(`/artifacts/${uuid}/rename/`, { name }),
   pinArtifact: (uuid, pinned = true) => api.post(`/artifacts/${uuid}/pin/`, { pinned }),
   deleteArtifact: (uuid) => api.delete(`/artifacts/${uuid}/delete/`),
+  // Replays a script artifact server-side (no LLM). Long by nature — it actually runs the script — so it
+  // gets the sandbox timeout plus headroom rather than the 60s default.
+  rerunArtifact: (uuid) => api.post(`/artifacts/${uuid}/rerun/`, {}, { timeout: 620000 }),
 
   // ── Workspace Status (Live Polling) ──
   getWorkspaceStatusList: () => api.get('/workspace-status/'),

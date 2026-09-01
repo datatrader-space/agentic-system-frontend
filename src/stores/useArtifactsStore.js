@@ -13,6 +13,20 @@ import { notify } from '../composables/useNotify'
 
 // Only the LATEST version of each lineage is listed; a rewritten script.py is one row at v3, and the
 // history is fetched on demand. `versions=all` is a per-panel toggle, not the default.
+// The WS descriptor and the REST serializer must agree on the id key. They did NOT once (REST answered
+// only `uuid`), which produced `/api/artifacts/undefined/download/` and a "download.json" error file. The
+// server now sends both; normalizing here as well means a future drift degrades to "still works" rather
+// than to an undiagnosable broken button.
+const normalize = (row) => (row && !row.artifact_id && row.uuid
+  ? { ...row, artifact_id: row.uuid }
+  : row)
+
+export const fmtMs = (ms) => {
+  const n = Number(ms || 0)
+  if (!n) return '—'
+  return n < 1000 ? `${n} ms` : `${(n / 1000).toFixed(n < 10000 ? 2 : 1)} s`
+}
+
 export const useArtifactsStore = defineStore('artifacts', {
   state: () => ({
     open: false,
@@ -33,9 +47,16 @@ export const useArtifactsStore = defineStore('artifacts', {
     detail: null,
     preview: null,
     previewLoading: false,
+    previewFailed: false,
     versions: [],
     versionsLoading: false,
     busy: false,
+    // Last re-run of the selected artifact: {success, exit_code, stdout, stderr, duration_ms,
+    // executed_on, outputs}. Cleared on selection change so one script's output can never be read as
+    // another's.
+    rerunning: false,
+    rerun: null,
+    rerunError: '',
     // Unseen count for the header badge — cleared when the panel is opened.
     unseen: 0,
   }),
@@ -95,7 +116,7 @@ export const useArtifactsStore = defineStore('artifacts', {
           offset: append ? this.offset : 0,
           versions: this.showAllVersions ? 'all' : '',
         })
-        const rows = (data && data.results) || []
+        const rows = ((data && data.results) || []).map(normalize)
         this.items = append ? [...this.items, ...rows] : rows
         this.hasMore = !!(data && data.has_more)
         this.offset = this.items.length
@@ -119,18 +140,19 @@ export const useArtifactsStore = defineStore('artifacts', {
     // An `artifact_created` frame from the running turn. Descriptors are small by design, so a row
     // appended here shows name/type/size immediately and fills in the rest when selected.
     onArtifactCreated(descriptor) {
-      if (!descriptor || !descriptor.artifact_id) return
-      const idx = this.items.findIndex((a) => a.artifact_id === descriptor.artifact_id)
-      const row = { ...descriptor, _live: true }
+      const d = normalize(descriptor)
+      if (!d || !d.artifact_id) return
+      const idx = this.items.findIndex((a) => a.artifact_id === d.artifact_id)
+      const row = { ...d, _live: true }
       if (idx >= 0) {
         this.items.splice(idx, 1, { ...this.items[idx], ...row })
         return
       }
       // A new VERSION replaces the row it supersedes, so the live list obeys the same
       // one-row-per-lineage rule as the server listing instead of growing a duplicate name.
-      if (!this.showAllVersions && descriptor.version > 1) {
+      if (!this.showAllVersions && d.version > 1) {
         const prev = this.items.findIndex(
-          (a) => (a.filename || a.name) === (descriptor.filename || descriptor.name))
+          (a) => (a.filename || a.name) === (d.filename || d.name))
         if (prev >= 0) {
           this.items.splice(prev, 1, row)
           return
@@ -138,7 +160,7 @@ export const useArtifactsStore = defineStore('artifacts', {
       }
       this.items.unshift(row)
       this.countsByOrigin = { ...this.countsByOrigin,
-                              [descriptor.origin]: (this.countsByOrigin[descriptor.origin] || 0) + 1 }
+                              [d.origin]: (this.countsByOrigin[d.origin] || 0) + 1 }
       if (!this.open) this.unseen += 1
     },
 
@@ -149,6 +171,9 @@ export const useArtifactsStore = defineStore('artifacts', {
       this.detail = null
       this.preview = null
       this.versions = []
+      this.rerun = null
+      this.rerunError = ''
+      this.previewFailed = false
       this.previewLoading = true
       try {
         const [detail, preview] = await Promise.all([
@@ -156,8 +181,11 @@ export const useArtifactsStore = defineStore('artifacts', {
           api.getArtifactPreview(artifactId, this.conversationId).catch(() => null),
         ])
         if (this.selectedId !== artifactId) return          // selection moved on while we waited
-        this.detail = detail ? detail.data : null
+        this.detail = detail ? normalize(detail.data) : null
         this.preview = preview ? preview.data : null
+        // Distinguish "the server said this type has no inline preview" from "the request failed".
+        // Collapsing the two is what let a 404 read as a file-type limitation for an ordinary .py file.
+        this.previewFailed = !preview || !detail
       } finally {
         if (this.selectedId === artifactId) this.previewLoading = false
       }
@@ -168,7 +196,7 @@ export const useArtifactsStore = defineStore('artifacts', {
       this.versionsLoading = true
       try {
         const { data } = await api.getArtifactVersions(this.selectedId, this.conversationId)
-        this.versions = (data && data.results) || []
+        this.versions = ((data && data.results) || []).map(normalize)
       } catch (e) {
         this.versions = []
       } finally {
@@ -211,6 +239,32 @@ export const useArtifactsStore = defineStore('artifacts', {
       } catch (e) {
         notify.error('Could not delete this artifact')
       } finally { this.busy = false }
+    },
+
+    // ── re-run ────────────────────────────────────────────────────────────────────────────────────
+    // Server-side replay of the stored source. Any files it produces come back as artifact descriptors
+    // and are folded into the list, exactly as if a turn had produced them.
+    async rerunScript(artifactId) {
+      if (this.rerunning) return
+      this.rerunning = true
+      this.rerunError = ''
+      this.rerun = null
+      try {
+        const { data } = await api.rerunArtifact(artifactId)
+        if (this.selectedId !== artifactId) return      // selection moved while it ran
+        this.rerun = data
+        for (const o of (data && data.outputs) || []) this.onArtifactCreated(o)
+        if (data && data.success) notify.success(`Ran on ${data.executed_on} in ${fmtMs(data.duration_ms)}`)
+        else notify.error(`Script exited ${data && data.exit_code}`)
+      } catch (e) {
+        // The server's refusal text is the useful part ("needs a capability grant", "not a Python
+        // script") — surfacing a generic failure instead is what makes a feature feel broken.
+        this.rerunError = (e && e.response && e.response.data && e.response.data.detail)
+          || 'Could not re-run this script.'
+        notify.error(this.rerunError)
+      } finally {
+        this.rerunning = false
+      }
     },
 
     _patch(artifactId, fields) {

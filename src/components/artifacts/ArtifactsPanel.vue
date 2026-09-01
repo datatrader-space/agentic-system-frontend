@@ -78,8 +78,30 @@
         </button>
       </div>
 
+      <!-- Where it ran and how long it took. Recorded from the run's own receipt at promotion time, so
+           this is what the execution plane reported, not a guess from the artifact's type. -->
+      <div v-if="run" class="af-run">
+        <span class="af-run-chip" :class="run.executed_on === 'local_workspace' ? 'local' : 'cloud'">
+          <svg v-if="run.executed_on === 'local_workspace'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 0 0 .5-8.97 6 6 0 0 0-11.66-1.4A4 4 0 0 0 6.5 19z"/></svg>
+          {{ targetLabel(run.executed_on) }}
+        </span>
+        <span v-if="run.duration_ms != null" class="af-run-time" title="Execution time">{{ fmtMs(run.duration_ms) }}</span>
+        <span v-if="run.exit_code != null" class="af-run-exit" :class="{ bad: run.exit_code !== 0 }">
+          exit {{ run.exit_code }}
+        </span>
+        <span v-if="run.runtime" class="af-dim">{{ run.runtime }}</span>
+        <span v-if="run.timed_out" class="af-run-exit bad">timed out</span>
+      </div>
+
       <div class="af-preview">
         <div v-if="store.previewLoading" class="af-note">Loading preview…</div>
+        <!-- A failed request is NOT a file-type limitation. Saying so is what makes a broken endpoint
+             diagnosable instead of looking like "this file just can't be previewed". -->
+        <div v-else-if="store.previewFailed" class="af-note">
+          Couldn't load this preview.
+          <button class="af-retry" @click="store.select(store.selectedId)">Retry</button>
+        </div>
         <img v-else-if="previewKind === 'image'" :src="store.downloadUrl(store.selectedId)"
              :alt="detailName" class="af-img" />
         <!-- A canvas artifact is untrusted HTML the model wrote: previewed as SOURCE here, never rendered.
@@ -92,6 +114,27 @@
         <p v-if="store.preview && store.preview.truncated" class="af-trunc">
           Preview truncated — download for the full file.
         </p>
+      </div>
+
+      <!-- Last re-run -->
+      <div v-if="store.rerunning || store.rerun || store.rerunError" class="af-rerun">
+        <p v-if="store.rerunning" class="af-note af-note-tight">Running…</p>
+        <p v-else-if="store.rerunError" class="af-rerun-err">{{ store.rerunError }}</p>
+        <template v-else-if="store.rerun">
+          <div class="af-run">
+            <span class="af-run-chip" :class="store.rerun.executed_on === 'local_workspace' ? 'local' : 'cloud'">
+              {{ targetLabel(store.rerun.executed_on) }}
+            </span>
+            <span class="af-run-time">{{ fmtMs(store.rerun.duration_ms) }}</span>
+            <span class="af-run-exit" :class="{ bad: !store.rerun.success }">
+              exit {{ store.rerun.exit_code }}
+            </span>
+            <span class="af-dim">just now</span>
+          </div>
+          <pre v-if="store.rerun.stdout" class="af-code af-out"><code>{{ store.rerun.stdout }}</code></pre>
+          <pre v-if="store.rerun.stderr" class="af-code af-out err"><code>{{ store.rerun.stderr }}</code></pre>
+          <p v-if="!store.rerun.stdout && !store.rerun.stderr" class="af-dim af-note-tight">No output.</p>
+        </template>
       </div>
 
       <!-- Versions -->
@@ -110,7 +153,12 @@
 
       <!-- Actions -->
       <div class="af-actions">
-        <a class="af-btn primary" :href="store.downloadUrl(store.selectedId)"
+        <button v-if="canRerun" class="af-btn primary" :disabled="store.rerunning"
+                title="Run this script again on your current sandbox target"
+                @click="store.rerunScript(store.selectedId)">
+          {{ store.rerunning ? 'Running…' : 'Re-run' }}
+        </button>
+        <a class="af-btn" :class="{ primary: !canRerun }" :href="store.downloadUrl(store.selectedId)"
            :download="(detail && detail.filename) || ''">Download</a>
         <button class="af-btn" :disabled="store.busy || renaming" @click="startRename">Rename</button>
         <button class="af-btn" :disabled="store.busy" @click="togglePin">
@@ -124,7 +172,7 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import { useArtifactsStore } from '../../stores/useArtifactsStore'
+import { useArtifactsStore, fmtMs } from '../../stores/useArtifactsStore'
 import { confirm as confirmDialog } from '../../composables/useConfirm'
 
 const store = useArtifactsStore()
@@ -139,6 +187,14 @@ const previewKind = computed(() => (store.preview && store.preview.preview_kind)
   || (detail.value && detail.value.preview_kind) || 'none')
 const previewText = computed(() => (store.preview && store.preview.text) ?? null)
 const isPinned = computed(() => !!(detail.value && detail.value.visibility === 'USER_LIBRARY'))
+// The run receipt the promoter recorded: where this artifact was produced and how long that took.
+const run = computed(() => (detail.value && detail.value.provenance && detail.value.provenance.run) || null)
+// Only a Python script can be replayed directly; the server enforces the same allowlist, this just keeps
+// the button off files it would refuse.
+const canRerun = computed(() => (detail.value && detail.value.media_type) === 'text/x-python')
+
+const TARGETS = { local_workspace: 'Your connected PC', daytona: 'Daytona sandbox' }
+const targetLabel = (t) => TARGETS[t] || t || 'Unknown target'
 
 watch(() => store.selectedId, () => { versionsOpen.value = false; renaming.value = false })
 
@@ -251,13 +307,32 @@ function when(iso) {
 .k-gen { background: #ede9fe; color: #6d28d9; }
 .af-more { display: block; width: calc(100% - 12px); margin: 8px 6px; padding: 7px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 9px; background: transparent; font-size: 12.5px; font-weight: 600; cursor: pointer; color: inherit; }
 
-.af-detail { flex: 0 0 auto; max-height: 52%; display: flex; flex-direction: column; border-top: 1px solid var(--vm-line-2, #e5e7eb); }
+/* The detail pane owns a real, bounded share of the panel: a flex-basis with its own min-height:0 so the
+   preview inside can scroll. Without the floor the <pre> could not scroll — the panel clipped it instead. */
+.af-detail { flex: 1 1 55%; min-height: 180px; max-height: 60%; display: flex; flex-direction: column; border-top: 1px solid var(--vm-line-2, #e5e7eb); }
 .af-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; }
 .af-detail-title { min-width: 0; display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
 .af-rename { flex: 1; min-width: 0; border: 1px solid var(--vm-violet-d, #4f46e5); border-radius: 7px; padding: 3px 7px; font-size: 13px; font-weight: 600; background: transparent; color: inherit; }
+.af-run { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 0 12px 8px; font-size: 11px; color: var(--vm-ink-soft, #64748b); }
+.af-run-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 9999px; font-weight: 700; font-size: 10.5px; }
+.af-run-chip svg { width: 12px; height: 12px; }
+.af-run-chip.cloud { background: #e0f2fe; color: #0369a1; }
+.af-run-chip.local { background: #dcfce7; color: #15803d; }
+.af-run-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+.af-run-exit { font-variant-numeric: tabular-nums; }
+.af-run-exit.bad { color: #b91c1c; font-weight: 700; }
+.af-rerun { padding: 0 12px 8px; border-top: 1px dashed var(--vm-line-2, #e5e7eb); margin-top: 4px; padding-top: 8px; }
+.af-rerun-err { margin: 0; font-size: 11.5px; color: #b91c1c; line-height: 1.45; }
+.af-note-tight { padding: 4px 0; font-size: 11.5px; }
+.af-out { margin-top: 6px; max-height: 160px; }
+.af-out.err { color: #b91c1c; }
 .af-preview { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 12px 8px; }
+/* The list gives up space to the detail pane rather than pushing it off the bottom. */
+.af-list-wrap { flex: 1 1 45%; }
 .af-img { max-width: 100%; border-radius: 8px; display: block; }
-.af-code { margin: 0; padding: 10px; border-radius: 8px; background: var(--vm-surface-2, #f8fafc); font-size: 11.5px; line-height: 1.5; white-space: pre; overflow-x: auto; }
+/* Scrolls in BOTH axes inside the preview pane: long scripts scroll vertically, wide lines horizontally,
+   and neither stretches the panel. */
+.af-code { margin: 0; padding: 10px; border-radius: 8px; background: var(--vm-surface-2, #f8fafc); font-size: 11.5px; line-height: 1.5; white-space: pre; overflow: auto; max-width: 100%; }
 .af-trunc { margin: 6px 0 0; font-size: 11.5px; color: var(--vm-ink-dim, #94a3b8); }
 .af-versions { padding: 0 12px 8px; font-size: 12px; }
 .af-vlist { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
