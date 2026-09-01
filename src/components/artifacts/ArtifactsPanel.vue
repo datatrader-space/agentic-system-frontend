@@ -13,6 +13,12 @@
                @change="store.setShowAllVersions($event.target.checked)" />
         History
       </label>
+      <button class="af-icon af-order" :title="store.order === 'oldest'
+                ? 'Oldest first — click for newest first' : 'Newest first — click for oldest first'"
+              :aria-label="store.order === 'oldest' ? 'Sorted oldest first' : 'Sorted newest first'"
+              @click="store.setOrder(store.order === 'oldest' ? 'newest' : 'oldest')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11M3 12h8M3 18h5"/><path :d="store.order === 'oldest' ? 'M18 9V21m0 0 3-3m-3 3-3-3' : 'M18 21V9m0 0 3 3m-3-3-3 3'"/></svg>
+      </button>
       <button class="af-icon" title="Refresh" :disabled="store.loading" @click="store.load()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
       </button>
@@ -34,24 +40,29 @@
         </template>
       </div>
 
+      <!-- A timeline, not a bag of files: day headers plus a connecting rail, so "which came first" is
+           readable at a glance instead of inferred from timestamps. -->
       <ul v-else class="af-list" role="listbox" :aria-activedescendant="store.selectedId || undefined">
-        <li v-for="a in store.filtered" :key="a.artifact_id">
-          <button class="af-row" :class="{ on: a.artifact_id === store.selectedId }" role="option"
-                  :id="a.artifact_id" :aria-selected="a.artifact_id === store.selectedId"
-                  @click="store.select(a.artifact_id)">
-            <span class="af-ext" :class="kindClass(a)">{{ ext(a) }}</span>
-            <span class="af-info">
-              <span class="af-name" :title="a.name || a.filename">{{ a.name || a.filename }}</span>
-              <span class="af-meta">
-                <span class="af-badge" :class="kindClass(a)">{{ kindLabel(a) }}</span>
-                <span v-if="a.version > 1" class="af-ver" title="This file has earlier versions">v{{ a.version }}</span>
-                <span>{{ formatSize(a.size) }}</span>
-                <span v-if="a.created_at" class="af-dim">· {{ when(a.created_at) }}</span>
+        <template v-for="group in grouped" :key="group.day">
+          <li class="af-day" role="presentation">{{ group.day }}</li>
+          <li v-for="a in group.items" :key="a.artifact_id" class="af-tl">
+            <button class="af-row" :class="{ on: a.artifact_id === store.selectedId }" role="option"
+                    :id="a.artifact_id" :aria-selected="a.artifact_id === store.selectedId"
+                    @click="store.select(a.artifact_id)">
+              <span class="af-time">{{ hhmm(a.created_at) }}</span>
+              <span class="af-ext" :class="kindClass(a)">{{ ext(a) }}</span>
+              <span class="af-info">
+                <span class="af-name" :title="a.name || a.filename">{{ a.name || a.filename }}</span>
+                <span class="af-meta">
+                  <span class="af-badge" :class="kindClass(a)">{{ kindLabel(a) }}</span>
+                  <span v-if="a.version > 1" class="af-ver" title="This file has earlier versions">v{{ a.version }}</span>
+                  <span>{{ formatSize(a.size) }}</span>
+                </span>
               </span>
-            </span>
-            <span v-if="a.expires_at" class="af-expiry" :title="`Expires ${when(a.expires_at)}`">⏳</span>
-          </button>
-        </li>
+              <span v-if="a.expires_at" class="af-expiry" :title="`Expires ${when(a.expires_at)}`">⏳</span>
+            </button>
+          </li>
+        </template>
       </ul>
 
       <button v-if="store.hasMore" class="af-more" :disabled="store.loading" @click="store.loadMore()">
@@ -273,6 +284,33 @@ function when(iso) {
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString()
 }
+function hhmm(iso) {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+// Day buckets in the order the server returned — the server decides oldest/newest first, so grouping
+// must PRESERVE that sequence rather than sort again and fight it.
+const grouped = computed(() => {
+  const out = []
+  for (const a of store.filtered) {
+    const day = dayLabel(a.created_at)
+    const last = out[out.length - 1]
+    if (last && last.day === day) last.items.push(a)
+    else out.push({ day, items: [a] })
+  }
+  return out
+})
+function dayLabel(iso) {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return 'Unknown date'
+  const today = new Date()
+  const yday = new Date(today)
+  yday.setDate(today.getDate() - 1)
+  const same = (x, y) => x.toDateString() === y.toDateString()
+  if (same(d, today)) return 'Today'
+  if (same(d, yday)) return 'Yesterday'
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+}
 </script>
 
 <style scoped>
@@ -290,10 +328,18 @@ function when(iso) {
 .af-dim { color: var(--vm-ink-dim, #94a3b8); }
 .af-retry { margin-left: 8px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 7px; background: transparent; padding: 3px 9px; font-size: 12px; cursor: pointer; color: inherit; }
 .af-list { list-style: none; margin: 0; padding: 0; }
+.af-day { position: sticky; top: 0; z-index: 1; padding: 6px 8px 4px; background: var(--vm-surface, #fff); font-size: 10.5px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: var(--vm-ink-dim, #94a3b8); }
+/* The rail: one continuous line down the timeline, so the sequence reads as a sequence. */
+.af-tl { position: relative; }
+.af-tl::before { content: ''; position: absolute; left: 41px; top: 0; bottom: 0; width: 1px; background: var(--vm-line-2, #e5e7eb); }
+.af-tl:last-child::before { bottom: 50%; }
+.af-tl:first-of-type::before { top: 50%; }
+.af-time { position: relative; z-index: 1; flex: 0 0 34px; font-size: 10px; font-variant-numeric: tabular-nums; color: var(--vm-ink-dim, #94a3b8); text-align: right; }
+.af-order svg { width: 15px; height: 15px; }
 .af-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: none; border-radius: 10px; background: transparent; text-align: left; cursor: pointer; color: inherit; }
 .af-row:hover { background: var(--vm-surface-2, #f1f5f9); }
 .af-row.on { background: var(--vm-violet-soft, #eef2ff); }
-.af-ext { flex: 0 0 auto; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; font-size: 9.5px; font-weight: 700; letter-spacing: .3px; }
+.af-ext { position: relative; z-index: 1; flex: 0 0 auto; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; font-size: 9.5px; font-weight: 700; letter-spacing: .3px; box-shadow: 0 0 0 3px var(--vm-surface, #fff); }
 .af-info { min-width: 0; flex: 1; display: block; }
 .af-name { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .af-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; font-size: 11px; color: var(--vm-ink-soft, #64748b); }

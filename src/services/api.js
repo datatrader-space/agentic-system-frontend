@@ -999,6 +999,7 @@ export default {
     params.set('limit', String(opts.limit || 50))
     if (opts.offset) params.set('offset', String(opts.offset))
     if (opts.versions) params.set('versions', opts.versions)
+    if (opts.order) params.set('order', opts.order)
     if (opts.q) params.set('q', opts.q)
     if (opts.origin) params.set('origin', opts.origin)
     return api.get(`/conversations/${conversationId}/artifacts/?${params.toString()}`)

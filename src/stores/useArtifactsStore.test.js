@@ -255,6 +255,38 @@ describe('useArtifactsStore', () => {
     expect(store.rerunError).toBe('')
   })
 
+  // ── timeline order ────────────────────────────────────────────────────────────────────────────────
+  it('asks the server for oldest-first by default so the panel reads as a timeline', async () => {
+    store.conversationId = 42
+    await store.load()
+    expect(api.getConversationArtifacts).toHaveBeenCalledWith(42, expect.objectContaining({ order: 'oldest' }))
+  })
+
+  it('reloads from the server when the order flips (never re-sorts one page locally)', async () => {
+    store.conversationId = 42
+    await store.load()
+    api.getConversationArtifacts.mockClear()
+    store.setOrder('newest')
+    expect(store.order).toBe('newest')
+    expect(api.getConversationArtifacts).toHaveBeenCalledWith(42, expect.objectContaining({ order: 'newest' }))
+    api.getConversationArtifacts.mockClear()
+    store.setOrder('newest')                    // already there: no needless round trip
+    expect(api.getConversationArtifacts).not.toHaveBeenCalled()
+  })
+
+  it('appends a live artifact at the END of a timeline and the TOP of a newest-first list', () => {
+    store.conversationId = 42
+    store.items = [row({ artifact_id: 'old', name: 'old.txt' })]
+    store.order = 'oldest'
+    store.onArtifactCreated(row({ artifact_id: 'new', name: 'new.txt' }))
+    expect(store.items.map((a) => a.artifact_id)).toEqual(['old', 'new'])
+
+    store.items = [row({ artifact_id: 'old', name: 'old.txt' })]
+    store.order = 'newest'
+    store.onArtifactCreated(row({ artifact_id: 'new2', name: 'new2.txt' }))
+    expect(store.items.map((a) => a.artifact_id)).toEqual(['new2', 'old'])
+  })
+
   it('removes a deleted artifact and clears the selection', async () => {
     api.deleteArtifact.mockResolvedValue({})
     store.items = [row({ artifact_id: 'gone' })]

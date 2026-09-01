@@ -39,6 +39,10 @@ export const useArtifactsStore = defineStore('artifacts', {
     limit: 50,
     countsByOrigin: {},
     showAllVersions: false,
+    // 'oldest' reads the chat as a timeline (first thing produced at the top, same direction as the
+    // conversation). Ordering is a SERVER concern: sorting one loaded page locally would order that page,
+    // not the conversation.
+    order: 'oldest',
     // filters
     query: '',
     originFilter: '',
@@ -115,6 +119,7 @@ export const useArtifactsStore = defineStore('artifacts', {
           limit: this.limit,
           offset: append ? this.offset : 0,
           versions: this.showAllVersions ? 'all' : '',
+          order: this.order,
         })
         const rows = ((data && data.results) || []).map(normalize)
         this.items = append ? [...this.items, ...rows] : rows
@@ -133,6 +138,12 @@ export const useArtifactsStore = defineStore('artifacts', {
 
     setShowAllVersions(v) {
       this.showAllVersions = !!v
+      this.load()
+    },
+
+    setOrder(order) {
+      if (this.order === order) return
+      this.order = order === 'oldest' ? 'oldest' : 'newest'
       this.load()
     },
 
@@ -158,7 +169,10 @@ export const useArtifactsStore = defineStore('artifacts', {
           return
         }
       }
-      this.items.unshift(row)
+      // A newly produced artifact goes wherever "most recent" lives for the current order — appending it
+      // to the top of a timeline would put the newest thing before things that happened earlier.
+      if (this.order === 'oldest') this.items.push(row)
+      else this.items.unshift(row)
       this.countsByOrigin = { ...this.countsByOrigin,
                               [d.origin]: (this.countsByOrigin[d.origin] || 0) + 1 }
       if (!this.open) this.unseen += 1
