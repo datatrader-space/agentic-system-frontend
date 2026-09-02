@@ -1300,6 +1300,13 @@ export default {
           }
         }
 
+        // Registration CONSUMED the draft — the backend promoted that row to a live service. Stop
+        // the autosave timer so a late tick cannot write it back to `draft` and resurrect it in the
+        // Drafts list after the user has already registered successfully.
+        if (draftTimer) { clearInterval(draftTimer); draftTimer = null }
+        draftServiceId.value = null
+        draftSavedAt.value = null
+
         if (serviceResponse.data?.requires_oauth_connect) {
           notify.show('Service registered. Open it from Connectors and click Connect to authorize '
             + 'your account before agents can use its tools.')
