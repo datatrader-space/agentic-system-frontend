@@ -301,6 +301,9 @@ export default {
   // Cache-busted: without a unique URL the browser served one cached snapshot for ~60s, so a poll
   // every 1.5s reached the server 3 times in two minutes and the progress bar sat frozen at 0.
   // The endpoint also sends no-store; this is the belt to that pair of braces.
+  // Recover the caller's last enrichment run — the wizard holds results in browser memory, so a
+  // refresh or a stale tab loses minutes of paid-for LLM work that is still cached server-side.
+  getLatestEnrichment: () => api.get('/services/enrich-schemas/latest/', { params: { _: Date.now() } }),
   getEnrichmentJobStatus: (jobId) => api.get(`/services/enrich-schemas/status/${jobId}/`, {
     params: { _: Date.now() },
     headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }

@@ -433,7 +433,22 @@
               <button @click="enrichWithAI" :disabled="enriching"
                 class="px-4 py-2 bg-purple-600 text-white rounded-[10px] hover:bg-purple-700 transition font-bold text-[13px] disabled:opacity-50 flex items-center gap-2">
                 <svg v-if="enriching" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                {{ enriching ? 'Enhancing...' : '✨ Enhance with AI' }}
+                {{ enriching ? 'Enhancing...'
+                   : (pendingEnrichCount > 0 ? `✨ Enhance ${pendingEnrichCount} with AI` : '✨ Re-enhance all') }}
+              </button>
+            </div>
+
+            <!-- Recover a previous run rather than re-paying for it. -->
+            <div v-if="recoverable && pendingEnrichCount > 0 && !enriching"
+              class="mb-4 flex items-center justify-between gap-3 rounded-[12px] border border-indigo-200 bg-indigo-50 px-4 py-3">
+              <p class="text-[12px] font-medium text-indigo-800">
+                Your last enrichment run has <strong>{{ recoverable.enriched_by_llm }}</strong> finished actions
+                <span v-if="recoverable.service_name">from &ldquo;{{ recoverable.service_name }}&rdquo;</span>.
+                Restore them instead of running it again?
+              </p>
+              <button @click="restoreEnrichment"
+                class="shrink-0 rounded-[8px] bg-indigo-600 px-3 py-1.5 text-[12px] font-bold text-white hover:bg-indigo-700 transition">
+                Restore
               </button>
             </div>
 
@@ -453,8 +468,8 @@
 
             <div v-else-if="enrichedCount > 0" class="mb-4 rounded-[12px] border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[12px] font-bold text-emerald-800">
               AI-enriched {{ enrichedCount }} of {{ getTotalSelectedActions() }} selected actions.
-              <span v-if="enrichedCount < getTotalSelectedActions()" class="font-medium text-emerald-600">
-                Run it again to cover the rest.
+              <span v-if="pendingEnrichCount > 0" class="font-medium text-emerald-600">
+                Run it again to enrich the remaining {{ pendingEnrichCount }} — the finished ones are skipped.
               </span>
             </div>
 
@@ -933,12 +948,63 @@ export default {
      * first 20. It also reported "Enriched: 20/20" when the backend had made zero LLM calls, because
      * a skipped enrichment returned the same shape as a successful one.
      */
+    /**
+     * Re-apply the caller's last enrichment run instead of paying for it again.
+     *
+     * Enrichment is minutes of wall-clock and ~4 LLM calls per action, but the wizard holds the result
+     * in browser memory — a refresh, a stale tab, or a backend restart loses all of it while the
+     * schemas are still cached server-side. Matching is by action name, so a re-discovered spec picks
+     * its own work back up.
+     */
+    const recoverable = ref(null)
+
+    const checkRecoverableEnrichment = async () => {
+      try {
+        const { data } = await api.getLatestEnrichment()
+        recoverable.value = (data?.results?.length) ? data : null
+      } catch (error) {
+        console.debug('No recoverable enrichment:', error?.message)
+        recoverable.value = null
+      }
+    }
+
+    const restoreEnrichment = () => {
+      const results = recoverable.value?.results || []
+      if (!results.length) return
+      const wanted = new Set(getSelectedActions().map(a => a.name))
+      let applied = 0
+      results.forEach(r => {
+        if (wanted.has(r.name)) { applyEnriched(r); applied++ }
+      })
+      recoverable.value = null
+      if (applied) {
+        saveDraft()
+        notify.show(`Restored ${applied} previously enriched actions — no re-run needed.`)
+      } else {
+        notify.error('That run does not match the actions selected here.')
+      }
+    }
+
     const enrichWithAI = async () => {
-      const actions = getSelectedActions()
-      if (!actions.length) {
+      const all = getSelectedActions()
+      if (!all.length) {
         notify.error('Select at least one action first.')
         return
       }
+
+      // Never re-enrich what a model has already done. Each action costs ~4 LLM calls, so re-sending
+      // the whole selection on a second run re-bills every success to redo work that is already
+      // there. Actions that were skipped or that failed carry no `enriched_by_llm`, so they ARE
+      // picked up — which is what makes "run it again to cover the rest" literally true.
+      let actions = all.filter(a => !a.enriched_by_llm)
+      if (!actions.length) {
+        if (!(await confirm(
+          `All ${all.length} selected actions are already AI-enriched. Enrich them all again?`))) {
+          return
+        }
+        actions = all
+      }
+
       enriching.value = true
       enrichProgress.value = { done: 0, total: actions.length, percent: 0, current: null, model: null }
       try {
@@ -1088,6 +1154,7 @@ export default {
       // Autosave on a timer AND on every step change (below), so the expensive state — the enriched
       // schemas — is never more than 20s from durable.
       draftTimer = setInterval(() => { saveDraft() }, 20000)
+      checkRecoverableEnrichment()
     })
 
     onBeforeUnmount(() => {
@@ -1189,6 +1256,10 @@ export default {
     const enrichedCount = computed(() =>
       getSelectedActions().filter(a => a.enriched_by_llm).length)
 
+    // What a click would actually send — already-enriched actions are skipped.
+    const pendingEnrichCount = computed(() =>
+      getSelectedActions().filter(a => !a.enriched_by_llm).length)
+
     const reviewItems = computed(() => [
       { label: 'Name',        value: formData.value.name || '—' },
       { label: 'Category',    value: formData.value.category || 'N/A' },
@@ -1233,6 +1304,9 @@ export default {
       enrichJobId,
       enrichProgress,
       enrichedCount,
+      pendingEnrichCount,
+      recoverable,
+      restoreEnrichment,
       selectedCategoryNames,
       handlePostmanUpload,
       handleOpenAPIUpload,
