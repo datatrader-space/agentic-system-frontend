@@ -526,6 +526,14 @@
         <div v-else></div>
 
         <div class="flex items-center gap-3">
+          <span v-if="draftSaving" class="text-[12px] font-medium text-slate-400">Saving draft…</span>
+          <span v-else-if="draftSavedAt" class="text-[12px] font-medium text-emerald-600">
+            Draft saved {{ draftSavedAt.toLocaleTimeString() }}
+          </span>
+          <button @click="saveDraft({ silent: false })" :disabled="draftSaving || !formData.name"
+            class="px-4 py-2.5 text-[13px] font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-[10px] transition-all disabled:opacity-40">
+            Save draft
+          </button>
           <button @click="$emit('close')" class="px-5 py-2.5 text-[14px] font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-[10px] transition-all">Cancel</button>
           <button v-if="currentStep < steps.length - 1" @click="nextStep" :disabled="!canProceed"
             class="px-6 py-2.5 text-[14px] font-bold text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:opacity-90 rounded-[8px] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md flex items-center gap-2">
@@ -546,7 +554,7 @@
 
 
 <script>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
@@ -643,6 +651,16 @@ export default {
 
     const enrichJobId = ref(null)
     const enrichProgress = ref({ done: 0, total: 0, percent: 0, current: null, model: null })
+
+    // ── Draft auto-save ──────────────────────────────────────────────────────────────────────────
+    // The Drafts dialog has always promised "Drafts auto-save during registration", but THIS wizard
+    // never called the endpoint — so a browser refresh or a backend restart lost everything, including
+    // a completed AI enrichment pass over hundreds of actions. The wizard it replaced did auto-save;
+    // consolidating onto this one dropped that, so it is restored here.
+    const draftServiceId = ref(null)
+    const draftSavedAt = ref(null)
+    const draftSaving = ref(false)
+    let draftTimer = null
 
     const discoveredData = ref(null)
     const selectedCategories = ref([])
@@ -962,6 +980,7 @@ export default {
           }
           if (data.state === 'done') {
             (data.results || []).forEach(applyEnriched)
+            saveDraft()          // enrichment is the expensive state — make it durable at once
             const byLlm = data.enriched_by_llm || 0
             const failed = data.skipped_error || 0
             let msg = 'Enriched ' + byLlm + '/' + data.total + ' actions'
@@ -975,6 +994,7 @@ export default {
             // reach, so partial work is kept rather than the whole run being thrown away.
             if (data.error === 'worker_stopped' && (data.results || []).length) {
               (data.results || []).forEach(applyEnriched)
+              saveDraft()        // keep whatever the dead worker did finish
             }
             notify.error(data.error_detail || data.error || 'Enrichment failed.')
             return
@@ -991,9 +1011,94 @@ export default {
       }
     }
 
+    /** Everything needed to rebuild the wizard exactly as it stands, enriched schemas included. */
+    const wizardSnapshot = () => ({
+      version: 2,
+      currentStep: currentStep.value,
+      formData: formData.value,
+      discoveredData: discoveredData.value,
+      selectedCategories: selectedCategories.value,
+      selectedActions: selectedActions.value,
+      expandedCategories: expandedCategories.value,
+      openAPISpec: openAPISpec.value
+    })
+
+    const saveDraft = async ({ silent = true } = {}) => {
+      if (draftSaving.value) return
+      if (!formData.value.name) return          // nothing identifiable to save yet
+      draftSaving.value = true
+      try {
+        const { data } = await api.saveDraft({
+          service_id: draftServiceId.value,
+          wizard_state: wizardSnapshot(),
+          current_step: currentStep.value,
+          name: formData.value.name,
+          description: formData.value.description,
+          category: formData.value.category,
+          base_url: formData.value.base_url,
+          auth_type: formData.value.auth_type,
+          // Secrets are encrypted server-side by service_auth before they touch the DB.
+          auth_config: authPayload()
+        })
+        if (data?.service_id) draftServiceId.value = data.service_id
+        draftSavedAt.value = new Date()
+        if (!silent) notify.show('Draft saved.')
+      } catch (error) {
+        console.error('Draft save failed:', error)
+        if (!silent) {
+          notify.error('Could not save draft: '
+            + (error.response?.data?.error || error.message))
+        }
+      } finally {
+        draftSaving.value = false
+      }
+    }
+
+    /** Rebuild from a previously saved draft, including any enrichment already paid for. */
+    const restoreDraft = (draft) => {
+      const st = draft?.wizard_state
+      if (!st) return false
+      draftServiceId.value = draft.id ?? draft.service_id ?? null
+      if (st.formData) formData.value = { ...formData.value, ...st.formData }
+      if (st.discoveredData) discoveredData.value = st.discoveredData
+      if (st.selectedActions) selectedActions.value = st.selectedActions
+      if (st.selectedCategories) selectedCategories.value = st.selectedCategories
+      if (st.expandedCategories) expandedCategories.value = st.expandedCategories
+      if (st.openAPISpec) openAPISpec.value = st.openAPISpec
+      if (typeof st.currentStep === 'number') currentStep.value = st.currentStep
+      return true
+    }
+
+    onMounted(async () => {
+      // Offer the most recent draft back rather than silently starting over.
+      try {
+        const { data } = await api.listDrafts()
+        const latest = (data?.drafts || data || [])[0]
+        if (latest && latest.wizard_state) {
+          const enriched = Object.values(latest.wizard_state.selectedActions || {})
+            .flat().filter(a => a?.enriched_by_llm).length
+          const detail = enriched ? ` It already has ${enriched} AI-enriched actions.` : ''
+          if (await confirm(`Resume your unfinished "${latest.name || 'service'}" registration?${detail}`)) {
+            restoreDraft(latest)
+          }
+        }
+      } catch (error) {
+        console.debug('No draft to restore:', error?.message)
+      }
+      // Autosave on a timer AND on every step change (below), so the expensive state — the enriched
+      // schemas — is never more than 20s from durable.
+      draftTimer = setInterval(() => { saveDraft() }, 20000)
+    })
+
+    onBeforeUnmount(() => {
+      if (draftTimer) clearInterval(draftTimer)
+      draftTimer = null
+    })
+
     const nextStep = () => {
       if (currentStep.value < steps.length - 1) {
         currentStep.value++
+        saveDraft()
       }
     }
 
@@ -1118,6 +1223,9 @@ export default {
       htmlDocsContent,
       canProceed,
       reviewItems,
+      saveDraft,
+      draftSavedAt,
+      draftSaving,
       authTypes,
       authComplete,
       missingAuthFields,
