@@ -309,6 +309,9 @@ export default {
     headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
   }),
   repairServiceSchemas: (serviceId) => api.post(`/services/${serviceId}/repair-schemas/`),
+  // GET on the same route reports how many actions still lack an AI-written schema, without starting
+  // a job — so the detail view can show the count before offering the action.
+  getServiceRepairStatus: (serviceId) => api.get(`/services/${serviceId}/repair-schemas/`),
 
   // Service authentication (attach or rotate a credential without re-registering)
   getServiceAuth: (serviceId) => api.get(`/services/${serviceId}/auth/`),

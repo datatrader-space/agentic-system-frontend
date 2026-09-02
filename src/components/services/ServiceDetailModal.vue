@@ -207,6 +207,30 @@
           <div v-if="Object.keys(filteredActions).length === 0" class="empty-state">
             <p>No actions found{{ searchQuery ? ' matching your search' : '' }}</p>
           </div>
+          <!-- Finish enrichment for actions that never got an AI-written schema.
+               A service registered before enrichment worked (or one whose run was interrupted) has
+               actions with no descriptions; this completes them in place, no re-registration. -->
+          <div v-if="repairPending > 0 || repairJob" class="enrich-repair">
+            <div v-if="!repairJob" class="enrich-repair-row">
+              <span class="enrich-repair-text">
+                <strong>{{ repairPending }}</strong> action<span v-if="repairPending !== 1">s</span>
+                have no AI-written schema.
+              </span>
+              <button @click="startRepair" :disabled="repairBusy" class="btn-sm btn-primary">
+                {{ repairBusy ? 'Starting…' : 'Enrich them' }}
+              </button>
+            </div>
+            <div v-else class="enrich-repair-row">
+              <span class="enrich-repair-text">
+                Enriching {{ repairJob.done || 0 }} / {{ repairJob.total || repairPending }}
+                <span v-if="repairJob.model">· {{ repairJob.model }}</span>
+              </span>
+              <div class="enrich-repair-bar">
+                <div class="enrich-repair-fill" :style="{ width: (repairJob.percent || 0) + '%' }"></div>
+              </div>
+            </div>
+          </div>
+
           <div v-else class="actions-list">
             <div v-for="(actions, group) in filteredActions" :key="group" class="action-group">
               <div class="action-group-header" @click="toggleGroup(group)">
@@ -391,6 +415,75 @@ const selectedProviderId = ref(null)
 const currentProviderId = ref(null)
 const linkingProvider = ref(false)
 
+// ── Schema repair ────────────────────────────────────────────────────────────────────────────────
+// `enriched_at` is the durable marker of "an LLM actually enriched this"; a base schema written by a
+// SKIPPED enrichment is not enrichment, which is why the count comes from the server rather than from
+// whether invocation_schema happens to be populated.
+const repairPending = ref(0)
+const repairBusy = ref(false)
+const repairJob = ref(null)
+let repairPoll = null
+
+const refreshRepairPending = async () => {
+  try {
+    const { data } = await api.getServiceRepairStatus(props.service.id)
+    repairPending.value = data?.pending || 0
+  } catch {
+    repairPending.value = 0
+  }
+}
+
+const startRepair = async () => {
+  repairBusy.value = true
+  try {
+    const { data } = await api.repairServiceSchemas(props.service.id)
+    if (!data?.job_id) {
+      repairPending.value = 0
+      return
+    }
+    repairJob.value = { done: 0, total: data.pending, percent: 0, model: data.model }
+    pollRepair(data.job_id)
+  } catch (e) {
+    const code = e.response?.data?.error
+    notify.error(code === 'no_usable_model'
+      ? (e.response?.data?.detail || 'No LLM provider is configured for this account.')
+      : 'Could not start enrichment: ' + (code || e.message))
+  } finally {
+    repairBusy.value = false
+  }
+}
+
+const pollRepair = (jobId) => {
+  clearInterval(repairPoll)
+  repairPoll = setInterval(async () => {
+    try {
+      const { data } = await api.getEnrichmentJobStatus(jobId)
+      repairJob.value = {
+        done: data.done, total: data.total,
+        percent: data.percent, model: data.model,
+      }
+      if (data.state === 'done' || data.state === 'failed') {
+        clearInterval(repairPoll)
+        repairPoll = null
+        repairJob.value = null
+        if (data.state === 'failed') {
+          notify.error(data.error_detail || data.error || 'Enrichment stopped.')
+        } else {
+          notify.success(`Enriched ${data.enriched_by_llm} of ${data.total} actions.`)
+        }
+        await refreshRepairPending()
+        await loadServiceDetails()
+      }
+    } catch {
+      clearInterval(repairPoll)
+      repairPoll = null
+      repairJob.value = null
+    }
+  }, 2000)
+}
+
+onUnmounted(() => { if (repairPoll) clearInterval(repairPoll) })
+
 // OAuth state
 const oauthStatus = ref({ connected: false })
 const oauthLoading = ref(false)
@@ -493,6 +586,7 @@ const disconnectOAuth = async () => {
 
 onMounted(() => {
   loadServiceDetails()
+  refreshRepairPending()
   loadAvailableProviders()
   window.addEventListener('message', handleOAuthMessage)
 })
@@ -1398,5 +1492,36 @@ const getActionSuccessRate = (action) => {
 }
 .btn-danger:hover {
   background: #b91c1c;
+}
+.enrich-repair {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  background: #eef2ff;
+}
+.enrich-repair-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.enrich-repair-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: #3730a3;
+}
+.enrich-repair-bar {
+  flex: 1;
+  height: 6px;
+  max-width: 220px;
+  border-radius: 999px;
+  background: #c7d2fe;
+  overflow: hidden;
+}
+.enrich-repair-fill {
+  height: 100%;
+  background: #4f46e5;
+  transition: width 0.3s ease;
 }
 </style>
