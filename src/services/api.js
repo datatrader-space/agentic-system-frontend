@@ -313,9 +313,11 @@ export default {
   // Service authentication (attach or rotate a credential without re-registering)
   getServiceAuth: (serviceId) => api.get(`/services/${serviceId}/auth/`),
   updateServiceAuth: (serviceId, data) => api.post(`/services/${serviceId}/auth/`, data),
-  startServiceOAuth: (serviceId) => api.post(`/oauth/start/${serviceId}/`),
+  // NOTE: per-service OAuth already exists below as `startOAuth` / `disconnectOAuth`, and
+  // ServiceDetailModal drives the whole connect / reconnect / disconnect flow from them. Duplicates
+  // were added here by mistake with the WRONG verbs (POST against a GET start and a DELETE
+  // disconnect), which would have 405'd the moment anything called them. Use the existing pair.
   getServiceOAuthStatus: (serviceId) => api.get(`/oauth/status/${serviceId}/`),
-  disconnectServiceOAuth: (serviceId) => api.post(`/oauth/disconnect/${serviceId}/`),
 
   // Service Sharing
   shareService: (serviceId, data) => api.post(`/services/${serviceId}/share/`, data),

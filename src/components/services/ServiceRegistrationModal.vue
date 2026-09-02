@@ -673,6 +673,8 @@ export default {
     // a completed AI enrichment pass over hundreds of actions. The wizard it replaced did auto-save;
     // consolidating onto this one dropped that, so it is restored here.
     const draftServiceId = ref(null)
+    // A restored v3 draft has no inlined spec; enriching further actions needs it re-uploaded.
+    const specReuploadNeeded = ref(false)
     const draftSavedAt = ref(null)
     const draftSaving = ref(false)
     let draftTimer = null
@@ -1077,17 +1079,28 @@ export default {
       }
     }
 
-    /** Everything needed to rebuild the wizard exactly as it stands, enriched schemas included. */
-    const wizardSnapshot = () => ({
-      version: 2,
-      currentStep: currentStep.value,
-      formData: formData.value,
-      discoveredData: discoveredData.value,
-      selectedCategories: selectedCategories.value,
-      selectedActions: selectedActions.value,
-      expandedCategories: expandedCategories.value,
-      openAPISpec: openAPISpec.value
-    })
+    /**
+     * Everything needed to rebuild the wizard, enriched schemas included — but NOT the raw spec.
+     *
+     * The uploaded OpenAPI document is ~525 KB for a real Jira spec. Shipping it on every 20s
+     * autosave is megabytes of pointless upload that makes the save slow and failure-prone, and it is
+     * fully recoverable by re-uploading. `discoveredData` already carries every discovered action, so
+     * the spec is only needed to re-run enrichment — which the restore path handles by asking for the
+     * file again. Secrets are excluded too: auth is sent separately and encrypted server-side.
+     */
+    const wizardSnapshot = () => {
+      const { auth_config: _omitAuth, ...safeForm } = formData.value
+      return {
+        version: 3,
+        currentStep: currentStep.value,
+        formData: safeForm,
+        discoveredData: discoveredData.value,
+        selectedCategories: selectedCategories.value,
+        selectedActions: selectedActions.value,
+        expandedCategories: expandedCategories.value,
+        hadSpecUpload: !!openAPISpec.value
+      }
+    }
 
     const saveDraft = async ({ silent = true } = {}) => {
       if (draftSaving.value) return
@@ -1130,8 +1143,11 @@ export default {
       if (st.selectedActions) selectedActions.value = st.selectedActions
       if (st.selectedCategories) selectedCategories.value = st.selectedCategories
       if (st.expandedCategories) expandedCategories.value = st.expandedCategories
+      // v2 drafts inlined the spec; v3 deliberately does not. Re-upload is only needed to enrich
+      // MORE actions — everything already enriched is restored above.
       if (st.openAPISpec) openAPISpec.value = st.openAPISpec
       if (typeof st.currentStep === 'number') currentStep.value = st.currentStep
+      specReuploadNeeded.value = !openAPISpec.value && !!st.hadSpecUpload
       return true
     }
 
@@ -1297,6 +1313,7 @@ export default {
       saveDraft,
       draftSavedAt,
       draftSaving,
+      specReuploadNeeded,
       authTypes,
       authComplete,
       missingAuthFields,
