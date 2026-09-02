@@ -54,38 +54,13 @@
               </a>
               <p v-else class="text-gray-400">Not provided</p>
             </div>
-            <div class="info-item" style="grid-column: span 2;">
-              <label>OAuth Provider (Connector)</label>
-              <div class="flex items-center gap-3">
-                <select
-                  v-model="selectedProviderId"
-                  class="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option :value="null">— None (no connector) —</option>
-                  <option
-                    v-for="p in availableProviders"
-                    :key="p.id"
-                    :value="p.id"
-                  >
-                    {{ p.icon || '🔗' }} {{ p.name }} ({{ p.slug }})
-                  </option>
-                </select>
-                <button
-                  v-if="selectedProviderId !== currentProviderId"
-                  @click="linkProvider"
-                  :disabled="linkingProvider"
-                  class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition disabled:opacity-50 whitespace-nowrap"
-                >
-                  {{ linkingProvider ? 'Saving...' : '💾 Save' }}
-                </button>
-                <span
-                  v-else-if="serviceDetail.oauth_provider"
-                  class="text-xs text-green-600 font-medium whitespace-nowrap"
-                >
-                  ✓ Linked
-                </span>
-              </div>
-            </div>
+            <!-- The "OAuth Provider (Connector)" picker was removed.
+                 A service authenticates the way it declared at REGISTRATION (Authentication step).
+                 Asking the user to additionally pick a shared OAuthProvider row was a second,
+                 competing source of truth: a service could declare oauth2 with its own client config
+                 and still read "None (no connector)", which said nothing about whether it worked.
+                 The Authentication row above states the declared type, and the OAuth Connection
+                 panel below is where the account is actually connected. -->
             <div class="info-item">
               <label>API Documentation</label>
               <a v-if="serviceDetail.api_docs_url" :href="serviceDetail.api_docs_url" target="_blank" class="text-blue-600 hover:underline">
@@ -410,10 +385,7 @@ const showEditModal = ref(false)
 const showShareModal = ref(false)
 
 // OAuth provider linking state
-const availableProviders = ref([])
-const selectedProviderId = ref(null)
-const currentProviderId = ref(null)
-const linkingProvider = ref(false)
+
 
 // ── Schema repair ────────────────────────────────────────────────────────────────────────────────
 // `enriched_at` is the durable marker of "an LLM actually enriched this"; a base schema written by a
@@ -506,10 +478,6 @@ const loadServiceDetails = async () => {
       }
     }
 
-    // Set current oauth provider
-    const op = serviceDetail.value.oauth_provider
-    currentProviderId.value = op ? op.id : null
-    selectedProviderId.value = currentProviderId.value
   } catch (err) {
     console.error('Failed to load service details:', err)
     error.value = err.response?.data?.error || 'Failed to load service details'
@@ -640,39 +608,10 @@ const toggleGroup = (group) => {
   }
 }
 
-// Load available OAuth providers for the dropdown
-const loadAvailableProviders = async () => {
-  try {
-    const res = await api.getConnectionProviders()
-    availableProviders.value = (res.data || []).map(p => ({
-      id: p.id,
-      name: p.name,
-      slug: p.slug,
-      icon: p.icon || '🔗',
-    }))
-  } catch (err) {
-    console.error('Failed to load providers:', err)
-  }
-}
-
-// Link/unlink OAuth provider
-const linkProvider = async () => {
-  linkingProvider.value = true
-  try {
-    await api.updateService(props.service.id, {
-      oauth_provider_id: selectedProviderId.value
-    })
-    currentProviderId.value = selectedProviderId.value
-    await loadServiceDetails()
-    emit('updated')
-  } catch (err) {
-    console.error('Failed to link provider:', err)
-    notify.error(err.response?.data?.error || 'Failed to link OAuth provider')
-    selectedProviderId.value = currentProviderId.value
-  } finally {
-    linkingProvider.value = false
-  }
-}
+// The OAuth-provider picker was removed: a service authenticates the way it declared
+// at registration, so linking a separate shared connector row is no longer a concept
+// the user has to reason about. `oauth_provider_id` remains supported by the API for
+// services that were linked before this change.
 
 const toggleActionExpanded = (actionId) => {
   const index = expandedActions.value.indexOf(actionId)

@@ -717,6 +717,35 @@ const scopeAgent = computed(() => {
 })
 
 async function handleConnect(c) {
+  // A REGISTERED SERVICE connects the way IT declared at registration.
+  //
+  // This used to check `provider_slug` first, which only exists for services linked to a legacy
+  // OAuthProvider row. A service registered through the wizard carries its own inline OAuth2 client
+  // config and no such link, so Connect fell through to the generic global-credentials list — a list
+  // of unrelated SSH keys — instead of the service's own consent flow.
+  if (c.kind === 'service') {
+    const authType = (c.auth_type || '').toLowerCase()
+    if (authType === 'oauth2' || (c.auth_kind === 'oauth' && !c.provider_slug)) {
+      openServiceManage(c)          // the service's own OAuth panel: connect / reconnect / disconnect
+      return
+    }
+    if (c.provider_slug) {          // legacy: linked to a shared OAuthProvider connector
+      actionLoading.value = true
+      try {
+        await connectOAuth(api, c.provider_slug, {})
+        notify.success(`Connected to ${c.name}`)
+        await loadConnectors()
+      } catch (e) {
+        notify.error(e.message || 'Connection failed')
+      } finally {
+        actionLoading.value = false
+      }
+      return
+    }
+    credModalConnector.value = c    // api_key / bearer / basic — per-agent credentials
+    return
+  }
+
   if (c.auth_kind === 'oauth' && c.provider_slug) {
     actionLoading.value = true
     try {
@@ -728,10 +757,6 @@ async function handleConnect(c) {
     } finally {
       actionLoading.value = false
     }
-    return
-  }
-  if (c.kind === 'service') {
-    credModalConnector.value = c
     return
   }
   if (c.kind === 'mcp') {

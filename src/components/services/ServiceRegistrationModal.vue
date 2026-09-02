@@ -487,21 +487,23 @@
                   <span class="text-[12px] text-slate-400 font-mono">{{ action.endpoint_path }}</span>
                 </div>
 
-                <div v-if="action.parameters && action.parameters.length > 0" class="space-y-2">
-                  <div v-for="(param, pIdx) in action.parameters.slice(0, 5)" :key="pIdx" class="flex items-center gap-3 text-[12px] bg-slate-50 rounded-[8px] p-2.5">
-                    <div class="flex-1">
+                <div v-if="displayParams(action).length > 0" class="space-y-2">
+                  <div v-for="param in displayParams(action).slice(0, 6)" :key="param.key" class="flex items-center gap-3 text-[12px] bg-slate-50 rounded-[8px] p-2.5">
+                    <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2 flex-wrap">
                         <span class="font-mono font-bold text-slate-800">{{ param.name }}</span>
                         <span class="text-slate-400">({{ param.type }})</span>
                         <span v-if="param.required" class="text-red-500 font-bold text-[11px]">required</span>
-                        <span v-if="param.example_source" class="text-[10px] px-1.5 py-0.5 rounded font-bold" :class="{ 'bg-emerald-100 text-emerald-700': param.example_source === 'spec', 'bg-purple-100 text-purple-700': param.example_source === 'llm', 'bg-blue-100 text-blue-700': param.example_source === 'user' }">{{ param.example_source === 'spec' ? '📄 spec' : param.example_source === 'llm' ? '🤖 ai' : '👤 user' }}</span>
+                        <span v-if="action.enriched_by_llm && param.description" class="text-[10px] px-1.5 py-0.5 rounded font-bold bg-purple-100 text-purple-700">🤖 ai</span>
                       </div>
-                      <div class="text-slate-400 truncate mt-0.5">{{ param.description || 'No description' }}</div>
+                      <div class="text-slate-500 mt-0.5" :class="param.description ? '' : 'text-slate-400 italic'">
+                        {{ param.description || 'No description' }}
+                      </div>
                     </div>
-                    <input v-model="param.example" type="text" :placeholder="param.example || 'Add example...'"
-                      class="w-32 px-2.5 py-1.5 text-[12px] bg-white border border-slate-200 rounded-[6px] focus:outline-none focus:border-indigo-300 transition-all" @input="param.example_source = 'user'" />
+                    <input v-model="param.node.example" type="text" placeholder="Add example…"
+                      class="w-32 shrink-0 px-2.5 py-1.5 text-[12px] bg-white border border-slate-200 rounded-[6px] focus:outline-none focus:border-indigo-300 transition-all" />
                   </div>
-                  <div v-if="action.parameters.length > 5" class="text-[11px] text-slate-400 font-bold text-center">+{{ action.parameters.length - 5 }} more parameters</div>
+                  <div v-if="displayParams(action).length > 6" class="text-[11px] text-slate-400 font-bold text-center">+{{ displayParams(action).length - 6 }} more parameters</div>
                 </div>
                 <div v-else class="text-[12px] text-slate-400 italic">No parameters</div>
               </div>
@@ -935,6 +937,54 @@ export default {
       return actions
     }
 
+    /**
+     * The parameter rows to show for an action.
+     *
+     * The AI writes descriptions and examples into `invocation_schema` — a NESTED
+     * path/query/headers/body document. This panel used to render the flat `parameters` list that
+     * discovery produced, so none of that was ever visible: a fully enriched action still showed
+     * "No description" on every row except the few the OpenAPI spec itself described. Prefer the
+     * enriched schema and fall back to the flat list only when there is none.
+     *
+     * Nodes are returned BY REFERENCE so an edited example writes straight back into the schema that
+     * gets registered.
+     */
+    const displayParams = (action) => {
+      const schema = action?.invocation_schema
+      const groups = schema?.properties
+      if (groups) {
+        const rows = []
+        const walk = (node, prefix, requiredList) => {
+          const props = node?.properties || {}
+          Object.entries(props).forEach(([key, child]) => {
+            const path = prefix ? `${prefix}.${key}` : key
+            rows.push({
+              key: path,
+              name: path,
+              type: child?.type || 'any',
+              required: (requiredList || []).includes(key),
+              description: child?.description || '',
+              node: child
+            })
+            if (child?.properties) walk(child, path, child.required)
+          })
+        }
+        // Skip the four envelope keys themselves; their children are the real parameters.
+        Object.entries(groups).forEach(([group, node]) => {
+          if (node?.properties) walk(node, group, node.required)
+        })
+        if (rows.length) return rows
+      }
+      return (action?.parameters || []).map((prm, i) => ({
+        key: `flat-${i}`,
+        name: prm.name,
+        type: prm.type,
+        required: prm.required,
+        description: prm.description || '',
+        node: prm
+      }))
+    }
+
     // Apply one enriched action back onto the selection AND the discovery cache, so the review
     // screen and the registration payload both carry the enriched schema.
     const applyEnriched = (enrichedAction) => {
@@ -1329,6 +1379,7 @@ export default {
       enrichProgress,
       enrichedCount,
       pendingEnrichCount,
+      displayParams,
       recoverable,
       restoreEnrichment,
       selectedCategoryNames,
