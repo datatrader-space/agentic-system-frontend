@@ -99,6 +99,7 @@
               <input
                 v-model="formData.auth_config.token"
                 type="password"
+                :placeholder="storedSecrets.token ? 'Bearer Token — saved, leave blank to keep' : 'Bearer Token'"
                 class="form-input"
                 placeholder="Bearer token"
               />
@@ -109,6 +110,7 @@
               <input
                 v-model="formData.auth_config.key"
                 type="password"
+                :placeholder="storedSecrets.key ? 'API Key — saved, leave blank to keep' : 'API Key'"
                 class="form-input mb-2"
                 placeholder="API Key"
               />
@@ -131,6 +133,7 @@
               <input
                 v-model="formData.auth_config.password"
                 type="password"
+                :placeholder="storedSecrets.password ? 'Password — saved, leave blank to keep' : 'Password'"
                 class="form-input"
                 placeholder="Password"
               />
@@ -160,7 +163,7 @@
                 v-model="formData.auth_config.client_secret"
                 type="password"
                 class="form-input mb-2"
-                placeholder="Client Secret"
+                :placeholder="storedSecrets.client_secret ? 'Client Secret — saved, leave blank to keep' : 'Client Secret'"
               />
               <input
                 v-model="formData.auth_config.scopes"
@@ -295,15 +298,33 @@ onMounted(() => {
   formData.category = props.service.category || ''
   formData.icon = props.service.icon || '🌐'
   formData.auth_type = props.service.auth_type || 'none'
-  formData.auth_config = props.service.auth_config || {}
+  // The detail payload returns a REDACTED auth config: non-secret values verbatim, each secret as a
+  // `has_<field>` flag. Copy the real values in so the form is not blank; secrets stay empty and are
+  // preserved server-side when left untouched, so the user never has to retype a client secret to
+  // change something else.
+  const incomingAuth = props.service.auth_config || {}
+  formData.auth_config = Object.fromEntries(
+    Object.entries(incomingAuth).filter(([k]) => !k.startsWith('has_'))
+  )
+  storedSecrets.value = Object.fromEntries(
+    Object.entries(incomingAuth)
+      .filter(([k, v]) => k.startsWith('has_') && v)
+      .map(([k]) => [k.slice(4), true])
+  )
   formData.api_spec_url = props.service.api_spec_url || ''
   formData.api_docs_url = props.service.api_docs_url || ''
   formData.enabled = props.service.enabled !== false
 })
 
 // Handle auth type change - reset auth_config
+// Which secrets are already stored (from the `has_<field>` flags). Used only to label the inputs —
+// the values themselves are never sent to the client.
+const storedSecrets = ref({})
+
+// Switching auth type genuinely discards the old type's fields; they do not apply any more.
 const handleAuthTypeChange = () => {
   formData.auth_config = {}
+  storedSecrets.value = {}
 }
 
 // Submit form
