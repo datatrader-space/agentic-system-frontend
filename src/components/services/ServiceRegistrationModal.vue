@@ -971,6 +971,11 @@ export default {
             return
           }
           if (data.state === 'failed') {
+            // A worker restarted mid-job (a deploy) reports `worker_stopped` with the count it did
+            // reach, so partial work is kept rather than the whole run being thrown away.
+            if (data.error === 'worker_stopped' && (data.results || []).length) {
+              (data.results || []).forEach(applyEnriched)
+            }
             notify.error(data.error_detail || data.error || 'Enrichment failed.')
             return
           }

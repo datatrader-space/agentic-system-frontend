@@ -298,7 +298,13 @@ export default {
   // Background enrichment. The synchronous endpoint above caps at 20 actions per call; these run the
   // whole set in Celery so nothing is dropped for want of a request timeout.
   startEnrichmentJob: (data) => api.post('/services/enrich-schemas/start/', data),
-  getEnrichmentJobStatus: (jobId) => api.get(`/services/enrich-schemas/status/${jobId}/`),
+  // Cache-busted: without a unique URL the browser served one cached snapshot for ~60s, so a poll
+  // every 1.5s reached the server 3 times in two minutes and the progress bar sat frozen at 0.
+  // The endpoint also sends no-store; this is the belt to that pair of braces.
+  getEnrichmentJobStatus: (jobId) => api.get(`/services/enrich-schemas/status/${jobId}/`, {
+    params: { _: Date.now() },
+    headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' }
+  }),
   repairServiceSchemas: (serviceId) => api.post(`/services/${serviceId}/repair-schemas/`),
 
   // Service authentication (attach or rotate a credential without re-registering)
