@@ -463,7 +463,13 @@
                 <div class="h-full bg-purple-600 transition-all duration-300" :style="{ width: enrichProgress.percent + '%' }"></div>
               </div>
               <p v-if="enrichProgress.current" class="mt-2 truncate text-[11px] font-mono text-purple-600">{{ enrichProgress.current }}</p>
-              <p v-if="enrichProgress.model" class="mt-1 text-[11px] font-medium text-purple-500">Model: {{ enrichProgress.model }}</p>
+              <p v-if="enrichProgress.model" class="mt-1 text-[11px] font-medium text-purple-500">
+                Model: {{ enrichProgress.model }}
+                <span v-if="enrichProgress.modelSource && enrichProgress.modelSource !== 'enrichment_model'"
+                  class="text-purple-400">
+                  — falling back to your default. Pin a cheaper model for enrichment on the AI Provider page.
+                </span>
+              </p>
             </div>
 
             <div v-else-if="enrichedCount > 0" class="mb-4 rounded-[12px] border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[12px] font-bold text-emerald-800">
@@ -665,7 +671,7 @@ export default {
     const oauthRedirectUri = computed(() => `${window.location.origin}/api/oauth/callback/`)
 
     const enrichJobId = ref(null)
-    const enrichProgress = ref({ done: 0, total: 0, percent: 0, current: null, model: null })
+    const enrichProgress = ref({ done: 0, total: 0, percent: 0, current: null, model: null, modelSource: null })
 
     // ── Draft auto-save ──────────────────────────────────────────────────────────────────────────
     // The Drafts dialog has always promised "Drafts auto-save during registration", but THIS wizard
@@ -1008,7 +1014,7 @@ export default {
       }
 
       enriching.value = true
-      enrichProgress.value = { done: 0, total: actions.length, percent: 0, current: null, model: null }
+      enrichProgress.value = { done: 0, total: actions.length, percent: 0, current: null, model: null, modelSource: null }
       try {
         const { data } = await api.startEnrichmentJob({
           service_name: formData.value.name,
@@ -1044,7 +1050,8 @@ export default {
             total: data.total || 0,
             percent: data.percent || 0,
             current: data.current || null,
-            model: data.model || enrichProgress.value.model
+            model: data.model || enrichProgress.value.model,
+            modelSource: data.model_source || enrichProgress.value.modelSource
           }
           if (data.state === 'done') {
             (data.results || []).forEach(applyEnriched)
