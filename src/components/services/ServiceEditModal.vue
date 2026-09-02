@@ -231,6 +231,29 @@
             />
           </div>
 
+          <!-- Built-in promotion — PLATFORM ADMINS ONLY.
+               Registration could already do this; editing could not, so an existing service had no
+               way to be promoted (or demoted) without re-registering it from scratch. The server
+               enforces the same gate, so hiding this is a UI convenience, not the control itself. -->
+          <div v-if="isPlatformAdmin" class="form-group builtin-toggle">
+            <label class="flex items-start gap-2 cursor-pointer">
+              <input
+                v-model="formData.is_builtin"
+                type="checkbox"
+                class="form-checkbox"
+                style="margin-top: 3px;"
+              />
+              <span>
+                <strong>Built-in service</strong>
+                <span class="builtin-note">
+                  Available to <strong>every user on the platform</strong>, listed and connected in
+                  Connectors alongside GitHub and Slack — each user connects their own account.
+                  Only platform admins can manage it.
+                </span>
+              </span>
+            </label>
+          </div>
+
           <!-- Enabled Toggle -->
           <div class="form-group">
             <label class="flex items-center gap-2 cursor-pointer">
@@ -285,6 +308,7 @@ const formData = reactive({
   icon: '',
   auth_type: 'none',
   auth_config: {},
+  is_builtin: false,
   api_spec_url: '',
   api_docs_url: '',
   enabled: true
@@ -314,12 +338,23 @@ onMounted(() => {
   formData.api_spec_url = props.service.api_spec_url || ''
   formData.api_docs_url = props.service.api_docs_url || ''
   formData.enabled = props.service.enabled !== false
+  formData.is_builtin = !!props.service.is_builtin
+
+  api.getCurrentUser()
+    .then(({ data }) => {
+      isPlatformAdmin.value = !!(data?.user?.is_platform_admin ?? data?.is_platform_admin)
+    })
+    .catch(() => { isPlatformAdmin.value = false })
 })
 
 // Handle auth type change - reset auth_config
 // Which secrets are already stored (from the `has_<field>` flags). Used only to label the inputs —
 // the values themselves are never sent to the client.
 const storedSecrets = ref({})
+
+// Platform admin (is_staff OR is_superuser) — one server-resolved field, never the org role: signup
+// makes everyone the owner of their personal org. Fails closed, so no proof means no admin control.
+const isPlatformAdmin = ref(false)
 
 // Switching auth type genuinely discards the old type's fields; they do not apply any more.
 const handleAuthTypeChange = () => {
@@ -342,7 +377,9 @@ const handleSubmit = async () => {
       auth_config: formData.auth_config,
       api_spec_url: formData.api_spec_url,
       api_docs_url: formData.api_docs_url,
-      enabled: formData.enabled
+      enabled: formData.enabled,
+      // Honoured server-side only for a platform admin; a non-admin sending it is ignored.
+      is_builtin: formData.is_builtin
     })
 
     emit('updated')
@@ -558,5 +595,19 @@ const handleSubmit = async () => {
   font-size: 14px;
   color: #374151;
   cursor: pointer;
+}
+.builtin-toggle {
+  padding: 10px 12px;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  background: #fffbeb;
+}
+.builtin-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+  color: #92400e;
 }
 </style>
