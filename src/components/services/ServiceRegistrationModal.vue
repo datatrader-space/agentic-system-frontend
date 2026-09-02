@@ -347,9 +347,21 @@
               </div>
             </div>
             <div>
-              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Scopes</label>
+              <div class="mb-1.5 flex items-center justify-between gap-2">
+                <label class="block text-[12px] font-bold text-slate-700">Scopes <span class="text-red-500">*</span></label>
+                <button v-if="scopePreset" type="button" @click="applyScopePreset"
+                  class="text-[11px] font-bold text-violet-600 hover:text-violet-800 hover:underline">
+                  Use {{ scopePreset.label }} defaults
+                </button>
+              </div>
               <input v-model="formData.auth_config.scopes" type="text" placeholder="read:jira-work write:jira-work offline_access"
                 class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] font-mono text-[13px] focus:outline-none focus:border-violet-400 transition-all" />
+              <p class="mt-1 text-[11px] font-medium text-slate-500">
+                Space-separated. The provider rejects an authorization request that asks for none, so
+                this is required — and it must be a subset of what your app is granted in its console.
+                Include a refresh scope (Atlassian: <code>offline_access</code>) or the connection
+                expires with the first access token.
+              </p>
             </div>
             <div class="bg-indigo-50 border border-indigo-200 rounded-[10px] px-4 py-3 text-[12px] text-indigo-800">
               Register this redirect URI with your OAuth provider:
@@ -651,7 +663,37 @@ export default {
     const REQUIRED_AUTH_FIELDS = {
       none: [], api_key: ['key_name', 'key_value'], bearer: ['token'],
       basic: ['username', 'password'],
-      oauth2: ['authorization_url', 'token_url', 'client_id']   // client_secret optional (PKCE)
+      // `scopes` is required. Scopes registered on the app at the provider are only a CEILING; the
+      // authorization request must still state what it wants (RFC 6749 §3.3), and a provider rejects
+      // a request with none — Atlassian: "This app has not requested any supported Atlassian scopes".
+      // client_secret stays optional (public/PKCE clients legitimately have none).
+      oauth2: ['authorization_url', 'token_url', 'client_id', 'scopes']
+    }
+
+    // Starting scopes for well-known providers, matched on the authorization URL's host. Offered as
+    // a one-click SUGGESTION — never applied silently, because the authoritative set is whatever the
+    // app is actually granted in the provider's own console. Refresh-token scopes are included
+    // (`offline_access` for Atlassian) or the connection dies when the first access token expires.
+    const SCOPE_PRESETS = [
+      { host: 'auth.atlassian.com', label: 'Jira / Confluence',
+        scopes: 'read:jira-work write:jira-work read:jira-user offline_access' },
+      { host: 'accounts.google.com', label: 'Google',
+        scopes: 'https://www.googleapis.com/auth/drive.readonly openid email' },
+      { host: 'slack.com', label: 'Slack', scopes: 'channels:read chat:write users:read' },
+      { host: 'github.com', label: 'GitHub', scopes: 'repo read:org read:user' },
+      { host: 'login.microsoftonline.com', label: 'Microsoft',
+        scopes: 'openid profile offline_access User.Read' }
+    ]
+
+    const scopePreset = computed(() => {
+      const url = formData.value.auth_config.authorization_url || ''
+      let host = ''
+      try { host = new URL(url).hostname.toLowerCase() } catch { return null }
+      return SCOPE_PRESETS.find(p => host === p.host || host.endsWith('.' + p.host)) || null
+    })
+
+    const applyScopePreset = () => {
+      if (scopePreset.value) formData.value.auth_config.scopes = scopePreset.value.scopes
     }
 
     const authPayload = () => {
@@ -1379,6 +1421,8 @@ export default {
       draftSaving,
       specReuploadNeeded,
       authTypes,
+      scopePreset,
+      applyScopePreset,
       authComplete,
       missingAuthFields,
       oauthRedirectUri,
