@@ -160,7 +160,7 @@
               <div class="flex items-center gap-2 shrink-0">
                 <!-- Built-in services are managed through the connector catalog. -->
                 <button
-                  v-if="selected.kind === 'builtin'"
+                  v-if="selected.kind === 'builtin' || selected.is_builtin"
                   @click="showHub = true"
                   class="px-3.5 py-2 rounded-xl text-[13px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100"
                 >
@@ -206,9 +206,13 @@
                     {{ actionLoading ? 'Working…' : 'Remove' }}
                   </button>
                 </template>
-                <!-- Full service management (edit actions, test, share, activate, delete) -->
+                <!-- Full service management (edit actions, test, share, activate, delete).
+                     A BUILT-IN service belongs to the platform, not to the viewer: a regular user
+                     connects it like GitHub or Slack and must not be offered edit/activate/DELETE on
+                     something every other user depends on. Own (non-built-in) services are
+                     unaffected. Shown beside "Browse catalog" for admins. -->
                 <button
-                  v-if="selected.kind === 'service'"
+                  v-if="selected.kind === 'service' && (!selected.is_builtin || isPlatformAdmin)"
                   @click="openServiceManage(selected)"
                   class="px-3.5 py-2 rounded-xl text-[13px] font-semibold text-ink-soft bg-slate-100 border border-slate-200 hover:bg-slate-200"
                 >
@@ -511,6 +515,11 @@ async function createWs() {
 }
 
 const actionLoading = ref(false)
+// Platform admin (is_staff OR is_superuser), resolved server-side into ONE field. Deliberately not
+// the org role — signup makes everyone the owner of their personal org, so an org-role gate would
+// hand platform-wide controls to almost every account.
+const isPlatformAdmin = ref(false)
+
 const credModalConnector = ref(null)
 const addMenuOpen = ref(false)
 const showMcpModal = ref(false)
@@ -938,6 +947,11 @@ async function loadConnectorsBundle() {
 }
 
 onMounted(() => {
+  // Fail closed: without proof of platform admin, admin-only controls stay hidden.
+  api.getCurrentUser()
+    .then(({ data }) => { isPlatformAdmin.value = !!(data?.user?.is_platform_admin ?? data?.is_platform_admin) })
+    .catch(() => { isPlatformAdmin.value = false })
+
   // Deep-link: ?scope=agent:<id> (e.g. opened from the agent builder Tools step).
   const qScope = route.query.scope
   if (typeof qScope === 'string' && (qScope === 'global' || qScope.startsWith('agent:'))) {

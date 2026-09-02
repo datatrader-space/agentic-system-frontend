@@ -110,26 +110,21 @@
             />
           </div>
 
-          <div>
-            <label class="block text-[12px] font-bold text-slate-700 mb-2">Visibility <span class="text-red-500">*</span></label>
-            <div class="grid gap-3 sm:grid-cols-2">
-              <label class="flex cursor-pointer items-start gap-3 rounded-[9px] border p-4 transition"
-                :class="formData.visibility === 'private' ? 'border-violet-500 bg-violet-50/40 shadow-[0_0_0_1px_rgba(124,58,237,0.12)]' : 'border-slate-200 bg-white hover:border-slate-300'">
-                <input type="radio" v-model="formData.visibility" value="private" class="mt-1 accent-violet-600" />
-                <span>
-                  <span class="block text-[13px] font-bold text-slate-900">Private</span>
-                  <span class="block text-[11px] font-medium text-slate-500">Only for this organization</span>
+          <!-- Visibility (Private/Public) was removed. A registered service is USER-SCOPED: it
+               belongs to whoever registered it. The only wider scope is "built-in", and that is a
+               PLATFORM decision, not a per-service radio button. -->
+          <div v-if="isPlatformAdmin" class="rounded-[10px] border border-amber-200 bg-amber-50 p-4">
+            <label class="flex cursor-pointer items-start gap-3">
+              <input type="checkbox" v-model="formData.is_builtin" class="mt-0.5 rounded accent-amber-600" />
+              <span>
+                <span class="block text-[12px] font-bold text-amber-900">Register as a built-in service</span>
+                <span class="mt-0.5 block text-[11px] font-medium text-amber-800">
+                  Makes this service available to <strong>every user on the platform</strong>, listed
+                  and connected in Connectors alongside GitHub and Slack. Each user connects their own
+                  account. Only platform admins can manage it afterwards.
                 </span>
-              </label>
-              <label class="flex cursor-pointer items-start gap-3 rounded-[9px] border p-4 transition"
-                :class="formData.visibility === 'public' ? 'border-violet-500 bg-violet-50/40 shadow-[0_0_0_1px_rgba(124,58,237,0.12)]' : 'border-slate-200 bg-white hover:border-slate-300'">
-                <input type="radio" v-model="formData.visibility" value="public" class="mt-1 accent-violet-600" />
-                <span>
-                  <span class="block text-[13px] font-bold text-slate-900">Public</span>
-                  <span class="block text-[11px] font-medium text-slate-500">Available to all organizations</span>
-                </span>
-              </label>
-            </div>
+              </span>
+            </label>
           </div>
 
           <label class="flex items-start gap-3 border-t border-slate-100 pt-4">
@@ -647,7 +642,9 @@ export default {
         username: '', password: '',
         authorization_url: '', token_url: '', client_id: '', client_secret: '', scopes: ''
       },
-      visibility: 'private',            // 'private' (creator only) | 'public' (all workspace members)
+      // A service is USER-SCOPED by default; `is_builtin` is the only wider scope and is honoured
+      // server-side ONLY for a platform admin, so a stale client cannot publish to everyone.
+      is_builtin: false,
       enable_all_workspaces: false      // link the service to every workspace in the org
     })
 
@@ -722,6 +719,11 @@ export default {
     // never called the endpoint — so a browser refresh or a backend restart lost everything, including
     // a completed AI enrichment pass over hundreds of actions. The wizard it replaced did auto-save;
     // consolidating onto this one dropped that, so it is restored here.
+    // Platform admin (is_staff OR is_superuser), resolved server-side into one field. Deliberately
+    // NOT the org role: signup makes everyone an owner of their personal org, so an org-role gate
+    // would let almost any account publish a service to the whole installation.
+    const isPlatformAdmin = ref(false)
+
     const draftServiceId = ref(null)
     // A restored v3 draft has no inlined spec; enriching further actions needs it re-uploaded.
     const specReuploadNeeded = ref(false)
@@ -1251,6 +1253,13 @@ export default {
     }
 
     onMounted(async () => {
+      try {
+        const { data } = await api.getCurrentUser()
+        isPlatformAdmin.value = !!(data?.user?.is_platform_admin ?? data?.is_platform_admin)
+      } catch {
+        isPlatformAdmin.value = false      // fail closed: no admin-only option without proof
+      }
+
       // Offer the most recent draft back rather than silently starting over.
       try {
         const { data } = await api.listDrafts()
@@ -1298,7 +1307,7 @@ export default {
           auth_config: authPayload(),
           discovery_method: formData.value.discovery_method,
           api_spec_url: formData.value.api_spec_url,
-          visibility: formData.value.visibility,
+          is_builtin: formData.value.is_builtin,
           enable_all_workspaces: formData.value.enable_all_workspaces
         })
 
@@ -1392,6 +1401,9 @@ export default {
           : (formData.value.auth_type === 'oauth2'
               ? 'Client configured — connect after registering'
               : (authComplete.value ? 'Credential set' : 'Incomplete')) },
+      { label: 'Scope', value: formData.value.is_builtin
+          ? 'Built-in — available to every user'
+          : 'Private — only you' },
       { label: 'Categories',  value: String(selectedCategoryNames.value.length) },
       { label: 'Total Actions', value: String(getTotalSelectedActions()) },
       { label: 'AI Enriched', value: `${enrichedCount.value} / ${getTotalSelectedActions()}` }
@@ -1421,6 +1433,7 @@ export default {
       draftSaving,
       specReuploadNeeded,
       authTypes,
+      isPlatformAdmin,
       scopePreset,
       applyScopePreset,
       authComplete,
