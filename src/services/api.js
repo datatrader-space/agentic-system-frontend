@@ -295,6 +295,18 @@ export default {
   enrichSchemas: (data, config) => {
     return api.post('/services/enrich-schemas/', data, config)
   },
+  // Background enrichment. The synchronous endpoint above caps at 20 actions per call; these run the
+  // whole set in Celery so nothing is dropped for want of a request timeout.
+  startEnrichmentJob: (data) => api.post('/services/enrich-schemas/start/', data),
+  getEnrichmentJobStatus: (jobId) => api.get(`/services/enrich-schemas/status/${jobId}/`),
+  repairServiceSchemas: (serviceId) => api.post(`/services/${serviceId}/repair-schemas/`),
+
+  // Service authentication (attach or rotate a credential without re-registering)
+  getServiceAuth: (serviceId) => api.get(`/services/${serviceId}/auth/`),
+  updateServiceAuth: (serviceId, data) => api.post(`/services/${serviceId}/auth/`, data),
+  startServiceOAuth: (serviceId) => api.post(`/oauth/start/${serviceId}/`),
+  getServiceOAuthStatus: (serviceId) => api.get(`/oauth/status/${serviceId}/`),
+  disconnectServiceOAuth: (serviceId) => api.post(`/oauth/disconnect/${serviceId}/`),
 
   // Service Sharing
   shareService: (serviceId, data) => api.post(`/services/${serviceId}/share/`, data),

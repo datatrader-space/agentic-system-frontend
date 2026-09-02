@@ -78,7 +78,10 @@ const BlogPost = () => import('./views/BlogPost.vue')
 const Pricing = () => import('./views/Pricing.vue')
 const About = () => import('./views/About.vue')
 const Contact = () => import('./views/Contact.vue')
-const ServiceRegistrationV2 = () => import('./views/ServiceRegistrationV2.vue')
+// One registration wizard. `ServiceRegistrationV2` was a SECOND, divergent implementation:
+// it had the auth step the Connectors modal lacked, while the modal (mounted on Connectors)
+// had the working selection/enrichment UI. Both routes now serve the single hardened wizard.
+const ServiceRegistration = () => import('./views/ServiceRegistration.vue')
 const OAuthProviderRegistration = () => import('./views/OAuthProviderRegistration.vue')
 const ServiceDrafts = () => import('./views/ServiceDrafts.vue')
 const OrgSettings = () => import('./views/OrgSettings.vue')
@@ -312,9 +315,9 @@ const router = createRouter({
         // Phase 5: previously top-level authed pages, re-housed inside the single shell.
         { path: 'systems/:id', name: 'dashboard-system-detail', component: SystemDetail },
         { path: 'systems/:systemId/repositories/:repoId', name: 'dashboard-repository-detail', component: RepositoryPage },
-        { path: 'services/register', name: 'dashboard-service-register', component: ServiceRegistrationV2 },
+        { path: 'services/register', name: 'dashboard-service-register', component: ServiceRegistration },
         { path: 'connectors/oauth-provider/new', name: 'dashboard-oauth-provider-new', component: OAuthProviderRegistration },
-        { path: 'services/wizard', name: 'dashboard-service-wizard', component: ServiceRegistrationV2 },
+        { path: 'services/wizard', name: 'dashboard-service-wizard', component: ServiceRegistration },
         { path: 'services/drafts', name: 'dashboard-service-drafts', component: ServiceDrafts },
         { path: 'workspace/:wsId', name: 'dashboard-workspace', component: WorkspaceDashboard },
         { path: 'workspace/:wsId/:tab', name: 'dashboard-workspace-tab', component: WorkspaceDashboard },

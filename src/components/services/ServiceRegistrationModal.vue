@@ -18,7 +18,7 @@
 
         <!-- Progress Steps -->
         <div class="mt-5 rounded-[10px] border border-slate-200 bg-white px-8 py-5">
-          <div class="grid grid-cols-5 items-start">
+          <div class="grid grid-cols-6 items-start">
             <div v-for="(step, index) in steps" :key="index" class="relative flex flex-col items-center">
               <div v-if="index > 0" class="absolute right-1/2 top-[13px] h-px w-full bg-slate-200"></div>
               <div class="relative z-10 flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold transition-all" :class="index <= currentStep ? 'bg-violet-600 text-white shadow-[0_5px_16px_rgba(124,58,237,0.28)]' : 'bg-slate-100 text-slate-500'">{{ index + 1 }}</div>
@@ -253,8 +253,121 @@
           </div>
         </div>
 
-        <!-- Step 3: Select & Review Actions -->
-        <div v-else-if="currentStep === 2">
+        <!-- Step 3: Authentication -->
+        <div v-else-if="currentStep === 2" class="space-y-5">
+          <div>
+            <h3 class="text-[15px] font-bold text-slate-950">Authentication</h3>
+            <p class="text-[12px] text-slate-500 mt-1 font-medium">How agents authenticate to this API. Credentials are encrypted at rest.</p>
+          </div>
+
+          <div class="space-y-2">
+            <label v-for="t in authTypes" :key="t.value"
+              class="flex items-start gap-3 p-4 border-2 rounded-[12px] cursor-pointer transition-all"
+              :class="formData.auth_type === t.value ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50'">
+              <input type="radio" v-model="formData.auth_type" :value="t.value" class="mt-0.5 accent-indigo-600" />
+              <div class="flex-1">
+                <div class="font-bold text-slate-800 text-[14px]">{{ t.icon }} {{ t.label }}</div>
+                <div class="text-[12px] text-slate-500 mt-0.5">{{ t.desc }}</div>
+              </div>
+            </label>
+          </div>
+
+          <!-- API Key -->
+          <div v-if="formData.auth_type === 'api_key'" class="space-y-3 border-t border-slate-100 pt-4">
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Key Name <span class="text-red-500">*</span></label>
+                <input v-model="formData.auth_config.key_name" type="text" placeholder="X-API-Key"
+                  class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] font-mono text-[13px] focus:outline-none focus:border-violet-400 transition-all" />
+              </div>
+              <div>
+                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Send In</label>
+                <select v-model="formData.auth_config.placement"
+                  class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] text-[13px] font-medium focus:outline-none focus:border-violet-400 transition-all">
+                  <option value="header">Header</option>
+                  <option value="query">Query parameter</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Key Value <span class="text-red-500">*</span></label>
+              <input v-model="formData.auth_config.key_value" type="password" placeholder="Your API key"
+                class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] font-mono text-[13px] focus:outline-none focus:border-violet-400 transition-all" />
+            </div>
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Value Prefix <span class="font-medium text-slate-400">(optional)</span></label>
+              <input v-model="formData.auth_config.prefix" type="text" placeholder="e.g. Token "
+                class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] font-mono text-[13px] focus:outline-none focus:border-violet-400 transition-all" />
+            </div>
+          </div>
+
+          <!-- Bearer -->
+          <div v-else-if="formData.auth_type === 'bearer'" class="space-y-3 border-t border-slate-100 pt-4">
+            <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Token <span class="text-red-500">*</span></label>
+            <input v-model="formData.auth_config.token" type="password" placeholder="Sent as: Authorization: Bearer &lt;token&gt;"
+              class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] font-mono text-[13px] focus:outline-none focus:border-violet-400 transition-all" />
+          </div>
+
+          <!-- Basic -->
+          <div v-else-if="formData.auth_type === 'basic'" class="grid gap-3 sm:grid-cols-2 border-t border-slate-100 pt-4">
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Username <span class="text-red-500">*</span></label>
+              <input v-model="formData.auth_config.username" type="text"
+                class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] text-[13px] focus:outline-none focus:border-violet-400 transition-all" />
+            </div>
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Password <span class="text-red-500">*</span></label>
+              <input v-model="formData.auth_config.password" type="password"
+                class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] text-[13px] focus:outline-none focus:border-violet-400 transition-all" />
+            </div>
+          </div>
+
+          <!-- OAuth 2.0 -->
+          <div v-else-if="formData.auth_type === 'oauth2'" class="space-y-3 border-t border-slate-100 pt-4">
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Authorization URL <span class="text-red-500">*</span></label>
+              <input v-model="formData.auth_config.authorization_url" type="url" placeholder="https://auth.example.com/authorize"
+                class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] font-mono text-[13px] focus:outline-none focus:border-violet-400 transition-all" />
+            </div>
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Token URL <span class="text-red-500">*</span></label>
+              <input v-model="formData.auth_config.token_url" type="url" placeholder="https://auth.example.com/oauth/token"
+                class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] font-mono text-[13px] focus:outline-none focus:border-violet-400 transition-all" />
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Client ID <span class="text-red-500">*</span></label>
+                <input v-model="formData.auth_config.client_id" type="text"
+                  class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] font-mono text-[13px] focus:outline-none focus:border-violet-400 transition-all" />
+              </div>
+              <div>
+                <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Client Secret <span class="font-medium text-slate-400">(optional for PKCE)</span></label>
+                <input v-model="formData.auth_config.client_secret" type="password"
+                  class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] font-mono text-[13px] focus:outline-none focus:border-violet-400 transition-all" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-[12px] font-bold text-slate-700 mb-1.5">Scopes</label>
+              <input v-model="formData.auth_config.scopes" type="text" placeholder="read:jira-work write:jira-work offline_access"
+                class="w-full h-10 px-3 bg-white border border-slate-200 rounded-[8px] font-mono text-[13px] focus:outline-none focus:border-violet-400 transition-all" />
+            </div>
+            <div class="bg-indigo-50 border border-indigo-200 rounded-[10px] px-4 py-3 text-[12px] text-indigo-800">
+              Register this redirect URI with your OAuth provider:
+              <code class="font-mono font-bold">{{ oauthRedirectUri }}</code>
+              <div class="mt-1.5 text-indigo-600">After registering, open the service from Connectors and click <strong>Connect</strong> — each user authorizes their own account.</div>
+            </div>
+          </div>
+
+          <div v-if="!authComplete" class="bg-amber-50 border border-amber-200 rounded-[12px] px-4 py-3 flex items-start gap-2">
+            <span class="text-amber-500 shrink-0 mt-0.5">!</span>
+            <p class="text-[12px] text-amber-800 font-medium">
+              Fill in: <strong>{{ missingAuthFields.join(', ') }}</strong>. Without a working credential every tool from this service will fail with 401.
+            </p>
+          </div>
+        </div>
+
+        <!-- Step 4: Select & Review Actions -->
+        <div v-else-if="currentStep === 3">
           <div v-if="!discoveredData" class="py-12 text-center">
             <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
               <svg class="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
@@ -304,9 +417,9 @@
           </div>
         </div>
 
-        <!-- Step 4: Schema Review -->
-        <div v-else-if="currentStep === 3">
-          <div v-if="!discoveredData || selectedCategories.length === 0" class="py-12 text-center">
+        <!-- Step 5: Schema Review -->
+        <div v-else-if="currentStep === 4">
+          <div v-if="!discoveredData || getTotalSelectedActions() === 0" class="py-12 text-center">
             <p class="text-[15px] font-bold text-slate-600">No actions selected</p>
             <p class="text-[13px] text-slate-400 mt-1.5">Go back and select action categories first.</p>
           </div>
@@ -322,6 +435,27 @@
                 <svg v-if="enriching" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                 {{ enriching ? 'Enhancing...' : '✨ Enhance with AI' }}
               </button>
+            </div>
+
+            <!-- Live progress. Enrichment runs in the background over ALL selected actions; it is no
+                 longer capped at 20 with the remainder silently discarded. -->
+            <div v-if="enriching" class="mb-4 rounded-[12px] border border-purple-200 bg-purple-50 px-4 py-3">
+              <div class="flex items-center justify-between text-[12px] font-bold text-purple-800">
+                <span>Enriching {{ enrichProgress.done }} / {{ enrichProgress.total }}</span>
+                <span>{{ enrichProgress.percent }}%</span>
+              </div>
+              <div class="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-purple-100">
+                <div class="h-full bg-purple-600 transition-all duration-300" :style="{ width: enrichProgress.percent + '%' }"></div>
+              </div>
+              <p v-if="enrichProgress.current" class="mt-2 truncate text-[11px] font-mono text-purple-600">{{ enrichProgress.current }}</p>
+              <p v-if="enrichProgress.model" class="mt-1 text-[11px] font-medium text-purple-500">Model: {{ enrichProgress.model }}</p>
+            </div>
+
+            <div v-else-if="enrichedCount > 0" class="mb-4 rounded-[12px] border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[12px] font-bold text-emerald-800">
+              AI-enriched {{ enrichedCount }} of {{ getTotalSelectedActions() }} selected actions.
+              <span v-if="enrichedCount < getTotalSelectedActions()" class="font-medium text-emerald-600">
+                Run it again to cover the rest.
+              </span>
             </div>
 
             <div class="space-y-4 max-h-80 overflow-y-auto pr-1">
@@ -359,8 +493,8 @@
           </div>
         </div>
 
-        <!-- Step 5: Review -->
-        <div v-else-if="currentStep === 4">
+        <!-- Step 6: Review -->
+        <div v-else-if="currentStep === 5">
           <h3 class="text-[16px] font-extrabold text-slate-900 mb-5">Review Service Configuration</h3>
 
           <div class="bg-slate-50 rounded-[14px] border border-slate-200 overflow-hidden mb-5">
@@ -434,13 +568,25 @@ export default {
       { value: 'manual',   icon: '✏️', label: 'Manual Entry',         desc: "I'll add actions manually later" }
     ]
 
-    const steps = ['Basic Info', 'API Config', 'Select Actions', 'Schema Review', 'Review']
+    const steps = ['Basic Info', 'API Config', 'Authentication', 'Select Actions', 'Schema Review', 'Review']
     const stepDescriptions = [
       'Basic service information',
       'API endpoint and spec configuration',
-      'Choose which action categories to enable',
+      'How agents authenticate to this API',
+      'Choose which actions to enable',
       'Review parameters, add examples, optionally enhance with AI',
       'Review and confirm'
+    ]
+
+    // Auth types the BACKEND actually supports (agent/services/service_auth.py). The wizard used to
+    // hardcode auth_type:'bearer' with an empty auth_config and had no auth step at all, so every
+    // service registered here had NO credential and all of its tools 401'd at call time.
+    const authTypes = [
+      { value: 'none',   icon: '🔓', label: 'No Auth',      desc: 'Public API — no credential needed' },
+      { value: 'api_key', icon: '🔑', label: 'API Key',      desc: 'A key sent as a header or query parameter' },
+      { value: 'bearer', icon: '🎟️', label: 'Bearer Token', desc: 'A static token sent as Authorization: Bearer <token>' },
+      { value: 'basic',  icon: '👤', label: 'Basic Auth',   desc: 'Username and password' },
+      { value: 'oauth2', icon: '🔐', label: 'OAuth 2.0',    desc: 'Per-user consent flow — each user connects their own account' }
     ]
 
     const formData = ref({
@@ -451,11 +597,52 @@ export default {
       base_url: '',
       api_spec_url: '',
       discovery_method: 'openapi',
-      auth_type: 'bearer',
-      auth_config: {},
+      auth_type: 'none',
+      auth_config: {
+        key_name: '', key_value: '', placement: 'header', prefix: '',
+        token: '',
+        username: '', password: '',
+        authorization_url: '', token_url: '', client_id: '', client_secret: '', scopes: ''
+      },
       visibility: 'private',            // 'private' (creator only) | 'public' (all workspace members)
       enable_all_workspaces: false      // link the service to every workspace in the org
     })
+
+    // Only the fields that belong to the chosen auth type are sent; the backend drops unknown keys
+    // anyway, but this keeps a stale password out of an api_key payload.
+    const AUTH_FIELDS = {
+      none: [],
+      api_key: ['key_name', 'key_value', 'placement', 'prefix'],
+      bearer: ['token'],
+      basic: ['username', 'password'],
+      oauth2: ['authorization_url', 'token_url', 'client_id', 'client_secret', 'scopes']
+    }
+    const REQUIRED_AUTH_FIELDS = {
+      none: [], api_key: ['key_name', 'key_value'], bearer: ['token'],
+      basic: ['username', 'password'],
+      oauth2: ['authorization_url', 'token_url', 'client_id']   // client_secret optional (PKCE)
+    }
+
+    const authPayload = () => {
+      const out = {}
+      for (const f of (AUTH_FIELDS[formData.value.auth_type] || [])) {
+        const v = formData.value.auth_config[f]
+        if (v !== undefined && v !== null && v !== '') out[f] = v
+      }
+      return out
+    }
+
+    const missingAuthFields = computed(() =>
+      (REQUIRED_AUTH_FIELDS[formData.value.auth_type] || [])
+        .filter(f => !formData.value.auth_config[f]))
+
+    const authComplete = computed(() => missingAuthFields.value.length === 0)
+
+    // Must match `_get_callback_url` in agent/view_handlers/oauth_views.py.
+    const oauthRedirectUri = computed(() => `${window.location.origin}/api/oauth/callback/`)
+
+    const enrichJobId = ref(null)
+    const enrichProgress = ref({ done: 0, total: 0, percent: 0, current: null, model: null })
 
     const discoveredData = ref(null)
     const selectedCategories = ref([])
@@ -473,12 +660,16 @@ export default {
       if (currentStep.value === 1) {
         return formData.value.base_url
       }
-      // Step 2: Select Actions - need at least one action selected
+      // Step 2: Authentication — a declared auth type must be complete, or its tools will 401.
       if (currentStep.value === 2) {
+        return authComplete.value
+      }
+      // Step 3: Select Actions - need at least one action selected
+      if (currentStep.value === 3) {
         return getTotalSelectedActions() > 0
       }
-      // Step 3: Schema Review - always can proceed
-      // Step 4: Review - always can proceed
+      // Step 4: Schema Review - always can proceed
+      // Step 5: Review - always can proceed
       return true
     })
 
@@ -604,8 +795,20 @@ export default {
           formData.value.base_url = response.data.base_url
         }
 
-        // Auto-select recommended categories
-        selectedCategories.value = response.data.recommended_categories || []
+        // Auto-select recommended categories — AND materialize their actions.
+        // Previously only `selectedCategories` was set here, so a recommended category rendered with a
+        // ticked checkbox but contributed 0 to the count ("Projects ☑ 0/21"), and its actions were
+        // never enriched — yet registration still created every one of them.
+        const recommended = response.data.recommended_categories || []
+        selectedCategories.value = []
+        selectedActions.value = {}
+        recommended.forEach(catName => {
+          const cat = response.data.categories?.[catName]
+          if (cat && cat.actions && cat.actions.length) {
+            selectedCategories.value.push(catName)
+            selectedActions.value[catName] = [...cat.actions]
+          }
+        })
 
       } catch (error) {
         console.error('Failed to discover actions:', error)
@@ -691,71 +894,95 @@ export default {
       return actions
     }
 
+    // Apply one enriched action back onto the selection AND the discovery cache, so the review
+    // screen and the registration payload both carry the enriched schema.
+    const applyEnriched = (enrichedAction) => {
+      Object.values(selectedActions.value).forEach(actions => {
+        const i = (actions || []).findIndex(a => a.name === enrichedAction.name)
+        if (i > -1) actions[i] = { ...actions[i], ...enrichedAction }
+      })
+      Object.values(discoveredData.value?.categories || {}).forEach(category => {
+        const i = (category.actions || []).findIndex(a => a.name === enrichedAction.name)
+        if (i > -1) category.actions[i] = { ...category.actions[i], ...enrichedAction }
+      })
+    }
+
+    /**
+     * Enrich EVERY selected action via the background job.
+     *
+     * The old flow POSTed the whole list to a synchronous endpoint that silently kept only the first
+     * 20 and discarded the rest - with no way to ever reach them, since re-clicking re-sent the same
+     * first 20. It also reported "Enriched: 20/20" when the backend had made zero LLM calls, because
+     * a skipped enrichment returned the same shape as a successful one.
+     */
     const enrichWithAI = async () => {
+      const actions = getSelectedActions()
+      if (!actions.length) {
+        notify.error('Select at least one action first.')
+        return
+      }
       enriching.value = true
+      enrichProgress.value = { done: 0, total: actions.length, percent: 0, current: null, model: null }
       try {
-        const actions = getSelectedActions()
-        
-        // Warn if too many actions
-        if (actions.length > 20) {
-          if (!(await confirm(`âš ï¸ You have ${actions.length} selected actions. Only the first 20 will be enriched to prevent timeout. Continue?`))) {
-            enriching.value = false
+        const { data } = await api.startEnrichmentJob({
+          service_name: formData.value.name,
+          actions,
+          openapi_doc: openAPISpec.value || null
+        })
+        enrichJobId.value = data.job_id
+        enrichProgress.value.model = data.model
+        await pollEnrichmentJob(data.job_id)
+      } catch (error) {
+        console.error('Failed to start enrichment:', error)
+        const code = error.response?.data?.error
+        if (code === 'no_usable_model') {
+          // The exact condition that used to be reported as a green "Enriched: 20/20".
+          notify.error(error.response?.data?.detail
+            || 'No LLM provider is configured for this account. Add one on the AI Provider page.')
+        } else {
+          notify.error('Failed to start enrichment: ' + (code || error.message))
+        }
+        enriching.value = false
+      }
+    }
+
+    const pollEnrichmentJob = async (jobId) => {
+      const started = Date.now()
+      const MAX_MS = 30 * 60 * 1000
+      try {
+        while (Date.now() - started < MAX_MS) {
+          await new Promise(r => setTimeout(r, 1500))
+          const { data } = await api.getEnrichmentJobStatus(jobId)
+          enrichProgress.value = {
+            done: data.done || 0,
+            total: data.total || 0,
+            percent: data.percent || 0,
+            current: data.current || null,
+            model: data.model || enrichProgress.value.model
+          }
+          if (data.state === 'done') {
+            (data.results || []).forEach(applyEnriched)
+            const byLlm = data.enriched_by_llm || 0
+            const failed = data.skipped_error || 0
+            let msg = 'Enriched ' + byLlm + '/' + data.total + ' actions'
+            if (data.model) msg += ' using ' + data.model
+            if (failed) msg += ' - ' + failed + ' could not be enriched'
+            notify.show(msg)
+            return
+          }
+          if (data.state === 'failed') {
+            notify.error(data.error_detail || data.error || 'Enrichment failed.')
             return
           }
         }
-        
-        // Get OpenAPI doc for enrichment (if available)
-        const openAPIDoc = openAPISpec.value || null
-        
-        const response = await api.enrichSchemas({
-          service_name: formData.value.name,
-          actions: actions,
-          openapi_doc: openAPIDoc
-        })
-
-        // Update the discovered data with enriched schemas
-        if (response.data && response.data.enriched_actions) {
-          // Map enriched actions back to categories
-          response.data.enriched_actions.forEach(enrichedAction => {
-            selectedCategories.value.forEach(catName => {
-              const category = discoveredData.value.categories[catName]
-              if (category && category.actions) {
-                const idx = category.actions.findIndex(a => a.name === enrichedAction.name)
-                if (idx > -1) {
-                  // Update with enriched data
-                  category.actions[idx] = { ...category.actions[idx], ...enrichedAction }
-                }
-              }
-            })
-          })
-          
-          // Show detailed success message
-          const stats = response.data.stats
-          let message = `✨ Enrichment complete!\n\n`
-          message += `✅ Enriched: ${stats.enriched}/${stats.total}\n`
-          if (stats.validated > 0) {
-            message += `✓ Validated: ${stats.validated}\n`
-          }
-          if (stats.repaired > 0) {
-            message += `🔧 Auto-repaired: ${stats.repaired}\n`
-          }
-          if (stats.skipped > 0) {
-            message += `âš ï¸ Skipped (errors): ${stats.skipped}\n`
-          }
-          message += `\nCheck the updated parameter examples!`
-          
-          notify.show(message)
-        }
-        
+        notify.error('Enrichment is taking unusually long - check back on the service page.')
       } catch (error) {
-        console.error('Failed to enrich schemas:', error)
-        if (error.code === 'ECONNABORTED') {
-          notify.error('â±ï¸ Request timed out. Try selecting fewer actions (max 20 recommended).')
-        } else {
-          notify.error('Failed to enrich schemas: ' + (error.response?.data?.error || error.message))
-        }
+        console.error('Enrichment polling failed:', error)
+        notify.error('Lost track of the enrichment job: '
+          + (error.response?.data?.error || error.message))
       } finally {
         enriching.value = false
+        enrichJobId.value = null
       }
     }
 
@@ -776,7 +1003,7 @@ export default {
           icon: formData.value.icon,
           base_url: formData.value.base_url,
           auth_type: formData.value.auth_type,
-          auth_config: formData.value.auth_config,
+          auth_config: authPayload(),
           discovery_method: formData.value.discovery_method,
           api_spec_url: formData.value.api_spec_url,
           visibility: formData.value.visibility,
@@ -785,38 +1012,50 @@ export default {
 
         const serviceId = serviceResponse.data.service_id
 
-        // Step 2: Create actions for selected categories
-        if (discoveredData.value && selectedCategories.value.length > 0) {
+        // Step 2: Create EXACTLY the actions the user selected.
+        //
+        // This used to iterate `selectedCategories` and push every action of each category, ignoring
+        // the per-action selection entirely — so a review screen showing "33 actions" registered 78,
+        // including 45 the user had never seen. `selectedActions` is the single source of truth for
+        // the count, the enrichment set, the review screen AND this payload.
+        if (discoveredData.value) {
           const actionsToCreate = []
-
-          selectedCategories.value.forEach(categoryName => {
-            const category = discoveredData.value.categories[categoryName]
-            if (category && category.actions) {
-              category.actions.forEach(action => {
-                actionsToCreate.push({
-                  name: action.name,
-                  description: action.description,
-                  action_group: categoryName,
-                  endpoint_path: action.endpoint_path,
-                  http_method: action.http_method,
-                  parameters: action.parameters,
-                  request_body_schema: action.request_body_schema,
-                  response_schema: action.response_schema,
-                  // 🆕 Include enriched data if available
-                  invocation_schema: action.invocation_schema,
-                  llm_notes: action.llm_notes,
-                  risk_level: action.risk_level,
-                  execution_pattern: action.execution_pattern || 'simple'
-                })
+          Object.entries(selectedActions.value).forEach(([categoryName, actions]) => {
+            (actions || []).forEach(action => {
+              actionsToCreate.push({
+                name: action.name,
+                description: action.description,
+                action_group: categoryName,
+                endpoint_path: action.endpoint_path,
+                http_method: action.http_method,
+                parameters: action.parameters,
+                request_body_schema: action.request_body_schema,
+                response_schema: action.response_schema,
+                // 🆕 Include enriched data if available
+                invocation_schema: action.invocation_schema,
+                llm_notes: action.llm_notes,
+                risk_level: action.risk_level,
+                execution_pattern: action.execution_pattern || 'simple'
               })
-            }
+            })
           })
 
           if (actionsToCreate.length > 0) {
+            // `expected_count` lets the backend refuse the write if this payload ever again diverges
+            // from what the review screen displayed.
             await api.createServiceActions(serviceId, {
-              actions: actionsToCreate
+              actions: actionsToCreate,
+              expected_count: actionsToCreate.length
             })
           }
+        }
+
+        if (serviceResponse.data?.requires_oauth_connect) {
+          notify.show('Service registered. Open it from Connectors and click Connect to authorize '
+            + 'your account before agents can use its tools.')
+        } else if (serviceResponse.data?.auth_configured === false) {
+          notify.show('Service registered, but its credential is incomplete — its tools will fail '
+            + 'until you finish setup on the service’s Authentication tab.')
         }
 
         emit('registered')
@@ -829,13 +1068,30 @@ export default {
       }
     }
 
+    // Every row derives from `selectedActions` — ONE source of truth. "Categories" used to be read
+    // from `selectedCategories` while "Total Actions" came from `selectedActions`, so the two rows
+    // described different sets (7 categories / 33 actions, then 78 registered).
+    const selectedCategoryNames = computed(() =>
+      Object.entries(selectedActions.value)
+        .filter(([, actions]) => (actions || []).length > 0)
+        .map(([name]) => name))
+
+    const enrichedCount = computed(() =>
+      getSelectedActions().filter(a => a.enriched_by_llm).length)
+
     const reviewItems = computed(() => [
       { label: 'Name',        value: formData.value.name || '—' },
       { label: 'Category',    value: formData.value.category || 'N/A' },
       { label: 'Base URL',    value: formData.value.base_url || '—' },
       { label: 'Auth Type',   value: formData.value.auth_type || '—' },
-      { label: 'Categories',  value: String(selectedCategories.value.length) },
-      { label: 'Total Actions', value: String(getTotalSelectedActions()) }
+      { label: 'Auth Status', value: formData.value.auth_type === 'none'
+          ? 'No auth'
+          : (formData.value.auth_type === 'oauth2'
+              ? 'Client configured — connect after registering'
+              : (authComplete.value ? 'Credential set' : 'Incomplete')) },
+      { label: 'Categories',  value: String(selectedCategoryNames.value.length) },
+      { label: 'Total Actions', value: String(getTotalSelectedActions()) },
+      { label: 'AI Enriched', value: `${enrichedCount.value} / ${getTotalSelectedActions()}` }
     ])
 
     return {
@@ -857,6 +1113,14 @@ export default {
       htmlDocsContent,
       canProceed,
       reviewItems,
+      authTypes,
+      authComplete,
+      missingAuthFields,
+      oauthRedirectUri,
+      enrichJobId,
+      enrichProgress,
+      enrichedCount,
+      selectedCategoryNames,
       handlePostmanUpload,
       handleOpenAPIUpload,
       handleGraphQLUpload,
