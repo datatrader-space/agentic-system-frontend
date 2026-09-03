@@ -616,6 +616,38 @@ async function afterChange() {
 }
 
 // OAuth — only when the backend reports the provider is configured; otherwise honest message.
+// Per-service OAuth in a popup, for a service registered through the wizard. Resolves when the popup
+// posts its result back, so the caller's busy state ends on the real outcome rather than on the
+// window merely having opened.
+function startRegisteredServiceOAuth(reg, name) {
+  return new Promise((resolve) => {
+    api.startOAuth(reg.service_id).then(({ data }) => {
+      const popup = window.open(data.redirect_url, 'oauth_popup',
+                                'width=600,height=700,scrollbars=yes')
+      if (!popup || popup.closed) {
+        notify.error('Popup blocked. Allow popups for this site, then try again.')
+        return resolve()
+      }
+      const onMsg = async (event) => {
+        if (event?.data?.type !== 'oauth_result') return
+        window.removeEventListener('message', onMsg)
+        if (event.data.status === 'success') {
+          notify.success(`Connected to ${name}`)
+          await afterChange()
+        } else {
+          notify.error(`${name} connection failed: ` + (event.data.error || 'unknown error'))
+        }
+        resolve()
+      }
+      window.addEventListener('message', onMsg)
+    }).catch((e) => {
+      const err = e?.response?.data
+      notify.error(err?.detail || err?.error || e?.message || 'Could not start the connection')
+      resolve()
+    })
+  })
+}
+
 async function connectWithOAuth() {
   const svc = detailItem.value
   if (!current.value?.oauth_configured) {
@@ -624,6 +656,15 @@ async function connectWithOAuth() {
   }
   busy.value = true
   try {
+    // A DB-REGISTERED service has no shared OAuthProvider row, so `connectOAuth` — which resolves a
+    // provider by slug — reports "Provider not available". It carries its own client config instead
+    // and connects through /api/oauth/start/<service_id>/, the same endpoint the Connectors page
+    // uses. Falling back to `svc.id` as a slug was never going to resolve.
+    const reg = current.value?.is_registered_service ? current.value : null
+    if (reg?.service_id) {
+      await startRegisteredServiceOAuth(reg, svc.name)
+      return
+    }
     await connectOAuth(api, svc.provider_slug || svc.id, {})
     notify.success(`Connected to ${svc.name}`)
     await afterChange()
