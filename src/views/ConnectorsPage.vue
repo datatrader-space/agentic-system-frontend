@@ -843,6 +843,11 @@ async function setPermission(tool, perm) {
 watch(selected, loadConnectorTools)
 
 function kindLabel(c) {
+  // A DB-registered service promoted by a platform admin IS a built-in service — it is in the
+  // catalog, visible to every user, and connected the same way. Its `kind` stays 'service' because
+  // that is what drives the connect/manage routing, so the LABEL has to read the promotion flag
+  // rather than the kind, or a promoted connector keeps describing itself as a plain service.
+  if (c.kind === 'service' && c.is_builtin) return 'Built-in service'
   return { mcp: 'MCP server', builtin: 'Built-in service' }[c.kind] || 'Service'
 }
 function authLabel(c) {
