@@ -4,7 +4,12 @@
       <!-- Header -->
       <div class="modal-header">
         <div class="flex items-center gap-3">
-          <div class="text-4xl">{{ service.icon || '🌐' }}</div>
+          <!-- An icon name containing a colon is an Iconify id and must be RENDERED; printing it
+               showed the literal string "logos:jira" as the service's icon. -->
+          <div class="text-4xl flex items-center justify-center">
+            <Icon v-if="(service.icon || '').includes(':')" :icon="service.icon" class="w-9 h-9" />
+            <template v-else>{{ service.icon || '🌐' }}</template>
+          </div>
           <div>
             <h2>{{ service.name }}</h2>
             <p class="text-gray-500">{{ service.slug }}</p>
@@ -359,6 +364,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import api from '../../services/api'
+import { Icon } from '@iconify/vue'
 import ServiceEditModal from './ServiceEditModal.vue'
 import ServiceShareModal from './ServiceShareModal.vue'
 import { notify } from '@/composables/useNotify'

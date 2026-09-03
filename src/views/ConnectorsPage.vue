@@ -725,6 +725,43 @@ const scopeAgent = computed(() => {
   return agents.value.find((a) => a.id === id) || null
 })
 
+// Per-service OAuth in a popup. `connectOAuth` is for the shared OAuthProvider registry and keys on
+// a provider slug; a service registered through the wizard carries its OWN client config and has no
+// slug, so it uses /api/oauth/start/<service_id>/ instead. The backend replies with the popup result
+// via postMessage, which is what `oauthResultListener` below is waiting for.
+async function startServiceOAuthPopup(c) {
+  actionLoading.value = true
+  try {
+    const { data } = await api.startOAuth(c.id)
+    const popup = window.open(data.redirect_url, 'oauth_popup',
+                              'width=600,height=700,scrollbars=yes')
+    if (!popup || popup.closed) {
+      notify.error('Popup blocked. Allow popups for this site, then try Connect again.')
+      actionLoading.value = false
+    }
+    // actionLoading stays true until the popup reports back, so the button cannot be double-fired.
+  } catch (e) {
+    const err = e?.response?.data
+    // The backend names a missing prerequisite (e.g. no scopes) rather than letting the provider
+    // reject it on a page the user then has to interpret.
+    notify.error(err?.detail || err?.error || e?.message || 'Could not start the connection')
+    actionLoading.value = false
+  }
+}
+
+onUnmounted(() => window.removeEventListener('message', oauthResultListener))
+
+function oauthResultListener(event) {
+  if (event?.data?.type !== 'oauth_result') return
+  actionLoading.value = false
+  if (event.data.status === 'success') {
+    notify.success('Connected')
+    loadConnectors()
+  } else {
+    notify.error('Connection failed: ' + (event.data.error || 'unknown error'))
+  }
+}
+
 async function handleConnect(c) {
   // A REGISTERED SERVICE connects the way IT declared at registration.
   //
@@ -735,7 +772,10 @@ async function handleConnect(c) {
   if (c.kind === 'service') {
     const authType = (c.auth_type || '').toLowerCase()
     if (authType === 'oauth2' || (c.auth_kind === 'oauth' && !c.provider_slug)) {
-      openServiceManage(c)          // the service's own OAuth panel: connect / reconnect / disconnect
+      // Connect means CONNECT. Opening the management panel first made the user hunt for a second
+      // button inside it; a built-in service should behave like every other built-in connector and
+      // go straight to the provider's consent screen.
+      await startServiceOAuthPopup(c)
       return
     }
     if (c.provider_slug) {          // legacy: linked to a shared OAuthProvider connector
@@ -952,6 +992,8 @@ async function loadConnectorsBundle() {
 }
 
 onMounted(() => {
+  window.addEventListener('message', oauthResultListener)
+
   // Fail closed: without proof of platform admin, admin-only controls stay hidden.
   api.getCurrentUser()
     .then(({ data }) => { isPlatformAdmin.value = !!(data?.user?.is_platform_admin ?? data?.is_platform_admin) })
