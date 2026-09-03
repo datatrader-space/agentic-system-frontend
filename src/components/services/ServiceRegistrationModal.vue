@@ -647,6 +647,8 @@ export default {
       category: '',
       icon: '',
       base_url: '',
+      // From the uploaded spec's servers[].variables — see handleDiscover.
+      server_variables: {},
       api_spec_url: '',
       discovery_method: 'openapi',
       auth_type: 'none',
@@ -894,6 +896,15 @@ export default {
         // Auto-fill base URL if discovered
         if (response.data.base_url && !formData.value.base_url) {
           formData.value.base_url = response.data.base_url
+        }
+
+        // ...and how to fill any {placeholder} inside it. A base URL like
+        // `https://api.atlassian.com/ex/jira/{cloudId}` names the user's TENANT, not a call argument:
+        // it is the same for every call on a connection and, for OAuth services, unknowable until
+        // after consent. The spec declares the answer under servers[].variables; carrying only
+        // base_url here is what shipped the literal `{cloudId}` to the provider on every call.
+        if (response.data.server_variables) {
+          formData.value.server_variables = response.data.server_variables
         }
 
         // Auto-select recommended categories — AND materialize their actions.
@@ -1230,6 +1241,7 @@ export default {
           description: formData.value.description,
           category: formData.value.category,
           base_url: formData.value.base_url,
+          server_variables: formData.value.server_variables,
           auth_type: formData.value.auth_type,
           // Secrets are encrypted server-side by service_auth before they touch the DB.
           auth_config: authPayload()
@@ -1317,6 +1329,7 @@ export default {
           category: formData.value.category,
           icon: formData.value.icon,
           base_url: formData.value.base_url,
+          server_variables: formData.value.server_variables,
           auth_type: formData.value.auth_type,
           auth_config: authPayload(),
           discovery_method: formData.value.discovery_method,
