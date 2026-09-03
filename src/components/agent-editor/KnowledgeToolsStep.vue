@@ -101,7 +101,11 @@
                 <p class="truncate text-[13px] font-semibold text-[#0F172A]">{{ c.name }}</p>
                 <p class="text-[11px] text-[#98A2B3]">
                   {{ connectorKindLabel(c) }} · {{ connectorTools(c).length }} tools
-                  <span v-if="!connectorTools(c).length" class="text-amber-500">(none synced yet)</span>
+                  <!-- Sync belongs to MCP alone: its tool list is DISCOVERED from a remote server and
+                       genuinely changes over time. A service or built-in knows its tools at
+                       registration, so "none synced yet" was both wrong and unactionable there. -->
+                  <span v-if="!connectorTools(c).length && c.kind === 'mcp'" class="text-amber-500">(none synced yet)</span>
+                  <span v-else-if="!connectorTools(c).length" class="text-amber-500">(no tools available)</span>
                 </p>
               </div>
               <!-- Assigned state doubles as the unassign control. It shows the STATE at rest and the ACTION
@@ -952,12 +956,16 @@ const connectorKindLabel = (c) => ({ builtin: 'Built-in service', mcp: 'MCP serv
 // An empty list now means the backend did not declare any, which is a real answer the caller can act
 // on. A fallback would turn that into a plausible wrong one — and a wrong tool list here does not just
 // misreport a count, it assigns tools to an agent.
+// The connector's OWN tool ids, resolved by the backend for every kind — service, built-in and MCP.
+//
+// Services used to be special-cased here: re-derived client-side by filtering ToolDefinitions on a
+// `service_id` field the payload does not carry. That second source silently yielded zero, so a
+// service with 45 registered tools rendered as "0 tools (none synced yet)" with Assign disabled,
+// while the tool COUNT beside it — computed on the server — said otherwise. Two sources, one of them
+// wrong. Now there is one.
 function connectorTools(c) {
   const tools = toolDefs.value || []
-  if (c.kind === 'service') {
-    return tools.filter(t => String(t.service_id ?? (t.service && t.service.id) ?? t.service ?? '') === String(c.id))
-  }
-  if (!Array.isArray(c.tool_ids)) return []
+  if (!Array.isArray(c.tool_ids) || !c.tool_ids.length) return []
   const idset = new Set(c.tool_ids.map(String))
   return tools.filter(t => idset.has(String(t.id)))
 }
@@ -967,7 +975,12 @@ function connectorAssigned(c) {
 }
 function toggleConnector(c) {
   const ts = connectorTools(c)
-  if (!ts.length) { notify.info(`No tools synced for ${c.name} yet`); return }
+  if (!ts.length) {
+    notify.info(c.kind === 'mcp'
+      ? `No tools synced for ${c.name} yet`
+      : `${c.name} has no enabled tools to assign`)
+    return
+  }
   ensureToolIds()
   const cur = Array.isArray(props.agent.tool_ids) ? props.agent.tool_ids : []
   if (connectorAssigned(c)) {
