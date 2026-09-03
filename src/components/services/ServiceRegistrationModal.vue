@@ -101,13 +101,26 @@
 
           <div>
             <label class="block text-[12px] font-bold text-slate-700 mb-2">Icon <span class="font-medium text-slate-400">(Optional)</span></label>
-            <input
-              v-model="formData.icon"
-              type="text"
-              placeholder="🌐"
-              maxlength="2"
-              class="w-20 h-10 px-3 bg-white border border-slate-200 rounded-[8px] text-center text-[13px] font-bold focus:outline-none focus:border-violet-400 focus:ring-3 focus:ring-violet-100 transition-all"
-            />
+            <div class="flex items-center gap-3">
+              <!-- maxlength was 2, which allowed ONLY an emoji — so the real product logo was
+                   untypeable even though the renderer already supports Iconify names (anything
+                   containing a colon). Widened so a connector can look like the product it is. -->
+              <input
+                v-model="formData.icon"
+                type="text"
+                placeholder="logos:jira  ·  or an emoji"
+                maxlength="64"
+                class="flex-1 h-10 px-3 bg-white border border-slate-200 rounded-[8px] text-[13px] font-medium focus:outline-none focus:border-violet-400 focus:ring-3 focus:ring-violet-100 transition-all"
+              />
+              <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] border border-slate-200 bg-slate-50 text-[18px]">
+                <Icon v-if="formData.icon && formData.icon.includes(':')" :icon="formData.icon" class="h-5 w-5" />
+                <template v-else>{{ formData.icon || '🌐' }}</template>
+              </span>
+            </div>
+            <p class="mt-1 text-[11px] font-medium text-slate-500">
+              Emoji, or an Iconify name like <code>logos:jira</code> for the real product logo.
+              Built-in connectors use <code>logos:github-icon</code>, <code>logos:slack-icon</code>.
+            </p>
           </div>
 
           <!-- Visibility (Private/Public) was removed. A registered service is USER-SCOPED: it
@@ -586,6 +599,7 @@
 <script>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import api from '../../services/api'
+import { Icon } from '@iconify/vue'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 

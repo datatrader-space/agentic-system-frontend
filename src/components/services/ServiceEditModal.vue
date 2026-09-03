@@ -73,9 +73,10 @@
               v-model="formData.icon"
               type="text"
               class="form-input"
-              maxlength="2"
-              placeholder="🌐"
+              maxlength="64"
+              placeholder="logos:jira  ·  or an emoji"
             />
+            <p class="form-hint">Emoji, or an Iconify name like <code>logos:jira</code> for the real product logo.</p>
           </div>
 
           <!-- Authentication Type -->
