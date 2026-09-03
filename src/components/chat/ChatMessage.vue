@@ -66,7 +66,10 @@
         <!-- Error + retry -->
         <div v-if="message.status === 'error'" class="error-row">
           <span class="error-text">⚠ {{ message.error || 'Something went wrong.' }}</span>
-          <button class="retry-btn" @click="$emit('retry')">
+          <!-- Retry is withheld when the server says the failure is deterministic (a model the
+               account cannot reach, rejected credentials). Offering it there invites the user to
+               re-run a turn that fails identically, and hides that the fix is a setting they own. -->
+          <button v-if="message.retryable !== false" class="retry-btn" @click="$emit('retry')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6" stroke-linecap="round" stroke-linejoin="round" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" stroke-linecap="round" stroke-linejoin="round" /></svg>
             Retry
           </button>

@@ -1203,11 +1203,12 @@ export const useChatStore = defineStore('chat', {
       } catch { /* best-effort — never block the turn */ }
     },
 
-    _errAssistant(err) {
+    _errAssistant(err, retryable = true) {
       const m = this._cur()
       if (m) {
         m.status = 'error'
         m.error = err || 'Something went wrong.'
+        m.retryable = retryable
         // interrupt (not finish): the live timeline collapses to "Interrupted", not "Done".
         _tl.interrupt(m.error)
         if (_tl.hasActivity()) m.timeline = _tl.snapshot()
@@ -1570,7 +1571,10 @@ export const useChatStore = defineStore('chat', {
           // Benign control-message rejections (e.g. "Unknown message type: ...")
           // must not fail the turn — the actual chat_message still streams/saves.
           if (/unknown message type/i.test(em)) break
-          this._errAssistant(em)   // marks any still-running timeline step interrupted
+          // `retryable: false` means the server knows retrying cannot succeed (a model the account
+          // cannot reach, rejected credentials). Carried onto the message so the bubble can withhold
+          // the Retry button rather than inviting a re-run that fails identically.
+          this._errAssistant(em, msg.retryable !== false)
           break
         }
         default:
