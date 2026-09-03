@@ -804,7 +804,14 @@ async function uninstall() {
   if (!(await confirm({ title: `Disconnect ${svc.name}?`, message: `Remove the ${svc.name} connection? Agents will lose its tools.`, confirmText: 'Disconnect', danger: true }))) return
   busy.value = true
   try {
-    await api.disconnectService(svc.id)
+    // A DB-registered service is not in the built-in registry, so /connectors/svc/<key>/disconnect
+    // answers "Unknown service." (404). Its connection is an AgentCredential, removed by the
+    // per-service endpoint keyed on the service id.
+    if (current.value?.is_registered_service && current.value?.service_id) {
+      await api.disconnectOAuth(current.value.service_id)
+    } else {
+      await api.disconnectService(svc.id)
+    }
     notify.success(`${svc.name} disconnected`)
     setupOpen.value = false
     await afterChange()
