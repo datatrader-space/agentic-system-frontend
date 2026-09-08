@@ -800,6 +800,11 @@ export default {
   pauseAgent: (id, reason) => api.post(`/agents/${id}/pause/`, { reason }),
   unpauseAgent: (id) => api.post(`/agents/${id}/unpause/`, {}),
   // ── Admin: SYSTEM-wide Guardrails & Approvals floor (GlobalAgentPolicy). GET any authed user; PATCH staff-only. ──
+  // ── Sandbox network policy (staff). What a sandbox may reach on the internet. ──
+  getSandboxNetworkPolicies: (params = {}) => api.get('/admin/sandbox/network-policies/', { params }),
+  saveSandboxNetworkPolicy: (data) => api.post('/admin/sandbox/network-policies/upsert/', data),
+  deleteSandboxNetworkPolicy: (id) => api.delete(`/admin/sandbox/network-policies/${id}/`),
+
   getGlobalAgentPolicy: () => api.get('/global-agent-policy/'),
   updateGlobalAgentPolicy: (data) => api.patch('/global-agent-policy/', data),
   // ── Org-tier Guardrails & Approvals (OrgAgentPolicy). GET any member; PATCH org owner/admin. ──

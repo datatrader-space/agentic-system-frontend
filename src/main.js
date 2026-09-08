@@ -346,6 +346,7 @@ const router = createRouter({
         { path: 'operations', name: 'admin-operations', component: () => import('./views/admin/AdminOperations.vue') },
         { path: 'platform', name: 'admin-platform', component: AdminPanel },
         { path: 'guardrails', name: 'admin-guardrails', component: () => import('./views/admin/AdminGuardrails.vue') },
+        { path: 'sandbox-network', name: 'admin-sandbox-network', component: () => import('./views/admin/AdminSandboxNetwork.vue') },
         { path: 'knowledge', name: 'admin-knowledge', component: AdminKnowledge },
         { path: 'model-pricing', name: 'admin-model-pricing', component: ModelPricingPage },
         { path: 'llm-context', name: 'admin-llm-context', component: LLMContextDashboard },
