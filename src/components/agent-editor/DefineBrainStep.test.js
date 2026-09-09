@@ -78,3 +78,84 @@ describe('DefineBrainStep — advanced document-ingestion capability rows', () =
     expect(w.find('[data-test="cap-youtube_transcript_provider"]').exists()).toBe(true)
   })
 })
+
+
+// ── capability pickers offer EVERY model ────────────────────────────────────────────────────────────
+//
+// They used to be filtered to models whose capability flag was set. The intent was to stop a chat model
+// being chosen as the Video generation model; the mechanism was wrong, because the flags are sparse. Of
+// 2,863 active models only 321 declare `supports_vision`, 67 `can_generate_images`, 32
+// `can_transcribe_audio` — and `can_generate_audio` is set on ZERO, so that picker already fell through
+// to the unfiltered list and the dropdowns disagreed with each other.
+//
+// It also broke search in a way that read as a search bug: the picker can only match what it is handed,
+// so typing the name of a hidden model found nothing, and "not in this list" is indistinguishable from
+// "search is broken".
+//
+// So nothing is hidden, and the risk is carried by a WARNING the user can overrule.
+
+const MANY = [
+  { id: 10, name: 'gpt-4.1', model_id: 'gpt-4.1', provider: 1, metadata: {} },
+  { id: 11, name: 'gpt-4o', model_id: 'gpt-4o', provider: 1, supports_vision: true, metadata: {} },
+  { id: 12, name: 'dall-e-3', model_id: 'dall-e-3', provider: 1, can_generate_images: true, metadata: {} },
+  { id: 13, name: 'plain-chat', model_id: 'plain-chat', provider: 1, metadata: {} },
+]
+
+async function mountWithModels(agent = {}) {
+  const api = (await import('../../services/api')).default
+  api.get.mockImplementation((url) => {
+    if (String(url).includes('providers')) {
+      return Promise.resolve({ data: [{ id: 1, name: 'P', provider_type: 'openai' }] })
+    }
+    return Promise.resolve({ data: MANY })
+  })
+  return mountExpanded(agent)
+}
+
+describe('DefineBrainStep — capability pickers are not filtered', () => {
+  it('offers every model to the vision picker, not just the ones flagged supports_vision', async () => {
+    const w = await mountWithModels()
+    expect(w.vm.modelsFor().length).toBe(MANY.length)
+  })
+
+  it('offers the SAME list the main model picker gets', async () => {
+    const w = await mountWithModels()
+    expect(w.vm.modelsFor().map(m => m.id).sort()).toEqual(w.vm.chatModels.map(m => m.id).sort())
+  })
+
+  it('a model with no capability flag at all is still selectable', async () => {
+    const w = await mountWithModels()
+    expect(w.vm.modelsFor().some(m => m.model_id === 'plain-chat')).toBe(true)
+  })
+})
+
+describe('DefineBrainStep — the capability warning replaces the filter', () => {
+  const visionCap = { field: 'vision_model', label: 'Image input (vision)', capability: 'supports_vision' }
+
+  it('says nothing when nothing is chosen (Auto)', async () => {
+    const w = await mountWithModels()
+    expect(w.vm.capabilityWarning(visionCap)).toBe('')
+  })
+
+  it('says nothing when the chosen model declares the capability', async () => {
+    const w = await mountWithModels({ vision_model: 11 })   // gpt-4o, supports_vision
+    expect(w.vm.capabilityWarning(visionCap)).toBe('')
+  })
+
+  it('warns — and names the model — when it does not declare it', async () => {
+    const w = await mountWithModels({ vision_model: 13 })   // plain-chat
+    const msg = w.vm.capabilityWarning(visionCap)
+    expect(msg).toContain('plain-chat')
+    expect(msg).toContain('image input (vision)')
+  })
+
+  it('warns without blocking: the choice is still the agent value', async () => {
+    const w = await mountWithModels({ vision_model: 13 })
+    expect(w._agent.vision_model).toBe(13)
+  })
+
+  it('says nothing for a role that declares no capability flag', async () => {
+    const w = await mountWithModels({ vision_model: 13 })
+    expect(w.vm.capabilityWarning({ field: 'vision_model', label: 'X', capability: null })).toBe('')
+  })
+})

@@ -53,10 +53,13 @@
                     <p v-if="c.hint" class="mb-1 text-[10.5px] leading-snug text-[#98A2B3]">{{ c.hint }}</p>
                     <ModelPicker
                       :model-value="agent[c.field]"
-                      :models="modelsFor(c.capability)"
+                      :models="modelsFor()"
                       placeholder="Auto (use main model)"
                       @update:model-value="agent[c.field] = $event"
                     />
+                    <p v-if="capabilityWarning(c)" class="mt-1 text-[10.5px] leading-snug text-[#B54708]">
+                      {{ capabilityWarning(c) }}
+                    </p>
                   </div>
 
                   <!-- YouTube transcript provider — a behaviour setting, not a model picker -->
@@ -402,9 +405,8 @@ const models = ref([])
 const providers = ref([])
 const selectedProvider = ref(null)
 
-// `capability` names the LLMModel flag a model must carry to be offerable for that role. Without it
-// every picker listed all ~2300 models, so a chat model could be assigned as the Video generation model
-// — a choice that can only fail at generation time, and one the user had no way to tell was wrong.
+// `capability` names the LLMModel flag that model DECLARES for that role. It is used to WARN, never to
+// hide — see `modelsFor`.
 const CAPS = [
   { field: 'image_model', label: 'Image generation', capability: 'can_generate_images' },
   { field: 'vision_model', label: 'Image input (vision)', capability: 'supports_vision', hint: 'Also powers image OCR / scanned-document vision for document ingestion.' },
@@ -414,12 +416,34 @@ const CAPS = [
   { field: 'video_model', label: 'Video generation', capability: 'can_generate_video', hint: 'Text-to-video and image-to-video. Powers both GENERATE_VIDEO and IMAGE_TO_VIDEO, and the video pipeline.' },
 ]
 
-// Models for one capability role. Falls back to the unfiltered list when nothing declares the flag, so
-// a provider whose catalog has not been re-synced still offers a choice instead of an empty dropdown.
-function modelsFor(capability) {
-  if (!capability) return filteredModels.value
-  const capable = filteredModels.value.filter(m => m[capability])
-  return capable.length ? capable : filteredModels.value
+// EVERY capability picker offers EVERY model, exactly like the Main model picker.
+//
+// These used to be filtered to models whose capability flag was set, to stop a chat model being chosen
+// as the Video generation model. The intent was right and the mechanism was wrong, because the flags
+// are sparse: of 2,863 active models only 321 declare `supports_vision`, 67 `can_generate_images`, 32
+// `can_transcribe_audio` — and `can_generate_audio` is set on ZERO, so that one picker already fell
+// through to the unfiltered list. The dropdowns therefore disagreed with each other, and a model the
+// catalog simply had not been re-synced for was unreachable.
+//
+// Worse, it broke search in a way that looked like a search bug: the picker can only match what it is
+// handed, so typing the name of a hidden model found nothing. A user cannot tell "not in this list"
+// from "search is broken".
+//
+// So nothing is hidden. The risk the filter existed for is handled by `capabilityWarning` below, which
+// says the model does not declare the capability and lets the user proceed anyway — the flags describe
+// the catalog's knowledge, not the model's actual ability, and a stale flag must not veto a real choice.
+function modelsFor() {
+  return filteredModels.value
+}
+
+// Shown under a picker when the CHOSEN model does not declare the role's capability. A warning, not a
+// veto: it is the same signal the old filter carried, minus the hiding.
+function capabilityWarning(c) {
+  const id = props.agent[c.field]
+  if (!id || !c.capability) return ''
+  const m = models.value.find(x => x.id === id)
+  if (!m || m[c.capability]) return ''
+  return `${m.name || m.model_id} does not advertise ${c.label.toLowerCase()} support. It may still work if the catalog is out of date — but if it fails, this is why.`
 }
 // youtube_transcript_provider is a select (not a model), so it isn't in CAPS but counts as configured when non-default.
 const capCount = computed(() =>
