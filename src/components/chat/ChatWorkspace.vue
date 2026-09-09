@@ -294,9 +294,21 @@ const onSend = (text) => chat.sendMessage(text)
 const mediaOpen = ref(false)
 const onAttachMedia = (items) => chat.addExistingMedia(items)
 
+// "New" from INSIDE a thread means "another chat with THIS agent", not "back to the default".
+// The agent must travel in the URL: /dashboard/chat/new with no ?agent= makes _startNewChat()
+// fall through to the Platform Super Agent, which silently switched the user off their agent.
 const startNew = () => {
+  // Read the id BEFORE reset() so a future reset that clears the selection can't strand us.
+  const agentId = chat.selectedAgentId || (chat.currentAgent && chat.currentAgent.id) || null
   chat.reset()
-  if (route.path !== '/dashboard/chat/new') router.push('/dashboard/chat/new')
+  if (!agentId) {
+    if (route.path !== '/dashboard/chat/new') router.push('/dashboard/chat/new')
+    return
+  }
+  // ?agent=<id> is the platform's "open a chat with THIS agent" convention (agent card, AgentSwitcher).
+  const already = route.path === '/dashboard/chat/new'
+    && String(route.query.agent || '') === String(agentId)
+  if (!already) router.push({ path: '/dashboard/chat/new', query: { agent: agentId } })
 }
 
 onMounted(() => {
@@ -370,10 +382,15 @@ watch(
 
 // Clicking Chat on a DIFFERENT agent card while already on /dashboard/chat/new (path unchanged, only the
 // ?agent query changes) — re-select the new agent so the composer switches without a manual pick.
+// Skip when it's ALREADY the selected agent: leaving a thread via "New" changes sessionId and
+// ?agent in the same navigation, so both watchers fire and the agent would be re-selected (and
+// re-prewarmed) twice for what is one click.
 watch(
   () => route.query.agent,
   (a) => {
-    if (a && !route.params.sessionId) _selectAgentById(a)
+    if (!a || route.params.sessionId) return
+    if (String(a) === String(chat.selectedAgentId)) return
+    _selectAgentById(a)
   }
 )
 
