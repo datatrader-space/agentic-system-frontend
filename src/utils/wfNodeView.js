@@ -8,6 +8,9 @@ const CONFIGURED = {
   'trigger.schedule': (d) => !!d.cron,
   'trigger.webhook': () => true,
   'trigger.channel': (d) => !!d.platform,
+  // A connector binding is only useful once it knows WHICH provider and WHICH account;
+  // filters are genuinely optional (no filters = every event of this type).
+  'trigger.connector': (d) => !!(d.provider && d.connection),
   'agent.run': (d) => !!(d.agent_id && (d.prompt || '').trim()),
   'action.tool': (d) => !!d.tool,
   'action.mcp_tool': (d) => !!(d.agent_id && d.server_id && d.tool_name),
@@ -48,6 +51,11 @@ export function nodeConfigPreview(type, data) {
     if (type === 'trigger.schedule') return d.cron ? `cron ${d.cron}` : ''
     if (type === 'trigger.channel') return [d.platform, d.channel].filter(Boolean).join(' · ')
     if (type === 'trigger.webhook') return 'inbound HTTP'
+    if (type === 'trigger.connector') {
+      const n = Object.keys(d.filters || {}).length
+      return [d.provider, d.event_type, n ? `${n} filter${n > 1 ? 's' : ''}` : '']
+        .filter(Boolean).join(' · ')
+    }
     if (type === 'agent.run') return d.output_mode && d.output_mode !== 'text' ? `output: ${d.output_mode}` : ''
     if (type === 'action.http') {
       if (!d.url) return ''

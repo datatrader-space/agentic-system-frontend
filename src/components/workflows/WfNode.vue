@@ -79,6 +79,7 @@ const ICONS = {
   'trigger.schedule': 'lucide:clock-3',
   'trigger.webhook': 'lucide:webhook',
   'trigger.channel': 'lucide:message-square',
+  'trigger.connector': 'lucide:plug',
   'agent.run': 'lucide:bot',
   'llm.call': 'lucide:sparkles',
   'action.channel': 'logos:slack-icon',
@@ -110,6 +111,9 @@ const subtitle = computed(() => {
   if (props.type === 'trigger.webhook') return 'Inbound HTTP'
   if (props.type === 'trigger.schedule') return 'Cron trigger'
   if (props.type === 'trigger.channel') return 'Inbound Slack/Telegram/Email'
+  if (props.type === 'trigger.connector') return props.data?.provider
+    ? `${props.data.provider}${props.data?.event_type ? ' · ' + props.data.event_type : ''}`
+    : 'Connector event'
   if (props.type === 'trigger.manual') return 'Runs on demand'
   if (props.type === 'action.http') return props.data?.url ? `${props.data?.method || 'GET'} ${props.data.url}` : 'GET/POST a URL'
   if (props.type === 'action.script') return props.data?.notes || 'Run a saved script'

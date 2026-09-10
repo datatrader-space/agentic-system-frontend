@@ -457,6 +457,17 @@
             <p v-else class="ins-hint">URL appears after the first save.</p>
           </template>
 
+          <!-- connector-event inbound URL tail: without the address the node is configurable but
+               unusable, because there is nothing to give the provider -->
+          <template v-if="defTail(selected.type) === 'connectorUrl'">
+            <p class="ins-note">Save to generate the inbound URL, then register it with the provider.</p>
+            <div v-if="connectorFor(selected.id)" class="ins-out">POST {{ connectorFor(selected.id) }}</div>
+            <p v-else class="ins-hint">URL appears after the first save.</p>
+            <p class="ins-hint">Sign the body with the binding's secret as
+              <code>X-Signature: sha256=&lt;hmac&gt;</code>. The provider's event type is read from
+              <code>X-GitHub-Event</code> / <code>X-Event-Type</code>.</p>
+          </template>
+
           <!-- approval decision tail (shown while a run is waiting on this node) -->
           <div v-if="defTail(selected.type) === 'approval' && selected.data.__status === 'waiting' && activeRunId" class="appr-box">
             <p class="appr-q">Awaiting your decision</p>
@@ -892,6 +903,10 @@ function webhookFor(nodeId) {
 function channelFor(nodeId) {
   const t = graphTriggers.value.find(x => x.node_id === nodeId && x.kind === 'channel')
   return t?.channel_path || ''
+}
+function connectorFor(nodeId) {
+  const t = graphTriggers.value.find(x => x.node_id === nodeId && x.kind === 'connector')
+  return t?.connector_path || ''
 }
 
 // ── resizable layout (Phase 2C) — sizes + collapse flags persisted to localStorage only ──
@@ -1710,6 +1725,12 @@ function hydrate(type, data) {
   // "a schema requiring nothing", which is a different statement from "no schema".
   if (type === 'llm.call') d.output_schema_json = d.output_schema ? JSON.stringify(d.output_schema, null, 2) : ''
   if (type === 'action.http') d.json_text = d.json ? JSON.stringify(d.json, null, 2) : ''
+  // Empty rather than '{}' when there are no filters: a literal {} reads as "filters that match
+  // everything", which is what an empty filter set already means — showing it invites someone to
+  // treat the box as required and start typing into it.
+  if (type === 'trigger.connector') {
+    d.filters_json = (d.filters && Object.keys(d.filters).length) ? JSON.stringify(d.filters, null, 2) : ''
+  }
   if (type === 'logic.foreach') {
     d.do = d.do || { type: 'action.channel', data: { kind: 'log', message: 'item {{item}}' } }
     d.do.data = d.do.data || {}
@@ -1719,12 +1740,21 @@ function hydrate(type, data) {
 }
 // serialize editable node data back to the backend shape (JSON-text fields → objects; drop UI meta)
 function serializeData(type, data) {
-  const { __status, __error, params_json, json_text, output_schema_json, ...rest } = (data || {})
+  const { __status, __error, params_json, json_text, output_schema_json, filters_json, ...rest } = (data || {})
   if (type === 'action.tool' || type === 'action.mcp_tool') {
     try { rest.params = params_json ? JSON.parse(params_json) : {} } catch { rest.params = {} }
   }
   if (type === 'action.http') {
     if (json_text && json_text.trim()) { try { rest.json = JSON.parse(json_text) } catch {} }
+  }
+  if (type === 'trigger.connector') {
+    const f = (filters_json || '').trim()
+    // Cleared box = no filters. UNPARSEABLE box = KEEP the filters already on the node, exactly as
+    // `llm.call` keeps its schema below: falling back to {} would turn a narrow binding into one
+    // that matches every event the provider sends, so a typo mid-edit would start spending money on
+    // deliveries the operator had deliberately excluded.
+    if (!f) rest.filters = {}
+    else { try { rest.filters = JSON.parse(f) } catch {} }
   }
   if (type === 'llm.call') {
     const s = (output_schema_json || '').trim()

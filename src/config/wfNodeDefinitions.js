@@ -49,6 +49,33 @@ export const WF_NODE_DEFS = {
     category: 'trigger', icon: '🔗', label: 'Webhook', sub: 'Inbound HTTP',
     defaults: {}, custom: true,   // dynamic URL display
   },
+  'trigger.connector': {
+    category: 'trigger', icon: '🔌', label: 'Connector event', sub: 'A connected account fires',
+    // `connection` is an ID, never a credential: it names WHICH connected account this binding
+    // listens to. The backend refuses credential-shaped keys outright, so there is deliberately no
+    // field here to type a token into.
+    //
+    // `filters` is what stops a chatty provider costing money — a connector fires far more often
+    // than a workflow wants to run, and the backend enforces these BEFORE the run exists. A missing
+    // key does NOT match, so an empty filter set means "every event of this type".
+    defaults: { provider: '', connection: '', event_type: '', filters: {} },
+    fields: [
+      { key: 'provider', type: 'string', title: 'Provider', placeholder: 'github / highlevel' },
+      { key: 'connection', type: 'string', title: 'Connection id',
+        placeholder: 'which connected account to listen to' },
+      { key: 'event_type', type: 'string', title: 'Event type',
+        placeholder: "the provider's own name, e.g. push" },
+      // `filters_json`, not `filters`, and not a `kv` grid. This follows the `*_json` convention
+      // documented on `llm.call` above: hydrate() stringifies the dict and serialize() parses it
+      // back. A `kv` grid saves a LIST of row objects, and the backend expects an OBJECT keyed by
+      // dotted path — so the rows would have been stored in a shape `event_matches` reads as "no
+      // filters", silently widening the binding to every event.
+      { key: 'filters_json', type: 'textarea', mono: true, rows: 4,
+        title: 'Resource filters (optional)',
+        placeholder: '{ "repository.name": "salon-site" }' },
+    ],
+    customTail: 'connectorUrl',
+  },
   'trigger.channel': {
     category: 'trigger', icon: '💬', label: 'Channel message', sub: 'Inbound slack/telegram/email',
     defaults: { platform: 'slack', channel: '', keyword: '' },
@@ -180,7 +207,7 @@ export const WF_NODE_DEFS = {
 
 // Palette order (excludes paletteHidden entries like action.mcp_tool).
 export const WF_PALETTE_ORDER = [
-  'trigger.manual', 'trigger.schedule', 'trigger.webhook', 'trigger.channel',
+  'trigger.manual', 'trigger.schedule', 'trigger.webhook', 'trigger.channel', 'trigger.connector',
   'agent.run', 'llm.call', 'action.tool', 'action.script', 'action.channel', 'action.http',
   'logic.condition', 'logic.approval', 'logic.foreach', 'logic.delay', 'action.subworkflow',
 ]
