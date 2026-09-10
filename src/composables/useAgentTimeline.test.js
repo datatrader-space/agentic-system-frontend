@@ -179,6 +179,88 @@ describe('useAgentTimeline — rich streaming render model', () => {
     expect(t.steps.value.every((s) => s.phase === 'reasoning')).toBe(true)
   })
 
+  // ── phases cannot overlap ────────────────────────────────────────────────
+  //
+  // MEASURED on production conv 1358. The timeline showed:
+  //
+  //     Working on: fetch page: asifsolar.com   11.1s
+  //     Working...                                  —
+  //     Generating response                       6.5s
+  //
+  // Both numbers covered the SAME 7.4s of round-2 model time, and the 14 rows summed to 23.6s on a
+  // turn whose backend trace was ~15s. Cause: a new phase closed only the LAST row, so the earlier
+  // "Working on:" phase stayed running and was closed by the terminal sweep — which stamped it with
+  // everything that happened afterwards.
+  describe('phase rows never overlap', () => {
+    it('a new phase closes an EARLIER phase, not just the last row', () => {
+      const t = useAgentTimeline()
+      t.ingest({ type: 'agent_status', phase: 'using_tools', label: 'Working on: fetch page' })
+      // A tool row lands on top, so the phase row is no longer last.
+      t.ingest({ type: 'agent_step_started', step_id: 'step_F', phase: 'other', label: 'Working' })
+      t.ingest({ type: 'agent_status', phase: 'generating_answer', label: 'Generating response' })
+      const working = t.steps.value.find((s) => s.label === 'Working on: fetch page')
+      expect(working.status).toBe('ok')
+      expect(working.durationMs).not.toBeNull()
+    })
+
+    it('at most one phase row is running at any point', () => {
+      const t = useAgentTimeline()
+      t.ingest({ type: 'agent_status', phase: 'using_tools', label: 'Working on: fetch page' })
+      t.ingest({ type: 'agent_step_started', step_id: 'step_F', phase: 'other', label: 'Working' })
+      t.ingest({ type: 'agent_status', phase: 'generating_answer', label: 'Generating response' })
+      const openPhases = t.steps.value.filter((s) => s.isPhase && s.status === 'running')
+      expect(openPhases.length).toBe(1)
+      expect(openPhases[0].label).toBe('Generating response')
+    })
+
+    it('a tool row keeps the BACKEND duration — a phase change must not invent one', () => {
+      // FETCH_PAGE really did take 450ms; only the phase rows were wrong.
+      const t = useAgentTimeline()
+      t.ingest({ type: 'agent_status', phase: 'using_tools', label: 'Working on: fetch page' })
+      t.ingest({ type: 'agent_step_started', step_id: 'step_F', phase: 'other', label: 'Working' })
+      t.ingest({ type: 'agent_status', phase: 'generating_answer', label: 'Generating response' })
+      const tool = t.steps.value.find((s) => s.stepId === 'step_F')
+      expect(tool.status).toBe('running')
+      t.ingest({ type: 'agent_step_completed', step_id: 'step_F', duration_ms: 450 })
+      expect(tool.durationMs).toBe(450)
+    })
+
+    it('the upgrade path also closes an older phase', () => {
+      const t = useAgentTimeline()
+      t.ingest({ type: 'agent_status', phase: 'retrieving_context', label: 'Searching' })
+      t.ingest({ type: 'agent_status', phase: 'using_tools', label: 'Working on: fetch page' })
+      // same phase → the row is UPGRADED into the tool step rather than duplicated
+      t.ingest({ type: 'agent_step_started', step_id: 'step_F', phase: 'using_tools', label: 'Working' })
+      const searching = t.steps.value.find((s) => s.label === 'Searching')
+      expect(searching.status).toBe('ok')
+      expect(t.steps.value.filter((s) => s.isPhase && s.status === 'running').length).toBe(0)
+    })
+
+    it('relabelling the SAME phase does not close it', () => {
+      const t = useAgentTimeline()
+      t.ingest({ type: 'agent_status', phase: 'using_tools', label: 'Working on: step 1' })
+      t.ingest({ type: 'agent_status', phase: 'using_tools', label: 'Working on: step 2' })
+      const rows = t.steps.value.filter((s) => s.isPhase)
+      expect(rows.length).toBe(1)
+      expect(rows[0].status).toBe('running')
+      expect(rows[0].label).toBe('Working on: step 2')
+    })
+
+    it('the rows sum to no more than the turn', () => {
+      const t = useAgentTimeline()
+      t.ingest({ type: 'agent_status', phase: 'using_tools', label: 'Working on: fetch page' })
+      t.ingest({ type: 'agent_step_started', step_id: 'step_F', phase: 'other', label: 'Working' })
+      t.ingest({ type: 'agent_step_completed', step_id: 'step_F', duration_ms: 450 })
+      t.ingest({ type: 'agent_status', phase: 'generating_answer', label: 'Generating response' })
+      t.ingest({ type: 'agent_turn_summary', final_status: 'completed' })
+      const phases = t.steps.value.filter((s) => s.isPhase)
+      // No phase may still be open, and none may have absorbed another's time.
+      expect(phases.every((s) => s.status === 'ok')).toBe(true)
+      const total = phases.reduce((a, s) => a + (s.durationMs || 0), 0)
+      expect(total).toBeLessThan(5000)
+    })
+  })
+
   it('folds live token metering from token_usage + reconciles on complete', () => {
     const t = useAgentTimeline()
     t.ingest({ type: 'token_usage', total_tokens: 900, cost_usd: 0.004, estimated: true })

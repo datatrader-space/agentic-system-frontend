@@ -113,6 +113,24 @@ export function useAgentTimeline() {
     if (s.durationMs == null && s.startedAt) s.durationMs = Math.max(0, _now() - s.startedAt)
   }
 
+  // A phase is a point-in-time state of the TURN ("Working on: X", "Generating response"), so two of
+  // them can never be live at once. Closing only the LAST row left an EARLIER phase running: it then
+  // survived to the terminal sweep, which stamped it with a duration spanning the rest of the turn.
+  //
+  // MEASURED on conv 1358: "Working on: fetch page: asifsolar.com" reported 11.1s and "Generating
+  // response" 6.5s for the SAME 7.4s of round-2 model time, and the 14 rows summed to 23.6s on a turn
+  // whose trace was ~15s. Both rows were closed by the terminal sweep at the same instant, which is
+  // what a timeline looks like when nothing ever closed the first one.
+  //
+  // Tool rows are deliberately NOT closed here. A tool carries its own completion event with the
+  // backend's measured `duration_ms`; force-closing it from a phase change would invent a client-side
+  // time for something the backend already measured (FETCH_PAGE really did take 450ms).
+  function _closeOpenPhases(except = null) {
+    for (const s of steps.value) {
+      if (s !== except && s.isPhase && s.status === 'running') _closeRow(s, 'ok')
+    }
+  }
+
   // Consume one event. Returns true iff it was a rich event we handled (so the host can
   // `return` early and avoid double-processing). Out-of-order completes are fine — we match
   // by step_id, never by arrival order.
@@ -193,9 +211,10 @@ export function useAgentTimeline() {
         const last = steps.value[steps.value.length - 1]
         if (last && last.status === 'running' && last.phase === phase) {
           if (last.isPhase) { last.label = label; if (reason) last.reason = reason }
+          _closeOpenPhases(last)
           return true
         }
-        if (last && last.status === 'running' && last.isPhase) _closeRow(last, 'ok')
+        _closeOpenPhases()
         const row = _phaseRow(phase, label)
         if (reason) row.reason = reason
         steps.value.push(row)
@@ -218,6 +237,9 @@ export function useAgentTimeline() {
         // duplicate row — keeps the timeline one clean sequence.
         const lastRow = steps.value[steps.value.length - 1]
         if (lastRow && lastRow.isPhase && lastRow.status === 'running' && lastRow.phase === (evt.phase || '')) {
+          // This row is about to STOP being a phase row (it becomes the concrete tool step), so any
+          // other phase still open has nothing left to close it later.
+          _closeOpenPhases(lastRow)
           lastRow.stepId = evt.step_id
           lastRow.toolCallId = evt.tool_call_id || ''
           lastRow.tool = evt.tool || ''
@@ -226,7 +248,7 @@ export function useAgentTimeline() {
           lastRow.isPhase = false
           if (evt.coalesced_count) lastRow.coalescedCount = evt.coalesced_count
         } else {
-          if (lastRow && lastRow.isPhase && lastRow.status === 'running') _closeRow(lastRow, 'ok')
+          _closeOpenPhases()
           steps.value.push({
             stepId: evt.step_id,
             toolCallId: evt.tool_call_id || '',
