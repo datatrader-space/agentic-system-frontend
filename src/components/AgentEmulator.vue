@@ -245,6 +245,7 @@
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { marked } from 'marked'
 import { renderUntrustedMarkdown } from '../utils/safeMarkdown'
+import { resumeStatusLine } from '../utils/resumeStatus'
 import { reasoningItems } from '../composables/useAgentTimeline'
 import TokenUsage from './activity/TokenUsage.vue'
 import EmulatorInspector from './activity/EmulatorInspector.vue'
@@ -712,6 +713,10 @@ function handleEvent(raw) {
         const a = newAssistantMessage()
         messages.value.push(a)
       }
+      // Say WHERE the run is (step / tool / elapsed), not just that one exists. A turn owned by another
+      // worker streams nothing here, so a bare spinner is indistinguishable from a hung run.
+      const resumed = streamingAssistant()
+      if (resumed) resumed.prepStatus = resumeStatusLine(data.progress, data.status)
       busy.value = true
       scrollToBottom()
       break

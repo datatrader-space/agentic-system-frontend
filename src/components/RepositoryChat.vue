@@ -182,6 +182,10 @@
               <span></span>
               <span></span>
             </div>
+            <!-- Where a run we RECONNECTED to actually is (step / tool / elapsed). A turn owned by
+                 another worker relays nothing here until it ends, so dots alone can't be told apart
+                 from a hung run. Empty on a normal turn. -->
+            <div v-if="resumeStatus" class="text-xs text-gray-500 self-center">{{ resumeStatus }}</div>
           </div>
         </div>
       </div>
@@ -269,6 +273,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import api from '../services/api'
+import { resumeStatusLine } from '../utils/resumeStatus'
 import { Marked } from 'marked'
 import { renderUntrustedMarkdown } from '../utils/safeMarkdown'
 import { markedHighlight } from 'marked-highlight'
@@ -313,6 +318,8 @@ const props = defineProps({
 const messages = ref([])
 const currentMessage = ref('')
 const isTyping = ref(false)
+// Status line for a turn we reconnected to; empty for a normal turn (its tokens arrive at once).
+const resumeStatus = ref('')
 const connected = ref(false)
 const messagesContainer = ref(null)
 const messageInput = ref(null)
@@ -571,6 +578,7 @@ const handleWebSocketMessage = (data) => {
       break
 
     case 'assistant_message_chunk':
+      resumeStatus.value = ''   // real tokens are here; the resume snapshot is stale by definition
       // Append chunk to current streaming message
       currentStreamingMessage += data.chunk
 
@@ -629,12 +637,14 @@ const handleWebSocketMessage = (data) => {
       // by assistant_message_complete (which carries the full text). Reset the rich timeline so the
       // resumed turn streams into a clean one (if it was interrupted by the drop).
       isTyping.value = true
+      resumeStatus.value = resumeStatusLine(data.progress, data.status)
       currentStreamingMessage = ''
       resetTimeline()
       richActive.value = false
       break
 
     case 'turn_not_running':
+      resumeStatus.value = ''
       // Nothing running — the saved answer (if any) is already loaded from history. If we thought a
       // rich turn was live (socket dropped mid-turn, then reconnected to find it gone), interrupt it
       // so it can't spin forever.

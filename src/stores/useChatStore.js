@@ -13,6 +13,7 @@ import { usePlanStore } from './usePlanStore'
 import { useAgentTimeline, isRichEvent } from '../composables/useAgentTimeline'
 import { ensureNotifyPermission, notifyRunFinished } from '../composables/useRunNotifications'
 import { stripThinkBlocks, ThinkStreamFilter } from '../utils/thinkFilter'
+import { resumeStatusLine } from '../utils/resumeStatus'
 
 // One shared live timeline for the currently-streaming assistant message (only one streams at a time).
 // Reset per turn, snapshotted onto the message on completion — the SAME reducer the Emulator uses, so
@@ -142,6 +143,8 @@ export const useChatStore = defineStore('chat', {
 
     _conn: null,
     _assistantId: null,
+    // setInterval handle for the resumed-turn progress poll (see _startProgressPolling).
+    _progressTimer: null,
   }),
   getters: {
     isEmpty: (s) => s.messages.length === 0,
@@ -1026,7 +1029,27 @@ export const useChatStore = defineStore('chat', {
 
     // Socket came back after a drop: the turn likely finished on the backend while we were away.
     // Reload history (polling briefly in case it's still finishing), then swap in the saved answer.
+    // ── resumed-turn progress polling ──────────────────────────────────────────────────────────────
+    // A turn running on ANOTHER worker (signal, schedule, webhook — exactly the runs a user leaves and
+    // comes back to) relays no tokens to this socket by design: chat streaming stays off Redis for perf.
+    // Without this the status line freezes at whatever it said on reconnect, which is the "is it working
+    // or is it stuck?" state the snapshot was added to eliminate. Cheap: one tiny frame every 8s, only
+    // while a resumed turn is actually on screen.
+    _startProgressPolling() {
+      this._stopProgressPolling()
+      this._progressTimer = setInterval(() => {
+        if (!this.isStreaming || !this.conversationId) { this._stopProgressPolling(); return }
+        try { this._conn?.sendIfOpen({ type: 'turn_progress', conversation_id: this.conversationId }) }
+        catch { /* socket down; the reconnect path takes over */ }
+      }, 8000)
+    },
+
+    _stopProgressPolling() {
+      if (this._progressTimer) { clearInterval(this._progressTimer); this._progressTimer = null }
+    },
+
     async _recoverAfterReconnect() {
+      this._stopProgressPolling()
       this._recovering = false
       const m = this._cur()
       if (m) m.reconnecting = false
@@ -1127,6 +1150,7 @@ export const useChatStore = defineStore('chat', {
     },
 
     _teardown(clearStreaming = true) {
+      this._stopProgressPolling()   // the socket is going away; an interval outliving it leaks
       if (this._conn) {
         this._conn.close()
         this._conn = null
@@ -1139,6 +1163,7 @@ export const useChatStore = defineStore('chat', {
 
     _beginAssistant() {
       this._recovering = false   // fresh turn must never inherit a stale "reconnecting" state
+      this._stopProgressPolling()   // nor a poll left over from a previous turn's resume
       this._taskRunActive = false   // a new turn hasn't entered a multi-step task run yet
       this.messages.push({
         id: nid(),
@@ -1171,6 +1196,7 @@ export const useChatStore = defineStore('chat', {
       // card; finalizing here would show "Done", hide the Stop button, and orphan the pending card.
       // The REAL completion (after the human responds, once hitlRequests is empty) ends the turn.
       if (this.hitlRequests.length > 0) return
+      this._stopProgressPolling()
       const m = this._cur()
       if (m) {
         const safeTail = _think.flush()
@@ -1287,6 +1313,9 @@ export const useChatStore = defineStore('chat', {
         _tl.ingest(msg)
         const _rm = this._cur()
         if (_rm && _rm.prepStatus) _rm.prepStatus = ''   // live timeline now drives the status line
+        // Live events are reaching us, so this turn is owned by THIS worker and the snapshot poll is
+        // redundant — the timeline is strictly fresher than anything a poll could return.
+        this._stopProgressPolling()
         return
       }
       const m = this._cur()
@@ -1312,19 +1341,40 @@ export const useChatStore = defineStore('chat', {
         }
         case 'turn_resumed': {
           // We reconnected (e.g. after a refresh) to a turn STILL RUNNING on the server. Open a fresh
-          // streaming assistant bubble so the live tokens land, and show the run's CURRENT status
-          // (e.g. "Step 2 of 3: add products") immediately so it isn't blank until the next live event.
+          // streaming assistant bubble so the live tokens land, and show WHERE the run actually is —
+          // step, running tool and elapsed time — instead of a bare "still working…", which a user
+          // cannot tell apart from a hung run.
           if (!this.isStreaming) this._beginAssistant()
           const rm = this._cur()
-          if (rm) { rm.reconnecting = false; rm.prepStatus = msg.status || 'Reconnected — the agent is still working…' }
+          if (rm) { rm.reconnecting = false; rm.prepStatus = resumeStatusLine(msg.progress, msg.status) }
+          // A turn owned by ANOTHER worker (the usual shape for a signal / schedule / webhook run) never
+          // streams a token to this socket, so the line just set would sit frozen until the run ends.
+          // Poll the snapshot so it keeps moving; a same-worker turn cancels this on its first live event.
+          this._startProgressPolling()
+          break
+        }
+        case 'turn_progress': {
+          // Answer to the poll above. Only meaningful while a resumed turn is still on screen.
+          const pm = this._cur()
+          if (!msg.progress || !Object.keys(msg.progress).length) {
+            // The turn ended between polls. Stop polling and let the history refetch land the answer.
+            this._stopProgressPolling()
+            if (this.isStreaming) this._recoverAfterReconnect()
+          } else if (pm && pm.status === 'streaming') {
+            pm.prepStatus = resumeStatusLine(msg.progress)
+          }
           break
         }
         case 'turn_not_running': {
           // Nothing in flight. But the turn may have FINISHED during the reload gap — only the user row is
           // persisted mid-run, so the loaded history can end at the user's message. If so, re-fetch once to
           // pull in the completed answer (no-op when there's nothing new).
+          this._stopProgressPolling()
           const last = this.messages[this.messages.length - 1]
           if (last && last.role === 'user') this._refreshHistory()
+          // Nothing is running server-side, so a spinner left over from before the drop is a lie. Settle
+          // it against the server's history rather than spinning until the 30s give-up.
+          if (this.isStreaming || this._recovering) this._recoverAfterReconnect()
           break
         }
         case 'run_finished': {

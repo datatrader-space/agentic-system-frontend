@@ -205,7 +205,16 @@ export class ChatConnection {
   // The chat socket is keyed by repoId (stable); conversation_id travels PER-MESSAGE, so ONE socket
   // serves every conversation. Switch the active conversation without tearing down the connection.
   setConversation(conversationId) {
+    const changed = String(conversationId ?? '') !== String(this.conversationId ?? '')
     this.conversationId = conversationId
+    // Switching conversations on an ALREADY-OPEN socket must still ask whether a turn is running for the
+    // one just opened. `resume` was sent only from `onopen`, and the app deliberately keeps ONE stable
+    // socket across conversation changes — so opening a chat whose run started somewhere else (a webhook,
+    // signal or schedule) asked nothing, and the user saw their message and nothing else. The status only
+    // appeared after a full page refresh, because a refresh is what builds a new socket.
+    if (changed && conversationId && this.isOpen && this.ws?.readyState === WebSocket.OPEN) {
+      this._raw({ type: 'resume', conversation_id: conversationId })
+    }
   }
 
   sendMessage(text, agentId, modelId = null, opts = {}) {
@@ -244,6 +253,13 @@ export class ChatConnection {
   // Generic safe send (used for HITL approval responses, etc.). Queues if not yet open.
   send(obj) {
     this._send(obj)
+  }
+
+  // Fire-and-forget: send ONLY if the socket is open right now, never queue. For polls whose value is
+  // entirely in being current — a progress request flushed on a later reopen answers a question nobody
+  // is asking any more, and the reopen already re-sends `resume`.
+  sendIfOpen(obj) {
+    if (this.isOpen && this.ws?.readyState === WebSocket.OPEN) this._raw(obj)
   }
 
   // Send a human-in-the-loop approval/clarification response.

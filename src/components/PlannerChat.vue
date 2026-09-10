@@ -124,6 +124,9 @@
               <span></span>
               <span></span>
             </div>
+            <!-- Where a resumed run actually is (step / tool / elapsed). Empty for a normal turn, whose
+                 live tokens arrive within a second anyway. -->
+            <div v-if="resumeStatus" class="text-xs text-gray-500 self-center">{{ resumeStatus }}</div>
           </div>
         </div>
       </div>
@@ -170,6 +173,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import api from '../services/api'
+import { resumeStatusLine } from '../utils/resumeStatus'
 import { showMemorySavedToast } from '@/composables/useMemoryToast'
 import { confirm } from '@/composables/useConfirm'
 import HITLModal from './HITLModal.vue'
@@ -190,6 +194,9 @@ const props = defineProps({
 const messages = ref([])
 const currentMessage = ref('')
 const isTyping = ref(false)
+// Status line for a turn we RECONNECTED to; a normal turn leaves it empty (its tokens arrive
+// immediately, so the dots alone are honest).
+const resumeStatus = ref('')
 const connected = ref(false)
 const messagesContainer = ref(null)
 const messageInput = ref(null)
@@ -318,12 +325,15 @@ const handleWebSocketMessage = (data) => {
 
     case 'turn_resumed':
       // Returned mid-generation — show the generating state; live tokens build a fresh streaming
-      // message, finalized by assistant_message_complete.
+      // message, finalized by assistant_message_complete. The snapshot says WHERE the run is, which a
+      // spinner cannot: a turn owned by another worker relays nothing here until it finishes.
       isTyping.value = true
+      resumeStatus.value = resumeStatusLine(data.progress, data.status)
       currentStreamingMessage = ''
       break
 
     case 'turn_not_running':
+      resumeStatus.value = ''
       break   // nothing running — saved history already loaded
 
     case 'assistant_typing':
@@ -334,6 +344,8 @@ const handleWebSocketMessage = (data) => {
       break
 
     case 'assistant_message_chunk':
+      // Real tokens are arriving, so the resume snapshot is stale by definition.
+      resumeStatus.value = ''
       // Append chunk to current streaming message
       currentStreamingMessage += data.chunk
 
@@ -353,6 +365,7 @@ const handleWebSocketMessage = (data) => {
       break
 
     case 'assistant_message_complete':
+      resumeStatus.value = ''
       // Mark message as complete
       const completedMessage = messages.value[messages.value.length - 1]
       if (completedMessage && completedMessage.streaming) {
