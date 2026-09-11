@@ -1073,14 +1073,28 @@ export const useChatStore = defineStore('chat', {
       this._recovering = false
       const m = this._cur()
       if (m) m.reconnecting = false
-      // Poll ~30s for the backend to persist the turn's final answer, then swap in the server's truth.
-      for (let i = 0; i < 12; i++) {
+      // Poll for the backend to persist the turn's final answer, then swap in the server's truth.
+      //
+      // NINETY SECONDS, AND THAT NUMBER IS MEASURED. This was ~30s (12 x 2500ms), and the answer does
+      // not always arrive inside it: a run is marked `completed` BEFORE its answer is saved, and the gap
+      // across twelve consecutive production runs was
+      //
+      //     conv 1451  +40.1s      conv 1460  +28.9s
+      //     conv 1454  +16.3s      conv 1459   +7.5s      (the rest ~0s)
+      //
+      // So the window expired, `_endAssistant` cleared the spinner, and the answer showed up only when
+      // the user refreshed the page by hand — reported exactly that way. 40s observed, 90s allowed: the
+      // loop still ends, it simply stops giving up before the work does.
+      //
+      // The underlying oddity is the run going terminal ahead of its own answer; widening here does not
+      // fix that, it stops this client being misled by it.
+      for (let i = 0; i < 36; i++) {
         const landed = await this._refreshHistory()
         if (landed) { this.isStreaming = false; this._taskRunActive = false; this._assistantId = null; return }
         if (!this.isStreaming) return
         await new Promise((r) => setTimeout(r, 2500))
       }
-      // Waited ~30s and the turn never landed — clear the spinner without a scary error.
+      // Waited ~90s and the turn never landed — clear the spinner without a scary error.
       this._endAssistant()
     },
 
