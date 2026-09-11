@@ -181,6 +181,19 @@ export const useChatStore = defineStore('chat', {
     // ── Live activity timeline (the currently-streaming message) — the SOLE activity renderer
     // (AgentActivityTimeline): friendly, param-free steps (Searching → Generating), reasoning, tokens. ──
     richActive: () => _tl.hasActivity(),
+    //: True while this conversation's plan still has steps to go. The timeline header reads it so a
+    //: turn in progress cannot be labelled "Done"; nothing about the turn's lifecycle depends on it.
+    //: Computed here rather than delegating to the action so it tracks the plan store reactively —
+    //: a getter that calls an action is recomputed on the wrong dependencies, which for a live progress
+    //: readout means a header that stops updating halfway through.
+    planRunning: (s) => {
+      try {
+        const p = usePlanStore().progressForConversation(s.conversationId)
+        return !!(p && p.total > 0 && p.done < p.total)
+      } catch (e) {
+        return false
+      }
+    },
     liveStatus: () => _tl.currentStatus.value,
     liveSteps: () => _tl.steps.value,
     liveSources: () => _tl.sources.value,
@@ -1199,20 +1212,16 @@ export const useChatStore = defineStore('chat', {
 
     // Is a PLAN still being worked through for this conversation?
     //
-    // `_taskRunActive` answers the same question for task/CRS runs, and only for those: it is set by
-    // `agent_event session_start`, which a plan-bearing graph run does not emit. So a run with a live
-    // plan streams an intermediate `assistant_message_complete`, slips past that guard, and the turn is
-    // finalized while the agent is still working.
+    // PRESENTATION ONLY — read by the timeline header, never by the turn lifecycle. An earlier version
+    // of this used the same predicate to SKIP `_endAssistant`, and that was the wrong layer: for the
+    // ordinary chat path `chat_response` IS the terminal event, so blocking on it left a turn whose
+    // answer had already arrived with nothing to finalize it. The answer was in the database and the
+    // screen showed nothing. Delaying a turn's end to fix a label trades a wrong word for a hung UI.
     //
-    // REPORTED REPEATEDLY, most recently conversation 1446: "Done · 12 steps" sitting directly above
-    // "Active plan 0/10" — the panel claiming the turn finished while the plan had not started a single
-    // step. Three earlier reports of "why become done" were this same path; the fix before this one
-    // covered navigating away, which is a different way to reach the same wrong header.
-    //
-    // Terminal events (`agent_session_complete`, `agent_event session_complete`, `session_stopped`,
-    // `session_error`, `stop_acknowledged`) call `_endAssistant` DIRECTLY and are not behind this guard,
-    // exactly as they are not behind `_taskRunActive` — so a plan that dies without completing still
-    // ends its turn, and the UI cannot hang on a plan that never finishes.
+    // What it is for: conversation 1446 showed "Done · 12 steps" directly above "Active plan 0/10",
+    // then went back to 2/10 with the spinner running. The turn had not ended; only the header said so.
+    // A plan with steps remaining is the plainest evidence that work continues, so the header asks this
+    // and nothing else changes.
     _planStillRunning() {
       try {
         const p = usePlanStore().progressForConversation(this.conversationId)
@@ -1461,10 +1470,7 @@ export const useChatStore = defineStore('chat', {
           // the agent is still working. The turn ends only on the real completion signal
           // (agent_session_complete / agent_event session_complete). For the normal chat path (no task
           // run active) this remains the terminal event.
-          // …and the same is true of a PLAN-BEARING run, which does not set `_taskRunActive` because it
-          // never emits `session_start`. Conversation 1446 showed "Done · 12 steps" above "Active plan
-          // 0/10" for exactly that reason.
-          if (this._taskRunActive || this._planStillRunning()) break
+          if (this._taskRunActive) break
           this._endAssistant()
           this._persistTurnMeta(m)   // snapshot the finished timeline so it survives a refresh
           break
@@ -1476,9 +1482,6 @@ export const useChatStore = defineStore('chat', {
             m.content = stripThinkBlocks(c)
             _think.reset()
           }
-          // `chat_response` carries the same risk as `assistant_message_complete`: it is the answer for
-          // THIS round, not necessarily for the turn.
-          if (this._taskRunActive || this._planStillRunning()) break
           this._endAssistant()
           break
         }

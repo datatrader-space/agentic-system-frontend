@@ -16,11 +16,11 @@
           :steps="isStreaming ? chat.liveSteps : message.timeline.steps"
           :sources="isStreaming ? chat.liveSources : message.timeline.sources"
           :summary="isStreaming ? chat.liveSummary : message.timeline.summary"
-          :is-complete="!isStreaming"
+          :is-complete="!isStreaming && !chat.planRunning"
           :has-failures="isStreaming ? chat.liveHasFailures : message.timeline.hasFailures"
           :tokens="(message.usage && message.usage.total_tokens) || null"
           :reasoning="isStreaming ? chat.liveReasoning : reasoningItems(message.timeline && message.timeline.steps)"
-          :running="isStreaming" />
+          :running="isStreaming || chat.planRunning" />
 
         <!-- Attachment prep: while a document sent WITH the question is still converting/indexing, we
              hold the turn and show this instead of answering "your file is still being processed". -->
