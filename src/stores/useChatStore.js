@@ -1197,6 +1197,32 @@ export const useChatStore = defineStore('chat', {
       return this.messages.find((m) => m.id === this._assistantId)
     },
 
+    // Is a PLAN still being worked through for this conversation?
+    //
+    // `_taskRunActive` answers the same question for task/CRS runs, and only for those: it is set by
+    // `agent_event session_start`, which a plan-bearing graph run does not emit. So a run with a live
+    // plan streams an intermediate `assistant_message_complete`, slips past that guard, and the turn is
+    // finalized while the agent is still working.
+    //
+    // REPORTED REPEATEDLY, most recently conversation 1446: "Done · 12 steps" sitting directly above
+    // "Active plan 0/10" — the panel claiming the turn finished while the plan had not started a single
+    // step. Three earlier reports of "why become done" were this same path; the fix before this one
+    // covered navigating away, which is a different way to reach the same wrong header.
+    //
+    // Terminal events (`agent_session_complete`, `agent_event session_complete`, `session_stopped`,
+    // `session_error`, `stop_acknowledged`) call `_endAssistant` DIRECTLY and are not behind this guard,
+    // exactly as they are not behind `_taskRunActive` — so a plan that dies without completing still
+    // ends its turn, and the UI cannot hang on a plan that never finishes.
+    _planStillRunning() {
+      try {
+        const p = usePlanStore().progressForConversation(this.conversationId)
+        return !!(p && p.total > 0 && p.done < p.total)
+      } catch (e) {
+        // A guard that throws must not be able to strand a turn as permanently unfinished.
+        return false
+      }
+    },
+
     _endAssistant() {
       // While a human approval is pending, DON'T finalize the turn. The task/CRS path can emit a
       // premature "complete" for the step-0 text while the agent is actually blocked on an approval
@@ -1435,7 +1461,10 @@ export const useChatStore = defineStore('chat', {
           // the agent is still working. The turn ends only on the real completion signal
           // (agent_session_complete / agent_event session_complete). For the normal chat path (no task
           // run active) this remains the terminal event.
-          if (this._taskRunActive) break
+          // …and the same is true of a PLAN-BEARING run, which does not set `_taskRunActive` because it
+          // never emits `session_start`. Conversation 1446 showed "Done · 12 steps" above "Active plan
+          // 0/10" for exactly that reason.
+          if (this._taskRunActive || this._planStillRunning()) break
           this._endAssistant()
           this._persistTurnMeta(m)   // snapshot the finished timeline so it survives a refresh
           break
@@ -1447,6 +1476,9 @@ export const useChatStore = defineStore('chat', {
             m.content = stripThinkBlocks(c)
             _think.reset()
           }
+          // `chat_response` carries the same risk as `assistant_message_complete`: it is the answer for
+          // THIS round, not necessarily for the turn.
+          if (this._taskRunActive || this._planStillRunning()) break
           this._endAssistant()
           break
         }
