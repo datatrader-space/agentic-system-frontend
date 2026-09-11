@@ -240,7 +240,7 @@ const hasDebug = computed(
 
 const summaryWarn = computed(() => {
   const s = props.summary
-  return props.hasFailures || !!(s && (s.finalStatus === 'interrupted'))
+  return props.hasFailures || !!(s && (s.finalStatus === 'interrupted' || s.finalStatus === 'detached'))
 })
 
 // Collapsed-header headline (legacy "Done" wording). Public stays simple.
@@ -248,6 +248,9 @@ const doneLabel = computed(() => {
   const s = props.summary
   if (props.publicSafe) return (s && s.finalStatus === 'failed') ? 'Could not complete' : 'Completed'
   if (s && s.finalStatus === 'interrupted') return 'Interrupted — connection lost'
+  // The run did NOT stop; this view stopped following it. Saying "Done" here is the specific lie
+  // reported from conversation 1432 — a finished-looking panel above an answer that never came.
+  if (s && s.finalStatus === 'detached') return 'Still running — reopen to follow'
   if (s && s.finalStatus === 'failed') return 'Could not complete'
   return summaryWarn.value || props.hasFailures ? 'Completed with issues' : 'Done'
 })
@@ -262,7 +265,8 @@ const durationText = computed(() => {
 const headLabel = computed(() => {
   const s = props.summary
   if (props.publicSafe) return doneLabel.value
-  if (s && (s.finalStatus === 'interrupted' || s.finalStatus === 'failed')) return doneLabel.value
+  if (s && (s.finalStatus === 'interrupted' || s.finalStatus === 'failed'
+            || s.finalStatus === 'detached')) return doneLabel.value
   if (summaryWarn.value || props.hasFailures) return doneLabel.value
   return durationText.value ? `Thought for ${durationText.value}` : 'Done'
 })

@@ -44,6 +44,12 @@ function finalStatusLabel(status, hasFailures) {
       return 'Failed safely'
     case 'interrupted':
       return 'Interrupted'
+    // The VIEW stopped following the turn; the turn itself did not stop. Distinct from 'interrupted'
+    // (the work actually ended) and emphatically distinct from 'completed' — reported from production
+    // conversation 1432, where the panel read "Done · 12 steps" while the run was still executing and
+    // the user reasonably concluded it had finished and shown nothing.
+    case 'detached':
+      return 'Still running — reopen to follow'
     case 'completed_with_warnings':
       return 'Completed with warnings'
     case 'completed':
@@ -378,6 +384,36 @@ export function useAgentTimeline() {
     }
   }
 
+  // The VIEW stopped following a turn that never reported a terminal event — the user switched
+  // conversation, or closed the chat, while the agent kept working. Not `interrupt()`: nothing was
+  // interrupted, and telling someone their run died when it is still going is worse than saying
+  // nothing. Spinners stop (this client will receive no more frames for them) but the outcome is
+  // recorded as unknown-and-ongoing rather than as success.
+  //
+  // MEASURED, conversation 1432: the panel said "Done · 12 steps" on a run that was mid-flight, then
+  // later "Completed with issues · 14 steps" once it really ended. The first of those was never true.
+  function detach() {
+    for (const s of steps.value) {
+      if (s.status === 'running') {
+        s.status = 'interrupted'
+        if (s.durationMs == null && s.startedAt) s.durationMs = Math.max(0, _now() - s.startedAt)
+      }
+    }
+    currentStatus.value = null
+    isComplete.value = true
+    if (!summary.value || summary.value.finalStatus === 'completed') {
+      summary.value = {
+        finalStatus: 'detached',
+        label: finalStatusLabel('detached', hasFailures.value),
+        toolsUsedCount: null,
+        sourcesUsedCount: null,
+        hadFailures: null,
+        hadApproval: null,
+        durationMs: null,
+      }
+    }
+  }
+
   // A plain, deep-copied snapshot for pinning the finished timeline onto a chat message
   // (so it persists after the live refs are reset for the next turn).
   function snapshot() {
@@ -417,6 +453,7 @@ export function useAgentTimeline() {
     reset,
     finalize,
     interrupt,
+    detach,
     snapshot,
     hasActivity,
     isRichEvent,

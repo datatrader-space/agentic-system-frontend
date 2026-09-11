@@ -1009,6 +1009,13 @@ export const useChatStore = defineStore('chat', {
     // Clear the per-turn UI/streaming state WITHOUT touching the socket (used when switching
     // conversations — the socket is shared and must stay alive).
     _clearTurnState() {
+      // A turn was in flight and this view is walking away from it (conversation switch, chat closed).
+      // The backend run SURVIVES — so the timeline must stop claiming to be live without claiming to
+      // have finished. Conversation 1432 is what the old behaviour looked like: "Done · 12 steps" over
+      // a run that was still executing, and no answer under it.
+      if (this.isStreaming) {
+        try { _tl.detach() } catch (e) { /* a cosmetic state must never break a conversation switch */ }
+      }
       this.isStreaming = false
       this._assistantId = null
       this._recovering = false
