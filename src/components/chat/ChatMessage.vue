@@ -16,11 +16,11 @@
           :steps="isStreaming ? chat.liveSteps : message.timeline.steps"
           :sources="isStreaming ? chat.liveSources : message.timeline.sources"
           :summary="isStreaming ? chat.liveSummary : message.timeline.summary"
-          :is-complete="!isStreaming && !chat.planRunning"
+          :is-complete="turnReallyFinished"
           :has-failures="isStreaming ? chat.liveHasFailures : message.timeline.hasFailures"
           :tokens="(message.usage && message.usage.total_tokens) || null"
           :reasoning="isStreaming ? chat.liveReasoning : reasoningItems(message.timeline && message.timeline.steps)"
-          :running="isStreaming || chat.planRunning" />
+          :running="!turnReallyFinished" />
 
         <!-- Attachment prep: while a document sent WITH the question is still converting/indexing, we
              hold the turn and show this instead of answering "your file is still being processed". -->
@@ -314,6 +314,36 @@ const submitReasons = () => {
 }
 
 const isStreaming = computed(() => props.message.status === 'streaming')
+
+// HAS THIS TURN ACTUALLY FINISHED? Not "did this browser stop streaming" — those are different
+// questions, and the gap between them is the whole bug.
+//
+// REPORTED FOUR TIMES, most recently conversation 1451: the panel read "Done · 12 steps" while the
+// backend run was still `executing` three minutes later, with only the user's message in the database
+// and no `[TURN ROUNDS]` line — the turn had not ended by any measure.
+//
+// Three earlier fixes each closed ONE route to that wrong word: navigating away from a live turn, a run
+// that genuinely had completed, and an intermediate completion frame on a plan-bearing run. Each was
+// real, and each time a different route produced the same lie, because all of them were guesses at WHICH
+// EVENT fired early. This asks something that cannot be wrong about any of them:
+//
+//   A turn that finished produced something. An empty bubble is not a finished turn.
+//
+// `message.error` counts — an errored turn is finished and has an error rather than an answer — so a
+// failed turn cannot spin for ever. Anything else with no content is still working, whatever the event
+// stream believed, and `running` is simply the inverse so the panel always shows one header or the
+// other rather than disappearing.
+//
+// PRESENTATION ONLY. An earlier attempt put this question in the turn lifecycle and blocked
+// `_endAssistant`; for the ordinary chat path `chat_response` IS the terminal event, so a turn whose
+// answer had already arrived had nothing left to finalize it. Delaying a turn's end to fix a label
+// trades a wrong word for a hung UI.
+const turnReallyFinished = computed(() => {
+  if (isStreaming.value) return false
+  if (chat.planRunning) return false
+  const m = props.message
+  return !!((m.content || '').trim() || m.error)
+})
 const stopBadge = computed(() => stopReasonBadge(props.message.stopReason, props.message.confidence))
 
 // Panel sources: prefer the answer_basis cited-or-top-4 set (provenance) when present; else the full list.
