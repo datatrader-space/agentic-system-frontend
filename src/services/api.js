@@ -288,6 +288,13 @@ export default {
   getServices: (params) => api.get('/services/', { params }),
   getService: (id) => api.get(`/services/${id}/`),
   createService: (data) => api.post('/services/create/', data),
+  // ONE transaction: the service row and every selected action land together, or nothing does.
+  // Registration used to be createService + createServiceActions, and anything failing between them
+  // left a service with no actions stranded at status='draft' — invisible on the Connectors page,
+  // with the wizard's draft already consumed. `Idempotency-Key` makes a retry after a gateway
+  // timeout safe rather than a second full registration.
+  registerService: (data, idempotencyKey) => api.post('/services/register/', data,
+    idempotencyKey ? { headers: { 'Idempotency-Key': idempotencyKey } } : undefined),
   updateService: (id, data) => api.post(`/services/${id}/update/`, data),
   deleteService: (id) => api.post(`/services/${id}/delete/`),
   createServiceActions: (id, data) => api.post(`/services/${id}/actions/create/`, data),
@@ -976,29 +983,12 @@ export default {
   getSessionEvents: (sessionId) => api.get(`/sessions/${sessionId}/events/`),
 
   // Services
-  discoverActions: (data) => {
-    const formData = new FormData()
-    if (data.specFile) {
-      formData.append('spec_file', data.specFile)
-    }
-    if (data.specUrl) {
-      formData.append('api_spec_url', data.specUrl)
-    }
-    formData.append('base_url', data.baseUrl)
-    formData.append('discovery_method', data.discoveryMethod || 'openapi')
-
-    return api.post('/services/discover/', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-  },
-
-  enrichActions: (serviceId, actions) => {
-    return api.post(`/services/${serviceId}/enrich/`, { actions })
-  },
-
-  registerService: (data) => {
-    return api.post('/services/register/', data)
-  },
+  //
+  // Three dead methods lived here: `enrichActions` posted to `/services/<id>/enrich/`, which has
+  // never existed; `registerService` posted to `/services/register/`, which did not exist either
+  // (it does now, and the working one is defined near `createService` above); and `discoverActions`
+  // (multipart) had no caller, because ServiceRegistrationModal defines its own `discoverActions`
+  // that calls `discoverServiceActions`. Removed rather than left as plausible-looking wrong turns.
 
   // ── Agent Workspace ──
   getAgentWorkspace: (agentId) => api.get(`/agents/${agentId}/workspace/`),

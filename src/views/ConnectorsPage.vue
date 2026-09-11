@@ -160,14 +160,22 @@
               <div class="flex items-center gap-2 shrink-0">
                 <!-- Built-in services are managed through the connector catalog. -->
                 <button
-                  v-if="selected.kind === 'builtin' || selected.is_builtin"
+                  v-if="selected.is_builtin"
                   @click="showHub = true"
                   class="px-3.5 py-2 rounded-xl text-[13px] font-semibold text-violet-700 bg-violet-50 border border-violet-200 hover:bg-violet-100"
                 >
                   {{ selected.connected ? 'Manage connector' : 'Browse catalog' }}
                 </button>
-                <!-- OAuth: connect with your account / disconnect -->
-                <template v-else-if="selected.auth_kind === 'oauth' && selected.provider_slug">
+                <!-- OAuth: connect with your account / disconnect.
+                     `provider_slug` exists only for connectors linked to a legacy shared
+                     OAuthProvider row. A service registered through the wizard carries its own
+                     inline OAuth2 client and has none, so this branch was skipped for exactly the
+                     services it is meant to serve: the panel fell through to "Manage credentials"
+                     (a generic global credential list) and offered NO Disconnect at all, while the
+                     list row's Connect pill routed correctly. Two buttons for one connector, one of
+                     them wrong. `auth_type` is the raw declared value and is carried in the payload
+                     for precisely this decision. -->
+                <template v-else-if="isOAuthConnector(selected)">
                   <button
                     v-if="!selected.connected"
                     @click="handleConnect(selected)"
@@ -762,6 +770,17 @@ function oauthResultListener(event) {
   }
 }
 
+// Does this connector connect through an OAuth consent flow?
+//
+// Two things can make it so: a link to a shared OAuthProvider row (`provider_slug`, the legacy
+// connectors) or the service declaring `auth_type: 'oauth2'` itself (everything registered through
+// the wizard). Gating on `provider_slug` alone hid Connect/Disconnect from the second group.
+function isOAuthConnector(c) {
+  if (!c) return false
+  const at = (c.auth_type || '').toLowerCase()
+  return at === 'oauth2' || (c.auth_kind === 'oauth' && !!c.provider_slug)
+}
+
 async function handleConnect(c) {
   // A REGISTERED SERVICE connects the way IT declared at registration.
   //
@@ -814,11 +833,18 @@ async function handleConnect(c) {
 }
 
 async function handleDisconnect(c) {
-  if (c.auth_kind === 'oauth' && c.provider_slug) {
+  // A wizard-registered OAuth2 service has no `provider_slug`; its connection is an AgentCredential
+  // keyed on the service id, removed by /api/oauth/disconnect/<service_id>/. Routing it to
+  // `disconnectConnection(provider_slug)` sent `undefined` as the slug.
+  if (isOAuthConnector(c)) {
     if (!(await confirm(`Disconnect from ${c.name}? Agents using this connection will lose access.`))) return
     actionLoading.value = true
     try {
-      await api.disconnectConnection(c.provider_slug)
+      if (c.provider_slug) {
+        await api.disconnectConnection(c.provider_slug)
+      } else {
+        await api.disconnectOAuth(c.id)
+      }
       notify.success(`Disconnected ${c.name}`)
       await loadConnectors()
     } catch (e) {
@@ -887,8 +913,11 @@ function kindLabel(c) {
   // catalog, visible to every user, and connected the same way. Its `kind` stays 'service' because
   // that is what drives the connect/manage routing, so the LABEL has to read the promotion flag
   // rather than the kind, or a promoted connector keeps describing itself as a plain service.
+  //
+  // `kind: 'builtin'` was a third connector kind, produced from a code-defined catalog that is now
+  // empty; the backend cannot emit it any more, so branching on it was dead.
   if (c.kind === 'service' && c.is_builtin) return 'Built-in service'
-  return { mcp: 'MCP server', builtin: 'Built-in service' }[c.kind] || 'Service'
+  return c.kind === 'mcp' ? 'MCP server' : 'Service'
 }
 function authLabel(c) {
   return {

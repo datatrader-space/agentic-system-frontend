@@ -1319,11 +1319,48 @@ export default {
       }
     }
 
+    // A registration is ONE call now. It used to be two — createService, then createServiceActions —
+    // and anything failing between them left a service row with no actions, stranded at
+    // status='draft': invisible on the Connectors page, with the draft it came from already
+    // consumed. The user saw "registered successfully" and had nothing. The backend now does both
+    // inside one transaction.
+    //
+    // The idempotency key is minted ONCE per wizard session, not per click, so a retry after a
+    // gateway timeout replays the first result instead of registering a second copy.
+    const idempotencyKey = ref(null)
+
     const registerService = async () => {
       registering.value = true
+      if (!idempotencyKey.value) {
+        idempotencyKey.value = (window.crypto?.randomUUID?.()
+          || `reg-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+      }
       try {
-        // Step 1: Create service
-        const serviceResponse = await api.createService({
+        // EXACTLY the actions the user selected — `selectedActions` is the single source of truth
+        // for the count, the enrichment set, the review screen AND this payload. Iterating
+        // `selectedCategories` instead is what made a review screen showing 33 register 78.
+        const actionsToCreate = []
+        Object.entries(selectedActions.value).forEach(([categoryName, actions]) => {
+          (actions || []).forEach(action => {
+            actionsToCreate.push({
+              name: action.name,
+              description: action.description,
+              action_group: categoryName,
+              endpoint_path: action.endpoint_path,
+              http_method: action.http_method,
+              parameters: action.parameters,
+              request_body_schema: action.request_body_schema,
+              response_schema: action.response_schema,
+              invocation_schema: action.invocation_schema,
+              llm_notes: action.llm_notes,
+              risk_level: action.risk_level,
+              enriched_by_llm: action.enriched_by_llm,
+              execution_pattern: action.execution_pattern || 'simple'
+            })
+          })
+        })
+
+        const response = await api.registerService({
           name: formData.value.name,
           description: formData.value.description,
           category: formData.value.category,
@@ -1335,48 +1372,13 @@ export default {
           discovery_method: formData.value.discovery_method,
           api_spec_url: formData.value.api_spec_url,
           is_builtin: formData.value.is_builtin,
-          enable_all_workspaces: formData.value.enable_all_workspaces
-        })
-
-        const serviceId = serviceResponse.data.service_id
-
-        // Step 2: Create EXACTLY the actions the user selected.
-        //
-        // This used to iterate `selectedCategories` and push every action of each category, ignoring
-        // the per-action selection entirely — so a review screen showing "33 actions" registered 78,
-        // including 45 the user had never seen. `selectedActions` is the single source of truth for
-        // the count, the enrichment set, the review screen AND this payload.
-        if (discoveredData.value) {
-          const actionsToCreate = []
-          Object.entries(selectedActions.value).forEach(([categoryName, actions]) => {
-            (actions || []).forEach(action => {
-              actionsToCreate.push({
-                name: action.name,
-                description: action.description,
-                action_group: categoryName,
-                endpoint_path: action.endpoint_path,
-                http_method: action.http_method,
-                parameters: action.parameters,
-                request_body_schema: action.request_body_schema,
-                response_schema: action.response_schema,
-                // 🆕 Include enriched data if available
-                invocation_schema: action.invocation_schema,
-                llm_notes: action.llm_notes,
-                risk_level: action.risk_level,
-                execution_pattern: action.execution_pattern || 'simple'
-              })
-            })
-          })
-
-          if (actionsToCreate.length > 0) {
-            // `expected_count` lets the backend refuse the write if this payload ever again diverges
-            // from what the review screen displayed.
-            await api.createServiceActions(serviceId, {
-              actions: actionsToCreate,
-              expected_count: actionsToCreate.length
-            })
-          }
-        }
+          enable_all_workspaces: formData.value.enable_all_workspaces,
+          // The row the wizard has been autosaving to since step 1. The backend used to re-derive
+          // the draft from the slug, which promoted the WRONG one when two drafts shared a name.
+          draft_service_id: draftServiceId.value,
+          actions: actionsToCreate,
+          expected_count: actionsToCreate.length
+        }, idempotencyKey.value)
 
         // Registration CONSUMED the draft — the backend promoted that row to a live service. Stop
         // the autosave timer so a late tick cannot write it back to `draft` and resurrect it in the
@@ -1385,10 +1387,10 @@ export default {
         draftServiceId.value = null
         draftSavedAt.value = null
 
-        if (serviceResponse.data?.requires_oauth_connect) {
+        if (response.data?.requires_oauth_connect) {
           notify.show('Service registered. Open it from Connectors and click Connect to authorize '
             + 'your account before agents can use its tools.')
-        } else if (serviceResponse.data?.auth_configured === false) {
+        } else if (response.data?.auth_configured === false) {
           notify.show('Service registered, but its credential is incomplete — its tools will fail '
             + 'until you finish setup on the service’s Authentication tab.')
         }
@@ -1397,7 +1399,11 @@ export default {
 
       } catch (error) {
         console.error('Failed to register service:', error)
-        notify.error('Failed to register service: ' + (error.response?.data?.error || error.message))
+        // The backend now names WHY. `detail` carries a sentence the user can act on; falling back
+        // to the bare `error` code showed things like "unknown_actions" with no explanation.
+        const data = error.response?.data || {}
+        notify.error('Failed to register service: '
+          + (data.detail || data.error || error.message))
       } finally {
         registering.value = false
       }
