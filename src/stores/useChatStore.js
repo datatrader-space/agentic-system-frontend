@@ -145,6 +145,11 @@ export const useChatStore = defineStore('chat', {
     _assistantId: null,
     // setInterval handle for the resumed-turn progress poll (see _startProgressPolling).
     _progressTimer: null,
+    //: When a frame last arrived from the server, and the watchdog that notices when they stop.
+    //: A socket can die WITHOUT onClose/onError — a server restart whose FIN never reaches the browser,
+    //: or a half-open connection — and then nothing on this page ever learns the turn finished.
+    _lastFrameAt: 0,
+    _deafTimer: null,
   }),
   getters: {
     isEmpty: (s) => s.messages.length === 0,
@@ -1022,6 +1027,7 @@ export const useChatStore = defineStore('chat', {
     // Clear the per-turn UI/streaming state WITHOUT touching the socket (used when switching
     // conversations — the socket is shared and must stay alive).
     _clearTurnState() {
+      this._stopDeafWatchdog()
       // A turn was in flight and this view is walking away from it (conversation switch, chat closed).
       // The backend run SURVIVES — so the timeline must stop claiming to be live without claiming to
       // have finished. Conversation 1432 is what the old behaviour looked like: "Done · 12 steps" over
@@ -1062,6 +1068,41 @@ export const useChatStore = defineStore('chat', {
         try { this._conn?.sendIfOpen({ type: 'turn_progress', conversation_id: this.conversationId }) }
         catch { /* socket down; the reconnect path takes over */ }
       }, 8000)
+    },
+
+    //: Longest silence a HEALTHY turn can produce. A single high-detail vision call runs 45-53s in
+    //: production (conversation 1466: 52.6s then 44.8s) and emits nothing while it does, so the
+    //: threshold has to clear that comfortably or the watchdog fires on working turns.
+    //:
+    //: Two minutes of complete silence means one of two things, and the response to both is the same:
+    //: this page has gone deaf, or the turn is genuinely stalled. Re-reading history answers it either
+    //: way, and costs one cheap request.
+    _DEAF_AFTER_MS: 120000,
+
+    // NOTHING HAS ARRIVED FOR TOO LONG — go and look instead of waiting for a frame that may never come.
+    //
+    // REPORTED REPEATEDLY, most recently conversation 1466: the answer was saved at 10:04:21 and the tab
+    // still read "Working" at 10:07:03, nearly three minutes later. A manual refresh showed it
+    // immediately, because the answer had been in the database the whole time. The socket had died
+    // without a close event — seven deploys in one afternoon, each restarting the server under an open
+    // tab — and `onOpen`/`onClose`/`onError` are the ONLY things that trigger recovery today. A socket
+    // that dies quietly fires none of them.
+    //
+    // Deliberately reuses `_recoverAfterReconnect`: it already polls history, settles on the saved
+    // answer and gives up cleanly. This adds the one thing missing — noticing.
+    _startDeafWatchdog() {
+      this._stopDeafWatchdog()
+      this._lastFrameAt = Date.now()
+      this._deafTimer = setInterval(() => {
+        if (!this.isStreaming) { this._stopDeafWatchdog(); return }
+        if (Date.now() - (this._lastFrameAt || 0) < this._DEAF_AFTER_MS) return
+        this._stopDeafWatchdog()
+        try { this._recoverAfterReconnect() } catch (e) { /* never let a watchdog break a turn */ }
+      }, 20000)
+    },
+
+    _stopDeafWatchdog() {
+      if (this._deafTimer) { clearInterval(this._deafTimer); this._deafTimer = null }
     },
 
     _stopProgressPolling() {
@@ -1216,6 +1257,7 @@ export const useChatStore = defineStore('chat', {
       })
       this._assistantId = this.messages[this.messages.length - 1].id
       this.isStreaming = true
+      this._startDeafWatchdog()
       _think.reset()
       _tl.reset()   // fresh live activity timeline for this turn
     },
@@ -1247,6 +1289,7 @@ export const useChatStore = defineStore('chat', {
     },
 
     _endAssistant() {
+      this._stopDeafWatchdog()
       // While a human approval is pending, DON'T finalize the turn. The task/CRS path can emit a
       // premature "complete" for the step-0 text while the agent is actually blocked on an approval
       // card; finalizing here would show "Done", hide the Stop button, and orphan the pending card.
@@ -1272,6 +1315,16 @@ export const useChatStore = defineStore('chat', {
       this.isStreaming = false
       this._taskRunActive = false
       this._assistantId = null
+      // SETTLING ON AN EMPTY BUBBLE IS NEVER RIGHT. A finished turn produced something; if this one has
+      // nothing, we stopped listening before the backend finished saving — the recovery poll gave up,
+      // or a socket died quietly and the answer landed while nobody was watching.
+      //
+      // MEASURED, conversation 1466: the answer was saved at 10:04:21 and the tab still showed an empty
+      // turn at 10:07:03. A manual refresh produced it instantly, because it had been in the database
+      // the whole time. One more fetch, once, on the only path that can leave a turn blank.
+      if (m && !(m.content || '').trim() && !m.error) {
+        Promise.resolve().then(() => this._refreshHistory()).catch(() => {})
+      }
     },
 
     _persistTurnMeta(m) {
@@ -1286,6 +1339,7 @@ export const useChatStore = defineStore('chat', {
     },
 
     _errAssistant(err, retryable = true) {
+      this._stopDeafWatchdog()
       const m = this._cur()
       if (m) {
         m.status = 'error'
@@ -1301,6 +1355,7 @@ export const useChatStore = defineStore('chat', {
     },
 
     _onEvent(msg) {
+      this._lastFrameAt = Date.now()
       const t = msg?.type
       if (t === 'ping') return   // server keepalive heartbeat — nothing to render
       // Inline plan artifact (INLINE_PLAN_ARTIFACT_PLAN.md): a pushed, exact-version plan snapshot.
@@ -1568,6 +1623,7 @@ export const useChatStore = defineStore('chat', {
           // stay visible until the human responds.
           this.awaitingApproval = true
           this.isStreaming = true
+          this._startDeafWatchdog()
           {
             const cur = this._cur()
               || this.messages.filter((x) => x.role === 'assistant').slice(-1)[0]
