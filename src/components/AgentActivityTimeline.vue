@@ -183,6 +183,9 @@ const props = defineProps({
   // Model reasoning items [{ label, text }] folded into this one panel (ChatGPT-style). Hosts derive
   // them from the activity via reasoningItems(). Empty/omitted → no reasoning section. Never on public.
   reasoning: { type: Array, default: () => [] },
+  // Work mode: the iteration this turn belongs to, `{ segment, max }`, or null for ordinary chat.
+  // A Work run is many turns, and each one finishing is NOT the run finishing — see `doneLabel`.
+  workIteration: { type: Object, default: null },
 })
 
 // Collapsed by default once the turn is done (matches the legacy "Done · N steps" card); the user
@@ -252,6 +255,22 @@ const doneLabel = computed(() => {
   // reported from conversation 1432 — a finished-looking panel above an answer that never came.
   if (s && s.finalStatus === 'detached') return 'Still running — reopen to follow'
   if (s && s.finalStatus === 'failed') return 'Could not complete'
+  // A WORK ITERATION FINISHING IS NOT THE RUN FINISHING.
+  //
+  // Reported from a live run: the panel read "Done - 20 steps" over five green plan steps while the
+  // line directly beneath it said "Iteration 1 of 12 - working". Two signals, opposite meanings, and
+  // the stronger-looking one was the wrong one -- the user could not tell whether the agent had
+  // finished the job or was still going.
+  //
+  // This is the same lie `detached` already guards against ("the run did NOT stop; this view stopped
+  // following it"), one level up: here the TURN really did finish, and the RUN has eleven more
+  // iterations it may yet use. Naming the iteration says both halves at once and stays true
+  // afterwards, so a finished run's transcript still reads correctly.
+  const it = props.workIteration
+  if (it && it.segment) {
+    const scope = `Iteration ${it.segment}${it.max ? ` of ${it.max}` : ''}`
+    return summaryWarn.value || props.hasFailures ? `${scope} - completed with issues` : `${scope} complete`
+  }
   return summaryWarn.value || props.hasFailures ? 'Completed with issues' : 'Done'
 })
 
@@ -268,6 +287,9 @@ const headLabel = computed(() => {
   if (s && (s.finalStatus === 'interrupted' || s.finalStatus === 'failed'
             || s.finalStatus === 'detached')) return doneLabel.value
   if (summaryWarn.value || props.hasFailures) return doneLabel.value
+  // Same reason as above: "Thought for 4m" reads as the end of the work, so a Work iteration says
+  // which iteration it was instead.
+  if (props.workIteration && props.workIteration.segment) return doneLabel.value
   return durationText.value ? `Thought for ${durationText.value}` : 'Done'
 })
 

@@ -8,21 +8,34 @@
     <span class="iter-line" aria-hidden="true"></span>
   </div>
 
-  <div v-else-if="chat.workIterationLabel" class="iter-live" data-test="iteration-live"
+  <div v-else-if="running" class="iter-live" data-test="iteration-live"
        role="status" aria-live="polite">
     <span class="iter-pulse" aria-hidden="true"></span>
-    <span class="iter-live-text">{{ chat.workIterationLabel }} · working</span>
+    <span class="iter-live-text">{{ liveLabel }} · working — more iterations may follow</span>
   </div>
 
-  <div v-else-if="chat.workGoal" class="iter-done" :class="outcome.tone" data-test="iteration-outcome">
+  <div v-else-if="finished" class="iter-done" :class="outcome.tone" data-test="iteration-outcome">
     <span class="iter-done-title">{{ outcome.title }}</span>
     <span class="iter-done-sub">{{ outcome.detail }}</span>
   </div>
 </template>
 
 <script setup>
+// ONE SOURCE OF TRUTH FOR "WHERE IS THIS RUN".
+//
+// `WorkGoalRow` already answers this, authoritatively: it renders `plan.work_goal` — the RunGoal row
+// itself, delivered by the transactional outbox, which survives a worker crash and a reconnect. The
+// first version of this component kept its own copy from the live `work_segment` frames instead, and
+// production showed exactly what that costs: the goal row read "Working - Segment 3 of 12" while this
+// bar read "Iteration 1 of 12", because a fault in the headless bridge meant the frames never arrived.
+// Two displays of one fact, and the newer one was wrong.
+//
+// So this reads the SAME object. It exists only because `WorkGoalRow` renders at the plan's anchor,
+// far up a long thread, and the question "do I need to keep waiting?" is asked at the bottom, next to
+// the composer. Same data, second placement - never a second copy.
 import { computed } from 'vue'
 import { useChatStore } from '../../stores/useChatStore'
+import { usePlanStore } from '../../stores/usePlanStore'
 
 const props = defineProps({
   // When set, render the section divider for this iteration instead of the live status.
@@ -30,31 +43,50 @@ const props = defineProps({
 })
 
 const chat = useChatStore()
+const plan = usePlanStore()
 
 const label = computed(() => {
   const d = props.divider || {}
   return `Iteration ${d.segment}${d.max ? ` of ${d.max}` : ''}`
 })
 
-// THE GOAL'S OWN STATE, NOT A GUESS FROM THE RUN STATUS. `ACHIEVED` is the only one that earns a
-// success tone — a run that stopped because it ran out of iterations produced work, and saying so
-// plainly is the point of the whole verification chain. An unknown state falls through to neutral
-// rather than green, for the same reason `disposition` fails closed on the backend.
-const OUTCOMES = {
-  ACHIEVED: { tone: 'ok', title: 'Goal met', detail: 'The run verified its objective.' },
-  EXHAUSTED: { tone: 'warn', title: 'Stopped — goal not met',
+// The run's goal, straight from the plan store. Null for every ordinary chat, which renders nothing.
+const goal = computed(() => {
+  const runs = plan.runsForConversation(chat.conversationId)
+  for (let i = runs.length - 1; i >= 0; i -= 1) {
+    if (runs[i] && runs[i].work_goal) return runs[i].work_goal
+  }
+  return null
+})
+
+const used = computed(() => Number((goal.value && goal.value.segments_used) || 0))
+const max = computed(() => Number((goal.value && goal.value.max_segments) || 0))
+const state = computed(() => String((goal.value && goal.value.state) || ''))
+const running = computed(() => state.value === 'ACTIVE')
+
+// "Iteration 3 of 12" - the iteration now RUNNING, which is `segments_used` floored at 1: the counter
+// is incremented before a segment is dispatched, and is still 0 while the very first one executes.
+const liveLabel = computed(() =>
+  (running.value ? `Iteration ${Math.max(1, used.value)}${max.value ? ` of ${max.value}` : ''}` : ''))
+
+// WHAT THE USER ACTUALLY ASKED: "how do I know if I need to wait more, or the agent ended?" Every
+// state answers it in a sentence, and an unknown one says the honest thing rather than guessing.
+const STATE = {
+  ACTIVE: { tone: 'run', title: 'Still working', detail: 'More iterations may follow.' },
+  ACHIEVED: { tone: 'ok', title: 'Goal met', detail: 'The run verified its objective and stopped.' },
+  EXHAUSTED: { tone: 'warn', title: 'Stopped - goal not met',
                detail: 'Every permitted iteration was used without the objective being verified.' },
-  PAUSED: { tone: 'warn', title: 'Paused',
-            detail: 'The run stopped before its goal could be verified.' },
-  ABANDONED: { tone: 'warn', title: 'Abandoned', detail: 'The run gave up on this goal.' },
+  PAUSED: { tone: 'warn', title: 'Paused', detail: 'The run stopped before its goal was verified.' },
+  ABANDONED: { tone: 'warn', title: 'Stopped', detail: 'The run gave up on this goal.' },
 }
 
+const finished = computed(() => !!goal.value && !running.value)
 const outcome = computed(() => {
-  const g = chat.workGoal || {}
-  const base = OUTCOMES[g.state] || { tone: 'warn', title: 'Run finished',
-                                      detail: 'The goal was not confirmed.' }
-  const used = g.segments ? ` ${g.segments}${g.max ? ` of ${g.max}` : ''} iteration${g.segments === 1 ? '' : 's'} used.` : ''
-  return { ...base, detail: base.detail + used }
+  const base = STATE[state.value] || { tone: 'warn', title: 'Run finished',
+                                       detail: 'The goal was not confirmed.' }
+  const n = used.value
+  const spent = n ? ` ${n}${max.value ? ` of ${max.value}` : ''} iteration${n === 1 ? '' : 's'} used.` : ''
+  return { ...base, detail: base.detail + spent }
 })
 </script>
 

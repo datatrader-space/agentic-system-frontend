@@ -20,7 +20,8 @@
           :has-failures="isStreaming ? chat.liveHasFailures : message.timeline.hasFailures"
           :tokens="(message.usage && message.usage.total_tokens) || null"
           :reasoning="isStreaming ? chat.liveReasoning : reasoningItems(message.timeline && message.timeline.steps)"
-          :running="!turnReallyFinished" />
+          :running="!turnReallyFinished"
+          :work-iteration="message.workIteration || null" />
 
         <!-- Attachment prep: while a document sent WITH the question is still converting/indexing, we
              hold the turn and show this instead of answering "your file is still being processed". -->

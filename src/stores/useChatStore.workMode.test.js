@@ -201,3 +201,47 @@ describe('iteration grouping survives a reload', () => {
     expect(m.workIteration).toBe(null)
   })
 })
+
+describe('the forwarded-type list must cover what the backend sends', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  // These are agent/headless_consumer.py's `_WORK_STREAM_TYPES`. The two lists live in separate repos
+  // and serve opposite ends of one contract: the backend decides what to SEND over the shared
+  // user_<id> group, and this one decides what to conversation-ROUTE. A type the backend sends and
+  // this set omits is not filtered, so it lands in whichever conversation happens to be open.
+  const BACKEND_SENDS = [
+    'assistant_message_chunk', 'assistant_message_complete', 'reasoning_delta', 'reasoning_done',
+    'tool_call', 'tool_result', 'tool_blocked', 'work_segment', 'work_goal', 'error',
+    'agent_status', 'agent_step_started', 'agent_step_completed', 'agent_step_failed',
+    'source_citation', 'agent_turn_summary', 'token_usage',
+  ]
+
+  it('routes every forwarded type by conversation', () => {
+    const s = useChatStore()
+    s.conversationId = '1529'
+    for (const type of BACKEND_SENDS) {
+      s._beginAssistant()
+      const before = JSON.stringify(s.messages)
+      s._onEvent({ type, conversation_id: '999', chunk: 'x', text: 'x' })
+      expect(JSON.stringify(s.messages), `${type} leaked from another conversation`).toBe(before)
+    }
+  })
+
+  it('does not let another conversation write into the activity timeline', () => {
+    // Asserted on the TIMELINE, not on `messages`: rich events are routed into the timeline reducer
+    // and return before the message switch, so checking the transcript proves nothing about them.
+    // (The first version of this test did exactly that and passed with the guard deleted.)
+    const s = useChatStore()
+    s.conversationId = '1529'
+    s._beginAssistant()
+    const step = (cid) => ({ type: 'agent_step_started', step_id: `s${cid}`, phase: 'using_tools',
+                             label: `from ${cid}`, conversation_id: cid })
+
+    s._onEvent(step('1529'))
+    const mine = s.liveSteps.length
+    expect(mine, 'this conversation must reach the timeline').toBeGreaterThan(0)
+
+    s._onEvent(step('999'))
+    expect(s.liveSteps.length, "another conversation must not").toBe(mine)
+  })
+})

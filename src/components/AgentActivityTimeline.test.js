@@ -197,3 +197,50 @@ describe('AgentActivityTimeline', () => {
     })
   })
 })
+
+// A Work run is many turns, and each one finishing is NOT the run finishing.
+//
+// REPORTED FROM A LIVE RUN: this panel read "Done - 20 steps" over five green plan steps while the
+// line directly beneath it said "Iteration 1 of 12 - working". Two signals, opposite meanings, and
+// the more emphatic one was wrong -- the user could not tell whether the agent had finished the job.
+describe('a Work iteration finishing is not the run finishing', () => {
+  const done = { finalStatus: 'ok', durationMs: 240000 }
+
+  const head = (props) => mount(AgentActivityTimeline, {
+    props: { steps: [builderStep], running: false, isComplete: true, summary: done, ...props },
+  }).find('.at-head').text()
+
+  it('names the iteration instead of claiming the work is done', () => {
+    const t = head({ workIteration: { segment: 1, max: 12 } })
+    expect(t).toContain('Iteration 1 of 12 complete')
+    expect(t).not.toMatch(/\bDone\b/)
+  })
+
+  it('does not say "Thought for 4m" either', () => {
+    // The duration headline reads just as much like the end of the work as "Done" does.
+    expect(head({ workIteration: { segment: 2, max: 12 } })).not.toContain('Thought for')
+  })
+
+  it('still reports trouble within the iteration', () => {
+    const t = head({ workIteration: { segment: 3, max: 12 }, hasFailures: true })
+    expect(t).toContain('Iteration 3 of 12')
+    expect(t).toContain('issues')
+  })
+
+  it('keeps an interrupted turn honest rather than relabelling it', () => {
+    const t = head({ workIteration: { segment: 1, max: 12 },
+                     summary: { finalStatus: 'interrupted' } })
+    expect(t).toContain('Interrupted')
+  })
+
+  it('omits the total when the run does not declare one', () => {
+    expect(head({ workIteration: { segment: 4, max: 0 } })).toContain('Iteration 4 complete')
+  })
+
+  it('leaves an ordinary chat turn saying what it always said', () => {
+    // THE REGRESSION THAT MATTERS: this header renders on every assistant turn in the app.
+    const t = head({})
+    expect(t).toMatch(/Thought for|Done/)
+    expect(t).not.toContain('Iteration')
+  })
+})

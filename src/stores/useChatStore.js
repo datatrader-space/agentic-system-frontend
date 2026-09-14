@@ -36,6 +36,11 @@ const STREAM_ID_TYPES = new Set([
 const WORK_FORWARDED_TYPES = new Set([
   'assistant_message_chunk', 'assistant_message_complete', 'reasoning_delta', 'reasoning_done',
   'tool_call', 'tool_result', 'tool_blocked', 'work_segment', 'work_goal', 'error',
+  // The activity timeline (useAgentTimeline's RICH_EVENT_TYPES) plus the live token counter. Without
+  // these a later iteration rendered no timeline at all and fell back to the bare plan-progress line,
+  // so the same run showed two different interfaces depending on which iteration you were watching.
+  'agent_status', 'agent_step_started', 'agent_step_completed', 'agent_step_failed',
+  'source_citation', 'agent_turn_summary', 'token_usage',
 ])
 
 function pickArray(d) {
