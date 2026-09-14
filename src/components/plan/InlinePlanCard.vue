@@ -41,6 +41,12 @@ const total = computed(() => props.plan?.total_step_count ?? steps.value.length)
 const done = computed(() => props.plan?.completed_step_count
   ?? steps.value.filter((s) => stepState(s) === 'completed' || stepState(s) === 'skipped').length)
 const currentStepId = computed(() => props.plan?.current_step_id || null)
+// THE REPAIR LOOP. `done / total` answers "how far through the plan", which stops being the interesting
+// question the moment a loop starts: steps tick green when they produce evidence and never un-tick when
+// a verifier rejects that evidence. Production conv 1518 spent five passes over eleven minutes and the
+// card read "Active 3/3" the whole way — indistinguishable from a run that got it right first time.
+const repair = computed(() => props.plan?.repair || null)
+const repairing = computed(() => !!repair.value && repair.value.in_progress && (repair.value.attempt || 0) > 1)
 const version = computed(() => props.plan?.version_number || 1)
 const progressPct = computed(() => (total.value ? Math.round((done.value / total.value) * 100) : 0))
 const reconnecting = computed(() => props.connState === 'stale' || props.connState === 'loading')
@@ -101,7 +107,20 @@ function submitDecision(decision) {
         {{ planLabel }}<span v-if="planState === 'revised' && version">&nbsp;· v{{ version }}</span>
       </span>
       <span v-if="!isRoadmap && total" class="ipc-progress" aria-hidden="true">{{ done }} / {{ total }}</span>
+      <!-- Beside the step count, not instead of it: they answer different questions, and a reader who
+           sees only "3 / 3" concludes the work is finished. -->
+      <span v-if="repairing" class="ipc-attempt" role="status" aria-live="polite"
+            :aria-label="`Repair attempt ${repair.attempt} of ${repair.max_attempts}`">
+        attempt {{ repair.attempt }}<template v-if="repair.max_attempts"> / {{ repair.max_attempts }}</template>
+      </span>
     </header>
+
+    <!-- WHAT IT IS GOING ROUND FOR. An attempt number says a loop is running; the named defects say why
+         it has not stopped. One without the other is a spinner with a counter on it. -->
+    <p v-if="repairing && repair.findings && repair.findings.length" class="ipc-fixing" role="status">
+      Fixing: {{ repair.findings.map(f => f.observation || f.repair_instruction).filter(Boolean).slice(0, 2).join('; ') }}<span
+        v-if="repair.findings.length > 2"> (+{{ repair.findings.length - 2 }} more)</span>
+    </p>
 
     <!-- WHY IT STOPPED. A status word cannot separate "every attempt was used and the result still did
          not meet what was asked" from "an approval is outstanding", and those need opposite reactions
@@ -197,6 +216,14 @@ function submitDecision(decision) {
 .pill-revised, .pill-paused, .pill-draft { background: var(--surf2); color: var(--ink2); }
 .ipc-stopped { margin: 6px 0 0; padding: 6px 10px; border-radius: 6px; background: var(--blk-bg);
                color: var(--blk); font-size: 12px; line-height: 1.45; }
+
+.ipc-attempt {
+  margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; line-height: 16px;
+  font-weight: 600; color: #92400e; background: #fef3c7; border: 1px solid #fde68a; white-space: nowrap;
+}
+.ipc-fixing {
+  margin: 6px 0 0; font-size: 12px; line-height: 17px; color: var(--vm-ink-soft, #475569);
+}
 .pill-reconnect { background: var(--surf2); color: var(--ink3); }
 
 .ipc-rail { height: 3px; background: var(--surf2); position: relative; }

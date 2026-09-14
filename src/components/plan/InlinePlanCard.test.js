@@ -60,3 +60,58 @@ describe('InlinePlanCard', () => {
     expect(w.text()).toContain('Active')
   })
 })
+
+describe('the repair loop is visible on the card', () => {
+  // PRODUCTION CONV 1518. Five repair passes over eleven minutes, every one rejected with named
+  // findings, and the card read "Active 3 / 3" with three green ticks throughout — the same thing it
+  // shows for a run that got it right on the first pass. Steps tick when they produce evidence and do
+  // not un-tick when a verifier rejects it, so the step count cannot tell those two runs apart. The
+  // attempt number is the only thing that can.
+  const withRepair = (repair) => ({
+    plan_status_user: 'active', total_step_count: 3, completed_step_count: 3,
+    steps: [], repair,
+  })
+
+  it('shows which attempt, of how many', () => {
+    const w = mount(InlinePlanCard, {
+      props: { plan: withRepair({ attempt: 3, max_attempts: 5, in_progress: true, findings: [] }) },
+    })
+    expect(w.text()).toContain('attempt 3')
+    expect(w.text()).toContain('5')
+  })
+
+  it('names what it is fixing, so the counter is not just a spinner', () => {
+    const w = mount(InlinePlanCard, {
+      props: {
+        plan: withRepair({
+          attempt: 2, max_attempts: 5, in_progress: true,
+          findings: [{ observation: 'wall_1 top edge is horizontal' },
+                     { observation: 'wall_3 covers visible ceiling' }],
+        }),
+      },
+    })
+    expect(w.text()).toContain('wall_1 top edge is horizontal')
+    expect(w.text()).toContain('wall_3 covers visible ceiling')
+  })
+
+  it('says nothing on the first pass — one attempt is not a loop', () => {
+    const w = mount(InlinePlanCard, {
+      props: { plan: withRepair({ attempt: 1, max_attempts: 5, in_progress: true, findings: [] }) },
+    })
+    expect(w.text()).not.toContain('attempt 1')
+  })
+
+  it('says nothing once the loop has stopped', () => {
+    const w = mount(InlinePlanCard, {
+      props: { plan: withRepair({ attempt: 5, max_attempts: 5, in_progress: false, findings: [] }) },
+    })
+    expect(w.text()).not.toContain('attempt 5')
+  })
+
+  it('is absent for an ordinary run that never entered a loop', () => {
+    const w = mount(InlinePlanCard, {
+      props: { plan: { plan_status_user: 'active', total_step_count: 3, completed_step_count: 3, steps: [] } },
+    })
+    expect(w.text()).not.toContain('attempt')
+  })
+})
