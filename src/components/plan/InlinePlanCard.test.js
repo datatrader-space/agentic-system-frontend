@@ -115,3 +115,33 @@ describe('the repair loop is visible on the card', () => {
     expect(w.text()).not.toContain('attempt')
   })
 })
+
+describe('a run that stopped responding says so', () => {
+  // PRODUCTION CONV 1522. A container restart took a live turn's in-memory state with it. The run sat
+  // at `executing` with its last tool result minutes old, and the card showed a spinner — for the
+  // twenty minutes before the reclaim sweep would have closed it. The runtime knew within seconds
+  // (`stalled_runs._heartbeat_age_seconds`); the payload the card polls never carried it.
+  const withLiveness = (liveness) => ({
+    plan_status_user: 'active', total_step_count: 3, completed_step_count: 1, steps: [], liveness,
+  })
+
+  it('shows the note when the backend reports a stall', () => {
+    const w = mount(InlinePlanCard, {
+      props: { plan: withLiveness({ stalled: true, seconds_since_activity: 300,
+                                    note: 'No activity for 5m 0s while the run still reads as running.' }) },
+    })
+    expect(w.text()).toContain('No activity for 5m 0s')
+  })
+
+  it('says nothing on a healthy run', () => {
+    const w = mount(InlinePlanCard, { props: { plan: withLiveness(null) } })
+    expect(w.text()).not.toContain('No activity')
+  })
+
+  it('says nothing when the backend reports it is alive', () => {
+    const w = mount(InlinePlanCard, {
+      props: { plan: withLiveness({ stalled: false, seconds_since_activity: 12 }) },
+    })
+    expect(w.text()).not.toContain('No activity')
+  })
+})

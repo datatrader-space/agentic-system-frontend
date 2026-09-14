@@ -46,6 +46,11 @@ const currentStepId = computed(() => props.plan?.current_step_id || null)
 // a verifier rejects that evidence. Production conv 1518 spent five passes over eleven minutes and the
 // card read "Active 3/3" the whole way — indistinguishable from a run that got it right first time.
 const repair = computed(() => props.plan?.repair || null)
+// A RUN THAT STOPPED BREATHING. Production conv 1522: a container restart took a live turn's in-memory
+// state with it, and the card showed a spinner for the twenty minutes before the sweeper would have
+// closed it. The runtime knew within seconds; the payload the card polls simply never carried it.
+const liveness = computed(() => props.plan?.liveness || null)
+const stalled = computed(() => !!liveness.value && liveness.value.stalled === true)
 const repairing = computed(() => !!repair.value && repair.value.in_progress && (repair.value.attempt || 0) > 1)
 const version = computed(() => props.plan?.version_number || 1)
 const progressPct = computed(() => (total.value ? Math.round((done.value / total.value) * 100) : 0))
@@ -128,6 +133,10 @@ function submitDecision(decision) {
          "Active 3/3", every step ticked, on a run that had given up. Shown whenever the backend sends a
          reason, collapsed or not — it is the one line a user must not have to expand to find. -->
     <p v-if="plan.stopped_reason" class="ipc-stopped" role="status">{{ plan.stopped_reason }}</p>
+
+    <!-- Above the step list, because "is this still alive" outranks "how far has it got". A spinner and
+         a silent run look identical, and only one of them is worth waiting for. -->
+    <p v-if="stalled" class="ipc-stalled" role="status" aria-live="polite">{{ liveness.note }}</p>
 
     <div v-if="!isRoadmap && total && expanded" class="ipc-rail" :class="`rail-${planState}`"
          :aria-label="`${done} of ${total} steps complete`">
@@ -224,6 +233,11 @@ function submitDecision(decision) {
 .ipc-fixing {
   margin: 6px 0 0; font-size: 12px; line-height: 17px; color: var(--vm-ink-soft, #475569);
 }
+.ipc-stalled {
+  margin: 6px 0 0; padding: 6px 10px; border-radius: 8px; font-size: 12px; line-height: 17px;
+  color: #92400e; background: #fffbeb; border: 1px solid #fde68a;
+}
+
 .pill-reconnect { background: var(--surf2); color: var(--ink3); }
 
 .ipc-rail { height: 3px; background: var(--surf2); position: relative; }
