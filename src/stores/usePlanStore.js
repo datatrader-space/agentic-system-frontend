@@ -250,6 +250,45 @@ export const usePlanStore = defineStore('plan', {
       }
     },
 
+    // ── work-mode goal actions (pause / resume / edit / clear) ─────────────────────
+    //
+    // Shares `pendingActionByRunId` with `decide` deliberately: both are "one durable action against one
+    // run", and two ideas of whether something is in flight is how a UI ends up with two buttons that
+    // both think they are allowed to fire.
+    //
+    // WHICH actions are offered is the backend's answer (`work_goal.available_actions`), never this
+    // store's. A UI that works it out for itself drifts from the runtime, and the first symptom is a
+    // button that silently does nothing.
+    async goalAction(runId, action, { outcome = null } = {}) {
+      if (this.pendingActionByRunId[runId]) return { ok: false, status: 'busy' }
+      const plan = this.plansByRunId[runId]
+      this.pendingActionByRunId[runId] = true
+      try {
+        const res = await api.post(
+          `/run-coordinator/runs/${encodeURIComponent(runId)}/goal-action/`,
+          {
+            action,
+            outcome,
+            expected_revision: plan?.revision,
+            idempotency_key: `${runId}:goal:${action}:${plan?.revision}`,
+          })
+        if (res.data?.plan_view) this._applySnapshot(res.data.plan_view)
+        return res.data
+      } catch (e) {
+        // Same recovery as `decide`: a conflict means the run moved under us, so show what is true now
+        // rather than applying a decision made against a snapshot that no longer exists.
+        if (e?.response?.status === 409 && e.response.data?.plan_view) {
+          this._applySnapshot(e.response.data.plan_view)
+        } else {
+          await this.hydrateRun(runId)
+        }
+        return { ok: false, status: e?.response?.status === 409 ? 'conflict' : 'error',
+          conflict: e?.response?.status === 409, detail: e?.response?.data?.detail || 'request failed' }
+      } finally {
+        this.pendingActionByRunId[runId] = false
+      }
+    },
+
     reset() {
       this.plansByRunId = {}
       this.activeRunIdsByConversation = {}

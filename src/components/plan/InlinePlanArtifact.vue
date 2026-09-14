@@ -5,6 +5,7 @@
 import { computed, onMounted } from 'vue'
 import { usePlanStore } from '../../stores/usePlanStore'
 import InlinePlanCard from './InlinePlanCard.vue'
+import WorkGoalRow from './WorkGoalRow.vue'
 import { notify } from '../../composables/useNotify'
 
 const props = defineProps({
@@ -18,6 +19,24 @@ const plan = computed(() => store.planFor(props.runId))
 const connState = computed(() => store.connStateFor(props.runId))
 
 onMounted(() => { if (!plan.value) store.hydrateRun(props.runId) })
+
+// The four actions the backend advertises on `work_goal.available_actions`. Routed through the plan
+// store so they share the same pending/conflict handling as an approval decision — a second path would
+// mean two ideas of whether an action is in flight.
+async function onGoalAction(action) {
+  if (action === 'clear' &&
+      !window.confirm('Stop this work? Everything done so far is kept, but nothing further runs.')) {
+    return
+  }
+  const res = await store.goalAction(props.runId, action)
+  if (res?.ok) {
+    notify.success(action === 'pause' ? 'Work paused'
+      : action === 'resume' ? 'Work resumed'
+      : action === 'clear' ? 'Work stopped' : 'Goal updated')
+  } else if (res?.status && res.status !== 'busy') {
+    notify.error(res.detail || 'Could not apply that.')
+  }
+}
 
 async function onDecide({ decision, comment }) {
   const res = await store.decide(props.runId, decision, { comment })
@@ -33,6 +52,13 @@ async function onDecide({ decision, comment }) {
 </script>
 
 <template>
-  <InlinePlanCard v-if="plan" :plan="plan" :busy="store.isActionPending(runId)"
-                  :read-only="readOnly" :conn-state="connState" @decide="onDecide" />
+  <div v-if="plan">
+    <!-- The Work-mode progress row sits ABOVE the plan, because for a run measured in hours the plan is
+         the detail and "which segment, and why is it going round again" is the headline. Absent for
+         every ordinary run, which is almost all of them. -->
+    <WorkGoalRow v-if="plan.work_goal" :goal="plan.work_goal"
+                 :busy="store.isActionPending(runId)" @action="onGoalAction" />
+    <InlinePlanCard :plan="plan" :busy="store.isActionPending(runId)"
+                    :read-only="readOnly" :conn-state="connState" @decide="onDecide" />
+  </div>
 </template>
