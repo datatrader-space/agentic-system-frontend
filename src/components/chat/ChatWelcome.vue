@@ -73,19 +73,6 @@
         <!-- Bottom toolbar: + attach + mode pill (left), send (right) -->
         <div class="composer-actions">
           <div class="composer-bar-left" data-tour="chat-controls">
-            <!-- Chat / Work. THE SAME CONTROL AS `ChatComposer`, and it has to exist in both: this
-                 screen has its own composer markup, so a toggle added only to the other one is invisible
-                 exactly where a user starts a new task. Both write to the same store action. -->
-            <div class="turnmode" role="group" aria-label="Response mode">
-              <button type="button" class="turnmode__opt" :class="{ 'is-on': chat.turnMode !== 'work' }"
-                      data-test="welcome-turnmode-chat" title="Answer in this turn"
-                      @click="chat.setTurnMode('chat')">Chat</button>
-              <button type="button" class="turnmode__opt" :class="{ 'is-on': chat.turnMode === 'work' }"
-                      data-test="welcome-turnmode-work"
-                      title="Work to a goal across as many turns as it takes"
-                      @click="chat.setTurnMode('work')">Work</button>
-            </div>
-
             <!-- ChatGPT-style "+" menu: add files, or (once the chat exists) ask about a link. -->
             <div ref="plusRootEl" class="plus-wrap">
               <button type="button" class="composer-attach" :class="{ active: menuOpen }" title="Add photos & files"
@@ -584,24 +571,6 @@ const submit = () => {
   margin-top: 8px;
 }
 .composer-bar-left { display: flex; align-items: center; gap: 6px; }
-/* Chat / Work — a segmented control, not two buttons: the pair is one choice and has to read as one. */
-.turnmode { display: inline-flex; border: 1px solid var(--border, #e3e6ea); border-radius: 999px;
-            padding: 2px; background: var(--surface-2, #f7f8fa); }
-.turnmode__opt { border: 0; background: transparent; border-radius: 999px; padding: 3px 12px;
-                 font-size: 12px; line-height: 18px; cursor: pointer; color: var(--muted, #6b7280); }
-.turnmode__opt.is-on { background: var(--surface, #fff); color: var(--text, #111827); font-weight: 600;
-                       box-shadow: 0 1px 2px rgba(16, 24, 40, .06); }
-.turnmode__opt:focus-visible { outline: 2px solid #2f7bed; outline-offset: 1px; }
-.composer-attach {
-  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
-  border: none; border-radius: 9px; background: transparent; color: #94a3b8; cursor: pointer;
-}
-.composer-attach:hover { color: var(--vm-violet); background: var(--vm-violet-soft); }
-.composer-attach.active { color: var(--vm-violet); background: var(--vm-violet-soft); }
-.composer-attach.active svg { transform: rotate(45deg); }
-.composer-attach svg { width: 18px; height: 18px; transition: transform .15s var(--vm-ease); }
-
-/* "+" menu — ChatGPT-style: clean list (icon + inline label/desc) + a search footer. */
 .plus-wrap { position: relative; }
 .plus-menu {
   position: absolute;

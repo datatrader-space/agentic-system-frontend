@@ -1,6 +1,12 @@
 <template>
   <div class="chat-split" ref="splitEl" :class="{ 'canvas-open': dockOpen, 'canvas-mobile': dockOpen && isMobile }">
    <div class="chat-workspace" :style="dockOpen && !isMobile ? { flex: `1 1 0`, minWidth: '360px' } : null">
+    <!-- Chat / Work, centred at the top of the surface it governs. It is not a composer pill: those are
+         per-message settings (which agent, which run mode, does this message make an image), and this
+         chooses what KIND of thing the session does. A control at that altitude reads wrongly when it
+         sits beside the attach button. -->
+    <div class="turnmode-bar"><TurnModeSwitch /></div>
+
     <div v-if="chat.isEmpty" class="floating-history" :class="{ tucked: historyOpen }">
       <button class="icon-btn" data-history-toggle title="Chat history" aria-label="Chat history"
               :aria-expanded="historyOpen" @click.stop="toggleHistory">
@@ -89,7 +95,6 @@
         :has-image-model="!!(chat.currentAgent && chat.currentAgent.image_model)"
         :is-shared-agent="chat.isSharedAgent"
         @send="onSend" @stop="chat.stop()" @mode-change="onModeChange"
-        :turn-mode="chat.turnMode" @turn-mode="chat.setTurnMode($event)"
         @attach="chat.addAttachments" @remove-attach="chat.removeAttachment" />
       <div v-if="chat.sessionTokens" class="session-meter" :title="`Total tokens used in this chat`">
         Session {{ fmtTokens(chat.sessionTokens) }}<span v-if="chat.sessionCost"> · {{ fmtCost(chat.sessionCost) }}</span>
@@ -157,6 +162,7 @@ import { useArtifactsStore } from '../../stores/useArtifactsStore'
 import ChatWelcome from './ChatWelcome.vue'
 import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
+import TurnModeSwitch from './TurnModeSwitch.vue'
 import ChatHistoryDrawer from './ChatHistoryDrawer.vue'
 import HITLModal from '../HITLModal.vue'
 import FullDocCostCard from './FullDocCostCard.vue'
@@ -590,4 +596,7 @@ watch(
 .active-plan-chip .apc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vm-accent, #3a5bd9); flex: none; }
 .active-plan-chip .apc-count { font-variant-numeric: tabular-nums; color: var(--vm-text-2, #5b6472); font-weight: 600; }
 .active-plan-chip .apc-arrow { color: var(--vm-text-3, #8a92a0); }
+/* The mode bar: centred, quiet, and clear of the thread header's own actions. */
+.turnmode-bar { display: flex; justify-content: center; padding: 10px 0 2px; }
+
 </style>
