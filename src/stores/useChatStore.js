@@ -30,6 +30,14 @@ const STREAM_ID_TYPES = new Set([
   'assistant_message_chunk', 'assistant_message_complete', 'tool_result', 'tool_call',
 ])
 
+// Frames a headless Work-mode iteration forwards through the shared `user_<id>` group. Must match
+// `_WORK_STREAM_TYPES` in agent/headless_consumer.py — each one names its conversation so _onEvent can
+// drop anything meant for a different tab.
+const WORK_FORWARDED_TYPES = new Set([
+  'assistant_message_chunk', 'assistant_message_complete', 'reasoning_delta', 'reasoning_done',
+  'tool_call', 'tool_result', 'tool_blocked', 'work_segment', 'work_goal', 'error',
+])
+
 function pickArray(d) {
   if (Array.isArray(d)) return d
   if (d && Array.isArray(d.results)) return d.results
@@ -86,6 +94,21 @@ export const useChatStore = defineStore('chat', {
     // after EVERY ReAct step, so the turn must NOT end on those — only on the run's terminal
     // agent_session_complete / agent_event session_complete.
     _taskRunActive: false,
+
+    // ── Work mode: a run that keeps going in bounded ITERATIONS ────────────────────────────────────
+    // A Work run is N separate dispatches. Iteration 1 executes on this socket; every later one is a
+    // Celery task resuming the same durable plan, and each ends with its OWN assistant_message_complete.
+    // With no other signal the turn ended on the first of those: the stop button vanished, the timeline
+    // said done, and the run carried on working for another ten minutes (production conv 1529, three
+    // iterations). `_workRunActive` keeps the RUN busy across those boundaries while each iteration
+    // still closes its own bubble, so the answers stay separate and the composer stays honest.
+    //
+    // It is deliberately NOT reset in _beginAssistant: a later iteration's first chunk opens a new
+    // bubble, and clearing the flag there would undo the announcement that had just arrived. It belongs
+    // to the run, so it is cleared when the run closes (work_goal) or when the user starts a new one.
+    workIteration: null,     // { segment, max } while a Work run is in flight, else null
+    workGoal: null,          // { state, segments, max, findings } once the run's goal closes
+    _workRunActive: false,
 
     // Once-guard: event_ids of plan DECISION events (approved / changes_requested / cancelled) already
     // bridged to a resume. The canonical outbox may re-deliver a plan_event (sweeper / reconnect), so
@@ -183,6 +206,34 @@ export const useChatStore = defineStore('chat', {
     sessionCost: (s) => s.messages.reduce((a, m) =>
       a + ((m.usage && m.usage.cost_usd)
            || (m.status === 'streaming' && _tl.tokens.value && _tl.tokens.value.cost) || 0), 0),
+
+    //: True while the RUN is working, which is not the same as "this bubble is streaming". A Work run
+    //: keeps going across iteration boundaries, and between them nothing is streaming at all — the
+    //: previous iteration has closed its bubble and the next has not opened one, while the backend is
+    //: running the objective judge and dispatching the next segment. That gap is what the user saw as
+    //: "the stop button disappears, then it takes a breath and comes back working". The composer reads
+    //: this so the run reads as busy for as long as it actually is.
+    isBusy: (s) => s.isStreaming || s._workRunActive,
+    //: "Iteration 2 of 12" while a Work run is in flight, else ''. The user could not tell which
+    //: iteration was running or which had finished; nothing in any frame carried the number.
+    workIterationLabel: (s) => (s.workIteration
+      ? `Iteration ${s.workIteration.segment}${s.workIteration.max ? ` of ${s.workIteration.max}` : ''}`
+      : ''),
+    //: Message id → the iteration that STARTS at it, for the dividers that group a long run. Only where
+    //: the number actually changes, so a run's iterations read as sections rather than every bubble
+    //: carrying a badge. Empty for ordinary chat, which is the overwhelming majority of threads.
+    iterationBoundaries: (s) => {
+      const out = new Map()
+      let last = null
+      for (const m of s.messages) {
+        const seg = m && m.workIteration && Number(m.workIteration.segment)
+        if (seg && seg !== last) {
+          out.set(m.id, m.workIteration)
+          last = seg
+        }
+      }
+      return out
+    },
 
     // ── Live activity timeline (the currently-streaming message) — the SOLE activity renderer
     // (AgentActivityTimeline): friendly, param-free steps (Searching → Generating), reasoning, tokens. ──
@@ -489,6 +540,10 @@ export const useChatStore = defineStore('chat', {
         // cited-or-top-4 sources, so a reopened chat shows the SAME footer + clickable panel.
         answerBasis: info.answer_basis || null,
         citations: (info.answer_basis && info.answer_basis.citations) || [],
+        // Work mode: which iteration produced this answer, so a reopened thread keeps its iteration
+        // sections. The live tagging happens client-side from `work_segment`; without this the
+        // grouping would disappear on the reload the user does precisely to look back over the run.
+        workIteration: info.work_iteration || null,
         // Inline plan artifact: durable anchor(s) linking this message to its plan(s). Present only
         // when the backend flag is on; drives inline-by-plan_id rendering (no runtime anchor).
         planArtifacts: pickArray(m.plan_artifacts),
@@ -745,6 +800,13 @@ export const useChatStore = defineStore('chat', {
         attachments: atts.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url, mime: a.mime })),
       })
       this.pendingAttachments = [] // claimed by this turn; the message bubble keeps the preview urls
+      // A NEW USER TURN CLEARS THE PREVIOUS RUN'S WORK STATE. This is the right home for it rather than
+      // `_beginAssistant`, which also fires when a LATER iteration of a still-running Work run opens its
+      // bubble — clearing it there would undo the announcement that had just arrived and end the turn
+      // at the first iteration boundary, which is the bug this whole path exists to fix.
+      this._workRunActive = false
+      this.workIteration = null
+      this.workGoal = null
       this._beginAssistant()
 
       // Upload attachments to the conversation BEFORE sending the text — the backend auto-attaches
@@ -1381,6 +1443,21 @@ export const useChatStore = defineStore('chat', {
       this._lastFrameAt = Date.now()
       const t = msg?.type
       if (t === 'ping') return   // server keepalive heartbeat — nothing to render
+      // WORK-MODE ITERATIONS ARRIVE OVER THE USER GROUP, WHICH CARRIES EVERY OPEN TAB.
+      //
+      // Iteration 1 of a Work run executes on this socket; every later iteration runs in a Celery
+      // worker with no socket of its own and is forwarded through `user_<id>`. That group is shared by
+      // all of this user's conversations, so a forwarded frame names the conversation it belongs to and
+      // anything addressed elsewhere is dropped here — otherwise one conversation's tokens would be
+      // appended to another's thread.
+      //
+      // Scoped to the types that can actually be forwarded: `run_finished` also carries a
+      // conversation_id and is deliberately cross-conversation (it fires the browser notification while
+      // the user is looking at a different chat), so a blanket guard would silence it.
+      if (msg?.conversation_id != null && this.conversationId != null &&
+          WORK_FORWARDED_TYPES.has(t) && String(msg.conversation_id) !== String(this.conversationId)) {
+        return
+      }
       // Inline plan artifact (INLINE_PLAN_ARTIFACT_PLAN.md): a pushed, exact-version plan snapshot.
       // Owned entirely by the plan store — it carries no chat content/usage. Scope to THIS window's
       // conversation (the frame is broadcast to the user group with conversation_id inside). The store
@@ -1695,6 +1772,36 @@ export const useChatStore = defineStore('chat', {
           const qm = [...this.messages].reverse().find(
             (m) => m.role === 'user' && m.queued && (m.content || '') === (msg.message || ''))
           if (qm) qm.queued = false
+          break
+        }
+        // ── Work mode: a run that keeps going in bounded ITERATIONS ──────────────────────────────
+        // Each iteration is a separate dispatch and ends with its own assistant_message_complete, so
+        // the bubble still closes per iteration (the answers stay separate, which is what the user
+        // wants to read). What must NOT end is the RUN: these two frames are the only thing that says
+        // where an iteration boundary is, because the backend does not know whether work continues
+        // until AFTER the finalize node has already spoken.
+        case 'work_segment': {
+          this._workRunActive = true
+          this.workGoal = null
+          this.workIteration = { segment: Number(msg.segment) || 1, max: Number(msg.max) || 0 }
+          // Tag the bubble this iteration is about to fill, so the transcript can group a long run by
+          // iteration instead of showing one undifferentiated wall of attempts.
+          const _wm = this._cur()
+          if (_wm) _wm.workIteration = { ...this.workIteration }
+          break
+        }
+        case 'work_goal': {
+          // THE CLOSING HALF, AND IT IS NOT OPTIONAL: the composer stays busy from work_segment until
+          // this arrives, so a run that never sends it would lock the composer. The backend emits it on
+          // every ending — achieved, exhausted, unverifiable and the error paths.
+          this._workRunActive = false
+          this.workIteration = null
+          this.workGoal = {
+            state: String(msg.state || ''), segments: Number(msg.segments) || 0,
+            max: Number(msg.max) || 0, findings: Array.isArray(msg.findings) ? msg.findings : [],
+          }
+          const _wg = this._cur()
+          if (_wg) this._endAssistant()      // idempotent; the last iteration may already have closed
           break
         }
         // ── Task/CRS run lifecycle: a multi-step run (plan → tools) streams an assistant_message_complete

@@ -88,7 +88,11 @@
            agent-id comes from selectedAgentId (always set once a conversation loads), NOT
            currentAgent — the latter only resolves if the agent is in the workspace-scoped agents
            list, so it would hide the mode picker for cross-workspace/unloaded agents. -->
-      <ChatComposer :streaming="chat.isStreaming" :attachments="chat.pendingAttachments"
+      <!-- `isBusy`, not `isStreaming`: a Work run keeps going across iteration boundaries, and between
+           two iterations nothing is streaming at all while the backend verifies the goal and dispatches
+           the next segment. Binding the Stop button to the bubble made it vanish mid-run and come back
+           moments later, which read as the run finishing and then restarting. -->
+      <ChatComposer :streaming="chat.isBusy" :attachments="chat.pendingAttachments"
         :agent-id="chat.selectedAgentId"
         :conversation-id="chat.conversationId"
         :run-mode="chat.currentAgent && chat.currentAgent.agent_run_mode"

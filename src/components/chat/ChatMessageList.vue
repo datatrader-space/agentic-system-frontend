@@ -11,6 +11,11 @@
       </div>
 
       <template v-for="m in chat.messages" :key="m.id">
+        <!-- Work mode sections the thread by iteration. A Work run is N dispatches and each produces
+             its own answer, so without this a long run reads as an undifferentiated wall of attempts
+             with no way to tell which iteration any of them came from. Absent from ordinary chat. -->
+        <WorkIterationBar v-if="chat.iterationBoundaries.has(m.id)"
+                          :divider="chat.iterationBoundaries.get(m.id)" />
         <ChatMessage
           :message="m"
           @retry="chat.retryLast()"
@@ -27,6 +32,12 @@
           </div>
         </template>
       </template>
+
+      <!-- The foot of the thread: which iteration is running now, or how the run ended. This is the
+           gap the user actually reported — between two iterations nothing is streaming at all while
+           the backend verifies the goal and dispatches the next segment, and with nothing rendered
+           there the run looked finished. -->
+      <WorkIterationBar />
     </div>
   </div>
 </template>
@@ -36,6 +47,7 @@ import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import { useChatStore } from '../../stores/useChatStore'
 import ChatMessage from './ChatMessage.vue'
 import InlinePlanArtifact from '../plan/InlinePlanArtifact.vue'
+import WorkIterationBar from './WorkIterationBar.vue'
 
 const chat = useChatStore()
 const scrollEl = ref(null)
