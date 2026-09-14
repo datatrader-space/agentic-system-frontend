@@ -50,6 +50,21 @@
       <!-- Bottom toolbar: "+" attach menu + mode pill (left), send/stop (right) -->
       <div class="composer-bar">
         <div class="bar-left">
+          <!-- Chat / Work. The user's own choice for the turn, and it OUTRANKS the Brain's judgement in
+               both directions — 'work' opens a goal-driven run for a request the Brain would have
+               answered in one turn, 'chat' suppresses one it would have opened. The Brain still decides
+               when the user expresses no preference, which is the default. -->
+          <div class="turnmode" role="group" aria-label="Response mode">
+            <button type="button" class="turnmode__opt" :class="{ 'is-on': turnMode !== 'work' }"
+                    data-test="turnmode-chat" aria-pressed="turnMode !== 'work'"
+                    title="Answer in this turn"
+                    @click="$emit('turn-mode', 'chat')">Chat</button>
+            <button type="button" class="turnmode__opt" :class="{ 'is-on': turnMode === 'work' }"
+                    data-test="turnmode-work" aria-pressed="turnMode === 'work'"
+                    title="Work to a goal across as many turns as it takes"
+                    @click="$emit('turn-mode', 'work')">Work</button>
+          </div>
+
           <!-- ChatGPT-style "+" menu: add files, or ask about a link / YouTube. -->
           <div class="plus-wrap">
             <button type="button" class="ghost-btn" :class="{ active: menuOpen }" title="Add photos & files"
@@ -249,8 +264,10 @@ const props = defineProps({
   hasImageModel: { type: Boolean, default: false },
   // SHARED system-owned agent (built-in / Platform Super Agent) → model pill instead of the mode pill.
   isSharedAgent: { type: Boolean, default: false },
+  // 'chat' | 'work'. Chat answers in this turn; Work pursues a goal across as many as it takes.
+  turnMode: { type: String, default: 'chat' },
 })
-const emit = defineEmits(['send', 'stop', 'attach', 'remove-attach', 'mode-change'])
+const emit = defineEmits(['send', 'stop', 'attach', 'remove-attach', 'mode-change', 'turn-mode'])
 
 const draft = ref('')
 const inputEl = ref(null)
@@ -642,4 +659,13 @@ const onKeydown = (e) => {
 @media (max-width: 560px) {
   .plus-menu, .plus-url { width: calc(100vw - 40px); }
 }
+
+/* Chat / Work — a segmented control, not two buttons: the pair is one choice and has to read as one. */
+.turnmode { display: inline-flex; border: 1px solid var(--border, #e3e6ea); border-radius: 999px;
+            padding: 2px; background: var(--surface-2, #f7f8fa); margin-right: 6px; }
+.turnmode__opt { border: 0; background: transparent; border-radius: 999px; padding: 3px 12px;
+                 font-size: 12px; line-height: 18px; cursor: pointer; color: var(--muted, #6b7280); }
+.turnmode__opt.is-on { background: var(--surface, #fff); color: var(--text, #111827); font-weight: 600;
+                       box-shadow: 0 1px 2px rgba(16, 24, 40, .06); }
+.turnmode__opt:focus-visible { outline: 2px solid #2f7bed; outline-offset: 1px; }
 </style>

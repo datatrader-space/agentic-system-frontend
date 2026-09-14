@@ -239,6 +239,11 @@ export class ChatConnection {
       reasoning_effort: opts.reasoningEffort || undefined,
       // Canvas click-to-select (Phase 5): the element the user clicked, so "change this" targets it.
       canvas_selection: opts.canvasSelection || undefined,
+      // Chat / Work. The USER'S choice for this turn, and it outranks the Brain's own judgement in
+      // BOTH directions: 'work' starts a goal-driven run even for a request the Brain would have
+      // answered in one turn, and 'chat' suppresses one it would have opened. Omitted entirely when the
+      // user has expressed no preference, which leaves the Brain deciding exactly as it does today.
+      turn_mode: opts.turnMode || undefined,
       // Full-document cost gate: the user's decision on the re-sent turn — {decision, focus_query}.
       // approve = read the whole (context-overflowing) doc; reject = targeted on the original question;
       // focus = targeted on focus_query. Per-turn only; absent on a normal message.

@@ -65,6 +65,7 @@ export const useChatStore = defineStore('chat', {
     // `image_mode` on each WS message while on. Requires the agent to have an image model (composer blocks
     // the toggle otherwise).
     imageMode: false,
+    turnMode: (() => { try { return localStorage.getItem('aadml.turnMode') || 'chat' } catch (_e) { return 'chat' } })(),
     // Per-turn REASONING EFFORT ('' = no choice, use the agent's own setting). How hard the model should
     // think about THIS message — the backend allow-lists the value and maps 'off' to no reasoning at all.
     // Sticky across turns so a user who wants deep thinking does not re-pick it every message.
@@ -638,6 +639,13 @@ export const useChatStore = defineStore('chat', {
     // and `canvas_selection` targets a specific element. For web_builder we send the STABLE element id
     // (not outerHTML) so the backend's builder tools can edit that exact entity (Phase 3B A13/A14);
     // static keeps sending the captured element markup.
+    // Chat / Work — the user's explicit choice, persisted per conversation so switching tabs or
+    // reloading does not silently drop them back into Chat mid-task.
+    setTurnMode(mode) {
+      this.turnMode = (mode === 'work' || mode === 'chat') ? mode : 'chat'
+      try { localStorage.setItem('aadml.turnMode', this.turnMode) } catch (_e) { /* private mode */ }
+    },
+
     _canvasSendOpts() {
       let canvas
       try { canvas = useCanvasStore() } catch (_e) { return {} }
@@ -706,6 +714,7 @@ export const useChatStore = defineStore('chat', {
         const { attachmentIds: steerIds } = await this._uploadAttachments(atts)
         this._conn.sendMessage(content, this.selectedAgentId, null, {
           ...this._canvasSendOpts(),
+          turnMode: this.turnMode === 'work' ? 'work' : undefined,
           imageMode: this.imageMode || undefined,
           reasoningEffort: this.reasoningEffort || undefined,
           attachmentIds: steerIds,
@@ -773,6 +782,7 @@ export const useChatStore = defineStore('chat', {
       // instead of the backend guessing "newest upload in the conversation".
       this._conn?.sendMessage(content, this.selectedAgentId, null, {
         ...this._canvasSendOpts(),
+        turnMode: this.turnMode === 'work' ? 'work' : undefined,
         imageMode: this.imageMode || undefined,
           reasoningEffort: this.reasoningEffort || undefined,
         attachmentIds,

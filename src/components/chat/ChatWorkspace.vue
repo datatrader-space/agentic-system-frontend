@@ -89,6 +89,7 @@
         :has-image-model="!!(chat.currentAgent && chat.currentAgent.image_model)"
         :is-shared-agent="chat.isSharedAgent"
         @send="onSend" @stop="chat.stop()" @mode-change="onModeChange"
+        :turn-mode="chat.turnMode" @turn-mode="chat.setTurnMode($event)"
         @attach="chat.addAttachments" @remove-attach="chat.removeAttachment" />
       <div v-if="chat.sessionTokens" class="session-meter" :title="`Total tokens used in this chat`">
         Session {{ fmtTokens(chat.sessionTokens) }}<span v-if="chat.sessionCost"> · {{ fmtCost(chat.sessionCost) }}</span>
