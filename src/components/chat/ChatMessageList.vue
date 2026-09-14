@@ -1,6 +1,7 @@
 <template>
-  <div ref="scrollEl" class="msg-list">
-    <div class="msg-list-inner" role="log" aria-live="polite" aria-label="Conversation">
+  <div class="msg-list-wrap">
+    <div ref="scrollEl" class="msg-list" @scroll.passive="onScroll">
+      <div ref="innerEl" class="msg-list-inner" role="log" aria-live="polite" aria-label="Conversation">
       <!-- Older history. A long thread opens on its most recent page (the server windows it), so this
            is how the rest is pulled in — on demand, oldest-ward, keeping scroll position. -->
       <div v-if="chat.messagesHasMore" class="load-earlier">
@@ -37,13 +38,26 @@
            gap the user actually reported — between two iterations nothing is streaming at all while
            the backend verifies the goal and dispatches the next segment, and with nothing rendered
            there the run looked finished. -->
-      <WorkIterationBar />
+        <WorkIterationBar />
+      </div>
     </div>
+
+    <!-- Jump to the newest message. Shown only while the user has scrolled away from the bottom, so
+         reading back over a long run never fights the stream. The dot marks content that arrived
+         while they were away. -->
+    <transition name="jump-fade">
+      <button v-if="!atBottom" type="button" class="jump-latest" :class="{ unread: hasNew }"
+              data-test="jump-latest" :aria-label="hasNew ? 'Jump to newest messages' : 'Jump to the end'"
+              @click="jumpToLatest">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12l7 7 7-7" /></svg>
+        <span v-if="hasNew" class="jump-dot" aria-hidden="true"></span>
+      </button>
+    </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useChatStore } from '../../stores/useChatStore'
 import ChatMessage from './ChatMessage.vue'
 import InlinePlanArtifact from '../plan/InlinePlanArtifact.vue'
@@ -51,27 +65,93 @@ import WorkIterationBar from './WorkIterationBar.vue'
 
 const chat = useChatStore()
 const scrollEl = ref(null)
+const innerEl = ref(null)
+
+// How close to the end still counts as "at the end". A few pixels of slack matter: fractional
+// scrollHeight on zoomed or hi-dpi displays means scrollTop never exactly equals the maximum, and a
+// strict comparison would report the user as scrolled-away while they sit at the bottom — turning the
+// follow off permanently and showing the jump button over an already-complete view.
+const BOTTOM_SLACK = 64
+
+// Is the viewport parked at the end of the thread? This is the ONLY thing that decides whether new
+// content scrolls: while true the thread follows the stream, while false the user is reading and is
+// left alone. It starts true so a freshly-opened chat follows immediately.
+const atBottom = ref(true)
+// Content arrived while the user was reading further up — the jump button says so rather than making
+// them guess whether anything happened.
+const hasNew = ref(false)
+// Set while an older page is being prepended. messages.length grows on a prepend exactly as it does on
+// a new reply, and the content height jumps, so without this both the watcher and the resize observer
+// below would yank the user from the history they just asked for down to the bottom of the thread.
+const prepending = ref(false)
+
+const distanceFromBottom = (el) => el.scrollHeight - el.scrollTop - el.clientHeight
 
 const scrollToBottom = () => {
   const el = scrollEl.value
-  if (el) el.scrollTop = el.scrollHeight
+  if (!el) return
+  el.scrollTop = el.scrollHeight
+  atBottom.value = true
+  hasNew.value = false
 }
 
-// Track the streaming tail length so we follow tokens as they arrive.
+function onScroll() {
+  const el = scrollEl.value
+  if (!el || prepending.value) return
+  const at = distanceFromBottom(el) <= BOTTOM_SLACK
+  atBottom.value = at
+  if (at) hasNew.value = false      // they came back on their own; nothing is unread any more
+}
+
+function jumpToLatest() {
+  // Instant, not smoothed: this is a "take me there" control, and animating it over a long thread
+  // means watching hundreds of messages fly past before arriving.
+  scrollToBottom()
+}
+
+// Follow the streaming tail. Length alone is not enough to keep the view pinned (see the observer
+// below) but it is what makes the thread track text as it is typed out.
 const lastLen = computed(() => {
   const m = chat.messages[chat.messages.length - 1]
   return m ? (m.content || '').length : 0
 })
 
-// Set while an older page is being prepended. messages.length grows on a prepend exactly as it does on
-// a new reply, so without this the auto-follow below would yank the user from the history they just
-// asked for down to the bottom of the thread.
-const prepending = ref(false)
+watch(() => [chat.messages.length, lastLen.value], ([len], [prevLen] = []) => {
+  if (prepending.value) return
+  // THE USER JUST SPOKE. Sending a message is an unambiguous request to be at the end of the
+  // conversation, so it re-arms the follow even if they had scrolled up to re-read something first.
+  const last = chat.messages[chat.messages.length - 1]
+  if (len > (prevLen || 0) && last && last.role === 'user') {
+    nextTick(scrollToBottom)
+    return
+  }
+  if (atBottom.value) nextTick(scrollToBottom)
+  else hasNew.value = true
+})
 
-watch(
-  () => [chat.messages.length, lastLen.value],
-  () => { if (!prepending.value) nextTick(scrollToBottom) }
-)
+// THE REASON AUTO-SCROLL DID NOT HOLD.
+//
+// The watcher above fires on the message TEXT changing, and the text is not what moves the bottom of
+// this thread. An agent answer ends with rendered images — a wall-detection reply carries six — and
+// they load AFTER the markdown, growing the page by hundreds of pixels without altering a single
+// character. Activity timelines, reasoning panels and plan cards expand the same way. So the scroll
+// landed correctly and the content then grew past it, leaving the user mid-thread with a scrollbar
+// they had to drag themselves.
+//
+// Observing the content box catches every one of those, whatever caused them, because it measures the
+// thing that actually matters: how tall the conversation now is.
+let ro = null
+onMounted(() => {
+  nextTick(scrollToBottom)
+  if (typeof ResizeObserver === 'undefined' || !innerEl.value) return
+  ro = new ResizeObserver(() => {
+    if (prepending.value) return
+    if (atBottom.value) scrollToBottom()
+    else hasNew.value = true
+  })
+  ro.observe(innerEl.value)
+})
+onBeforeUnmount(() => { if (ro) { ro.disconnect(); ro = null } })
 
 // Pull the previous page and keep the user's viewport anchored on the message they were reading:
 // content is added ABOVE them, so shift scrollTop by exactly how much the content grew.
@@ -85,17 +165,76 @@ async function loadEarlier() {
     await nextTick()
     if (el) el.scrollTop = prevTop + (el.scrollHeight - before)
   } finally {
-    prepending.value = false
+    // Released on the NEXT tick so the resize observer's own callback — which fires from the height
+    // change this prepend just caused — still sees the guard and leaves the restored position alone.
+    nextTick(() => { prepending.value = false })
   }
 }
 
-onMounted(() => nextTick(scrollToBottom))
+defineExpose({ scrollToBottom, atBottom, hasNew })
 </script>
 
 <style scoped>
+/* The scroller's positioned parent, so the jump button can sit over the thread without scrolling
+   away with it. Takes the height the scroller used to own. */
+.msg-list-wrap {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+}
 .msg-list {
   height: 100%;
   overflow-y: auto;
+  overscroll-behavior: contain;   /* a flick at the end must not scroll the page behind the chat */
+}
+
+/* Jump to the newest message. Sits just above the composer, centred on the same content column as the
+   bubbles, and only exists while the user has scrolled away from the end. */
+.jump-latest {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid var(--vm-line-2, #e4e8ee);
+  background: var(--vm-surface, #fff);
+  color: var(--vm-ink-soft, #5b6472);
+  box-shadow: var(--vm-shadow-s, 0 2px 10px rgba(16, 24, 40, 0.12));
+  cursor: pointer;
+  z-index: 3;
+  transition: transform .15s var(--vm-ease), box-shadow .15s, color .15s;
+}
+.jump-latest:hover {
+  transform: translateX(-50%) translateY(-1px);
+  color: var(--vm-violet-d, #6d5ef1);
+  box-shadow: var(--vm-shadow-m, 0 6px 18px rgba(16, 24, 40, 0.16));
+}
+.jump-latest:focus-visible { outline: 2px solid var(--vm-accent, #3a5bd9); outline-offset: 2px; }
+.jump-latest svg {
+  width: 18px; height: 18px; fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+/* Something arrived while they were reading further up. */
+.jump-latest.unread { border-color: var(--vm-violet-d, #6d5ef1); color: var(--vm-violet-d, #6d5ef1); }
+.jump-dot {
+  position: absolute; top: 1px; right: 1px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--vm-violet-d, #6d5ef1);
+  border: 2px solid var(--vm-surface, #fff);
+}
+
+.jump-fade-enter-active, .jump-fade-leave-active { transition: opacity .15s, transform .15s; }
+.jump-fade-enter-from, .jump-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(6px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .jump-latest, .jump-fade-enter-active, .jump-fade-leave-active { transition: none; }
 }
 .msg-list-inner {
   padding: 28px 16px 16px;
