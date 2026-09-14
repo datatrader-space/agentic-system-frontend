@@ -50,6 +50,12 @@
       <!-- Bottom toolbar: "+" attach menu + mode pill (left), send/stop (right) -->
       <div class="composer-bar">
         <div class="bar-left">
+          <!-- Chat / Work. IN THE COMPOSER ONCE A CONVERSATION EXISTS, and centred above the thread
+               before one does. The choice is most consequential on the empty screen — it decides what
+               kind of thing the whole session becomes — and least once messages are flowing, where it is
+               a per-turn adjustment like the mode pill beside it and belongs in the same row. -->
+          <TurnModeSwitch compact class="tms-inline" />
+
           <!-- ChatGPT-style "+" menu: add files, or ask about a link / YouTube. -->
           <div class="plus-wrap">
             <button type="button" class="ghost-btn" :class="{ active: menuOpen }" title="Add photos & files"
@@ -171,6 +177,7 @@ import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import AgentModePicker from '../agent/AgentModePicker.vue'
 import AgentModelPicker from '../agent/AgentModelPicker.vue'
 import AgentSwitcher from './AgentSwitcher.vue'
+import TurnModeSwitch from './TurnModeSwitch.vue'
 import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import { useSpeech } from '../../composables/useSpeech'
 import { notify } from '../../composables/useNotify'
@@ -499,6 +506,7 @@ const onKeydown = (e) => {
 
 
 /* "+" menu — ChatGPT-style: clean list (icon + inline label/desc) + a search footer. */
+.tms-inline { margin-right: 2px; }
 .plus-wrap { position: relative; }
 .plus-menu {
   position: absolute;

@@ -5,7 +5,7 @@
          per-message settings (which agent, which run mode, does this message make an image), and this
          chooses what KIND of thing the session does. A control at that altitude reads wrongly when it
          sits beside the attach button. -->
-    <div class="turnmode-bar"><TurnModeSwitch /></div>
+    <div v-if="chat.isEmpty" class="turnmode-bar"><TurnModeSwitch /></div>
 
     <div v-if="chat.isEmpty" class="floating-history" :class="{ tucked: historyOpen }">
       <button class="icon-btn" data-history-toggle title="Chat history" aria-label="Chat history"

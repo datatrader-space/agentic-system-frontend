@@ -571,6 +571,16 @@ const submit = () => {
   margin-top: 8px;
 }
 .composer-bar-left { display: flex; align-items: center; gap: 6px; }
+.composer-attach {
+  display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border: none; border-radius: 9px; background: transparent; color: #94a3b8; cursor: pointer;
+}
+.composer-attach:hover { color: var(--vm-violet); background: var(--vm-violet-soft); }
+.composer-attach.active { color: var(--vm-violet); background: var(--vm-violet-soft); }
+.composer-attach.active svg { transform: rotate(45deg); }
+.composer-attach svg { width: 18px; height: 18px; transition: transform .15s var(--vm-ease); }
+
+/* "+" menu — ChatGPT-style: clean list (icon + inline label/desc) + a search footer. */
 .plus-wrap { position: relative; }
 .plus-menu {
   position: absolute;
