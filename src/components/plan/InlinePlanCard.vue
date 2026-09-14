@@ -103,6 +103,13 @@ function submitDecision(decision) {
       <span v-if="!isRoadmap && total" class="ipc-progress" aria-hidden="true">{{ done }} / {{ total }}</span>
     </header>
 
+    <!-- WHY IT STOPPED. A status word cannot separate "every attempt was used and the result still did
+         not meet what was asked" from "an approval is outstanding", and those need opposite reactions
+         from the reader. Production conv 1515 showed the cost of not saying it: the card read
+         "Active 3/3", every step ticked, on a run that had given up. Shown whenever the backend sends a
+         reason, collapsed or not — it is the one line a user must not have to expand to find. -->
+    <p v-if="plan.stopped_reason" class="ipc-stopped" role="status">{{ plan.stopped_reason }}</p>
+
     <div v-if="!isRoadmap && total && expanded" class="ipc-rail" :class="`rail-${planState}`"
          :aria-label="`${done} of ${total} steps complete`">
       <i :style="{ width: progressPct + '%' }"></i>
@@ -188,6 +195,8 @@ function submitDecision(decision) {
 .pill-failed, .pill-cancelled { background: var(--fail-bg); color: var(--fail); }
 .pill-completed { background: var(--done-bg); color: var(--done); }
 .pill-revised, .pill-paused, .pill-draft { background: var(--surf2); color: var(--ink2); }
+.ipc-stopped { margin: 6px 0 0; padding: 6px 10px; border-radius: 6px; background: var(--blk-bg);
+               color: var(--blk); font-size: 12px; line-height: 1.45; }
 .pill-reconnect { background: var(--surf2); color: var(--ink3); }
 
 .ipc-rail { height: 3px; background: var(--surf2); position: relative; }
