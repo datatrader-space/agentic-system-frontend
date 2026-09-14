@@ -1276,6 +1276,19 @@ export const useChatStore = defineStore('chat', {
       return this.messages.find((m) => m.id === this._assistantId)
     },
 
+    // The bubble this turn was writing into, even after `_endAssistant` released it.
+    //
+    // `_cur()` answers "which message is LIVE", which becomes undefined the moment a turn ends. A
+    // terminal frame that arrives after that still belongs to the message the turn produced, and
+    // dropping its text is how an answer ends up visible only after a page reload.
+    _lastAssistantOfTurn() {
+      for (let i = this.messages.length - 1; i >= 0; i--) {
+        const m = this.messages[i]
+        if (m.role === 'assistant' && !m.error) return m
+      }
+      return null
+    },
+
     // Is a PLAN still being worked through for this conversation?
     //
     // PRESENTATION ONLY — read by the timeline header, never by the turn lifecycle. An earlier version
@@ -1530,19 +1543,40 @@ export const useChatStore = defineStore('chat', {
           }
           if (m) m.content += _think.feed(msg.chunk || '')
           break
-        case 'assistant_message_complete':
+        case 'assistant_message_complete': {
           // The backend sends the CLEANED prose here (tool-call JSON stripped). Always
           // replace the live-streamed text with it so any raw JSON that streamed
           // token-by-token is corrected to clean prose. Tool calls still render as
           // cards via the tool_call/tool_result events + activity timeline.
-          if (m && msg.full_message != null) {
-            m.content = stripThinkBlocks(msg.full_message)
+          //
+          // RESOLVED EVEN AFTER THE BUBBLE HAS ENDED, and that is the whole fix.
+          //
+          // `AssistantMessageComplete` is emitted from EIGHT places in the runtime — the finalize node,
+          // the stopped-turn node, the planning gate, the assistance path, execute_tools and three
+          // points in graph_runtime — so a turn that crosses two of them sends this frame twice. The
+          // first call runs `_endAssistant()`, which sets `_assistantId = null`; `_cur()` then returns
+          // undefined and the SECOND frame — the one carrying the real answer — was written into
+          // nothing. The reply appeared only on a manual refresh, read back from the database.
+          //
+          // MEASURED, production conv 1524: a repair loop rendered twice over six model rounds and the
+          // thread showed intermediate text until the user reloaded the page. `_endAssistant` already
+          // records this symptom from conv 1466 ("the answer was saved at 10:04:21 and the tab still
+          // showed an empty turn at 10:07:03") and mitigates it — but only when the bubble is EMPTY, and
+          // here the first frame had left stale text in it, so that rescue never fired.
+          //
+          // The LAST frame is the authoritative one: every emitter sends the answer as it stands at that
+          // moment, and the finalize node is the one that runs last. So a later frame must overwrite,
+          // which is what this does. It does not change WHEN the turn ends — `_endAssistant` is
+          // idempotent and the composer unlocks exactly as before.
+          const target = m || this._lastAssistantOfTurn()
+          if (target && msg.full_message != null) {
+            target.content = stripThinkBlocks(msg.full_message)
             _think.reset()
           }
-          if (m && msg.usage) m.usage = msg.usage // per-response token counts
-          if (m && msg.stop_reason) { m.stopReason = msg.stop_reason; m.confidence = msg.confidence }
-          if (m && Array.isArray(msg.citations)) m.citations = msg.citations // P6: KB sources
-          if (m && msg.answer_basis) m.answerBasis = msg.answer_basis // provenance footer + cited-or-top4
+          if (target && msg.usage) target.usage = msg.usage // per-response token counts
+          if (target && msg.stop_reason) { target.stopReason = msg.stop_reason; target.confidence = msg.confidence }
+          if (target && Array.isArray(msg.citations)) target.citations = msg.citations // P6: KB sources
+          if (target && msg.answer_basis) target.answerBasis = msg.answer_basis
           // TASK/CRS runs stream an assistant_message_complete after EVERY ReAct step (agent_runner
           // _ask_llm), not just the last one — the run keeps going (planning → 13 steps → tools). Those
           // are INTERMEDIATE: update the bubble text but DON'T end the turn, or the UI shows "Done" while
@@ -1551,8 +1585,9 @@ export const useChatStore = defineStore('chat', {
           // run active) this remains the terminal event.
           if (this._taskRunActive) break
           this._endAssistant()
-          this._persistTurnMeta(m)   // snapshot the finished timeline so it survives a refresh
+          this._persistTurnMeta(target)   // snapshot the finished timeline so it survives a refresh
           break
+        }
         case 'chat_response':
         case 'assistant':
         case 'assistant_message': {
