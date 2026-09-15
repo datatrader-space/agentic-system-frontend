@@ -65,7 +65,26 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
+      # THE PUSH IS RETRIED, BECAUSE ECR DROPS UPLOAD SESSIONS AND A DROPPED ONE IS NOT A BAD BUILD.
+      #
+      # MEASURED, run 34892178076 (commit 679bd85): the suite passed, the image built, and the push
+      # died with
+      #   failed to push .../aadml-frontend:679bd85: unknown: The upload with id '4efe259d-...'
+      #   in the repository with name 'aadml-frontend' ... does not exist
+      # — an ECR-side layer-upload session that no longer existed by the time buildx finished with it.
+      # Re-running the identical commit succeeded in 1m40s.
+      #
+      # The cost of not retrying is not one red tick. `deploy` is gated on this job, so the deploy was
+      # skipped, nothing said so, and production served the previous frontend for nine hours while the
+      # backend that its changes paired with was already live. A half-deployed pair is worse than
+      # either side being old.
+      #
+      # Two attempts, not a loop: layers are already in the GitHub cache by the second one (which is
+      # why the rerun was three times faster), and a registry that refuses twice in a row is an outage
+      # worth failing on rather than hammering.
       - name: Build and push image
+        id: push
+        continue-on-error: true
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -78,6 +97,38 @@ jobs:
             ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # A fresh ECR login too: the first attempt may have failed BECAUSE the authorization token
+      # expired mid-push (they last 12 hours, but a slow build plus a retry is exactly when that
+      # matters), and retrying the push with the same dead token would fail identically.
+      - name: Log in to Amazon ECR (retry)
+        if: steps.push.outcome == 'failure'
+        id: ecr_retry
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image (retry)
+        if: steps.push.outcome == 'failure'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          provenance: false
+          tags: |
+            ${{ steps.ecr_retry.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.ecr_retry.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # SAY WHICH ATTEMPT SHIPPED IT. A silent retry turns a recurring registry problem into folklore;
+      # if this line starts appearing on every run, the retry is masking something that needs fixing.
+      - name: Note the retry
+        if: steps.push.outcome == 'failure'
+        run: |
+          echo "::warning title=ECR push retried::The first push to ECR failed and was retried. \
+          If this recurs, investigate the registry rather than relying on the retry."
+          echo "### Push retried" >> "$GITHUB_STEP_SUMMARY"
+          echo "The first attempt failed; the second succeeded. Repeated occurrences mean the \
+          registry needs attention, not a third attempt." >> "$GITHUB_STEP_SUMMARY"
 
       # Record the tag so a rollback never has to be hunted for in the log.
       - name: Summary
