@@ -148,8 +148,27 @@ const request = computed(() => {
   return first ? String(first.content) : ''
 })
 
+// DOES THIS MESSAGE BELONG TO **THIS** RUN.
+//
+// The rail used to draw every assistant message in the conversation, which is right only while the
+// conversation contains nothing but this run. A thread that ran Work and then went back to ordinary
+// chat would have its chat answers pulled onto the Work rail -- the same conversation-scope mistake
+// that ChatMessage made in the other direction, and the two together drew one answer twice.
+//
+// `turn_mode_resolved` and `run_id` are stamped by the server on every writer
+// (agent/services/turn_metadata.py). A message written before that shipped has neither, and is
+// admitted on the older evidence so an existing thread does not lose its answers: a plan anchor
+// naming this run, or a work_iteration stamp.
+function belongsToThisRun(m) {
+  const rid = String(props.runId)
+  if (m.runId) return String(m.runId) === rid
+  for (const a of (m.planArtifacts || [])) if (a && String(a.run_id) === rid) return true
+  if (m.turnModeResolved) return m.turnModeResolved === 'work'
+  return !!m.workIteration
+}
+
 const answers = computed(() => (chat.messages || [])
-  .filter((m) => m.role === 'assistant' && String(m.content || '').trim())
+  .filter((m) => m.role === 'assistant' && String(m.content || '').trim() && belongsToThisRun(m))
   .map((m) => {
     const doc = parsed(m.content)
     return {

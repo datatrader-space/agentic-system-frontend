@@ -223,18 +223,22 @@ const props = defineProps({
 // rail existed, and the only way to guarantee that is to make the rail's claim reach no further than
 // its own run.
 //
-// Three ways a message names its run, in order of durability:
-//   1. `planArtifacts` — the durable server anchor, reloaded with history.
-//   2. `workIteration` — `work_iteration` from the server; present on every Work-mode answer, and the
-//      one that covers segments 2..N of a reopened thread, which carry no anchor of their own.
-//   3. `runId` — stamped live from plan_event, so the turn in flight is right before anything is
-//      persisted.
+// How a message names its run, most authoritative first:
+//   1. `turnModeResolved` — what the server says the turn ACTUALLY ran as, decided after the Brain's
+//      proposal and the user's override were both applied. Stamped by every writer
+//      (agent/services/turn_metadata.py), so it answers for a reloaded thread too.
+//   2. `runId` — the run itself, live from plan_event or durable from the same server stamp; the plan
+//      store then says whether that run carries a work goal.
+//   3. `planArtifacts` — the durable plan anchor, which only the FIRST message of a run receives.
+//   4. `workIteration` — the older Work stamp, kept so messages written before turn_metadata shipped
+//      still render correctly.
 // A message with none of these is an ordinary chat turn and is left completely alone.
 const onWorkRail = computed(() => {
   const m = props.message
+  if (m.turnModeResolved) return m.turnModeResolved === 'work'
+  if (_plan.isWorkRun(m.runId)) return true
   for (const a of (m.planArtifacts || [])) if (_plan.isWorkRun(a && a.run_id)) return true
-  if (m.workIteration) return true
-  return _plan.isWorkRun(m.runId)
+  return !!m.workIteration
 })
 
 // THE ANSWER IS ON THE RAIL for a Work run, between the steps that produced it and the verdict that

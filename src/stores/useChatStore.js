@@ -78,7 +78,21 @@ export const useChatStore = defineStore('chat', {
     // `image_mode` on each WS message while on. Requires the agent to have an image model (composer blocks
     // the toggle otherwise).
     imageMode: false,
-    turnMode: (() => { try { return localStorage.getItem('aadml.turnMode') || 'chat' } catch (_e) { return 'chat' } })(),
+    // AUTO IS THE DEFAULT, AND AUTO IS NOT A THIRD BEHAVIOUR — it is the absence of an override.
+    //
+    // The backend has always decided this: `_freeze_work_goal` opens a Work goal when the Brain's
+    // single semantic call proposes one, and the composer's control only OVERRIDES that decision in
+    // one direction or the other. This store defaulted to 'chat' and sent nothing for it, so the
+    // default silently meant auto while the switch drew "Chat" as a deliberate choice -- and picking
+    // Chat explicitly was indistinguishable from not choosing, which made the suppression branch in
+    // `_freeze_work_goal` unreachable from the UI. Someone who said "just answer me" could still be
+    // handed an hours-long run. Naming the default is what makes the other two mean something.
+    turnMode: (() => {
+      try {
+        const v = localStorage.getItem('aadml.turnMode')
+        return (v === 'work' || v === 'chat') ? v : 'auto'
+      } catch (_e) { return 'auto' }
+    })(),
     // Per-turn REASONING EFFORT ('' = no choice, use the agent's own setting). How hard the model should
     // think about THIS message — the backend allow-lists the value and maps 'off' to no reasoning at all.
     // Sticky across turns so a user who wants deep thinking does not re-pick it every message.
@@ -182,6 +196,17 @@ export const useChatStore = defineStore('chat', {
   }),
   getters: {
     isEmpty: (s) => s.messages.length === 0,
+    // WHAT THE LAST TURN ACTUALLY RAN AS — 'work', 'chat', or '' when nothing has run yet or the
+    // thread predates the server stamp. Reported by the backend after the Brain's proposal and any
+    // user override have both been applied, so it is the outcome, never the intent: with the switch on
+    // Auto the intent is deliberately "no opinion", and only this can say what came of it.
+    lastResolvedMode: (s) => {
+      for (let i = s.messages.length - 1; i >= 0; i -= 1) {
+        const m = s.messages[i]
+        if (m && m.role === 'assistant' && m.turnModeResolved) return m.turnModeResolved
+      }
+      return ''
+    },
     // Inline plan artifact: true when the loaded history carries durable plan anchors. Drives the
     // active-plan chip near the composer (the plan card itself always renders inline at its anchor).
     hasDurablePlanAnchors: (s) =>
@@ -549,6 +574,12 @@ export const useChatStore = defineStore('chat', {
         // sections. The live tagging happens client-side from `work_segment`; without this the
         // grouping would disappear on the reload the user does precisely to look back over the run.
         workIteration: info.work_iteration || null,
+        // WHICH RUN PRODUCED THIS MESSAGE, and what the turn actually ran as — stamped by the server
+        // on every writer (agent/services/turn_metadata.py). This is the durable answer to "is this
+        // message already drawn on a run's rail?"; before it existed the client asked the CONVERSATION
+        // instead, and that question stays true forever once a thread has run Work even once.
+        runId: info.run_id || '',
+        turnModeResolved: info.turn_mode_resolved || '',
         // Inline plan artifact: durable anchor(s) linking this message to its plan(s). Present only
         // when the backend flag is on; drives inline-by-plan_id rendering (no runtime anchor).
         planArtifacts: pickArray(m.plan_artifacts),
@@ -702,7 +733,7 @@ export const useChatStore = defineStore('chat', {
     // Chat / Work — the user's explicit choice, persisted per conversation so switching tabs or
     // reloading does not silently drop them back into Chat mid-task.
     setTurnMode(mode) {
-      this.turnMode = (mode === 'work' || mode === 'chat') ? mode : 'chat'
+      this.turnMode = (mode === 'work' || mode === 'chat') ? mode : 'auto'
       try { localStorage.setItem('aadml.turnMode', this.turnMode) } catch (_e) { /* private mode */ }
     },
 
@@ -774,7 +805,7 @@ export const useChatStore = defineStore('chat', {
         const { attachmentIds: steerIds } = await this._uploadAttachments(atts)
         this._conn.sendMessage(content, this.selectedAgentId, null, {
           ...this._canvasSendOpts(),
-          turnMode: this.turnMode === 'work' ? 'work' : undefined,
+          turnMode: this.turnMode === 'auto' ? undefined : this.turnMode,
           imageMode: this.imageMode || undefined,
           reasoningEffort: this.reasoningEffort || undefined,
           attachmentIds: steerIds,
@@ -849,7 +880,9 @@ export const useChatStore = defineStore('chat', {
       // instead of the backend guessing "newest upload in the conversation".
       this._conn?.sendMessage(content, this.selectedAgentId, null, {
         ...this._canvasSendOpts(),
-        turnMode: this.turnMode === 'work' ? 'work' : undefined,
+        // 'auto' sends NOTHING, which is what lets the Brain decide. 'chat' is now sent, so choosing
+        // it actually suppresses a Work goal instead of reading as "no preference".
+        turnMode: this.turnMode === 'auto' ? undefined : this.turnMode,
         imageMode: this.imageMode || undefined,
           reasoningEffort: this.reasoningEffort || undefined,
         attachmentIds,
@@ -1283,6 +1316,11 @@ export const useChatStore = defineStore('chat', {
           // Timeline replay: restore the pinned activity-timeline snapshot (steps + reasoning) so the
           // "Done · N steps" accordion and reasoning survive a reconnect/refresh (same as the main loader).
           timeline: (m.model_info && m.model_info.timeline) || null,
+          // Same durable run link as the main loader — a reconnect must not lose it, or a reconnected
+          // thread would start drawing Work answers twice.
+          runId: (m.model_info && m.model_info.run_id) || '',
+          turnModeResolved: (m.model_info && m.model_info.turn_mode_resolved) || '',
+          workIteration: (m.model_info && m.model_info.work_iteration) || null,
           planArtifacts: pickArray(m.plan_artifacts),
           // User-uploaded attachments bound to this message (served URLs; survive refresh).
           attachments: pickArray(m.attachments),

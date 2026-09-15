@@ -1,5 +1,15 @@
 <script setup>
-// Chat / Work — the mode switch, at the top of the surface it governs.
+// Auto / Chat / Work — the mode switch, at the top of the surface it governs.
+//
+// AUTO IS THE DEFAULT AND IS NOT A THIRD MODE. Work is not a separate feature to be opted into: the
+// turn's single semantic call already proposes a work goal when the request is multi-step and
+// long-running, and `_freeze_work_goal` opens one on that proposal alone. This control exists only to
+// OVERRIDE that judgement, so its resting state has to say "I have not overridden anything".
+//
+// It read "Chat" before, which was wrong twice over. It presented the platform's own decision as the
+// user's, and because the store sent nothing for 'chat' the explicit choice was byte-identical to no
+// choice -- so the suppression branch that exists precisely to protect someone who said "just answer
+// me" could never be reached from this switch.
 //
 // IT LIVES HERE RATHER THAN IN THE COMPOSER because of what it actually controls. The composer's other
 // pills are per-message settings: which agent, which run mode, whether this one message makes an image.
@@ -21,9 +31,15 @@ const chat = useChatStore()
 
 <template>
   <div class="tms" :class="{ 'tms--sm': compact }" role="group" aria-label="Response mode">
-    <button type="button" class="tms__opt" :class="{ 'is-on': chat.turnMode !== 'work' }"
-            data-test="turnmode-chat" :aria-pressed="chat.turnMode !== 'work'"
-            title="Answer in this turn"
+    <button type="button" class="tms__opt" :class="{ 'is-on': chat.turnMode === 'auto' }"
+            data-test="turnmode-auto" :aria-pressed="chat.turnMode === 'auto'"
+            title="Let the model choose — it works to a goal when the request needs many steps, and answers directly when it does not"
+            @click="chat.setTurnMode('auto')">Auto<span
+              v-if="chat.turnMode === 'auto' && chat.lastResolvedMode" class="tms__res"
+              data-test="turnmode-resolved">{{ chat.lastResolvedMode === 'work' ? 'Work' : 'Chat' }}</span></button>
+    <button type="button" class="tms__opt" :class="{ 'is-on': chat.turnMode === 'chat' }"
+            data-test="turnmode-chat" :aria-pressed="chat.turnMode === 'chat'"
+            title="Answer in this turn, even if the request looks long"
             @click="chat.setTurnMode('chat')">Chat</button>
     <button type="button" class="tms__opt" :class="{ 'is-on': chat.turnMode === 'work' }"
             data-test="turnmode-work" :aria-pressed="chat.turnMode === 'work'"
@@ -41,6 +57,12 @@ const chat = useChatStore()
 .tms__opt:hover:not(.is-on) { color: var(--ink, #111827); }
 .tms__opt.is-on { background: var(--surf, #fff); color: var(--ink, #111827); font-weight: 600;
                   box-shadow: 0 1px 2px rgba(16, 24, 40, .08); }
+/* WHAT AUTO CHOSE. Shown only on Auto: once the user has overridden the decision there is nothing
+   left to report, and repeating their own choice back at them is noise. */
+.tms__res { margin-left: 6px; padding: 1px 6px; border-radius: 999px; font-size: 11px;
+            line-height: 15px; font-weight: 600; color: var(--ink2, #667085);
+            background: var(--surf2, #f2f4f7); border: 1px solid var(--line, #e3e6ea); }
+.tms__opt.is-on .tms__res { color: var(--acc, #2f7bed); }
 .tms--sm { padding: 2px; }
 .tms--sm .tms__opt { padding: 3px 12px; font-size: 12px; line-height: 17px; }
 .tms__opt:focus-visible { outline: 2px solid var(--acc, #2f7bed); outline-offset: 2px; }

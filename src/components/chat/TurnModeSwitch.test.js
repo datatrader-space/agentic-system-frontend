@@ -102,3 +102,81 @@ describe('the welcome composer keeps its own controls', () => {
     expect(welcome).not.toContain('turnmode')
   })
 })
+
+describe('TurnModeSwitch — Auto is the default, and Chat is a real instruction', () => {
+  beforeEach(() => { setActivePinia(createPinia()); try { localStorage.clear() } catch (_e) { /* private */ } })
+
+  it('rests on Auto, because the platform decides unless told otherwise', () => {
+    const w = mount(TurnModeSwitch)
+    expect(useChatStore().turnMode).toBe('auto')
+    expect(w.find('[data-test="turnmode-auto"]').classes()).toContain('is-on')
+    expect(w.find('[data-test="turnmode-chat"]').classes()).not.toContain('is-on')
+    expect(w.find('[data-test="turnmode-work"]').classes()).not.toContain('is-on')
+  })
+
+  it('Auto sends NOTHING — that absence is what lets the model choose', () => {
+    const chat = useChatStore()
+    chat.setTurnMode('auto')
+    expect(chat.turnMode === 'auto' ? undefined : chat.turnMode).toBe(undefined)
+  })
+
+  it('choosing Chat is now SENT, so it can actually suppress a work goal', () => {
+    // It used to collapse to `undefined`, making an explicit "just answer me" byte-identical to no
+    // choice at all -- so the backend branch that honours it was unreachable from this switch.
+    const chat = useChatStore()
+    chat.setTurnMode('chat')
+    expect(chat.turnMode === 'auto' ? undefined : chat.turnMode).toBe('chat')
+  })
+
+  it('choosing Work is sent, and enforces work even when the model would not have asked', () => {
+    const chat = useChatStore()
+    chat.setTurnMode('work')
+    expect(chat.turnMode === 'auto' ? undefined : chat.turnMode).toBe('work')
+  })
+
+  it('an unrecognised value falls back to Auto, never to a silent override', () => {
+    const chat = useChatStore()
+    chat.setTurnMode('banana')
+    expect(chat.turnMode).toBe('auto')
+  })
+})
+
+describe('TurnModeSwitch — it reports what Auto chose', () => {
+  beforeEach(() => { setActivePinia(createPinia()); try { localStorage.clear() } catch (_e) { /* private */ } })
+
+  it('says nothing before a turn has run — there is no outcome to report yet', () => {
+    const w = mount(TurnModeSwitch)
+    expect(w.find('[data-test="turnmode-resolved"]').exists()).toBe(false)
+  })
+
+  it('reports Work when the model chose to work', () => {
+    const chat = useChatStore()
+    chat.messages = [{ id: 'a', role: 'assistant', content: 'x', turnModeResolved: 'work' }]
+    const w = mount(TurnModeSwitch)
+    expect(w.find('[data-test="turnmode-resolved"]').text()).toBe('Work')
+  })
+
+  it('reports Chat when the model chose to answer directly', () => {
+    const chat = useChatStore()
+    chat.messages = [{ id: 'a', role: 'assistant', content: 'x', turnModeResolved: 'chat' }]
+    const w = mount(TurnModeSwitch)
+    expect(w.find('[data-test="turnmode-resolved"]').text()).toBe('Chat')
+  })
+
+  it('goes quiet once the user overrides — repeating their own choice back is noise', () => {
+    const chat = useChatStore()
+    chat.messages = [{ id: 'a', role: 'assistant', content: 'x', turnModeResolved: 'work' }]
+    chat.setTurnMode('chat')
+    const w = mount(TurnModeSwitch)
+    expect(w.find('[data-test="turnmode-resolved"]').exists()).toBe(false)
+  })
+
+  it('reads the LATEST turn, not the first', () => {
+    const chat = useChatStore()
+    chat.messages = [
+      { id: 'a', role: 'assistant', content: 'x', turnModeResolved: 'work' },
+      { id: 'b', role: 'assistant', content: 'y', turnModeResolved: 'chat' },
+    ]
+    expect(chat.lastResolvedMode).toBe('chat')
+  })
+})

@@ -151,9 +151,16 @@ describe('RunTimeline — the model\'s answer sits on the rail', () => {
   let store
   beforeEach(() => { setActivePinia(createPinia()); store = useRunTimeline() })
 
+  // THE FIXTURE NAMES THE RUN, because the rail now asks. It used to draw every assistant message in
+  // the conversation, which is indistinguishable from correct only while the thread contains one run;
+  // a thread that ran Work and then went back to chat had its chat answers dragged onto the Work rail.
+  // Assistant rows here are this run's answers, so they say so — exactly as the server now stamps them.
+  const own = (messages) => messages.map(
+    (m) => (m.role === 'assistant' && m.runId === undefined ? { ...m, runId: RUN } : m))
+
   const railWith = (messages) => {
     const chat = useChatStore()
-    chat.messages = messages
+    chat.messages = own(messages)
     store.ingestSnapshot(RUN, SNAPSHOT)
     return mount(RunTimeline, { props: { runId: RUN } })
   }
@@ -237,9 +244,16 @@ describe('RunTimeline — the run reads start to end', () => {
   let store
   beforeEach(() => { setActivePinia(createPinia()); store = useRunTimeline() })
 
+  // THE FIXTURE NAMES THE RUN, because the rail now asks. It used to draw every assistant message in
+  // the conversation, which is indistinguishable from correct only while the thread contains one run;
+  // a thread that ran Work and then went back to chat had its chat answers dragged onto the Work rail.
+  // Assistant rows here are this run's answers, so they say so — exactly as the server now stamps them.
+  const own = (messages) => messages.map(
+    (m) => (m.role === 'assistant' && m.runId === undefined ? { ...m, runId: RUN } : m))
+
   const railWith = (messages, snap = SNAPSHOT) => {
     const chat = useChatStore()
-    chat.messages = messages
+    chat.messages = own(messages)
     store.ingestSnapshot(RUN, snap)
     return mount(RunTimeline, { props: { runId: RUN } })
   }
@@ -356,5 +370,50 @@ describe('RunTimeline — the markers distinguish trouble from progress', () => 
     const nodes = w.findAll('.node')
     expect(nodes.length).toBeGreaterThan(4)
     for (const n of nodes) expect(n.find('.mkr').exists()).toBe(true)
+  })
+})
+
+describe('RunTimeline — the rail draws its OWN run, and no other', () => {
+  // THE OTHER HALF OF THE DUPLICATE ANSWER. ChatMessage decides whether a message is already on a
+  // rail; this decides what the rail puts there. Both used to answer from the CONVERSATION, so in a
+  // thread holding more than one run they disagreed about which answers belonged where -- and conv
+  // 1543 showed the result: segment 2's answer drawn once on the rail and once as a chat bubble.
+  beforeEach(() => { setActivePinia(createPinia()); useRunTimeline() })
+
+  const railWith = (messages) => {
+    useChatStore().messages = messages
+    useRunTimeline().ingestSnapshot(RUN, SNAPSHOT)
+    return mount(RunTimeline, { props: { runId: RUN } })
+  }
+
+  it('draws an answer that names this run', () => {
+    const w = railWith([{ id: 'm1', role: 'assistant', content: 'mine', runId: RUN }])
+    expect(w.find('[data-test="rt-answer-m1"]').exists()).toBe(true)
+  })
+
+  it("leaves ANOTHER run’s answer alone — it belongs to that run’s own surface", () => {
+    const w = railWith([
+      { id: 'm1', role: 'assistant', content: 'mine', runId: RUN },
+      { id: 'm2', role: 'assistant', content: 'a later chat turn', runId: 'run_other' },
+    ])
+    expect(w.find('[data-test="rt-answer-m1"]').exists()).toBe(true)
+    expect(w.find('[data-test="rt-answer-m2"]').exists()).toBe(false)
+  })
+
+  it('a turn the server resolved as CHAT never lands on a Work rail', () => {
+    const w = railWith([{ id: 'm9', role: 'assistant', content: 'just answering', turnModeResolved: 'chat' }])
+    expect(w.find('[data-test="rt-answer-m9"]').exists()).toBe(false)
+  })
+
+  it('still draws a message written BEFORE the server stamped runs, via its plan anchor', () => {
+    const w = railWith([{ id: 'm3', role: 'assistant', content: 'legacy',
+                          planArtifacts: [{ plan_id: 'p1', run_id: RUN }] }])
+    expect(w.find('[data-test="rt-answer-m3"]').exists()).toBe(true)
+  })
+
+  it('and via the older work_iteration stamp, so no existing thread loses its answers', () => {
+    const w = railWith([{ id: 'm4', role: 'assistant', content: 'legacy seg 2',
+                          workIteration: { segment: 2, max: 3 } }])
+    expect(w.find('[data-test="rt-answer-m4"]').exists()).toBe(true)
   })
 })
