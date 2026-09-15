@@ -103,80 +103,72 @@ describe('the welcome composer keeps its own controls', () => {
   })
 })
 
-describe('TurnModeSwitch — Auto is the default, and Chat is a real instruction', () => {
+describe('TurnModeSwitch — two buttons, three states', () => {
+  // THE DUPLICATE. An "Auto" button carrying a resolved-mode chip rendered as
+  // "Auto [Chat] · Chat · Work" -- the word Chat twice, meaning two different things. Auto is the
+  // absence of an override, so it is a STATE of this control, never one of its options.
   beforeEach(() => { setActivePinia(createPinia()); try { localStorage.clear() } catch (_e) { /* private */ } })
 
-  it('rests on Auto, because the platform decides unless told otherwise', () => {
+  it('offers exactly two modes', () => {
     const w = mount(TurnModeSwitch)
-    expect(useChatStore().turnMode).toBe('auto')
-    expect(w.find('[data-test="turnmode-auto"]').classes()).toContain('is-on')
-    expect(w.find('[data-test="turnmode-chat"]').classes()).not.toContain('is-on')
-    expect(w.find('[data-test="turnmode-work"]').classes()).not.toContain('is-on')
+    expect(w.findAll('.tms__opt').length).toBe(2)
+    expect(w.find('[data-test="turnmode-auto"]').exists()).toBe(false)
   })
 
-  it('Auto sends NOTHING — that absence is what lets the model choose', () => {
+  it('still rests on Auto internally, sending no override', () => {
     const chat = useChatStore()
-    chat.setTurnMode('auto')
+    expect(chat.turnMode).toBe('auto')
     expect(chat.turnMode === 'auto' ? undefined : chat.turnMode).toBe(undefined)
   })
 
-  it('choosing Chat is now SENT, so it can actually suppress a work goal', () => {
-    // It used to collapse to `undefined`, making an explicit "just answer me" byte-identical to no
-    // choice at all -- so the backend branch that honours it was unreachable from this switch.
+  it('on Auto the highlight REPORTS what the model chose, and is not drawn as a pin', () => {
     const chat = useChatStore()
-    chat.setTurnMode('chat')
-    expect(chat.turnMode === 'auto' ? undefined : chat.turnMode).toBe('chat')
+    chat.messages = [{ id: 'a', role: 'assistant', content: 'x', turnModeResolved: 'work' }]
+    const w = mount(TurnModeSwitch)
+    const work = w.find('[data-test="turnmode-work"]')
+    expect(work.classes()).toContain('is-on')
+    expect(work.classes()).not.toContain('is-pinned')
+    // …and it is not announced as the user's own choice.
+    expect(work.attributes('aria-pressed')).toBe('false')
   })
 
-  it('choosing Work is sent, and enforces work even when the model would not have asked', () => {
+  it('shows Chat before any turn has run — most turns never need to work', () => {
+    const w = mount(TurnModeSwitch)
+    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-on')
+    expect(w.find('[data-test="turnmode-work"]').classes()).not.toContain('is-on')
+  })
+
+  it('clicking pins the mode, and the pin IS sent', async () => {
     const chat = useChatStore()
-    chat.setTurnMode('work')
-    expect(chat.turnMode === 'auto' ? undefined : chat.turnMode).toBe('work')
+    const w = mount(TurnModeSwitch)
+    await w.find('[data-test="turnmode-chat"]').trigger('click')
+    expect(chat.turnMode).toBe('chat')
+    expect(chat.turnMode === 'auto' ? undefined : chat.turnMode).toBe('chat')
+    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-pinned')
+    expect(w.find('[data-test="turnmode-chat"]').attributes('aria-pressed')).toBe('true')
+  })
+
+  it('clicking the pinned mode releases it back to Auto — otherwise there is no way back', async () => {
+    const chat = useChatStore()
+    const w = mount(TurnModeSwitch)
+    await w.find('[data-test="turnmode-work"]').trigger('click')
+    expect(chat.turnMode).toBe('work')
+    await w.find('[data-test="turnmode-work"]').trigger('click')
+    expect(chat.turnMode).toBe('auto')
+  })
+
+  it('a pin overrides the model — Chat stays lit even after a turn resolved as Work', async () => {
+    const chat = useChatStore()
+    chat.messages = [{ id: 'a', role: 'assistant', content: 'x', turnModeResolved: 'work' }]
+    const w = mount(TurnModeSwitch)
+    await w.find('[data-test="turnmode-chat"]').trigger('click')
+    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-on')
+    expect(w.find('[data-test="turnmode-work"]').classes()).not.toContain('is-on')
   })
 
   it('an unrecognised value falls back to Auto, never to a silent override', () => {
     const chat = useChatStore()
     chat.setTurnMode('banana')
     expect(chat.turnMode).toBe('auto')
-  })
-})
-
-describe('TurnModeSwitch — it reports what Auto chose', () => {
-  beforeEach(() => { setActivePinia(createPinia()); try { localStorage.clear() } catch (_e) { /* private */ } })
-
-  it('says nothing before a turn has run — there is no outcome to report yet', () => {
-    const w = mount(TurnModeSwitch)
-    expect(w.find('[data-test="turnmode-resolved"]').exists()).toBe(false)
-  })
-
-  it('reports Work when the model chose to work', () => {
-    const chat = useChatStore()
-    chat.messages = [{ id: 'a', role: 'assistant', content: 'x', turnModeResolved: 'work' }]
-    const w = mount(TurnModeSwitch)
-    expect(w.find('[data-test="turnmode-resolved"]').text()).toBe('Work')
-  })
-
-  it('reports Chat when the model chose to answer directly', () => {
-    const chat = useChatStore()
-    chat.messages = [{ id: 'a', role: 'assistant', content: 'x', turnModeResolved: 'chat' }]
-    const w = mount(TurnModeSwitch)
-    expect(w.find('[data-test="turnmode-resolved"]').text()).toBe('Chat')
-  })
-
-  it('goes quiet once the user overrides — repeating their own choice back is noise', () => {
-    const chat = useChatStore()
-    chat.messages = [{ id: 'a', role: 'assistant', content: 'x', turnModeResolved: 'work' }]
-    chat.setTurnMode('chat')
-    const w = mount(TurnModeSwitch)
-    expect(w.find('[data-test="turnmode-resolved"]').exists()).toBe(false)
-  })
-
-  it('reads the LATEST turn, not the first', () => {
-    const chat = useChatStore()
-    chat.messages = [
-      { id: 'a', role: 'assistant', content: 'x', turnModeResolved: 'work' },
-      { id: 'b', role: 'assistant', content: 'y', turnModeResolved: 'chat' },
-    ]
-    expect(chat.lastResolvedMode).toBe('chat')
   })
 })
