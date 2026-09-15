@@ -80,12 +80,28 @@ export const useArtifactsStore = defineStore('artifacts', {
   },
 
   actions: {
+    // OPENING MUST ALWAYS RESOLVE TO A LOAD OR A VISIBLE REASON.
+    //
+    // The previous shape had a silent hole: when `conversationId` arrived falsy AND nothing had been
+    // bound yet, NEITHER branch ran — the panel opened, never fetched, and showed an empty list
+    // indistinguishable from "this chat produced nothing". Conversation 1543 produced seven artifacts
+    // and the endpoint returns all seven (verified against production), so an empty panel there was
+    // never the data.
+    //
+    // A panel that cannot say WHY it is empty is the worst of the three outcomes: loaded-and-empty,
+    // failed, and never-asked all look the same. So a missing conversation is now an error the user can
+    // read rather than silence.
     openPanel(conversationId) {
       this.open = true
       this.unseen = 0
-      if (conversationId && String(conversationId) !== String(this.conversationId)) {
-        this.bind(conversationId)
-      } else if (!this.items.length && this.conversationId) {
+      const target = conversationId || this.conversationId
+      if (!target) {
+        this.error = 'No conversation is selected, so there is nothing to list.'
+        return
+      }
+      if (String(target) !== String(this.conversationId)) {
+        this.bind(target)
+      } else if (!this.items.length && !this.loading) {
         this.load()
       }
     },

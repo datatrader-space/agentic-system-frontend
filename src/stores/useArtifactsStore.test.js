@@ -296,3 +296,54 @@ describe('useArtifactsStore', () => {
     expect(store.selectedId).toBeNull()
   })
 })
+
+// PRODUCTION: conversation 1543 produced SEVEN artifacts — four scripts and two renders plus the
+// upload — and the endpoint returns all seven (verified by running the real view, authenticated, on
+// the production box: 200, results: 7). The panel showed nothing.
+//
+// The backend was never the problem. `openPanel` had a hole: with a falsy conversationId AND nothing
+// bound yet, neither branch ran, so the panel opened and never fetched. Loaded-and-empty, failed, and
+// never-asked all rendered identically.
+const flush = () => new Promise((r) => setTimeout(r, 0))
+
+describe('openPanel always resolves to a load or a visible reason', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  it('loads when given a conversation it has not seen', async () => {
+    api.getConversationArtifacts.mockResolvedValue(listing([row()]))
+    const store = useArtifactsStore()
+    store.openPanel(1543)
+    await flush()
+    expect(api.getConversationArtifacts).toHaveBeenCalledWith(1543, expect.anything())
+    expect(store.items).toHaveLength(1)
+  })
+
+  it('RE-OPENING the same conversation with nothing loaded still fetches', async () => {
+    api.getConversationArtifacts.mockResolvedValue(listing([row()]))
+    const store = useArtifactsStore()
+    store.conversationId = 1543          // bound earlier, list empty (a failed first load)
+    store.openPanel(1543)
+    await flush()
+    expect(api.getConversationArtifacts).toHaveBeenCalled()
+  })
+
+  it('says WHY it is empty when there is no conversation at all', async () => {
+    const store = useArtifactsStore()
+    store.openPanel(undefined)
+    await flush()
+    // THE HOLE: this used to open silently and look like "this chat produced nothing".
+    expect(api.getConversationArtifacts).not.toHaveBeenCalled()
+    expect(store.error).toBeTruthy()
+    expect(store.open).toBe(true)
+  })
+
+  it('does not fire a second request while one is in flight', async () => {
+    api.getConversationArtifacts.mockResolvedValue(listing([row()]))
+    const store = useArtifactsStore()
+    store.conversationId = 1543
+    store.loading = true
+    store.openPanel(1543)
+    await flush()
+    expect(api.getConversationArtifacts).not.toHaveBeenCalled()
+  })
+})

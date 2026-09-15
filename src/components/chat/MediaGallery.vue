@@ -214,7 +214,12 @@ function close() {
 }
 
 // Load whenever the modal opens.
-watch(() => props.open, (v) => { if (v) { selected.value = new Set(); currentPage.value = 1; load() } })
+// THE CONVERSATION IS WATCHED TOO, not only `open`. `load()` returns early without a conversation id,
+// so a gallery opened before the id resolved — or switched to another chat while open — kept showing
+// the empty state with nothing to retry it. Watching both means a late-arriving id still loads.
+watch(() => [props.open, props.conversationId], ([v]) => {
+  if (v) { selected.value = new Set(); currentPage.value = 1; load() }
+})
 </script>
 
 <style scoped>
