@@ -46,3 +46,67 @@ describe('InlinePlanArtifact — which surface a run gets', () => {
     expect(w.find('[data-test="run-timeline"]').exists()).toBe(false)
   })
 })
+
+// ONE SURFACE, and this is the test that was missing when the rail shipped beside the old ones.
+//
+// REPORTED LIVE: the rail rendered correctly AND the segment card, the iteration bar and the
+// per-message activity list all kept rendering. The same findings appeared twice under two different
+// headings ("Not there yet — continuing." and "Not there yet — running the failed steps again"), the
+// segment and attempt counts appeared twice, and the steps appeared twice — once as numbered rail
+// entries and once as a flat "Loading tools / Waiting for your approval…" list.
+//
+// Replacing a surface means the old one STOPS. Nothing asserted that, so nothing caught it.
+describe('InlinePlanArtifact — a Work run has exactly one surface', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    const plan = usePlanStore()
+    plan.plansByRunId[RUN] = PLAN
+    plan.hydrationStatusByRunId[RUN] = 'ready'
+  })
+
+  it('does NOT render the old goal row beside the rail', () => {
+    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
+    expect(w.find('[data-test="run-timeline"]').exists()).toBe(true)
+    expect(w.find('[data-test="wg-attempt-pips"]').exists()).toBe(false)
+    expect(w.find('[data-test="wg-attempts"]').exists()).toBe(false)
+  })
+
+  it('the rail carries the header itself, so nothing is lost by dropping the row', () => {
+    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
+    const head = w.find('[data-test="rt-head"]')
+    expect(head.exists()).toBe(true)
+    expect(w.text()).toContain('Segment 2 of 12')
+    expect(w.text()).toContain('detect the walls')       // the goal outcome
+  })
+
+  it('states the findings ONCE', () => {
+    const plan = usePlanStore()
+    plan.plansByRunId[RUN] = {
+      ...PLAN,
+      work_goal: { ...PLAN.work_goal, last_verdict: 'not_met',
+                   last_findings: [{ observation: 'Exclusions validation never ran.',
+                                     repair_instruction: 'Run it.' }] },
+    }
+    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
+    const hits = w.text().split('Exclusions validation never ran.').length - 1
+    expect(hits).toBe(1)
+  })
+
+  it('still offers the goal actions from the rail', async () => {
+    const plan = usePlanStore()
+    plan.plansByRunId[RUN] = {
+      ...PLAN, work_goal: { ...PLAN.work_goal, available_actions: ['pause'] },
+    }
+    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
+    const btn = w.findAll('button').find((b) => b.text() === 'Pause')
+    expect(btn).toBeTruthy()
+  })
+
+  it('an ORDINARY run keeps the old card AND its goal row untouched', () => {
+    // The old surfaces are not deleted — they are what a non-Work run still uses.
+    const plan = usePlanStore()
+    plan.plansByRunId[RUN] = { ...PLAN, work_goal: null }
+    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
+    expect(w.find('[data-test="run-timeline"]').exists()).toBe(false)
+  })
+})

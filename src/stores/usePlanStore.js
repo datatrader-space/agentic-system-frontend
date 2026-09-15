@@ -29,6 +29,16 @@ export const usePlanStore = defineStore('plan', {
     planFor: (s) => (runId) => s.plansByRunId[runId] || null,
     runsForConversation: (s) => (cid) => (s.activeRunIdsByConversation[String(cid)] || [])
       .map((rid) => s.plansByRunId[rid]).filter(Boolean),
+    // Does this conversation have a Work run, and therefore a RAIL that owns the whole narrative?
+    //
+    // ONE SURFACE OR NONE. The rail draws the goal header, the steps, the retry badges, the verdict
+    // and the ending. Every other Work surface in the thread is then a SECOND telling of the same
+    // story: the iteration bar repeats the segment and attempt counts, and the per-message activity
+    // timeline repeats the steps as a flat list of "Loading tools / Waiting for your approval…".
+    // Rendered together they were not complementary, they were confusing -- the same findings
+    // appeared twice under two different headings.
+    hasWorkRail: (s) => (cid) => (s.activeRunIdsByConversation[String(cid)] || [])
+      .some((rid) => !!(s.plansByRunId[rid] && s.plansByRunId[rid].work_goal)),
     isHydrating: (s) => (runId) => s.hydrationStatusByRunId[runId] === 'loading',
     isActionPending: (s) => (runId) => !!s.pendingActionByRunId[runId],
     // Connection/freshness state for a run — drives the card's "reconnecting…" indicator.

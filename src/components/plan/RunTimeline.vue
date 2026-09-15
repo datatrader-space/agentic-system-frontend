@@ -18,7 +18,38 @@ import { useRunTimeline } from '../../stores/useRunTimeline'
 
 const props = defineProps({
   runId: { type: [String, Number], required: true },
+  // ABSORBED FROM WorkGoalRow. The rail is ONE surface: a separate row restating the state, the
+  // segment, the attempts and the findings is the duplication this component exists to remove -- and it
+  // was visibly duplicating, printing the same findings twice under two different headings.
+  goal: { type: Object, default: null },
+  busy: { type: Boolean, default: false },
 })
+const emit = defineEmits(['action'])
+
+const STATE_LABEL = {
+  ACTIVE: 'Working', PAUSED: 'Paused', ACHIEVED: 'Goal met',
+  ABANDONED: 'Stopped', EXHAUSTED: 'Stopped — goal not met',
+}
+const ACTION_LABEL = { pause: 'Pause', resume: 'Resume', edit: 'Edit goal', clear: 'Clear' }
+
+const g = computed(() => props.goal || {})
+const stateLabel = computed(() => STATE_LABEL[g.value.state] || g.value.state || '')
+const running = computed(() => g.value.state === 'ACTIVE')
+const used = computed(() => Number(g.value.segments_used || 0))
+const maxSeg = computed(() => Number(g.value.max_segments || 0))
+const pct = computed(() => (maxSeg.value
+  ? Math.min(100, Math.round((used.value / maxSeg.value) * 100)) : 0))
+const attemptList = computed(() => (g.value.attempts || []).map((a) => ({
+  n: a.n,
+  ok: a.verdict === 'met',
+  bad: a.verdict === 'not_met',
+  partial: a.verdict === 'unconfirmed',
+  live: !a.verdict && a.state === 'EXECUTING',
+  title: `Attempt ${a.n}: ${a.verdict === 'met' ? 'passed'
+    : a.verdict === 'not_met' ? 'rejected'
+    : a.verdict === 'unconfirmed' ? 'passed its own check, but the goal check did not confirm it'
+    : a.state === 'EXECUTING' ? 'running' : (a.verdict || a.state || 'unknown')}`,
+})))
 
 const store = useRunTimeline()
 const nodes = computed(() => store.nodesFor(props.runId))
@@ -48,6 +79,26 @@ function fmt(ms) {
 
 <template>
   <div class="rt" data-test="run-timeline">
+    <!-- The run's own header. One surface: state, how far, how many attempts, and the controls. -->
+    <div v-if="goal" class="rt__head" data-test="rt-head">
+      <span class="rt__dot" :class="{ 'rt__dot--live': running }" aria-hidden="true" />
+      <span class="rt__state">{{ stateLabel }}</span>
+      <span v-if="maxSeg" class="rt__meta">Segment {{ used }} of {{ maxSeg }}</span>
+      <span v-if="attemptList.length" class="rt__pips" data-test="rt-attempt-pips">
+        <span v-for="a in attemptList" :key="a.n" class="rt__pip"
+              :class="{ ok: a.ok, bad: a.bad, partial: a.partial, live: a.live }"
+              :title="a.title">{{ a.n }}</span>
+      </span>
+      <span class="rt__spacer" />
+      <button v-for="a in (goal.available_actions || [])" :key="a" class="rt__btn"
+              :disabled="busy" @click="emit('action', a)">{{ ACTION_LABEL[a] || a }}</button>
+    </div>
+    <p v-if="goal && goal.outcome" class="rt__outcome">{{ goal.outcome }}</p>
+    <div v-if="goal && maxSeg" class="rt__bar" role="progressbar" :aria-valuenow="used"
+         aria-valuemin="0" :aria-valuemax="maxSeg">
+      <div class="rt__fill" :style="{ width: pct + '%' }" />
+    </div>
+
     <!-- A hole in the log means the tree cannot be trusted. Saying so beats drawing it anyway. -->
     <p v-if="hasGap" class="rt__gap" data-test="rt-gap">
       Some updates were missed — reload to see the full run.
@@ -103,7 +154,27 @@ function fmt(ms) {
 </template>
 
 <style scoped>
-.rt { font-size: 13px; }
+.rt { font-size: 13px; border: 1px solid var(--border, #e3e6ea); border-radius: 10px;
+      padding: 12px 14px; background: var(--surface, #fff); margin: 8px 0; }
+.rt__head { display: flex; align-items: center; gap: 8px; }
+.rt__dot { width: 8px; height: 8px; border-radius: 50%; background: #b9c0c8; flex: none; }
+.rt__dot--live { background: #2f7bed; animation: rtpulse 1.6s ease-in-out infinite; }
+.rt__state { font-weight: 600; }
+.rt__meta { color: var(--muted, #6b7280); }
+.rt__pips { display: inline-flex; gap: 4px; margin-left: 2px; }
+.rt__pip { min-width: 17px; height: 17px; line-height: 15px; padding: 0 4px; border-radius: 999px;
+  border: 1px solid var(--vm-line-2, #e4e8ee); background: var(--vm-surface, #fff);
+  color: var(--vm-ink-soft, #5b6472); font-size: 10px; font-weight: 700; text-align: center; }
+.rt__pip.ok { border-color: #bfe3c9; background: #f2fbf5; color: #1d7a3d; }
+.rt__pip.bad { border-color: #e8d8a8; background: #fdfaef; color: #8a6d1f; }
+.rt__pip.partial { border-color: #d7dce3; background: #f6f8fa; color: #5b6472; }
+.rt__pip.live { border-color: var(--vm-violet-d, #6d5ef1); color: var(--vm-violet-d, #6d5ef1); }
+.rt__btn { border: 1px solid var(--border, #e3e6ea); background: transparent; border-radius: 6px;
+  padding: 3px 9px; font-size: 12px; cursor: pointer; }
+.rt__btn:disabled { opacity: .5; cursor: default; }
+.rt__outcome { margin: 8px 0 6px; }
+.rt__bar { height: 3px; border-radius: 2px; background: var(--vm-line-2, #eef1f5); margin-bottom: 10px; }
+.rt__fill { height: 100%; border-radius: 2px; background: #2f7bed; }
 .rt__gap { margin: 0 0 8px; font-size: 12px; color: #8a6d1f; }
 .rt__dropped { margin: 0 0 8px; font-size: 12px; color: #8a6d1f; }
 .rt__thread { list-style: none; margin: 0; padding: 0 0 0 4px; border-left: 1px solid var(--line, #e4e8ee); }

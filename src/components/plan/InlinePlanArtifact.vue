@@ -75,10 +75,16 @@ async function onDecide({ decision, comment }) {
     <!-- The Work-mode progress row sits ABOVE the plan, because for a run measured in hours the plan is
          the detail and "which segment, and why is it going round again" is the headline. Absent for
          every ordinary run, which is almost all of them. -->
-    <WorkGoalRow v-if="plan.work_goal" :goal="plan.work_goal"
+    <!-- ONE SURFACE. The rail owns the header too: a WorkGoalRow above it restated the state, the
+         segment, the attempts AND the findings, so a run printed its findings twice under two
+         different headings. That is the duplication this component was built to remove. -->
+    <RunTimeline v-if="useRail" :run-id="runId" :goal="plan.work_goal"
                  :busy="store.isActionPending(runId)" @action="onGoalAction" />
-    <RunTimeline v-if="useRail" :run-id="runId" />
-    <InlinePlanCard v-else :plan="plan" :busy="store.isActionPending(runId)"
-                    :read-only="readOnly" :conn-state="connState" @decide="onDecide" />
+    <template v-else>
+      <WorkGoalRow v-if="plan.work_goal" :goal="plan.work_goal"
+                   :busy="store.isActionPending(runId)" @action="onGoalAction" />
+      <InlinePlanCard :plan="plan" :busy="store.isActionPending(runId)"
+                      :read-only="readOnly" :conn-state="connState" @decide="onDecide" />
+    </template>
   </div>
 </template>

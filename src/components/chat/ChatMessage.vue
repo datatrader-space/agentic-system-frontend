@@ -9,8 +9,14 @@
         <!-- Live activity timeline: Thinking → Searching → Generating → Done. Renders ONLY friendly,
              param-free labels — never raw tool calls / params / output. Live values come from the store
              while streaming; a pinned snapshot after. This is the sole activity renderer. -->
+        <!-- SUPPRESSED FOR A WORK RUN. The rail already tells this story as numbered steps that
+             activate in place; this renders the same work again as a flat list -- "Analyzing your
+             request / Loading tools / Waiting for your approval… / Looking at the image" -- with no
+             indication of which step any row belongs to. Two tellings of one run is what made the
+             transcript unreadable. Ordinary chat is unchanged: there is no rail there, and this is
+             still the sole activity renderer. -->
         <AgentActivityTimeline
-          v-if="isStreaming ? chat.richActive : !!message.timeline"
+          v-if="!hasWorkRail && (isStreaming ? chat.richActive : !!message.timeline)"
           :debug="false"
           :status-label="isStreaming && chat.liveStatus ? chat.liveStatus.label : ''"
           :steps="isStreaming ? chat.liveSteps : message.timeline.steps"
@@ -191,6 +197,7 @@ import { enhanceChatMedia } from '../../utils/chatMedia'
 import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
 import api from '../../services/api'
 import AgentActivityTimeline from '../AgentActivityTimeline.vue'
+import { usePlanStore } from '../../stores/usePlanStore'
 import TokenUsage from '../activity/TokenUsage.vue'
 import SourcesList from './SourcesList.vue'
 import ProvenanceFooter from './ProvenanceFooter.vue'
@@ -200,6 +207,9 @@ import { useChatStore } from '../../stores/useChatStore'
 import { stripThinkBlocks } from '../../utils/thinkFilter'
 
 const chat = useChatStore()
+// A Work run has a rail, and the rail is the activity timeline. See the template comment.
+const _plan = usePlanStore()
+const hasWorkRail = computed(() => _plan.hasWorkRail(chat.conversationId))
 
 const props = defineProps({
   message: { type: Object, required: true },

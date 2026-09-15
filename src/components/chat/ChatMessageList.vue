@@ -15,7 +15,7 @@
         <!-- Work mode sections the thread by iteration. A Work run is N dispatches and each produces
              its own answer, so without this a long run reads as an undifferentiated wall of attempts
              with no way to tell which iteration any of them came from. Absent from ordinary chat. -->
-        <WorkIterationBar v-if="chat.iterationBoundaries.has(m.id)"
+        <WorkIterationBar v-if="!hasWorkRail && chat.iterationBoundaries.has(m.id)"
                           :divider="chat.iterationBoundaries.get(m.id)" />
         <ChatMessage
           :message="m"
@@ -38,7 +38,7 @@
            gap the user actually reported — between two iterations nothing is streaming at all while
            the backend verifies the goal and dispatches the next segment, and with nothing rendered
            there the run looked finished. -->
-        <WorkIterationBar />
+        <WorkIterationBar v-if="!hasWorkRail" />
       </div>
     </div>
 
@@ -62,8 +62,12 @@ import { useChatStore } from '../../stores/useChatStore'
 import ChatMessage from './ChatMessage.vue'
 import InlinePlanArtifact from '../plan/InlinePlanArtifact.vue'
 import WorkIterationBar from './WorkIterationBar.vue'
+import { usePlanStore } from '../../stores/usePlanStore'
 
 const chat = useChatStore()
+// The rail owns the Work narrative; the iteration bar repeats its segment and attempt counts.
+const _plan = usePlanStore()
+const hasWorkRail = computed(() => _plan.hasWorkRail(chat.conversationId))
 const scrollEl = ref(null)
 const innerEl = ref(null)
 
