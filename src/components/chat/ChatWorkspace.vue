@@ -464,6 +464,13 @@ watch(
 }
 .chat-header {
   position: relative;
+  /* THE HEADER MUST PAINT ABOVE THE CONVERSATION, or its dropdown cannot be clicked.
+     `backdrop-filter` creates a STACKING CONTEXT, and with `z-index: auto` this context is painted in
+     DOM order -- so `.chat-body`, which comes after it, painted on top. The overflow menu's own
+     `z-index: 40` was then trapped inside a context that had already lost, and the message list
+     swallowed every click. Playwright named it exactly: "element is visible, enabled and stable" and
+     "<div class='msg-list-inner'> ... intercepts pointer events". Visible, and not clickable. */
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;

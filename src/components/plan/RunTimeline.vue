@@ -139,24 +139,15 @@ function fmt(ms) {
 
 <template>
   <div class="rt" data-test="run-timeline">
-    <!-- The run's own header. One surface: state, how far, how many attempts, and the controls. -->
-    <div v-if="goal" class="rt__head" data-test="rt-head">
-      <span class="rt__dot" :class="{ 'rt__dot--live': running }" aria-hidden="true" />
-      <span class="rt__state">{{ stateLabel }}</span>
-      <span v-if="maxSeg" class="rt__meta">Segment {{ used }} of {{ maxSeg }}</span>
-      <span v-if="attemptList.length" class="rt__pips" data-test="rt-attempt-pips">
-        <span v-for="a in attemptList" :key="a.n" class="rt__pip"
-              :class="{ ok: a.ok, bad: a.bad, partial: a.partial, live: a.live }"
-              :title="a.title">{{ a.n }}</span>
-      </span>
+    <!-- NO "Working / Segment N of 12" ROW. That was the old card's header carried onto the rail, and
+         it is not what the target does: the run's state belongs in the page header as a status pill,
+         and the reason the loop turned again rides on the `loop.continuing` node that caused it. A
+         segment counter at the top restates, on every render, a thing the rail already shows by SHAPE.
+         The controls stay, because there is nowhere else to put them. -->
+    <div v-if="goal && (goal.available_actions || []).length" class="rt__acts" data-test="rt-head">
       <span class="rt__spacer" />
       <button v-for="a in (goal.available_actions || [])" :key="a" class="rt__btn"
               :disabled="busy" @click="emit('action', a)">{{ ACTION_LABEL[a] || a }}</button>
-    </div>
-    <p v-if="goal && goal.outcome" class="rt__outcome">{{ goal.outcome }}</p>
-    <div v-if="goal && maxSeg" class="rt__bar" role="progressbar" :aria-valuenow="used"
-         aria-valuemin="0" :aria-valuemax="maxSeg">
-      <div class="rt__fill" :style="{ width: pct + '%' }" />
     </div>
 
     <!-- A hole in the log means the tree cannot be trusted. Saying so beats drawing it anyway. -->
@@ -245,7 +236,7 @@ function fmt(ms) {
 <style scoped>
 .rt { font-size: 13px; border: 1px solid var(--border, #e3e6ea); border-radius: 10px;
       padding: 12px 14px; background: var(--surface, #fff); margin: 8px 0; }
-.rt__head { display: flex; align-items: center; gap: 8px; }
+.rt__acts { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .rt__dot { width: 8px; height: 8px; border-radius: 50%; background: #b9c0c8; flex: none; }
 .rt__dot--live { background: #2f7bed; animation: rtpulse 1.6s ease-in-out infinite; }
 .rt__state { font-weight: 600; }

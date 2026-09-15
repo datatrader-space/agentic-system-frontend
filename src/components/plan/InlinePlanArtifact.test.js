@@ -71,12 +71,22 @@ describe('InlinePlanArtifact — a Work run has exactly one surface', () => {
     expect(w.find('[data-test="wg-attempts"]').exists()).toBe(false)
   })
 
-  it('the rail carries the header itself, so nothing is lost by dropping the row', () => {
+  it('does NOT restate the segment counter at the top', () => {
+    // The old card's header, carried onto the rail, is not what the target does. The run's state
+    // belongs in the page header as a status pill, and the reason the loop turned again rides on the
+    // `loop.continuing` node that caused it. A counter at the top restates on every render a thing the
+    // rail already shows by SHAPE.
     const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
-    const head = w.find('[data-test="rt-head"]')
-    expect(head.exists()).toBe(true)
-    expect(w.text()).toContain('Segment 2 of 12')
-    expect(w.text()).toContain('detect the walls')       // the goal outcome
+    expect(w.text()).not.toMatch(/Segment\s+\d+\s+of\s+\d+/)
+  })
+
+  it('keeps the goal controls, because there is nowhere else to put them', () => {
+    const plan = usePlanStore()
+    plan.plansByRunId[RUN] = {
+      ...PLAN, work_goal: { ...PLAN.work_goal, available_actions: ['pause'] },
+    }
+    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
+    expect(w.find('[data-test="rt-head"]').exists()).toBe(true)
   })
 
   it('states the findings ONCE', () => {
