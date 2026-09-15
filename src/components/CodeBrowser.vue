@@ -157,9 +157,26 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, h } from 'vue'
-import * as monaco from 'monaco-editor'
-import MonacoEditor from 'monaco-editor-vue3'
+import { ref, computed, watch, onMounted, onBeforeUnmount, h, defineAsyncComponent } from 'vue'
+// MONACO IS LOADED WHEN AN EDITOR IS ACTUALLY SHOWN, not on every page view.
+//
+// MEASURED on production, chat route: total JS 5,856 KB across 30 files, of which monaco was 4,154 KB
+// -- 71% of everything -- and it arrived at 359ms in the FIRST wave with index/vue-core/vendor,
+// before AppShell at 912ms. It was `modulepreload`ed from index.html on every page, because a static
+// import here put it in the entry graph: three views import CodeBrowser, so monaco reached the
+// initial chunk set no matter which route the user opened. `vite.config.js` states the intent --
+// "Deliberately NOT listed: monaco-editor ... they're route-level/dynamic" -- and a static import is
+// what made that untrue.
+//
+// Both halves have to be dynamic. Importing only the component would still pull the namespace below.
+// `applyDecorations` is unreachable until `onEditorMount` fires, so by the time `Range` is needed the
+// namespace has resolved; the guard is there for the case where it has not.
+let monacoNs = null
+const MonacoEditor = defineAsyncComponent(async () => {
+  monacoNs = await import('monaco-editor')
+  const mod = await import('monaco-editor-vue3')
+  return mod.default || mod
+})
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
@@ -291,10 +308,10 @@ let editorInst = null
 let decoIds = []
 function onEditorMount(ed) { editorInst = ed; applyDecorations() }
 function applyDecorations() {
-  if (!editorInst) return
+  if (!editorInst || !monacoNs) return
   const ranges = (activeTab.value && props.decorations[activeTab.value.path]) || []
   const decos = ranges.map(r => ({
-    range: new monaco.Range(r.start, 1, r.end, 1),
+    range: new monacoNs.Range(r.start, 1, r.end, 1),
     options: { isWholeLine: true, className: 'lc-add-line', linesDecorationsClassName: 'lc-add-gutter' },
   }))
   try { decoIds = editorInst.deltaDecorations(decoIds, decos) } catch { /* editor not ready */ }
