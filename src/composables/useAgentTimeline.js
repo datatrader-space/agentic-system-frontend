@@ -247,6 +247,7 @@ export function useAgentTimeline() {
           // other phase still open has nothing left to close it later.
           _closeOpenPhases(lastRow)
           lastRow.stepId = evt.step_id
+          if (evt.plan_step_id) lastRow.planStepId = evt.plan_step_id
           lastRow.toolCallId = evt.tool_call_id || ''
           lastRow.tool = evt.tool || ''
           lastRow.argsPreview = evt.args_preview || ''
@@ -257,6 +258,9 @@ export function useAgentTimeline() {
           _closeOpenPhases()
           steps.value.push({
             stepId: evt.step_id,
+            // The PLAN step this activity belongs to, stamped by the chat store from the live
+            // snapshot. Empty on a turn with no plan, which is most of them.
+            planStepId: evt.plan_step_id || '',
             toolCallId: evt.tool_call_id || '',
             phase: evt.phase || '',
             // Builder tier only — the backend omits these on the user/public tiers, so they

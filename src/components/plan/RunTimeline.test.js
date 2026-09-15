@@ -82,7 +82,7 @@ describe('RunTimeline — one rail', () => {
 
   it('marks exactly one step live', () => {
     const w = railFor()
-    expect(w.findAll('.rt__node.is-live')).toHaveLength(1)
+    expect(w.findAll('.node[data-state="active"]')).toHaveLength(1)
   })
 
   it('ends exactly once, in words', () => {
@@ -291,18 +291,70 @@ describe('RunTimeline — a step can be opened', () => {
   }
 
   it('is collapsed by default, so scanning the run is not buried in detail', () => {
-    expect(withTools().find('[data-test="rt-step-detail-op_2"]').exists()).toBe(false)
+    // The body is rendered and CSS-collapsed (grid-template-rows: 0fr), not v-if'd away -- that is
+    // what makes the expand animate instead of popping. So the state lives on the node, not on the
+    // presence of the detail.
+    const step = withTools().find('[data-test="rt-step-op_2"]')
+    expect(step.attributes('data-open')).toBe('false')
   })
 
   it('opens to show what the step could reach for', async () => {
     const w = withTools()
-    await w.find('[data-test="rt-step-toggle-op_2"]').trigger('click')
-    const d = w.find('[data-test="rt-step-detail-op_2"]')
-    expect(d.text()).toContain('EXECUTE_SCRIPT')
-    expect(d.text()).toContain('checked the junctions')
+    await w.find('[data-test="rt-toggle-op_2"]').trigger('click')
+    expect(w.find('[data-test="rt-step-op_2"]').attributes('data-open')).toBe('true')
+    const det = w.find('[data-test="rt-detail-op_2"]')
+    expect(det.text()).toContain('EXECUTE_SCRIPT')
+    expect(det.text()).toContain('checked the junctions')
   })
 
   it('offers no chevron on a step with nothing to show', () => {
-    expect(withTools().find('[data-test="rt-step-toggle-op_1"]').exists()).toBe(false)
+    expect(withTools().find('[data-test="rt-toggle-op_1"]').exists()).toBe(false)
+  })
+})
+
+// GREEN DONE · AMBER RETRYING · RED ERRORED. Three states that mean three different things and were
+// sharing two colours: a run correcting itself looked the same as one that had broken.
+describe('RunTimeline — the markers distinguish trouble from progress', () => {
+  let store
+  beforeEach(() => { setActivePinia(createPinia()); store = useRunTimeline() })
+
+  const railFor = (snap) => {
+    useChatStore().messages = []
+    store.ingestSnapshot(RUN, snap)
+    return mount(RunTimeline, { props: { runId: RUN } })
+  }
+
+  it('a completed step is done (green)', () => {
+    const w = railFor(SNAPSHOT)
+    expect(w.find('[data-test="rt-step-op_1"]').attributes('data-state')).toBe('done')
+  })
+
+  it('a running step is active', () => {
+    const w = railFor(SNAPSHOT)
+    expect(w.find('[data-test="rt-step-op_4"]').attributes('data-state')).toBe('active')
+  })
+
+  it('a FAILED step is an error (red), not a warning', () => {
+    const snap = { ...SNAPSHOT, steps: SNAPSHOT.steps.map((s, i) => (
+      i === 2 ? { ...s, status: 'failed', status_user: 'failed' } : s)) }
+    expect(railFor(snap).find('[data-test="rt-step-op_3"]').attributes('data-state')).toBe('error')
+  })
+
+  it('the loop verdict stays amber — retrying is the loop working, not a fault', () => {
+    const v = railFor(SNAPSHOT).find('[data-test^="rt-verdict-"]')
+    expect(v.attributes('data-state')).toBe('fail')
+  })
+
+  it('a pending step is pending', () => {
+    const snap = { ...SNAPSHOT, steps: SNAPSHOT.steps.map((s, i) => (
+      i === 3 ? { ...s, status: 'pending', status_user: 'pending' } : s)) }
+    expect(railFor(snap).find('[data-test="rt-step-op_4"]').attributes('data-state')).toBe('pending')
+  })
+
+  it('every node sits on the rail, so the vertical line is continuous', () => {
+    const w = railFor(SNAPSHOT)
+    const nodes = w.findAll('.node')
+    expect(nodes.length).toBeGreaterThan(4)
+    for (const n of nodes) expect(n.find('.mkr').exists()).toBe(true)
   })
 })

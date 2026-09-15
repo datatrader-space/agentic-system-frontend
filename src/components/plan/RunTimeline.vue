@@ -16,6 +16,7 @@
 import { computed, ref } from 'vue'
 import { useRunTimeline } from '../../stores/useRunTimeline'
 import { useChatStore } from '../../stores/useChatStore'
+import './runTimeline.css'
 
 const props = defineProps({
   runId: { type: [String, Number], required: true },
@@ -69,7 +70,13 @@ const unidentified = computed(() =>
 // Exactly one active node at a time carries the live indicator.
 const activeId = computed(() => (steps.value.find((s) => s.state === 'active') || {}).node_id || null)
 
-const MARK = { pending: '', active: '●', done: '✓', failed: '!' }
+// The marker is drawn by CSS from `data-state`; the component only names the state.
+//
+// A FAILED STEP IS AN ERROR (red), NOT A WARNING (amber). They were sharing one colour, so a run that
+// was correcting itself looked identical to one that had broken. Amber is reserved for the verdict
+// node -- "not right yet, going again", which is the loop working -- and red means this step errored,
+// the only state a reader should read as a fault.
+const STATE = { pending: 'pending', active: 'active', done: 'done', failed: 'error' }
 
 // THE ANSWER BELONGS ON THE RAIL. In the target the model's text sits between the steps that produced
 // it and the verdict that judged it, so the run reads as one narrative. Rendered as a separate bubble
@@ -108,6 +115,34 @@ function jsonSummary(d) {
 // THE RUN STARTS WITH WHAT WAS ASKED. Without it the rail opens mid-story: four steps and a verdict
 // with no statement of the thing they were serving. It is the user's own sentence, shown in full --
 // truncating the request to fit a row is how a transcript stops being trustworthy.
+// ACTIVITIES NEST INSIDE THE STEP THAT OWNS THEM. That is the structural difference between a rail and
+// a list: the target nests tool calls, renders and narration under the step they served, so a run reads
+// as four things with detail beneath them rather than twenty things in a row.
+//
+// Keyed on `planStepId`, stamped live by the chat store from the plan snapshot's `current_step_id`.
+// An activity with no stamp is NOT guessed into a bucket -- a row placed under the wrong step is worse
+// than one not shown, because it invents a relationship the data never had.
+const activityByStep = computed(() => {
+  const live = chat.richActive ? (chat.liveSteps || []) : []
+  const done = (chat.messages || [])
+    .flatMap((m) => ((m.timeline && m.timeline.steps) || []))
+  const out = {}
+  for (const a of [...done, ...live]) {
+    const owner = a && a.planStepId
+    if (!owner) continue
+    ;(out[owner] = out[owner] || []).push({
+      key: a.stepId || `${owner}-${(out[owner] || []).length}`,
+      label: a.label || 'Working',
+      tool: a.tool || '',
+      status: a.status || '',
+      durationMs: a.durationMs || null,
+      reason: a.reason || '',
+    })
+  }
+  return out
+})
+function activitiesFor(id) { return activityByStep.value[id] || [] }
+
 const request = computed(() => {
   const first = (chat.messages || []).find((m) => m.role === 'user' && String(m.content || '').trim())
   return first ? String(first.content) : ''
@@ -139,167 +174,112 @@ function fmt(ms) {
 
 <template>
   <div class="rt" data-test="run-timeline">
-    <!-- NO "Working / Segment N of 12" ROW. That was the old card's header carried onto the rail, and
-         it is not what the target does: the run's state belongs in the page header as a status pill,
-         and the reason the loop turned again rides on the `loop.continuing` node that caused it. A
-         segment counter at the top restates, on every render, a thing the rail already shows by SHAPE.
-         The controls stay, because there is nowhere else to put them. -->
-    <div v-if="goal && (goal.available_actions || []).length" class="rt__acts" data-test="rt-head">
-      <span class="rt__spacer" />
-      <button v-for="a in (goal.available_actions || [])" :key="a" class="rt__btn"
-              :disabled="busy" @click="emit('action', a)">{{ ACTION_LABEL[a] || a }}</button>
-    </div>
+    <div class="thread">
+      <p v-if="hasGap" class="notice" data-test="rt-gap">
+        Some updates were missed — reload to see the full run.
+      </p>
+      <p v-if="unidentified" class="notice" data-test="rt-unidentified">
+        {{ unidentified }} step{{ unidentified === 1 ? '' : 's' }} could not be shown — the server sent
+        {{ unidentified === 1 ? 'it' : 'them' }} without an identity. Reload to try again.
+      </p>
 
-    <!-- A hole in the log means the tree cannot be trusted. Saying so beats drawing it anyway. -->
-    <p v-if="hasGap" class="rt__gap" data-test="rt-gap">
-      Some updates were missed — reload to see the full run.
-    </p>
-
-    <p v-if="unidentified" class="rt__dropped" data-test="rt-unidentified">
-      {{ unidentified }} step{{ unidentified === 1 ? '' : 's' }} could not be shown — the server sent
-      {{ unidentified === 1 ? 'it' : 'them' }} without an identity. Reload to try again.
-    </p>
-
-    <p v-if="request" class="rt__req" data-test="rt-request">{{ request }}</p>
-
-    <ol class="rt__thread">
-      <template v-for="s in steps" :key="s.node_id">
-      <li class="rt__node"
-          :class="[`is-${s.state}`, { 'is-live': s.node_id === activeId }]"
-          :data-test="`rt-step-${s.node_id}`">
-        <span class="rt__mark" aria-hidden="true">{{ MARK[s.state] || '' }}</span>
-        <span v-if="s.index" class="rt__idx">{{ s.index }}</span>
-        <span class="rt__label">{{ s.label }}</span>
-        <!-- The retry rides ON the step, which is what keeps the plan from growing. -->
-        <span v-if="s.attempt > 1" class="rt__attempt" :data-test="`rt-attempt-${s.node_id}`">
-          attempt {{ s.attempt }}
-        </span>
-        <span class="rt__spacer" />
-        <span v-if="s.duration_ms" class="rt__dur">{{ fmt(s.duration_ms) }}</span>
-        <button v-if="s.tools && s.tools.length" class="rt__chev"
-                :data-test="`rt-step-toggle-${s.node_id}`"
-                :aria-expanded="isOpen(s.node_id) ? 'true' : 'false'"
-                @click="toggle(s.node_id)">{{ isOpen(s.node_id) ? '▾' : '▸' }}</button>
-      </li>
-      <li v-if="isOpen(s.node_id)" class="rt__stepdetail"
-          :data-test="`rt-step-detail-${s.node_id}`">
-        <span v-for="t in s.tools" :key="t" class="rt__tool">{{ t }}</span>
-        <p v-if="s.details" class="rt__detailnote">{{ s.details }}</p>
-        <p v-if="s.failure" class="rt__detailnote">{{ s.failure }}</p>
-      </li>
-      </template>
-    </ol>
-
-    <!-- The model's own text, on the rail, between the work and the verdict. -->
-    <div v-for="a in answers" :key="a.id" class="rt__say" :data-test="`rt-answer-${a.id}`">
-      <span class="rt__mark" aria-hidden="true">✓</span>
-      <div class="rt__saybody">
-        <template v-if="a.doc">
-          <button class="rt__disclose" :data-test="`rt-answer-toggle-${a.id}`" @click="toggle(a.id)">
-            {{ isOpen(a.id) ? '▾' : '▸' }} {{ a.summary }}
-          </button>
-          <pre v-if="isOpen(a.id)" class="rt__json">{{ a.text }}</pre>
-        </template>
-        <p v-else class="rt__prose">{{ a.text }}</p>
+      <div v-if="goal && (goal.available_actions || []).length" class="acts" data-test="rt-head">
+        <button v-for="a in (goal.available_actions || [])" :key="a" class="btn"
+                :disabled="busy" @click="emit('action', a)">{{ ACTION_LABEL[a] || a }}</button>
       </div>
-    </div>
 
-    <!-- Why the loop re-entered: a NODE with a fail marker, its reason and the blocking findings.
-         Not a divider, and not an "Iteration N of M" band — that shape was cut. -->
-    <div v-for="v in verdicts" :key="v.node_id" class="rt__verdict" :data-test="`rt-verdict-${v.node_id}`">
-      <div class="rt__vhead">
-        <span class="rt__mark rt__mark--fail" aria-hidden="true">!</span>
-        <span class="rt__vtitle">Not there yet — running the failed steps again</span>
+      <!-- What was asked. The run opens on the thing the steps are serving. -->
+      <div v-if="request" class="node" data-state="you" data-test="rt-request">
+        <span class="mkr" aria-hidden="true" />
+        <div class="req"><p class="qt">{{ request }}</p></div>
       </div>
-      <ul class="rt__findings">
-        <li v-for="(f, i) in v.findings" :key="i">
-          <span class="rt__issue">{{ f.issue }}</span>
-          <span v-if="f.remedy" class="rt__fix"> → {{ f.remedy }}</span>
-        </li>
-      </ul>
-    </div>
 
-    <!-- One unambiguous end. -->
-    <div v-if="terminal" class="rt__terminal" data-test="rt-terminal">
-      <span class="rt__pill">{{ terminal.label || 'Done' }}</span>
-      <span class="rt__tsum">
-        Ran <b>{{ terminal.steps }} step{{ terminal.steps === 1 ? '' : 's' }}</b><template
-          v-if="terminal.retried">, <b>{{ terminal.retried }} retried</b></template><template
-          v-if="terminal.duration_ms"> · {{ fmt(terminal.duration_ms) }}</template><template
-          v-if="terminal.total_tokens"> · {{ fmtTokens(terminal.total_tokens) }} tokens</template><template
-          v-if="terminal.cost_usd"> · ${{ terminal.cost_usd }}</template>
-      </span>
+      <!-- The plan. Every step lands at once; a retry re-activates the step it belongs to. -->
+      <div v-for="s in steps" :key="s.node_id" class="node"
+           :class="{ collapsible: activitiesFor(s.node_id).length || (s.tools && s.tools.length) }"
+           :data-state="STATE[s.state] || 'pending'"
+           :data-open="isOpen(s.node_id) ? 'true' : 'false'"
+           :data-test="`rt-step-${s.node_id}`">
+        <span class="mkr" aria-hidden="true" />
+        <div class="head" @click="toggle(s.node_id)">
+          <span v-if="s.index" class="num">{{ s.index }}</span>
+          <span class="lb">{{ s.label }}</span>
+          <span v-if="s.attempt > 1" class="attempt-badge" :data-test="`rt-attempt-${s.node_id}`">
+            attempt {{ s.attempt }}
+          </span>
+          <span v-if="s.duration_ms" class="dur">{{ fmt(s.duration_ms) }}</span>
+          <button v-if="activitiesFor(s.node_id).length || (s.tools && s.tools.length)"
+                  class="caret" :data-test="`rt-toggle-${s.node_id}`"
+                  :aria-expanded="isOpen(s.node_id) ? 'true' : 'false'"
+                  @click.stop="toggle(s.node_id)">▾</button>
+        </div>
+        <div class="body"><div class="inner">
+          <div class="stack" :data-test="`rt-detail-${s.node_id}`">
+            <!-- What the step DID, in order — nested here, never beside the rail. -->
+            <div v-for="a in activitiesFor(s.node_id)" :key="a.key" class="act"
+                 :data-s="a.status === 'failed' ? 'fail' : a.status === 'running' ? 'run' : 'done'">
+              <span class="ic" aria-hidden="true">{{ a.status === 'failed' ? '✕'
+                : a.status === 'running' ? '◌' : '✓' }}</span>
+              <span class="al">{{ a.label }}<span v-if="a.tool" class="tag">{{ a.tool }}</span></span>
+              <span v-if="a.durationMs" class="ad">{{ fmt(a.durationMs) }}</span>
+            </div>
+            <!-- Only when nothing was recorded: a capability list is a poor substitute for a record
+                 of the work, and a misleading one beside it. -->
+            <div v-if="!activitiesFor(s.node_id).length" class="act" data-s="done">
+              <span class="al"><span v-for="t in s.tools" :key="t" class="tag">{{ t }}</span></span>
+            </div>
+            <div v-if="s.details || s.failure" class="act-note">
+              {{ s.details || s.failure }}
+            </div>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- The model's own text, between the work and the verdict. -->
+      <div v-for="a in answers" :key="a.id" class="node" data-state="done"
+           :data-test="`rt-answer-${a.id}`">
+        <span class="mkr" aria-hidden="true" />
+        <div class="msg">
+          <template v-if="a.doc">
+            <button class="disclose" :data-test="`rt-answer-toggle-${a.id}`" @click="toggle(a.id)">
+              {{ isOpen(a.id) ? '▾' : '▸' }} {{ a.summary }}
+            </button>
+            <pre v-if="isOpen(a.id)" class="jsonbox">{{ a.text }}</pre>
+          </template>
+          <div v-else class="mt">{{ a.text }}</div>
+        </div>
+      </div>
+
+      <!-- Why the loop re-entered: a node with its findings. Not a divider, not an iteration band. -->
+      <div v-for="v in verdicts" :key="v.node_id" class="node" data-state="fail"
+           :data-test="`rt-verdict-${v.node_id}`">
+        <span class="mkr" aria-hidden="true" />
+        <div class="head" style="padding-bottom:4px">
+          <span class="lb" style="color:var(--warn)">Not there yet — running the failed steps again</span>
+        </div>
+        <div class="verdict">
+          <ul>
+            <li v-for="(f, i) in v.findings" :key="i">
+              {{ f.issue }}<span v-if="f.remedy" class="fix"> → {{ f.remedy }}</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- One unambiguous end. -->
+      <div v-if="terminal" class="node" data-state="done" data-test="rt-terminal">
+        <span class="mkr" aria-hidden="true" />
+        <div class="terminal">
+          <span class="pill ok">{{ terminal.label || 'Done' }}</span>
+          <span class="ts">
+            Ran <b>{{ terminal.steps }} step{{ terminal.steps === 1 ? '' : 's' }}</b><template
+              v-if="terminal.retried">, <b>{{ terminal.retried }} retried</b></template><template
+              v-if="terminal.duration_ms"> · {{ fmt(terminal.duration_ms) }}</template><template
+              v-if="terminal.total_tokens"> · {{ fmtTokens(terminal.total_tokens) }} tokens</template><template
+              v-if="terminal.cost_usd"> · ${{ terminal.cost_usd }}</template>
+          </span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.rt { font-size: 13px; border: 1px solid var(--border, #e3e6ea); border-radius: 10px;
-      padding: 12px 14px; background: var(--surface, #fff); margin: 8px 0; }
-.rt__acts { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.rt__dot { width: 8px; height: 8px; border-radius: 50%; background: #b9c0c8; flex: none; }
-.rt__dot--live { background: #2f7bed; animation: rtpulse 1.6s ease-in-out infinite; }
-.rt__state { font-weight: 600; }
-.rt__meta { color: var(--muted, #6b7280); }
-.rt__pips { display: inline-flex; gap: 4px; margin-left: 2px; }
-.rt__pip { min-width: 17px; height: 17px; line-height: 15px; padding: 0 4px; border-radius: 999px;
-  border: 1px solid var(--vm-line-2, #e4e8ee); background: var(--vm-surface, #fff);
-  color: var(--vm-ink-soft, #5b6472); font-size: 10px; font-weight: 700; text-align: center; }
-.rt__pip.ok { border-color: #bfe3c9; background: #f2fbf5; color: #1d7a3d; }
-.rt__pip.bad { border-color: #e8d8a8; background: #fdfaef; color: #8a6d1f; }
-.rt__pip.partial { border-color: #d7dce3; background: #f6f8fa; color: #5b6472; }
-.rt__pip.live { border-color: var(--vm-violet-d, #6d5ef1); color: var(--vm-violet-d, #6d5ef1); }
-.rt__btn { border: 1px solid var(--border, #e3e6ea); background: transparent; border-radius: 6px;
-  padding: 3px 9px; font-size: 12px; cursor: pointer; }
-.rt__btn:disabled { opacity: .5; cursor: default; }
-.rt__outcome { margin: 8px 0 6px; }
-.rt__bar { height: 3px; border-radius: 2px; background: var(--vm-line-2, #eef1f5); margin-bottom: 10px; }
-.rt__fill { height: 100%; border-radius: 2px; background: #2f7bed; }
-.rt__gap { margin: 0 0 8px; font-size: 12px; color: #8a6d1f; }
-.rt__dropped { margin: 0 0 8px; font-size: 12px; color: #8a6d1f; }
-.rt__thread { list-style: none; margin: 0; padding: 0 0 0 4px; border-left: 1px solid var(--line, #e4e8ee); }
-.rt__node { display: flex; align-items: center; gap: 8px; padding: 6px 0 6px 10px; margin-left: -1px; }
-.rt__node.is-pending { color: var(--muted, #9aa3ae); }
-.rt__mark { width: 14px; text-align: center; color: #1d7a3d; }
-.rt__node.is-failed .rt__mark, .rt__mark--fail { color: #b4690e; }
-.rt__node.is-live .rt__mark { color: #2f7bed; animation: rtpulse 1.6s ease-in-out infinite; }
-@keyframes rtpulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
-@media (prefers-reduced-motion: reduce) { .rt__node.is-live .rt__mark { animation: none } }
-.rt__idx { color: var(--muted, #9aa3ae); min-width: 12px; }
-.rt__label { font-weight: 500; }
-.rt__attempt {
-  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px;
-  border: 1px solid #e8d8a8; background: #fdfaef; color: #8a6d1f;
-}
-.rt__spacer { flex: 1 1 auto; }
-.rt__dur { color: var(--muted, #9aa3ae); font-variant-numeric: tabular-nums; }
-.rt__verdict { margin: 6px 0 6px 14px; padding: 10px 12px; border-radius: 8px;
-               border: 1px solid #f0e2bd; background: #fdfaef; }
-.rt__vhead { display: flex; align-items: center; gap: 8px; }
-.rt__vtitle { font-weight: 600; color: #8a6d1f; }
-.rt__findings { margin: 6px 0 0; padding-left: 18px; }
-.rt__findings li { margin: 3px 0; }
-.rt__fix { color: var(--muted, #6b7280); }
-.rt__req { margin: 6px 0 10px; padding-left: 10px; border-left: 2px solid var(--line, #e4e8ee);
-           white-space: pre-wrap; color: var(--vm-ink-soft, #5b6472); }
-.rt__chev { border: 0; background: transparent; cursor: pointer; color: var(--muted, #9aa3ae);
-            font: inherit; padding: 0 2px; }
-.rt__stepdetail { list-style: none; padding: 2px 0 8px 34px; margin-left: -1px;
-                  border-left: 1px solid var(--line, #e4e8ee); }
-.rt__tool { display: inline-block; font-size: 10px; padding: 1px 6px; margin: 2px 4px 2px 0;
-  border-radius: 4px; background: var(--surface-2, #f6f8fa); color: var(--vm-ink-soft, #5b6472); }
-.rt__detailnote { margin: 4px 0 0; font-size: 12px; color: var(--muted, #6b7280); }
-.rt__say { display: flex; gap: 8px; padding: 6px 0 6px 10px; margin-left: -1px;
-           border-left: 1px solid var(--line, #e4e8ee); }
-.rt__saybody { flex: 1 1 auto; min-width: 0; }
-.rt__prose { margin: 0; white-space: pre-wrap; }
-.rt__disclose { border: 0; background: transparent; padding: 0; cursor: pointer; font: inherit;
-  color: var(--muted, #6b7280); text-align: left; }
-.rt__json { margin: 6px 0 0; padding: 8px 10px; border-radius: 6px; overflow: auto; max-height: 340px;
-  background: var(--surface-2, #f6f8fa); font-size: 11px; white-space: pre-wrap; word-break: break-word; }
-.rt__terminal { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px;
-                border-radius: 8px; background: var(--surface-2, #f6f8fa); }
-.rt__pill { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 7px;
-            border-radius: 999px; background: #eaf6ee; color: #1d7a3d; }
-.rt__tsum { color: var(--muted, #6b7280); }
-</style>

@@ -1579,6 +1579,23 @@ export const useChatStore = defineStore('chat', {
       // Rich streaming: friendly, param-free activity (Searching → Generating). Feed the shared
       // timeline reducer and stop — these 6 events carry no content/usage to process further.
       if (isRichEvent(msg)) {
+        // STAMP THE STEP THAT OWNS THIS ACTIVITY, at the only moment it is knowable.
+        //
+        // An activity row ("Running a script", "Looking at the image") carries `step_id` =
+        // `step_<tool_call_id>` -- its OWN id, with no reference to the plan step it belongs to. The
+        // rail therefore had nowhere to nest it and rendered a flat list beside the steps, which is
+        // what made a run read as two unrelated accounts of itself.
+        //
+        // The link cannot be reconstructed afterwards: the rows carry no timestamp, so bucketing them
+        // against the plan's server-side step boundaries later would be guesswork dressed as data.
+        // Here, live, the plan snapshot's `current_step_id` IS the answer, so it is recorded rather
+        // than inferred. A turn with no plan stamps nothing and behaves exactly as before.
+        try {
+          const _p = usePlanStore()
+          const _runs = _p.runsForConversation(this.conversationId) || []
+          const _live = _runs[_runs.length - 1]
+          if (_live && _live.current_step_id) msg.plan_step_id = _live.current_step_id
+        } catch { /* a nesting hint must never break the stream */ }
         _tl.ingest(msg)
         const _rm = this._cur()
         if (_rm && _rm.prepStatus) _rm.prepStatus = ''   // live timeline now drives the status line
