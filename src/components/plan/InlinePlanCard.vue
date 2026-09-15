@@ -41,7 +41,14 @@ const STEP_ICON = {
 
 const isRoadmap = computed(() => props.plan?.plan_purpose === 'roadmap')
 const planState = computed(() => props.plan?.plan_status_user || PLAN_MAP[props.plan?.plan_status] || 'active')
-const planLabel = computed(() => (isRoadmap.value ? 'Roadmap' : (PLAN_LABEL[planState.value] || planState.value)))
+// THE WORDS COME FROM THE SERVER. `plan_status_label` is built from `run_coordinator.enums`
+// PLAN_STATE_LABEL, which a backend test keeps total over every state `plan_status_user_for` can
+// return — so a newly-added state arrives WITH copy instead of falling through to its own identifier.
+// That fallthrough is how a badge reading `insufficient_evidence` reached production.
+// PLAN_LABEL stays only for a snapshot hydrated before this field existed; it is not the source.
+const planLabel = computed(() => (isRoadmap.value
+  ? 'Roadmap'
+  : (props.plan?.plan_status_label || PLAN_LABEL[planState.value] || planState.value)))
 const steps = computed(() => props.plan?.steps || [])
 const total = computed(() => props.plan?.total_step_count ?? steps.value.length)
 const done = computed(() => props.plan?.completed_step_count

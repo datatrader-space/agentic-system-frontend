@@ -37,14 +37,20 @@ const attempts = computed(() => Number(props.goal.attempts_used || 0))
 // EACH attempt's outcome, not just how many there were. The count cannot say the last one PASSED, so
 // conv 1541 ended with attempt 3 ACCEPTED/met and nothing on screen said so -- which reads as "it gave
 // up" rather than "it got there and the goal check disagreed".
+// `unconfirmed` is NOT a pass. An attempt is judged against its loop's `until`, which is a narrower bar
+// than the run's goal, so it can pass while the goal does not. Conv 1543: `until` named only the
+// coordinate validation, that half passed, and this row drew a green "Attempt 1: passed" for a run whose
+// own answer said `render_validation: failed`, `needs_review`. Reading it as a pass is the whole defect.
 const attemptList = computed(() => (props.goal.attempts || []).map((a) => ({
   n: a.n,
   ok: a.verdict === 'met',
   bad: a.verdict === 'not_met',
+  partial: a.verdict === 'unconfirmed',
   // No verdict yet means it is the one running now.
   live: !a.verdict && a.state === 'EXECUTING',
   title: `Attempt ${a.n}: ${a.verdict === 'met' ? 'passed'
     : a.verdict === 'not_met' ? 'rejected'
+    : a.verdict === 'unconfirmed' ? 'passed its own check, but the goal check did not confirm it'
     : a.state === 'EXECUTING' ? 'running' : (a.verdict || a.state || 'unknown')}`,
 })))
 const failed = computed(() => props.goal.state === 'EXHAUSTED')
@@ -77,7 +83,8 @@ const verdictNote = computed(() => {
       <!-- One pip per attempt, so a PASS is as visible as a rejection. -->
       <span v-if="attemptList.length" class="wg__pips" data-test="wg-attempt-pips">
         <span v-for="a in attemptList" :key="a.n" class="wg__pip"
-              :class="{ ok: a.ok, bad: a.bad, live: a.live }" :title="a.title">{{ a.n }}</span>
+              :class="{ ok: a.ok, bad: a.bad, partial: a.partial, live: a.live }"
+              :title="a.title">{{ a.n }}</span>
       </span>
       <span class="wg__spacer" />
       <button
@@ -124,6 +131,8 @@ const verdictNote = computed(() => {
 .wg__pip.ok   { border-color: #bfe3c9; background: #f2fbf5; color: #1d7a3d; }
 .wg__pip.bad  { border-color: #e8d8a8; background: #fdfaef; color: #8a6d1f; }
 .wg__pip.live { border-color: var(--vm-violet-d, #6d5ef1); color: var(--vm-violet-d, #6d5ef1); }
+/* Deliberately NOT the green `ok` treatment: its own check passed, the goal check did not confirm it. */
+.wg__pip.partial { border-color: #d7dce3; background: #f6f8fa; color: #5b6472; }
 
 .wg { border: 1px solid var(--border, #e3e6ea); border-radius: 10px; padding: 12px 14px;
       background: var(--surface, #fff); margin: 8px 0; font-size: 13px; }

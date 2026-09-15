@@ -172,3 +172,38 @@ describe('a run that could not be verified', () => {
     expect(t).toContain('Paused')
   })
 })
+
+// Spec §11.5 — no raw enums. The words are built once on the server (`run_coordinator.enums`
+// PLAN_STATE_LABEL, kept total by `test_every_user_facing_state_has_words`) and shipped as
+// `plan_status_label`. Three components each used to carry their own copy of that table, and every
+// lookup falls through to the raw enum when a state is missing — which is how a badge reading
+// `insufficient_evidence` reached production.
+describe('InlinePlanCard — the status words come from the server', () => {
+  const mountWith = (plan) => mount(InlinePlanCard, { props: { plan } })
+
+  it('renders the server label rather than mapping the state itself', () => {
+    const w = mountWith({ plan_status: 'executing', plan_status_user: 'insufficient_evidence',
+                          plan_status_label: 'Needs more evidence', steps: [] })
+    expect(w.text()).toContain('Needs more evidence')
+  })
+
+  it('never shows the raw state when the server sent words', () => {
+    const w = mountWith({ plan_status: 'executing', plan_status_user: 'insufficient_evidence',
+                          plan_status_label: 'Needs more evidence', steps: [] })
+    expect(w.text()).not.toContain('insufficient_evidence')
+  })
+
+  it('a state this build has never heard of still reads as words', () => {
+    // The backend guard is what stops this arriving; if one ever does, it must not be an identifier.
+    const w = mountWith({ plan_status: 'executing', plan_status_user: 'some_new_state',
+                          plan_status_label: 'Some new state', steps: [] })
+    expect(w.text()).toContain('Some new state')
+    expect(w.text()).not.toContain('some_new_state')
+  })
+
+  it('falls back to the local table for a snapshot hydrated before the field existed', () => {
+    const w = mountWith({ plan_status: 'executing', plan_status_user: 'insufficient_evidence',
+                          steps: [] })
+    expect(w.text()).toContain('Not verified')
+  })
+})
