@@ -16,7 +16,7 @@
              transcript unreadable. Ordinary chat is unchanged: there is no rail there, and this is
              still the sole activity renderer. -->
         <AgentActivityTimeline
-          v-if="!hasWorkRail && (isStreaming ? chat.richActive : !!message.timeline)"
+          v-if="!onWorkRail && (isStreaming ? chat.richActive : !!message.timeline)"
           :debug="false"
           :status-label="isStreaming && chat.liveStatus ? chat.liveStatus.label : ''"
           :steps="isStreaming ? chat.liveSteps : message.timeline.steps"
@@ -208,9 +208,35 @@ import { useChatStore } from '../../stores/useChatStore'
 import { stripThinkBlocks } from '../../utils/thinkFilter'
 
 const chat = useChatStore()
-// A Work run has a rail, and the rail is the activity timeline. See the template comment.
 const _plan = usePlanStore()
-const hasWorkRail = computed(() => _plan.hasWorkRail(chat.conversationId))
+
+const props = defineProps({
+  message: { type: Object, required: true },
+})
+
+// IS **THIS MESSAGE** COVERED BY A RAIL — asked per message, never per conversation.
+//
+// The rail belongs to a run. Asking `plan.hasWorkRail(conversationId)` instead asked whether the
+// THREAD had ever run Work, and because the store's run list is append-only that answer never goes
+// back to false: after one Work run, every later chat-mode turn in the same conversation lost its
+// activity timeline and its answer bubble. Ordinary chat must render exactly as it did before the
+// rail existed, and the only way to guarantee that is to make the rail's claim reach no further than
+// its own run.
+//
+// Three ways a message names its run, in order of durability:
+//   1. `planArtifacts` — the durable server anchor, reloaded with history.
+//   2. `workIteration` — `work_iteration` from the server; present on every Work-mode answer, and the
+//      one that covers segments 2..N of a reopened thread, which carry no anchor of their own.
+//   3. `runId` — stamped live from plan_event, so the turn in flight is right before anything is
+//      persisted.
+// A message with none of these is an ordinary chat turn and is left completely alone.
+const onWorkRail = computed(() => {
+  const m = props.message
+  for (const a of (m.planArtifacts || [])) if (_plan.isWorkRun(a && a.run_id)) return true
+  if (m.workIteration) return true
+  return _plan.isWorkRun(m.runId)
+})
+
 // THE ANSWER IS ON THE RAIL for a Work run, between the steps that produced it and the verdict that
 // judged it. Rendering the bubble too would state the model's output twice -- the same duplication the
 // rail was built to remove, and the most expensive one to read because the answer is the longest thing
@@ -218,11 +244,7 @@ const hasWorkRail = computed(() => _plan.hasWorkRail(chat.conversationId))
 // still arriving the bubble is the only thing that has them, and suppressing it would make a live
 // answer look like nothing is happening.
 const answerOnRail = computed(() =>
-  hasWorkRail.value && props.message.role === 'assistant' && !isStreaming.value)
-
-const props = defineProps({
-  message: { type: Object, required: true },
-})
+  onWorkRail.value && props.message.role === 'assistant' && !isStreaming.value)
 const emit = defineEmits(['retry', 'regenerate', 'edit', 'feedback'])
 
 // Open an attachment in a preview window (image → new tab shows it full-size; the file chip is a plain

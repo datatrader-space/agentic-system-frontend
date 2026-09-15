@@ -1530,6 +1530,13 @@ export const useChatStore = defineStore('chat', {
             // scoping a uniqueness check to a message when the thing being made unique belongs to the
             // conversation.
             if (cur && pid && rid) {
+              // WHICH RUN PRODUCED THIS MESSAGE. Stamped on EVERY message the plan events reach, not
+              // only the one that wins the anchor below: a Work run sends a plan_event per segment and
+              // each segment has its own assistant message, but only the first is anchored. Without
+              // this, segments 2..N had no way to tell they belonged to a Work run, and the renderer
+              // fell back to asking the CONVERSATION -- a question whose answer is true forever once
+              // asked, which is what leaked Work-mode suppression into ordinary chat turns.
+              cur.runId = rid
               if (!Array.isArray(cur.planArtifacts)) cur.planArtifacts = []
               const anchoredAlready = this.messages.some(
                 (m) => Array.isArray(m.planArtifacts) && m.planArtifacts.some((a) => a.plan_id === pid))

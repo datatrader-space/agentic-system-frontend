@@ -39,6 +39,15 @@ export const usePlanStore = defineStore('plan', {
     // appeared twice under two different headings.
     hasWorkRail: (s) => (cid) => (s.activeRunIdsByConversation[String(cid)] || [])
       .some((rid) => !!(s.plansByRunId[rid] && s.plansByRunId[rid].work_goal)),
+    // IS THIS ONE RUN A WORK RUN. Ask this, not `hasWorkRail`, whenever the answer decides how a
+    // MESSAGE renders.
+    //
+    // `activeRunIdsByConversation` is append-only -- `_track` adds and nothing removes -- so
+    // `hasWorkRail(cid)` is "this thread has EVER run Work", and it stays true for the rest of the
+    // conversation's life. Gating a chat message on it meant that one Work run permanently stripped
+    // the activity timeline and the answer bubble off every ordinary chat turn that followed it in
+    // the same thread. The rail belongs to a run; so does the decision to defer to it.
+    isWorkRun: (s) => (runId) => !!(runId && s.plansByRunId[runId] && s.plansByRunId[runId].work_goal),
     isHydrating: (s) => (runId) => s.hydrationStatusByRunId[runId] === 'loading',
     isActionPending: (s) => (runId) => !!s.pendingActionByRunId[runId],
     // Connection/freshness state for a run — drives the card's "reconnecting…" indicator.
