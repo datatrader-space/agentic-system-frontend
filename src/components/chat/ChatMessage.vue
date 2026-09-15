@@ -38,7 +38,8 @@
         <!-- Rendered markdown content (full answer if rehydrated, else stored stub). Generated images are
              embedded as /media/... markdown in the answer text by the backend and rendered by
              enhanceChatMedia — a single, refresh-stable mechanism (no separate media list). -->
-        <div v-if="displayContent" class="bubble assistant" v-html="rendered" @click="onCodeCopy"></div>
+        <div v-if="displayContent && !answerOnRail" class="bubble assistant" v-html="rendered"
+             @click="onCodeCopy"></div>
 
         <!-- Why the run ended (backend-determined stop reason + confidence) -->
         <div v-if="message.status !== 'streaming' && stopBadge" class="mt-1.5">
@@ -210,6 +211,14 @@ const chat = useChatStore()
 // A Work run has a rail, and the rail is the activity timeline. See the template comment.
 const _plan = usePlanStore()
 const hasWorkRail = computed(() => _plan.hasWorkRail(chat.conversationId))
+// THE ANSWER IS ON THE RAIL for a Work run, between the steps that produced it and the verdict that
+// judged it. Rendering the bubble too would state the model's output twice -- the same duplication the
+// rail was built to remove, and the most expensive one to read because the answer is the longest thing
+// on screen. STREAMING IS EXEMPT: the rail is built from a committed snapshot, so while tokens are
+// still arriving the bubble is the only thing that has them, and suppressing it would make a live
+// answer look like nothing is happening.
+const answerOnRail = computed(() =>
+  hasWorkRail.value && props.message.role === 'assistant' && !isStreaming.value)
 
 const props = defineProps({
   message: { type: Object, required: true },

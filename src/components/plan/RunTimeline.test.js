@@ -11,6 +11,7 @@ import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import RunTimeline from './RunTimeline.vue'
 import { useRunTimeline } from '../../stores/useRunTimeline'
+import { useChatStore } from '../../stores/useChatStore'
 
 const RUN = 'run_1543'
 
@@ -137,5 +138,95 @@ describe('RunTimeline — a dropped step is never silent', () => {
     store.ingestSnapshot(RUN, SNAPSHOT)
     const w = mount(RunTimeline, { props: { runId: RUN } })
     expect(w.find('[data-test="rt-unidentified"]').exists()).toBe(false)
+  })
+})
+
+// THE ANSWER BELONGS ON THE RAIL — between the steps that produced it and the verdict that judged it.
+// Outside the rail it reads as a wall of output with no relationship to the work above it.
+//
+// And placement alone is not enough. Conv 1543's answer is a ~4 KB JSON document, so putting it on the
+// rail unchanged would move the wall rather than remove it. A structured answer collapses to one line
+// read FROM the document — its own `status` and issue count, never invented — and expands on demand.
+describe('RunTimeline — the model\'s answer sits on the rail', () => {
+  let store
+  beforeEach(() => { setActivePinia(createPinia()); store = useRunTimeline() })
+
+  const railWith = (messages) => {
+    const chat = useChatStore()
+    chat.messages = messages
+    store.ingestSnapshot(RUN, SNAPSHOT)
+    return mount(RunTimeline, { props: { runId: RUN } })
+  }
+
+  const JSON_ANSWER = JSON.stringify({
+    status: 'needs_review', attempt_count: 2,
+    issues: ['exclusions did not pass', 'render_validation failed'],
+    coordinates: { walls: [{ id: 'wall_left' }] },
+  })
+
+  it('renders prose inline, as prose', () => {
+    const w = railWith([{ id: 'm1', role: 'assistant', content: 'Verified on revision 3.' }])
+    expect(w.find('[data-test="rt-answer-m1"]').text()).toContain('Verified on revision 3.')
+  })
+
+  it('COLLAPSES a JSON answer instead of moving the wall onto the rail', () => {
+    const w = railWith([{ id: 'm1', role: 'assistant', content: JSON_ANSWER }])
+    const node = w.find('[data-test="rt-answer-m1"]')
+    expect(node.exists()).toBe(true)
+    expect(node.text()).not.toContain('wall_left')       // the body is not dumped
+    expect(node.text()).toContain('needs review')        // read from the document's own status
+    expect(node.text()).toContain('2 issues')
+  })
+
+  it('expands the document on demand', async () => {
+    const w = railWith([{ id: 'm1', role: 'assistant', content: JSON_ANSWER }])
+    await w.find('[data-test="rt-answer-toggle-m1"]').trigger('click')
+    expect(w.find('[data-test="rt-answer-m1"]').text()).toContain('wall_left')
+  })
+
+  it('PREFERS the sentence the agent wrote over a derived one', () => {
+    // Agent 3316's contract now opens with `summary`. A derived "needs review · 2 issues" line is
+    // accurate telemetry; the written sentence is narration, and narration is what the rail is for.
+    const w = railWith([{ id: 'm1', role: 'assistant', content: JSON.stringify({
+      status: 'needs_review', issues: ['a', 'b'],
+      summary: 'The right wall window was not rendered as an exclusion, so the overlay audit failed.',
+    }) }])
+    const t = w.find('[data-test="rt-answer-m1"]').text()
+    expect(t).toContain('right wall window was not rendered')
+    expect(t).not.toContain('2 issues')
+  })
+
+  it('falls back to a derived line when the agent wrote none', () => {
+    const w = railWith([{ id: 'm1', role: 'assistant', content: JSON_ANSWER }])
+    expect(w.find('[data-test="rt-answer-m1"]').text()).toContain('needs review')
+  })
+
+  it('ignores a blank summary rather than showing an empty line', () => {
+    const w = railWith([{ id: 'm1', role: 'assistant', content: JSON.stringify({
+      status: 'needs_review', issues: ['a'], summary: '   ' }) }])
+    expect(w.find('[data-test="rt-answer-m1"]').text()).toContain('needs review')
+  })
+
+  it('never invents a summary it cannot read', () => {
+    const w = railWith([{ id: 'm1', role: 'assistant', content: '{"walls": []}' }])
+    expect(w.find('[data-test="rt-answer-m1"]').text()).toContain('structured result')
+  })
+
+  it('ignores the user\'s own messages and empty ones', () => {
+    const w = railWith([
+      { id: 'u1', role: 'user', content: 'detect the walls' },
+      { id: 'm0', role: 'assistant', content: '   ' },
+      { id: 'm1', role: 'assistant', content: 'Done.' },
+    ])
+    expect(w.find('[data-test="rt-answer-u1"]').exists()).toBe(false)
+    expect(w.find('[data-test="rt-answer-m0"]').exists()).toBe(false)
+    expect(w.find('[data-test="rt-answer-m1"]').exists()).toBe(true)
+  })
+
+  it('still shows the steps and the verdict around it', () => {
+    // The answer is an addition to the narrative, not a replacement for it.
+    const w = railWith([{ id: 'm1', role: 'assistant', content: 'Done.' }])
+    expect(w.findAll('[data-test^="rt-step-"]')).toHaveLength(4)
+    expect(w.find('[data-test^="rt-verdict-"]').exists()).toBe(true)
   })
 })

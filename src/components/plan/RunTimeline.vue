@@ -13,8 +13,9 @@
 // KEYED ON node_id, NEVER ON INDEX. That is the whole fix for the duplicate card: a second
 // announcement of a node patches the node that exists instead of appending beside it. The store
 // enforces it; `:key` here must not undo it.
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRunTimeline } from '../../stores/useRunTimeline'
+import { useChatStore } from '../../stores/useChatStore'
 
 const props = defineProps({
   runId: { type: [String, Number], required: true },
@@ -70,6 +71,52 @@ const activeId = computed(() => (steps.value.find((s) => s.state === 'active') |
 
 const MARK = { pending: '', active: '●', done: '✓', failed: '!' }
 
+// THE ANSWER BELONGS ON THE RAIL. In the target the model's text sits between the steps that produced
+// it and the verdict that judged it, so the run reads as one narrative. Rendered as a separate bubble
+// outside the rail it reads as a wall of output with no relationship to the work above it.
+//
+// WHAT THIS CANNOT DO is turn a data dump into prose. Conv 1543's answer is a ~4 KB JSON document, so
+// placing it here unchanged would put the same wall on the rail. A JSON answer therefore COLLAPSES to
+// one honest line -- its own `status` and issue count, read from the document rather than invented --
+// and expands on demand. Real prose renders as prose.
+const chat = useChatStore()
+const _open = ref({})
+function toggle(id) { _open.value = { ..._open.value, [id]: !_open.value[id] } }
+function isOpen(id) { return !!_open.value[id] }
+
+function parsed(text) {
+  const t = String(text || '').trim()
+  if (!t.startsWith('{') && !t.startsWith('[')) return null
+  try { return JSON.parse(t) } catch { return null }
+}
+
+function jsonSummary(d) {
+  // THE AGENT'S OWN SENTENCE WINS. Agent 3316's output contract now opens with `summary`: one short
+  // plain-English paragraph written for the person reading the run. Deriving a line from status and
+  // issue counts is the FALLBACK for an answer that predates that field or comes from another agent --
+  // it is accurate but it is telemetry, not narration, and narration is what makes the rail readable.
+  const written = d && typeof d.summary === 'string' ? d.summary.trim() : ''
+  if (written) return written
+  const bits = []
+  if (d && typeof d.status === 'string') bits.push(d.status.replace(/_/g, ' '))
+  const issues = d && Array.isArray(d.issues) ? d.issues.length : 0
+  if (issues) bits.push(`${issues} issue${issues === 1 ? '' : 's'}`)
+  if (d && d.attempt_count) bits.push(`attempt ${d.attempt_count}`)
+  return bits.length ? bits.join(' · ') : 'structured result'
+}
+
+const answers = computed(() => (chat.messages || [])
+  .filter((m) => m.role === 'assistant' && String(m.content || '').trim())
+  .map((m) => {
+    const doc = parsed(m.content)
+    return {
+      id: m.id,
+      text: String(m.content || ''),
+      doc,
+      summary: doc ? jsonSummary(doc) : '',
+    }
+  }))
+
 function fmt(ms) {
   if (!ms && ms !== 0) return ''
   const s = Number(ms) / 1000
@@ -124,6 +171,20 @@ function fmt(ms) {
         <span v-if="s.duration_ms" class="rt__dur">{{ fmt(s.duration_ms) }}</span>
       </li>
     </ol>
+
+    <!-- The model's own text, on the rail, between the work and the verdict. -->
+    <div v-for="a in answers" :key="a.id" class="rt__say" :data-test="`rt-answer-${a.id}`">
+      <span class="rt__mark" aria-hidden="true">✓</span>
+      <div class="rt__saybody">
+        <template v-if="a.doc">
+          <button class="rt__disclose" :data-test="`rt-answer-toggle-${a.id}`" @click="toggle(a.id)">
+            {{ isOpen(a.id) ? '▾' : '▸' }} {{ a.summary }}
+          </button>
+          <pre v-if="isOpen(a.id)" class="rt__json">{{ a.text }}</pre>
+        </template>
+        <p v-else class="rt__prose">{{ a.text }}</p>
+      </div>
+    </div>
 
     <!-- Why the loop re-entered: a NODE with a fail marker, its reason and the blocking findings.
          Not a divider, and not an "Iteration N of M" band — that shape was cut. -->
@@ -200,6 +261,14 @@ function fmt(ms) {
 .rt__findings { margin: 6px 0 0; padding-left: 18px; }
 .rt__findings li { margin: 3px 0; }
 .rt__fix { color: var(--muted, #6b7280); }
+.rt__say { display: flex; gap: 8px; padding: 6px 0 6px 10px; margin-left: -1px;
+           border-left: 1px solid var(--line, #e4e8ee); }
+.rt__saybody { flex: 1 1 auto; min-width: 0; }
+.rt__prose { margin: 0; white-space: pre-wrap; }
+.rt__disclose { border: 0; background: transparent; padding: 0; cursor: pointer; font: inherit;
+  color: var(--muted, #6b7280); text-align: left; }
+.rt__json { margin: 6px 0 0; padding: 8px 10px; border-radius: 6px; overflow: auto; max-height: 340px;
+  background: var(--surface-2, #f6f8fa); font-size: 11px; white-space: pre-wrap; word-break: break-word; }
 .rt__terminal { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px;
                 border-radius: 8px; background: var(--surface-2, #f6f8fa); }
 .rt__pill { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 2px 7px;
