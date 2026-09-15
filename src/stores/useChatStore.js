@@ -1516,9 +1516,24 @@ export const useChatStore = defineStore('chat', {
             const cur = this._cur() || this.messages.filter((x) => x.role === 'assistant').slice(-1)[0]
             const pid = msg.plan_id || (msg.plan_view && msg.plan_view.plan_id)
             const rid = msg.run_id || (msg.plan_view && msg.plan_view.run_id)
+            // ONE PLAN, ONE ANCHOR, ACROSS THE WHOLE THREAD.
+            //
+            // THE DUPLICATE PLAN CARD. This guard used to read `cur.planArtifacts` -- the CURRENT
+            // message's own list -- so it could only ever notice a plan anchored twice to the SAME
+            // message. A Work run sends a plan_event per segment and each segment produces a new
+            // assistant message, so on segment 2 `cur` is a different message, its list is empty, and
+            // the same plan_id is anchored again. The card is then rendered once per anchor: the same
+            // plan drawn twice, which is exactly what was reported in conv 1542.
+            //
+            // It could not be found in the run or plan data because it is not there -- the run has one
+            // plan and one card's worth of state. The duplication is created here, on the client, by
+            // scoping a uniqueness check to a message when the thing being made unique belongs to the
+            // conversation.
             if (cur && pid && rid) {
               if (!Array.isArray(cur.planArtifacts)) cur.planArtifacts = []
-              if (!cur.planArtifacts.some((a) => a.plan_id === pid)) {
+              const anchoredAlready = this.messages.some(
+                (m) => Array.isArray(m.planArtifacts) && m.planArtifacts.some((a) => a.plan_id === pid))
+              if (!anchoredAlready) {
                 cur.planArtifacts.push({ plan_id: pid, run_id: rid, ordinal: cur.planArtifacts.length })
               }
             }

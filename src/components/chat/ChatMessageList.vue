@@ -27,9 +27,14 @@
         <!-- Inline live plan artifact — the ONLY plan UI in chat. Rendered at its durable anchor,
              keyed by plan_id, in exact chronological place. Updates in place from pushed plan_event
              frames; no polling, no detached card. -->
+        <!-- A plan renders at its FIRST anchor and nowhere else. The store now refuses to anchor one
+             plan twice, but a snapshot hydrated from the server carries whatever anchors the server
+             wrote, and a plan drawn twice is the most confusing thing on the page -- two cards with the
+             same steps, updating together. Deciding it here means neither source can produce it. -->
         <template v-if="m.planArtifacts && m.planArtifacts.length">
           <div v-for="a in m.planArtifacts" :key="a.plan_id" class="msg-plan">
-            <InlinePlanArtifact :run-id="a.run_id" :plan-id="a.plan_id" />
+            <InlinePlanArtifact v-if="isFirstAnchor(m.id, a.plan_id)"
+                                :run-id="a.run_id" :plan-id="a.plan_id" />
           </div>
         </template>
       </template>
@@ -68,6 +73,21 @@ const chat = useChatStore()
 // The rail owns the Work narrative; the iteration bar repeats its segment and attempt counts.
 const _plan = usePlanStore()
 const hasWorkRail = computed(() => _plan.hasWorkRail(chat.conversationId))
+
+// plan_id -> the id of the FIRST message anchoring it. Recomputed with the thread, so a late anchor
+// landing on an earlier message still wins and the card does not jump.
+const firstAnchorByPlan = computed(() => {
+  const out = {}
+  for (const m of (chat.messages || [])) {
+    for (const a of (m.planArtifacts || [])) {
+      if (a && a.plan_id && out[a.plan_id] === undefined) out[a.plan_id] = m.id
+    }
+  }
+  return out
+})
+function isFirstAnchor(messageId, planId) {
+  return firstAnchorByPlan.value[planId] === messageId
+}
 const scrollEl = ref(null)
 const innerEl = ref(null)
 
