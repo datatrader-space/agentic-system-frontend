@@ -136,3 +136,29 @@ describe('attempts inside an iteration', () => {
     expect(mountBar().text()).not.toContain('attempt')
   })
 })
+
+// A PASS must be as visible as a rejection. Production conv 1541 ended with attempt 3 ACCEPTED/met and
+// nothing on screen said so, which reads as "it gave up" rather than "it got there".
+describe('an attempt that passed', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('says which attempt passed its check', () => {
+    withGoal({ state: 'PAUSED', segments_used: 2, max_segments: 12, attempts_used: 3,
+               attempts: [{ n: 1, verdict: 'not_met' }, { n: 2, verdict: 'not_met' },
+                          { n: 3, verdict: 'met' }] })
+    expect(mountBar().get('[data-test="iteration-passed-attempt"]').text())
+      .toContain('Attempt 3 passed')
+  })
+
+  it('stays quiet when none passed', () => {
+    withGoal({ state: 'EXHAUSTED', segments_used: 3, max_segments: 12, attempts_used: 2,
+               attempts: [{ n: 1, verdict: 'not_met' }, { n: 2, verdict: 'not_met' }] })
+    expect(mountBar().find('[data-test="iteration-passed-attempt"]').exists()).toBe(false)
+  })
+
+  it('does not invent one from an attempt still running', () => {
+    withGoal({ state: 'ACTIVE', segments_used: 1, max_segments: 12, attempts_used: 1,
+               attempts: [{ n: 1, verdict: '', state: 'EXECUTING' }] })
+    expect(mountBar().find('[data-test="iteration-passed-attempt"]').exists()).toBe(false)
+  })
+})

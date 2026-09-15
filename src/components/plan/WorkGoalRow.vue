@@ -34,6 +34,19 @@ const running = computed(() => props.goal.state === 'ACTIVE')
 // inside one. Conv 1538 made three attempts within one segment and this row could only say "1 of 12",
 // which reads as though the run had barely started.
 const attempts = computed(() => Number(props.goal.attempts_used || 0))
+// EACH attempt's outcome, not just how many there were. The count cannot say the last one PASSED, so
+// conv 1541 ended with attempt 3 ACCEPTED/met and nothing on screen said so -- which reads as "it gave
+// up" rather than "it got there and the goal check disagreed".
+const attemptList = computed(() => (props.goal.attempts || []).map((a) => ({
+  n: a.n,
+  ok: a.verdict === 'met',
+  bad: a.verdict === 'not_met',
+  // No verdict yet means it is the one running now.
+  live: !a.verdict && a.state === 'EXECUTING',
+  title: `Attempt ${a.n}: ${a.verdict === 'met' ? 'passed'
+    : a.verdict === 'not_met' ? 'rejected'
+    : a.state === 'EXECUTING' ? 'running' : (a.verdict || a.state || 'unknown')}`,
+})))
 const failed = computed(() => props.goal.state === 'EXHAUSTED')
 
 // Only shown while there is something still outstanding. After the goal is met these are history, and
@@ -61,6 +74,11 @@ const verdictNote = computed(() => {
            "barely started" (conv 1538). -->
       <span v-if="attempts" class="wg__count" data-test="wg-attempts">·
         {{ attempts }} attempt{{ attempts === 1 ? '' : 's' }}</span>
+      <!-- One pip per attempt, so a PASS is as visible as a rejection. -->
+      <span v-if="attemptList.length" class="wg__pips" data-test="wg-attempt-pips">
+        <span v-for="a in attemptList" :key="a.n" class="wg__pip"
+              :class="{ ok: a.ok, bad: a.bad, live: a.live }" :title="a.title">{{ a.n }}</span>
+      </span>
       <span class="wg__spacer" />
       <button
         v-for="a in (goal.available_actions || [])"
@@ -96,6 +114,17 @@ const verdictNote = computed(() => {
 </template>
 
 <style scoped>
+.wg__pips { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
+.wg__pip {
+  min-width: 17px; height: 17px; line-height: 15px; padding: 0 4px;
+  border-radius: 999px; border: 1px solid var(--vm-line-2, #e4e8ee);
+  background: var(--vm-surface, #fff); color: var(--vm-ink-soft, #5b6472);
+  font-size: 10px; font-weight: 700; text-align: center;
+}
+.wg__pip.ok   { border-color: #bfe3c9; background: #f2fbf5; color: #1d7a3d; }
+.wg__pip.bad  { border-color: #e8d8a8; background: #fdfaef; color: #8a6d1f; }
+.wg__pip.live { border-color: var(--vm-violet-d, #6d5ef1); color: var(--vm-violet-d, #6d5ef1); }
+
 .wg { border: 1px solid var(--border, #e3e6ea); border-radius: 10px; padding: 12px 14px;
       background: var(--surface, #fff); margin: 8px 0; font-size: 13px; }
 .wg--done { border-color: #b7e0c2; }

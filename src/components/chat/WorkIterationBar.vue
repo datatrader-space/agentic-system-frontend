@@ -17,6 +17,8 @@
   <div v-else-if="finished" class="iter-done" :class="outcome.tone" data-test="iteration-outcome">
     <span class="iter-done-title">{{ outcome.title }}</span>
     <span class="iter-done-sub">{{ outcome.detail }}</span>
+    <span v-if="passedAttempt" class="iter-done-sub" data-test="iteration-passed-attempt">
+      Attempt {{ passedAttempt }} passed its check.</span>
   </div>
 </template>
 
@@ -89,6 +91,14 @@ const finished = computed(() => !!goal.value && !running.value)
 const attempts = computed(() => Number((goal.value && goal.value.attempts_used) || 0))
 const attemptText = computed(() =>
   (attempts.value ? `${attempts.value} attempt${attempts.value === 1 ? '' : 's'}` : ''))
+
+// WHETHER ONE PASSED, not only how many ran. Conv 1541's attempt 3 was ACCEPTED and nothing said so,
+// which reads as "it gave up" rather than "it got there and the goal check disagreed".
+const passedAttempt = computed(() => {
+  const list = (goal.value && goal.value.attempts) || []
+  const hit = list.filter((a) => a.verdict === 'met').pop()
+  return hit ? hit.n : null
+})
 
 const outcome = computed(() => {
   const base = STATE[state.value] || { tone: 'warn', title: 'Run finished',
