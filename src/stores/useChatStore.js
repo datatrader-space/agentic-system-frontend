@@ -66,6 +66,11 @@ function mergeById(current, incoming) {
   return current.concat(incoming.filter((s) => !seen.has(String(s.id))))
 }
 
+//: Where the user's Chat/Work PIN is remembered. Versioned on purpose — see the read below: the
+//: unversioned key held a default, not a decision, and treating the two alike suppressed Work mode
+//: for everyone who had ever used the old switch.
+const TURN_MODE_KEY = 'aadml.turnMode.v2'
+
 export const useChatStore = defineStore('chat', {
   state: () => ({
     messages: [],
@@ -89,7 +94,21 @@ export const useChatStore = defineStore('chat', {
     // handed an hours-long run. Naming the default is what makes the other two mean something.
     turnMode: (() => {
       try {
-        const v = localStorage.getItem('aadml.turnMode')
+        // THE LEGACY KEY IS NOT A CHOICE, AND READING IT AS ONE BROKE AUTO FOR EVERY EXISTING USER.
+        //
+        // Before Auto existed this store defaulted `turnMode` to 'chat' and PERSISTED it on every
+        // setTurnMode call -- but the send site only ever transmitted 'work', so a stored 'chat' meant
+        // "send nothing", which is precisely what Auto means today. Once 'chat' became a real override
+        // that value turned into a pin nobody had set: production logged "the user chose 'chat' for
+        // this turn" on EVERY turn, and `_freeze_work_goal` returned before the Brain's proposal was
+        // ever looked at. A wall-detection task that should have opened a work goal never got the
+        // chance, and the switch looked correct the whole time.
+        //
+        // A new key is the fix rather than a migration guess: a value written under `.v2` can only
+        // have come from a deliberate click on this control. The old key is dropped so it cannot be
+        // re-read by any later version either.
+        try { localStorage.removeItem('aadml.turnMode') } catch (_e) { /* private mode */ }
+        const v = localStorage.getItem(TURN_MODE_KEY)
         return (v === 'work' || v === 'chat') ? v : 'auto'
       } catch (_e) { return 'auto' }
     })(),
@@ -734,7 +753,7 @@ export const useChatStore = defineStore('chat', {
     // reloading does not silently drop them back into Chat mid-task.
     setTurnMode(mode) {
       this.turnMode = (mode === 'work' || mode === 'chat') ? mode : 'auto'
-      try { localStorage.setItem('aadml.turnMode', this.turnMode) } catch (_e) { /* private mode */ }
+      try { localStorage.setItem(TURN_MODE_KEY, this.turnMode) } catch (_e) { /* private mode */ }
     },
 
     _canvasSendOpts() {

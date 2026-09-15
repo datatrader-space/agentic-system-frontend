@@ -172,3 +172,49 @@ describe('TurnModeSwitch — two buttons, three states', () => {
     expect(chat.turnMode).toBe('auto')
   })
 })
+
+describe('TurnModeSwitch — a stored default is not a pin', () => {
+  // THE REGRESSION, from production conv 1552. The old store defaulted turnMode to 'chat' and
+  // persisted it, while the send site only ever transmitted 'work' -- so a stored 'chat' meant "send
+  // nothing". When 'chat' became a real override that stale value became a pin nobody set, and the
+  // backend logged "the user chose 'chat' for this turn" on EVERY turn: _freeze_work_goal returned
+  // before the Brain's proposal was read, so a long multi-step wall-detection task could never open a
+  // work goal. Auto looked fine on screen the entire time.
+  beforeEach(() => { setActivePinia(createPinia()); try { localStorage.clear() } catch (_e) { /* private */ } })
+
+  const fresh = () => { setActivePinia(createPinia()); return useChatStore() }
+
+  it('ignores the pre-Auto key, so an old default cannot suppress Work', () => {
+    localStorage.setItem('aadml.turnMode', 'chat')
+    const chat = fresh()
+    expect(chat.turnMode).toBe('auto')
+    expect(chat.turnMode === 'auto' ? undefined : chat.turnMode).toBe(undefined)
+  })
+
+  it('drops the legacy key outright, so no later version can read it back', () => {
+    localStorage.setItem('aadml.turnMode', 'chat')
+    fresh()
+    expect(localStorage.getItem('aadml.turnMode')).toBe(null)
+  })
+
+  it('a deliberate pin DOES survive a reload — it was a real click', () => {
+    const chat = fresh()
+    chat.setTurnMode('work')
+    expect(localStorage.getItem('aadml.turnMode.v2')).toBe('work')
+    expect(fresh().turnMode).toBe('work')
+  })
+
+  it('and releasing back to Auto survives a reload too', () => {
+    const chat = fresh()
+    chat.setTurnMode('chat')
+    chat.setTurnMode('auto')
+    expect(fresh().turnMode).toBe('auto')
+  })
+
+  it('an old WORK value is also not honoured — it predates the pin having meaning', () => {
+    // 'work' was genuinely sent by the old code, but it was sticky with no way to clear it, so it is
+    // no more trustworthy as a standing instruction than the 'chat' default was.
+    localStorage.setItem('aadml.turnMode', 'work')
+    expect(fresh().turnMode).toBe('auto')
+  })
+})
