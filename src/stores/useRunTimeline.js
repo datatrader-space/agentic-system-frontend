@@ -166,6 +166,11 @@ export function eventsFromSnapshot(plan) {
       state: STEP_STATE[s.status_user] || STEP_STATE[s.status] || 'pending',
       duration_ms: s.duration_ms || null,
       failure: s.failure_summary || '',
+      // What the step was allowed to reach for. The rail collapses this behind a chevron: a reader
+      // scanning the run does not want it, and a reader asking "what did step 2 actually do?" has
+      // nowhere else to look.
+      tools: (s.tool_hints || []).slice(0, 12),
+      details: s.details || '',
     })
   })
 
@@ -193,16 +198,20 @@ export function eventsFromSnapshot(plan) {
     })
   }
 
-  // One unambiguous end.
+  // One unambiguous end — and what the run cost, which is the question a reader actually has there.
   const term = terminalOf(plan)
   if (term) {
     const done = steps.filter((s) => ['completed', 'skipped'].includes(s.status)).length
+    const t = (goal && goal.totals) || {}
     push('append', 'run.completed', 'terminal', {
       state: term.state,
       label: term.label,
       steps: steps.length,
       done,
       retried: attemptNo > 1 ? attemptNo - 1 : 0,
+      duration_ms: t.duration_ms || null,
+      total_tokens: t.total_tokens || null,
+      cost_usd: t.cost_usd || null,
     })
   }
   return out

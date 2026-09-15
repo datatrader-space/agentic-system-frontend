@@ -105,6 +105,14 @@ function jsonSummary(d) {
   return bits.length ? bits.join(' · ') : 'structured result'
 }
 
+// THE RUN STARTS WITH WHAT WAS ASKED. Without it the rail opens mid-story: four steps and a verdict
+// with no statement of the thing they were serving. It is the user's own sentence, shown in full --
+// truncating the request to fit a row is how a transcript stops being trustworthy.
+const request = computed(() => {
+  const first = (chat.messages || []).find((m) => m.role === 'user' && String(m.content || '').trim())
+  return first ? String(first.content) : ''
+})
+
 const answers = computed(() => (chat.messages || [])
   .filter((m) => m.role === 'assistant' && String(m.content || '').trim())
   .map((m) => {
@@ -116,6 +124,11 @@ const answers = computed(() => (chat.messages || [])
       summary: doc ? jsonSummary(doc) : '',
     }
   }))
+
+function fmtTokens(n) {
+  const v = Number(n || 0)
+  return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v)
+}
 
 function fmt(ms) {
   if (!ms && ms !== 0) return ''
@@ -156,8 +169,11 @@ function fmt(ms) {
       {{ unidentified === 1 ? 'it' : 'them' }} without an identity. Reload to try again.
     </p>
 
+    <p v-if="request" class="rt__req" data-test="rt-request">{{ request }}</p>
+
     <ol class="rt__thread">
-      <li v-for="s in steps" :key="s.node_id" class="rt__node"
+      <template v-for="s in steps" :key="s.node_id">
+      <li class="rt__node"
           :class="[`is-${s.state}`, { 'is-live': s.node_id === activeId }]"
           :data-test="`rt-step-${s.node_id}`">
         <span class="rt__mark" aria-hidden="true">{{ MARK[s.state] || '' }}</span>
@@ -169,7 +185,18 @@ function fmt(ms) {
         </span>
         <span class="rt__spacer" />
         <span v-if="s.duration_ms" class="rt__dur">{{ fmt(s.duration_ms) }}</span>
+        <button v-if="s.tools && s.tools.length" class="rt__chev"
+                :data-test="`rt-step-toggle-${s.node_id}`"
+                :aria-expanded="isOpen(s.node_id) ? 'true' : 'false'"
+                @click="toggle(s.node_id)">{{ isOpen(s.node_id) ? '▾' : '▸' }}</button>
       </li>
+      <li v-if="isOpen(s.node_id)" class="rt__stepdetail"
+          :data-test="`rt-step-detail-${s.node_id}`">
+        <span v-for="t in s.tools" :key="t" class="rt__tool">{{ t }}</span>
+        <p v-if="s.details" class="rt__detailnote">{{ s.details }}</p>
+        <p v-if="s.failure" class="rt__detailnote">{{ s.failure }}</p>
+      </li>
+      </template>
     </ol>
 
     <!-- The model's own text, on the rail, between the work and the verdict. -->
@@ -206,9 +233,10 @@ function fmt(ms) {
       <span class="rt__pill">{{ terminal.label || 'Done' }}</span>
       <span class="rt__tsum">
         Ran <b>{{ terminal.steps }} step{{ terminal.steps === 1 ? '' : 's' }}</b><template
-          v-if="terminal.retried"
-
-        >, <b>{{ terminal.retried }} retried</b></template>
+          v-if="terminal.retried">, <b>{{ terminal.retried }} retried</b></template><template
+          v-if="terminal.duration_ms"> · {{ fmt(terminal.duration_ms) }}</template><template
+          v-if="terminal.total_tokens"> · {{ fmtTokens(terminal.total_tokens) }} tokens</template><template
+          v-if="terminal.cost_usd"> · ${{ terminal.cost_usd }}</template>
       </span>
     </div>
   </div>
@@ -261,6 +289,15 @@ function fmt(ms) {
 .rt__findings { margin: 6px 0 0; padding-left: 18px; }
 .rt__findings li { margin: 3px 0; }
 .rt__fix { color: var(--muted, #6b7280); }
+.rt__req { margin: 6px 0 10px; padding-left: 10px; border-left: 2px solid var(--line, #e4e8ee);
+           white-space: pre-wrap; color: var(--vm-ink-soft, #5b6472); }
+.rt__chev { border: 0; background: transparent; cursor: pointer; color: var(--muted, #9aa3ae);
+            font: inherit; padding: 0 2px; }
+.rt__stepdetail { list-style: none; padding: 2px 0 8px 34px; margin-left: -1px;
+                  border-left: 1px solid var(--line, #e4e8ee); }
+.rt__tool { display: inline-block; font-size: 10px; padding: 1px 6px; margin: 2px 4px 2px 0;
+  border-radius: 4px; background: var(--surface-2, #f6f8fa); color: var(--vm-ink-soft, #5b6472); }
+.rt__detailnote { margin: 4px 0 0; font-size: 12px; color: var(--muted, #6b7280); }
 .rt__say { display: flex; gap: 8px; padding: 6px 0 6px 10px; margin-left: -1px;
            border-left: 1px solid var(--line, #e4e8ee); }
 .rt__saybody { flex: 1 1 auto; min-width: 0; }

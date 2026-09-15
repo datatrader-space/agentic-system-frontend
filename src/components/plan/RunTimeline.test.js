@@ -230,3 +230,79 @@ describe('RunTimeline — the model\'s answer sits on the rail', () => {
     expect(w.find('[data-test^="rt-verdict-"]').exists()).toBe(true)
   })
 })
+
+// START TO END. The target rail opens with the request and closes with what the run cost; without
+// those it opens mid-story and ends without answering the one question a reader has at the bottom.
+describe('RunTimeline — the run reads start to end', () => {
+  let store
+  beforeEach(() => { setActivePinia(createPinia()); store = useRunTimeline() })
+
+  const railWith = (messages, snap = SNAPSHOT) => {
+    const chat = useChatStore()
+    chat.messages = messages
+    store.ingestSnapshot(RUN, snap)
+    return mount(RunTimeline, { props: { runId: RUN } })
+  }
+
+  it('opens with what was asked', () => {
+    const w = railWith([{ id: 'u1', role: 'user', content: 'Detect the walls and render them.' }])
+    expect(w.find('[data-test="rt-request"]').text()).toContain('Detect the walls and render them.')
+  })
+
+  it('shows the request IN FULL rather than truncating it', () => {
+    const long = 'Detect the walls. '.repeat(30)
+    const w = railWith([{ id: 'u1', role: 'user', content: long }])
+    expect(w.find('[data-test="rt-request"]').text().length).toBeGreaterThan(300)
+  })
+
+  it('draws no request node when there is no user message', () => {
+    expect(railWith([]).find('[data-test="rt-request"]').exists()).toBe(false)
+  })
+
+  it('closes with the time, tokens and cost', () => {
+    const snap = { ...SNAPSHOT, work_goal: { ...SNAPSHOT.work_goal,
+      totals: { duration_ms: 221000, total_tokens: 31400, cost_usd: '0.06' } } }
+    const t = railWith([], snap).find('[data-test="rt-terminal"]').text()
+    expect(t).toContain('3m 41s')
+    expect(t).toContain('31.4k tokens')
+    expect(t).toContain('$0.06')
+  })
+
+  it('omits a total it does not know rather than printing a zero', () => {
+    // A confident "0 tokens · $0" is worse than silence: it reads as a free run.
+    const t = railWith([]).find('[data-test="rt-terminal"]').text()
+    expect(t).not.toContain('tokens')
+    expect(t).not.toContain('$')
+    expect(t).toContain('Ran 4 steps')
+  })
+})
+
+describe('RunTimeline — a step can be opened', () => {
+  let store
+  beforeEach(() => { setActivePinia(createPinia()); store = useRunTimeline() })
+
+  const withTools = () => {
+    const chat = useChatStore()
+    chat.messages = []
+    store.ingestSnapshot(RUN, { ...SNAPSHOT, steps: SNAPSHOT.steps.map((s, i) => (i === 1
+      ? { ...s, tool_hints: ['EXECUTE_SCRIPT', 'ANALYZE_MEDIA'], details: 'checked the junctions' }
+      : s)) })
+    return mount(RunTimeline, { props: { runId: RUN } })
+  }
+
+  it('is collapsed by default, so scanning the run is not buried in detail', () => {
+    expect(withTools().find('[data-test="rt-step-detail-op_2"]').exists()).toBe(false)
+  })
+
+  it('opens to show what the step could reach for', async () => {
+    const w = withTools()
+    await w.find('[data-test="rt-step-toggle-op_2"]').trigger('click')
+    const d = w.find('[data-test="rt-step-detail-op_2"]')
+    expect(d.text()).toContain('EXECUTE_SCRIPT')
+    expect(d.text()).toContain('checked the junctions')
+  })
+
+  it('offers no chevron on a step with nothing to show', () => {
+    expect(withTools().find('[data-test="rt-step-toggle-op_1"]').exists()).toBe(false)
+  })
+})
