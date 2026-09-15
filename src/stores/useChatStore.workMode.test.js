@@ -12,6 +12,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useChatStore } from './useChatStore'
+import { usePlanStore } from './usePlanStore'
 
 const seg = (segment, max = 12) => ({ type: 'work_segment', status: 'running', segment, max })
 const goal = (state, segments = 3) => ({ type: 'work_goal', state, segments, max: 12, findings: [] })
@@ -243,5 +244,82 @@ describe('the forwarded-type list must cover what the backend sends', () => {
 
     s._onEvent(step('999'))
     expect(s.liveSteps.length, "another conversation must not").toBe(mine)
+  })
+})
+
+describe('Stop must reach the work that is actually running', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  // REPORTED LIVE, conversation 1539: "I'm clicking on stop button nothing happening" on iteration 2
+  // of 12. `_conn.stop()` cancels a turn on THIS SOCKET; every iteration after the first is a Celery
+  // task with no socket at all. Keeping the button visible across the boundary was the right call --
+  // shipping it without making it ACT was not.
+  const withActiveGoal = (actions = ['pause', 'edit', 'clear']) => {
+    const plan = usePlanStore()
+    plan.plansByRunId = {
+      r1: { run_id: 'r1', revision: 3,
+            work_goal: { state: 'ACTIVE', segments_used: 2, max_segments: 12,
+                         available_actions: actions } },
+    }
+    plan.activeRunIdsByConversation = { 1539: ['r1'] }
+    const calls = []
+    plan.goalAction = (runId, action) => { calls.push([runId, action]); return Promise.resolve({}) }
+    const chat = useChatStore()
+    chat.conversationId = '1539'
+    chat._conn = { stop: () => calls.push(['socket', 'stop']) }
+    return { chat, calls }
+  }
+
+  it('halts the run, not just the socket', () => {
+    const { chat, calls } = withActiveGoal()
+    chat.stop()
+    expect(calls).toContainEqual(['socket', 'stop'])
+    expect(calls).toContainEqual(['r1', 'pause'])
+  })
+
+  it('frees the composer so the button does not stay stuck on', () => {
+    const { chat } = withActiveGoal()
+    chat._workRunActive = true
+    chat.stop()
+    expect(chat.isBusy).toBe(false)
+    expect(chat.workIteration).toBe(null)
+  })
+
+  it('uses only an action the backend advertises', () => {
+    // `available_actions` is the backend's answer, never this store's — a UI that decides for itself
+    // drifts, and the first symptom is a button that silently does nothing. Which is this bug.
+    const { chat, calls } = withActiveGoal(['edit', 'clear'])
+    chat.stop()
+    expect(calls).toContainEqual(['r1', 'clear'])
+    expect(calls.some(([, a]) => a === 'pause')).toBe(false)
+  })
+
+  it('does nothing extra when the backend offers no way to stop', () => {
+    const { chat, calls } = withActiveGoal(['edit'])
+    chat.stop()
+    expect(calls.filter(([r]) => r === 'r1')).toEqual([])
+  })
+
+  it('leaves an ordinary chat turn exactly as it was', () => {
+    // THE REGRESSION THAT MATTERS: Stop runs on every turn in the app.
+    const chat = useChatStore()
+    const calls = []
+    chat._conn = { stop: () => calls.push('socket') }
+    chat.stop()
+    expect(calls).toEqual(['socket'])
+  })
+
+  it('does not stop a goal that has already finished', () => {
+    const plan = usePlanStore()
+    plan.plansByRunId = { r1: { run_id: 'r1', work_goal: { state: 'ACHIEVED',
+                                                           available_actions: [] } } }
+    plan.activeRunIdsByConversation = { 1539: ['r1'] }
+    const calls = []
+    plan.goalAction = (runId, action) => { calls.push([runId, action]) }
+    const chat = useChatStore()
+    chat.conversationId = '1539'
+    chat._conn = { stop: () => {} }
+    chat.stop()
+    expect(calls).toEqual([])
   })
 })

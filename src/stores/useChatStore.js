@@ -874,11 +874,49 @@ export const useChatStore = defineStore('chat', {
 
     stop() {
       this._conn?.stop()
+      // STOP HAS TO REACH THE WORK THAT IS ACTUALLY RUNNING.
+      //
+      // `_conn.stop()` cancels a turn on THIS SOCKET. A Work run's first iteration is such a turn, and
+      // every later one is a Celery task with no socket at all — so once the run moved on, the button
+      // was visible, enabled, and did nothing. Reported live: "I'm clicking on stop button nothing
+      // happening" on iteration 2 of 12.
+      //
+      // That gap is mine: binding the composer to `isBusy` is what kept the button up across the
+      // boundary, which was right, but a control that is shown must act.
+      //
+      // Routed through the goal action the backend already advertises (`work_goal.available_actions`),
+      // the same one the goal row's Pause button uses — not a second cancellation path with its own
+      // idea of what stopping means.
+      this._stopWorkRun()
       // Clear any pending approval so _endAssistant is allowed to finalize (Stop must always end the
       // turn, even mid-approval). The backend's stop_execution also cancels the server-side HITL wait.
       this.hitlRequests = []
       this.awaitingApproval = false
       this._endAssistant()
+    },
+
+    // Halt the run itself when a Work goal is still in flight. Best-effort and never throws into
+    // `stop()`: failing to reach the run must not also prevent the local turn from ending.
+    _stopWorkRun() {
+      try {
+        const plan = usePlanStore()
+        const runs = plan.runsForConversation(this.conversationId) || []
+        for (let i = runs.length - 1; i >= 0; i -= 1) {
+          const g = runs[i] && runs[i].work_goal
+          if (!g || g.state !== 'ACTIVE') continue
+          // `pause` when the backend offers it — it is reversible and preserves the work. `clear`
+          // only if that is all it will accept; anything else and we would be inventing an action the
+          // runtime might refuse, which is the drift `goalAction`'s own comment warns about.
+          const offered = g.available_actions || []
+          const action = offered.includes('pause') ? 'pause'
+            : (offered.includes('clear') ? 'clear' : null)
+          if (!action) break
+          this._workRunActive = false      // the run is stopping; do not keep the composer busy
+          this.workIteration = null
+          plan.goalAction(runs[i].run_id, action)
+          break
+        }
+      } catch (_e) { /* the socket stop above still stands */ }
     },
 
     // ── HITL approval responses (sent over the same WS the backend awaits on) ──
