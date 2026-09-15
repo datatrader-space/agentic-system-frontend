@@ -145,3 +145,30 @@ describe('a run that stopped responding says so', () => {
     expect(w.text()).not.toContain('No activity')
   })
 })
+
+// A raw enum leaked into the badge. Production conv 1542 rendered `insufficient_evidence` verbatim
+// beside states written as "Active" and "Paused", because the state was in neither map and `planLabel`
+// falls through to the raw value.
+describe('a run that could not be verified', () => {
+  const card = (plan) => mount(InlinePlanCard, { props: { plan } })
+
+  it('shows a human label, not the enum', () => {
+    const t = card({ plan_status: 'insufficient_evidence', steps: [] }).text()
+    expect(t).toContain('Not verified')
+    expect(t).not.toContain('insufficient_evidence')
+  })
+
+  it('does not disguise it as completed or failed', () => {
+    // The backend keeps this status distinct precisely because it is neither; collapsing it here
+    // would undo that in the one place a person reads it.
+    const t = card({ plan_status: 'insufficient_evidence', steps: [] }).text()
+    expect(t).not.toContain('Completed')
+    expect(t).not.toContain('Failed')
+  })
+
+  it('still honours a server-sent user label', () => {
+    const t = card({ plan_status: 'insufficient_evidence', plan_status_user: 'paused',
+                     steps: [] }).text()
+    expect(t).toContain('Paused')
+  })
+})

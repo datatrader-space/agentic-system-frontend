@@ -19,6 +19,12 @@ const PLAN_MAP = {
   draft: 'draft', planning: 'draft', pending_approval: 'awaiting_approval', approved: 'active',
   executing: 'active', paused: 'paused', blocked: 'blocked', completed: 'completed', failed: 'failed',
   cancelled: 'cancelled', changes_requested: 'revised', rejected: 'cancelled', superseded: 'superseded',
+  // A RUN THAT COULD NOT BE VERIFIED HAS ITS OWN STATE, and it was missing from both maps -- so
+  // `planLabel` fell through to `planState.value` and the badge rendered the raw enum
+  // `insufficient_evidence` beside states written as "Active" and "Paused". Deliberately NOT folded
+  // into `completed` or `failed`: the backend keeps this status distinct precisely because it is
+  // neither, and collapsing it here would undo that in the one place a person reads it.
+  insufficient_evidence: 'insufficient_evidence',
 }
 const STEP_MAP = {
   pending: 'pending', started: 'in_progress', completed: 'completed', skipped: 'skipped',
@@ -27,7 +33,7 @@ const STEP_MAP = {
 const PLAN_LABEL = {
   draft: 'Planning', awaiting_approval: 'Awaiting approval', active: 'Active', paused: 'Paused',
   blocked: 'Blocked', failed: 'Failed', completed: 'Completed', cancelled: 'Cancelled', revised: 'Revised',
-  superseded: 'Superseded',
+  superseded: 'Superseded', insufficient_evidence: 'Not verified',
 }
 const STEP_ICON = {
   pending: '', in_progress: '●', completed: '✓', blocked: '!', failed: '×', skipped: '–',
