@@ -30,6 +30,10 @@ const used = computed(() => Number(props.goal.segments_used || 0))
 const max = computed(() => Number(props.goal.max_segments || 0))
 const pct = computed(() => (max.value ? Math.min(100, Math.round((used.value / max.value) * 100)) : 0))
 const running = computed(() => props.goal.state === 'ACTIVE')
+// The INNER loop. A segment is a whole turn dispatched again; an attempt is the repair loop going round
+// inside one. Conv 1538 made three attempts within one segment and this row could only say "1 of 12",
+// which reads as though the run had barely started.
+const attempts = computed(() => Number(props.goal.attempts_used || 0))
 const failed = computed(() => props.goal.state === 'EXHAUSTED')
 
 // Only shown while there is something still outstanding. After the goal is met these are history, and
@@ -53,6 +57,10 @@ const verdictNote = computed(() => {
       <span class="wg__dot" :class="{ 'wg__dot--live': running }" aria-hidden="true" />
       <span class="wg__state">{{ label }}</span>
       <span v-if="max" class="wg__count">Segment {{ used }} of {{ max }}</span>
+      <!-- The inner loop, named separately so three attempts inside one segment stop reading as
+           "barely started" (conv 1538). -->
+      <span v-if="attempts" class="wg__count" data-test="wg-attempts">·
+        {{ attempts }} attempt{{ attempts === 1 ? '' : 's' }}</span>
       <span class="wg__spacer" />
       <button
         v-for="a in (goal.available_actions || [])"

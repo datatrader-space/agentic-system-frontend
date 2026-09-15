@@ -103,3 +103,36 @@ describe('WorkIterationBar', () => {
     expect(w.get('[data-test="iteration-divider"]').text()).toBe('Iteration 1 of 12')
   })
 })
+
+// ATTEMPTS ARE NOT ITERATIONS. Production conv 1538 made three geometry attempts inside ONE segment,
+// and this row said "1 of 12 iterations used" -- true, and it reads as though almost nothing happened.
+describe('attempts inside an iteration', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('names the inner loop while the run is working', () => {
+    withGoal({ state: 'ACTIVE', segments_used: 1, max_segments: 12, attempts_used: 3 })
+    const t = mountBar().get('[data-test="iteration-live"]').text()
+    expect(t).toContain('Iteration 1 of 12')
+    expect(t).toContain('3 attempts')
+  })
+
+  it('reports both counters when the run ends', () => {
+    withGoal({ state: 'ACHIEVED', segments_used: 1, max_segments: 12, attempts_used: 3 })
+    const t = mountBar().text()
+    expect(t).toContain('1 of 12 iteration')
+    expect(t).toContain('3 attempts')
+  })
+
+  it('says "1 attempt", not "1 attempts"', () => {
+    withGoal({ state: 'ACHIEVED', segments_used: 1, max_segments: 12, attempts_used: 1 })
+    const t = mountBar().text()
+    expect(t).toContain('1 attempt used')
+    expect(t).not.toContain('1 attempts')
+  })
+
+  it('stays silent about attempts when there were none', () => {
+    // A run with no repair loop must not grow an empty "0 attempts" clause.
+    withGoal({ state: 'ACTIVE', segments_used: 2, max_segments: 12 })
+    expect(mountBar().text()).not.toContain('attempt')
+  })
+})

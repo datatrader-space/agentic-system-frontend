@@ -11,7 +11,7 @@
   <div v-else-if="running" class="iter-live" data-test="iteration-live"
        role="status" aria-live="polite">
     <span class="iter-pulse" aria-hidden="true"></span>
-    <span class="iter-live-text">{{ liveLabel }} · working — more iterations may follow</span>
+    <span class="iter-live-text">{{ liveLabel }}<template v-if="attemptText"> · {{ attemptText }} so far</template> · working — more iterations may follow</span>
   </div>
 
   <div v-else-if="finished" class="iter-done" :class="outcome.tone" data-test="iteration-outcome">
@@ -81,12 +81,22 @@ const STATE = {
 }
 
 const finished = computed(() => !!goal.value && !running.value)
+
+// ATTEMPTS ARE NOT ITERATIONS. A segment is a whole turn dispatched again; an attempt is the repair
+// loop going round INSIDE one, and a run can make several of the second within one of the first.
+// Production conv 1538 made three attempts and this row said "1 of 12 iterations used" — true, and it
+// reads as though almost nothing happened. Reporting both is what makes the work visible.
+const attempts = computed(() => Number((goal.value && goal.value.attempts_used) || 0))
+const attemptText = computed(() =>
+  (attempts.value ? `${attempts.value} attempt${attempts.value === 1 ? '' : 's'}` : ''))
+
 const outcome = computed(() => {
   const base = STATE[state.value] || { tone: 'warn', title: 'Run finished',
                                        detail: 'The goal was not confirmed.' }
   const n = used.value
-  const spent = n ? ` ${n}${max.value ? ` of ${max.value}` : ''} iteration${n === 1 ? '' : 's'} used.` : ''
-  return { ...base, detail: base.detail + spent }
+  const spent = n ? ` ${n}${max.value ? ` of ${max.value}` : ''} iteration${n === 1 ? '' : 's'}` : ''
+  const both = spent + (attemptText.value ? `, ${attemptText.value}` : '') + (spent ? ' used.' : '')
+  return { ...base, detail: base.detail + both }
 })
 </script>
 
