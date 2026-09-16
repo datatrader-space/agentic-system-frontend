@@ -599,6 +599,11 @@ export const useChatStore = defineStore('chat', {
         // instead, and that question stays true forever once a thread has run Work even once.
         runId: info.run_id || '',
         turnModeResolved: info.turn_mode_resolved || '',
+        // WHO WROTE A USER-ROLE MESSAGE. A work run's continuation segments are persisted as
+        // role='user' rows because the runtime reads the conversation back as turns — but the user
+        // never typed them, and drawing them as their own blue bubble is what made conv 1561 read as
+        // if the operator kept shouting "DO THE NEXT PIECE OF WORK". Absent == authored by the user.
+        authoredBy: info.authored_by || 'user',
         // Inline plan artifact: durable anchor(s) linking this message to its plan(s). Present only
         // when the backend flag is on; drives inline-by-plan_id rendering (no runtime anchor).
         planArtifacts: pickArray(m.plan_artifacts),
@@ -1339,6 +1344,9 @@ export const useChatStore = defineStore('chat', {
           // thread would start drawing Work answers twice.
           runId: (m.model_info && m.model_info.run_id) || '',
           turnModeResolved: (m.model_info && m.model_info.turn_mode_resolved) || '',
+          // Same continuation marker as the main loader — a reconnect must not resurrect the
+          // machine-authored prompts as user bubbles.
+          authoredBy: (m.model_info && m.model_info.authored_by) || 'user',
           workIteration: (m.model_info && m.model_info.work_iteration) || null,
           planArtifacts: pickArray(m.plan_artifacts),
           // User-uploaded attachments bound to this message (served URLs; survive refresh).

@@ -17,7 +17,15 @@
              with no way to tell which iteration any of them came from. Absent from ordinary chat. -->
         <WorkIterationBar v-if="!hasWorkRail && chat.iterationBoundaries.has(m.id)"
                           :divider="chat.iterationBoundaries.get(m.id)" />
+        <!-- RUN SCAFFOLDING IS NOT SOMETHING THE USER SAID. A work run's continuation segments are
+             persisted as role='user' rows (the runtime reads the conversation back as turns), so the
+             thread drew "Continue the task you were working on… DO THE NEXT PIECE OF WORK" as the
+             operator's own blue bubble — twice, in production conv 1561. The rail and the iteration
+             bar already say a new segment started, so the prompt itself is suppressed rather than
+             restyled. Only the bubble is skipped: anything anchored to the message (plan artifacts
+             below) still renders in place. -->
         <ChatMessage
+          v-if="!isRunScaffolding(m)"
           :message="m"
           @retry="chat.retryLast()"
           @regenerate="chat.regenerate(m.id)"
@@ -73,6 +81,11 @@ const chat = useChatStore()
 // The rail owns the Work narrative; the iteration bar repeats its segment and attempt counts.
 const _plan = usePlanStore()
 const hasWorkRail = computed(() => _plan.hasWorkRail(chat.conversationId))
+
+// A role='user' row the SERVER wrote to carry a work run forward, not something the operator typed.
+// `authoredBy` is stamped by agent/headless_consumer.py; it is absent on every ordinary message and
+// on every row written before the marker existed, so both read as the user's own — which is correct.
+const isRunScaffolding = (m) => m.role === 'user' && m.authoredBy === 'system'
 
 // plan_id -> the id of the FIRST message anchoring it. Recomputed with the thread, so a late anchor
 // landing on an earlier message still wins and the card does not jump.
