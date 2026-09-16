@@ -233,6 +233,13 @@
 .rt .md thead th{background:#f8fafc; color:#0f172a; font-weight:600; text-align:left}
 .rt .md th,.rt .md td{padding:8px 12px; border-bottom:1px solid #e2e8f0; border-right:1px solid #e2e8f0;
   vertical-align:top}
+/* WORDS STAY WHOLE IN A CELL; ONLY URLS MAY BREAK ANYWHERE. `overflow-wrap:anywhere` (inherited from .mt, and
+   needed there) also shrinks a word's min-content to one character, so the automatic table layout starved the
+   narrow first column and printed "PR / OJE / CT", "Ngi / nx", "Ca / dd / y" (production conv 1564). In a cell
+   ordinary text breaks only where it must, and the long tokens that actually overflow — links and code — keep
+   `anywhere`, which is what still stops a URL column pushing the table past its node. */
+.rt .md td,.rt .md th{overflow-wrap:break-word; word-break:normal}
+.rt .md td a,.rt .md th a,.rt .md td code,.rt .md th code{overflow-wrap:anywhere}
 .rt .md th:last-child,.rt .md td:last-child{border-right:none}
 .rt .md tbody tr:last-child td{border-bottom:none}
 .rt .md tbody tr:nth-child(even){background:#fafbfc}
