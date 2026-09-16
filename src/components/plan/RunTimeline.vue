@@ -350,7 +350,10 @@ const items = computed(() => {
     // THE LATEST REJECTION OF A RUN STILL GOING IS LIVE: the next attempt is already starting. Drawn as a
     // static amber box it read as "the run stopped" (conv 1599), so it pulses and shows that attempt's work
     // arriving beneath it.
+    // ...until that attempt's answer is on the rail beneath it (conv 1603 kept "Attempt 2 is running"
+    // under the check after answer 2 had arrived).
     const retrying = it.verdict === 'not_met' && i === lastVerdict && running.value
+      && !out.slice(i + 1).some((x) => x.kind === 'answer' && !x.streaming)
     return {
       ...it,
       retrying,

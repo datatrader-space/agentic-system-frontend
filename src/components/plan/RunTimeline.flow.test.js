@@ -358,6 +358,18 @@ describe('RunTimeline — a goal check with the next attempt running is alive, n
     expect(live.text()).not.toContain('Step 1 of 3')
   })
 
+  it('stops once that attempt has answered beneath it', () => {
+    chat.messages = [
+      { id: 'a1', role: 'assistant', content: 'first answer', runId: RUN, status: 'done', workIteration: { segment: 1 } },
+      { id: 'a2', role: 'assistant', content: 'second answer', runId: RUN, status: 'done', workIteration: { segment: 2 } },
+    ]
+    const s = snap('ACTIVE', 'executing')
+    s.steps[0].status = 'completed'; s.steps[0].status_user = 'completed'
+    store.ingestSnapshot(RUN, s)
+    const w = mount(RunTimeline, { props: { runId: RUN, goal: s.work_goal }, global: { stubs: { SourcesList: true } } })
+    expect(w.find('[data-test="rt-verdict-verdict_s1"]').attributes('data-live')).toBe('false')
+  })
+
   it('is still once the run has ended', () => {
     chat.messages = [{ id: 'a1', role: 'assistant', content: 'answer', runId: RUN, status: 'done' }]
     const s = snap('EXHAUSTED', 'paused')
