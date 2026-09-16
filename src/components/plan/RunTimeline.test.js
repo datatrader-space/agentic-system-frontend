@@ -70,9 +70,9 @@ describe('RunTimeline — one rail', () => {
     const w = railFor()
     const v = w.find('[data-test^="rt-verdict-"]')
     expect(v.exists()).toBe(true)
-    expect(v.text()).toContain('Goal check')
+    expect(v.text()).toContain('Could not verify the result')
     expect(v.text()).toContain('Exclusions validation never ran')
-    expect(v.text()).toContain('Run it and include')
+    expect(v.text()).not.toContain('Run it and include')      // the remedy is behind "Details"
   })
 
   it('has NO "Iteration N of M" band anywhere', () => {

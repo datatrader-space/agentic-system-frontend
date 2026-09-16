@@ -321,8 +321,8 @@ function findingsOf(list) {
 // yellow box appearing and then vanishing (conv 1578). A `met` judgement is not drawn: the end row
 // says it. A snapshot from before the history existed falls back to the single latest verdict.
 const VERDICT_LABEL = {
-  not_met: 'Goal check: not met yet',
-  undecidable: 'Goal check: could not verify the result',
+  not_met: 'Not verified',
+  undecidable: 'Could not verify the result',
 }
 const items = computed(() => {
   const history = Array.isArray(g.value.verdicts) ? g.value.verdicts : null
@@ -343,9 +343,24 @@ const items = computed(() => {
   }
   // Only the LAST rejection of a run still going says "trying again"; the others already did.
   let lastVerdict = -1
-  out.forEach((it, i) => { if (it.kind === 'verdict') lastVerdict = i })
+  let lastAnswer = -1
+  out.forEach((it, i) => {
+    if (it.kind === 'verdict') lastVerdict = i
+    if (it.kind === 'answer') lastAnswer = i
+  })
+  const judgedSegments = new Set((history || []).map((h) => Number(h && h.segment)))
   let attempts = 0
   return out.map((it, i) => {
+    if (it.kind === 'answer') {
+      // ONE ANSWER THE USER READS: the one that passed. An earlier attempt's answer folds to a line once a
+      // later attempt exists; the newest waits under "Verifying results…" until the check has spoken — it
+      // used to be drawn in full, then judged, then replaced, which read as three answers to one question
+      // (conv 1618).
+      const superseded = i !== lastAnswer
+      const verifying = !superseded && !!history && running.value && !terminal.value
+        && (it.streaming || !judgedSegments.has(Number(it.segment)))
+      return { ...it, superseded, verifying }
+    }
     if (it.kind !== 'verdict') return it
     attempts += 1
     // THE LATEST REJECTION OF A RUN STILL GOING IS LIVE: the next attempt is already starting. Drawn as a
@@ -359,8 +374,8 @@ const items = computed(() => {
       ...it,
       retrying,
       nextAttempt: attempts + 1,
-      label: `${VERDICT_LABEL[it.verdict] || 'Goal check: not met'}${
-        it.verdict === 'not_met' && (i !== lastVerdict || running.value) ? ' — trying again' : ''}`,
+      label: `${VERDICT_LABEL[it.verdict] || 'Not verified'}${
+        it.verdict === 'not_met' && (i !== lastVerdict || running.value) ? ' — retrying' : ''}`,
     }
   })
 })
@@ -551,7 +566,36 @@ function fmt(ms) {
 
       <!-- The run as it happened: each answer, then the goal check that judged it. -->
       <template v-for="it in items" :key="it.key">
-        <div v-if="it.kind === 'answer'" class="node" :data-state="it.streaming ? 'active' : 'done'"
+        <!-- An earlier attempt: one line, openable. -->
+        <div v-if="it.kind === 'answer' && it.superseded" class="node" data-state="done"
+             :data-test="`rt-answer-${it.id}`">
+          <span class="mkr" aria-hidden="true" />
+          <div class="msg">
+            <button class="disclose" :data-test="`rt-answer-toggle-${it.id}`" @click="toggle(it.id)">
+              {{ isOpen(it.id) ? '▾' : '▸' }} Attempt {{ it.segment }} answer
+            </button>
+            <template v-if="isOpen(it.id)">
+              <pre v-if="it.doc" class="jsonbox">{{ it.text }}</pre>
+              <div v-else class="mt md" :data-test="`rt-answer-md-${it.id}`" v-html="it.html" @click="onAnswerClick" />
+            </template>
+          </div>
+        </div>
+        <!-- The newest answer, while it is being written or checked. -->
+        <div v-else-if="it.kind === 'answer' && it.verifying" class="node" data-state="active"
+             :data-test="`rt-answer-${it.id}`">
+          <span class="mkr" aria-hidden="true" />
+          <div class="msg">
+            <div class="verifying" :data-test="`rt-verifying-${it.id}`">
+              <span class="retry-spin" aria-hidden="true" />
+              <span class="retry-lb">{{ it.streaming ? 'Writing the answer…' : 'Verifying results…' }}</span>
+              <button v-if="!it.streaming" type="button" class="more" @click="toggle(it.id)">
+                {{ isOpen(it.id) ? 'Hide draft' : 'Show draft' }}
+              </button>
+            </div>
+            <div v-if="isOpen(it.id) && !it.doc" class="mt md draft" v-html="it.html" @click="onAnswerClick" />
+          </div>
+        </div>
+        <div v-else-if="it.kind === 'answer'" class="node" :data-state="it.streaming ? 'active' : 'done'"
              :data-test="`rt-answer-${it.id}`">
           <span class="mkr" aria-hidden="true" />
           <div class="msg">
@@ -571,8 +615,13 @@ function fmt(ms) {
           <div class="head" style="padding-bottom:4px">
             <span class="lb" style="color:var(--warn)">{{ it.label }}</span>
           </div>
+          <!-- The reason in one line; the full findings on demand. -->
           <div v-if="it.findings && it.findings.length" class="verdict">
-            <ul>
+            <p class="verdict-lead">{{ it.findings[0].issue }}</p>
+            <button type="button" class="more" :data-test="`rt-verdict-details-${it.key}`" @click="toggle(it.key)">
+              {{ isOpen(it.key) ? 'Hide details' : `Details${it.findings.length > 1 ? ` (${it.findings.length})` : ''}` }}
+            </button>
+            <ul v-if="isOpen(it.key)">
               <li v-for="(f, i) in it.findings" :key="i">
                 {{ f.issue }}<span v-if="f.remedy" class="fix"> → {{ f.remedy }}</span>
               </li>

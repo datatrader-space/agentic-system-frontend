@@ -64,29 +64,35 @@ describe('RunTimeline — the run in order', () => {
     return mount(RunTimeline, { props: { runId: RUN, goal: snap.work_goal },
                                 global: { stubs: { SourcesList: true } } })
   }
-  const order = (w) => w.findAll('[data-test^="rt-answer-a"], [data-test^="rt-verdict-"], [data-test="rt-terminal"]')
-    .map((n) => n.attributes('data-test'))
+  const order = (w) => w.findAll('.node').map((n) => n.attributes('data-test'))
+    .filter((t) => /^rt-(answer-a|verdict-|terminal$)/.test(t || ''))
 
   it('answer 1 → the check that rejected it → answer 2 → the end', () => {
     expect(order(rail())).toEqual(['rt-answer-a1', 'rt-verdict-verdict_s1', 'rt-answer-a2', 'rt-terminal'])
   })
 
-  it('a met goal does not erase the rejection before it', () => {
-    const v = rail().find('[data-test="rt-verdict-verdict_s1"]')
+  it('a met goal does not erase the rejection before it — its reason in one line, the rest on demand', async () => {
+    const w = rail()
+    const v = w.find('[data-test="rt-verdict-verdict_s1"]')
     expect(v.exists()).toBe(true)
+    expect(v.text()).toContain('Not verified')
     expect(v.text()).toContain('Only 3 of 4 versions found')
-    expect(v.text()).toContain('Fetch page 4')
+    expect(v.text()).not.toContain('Fetch page 4')
+    await w.find('[data-test="rt-verdict-details-verdict_s1"]').trigger('click')
+    expect(w.find('[data-test="rt-verdict-verdict_s1"]').text()).toContain('Fetch page 4')
   })
 
-  it('both attempts keep their own answer', () => {
+  it('ONE answer is read: the earlier attempt folds to a line, and keeps its text one click away (conv 1618)', async () => {
     const w = rail()
-    expect(w.find('[data-test="rt-answer-a1"]').text()).toContain('Attempt one answer')
+    expect(w.find('[data-test="rt-answer-a1"]').text()).toBe('▸ Attempt 1 answer')
     expect(w.find('[data-test="rt-answer-a2"]').text()).toContain('Attempt two answer')
+    await w.find('[data-test="rt-answer-toggle-a1"]').trigger('click')
+    expect(w.find('[data-test="rt-answer-a1"]').text()).toContain('Attempt one answer')
   })
 
   it('draws no node for the `met` judgement — the end row says it, in a success tone', () => {
     const w = rail()
-    expect(w.findAll('[data-test^="rt-verdict-"]')).toHaveLength(1)
+    expect(w.findAll('.node[data-test^="rt-verdict-"]')).toHaveLength(1)
     const pill = w.find('[data-test="rt-terminal-state"]')
     expect(pill.text()).toBe('Goal met')
     expect(pill.classes()).toContain('ok')
@@ -97,7 +103,7 @@ describe('RunTimeline — the run in order', () => {
                           { run_status: 'executing' })
     chat.messages = chat.messages.slice(0, 4)
     const w = rail(snap)
-    expect(w.find('[data-test="rt-verdict-verdict_s1"]').text()).toContain('trying again')
+    expect(w.find('[data-test="rt-verdict-verdict_s1"]').text()).toContain('Not verified — retrying')
     expect(w.find('[data-test="rt-terminal"]').exists()).toBe(false)
   })
 
@@ -110,7 +116,7 @@ describe('RunTimeline — the run in order', () => {
     expect(pill.exists()).toBe(true)
     expect(pill.classes()).toContain('warn')
     // The final rejection is not "trying again" — nothing is.
-    expect(w.findAll('[data-test^="rt-verdict-"]').at(-1).text()).not.toContain('trying again')
+    expect(w.findAll('.node[data-test^="rt-verdict-"]').at(-1).text()).not.toContain('retrying')
   })
 
   it('opens on THIS run’s request, not the first message of the thread', () => {
@@ -143,13 +149,26 @@ describe('RunTimeline — the run in order', () => {
     expect(end.find('[data-test="rt-regenerate"]').exists()).toBe(true)
   })
 
-  it('a streaming answer is on the rail as it arrives', () => {
+  it('the newest answer is written and verified before it is shown (conv 1618)', async () => {
     chat.messages[5] = { ...chat.messages[5], status: 'streaming', content: 'Attempt two, half written' }
-    const w = rail(snapshot({ state: 'ACTIVE', verdicts: [{ segment: 1, verdict: 'not_met', findings: [] }] },
-                            { run_status: 'executing' }))
-    const a = w.find('[data-test="rt-answer-a2"]')
-    expect(a.text()).toContain('half written')
+    const running = snapshot({ state: 'ACTIVE', verdicts: [{ segment: 1, verdict: 'not_met', findings: [] }] },
+                             { run_status: 'executing' })
+    const w = rail(running)
+    let a = w.find('[data-test="rt-answer-a2"]')
     expect(a.attributes('data-state')).toBe('active')
+    expect(a.text()).toContain('Writing the answer…')
+    expect(a.text()).not.toContain('half written')
+    // Written, not yet judged: still held back, with the draft on demand.
+    chat.messages[5] = { ...chat.messages[5], status: 'done', content: 'Attempt two answer' }
+    await w.vm.$nextTick()
+    a = w.find('[data-test="rt-answer-a2"]')
+    expect(a.text()).toContain('Verifying results…')
+    expect(a.text()).not.toContain('Attempt two answer')
+    // Judged met and the run ended: the answer, in full.
+    const done = snapshot()
+    store.ingestSnapshot(RUN, done)
+    await w.setProps({ goal: done.work_goal })
+    expect(w.find('[data-test="rt-answer-a2"]').text()).toContain('Attempt two answer')
   })
 })
 
@@ -320,9 +339,12 @@ describe('RunTimeline — parallel steps run side by side, each with its own res
     store.ingestSnapshot(RUN, running)
     const w = mount(RunTimeline, { props: { runId: RUN, goal: running.work_goal }, global: { stubs: { SourcesList: true } } })
     expect(w.find('[data-test="rt-answer-a1"]').exists()).toBe(false)
-    store.ingestSnapshot(RUN, { ...running, steps: [{ ...running.steps[0], status: 'completed', status_user: 'completed' }] })
-    chat.messages[1].content = 'All 4 images are ready.'
-    await w.vm.$nextTick()
+    const ended = { ...running, run_status: 'completed',
+      steps: [{ ...running.steps[0], status: 'completed', status_user: 'completed' }],
+      work_goal: { state: 'ACHIEVED', verdicts: [{ segment: 1, verdict: 'met', findings: [] }], available_actions: [] } }
+    store.ingestSnapshot(RUN, ended)
+    chat.messages[1] = { ...chat.messages[1], status: 'done', content: 'All 4 images are ready.' }
+    await w.setProps({ goal: ended.work_goal })
     expect(w.find('[data-test="rt-answer-a1"]').text()).toContain('All 4 images are ready.')
   })
 })
