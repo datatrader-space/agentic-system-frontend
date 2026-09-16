@@ -435,3 +435,34 @@ describe('RunTimeline — the end row never says "Ran 0 steps" (prod conv 1629)'
     expect(end).toContain('22.7s')
   })
 })
+
+describe('RunTimeline — a run with no plan steps shows its work as it happens (prod conv 1630)', () => {
+  it('searches and page reads, failures and their reasons, are visible — not folded into "Got ready"', () => {
+    setActivePinia(createPinia())
+    const store = useRunTimeline()
+    const chat = useChatStore()
+    chat.messages = [
+      { id: 'u1', role: 'user', content: 'research' },
+      { id: 'a1', role: 'assistant', content: '', runId: RUN, status: 'streaming' },
+    ]
+    chat.liveSteps.splice(0, chat.liveSteps.length,
+      { stepId: 'p1', isPhase: true, label: 'Analyzing your request', status: 'ok' },
+      { stepId: 's1', toolCallId: 'c1', label: 'Searching the web', status: 'failed',
+        reason: 'The search provider rejected the request.' },
+      { stepId: 's2', toolCallId: 'c2', label: 'Reading a web page', status: 'running' })
+    const s = { run_id: RUN, run_status: 'executing', steps: [],
+      work_goal: { state: 'ACTIVE', verdicts: [], available_actions: [] } }
+    store.ingestSnapshot(RUN, s)
+    const w = mount(RunTimeline, { props: { runId: RUN, goal: s.work_goal }, global: { stubs: { SourcesList: true } } })
+    const prep = w.find('[data-test="rt-prepare"]')
+    expect(prep.text()).toContain('Analyzing your request')
+    expect(prep.text()).not.toContain('Searching the web')
+    const work = w.find('[data-test="rt-work"]')
+    expect(work.attributes('data-state')).toBe('active')
+    expect(work.attributes('data-open')).toBe('true')
+    expect(work.text()).toContain('Searching the web')
+    expect(work.text()).toContain('The search provider rejected the request.')
+    expect(work.text()).toContain('Reading a web page')
+    expect(w.find('[data-test="rt-work-failed"]').text()).toBe('1 failed')
+  })
+})

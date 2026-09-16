@@ -320,3 +320,5 @@
 .rt .req-row{display:flex; align-items:flex-start; gap:8px}
 .rt .req-row .qt{flex:1 1 auto; min-width:0}
 .rt .req-acts{padding:0; flex:none; margin-top:-4px}
+/* why a call failed, under its row */
+.rt .fail-note{color:var(--danger); font-size:12px; padding:0 0 4px 20px}

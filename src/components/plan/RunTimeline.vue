@@ -161,6 +161,10 @@ function jsonSummary(d) {
 // being drawn as a separate card that the rail then replaces (conv 1578). A later unstamped row (a
 // "Generating response" between two steps) belongs with the step before it, which is when it happened.
 const PREP = '__prepare__'
+// The work of a run that has NO plan steps. Its searches and page reads used to be filed under "Got ready",
+// which folds once preparation ends — so prod conv 1630 showed nothing between "Got ready" and "Verifying
+// results…" for a minute of failing fetches, and read as stuck.
+const WORK = '__work__'
 const activityByStep = computed(() => {
   const list = chat.messages || []
   const liveMsg = list.find((m) => m.role === 'assistant' && m.status === 'streaming')
@@ -172,6 +176,7 @@ const activityByStep = computed(() => {
     bucket.push({
       key: a.stepId || `${owner}-${bucket.length}`,
       label: a.phase === 'reasoning' ? 'Thinking' : (a.label || 'Working'),
+      isPhase: !!a.isPhase,
       reasoning: String(a.reasoningText || '').trim(),
       status: a.status || '',
       durationMs: a.durationMs || null,
@@ -189,6 +194,9 @@ const activityByStep = computed(() => {
     let cur = owner === null ? PREP : (firstStamped || owner)
     for (const a of rows) {
       if (a.planStepId) cur = a.planStepId
+      // Preparation ends where real work begins: the first call to a tool (a row with a call id; a status
+      // row upgraded into a tool step is marked `isPhase: false`).
+      else if (cur === PREP && (a.toolCallId || a.isPhase === false)) cur = WORK
       put(cur, a)
     }
     owner = cur
@@ -218,6 +226,16 @@ const prep = computed(() => {
   const live = rows.some((r) => r.status === 'running') && !steps.value.length
   const ms = rows.reduce((t, r) => t + (Number(r.durationMs) || 0), 0)
   return { rows, state: live ? 'active' : 'done', duration_ms: ms || null }
+})
+
+// The unplanned work node: live while anything in it runs or the run is still working with no plan steps.
+const work = computed(() => {
+  const rows = activitiesFor(WORK)
+  if (!rows.length || steps.value.length) return null
+  const live = rows.some((r) => r.status === 'running') || (running.value && !terminal.value)
+  const failed = rows.filter((r) => r.status === 'failed').length
+  const ms = rows.reduce((t, r) => t + (Number(r.durationMs) || 0), 0)
+  return { rows, state: live ? 'active' : 'done', failed, duration_ms: ms || null }
 })
 
 // A step is open while it is the one running -- that is where the live activity and reasoning are --
@@ -504,12 +522,52 @@ function fmt(ms) {
         </div>
         <div class="body"><div class="inner">
           <div class="stack">
-            <div v-for="a in prep.rows" :key="a.key" class="act"
-                 :data-s="a.status === 'failed' ? 'fail' : a.status === 'running' ? 'run' : 'done'">
-              <span class="ic" aria-hidden="true">{{ a.status === 'failed' ? '✕' : a.status === 'running' ? '◌' : '✓' }}</span>
-              <span class="al">{{ a.label }}</span>
-              <span v-if="a.durationMs" class="ad">{{ fmt(a.durationMs) }}</span>
-            </div>
+            <template v-for="a in prep.rows" :key="a.key">
+              <div class="act" :data-s="a.status === 'failed' ? 'fail' : a.status === 'running' ? 'run' : 'done'">
+                <span class="ic" aria-hidden="true">{{ a.status === 'failed' ? '✕' : a.status === 'running' ? '◌' : '✓' }}</span>
+                <span class="al">{{ a.label }}</span>
+                <span v-if="a.durationMs" class="ad">{{ fmt(a.durationMs) }}</span>
+              </div>
+              <div v-if="a.status === 'failed' && a.reason" class="act-note fail-note">{{ a.reason }}</div>
+            </template>
+          </div>
+        </div></div>
+      </div>
+
+      <!-- The work of a run with no plan steps, shown as it happens (conv 1630). -->
+      <div v-if="work" class="node collapsible" :data-state="work.state"
+           :data-open="stepOpen({ node_id: WORK, state: work.state }) ? 'true' : 'false'" data-test="rt-work">
+        <span class="mkr" aria-hidden="true" />
+        <div class="head" @click="toggleStep({ node_id: WORK, state: work.state })">
+          <span class="lb">{{ work.state === 'active' ? 'Working' : 'Worked' }}</span>
+          <span v-if="work.failed" class="attempt-badge" data-test="rt-work-failed">{{ work.failed }} failed</span>
+          <span v-if="work.duration_ms" class="dur">{{ fmt(work.duration_ms) }}</span>
+          <button class="caret" data-test="rt-toggle-work"
+                  :aria-expanded="stepOpen({ node_id: WORK, state: work.state }) ? 'true' : 'false'"
+                  @click.stop="toggleStep({ node_id: WORK, state: work.state })">▾</button>
+        </div>
+        <div class="body"><div class="inner">
+          <div class="stack">
+            <template v-for="a in work.rows" :key="a.key">
+              <div v-if="a.reasoning" class="think" :data-live="a.status === 'running' ? 'true' : 'false'">
+                <button type="button" class="think-head" @click="toggle(a.key)">
+                  <span class="think-dot" aria-hidden="true" />
+                  {{ a.status === 'running' ? 'Thinking…' : 'Thought' }}
+                  <span class="think-caret" aria-hidden="true">{{ a.status === 'running' || isOpen(a.key) ? '▾' : '▸' }}</span>
+                </button>
+                <p v-if="a.status === 'running' || isOpen(a.key)" class="think-text">
+                  {{ a.status === 'running' ? reasoningTail(a.reasoning) : a.reasoning }}
+                </p>
+              </div>
+              <template v-else>
+                <div class="act" :data-s="a.status === 'failed' ? 'fail' : a.status === 'running' ? 'run' : 'done'">
+                  <span class="ic" aria-hidden="true">{{ a.status === 'failed' ? '✕' : a.status === 'running' ? '◌' : '✓' }}</span>
+                  <span class="al">{{ a.label }}</span>
+                  <span v-if="a.durationMs" class="ad">{{ fmt(a.durationMs) }}</span>
+                </div>
+                <div v-if="a.status === 'failed' && a.reason" class="act-note fail-note">{{ a.reason }}</div>
+              </template>
+            </template>
           </div>
         </div></div>
       </div>
@@ -557,6 +615,7 @@ function fmt(ms) {
                 <span class="al">{{ a.label }}</span>
                 <span v-if="a.durationMs" class="ad">{{ fmt(a.durationMs) }}</span>
               </div>
+              <div v-if="a.status === 'failed' && a.reason" class="act-note fail-note">{{ a.reason }}</div>
               <!-- What this call produced, right under it. -->
               <div v-if="a.media.length" class="act-media" :data-test="`rt-media-${a.key}`">
                 <img v-for="(x, i) in a.media" :key="i" :src="x.url" alt="" loading="lazy" class="act-thumb" />
