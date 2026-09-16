@@ -193,7 +193,12 @@
 
 /* message */
 .rt .msg{padding:4px 0 14px; font-size:14px; line-height:1.62}
-.rt .msg .mt{white-space:pre-wrap}
+/* `pre-wrap` keeps the answer's own line breaks but on its own cannot break a long UNBROKEN token — a
+   coordinate array, a render URL, a hash. A work answer is full of them, so the text ran ~380px past a
+   760px node and the whole message list grew a horizontal scrollbar (production conv 1561). `anywhere`
+   rather than `break-word` because it also lowers the min-content width, so the flex/grid parents above
+   are not pushed wide before wrapping gets a chance to happen. */
+.rt .msg .mt{white-space:pre-wrap; overflow-wrap:anywhere; min-width:0}
 .rt .msgfoot{padding-top:5px; font-family:var(--mono); font-size:11px; color:var(--ink-3); font-variant-numeric:tabular-nums}
 .rt .disclose{border:0; background:transparent; padding:0; cursor:pointer; font:inherit; color:var(--ink-3); text-align:left}
 .rt .jsonbox{margin:6px 0 0; padding:8px 10px; border-radius:7px; overflow:auto; max-height:340px;
