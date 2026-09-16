@@ -316,3 +316,7 @@
 .rt .verdict-lead{margin:0 0 4px; font-size:12.5px; color:var(--ink-2); display:-webkit-box; -webkit-line-clamp:2;
   -webkit-box-orient:vertical; overflow:hidden}
 .rt .verdict ul{margin-top:8px}
+/* the goal's controls, on the request line */
+.rt .req-row{display:flex; align-items:flex-start; gap:8px}
+.rt .req-row .qt{flex:1 1 auto; min-width:0}
+.rt .req-acts{padding:0; flex:none; margin-top:-4px}

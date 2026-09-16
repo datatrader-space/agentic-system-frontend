@@ -183,3 +183,21 @@ describe('The rail is re-read at every segment boundary', () => {
     expect(conv).toHaveBeenCalledWith('1608')
   })
 })
+
+describe('A run is anchored once', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  it('prod conv 1627: a later attempt’s plan (new plan id, same run) does not anchor a second rail', () => {
+    const s = useChatStore()
+    s.conversationId = '1627'
+    const plan = usePlanStore()
+    plan.applyPlanEvent = () => {}
+    s._beginAssistant()
+    s._onEvent({ type: 'plan_event', conversation_id: '1627', run_id: 'r1', plan_id: 'r1', event_id: 'e1' })
+    s._onEvent({ type: 'assistant_message_complete', full_message: 'one' })
+    s._onEvent({ type: 'work_segment', segment: 2, max: 3 })
+    s._onEvent({ type: 'plan_event', conversation_id: '1627', run_id: 'r1', plan_id: 'plan-real', event_id: 'e2' })
+    const anchors = s.messages.flatMap((m) => m.planArtifacts || [])
+    expect(anchors).toEqual([{ plan_id: 'r1', run_id: 'r1', ordinal: 0 }])
+  })
+})

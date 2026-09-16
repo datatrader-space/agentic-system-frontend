@@ -179,8 +179,11 @@ export function eventsFromSnapshot(plan) {
   // A RETRY IS THE SAME STEP. The attempt badge patches the step that already exists; the plan never
   // grows. Four steps stay four steps however many times the loop turns.
   const goal = plan.work_goal || null
-  const attempts = (goal && goal.attempts) || []
-  const attemptNo = attempts.length
+  // AN ATTEMPT IS A TRY AT THE GOAL — one segment, one goal check. `goal.attempts` are the runtime's inner
+  // repair-loop rows, several per segment and from more than one loop, so counting them told prod conv 1626
+  // "attempt 4" for a run that made three tries (3 segments, 4 loop rows).
+  const attemptNo = Number(goal && goal.segments_used) || ((goal && goal.verdicts) || []).length
+    || ((goal && goal.attempts) || []).length
   if (attemptNo > 1 && steps.length) {
     for (const s of steps) {
       const id = s.node_id || s.step_id || s.step_uid || s.id

@@ -1708,8 +1708,13 @@ export const useChatStore = defineStore('chat', {
               // asked, which is what leaked Work-mode suppression into ordinary chat turns.
               cur.runId = rid
               if (!Array.isArray(cur.planArtifacts)) cur.planArtifacts = []
+              // ...AND ONE RUN, ONE ANCHOR. A run's plan id can change under it: a Work run whose first
+              // attempt had no plan is anchored under the run's placeholder id, and the plan created by a
+              // later attempt arrives with a new one — which anchored a second rail for the same run at the
+              // new message (prod conv 1627: two, then three identical timelines after a failed check).
               const anchoredAlready = this.messages.some(
-                (m) => Array.isArray(m.planArtifacts) && m.planArtifacts.some((a) => a.plan_id === pid))
+                (m) => Array.isArray(m.planArtifacts)
+                  && m.planArtifacts.some((a) => a.plan_id === pid || (rid && String(a.run_id) === String(rid))))
               if (!anchoredAlready) {
                 cur.planArtifacts.push({ plan_id: pid, run_id: rid, ordinal: cur.planArtifacts.length })
               }

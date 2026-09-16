@@ -190,3 +190,19 @@ describe('eventsFromSnapshot — the P0 bridge', () => {
     expect(store.nodesFor(RUN).filter((n) => n.type === 'step')).toHaveLength(0)
   })
 })
+
+describe('attempts are tries at the goal, not inner loop rows (prod conv 1626)', () => {
+  it('three segments with four repair-loop rows is attempt 3, 2 retried', async () => {
+    const { eventsFromSnapshot } = await import('./useRunTimeline')
+    const events = eventsFromSnapshot({
+      run_status: 'completed',
+      steps: [{ step_id: 'op_1', title: 'Find Redis', status: 'completed' }],
+      work_goal: { state: 'ACHIEVED', segments_used: 3,
+        attempts: [{ n: 1 }, { n: 2 }, { n: 1 }, { n: 2 }],
+        verdicts: [{ segment: 1 }, { segment: 2 }, { segment: 3 }] },
+    })
+    const retry = events.find((e) => e.type === 'step.retry')
+    expect(retry.payload.attempt).toBe(3)
+    expect(events.find((e) => e.type === 'run.completed').payload.retried).toBe(2)
+  })
+})

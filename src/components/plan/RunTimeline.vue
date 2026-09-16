@@ -459,20 +459,33 @@ function fmt(ms) {
         {{ unidentified === 1 ? 'it' : 'them' }} without an identity. Reload to try again.
       </p>
 
-      <div v-if="goal && (goal.available_actions || []).length" class="acts" data-test="rt-head">
+
+      <!-- No request to sit on (an older thread): the controls still show. -->
+          <div v-if="!request && goal && (goal.available_actions || []).length" class="acts" data-test="rt-head">
         <button v-for="a in (goal.available_actions || [])" :key="a" class="icon-btn" type="button"
                 :class="{ danger: a === 'clear' }" :data-test="`rt-action-${a}`"
                 :title="ACTION_LABEL[a] || a" :aria-label="ACTION_LABEL[a] || a"
                 :disabled="busy" @click="emit('action', a)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="ACTION_ICON[a] || 'M12 5v14M5 12h14'" /></svg>
         </button>
-      </div>
+          </div>
 
       <!-- What was asked. The run opens on the thing the steps are serving. -->
       <div v-if="request" class="node" data-state="you" data-test="rt-request">
         <span class="mkr" aria-hidden="true" />
         <div class="req">
-          <p class="qt" :class="{ clamped: requestLong && !requestOpen }">{{ request }}</p>
+          <div class="req-row">
+            <p class="qt" :class="{ clamped: requestLong && !requestOpen }">{{ request }}</p>
+            <!-- The goal's controls sit on the request they act on, not floating above the rail. -->
+          <div v-if="goal && (goal.available_actions || []).length" class="acts req-acts" data-test="rt-head">
+        <button v-for="a in (goal.available_actions || [])" :key="a" class="icon-btn" type="button"
+                :class="{ danger: a === 'clear' }" :data-test="`rt-action-${a}`"
+                :title="ACTION_LABEL[a] || a" :aria-label="ACTION_LABEL[a] || a"
+                :disabled="busy" @click="emit('action', a)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="ACTION_ICON[a] || 'M12 5v14M5 12h14'" /></svg>
+        </button>
+          </div>
+          </div>
           <button v-if="requestLong" type="button" class="more" data-test="rt-request-more"
                   @click="requestOpen = !requestOpen">{{ requestOpen ? 'Show less' : 'Show more' }}</button>
         </div>

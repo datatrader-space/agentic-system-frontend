@@ -41,7 +41,7 @@
              same steps, updating together. Deciding it here means neither source can produce it. -->
         <template v-if="m.planArtifacts && m.planArtifacts.length">
           <div v-for="a in m.planArtifacts" :key="a.plan_id" class="msg-plan">
-            <InlinePlanArtifact v-if="isFirstAnchor(m.id, a.plan_id)"
+            <InlinePlanArtifact v-if="isFirstAnchor(m.id, a.plan_id, a.run_id)"
                                 :run-id="a.run_id" :plan-id="a.plan_id" />
           </div>
         </template>
@@ -93,13 +93,17 @@ const hasWorkRail = computed(() => _plan.hasWorkRail(chat.conversationId))
 // on every row written before the marker existed, so both read as the user's own — which is correct.
 const isRunScaffolding = (m) => m.role === 'user' && m.authoredBy === 'system'
 
-// plan_id -> the id of the FIRST message anchoring it. Recomputed with the thread, so a late anchor
+// The FIRST anchor of each RUN (message id + plan id). Keyed by run, not plan: the card renders the run
+// (`InlinePlanArtifact` reads `planFor(runId)`), and a run's plan id can change — a Work run whose plan was
+// created by its second attempt carried two anchors with different plan ids and drew the same rail twice
+// (prod conv 1627), three times after a further attempt. Recomputed with the thread, so a late anchor
 // landing on an earlier message still wins and the card does not jump.
-const firstAnchorByPlan = computed(() => {
+const firstAnchorByRun = computed(() => {
   const out = {}
   for (const m of (chat.messages || [])) {
     for (const a of (m.planArtifacts || [])) {
-      if (a && a.plan_id && out[a.plan_id] === undefined) out[a.plan_id] = m.id
+      const key = a && (a.run_id || a.plan_id)
+      if (key && out[key] === undefined) out[key] = `${m.id}|${a.plan_id}`
     }
   }
   return out
@@ -122,8 +126,8 @@ const unanchoredRailAt = computed(() => {
   return out
 })
 
-function isFirstAnchor(messageId, planId) {
-  return firstAnchorByPlan.value[planId] === messageId
+function isFirstAnchor(messageId, planId, runId) {
+  return firstAnchorByRun.value[runId || planId] === `${messageId}|${planId}`
 }
 const scrollEl = ref(null)
 const innerEl = ref(null)

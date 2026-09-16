@@ -95,3 +95,26 @@ describe('ChatMessageList — a Work run with no plan anchor still gets its rail
     expect(rails.map((r) => r.attributes('data-run'))).toEqual(['r2'])
   })
 })
+
+describe('ChatMessageList — one rail per run, even when its plan id changes', () => {
+  it('prod conv 1627: two anchors of one run (placeholder plan id, then the real one) draw ONE rail', async () => {
+    const { setActivePinia, createPinia } = await import('pinia')
+    const { mount } = await import('@vue/test-utils')
+    const { useChatStore } = await import('../../stores/useChatStore')
+    const ChatMessageList = (await import('./ChatMessageList.vue')).default
+    setActivePinia(createPinia())
+    const chat = useChatStore()
+    chat.messages = [
+      { id: 'u1', role: 'user', content: 'go' },
+      { id: 'a1', role: 'assistant', content: 'one', runId: 'r1', status: 'done',
+        planArtifacts: [{ run_id: 'r1', plan_id: 'r1' }] },
+      { id: 'a2', role: 'assistant', content: 'two', runId: 'r1', status: 'done',
+        planArtifacts: [{ run_id: 'r1', plan_id: 'plan-real' }] },
+      { id: 'a3', role: 'assistant', content: 'other run', runId: 'r2', status: 'done',
+        planArtifacts: [{ run_id: 'r2', plan_id: 'p2' }] },
+    ]
+    const w = mount(ChatMessageList, { global: { stubs: { ChatMessage: true, WorkIterationBar: true,
+      InlinePlanArtifact: { props: ['runId'], template: '<div class="stub-rail" :data-run="runId" />' } } } })
+    expect(w.findAll('.stub-rail').map((r) => r.attributes('data-run'))).toEqual(['r1', 'r2'])
+  })
+})
