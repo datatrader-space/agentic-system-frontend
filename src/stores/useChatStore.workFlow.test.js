@@ -157,3 +157,29 @@ describe('Parallel calls in the store', () => {
     expect(s.messages.at(-1).content).toContain('https://x/media/a.png')
   })
 })
+
+describe('The rail is re-read at every segment boundary', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  it('prod conv 1608: a segment starting and the goal closing each fetch the run snapshot', () => {
+    const s = useChatStore()
+    s.conversationId = '1608'
+    const plan = usePlanStore()
+    plan._applySnapshot({ run_id: 'r1', conversation_id: '1608', run_status: 'executing', work_goal: { state: 'ACTIVE' } })
+    const hydrate = vi.spyOn(plan, 'hydrateRun').mockResolvedValue(null)
+    s._beginAssistant()
+    s._onEvent({ type: 'work_segment', segment: 2, max: 3 })
+    s._onEvent({ type: 'work_goal', state: 'ACHIEVED', segments: 3, max: 3 })
+    expect(hydrate.mock.calls.map((c) => c[0])).toEqual(['r1', 'r1'])
+  })
+
+  it('before any snapshot is known it reads the conversation', () => {
+    const s = useChatStore()
+    s.conversationId = '1608'
+    const plan = usePlanStore()
+    const conv = vi.spyOn(plan, 'hydrateConversation').mockResolvedValue([])
+    s._beginAssistant()
+    s._onEvent({ type: 'work_segment', segment: 1, max: 3 })
+    expect(conv).toHaveBeenCalledWith('1608')
+  })
+})

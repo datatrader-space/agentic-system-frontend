@@ -1496,6 +1496,23 @@ export const useChatStore = defineStore('chat', {
     // Only from a run still in flight. A new run's first activity arrives before its own plan exists,
     // and the conversation's latest snapshot is then the PREVIOUS run, whose `current_step_id` would
     // file this run's preparation under a step of a run that already finished.
+    // RE-READ THE RUN AT EVERY SEGMENT BOUNDARY. The rail is drawn from pushed plan snapshots, and a push
+    // that never arrives leaves it frozen: prod conv 1608 showed "1 goal check, still running" (event 12)
+    // for a run the server had finished — ACHIEVED after three attempts (event 21). A segment starting and
+    // the goal closing are the two moments the rail must be current, so they fetch the truth instead of
+    // trusting that every push landed. Best-effort; the store applies a snapshot only if it is newer.
+    _refreshWorkRun() {
+      try {
+        const cid = this.conversationId
+        if (cid == null) return
+        const plan = usePlanStore()
+        const runs = plan.runsForConversation(cid) || []
+        const latest = runs[runs.length - 1]
+        if (latest && latest.run_id) plan.hydrateRun(latest.run_id)
+        else plan.hydrateConversation(cid)
+      } catch { /* a refresh must never break the stream */ }
+    },
+
     _stampPlanStep(msg) {
       // The server names the step when it knows it (each call of a parallel round is attributed to its
       // own step); the snapshot's single `current_step_id` is only the fallback for frames that do not.
@@ -2004,6 +2021,7 @@ export const useChatStore = defineStore('chat', {
         // where an iteration boundary is, because the backend does not know whether work continues
         // until AFTER the finalize node has already spoken.
         case 'work_segment': {
+          this._refreshWorkRun()
           this._workRunActive = true
           this.workGoal = null
           this.workIteration = { segment: Number(msg.segment) || 1, max: Number(msg.max) || 0 }
@@ -2036,6 +2054,7 @@ export const useChatStore = defineStore('chat', {
           // THE CLOSING HALF, AND IT IS NOT OPTIONAL: the composer stays busy from work_segment until
           // this arrives, so a run that never sends it would lock the composer. The backend emits it on
           // every ending — achieved, exhausted, unverifiable and the error paths.
+          this._refreshWorkRun()
           this._workRunActive = false
           this.workIteration = null
           this.workGoal = {
