@@ -1370,13 +1370,16 @@ export const useChatStore = defineStore('chat', {
           toolCalls: [],
           isLongResponse: !!(m.model_info && m.model_info.is_long_response),
           longAnswerRef: (m.model_info && m.model_info.long_answer_ref) || '',
-          usage: (m.model_info && m.model_info.usage) || null,
+          usage: (m.model_info && m.model_info.usage) || (_prev && _prev.usage) || null,
           stopReason: (m.model_info && m.model_info.stop_reason) || '',
           confidence: (m.model_info && m.model_info.confidence) || '',
           trace: (m.model_info && m.model_info.trace) || [],
           // Timeline replay: restore the pinned activity-timeline snapshot (steps + reasoning) so the
           // "Done · N steps" accordion and reasoning survive a reconnect/refresh (same as the main loader).
-          timeline: (m.model_info && m.model_info.timeline) || null,
+          // The pinned live timeline until the server copy lands: it is saved AFTER the answer, so a
+          // refresh in between dropped a finished iteration's activity off the rail (prod conv 1586,
+          // "Got ready" vanished for 14s between segments).
+          timeline: (m.model_info && m.model_info.timeline) || (_prev && _prev.timeline) || null,
           // Same durable run link as the main loader — a reconnect must not lose it, or a reconnected
           // thread would start drawing Work answers twice.
           runId: (m.model_info && m.model_info.run_id) || (_prev && _prev.runId) || '',

@@ -54,7 +54,8 @@ describe('Work run flow', () => {
       { id: 'm1', role: 'user', content: 'do it' },
       { id: 'm2', role: 'assistant', content: 'attempt one', runId: 'run_x',
         planArtifacts: [{ plan_id: 'p', run_id: 'run_x' }], workIteration: { segment: 1, max: 3 } },
-      { id: 'm3', role: 'assistant', content: 'attempt two', runId: 'run_x', workIteration: { segment: 2, max: 3 } },
+      { id: 'm3', role: 'assistant', content: 'attempt two', runId: 'run_x', workIteration: { segment: 2, max: 3 },
+        timeline: { steps: [{ stepId: 's', label: 'Reading a web page' }] } },
     ]
     api.getConversation.mockResolvedValue({ data: { messages: [
       { id: 11, role: 'user', content: 'do it' },
@@ -72,6 +73,7 @@ describe('Work run flow', () => {
     expect(s.messages[1].planArtifacts).toEqual([{ plan_id: 'p', run_id: 'run_x' }])
     expect(s.messages[3].runId).toBe('run_x')
     expect(s.messages[3].workIteration).toEqual({ segment: 2, max: 3 })
+    expect(s.messages[3].timeline.steps[0].label).toBe('Reading a web page')
   })
 
   it('a refresh never lends a message another one’s run when the two sides do not line up', async () => {

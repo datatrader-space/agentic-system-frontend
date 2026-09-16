@@ -331,8 +331,14 @@ const terminalTone = computed(() => {
   const rs = String((terminal.value && terminal.value.state) || '')
   return rs === 'completed' ? 'ok' : 'warn'
 })
-const terminalLabel = computed(() => (terminal.value && terminal.value.label)
-  || STATE_LABEL[g.value.state] || 'Done')
+// The goal's own outcome when it has one: "Completed" said the run stopped, not whether it got there.
+const terminalLabel = computed(() => (g.value.state && g.value.state !== 'ACTIVE' && STATE_LABEL[g.value.state])
+  || (terminal.value && terminal.value.label) || 'Done')
+function fmtCost(v) {
+  const n = Number(v)
+  if (!Number.isFinite(n) || n <= 0) return ''
+  return n < 0.01 ? `<$0.01` : `$${n.toFixed(2)}`
+}
 
 // What the answer bubble used to offer, at the END of the run where it belongs, acting on the run's
 // final answer.
@@ -516,7 +522,7 @@ function fmt(ms) {
               v-if="terminal.retried">, <b>{{ terminal.retried }} retried</b></template><template
               v-if="terminal.duration_ms"> · {{ fmt(terminal.duration_ms) }}</template><template
               v-if="terminal.total_tokens"> · {{ fmtTokens(terminal.total_tokens) }} tokens</template><template
-              v-if="terminal.cost_usd"> · ${{ terminal.cost_usd }}</template>
+              v-if="fmtCost(terminal.cost_usd)"> · {{ fmtCost(terminal.cost_usd) }}</template>
           </span>
           <span v-if="finalAnswer" class="end-acts" data-test="rt-end-actions">
             <button type="button" class="icon-btn" :class="{ on: finalAnswer.message.feedback === 'up' }"

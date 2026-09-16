@@ -18,7 +18,8 @@ const RUN = 'run_1578'
 const snapshot = (goal = {}, extra = {}) => ({
   run_id: RUN,
   run_status: 'completed',
-  plan_status_label: '',
+  // What prod sends: the run's word. The goal's outcome must win over it.
+  plan_status_label: 'Completed',
   steps: [{ step_id: 'op_1', title: 'Fetch the pages', status: 'completed', status_user: 'completed' }],
   work_goal: {
     state: 'ACHIEVED',
@@ -29,7 +30,7 @@ const snapshot = (goal = {}, extra = {}) => ({
         findings: [{ observation: 'Only 3 of 4 versions found', repair_instruction: 'Fetch page 4' }] },
       { segment: 2, verdict: 'met', findings: [] },
     ],
-    totals: { total_tokens: 71400, duration_ms: 31800 },
+    totals: { total_tokens: 71400, duration_ms: 31800, cost_usd: '0.26290746' },
     available_actions: ['resume', 'edit', 'clear'],
     ...goal,
   },
@@ -134,6 +135,8 @@ describe('RunTimeline — the run in order', () => {
     const w = rail()
     const end = w.find('[data-test="rt-terminal"]')
     expect(end.text()).toContain('71.4k tokens')
+    expect(end.text()).toContain('$0.26')
+    expect(end.text()).not.toContain('0.26290746')
     expect(end.find('[data-test="rt-end-actions"]').exists()).toBe(true)
     expect(end.find('[data-test="rt-copy"]').exists()).toBe(true)
     expect(end.find('[data-test="rt-share"]').exists()).toBe(true)
