@@ -1,7 +1,23 @@
 <template>
-  <div class="msg" :class="message.role">
+  <div class="msg" :class="[message.role, { 'on-rail': onWorkRail && message.role === 'assistant' }]"
+       :data-test="onWorkRail && message.role === 'assistant' ? 'msg-on-rail' : null">
+    <!-- A WORK RUN'S MESSAGE DRAWS NOTHING OF ITS OWN. The rail below it carries the answer, the
+         steps, the verdicts, the tokens and the actions, in the order they happened. Drawing the
+         avatar, a token line and copy/regenerate here put the END of the run ABOVE the run (prod conv
+         1578). What remains is what the rail cannot say: the moment before it exists, and an error. -->
+    <template v-if="message.role === 'assistant' && onWorkRail">
+      <div class="rail-slot">
+        <div v-if="isStreaming && !railShown" class="prep-status" data-test="rail-pending">
+          <span class="prep-spinner"></span>{{ (chat.liveStatus && chat.liveStatus.label) || 'Starting work…' }}
+        </div>
+        <div v-if="message.status === 'error'" class="error-row">
+          <span class="error-text">⚠ {{ message.error || 'Something went wrong.' }}</span>
+          <button v-if="message.retryable !== false" class="retry-btn" @click="$emit('retry')">Retry</button>
+        </div>
+      </div>
+    </template>
     <!-- Assistant -->
-    <template v-if="message.role === 'assistant'">
+    <template v-else-if="message.role === 'assistant'">
       <div class="avatar assistant-avatar">
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
       </div>
@@ -15,8 +31,16 @@
              indication of which step any row belongs to. Two tellings of one run is what made the
              transcript unreadable. Ordinary chat is unchanged: there is no rail there, and this is
              still the sole activity renderer. -->
+        <!-- WHILE A TURN IS ONLY PREPARING, ONE LINE. "Analyzing your request / Loading tools / Finding
+             the right tools / Gathering context…" arrive before anything is decided -- including whether
+             the turn is Work. Growing them into a card meant a Work run drew that card and then swapped
+             it for the rail (conv 1578). The line becomes the card the moment real work or reasoning
+             starts, with every row intact; on a Work run the rail takes those rows as its first step. -->
+        <div v-if="preparingOnly" class="prep-status" data-test="preparing-line">
+          <span class="prep-spinner"></span>{{ preparingLabel }}
+        </div>
         <AgentActivityTimeline
-          v-if="!onWorkRail && (isStreaming ? chat.richActive : !!message.timeline)"
+          v-if="!preparingOnly && !onWorkRail && (isStreaming ? chat.richActive : !!message.timeline)"
           :debug="false"
           :status-label="isStreaming && chat.liveStatus ? chat.liveStatus.label : ''"
           :steps="isStreaming ? chat.liveSteps : message.timeline.steps"
@@ -236,6 +260,10 @@ const props = defineProps({
 const onWorkRail = computed(() => {
   const m = props.message
   if (m.turnModeResolved) return m.turnModeResolved === 'work'
+  // The user PINNED Work for this turn: known before the server says a word, so the turn opens as a
+  // Work turn instead of drawing an ordinary chat timeline first and then swapping it out. Only while
+  // streaming — once the turn ends the server's own stamp decides.
+  if (m.status === 'streaming' && chat.turnMode === 'work') return true
   if (_plan.isWorkRun(m.runId)) return true
   for (const a of (m.planArtifacts || [])) if (_plan.isWorkRun(a && a.run_id)) return true
   return !!m.workIteration
@@ -247,8 +275,15 @@ const onWorkRail = computed(() => {
 // on screen. STREAMING IS EXEMPT: the rail is built from a committed snapshot, so while tokens are
 // still arriving the bubble is the only thing that has them, and suppressing it would make a live
 // answer look like nothing is happening.
-const answerOnRail = computed(() =>
-  onWorkRail.value && props.message.role === 'assistant' && !isStreaming.value)
+const answerOnRail = computed(() => onWorkRail.value && props.message.role === 'assistant')
+
+// Is this message's rail on screen yet. Until the run's first plan snapshot lands there is nothing to
+// defer to, so the message shows one live status line rather than an empty gap.
+const railShown = computed(() => {
+  const m = props.message
+  if (_plan.isWorkRun(m.runId)) return true
+  return (m.planArtifacts || []).some((a) => _plan.isWorkRun(a && a.run_id))
+})
 const emit = defineEmits(['retry', 'regenerate', 'edit', 'feedback'])
 
 // Open an attachment in a preview window (image → new tab shows it full-size; the file chip is a plain
@@ -389,6 +424,18 @@ const turnReallyFinished = computed(() => {
   if (chat.planRunning) return false
   const m = props.message
   return !!((m.content || '').trim() || m.error)
+})
+// Only preparation so far: nothing but status rows, no tool running, no reasoning, no text.
+const preparingOnly = computed(() => {
+  if (!isStreaming.value || String(props.message.content || '').trim()) return false
+  const rows = chat.liveSteps || []
+  if (!rows.length) return false
+  return rows.every((r) => r && r.isPhase && r.phase !== 'reasoning' && !r.reasoningText)
+})
+const preparingLabel = computed(() => {
+  const rows = chat.liveSteps || []
+  const last = rows[rows.length - 1]
+  return (chat.liveStatus && chat.liveStatus.label) || (last && last.label) || 'Working…'
 })
 const stopBadge = computed(() => stopReasonBadge(props.message.stopReason, props.message.confidence))
 
@@ -559,6 +606,10 @@ const copy = async () => {
   padding: 0 8px;
 }
 .msg.user { justify-content: flex-end; }
+/* A Work run's message: the rail right after it owns the space. */
+.msg.on-rail { margin-bottom: 0; }
+.msg.on-rail .rail-slot { flex: 1; min-width: 0; padding-left: 44px; }
+.msg.on-rail .rail-slot:empty { display: none; }
 
 .avatar {
   width: 32px;

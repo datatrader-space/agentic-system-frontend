@@ -108,8 +108,10 @@ describe('InlinePlanArtifact — a Work run has exactly one surface', () => {
       ...PLAN, work_goal: { ...PLAN.work_goal, available_actions: ['pause'] },
     }
     const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
-    const btn = w.findAll('button').find((b) => b.text() === 'Pause')
-    expect(btn).toBeTruthy()
+    // An icon button now, named by its tooltip and aria-label rather than by visible text.
+    const btn = w.find('[data-test="rt-action-pause"]')
+    expect(btn.exists()).toBe(true)
+    expect(btn.attributes('aria-label')).toBe('Pause work')
   })
 
   it('an ORDINARY run keeps the old card AND its goal row untouched', () => {

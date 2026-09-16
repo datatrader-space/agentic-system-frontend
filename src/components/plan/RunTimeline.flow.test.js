@@ -1,0 +1,215 @@
+// @vitest-environment jsdom
+//
+// A WORK RUN READS START TO END, IN THE ORDER IT HAPPENED.
+//
+// Production conv 1578, recorded live: the rail drew every answer, then every verdict, so a run judged
+// `not_met` and then `met` showed the yellow check for a moment and then erased it — the snapshot kept
+// only the LATEST verdict — while attempt 2's answer replaced attempt 1's. The goal actions were a row
+// of text buttons, and the token line and copy/feedback sat ABOVE the rail instead of at its end.
+import { describe, it, expect, beforeEach } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { setActivePinia, createPinia } from 'pinia'
+import RunTimeline from './RunTimeline.vue'
+import { useRunTimeline } from '../../stores/useRunTimeline'
+import { useChatStore } from '../../stores/useChatStore'
+
+const RUN = 'run_1578'
+
+const snapshot = (goal = {}, extra = {}) => ({
+  run_id: RUN,
+  run_status: 'completed',
+  plan_status_label: '',
+  steps: [{ step_id: 'op_1', title: 'Fetch the pages', status: 'completed', status_user: 'completed' }],
+  work_goal: {
+    state: 'ACHIEVED',
+    last_verdict: 'met',
+    last_findings: [],
+    verdicts: [
+      { segment: 1, verdict: 'not_met',
+        findings: [{ observation: 'Only 3 of 4 versions found', repair_instruction: 'Fetch page 4' }] },
+      { segment: 2, verdict: 'met', findings: [] },
+    ],
+    totals: { total_tokens: 71400, duration_ms: 31800 },
+    available_actions: ['resume', 'edit', 'clear'],
+    ...goal,
+  },
+  ...extra,
+})
+
+function thread(chat) {
+  chat.messages = [
+    { id: 'u0', role: 'user', content: 'an older, unrelated question' },
+    { id: 'a0', role: 'assistant', content: 'older answer', turnModeResolved: 'chat', runId: 'other' },
+    { id: 'u1', role: 'user', content: 'Find the versions on these four pages' },
+    { id: 'a1', role: 'assistant', content: 'Attempt one answer', runId: RUN, status: 'done',
+      workIteration: { segment: 1, max: 3 } },
+    { id: 's1', role: 'user', authoredBy: 'system', content: 'DO THE NEXT PIECE OF WORK' },
+    { id: 'a2', role: 'assistant', content: 'Attempt two answer', runId: RUN, status: 'done',
+      workIteration: { segment: 2, max: 3 } },
+  ]
+}
+
+describe('RunTimeline — the run in order', () => {
+  let store, chat
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    store = useRunTimeline()
+    chat = useChatStore()
+    thread(chat)
+  })
+
+  const rail = (snap = snapshot()) => {
+    store.ingestSnapshot(RUN, snap)
+    return mount(RunTimeline, { props: { runId: RUN, goal: snap.work_goal },
+                                global: { stubs: { SourcesList: true } } })
+  }
+  const order = (w) => w.findAll('[data-test^="rt-answer-a"], [data-test^="rt-verdict-"], [data-test="rt-terminal"]')
+    .map((n) => n.attributes('data-test'))
+
+  it('answer 1 → the check that rejected it → answer 2 → the end', () => {
+    expect(order(rail())).toEqual(['rt-answer-a1', 'rt-verdict-verdict_s1', 'rt-answer-a2', 'rt-terminal'])
+  })
+
+  it('a met goal does not erase the rejection before it', () => {
+    const v = rail().find('[data-test="rt-verdict-verdict_s1"]')
+    expect(v.exists()).toBe(true)
+    expect(v.text()).toContain('Only 3 of 4 versions found')
+    expect(v.text()).toContain('Fetch page 4')
+  })
+
+  it('both attempts keep their own answer', () => {
+    const w = rail()
+    expect(w.find('[data-test="rt-answer-a1"]').text()).toContain('Attempt one answer')
+    expect(w.find('[data-test="rt-answer-a2"]').text()).toContain('Attempt two answer')
+  })
+
+  it('draws no node for the `met` judgement — the end row says it, in a success tone', () => {
+    const w = rail()
+    expect(w.findAll('[data-test^="rt-verdict-"]')).toHaveLength(1)
+    const pill = w.find('[data-test="rt-terminal-state"]')
+    expect(pill.text()).toBe('Goal met')
+    expect(pill.classes()).toContain('ok')
+  })
+
+  it('a run still going says the latest rejection is being retried', () => {
+    const snap = snapshot({ state: 'ACTIVE', verdicts: [{ segment: 1, verdict: 'not_met', findings: [] }] },
+                          { run_status: 'executing' })
+    chat.messages = chat.messages.slice(0, 4)
+    const w = rail(snap)
+    expect(w.find('[data-test="rt-verdict-verdict_s1"]').text()).toContain('trying again')
+    expect(w.find('[data-test="rt-terminal"]').exists()).toBe(false)
+  })
+
+  it('a goal that stopped unmet on a paused run still ends, in a warning tone', () => {
+    const snap = snapshot({ state: 'EXHAUSTED', verdicts: [
+      { segment: 1, verdict: 'not_met', findings: [] }, { segment: 2, verdict: 'not_met', findings: [] }] },
+    { run_status: 'paused' })
+    const w = rail(snap)
+    const pill = w.find('[data-test="rt-terminal-state"]')
+    expect(pill.exists()).toBe(true)
+    expect(pill.classes()).toContain('warn')
+    // The final rejection is not "trying again" — nothing is.
+    expect(w.findAll('[data-test^="rt-verdict-"]').at(-1).text()).not.toContain('trying again')
+  })
+
+  it('opens on THIS run’s request, not the first message of the thread', () => {
+    const req = rail().find('[data-test="rt-request"]')
+    expect(req.text()).toContain('Find the versions on these four pages')
+    expect(req.text()).not.toContain('older, unrelated')
+  })
+
+  it('goal actions are icon buttons with an accessible name, not text buttons', () => {
+    const w = rail()
+    for (const a of ['resume', 'edit', 'clear']) {
+      const b = w.find(`[data-test="rt-action-${a}"]`)
+      expect(b.exists()).toBe(true)
+      expect(b.find('svg').exists()).toBe(true)
+      expect(b.text()).toBe('')
+      expect(b.attributes('aria-label')).toBeTruthy()
+      expect(b.attributes('title')).toBe(b.attributes('aria-label'))
+    }
+  })
+
+  it('tokens, feedback and copy sit at the END of the run', () => {
+    const w = rail()
+    const end = w.find('[data-test="rt-terminal"]')
+    expect(end.text()).toContain('71.4k tokens')
+    expect(end.find('[data-test="rt-end-actions"]').exists()).toBe(true)
+    expect(end.find('[data-test="rt-copy"]').exists()).toBe(true)
+    expect(end.find('[data-test="rt-share"]').exists()).toBe(true)
+    expect(end.find('[data-test="rt-regenerate"]').exists()).toBe(true)
+  })
+
+  it('a streaming answer is on the rail as it arrives', () => {
+    chat.messages[5] = { ...chat.messages[5], status: 'streaming', content: 'Attempt two, half written' }
+    const w = rail(snapshot({ state: 'ACTIVE', verdicts: [{ segment: 1, verdict: 'not_met', findings: [] }] },
+                            { run_status: 'executing' }))
+    const a = w.find('[data-test="rt-answer-a2"]')
+    expect(a.text()).toContain('half written')
+    expect(a.attributes('data-state')).toBe('active')
+  })
+})
+
+describe('RunTimeline — preparation, reasoning and labels live inside the rail', () => {
+  let store, chat
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    store = useRunTimeline()
+    chat = useChatStore()
+  })
+
+  const snap = (steps) => ({
+    run_id: RUN, run_status: 'executing',
+    steps, work_goal: { state: 'ACTIVE', verdicts: [], available_actions: [] },
+  })
+  const mountRail = (s) => {
+    store.ingestSnapshot(RUN, s)
+    return mount(RunTimeline, { props: { runId: RUN, goal: s.work_goal }, global: { stubs: { SourcesList: true } } })
+  }
+
+  it('what happened before the plan existed opens the rail as its first step, not a separate card', () => {
+    chat.messages = [
+      { id: 'u1', role: 'user', content: 'go' },
+      { id: 'a1', role: 'assistant', content: 'done', runId: RUN, status: 'done', timeline: { steps: [
+        { stepId: 'p1', label: 'Analyzing your request', status: 'ok', durationMs: 29 },
+        { stepId: 'p2', label: 'Loading tools', status: 'ok', durationMs: 376 },
+        { stepId: 't1', label: 'Searching the web', status: 'ok', planStepId: 'op_1', tool: 'WEB_SEARCH' },
+      ] } },
+    ]
+    const w = mountRail(snap([{ step_id: 'op_1', title: 'Search Python release', status: 'completed', status_user: 'completed' }]))
+    const nodes = w.findAll('.node').map((n) => n.attributes('data-test'))
+    expect(nodes.indexOf('rt-prepare')).toBeLessThan(nodes.indexOf('rt-step-op_1'))
+    const prep = w.find('[data-test="rt-prepare"]')
+    expect(prep.text()).toContain('Analyzing your request')
+    expect(prep.text()).toContain('Loading tools')
+    expect(prep.text()).not.toContain('Searching the web')
+    expect(w.find('[data-test="rt-step-op_1"]').text()).toContain('Searching the web')
+    expect(w.text()).not.toContain('WEB_SEARCH')
+  })
+
+  it('the running step is open and streams the model’s reasoning inside it', () => {
+    chat.messages = [
+      { id: 'u1', role: 'user', content: 'go' },
+      { id: 'a1', role: 'assistant', content: '', runId: RUN, status: 'streaming' },
+    ]
+    chat.liveSteps.splice(0, chat.liveSteps.length,
+      { stepId: 'r1', phase: 'reasoning', label: 'Thinking', status: 'running', planStepId: 'op_1',
+        reasoningText: 'The LTS line is 22.x, so check the release page' })
+    const w = mountRail(snap([{ step_id: 'op_1', title: 'Search Node.js LTS', status: 'in_progress', status_user: 'in_progress' }]))
+    const step = w.find('[data-test="rt-step-op_1"]')
+    expect(step.attributes('data-open')).toBe('true')
+    const think = step.find('[data-test="rt-reasoning-r1"]')
+    expect(think.exists()).toBe(true)
+    expect(think.text()).toContain('The LTS line is 22.x')
+  })
+
+  it('a step with no recorded activity describes what it can use in words', () => {
+    chat.messages = []
+    const w = mountRail(snap([{ step_id: 'op_2', title: 'Search PostgreSQL', status: 'completed', status_user: 'completed',
+      tool_hints: ['CREATE_DOCUMENT', 'FETCH_PAGE', 'WEB_SEARCH'],
+      tool_labels: ['Writing a document', 'Reading a web page', 'Searching the web'] }]))
+    const uses = w.find('[data-test="rt-uses-op_2"]')
+    expect(uses.text()).toBe('Writing a document · Reading a web page · Searching the web')
+    expect(w.text()).not.toMatch(/CREATE_DOCUMENT|FETCH_PAGE|WEB_SEARCH/)
+  })
+})

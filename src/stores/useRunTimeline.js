@@ -169,7 +169,9 @@ export function eventsFromSnapshot(plan) {
       // What the step was allowed to reach for. The rail collapses this behind a chevron: a reader
       // scanning the run does not want it, and a reader asking "what did step 2 actually do?" has
       // nowhere else to look.
-      tools: (s.tool_hints || []).slice(0, 12),
+      // In WORDS (`tool_labels`, from the server's one label map). The raw `tool_hints` names are
+      // deliberately not carried: the rail drew them as `CREATE_DOCUMENT` `FETCH_PAGE` chips.
+      tool_labels: (s.tool_labels || []).slice(0, 6),
       details: s.details || '',
     })
   })
@@ -199,7 +201,10 @@ export function eventsFromSnapshot(plan) {
   }
 
   // One unambiguous end — and what the run cost, which is the question a reader actually has there.
-  const term = terminalOf(plan)
+  // A goal that closed on a run left PAUSED (goal not met, segments spent; a stop between segments) is
+  // over too. With no end row the rail simply stopped mid-story, which reads as still running.
+  const closedGoal = goal && ['ACHIEVED', 'EXHAUSTED', 'PAUSED', 'ABANDONED'].includes(String(goal.state || ''))
+  const term = terminalOf(plan) || (closedGoal ? { state: String(plan.run_status || ''), label: '' } : null)
   if (term) {
     const done = steps.filter((s) => ['completed', 'skipped'].includes(s.status)).length
     const t = (goal && goal.totals) || {}

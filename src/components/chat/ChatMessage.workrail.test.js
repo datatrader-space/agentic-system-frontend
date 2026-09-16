@@ -77,8 +77,72 @@ describe('ChatMessage — the rail claims its own run, and nothing else', () => 
     expect(w.find('.bubble.assistant').exists()).toBe(true)
   })
 
-  it('STREAMING keeps the bubble even on the rail — it is the only place the tokens are yet', () => {
+  it('STREAMING draws no bubble on the rail either — the rail streams the answer itself', () => {
+    // It used to keep the bubble while streaming, and the rail ALSO drew the same growing text, so a
+    // Work answer appeared twice on screen until it finished (prod conv 1578, 24.4s).
     const w = mountIt(answer({ status: 'streaming', runId: WORK_RUN }))
-    expect(w.find('.bubble.assistant').exists()).toBe(true)
+    expect(w.find('.bubble.assistant').exists()).toBe(false)
+  })
+})
+
+describe('ChatMessage — a Work message puts nothing above its rail', () => {
+  beforeEach(() => { setActivePinia(createPinia()); seedThread() })
+
+  it('no avatar, token line or actions — those belong at the end of the rail', () => {
+    const w = mountIt(answer({ runId: WORK_RUN, usage: { total_tokens: 71400 } }))
+    expect(w.find('[data-test="msg-on-rail"]').exists()).toBe(true)
+    expect(w.find('.avatar').exists()).toBe(false)
+    expect(w.find('.msg-actions').exists()).toBe(false)
+    expect(w.findComponent({ name: 'TokenUsage' }).exists()).toBe(false)
+  })
+
+  it('shows one live status line until the run’s rail exists', () => {
+    const w = mountIt(answer({ status: 'streaming', content: '', turnModeResolved: 'work' }))
+    expect(w.find('[data-test="rail-pending"]').exists()).toBe(true)
+    expect(w.findComponent(AgentActivityTimeline).exists()).toBe(false)
+  })
+
+  it('and nothing once the rail is there', () => {
+    const w = mountIt(answer({ status: 'streaming', content: '', runId: WORK_RUN }))
+    expect(w.find('[data-test="rail-pending"]').exists()).toBe(false)
+  })
+
+  it('a turn the user pinned to Work opens as Work, not as a chat timeline that is swapped out', () => {
+    useChatStore().turnMode = 'work'
+    const w = mountIt(answer({ status: 'streaming', content: '' }))
+    expect(w.findComponent(AgentActivityTimeline).exists()).toBe(false)
+  })
+
+  it('an error is still shown', () => {
+    const w = mountIt(answer({ runId: WORK_RUN, status: 'error', error: 'provider failed' }))
+    expect(w.text()).toContain('provider failed')
+  })
+})
+
+describe('ChatMessage — preparation is one line, not a card that gets swapped out', () => {
+  beforeEach(() => { setActivePinia(createPinia()); seedThread() })
+
+  const live = (rows) => { const c = useChatStore(); c.liveSteps.splice(0, c.liveSteps.length, ...rows) }
+  const phase = (label) => ({ stepId: label, isPhase: true, phase: 'reasoning_x', label, status: 'ok' })
+
+  it('while only status rows have arrived, the turn shows a single line', () => {
+    live([phase('Analyzing your request'), phase('Loading tools')])
+    const w = mountIt(answer({ status: 'streaming', content: '' }))
+    expect(w.find('[data-test="preparing-line"]').exists()).toBe(true)
+    expect(w.findComponent(AgentActivityTimeline).exists()).toBe(false)
+  })
+
+  it('a chat turn becomes the full card once real work starts', () => {
+    live([phase('Analyzing your request'),
+          { stepId: 't1', isPhase: false, phase: 'using_tools', label: 'Searching the web', status: 'running' }])
+    const w = mountIt(answer({ status: 'streaming', content: '' }))
+    expect(w.find('[data-test="preparing-line"]').exists()).toBe(false)
+    expect(w.findComponent(AgentActivityTimeline).exists()).toBe(true)
+  })
+
+  it('reasoning is never hidden behind the line', () => {
+    live([{ stepId: 'r', isPhase: true, phase: 'reasoning', label: 'Thinking', status: 'running', reasoningText: 'hmm' }])
+    const w = mountIt(answer({ status: 'streaming', content: '' }))
+    expect(w.find('[data-test="preparing-line"]').exists()).toBe(false)
   })
 })

@@ -1324,8 +1324,45 @@ export const useChatStore = defineStore('chat', {
         const last = rows[rows.length - 1]
         const landed = last && last.role === 'assistant' && (last.content || '').trim().length > 0
         if (!landed) return false
-        this.messages = rows.map((m) => ({
-          id: nid(),
+        // KEEP EACH MESSAGE'S IDENTITY ACROSS A REFRESH. Every row used to get a fresh id, so Vue
+        // unmounted and remounted the whole thread — the Work rail vanished and came back (prod conv
+        // 1578, 33.6s → 34.3s) and any open disclosure closed. The k-th assistant row is the k-th
+        // assistant message already on screen (and the same for what the user typed); machine-written
+        // continuation rows were never on screen, so they alone get new ids. What only the live
+        // stream knew (the run a message belongs to, its plan anchor) is kept when the server row
+        // does not carry it yet.
+        const _onScreen = { assistant: [], user: [] }
+        for (const x of this.messages) {
+          if (x.role === 'assistant') _onScreen.assistant.push(x)
+          else if (x.authoredBy !== 'system') _onScreen.user.push(x)
+        }
+        // Matched by server id, then by identical text, and by position only when both sides hold the
+        // same number of that role's messages — a thread showing only its latest page, or a bubble the
+        // server has not saved yet, must never inherit another message's run.
+        const _isScaffold = (m) => m.role !== 'assistant' && m.model_info && m.model_info.authored_by === 'system'
+        const _roleOf = (m) => (m.role === 'assistant' ? 'assistant' : 'user')
+        const _rowCount = { assistant: 0, user: 0 }
+        for (const r of rows) if (!_isScaffold(r)) _rowCount[_roleOf(r)]++
+        const _cursor = { assistant: 0, user: 0 }
+        const _used = new Set()
+        const _prevFor = (m) => {
+          if (_isScaffold(m)) return null
+          const role = _roleOf(m)
+          const pool = _onScreen[role]
+          const pos = _cursor[role]++
+          let hit = m.id != null
+            ? pool.find((x) => !_used.has(x) && x.serverId != null && String(x.serverId) === String(m.id)) : null
+          if (!hit && String(m.content || '').trim()) {
+            hit = pool.find((x) => !_used.has(x) && x.serverId == null && x.content === m.content)
+          }
+          if (!hit && _rowCount[role] === pool.length && pool[pos] && !_used.has(pool[pos])) hit = pool[pos]
+          if (hit) _used.add(hit)
+          return hit || null
+        }
+        this.messages = rows.map((m) => ({ _prev: _prevFor(m), m })).map(({ _prev, m }) => ({
+          id: _prev ? _prev.id : nid(),
+          serverId: m.id != null ? m.id : (_prev ? _prev.serverId : null),
+          feedback: _prev ? _prev.feedback : null,
           role: m.role === 'assistant' ? 'assistant' : 'user',
           content: m.content || '',
           status: 'done',
@@ -1342,13 +1379,17 @@ export const useChatStore = defineStore('chat', {
           timeline: (m.model_info && m.model_info.timeline) || null,
           // Same durable run link as the main loader — a reconnect must not lose it, or a reconnected
           // thread would start drawing Work answers twice.
-          runId: (m.model_info && m.model_info.run_id) || '',
-          turnModeResolved: (m.model_info && m.model_info.turn_mode_resolved) || '',
+          runId: (m.model_info && m.model_info.run_id) || (_prev && _prev.runId) || '',
+          turnModeResolved: (m.model_info && m.model_info.turn_mode_resolved)
+            || (_prev && _prev.turnModeResolved) || '',
           // Same continuation marker as the main loader — a reconnect must not resurrect the
           // machine-authored prompts as user bubbles.
           authoredBy: (m.model_info && m.model_info.authored_by) || 'user',
-          workIteration: (m.model_info && m.model_info.work_iteration) || null,
-          planArtifacts: pickArray(m.plan_artifacts),
+          workIteration: (m.model_info && m.model_info.work_iteration) || (_prev && _prev.workIteration) || null,
+          planArtifacts: pickArray(m.plan_artifacts).length ? pickArray(m.plan_artifacts)
+            : ((_prev && _prev.planArtifacts) || []),
+          citations: (m.model_info && m.model_info.answer_basis && m.model_info.answer_basis.citations)
+            || (_prev && _prev.citations) || [],
           // User-uploaded attachments bound to this message (served URLs; survive refresh).
           attachments: pickArray(m.attachments),
           conversationId: String(this.conversationId),
@@ -1440,6 +1481,26 @@ export const useChatStore = defineStore('chat', {
       this._startDeafWatchdog()
       _think.reset()
       _tl.reset()   // fresh live activity timeline for this turn
+    },
+
+    // STAMP THE PLAN STEP THAT OWNS A LIVE ACTIVITY, at the only moment it is knowable.
+    //
+    // An activity row ("Running a script", "Looking at the image") carries `step_id` =
+    // `step_<tool_call_id>` -- its OWN id, with no reference to the plan step it belongs to. The rail
+    // therefore had nowhere to nest it. The rows carry no timestamp, so bucketing them against the plan's
+    // step boundaries afterwards would be guesswork; live, the snapshot's `current_step_id` IS the answer.
+    //
+    // Only from a run still in flight. A new run's first activity arrives before its own plan exists,
+    // and the conversation's latest snapshot is then the PREVIOUS run, whose `current_step_id` would
+    // file this run's preparation under a step of a run that already finished.
+    _stampPlanStep(msg) {
+      try {
+        const _runs = usePlanStore().runsForConversation(this.conversationId) || []
+        const _live = _runs[_runs.length - 1]
+        const _over = ['completed', 'failed', 'cancelled', 'insufficient_evidence']
+          .includes(String((_live && _live.run_status) || ''))
+        if (_live && !_over && _live.current_step_id) msg.plan_step_id = _live.current_step_id
+      } catch { /* a nesting hint must never break the stream */ }
     },
 
     _cur() {
@@ -1575,6 +1636,23 @@ export const useChatStore = defineStore('chat', {
         if (pcid == null || this.conversationId == null || String(pcid) === String(this.conversationId)) {
           try {
             usePlanStore().applyPlanEvent(msg)
+            // A SECOND WITNESS THAT THE RUN IS OVER. The composer stays busy until `work_goal`, and a
+            // run that ended where nothing sent it left the Stop button up indefinitely (prod conv
+            // 1578). The plan snapshot carries the goal's persisted state, so a closed goal there
+            // releases the turn even if the closing frame never reached this tab.
+            if (this._workRunActive) {
+              const _rid = msg.run_id || (msg.plan_view && msg.plan_view.run_id)
+              const _runs = usePlanStore().runsForConversation(this.conversationId) || []
+              const _latest = _runs[_runs.length - 1]
+              // Only the conversation's LATEST run may release it: a late snapshot of an earlier,
+              // finished run must not end the one running now.
+              const _snap = _rid && _latest && String(_latest.run_id) === String(_rid) ? _latest : null
+              const _gs = _snap && _snap.work_goal && String(_snap.work_goal.state || '')
+              if (['ACHIEVED', 'EXHAUSTED', 'PAUSED', 'ABANDONED'].includes(_gs)) {
+                this._workRunActive = false
+                this.workIteration = null
+              }
+            }
             // Live anchor: attach this plan to the current assistant turn so its inline card renders
             // immediately (before the durable anchor is persisted + reloaded on next open). This matches
             // the eventual server anchor (same turn's assistant message).
@@ -1651,23 +1729,8 @@ export const useChatStore = defineStore('chat', {
       // Rich streaming: friendly, param-free activity (Searching → Generating). Feed the shared
       // timeline reducer and stop — these 6 events carry no content/usage to process further.
       if (isRichEvent(msg)) {
-        // STAMP THE STEP THAT OWNS THIS ACTIVITY, at the only moment it is knowable.
-        //
-        // An activity row ("Running a script", "Looking at the image") carries `step_id` =
-        // `step_<tool_call_id>` -- its OWN id, with no reference to the plan step it belongs to. The
-        // rail therefore had nowhere to nest it and rendered a flat list beside the steps, which is
-        // what made a run read as two unrelated accounts of itself.
-        //
-        // The link cannot be reconstructed afterwards: the rows carry no timestamp, so bucketing them
-        // against the plan's server-side step boundaries later would be guesswork dressed as data.
-        // Here, live, the plan snapshot's `current_step_id` IS the answer, so it is recorded rather
-        // than inferred. A turn with no plan stamps nothing and behaves exactly as before.
-        try {
-          const _p = usePlanStore()
-          const _runs = _p.runsForConversation(this.conversationId) || []
-          const _live = _runs[_runs.length - 1]
-          if (_live && _live.current_step_id) msg.plan_step_id = _live.current_step_id
-        } catch { /* a nesting hint must never break the stream */ }
+        // Which plan step owns this activity — see `_stampPlanStep`.
+        this._stampPlanStep(msg)
         _tl.ingest(msg)
         const _rm = this._cur()
         if (_rm && _rm.prepStatus) _rm.prepStatus = ''   // live timeline now drives the status line
@@ -1687,6 +1750,9 @@ export const useChatStore = defineStore('chat', {
       }
       // Feed the live activity timeline (Thinking → tools → Generating → Done). Rich events already
       // returned above; this also folds in reasoning + token metering (no-op for other event types).
+      // Reasoning is stamped with its plan step too, so a Work run shows each thought inside the step
+      // that was running when the model had it.
+      if (t === 'reasoning_delta') this._stampPlanStep(msg)
       if (m && t !== 'error') _tl.ingest(msg)
       switch (t) {
         case 'message_saved': {
@@ -1931,10 +1997,29 @@ export const useChatStore = defineStore('chat', {
           this._workRunActive = true
           this.workGoal = null
           this.workIteration = { segment: Number(msg.segment) || 1, max: Number(msg.max) || 0 }
-          // Tag the bubble this iteration is about to fill, so the transcript can group a long run by
-          // iteration instead of showing one undifferentiated wall of attempts.
-          const _wm = this._cur()
-          if (_wm) _wm.workIteration = { ...this.workIteration }
+          // A LATER ITERATION GETS ITS OWN MESSAGE. Iterations after the first run in a worker and
+          // reach this tab over the user group, after the previous iteration's bubble has already
+          // closed — so there was no live message, every chunk was dropped, and the iteration's
+          // `assistant_message_complete` fell back to the LAST assistant message and overwrote the
+          // previous iteration's answer with its own (prod conv 1578: attempt 1's answer vanished and
+          // attempt 2's took its place). Opening the message here is what keeps the two apart.
+          let _wm = this._cur()
+          const _seg = this.workIteration.segment
+          const _prevSeg = _wm && _wm.workIteration && Number(_wm.workIteration.segment)
+          if (!_wm || (_prevSeg && _prevSeg !== _seg && String(_wm.content || '').trim())) {
+            const _prior = [...this.messages].reverse().find((x) => x.role === 'assistant' && x.runId)
+            if (_wm) this._endAssistant()
+            this._beginAssistant()
+            _wm = this._cur()
+            if (_wm && _prior) _wm.runId = _prior.runId
+          }
+          // Tag the bubble this iteration is about to fill. `turnModeResolved` too: the server stamps
+          // it only when the message is saved, and until then the message could not tell it belonged
+          // on the rail — so it rendered as an ordinary chat turn first and then jumped.
+          if (_wm) {
+            _wm.workIteration = { ...this.workIteration }
+            _wm.turnModeResolved = 'work'
+          }
           break
         }
         case 'work_goal': {

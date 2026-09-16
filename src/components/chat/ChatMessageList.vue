@@ -15,7 +15,7 @@
         <!-- Work mode sections the thread by iteration. A Work run is N dispatches and each produces
              its own answer, so without this a long run reads as an undifferentiated wall of attempts
              with no way to tell which iteration any of them came from. Absent from ordinary chat. -->
-        <WorkIterationBar v-if="!hasWorkRail && chat.iterationBoundaries.has(m.id)"
+        <WorkIterationBar v-if="!hasWorkRail && !chat._workRunActive && chat.iterationBoundaries.has(m.id)"
                           :divider="chat.iterationBoundaries.get(m.id)" />
         <!-- RUN SCAFFOLDING IS NOT SOMETHING THE USER SAID. A work run's continuation segments are
              persisted as role='user' rows (the runtime reads the conversation back as turns), so the
@@ -51,7 +51,9 @@
            gap the user actually reported — between two iterations nothing is streaming at all while
            the backend verifies the goal and dispatches the next segment, and with nothing rendered
            there the run looked finished. -->
-        <WorkIterationBar v-if="!hasWorkRail" />
+        <!-- Not while a Work run is live: `work_segment` lands a moment before the run's first plan
+             snapshot, and in that moment this bar flashed up and was replaced by the rail (conv 1578). -->
+        <WorkIterationBar v-if="!hasWorkRail && !chat._workRunActive" />
       </div>
     </div>
 

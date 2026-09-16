@@ -14,6 +14,7 @@
 // announcement of a node patches the node that exists instead of appending beside it. The store
 // enforces it; `:key` here must not undo it.
 import { computed, ref } from 'vue'
+import SourcesList from '../chat/SourcesList.vue'
 import { useRunTimeline } from '../../stores/useRunTimeline'
 import { useChatStore } from '../../stores/useChatStore'
 import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
@@ -53,7 +54,15 @@ const STATE_LABEL = {
   ACTIVE: 'Working', PAUSED: 'Paused', ACHIEVED: 'Goal met',
   ABANDONED: 'Stopped', EXHAUSTED: 'Stopped — goal not met',
 }
-const ACTION_LABEL = { pause: 'Pause', resume: 'Resume', edit: 'Edit goal', clear: 'Clear' }
+const ACTION_LABEL = { pause: 'Pause work', resume: 'Resume work', edit: 'Edit goal', clear: 'Stop and clear work' }
+// Icon buttons, labelled by tooltip and aria-label. Text buttons in a row above the run read as a form
+// rather than as controls on it, and pushed the run itself down.
+const ACTION_ICON = {
+  pause: 'M9 5v14M15 5v14',
+  resume: 'M7 5l12 7-12 7z',
+  edit: 'M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4',
+  clear: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+}
 
 const g = computed(() => props.goal || {})
 const stateLabel = computed(() => STATE_LABEL[g.value.state] || g.value.state || '')
@@ -143,31 +152,89 @@ function jsonSummary(d) {
 // Keyed on `planStepId`, stamped live by the chat store from the plan snapshot's `current_step_id`.
 // An activity with no stamp is NOT guessed into a bucket -- a row placed under the wrong step is worse
 // than one not shown, because it invents a relationship the data never had.
+//
+// THIS RUN'S rows only: the pinned timeline of each of its messages, and the live rows while one of its
+// messages is streaming (the live rows are pinned onto that message when it ends, so the two never both
+// count). Rows that arrive BEFORE the plan exists -- "Analyzing your request", "Loading tools" -- have
+// no step to belong to; they are the run's preparation and open the rail as its first step, instead of
+// being drawn as a separate card that the rail then replaces (conv 1578). A later unstamped row (a
+// "Generating response" between two steps) belongs with the step before it, which is when it happened.
+const PREP = '__prepare__'
 const activityByStep = computed(() => {
-  const live = chat.richActive ? (chat.liveSteps || []) : []
-  const done = (chat.messages || [])
-    .flatMap((m) => ((m.timeline && m.timeline.steps) || []))
+  const list = chat.messages || []
+  const liveMsg = list.find((m) => m.role === 'assistant' && m.status === 'streaming')
   const out = {}
-  for (const a of [...done, ...live]) {
-    const owner = a && a.planStepId
-    if (!owner) continue
-    ;(out[owner] = out[owner] || []).push({
-      key: a.stepId || `${owner}-${(out[owner] || []).length}`,
-      label: a.label || 'Working',
-      tool: a.tool || '',
+  const put = (owner, a) => {
+    const bucket = (out[owner] = out[owner] || [])
+    bucket.push({
+      key: a.stepId || `${owner}-${bucket.length}`,
+      label: a.phase === 'reasoning' ? 'Thinking' : (a.label || 'Working'),
+      reasoning: String(a.reasoningText || '').trim(),
       status: a.status || '',
       durationMs: a.durationMs || null,
       reason: a.reason || '',
     })
   }
+  let owner = null
+  for (const m of list) {
+    if (m.role !== 'assistant' || !belongsToThisRun(m)) continue
+    const rows = ((m === liveMsg ? chat.liveSteps : (m.timeline && m.timeline.steps)) || []).filter(Boolean)
+    // A later segment re-prepares before it resumes a step: those rows belong to the step it resumes
+    // (the first one it names), not to the step the previous segment happened to end on.
+    const firstStamped = (rows.find((a) => a.planStepId) || {}).planStepId || null
+    let cur = owner === null ? PREP : (firstStamped || owner)
+    for (const a of rows) {
+      if (a.planStepId) cur = a.planStepId
+      put(cur, a)
+    }
+    owner = cur
+  }
   return out
 })
 function activitiesFor(id) { return activityByStep.value[id] || [] }
 
-const request = computed(() => {
-  const first = (chat.messages || []).find((m) => m.role === 'user' && String(m.content || '').trim())
-  return first ? String(first.content) : ''
+// The preparation step: shown while the run is getting ready, and kept (collapsed) afterwards so the rail
+// still reads from the first thing that happened.
+const prep = computed(() => {
+  const rows = activitiesFor(PREP)
+  if (!rows.length) return null
+  const live = rows.some((r) => r.status === 'running') && !steps.value.length
+  const ms = rows.reduce((t, r) => t + (Number(r.durationMs) || 0), 0)
+  return { rows, state: live ? 'active' : 'done', duration_ms: ms || null }
 })
+
+// A step is open while it is the one running -- that is where the live activity and reasoning are --
+// and otherwise only when the reader opens it.
+function stepOpen(s) {
+  const id = s.node_id
+  if (id in _open.value) return !!_open.value[id]
+  return s.state === 'active'
+}
+function toggleStep(s) { _open.value = { ..._open.value, [s.node_id]: !stepOpen(s) } }
+
+// Reasoning while it streams shows its latest part; a finished thought opens on demand.
+function reasoningTail(text) {
+  const t = String(text || '')
+  return t.length > 600 ? `…${t.slice(-600)}` : t
+}
+
+// THIS RUN'S request, not the conversation's first message: a thread that ran Work twice opened the
+// second rail on the first run's question. It is the last thing the user typed before this run's first
+// message. Shown clamped with an expander -- it already sits in full in the bubble right above.
+const request = computed(() => {
+  const list = chat.messages || []
+  const start = list.findIndex((m) => m.role === 'assistant' && belongsToThisRun(m))
+  const upto = start >= 0 ? start : list.length
+  for (let i = upto - 1; i >= 0; i--) {
+    const m = list[i]
+    if (m.role === 'user' && m.authoredBy !== 'system' && String(m.content || '').trim()) {
+      return String(m.content)
+    }
+  }
+  return ''
+})
+const requestOpen = ref(false)
+const requestLong = computed(() => request.value.length > 220 || request.value.split('\n').length > 3)
 
 // DOES THIS MESSAGE BELONG TO **THIS** RUN.
 //
@@ -188,18 +255,104 @@ function belongsToThisRun(m) {
   return !!m.workIteration
 }
 
-const answers = computed(() => (chat.messages || [])
-  .filter((m) => m.role === 'assistant' && String(m.content || '').trim() && belongsToThisRun(m))
-  .map((m) => {
-    const doc = parsed(m.content)
-    return {
-      id: m.id,
-      text: String(m.content || ''),
-      html: doc ? '' : renderAnswer(m.content),
-      doc,
-      summary: doc ? jsonSummary(doc) : '',
-    }
+// Which segment produced each answer. Stamped per message (live from `work_segment`, durably by the
+// server); a message without a stamp belongs to the segment before it, and the first to segment 1.
+const answers = computed(() => {
+  let seg = 0
+  return (chat.messages || [])
+    .filter((m) => m.role === 'assistant' && String(m.content || '').trim() && belongsToThisRun(m))
+    .map((m) => {
+      const stamped = Number((m.workIteration && m.workIteration.segment) || 0)
+      seg = stamped || seg || 1
+      const doc = parsed(m.content)
+      return {
+        id: m.id,
+        message: m,
+        segment: seg,
+        streaming: m.status === 'streaming',
+        text: String(m.content || ''),
+        html: doc ? '' : renderAnswer(m.content),
+        doc,
+        summary: doc ? jsonSummary(doc) : '',
+        citations: m.status === 'streaming' ? []
+          : ((m.answerBasis && m.answerBasis.citations) || m.citations || []),
+      }
+    })
+})
+
+function findingsOf(list) {
+  return (list || []).slice(0, 6).map((f) => ({
+    issue: (f && (f.observation || f.repair_instruction)) || String(f || ''),
+    remedy: f && f.observation ? (f.repair_instruction || '') : '',
   }))
+}
+
+// THE RUN IN THE ORDER IT HAPPENED: answer 1, the check that rejected it, answer 2, ... Every
+// judgement is kept by the server (`work_goal.verdicts`), so a later `met` no longer erases the
+// rejection before it -- which is what made a two-attempt run read as a first-time success, with the
+// yellow box appearing and then vanishing (conv 1578). A `met` judgement is not drawn: the end row
+// says it. A snapshot from before the history existed falls back to the single latest verdict.
+const VERDICT_LABEL = {
+  not_met: 'Goal check: not met yet',
+  undecidable: 'Goal check: could not verify the result',
+}
+const items = computed(() => {
+  const history = Array.isArray(g.value.verdicts) ? g.value.verdicts : null
+  const judged = (history || []).filter((h) => h && h.verdict && h.verdict !== 'met')
+    .map((h) => ({ kind: 'verdict', key: `verdict_s${h.segment}`, segment: Number(h.segment) || 0,
+                   verdict: h.verdict, findings: findingsOf(h.findings) }))
+  const out = []
+  let vi = 0
+  for (const a of answers.value) {
+    while (vi < judged.length && judged[vi].segment < a.segment) out.push(judged[vi++])
+    out.push({ kind: 'answer', key: `answer_${a.id}`, ...a })
+  }
+  while (vi < judged.length) out.push(judged[vi++])
+  if (!history) {
+    for (const v of verdicts.value) {
+      out.push({ kind: 'verdict', key: v.node_id, verdict: v.verdict || 'not_met', findings: v.findings })
+    }
+  }
+  // Only the LAST rejection of a run still going says "trying again"; the others already did.
+  let lastVerdict = -1
+  out.forEach((it, i) => { if (it.kind === 'verdict') lastVerdict = i })
+  return out.map((it, i) => (it.kind !== 'verdict' ? it : {
+    ...it,
+    label: `${VERDICT_LABEL[it.verdict] || 'Goal check: not met'}${
+      it.verdict === 'not_met' && (i !== lastVerdict || running.value) ? ' — trying again' : ''}`,
+  }))
+})
+
+// The end of the run: its tone follows the goal, not just "the run stopped".
+const terminalTone = computed(() => {
+  const st = String(g.value.state || '')
+  if (st === 'ACHIEVED') return 'ok'
+  if (st === 'EXHAUSTED' || st === 'ABANDONED' || st === 'PAUSED') return 'warn'
+  const rs = String((terminal.value && terminal.value.state) || '')
+  return rs === 'completed' ? 'ok' : 'warn'
+})
+const terminalLabel = computed(() => (terminal.value && terminal.value.label)
+  || STATE_LABEL[g.value.state] || 'Done')
+
+// What the answer bubble used to offer, at the END of the run where it belongs, acting on the run's
+// final answer.
+const finalAnswer = computed(() => {
+  const list = answers.value
+  return list.length ? list[list.length - 1] : null
+})
+const copied = ref(false)
+async function copyFinal() {
+  if (!finalAnswer.value) return
+  try {
+    await navigator.clipboard.writeText(finalAnswer.value.text)
+    copied.value = true
+    setTimeout(() => { copied.value = false }, 1500)
+  } catch { /* clipboard unavailable */ }
+}
+function feedback(value) {
+  const m = finalAnswer.value && finalAnswer.value.message
+  if (m) chat.setFeedback(m.id, value)
+}
 
 function fmtTokens(n) {
   const v = Number(n || 0)
@@ -225,49 +378,95 @@ function fmt(ms) {
       </p>
 
       <div v-if="goal && (goal.available_actions || []).length" class="acts" data-test="rt-head">
-        <button v-for="a in (goal.available_actions || [])" :key="a" class="btn"
-                :disabled="busy" @click="emit('action', a)">{{ ACTION_LABEL[a] || a }}</button>
+        <button v-for="a in (goal.available_actions || [])" :key="a" class="icon-btn" type="button"
+                :class="{ danger: a === 'clear' }" :data-test="`rt-action-${a}`"
+                :title="ACTION_LABEL[a] || a" :aria-label="ACTION_LABEL[a] || a"
+                :disabled="busy" @click="emit('action', a)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path :d="ACTION_ICON[a] || 'M12 5v14M5 12h14'" /></svg>
+        </button>
       </div>
 
       <!-- What was asked. The run opens on the thing the steps are serving. -->
       <div v-if="request" class="node" data-state="you" data-test="rt-request">
         <span class="mkr" aria-hidden="true" />
-        <div class="req"><p class="qt">{{ request }}</p></div>
+        <div class="req">
+          <p class="qt" :class="{ clamped: requestLong && !requestOpen }">{{ request }}</p>
+          <button v-if="requestLong" type="button" class="more" data-test="rt-request-more"
+                  @click="requestOpen = !requestOpen">{{ requestOpen ? 'Show less' : 'Show more' }}</button>
+        </div>
+      </div>
+
+      <!-- Getting ready: what happened before the plan existed, as the run's first step. -->
+      <div v-if="prep" class="node collapsible" :data-state="prep.state"
+           :data-open="stepOpen({ node_id: PREP, state: prep.state }) ? 'true' : 'false'" data-test="rt-prepare">
+        <span class="mkr" aria-hidden="true" />
+        <div class="head" @click="toggleStep({ node_id: PREP, state: prep.state })">
+          <span class="lb">{{ prep.state === 'active' ? 'Getting ready' : 'Got ready' }}</span>
+          <span v-if="prep.duration_ms" class="dur">{{ fmt(prep.duration_ms) }}</span>
+          <button class="caret" data-test="rt-toggle-prepare"
+                  :aria-expanded="stepOpen({ node_id: PREP, state: prep.state }) ? 'true' : 'false'"
+                  @click.stop="toggleStep({ node_id: PREP, state: prep.state })">▾</button>
+        </div>
+        <div class="body"><div class="inner">
+          <div class="stack">
+            <div v-for="a in prep.rows" :key="a.key" class="act"
+                 :data-s="a.status === 'failed' ? 'fail' : a.status === 'running' ? 'run' : 'done'">
+              <span class="ic" aria-hidden="true">{{ a.status === 'failed' ? '✕' : a.status === 'running' ? '◌' : '✓' }}</span>
+              <span class="al">{{ a.label }}</span>
+              <span v-if="a.durationMs" class="ad">{{ fmt(a.durationMs) }}</span>
+            </div>
+          </div>
+        </div></div>
       </div>
 
       <!-- The plan. Every step lands at once; a retry re-activates the step it belongs to. -->
       <div v-for="s in steps" :key="s.node_id" class="node"
-           :class="{ collapsible: activitiesFor(s.node_id).length || (s.tools && s.tools.length) }"
+           :class="{ collapsible: activitiesFor(s.node_id).length || (s.tool_labels && s.tool_labels.length) }"
            :data-state="STATE[s.state] || 'pending'"
-           :data-open="isOpen(s.node_id) ? 'true' : 'false'"
+           :data-open="stepOpen(s) ? 'true' : 'false'"
            :data-test="`rt-step-${s.node_id}`">
         <span class="mkr" aria-hidden="true" />
-        <div class="head" @click="toggle(s.node_id)">
+        <div class="head" @click="toggleStep(s)">
           <span v-if="s.index" class="num">{{ s.index }}</span>
           <span class="lb">{{ s.label }}</span>
           <span v-if="s.attempt > 1" class="attempt-badge" :data-test="`rt-attempt-${s.node_id}`">
             attempt {{ s.attempt }}
           </span>
           <span v-if="s.duration_ms" class="dur">{{ fmt(s.duration_ms) }}</span>
-          <button v-if="activitiesFor(s.node_id).length || (s.tools && s.tools.length)"
+          <button v-if="activitiesFor(s.node_id).length || (s.tool_labels && s.tool_labels.length)"
                   class="caret" :data-test="`rt-toggle-${s.node_id}`"
-                  :aria-expanded="isOpen(s.node_id) ? 'true' : 'false'"
-                  @click.stop="toggle(s.node_id)">▾</button>
+                  :aria-expanded="stepOpen(s) ? 'true' : 'false'"
+                  @click.stop="toggleStep(s)">▾</button>
         </div>
         <div class="body"><div class="inner">
           <div class="stack" :data-test="`rt-detail-${s.node_id}`">
             <!-- What the step DID, in order — nested here, never beside the rail. -->
-            <div v-for="a in activitiesFor(s.node_id)" :key="a.key" class="act"
-                 :data-s="a.status === 'failed' ? 'fail' : a.status === 'running' ? 'run' : 'done'">
-              <span class="ic" aria-hidden="true">{{ a.status === 'failed' ? '✕'
-                : a.status === 'running' ? '◌' : '✓' }}</span>
-              <span class="al">{{ a.label }}<span v-if="a.tool" class="tag">{{ a.tool }}</span></span>
-              <span v-if="a.durationMs" class="ad">{{ fmt(a.durationMs) }}</span>
-            </div>
-            <!-- Only when nothing was recorded: a capability list is a poor substitute for a record
-                 of the work, and a misleading one beside it. -->
-            <div v-if="!activitiesFor(s.node_id).length" class="act" data-s="done">
-              <span class="al"><span v-for="t in s.tools" :key="t" class="tag">{{ t }}</span></span>
+            <!-- Labels only, never a tool's raw name. -->
+            <template v-for="a in activitiesFor(s.node_id)" :key="a.key">
+              <div v-if="a.reasoning" class="think" :data-live="a.status === 'running' ? 'true' : 'false'"
+                   :data-test="`rt-reasoning-${a.key}`">
+                <button type="button" class="think-head" @click="toggle(a.key)">
+                  <span class="think-dot" aria-hidden="true" />
+                  {{ a.status === 'running' ? 'Thinking…' : 'Thought' }}<span v-if="a.durationMs && a.status !== 'running'"
+                    class="ad"> for {{ fmt(a.durationMs) }}</span>
+                  <span class="think-caret" aria-hidden="true">{{ a.status === 'running' || isOpen(a.key) ? '▾' : '▸' }}</span>
+                </button>
+                <p v-if="a.status === 'running' || isOpen(a.key)" class="think-text">
+                  {{ a.status === 'running' ? reasoningTail(a.reasoning) : a.reasoning }}
+                </p>
+              </div>
+              <div v-else class="act"
+                   :data-s="a.status === 'failed' ? 'fail' : a.status === 'running' ? 'run' : 'done'">
+                <span class="ic" aria-hidden="true">{{ a.status === 'failed' ? '✕'
+                  : a.status === 'running' ? '◌' : '✓' }}</span>
+                <span class="al">{{ a.label }}</span>
+                <span v-if="a.durationMs" class="ad">{{ fmt(a.durationMs) }}</span>
+              </div>
+            </template>
+            <!-- Only when nothing was recorded: what the step can use, in words. -->
+            <div v-if="!activitiesFor(s.node_id).length && (s.tool_labels || []).length" class="act uses"
+                 data-s="done" :data-test="`rt-uses-${s.node_id}`">
+              <span class="al">{{ s.tool_labels.join(' · ') }}</span>
             </div>
             <div v-if="s.details || s.failure" class="act-note">
               {{ s.details || s.failure }}
@@ -276,48 +475,71 @@ function fmt(ms) {
         </div></div>
       </div>
 
-      <!-- The model's own text, between the work and the verdict. -->
-      <div v-for="a in answers" :key="a.id" class="node" data-state="done"
-           :data-test="`rt-answer-${a.id}`">
-        <span class="mkr" aria-hidden="true" />
-        <div class="msg">
-          <template v-if="a.doc">
-            <button class="disclose" :data-test="`rt-answer-toggle-${a.id}`" @click="toggle(a.id)">
-              {{ isOpen(a.id) ? '▾' : '▸' }} {{ a.summary }}
-            </button>
-            <pre v-if="isOpen(a.id)" class="jsonbox">{{ a.text }}</pre>
-          </template>
-          <div v-else class="mt md" :data-test="`rt-answer-md-${a.id}`" v-html="a.html" />
+      <!-- The run as it happened: each answer, then the goal check that judged it. -->
+      <template v-for="it in items" :key="it.key">
+        <div v-if="it.kind === 'answer'" class="node" :data-state="it.streaming ? 'active' : 'done'"
+             :data-test="`rt-answer-${it.id}`">
+          <span class="mkr" aria-hidden="true" />
+          <div class="msg">
+            <template v-if="it.doc">
+              <button class="disclose" :data-test="`rt-answer-toggle-${it.id}`" @click="toggle(it.id)">
+                {{ isOpen(it.id) ? '▾' : '▸' }} {{ it.summary }}
+              </button>
+              <pre v-if="isOpen(it.id)" class="jsonbox">{{ it.text }}</pre>
+            </template>
+            <div v-else class="mt md" :data-test="`rt-answer-md-${it.id}`" v-html="it.html" />
+            <SourcesList v-if="it.citations.length" :citations="it.citations" />
+          </div>
         </div>
-      </div>
-
-      <!-- Why the loop re-entered: a node with its findings. Not a divider, not an iteration band. -->
-      <div v-for="v in verdicts" :key="v.node_id" class="node" data-state="fail"
-           :data-test="`rt-verdict-${v.node_id}`">
-        <span class="mkr" aria-hidden="true" />
-        <div class="head" style="padding-bottom:4px">
-          <span class="lb" style="color:var(--warn)">Not there yet — running the failed steps again</span>
+        <div v-else class="node" data-state="fail" :data-test="`rt-verdict-${it.key}`">
+          <span class="mkr" aria-hidden="true" />
+          <div class="head" style="padding-bottom:4px">
+            <span class="lb" style="color:var(--warn)">{{ it.label }}</span>
+          </div>
+          <div v-if="it.findings && it.findings.length" class="verdict">
+            <ul>
+              <li v-for="(f, i) in it.findings" :key="i">
+                {{ f.issue }}<span v-if="f.remedy" class="fix"> → {{ f.remedy }}</span>
+              </li>
+            </ul>
+          </div>
         </div>
-        <div class="verdict">
-          <ul>
-            <li v-for="(f, i) in v.findings" :key="i">
-              {{ f.issue }}<span v-if="f.remedy" class="fix"> → {{ f.remedy }}</span>
-            </li>
-          </ul>
-        </div>
-      </div>
+      </template>
 
       <!-- One unambiguous end. -->
       <div v-if="terminal" class="node" data-state="done" data-test="rt-terminal">
         <span class="mkr" aria-hidden="true" />
         <div class="terminal">
-          <span class="pill ok">{{ terminal.label || 'Done' }}</span>
+          <span class="pill" :class="terminalTone" data-test="rt-terminal-state">{{ terminalLabel }}</span>
           <span class="ts">
             Ran <b>{{ terminal.steps }} step{{ terminal.steps === 1 ? '' : 's' }}</b><template
               v-if="terminal.retried">, <b>{{ terminal.retried }} retried</b></template><template
               v-if="terminal.duration_ms"> · {{ fmt(terminal.duration_ms) }}</template><template
               v-if="terminal.total_tokens"> · {{ fmtTokens(terminal.total_tokens) }} tokens</template><template
               v-if="terminal.cost_usd"> · ${{ terminal.cost_usd }}</template>
+          </span>
+          <span v-if="finalAnswer" class="end-acts" data-test="rt-end-actions">
+            <button type="button" class="icon-btn" :class="{ on: finalAnswer.message.feedback === 'up' }"
+                    title="Good response" aria-label="Good response" @click="feedback('up')">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" /></svg>
+            </button>
+            <button type="button" class="icon-btn" :class="{ on: finalAnswer.message.feedback === 'down' }"
+                    title="Bad response" aria-label="Bad response" @click="feedback('down')">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" /></svg>
+            </button>
+            <button type="button" class="icon-btn" data-test="rt-copy" :title="copied ? 'Copied' : 'Copy answer'"
+                    :aria-label="copied ? 'Copied' : 'Copy answer'" @click="copyFinal">
+              <svg v-if="!copied" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+              <svg v-else viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5" /></svg>
+            </button>
+            <button type="button" class="icon-btn" data-test="rt-share" title="Share" aria-label="Share"
+                    @click="chat.openShare(finalAnswer.message.serverId || null)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v13" /></svg>
+            </button>
+            <button type="button" class="icon-btn" data-test="rt-regenerate" title="Regenerate" aria-label="Regenerate"
+                    :disabled="chat.isBusy" @click="chat.regenerate(finalAnswer.message.id)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+            </button>
           </span>
         </div>
       </div>

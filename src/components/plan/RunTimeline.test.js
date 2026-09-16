@@ -70,7 +70,7 @@ describe('RunTimeline — one rail', () => {
     const w = railFor()
     const v = w.find('[data-test^="rt-verdict-"]')
     expect(v.exists()).toBe(true)
-    expect(v.text()).toContain('Not there yet')
+    expect(v.text()).toContain('Goal check')
     expect(v.text()).toContain('Exclusions validation never ran')
     expect(v.text()).toContain('Run it and include')
   })
@@ -299,7 +299,8 @@ describe('RunTimeline — a step can be opened', () => {
     const chat = useChatStore()
     chat.messages = []
     store.ingestSnapshot(RUN, { ...SNAPSHOT, steps: SNAPSHOT.steps.map((s, i) => (i === 1
-      ? { ...s, tool_hints: ['EXECUTE_SCRIPT', 'ANALYZE_MEDIA'], details: 'checked the junctions' }
+      ? { ...s, tool_hints: ['EXECUTE_SCRIPT', 'ANALYZE_MEDIA'],
+          tool_labels: ['Running a script', 'Looking at the image'], details: 'checked the junctions' }
       : s)) })
     return mount(RunTimeline, { props: { runId: RUN } })
   }
@@ -312,12 +313,14 @@ describe('RunTimeline — a step can be opened', () => {
     expect(step.attributes('data-open')).toBe('false')
   })
 
-  it('opens to show what the step could reach for', async () => {
+  it('opens to show what the step could reach for — in words, never a raw tool name', async () => {
     const w = withTools()
     await w.find('[data-test="rt-toggle-op_2"]').trigger('click')
     expect(w.find('[data-test="rt-step-op_2"]').attributes('data-open')).toBe('true')
     const det = w.find('[data-test="rt-detail-op_2"]')
-    expect(det.text()).toContain('EXECUTE_SCRIPT')
+    expect(det.text()).toContain('Running a script')
+    expect(det.text()).not.toContain('EXECUTE_SCRIPT')
+    expect(w.text()).not.toMatch(/[A-Z]+_[A-Z_]+/)
     expect(det.text()).toContain('checked the junctions')
   })
 

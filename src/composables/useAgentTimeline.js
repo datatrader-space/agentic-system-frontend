@@ -161,7 +161,12 @@ export function useAgentTimeline() {
       // reasoning_delta: append to the open burst, or start a new one. Strip any <think> tags the
       // backend wrapped native reasoning in so they never show literally.
       let s = openReasoning
-      if (!s) { s = _phaseRow('reasoning', 'Thinking'); steps.value.push(s) }
+      if (!s) {
+        s = _phaseRow('reasoning', 'Thinking')
+        // Which plan step this thought belongs to, so a Work run can show it inside that step.
+        if (evt.plan_step_id) s.planStepId = evt.plan_step_id
+        steps.value.push(s)
+      }
       if (evt.text) s.reasoningText = ((s.reasoningText || '') + evt.text).replace(/<\/?think>/gi, '')
       return true
     }
@@ -223,6 +228,7 @@ export function useAgentTimeline() {
         _closeOpenPhases()
         const row = _phaseRow(phase, label)
         if (reason) row.reason = reason
+        if (evt.plan_step_id) row.planStepId = evt.plan_step_id
         steps.value.push(row)
         return true
       }
