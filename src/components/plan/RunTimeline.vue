@@ -16,7 +16,28 @@
 import { computed, ref } from 'vue'
 import { useRunTimeline } from '../../stores/useRunTimeline'
 import { useChatStore } from '../../stores/useChatStore'
+import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
+import { enhanceChatMedia } from '../../utils/chatMedia'
 import './runTimeline.css'
+
+// THE RAIL SHOWED MARKDOWN AS SOURCE. Answers were interpolated as text (`{{ a.text }}`), so a work run's
+// report — the thing the whole run exists to produce — arrived as literal `**bold**`, `## 3. Consolidated
+// table` and `| Project | Version |` rows (production conv 1564), while the same answer in an ordinary chat
+// bubble rendered properly. It goes through the bubble's own pipeline, which is also its security boundary:
+// raw HTML is escaped and `javascript:`/`data:` URLs are neutralised (utils/safeMarkdown), because answer text
+// routinely quotes web pages and tool output. Cached by text: the rail recomputes on every streamed chunk,
+// and re-parsing every earlier answer each time would be pure waste.
+const _mdCache = new Map()
+function renderAnswer(text) {
+  const key = String(text || '')
+  let html = _mdCache.get(key)
+  if (html === undefined) {
+    html = enhanceChatMedia(renderUntrustedMarkdown(key))
+    if (_mdCache.size > 50) _mdCache.clear()
+    _mdCache.set(key, html)
+  }
+  return html
+}
 
 const props = defineProps({
   runId: { type: [String, Number], required: true },
@@ -174,6 +195,7 @@ const answers = computed(() => (chat.messages || [])
     return {
       id: m.id,
       text: String(m.content || ''),
+      html: doc ? '' : renderAnswer(m.content),
       doc,
       summary: doc ? jsonSummary(doc) : '',
     }
@@ -265,7 +287,7 @@ function fmt(ms) {
             </button>
             <pre v-if="isOpen(a.id)" class="jsonbox">{{ a.text }}</pre>
           </template>
-          <div v-else class="mt">{{ a.text }}</div>
+          <div v-else class="mt md" :data-test="`rt-answer-md-${a.id}`" v-html="a.html" />
         </div>
       </div>
 

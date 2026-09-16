@@ -199,6 +199,43 @@
    rather than `break-word` because it also lowers the min-content width, so the flex/grid parents above
    are not pushed wide before wrapping gets a chance to happen. */
 .rt .msg .mt{white-space:pre-wrap; overflow-wrap:anywhere; min-width:0}
+
+/* Rendered markdown on the rail — the same typography as an assistant chat bubble (ChatMessage.vue), so a
+   work run's report reads exactly like an ordinary answer. `white-space:normal` because marked emits its own
+   block structure and pre-wrap would turn the newlines between tags into stray blank lines. The
+   `overflow-wrap:anywhere` above is kept: it is what stops a long URL or coordinate array from pushing the
+   rail past its node. */
+.rt .msg .mt.md{white-space:normal}
+.rt .md p{margin:0 0 14px}
+.rt .md p:last-child{margin-bottom:0}
+.rt .md h1,.rt .md h2,.rt .md h3,.rt .md h4{margin:22px 0 9px; color:#0f172a; font-weight:650; line-height:1.3}
+.rt .md h1:first-child,.rt .md h2:first-child,.rt .md h3:first-child,.rt .md h4:first-child{margin-top:0}
+.rt .md h1{font-size:1.35rem}
+.rt .md h2{font-size:1.16rem}
+.rt .md h3{font-size:1.02rem}
+.rt .md h4{font-size:.95rem}
+.rt .md ul,.rt .md ol{margin:2px 0 14px; padding-left:24px}
+.rt .md li{margin:5px 0; padding-left:2px}
+.rt .md li::marker{color:#64748b}
+.rt .md blockquote{margin:4px 0 14px; padding:2px 0 2px 14px; color:#475569; border-left:3px solid #cbd5e1}
+.rt .md blockquote p{margin-bottom:7px}
+.rt .md hr{margin:20px 0; border:0; border-top:1px solid #e2e8f0}
+.rt .md code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.85em;
+  background:rgba(15,23,42,.06); padding:1px 5px; border-radius:4px}
+.rt .md pre{background:#0f172a; color:#e2e8f0; padding:12px 14px; border-radius:10px; overflow-x:auto;
+  margin:0 0 10px; white-space:pre; overflow-wrap:normal}
+.rt .md pre code{background:none; padding:0; color:inherit}
+.rt .md strong{font-weight:600; color:#0f172a}
+.rt .md a{color:#4f46e5; text-decoration:underline}
+.rt .md img{max-width:100%; height:auto; border-radius:8px}
+.rt .md table{width:100%; border-collapse:separate; border-spacing:0; margin:4px 0 12px; font-size:.9em;
+  border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; display:table}
+.rt .md thead th{background:#f8fafc; color:#0f172a; font-weight:600; text-align:left}
+.rt .md th,.rt .md td{padding:8px 12px; border-bottom:1px solid #e2e8f0; border-right:1px solid #e2e8f0;
+  vertical-align:top}
+.rt .md th:last-child,.rt .md td:last-child{border-right:none}
+.rt .md tbody tr:last-child td{border-bottom:none}
+.rt .md tbody tr:nth-child(even){background:#fafbfc}
 .rt .msgfoot{padding-top:5px; font-family:var(--mono); font-size:11px; color:var(--ink-3); font-variant-numeric:tabular-nums}
 .rt .disclose{border:0; background:transparent; padding:0; cursor:pointer; font:inherit; color:var(--ink-3); text-align:left}
 .rt .jsonbox{margin:6px 0 0; padding:8px 10px; border-radius:7px; overflow:auto; max-height:340px;
