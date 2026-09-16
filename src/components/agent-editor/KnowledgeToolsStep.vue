@@ -16,6 +16,10 @@
       <!-- Card 1: attach any of the user's Knowledge & RAG resources to this agent. Creation/upload
            lives on the standalone Knowledge & RAG page; here the user only picks what to attach. -->
       <div class="flex flex-col rounded-xl border border-[#E5E7EB] p-4">
+        <div class="mb-3">
+          <p class="text-[14px] font-semibold text-[#0F172A]">Memory &amp; Knowledge Sources</p>
+          <p class="text-[11.5px] text-[#64748B]">Attach knowledge bases you created in Knowledge &amp; RAG.</p>
+        </div>
         <div class="mb-3 flex items-center justify-between gap-3 flex-wrap">
           <div class="relative flex-1 min-w-[200px] max-w-md">
             <Search :size="15" :stroke-width="2" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#98A2B3]" />
@@ -25,7 +29,7 @@
           <div class="flex items-center gap-3">
             <span class="text-[12px] font-semibold text-[#667085]">{{ attachedKsIds.length }} attached</span>
             <router-link to="/dashboard/knowledge" class="text-[12px] font-semibold text-indigo-600 hover:text-indigo-700">
-              + Create / manage in Knowledge &amp; RAG →
+              Manage Knowledge &amp; RAG →
             </router-link>
           </div>
         </div>

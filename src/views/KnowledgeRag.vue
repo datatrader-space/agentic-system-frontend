@@ -67,6 +67,7 @@
             <th v-if="isConvScope" class="px-3 py-2.5">Agent</th>
             <th v-else class="px-3 py-2.5">Type</th>
             <th class="px-3 py-2.5">Status</th>
+            <th v-if="!isConvScope" class="px-3 py-2.5 text-right">Pages</th>
             <th class="px-3 py-2.5 text-right">Chunks</th>
             <th class="px-3 py-2.5 text-right">Cost</th>
             <th v-if="!isConvScope" class="px-3 py-2.5 text-right">Agents</th>
@@ -98,6 +99,14 @@
                 <span v-if="isBusy(r.status)" class="w-2.5 h-2.5 border-2 border-current/30 border-t-current rounded-full animate-spin"></span>
                 {{ statusLabel(r.status) }}
               </span>
+              <!-- Why it failed, not only that it did. Truncated; the full text is on hover. -->
+              <div v-if="r.error" data-test="kb-error" :title="r.error"
+                   class="mt-1 truncate max-w-[220px] text-[11px] text-red-600">{{ r.error }}</div>
+            </td>
+            <td v-if="!isConvScope" class="px-3 py-2.5 text-right text-slate-600" data-test="kb-pages"
+                :title="r.kind === 'website' ? pagesTitle(r) : ''">
+              <template v-if="r.kind === 'website'">{{ r.indexed_count ?? 0 }}<span v-if="r.discovered_count" class="text-slate-400"> / {{ r.discovered_count }}</span></template>
+              <span v-else class="text-slate-300">—</span>
             </td>
             <td class="px-3 py-2.5 text-right text-slate-600">{{ r.chunk_count }}</td>
             <td class="px-3 py-2.5 text-right font-medium text-slate-700">{{ fmtCost(r.cost_usd) }}</td>
@@ -176,6 +185,12 @@ function statusLabel(s) {
   if (s === 'cancelled') return 'Cancelled'
   if (s === 'empty') return 'Empty'
   return s ? s.charAt(0).toUpperCase() + s.slice(1) : '—'
+}
+function pagesTitle(r) {
+  const parts = [`${r.indexed_count ?? 0} indexed`]
+  if (r.discovered_count) parts.push(`${r.discovered_count} discovered`)
+  if (r.failed_count) parts.push(`${r.failed_count} failed`)
+  return parts.join(' · ')
 }
 function fmtCost(c) {
   const n = Number(c || 0)
