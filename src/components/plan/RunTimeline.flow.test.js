@@ -206,13 +206,35 @@ describe('RunTimeline — preparation, reasoning and labels live inside the rail
     expect(think.text()).toContain('The LTS line is 22.x')
   })
 
-  it('a step with no recorded activity describes what it can use in words', () => {
+  it('a step not yet run describes what it can use in words', () => {
     chat.messages = []
-    const w = mountRail(snap([{ step_id: 'op_2', title: 'Search PostgreSQL', status: 'completed', status_user: 'completed',
+    const w = mountRail(snap([{ step_id: 'op_2', title: 'Search PostgreSQL', status: 'pending', status_user: 'pending',
       tool_hints: ['CREATE_DOCUMENT', 'FETCH_PAGE', 'WEB_SEARCH'],
       tool_labels: ['Writing a document', 'Reading a web page', 'Searching the web'] }]))
     const uses = w.find('[data-test="rt-uses-op_2"]')
-    expect(uses.text()).toBe('Writing a document · Reading a web page · Searching the web')
+    expect(uses.text()).toBe('Can use: Writing a document · Reading a web page · Searching the web')
     expect(w.text()).not.toMatch(/CREATE_DOCUMENT|FETCH_PAGE|WEB_SEARCH/)
+  })
+
+  it('a step that already ran never lists what it could have used (conv 1588)', () => {
+    chat.messages = []
+    const w = mountRail(snap([{ step_id: 'op_3', title: 'Generate coriander powder', status: 'completed',
+      status_user: 'completed', tool_labels: ['Running a script', 'Reading a web page'] }]))
+    expect(w.find('[data-test="rt-uses-op_3"]').exists()).toBe(false)
+    expect(w.find('[data-test="rt-toggle-op_3"]').exists()).toBe(false)
+  })
+
+  it('a status row restating the step it sits in is not repeated inside it', () => {
+    chat.messages = [
+      { id: 'u1', role: 'user', content: 'go' },
+      { id: 'a1', role: 'assistant', content: 'x', runId: RUN, status: 'done', timeline: { steps: [
+        { stepId: 'p', isPhase: true, label: 'Step 2 of 4: Generate red chilli powder', status: 'ok', planStepId: 'op_2' },
+        { stepId: 't', label: 'Generating an image', status: 'ok', planStepId: 'op_2' },
+      ] } },
+    ]
+    const w = mountRail(snap([{ step_id: 'op_2', title: 'Generate red chilli powder', status: 'completed', status_user: 'completed' }]))
+    const step = w.find('[data-test="rt-step-op_2"]')
+    expect(step.text()).not.toContain('Step 2 of 4')
+    expect(step.text()).toContain('Generating an image')
   })
 })

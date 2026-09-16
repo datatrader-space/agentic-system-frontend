@@ -318,7 +318,8 @@ describe('RunTimeline — a step can be opened', () => {
     await w.find('[data-test="rt-toggle-op_2"]').trigger('click')
     expect(w.find('[data-test="rt-step-op_2"]').attributes('data-open')).toBe('true')
     const det = w.find('[data-test="rt-detail-op_2"]')
-    expect(det.text()).toContain('Running a script')
+    // A step that has RUN does not list what it could have used — that reads as what it did.
+    expect(det.text()).not.toContain('Running a script')
     expect(det.text()).not.toContain('EXECUTE_SCRIPT')
     expect(w.text()).not.toMatch(/[A-Z]+_[A-Z_]+/)
     expect(det.text()).toContain('checked the junctions')
