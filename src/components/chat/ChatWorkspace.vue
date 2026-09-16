@@ -190,7 +190,7 @@ const router = useRouter()
 const activePlan = computed(() => {
   if (!chat.hasDurablePlanAnchors) return null
   const p = plan.progressForConversation(chat.conversationId)
-  if (!p || (p.total > 0 && p.done >= p.total)) return null   // hide once complete / no steps
+  if (!p || p.ended || (p.total > 0 && p.done >= p.total)) return null   // hide once over / complete / no steps
   return p
 })
 function scrollToActivePlan() {

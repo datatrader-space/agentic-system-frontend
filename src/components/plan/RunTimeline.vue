@@ -107,7 +107,7 @@ const activeId = computed(() => (steps.value.find((s) => s.state === 'active') |
 // was correcting itself looked identical to one that had broken. Amber is reserved for the verdict
 // node -- "not right yet, going again", which is the loop working -- and red means this step errored,
 // the only state a reader should read as a fault.
-const STATE = { pending: 'pending', active: 'active', done: 'done', failed: 'error' }
+const STATE = { pending: 'pending', active: 'active', done: 'done', failed: 'error', stopped: 'stopped' }
 
 // THE ANSWER BELONGS ON THE RAIL. In the target the model's text sits between the steps that produced
 // it and the verdict that judged it, so the run reads as one narrative. Rendered as a separate bubble

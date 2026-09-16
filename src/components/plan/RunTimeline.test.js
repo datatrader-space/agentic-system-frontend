@@ -81,8 +81,14 @@ describe('RunTimeline — one rail', () => {
   })
 
   it('marks exactly one step live', () => {
-    const w = railFor()
+    const w = railFor({ ...SNAPSHOT, run_status: 'executing' })
     expect(w.findAll('.node[data-state="active"]')).toHaveLength(1)
+  })
+
+  it('a finished run marks nothing live, even a step the plan left in progress (conv 1645)', () => {
+    const w = railFor()
+    expect(w.findAll('.node[data-state="active"]')).toHaveLength(0)
+    expect(w.find('[data-test="rt-step-op_4"]').attributes('data-state')).toBe('stopped')
   })
 
   it('ends exactly once, in words', () => {
@@ -348,7 +354,7 @@ describe('RunTimeline — the markers distinguish trouble from progress', () => 
   })
 
   it('a running step is active', () => {
-    const w = railFor(SNAPSHOT)
+    const w = railFor({ ...SNAPSHOT, run_status: 'executing' })
     expect(w.find('[data-test="rt-step-op_4"]').attributes('data-state')).toBe('active')
   })
 

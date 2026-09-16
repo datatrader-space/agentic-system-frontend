@@ -11,6 +11,7 @@
 import { defineStore } from 'pinia'
 import api from '../services/api'
 import { normalizeEvent, dedupKey, toFrontendType } from '../composables/planEvents'
+import { runHasEnded } from './useRunTimeline'
 
 // Module-level debounce timers (non-reactive) for conversation re-hydration.
 const _hydrateTimers = {}
@@ -66,6 +67,9 @@ export const usePlanStore = defineStore('plan', {
       const last = doneList[doneList.length - 1]
       return {
         runId, done: doneList.length, total,
+        // Over, whatever the step counts say: a paused Work run leaves steps unfinished (conv 1645 showed
+        // "Active plan 0/1" under "Paused").
+        ended: runHasEnded(p),
         lastTitle: (last && (last.title || last.description)) || '',
         status: p.plan_status, purpose: p.plan_purpose || 'execution',
       }

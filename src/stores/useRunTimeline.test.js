@@ -4,7 +4,7 @@
 // whether the rail can be trusted, and both are properties of THIS file, not of the component.
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useRunTimeline, eventsFromSnapshot } from './useRunTimeline'
+import { useRunTimeline, eventsFromSnapshot, runHasEnded } from './useRunTimeline'
 
 const RUN = 'run_1543'
 
@@ -204,5 +204,35 @@ describe('attempts are tries at the goal, not inner loop rows (prod conv 1626)',
     const retry = events.find((e) => e.type === 'step.retry')
     expect(retry.payload.attempt).toBe(3)
     expect(events.find((e) => e.type === 'run.completed').payload.retried).toBe(2)
+  })
+})
+
+describe('a run that ended leaves no step running', () => {
+  // Prod conv 1645: a provider refusal paused the Work goal with its only step still `in_progress`, and the
+  // rail kept the live ring spinning under "Paused" beside an "Active plan 0/1" chip.
+  const paused = (goalState, runStatus = 'paused') => ({
+    run_status: runStatus,
+    steps: [{ step_id: 'op_1', title: 'search web', status: 'in_progress', status_user: 'in_progress' }],
+    work_goal: { state: goalState, segments_used: 1, verdicts: [] },
+  })
+  const stepState = (plan) => eventsFromSnapshot(plan).find((e) => e.type === 'step').payload.state
+
+  it('an in-progress step on a closed Work goal is stopped, not active', () => {
+    expect(stepState(paused('PAUSED'))).toBe('stopped')
+  })
+
+  it('an in-progress step on a blocked run is stopped', () => {
+    expect(stepState({ ...paused('ACTIVE', 'blocked') })).toBe('stopped')
+  })
+
+  it('a run still going keeps its active step', () => {
+    expect(stepState(paused('ACTIVE', 'executing'))).toBe('active')
+  })
+
+  it('runHasEnded reads the run and the goal', () => {
+    expect(runHasEnded(paused('PAUSED'))).toBe(true)
+    expect(runHasEnded(paused('ACTIVE', 'executing'))).toBe(false)
+    expect(runHasEnded({ run_status: 'completed', steps: [] })).toBe(true)
+    expect(runHasEnded(null)).toBe(false)
   })
 })

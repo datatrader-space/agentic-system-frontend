@@ -322,3 +322,5 @@
 .rt .req-acts{padding:0; flex:none; margin-top:-4px}
 /* why a call failed, under its row */
 .rt .fail-note{color:var(--danger); font-size:12px; padding:0 0 4px 20px}
+/* a step the run ended before finishing: no live ring */
+.rt .node[data-state="stopped"] .mkr{border-color:var(--line-strong); background:var(--line-strong)}

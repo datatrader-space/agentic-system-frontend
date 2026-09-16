@@ -33,6 +33,22 @@ describe('usePlanStore', () => {
     expect(store.activeRunIdsByConversation['5']).toContain('system_b:5')
   })
 
+  it('progress says a paused Work run is over, so nothing reads it as an active plan (conv 1645)', async () => {
+    mockApi.get.mockResolvedValueOnce({ data: snap({ run_status: 'paused', plan_status: 'paused',
+      steps: [{ step_id: 'a', status: 'in_progress' }], work_goal: { state: 'PAUSED' } }) })
+    await store.hydrateRun('system_b:5')
+    const p = store.progressForConversation(5)
+    expect(p.done).toBe(0)
+    expect(p.ended).toBe(true)
+  })
+
+  it('progress of a run still executing is not ended', async () => {
+    mockApi.get.mockResolvedValueOnce({ data: snap({ run_status: 'executing', plan_status: 'executing',
+      work_goal: { state: 'ACTIVE' } }) })
+    await store.hydrateRun('system_b:5')
+    expect(store.progressForConversation(5).ended).toBe(false)
+  })
+
   it('supports multiple runs in one conversation', async () => {
     mockApi.get.mockResolvedValueOnce({ data: snap({ run_id: 'system_a:1', conversation_id: 7 }) })
     mockApi.get.mockResolvedValueOnce({ data: snap({ run_id: 'system_b:2', conversation_id: 7 }) })
