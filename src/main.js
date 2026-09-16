@@ -244,6 +244,9 @@ const router = createRouter({
       meta: { requiresAuth: true },
       children: [
         { path: '', name: 'dashboard-home', component: HomeDashboard },
+        // Bare /dashboard/chat matched NOTHING, so the shell rendered an empty page rather than a
+        // chat. It is a natural thing to type and to link to, so it lands where a new chat starts.
+        { path: 'chat', redirect: '/dashboard/chat/new' },
         { path: 'chat/new', name: 'dashboard-chat-new', component: ChatWorkspace },
         { path: 'chat/:sessionId', name: 'dashboard-chat', component: ChatWorkspace },
         { path: 'lets-code', name: 'dashboard-lets-code', component: LetsCode },
