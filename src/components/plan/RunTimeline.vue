@@ -207,8 +207,7 @@ const liveActivity = computed(() => {
                                running: a.status === 'running' }))
 })
 function hasDetail(s) {
-  return !!(activitiesFor(s.node_id).length || s.details || s.failure
-    || (s.state === 'pending' && (s.tool_labels || []).length))
+  return !!(activitiesFor(s.node_id).length || s.details || s.failure)
 }
 
 // The preparation step: shown while the run is getting ready, and kept (collapsed) afterwards so the rail
@@ -550,13 +549,9 @@ function fmt(ms) {
                 <img v-for="(x, i) in a.media" :key="i" :src="x.url" alt="" loading="lazy" class="act-thumb" />
               </div>
             </template>
-            <!-- What the step CAN use, in words, and only before it has run. Once a step is done, a list
-                 of what it could have reached for reads as what it did: conv 1588's image steps said
-                 "Running a script · Reading a web page". -->
-            <div v-if="!activitiesFor(s.node_id).length && s.state === 'pending' && (s.tool_labels || []).length"
-                 class="act uses" data-s="done" :data-test="`rt-uses-${s.node_id}`">
-              <span class="al">Can use: {{ s.tool_labels.join(' · ') }}</span>
-            </div>
+            <!-- NO "what the step can use" list. It came from the step's capability BINDING — 286 tools for an
+                 image step in prod conv 1622 — so an image step read "Can use: … Reading a web page" though
+                 nothing read a page. A permission list is not a plan; a step shows only what it actually did. -->
             <div v-if="s.details || s.failure" class="act-note">
               {{ s.details || s.failure }}
             </div>

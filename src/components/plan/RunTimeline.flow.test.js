@@ -225,14 +225,14 @@ describe('RunTimeline — preparation, reasoning and labels live inside the rail
     expect(think.text()).toContain('The LTS line is 22.x')
   })
 
-  it('a step not yet run describes what it can use in words', () => {
+  it('a step never lists what it is ALLOWED to use — prod conv 1622 showed "Reading a web page" on an image step', () => {
     chat.messages = []
-    const w = mountRail(snap([{ step_id: 'op_2', title: 'Search PostgreSQL', status: 'pending', status_user: 'pending',
-      tool_hints: ['CREATE_DOCUMENT', 'FETCH_PAGE', 'WEB_SEARCH'],
-      tool_labels: ['Writing a document', 'Reading a web page', 'Searching the web'] }]))
-    const uses = w.find('[data-test="rt-uses-op_2"]')
-    expect(uses.text()).toBe('Can use: Writing a document · Reading a web page · Searching the web')
-    expect(w.text()).not.toMatch(/CREATE_DOCUMENT|FETCH_PAGE|WEB_SEARCH/)
+    const w = mountRail(snap([{ step_id: 'op_2', title: 'Generate Red Chilli Powder product image', status: 'pending',
+      status_user: 'pending', tool_hints: ['GENERATE_IMAGE', 'FETCH_PAGE'],
+      tool_labels: ['Generating an image', 'Reading a web page'] }]))
+    expect(w.text()).not.toContain('Reading a web page')
+    expect(w.text()).not.toContain('Can use')
+    expect(w.find('[data-test="rt-toggle-op_2"]').exists()).toBe(false)
   })
 
   it('a step that already ran never lists what it could have used (conv 1588)', () => {
