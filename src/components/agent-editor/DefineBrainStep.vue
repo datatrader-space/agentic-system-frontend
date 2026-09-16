@@ -76,6 +76,41 @@
                       <option value="audio_fallback">Audio fallback (download + transcribe)</option>
                     </select>
                   </div>
+
+                  <!-- Web search model. NOT an AgentProfile column like the pickers above: it lives in
+                       the agent's web-intelligence config and saves through its own validated endpoint,
+                       which is why it writes on change instead of riding the generic agent save. The
+                       list is capability-verified server-side, so a model absent here genuinely cannot
+                       search. This control did not exist at all — `getWebSearchModels` and
+                       `updateAgentWebIntelligence` had been in the API client with no caller, so every
+                       agent but a hand-patched one had no search model and WEB_SEARCH fell back. -->
+                  <div v-if="agent.id" data-test="cap-web_search_model">
+                    <div class="mb-1 flex items-center justify-between">
+                      <label class="text-[11.5px] font-medium text-[#475569]">Web search</label>
+                      <button v-if="searchModelValue && searchModelEditable" type="button" class="text-[11px] font-semibold text-[#2563EB]"
+                              @click="setSearchModel('')">Reset to Auto</button>
+                    </div>
+                    <p class="mb-1 text-[10.5px] leading-snug text-[#98A2B3]">Which model performs WEB_SEARCH for this agent. Auto uses the platform default.</p>
+                    <select
+                      :value="searchModelValue"
+                      :disabled="searchModelsLoading || searchModelSaving || !searchModelEditable"
+                      @change="setSearchModel($event.target.value)"
+                      class="w-full rounded-lg border border-[#E2E8F0] px-2.5 py-2 text-[12.5px] disabled:opacity-60"
+                    >
+                      <option value="">{{ searchModelsLoading ? 'Loading models…' : 'Auto (platform default)' }}</option>
+                      <optgroup v-for="g in searchModelGroups" :key="g.label" :label="g.label">
+                        <option v-for="m in g.models" :key="g.label + '::' + m.model_id" :value="m.provider + '::' + m.model_id">
+                          {{ m.display_name || m.model_id }}{{ m.available ? '' : ' — unavailable' }}
+                        </option>
+                      </optgroup>
+                    </select>
+                    <p v-if="searchModelError" class="mt-1 text-[10.5px] leading-snug text-[#B54708]">{{ searchModelError }}</p>
+                    <p v-else-if="!searchModelEditable" class="mt-1 text-[10.5px] leading-snug text-[#98A2B3]">This agent is shared — only its owner or an administrator can change this.</p>
+                    <p v-else-if="searchModelSaving" class="mt-1 text-[10.5px] text-[#667085]">Saving…</p>
+                    <p v-else-if="searchModelUnavailable" class="mt-1 text-[10.5px] leading-snug text-[#B54708]">
+                      This model is listed but not usable right now: {{ searchModelUnavailable }}.
+                    </p>
+                  </div>
                 </div>
               </div>
             </template>
@@ -436,6 +471,82 @@ function modelsFor() {
   return filteredModels.value
 }
 
+// ── Web search model (agent web-intelligence config, not an AgentProfile column) ──────────────────
+// Value shape is "<provider>::<model_id>" so one <select> can carry both halves the endpoint needs;
+// '' means Auto. Saved on change through the validated endpoint — a rejected model must surface as a
+// message here rather than be silently kept in the box.
+const searchModels = ref([])
+const searchModelValue = ref('')
+const searchModelsLoading = ref(false)
+const searchModelSaving = ref(false)
+const searchModelError = ref('')
+// A shared/system agent is read-only here (the endpoint answers 403). Offering an enabled control
+// that always fails is worse than showing it disabled with the reason.
+const searchModelEditable = ref(true)
+
+const searchModelGroups = computed(() => {
+  const by = new Map()
+  for (const m of searchModels.value) {
+    const label = m.provider_label || m.provider || 'Other'
+    if (!by.has(label)) by.set(label, [])
+    by.get(label).push(m)
+  }
+  // Available providers first, then alphabetical, so a provider with no credentials sinks.
+  return [...by.entries()]
+    .map(([label, ms]) => ({ label, models: ms, anyAvailable: ms.some(x => x.available) }))
+    .sort((a, b) => (Number(b.anyAvailable) - Number(a.anyAvailable)) || a.label.localeCompare(b.label))
+})
+
+// Why a listed model still cannot run (missing provider credentials, usually). Empty when fine.
+const searchModelUnavailable = computed(() => {
+  if (!searchModelValue.value) return ''
+  const [p, id] = String(searchModelValue.value).split('::')
+  const m = searchModels.value.find(x => x.provider === p && x.model_id === id)
+  return (m && !m.available) ? (m.unavailable_reason || 'unavailable') : ''
+})
+
+async function loadSearchModel() {
+  if (!props.agent.id) return
+  searchModelsLoading.value = true
+  searchModelError.value = ''
+  try {
+    const [listRes, cfgRes] = await Promise.all([
+      api.getWebSearchModels(),
+      api.getAgentWebIntelligence(props.agent.id),
+    ])
+    searchModels.value = (listRes.data && listRes.data.models) || []
+    // The agent's OWN choice, not the effective value — showing the inherited default as if it were
+    // a per-agent setting is how "everything looks configured" while nothing is.
+    const sm = (cfgRes.data && cfgRes.data.config && cfgRes.data.config.search_model) || null
+    searchModelValue.value = (sm && sm.provider && sm.model_id) ? `${sm.provider}::${sm.model_id}` : ''
+    searchModelEditable.value = (cfgRes.data && cfgRes.data.editable) !== false
+  } catch (e) {
+    searchModelError.value = 'Could not load web search models.'
+  } finally {
+    searchModelsLoading.value = false
+  }
+}
+
+async function setSearchModel(next) {
+  if (!props.agent.id) return
+  const prev = searchModelValue.value
+  searchModelValue.value = next
+  searchModelSaving.value = true
+  searchModelError.value = ''
+  try {
+    const [provider, model_id] = next ? String(next).split('::') : ['', '']
+    await api.updateAgentWebIntelligence(props.agent.id, {
+      search_model: next ? { provider, model_id } : null,
+    })
+  } catch (e) {
+    searchModelValue.value = prev               // the server refused it; do not pretend it stuck
+    const d = e && e.response && e.response.data
+    searchModelError.value = (d && (d.detail || d.error)) || 'Could not save the web search model.'
+  } finally {
+    searchModelSaving.value = false
+  }
+}
+
 // Shown under a picker when the CHOSEN model does not declare the role's capability. A warning, not a
 // veto: it is the same signal the old filter carried, minus the hiding.
 function capabilityWarning(c) {
@@ -491,6 +602,7 @@ onMounted(async () => {
   try { account.value = (await api.getMemorySettings()).data } catch (e) { account.value = null }
   loadAgentMemory()
   loadEffectivePolicy()
+  loadSearchModel()
 })
 
 const showFull = ref(false)
