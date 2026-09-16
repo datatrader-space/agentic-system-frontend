@@ -87,15 +87,20 @@
     </div>
   </teleport>
 
-  <FileViewer ref="fileViewer" />
+  <!-- LOADED ON DEMAND: FileViewer statically imports highlight.js (~946 kB). A static import here
+       dragged it into the chat route for EVERY conversation, because ChatWorkspace imports this panel
+       eagerly — the same cost ChatMessage already avoids. Mounted via <component :is> off an
+       ALREADY-RESOLVED component (not defineAsyncComponent) so `fileViewer.value` is guaranteed
+       populated by the time readFile() calls open() on it; an unresolved async component would
+       silently swallow the first click. -->
+  <component :is="FileViewerComp" v-if="FileViewerComp" ref="fileViewer" />
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, shallowRef, nextTick } from 'vue'
 import { Folder, RefreshCw, X } from 'lucide-vue-next'
 import api from '../services/api'
 import WorkspaceTreeNode from './WorkspaceTreeNode.vue'
-import FileViewer from './FileViewer.vue'
 import { confirm } from '@/composables/useConfirm'
 
 const props = defineProps({
@@ -117,6 +122,9 @@ const selectionMode = ref(false)
 const selectedPaths = ref(new Set())
 const routing = ref(null)
 const fileViewer = ref(null)
+// Resolved FileViewer component, loaded the first time a file is opened (see the template note).
+// shallowRef because this holds a component definition, not reactive data.
+const FileViewerComp = shallowRef(null)
 
 function close() { open.value = false }
 
@@ -162,8 +170,18 @@ function flattenFiles(entries) {
 
 function toggleDir(path) { expandedDirs.value[path] = !expandedDirs.value[path] }
 
-function readFile(entry) {
+async function readFile(entry) {
   if (entry.is_dir) return
+  if (!FileViewerComp.value) {
+    try {
+      FileViewerComp.value = (await import('./FileViewer.vue')).default
+    } catch {
+      return                              // chunk failed to load — nothing to open
+    }
+    // The component is already resolved, so <component :is> renders it in this very tick and the
+    // template ref is populated. (defineAsyncComponent would need another resolution tick here.)
+    await nextTick()
+  }
   fileViewer.value && fileViewer.value.open(entry, props.agent.id, flattenFiles(sortedFiles.value))
 }
 
