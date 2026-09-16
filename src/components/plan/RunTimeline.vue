@@ -175,6 +175,7 @@ const activityByStep = computed(() => {
       status: a.status || '',
       durationMs: a.durationMs || null,
       reason: a.reason || '',
+      media: (a.media || []).filter((x) => x && x.url && (x.type || 'image') === 'image'),
     })
   }
   let owner = null
@@ -214,7 +215,9 @@ const prep = computed(() => {
 function stepOpen(s) {
   const id = s.node_id
   if (id in _open.value) return !!_open.value[id]
-  return s.state === 'active'
+  // Also open when the step produced something to look at: a generated image is the step's result, and
+  // hiding it behind a chevron once the step turns green is hiding the point of the step.
+  return s.state === 'active' || activitiesFor(id).some((a) => a.media && a.media.length)
 }
 function toggleStep(s) { _open.value = { ..._open.value, [s.node_id]: !stepOpen(s) } }
 
@@ -473,6 +476,10 @@ function fmt(ms) {
                   : a.status === 'running' ? '◌' : '✓' }}</span>
                 <span class="al">{{ a.label }}</span>
                 <span v-if="a.durationMs" class="ad">{{ fmt(a.durationMs) }}</span>
+              </div>
+              <!-- What this call produced, right under it. -->
+              <div v-if="a.media.length" class="act-media" :data-test="`rt-media-${a.key}`">
+                <img v-for="(x, i) in a.media" :key="i" :src="x.url" alt="" loading="lazy" class="act-thumb" />
               </div>
             </template>
             <!-- What the step CAN use, in words, and only before it has run. Once a step is done, a list

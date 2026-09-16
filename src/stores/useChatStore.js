@@ -1497,6 +1497,9 @@ export const useChatStore = defineStore('chat', {
     // and the conversation's latest snapshot is then the PREVIOUS run, whose `current_step_id` would
     // file this run's preparation under a step of a run that already finished.
     _stampPlanStep(msg) {
+      // The server names the step when it knows it (each call of a parallel round is attributed to its
+      // own step); the snapshot's single `current_step_id` is only the fallback for frames that do not.
+      if (msg && msg.plan_step_id) return
       try {
         const _runs = usePlanStore().runsForConversation(this.conversationId) || []
         const _live = _runs[_runs.length - 1]
@@ -1917,7 +1920,11 @@ export const useChatStore = defineStore('chat', {
             // completion path (direct_answer / has_generated_media / fast_path), not just one branch. The
             // !includes(url) guard keeps it idempotent with the persisted markdown, so a refresh (which
             // loads the same embedded markdown) never double-renders it.
-            for (const a of (msg.media_artifacts || [])) {
+            // A WORK run shows each call's media inside the step that produced it (the timeline row carries
+            // it), and the final answer embeds them all at the end. Appending here as well drew the images
+            // into an early "answer" on the rail while the steps were still running.
+            const _onRail = m.turnModeResolved === 'work' || !!m.workIteration
+            for (const a of (_onRail ? [] : (msg.media_artifacts || []))) {
               // Prefer the ABSOLUTE url (the TASK/runner path adds abs_url); only append absolute URLs so a
               // relative /media/ path (which 404s on the SPA origin) is never injected. The chat path lacks
               // abs_url and renders media through its own final-answer embed, so it's simply skipped here.

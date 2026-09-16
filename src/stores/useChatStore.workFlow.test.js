@@ -123,3 +123,37 @@ describe('Work run flow', () => {
     expect(s.isBusy).toBe(true)
   })
 })
+
+describe('Parallel calls in the store', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  it('keeps the step the server attributed a call to, and puts its media on that call’s row', () => {
+    const s = useChatStore()
+    s.conversationId = '1588'
+    const plan = usePlanStore()
+    plan._applySnapshot({ run_id: 'r', conversation_id: '1588', run_status: 'executing', current_step_id: 'op_1',
+                         work_goal: { state: 'ACTIVE' } })
+    s._beginAssistant()
+    s._onEvent({ type: 'work_segment', segment: 1, max: 3 })
+    for (const [id, step] of [['c1', 'op_1'], ['c2', 'op_2']]) {
+      s._onEvent({ type: 'agent_step_started', step_id: `step_${id}`, tool_call_id: id, plan_step_id: step,
+                   phase: 'using_tools', label: 'Generating an image' })
+    }
+    s._onEvent({ type: 'tool_result', tool: 'GENERATE_IMAGE', success: true, tool_call_id: 'c2', plan_step_id: 'op_2',
+                 media_artifacts: [{ type: 'image', url: '/media/chilli.png', abs_url: 'https://x/media/chilli.png' }] })
+    const rows = s.liveSteps.filter((r) => r.toolCallId)
+    expect(rows.map((r) => r.planStepId)).toEqual(['op_1', 'op_2'])
+    expect(rows[1].media).toEqual([{ url: '/media/chilli.png', type: 'image' }])
+    expect(rows[0].media).toBeUndefined()
+    // A Work message does not grow an early "answer" out of the images; the final answer embeds them.
+    expect(s.messages.at(-1).content).toBe('')
+  })
+
+  it('an ordinary chat turn still shows generated media live in its answer', () => {
+    const s = useChatStore()
+    s._beginAssistant()
+    s._onEvent({ type: 'tool_result', tool: 'GENERATE_IMAGE', success: true,
+                 media_artifacts: [{ type: 'image', abs_url: 'https://x/media/a.png' }] })
+    expect(s.messages.at(-1).content).toContain('https://x/media/a.png')
+  })
+})

@@ -291,3 +291,7 @@
 .rt .think-text{margin:6px 0 2px; font-size:12.5px; line-height:1.55; color:var(--ink-3); font-style:italic;
   white-space:pre-wrap; overflow-wrap:anywhere; max-height:220px; overflow:auto}
 .rt .act.uses .al{color:var(--ink-3)}
+/* what a call produced, under its row */
+.rt .act-media{display:flex; flex-wrap:wrap; gap:8px; padding:4px 0 8px 20px}
+.rt .act-thumb{width:120px; max-width:100%; aspect-ratio:1/1; object-fit:cover; border-radius:8px;
+  border:1px solid var(--line); background:var(--surface-2)}

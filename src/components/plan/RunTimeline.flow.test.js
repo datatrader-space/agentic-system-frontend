@@ -238,3 +238,44 @@ describe('RunTimeline — preparation, reasoning and labels live inside the rail
     expect(step.text()).toContain('Generating an image')
   })
 })
+
+describe('RunTimeline — parallel steps run side by side, each with its own result', () => {
+  let store, chat
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    store = useRunTimeline()
+    chat = useChatStore()
+  })
+
+  const IMG = ['Turmeric', 'Chilli', 'Coriander', 'Pepper']
+
+  it('four steps in progress together, each showing the image its own call produced', () => {
+    chat.messages = [
+      { id: 'u1', role: 'user', content: 'make 4 images' },
+      { id: 'a1', role: 'assistant', content: '', runId: RUN, status: 'streaming' },
+    ]
+    chat.liveSteps.splice(0, chat.liveSteps.length, ...IMG.map((n, i) => ({
+      stepId: `step_c${i}`, toolCallId: `c${i}`, planStepId: `op_${i + 1}`, label: 'Generating an image',
+      status: i < 2 ? 'ok' : 'running',
+      media: i < 2 ? [{ url: `/media/${n}.png`, type: 'image' }] : [],
+    })))
+    const s = {
+      run_id: RUN, run_status: 'executing',
+      steps: IMG.map((n, i) => ({ step_id: `op_${i + 1}`, title: `Generate ${n}`,
+        status: i < 2 ? 'completed' : 'in_progress', status_user: i < 2 ? 'completed' : 'in_progress' })),
+      work_goal: { state: 'ACTIVE', verdicts: [], available_actions: [] },
+    }
+    store.ingestSnapshot(RUN, s)
+    const w = mount(RunTimeline, { props: { runId: RUN, goal: s.work_goal }, global: { stubs: { SourcesList: true } } })
+    expect(w.findAll('.node[data-state="active"][data-test^="rt-step-"]')).toHaveLength(2)
+    for (let i = 0; i < 4; i++) {
+      const step = w.find(`[data-test="rt-step-op_${i + 1}"]`)
+      expect(step.attributes('data-open')).toBe('true')
+      expect(step.text()).toContain('Generating an image')
+      const imgs = step.findAll('img')
+      expect(imgs.map((x) => x.attributes('src'))).toEqual(i < 2 ? [`/media/${IMG[i]}.png`] : [])
+    }
+    // No answer yet: the final response comes after the steps, not while they run.
+    expect(w.findAll('[data-test^="rt-answer-"]')).toHaveLength(0)
+  })
+})

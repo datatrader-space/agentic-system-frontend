@@ -203,6 +203,18 @@ export function useAgentTimeline() {
       }
       // fall through: not a rich event, returns false below so the host still processes it normally
     }
+    // WHAT A CALL PRODUCED, ON THE ROW FOR THAT CALL. A result names its call (`tool_call_id`), so the
+    // image a parallel generation returned lands under the step it served the moment it exists, instead of
+    // every image appearing together at the end (prod conv 1588). Not consumed: the host still handles it.
+    if (evt && evt.type === 'tool_result' && evt.tool_call_id && Array.isArray(evt.media_artifacts)) {
+      const row = steps.value.find((x) => x.toolCallId && String(x.toolCallId) === String(evt.tool_call_id))
+      if (row) {
+        const media = evt.media_artifacts
+          .map((a) => ({ url: a && (a.url || a.abs_url || a.file_url), type: (a && a.type) || 'image' }))
+          .filter((a) => a.url)
+        if (media.length) row.media = [...(row.media || []), ...media]
+      }
+    }
     if (!isRichEvent(evt)) return false
     switch (evt.type) {
       case 'agent_status': {
