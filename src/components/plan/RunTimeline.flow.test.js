@@ -326,3 +326,44 @@ describe('RunTimeline — parallel steps run side by side, each with its own res
     expect(w.find('[data-test="rt-answer-a1"]').text()).toContain('All 4 images are ready.')
   })
 })
+
+describe('RunTimeline — a goal check with the next attempt running is alive, not an ending', () => {
+  let store, chat
+  beforeEach(() => { setActivePinia(createPinia()); store = useRunTimeline(); chat = useChatStore() })
+
+  const snap = (state, runStatus) => ({
+    run_id: RUN, run_status: runStatus,
+    steps: [{ step_id: 'op_1', title: 'Find versions', status: 'in_progress', status_user: 'in_progress' }],
+    work_goal: { state, available_actions: [],
+      verdicts: [{ segment: 1, verdict: 'not_met', findings: [{ observation: 'Node.js date missing' }] }] },
+  })
+
+  it('pulses and shows attempt 2 starting beneath it (conv 1599)', () => {
+    chat.messages = [
+      { id: 'u1', role: 'user', content: 'research' },
+      { id: 'a1', role: 'assistant', content: 'first answer', runId: RUN, status: 'done', workIteration: { segment: 1 } },
+      { id: 'a2', role: 'assistant', content: '', runId: RUN, status: 'streaming', workIteration: { segment: 2 } },
+    ]
+    chat.liveSteps.splice(0, chat.liveSteps.length,
+      { stepId: 's1', isPhase: true, label: 'Step 1 of 3: Find versions', status: 'ok' },
+      { stepId: 's2', label: 'Reading a web page', status: 'running' })
+    const s = snap('ACTIVE', 'executing')
+    store.ingestSnapshot(RUN, s)
+    const w = mount(RunTimeline, { props: { runId: RUN, goal: s.work_goal }, global: { stubs: { SourcesList: true } } })
+    const v = w.find('[data-test="rt-verdict-verdict_s1"]')
+    expect(v.attributes('data-live')).toBe('true')
+    const live = w.find('[data-test="rt-retry-live-verdict_s1"]')
+    expect(live.text()).toContain('Attempt 2 is running')
+    expect(live.text()).toContain('Reading a web page')
+    expect(live.text()).not.toContain('Step 1 of 3')
+  })
+
+  it('is still once the run has ended', () => {
+    chat.messages = [{ id: 'a1', role: 'assistant', content: 'answer', runId: RUN, status: 'done' }]
+    const s = snap('EXHAUSTED', 'paused')
+    store.ingestSnapshot(RUN, s)
+    const w = mount(RunTimeline, { props: { runId: RUN, goal: s.work_goal }, global: { stubs: { SourcesList: true } } })
+    expect(w.find('[data-test="rt-verdict-verdict_s1"]').attributes('data-live')).toBe('false')
+    expect(w.find('[data-test="rt-retry-live-verdict_s1"]').exists()).toBe(false)
+  })
+})

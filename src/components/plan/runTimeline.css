@@ -295,3 +295,16 @@
 .rt .act-media{display:flex; flex-wrap:wrap; gap:8px; padding:4px 0 8px 20px}
 .rt .act-thumb{width:120px; max-width:100%; aspect-ratio:1/1; object-fit:cover; border-radius:8px;
   border:1px solid var(--line); background:var(--surface-2)}
+/* a goal check whose next attempt is already running: alive, not an ending */
+.rt .node[data-live="true"] .mkr{animation:rt-breathe 1.2s ease-in-out infinite}
+.rt .node[data-live="true"] .verdict{animation:rt-verdict-pulse 2.4s ease-in-out infinite}
+@keyframes rt-verdict-pulse{0%,100%{border-color:var(--warn-line)} 50%{border-color:var(--warn)}}
+.rt .retry-live{display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin:-2px 0 10px;
+  font-size:12.5px; color:var(--ink-2)}
+.rt .retry-spin{width:10px; height:10px; border-radius:50%; border:2px solid var(--accent-line);
+  border-top-color:var(--accent); animation:rt-spin .8s linear infinite; flex:none}
+@keyframes rt-spin{to{transform:rotate(360deg)}}
+.rt .retry-lb{font-weight:500; color:var(--ink)}
+.rt .retry-act{color:var(--ink-3)}
+.rt .retry-act[data-run="true"]{color:var(--accent)}
+.rt .retry-act + .retry-act::before{content:"· "; color:var(--ink-3)}

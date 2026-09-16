@@ -195,6 +195,16 @@ const activityByStep = computed(() => {
   return out
 })
 function activitiesFor(id) { return activityByStep.value[id] || [] }
+
+// The newest activity of the attempt now running, for the line under a live goal check.
+const liveActivity = computed(() => {
+  const live = (chat.messages || []).find((m) => m.role === 'assistant' && m.status === 'streaming'
+    && belongsToThisRun(m))
+  if (!live) return []
+  return (chat.liveSteps || []).filter((a) => a && a.label && !/^Step \d+ of \d+:/.test(a.label))
+    .slice(-3).map((a, i) => ({ key: a.stepId || i, label: a.phase === 'reasoning' ? 'Thinking' : a.label,
+                               running: a.status === 'running' }))
+})
 function hasDetail(s) {
   return !!(activitiesFor(s.node_id).length || s.details || s.failure
     || (s.state === 'pending' && (s.tool_labels || []).length))
@@ -333,11 +343,22 @@ const items = computed(() => {
   // Only the LAST rejection of a run still going says "trying again"; the others already did.
   let lastVerdict = -1
   out.forEach((it, i) => { if (it.kind === 'verdict') lastVerdict = i })
-  return out.map((it, i) => (it.kind !== 'verdict' ? it : {
-    ...it,
-    label: `${VERDICT_LABEL[it.verdict] || 'Goal check: not met'}${
-      it.verdict === 'not_met' && (i !== lastVerdict || running.value) ? ' — trying again' : ''}`,
-  }))
+  let attempts = 0
+  return out.map((it, i) => {
+    if (it.kind !== 'verdict') return it
+    attempts += 1
+    // THE LATEST REJECTION OF A RUN STILL GOING IS LIVE: the next attempt is already starting. Drawn as a
+    // static amber box it read as "the run stopped" (conv 1599), so it pulses and shows that attempt's work
+    // arriving beneath it.
+    const retrying = it.verdict === 'not_met' && i === lastVerdict && running.value
+    return {
+      ...it,
+      retrying,
+      nextAttempt: attempts + 1,
+      label: `${VERDICT_LABEL[it.verdict] || 'Goal check: not met'}${
+        it.verdict === 'not_met' && (i !== lastVerdict || running.value) ? ' — trying again' : ''}`,
+    }
+  })
 })
 
 // The end of the run: its tone follows the goal, not just "the run stopped".
@@ -520,7 +541,8 @@ function fmt(ms) {
             <SourcesList v-if="it.citations.length" :citations="it.citations" />
           </div>
         </div>
-        <div v-else class="node" data-state="fail" :data-test="`rt-verdict-${it.key}`">
+        <div v-else class="node" data-state="fail" :data-live="it.retrying ? 'true' : 'false'"
+             :data-test="`rt-verdict-${it.key}`">
           <span class="mkr" aria-hidden="true" />
           <div class="head" style="padding-bottom:4px">
             <span class="lb" style="color:var(--warn)">{{ it.label }}</span>
@@ -531,6 +553,13 @@ function fmt(ms) {
                 {{ f.issue }}<span v-if="f.remedy" class="fix"> → {{ f.remedy }}</span>
               </li>
             </ul>
+          </div>
+          <div v-if="it.retrying" class="retry-live" :data-test="`rt-retry-live-${it.key}`">
+            <span class="retry-spin" aria-hidden="true" />
+            <span class="retry-lb">Attempt {{ it.nextAttempt }} is running</span>
+            <span v-for="a in liveActivity" :key="a.key" class="retry-act" :data-run="a.running ? 'true' : 'false'">
+              {{ a.label }}
+            </span>
           </div>
         </div>
       </template>
