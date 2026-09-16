@@ -119,6 +119,18 @@ describe('RunTimeline — the run in order', () => {
     expect(w.findAll('.node[data-test^="rt-verdict-"]').at(-1).text()).not.toContain('retrying')
   })
 
+  it('a provider refusal says so, not "not verified", and is not retried', () => {
+    const snap = snapshot({ state: 'PAUSED', verdicts: [{ segment: 1, verdict: 'provider_failed',
+      findings: [{ observation: "This provider's API key has reached its spending limit." }] }] },
+    { run_status: 'blocked' })
+    chat.messages = chat.messages.slice(0, 4)
+    const node = rail(snap).find('[data-test="rt-verdict-verdict_s1"]')
+    expect(node.text()).toContain('Stopped — the AI provider refused the request')
+    expect(node.text()).toContain('spending limit')
+    expect(node.text()).not.toContain('Not verified')
+    expect(node.text()).not.toContain('retrying')
+  })
+
   it('opens on THIS run’s request, not the first message of the thread', () => {
     const req = rail().find('[data-test="rt-request"]')
     expect(req.text()).toContain('Find the versions on these four pages')

@@ -340,6 +340,8 @@ function findingsOf(list) {
 const VERDICT_LABEL = {
   not_met: 'Not verified',
   undecidable: 'Could not verify the result',
+  // Not a judgement: the model provider refused the segment, so nothing was checked or retried (conv 1642).
+  provider_failed: 'Stopped — the AI provider refused the request',
 }
 const items = computed(() => {
   const history = Array.isArray(g.value.verdicts) ? g.value.verdicts : null
