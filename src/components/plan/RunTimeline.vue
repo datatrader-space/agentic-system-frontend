@@ -13,7 +13,8 @@
 // KEYED ON node_id, NEVER ON INDEX. That is the whole fix for the duplicate card: a second
 // announcement of a node patches the node that exists instead of appending beside it. The store
 // enforces it; `:key` here must not undo it.
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
+import { fileLinkPayload } from '../../composables/fileLinks'
 import SourcesList from '../chat/SourcesList.vue'
 import { useRunTimeline } from '../../stores/useRunTimeline'
 import { useChatStore } from '../../stores/useChatStore'
@@ -396,6 +397,26 @@ async function copyFinal() {
     setTimeout(() => { copied.value = false }, 1500)
   } catch { /* clipboard unavailable */ }
 }
+// FILE LINKS IN AN ANSWER open in the file viewer, exactly as they do in a chat bubble. Loaded on first use
+// (FileViewer pulls in highlight.js), and awaited so the first click is not swallowed.
+const fileViewer = ref(null)
+const FileViewerComp = shallowRef(null)
+async function onAnswerClick(e) {
+  const payload = fileLinkPayload(e.target?.closest?.('a[href*="/api/workspace/files/"], a[href*="/api/documents/"]'))
+  if (!payload) return
+  e.preventDefault()
+  if (!FileViewerComp.value) {
+    try {
+      FileViewerComp.value = (await import('../FileViewer.vue')).default
+    } catch {
+      window.open(payload.download_url, '_blank', 'noopener')
+      return
+    }
+    await new Promise((r) => setTimeout(r, 0))
+  }
+  fileViewer.value?.openUrl(payload)
+}
+
 function feedback(value) {
   const m = finalAnswer.value && finalAnswer.value.message
   if (m) chat.setFeedback(m.id, value)
@@ -540,7 +561,7 @@ function fmt(ms) {
               </button>
               <pre v-if="isOpen(it.id)" class="jsonbox">{{ it.text }}</pre>
             </template>
-            <div v-else class="mt md" :data-test="`rt-answer-md-${it.id}`" v-html="it.html" />
+            <div v-else class="mt md" :data-test="`rt-answer-md-${it.id}`" v-html="it.html" @click="onAnswerClick" />
             <SourcesList v-if="it.citations.length" :citations="it.citations" />
           </div>
         </div>
@@ -605,5 +626,6 @@ function fmt(ms) {
         </div>
       </div>
     </div>
+    <component :is="FileViewerComp" v-if="FileViewerComp" ref="fileViewer" />
   </div>
 </template>

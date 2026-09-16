@@ -379,3 +379,22 @@ describe('RunTimeline — a goal check with the next attempt running is alive, n
     expect(w.find('[data-test="rt-retry-live-verdict_s1"]').exists()).toBe(false)
   })
 })
+
+describe('RunTimeline — a file link in an answer opens in the viewer, not a bare tab', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('prod conv 1608: clicking the document link is intercepted', async () => {
+    const store = useRunTimeline()
+    const chat = useChatStore()
+    chat.messages = [{ id: 'a1', role: 'assistant', runId: RUN, status: 'done',
+      content: '[Download](/api/documents/redis-and-sqlite/download/?format=markdown)' }]
+    const s = { run_id: RUN, run_status: 'completed', steps: [], work_goal: { state: 'ACHIEVED', verdicts: [], available_actions: [] } }
+    store.ingestSnapshot(RUN, s)
+    const w = mount(RunTimeline, { props: { runId: RUN, goal: s.work_goal }, global: { stubs: { SourcesList: true } } })
+    const link = w.find('[data-test="rt-answer-md-a1"] a')
+    expect(link.exists()).toBe(true)
+    const ev = new MouseEvent('click', { bubbles: true, cancelable: true })
+    link.element.dispatchEvent(ev)
+    expect(ev.defaultPrevented).toBe(true)
+  })
+})

@@ -230,6 +230,7 @@ import { stopReasonBadge } from '../../composables/stopReason'
 import { reasoningItems } from '../../composables/useAgentTimeline'
 import { useChatStore } from '../../stores/useChatStore'
 import { stripThinkBlocks } from '../../utils/thinkFilter'
+import { fileLinkPayload } from '../../composables/fileLinks'
 
 const chat = useChatStore()
 const _plan = usePlanStore()
@@ -508,14 +509,11 @@ const onCodeCopy = async (e) => {
   // link text is the filename (its extension drives the render mode); the modal has its own Download button.
   // If JS ever fails, the <a> still downloads as a graceful fallback. Refresh-stable — reads the rendered
   // answer, no store/persistence needed.
-  const wsLink = e.target?.closest?.('a[href*="/api/workspace/files/"]')
-  if (wsLink) {
+  // Agent documents (CREATE_DOCUMENT) open the same way — see composables/fileLinks.
+  const fileLink = fileLinkPayload(e.target?.closest?.('a[href*="/api/workspace/files/"], a[href*="/api/documents/"]'))
+  if (fileLink) {
     e.preventDefault()
-    const href = wsLink.getAttribute('href') || ''
-    const base = href.replace(/[?&]inline=1$/, '')            // strip any inline flag (?inline=1 or &inline=1)
-    const sep = base.includes('?') ? '&' : '?'                // token URL already carries ?t=… → join with &
-    const name = (wsLink.textContent || '').trim() || 'file'
-    openFile({ path: name, download_url: base, view_url: base + sep + 'inline=1' })
+    openFile(fileLink)
     return
   }
   const btn = e.target?.closest?.('.code-copy')
