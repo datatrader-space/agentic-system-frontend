@@ -146,3 +146,21 @@ describe('ChatMessage — preparation is one line, not a card that gets swapped 
     expect(w.find('[data-test="preparing-line"]').exists()).toBe(false)
   })
 })
+
+describe('ChatMessage — a Work answer whose rail never appeared is still shown', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('prod conv 1592: a finished Work-tagged answer with no run on screen renders as a normal bubble', () => {
+    useChatStore().conversationId = '1592'
+    const w = mountIt(answer({ status: 'done', turnModeResolved: 'work', workIteration: { segment: 1, max: 3 } }))
+    expect(w.find('[data-test="msg-on-rail"]').exists()).toBe(false)
+    expect(w.find('.bubble.assistant').exists()).toBe(true)
+  })
+
+  it('while it is still streaming it waits for the rail', () => {
+    useChatStore().conversationId = '1592'
+    const w = mountIt(answer({ status: 'streaming', content: 'x', turnModeResolved: 'work' }))
+    expect(w.find('[data-test="msg-on-rail"]').exists()).toBe(true)
+    expect(w.find('.bubble.assistant').exists()).toBe(false)
+  })
+})

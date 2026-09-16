@@ -1,11 +1,11 @@
 <template>
-  <div class="msg" :class="[message.role, { 'on-rail': onWorkRail && message.role === 'assistant' }]"
-       :data-test="onWorkRail && message.role === 'assistant' ? 'msg-on-rail' : null">
+  <div class="msg" :class="[message.role, { 'on-rail': deferToRail && message.role === 'assistant' }]"
+       :data-test="deferToRail && message.role === 'assistant' ? 'msg-on-rail' : null">
     <!-- A WORK RUN'S MESSAGE DRAWS NOTHING OF ITS OWN. The rail below it carries the answer, the
          steps, the verdicts, the tokens and the actions, in the order they happened. Drawing the
          avatar, a token line and copy/regenerate here put the END of the run ABOVE the run (prod conv
          1578). What remains is what the rail cannot say: the moment before it exists, and an error. -->
-    <template v-if="message.role === 'assistant' && onWorkRail">
+    <template v-if="message.role === 'assistant' && deferToRail">
       <div class="rail-slot">
         <div v-if="isStreaming && !railShown" class="prep-status" data-test="rail-pending">
           <span class="prep-spinner"></span>{{ (chat.liveStatus && chat.liveStatus.label) || 'Starting work…' }}
@@ -40,7 +40,7 @@
           <span class="prep-spinner"></span>{{ preparingLabel }}
         </div>
         <AgentActivityTimeline
-          v-if="!preparingOnly && !onWorkRail && (isStreaming ? chat.richActive : !!message.timeline)"
+          v-if="!preparingOnly && !deferToRail && (isStreaming ? chat.richActive : !!message.timeline)"
           :debug="false"
           :status-label="isStreaming && chat.liveStatus ? chat.liveStatus.label : ''"
           :steps="isStreaming ? chat.liveSteps : message.timeline.steps"
@@ -275,14 +275,23 @@ const onWorkRail = computed(() => {
 // on screen. STREAMING IS EXEMPT: the rail is built from a committed snapshot, so while tokens are
 // still arriving the bubble is the only thing that has them, and suppressing it would make a live
 // answer look like nothing is happening.
-const answerOnRail = computed(() => onWorkRail.value && props.message.role === 'assistant')
+const answerOnRail = computed(() => deferToRail.value && props.message.role === 'assistant')
+
+// DEFER TO THE RAIL ONLY WHILE ONE CAN STILL APPEAR. A finished Work message whose run never produced a
+// rail (no plan snapshot for it) used to render NOTHING — no bubble, no rail — which is what prod conv 1592
+// showed: a Platform Super Agent answer of 1,103 characters, invisible. While the turn streams the rail may
+// still be on its way; once it has ended, a message with no rail is drawn as an ordinary answer.
+const deferToRail = computed(() => onWorkRail.value && (isStreaming.value || railShown.value))
 
 // Is this message's rail on screen yet. Until the run's first plan snapshot lands there is nothing to
 // defer to, so the message shows one live status line rather than an empty gap.
 const railShown = computed(() => {
   const m = props.message
   if (_plan.isWorkRun(m.runId)) return true
-  return (m.planArtifacts || []).some((a) => _plan.isWorkRun(a && a.run_id))
+  if ((m.planArtifacts || []).some((a) => _plan.isWorkRun(a && a.run_id))) return true
+  // A message written before run ids were stamped names no run; its thread's rail is the one it is on.
+  // (A live message is always stamped with its run by the time its rail exists, so this is for history.)
+  return !m.runId && m.status !== 'streaming' && _plan.hasWorkRail(chat.conversationId)
 })
 const emit = defineEmits(['retry', 'regenerate', 'edit', 'feedback'])
 
