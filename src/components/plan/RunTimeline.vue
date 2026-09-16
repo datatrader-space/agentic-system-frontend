@@ -651,9 +651,9 @@ function fmt(ms) {
         <div class="terminal">
           <span class="pill" :class="terminalTone" data-test="rt-terminal-state">{{ terminalLabel }}</span>
           <span class="ts">
-            Ran <b>{{ terminal.steps }} step{{ terminal.steps === 1 ? '' : 's' }}</b><template
-              v-if="terminal.retried">, <b>{{ terminal.retried }} retried</b></template><template
-              v-if="terminal.duration_ms"> · {{ fmt(terminal.duration_ms) }}</template><template
+            <template v-if="terminal.steps">Ran <b>{{ terminal.steps }} step{{ terminal.steps === 1 ? '' : 's' }}</b></template><template
+              v-if="terminal.retried">{{ terminal.steps ? ', ' : '' }}<b>{{ terminal.retried }} retried</b></template><template
+              v-if="terminal.duration_ms">{{ terminal.steps || terminal.retried ? ' · ' : '' }}{{ fmt(terminal.duration_ms) }}</template><template
               v-if="terminal.total_tokens"> · {{ fmtTokens(terminal.total_tokens) }} tokens</template><template
               v-if="fmtCost(terminal.cost_usd)"> · {{ fmtCost(terminal.cost_usd) }}</template>
           </span>

@@ -420,3 +420,18 @@ describe('RunTimeline — a file link in an answer opens in the viewer, not a ba
     expect(ev.defaultPrevented).toBe(true)
   })
 })
+
+describe('RunTimeline — the end row never says "Ran 0 steps" (prod conv 1629)', () => {
+  it('a run with no plan steps shows only what it has', () => {
+    setActivePinia(createPinia())
+    const store = useRunTimeline()
+    useChatStore().messages = []
+    const s = { run_id: RUN, run_status: 'completed', steps: [],
+      work_goal: { state: 'ACHIEVED', verdicts: [], available_actions: [], totals: { duration_ms: 22700, total_tokens: 71500 } } }
+    store.ingestSnapshot(RUN, s)
+    const w = mount(RunTimeline, { props: { runId: RUN, goal: s.work_goal }, global: { stubs: { SourcesList: true } } })
+    const end = w.find('[data-test="rt-terminal"]').text()
+    expect(end).not.toContain('0 steps')
+    expect(end).toContain('22.7s')
+  })
+})
