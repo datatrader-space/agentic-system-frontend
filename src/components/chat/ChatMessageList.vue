@@ -45,6 +45,10 @@
                                 :run-id="a.run_id" :plan-id="a.plan_id" />
           </div>
         </template>
+        <!-- A Work run with no plan anchor anywhere in the thread still gets its rail, at its first message. -->
+        <div v-else-if="unanchoredRailAt.get(m.id)" class="msg-plan">
+          <InlinePlanArtifact :run-id="unanchoredRailAt.get(m.id)" />
+        </div>
       </template>
 
       <!-- The foot of the thread: which iteration is running now, or how the run ended. This is the
@@ -100,6 +104,24 @@ const firstAnchorByPlan = computed(() => {
   }
   return out
 })
+// message id -> run id, for the FIRST message of each Work run that no message anchors. Only runs the plan
+// store knows to be Work runs, so an ordinary chat turn never grows a rail.
+const unanchoredRailAt = computed(() => {
+  const anchored = new Set()
+  for (const m of (chat.messages || [])) {
+    for (const a of (m.planArtifacts || [])) if (a && a.run_id) anchored.add(String(a.run_id))
+  }
+  const out = new Map()
+  const seen = new Set()
+  for (const m of (chat.messages || [])) {
+    const rid = m.role === 'assistant' && m.runId ? String(m.runId) : ''
+    if (!rid || anchored.has(rid) || seen.has(rid)) continue
+    seen.add(rid)
+    if (_plan.isWorkRun(rid)) out.set(m.id, rid)
+  }
+  return out
+})
+
 function isFirstAnchor(messageId, planId) {
   return firstAnchorByPlan.value[planId] === messageId
 }

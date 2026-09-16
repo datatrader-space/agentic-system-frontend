@@ -1415,6 +1415,10 @@ export const useChatStore = defineStore('chat', {
         const runIds = new Set()
         for (const m of this.messages) {
           for (const a of (m.planArtifacts || [])) if (a && a.run_id) runIds.add(a.run_id)
+          // A Work run whose plan never got a durable anchor (a small, tracking-only plan) is named only by
+          // its messages' `run_id` stamp. Without reading it, a reload dropped that run's whole rail and its
+          // answers fell back to bubbles (prod conv 1608, turn 2).
+          if (m.role === 'assistant' && m.runId && m.turnModeResolved === 'work') runIds.add(m.runId)
         }
         if (runIds.size) { for (const rid of runIds) plan.hydrateRun(rid); return }
         if (!this.messages.some((m) => m.role === 'assistant')) return   // no plan possible

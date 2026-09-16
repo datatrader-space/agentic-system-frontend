@@ -71,3 +71,27 @@ describe('ChatMessageList — run scaffolding', () => {
     expect(w.findAllComponents({ name: 'InlinePlanArtifact' })).toHaveLength(1)
   })
 })
+
+describe('ChatMessageList — a Work run with no plan anchor still gets its rail', () => {
+  it('prod conv 1608 turn 2: the rail is drawn at the run’s first message, once', async () => {
+    const { setActivePinia, createPinia } = await import('pinia')
+    const { mount } = await import('@vue/test-utils')
+    const { useChatStore } = await import('../../stores/useChatStore')
+    const { usePlanStore } = await import('../../stores/usePlanStore')
+    const ChatMessageList = (await import('./ChatMessageList.vue')).default
+    setActivePinia(createPinia())
+    const chat = useChatStore()
+    const plan = usePlanStore()
+    plan.plansByRunId.r2 = { run_id: 'r2', steps: [], work_goal: { state: 'ACHIEVED' } }
+    chat.messages = [
+      { id: 'u1', role: 'user', content: 'go' },
+      { id: 'a1', role: 'assistant', content: 'one', runId: 'r2', turnModeResolved: 'work', status: 'done' },
+      { id: 'a2', role: 'assistant', content: 'two', runId: 'r2', turnModeResolved: 'work', status: 'done' },
+      { id: 'a3', role: 'assistant', content: 'chat', runId: 'r3', turnModeResolved: 'chat', status: 'done' },
+    ]
+    const w = mount(ChatMessageList, { global: { stubs: { ChatMessage: true, WorkIterationBar: true,
+      InlinePlanArtifact: { props: ['runId'], template: '<div class="stub-rail" :data-run="runId" />' } } } })
+    const rails = w.findAll('.stub-rail')
+    expect(rails.map((r) => r.attributes('data-run'))).toEqual(['r2'])
+  })
+})
