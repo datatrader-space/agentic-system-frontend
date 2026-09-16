@@ -215,8 +215,10 @@ const prep = computed(() => {
 function stepOpen(s) {
   const id = s.node_id
   if (id in _open.value) return !!_open.value[id]
-  // Also open when the step produced something to look at: a generated image is the step's result, and
-  // hiding it behind a chevron once the step turns green is hiding the point of the step.
+  // ONCE THE RUN HAS ENDED, EVERY STEP FOLDS BACK TO ITS TITLE and the final answer is what is left open —
+  // the work is one click away, not in the way of the result. While it runs, the step that is working is
+  // open, and so is one that produced something to look at (a generated image is that step's result).
+  if (terminal.value) return false
   return s.state === 'active' || activitiesFor(id).some((a) => a.media && a.media.length)
 }
 function toggleStep(s) { _open.value = { ..._open.value, [s.node_id]: !stepOpen(s) } }
@@ -268,8 +270,14 @@ function belongsToThisRun(m) {
 // server); a message without a stamp belongs to the segment before it, and the first to segment 1.
 const answers = computed(() => {
   let seg = 0
+  // WHILE A STEP IS STILL RUNNING, text the model is streaming is narration ("I'll generate the four images
+  // now…"), not the answer; it is replaced once the work is done. Drawn under the steps it read as the answer
+  // arriving before the work it describes (prod conv 1591, 13s into a 75s run). It appears once no step is
+  // running — which is when the real answer streams.
+  const working = steps.value.some((x) => x.state === 'active')
   return (chat.messages || [])
-    .filter((m) => m.role === 'assistant' && String(m.content || '').trim() && belongsToThisRun(m))
+    .filter((m) => m.role === 'assistant' && String(m.content || '').trim() && belongsToThisRun(m)
+      && !(working && m.status === 'streaming'))
     .map((m) => {
       const stamped = Number((m.workIteration && m.workIteration.segment) || 0)
       seg = stamped || seg || 1

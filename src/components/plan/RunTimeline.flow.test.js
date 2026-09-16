@@ -278,4 +278,51 @@ describe('RunTimeline — parallel steps run side by side, each with its own res
     // No answer yet: the final response comes after the steps, not while they run.
     expect(w.findAll('[data-test^="rt-answer-"]')).toHaveLength(0)
   })
+
+  it('once the run ends every step folds back to its title, leaving the final answer open', async () => {
+    chat.messages = [
+      { id: 'u1', role: 'user', content: 'make 4 images' },
+      { id: 'a1', role: 'assistant', content: 'All 4 images are ready.', runId: RUN, status: 'done',
+        timeline: { steps: IMG.map((n, i) => ({ stepId: `s${i}`, planStepId: `op_${i + 1}`, label: 'Generating an image',
+          status: 'ok', media: [{ url: `/media/${n}.png`, type: 'image' }] })).concat(
+          [{ stepId: 'p', label: 'Analyzing your request', status: 'ok' }]) } },
+    ]
+    const running = {
+      run_id: RUN, run_status: 'executing',
+      steps: IMG.map((n, i) => ({ step_id: `op_${i + 1}`, title: `Generate ${n}`, status: 'in_progress', status_user: 'in_progress' })),
+      work_goal: { state: 'ACTIVE', verdicts: [], available_actions: [] },
+    }
+    store.ingestSnapshot(RUN, running)
+    const w = mount(RunTimeline, { props: { runId: RUN, goal: running.work_goal }, global: { stubs: { SourcesList: true } } })
+    expect(w.find('[data-test="rt-step-op_2"]').attributes('data-open')).toBe('true')
+    const ended = { ...running, run_status: 'completed',
+      steps: running.steps.map((x) => ({ ...x, status: 'completed', status_user: 'completed' })),
+      work_goal: { ...running.work_goal, state: 'ACHIEVED' } }
+    store.ingestSnapshot(RUN, ended)
+    await w.setProps({ goal: ended.work_goal })
+    for (let i = 1; i <= 4; i++) expect(w.find(`[data-test="rt-step-op_${i}"]`).attributes('data-open')).toBe('false')
+    expect(w.find('[data-test="rt-answer-a1"]').text()).toContain('All 4 images are ready.')
+    // Still one click away.
+    await w.find('[data-test="rt-toggle-op_3"]').trigger('click')
+    expect(w.find('[data-test="rt-step-op_3"]').attributes('data-open')).toBe('true')
+  })
+
+  it('narration streamed while steps run is not drawn as the answer; the answer streams once they finish', async () => {
+    chat.messages = [
+      { id: 'u1', role: 'user', content: 'make 4 images' },
+      { id: 'a1', role: 'assistant', content: 'I will generate the four images now.', runId: RUN, status: 'streaming' },
+    ]
+    const running = {
+      run_id: RUN, run_status: 'executing',
+      steps: [{ step_id: 'op_1', title: 'Generate Turmeric', status: 'in_progress', status_user: 'in_progress' }],
+      work_goal: { state: 'ACTIVE', verdicts: [], available_actions: [] },
+    }
+    store.ingestSnapshot(RUN, running)
+    const w = mount(RunTimeline, { props: { runId: RUN, goal: running.work_goal }, global: { stubs: { SourcesList: true } } })
+    expect(w.find('[data-test="rt-answer-a1"]').exists()).toBe(false)
+    store.ingestSnapshot(RUN, { ...running, steps: [{ ...running.steps[0], status: 'completed', status_user: 'completed' }] })
+    chat.messages[1].content = 'All 4 images are ready.'
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="rt-answer-a1"]').text()).toContain('All 4 images are ready.')
+  })
 })
