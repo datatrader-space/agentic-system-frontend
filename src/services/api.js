@@ -594,6 +594,9 @@ export default {
   getAgentModelOptions: (id) => api.get(`/agents/${id}/model-options/`, { noCache: true }),
   // What the chat Effort control may offer: agent config reasoning on/off + the efforts the caller's model accepts.
   getAgentReasoningOptions: (id) => api.get(`/agents/${id}/reasoning-options/`, { noCache: true }),
+  // Switch every model on a capped provider to another provider (the chat's switch-provider popup).
+  getProviderSwitchOptions: (fromProvider) => api.get('/llm/providers/switch-options/', { params: { from: fromProvider }, noCache: true }),
+  switchProvider: (fromProvider, toProviderId) => api.post('/llm/providers/switch/', { from: fromProvider, to_provider_id: toProviderId }),
   selectAgentModel: (id, modelId) => api.post(`/agents/${id}/select-model/`, { model_id: modelId }),
   // Per-user run mode for SHARED agents. A plain updateAgent() would write the ONE shared row and
   // change the mode for every user on the platform — this writes the caller's override only.

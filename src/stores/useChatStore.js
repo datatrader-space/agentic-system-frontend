@@ -116,6 +116,9 @@ export const useChatStore = defineStore('chat', {
     // think about THIS message — the backend allow-lists the value and maps 'off' to no reasoning at all.
     // Sticky across turns so a user who wants deep thinking does not re-pick it every message.
     reasoningEffort: '',
+    // Set from an error frame whose refusal a provider switch would fix (key limit / credits / rejected key):
+    // { from_provider, reason, message }. ProviderSwitchDialog opens on it; null when closed.
+    providerSwitchOffer: null,
 
     // Share sheet (ShareModal). `shareAnchorId` is a message's DB pk when the sheet was opened from a
     // specific message — the snapshot is then cut at that message ("share up to here").
@@ -2161,6 +2164,9 @@ export const useChatStore = defineStore('chat', {
           // cannot reach, rejected credentials). Carried onto the message so the bubble can withhold
           // the Retry button rather than inviting a re-run that fails identically.
           this._errAssistant(em, msg.retryable !== false, true)
+          if (msg.provider_switch && msg.provider_switch.from_provider) {
+            this.providerSwitchOffer = { ...msg.provider_switch, message: em }
+          }
           break
         }
         default:

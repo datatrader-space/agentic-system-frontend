@@ -100,6 +100,8 @@
         :is-shared-agent="chat.isSharedAgent"
         @send="onSend" @stop="chat.stop()" @mode-change="onModeChange"
         @attach="chat.addAttachments" @remove-attach="chat.removeAttachment" />
+      <!-- Opens when a provider account refuses the turn (key limit / credits / rejected key). -->
+      <ProviderSwitchDialog />
       <div v-if="chat.sessionTokens" class="session-meter" :title="`Total tokens used in this chat`">
         Session {{ fmtTokens(chat.sessionTokens) }}<span v-if="chat.sessionCost"> · {{ fmtCost(chat.sessionCost) }}</span>
       </div>
@@ -166,6 +168,7 @@ import { useArtifactsStore } from '../../stores/useArtifactsStore'
 import ChatWelcome from './ChatWelcome.vue'
 import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
+import ProviderSwitchDialog from './ProviderSwitchDialog.vue'
 import TurnModeSwitch from './TurnModeSwitch.vue'
 import ChatHistoryDrawer from './ChatHistoryDrawer.vue'
 import HITLModal from '../HITLModal.vue'
