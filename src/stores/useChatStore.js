@@ -1800,6 +1800,18 @@ export const useChatStore = defineStore('chat', {
           if (target && msg.message_id != null) target.serverId = msg.message_id
           break
         }
+        case 'run_usage': {
+          // EVERYTHING THE RUN PAID FOR — sub-agents, the goal check, routing, embeddings — sent once the turn
+          // has nothing left to spend. The answer frame's usage counted only the answer rounds (conv 1689
+          // showed 86.9k tokens; the run was billed ~1.02M). Replaces it on the message it belongs to.
+          const byId = msg.message_id != null
+            && this.messages.find((x) => x.role === 'assistant' && String(x.serverId ?? x.id) === String(msg.message_id))
+          const byRun = !byId && msg.run_id
+            && [...this.messages].reverse().find((x) => x.role === 'assistant' && String(x.runId || '') === String(msg.run_id))
+          const target = byId || byRun || [...this.messages].reverse().find((x) => x.role === 'assistant')
+          if (target && msg.usage) target.usage = msg.usage
+          break
+        }
         case 'turn_resumed': {
           // We reconnected (e.g. after a refresh) to a turn STILL RUNNING on the server. Open a fresh
           // streaming assistant bubble so the live tokens land, and show WHERE the run actually is —

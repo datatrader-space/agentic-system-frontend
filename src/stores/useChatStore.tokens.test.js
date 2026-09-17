@@ -47,3 +47,29 @@ describe('useChatStore — session token totals', () => {
     expect(chat.sessionTokens).toBe(0)
   })
 })
+
+describe('useChatStore — run_usage replaces the answer rounds with everything the run paid for', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('conv 1689: 86.9k shown becomes the billed total, on the message it names', () => {
+    const chat = useChatStore()
+    chat.messages = [
+      { id: 'a0', serverId: 900, role: 'assistant', content: 'earlier', usage: { total_tokens: 10, cost_usd: 0.001 } },
+      { id: 'a1', serverId: 901, runId: 'run-1', role: 'assistant', content: 'table', status: 'done',
+        usage: { total_tokens: 86908, cost_usd: 0.18 } },
+    ]
+    chat._onEvent({ type: 'run_usage', run_id: 'run-1', message_id: 901,
+      usage: { total_tokens: 1021000, cost_usd: 1.77, model_calls: 58, billed: true } })
+    expect(chat.messages[1].usage.total_tokens).toBe(1021000)
+    expect(chat.messages[1].usage.cost_usd).toBeCloseTo(1.77, 5)
+    expect(chat.messages[0].usage.total_tokens).toBe(10)          // another turn is untouched
+    expect(chat.sessionCost).toBeCloseTo(1.771, 5)
+  })
+
+  it('finds the message by run when the row id is not known yet', () => {
+    const chat = useChatStore()
+    chat.messages = [{ id: 'a1', runId: 'run-2', role: 'assistant', content: 'x', usage: { total_tokens: 5 } }]
+    chat._onEvent({ type: 'run_usage', run_id: 'run-2', usage: { total_tokens: 500, billed: true } })
+    expect(chat.messages[0].usage.total_tokens).toBe(500)
+  })
+})
