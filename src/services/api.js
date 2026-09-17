@@ -592,6 +592,8 @@ export default {
   getSuperAgentCard: () => api.get('/agents/super-agent/', { params: { slim: 1 } }),
   // Shared-agent model picker: the caller's provider cards + models, and their sticky pick.
   getAgentModelOptions: (id) => api.get(`/agents/${id}/model-options/`, { noCache: true }),
+  // What the chat Effort control may offer: agent config reasoning on/off + the efforts the caller's model accepts.
+  getAgentReasoningOptions: (id) => api.get(`/agents/${id}/reasoning-options/`, { noCache: true }),
   selectAgentModel: (id, modelId) => api.post(`/agents/${id}/select-model/`, { model_id: modelId }),
   // Per-user run mode for SHARED agents. A plain updateAgent() would write the ONE shared row and
   // change the mode for every user on the platform — this writes the caller's override only.

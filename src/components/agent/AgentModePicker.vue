@@ -26,7 +26,7 @@
       <!-- Own agents have no model pill, so their per-turn effort row lives here. Shared agents get
            Mode + Effort together inside the model dropdown instead — one control, never two. -->
       <div class="amp-sep"></div>
-      <EffortSlider />
+      <EffortSlider :options="reasoningOptions" />
       <div v-if="error" class="amp-error">{{ error }}</div>
     </div>
     <div v-if="open" class="amp-backdrop" @click="open = false"></div>
@@ -35,8 +35,9 @@
 
 <script setup>
 import EffortSlider from '../chat/EffortSlider.vue'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useAgentRunMode } from '../../composables/useAgentRunMode'
+import { useReasoningOptions } from '../../composables/useReasoningOptions'
 
 const props = defineProps({
   agentId: { type: [Number, String], default: null },
@@ -47,6 +48,10 @@ const props = defineProps({
 const emit = defineEmits(['change'])
 
 const open = ref(false)
+// What Effort may offer for this agent's model and configuration — refreshed whenever the menu opens, so an
+// agent-config change made in another tab shows without a reload.
+const { options: reasoningOptions, reload: reloadReasoning } = useReasoningOptions(() => props.agentId)
+watch(open, (v) => { if (v) reloadReasoning() })
 // Load/choose/persist — shared with the Mode section inside the shared agent's model dropdown so the
 // autonomous confirmation and the shared-agent write rule can never drift between the two surfaces.
 const { mode, saving, error, isAuto, label, dotClass, options, select: apply } =

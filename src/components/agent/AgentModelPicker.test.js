@@ -35,6 +35,7 @@ const payload = {
 const api = vi.hoisted(() => ({
   getAgentModelOptions: vi.fn(),
   selectAgentModel: vi.fn(),
+  getAgentReasoningOptions: vi.fn(),
 }))
 
 vi.mock('../../services/api', () => ({ default: api }))
@@ -56,6 +57,7 @@ beforeEach(() => {
   setActivePinia(createPinia())
   api.getAgentModelOptions.mockReset().mockResolvedValue({ data: payload })
   api.selectAgentModel.mockReset().mockResolvedValue({ data: payload })
+  api.getAgentReasoningOptions.mockReset().mockResolvedValue({ data: { enabled: true, supported: true, levels: ['low', 'medium', 'high'] } })
 })
 
 describe('AgentModelPicker', () => {
@@ -205,5 +207,17 @@ describe('AgentModelPicker', () => {
 
     expect(wrapper.find('[data-test="model-picker-menu"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="model-picker-trigger"]').attributes('aria-expanded')).toBe('false')
+  })
+})
+
+describe('AgentModelPicker — reasoning options follow the picked model', () => {
+  it('loads them for the agent and reloads after a model pick', async () => {
+    const w = mountPicker()
+    await flushPromises()
+    expect(api.getAgentReasoningOptions).toHaveBeenCalledWith(7)
+    const before = api.getAgentReasoningOptions.mock.calls.length
+    await w.vm.$.setupState.pick({ id: 21 })
+    await flushPromises()
+    expect(api.getAgentReasoningOptions.mock.calls.length).toBeGreaterThan(before)
   })
 })

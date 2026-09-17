@@ -83,7 +83,7 @@
 
         <div class="amp-divider"></div>
         <!-- Per-turn thinking effort: a model setting, so it sits with the model. -->
-        <EffortSlider />
+        <EffortSlider :options="reasoningOptions" />
 
         <div v-if="error" class="amp-error" role="alert">{{ error }}</div>
 
@@ -184,6 +184,7 @@
 <script setup>
 import EffortSlider from '../chat/EffortSlider.vue'
 import { useAgentRunMode } from '../../composables/useAgentRunMode'
+import { useReasoningOptions } from '../../composables/useReasoningOptions'
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '../../services/api'
@@ -194,6 +195,8 @@ const props = defineProps({
 const emit = defineEmits(['changed'])
 
 const open = ref(false)
+// What Effort may offer: depends on the model THIS user runs the shared agent on, so it reloads after a pick.
+const { options: reasoningOptions, reload: reloadReasoning } = useReasoningOptions(() => props.agentId)
 const showProviders = ref(false)
 const showModels = ref(false)
 const activeProviderId = ref(null)
@@ -298,6 +301,7 @@ async function pick(model) {
   error.value = ''
   try {
     const { data } = await api.selectAgentModel(props.agentId, model ? model.id : null)
+    reloadReasoning()
     applyPayload(data)
     emit('changed', { current: current.value, source: source.value })
     close()
