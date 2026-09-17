@@ -38,11 +38,18 @@ const chat = useChatStore()
 // WHICH MODE IS IN EFFECT — the user's pin if they set one, otherwise what the model last chose.
 // Before any turn has run there is nothing to report, and Chat is the honest thing to show: a run that
 // never needed to work is what most turns are.
-const shown = computed(() =>
-  (chat.turnMode === 'auto' ? (chat.lastResolvedMode || 'chat') : chat.turnMode))
+//
+// A LIVE WORK RUN IS SHOWN AS WORK, WHATEVER THE PIN SAYS. A pin is a preference the backend weighs, not an
+// order: a request that cannot finish in a few turns still opens a Work goal with the switch on Chat. The
+// run then went iteration by iteration while this control kept saying Chat (reported 2026-09-17). While
+// `work_segment` holds the run open, the switch reports what is actually running — drawn as a readout, not
+// a pin — and the user's pin comes back into view once the run closes.
+const liveWork = computed(() => !!chat._workRunActive && chat.turnMode !== 'work')
+const shown = computed(() => (liveWork.value ? 'work'
+  : (chat.turnMode === 'auto' ? (chat.lastResolvedMode || 'chat') : chat.turnMode)))
 // Is the highlight the user's instruction, or the model's decision? The two must not look alike — that
 // conflation is the whole reason this control was rebuilt.
-const pinned = computed(() => chat.turnMode !== 'auto')
+const pinned = computed(() => chat.turnMode !== 'auto' && !liveWork.value)
 
 function pick(mode) {
   // Clicking the pinned mode RELEASES it. Without this there is no way back to Auto once anything is
@@ -51,6 +58,9 @@ function pick(mode) {
 }
 
 function hint(mode) {
+  if (liveWork.value && mode === 'work') {
+    return 'Running as Work: this request needs more than a few turns, so it works to a goal.'
+  }
   const what = mode === 'work'
     ? 'work to a goal across as many turns as it takes'
     : 'answer in this turn'

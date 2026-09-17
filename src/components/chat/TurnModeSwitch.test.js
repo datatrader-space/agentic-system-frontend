@@ -166,6 +166,42 @@ describe('TurnModeSwitch — two buttons, three states', () => {
     expect(w.find('[data-test="turnmode-work"]').classes()).not.toContain('is-on')
   })
 
+  it('a Work run in flight is shown as Work even with Chat pinned — the switch reports what is running', async () => {
+    // Reported 2026-09-17: the Brain opened a Work goal on a Chat-pinned turn (a pin is a preference it
+    // weighs), the run went iteration by iteration, and the switch kept saying Chat.
+    const chat = useChatStore()
+    chat.setTurnMode('chat')
+    const w = mount(TurnModeSwitch)
+    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-on')
+
+    chat._workRunActive = true                     // what `work_segment` sets
+    await w.vm.$nextTick()
+    const work = w.find('[data-test="turnmode-work"]')
+    expect(work.classes()).toContain('is-on')
+    expect(work.classes()).not.toContain('is-pinned')   // a readout, not the user's choice
+    expect(w.find('[data-test="turnmode-chat"]').classes()).not.toContain('is-on')
+    expect(w.find('[data-test="turnmode-chat"]').attributes('aria-pressed')).toBe('true')  // the pin is kept
+
+    chat._workRunActive = false                    // what `work_goal` sets when the run closes
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-on')
+    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-pinned')
+  })
+
+  it('the live frame drives it end to end: work_segment lights Work, work_goal hands back to the pin', async () => {
+    const chat = useChatStore()
+    chat.setTurnMode('chat')
+    const w = mount(TurnModeSwitch)
+    chat._refreshWorkRun = () => {}               // network refresh — not what is under test
+    chat._onEvent({ type: 'work_segment', segment: 1, max: 3 })
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="turnmode-work"]').classes()).toContain('is-on')
+
+    chat._onEvent({ type: 'work_goal', state: 'met', segments: 1, max: 3 })
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="turnmode-chat"]').classes()).toContain('is-on')
+  })
+
   it('an unrecognised value falls back to Auto, never to a silent override', () => {
     const chat = useChatStore()
     chat.setTurnMode('banana')
