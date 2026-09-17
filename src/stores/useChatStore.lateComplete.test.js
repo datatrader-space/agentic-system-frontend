@@ -65,6 +65,16 @@ describe('a second assistant_message_complete still lands', () => {
     expect(lastAssistant(s).error).toBe('provider timed out')
   })
 
+  it('a server error frame ends the timeline as failed, not "connection lost" (prod conv 1661)', () => {
+    const s = useChatStore()
+    s._beginAssistant()
+    s._onEvent({ type: 'agent_step_started', step_id: 'A', phase: 'thinking', label: 'Gathering context' })
+    s._onEvent({ type: 'error', error: 'key limit', retryable: false })
+    const m = lastAssistant(s)
+    expect(m.retryable).toBe(false)
+    expect(m.timeline?.summary?.finalStatus).toBe('failed')
+  })
+
   it('the first frame still works normally on an ordinary turn', () => {
     const s = useChatStore()
     s._beginAssistant()

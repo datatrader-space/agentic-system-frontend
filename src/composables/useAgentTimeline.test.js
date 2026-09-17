@@ -133,6 +133,17 @@ describe('useAgentTimeline — rich streaming render model', () => {
     expect(t.summary.value.label).toBe('Interrupted')
   })
 
+  it('fail() — a server error frame reads as failed, never "connection lost" (prod conv 1661)', () => {
+    const t = useAgentTimeline()
+    t.ingest({ type: 'agent_step_started', step_id: 'A', phase: 'thinking', label: 'Gathering context' })
+    t.fail('This provider\'s API key has reached its spending limit')
+    expect(t.activeStep.value).toBe(null)
+    expect(t.isComplete.value).toBe(true)
+    expect(t.interrupted.value).toBe(false)
+    expect(t.summary.value.finalStatus).toBe('failed')
+    expect(t.summary.value.label).toBe('Failed safely')
+  })
+
   it('interrupt() is idempotent and harmless with nothing running', () => {
     const t = useAgentTimeline()
     t.interrupt('x')

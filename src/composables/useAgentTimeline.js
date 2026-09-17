@@ -406,6 +406,17 @@ export function useAgentTimeline() {
     }
   }
 
+  // The SERVER ended the turn with an error frame (a provider refused the call, a key hit its limit). That is
+  // a terminal event, not a dropped socket, so it must not read "Interrupted — connection lost": prod conv
+  // 1661 showed exactly that over an OpenRouter key-limit refusal the backend had reported precisely.
+  function fail(note = '') {
+    interrupt(note)
+    interrupted.value = false
+    if (summary.value && summary.value.finalStatus === 'interrupted') {
+      summary.value = { ...summary.value, finalStatus: 'failed', label: finalStatusLabel('failed', hasFailures.value) }
+    }
+  }
+
   // The VIEW stopped following a turn that never reported a terminal event — the user switched
   // conversation, or closed the chat, while the agent kept working. Not `interrupt()`: nothing was
   // interrupted, and telling someone their run died when it is still going is worse than saying
@@ -469,6 +480,7 @@ export function useAgentTimeline() {
     hasFailures,
     isComplete,
     interrupted,
+    fail,
     tokens,
     reasoning,
     ingest,

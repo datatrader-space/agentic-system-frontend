@@ -1619,15 +1619,17 @@ export const useChatStore = defineStore('chat', {
       } catch { /* best-effort — never block the turn */ }
     },
 
-    _errAssistant(err, retryable = true) {
+    _errAssistant(err, retryable = true, fromServer = false) {
       this._stopDeafWatchdog()
       const m = this._cur()
       if (m) {
         m.status = 'error'
         m.error = err || 'Something went wrong.'
         m.retryable = retryable
-        // interrupt (not finish): the live timeline collapses to "Interrupted", not "Done".
-        _tl.interrupt(m.error)
+        // interrupt (not finish): the live timeline collapses to "Interrupted", not "Done". An error FRAME
+        // is the server ending the turn, not a lost connection — it reads "Could not complete".
+        if (fromServer) _tl.fail(m.error)
+        else _tl.interrupt(m.error)
         if (_tl.hasActivity()) m.timeline = _tl.snapshot()
       }
       this.isStreaming = false
@@ -2158,7 +2160,7 @@ export const useChatStore = defineStore('chat', {
           // `retryable: false` means the server knows retrying cannot succeed (a model the account
           // cannot reach, rejected credentials). Carried onto the message so the bubble can withhold
           // the Retry button rather than inviting a re-run that fails identically.
-          this._errAssistant(em, msg.retryable !== false)
+          this._errAssistant(em, msg.retryable !== false, true)
           break
         }
         default:
