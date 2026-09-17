@@ -160,6 +160,7 @@ import { notify } from '../composables/useNotify'
 import { confirm } from '../composables/useConfirm'
 import AddWebsiteSourceModal from '../components/knowledge/AddWebsiteSourceModal.vue'
 import WebSourcePagesModal from '../components/knowledge/WebSourcePagesModal.vue'
+import { saveBlob } from '../utils/saveBlob'
 
 const PAGE_SIZE = 10
 const resources = ref([])
@@ -263,12 +264,7 @@ async function doExport(r) {
     const res = await api.exportKnowledge(r.id)
     const ext = r.kind === 'website' ? '.csv' : ''
     const base = (r.name || `knowledge-${r.id}`).replace(/[^\w.-]+/g, '_')
-    const url = URL.createObjectURL(res.data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = ext && !base.endsWith(ext) ? base + ext : base
-    document.body.appendChild(a); a.click(); a.remove()
-    URL.revokeObjectURL(url)
+    saveBlob(res.data, ext && !base.endsWith(ext) ? base + ext : base)
   } catch (e) {
     notify.error('Export failed: ' + (e.response?.data?.detail || e.message))
   } finally {

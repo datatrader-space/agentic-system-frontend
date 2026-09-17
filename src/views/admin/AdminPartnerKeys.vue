@@ -139,6 +139,7 @@ import { marked } from 'marked'
 import api from '../../services/api'
 import { notify } from '../../composables/useNotify'
 import { confirm } from '../../composables/useConfirm'
+import { saveBlob } from '../../utils/saveBlob'
 
 const keys = ref([])
 const baseUrl = ref('/api/partner/agents/')
@@ -299,14 +300,7 @@ async function download() {
   await ensureDocs()
   if (!docsMd) return
   const blob = new Blob([docsMd], { type: 'text/markdown;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'PARTNER_AGENT_API.md'
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+  saveBlob(blob, 'PARTNER_AGENT_API.md')
   notify.success('Guide downloaded — share it with the partner')
 }
 

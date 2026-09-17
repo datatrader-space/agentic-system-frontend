@@ -189,6 +189,7 @@ import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark-dimmed.css';
 import { marked } from 'marked';
 import { useTheme } from '../composables/useTheme';
+import { saveBlob } from '../utils/saveBlob';
 
 const { isDark } = useTheme();   // follow the app theme (light default; toggled via data-theme)
 
@@ -586,14 +587,7 @@ const downloadFile = async () => {
       const res = await api.downloadWorkspaceFile(aid, currentPath.value);
       blob = res.data;
     }
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName.value;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    saveBlob(blob, fileName.value);
   } catch (e) {
     console.error('Download failed:', e);
   } finally {

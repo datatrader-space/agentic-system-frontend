@@ -253,6 +253,7 @@ import { useNotify } from '../composables/useNotify'
 import { useConfirm } from '../composables/useConfirm'
 import BudgetEditModal from '../components/budgets/BudgetEditModal.vue'
 import BudgetRuleModal from '../components/budgets/BudgetRuleModal.vue'
+import { saveBlob } from '../utils/saveBlob'
 
 const store = useBudgetStore()
 const notify = useNotify()
@@ -413,10 +414,7 @@ function exportCsv() {
   }
   const csv = rows.map((cols) => cols.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url; a.download = `budgets-${store.period}.csv`; a.click()
-  URL.revokeObjectURL(url)
+  saveBlob(blob, `budgets-${store.period}.csv`)
 }
 
 const explainers = [

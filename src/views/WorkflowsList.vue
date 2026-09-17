@@ -111,6 +111,7 @@ import api from '../services/api'
 import PageLoader from '../components/common/PageLoader.vue'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import { saveBlob } from '../utils/saveBlob'
 
 const router = useRouter()
 const graphs = ref([])
@@ -224,12 +225,7 @@ async function exportGraph(g) {
   try {
     const { data } = await api.exportWorkflowGraph(g.id)
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${(g.name || 'workflow').replace(/[^a-z0-9-_]+/gi, '_')}.json`
-    document.body.appendChild(a); a.click(); a.remove()
-    URL.revokeObjectURL(url)
+    saveBlob(blob, `${(g.name || 'workflow').replace(/[^a-z0-9-_]+/gi, '_')}.json`)
   } catch (e) {
     notify.error('Failed to export')
   }

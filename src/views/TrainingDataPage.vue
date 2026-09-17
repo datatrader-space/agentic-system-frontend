@@ -109,6 +109,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import { useNotify } from '../composables/useNotify'
+import { saveBlob } from '../utils/saveBlob'
 
 const notify = useNotify()
 
@@ -192,14 +193,7 @@ function download() {
   if (!rows.value.length) return
   const jsonl = rows.value.map((r) => JSON.stringify(r)).join('\n')
   const blob = new Blob([jsonl], { type: 'application/x-ndjson' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `agent-corpus-${fmt.value}.jsonl`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+  saveBlob(blob, `agent-corpus-${fmt.value}.jsonl`)
 }
 
 onMounted(loadConsent)
