@@ -243,7 +243,9 @@ const hasDebug = computed(
 
 const summaryWarn = computed(() => {
   const s = props.summary
-  return props.hasFailures || !!(s && (s.finalStatus === 'interrupted' || s.finalStatus === 'detached'))
+  // `failed` too: a green check beside "Could not complete" contradicts itself (prod conv 1662).
+  return props.hasFailures || !!(s && (s.finalStatus === 'interrupted' || s.finalStatus === 'detached' ||
+    s.finalStatus === 'failed'))
 })
 
 // Collapsed-header headline (legacy "Done" wording). Public stays simple.

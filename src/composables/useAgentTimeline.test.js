@@ -142,6 +142,7 @@ describe('useAgentTimeline — rich streaming render model', () => {
     expect(t.interrupted.value).toBe(false)
     expect(t.summary.value.finalStatus).toBe('failed')
     expect(t.summary.value.label).toBe('Failed safely')
+    expect(t.steps.value[0].reason || '').toBe('') // the bubble carries the error; the row does not repeat it
   })
 
   it('interrupt() is idempotent and harmless with nothing running', () => {

@@ -409,8 +409,10 @@ export function useAgentTimeline() {
   // The SERVER ended the turn with an error frame (a provider refused the call, a key hit its limit). That is
   // a terminal event, not a dropped socket, so it must not read "Interrupted — connection lost": prod conv
   // 1661 showed exactly that over an OpenRouter key-limit refusal the backend had reported precisely.
-  function fail(note = '') {
-    interrupt(note)
+  function fail() {
+    // No note on the step: the answer bubble already carries the error, and copying it onto the last row
+    // printed the same paragraph twice (prod conv 1662).
+    interrupt('')
     interrupted.value = false
     if (summary.value && summary.value.finalStatus === 'interrupted') {
       summary.value = { ...summary.value, finalStatus: 'failed', label: finalStatusLabel('failed', hasFailures.value) }

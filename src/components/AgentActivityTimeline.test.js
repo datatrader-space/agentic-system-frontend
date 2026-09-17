@@ -137,6 +137,14 @@ describe('AgentActivityTimeline', () => {
     expect(pub.text()).not.toContain('Failed safely')
   })
 
+  it('a failed turn is shown as a warning, never with the green check (prod conv 1662)', () => {
+    const summary = { finalStatus: 'failed', label: 'Failed safely' }
+    const w = mount(AgentActivityTimeline, { props: { steps: [builderStep], summary, isComplete: true } })
+    expect(w.text()).toContain('Could not complete')
+    expect(w.find('.at-check').classes()).toContain('warn')
+    expect(w.find('.at-card').classes()).toContain('at-warn')
+  })
+
   describe('public tier (publicSafe)', () => {
     it('shows only friendly label + source names; hides summary text, duration, refs, and debug', async () => {
       const sources = [{ kind: 'knowledge_base', name: 'Knowledge Base', ref: 'doc/secret-7' }]

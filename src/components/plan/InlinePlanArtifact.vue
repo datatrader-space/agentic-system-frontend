@@ -29,6 +29,18 @@ onMounted(() => { if (!plan.value) store.hydrateRun(props.runId) })
 // mode, which is the same way every other behaviour here is selected.
 const timeline = useRunTimeline()
 const useRail = computed(() => !!plan.value?.work_goal)
+// A STEPLESS PLAN THAT HAS ALREADY STOPPED SAYS NOTHING. Prod conv 1662: a chat question whose routing call
+// was refused at the provider drew a "Plan · Blocked" card with no steps under an answer that already said why.
+// Only for an ordinary run that ended with nothing planned — a plan still drafting, awaiting approval, or a
+// Work run keeps its card.
+const ENDED = new Set(['blocked', 'failed', 'cancelled', 'completed', 'superseded'])
+const emptyAndEnded = computed(() => {
+  const p = plan.value
+  if (!p || p.work_goal) return false
+  if ((p.steps || []).length || (p.total_step_count || 0) > 0) return false
+  const state = String(p.plan_status_user || p.plan_status || '').toLowerCase()
+  return ENDED.has(state)
+})
 // Re-derived from the snapshot on every change. `ingestSnapshot` resets and replays, so re-hydrating
 // cannot duplicate or reorder the rail -- the same property the reducer gives replay.
 watch(plan, (p) => { if (p && useRail.value) timeline.ingestSnapshot(props.runId, p) },
@@ -71,7 +83,7 @@ async function onDecide({ decision, comment }) {
 </script>
 
 <template>
-  <div v-if="plan">
+  <div v-if="plan && !emptyAndEnded">
     <!-- The Work-mode progress row sits ABOVE the plan, because for a run measured in hours the plan is
          the detail and "which segment, and why is it going round again" is the headline. Absent for
          every ordinary run, which is almost all of them. -->

@@ -45,6 +45,23 @@ describe('InlinePlanArtifact — which surface a run gets', () => {
     const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
     expect(w.find('[data-test="run-timeline"]').exists()).toBe(false)
   })
+
+  it('a stepless ordinary plan that already stopped draws nothing (prod conv 1662)', () => {
+    const plan = usePlanStore()
+    plan.plansByRunId[RUN] = { ...PLAN, work_goal: null, steps: [], total_step_count: 0,
+                               plan_status: 'blocked', plan_status_user: 'blocked', plan_status_label: 'Blocked' }
+    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
+    expect(w.html()).not.toContain('Blocked')
+    expect(w.find('section').exists()).toBe(false)
+  })
+
+  it('a stepless plan that is still being drafted keeps its card', () => {
+    const plan = usePlanStore()
+    plan.plansByRunId[RUN] = { ...PLAN, work_goal: null, steps: [], total_step_count: 0,
+                               plan_status: 'drafting', plan_status_user: 'active' }
+    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
+    expect(w.find('section').exists()).toBe(true)
+  })
 })
 
 // ONE SURFACE, and this is the test that was missing when the rail shipped beside the old ones.
