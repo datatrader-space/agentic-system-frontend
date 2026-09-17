@@ -396,6 +396,9 @@
     <!-- Manage MCP server in-page (reuses MCPServerDetailModal) — no redirect to /dashboard/mcp -->
     <MCPServerDetailModal v-if="mcpDetail" :server="mcpDetail" @close="closeMcpDetail" @updated="openMcpManageRefresh" @edit="onMcpDetailEdit" />
 
+    <!-- Secure entry: a secret an agent asked for, typed here and never passed through the agent (?secure_entry=<id>) -->
+    <SecureEntryModal v-if="secureEntryId" :request-id="secureEntryId" @close="closeSecureEntry" @done="loadConnectors" />
+
     <!-- Full service management in-page (edit actions, test, share, activate, delete) -->
     <ServiceDetailModal v-if="serviceManage" :service="serviceManage" @close="closeServiceManage" @updated="loadConnectors" />
 
@@ -472,6 +475,7 @@ import WorkspaceManageModal from '../components/connectors/WorkspaceManageModal.
 import IntegrationHubModal from '../components/connectors/IntegrationHubModal.vue'
 import ConnectorTabs from '../components/connectors/ConnectorTabs.vue'
 import ConnectorGettingStartedSidebar from '../components/connectors/ConnectorGettingStartedSidebar.vue'
+import SecureEntryModal from '../components/connectors/SecureEntryModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -561,6 +565,17 @@ function closeHub() {
   if (route.query.tab) {
     const q = { ...route.query }
     delete q.tab
+    router.replace({ path: route.path, query: q })
+  }
+}
+// Deep-link from an agent: ?secure_entry=<id> opens the secure entry form for that request. Closing drops the
+// query so a refresh does not reopen a request that is already answered.
+const secureEntryId = ref(typeof route.query.secure_entry === 'string' ? route.query.secure_entry : '')
+function closeSecureEntry() {
+  secureEntryId.value = ''
+  if (route.query.secure_entry) {
+    const q = { ...route.query }
+    delete q.secure_entry
     router.replace({ path: route.path, query: q })
   }
 }

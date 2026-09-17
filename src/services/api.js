@@ -89,7 +89,9 @@ api.interceptors.response.use(
         if (!onPublicPage) {
           clearApiCache()
           try { localStorage.clear(); sessionStorage.clear() } catch { /* ignore */ }
-          window.location.assign('/login')
+          // Come back here after signing in: a secure entry link opened with an expired session must still
+          // land on its form. Login honours only same-origin relative `next` paths.
+          window.location.assign('/login?next=' + encodeURIComponent(path + window.location.search))
         }
       }
     } else if (error.request) {
@@ -1056,6 +1058,11 @@ export default {
     const qs = params.toString()
     return api.get(`/agents/${agentId}/workspace-routing/${qs ? '?' + qs : ''}`)
   },
+
+  // ── Secure entry: a secret an agent asked for, typed here by the person — never sent through the agent ──
+  getSecureEntry: (id) => api.get(`/secure-entry/${encodeURIComponent(id)}/`),
+  submitSecureEntry: (id, values) => api.post(`/secure-entry/${encodeURIComponent(id)}/`, { values }),
+  declineSecureEntry: (id) => api.post(`/secure-entry/${encodeURIComponent(id)}/decline/`),
 
   // ── User Connections (OAuth Providers) ──
   getConnectionProviders: () => api.get('/connections/providers/'),

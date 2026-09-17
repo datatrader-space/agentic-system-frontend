@@ -506,10 +506,11 @@ router.beforeEach(async (to, from, next) => {
       // User is authenticated, allow access
       next()
     } else {
-      // Server explicitly says not authenticated
+      // Server explicitly says not authenticated. Carry the destination so a deep link — a secure entry
+      // link an agent handed the person, a shared page — opens after sign-in instead of being lost.
       localStorage.clear()
       sessionStorage.clear()
-      next('/login')
+      next({ path: '/login', query: { next: to.fullPath } })
     }
   } catch (error) {
     // Distinguish between auth failures and network errors
@@ -520,7 +521,7 @@ router.beforeEach(async (to, from, next) => {
       _auth = { authenticated: false, isStaff: false }
       localStorage.clear()
       sessionStorage.clear()
-      next('/login')
+      next({ path: '/login', query: { next: to.fullPath } })
     } else {
       // Network error, server restart, timeout, etc.
       // Don't nuke the session — allow through and let the page try (snapshot stays unknown so the
