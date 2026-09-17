@@ -104,6 +104,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ChevronRight, ChevronDown, ArrowLeft, ArrowRight, Save, Play, Pause as PauseIcon, Rocket, Pencil, MoreHorizontal, MessageCircle, UploadCloud } from 'lucide-vue-next'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
+import { changedFields, snapshot } from '../composables/agentDiff'
 import DefineBrainStep from '../components/agent-editor/DefineBrainStep.vue'
 import AgentIdentityStep from '../components/agent-editor/AgentIdentityStep.vue'
 import KnowledgeToolsStep from '../components/agent-editor/KnowledgeToolsStep.vue'
@@ -128,6 +129,13 @@ const loading = ref(true)
 const saving = ref(false)
 let resaveQueued = false                 // trailing-save flag: re-save after an in-flight save finishes
 const agent = ref({})
+// What the server last confirmed for this agent. A save sends ONLY the fields that differ from it.
+//
+// It used to PATCH the whole object the editor loaded. The editor keeps that object in memory (it does not
+// refetch an agent it already holds), so any field changed ELSEWHERE since — the run mode switched from the
+// chat composer, above all — was written straight back to its old value by the next save here. A user
+// switched their agent to Autonomous in chat and found it back on Manual (2026-09-17).
+let serverCopy = {}
 const step = ref('identity')
 
 // One editor, two modes: "new" (no id yet — created on the first Continue/Save) and "edit".
@@ -202,7 +210,11 @@ function applyQueryStep() {
 }
 
 function mergeAgent(data) {
-  if (data) agent.value = { ...agent.value, ...data }
+  // Child steps call this with what the SERVER returned, so it is confirmed state, not a pending edit.
+  if (data) {
+    agent.value = { ...agent.value, ...data }
+    serverCopy = { ...serverCopy, ...snapshot(data) }
+  }
 }
 
 // Header "Chat" — jump straight into a chat with THIS agent, pre-selected via ?agent=<id> exactly like
@@ -225,6 +237,7 @@ async function togglePause() {
       ? await api.unpauseAgent(agent.value.id)
       : await api.pauseAgent(agent.value.id, 'Paused from the editor')
     agent.value = { ...agent.value, ...data }
+    serverCopy = { ...serverCopy, ...snapshot(data) }
     notify.success(wasPaused ? 'Agent resumed' : 'Agent paused — it won’t start new runs')
   } catch (e) { notify.error('Could not update pause state') }
   pausing.value = false
@@ -255,6 +268,7 @@ async function load() {
     // (never wipes it). The GET doesn't return tool_ids (write-only), so without this a save could send [].
     a.tool_ids = Array.isArray(a.tools) ? a.tools.map(t => t.id) : []
     agent.value = a
+    serverCopy = snapshot(a)
     lastSavedAt.value = a.updated_at || null
   } catch (e) {
     notify.error('Failed to load agent')
@@ -270,8 +284,15 @@ async function save({ quiet = false } = {}) {
   try {
     let res
     if (agent.value.id) {
-      res = await api.patch(`/agents/${agent.value.id}/`, agent.value)
+      const changes = changedFields(agent.value, serverCopy)
+      if (!Object.keys(changes).length) {
+        lastSavedAt.value = new Date().toISOString()
+        if (!quiet) notify.success('Saved')
+        return true
+      }
+      res = await api.patch(`/agents/${agent.value.id}/`, changes)
       agent.value = { ...agent.value, ...res.data }
+      serverCopy = snapshot(agent.value)
     } else {
       // First save in new mode → create. OMIT tool_ids so the backend's default-tool assignment isn't
       // wiped by an empty list (the bug that left agents with 0 tools). Adopt the assigned set afterwards.
@@ -279,6 +300,7 @@ async function save({ quiet = false } = {}) {
       res = await api.post('/agents/', payload)
       agent.value = { ...agent.value, ...res.data }
       if (Array.isArray(res.data?.tools)) agent.value.tool_ids = res.data.tools.map(t => t.id)
+      serverCopy = snapshot(agent.value)
       if (agent.value.id) router.replace(`${shellBase.value}/agents/${agent.value.id}/editor`)
     }
     lastSavedAt.value = new Date().toISOString()
@@ -298,7 +320,10 @@ async function saveAndPublish() {
   if (!ok) return
   try {
     const res = await api.publishAgent(agent.value.id)
-    if (res.data) agent.value = { ...agent.value, ...res.data }
+    if (res.data) {
+      agent.value = { ...agent.value, ...res.data }
+      serverCopy = { ...serverCopy, ...snapshot(res.data) }
+    }
     notify.success('Published')
   } catch (e) {
     notify.error('Failed to publish')
