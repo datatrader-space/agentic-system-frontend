@@ -55,10 +55,17 @@ describe('InlinePlanArtifact — which surface a run gets', () => {
     expect(w.find('section').exists()).toBe(false)
   })
 
-  it('a stepless plan that is still being drafted keeps its card', () => {
+  it('a stepless plan that is still planning draws nothing either (prod conv 1666)', () => {
     const plan = usePlanStore()
     plan.plansByRunId[RUN] = { ...PLAN, work_goal: null, steps: [], total_step_count: 0,
-                               plan_status: 'drafting', plan_status_user: 'active' }
+                               plan_status: 'planning', plan_status_user: 'active', plan_status_label: 'Planning' }
+    const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
+    expect(w.find('section').exists()).toBe(false)
+  })
+
+  it('the card appears as soon as the plan has a step', () => {
+    const plan = usePlanStore()
+    plan.plansByRunId[RUN] = { ...PLAN, work_goal: null, plan_status: 'planning', plan_status_user: 'active' }
     const w = mount(InlinePlanArtifact, { props: { runId: RUN } })
     expect(w.find('section').exists()).toBe(true)
   })
