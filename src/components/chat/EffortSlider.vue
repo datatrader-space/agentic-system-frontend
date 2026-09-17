@@ -26,11 +26,11 @@
 import { computed, ref } from 'vue'
 import { useChatStore } from '../../stores/useChatStore'
 
-// Ordered low→high, so "further right" always means "think harder". `''` is the ABSENCE of a choice (the
-// agent's own default stands); `off` is a CHOICE that switches reasoning off even on an agent configured
-// to reason. Those are different answers and the backend treats them differently — never collapse them.
+// Ordered low→high, so "further right" always means "think harder". `''` is AUTO — the absence of a choice: the
+// backend's routing call, which has read the message, picks the level for it (else the agent's default).
+// `off` is a CHOICE that switches reasoning off even on an agent configured to reason. Those are different answers and the backend treats them differently — never collapse them.
 const STOPS = [
-  { value: '',        label: 'Auto',    hint: "Auto — use the agent's configured default" },
+  { value: '',        label: 'Auto',    hint: 'Auto — picks how hard to think for each message' },
   { value: 'off',     label: 'Off',     hint: 'Off — no reasoning tokens, fastest and cheapest' },
   { value: 'minimal', label: 'Minimal', hint: 'Minimal — a brief think before answering' },
   { value: 'low',     label: 'Low',     hint: 'Low — light reasoning' },
