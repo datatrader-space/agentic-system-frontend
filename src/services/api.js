@@ -477,12 +477,10 @@ export default {
   updateLlmProvider: (id, data) => api.put(`/llm/providers/${id}/`, data),
   deleteLlmProvider: (id) => api.delete(`/llm/providers/${id}/`),
   testLlmProvider: (id, model) => api.post(`/llm/providers/${id}/test/`, model ? { model } : {}),
-  // Generic re-sync for ANY provider type (openai/anthropic/gemini/xai/openrouter/ollama).
-  // Models also auto-sync on provider creation server-side; this is the manual refresh.
+  // Generic re-sync for ANY provider type (openai/anthropic/gemini/xai/openrouter/ollama/custom).
+  // Models sync on provider creation and again daily server-side (opt out per provider with
+  // metadata.auto_sync_models = false); this is the manual refresh.
   syncModels: (id) => api.post(`/llm/providers/${id}/sync_models/`),
-  syncOllamaModels: (id) => api.post(`/llm/providers/${id}/sync_ollama_models/`),
-  syncOpenRouterModels: (id) => api.post(`/llm/providers/${id}/sync_openrouter_models/`),
-  syncOpenAIModels: (id) => api.post(`/llm/providers/${id}/sync_openai_models/`),
   getLlmModels: (params = {}) => api.get('/llm/models/', { params }),
   // Per-user model selection for internal LLM ops (ask_llm / summarize / artifact_summarize)
   getOperationModels: () => api.get('/llm/operation-models/'),

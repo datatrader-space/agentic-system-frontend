@@ -69,6 +69,28 @@
                     <span class="font-bold text-slate-400 mr-1">{{ provider.provider_type.toUpperCase() }}</span>
                     <span v-if="provider.base_url">{{ provider.base_url }}</span>
                   </p>
+                  <!-- Scheduled model sync: switch + last outcome (written server-side on every sync) -->
+                  <div v-if="SYNCABLE_TYPES.includes(provider.provider_type)" class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
+                    <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-600" title="Re-sync this provider's model list every day so new models appear on their own">
+                      <input type="checkbox" class="h-3 w-3 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
+                             :checked="autoSyncOn(provider)" :disabled="savingAutoSync[provider.id]"
+                             @change="setAutoSync(provider, $event.target.checked)" />
+                      Auto-sync daily
+                    </label>
+                    <span class="text-slate-300">·</span>
+                    <span v-if="syncing[provider.id]" class="text-slate-500">Syncing…</span>
+                    <span v-else-if="!provider.metadata?.model_sync" class="text-slate-400">Not synced yet</span>
+                    <span v-else-if="provider.metadata.model_sync.status === 'error'" class="text-red-600 break-words max-w-[200px] sm:max-w-md"
+                          :title="provider.metadata.model_sync.error">
+                      Last sync failed {{ timeAgo(provider.metadata.model_sync.last_attempt_at) }}: {{ provider.metadata.model_sync.error }}
+                    </span>
+                    <span v-else-if="provider.metadata.model_sync.status === 'skipped'" class="text-amber-600">
+                      Sync skipped: {{ provider.metadata.model_sync.error }}
+                    </span>
+                    <span v-else class="text-slate-500">
+                      Synced {{ timeAgo(provider.metadata.model_sync.last_success_at) }}
+                    </span>
+                  </div>
                   <!-- Test result (persistent so the failure reason stays readable) -->
                   <p v-if="testResults[provider.id]" class="mt-1 text-[11px] font-medium break-words max-w-[200px] sm:max-w-md"
                      :class="testResults[provider.id].success ? 'text-emerald-600' : 'text-red-600'">
@@ -98,11 +120,12 @@
 
               <!-- Sync Buttons -->
               <button
-                v-if="['ollama', 'openrouter', 'openai', 'anthropic', 'gemini', 'xai', 'custom'].includes(provider.provider_type)"
+                v-if="SYNCABLE_TYPES.includes(provider.provider_type)"
                 @click="syncModels(provider)"
-                class="px-3 py-1.5 text-[12px] font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm whitespace-nowrap"
+                :disabled="syncing[provider.id]"
+                class="px-3 py-1.5 text-[12px] font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
               >
-                Sync Models
+                {{ syncing[provider.id] ? 'Syncing…' : 'Sync Models' }}
               </button>
 
               <!-- Delete Button -->
@@ -808,6 +831,42 @@ const testResults = ref({})    // { [providerId]: { success, message } }
 const testingModel = ref({})   // { [modelId]: boolean }
 const modelResults = ref({})   // { [modelId]: { success, message } }
 
+// Provider types whose model list the backend can discover (provider_model_sync.SYNCABLE_TYPES).
+const SYNCABLE_TYPES = ['ollama', 'openrouter', 'openai', 'anthropic', 'gemini', 'xai', 'custom']
+const syncing = ref({})          // { [providerId]: boolean }
+const savingAutoSync = ref({})   // { [providerId]: boolean }
+
+// Absent means ON — the backend re-syncs every provider daily unless it was switched off.
+const autoSyncOn = (provider) => provider.metadata?.auto_sync_models !== false
+
+const setAutoSync = async (provider, enabled) => {
+  savingAutoSync.value[provider.id] = true
+  const previous = provider.metadata
+  provider.metadata = { ...(provider.metadata || {}), auto_sync_models: enabled }
+  try {
+    const res = await api.updateLlmProvider(provider.id, { ...provider })
+    if (res?.data?.metadata) provider.metadata = res.data.metadata
+    notify(enabled ? 'Daily model sync on' : 'Daily model sync off', 'success')
+  } catch (e) {
+    provider.metadata = previous
+    notify(apiError(e, 'Failed to update auto-sync'), 'error')
+  } finally {
+    savingAutoSync.value[provider.id] = false
+  }
+}
+
+const timeAgo = (iso) => {
+  if (!iso) return ''
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000))
+  if (Number.isNaN(seconds)) return ''
+  if (seconds < 60) return 'just now'
+  const units = [['d', 86400], ['h', 3600], ['m', 60]]
+  for (const [label, size] of units) {
+    if (seconds >= size) return `${Math.floor(seconds / size)}${label} ago`
+  }
+  return 'just now'
+}
+
 const loadProviders = async () => {
   const params = {}
   if (ownerFilter.value) params.owner = ownerFilter.value
@@ -949,12 +1008,18 @@ const removeModel = async (model) => {
 
 // Generic manual re-sync — works for every syncable provider type via one backend endpoint.
 const syncModels = async (provider) => {
+  if (syncing.value[provider.id]) return
+  syncing.value[provider.id] = true
   try {
     const response = await api.syncModels(provider.id)
     notify(response.data.message || 'Models synced', 'success')
     await loadModels()
   } catch (error) {
     notify('Failed to sync: ' + apiError(error, 'upstream error'), 'error')
+  } finally {
+    syncing.value[provider.id] = false
+    // The backend records every attempt (success or failure) on the provider — refresh to show it.
+    await loadProviders().catch(() => {})
   }
 }
 
