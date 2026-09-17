@@ -424,10 +424,15 @@
               <div class="text-[13px] font-semibold text-ink truncate">{{ d.name || 'Untitled draft' }}</div>
               <div class="text-[11px] text-ink-faint">Step {{ d.last_saved_step || 1 }} · draft</div>
             </div>
-            <button @click="deleteDraft(d)" class="text-[12px] font-semibold text-red-600 hover:underline shrink-0">Delete</button>
+            <div class="flex items-center gap-3 shrink-0">
+              <!-- Open = the full service manager (activate, edit, publish as built-in). A draft is hidden from the
+                   connector list, so without this a service registered over MCP had no way in from the dashboard. -->
+              <button @click="showDrafts = false; openServiceManage(d)" class="text-[12px] font-semibold text-violet-700 hover:underline">Open</button>
+              <button @click="deleteDraft(d)" class="text-[12px] font-semibold text-red-600 hover:underline">Delete</button>
+            </div>
           </div>
         </div>
-        <p class="mt-3 text-[11px] text-ink-faint">Drafts auto-save during registration. To continue one, start “Register service” — your latest draft is restored.</p>
+        <p class="mt-3 text-[11px] text-ink-faint">Open a draft to review its actions, activate it or publish it. Drafts from the registration wizard auto-save — start “Register service” to continue the latest one.</p>
       </div>
     </div>
 

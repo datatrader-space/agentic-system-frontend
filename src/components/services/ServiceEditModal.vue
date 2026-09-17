@@ -368,7 +368,7 @@ const handleSubmit = async () => {
   saving.value = true
 
   try {
-    await api.updateService(props.service.id, {
+    const { data } = await api.updateService(props.service.id, {
       name: formData.name,
       description: formData.description,
       base_url: formData.base_url,
@@ -383,6 +383,9 @@ const handleSubmit = async () => {
       is_builtin: formData.is_builtin
     })
 
+    // Publishing an OAuth service converts its own app into the platform's shared provider; the server says
+    // which redirect URI that app must now also accept, and the admin has to act on it.
+    if (data?.oauth_provider) notify.success(data.message, { timeout: 15000 })
     emit('updated')
     emit('close')
   } catch (err) {
