@@ -397,7 +397,7 @@
     <MCPServerDetailModal v-if="mcpDetail" :server="mcpDetail" @close="closeMcpDetail" @updated="openMcpManageRefresh" @edit="onMcpDetailEdit" />
 
     <!-- Secure entry: a secret an agent asked for, typed here and never passed through the agent (?secure_entry=<id>) -->
-    <SecureEntryModal v-if="secureEntryId" :request-id="secureEntryId" @close="closeSecureEntry" @done="loadConnectors" />
+    <SecureEntryModal v-if="secureEntryId" :key="secureEntryId" :request-id="secureEntryId" @close="closeSecureEntry" @done="loadConnectors" @renewed="onSecureEntryRenewed" />
 
     <!-- Full service management in-page (edit actions, test, share, activate, delete) -->
     <ServiceDetailModal v-if="serviceManage" :service="serviceManage" @close="closeServiceManage" @updated="loadConnectors" />
@@ -571,6 +571,12 @@ function closeHub() {
 // Deep-link from an agent: ?secure_entry=<id> opens the secure entry form for that request. Closing drops the
 // query so a refresh does not reopen a request that is already answered.
 const secureEntryId = ref(typeof route.query.secure_entry === 'string' ? route.query.secure_entry : '')
+// A renewed link replaces the old id in the URL too, so a refresh opens the live request.
+function onSecureEntryRenewed(newId) {
+  if (!newId) return
+  secureEntryId.value = newId
+  router.replace({ path: route.path, query: { ...route.query, secure_entry: newId } })
+}
 function closeSecureEntry() {
   secureEntryId.value = ''
   if (route.query.secure_entry) {

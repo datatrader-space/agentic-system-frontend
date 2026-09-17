@@ -1063,6 +1063,7 @@ export default {
   getSecureEntry: (id) => api.get(`/secure-entry/${encodeURIComponent(id)}/`),
   submitSecureEntry: (id, values) => api.post(`/secure-entry/${encodeURIComponent(id)}/`, { values }),
   declineSecureEntry: (id) => api.post(`/secure-entry/${encodeURIComponent(id)}/decline/`),
+  renewSecureEntry: (id) => api.post(`/secure-entry/${encodeURIComponent(id)}/renew/`),
 
   // ── User Connections (OAuth Providers) ──
   getConnectionProviders: () => api.get('/connections/providers/'),

@@ -94,15 +94,22 @@
             but not what you entered.
           </p>
           <p v-else-if="request.status === 'declined'">You declined this request. Nothing was saved.</p>
-          <p v-else-if="request.status === 'expired'">
-            This link has expired and nothing was saved. Ask your agent for a new one.
+          <p v-else-if="request.status === 'expired'">This link has expired and nothing was saved.</p>
+          <p v-else-if="request.status === 'renewed'">This link was replaced by a newer one.</p>
+          <p v-if="request.renewable || request.status === 'renewed'" class="mt-2 text-[12px] text-ink-faint">
+            You can continue here — your agent will pick up the new link on its own.
           </p>
+          <p v-if="submitError" class="mt-2 text-[12px] text-red-600">{{ submitError }}</p>
         </div>
       </div>
 
-      <div v-if="!loading && !(request && request.status === 'pending')" class="px-5 pb-5 flex justify-end">
+      <div v-if="!loading && !(request && request.status === 'pending')" class="px-5 pb-5 flex justify-end gap-2">
         <button @click="close" class="px-3.5 py-2 rounded-lg text-[13px] font-semibold text-ink-soft bg-slate-100 hover:bg-slate-200">
           Close
+        </button>
+        <button v-if="request && (request.renewable || request.status === 'renewed')" :disabled="busy" @click="renew"
+                class="px-3.5 py-2 rounded-lg text-[13px] font-semibold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50">
+          {{ busy ? 'Getting a new link…' : (request.status === 'renewed' ? 'Open the new link' : 'Get a new link') }}
         </button>
       </div>
     </div>
@@ -120,7 +127,7 @@ import { notify } from '@/composables/useNotify'
 const props = defineProps({
   requestId: { type: String, required: true },
 })
-const emit = defineEmits(['close', 'done'])
+const emit = defineEmits(['close', 'done', 'renewed'])
 
 const loading = ref(true)
 const loadError = ref('')
@@ -186,6 +193,23 @@ async function submit() {
       clearValues()
       await load()
     }
+  } finally {
+    busy.value = false
+  }
+}
+
+// An expired or declined link is renewed HERE, by the person, rather than by asking the agent to repeat the
+// call that opened it — that call is a configuration write an agent's own safety check may refuse.
+async function renew() {
+  busy.value = true
+  submitError.value = ''
+  try {
+    const { data } = await api.renewSecureEntry(props.requestId)
+    request.value = data
+    for (const f of data.fields || []) values[f.name] = ''
+    emit('renewed', data.id)
+  } catch (e) {
+    submitError.value = e?.response?.data?.error || 'Could not get a new link. Ask your agent for one.'
   } finally {
     busy.value = false
   }
