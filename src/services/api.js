@@ -91,7 +91,7 @@ api.interceptors.response.use(
           try { localStorage.clear(); sessionStorage.clear() } catch { /* ignore */ }
           // Come back here after signing in: a secure entry link opened with an expired session must still
           // land on its form. Login honours only same-origin relative `next` paths.
-          window.location.assign('/login?next=' + encodeURIComponent(path + window.location.search))
+          window.location.assign('/login?next=' + encodeURIComponent(path + (window.location.search || '')))
         }
       }
     } else if (error.request) {

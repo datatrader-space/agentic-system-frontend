@@ -95,18 +95,30 @@ describe('api GET cache — super agent card', () => {
 })
 
 describe('api 401 handling', () => {
-  it('redirects to /login and clears storage when a session dies', async () => {
+  it('redirects to /login, back to where the user was, and clears storage when a session dies', async () => {
     const assign = vi.fn()
     // jsdom's window.location is read-only; replace it for the assertion.
     delete window.location
-    window.location = { pathname: '/dashboard/chat/new', assign }
+    window.location = { pathname: '/dashboard/connectors', search: '?secure_entry=abc', assign }
     const clear = vi.spyOn(Storage.prototype, 'clear')
 
     await expect(h.responseErrorHandler({ response: { status: 401, data: {} } })).rejects.toBeTruthy()
 
-    expect(assign).toHaveBeenCalledWith('/login')
+    // The destination survives sign-in: a secure entry link opened with an expired session still lands on
+    // its form.
+    expect(assign).toHaveBeenCalledWith('/login?next=%2Fdashboard%2Fconnectors%3Fsecure_entry%3Dabc')
     expect(clear).toHaveBeenCalled()
     clear.mockRestore()
+  })
+
+  it('never writes "undefined" into the return path when there is no query string', async () => {
+    const assign = vi.fn()
+    delete window.location
+    window.location = { pathname: '/dashboard/chat/new', assign }
+
+    await expect(h.responseErrorHandler({ response: { status: 401, data: {} } })).rejects.toBeTruthy()
+
+    expect(assign).toHaveBeenCalledWith('/login?next=%2Fdashboard%2Fchat%2Fnew')
   })
 
   it('does not redirect when already on a public page', async () => {
