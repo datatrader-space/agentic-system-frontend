@@ -13,7 +13,7 @@
 // KEYED ON node_id, NEVER ON INDEX. That is the whole fix for the duplicate card: a second
 // announcement of a node patches the node that exists instead of appending beside it. The store
 // enforces it; `:key` here must not undo it.
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { fileLinkPayload } from '../../composables/fileLinks'
 import SourcesList from '../chat/SourcesList.vue'
 import { useRunTimeline } from '../../stores/useRunTimeline'
@@ -298,8 +298,15 @@ const requestLong = computed(() => request.value.length > 220 || request.value.s
 const SRC_SHOWN = 6
 const allSources = ref(false)
 const _srcOpen = ref(null)
+// ONCE SHOWN, A SOURCE STAYS. The panel counted 7 -> 3 -> 4 on conv 1764: live citations accumulate
+// across the whole turn, while each finished message pins only its own, so every time a message settled
+// the union shrank and pages the user had already seen disappeared. A run's reading list only ever grows.
+const _seenSources = new Map()
+// Per component instance, and emptied when the rail is pointed at a different run — the accumulator is
+// this RUN's reading list, not the tab's.
+watch(() => String(props.runId), () => _seenSources.clear())
 const readSources = computed(() => {
-  const out = new Map()
+  const out = _seenSources
   const list = chat.messages || []
   // LIVE CITATIONS BELONG TO THE RUN, NOT TO A STREAMING BUBBLE. Keyed on a message with
   // status === 'streaming', the panel went blank for the whole of a fan-out: RESEARCH_IN_PARALLEL can
