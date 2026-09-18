@@ -44,7 +44,10 @@
           </div>
 
           <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+            <!-- Hidden for INFORMATIONAL dialogs (hideCancel), where there is nothing to decline and a
+                 Cancel button would only ask the user to choose between two words for "I read it". -->
             <button
+              v-if="!state.hideCancel"
               @click="cancel"
               class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-100"
             >

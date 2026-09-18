@@ -7,9 +7,15 @@ const { notify } = vi.hoisted(() => ({
   notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }))
 vi.mock('../../composables/useNotify', () => ({ notify }))
-// Speech is unsupported in tests (no mic) — the mic button is hidden.
-vi.mock('../../composables/useSpeech', () => ({
-  useSpeech: () => ({ supported: false, listening: { value: false }, toggle: vi.fn() }),
+// No mic in jsdom: the voice composable reports unsupported/disabled.
+vi.mock('../../composables/useVoiceInput', () => ({
+  useVoiceInput: () => ({
+    supported: false, enabled: { value: false }, disabledMessage: { value: '' },
+    state: { value: 'idle' }, elapsed: { value: 0 }, maxSeconds: { value: 120 }, info: { value: null },
+    recording: { value: false }, transcribing: { value: false },
+    toggle: vi.fn(), start: vi.fn(), stop: vi.fn(), cancel: vi.fn(),
+    explainDisabled: vi.fn(), refresh: vi.fn(),
+  }),
 }))
 
 import ChatComposer from './ChatComposer.vue'

@@ -110,9 +110,15 @@
             :placeholder="crsReady ? 'Message the coding agent…' : 'Preparing the project…'"
             rows="1" @input="autoGrow" @keydown="onKeydown" @focus="focused = true" @blur="focused = false"
           ></textarea>
+          <!-- Mic: needs an Audio-transcription model on the coding agent; dimmed otherwise, click explains. -->
           <button
-            v-if="speech.supported" class="uac-mic" :class="{ live: speech.listening.value }"
-            :title="speech.listening.value ? 'Stop dictation' : 'Voice input'" @click="speech.toggle()"
+            class="uac-mic" data-test="uac-mic"
+            :class="{ live: voice.recording.value, busy: voice.transcribing.value, off: !voice.enabled.value }"
+            :aria-disabled="voice.enabled.value ? 'false' : 'true'"
+            :title="voice.enabled.value
+              ? (voice.recording.value ? `Stop and send (${voice.elapsed.value}s)` : 'Voice input')
+              : voice.disabledMessage.value"
+            @click="voice.toggle()"
           >
             <Icon icon="lucide:mic" />
           </button>
@@ -172,7 +178,7 @@ import { markedHighlight } from 'marked-highlight'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
 import { enhanceChatMedia } from '@/utils/chatMedia'
-import { useSpeech } from '@/composables/useSpeech'
+import { useVoiceInput } from '@/composables/useVoiceInput'
 import api from '@/services/api'
 import { notify } from '@/composables/useNotify'
 import { showMemorySavedToast } from '@/composables/useMemoryToast'
@@ -233,8 +239,13 @@ const focused = ref(false)
 const plusOpen = ref(false)
 const attachments = ref([])
 const fileEl = ref(null)
-const speech = useSpeech({
-  onResult: (text) => { input.value = input.value ? `${input.value} ${text}` : text; nextTick(autoGrow) },
+// Voice input — transcribed by the coding agent's own Audio-transcription model, then sent through the
+// normal send() so the WS payload (model, coding mode, conversation) is identical to a typed message.
+const voice = useVoiceInput({
+  agentId: () => agentId.value || null,
+  conversationId: () => conversationId.value,
+  getDraft: () => input.value,
+  onTranscript: (text) => { input.value = text; nextTick(() => { autoGrow(); send() }) },
 })
 
 let ws = null
@@ -672,6 +683,9 @@ defineExpose({ send })
 .uac-mic { flex: 0 0 auto; display: grid; place-items: center; width: 30px; height: 30px; border: none; border-radius: 50%; background: transparent; color: var(--vm-ink-faint, #94a3b8); cursor: pointer; transition: .15s; }
 .uac-mic:hover { color: var(--vm-primary, #2563eb); background: var(--vm-primary-soft, #eff6ff); }
 .uac-mic.live { color: #fff; background: #ef4444; animation: uacmic 1.3s ease-in-out infinite; }
+.uac-mic.off { color: var(--vm-ink-faint, #cbd5e1); opacity: .55; cursor: help; }
+.uac-mic.off:hover { background: transparent; color: var(--vm-ink-faint, #94a3b8); }
+.uac-mic.busy { color: var(--vm-primary, #2563eb); animation: uacmic 1s linear infinite; }
 .uac-mic :deep(svg) { width: 16px; height: 16px; }
 @keyframes uacmic { 50% { opacity: .55; } }
 

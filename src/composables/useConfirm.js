@@ -28,6 +28,7 @@ export const confirmState = reactive({
   confirmText: 'Confirm',
   cancelText: 'Cancel',
   danger: false,
+  hideCancel: false,
   _resolve: null,
 })
 
@@ -46,6 +47,8 @@ export function confirm(options = {}) {
   confirmState.confirmText = options.confirmText || 'Confirm'
   confirmState.cancelText = options.cancelText || 'Cancel'
   confirmState.danger = options.danger || false
+  // Informational use: one acknowledging button, no Cancel (e.g. "why is this control disabled?").
+  confirmState.hideCancel = options.hideCancel || false
   confirmState.open = true
 
   return new Promise((resolve) => {

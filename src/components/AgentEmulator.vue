@@ -151,10 +151,17 @@
               placeholder="Type a message…"
               class="flex-1 min-w-0 bg-transparent text-sm px-1 py-1 focus:outline-none disabled:opacity-50"
             />
-            <button v-if="speech.supported" type="button" @click="speech.toggle()"
-                    :class="speech.listening.value ? 'text-white bg-red-500 animate-pulse' : 'text-gray-400 hover:text-violet-600 hover:bg-violet-50'"
+            <!-- Mic: needs an Audio-transcription model on this agent; dimmed otherwise, click explains. -->
+            <button type="button" data-test="emu-mic" @click="voice.toggle()"
+                    :class="voice.recording.value ? 'text-white bg-red-500 animate-pulse'
+                      : !voice.enabled.value ? 'text-gray-300 cursor-help'
+                      : voice.transcribing.value ? 'text-violet-600 animate-pulse'
+                      : 'text-gray-400 hover:text-violet-600 hover:bg-violet-50'"
                     class="w-7 h-7 flex items-center justify-center rounded-full shrink-0 transition"
-                    :title="speech.listening.value ? 'Stop dictation' : 'Voice input'">
+                    :aria-disabled="voice.enabled.value ? 'false' : 'true'"
+                    :title="voice.enabled.value
+                      ? (voice.recording.value ? `Stop and send (${voice.elapsed.value}s)` : 'Voice input')
+                      : voice.disabledMessage.value">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
             </button>
           </div>
@@ -262,7 +269,7 @@ import { useAgentTimeline } from '../composables/useAgentTimeline'
 import api from '../services/api'
 import { showMemorySavedToast } from '@/composables/useMemoryToast'
 import { fmtTokens, fmtCost } from '../composables/tokens'
-import { useSpeech } from '../composables/useSpeech'
+import { useVoiceInput } from '../composables/useVoiceInput'
 import { stopReasonBadge } from '../composables/stopReason'
 import { enhanceChatMedia } from '../utils/chatMedia'
 
@@ -287,8 +294,14 @@ const inputFocused = ref(false)
 const optionsOpen = ref(false)
 const copied = ref(false)
 
-// Voice input (mic) — appends the transcript to whatever's typed. Hidden when unsupported.
-const speech = useSpeech({ onResult: (text) => { input.value = input.value ? `${input.value} ${text}` : text } })
+// Voice input — this agent's own Audio-transcription model transcribes, then the text is SENT through
+// the emulator's normal send() (so staged attachments upload and the socket/queue rules are identical).
+const voice = useVoiceInput({
+  agentId: () => props.agentId,
+  conversationId: () => conversationId.value,
+  getDraft: () => input.value,
+  onTranscript: (text) => { input.value = text; send() },
+})
 
 // Long pasted text becomes a .txt attachment instead of a giant inline blob (matches New Chat).
 const LONG_PASTE_CHAR_LIMIT = 8000
