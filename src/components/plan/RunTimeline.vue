@@ -286,6 +286,39 @@ const requestLong = computed(() => request.value.length > 220 || request.value.s
 // (agent/services/turn_metadata.py). A message written before that shipped has neither, and is
 // admitted on the older evidence so an existing thread does not lose its answers: a plan anchor
 // naming this run, or a work_iteration stamp.
+// EVERY SITE THIS RUN HAS READ, live and after a reload. Live citations arrive on the streaming message;
+// a finished message keeps its own pinned snapshot, so reopening the thread shows the same list rather
+// than an empty panel. Deduplicated on the URL, because three sub-questions reading the same release
+// page is one source, not three.
+const SRC_SHOWN = 6
+const allSources = ref(false)
+const _srcOpen = ref(null)
+const readSources = computed(() => {
+  const out = new Map()
+  const list = chat.messages || []
+  const liveMsg = list.find((m) => m.role === 'assistant' && m.status === 'streaming' && belongsToThisRun(m))
+  const add = (x) => {
+    if (!x) return
+    const ref = String(x.ref || '')
+    const name = String(x.name || '') || ref
+    if (!name) return
+    const key = ref || name
+    if (!out.has(key)) out.set(key, { name, ref, kind: String(x.kind || '') })
+  }
+  for (const m of list) {
+    if (m.role !== 'assistant' || !belongsToThisRun(m)) continue
+    for (const x of ((m.timeline && m.timeline.sources) || [])) add(x)
+  }
+  if (liveMsg) for (const x of (chat.liveSources || [])) add(x)
+  return [...out.values()]
+})
+const shownSources = computed(() => (allSources.value ? readSources.value : readSources.value.slice(0, SRC_SHOWN)))
+// Open while the run is still reading (that is the whole point of showing it), folded once it ends.
+const sourcesOpen = computed(() => (_srcOpen.value === null ? !terminal.value : _srcOpen.value))
+function domainOf(url) {
+  try { return new URL(url).hostname.replace(/^www\./, '') } catch (_e) { return '' }
+}
+
 function belongsToThisRun(m) {
   const rid = String(props.runId)
   if (m.runId) return String(m.runId) === rid
@@ -630,6 +663,34 @@ function fmt(ms) {
               {{ s.details || s.failure }}
             </div>
           </div>
+        </div></div>
+      </div>
+
+      <!-- Sources read, live (conv 1738). A research run's pages are fetched by delegated children on
+           worker threads, so they never reached this tab until research_progress announced them. -->
+      <div v-if="readSources.length" class="node collapsible" :data-state="terminal ? 'done' : 'active'"
+           :data-open="sourcesOpen ? 'true' : 'false'" data-test="rt-sources">
+        <span class="mkr" aria-hidden="true" />
+        <div class="head" @click="_srcOpen = !sourcesOpen">
+          <span class="lb">{{ terminal ? 'Read' : 'Reading' }} {{ readSources.length }}
+            source{{ readSources.length === 1 ? '' : 's' }}</span>
+          <button class="caret" data-test="rt-toggle-sources"
+                  :aria-expanded="sourcesOpen ? 'true' : 'false'"
+                  @click.stop="_srcOpen = !sourcesOpen">▾</button>
+        </div>
+        <div class="body"><div class="inner">
+          <ul class="srcs">
+            <li v-for="x in shownSources" :key="x.ref || x.name" class="src" data-test="rt-source">
+              <span class="src-dom">{{ domainOf(x.ref) || x.kind || 'source' }}</span>
+              <a v-if="x.ref" :href="x.ref" target="_blank" rel="noopener noreferrer" class="src-name"
+                 :title="x.ref">{{ x.name }}</a>
+              <span v-else class="src-name">{{ x.name }}</span>
+            </li>
+          </ul>
+          <button v-if="readSources.length > SRC_SHOWN" type="button" class="more" data-test="rt-sources-more"
+                  @click="allSources = !allSources">
+            {{ allSources ? 'Show fewer' : `Show all ${readSources.length}` }}
+          </button>
         </div></div>
       </div>
 

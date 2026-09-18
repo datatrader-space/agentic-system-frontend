@@ -324,3 +324,15 @@
 .rt .fail-note{color:var(--danger); font-size:12px; padding:0 0 4px 20px}
 /* a step the run ended before finishing: no live ring */
 .rt .node[data-state="stopped"] .mkr{border-color:var(--line-strong); background:var(--line-strong)}
+
+/* Sources read by the run — the live "Reading N sources" panel (conv 1738). */
+.rt .srcs{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px}
+.rt .src{display:flex; align-items:baseline; gap:8px; min-width:0; font-size:.78rem}
+.rt .src-dom{
+  flex:0 0 auto; max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  padding:1px 6px; border-radius:6px; background:var(--surface-2,#f1f5f9);
+  color:var(--ink-soft,#64748b); font-weight:600; font-size:.7rem
+}
+.rt .src-name{min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink,#0f172a)}
+.rt a.src-name{text-decoration:none}
+.rt a.src-name:hover{text-decoration:underline}
