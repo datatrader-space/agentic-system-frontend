@@ -175,6 +175,8 @@ const activityByStep = computed(() => {
     const bucket = (out[owner] = out[owner] || [])
     bucket.push({
       key: a.stepId || `${owner}-${bucket.length}`,
+      // A reasoning row is the model's streamed thought and reads as "Thinking"; every other row keeps
+      // the label the backend wrote, including the planning row this used to rename out of existence.
       label: a.phase === 'reasoning' ? 'Thinking' : (a.label || 'Working'),
       isPhase: !!a.isPhase,
       reasoning: String(a.reasoningText || '').trim(),
@@ -195,8 +197,11 @@ const activityByStep = computed(() => {
     for (const a of rows) {
       if (a.planStepId) cur = a.planStepId
       // Preparation ends where real work begins: the first call to a tool (a row with a call id; a status
-      // row upgraded into a tool step is marked `isPhase: false`).
-      else if (cur === PREP && (a.toolCallId || a.isPhase === false)) cur = WORK
+      // row upgraded into a tool step is marked `isPhase: false`) — OR the moment the model is asked.
+      // That model call is routinely the longest thing in the turn (39.3s of a 52s wait on conv 1747) and
+      // ending preparation only at the first TOOL left all of it inside "Got ready", which reads exactly
+      // like a hung turn.
+      else if (cur === PREP && (a.toolCallId || a.isPhase === false || a.phase === 'planning')) cur = WORK
       put(cur, a)
     }
     owner = cur
