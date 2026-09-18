@@ -123,6 +123,18 @@
                       <span class="plus-desc">Build a live web page in a side panel</span></span>
                     <span v-if="canvasMode" class="plus-badge">On</span>
                   </button>
+
+                  <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-deep-research"
+                          :class="{ 'is-on': researchMode }"
+                          v-show="pShow('deep research report sources cite investigate web')"
+                          @click="toggleResearchFromMenu">
+                    <span class="plus-ic plus-ic--research">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/><path d="M11 8v6M8 11h6" stroke-linecap="round"/></svg>
+                    </span>
+                    <span class="plus-body"><span class="plus-title">Deep research</span>
+                      <span class="plus-desc">Read many sources and cite every value — pick the depth</span></span>
+                    <span v-if="researchMode" class="plus-badge">{{ activeDepth.label }}</span>
+                  </button>
                 </div>
 
                 <div class="plus-search">
@@ -166,6 +178,25 @@
               </span>
               <button type="button" class="canvas-chip-x" title="Turn off Create-Image mode" aria-label="Turn off Create-Image mode"
                       @click.stop="chat.imageMode = false">×</button>
+            </span>
+            <!-- Sticky Deep-Research chip. The chip IS the depth control: the "+" menu owns the yes/no,
+                 but the depth is the cost decision and has to be one click away while the user is still
+                 typing the request it applies to. -->
+            <span v-if="researchMode" class="canvas-chip research-chip"
+                  :title="'Deep Research on — ' + activeDepth.hint">
+              <span class="canvas-chip-body rs-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg>
+                <span>Research</span>
+              </span>
+              <span class="rs-depths" role="radiogroup" aria-label="Research depth">
+                <button v-for="d in depthOptions" :key="d.value" type="button" class="rs-depth"
+                        :class="{ 'is-on': researchDepth === d.value }" role="radio"
+                        :aria-checked="researchDepth === d.value ? 'true' : 'false'"
+                        :title="d.hint" :data-test="'welcome-research-depth-' + d.value"
+                        @click.stop="setDepth(d.value)">{{ d.label }}</button>
+              </span>
+              <button type="button" class="canvas-chip-x" title="Turn off Deep Research"
+                      aria-label="Turn off Deep Research" @click.stop="chat.researchMode = false">×</button>
             </span>
           </div>
           <button type="submit" class="composer-send" :disabled="chat.needsAgent || (!draft.trim() && !chat.pendingAttachments.length)" title="Send">
@@ -281,6 +312,31 @@ const toggleImageModeFromMenu = () => {
     ? 'Create-Image mode on — the agent will focus on generating and editing images.'
     : 'Create-Image mode off.')
 }
+// DEEP RESEARCH. The mode is a yes/no; the DEPTH is the cost decision, and it is the user's because the
+// same request costs cents at one breadth and dollars at another. Each depth is a pair of budgets the
+// backend ENFORCES — sub-questions per fan-out, and source pages per sub-question. These labels must match
+// agent/services/research_depth.py (the one definition) and ChatComposer.vue (the mid-thread composer).
+const depthOptions = [
+  { value: 'quick',    label: 'Quick',    hint: '3 sub-questions · 2 sources each — a fast check' },
+  { value: 'standard', label: 'Standard', hint: '6 sub-questions · 4 sources each — a balanced report' },
+  { value: 'deep',     label: 'Deep',     hint: '12 sub-questions · 8 sources each — slowest and most expensive' },
+]
+const researchMode = computed(() => chat.researchMode)
+const researchDepth = computed(() => chat.researchDepth)
+const activeDepth = computed(() => depthOptions.find(o => o.value === chat.researchDepth) || depthOptions[1])
+const setDepth = (value) => {
+  chat.researchDepth = value
+  const opt = depthOptions.find(o => o.value === value)
+  notify.info(`Research depth: ${opt.label} — ${opt.hint}.`)
+}
+const toggleResearchFromMenu = () => {
+  chat.researchMode = !chat.researchMode
+  closeMenu()
+  notify.info(chat.researchMode
+    ? `Deep Research on — ${activeDepth.value.label}: ${activeDepth.value.hint}. Change the depth on the chip.`
+    : 'Deep Research off.')
+}
+
 // Ask-about-a-link on a brand-new chat: quietly start the conversation first so the URL can become a
 // conversation-scoped DocumentSource (ChatGPT-style — the chat starts the moment you attach).
 const openUrl = async () => {
@@ -623,6 +679,16 @@ const submit = () => {
 .plus-search-input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: inherit; font-size: 0.8125rem; color: var(--vm-ink); }
 .plus-search-input::placeholder { color: var(--vm-ink-faint); }
 .plus-on-tag { margin-left: 6px; padding: 0 6px; border-radius: 9999px; background: var(--vm-violet); color: #fff; font-size: 0.6rem; font-weight: 700; vertical-align: middle; }
+.research-chip { padding: 0 4px 0 10px; gap: 6px; }
+.rs-label { cursor: default; }
+.rs-depths { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 8px; background: rgba(109, 40, 217, .08); }
+.rs-depth {
+  border: 0; background: transparent; border-radius: 6px; padding: 2px 7px; cursor: pointer;
+  color: var(--vm-violet, #6d28d9); font-size: 0.72rem; font-weight: 600; line-height: 1.5;
+}
+.rs-depth:hover { background: rgba(109, 40, 217, .14); }
+.rs-depth.is-on { background: var(--vm-violet, #6d28d9); color: #fff; }
+.plus-ic--research { color: #059669; }
 .canvas-chip {
   display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0;
   height: 32px; padding: 0 4px 0 10px;
