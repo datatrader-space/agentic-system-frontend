@@ -774,6 +774,68 @@ const submit = () => {
 }
 @media (max-width: 560px) { .plus-menu, .plus-url { width: calc(100vw - 40px); } }
 
+/* ── Phone (<=640px): a compact chat surface, not a poster ─────────────────────────────────────
+   On a 390px screen the desktop hero ate the viewport — a 30px headline, a 56px mark and four
+   full-width chips pushed the composer (the only control that matters) to the bottom edge, and the
+   mode pill ran off the right of the screen entirely. ChatGPT and Claude both shrink the greeting and
+   protect the input; this does the same. Nothing is removed — the chips and the pills become
+   horizontally scrollable rows rather than a wrapped pile. */
+@media (max-width: 640px) {
+  .welcome { padding: 18px 12px; }
+  .welcome-mark {
+    width: 40px; height: 40px; margin: 0 auto 12px; border-radius: 12px;
+    animation: vmPop .7s var(--vm-ease) both;   /* no idle float: it drags on a phone GPU */
+  }
+  .welcome-mark svg { width: 21px; height: 21px; }
+  .welcome-title { font-size: 1.375rem; line-height: 1.25; margin: 0 0 5px; }
+  .welcome-sub { font-size: 0.8125rem; line-height: 1.4; margin: 0 0 14px; }
+  .agent-pick { margin-bottom: 14px; }
+  .no-agent-card { padding: 18px 14px; margin: 4px auto 16px; }
+  .nac-icon { width: 40px; height: 40px; margin-bottom: 10px; }
+  .nac-title { font-size: 1rem; }
+  .nac-sub { font-size: 0.8125rem; margin-bottom: 14px; }
+
+  /* One scrollable row instead of four stacked pills: the composer stays on screen, and every
+     suggestion is still reachable with a thumb. */
+  .chips {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    margin: 0 -12px 12px;
+    padding: 0 12px 2px;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    scroll-snap-align: start;
+    padding: 8px 13px;
+    font-size: 0.78125rem;
+  }
+
+  .composer { padding: 10px 12px; border-radius: 16px; }
+  /* 16px is not a taste decision: below it, iOS Safari zooms the whole page on focus and the user is
+     left scrolled sideways in a layout they did not ask for. */
+  .composer-input { font-size: 16px; }
+  .composer-actions { gap: 6px; margin-top: 6px; }
+  /* The pills WRAP rather than scroll: each one owns a dropdown (agent picker, mode, "+"), and an
+     `overflow-x: auto` row clips a popover that opens out of it — trading an off-screen pill for an
+     unreachable menu. A second line is the honest fix. */
+  .composer-bar-left {
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .composer-send { flex: 0 0 auto; }
+  /* Narrower agent chip so agent + mode usually still share one line. */
+  :deep(.as-chip) { max-width: 128px; font-size: 12px; padding: 4px 8px 4px 7px; }
+  :deep(.amp-btn) { font-size: 12px; padding: 3px 8px; }
+}
+
 .file-hidden { display: none; }
 .attach-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
 .attach-chip {

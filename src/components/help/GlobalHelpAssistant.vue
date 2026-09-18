@@ -1,7 +1,7 @@
 <template>
   <!-- Product-wide AI assistant: one FAB + one chat widget, mounted once in AppShell. -->
   <HelpAssistantWidget ref="widget" v-model:open="state.open" :current-page="currentPage" />
-  <button class="gha-fab" :class="{ open: state.open }"
+  <button class="gha-fab" :class="{ open: state.open, 'on-chat': onChatSurface }"
           :aria-label="state.open ? 'Close AI Assistant' : 'Ask the AI Assistant'"
           @click="toggle">
     <Icon :icon="state.open ? 'lucide:x' : 'lucide:message-circle'" />
@@ -21,6 +21,12 @@ const widget = ref(null)
 
 // A stable surface label for assistant logging/retrieval context.
 const currentPage = computed(() => route.name?.toString() || route.path || 'app')
+
+// On a phone the FAB sits exactly where the chat composer is, covering the send button and the mode
+// pills — and a floating "ask the assistant" bubble on top of a page whose whole purpose is asking an
+// agent is the one place it earns nothing. Hidden there only (CSS, so it costs no resize listener);
+// on every other page, and at every width above a phone, it behaves as before.
+const onChatSurface = computed(() => String(route.name || '').includes('chat'))
 
 function toggle() { state.open ? close() : (state.open = true) }
 
@@ -49,4 +55,5 @@ watch(() => state.nonce, async () => {
 .gha-fab.open { background: #475569; box-shadow: 0 14px 28px rgba(15, 23, 42, .25); }
 .gha-fab svg { width: 25px; height: 25px; }
 @media (max-width: 520px) { .gha-fab { right: 16px; bottom: 18px; } }
+@media (max-width: 640px) { .gha-fab.on-chat { display: none; } }
 </style>

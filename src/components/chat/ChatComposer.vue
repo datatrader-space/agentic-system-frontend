@@ -765,4 +765,30 @@ const onKeydown = (e) => {
   .plus-menu, .plus-url { width: calc(100vw - 40px); }
 }
 
+/* ── Phone (<=640px) ───────────────────────────────────────────────────────────────────────────
+   Same problem the welcome screen had: the pill row (agent · mode · canvas · research) is wider than
+   a 390px viewport, so the right-most control was simply off-screen and unreachable. It scrolls
+   horizontally now instead of overflowing, and the send button never moves. */
+@media (max-width: 640px) {
+  .composer { padding: 8px 10px; border-radius: 16px; }
+  /* Below 16px, iOS Safari zooms the page when the textarea takes focus. */
+  .composer-input { font-size: 16px; padding: 5px 2px; max-height: 40vh; }
+  .composer-bar { gap: 6px; }
+  /* WRAP, never scroll: every pill here owns a popover (agent, mode, "+", research depth), and a
+     scrolling row clips them — that would trade one off-screen pill for an unreachable menu. */
+  .bar-left {
+    min-width: 0;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .composer-bar { align-items: flex-end; }
+  .composer-bar > .action-btn { flex: 0 0 auto; }
+  :deep(.as-chip) { max-width: 128px; font-size: 12px; padding: 4px 8px 4px 7px; }
+  :deep(.amp-btn) { font-size: 12px; padding: 3px 8px; }
+  /* There is no Shift+Enter on a phone keyboard. */
+  .composer-hint { display: none; }
+  .cv-sel-banner { font-size: 0.72rem; }
+}
+
 </style>

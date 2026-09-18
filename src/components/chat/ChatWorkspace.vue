@@ -613,4 +613,22 @@ watch(
 /* The mode bar: centred, quiet, and clear of the thread header's own actions. */
 .turnmode-bar { display: flex; justify-content: center; padding: 10px 0 2px; }
 
+/* ── Phone (<=640px) ───────────────────────────────────────────────────────────────────────────
+   The thread header spent 22px of side padding and a full-width title row on a screen 390px wide, and
+   the session meter + mode bar added two more strips above the composer. Tighten the chrome; the
+   conversation and the input keep the space. */
+@media (max-width: 640px) {
+  .chat-header { padding: 9px 12px; gap: 8px; }
+  .chat-title { font-size: 0.9375rem; }
+  .chat-agent { font-size: 0.6875rem; }
+  .chat-actions { gap: 6px; }
+  /* "New" becomes its own icon button: five controls plus a title do not fit across 390px. */
+  .header-btn { padding: 7px; border-radius: 10px; }
+  .header-btn span { display: none; }
+  .icon-btn { width: 32px; height: 32px; }
+  .session-meter { padding: 0 12px 4px; font-size: 10px; }
+  .turnmode-bar { padding: 6px 0 0; }
+  .active-plan-chip { font-size: 0.75rem; }
+}
+
 </style>

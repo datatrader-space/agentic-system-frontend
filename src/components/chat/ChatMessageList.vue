@@ -298,6 +298,13 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
   opacity: 0;
   transform: translateX(-50%) translateY(6px);
 }
+/* Phone: the thread gets the width back. 16px side padding on a 390px screen is 8% of it, and the
+   28px top gap was sized for a desktop header that is no longer 22px tall here. */
+@media (max-width: 640px) {
+  .msg-list-inner { padding: 14px 10px 10px; }
+  .msg-plan, .load-earlier { margin-bottom: 14px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .jump-latest, .jump-fade-enter-active, .jump-fade-leave-active { transition: none; }
 }
