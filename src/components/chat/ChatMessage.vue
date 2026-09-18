@@ -36,8 +36,10 @@
              the turn is Work. Growing them into a card meant a Work run drew that card and then swapped
              it for the rail (conv 1578). The line becomes the card the moment real work or reasoning
              starts, with every row intact; on a Work run the rail takes those rows as its first step. -->
-        <div v-if="preparingOnly" class="prep-status" data-test="preparing-line">
-          <span class="prep-spinner"></span>{{ preparingLabel }}
+        <div v-if="preparingOnly" class="prep-status" data-test="preparing-line"
+             role="status" aria-live="polite">
+          <span class="prep-orb" aria-hidden="true"></span>
+          <span class="prep-label">{{ preparingLabel }}</span>
         </div>
         <AgentActivityTimeline
           v-if="!preparingOnly && !deferToRail && (isStreaming ? chat.richActive : !!message.timeline)"
@@ -55,8 +57,10 @@
 
         <!-- Attachment prep: while a document sent WITH the question is still converting/indexing, we
              hold the turn and show this instead of answering "your file is still being processed". -->
-        <div v-if="message.status === 'streaming' && message.prepStatus" class="prep-status">
-          <span class="prep-spinner"></span>{{ message.prepStatus }}
+        <div v-if="message.status === 'streaming' && message.prepStatus" class="prep-status"
+             role="status" aria-live="polite">
+          <span class="prep-orb" aria-hidden="true"></span>
+          <span class="prep-label">{{ message.prepStatus }}</span>
         </div>
 
         <!-- Rendered markdown content (full answer if rehydrated, else stored stub). Generated images are
@@ -672,23 +676,74 @@ a.user-attach-file { cursor: pointer; border-bottom: 1px solid rgba(255,255,255,
 a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8); }
 .user-attach-file svg { width: 14px; height: 14px; }
 
+/* THE WAITING STATE IS THE FIRST THING A USER SEES AFTER THEY PRESS ENTER, and for a few seconds it is
+   the whole interface. A bare 12px border-spinner and grey text floating in an empty column read as a
+   page that had not finished loading rather than an assistant that had started thinking. It now occupies
+   the slot the answer will occupy, as a surface, so the eye has somewhere to rest while the turn builds. */
 .prep-status {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  max-width: 100%;
+  margin: 2px 0 6px;
+  padding: 9px 14px 9px 12px;
+  border: 1px solid var(--vm-line, #e5e7eb);
+  border-radius: 14px;
+  background: var(--vm-surface, rgba(255, 255, 255, .72));
   font-size: 0.8125rem;
-  color: var(--vm-text-muted, #6b7280);
-  margin: 2px 0 4px;
+  line-height: 1.3;
+  /* A shadow this soft reads as "raised slightly", which is what a pending answer is. */
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 12px rgba(16, 24, 40, .03);
 }
-.prep-spinner {
-  width: 12px; height: 12px;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
+
+/* A conic-gradient ring rather than a border spinner: the stroke fades around the sweep instead of
+   ending in a hard corner, which is what makes the cheap version look cheap. */
+.prep-orb {
+  flex: none;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
-  opacity: .7;
-  animation: prep-spin 0.7s linear infinite;
+  background: conic-gradient(from 0deg,
+              transparent 0deg,
+              color-mix(in srgb, var(--vm-violet-d, #4f46e5) 35%, transparent) 190deg,
+              var(--vm-violet-d, #4f46e5) 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2.5px));
+  animation: prep-spin 900ms linear infinite;
 }
+
+/* The label sweeps rather than blinks. Blinking says "broken"; a slow sweep says "working". */
+.prep-label {
+  color: var(--vm-text-muted, #6b7280);
+  background: linear-gradient(90deg,
+              var(--vm-text-muted, #6b7280) 0%,
+              var(--vm-text-muted, #6b7280) 35%,
+              var(--vm-ink, #111827) 50%,
+              var(--vm-text-muted, #6b7280) 65%,
+              var(--vm-text-muted, #6b7280) 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: prep-sweep 2.4s ease-in-out infinite;
+}
+
 @keyframes prep-spin { to { transform: rotate(360deg); } }
+@keyframes prep-sweep {
+  0%   { background-position: 120% 0; }
+  100% { background-position: -20% 0; }
+}
+
+/* An indicator that cannot animate must still be legible, not an invisible transparent label. */
+@media (prefers-reduced-motion: reduce) {
+  .prep-orb { animation: none; }
+  .prep-label {
+    animation: none;
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    color: var(--vm-text-muted, #6b7280);
+  }
+}
 
 .error-row {
   display: flex;
