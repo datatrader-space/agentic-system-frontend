@@ -83,6 +83,13 @@ export const useChatStore = defineStore('chat', {
     // `image_mode` on each WS message while on. Requires the agent to have an image model (composer blocks
     // the toggle otherwise).
     imageMode: false,
+    // DEEP RESEARCH mode (per-turn signal, sticky in the composer) + the DEPTH the user picked.
+    // The depth is a COST decision, so it is the user's and not the model's: it sets how many independent
+    // sub-questions one research fan-out may open and how many source pages each of those must read. Sent
+    // as `research_mode` / `research_depth`; the backend enforces both in RESEARCH_IN_PARALLEL and states
+    // the budget in the turn's tool guidance, so the agent plans to it instead of discovering it.
+    researchMode: false,
+    researchDepth: 'standard',
     // AUTO IS THE DEFAULT, AND AUTO IS NOT A THIRD BEHAVIOUR — it is the absence of an override.
     //
     // The backend has always decided this: `_freeze_work_goal` opens a Work goal when the Brain's
@@ -834,6 +841,8 @@ export const useChatStore = defineStore('chat', {
           ...this._canvasSendOpts(),
           turnMode: this.turnMode === 'auto' ? undefined : this.turnMode,
           imageMode: this.imageMode || undefined,
+          researchMode: this.researchMode || undefined,
+          researchDepth: this.researchMode ? this.researchDepth : undefined,
           reasoningEffort: this.reasoningEffort || undefined,
           attachmentIds: steerIds,
           clientMessageId: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -911,7 +920,9 @@ export const useChatStore = defineStore('chat', {
         // it actually suppresses a Work goal instead of reading as "no preference".
         turnMode: this.turnMode === 'auto' ? undefined : this.turnMode,
         imageMode: this.imageMode || undefined,
-          reasoningEffort: this.reasoningEffort || undefined,
+        researchMode: this.researchMode || undefined,
+        researchDepth: this.researchMode ? this.researchDepth : undefined,
+        reasoningEffort: this.reasoningEffort || undefined,
         attachmentIds,
         clientMessageId: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })

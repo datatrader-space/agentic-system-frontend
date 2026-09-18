@@ -234,6 +234,11 @@ export class ChatConnection {
       // Create-Image mode: run the agent as a focused image assistant for this turn (image toolset +
       // guided pipeline prompt). Backend gates on this flag + the agent having an image model.
       image_mode: opts.imageMode || undefined,
+      // Deep Research mode + the depth the user chose (quick | standard | deep). The depth sets the
+      // sub-question breadth and the sources read per sub-question, so the cost of a research run is a
+      // deliberate choice rather than whatever the model happens to pick. Backend enforces both.
+      research_mode: opts.researchMode || undefined,
+      research_depth: opts.researchDepth || undefined,
       // Per-turn reasoning effort: off | minimal | low | medium | high. Omitted when the user has made no
       // choice, so the agent's own stream_reasoning default is left untouched.
       reasoning_effort: opts.reasoningEffort || undefined,
