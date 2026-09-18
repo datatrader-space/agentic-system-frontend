@@ -380,6 +380,109 @@
           </ul>
         </template>
 
+        <template v-else-if="tab === 'holdout'">
+          <p class="tab-lede">
+            A fixed {{ holdout.percent ?? 10 }}% of conversations never receive advisories, while still
+            recording what they would have received. Comparing those two arms is the only way to know
+            whether a learned practice helps — an instinct measured to make runs worse contradicts
+            itself on the nightly pass and the confidence math retires it.
+          </p>
+
+          <div v-if="harmfulInstincts.length" class="harm-banner">
+            <Icon icon="lucide:trending-down" />
+            <div>
+              <strong>{{ harmfulInstincts.length }} instinct{{ harmfulInstincts.length === 1 ? '' : 's' }} measured harmful</strong>
+              <span>Runs that received this advice succeeded less often than runs that did not. The nightly pass contradicts these automatically.</span>
+            </div>
+          </div>
+
+          <div v-if="!conclusiveInstincts.length" class="empty-state">
+            <Icon icon="lucide:scale" />
+            <strong>No conclusive results yet</strong>
+            <span>
+              {{ holdout.accumulating || 0 }} instinct{{ (holdout.accumulating || 0) === 1 ? '' : 's' }} still
+              accumulating. A delta needs at least {{ MIN_ARM }} runs on each side before it means anything.
+            </span>
+          </div>
+
+          <div v-else class="table-wrap">
+            <table class="data-table detail-table">
+              <thead>
+                <tr>
+                  <th>Instinct</th>
+                  <th class="numeric">With advice</th>
+                  <th class="numeric">Held out</th>
+                  <th class="numeric">Delta</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in conclusiveInstincts" :key="row.instinct_id">
+                  <td><strong>{{ row.instinct_id }}</strong></td>
+                  <td class="numeric">
+                    {{ percent(row.injected_success_rate) }}
+                    <span class="muted">/ {{ formatNumber(row.injected_n) }}</span>
+                  </td>
+                  <td class="numeric">
+                    {{ percent(row.held_out_success_rate) }}
+                    <span class="muted">/ {{ formatNumber(row.held_out_n) }}</span>
+                  </td>
+                  <td class="numeric" :class="deltaClass(row.delta)">{{ signedPercent(row.delta) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+
+        <template v-else-if="tab === 'review'">
+          <p class="tab-lede">
+            Nothing else samples what the extractor produces, so a regression in its prompt would stay
+            invisible until behaviour drifted. Your verdict is not a separate score: <strong>Good</strong>
+            is recorded as a correction and <strong>Not useful</strong> as a verified contradiction — the
+            same two signals every other piece of evidence uses.
+          </p>
+
+          <div v-if="!reviewQueue.length" class="empty-state success-empty">
+            <Icon icon="lucide:clipboard-check" />
+            <strong>Nothing waiting for review</strong>
+            <span>Every captured instinct in this scope has been judged at least once.</span>
+          </div>
+
+          <ul v-else class="activity-feed">
+            <li v-for="instinct in reviewQueue" :key="instinct.id">
+              <span class="feed-marker violet"><Icon icon="lucide:sparkles" /></span>
+              <div class="feed-content">
+                <div class="feed-meta">
+                  <span class="status-badge info">{{ instinct.domain }}</span>
+                  <strong>{{ Math.round((instinct.confidence || 0) * 100) }}% confidence</strong>
+                  <span class="muted">
+                    {{ instinct.runs }} run{{ instinct.runs === 1 ? '' : 's' }} · {{ instinct.scope }}
+                  </span>
+                </div>
+                <div class="change-row neutral"><span>When</span><p>{{ instinct.trigger }}</p></div>
+                <div class="change-row new"><span>Do</span><p>{{ instinct.action }}</p></div>
+                <div class="review-actions">
+                  <button
+                    type="button"
+                    class="button secondary"
+                    :disabled="reviewing === instinct.id"
+                    @click="review(instinct, 'good')"
+                  >
+                    <Icon icon="lucide:thumbs-up" /> Good
+                  </button>
+                  <button
+                    type="button"
+                    class="button secondary danger-action"
+                    :disabled="reviewing === instinct.id"
+                    @click="review(instinct, 'bad')"
+                  >
+                    <Icon icon="lucide:thumbs-down" /> Not useful
+                  </button>
+                </div>
+              </div>
+            </li>
+          </ul>
+        </template>
+
         <template v-else-if="tab === 'errors'">
           <div v-if="!errorCount" class="empty-state success-empty">
             <Icon icon="lucide:shield-check" /><strong>No extractor failures</strong><span>No learning failures were recorded in this window.</span>
@@ -474,6 +577,56 @@ const pendingReview = computed(() => snap.value?.runs?.pending_review || 0)
 const pendingRuns = computed(() => (snap.value?.runs?.recent || []).filter((run) => run.status === 'pending_review'))
 const errorCount = computed(() => snap.value?.runs?.by_status?.error || 0)
 const instinctsZero = computed(() => (snap.value?.instincts?.total || 0) === 0)
+
+// Counterfactual measurement. Injection used to be unmeasured — advisories reached every matching
+// turn and nothing compared outcomes against not receiving them, so the platform could promote an
+// instinct that made the agent worse. MIN_ARM mirrors HOLDOUT_MIN_SAMPLES on the server.
+const MIN_ARM = 20
+const reviewing = ref(null)
+const holdout = computed(() => snap.value?.instincts?.holdout || {})
+const conclusiveInstincts = computed(() =>
+  [...(holdout.value.conclusive || [])].sort((a, b) => (a.delta ?? 0) - (b.delta ?? 0)))
+const harmfulInstincts = computed(() => holdout.value.harmful || [])
+const reviewQueue = ref([])
+
+function percent(value) {
+  return value == null ? '—' : `${Math.round(value * 100)}%`
+}
+
+function signedPercent(value) {
+  if (value == null) return '—'
+  const points = Math.round(value * 100)
+  return `${points > 0 ? '+' : ''}${points} pts`
+}
+
+function deltaClass(value) {
+  if (value == null) return 'muted'
+  if (value > 0.02) return 'positive'
+  if (value < -0.02) return 'negative'
+  return 'muted'
+}
+
+async function review(instinct, verdict) {
+  reviewing.value = instinct.id
+  try {
+    const { data } = await api.post('/admin/observability/learning/review/', {
+      instinct_id: instinct.id,
+      verdict,
+    })
+    // Drop it from the queue immediately — a reviewed instinct should not be asked about twice,
+    // and the next full load will reflect its recomputed confidence anyway.
+    reviewQueue.value = reviewQueue.value.filter((row) => row.id !== instinct.id)
+    notify.success(
+      verdict === 'good'
+        ? `Confirmed. Confidence is now ${Math.round((data.confidence || 0) * 100)}%.`
+        : `Marked not useful. Confidence fell to ${Math.round((data.confidence || 0) * 100)}%.`,
+    )
+  } catch (requestError) {
+    notify.error(requestError?.response?.data?.detail || 'Could not record that verdict.')
+  } finally {
+    reviewing.value = null
+  }
+}
 const hasScope = computed(() => agentId.value != null || conversationId.value != null)
 const dirty = computed(() =>
   Math.round((sched.value.interval_seconds || 0) / 60) !== intervalMinutes.value
@@ -521,6 +674,18 @@ const metrics = computed(() => [
     note: `${formatNumber(snap.value?.instincts?.multi_run_evidence || 0)} with multi-run evidence`, icon: 'lucide:sparkles', tone: 'purple',
   },
   {
+    key: 'holdout', label: 'Advice measured', value: formatNumber(conclusiveInstincts.value.length),
+    note: harmfulInstincts.value.length
+      ? `${formatNumber(harmfulInstincts.value.length)} measured harmful`
+      : `${formatNumber(holdout.value.accumulating || 0)} still accumulating`,
+    icon: 'lucide:scale', tone: harmfulInstincts.value.length ? 'red' : 'blue',
+  },
+  {
+    key: 'review', label: 'Awaiting review', value: formatNumber(reviewQueue.value.length),
+    note: reviewQueue.value.length ? 'Judge what the extractor produced' : 'Extractor output all judged',
+    icon: 'lucide:clipboard-check', tone: reviewQueue.value.length ? 'amber' : 'slate',
+  },
+  {
     key: 'errors', label: 'Failures & spend', value: formatNumber(errorCount.value),
     note: `${formatMoney(snap.value?.cost?.total_cost_usd)} learning spend`, icon: 'lucide:circle-alert', tone: errorCount.value ? 'red' : 'slate',
   },
@@ -532,6 +697,8 @@ const TAB_META = {
   corrections: ['Fact corrections', 'Before-and-after changes that keep the memory ledger current.', 'MemoryFact · invalidated'],
   pending: ['Pending review', 'Runs that could not be processed because no extractor model was available.', 'status = pending_review'],
   instincts: ['Learned instincts', 'Evidence-backed behavioral guidance discovered across successful runs.', 'agent.Instinct'],
+  holdout: ['Does the advice help?', 'Success rate when an instinct was injected, against a held-out control that received nothing.', 'agent.InstinctInjection'],
+  review: ['Extractor review queue', 'Judge what the extractor captured. Good counts as a correction; not useful as a verified contradiction.', 'agent.Instinct · unreviewed'],
   errors: ['Failures and learning spend', 'Extractor errors and the attributed token and cost footprint.', 'LLMRequestLog · request_source=system'],
 }
 const tabTitle = computed(() => (TAB_META[tab.value] || ['Activity'])[0])
@@ -661,6 +828,9 @@ async function load() {
     const { data } = await api.get('/admin/observability/learning/', { params, noCache: true })
     if (request !== loadRequest) return
     snap.value = data
+    // Held locally rather than read straight off `snap`, so a reviewed instinct can leave the queue
+    // the moment its verdict lands instead of waiting for the next full refresh.
+    reviewQueue.value = data?.instincts?.review_queue || []
     applySchedule(data.schedule)
   } catch {
     if (request === loadRequest) error.value = true
@@ -985,4 +1155,18 @@ onMounted(refreshAll)
   .cost-summary div:nth-child(-n + 2) { border-bottom: 1px solid var(--soft-line); }
   .change-row { grid-template-columns: 1fr; gap: 3px; }
 }
+
+/* Holdout + review (counterfactual measurement and extractor precision) */
+.tab-lede { margin: 0 0 16px; max-width: 78ch; color: var(--muted); font-size: 12.5px; line-height: 1.65; }
+.tab-lede strong { color: var(--ink); font-weight: 750; }
+.harm-banner { display: flex; align-items: flex-start; gap: 11px; margin-bottom: 16px; padding: 13px 15px;
+               border: 1px solid #fecaca; border-radius: 10px; background: #fef2f2; }
+.harm-banner svg { flex: none; width: 17px; height: 17px; margin-top: 1px; color: #dc2626; }
+.harm-banner div { display: flex; flex-direction: column; gap: 3px; }
+.harm-banner strong { color: #991b1b; font-size: 12.5px; font-weight: 800; }
+.harm-banner span { color: #b91c1c; font-size: 12px; line-height: 1.55; }
+.review-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+.review-actions .button { height: 34px; padding: 0 12px; font-size: 12px; }
+.button.danger-action { color: #b91c1c; border-color: #fecaca; }
+.button.danger-action:hover:not(:disabled) { border-color: #f87171; background: #fef2f2; }
 </style>
