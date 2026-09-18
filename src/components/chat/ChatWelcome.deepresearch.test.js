@@ -88,7 +88,7 @@ describe('ChatWelcome — Deep Research is reachable on the first message', () =
     const hints = w.findAll('.rs-opt-hint').map((b) => b.text())
     expect(hints.map((t) => t.split('·')[0].trim())).toEqual(
       ['3 sub-questions', '6 sub-questions', '12 sub-questions'])
-    expect(hints.map((t) => t.split('·')[1].trim().split('—')[0].trim())).toEqual(
+    expect(hints.map((t) => t.split('·')[1].trim())).toEqual(
       ['2 sources each', '4 sources each', '8 sources each'])
   })
 

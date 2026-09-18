@@ -15,6 +15,11 @@ vi.mock('../../services/api', () => ({
 import RunTimeline from './RunTimeline.vue'
 import { useChatStore } from '../../stores/useChatStore'
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+const readComponentSource = () =>
+  readFileSync(resolve(process.cwd(), 'src/components/plan/RunTimeline.vue'), 'utf8')
+
 const RUN = 'run-1'
 
 const mountRT = (props = {}) =>
@@ -72,6 +77,17 @@ describe('RunTimeline — sources read', () => {
     expect(w.findAll('[data-test="rt-source"]')).toHaveLength(6)
     await w.find('[data-test="rt-sources-more"]').trigger('click')
     expect(w.findAll('[data-test="rt-source"]')).toHaveLength(9)
+  })
+
+  it('live citations follow the RUN, not a streaming bubble', async () => {
+    // Keyed on a message with status === 'streaming', the panel was blank for the whole of a
+    // fan-out: RESEARCH_IN_PARALLEL runs for minutes between model rounds and there is no
+    // streaming message in that window, so a run that read nine pages through its children showed
+    // none of them (live, conv 1760). A source pin, because the live half cannot be seeded from
+    // outside the timeline composable.
+    const text = readComponentSource()
+    expect(text).toContain('if (!terminal.value) for (const x of (chat.liveSources')
+    expect(text).not.toContain("m.status === 'streaming' && belongsToThisRun(m))")
   })
 
   it('a source with no URL still renders, without a dead link', async () => {

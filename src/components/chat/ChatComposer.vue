@@ -281,9 +281,9 @@ const toggleCanvasFromMenu = () => {
 // independent sub-questions one fan-out may open, and how many source pages each of those must read
 // (agent/services/research_depth.py holds the one definition; these labels must match it).
 const depthOptions = [
-  { value: 'quick',    label: 'Quick',    hint: '3 sub-questions · 2 sources each — a fast check' },
-  { value: 'standard', label: 'Standard', hint: '6 sub-questions · 4 sources each — a balanced report' },
-  { value: 'deep',     label: 'Deep',     hint: '12 sub-questions · 8 sources each — slowest and most expensive' },
+  { value: 'quick',    label: 'Quick',    hint: '3 sub-questions · 2 sources each · 2 attempts — a fast check' },
+  { value: 'standard', label: 'Standard', hint: '6 sub-questions · 4 sources each · 3 attempts — a balanced report' },
+  { value: 'deep',     label: 'Deep',     hint: '12 sub-questions · 8 sources each · 3 attempts — slowest and most expensive' },
 ]
 const researchMode = computed(() => chat.researchMode)
 const researchDepth = computed(() => chat.researchDepth)

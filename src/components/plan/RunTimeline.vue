@@ -301,7 +301,11 @@ const _srcOpen = ref(null)
 const readSources = computed(() => {
   const out = new Map()
   const list = chat.messages || []
-  const liveMsg = list.find((m) => m.role === 'assistant' && m.status === 'streaming' && belongsToThisRun(m))
+  // LIVE CITATIONS BELONG TO THE RUN, NOT TO A STREAMING BUBBLE. Keyed on a message with
+  // status === 'streaming', the panel went blank for the whole of a fan-out: RESEARCH_IN_PARALLEL can
+  // run for minutes between model rounds, and in that window there is no streaming message at all — so
+  // a run that read nine pages through its children showed none of them (live, conv 1760). The run is
+  // live until it is terminal; that is the right test.
   const add = (x) => {
     if (!x) return
     const ref = String(x.ref || '')
@@ -314,7 +318,7 @@ const readSources = computed(() => {
     if (m.role !== 'assistant' || !belongsToThisRun(m)) continue
     for (const x of ((m.timeline && m.timeline.sources) || [])) add(x)
   }
-  if (liveMsg) for (const x of (chat.liveSources || [])) add(x)
+  if (!terminal.value) for (const x of (chat.liveSources || [])) add(x)
   return [...out.values()]
 })
 const shownSources = computed(() => (allSources.value ? readSources.value : readSources.value.slice(0, SRC_SHOWN)))

@@ -323,9 +323,9 @@ const toggleImageModeFromMenu = () => {
 // backend ENFORCES — sub-questions per fan-out, and source pages per sub-question. These labels must match
 // agent/services/research_depth.py (the one definition) and ChatComposer.vue (the mid-thread composer).
 const depthOptions = [
-  { value: 'quick',    label: 'Quick',    hint: '3 sub-questions · 2 sources each — a fast check' },
-  { value: 'standard', label: 'Standard', hint: '6 sub-questions · 4 sources each — a balanced report' },
-  { value: 'deep',     label: 'Deep',     hint: '12 sub-questions · 8 sources each — slowest and most expensive' },
+  { value: 'quick',    label: 'Quick',    hint: '3 sub-questions · 2 sources each · 2 attempts — a fast check' },
+  { value: 'standard', label: 'Standard', hint: '6 sub-questions · 4 sources each · 3 attempts — a balanced report' },
+  { value: 'deep',     label: 'Deep',     hint: '12 sub-questions · 8 sources each · 3 attempts — slowest and most expensive' },
 ]
 const researchMode = computed(() => chat.researchMode)
 const researchDepth = computed(() => chat.researchDepth)
