@@ -64,7 +64,8 @@ describe('ProviderSwitchDialog', () => {
     await flushPromises()
     await w.find('[data-test="provider-switch-apply"]').trigger('click')
     await flushPromises()
-    expect(api.switchProvider).toHaveBeenCalledWith('openrouter', 5)
+    // origin='auto' + the fault: the settings page later reads this back as "why am I on OpenAI?"
+    expect(api.switchProvider).toHaveBeenCalledWith('openrouter', 5, 'auto', 'key_limit')
     expect(chat.providerSwitchOffer).toBe(null)
     expect(retry).toHaveBeenCalled()
   })

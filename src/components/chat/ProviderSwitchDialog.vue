@@ -4,8 +4,8 @@
 
   One click moves every model the user runs on that provider (all their agents, internal operations, shared-agent
   picks and pinned chats) to the same or closest model on the chosen provider, then re-sends the failed message.
-  Cancel leaves everything as it is. The preview lists exactly what changes and what stays behind before anything
-  is written.
+  Cancel leaves everything as it is. The preview (ProviderSwitchPicker) is the same one the AI Provider page's
+  manual switch uses — this popup is just the entrance the chat takes when a provider refuses.
 -->
 <template>
   <Teleport to="body">
@@ -30,33 +30,13 @@
             </div>
           </div>
 
-          <div v-if="loading" class="mt-5 text-sm text-gray-500" data-test="provider-switch-loading">Checking your providers…</div>
-          <div v-else-if="loadError" class="mt-5 text-sm text-red-600" role="alert">{{ loadError }}</div>
-          <div v-else-if="!targets.length" class="mt-5 text-sm text-gray-600" data-test="provider-switch-none">
-            You have no other working provider. Add one on the
-            <router-link to="/dashboard/settings/providers" class="text-indigo-600 underline" @click="cancel">AI Provider page</router-link>,
-            or raise the limit on your {{ fromLabel }} key.
-          </div>
-          <div v-else class="mt-5 space-y-2">
-            <label v-for="t in targets" :key="t.to_provider.id"
-                   class="block rounded-xl border p-3 cursor-pointer"
-                   :class="selectedId === t.to_provider.id ? 'border-indigo-500 bg-indigo-50/40' : 'border-gray-200'"
-                   :data-test="'provider-switch-target-' + t.to_provider.provider_type">
-              <div class="flex items-center gap-2">
-                <input v-model="selectedId" type="radio" :value="t.to_provider.id" class="accent-indigo-600" />
-                <span class="text-sm font-semibold text-gray-900">{{ t.to_provider.name }}</span>
-                <span class="ml-auto text-xs text-gray-500">{{ t.changes.length }} change{{ t.changes.length === 1 ? '' : 's' }}</span>
-              </div>
-              <ul v-if="selectedId === t.to_provider.id" class="mt-2 max-h-48 overflow-auto text-xs text-gray-600 space-y-1">
-                <li v-for="(c, i) in t.changes" :key="'c' + i" data-test="provider-switch-change">
-                  <span class="text-gray-800">{{ c.target_name }}</span> · {{ c.label }}{{ c.count > 1 ? ` (${c.count} chats)` : '' }}:
-                  {{ c.from_model.model_id }} → <b>{{ c.to_model.model_id }}</b>
-                  <span v-if="c.match === 'closest'" class="text-amber-600">(closest)</span>
-                </li>
-                <li v-for="(w, i) in t.warnings" :key="'w' + i" class="text-amber-700" data-test="provider-switch-warning">{{ w }}</li>
-              </ul>
-            </label>
-          </div>
+          <ProviderSwitchPicker v-if="offer" v-model="selectedId" :from-provider="offer.from_provider" class="mt-5">
+            <template #empty>
+              You have no other working provider. Add one on the
+              <router-link to="/dashboard/settings/providers" class="text-indigo-600 underline" @click="cancel">AI Provider page</router-link>,
+              or raise the limit on your {{ fromLabel }} key.
+            </template>
+          </ProviderSwitchPicker>
           <div v-if="applyError" class="mt-3 text-sm text-red-600" role="alert">{{ applyError }}</div>
         </div>
 
@@ -76,15 +56,13 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import api from '../../services/api'
+import ProviderSwitchPicker from '../providers/ProviderSwitchPicker.vue'
 import { useChatStore } from '../../stores/useChatStore'
 import { notify } from '../../composables/useNotify'
 
 const chat = useChatStore()
 const offer = computed(() => chat.providerSwitchOffer)
-const targets = ref([])
 const selectedId = ref(null)
-const loading = ref(false)
-const loadError = ref('')
 const applying = ref(false)
 const applyError = ref('')
 
@@ -96,23 +74,10 @@ const title = computed(() => ({
   auth: `${fromLabel.value} rejected the API key`,
 }[offer.value?.reason] || `${fromLabel.value} refused the request`))
 
-watch(offer, async (o) => {
-  targets.value = []
+watch(offer, () => {
   selectedId.value = null
-  loadError.value = ''
   applyError.value = ''
-  if (!o) return
-  loading.value = true
-  try {
-    const { data } = await api.getProviderSwitchOptions(o.from_provider)
-    targets.value = Array.isArray(data?.targets) ? data.targets : []
-    if (targets.value.length) selectedId.value = targets.value[0].to_provider.id
-  } catch {
-    loadError.value = 'Could not load your providers.'
-  } finally {
-    loading.value = false
-  }
-}, { immediate: true })
+})
 
 function cancel() {
   if (applying.value) return
@@ -124,7 +89,9 @@ async function apply() {
   applying.value = true
   applyError.value = ''
   try {
-    const { data } = await api.switchProvider(offer.value.from_provider, selectedId.value)
+    // origin='auto': this switch was OFFERED after a provider refusal, not chosen on the settings page. The
+    // AI Provider page reads that back to say why the user is on the provider they are on.
+    const { data } = await api.switchProvider(offer.value.from_provider, selectedId.value, 'auto', offer.value.reason || '')
     const n = (data?.changes || []).length
     notify.success(`Switched ${n} model${n === 1 ? '' : 's'} to ${data?.to_provider?.name || 'the new provider'}`)
     for (const w of (data?.warnings || [])) notify.warning(w)

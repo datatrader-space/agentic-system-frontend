@@ -26,6 +26,10 @@
 
     <PageLoader v-if="loading && !hasLoaded" label="Loading providers & models…" min-height="320px" />
     <template v-else>
+    <!-- Which provider everything runs on, why, and a manual switch to another one (same backend switch the
+         chat offers when a provider caps out — here it can be asked for at any time, in either direction). -->
+    <ProviderSwitchCard v-show="pageTab === 'providers'" ref="switchCard" @switched="onProviderSwitched" />
+
     <!-- Configured Providers -->
     <div v-show="pageTab === 'providers'" class="bg-white rounded-[16px] shadow-sm border border-slate-200/60 overflow-hidden">
       <div class="p-5 sm:p-6 pb-4 sm:pb-5 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between gap-4">
@@ -528,9 +532,22 @@ import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import api from '../services/api'
 import OwnerFilter from '../components/common/OwnerFilter.vue'
 import PageLoader from '../components/common/PageLoader.vue'
+import ProviderSwitchCard from '../components/providers/ProviderSwitchCard.vue'
 import { confirm } from '@/composables/useConfirm'
 
 const notify = inject('notify', () => {})
+
+const switchCard = ref(null)
+
+// A manual provider switch rewrites the caller's operation-model picks too, so the page's own copies are
+// stale the moment it lands — re-read them instead of showing the pre-switch models until a reload.
+const onProviderSwitched = async (result) => {
+  const n = (result?.changes || []).length
+  notify(`Switched ${n} model${n === 1 ? '' : 's'} to ${result?.to_provider?.name || 'the new provider'}`, 'success')
+  for (const w of (result?.warnings || [])) notify(w, 'info')
+  await Promise.all([loadProviders().catch(() => {}), loadModels().catch(() => {})])
+  await loadOperationModels()
+}
 
 // Page-level initial-load state → drives the full-page spinner on first paint.
 const loading = ref(true)

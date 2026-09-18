@@ -596,9 +596,15 @@ export default {
   getAgentModelOptions: (id) => api.get(`/agents/${id}/model-options/`, { noCache: true }),
   // What the chat Effort control may offer: agent config reasoning on/off + the efforts the caller's model accepts.
   getAgentReasoningOptions: (id) => api.get(`/agents/${id}/reasoning-options/`, { noCache: true }),
-  // Switch every model on a capped provider to another provider (the chat's switch-provider popup).
-  getProviderSwitchOptions: (fromProvider) => api.get('/llm/providers/switch-options/', { params: { from: fromProvider }, noCache: true }),
-  switchProvider: (fromProvider, toProviderId) => api.post('/llm/providers/switch/', { from: fromProvider, to_provider_id: toProviderId }),
+  // Switch every model on one provider to another. ONE backend path, two entrances: the chat's popup after a
+  // provider account fault (it names the provider that refused), and the AI Provider page's manual switch
+  // (no `from` — the server uses the provider the caller's models are actually on).
+  getProviderSwitchOptions: (fromProvider) => api.get('/llm/providers/switch-options/', { params: fromProvider ? { from: fromProvider } : {}, noCache: true }),
+  // Where the caller's models run, WHY they run there (auto-switched vs chosen), and every provider they own
+  // marked available or not — the manual switch's read side.
+  getProviderSwitchState: () => api.get('/llm/providers/switch-state/', { noCache: true }),
+  switchProvider: (fromProvider, toProviderId, origin = 'manual', reason = '') =>
+    api.post('/llm/providers/switch/', { from: fromProvider || '', to_provider_id: toProviderId, origin, reason }),
   selectAgentModel: (id, modelId) => api.post(`/agents/${id}/select-model/`, { model_id: modelId }),
   // Per-user run mode for SHARED agents. A plain updateAgent() would write the ONE shared row and
   // change the mode for every user on the platform — this writes the caller's override only.
