@@ -55,34 +55,40 @@ describe('ChatWelcome — Deep Research is reachable on the first message', () =
     expect(w.find('[data-test="welcome-plus-menu"]').exists()).toBe(false)
   })
 
-  it('the chip carries the three depths with Standard armed', async () => {
+  it('the chip names the armed depth and keeps the options behind a dropdown', async () => {
     const chat = useChatStore()
     chat.researchMode = true
     const w = mountW()
     await w.vm.$nextTick()
-    expect(w.findAll('.rs-depth').map((b) => b.text())).toEqual(['Quick', 'Standard', 'Deep'])
+    expect(w.find('[data-test="welcome-research-depth-toggle"]').text()).toContain('Standard')
+    expect(w.find('[data-test="welcome-research-depth-menu"]').exists()).toBe(false)
+    await w.find('[data-test="welcome-research-depth-toggle"]').trigger('click')
+    expect(w.findAll('.rs-opt-label').map((b) => b.text())).toEqual(['Quick', 'Standard', 'Deep'])
     expect(w.find('[data-test="welcome-research-depth-standard"]').classes()).toContain('is-on')
   })
 
-  it('picking a depth records it', async () => {
+  it('picking a depth records it and closes the dropdown', async () => {
     const chat = useChatStore()
     chat.researchMode = true
     const w = mountW()
     await w.vm.$nextTick()
+    await w.find('[data-test="welcome-research-depth-toggle"]').trigger('click')
     await w.find('[data-test="welcome-research-depth-quick"]').trigger('click')
     expect(chat.researchDepth).toBe('quick')
+    expect(w.find('[data-test="welcome-research-depth-menu"]').exists()).toBe(false)
     expect(notify.info.mock.calls.at(-1)[0]).toContain('3 sub-questions')
   })
 
-  it('every depth label states both budgets here too', async () => {
+  it('every option states both budgets here too', async () => {
     const chat = useChatStore()
     chat.researchMode = true
     const w = mountW()
     await w.vm.$nextTick()
-    const titles = w.findAll('.rs-depth').map((b) => b.attributes('title'))
-    expect(titles.map((t) => t.split('·')[0].trim())).toEqual(
+    await w.find('[data-test="welcome-research-depth-toggle"]').trigger('click')
+    const hints = w.findAll('.rs-opt-hint').map((b) => b.text())
+    expect(hints.map((t) => t.split('·')[0].trim())).toEqual(
       ['3 sub-questions', '6 sub-questions', '12 sub-questions'])
-    expect(titles.map((t) => t.split('·')[1].trim().split('—')[0].trim())).toEqual(
+    expect(hints.map((t) => t.split('·')[1].trim().split('—')[0].trim())).toEqual(
       ['2 sources each', '4 sources each', '8 sources each'])
   })
 

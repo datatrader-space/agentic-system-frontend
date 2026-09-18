@@ -76,41 +76,48 @@ describe('ChatComposer — Deep Research mode', () => {
     expect(mountC().find('.research-chip').exists()).toBe(false)
   })
 
-  it('the chip carries all three depths, with Standard the default', async () => {
+  it('the chip names the armed depth and keeps the options behind a dropdown', async () => {
+    // Three inline segments made the chip wide enough to push the send button off the composer at
+    // 1560px (seen live). One pill that opens upward is what every other control in this row does.
     const chat = useChatStore()
     chat.researchMode = true
     const w = mountC()
     await w.vm.$nextTick()
     expect(w.find('.research-chip').exists()).toBe(true)
-    expect(w.findAll('.rs-depth').map((b) => b.text())).toEqual(['Quick', 'Standard', 'Deep'])
+    expect(w.find('[data-test="research-depth-toggle"]').text()).toContain('Standard')
+    expect(w.find('[data-test="research-depth-menu"]').exists()).toBe(false)
+    await w.find('[data-test="research-depth-toggle"]').trigger('click')
+    expect(w.findAll('.rs-opt-label').map((b) => b.text())).toEqual(['Quick', 'Standard', 'Deep'])
     expect(w.find('[data-test="research-depth-standard"]').classes()).toContain('is-on')
     expect(w.find('[data-test="research-depth-standard"]').attributes('aria-checked')).toBe('true')
   })
 
-  it('picking a depth records it and reports its budget', async () => {
+  it('picking a depth records it, closes the dropdown and reports its budget', async () => {
     const chat = useChatStore()
     chat.researchMode = true
     const w = mountC()
     await w.vm.$nextTick()
+    await w.find('[data-test="research-depth-toggle"]').trigger('click')
     await w.find('[data-test="research-depth-deep"]').trigger('click')
     expect(chat.researchDepth).toBe('deep')
-    expect(w.find('[data-test="research-depth-deep"]').classes()).toContain('is-on')
-    expect(w.find('[data-test="research-depth-standard"]').classes()).not.toContain('is-on')
+    expect(w.find('[data-test="research-depth-menu"]').exists()).toBe(false)
+    expect(w.find('[data-test="research-depth-toggle"]').text()).toContain('Deep')
     expect(notify.info.mock.calls.at(-1)[0]).toContain('12 sub-questions')
   })
 
-  it('every depth label states both budgets, so the cost is never implied', async () => {
+  it('every option states both budgets, so the cost is never implied', async () => {
     const chat = useChatStore()
     chat.researchMode = true
     const w = mountC()
     await w.vm.$nextTick()
-    const titles = w.findAll('.rs-depth').map((b) => b.attributes('title'))
-    expect(titles[0]).toContain('3 sub-questions')
-    expect(titles[0]).toContain('2 sources each')
-    expect(titles[1]).toContain('6 sub-questions')
-    expect(titles[1]).toContain('4 sources each')
-    expect(titles[2]).toContain('12 sub-questions')
-    expect(titles[2]).toContain('8 sources each')
+    await w.find('[data-test="research-depth-toggle"]').trigger('click')
+    const hints = w.findAll('.rs-opt-hint').map((b) => b.text())
+    expect(hints[0]).toContain('3 sub-questions')
+    expect(hints[0]).toContain('2 sources each')
+    expect(hints[1]).toContain('6 sub-questions')
+    expect(hints[1]).toContain('4 sources each')
+    expect(hints[2]).toContain('12 sub-questions')
+    expect(hints[2]).toContain('8 sources each')
   })
 
   it('the × on the chip turns the mode off', async () => {

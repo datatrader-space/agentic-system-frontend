@@ -183,18 +183,24 @@
                  but the depth is the cost decision and has to be one click away while the user is still
                  typing the request it applies to. -->
             <span v-if="researchMode" class="canvas-chip research-chip"
-                  :title="'Deep Research on — ' + activeDepth.hint">
-              <span class="canvas-chip-body rs-label">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg>
-                <span>Research</span>
-              </span>
-              <span class="rs-depths" role="radiogroup" aria-label="Research depth">
-                <button v-for="d in depthOptions" :key="d.value" type="button" class="rs-depth"
-                        :class="{ 'is-on': researchDepth === d.value }" role="radio"
+                  :title="'Deep Research — ' + activeDepth.hint">
+              <button type="button" class="canvas-chip-body rs-toggle" data-test="welcome-research-depth-toggle"
+                      aria-haspopup="menu" :aria-expanded="depthOpen ? 'true' : 'false'"
+                      @click.stop="depthOpen = !depthOpen">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3" stroke-linecap="round"/></svg>
+                <span class="rs-name">Research</span>
+                <span class="rs-current">{{ activeDepth.label }}</span>
+                <svg class="rs-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 15l6-6 6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div v-if="depthOpen" class="rs-menu" role="menu" data-test="welcome-research-depth-menu" @click.stop>
+                <button v-for="d in depthOptions" :key="d.value" type="button" class="rs-opt" role="menuitemradio"
+                        :class="{ 'is-on': researchDepth === d.value }"
                         :aria-checked="researchDepth === d.value ? 'true' : 'false'"
-                        :title="d.hint" :data-test="'welcome-research-depth-' + d.value"
-                        @click.stop="setDepth(d.value)">{{ d.label }}</button>
-              </span>
+                        :data-test="'welcome-research-depth-' + d.value" @click="setDepth(d.value)">
+                  <span class="rs-opt-label">{{ d.label }}</span>
+                  <span class="rs-opt-hint">{{ d.hint }}</span>
+                </button>
+              </div>
               <button type="button" class="canvas-chip-x" title="Turn off Deep Research"
                       aria-label="Turn off Deep Research" @click.stop="chat.researchMode = false">×</button>
             </span>
@@ -324,13 +330,16 @@ const depthOptions = [
 const researchMode = computed(() => chat.researchMode)
 const researchDepth = computed(() => chat.researchDepth)
 const activeDepth = computed(() => depthOptions.find(o => o.value === chat.researchDepth) || depthOptions[1])
+const depthOpen = ref(false)
 const setDepth = (value) => {
   chat.researchDepth = value
+  depthOpen.value = false
   const opt = depthOptions.find(o => o.value === value)
   notify.info(`Research depth: ${opt.label} — ${opt.hint}.`)
 }
 const toggleResearchFromMenu = () => {
   chat.researchMode = !chat.researchMode
+  depthOpen.value = false
   closeMenu()
   notify.info(chat.researchMode
     ? `Deep Research on — ${activeDepth.value.label}: ${activeDepth.value.hint}. Change the depth on the chip.`
@@ -351,10 +360,17 @@ const openUrl = async () => {
   urlOpen.value = true
 }
 const onDocClick = (e) => {
+  // The depth popup lives on the chip, outside plusRootEl, so it needs its own containment test — and it
+  // must run BEFORE the early return below, or a click anywhere while the "+" menu is shut leaves it open.
+  if (!(e.target.closest && e.target.closest('.research-chip'))) depthOpen.value = false
   if (!menuOpen.value && !urlOpen.value) return
   if (plusRootEl.value && !plusRootEl.value.contains(e.target)) closeMenu()
 }
-const onDocKey = (e) => { if (e.key === 'Escape' && (menuOpen.value || urlOpen.value)) closeMenu() }
+const onDocKey = (e) => {
+  if (e.key !== 'Escape') return
+  depthOpen.value = false
+  if (menuOpen.value || urlOpen.value) closeMenu()
+}
 onMounted(() => {
   document.addEventListener('click', onDocClick)
   document.addEventListener('keydown', onDocKey)
@@ -679,15 +695,25 @@ const submit = () => {
 .plus-search-input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: inherit; font-size: 0.8125rem; color: var(--vm-ink); }
 .plus-search-input::placeholder { color: var(--vm-ink-faint); }
 .plus-on-tag { margin-left: 6px; padding: 0 6px; border-radius: 9999px; background: var(--vm-violet); color: #fff; font-size: 0.6rem; font-weight: 700; vertical-align: middle; }
-.research-chip { padding: 0 4px 0 10px; gap: 6px; }
-.rs-label { cursor: default; }
-.rs-depths { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 8px; background: rgba(109, 40, 217, .08); }
-.rs-depth {
-  border: 0; background: transparent; border-radius: 6px; padding: 2px 7px; cursor: pointer;
-  color: var(--vm-violet, #6d28d9); font-size: 0.72rem; font-weight: 600; line-height: 1.5;
+.research-chip { position: relative; padding: 0 4px 0 10px; gap: 4px; }
+.rs-toggle { border: 0; background: transparent; padding: 0; color: inherit; font: inherit; gap: 5px; }
+.rs-name { font-weight: 600; }
+.rs-current { padding: 1px 6px; border-radius: 9999px; background: var(--vm-violet, #6d28d9); color: #fff; font-size: 0.68rem; font-weight: 700; }
+.rs-caret { width: 12px !important; height: 12px !important; opacity: .7; }
+.rs-menu {
+  position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 60; min-width: 250px;
+  display: flex; flex-direction: column; padding: 5px; gap: 2px;
+  background: #fff; border: 1px solid var(--vm-line, #e5e7eb); border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, .16);
 }
-.rs-depth:hover { background: rgba(109, 40, 217, .14); }
-.rs-depth.is-on { background: var(--vm-violet, #6d28d9); color: #fff; }
+.rs-opt {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  padding: 7px 9px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; text-align: left;
+}
+.rs-opt:hover { background: var(--vm-violet-soft, #f5f3ff); }
+.rs-opt.is-on { background: var(--vm-violet-soft, #f5f3ff); }
+.rs-opt-label { font-size: 0.8rem; font-weight: 700; color: var(--vm-violet, #6d28d9); }
+.rs-opt-hint { font-size: 0.7rem; font-weight: 500; color: var(--vm-ink-soft, #64748b); white-space: nowrap; }
 .plus-ic--research { color: #059669; }
 .canvas-chip {
   display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0;
