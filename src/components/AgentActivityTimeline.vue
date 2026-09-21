@@ -11,7 +11,13 @@
       </button>
 
       <!-- RUNNING: live "Working" header -->
-      <div v-else-if="running && !isComplete && steps && steps.length" class="at-head-live">
+      <!-- THE CARD APPEARS WHOLE, FROM THE FIRST MOMENT. This used to require `steps.length`, so the
+           seconds between sending a message and the first row produced no header at all — just the
+           bare status label floating on its own (reported 2026-09-21, "Understanding what you need"
+           alone under the message). The panel then popped into existence as a different-looking object
+           once a row arrived. One object that fills in reads as progress; two that replace each other
+           read as a glitch. -->
+      <div v-else-if="running && !isComplete" class="at-head-live">
         <span class="at-dot" aria-hidden="true"></span>
         <span>Working</span>
         <span v-if="tokensText && !publicSafe" class="at-head-tok">· {{ tokensText }}</span>

@@ -5,7 +5,7 @@
 //   * folding a FAILURE into a count, and the one row that mattered disappears into "×12".
 
 import { describe, it, expect } from 'vitest'
-import { foldMilestones, wasFolded, isOrchestration } from './workProgress'
+import { foldMilestones, wasFolded, isOrchestration, isSetup } from './workProgress'
 
 const step = (i, over = {}) => ({
   stepId: `s${i}`, label: 'Reading a saved file', status: 'ok', phase: 'retrieving_context',
@@ -143,5 +143,80 @@ describe('edge cases that reach this from a reloaded thread', () => {
 
   it('null rows are dropped rather than rendered', () => {
     expect(foldMilestones([null, step(1), undefined])).toHaveLength(1)
+  })
+})
+
+describe('the run getting ready is one row, not eleven', () => {
+  // MEASURED, prod conv 1800: a two-step task that fetched one page rendered SEVENTEEN rows, of which
+  // three were the work. Every label differs, so the repeat-fold could not help.
+  const setup = (i, label, phase) => ({
+    stepId: `b${i}`, label, status: 'ok', phase, durationMs: 50,
+  })
+
+  const REAL_RUN = [
+    setup(1, 'Analyzing your request', 'preparing'),
+    setup(2, 'Got it — preparing', 'preparing'),
+    setup(3, 'Checking what this agent can do', 'build_resolve_roster'),
+    setup(4, 'Loading tools', 'build_load_tools'),
+    setup(5, 'Working out the best approach', 'build_tde_call'),
+    setup(6, 'Finding the right tools', 'build_capability_resolve'),
+    setup(7, 'Gathering context', 'build_build_messages'),
+    setup(8, 'Searching your knowledge base', 'build_rag'),
+    setup(9, 'Connecting to your services', 'build_mcp_enumerate'),
+    setup(10, "Confirming what's needed", 'build_contract_caps'),
+    setup(11, 'Getting ready to run', 'build_autorun'),
+    { stepId: 's1', label: 'Step 1 of 2: Fetch https://example.com', status: 'ok', phase: 'using_tools' },
+    setup(12, 'Working out how to do this', 'planning'),
+    { stepId: 't1', label: 'Reading a web page', status: 'ok', phase: 'using_tools' },
+    { stepId: 's2', label: 'Step 2 of 2: Extract H1', status: 'ok', phase: 'using_tools' },
+    { stepId: 'v1', label: 'Checking the findings against sources', status: 'ok', phase: 'verifying' },
+    { stepId: 'g1', label: 'Generating response', status: 'ok', phase: 'generating_answer' },
+  ]
+
+  it('collapses the whole preamble into a single row', () => {
+    const folded = foldMilestones(REAL_RUN)
+    expect(folded[0].label).toBe('Getting ready')
+    expect(folded[0].repeatCount).toBe(11)
+  })
+
+  it('turns seventeen rows into a handful', () => {
+    expect(REAL_RUN).toHaveLength(17)
+    expect(foldMilestones(REAL_RUN).length).toBeLessThanOrEqual(7)
+  })
+
+  it('keeps every row that is actually the work', () => {
+    const labels = foldMilestones(REAL_RUN).map((s) => s.label)
+    expect(labels).toContain('Step 1 of 2: Fetch https://example.com')
+    expect(labels).toContain('Reading a web page')
+    expect(labels).toContain('Step 2 of 2: Extract H1')
+  })
+
+  it('does not let setup swallow the work that follows it', () => {
+    const folded = foldMilestones(REAL_RUN)
+    const i = folded.findIndex((s) => s.label === 'Getting ready')
+    expect(folded[i + 1].label).toBe('Step 1 of 2: Fetch https://example.com')
+  })
+
+  it('a lone setup row keeps its own words rather than being relabelled', () => {
+    // Summary wording is only honest once a row stands for several different stages.
+    const one = foldMilestones([setup(1, 'Loading tools', 'build_load_tools'),
+                                { stepId: 'w', label: 'Reading a web page', status: 'ok', phase: 'using_tools' }])
+    expect(one[0].label).toBe('Loading tools')
+  })
+
+  it('a failed setup stage is still its own row', () => {
+    const folded = foldMilestones([
+      setup(1, 'Loading tools', 'build_load_tools'),
+      { stepId: 'x', label: 'Finding the right tools', status: 'failed', phase: 'build_capability_resolve' },
+      setup(3, 'Gathering context', 'build_build_messages'),
+    ])
+    expect(folded).toHaveLength(3)
+  })
+
+  it('knows setup from work', () => {
+    expect(isSetup({ phase: 'build_load_tools' })).toBe(true)
+    expect(isSetup({ phase: 'preparing' })).toBe(true)
+    expect(isSetup({ phase: 'using_tools' })).toBe(false)
+    expect(isSetup(null)).toBe(false)
   })
 })

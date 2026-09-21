@@ -144,6 +144,15 @@ const CLOSED_GOAL_STATES = ['ACHIEVED', 'EXHAUSTED', 'PAUSED', 'ABANDONED']
 export function runHasEnded(plan) {
   if (!plan) return false
   if (terminalOf(plan) || ['blocked'].includes(String(plan.run_status || ''))) return true
+  // THE SERVER'S USER-FACING PLAN STATUS IS THE AUTHORITY, and asking it is what keeps the card and
+  // the composer chip saying the same thing.
+  //
+  // MEASURED, prod conv 1799: the card read "Blocked 0/2" while the chip beside the composer read
+  // "Active plan 0/2" with a live green dot. The card had been fixed to derive `blocked` from a paused
+  // run; this function had not, because it only ever looked at `run_status` — and a run that pauses
+  // with no work goal is neither terminal nor 'blocked' nor a closed goal, so it fell through every
+  // branch and the chip kept claiming the run was going.
+  if (String(plan.plan_status_user || '') === 'blocked') return true
   const goal = plan.work_goal
   return !!(goal && CLOSED_GOAL_STATES.includes(String(goal.state || '')))
 }

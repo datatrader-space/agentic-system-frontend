@@ -236,3 +236,25 @@ describe('a run that ended leaves no step running', () => {
     expect(runHasEnded(null)).toBe(false)
   })
 })
+
+describe('the chip and the card must not disagree', () => {
+  // MEASURED, prod conv 1799: the card read "Blocked 0/2" while the chip beside the composer read
+  // "Active plan 0/2" with a live green dot. Two renderers, one run, opposite claims.
+  it('a paused run the server calls blocked has ended', () => {
+    expect(runHasEnded({ run_status: 'paused', plan_status_user: 'blocked' })).toBe(true)
+  })
+
+  it('a paused run with no work goal used to fall through every branch', () => {
+    // The exact shape: not terminal, run_status is "paused" not "blocked", and no goal to close.
+    expect(runHasEnded({ run_status: 'paused', plan_status_user: 'blocked', work_goal: null })).toBe(true)
+  })
+
+  it('a live run is still live', () => {
+    expect(runHasEnded({ run_status: 'executing', plan_status_user: 'active' })).toBe(false)
+  })
+
+  it('an approval wait is not treated as ended', () => {
+    expect(runHasEnded({ run_status: 'awaiting_plan_approval', plan_status_user: 'awaiting_approval' }))
+      .toBe(false)
+  })
+})

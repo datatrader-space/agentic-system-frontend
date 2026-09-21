@@ -26,6 +26,32 @@
 //: Phases whose rows are about HOW we checked, not about what was produced.
 const ORCHESTRATION_PHASES = new Set(['verifying'])
 
+//: Phases that are the run GETTING READY rather than doing anything the user asked for. The build
+//: stages are namespaced `build_<stage>` on purpose (turn_status.build_phase) — each is its own row so
+//: a slow stage is attributable — which is right for debugging and wrong for a reader: eleven rows of
+//: "Loading tools", "Finding the right tools", "Gathering context" ran before the first real action.
+//:
+//: MEASURED, prod conv 1800: a two-step task that fetched one page rendered SEVENTEEN rows, of which
+//: three were the work. The repeat-fold could not help — every label differs, so nothing repeated.
+const SETUP_PHASES = new Set(['preparing', 'planning'])
+const SETUP_PREFIX = 'build_'
+
+//: The words for a folded setup group. This row is a SUMMARY that did not exist in the stream, so it
+//: needs its own label — unlike a repeat-fold, which keeps the backend's wording and only adds a count.
+//: Every individual stage label is still one click away in the full list.
+const SETUP_SUMMARY = 'Getting ready'
+
+/**
+ * Is this row the run preparing itself, rather than doing the work?
+ * @param {object} step
+ * @returns {boolean}
+ */
+export function isSetup(step) {
+  if (!step) return false
+  const phase = String(step.phase || '')
+  return SETUP_PHASES.has(phase) || phase.startsWith(SETUP_PREFIX)
+}
+
 //: A row in one of these states is always its own row. A count is a summary, and a failure must never
 //: be summarised away.
 const NEVER_FOLD = new Set(['failed', 'interrupted', 'running'])
@@ -54,16 +80,23 @@ export function foldMilestones(steps) {
   for (const step of steps || []) {
     if (!step) continue
     const prev = out.length ? out[out.length - 1] : null
+    const bothSetup = isSetup(prev) && isSetup(step)
     const foldable =
       prev &&
       !NEVER_FOLD.has(step.status) &&
       !NEVER_FOLD.has(prev.status) &&
-      // Either the same thing happening again, or two consecutive pieces of orchestration.
-      ((prev.label && prev.label === step.label) || (isOrchestration(prev) && isOrchestration(step)))
+      // The same thing happening again, two consecutive pieces of orchestration, or two consecutive
+      // pieces of the run getting ready.
+      ((prev.label && prev.label === step.label) ||
+        (isOrchestration(prev) && isOrchestration(step)) ||
+        bothSetup)
 
     if (foldable) {
       prev.repeatCount += 1
       prev.foldedIds.push(step.stepId)
+      // A setup group is a summary of several DIFFERENT stages, so it takes the summary wording the
+      // moment it stops standing for just one of them.
+      if (bothSetup) prev.label = SETUP_SUMMARY
       // Durations add up: "Checking the work · 34s" is true of the fold and useful; the individual
       // splits are in the raw list.
       if (step.durationMs != null) prev.durationMs = (prev.durationMs || 0) + step.durationMs
@@ -85,4 +118,4 @@ export function wasFolded(folded, steps) {
   return (folded || []).length < (steps || []).length
 }
 
-export { ORCHESTRATION_PHASES, NEVER_FOLD }
+export { ORCHESTRATION_PHASES, NEVER_FOLD, SETUP_PHASES, SETUP_PREFIX, SETUP_SUMMARY }
