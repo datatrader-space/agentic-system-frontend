@@ -7,8 +7,20 @@
          1578). What remains is what the rail cannot say: the moment before it exists, and an error. -->
     <template v-if="message.role === 'assistant' && deferToRail">
       <div class="rail-slot">
-        <div v-if="isStreaming && !railShown" class="prep-status" data-test="rail-pending">
-          <span class="prep-spinner"></span>{{ (chat.liveStatus && chat.liveStatus.label) || 'Starting work…' }}
+        <!-- ANCHORED, NOT FLOATING. The line itself stays a line — growing it into a card is what made
+             a Work run draw a card and then swap it for the rail (conv 1578), and that is not being
+             re-litigated here. What was wrong was that it had nothing beside it: every other assistant
+             turn opens with the avatar, so a lone chip under a right-aligned user bubble read as a
+             stray element rather than as the assistant starting to answer.
+             The avatar sits in the SAME 44px gutter the rail will use, so when the rail replaces this
+             line nothing moves sideways. -->
+        <div v-if="isStreaming && !railShown" class="prep-row" data-test="rail-pending">
+          <div class="avatar assistant-avatar prep-avatar" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+          </div>
+          <div class="prep-status">
+            <span class="prep-spinner"></span>{{ (chat.liveStatus && chat.liveStatus.label) || 'Starting work…' }}
+          </div>
         </div>
         <div v-if="message.status === 'error'" class="error-row">
           <span class="error-text">⚠ {{ message.error || 'Something went wrong.' }}</span>
@@ -680,6 +692,23 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
    the whole interface. A bare 12px border-spinner and grey text floating in an empty column read as a
    page that had not finished loading rather than an assistant that had started thinking. It now occupies
    the slot the answer will occupy, as a surface, so the eye has somewhere to rest while the turn builds. */
+/* The preparing line, anchored in the rail's own gutter. `margin-left: -44px` pulls the avatar into
+   the space `.msg.on-rail .rail-slot` reserves, so the pill's left edge sits exactly where the rail's
+   content will start — the line is replaced by the rail without anything sliding sideways. */
+.prep-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: -44px;
+}
+.prep-avatar {
+  flex: none;
+}
+@media (max-width: 640px) {
+  /* The gutter collapses on narrow screens, so the pull would drag the avatar off-canvas. */
+  .prep-row { margin-left: 0; }
+}
+
 .prep-status {
   display: inline-flex;
   align-items: center;
