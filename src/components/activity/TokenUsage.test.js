@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import TokenUsage from './TokenUsage.vue'
 import { normalizeUsage } from '../../composables/tokens'
+import { normalizeUsage } from '../../composables/tokens'
 
 describe('TokenUsage', () => {
   it('renders nothing without usage', () => {
@@ -74,5 +75,43 @@ describe('the figure covers the whole turn, not just the main call', () => {
 
   it('still renders nothing without usage', () => {
     expect(normalizeUsage(null)).toBeNull()
+  })
+})
+
+describe('fresh input is separated from cache reads', () => {
+  // MEASURED, prod conv 1807: "↑ 214.7k" on a turn whose cache served 177,361 of it. The two are
+  // priced an order of magnitude apart and no reader can tell them apart from one number.
+  const usage = {
+    turn_total_tokens: 215207, turn_prompt_tokens: 214691, turn_completion_tokens: 516,
+    turn_cached_tokens: 177361, turn_cost_usd: 0.01752, turn_model_calls: 11,
+  }
+
+  it('reports the fresh input as prompt minus cached', () => {
+    expect(normalizeUsage(usage).fresh).toBe(214691 - 177361)
+  })
+
+  it('leaves the prompt total itself untouched', () => {
+    // It is what the provider reported and what the cost is computed from.
+    expect(normalizeUsage(usage).prompt).toBe(214691)
+  })
+
+  it('keeps the cached tokens in the cost', () => {
+    // Cheap is not free. Hiding cache reads from the bill would be the opposite error.
+    expect(normalizeUsage(usage).cost).toBe(0.01752)
+  })
+
+  it('fresh plus cached reconciles to the prompt', () => {
+    const u = normalizeUsage(usage)
+    expect(u.fresh + u.cached).toBe(u.prompt)
+  })
+
+  it('is null rather than wrong when the provider reported no cache figure', () => {
+    expect(normalizeUsage({ turn_total_tokens: 100, turn_prompt_tokens: 90,
+                            turn_completion_tokens: 10 }).fresh).toBeNull()
+  })
+
+  it('never goes negative if cached exceeds prompt', () => {
+    expect(normalizeUsage({ turn_total_tokens: 10, turn_prompt_tokens: 5,
+                            turn_completion_tokens: 5, turn_cached_tokens: 99 }).fresh).toBe(0)
   })
 })

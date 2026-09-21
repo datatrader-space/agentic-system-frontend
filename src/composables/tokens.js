@@ -50,6 +50,13 @@ export function normalizeUsage(u) {
     prompt: prompt != null ? prompt : null,
     completion: completion != null ? completion : null,
     cached,
+    // FRESH INPUT — what this turn actually sent the provider anew, i.e. prompt minus the part read
+    // back from cache. `prompt` counts cached and fresh together (that is what the provider reports),
+    // so "↑ 214.7k" on a turn whose cache served 177k of it reads as five times the new work there
+    // really was. The two are priced an order of magnitude apart and the reader cannot tell them apart
+    // from one number. Cost is untouched and still includes the cached tokens at their own rate —
+    // cheap is not free, and hiding them from the bill would be the opposite error.
+    fresh: (prompt != null && cached != null) ? Math.max(0, prompt - cached) : null,
     cost,
     // How many model calls the figure covers, so the tooltip can say "17 calls" rather than implying one.
     calls: u.turn_model_calls != null ? u.turn_model_calls : null,

@@ -13,12 +13,15 @@
     <span>{{ display.total }} tokens</span>
     <template v-if="display.inOut">
       <span class="text-gray-300">·</span>
-      <span title="Prompt (input) tokens">↑ {{ display.prompt }}</span>
+      <span :title="display.freshTitle">↑ {{ display.prompt }}</span>
       <span title="Completion (output) tokens">↓ {{ display.completion }}</span>
     </template>
     <template v-if="display.cached">
       <span class="text-gray-300">·</span>
-      <span title="Cached prompt tokens (prompt-cache read)">{{ display.cached }} cached</span>
+      <!-- Fresh first: it is the part that varies with what this turn actually did, and the part a
+           reader can act on. Cached is shown beside it because it is billed, just far more cheaply. -->
+      <span :title="display.freshTitle">{{ display.fresh }} fresh</span>
+      <span title="Prompt tokens read back from the provider's cache — billed at roughly a tenth of the fresh rate, and included in the cost shown">{{ display.cached }} cached</span>
     </template>
     <template v-if="display.cost">
       <span class="text-gray-300">·</span>
@@ -42,6 +45,10 @@ const display = computed(() => {
     completion: fmtTokens(u.completion),
     inOut: u.prompt != null && u.completion != null,
     cached: u.cached ? fmtTokens(u.cached) : '',
+    fresh: u.fresh != null ? fmtTokens(u.fresh) : '',
+    freshTitle: (u.fresh != null && u.cached)
+      ? `${u.prompt.toLocaleString()} prompt = ${u.fresh.toLocaleString()} fresh + ${u.cached.toLocaleString()} cached`
+      : 'Prompt (input) tokens',
     cost: fmtCost(u.cost),
   }
 })
