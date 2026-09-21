@@ -21,7 +21,7 @@
            excluded here — they're surfaced in the collapsible reasoning panel below (latest-thought only). -->
       <ul v-if="visibleSteps.length && (!isComplete || expanded)" class="agent-steps" :class="{ 'at-rows-done': isComplete }">
         <li
-          v-for="step in visibleSteps"
+          v-for="step in renderedSteps"
           :key="step.stepId"
           class="agent-step"
           :class="`is-${step.status}`"
@@ -36,6 +36,9 @@
             <div class="agent-step-head">
               <span class="agent-step-name">
                 <span class="agent-step-label">{{ step.label }}</span>
+                <!-- Folded rows say how many they stand for, so a count is never mistaken for one
+                     thing happening once. The wording is the backend's; only the count is added. -->
+                <span v-if="step.repeatCount > 1" class="agent-step-count">×{{ step.repeatCount }}</span>
                 <!-- Delegation verification badge (Phase 4): rendered only when this step's
                      tool result self-identifies as a DELEGATE_TO_AGENT / DELEGATE_PARALLEL
                      verdict (see stepVerdicts). Never guessed, never on the public tier. -->
@@ -70,6 +73,13 @@
           </div>
         </li>
       </ul>
+
+      <!-- The raw list, one click away. Offered only when folding actually removed rows — a toggle
+           that reveals the list it already shows is noise of its own. Never on the public tier. -->
+      <button v-if="canShowAll && !publicSafe && (!isComplete || expanded)" type="button"
+              class="at-steps-toggle" @click="showAllSteps = !showAllSteps">
+        {{ showAllSteps ? 'Show milestones' : `Show all ${visibleSteps.length} steps` }}
+      </button>
 
       <!-- Fallback: a live status arrived before any row exists (back-compat / flag edge cases). -->
       <div v-else-if="running && statusLabel && !isComplete" class="agent-status-line">
@@ -161,6 +171,7 @@ import { fmtTokens } from '../composables/tokens'
 import { renderInlineMarkdown } from '../utils/inlineMarkdown'
 import VerificationBadge from './common/VerificationBadge.vue'
 import { parseDelegationResult, isDelegationTool } from './common/verificationBadge'
+import { foldMilestones, wasFolded } from './plan/workProgress'
 
 const props = defineProps({
   statusLabel: { type: String, default: '' },
@@ -207,6 +218,15 @@ const earlierReasoning = computed(() =>
 const visibleSteps = computed(() =>
   (props.steps || []).filter((s) => s.phase !== 'reasoning'),
 )
+
+// MILESTONES, NOT EVERY CALL (Work Mode V2, phase 10). A Work run renders ~40 rows if each tool call
+// gets one, and the reader wants about six. `foldMilestones` collapses consecutive identical rows and
+// consecutive verification rows, and never folds a failure. The raw list is one click away.
+const showAllSteps = ref(false)
+const milestoneSteps = computed(() => foldMilestones(visibleSteps.value))
+const canShowAll = computed(() => wasFolded(milestoneSteps.value, visibleSteps.value))
+const renderedSteps = computed(() => (showAllSteps.value ? visibleSteps.value.map(
+  (s) => ({ ...s, repeatCount: 1, foldedIds: [s.stepId] })) : milestoneSteps.value))
 
 // Delegation verification badges (Phase 4), stepId → {verified, status, note?}. This renderer receives
 // tool results GENERICALLY (no per-tool parsing), so the enhancement is contained here and keyed on the
@@ -444,6 +464,14 @@ function fmtDuration(ms) {
 }
 .agent-step-label {
   @apply text-gray-700;
+}
+/* The count on a folded row: quiet, tabular so a column of them lines up, and never louder than the
+   label it qualifies. */
+.agent-step-count {
+  @apply text-[11px] text-gray-400 tabular-nums flex-shrink-0;
+}
+.at-steps-toggle {
+  @apply mt-1 text-[11px] font-medium text-gray-400 hover:text-gray-600 select-none transition-colors text-left;
 }
 .agent-step-dur {
   @apply text-gray-400 tabular-nums flex-shrink-0;
