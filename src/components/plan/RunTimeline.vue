@@ -91,6 +91,51 @@ const hasGap = computed(() => store.hasGapFor(props.runId))
 const steps = computed(() => nodes.value.filter((n) => n.type === 'step'))
 const verdicts = computed(() => nodes.value.filter((n) => n.type === 'loop.continuing'))
 const terminal = computed(() => nodes.value.find((n) => n.type === 'run.completed') || null)
+
+// THE RUN LOOKS IDLE EXACTLY WHEN IT IS BUSIEST, and this row is why it no longer does.
+//
+// Verification moved OUT of the work turn and into a queued phase — which is what stopped it
+// deadlocking — but the gap that opens is user-visible: the turn releases, every step goes green, and
+// then nothing. Production conv 1877 (2026-09-22): all five steps ticked, the backend had entered the
+// verification phase, and the card simply stopped. "Step 5 green, nothing next showing in UI."
+//
+// The old "Verifying results…" row could not cover this: it belonged to the TURN, so it vanished at the
+// exact moment the turn released and the checking actually began.
+//
+// Reads the server's own phase block (`work_goal.verification_phase`), so the rail can never claim a
+// check that is not running — and shows what it FOUND once it is done, because "how long did the check
+// take" is the first question anyone asks of a slow one.
+const PHASE_VERDICT_LABEL = {
+  PASS: 'Checked — everything holds',
+  NOT_REQUIRED: 'Nothing needed checking',
+  FAIL_RECOVERABLE: 'Checked — found something to fix',
+  FAIL_BLOCKING: 'Checked — blocked',
+  NEEDS_USER: 'Checked — needs you',
+  UNDECIDABLE: 'Could not be checked',
+}
+const checkRow = computed(() => {
+  const v = props.goal && props.goal.verification_phase
+  if (!v || !v.state) return null
+  const n = Number(v.step_count || 0)
+  const of = n ? ` ${n} step${n === 1 ? '' : 's'}` : ''
+  if (v.state === 'queued') {
+    // `waiting: false` means the server has stopped expecting it back; saying "checking" then would be
+    // a promise the backend is no longer making.
+    return v.waiting === false
+      ? { live: false, label: 'The check did not come back', tone: 'warn', secs: null }
+      : { live: true, label: `Checking the work${of}`, tone: '', secs: null }
+  }
+  const status = String(v.status || '').toUpperCase()
+  const ok = status === 'PASS' || status === 'NOT_REQUIRED'
+  return {
+    live: false,
+    label: PHASE_VERDICT_LABEL[status] || `Checked${of}`,
+    tone: ok ? '' : 'warn',
+    secs: v.seconds == null ? null : Number(v.seconds),
+    proven: (v.verified_steps || []).length,
+    total: n,
+  }
+})
 // A step the server could not identify is DROPPED rather than given a positional id that will collide
 // on the next render. Dropping beats mis-positioning — but SILENTLY dropping is worse than either: the
 // rail would under-report how much work the run contains and nobody would know to look. So the count
@@ -782,6 +827,22 @@ function fmt(ms) {
           </div>
         </div>
       </template>
+
+      <!-- The check, while it runs and after it answers. Without this the rail stops dead at the last
+           green step and the run reads as finished or stuck — see `checkRow`. -->
+      <div v-if="checkRow" class="node" :data-state="checkRow.live ? 'active' : 'done'"
+           data-test="rt-verifying">
+        <span class="mkr" aria-hidden="true" />
+        <div class="head">
+          <span v-if="checkRow.live" class="retry-spin" aria-hidden="true" />
+          <span class="lb" :style="checkRow.tone === 'warn' ? 'color:var(--warn)' : ''"
+                data-test="rt-verifying-label">{{ checkRow.label }}</span>
+          <span v-if="checkRow.secs != null || checkRow.total" class="ts" data-test="rt-verifying-meta">
+            <template v-if="checkRow.total">{{ checkRow.proven }}/{{ checkRow.total }} proven</template
+            ><template v-if="checkRow.secs != null">{{ checkRow.total ? ' · ' : '' }}{{ fmt(checkRow.secs * 1000) }}</template>
+          </span>
+        </div>
+      </div>
 
       <!-- One unambiguous end. -->
       <div v-if="terminal" class="node" data-state="done" data-test="rt-terminal">
