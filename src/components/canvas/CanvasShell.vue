@@ -50,7 +50,11 @@
         <button class="cv-icon sm" title="Refresh preview" @click="canvas.refreshPreview()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /></svg>
         </button>
-        <button class="cv-icon sm" :class="{ on: canvas.selectMode }"
+        <!-- Click-to-select needs a bridge into the frame, and a sandbox project has neither of the
+             two that exist: no srcdoc to inject into, and no `arm` handshake on the served app. The
+             capability already said so; the button was not asking. A control that silently selects
+             nothing is worse than one that is absent. -->
+        <button v-if="cap.select" class="cv-icon sm" :class="{ on: canvas.selectMode }"
                 :title="canvas.selectMode ? 'Click an element in the preview to select it' : 'Select an element to edit'"
                 @click="toggleSelect">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7 18 2-7 7-2z" stroke-linejoin="round"/></svg>
@@ -93,14 +97,19 @@
       <div v-show="activeTab === 'Preview'" class="cv-stage" :class="['vp-' + canvas.viewport, { selecting: canvas.selectMode }]">
         <div v-if="canvas.selectMode" class="cv-select-hint">Click an element in the preview to select it · Esc to cancel</div>
 
-        <!-- web_builder: signed, short-lived, cross-origin storefront preview (Phase 3B). -->
-        <template v-if="isWebBuilder">
+        <!-- URL-BACKED PREVIEWS: the signed storefront (web_builder) and a project served out of the
+             sandbox. Both render through an <iframe :src>, because neither has a single document to
+             put in a `srcdoc` — a storefront is server-rendered, and a Next.js project has a dev
+             server whose pages reference files that only resolve over http. The chrome below still
+             asks `isWebBuilder` for the things only a storefront has. -->
+        <template v-if="usesPreviewUrl">
           <div v-if="!canvas.previewUrl && canvas.previewError" class="cv-empty">
-            <p>Could not load the store preview.</p>
+            <p>{{ isWebBuilder ? 'Could not load the store preview.' : 'Could not load the project preview.' }}</p>
             <button class="cv-retry-btn" @click="retryPreview">Retry</button>
           </div>
           <div v-else-if="!canvas.previewUrl && canvas.status !== 'preparing'" class="cv-empty">
-            <p>Ask the agent to design your store — the live preview appears here.</p>
+            <p v-if="isWebBuilder">Ask the agent to design your store — the live preview appears here.</p>
+            <p v-else>Ask the agent to build the project and open the preview — it appears here.</p>
           </div>
           <div v-else class="cv-frame-wrap" :style="frameWrapStyle">
             <iframe
@@ -111,7 +120,7 @@
               :style="frameStyle"
               sandbox="allow-scripts allow-forms allow-same-origin allow-popups"
               referrerpolicy="no-referrer"
-              title="Store preview"
+              :title="isWebBuilder ? 'Store preview' : 'Project preview'"
               @load="onWbFrameLoad"
             ></iframe>
             <!-- Refresh failed but the last-good preview is still on screen: non-blocking Retry (A11). -->
@@ -204,6 +213,13 @@ const canvas = useCanvasStore()
 // Provider-aware chrome: the capability map (keyed by provider) decides which tabs/controls render.
 const cap = computed(() => canvas.capabilities)
 const isWebBuilder = computed(() => canvas.isWebBuilder)
+// WHICH IFRAME THIS PROVIDER NEEDS, asked separately from WHICH PROVIDER it is.
+//
+// Rendering and chrome were the same question while there were two providers; with a third they are
+// not. A sandbox project renders like the storefront (a URL in an `src`) but has none of its chrome —
+// no routes, no publish, no store header — so the template asks this for the frame and `isWebBuilder`
+// for everything that is genuinely a storefront feature.
+const usesPreviewUrl = computed(() => !!canvas.capabilities?.crossOrigin)
 const tabs = computed(() => cap.value.tabs)
 const defaultTitle = computed(() => (isWebBuilder.value ? 'Store Preview' : 'Static Design Canvas'))
 const activeTab = ref('Preview')
@@ -234,7 +250,7 @@ const pageOptions = computed(() => {
 function onRouteChange(v) { canvas.switchRoute(v) }
 function retryPreview() { canvas.loadPreviewUrl() }
 function publish() { canvas.publish() }
-const canOpenInTab = computed(() => (isWebBuilder.value ? !!canvas.previewUrl : !!canvas.html))
+const canOpenInTab = computed(() => (usesPreviewUrl.value ? !!canvas.previewUrl : !!canvas.html))
 
 // Phase 5 click-to-select — a tiny bridge script injected into the previewed page. When "armed" by
 // the parent it outlines elements on hover and, on click, posts the clicked element's markup back to
@@ -294,7 +310,11 @@ function onFrameLoad() {
   armFrame(canvas.selectMode)
 }
 function onWbFrameLoad() {
-  armWbFrame(canvas.selectMode)
+  // Only a provider with a SELECT BRIDGE gets armed. The same iframe now also carries sandbox
+  // projects, which have no bridge — and `armWbFrame` falls back to posting at `'*'` when there is no
+  // trusted origin to aim at, so arming one would broadcast a message to whatever the app happens to
+  // be. Nothing would act on it, which is precisely why it would never be noticed.
+  if (cap.value.select) armWbFrame(canvas.selectMode)
 }
 function onWindowMessage(ev) {
   const d = ev?.data

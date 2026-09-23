@@ -57,11 +57,38 @@ const CAPABILITIES = {
     storeInfo: true,
     crossOrigin: true,
   },
+  // A PROJECT SERVED OUT OF THE SANDBOX — a Next.js / React / Vite app, or a multi-file static site.
+  //
+  // It renders like web_builder and not like static, because there is nothing to put in a `srcdoc`:
+  // the project has a dev server, and its pages reference files that only resolve over http. The
+  // iframe therefore takes a `src`, pointed at the sandbox's preview URL.
+  //
+  // `codeTabs` is off because the HTML / CSS / Assets inspector reads the single document `static`
+  // keeps in the store, and a project has none — its files live in the sandbox and are read with the
+  // file tools. Showing three empty tabs would advertise an inspector that cannot inspect.
+  //
+  // `select` is off for now: click-to-select needs a bridge, and neither of the two that exist fits —
+  // there is no srcdoc to inject into, and the sandbox serves no `arm` handshake. Off is honest;
+  // a control that silently selects nothing is not.
+  sandbox: {
+    tabs: ['Preview'],
+    codeTabs: false,
+    viewport: true,
+    zoom: true,
+    download: false,
+    openInTab: true,       // opens the tokenised preview URL
+    revisions: true,
+    select: false,
+    routeSelector: false,
+    publish: false,
+    storeInfo: false,
+    crossOrigin: true,
+  },
 }
 
 function providerFrom(msgOrCanvas) {
   const c = msgOrCanvas || {}
-  if (c.provider === 'static' || c.provider === 'web_builder') return c.provider
+  if (c.provider === 'static' || c.provider === 'web_builder' || c.provider === 'sandbox') return c.provider
   if (c.canvas_type === 'web_builder') return 'web_builder'
   return null
 }
@@ -166,7 +193,18 @@ export const useCanvasStore = defineStore('canvas', {
           if (followRoute != null) this.route = followRoute
           // First preview opens the panel automatically; subsequent updates refresh in place.
           if (msg.type === 'preview_ready' || msg.first) this.open = true
-          if (this.provider === 'web_builder') {
+          if (this.provider === 'sandbox') {
+            // THE URL ARRIVES ON THE EVENT, already carrying a freshly minted access token.
+            //
+            // Unlike web_builder there is nothing to fetch: the backend served the project and minted
+            // the token in the same call that produced this event, so asking for it again would mint a
+            // second one and race the first. A token is short-lived and rotates when the sandbox stops,
+            // which is exactly why it is never stored — it is re-minted the next time the project is
+            // served, and a new event carries the new URL.
+            if (msg.url) this.previewUrl = msg.url
+            this.status = this.previewUrl ? 'live' : 'error'
+            if (!this.previewUrl) this.previewError = 'The project preview URL was not provided.'
+          } else if (this.provider === 'web_builder') {
             // Keep the last-good signed URL visible; loadPreviewUrl swaps it only on success.
             if (msg.type === 'preview_updated' && this.previewUrl) this.status = 'updating'
             else this.status = 'live'
