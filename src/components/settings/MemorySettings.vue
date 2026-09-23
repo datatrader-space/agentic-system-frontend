@@ -83,34 +83,16 @@
         </div>
       </div>
 
-      <!-- Limits -->
-      <div class="card">
-        <h3 class="card-title">Global memory limits</h3>
-        <p class="card-sub">Storage isn't injection — older memories stay saved and searchable; only the most recent are kept in context.</p>
-        <div class="row">
-          <div>
-            <div class="row-label">Active memory cap</div>
-            <div class="row-hint">How many of your most recent global memories the agent keeps in context (the rest stay stored &amp; searchable).</div>
-          </div>
-          <input class="num" type="number" min="1" :value="s.global_memory_active_cap ?? 100"
-                 @change="set('global_memory_active_cap', Math.max(1, parseInt($event.target.value || 100)))" />
-        </div>
-      </div>
-
-      <!-- Advanced — memory summary (digest) -->
+      <!-- Advanced — memory summary.
+           The "Active memory cap" and "Summary mode" controls were REMOVED here, because the
+           settings behind them no longer exist. The cap bounded how many raw rows stayed
+           injectable; memory is now a topic index that is bounded by construction, so nothing
+           reads a row cap. Summary mode chose between an exact compile and an AI-compressed one;
+           the index IS the exact compile, so there is no second rendering to opt into. Leaving
+           either control would have shown the user a switch that changes nothing. -->
       <div class="card">
         <h3 class="card-title">Advanced — memory summary</h3>
-        <p class="card-sub">Agents read a compact summary of your memories, not every row. This controls how it's built.</p>
-        <div class="row">
-          <div>
-            <div class="row-label">Summary mode</div>
-            <div class="row-hint">Exact = verbatim bullets (no AI, fully traceable). Compressed = an AI folds global &amp; agent memories into a shorter summary.</div>
-          </div>
-          <div class="seg">
-            <button class="seg-btn" :class="{ active: (s.digest_mode || 'deterministic') === 'deterministic' }" @click="setDigestMode('deterministic')">Exact</button>
-            <button class="seg-btn" :class="{ active: s.digest_mode === 'llm_compressed' }" @click="setDigestMode('llm_compressed')">Compressed</button>
-          </div>
-        </div>
+        <p class="card-sub">Agents read a compact summary of your memories, not every row.</p>
         <div class="row">
           <div>
             <div class="row-label">Regenerate summaries</div>
@@ -127,11 +109,11 @@
             <h3 class="card-title">Global memory summary</h3>
             <p class="card-sub" style="margin:0">The compact summary your agents read each turn (built from your memories below).</p>
           </div>
-          <span v-if="digest" class="dg-badge">{{ digest.mode === 'compressed' ? 'AI-compressed' : 'Exact' }} · {{ digest.source_count }} memories</span>
+          <span v-if="digest" class="dg-badge">Exact · {{ digest.source_count }} memories</span>
         </div>
         <div v-if="digestLoading" class="dg-generating">
           <span class="dg-spin" />
-          {{ s.digest_mode === 'llm_compressed' ? 'Memory summary is being generated…' : 'Loading summary…' }}
+          Loading summary…
         </div>
         <pre v-else-if="digest && digest.content" class="dg-pre">{{ digest.content }}</pre>
         <div v-else class="muted">No summary yet — add a global memory below.</div>
@@ -256,18 +238,6 @@ async function loadSettings() {
   } finally {
     loading.value = false
   }
-}
-
-// Digest mode (Advanced). Turning on compression defaults the compressed scopes to global + agent.
-async function setDigestMode(mode) {
-  if ((s.digest_mode || 'deterministic') === mode) return
-  const patch = { digest_mode: mode }
-  if (mode === 'llm_compressed' && !(s.compressed_digest_scopes && s.compressed_digest_scopes.length)) {
-    patch.compressed_digest_scopes = ['user', 'agent']
-  }
-  for (const [k, v] of Object.entries(patch)) await set(k, v)
-  // Switching mode regenerates the summary — loadDigest() shows the "being generated…" state while it builds.
-  await loadDigest()
 }
 
 const regenBusy = ref(false)
