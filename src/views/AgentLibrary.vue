@@ -388,6 +388,7 @@ const duplicateAgent = async (agent) => {
             knowledge_scope: full.knowledge_scope,
             code_mode_enabled: full.code_mode_enabled,
             code_mode_services: full.code_mode_services || [],
+            connect_service_enabled: full.connect_service_enabled !== false,
             builder_mode_enabled: full.builder_mode_enabled,
             agent_run_mode: full.agent_run_mode || 'manual',
             tool_ids: (full.tools || []).map(t => t.id),

@@ -71,8 +71,8 @@
                   <div class="flex items-start gap-2 text-[12px] text-[#475569]">
                     <span class="mt-0.5 text-violet-500">ℹ</span>
                     <div>
-                      <p class="mb-1">The agent uses <strong>CODE_MODE_SEARCH</strong> to discover API endpoints and <strong>CODE_MODE_EXECUTE</strong> to run authenticated code — instead of loading hundreds of individual tools.</p>
-                      <p class="text-[#94A3B8]">Reduces context window usage by ~90%. Requires valid service credentials.</p>
+                      <p class="mb-1">The agent writes and runs scripts in a sandbox with <strong>EXECUTE_SCRIPT</strong>, and calls an assigned service's API directly with <strong>CALL_SERVICE_API</strong> when no dedicated tool covers the endpoint.</p>
+                      <p class="text-[#94A3B8]">Only services assigned to this agent are reachable. Credentials stay on the server.</p>
                     </div>
                   </div>
                 </div>
@@ -107,6 +107,39 @@
                       <p class="mb-1">The agent can use <strong>SETUP_SERVICE_AUTH</strong> to prompt the user to connect a service (everyone), and <strong>REGISTER_OAUTH_PROVIDER</strong> to register new OAuth providers (admin only).</p>
                       <p class="text-[#94A3B8]">The agent never sees the actual credentials. New providers are created disabled until client credentials are added.</p>
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Connect accounts in chat (CONNECT_SERVICE) -->
+              <div class="capability-card rounded-xl border transition-colors" :class="connectInChatEnabled ? 'border-emerald-300 bg-gradient-to-r from-emerald-50 to-teal-50' : 'border-[#E5E7EB] bg-white'">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex items-center gap-3">
+                    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-600">
+                      <Link2 :size="18" :stroke-width="2" />
+                    </span>
+                    <div>
+                      <div class="text-[13.5px] font-semibold text-[#0F172A]">Connect accounts in chat</div>
+                      <div class="mt-0.5 text-[12px] text-[#64748B]">Let the agent offer a one-click sign-in card when an account it needs isn't connected.</div>
+                    </div>
+                  </div>
+                  <button
+                    id="connect-in-chat-switch"
+                    type="button"
+                    role="switch"
+                    :aria-checked="connectInChatEnabled"
+                    aria-label="Connect accounts in chat"
+                    @click="connectInChatEnabled = !connectInChatEnabled"
+                    :class="['relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2', connectInChatEnabled ? 'bg-emerald-600' : 'bg-gray-300']"
+                  >
+                    <span :class="['inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform', connectInChatEnabled ? 'translate-x-6' : 'translate-x-1']" />
+                  </button>
+                </div>
+                <div class="mt-3 border-t pt-3" :class="connectInChatEnabled ? 'border-emerald-200/60' : 'border-[#E5E7EB]'">
+                  <div class="flex items-start gap-2 text-[12px] text-[#475569]">
+                    <span class="mt-0.5" :class="connectInChatEnabled ? 'text-emerald-500' : 'text-[#94A3B8]'">ℹ</span>
+                    <p v-if="connectInChatEnabled">The agent can use <strong>CONNECT_SERVICE</strong> to post an authorization link in the conversation. The user still approves on the provider's own sign-in screen.</p>
+                    <p v-else>The agent won't start a connection from the chat. It will ask the user to connect the account on the Connectors page instead.</p>
                   </div>
                 </div>
               </div>
@@ -452,6 +485,7 @@ import {
   Code2,
   Hand,
   LayoutTemplate,
+  Link2,
   ListChecks,
   Lock,
   Play,
@@ -663,6 +697,11 @@ const planningMinSteps = computed({
 const codeModeEnabled = computed({
   get: () => !!props.agent.code_mode_enabled,
   set: (value) => { props.agent.code_mode_enabled = value },
+})
+// In-chat account connection (CONNECT_SERVICE). ON by default, matching every agent before the switch existed.
+const connectInChatEnabled = computed({
+  get: () => props.agent.connect_service_enabled !== false,
+  set: (value) => { props.agent.connect_service_enabled = value },
 })
 const serviceSetupEnabled = computed({
   get: () => !!props.agent.builder_mode_enabled,
