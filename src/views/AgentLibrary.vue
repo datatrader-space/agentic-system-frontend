@@ -4,7 +4,9 @@
       <!-- ===================== Hero header ===================== -->
       <div class="hero">
         <div>
-          <span class="eyebrow"><span class="pip"></span> Workspace · {{ agents.length }} agent{{ agents.length === 1 ? '' : 's' }}</span>
+          <!-- The true count, not the page's. This badge read `agents.length` and so announced
+               "0 AGENTS" to an account with 174 the moment the page failed to load. -->
+          <span class="eyebrow"><span class="pip"></span> Workspace · {{ totalCount }} agent{{ totalCount === 1 ? '' : 's' }}</span>
           <h1 class="title">Your <span class="vm-grad-text">Agent Library</span></h1>
           <p class="sub">Design, test, and deploy specialized AI agents — each with its own tools, knowledge, and autonomy.</p>
         </div>
@@ -54,8 +56,18 @@
         </div>
       </div>
 
+      <!-- ===================== Load failed =====================
+           Listed BEFORE the empty states, because a failed request is not an empty account and
+           saying "No agents yet" to someone who has 174 sent us hunting the wrong layer. -->
+      <div v-else-if="loadError" class="empty">
+        <EmptyArt search />
+        <h3>Couldn't load your agents</h3>
+        <p>{{ loadError }}</p>
+        <button class="cta" @click="fetchAgents"><Icon icon="lucide:refresh-cw" class="i" /> Retry</button>
+      </div>
+
       <!-- ===================== Empty (no agents) ===================== -->
-      <div v-else-if="agents.length === 0" class="empty">
+      <div v-else-if="agents.length === 0 && !hasFilters" class="empty">
         <EmptyArt />
         <h3>No agents yet</h3>
         <p>Create your first specialized agent to get started.</p>
@@ -63,7 +75,7 @@
       </div>
 
       <!-- ===================== No matches ===================== -->
-      <div v-else-if="filteredAgents.length === 0" class="empty">
+      <div v-else-if="agents.length === 0" class="empty">
         <EmptyArt search />
         <h3>No agents match your search</h3>
         <p>Try a different term or clear the filter.</p>
@@ -73,9 +85,9 @@
       <!-- ===================== Agent grid ===================== -->
       <template v-else>
       <!-- Paused agents banner + bulk resume -->
-      <div v-if="pausedAgents.length" class="paused-banner">
+      <div v-if="pausedCount" class="paused-banner">
         <Icon icon="lucide:pause-circle" />
-        <span><strong>{{ pausedAgents.length }} agent{{ pausedAgents.length === 1 ? '' : 's' }} paused</strong> — won't start new runs until resumed.</span>
+        <span><strong>{{ pausedCount }} agent{{ pausedCount === 1 ? '' : 's' }} paused</strong> — won't start new runs until resumed.</span>
         <button class="resume-all" :disabled="resuming" @click="resumeAll">
           <Icon :icon="resuming ? 'lucide:loader-2' : 'lucide:play'" :class="{ spin: resuming }" /> Resume all
         </button>
@@ -115,7 +127,7 @@
             <span v-if="agent.default_model_name" class="chip v" :title="agent.default_model_name">
               <Icon icon="lucide:cpu" /> {{ agent.default_model_name }}
             </span>
-            <span class="chip"><Icon icon="lucide:wrench" /> {{ (agent.tools && agent.tools.length) || 0 }} tools</span>
+            <span class="chip"><Icon icon="lucide:wrench" /> {{ agent.tools_count || 0 }} tools</span>
             <span v-if="agent.knowledge_scope === 'system'" class="chip t"><Icon icon="lucide:globe" /> Global</span>
             <span v-else-if="agent.knowledge_scope === 'repository'" class="chip"><Icon icon="lucide:folder-git-2" /> Repo</span>
             <span v-else class="chip"><Icon icon="lucide:lock" /> Isolated</span>
@@ -185,56 +197,52 @@ const statusFilter = ref('all');     // 'all' | 'live' | 'idle'
 const openMenuId = ref(null);
 const barsReady = ref(false);
 
-const filteredAgents = computed(() => {
-    let list = agents.value.slice();
-    const q = searchQuery.value.trim().toLowerCase();
-    if (q) {
-        list = list.filter(a =>
-            (a.name || '').toLowerCase().includes(q) ||
-            (a.description || '').toLowerCase().includes(q) ||
-            (a.default_model_name || '').toLowerCase().includes(q)
-        );
-    }
-    if (statusFilter.value === 'live') list = list.filter(a => a.signal_enabled);
-    else if (statusFilter.value === 'idle') list = list.filter(a => !a.signal_enabled);
-
-    if (sortBy.value === 'name') {
-        list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    } else {
-        list.sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
-    }
-    return list;
-});
-
-// Client-side pagination (backend returns all agents in one response).
+// SERVER-SIDE pagination. This screen used to download every agent and slice eight out of the
+// array: 174 agents, 544,507 bytes, to render one page of cards. Search, status and sort now
+// travel with the request, because a search box that filters only the page in front of you is a
+// lie — type a name that lives on page 4 and the grid tells you no such agent exists.
 const PER_PAGE = 8;
 const page = ref(1);
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredAgents.value.length / PER_PAGE)));
-const pagedAgents = computed(() => filteredAgents.value.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE));
-// Reset to page 1 whenever the filtered set changes (search / filter / sort), and clamp if the
-// current page falls out of range (e.g. after a delete).
-watch(() => filteredAgents.value.length, () => { if (page.value > totalPages.value) page.value = totalPages.value; });
-watch([searchQuery, statusFilter, sortBy, ownerFilter], () => { page.value = 1; });
+const totalMatching = ref(0);
+const totalPages = computed(() => Math.max(1, Math.ceil(totalMatching.value / PER_PAGE)));
+// `agents` is now one page, and the grid renders it as-is; the name is kept so the template and
+// the row-level handlers below read unchanged.
+const pagedAgents = computed(() => agents.value);
+const hasFilters = computed(() => !!searchQuery.value.trim() || statusFilter.value !== 'all' || !!ownerFilter.value);
 
 // Paused agents + bulk resume.
-const pausedAgents = computed(() => agents.value.filter(a => a.is_paused));
+// The paused count comes from the stats aggregate, not from the page. Counting the page would
+// have said "1 agent paused" while eleven were, and the banner's whole job is to tell you about
+// agents you are NOT currently looking at.
+const pausedCount = computed(() => stats.value.paused || 0);
 const resuming = ref(false);
 async function resumeAll() {
-    if (resuming.value || !pausedAgents.value.length) return;
+    if (resuming.value || !pausedCount.value) return;
     resuming.value = true;
-    const ids = pausedAgents.value.map(a => a.id);
-    const results = await Promise.allSettled(ids.map(id => api.unpauseAgent(id)));
-    let ok = 0;
-    results.forEach((r, i) => { if (r.status === 'fulfilled') { ok++; const a = agents.value.find(x => x.id === ids[i]); if (a) a.is_paused = false; } });
-    notify.success(`Resumed ${ok} agent${ok === 1 ? '' : 's'}`);
-    resuming.value = false;
+    try {
+        // Resume every paused agent, not just the paused ones on this page — which is what the
+        // banner promises. `getAgents` walks the pages for us.
+        const { data } = await api.getAgents(ownerFilter.value ? { owner: ownerFilter.value } : {});
+        const ids = (data || []).filter(a => a.is_paused).map(a => a.id);
+        const results = await Promise.allSettled(ids.map(id => api.unpauseAgent(id)));
+        const ok = results.filter(r => r.status === 'fulfilled').length;
+        notify.success(`Resumed ${ok} agent${ok === 1 ? '' : 's'}`);
+        await fetchAgents();
+    } catch (e) {
+        notify.error('Could not resume agents');
+    } finally {
+        resuming.value = false;
+    }
 }
 
-/* ---- Stats (animated count-ups over real data) ---- */
-const totalCount = computed(() => agents.value.length);
-const liveCount = computed(() => agents.value.filter(a => a.signal_enabled).length);
-const idleCount = computed(() => agents.value.filter(a => !a.signal_enabled).length);
-const toolsCount = computed(() => agents.value.reduce((s, a) => s + ((a.tools && a.tools.length) || 0), 0));
+/* ---- Stats (animated count-ups over real data) ----
+   Counted in the database, not summed from the array. Summing a page would report "8 agents" to
+   someone who has 174, and these four numbers are the first thing on the screen. */
+const stats = ref({ total: 0, live: 0, idle: 0, tools: 0 });
+const totalCount = computed(() => stats.value.total);
+const liveCount = computed(() => stats.value.live);
+const idleCount = computed(() => stats.value.idle);
+const toolsCount = computed(() => stats.value.tools);
 const { display: totalDisplay } = useCountUp(totalCount);
 const { display: liveDisplay } = useCountUp(liveCount);
 const { display: toolsDisplay } = useCountUp(toolsCount);
@@ -255,7 +263,7 @@ const iconOf = (agent) => {
     return 'lucide:sparkles';
 };
 // Cosmetic "coverage" derived from real tool count (8–100%).
-const capability = (agent) => Math.max(8, Math.min(100, ((agent.tools && agent.tools.length) || 0) * 10));
+const capability = (agent) => Math.max(8, Math.min(100, (agent.tools_count || 0) * 10));
 
 /* ---- 3D tilt (respects reduced motion) ---- */
 const reduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -271,21 +279,68 @@ const untilt = (e) => { e.currentTarget.style.transform = ''; };
 
 const clearFilters = () => { searchQuery.value = ''; statusFilter.value = 'all'; };
 
+const loadError = ref('');
+
+const queryParams = () => {
+    const params = { page: page.value, page_size: PER_PAGE };
+    if (ownerFilter.value) params.owner = ownerFilter.value;
+    const q = searchQuery.value.trim();
+    if (q) params.search = q;
+    if (statusFilter.value !== 'all') params.status = statusFilter.value;
+    params.ordering = sortBy.value === 'name' ? 'name' : '-updated_at';
+    return params;
+};
+
 const fetchAgents = async () => {
     try {
         loading.value = true;
-        const params = {};
-        if (ownerFilter.value) params.owner = ownerFilter.value;
-        const response = await api.get('/agents/', { params });
-        agents.value = response.data.results || response.data;
+        loadError.value = '';
+        const params = queryParams();
+        const [listRes, statsRes] = await Promise.allSettled([
+            api.getAgentsPage(params),
+            api.getAgentStats({ owner: params.owner }),
+        ]);
+        if (listRes.status === 'rejected') throw listRes.reason;
+        const d = listRes.value.data;
+        if (Array.isArray(d)) {
+            // An unpaginated server (older build): page it here rather than dumping 174 cards.
+            agents.value = d.slice((page.value - 1) * PER_PAGE, page.value * PER_PAGE);
+            totalMatching.value = d.length;
+        } else {
+            agents.value = d?.results || [];
+            totalMatching.value = Number(d?.count ?? agents.value.length);
+        }
+        if (page.value > totalPages.value) { page.value = totalPages.value; return fetchAgents(); }
+        if (statsRes.status === 'fulfilled' && statsRes.value?.data) {
+            stats.value = statsRes.value.data;
+        } else {
+            stats.value = { ...stats.value, total: totalMatching.value };
+        }
     } catch (e) {
-        console.error("Failed to fetch agents", e);
+        // This used to be a bare console.error, so a failed load was indistinguishable from an
+        // empty account: the page said "No agents yet" to someone with 174 of them and the only
+        // trace was in a console nobody had open.
+        console.error('Failed to fetch agents', e);
+        loadError.value = e?.response?.status
+            ? `Couldn't load your agents (HTTP ${e.response.status}).`
+            : "Couldn't load your agents — check your connection and retry.";
+        agents.value = [];
     } finally {
         loading.value = false;
         barsReady.value = false;
         requestAnimationFrame(() => requestAnimationFrame(() => { barsReady.value = true; }));
     }
 };
+
+// Search is debounced because every keystroke is now a request, not an array filter.
+let searchTimer = null;
+watch(searchQuery, () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { page.value = 1; fetchAgents(); }, 300);
+});
+watch([statusFilter, sortBy], () => { page.value = 1; fetchAgents(); });
+watch(page, () => { fetchAgents(); });
+onBeforeUnmount(() => clearTimeout(searchTimer));
 
 const createAgent = () => {
     router.push('/dashboard/agents/new'); // Opens Playground in 'new' mode (inside dashboard shell)

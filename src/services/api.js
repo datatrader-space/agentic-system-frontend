@@ -494,7 +494,34 @@ export default {
   deleteLlmModel: (id) => api.delete(`/llm/models/${id}/`),
 
   // Agents
-  getAgents: () => api.get('/agents/'),
+  //
+  // `/agents/` is server-paginated. Eleven of this app's thirteen agent-list callers are pickers
+  // and dropdowns — the chat agent switcher, the schedule target, the sub-agent team, the workflow
+  // node config — and every one of them is WRONG with a page: an agent that exists but sits on
+  // page 2 simply cannot be chosen, with no hint that anything is missing. So `getAgents()` keeps
+  // its old contract, "every agent I can see", and pays for it by walking `next` instead of asking
+  // the server to hand over the whole table at once. At 100 a page that is two requests for 174
+  // agents, of a payload that no longer carries tool objects.
+  //
+  // The resolved shape stays `{ data: [...] }` so no caller changed. `getAgentsPage` is the paged
+  // read, for the one screen that is actually a grid.
+  getAgents: async (params = {}) => {
+    const all = []
+    let page = 1
+    let last = null
+    for (;;) {
+      const resp = await api.get('/agents/', { params: { ...params, page, page_size: 100 } })
+      last = resp
+      const d = resp.data
+      if (Array.isArray(d)) { all.push(...d); break }        // tolerate an unpaginated server
+      all.push(...(d?.results || []))
+      if (!d?.next || page >= 50) break                      // guard: never loop on a broken `next`
+      page += 1
+    }
+    return { ...last, data: all }
+  },
+  getAgentsPage: (params = {}) => api.get('/agents/', { params }),
+  getAgentStats: (params = {}) => api.get('/agents/stats/', { params }),
   getAgent: (id) => api.get(`/agents/${id}/`),
   // Update agent fields (used by the chat Modes picker to persist the canonical agent_run_mode).
   updateAgent: (id, data) => api.patch(`/agents/${id}/`, data),
