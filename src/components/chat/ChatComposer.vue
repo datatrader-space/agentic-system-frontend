@@ -290,8 +290,8 @@ const toggleImageModeFromMenu = () => {
   closeMenu()
 }
 // Canvas mode lives in the canvas store (single source of truth so the chat store can read it when
-// sending). When on, the agent renders designs into the live preview and the backend auto-exposes
-// GENERATE_STATIC_PAGE for the turn.
+// sending). When on, the agent builds into the live preview and the backend exposes that Canvas kind's
+// tools for the turn (the sandbox file tools or the storefront's own, plus OPEN_CANVAS_PREVIEW).
 const canvasMode = computed(() => canvas.mode)
 // WHICH Canvas. Each kind gets a different toolset on the backend (capability_modes.canvas_tools_for), so
 // the hints say what the agent will actually do, not what the mode is called.
@@ -529,8 +529,7 @@ const onSubmit = () => {
   // While the agent is running, only TEXT is accepted (queued as steering) — no attachment-only sends.
   if (props.streaming && !text) return
   // Canvas mode is signalled to the backend via the `canvas_mode` flag on the WS message (which
-  // auto-exposes GENERATE_STATIC_PAGE + injects the render nudge server-side) — NOT by mangling the
-  // user's visible text.
+  // exposes the Canvas tools server-side) — NOT by mangling the user's visible text.
   emit('send', text)
   reset()
 }

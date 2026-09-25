@@ -2,10 +2,10 @@
 //
 // PROVIDER-AWARE (Phase 3B). Two canvas providers share this one store + panel:
 //
-//   • 'static'      — the agent calls GENERATE_STATIC_PAGE; the backend stores HTML and streams a
-//                     preview_ready / preview_updated event. This store fetches the (scope-checked)
-//                     HTML from the REST artifact endpoint and holds it for CanvasShell to render in a
-//                     sandboxed <iframe srcdoc>. No cross-origin URL is ever loaded. (Phase 0 — shipped.)
+//   • 'static'      — the agent writes files under canvas/ in its sandbox and calls OPEN_CANVAS_PREVIEW,
+//                     which saves a revision, serves it and streams preview_ready / preview_updated.
+//                     (Next.js projects take the same path.) A revision from before the sandbox era is
+//                     still fetched from the REST artifact endpoint and rendered in a sandboxed srcdoc.
 //
 //   • 'web_builder' — the agent edits a real Web Builder (Kurumera) storefront through its MCP tools.
 //                     There is NO local HTML: instead the backend mints a short-lived, signed,
