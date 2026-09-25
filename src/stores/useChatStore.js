@@ -620,6 +620,9 @@ export const useChatStore = defineStore('chat', {
         // User-uploaded attachments bound to this message (turn-level binding) — served /media/ URLs so
         // the thumbnail survives refresh (the live send-time blob URL is ephemeral).
         attachments: pickArray(m.attachments),
+        // Connector buttons (Connect / Sign in again / Assign) CONNECT_SERVICE offered with this answer,
+        // persisted on model_info so they stay in history after a reload.
+        chatActions: pickArray(info.chat_actions),
         conversationId: String(conversationId),
       }
     },
@@ -1409,6 +1412,9 @@ export const useChatStore = defineStore('chat', {
             || (_prev && _prev.citations) || [],
           // User-uploaded attachments bound to this message (served URLs; survive refresh).
           attachments: pickArray(m.attachments),
+          // Same connector buttons as the main loader; the live copy until the server row carries them.
+          chatActions: pickArray(m.model_info && m.model_info.chat_actions).length
+            ? pickArray(m.model_info.chat_actions) : ((_prev && _prev.chatActions) || []),
           conversationId: String(this.conversationId),
         }))
         this._hydratePlanAnchors(this.conversationId)
@@ -1495,6 +1501,7 @@ export const useChatStore = defineStore('chat', {
         citations: [], // P6: KB sources for the "Sources" panel (set on assistant_message_complete)
         answerBasis: null, // provenance envelope (label + cited-or-top4) set on assistant_message_complete
         timeline: null, // activity-timeline snapshot, pinned on completion (friendly, param-free)
+        chatActions: [], // connector buttons offered by CONNECT_SERVICE (live `chat_action` frames)
         _serverMid: null, // §4b: server's per-turn message_id, adopted from the first stamped event
       })
       this._assistantId = this.messages[this.messages.length - 1].id
@@ -1961,6 +1968,18 @@ export const useChatStore = defineStore('chat', {
             _think.reset()
           }
           this._endAssistant()
+          break
+        }
+        case 'chat_action': {
+          // A typed button the runtime attached to this answer (CONNECT_SERVICE: Connect / Sign in again /
+          // Assign). One per connector + kind — a repeated call replaces, never stacks.
+          const target = m || this._lastAssistantOfTurn()
+          const act = msg.action
+          if (target && act && act.kind) {
+            const same = (x) => x.kind === act.kind && x.target_kind === act.target_kind
+              && String(x.target_id) === String(act.target_id)
+            target.chatActions = [...(target.chatActions || []).filter((x) => !same(x)), act]
+          }
           break
         }
         case 'tool_call':

@@ -102,6 +102,10 @@
         <!-- Per-response token usage -->
         <TokenUsage v-if="message.status !== 'streaming'" :usage="message.usage" />
 
+        <!-- Connector actions the agent offered (Connect / Sign in again / Assign) — typed, never model text -->
+        <ChatActionButtons v-if="message.status !== 'streaming' && message.chatActions && message.chatActions.length"
+                           :message="message" />
+
         <!-- Long-answer rehydrate: the stored content is a bounded stub; fetch the full answer on demand -->
         <div v-if="canShowFull" class="longanswer-row">
           <button class="longanswer-btn" :disabled="loadingFull" @click="showFullAnswer">
@@ -242,6 +246,7 @@ import { usePlanStore } from '../../stores/usePlanStore'
 import TokenUsage from '../activity/TokenUsage.vue'
 import SourcesList from './SourcesList.vue'
 import ProvenanceFooter from './ProvenanceFooter.vue'
+import ChatActionButtons from './ChatActionButtons.vue'
 import { stopReasonBadge } from '../../composables/stopReason'
 import { reasoningItems } from '../../composables/useAgentTimeline'
 import { useChatStore } from '../../stores/useChatStore'

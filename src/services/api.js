@@ -383,6 +383,9 @@ export default {
   mcpOauthStatus: (connectionId) => api.get(`/mcp/oauth/status/${connectionId}/`),
   mcpOauthRetrySync: (connectionId) => api.post(`/mcp/oauth/retry-sync/${connectionId}/`),
   mcpOauthDisconnect: (connectionId) => api.post(`/mcp/oauth/disconnect/${connectionId}/`),
+  // Connector buttons under an agent reply (CONNECT_SERVICE): assign / connect, re-checked server-side.
+  connectorAction: (data) => api.post('/chat/connector-action/', data),
+  connectorActionStatus: (params) => api.get('/chat/connector-action/status/', { params }),
   updateMCPServer: (id, data) => api.post(`/mcp/servers/${id}/update/`, data),
   deleteMCPServer: (id) => api.post(`/mcp/servers/${id}/delete/`),
   refreshMCPTools: (id) => api.post(`/mcp/servers/${id}/refresh-tools/`),
