@@ -778,7 +778,11 @@ export const useChatStore = defineStore('chat', {
       let canvas
       try { canvas = useCanvasStore() } catch (_e) { return {} }
       const opts = {}
-      if (canvas.mode) opts.canvasMode = true
+      if (canvas.mode) {
+        opts.canvasMode = true
+        // Which Canvas: the backend grants a different toolset for static / nextjs / web_builder.
+        opts.canvasKind = canvas.kind
+      }
       const sel = canvas.selectedElement
       if (sel) {
         opts.canvasSelection = canvas.provider === 'web_builder'

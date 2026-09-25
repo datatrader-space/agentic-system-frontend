@@ -229,8 +229,10 @@ export class ChatConnection {
       attachment_ids: (opts.attachmentIds && opts.attachmentIds.length) ? opts.attachmentIds : undefined,
       // Client-generated id for message idempotency (retries/reconnects don't double-create/rebind).
       client_message_id: opts.clientMessageId || undefined,
-      // Canvas mode: auto-expose GENERATE_STATIC_PAGE for this turn (backend gates on this flag).
+      // Canvas mode, and WHICH Canvas (static | nextjs | web_builder): the backend grants a different
+      // toolset for each kind. Only sent with Canvas on — a kind means nothing without it.
       canvas_mode: opts.canvasMode || undefined,
+      canvas_kind: (opts.canvasMode && opts.canvasKind) || undefined,
       // Create-Image mode: run the agent as a focused image assistant for this turn (image toolset +
       // guided pipeline prompt). Backend gates on this flag + the agent having an image model.
       image_mode: opts.imageMode || undefined,

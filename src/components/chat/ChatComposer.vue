@@ -165,12 +165,31 @@
           <AgentModePicker v-else-if="agentId" :agent-id="agentId" :run-mode="runMode"
                            placement="up" @change="$emit('mode-change', $event)" />
 
-          <!-- Sticky Canvas-mode chip (toggle lives in the "+" menu; × turns it off). -->
-          <span v-if="canvasMode" class="canvas-chip" title="Canvas mode on — designs open in the live preview">
+          <!-- Sticky Canvas-mode chip (toggle lives in the "+" menu; × turns it off). The chip also picks
+               WHICH Canvas — Static, Next.js or Web Builder — because each gets a different toolset and
+               the choice has to be visible and one click from changing, like the research depth. -->
+          <span v-if="canvasMode" class="canvas-chip canvas-kind-chip"
+                :title="'Canvas — ' + activeKind.hint">
             <span class="canvas-chip-body" title="Open the live preview" @click="canvas.show()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9" stroke-linecap="round"/></svg>
-              <span>Canvas</span>
+              <span class="rs-name">Canvas</span>
             </span>
+            <button type="button" class="canvas-chip-body rs-toggle" data-test="canvas-kind-toggle"
+                    aria-haspopup="menu" :aria-expanded="kindOpen ? 'true' : 'false'"
+                    :aria-label="'Canvas kind: ' + activeKind.label + '. Change it'"
+                    @click.stop="kindOpen = !kindOpen">
+              <span class="rs-current">{{ activeKind.label }}</span>
+              <svg class="rs-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 15l6-6 6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div v-if="kindOpen" class="rs-menu" role="menu" data-test="canvas-kind-menu" @click.stop>
+              <button v-for="k in kindOptions" :key="k.value" type="button" class="rs-opt" role="menuitemradio"
+                      :class="{ 'is-on': canvas.kind === k.value }"
+                      :aria-checked="canvas.kind === k.value ? 'true' : 'false'"
+                      :data-test="'canvas-kind-' + k.value" @click="setKind(k.value)">
+                <span class="rs-opt-label">{{ k.label }}</span>
+                <span class="rs-opt-hint">{{ k.hint }}</span>
+              </button>
+            </div>
             <button type="button" class="canvas-chip-x" title="Turn off Canvas mode" aria-label="Turn off Canvas mode"
                     @click.stop="canvas.setMode(false)">×</button>
           </span>
@@ -274,6 +293,21 @@ const toggleImageModeFromMenu = () => {
 // sending). When on, the agent renders designs into the live preview and the backend auto-exposes
 // GENERATE_STATIC_PAGE for the turn.
 const canvasMode = computed(() => canvas.mode)
+// WHICH Canvas. Each kind gets a different toolset on the backend (capability_modes.canvas_tools_for), so
+// the hints say what the agent will actually do, not what the mode is called.
+const kindOptions = [
+  { value: 'static',      label: 'Static',      hint: 'Plain HTML, CSS and JS files, built and served in a sandbox' },
+  { value: 'nextjs',      label: 'Next.js',     hint: 'A Next.js app, installed, built and served in a sandbox' },
+  { value: 'web_builder', label: 'Web Builder', hint: 'A page on your Kurumera storefront (needs it connected)' },
+]
+const activeKind = computed(() => kindOptions.find(k => k.value === canvas.kind) || kindOptions[0])
+const kindOpen = ref(false)
+const setKind = (value) => {
+  canvas.setKind(value)
+  kindOpen.value = false
+  const opt = kindOptions.find(k => k.value === value)
+  notify.info(`Canvas: ${opt.label} — ${opt.hint}.`)
+}
 const toggleCanvas = () => { canvas.setMode(!canvas.mode) }
 const toggleCanvasFromMenu = () => {
   toggleCanvas()
@@ -379,12 +413,14 @@ const onUrlAdded = () => { /* keep the panel open so the user still sees the sta
 const onDocClick = (e) => {
   // Runs BEFORE the early return: the depth popup can be open while the "+" menu is shut.
   if (!(e.target.closest && e.target.closest('.research-chip'))) depthOpen.value = false
+  if (!(e.target.closest && e.target.closest('.canvas-kind-chip'))) kindOpen.value = false
   if (!menuOpen.value && !urlOpen.value) return
   if (rootEl.value && !rootEl.value.contains(e.target)) closeMenu()
 }
 const onDocKey = (e) => {
   if (e.key !== 'Escape') return
   depthOpen.value = false
+  kindOpen.value = false
   if (menuOpen.value || urlOpen.value) closeMenu()
 }
 onMounted(() => {
@@ -574,6 +610,8 @@ const onKeydown = (e) => {
 .canvas-chip-x:hover { background: rgba(109, 40, 217, .14); }
 /* Deep-Research chip: label + the three depth segments + off. */
 .research-chip { position: relative; padding: 0 4px 0 10px; gap: 4px; }
+/* Same shape as the research chip — a name, a picker, a close — so the two read as one family. */
+.canvas-kind-chip { position: relative; padding: 0 4px 0 10px; gap: 4px; }
 .rs-toggle { border: 0; background: transparent; padding: 0; color: inherit; font: inherit; gap: 5px; }
 .rs-name { font-weight: 600; }
 .rs-current { padding: 1px 6px; border-radius: 9999px; background: var(--vm-violet, #6d28d9); color: #fff; font-size: 0.68rem; font-weight: 700; }

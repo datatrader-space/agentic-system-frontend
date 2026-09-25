@@ -86,6 +86,19 @@ const CAPABILITIES = {
   },
 }
 
+// The three Canvas kinds, in the order the chip offers them. Must match the backend's closed vocabulary
+// (agent/services/capability_modes.py CANVAS_KINDS) — an unknown value is ignored there.
+export const CANVAS_KINDS = ['static', 'nextjs', 'web_builder']
+
+function readCanvasKind() {
+  try {
+    const saved = typeof localStorage !== 'undefined' ? localStorage.getItem('cv.kind') : null
+    return CANVAS_KINDS.includes(saved) ? saved : 'static'
+  } catch (_e) {
+    return 'static'
+  }
+}
+
 function providerFrom(msgOrCanvas) {
   const c = msgOrCanvas || {}
   if (c.provider === 'static' || c.provider === 'web_builder' || c.provider === 'sandbox') return c.provider
@@ -98,6 +111,10 @@ export const useCanvasStore = defineStore('canvas', {
     // Canvas mode: when on, the agent is told to render designs into the live preview and the
     // backend auto-exposes the design tools for the turn (sent as `canvas_mode` on the message).
     mode: (typeof localStorage !== 'undefined' && localStorage.getItem('cv.mode') === '1'),
+    // WHICH Canvas the agent builds: 'static' (plain files in the sandbox), 'nextjs' (a Next.js project in
+    // the sandbox) or 'web_builder' (a page on the user's Kurumera storefront). Sent as `canvas_kind`; the
+    // backend grants a different toolset for each. Remembered, because it is a standing preference.
+    kind: readCanvasKind(),
     open: false,
     canvasId: null,
     conversationId: null,
@@ -428,6 +445,11 @@ export const useCanvasStore = defineStore('canvas', {
       try { localStorage.setItem('cv.mode', this.mode ? '1' : '0') } catch (_e) { /* ignore */ }
       if (this.mode && this.canvasId) this.open = true
       else if (!this.mode) this.open = false
+    },
+    setKind(kind) {
+      if (!CANVAS_KINDS.includes(kind)) return
+      this.kind = kind
+      try { localStorage.setItem('cv.kind', kind) } catch (_e) { /* private mode */ }
     },
     setViewport(v) { if (VIEWPORTS[v]) this.viewport = v },
     refreshFrame() { this.frameKey += 1 },
