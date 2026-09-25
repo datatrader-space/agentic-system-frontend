@@ -1,20 +1,30 @@
-<!-- Connector actions under an agent's reply — Connect / Sign in again / Assign to this agent.
+<!-- Connector actions under an agent's reply — Connect / Sign in again / Assign to this agent / Set up.
 
      The backend's CONNECT_SERVICE decides WHICH action applies (agentic-docs/CONNECTOR_ACCESS_IN_CHAT_PLAN.md
      in the backend repo) and sends it as a typed `chat_action`; this only renders it. A click goes to
      POST /api/chat/connector-action/, which RE-CHECKS the state server-side, so a stale button in history
-     answers "already done" instead of repeating an old decision.
+     answers "already done" instead of repeating an old decision. "Set up" is a plain link to the Connectors
+     page — a connector that needs a key is never set up in chat.
 
      Non-blocking by design: the run has already finished its turn. When the action completes and this is the
      latest reply, a short continuation is sent so the agent picks the original request back up. -->
 <template>
   <div v-if="actions.length" class="ca-list">
-    <div v-for="a in actions" :key="a.id || `${a.kind}:${a.target_kind}:${a.target_id}`" class="ca-row">
+    <div v-for="a in actions" :key="keyOf(a)" class="ca-row">
       <!-- done -->
       <p v-if="stateOf(a).phase === 'done'" class="ca-done" role="status">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round" /></svg>
         {{ stateOf(a).message }}
       </p>
+
+      <!-- a key or headers are needed: the Connectors page, never the chat -->
+      <template v-else-if="a.kind === 'setup'">
+        <router-link :to="a.connectors_url || '/dashboard/connectors'" class="ca-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+          {{ a.label || `Set up ${a.service}` }}
+        </router-link>
+        <span class="ca-hint">Add it on the Connectors page, then ask again.</span>
+      </template>
 
       <!-- the user can't change this agent: point them at the owner, no button -->
       <p v-else-if="needsOwner(a)" class="ca-owner">
@@ -55,10 +65,13 @@ const props = defineProps({
 })
 
 const chat = useChatStore()
+const KINDS = ['assign', 'connect', 'setup']
 const actions = computed(() => (Array.isArray(props.message.chatActions) ? props.message.chatActions : [])
-  .filter((a) => a && (a.kind === 'assign' || a.kind === 'connect')))
+  .filter((a) => a && KINDS.includes(a.kind)))
 
-// Per-action UI state, keyed by action id: phase idle | starting | waiting | done, plus message/error.
+// Per-action UI state, keyed by action id: phase idle | starting | waiting | done, plus message/error, and —
+// once a sign-in has started — `since` (when) and `target` (the real connector: a custom MCP server only
+// gets one when the click adds it).
 const ui = reactive({})
 const timers = {}
 const popupUrls = {}
@@ -66,10 +79,10 @@ const popupUrls = {}
 const POLL_MS = 2000
 const POLL_LIMIT_MS = 10 * 60 * 1000   // the OAuth state itself expires in 10 minutes
 
-const keyOf = (a) => a.id || `${a.kind}:${a.target_kind}:${a.target_id}`
+const keyOf = (a) => a.id || `${a.kind}:${a.target_kind}:${a.target_id}:${a.url || ''}`
 function stateOf(a) {
   const k = keyOf(a)
-  if (!ui[k]) ui[k] = { phase: 'idle', message: '', error: '' }
+  if (!ui[k]) ui[k] = { phase: 'idle', message: '', error: '', since: '', target: null }
   return ui[k]
 }
 const busy = (a) => ['starting', 'waiting'].includes(stateOf(a).phase)
@@ -84,14 +97,23 @@ function buttonLabel(a) {
   return a.label || (a.kind === 'assign' ? `Assign ${a.service} to this agent` : `Connect ${a.service}`)
 }
 
-const params = (a) => ({
-  agent_id: a.agent_id, target_kind: a.target_kind, target_id: a.target_id,
-  conversation_id: a.conversation_id || props.message.conversationId || chat.conversationId || '',
-})
+// Identifies the connector for the endpoint. A custom MCP server is named by its address until the click
+// adds it; after that the server-side connector the response named is used.
+function params(a) {
+  const t = stateOf(a).target
+  const base = {
+    agent_id: a.agent_id,
+    conversation_id: a.conversation_id || props.message.conversationId || chat.conversationId || '',
+  }
+  if (t) return { ...base, target_kind: t.target_kind, target_id: t.target_id }
+  if (a.target_kind === 'mcp_url') return { ...base, target_kind: 'mcp_url', url: a.url }
+  return { ...base, target_kind: a.target_kind, target_id: a.target_id }
+}
 
 function doneText(a, st) {
   const agent = a.agent_name || 'this agent'
   if (a.kind === 'assign') return `${a.service} is assigned to ${agent}.`
+  if (a.reauthorize) return `You're signed in to ${a.service} again.`
   return st && st.assigned && a.auto_assign
     ? `${a.service} is connected and assigned to ${agent}.`
     : `${a.service} is connected.`
@@ -111,8 +133,8 @@ function finish(a, st) {
 function continueConversation(a) {
   const last = [...chat.messages].reverse().find((m) => m.role === 'assistant')
   if (!last || last.id !== props.message.id || chat.isStreaming) return
-  const what = a.kind === 'assign'
-    ? `I've assigned ${a.service} to this agent.`
+  const what = a.kind === 'assign' ? `I've assigned ${a.service} to this agent.`
+    : a.reauthorize ? `I've signed in to ${a.service} again.`
     : `I've connected ${a.service}.`
   chat.sendMessage(`${what} Please continue.`)
 }
@@ -125,7 +147,12 @@ async function run(a) {
   const popup = a.kind === 'connect' ? window.open('', 'aadml_connect', 'width=600,height=720,scrollbars=yes') : null
   s.phase = 'starting'
   try {
-    const { data } = await api.connectorAction({ action: a.kind, ...params(a) })
+    const body = { action: a.kind, ...params(a) }
+    if (a.reauthorize) body.reauthorize = true
+    const { data } = await api.connectorAction(body)
+    if (data.target_kind && data.target_id != null) {
+      s.target = { target_kind: data.target_kind, target_id: data.target_id }
+    }
     if (data.status === 'done') {
       if (popup) popup.close()
       finish(a, data)
@@ -140,6 +167,7 @@ async function run(a) {
     }
     if (data.status === 'authorize' && data.authorize_url) {
       popupUrls[keyOf(a)] = data.authorize_url
+      s.since = data.since || ''
       if (popup && !popup.closed) popup.location.href = data.authorize_url
       else if (!window.open(data.authorize_url, '_blank')) {
         s.phase = 'idle'
@@ -147,7 +175,7 @@ async function run(a) {
         return
       }
       s.phase = 'waiting'
-      startPoll(a)
+      startPoll(a, !!data.auto_assign)
       return
     }
     if (popup) popup.close()
@@ -168,7 +196,7 @@ function reopen(a) {
   if (url) window.open(url, 'aadml_connect', 'width=600,height=720,scrollbars=yes')
 }
 
-function startPoll(a) {
+function startPoll(a, autoAssign) {
   stopPoll(a)
   const k = keyOf(a)
   const began = Date.now()
@@ -181,10 +209,14 @@ function startPoll(a) {
       return
     }
     try {
-      const { data } = await api.connectorActionStatus(params(a))
-      // Connected is enough when the agent already held the connector; a promised auto-assign must land
-      // too (it runs after the MCP tool sync, a few seconds after the provider redirects back).
-      if (data.connected && (data.assigned || !a.auto_assign)) { finish(a, data); return }
+      const q = { ...params(a) }
+      if (s.since) q.since = s.since
+      const { data } = await api.connectorActionStatus(q)
+      // Signing in AGAIN: the connector was connected all along, so only a sign-in newer than the click
+      // counts. Otherwise connected is enough when the agent already held the connector; a promised
+      // auto-assign must land too (it runs after the MCP tool sync, a few seconds after the redirect).
+      const ok = a.reauthorize ? !!data.renewed : (data.connected && (data.assigned || !autoAssign))
+      if (ok) { finish(a, data); return }
     } catch { /* transient — keep waiting */ }
     timers[k] = setTimeout(tick, POLL_MS)
   }
@@ -197,9 +229,11 @@ function stopPoll(a) {
 }
 
 // A reloaded thread: a button whose job is already done shows its ✓ instead of inviting a repeat click.
+// Not for "sign in again" (its connector is connected by definition) nor a custom MCP server the click has
+// not added yet (there is nothing to ask about).
 onMounted(async () => {
   for (const a of actions.value) {
-    if (needsOwner(a)) continue
+    if (needsOwner(a) || a.reauthorize || a.target_kind === 'mcp_url') continue
     try {
       const { data } = await api.connectorActionStatus(params(a))
       const s = stateOf(a)
@@ -222,7 +256,7 @@ onUnmounted(() => { for (const k of Object.keys(timers)) clearTimeout(timers[k])
   display: inline-flex; align-items: center; gap: 7px;
   padding: 7px 14px; border-radius: 10px;
   border: 1px solid #c7d2fe; background: #eef2ff; color: #4338ca;
-  font-size: .82rem; font-weight: 600; line-height: 1.2; cursor: pointer;
+  font-size: .82rem; font-weight: 600; line-height: 1.2; cursor: pointer; text-decoration: none;
   transition: background .15s, border-color .15s, box-shadow .15s;
 }
 .ca-btn:hover:not(:disabled) { background: #e0e7ff; border-color: #a5b4fc; }

@@ -1977,7 +1977,7 @@ export const useChatStore = defineStore('chat', {
           const act = msg.action
           if (target && act && act.kind) {
             const same = (x) => x.kind === act.kind && x.target_kind === act.target_kind
-              && String(x.target_id) === String(act.target_id)
+              && String(x.target_id) === String(act.target_id) && (x.url || '') === (act.url || '')
             target.chatActions = [...(target.chatActions || []).filter((x) => !same(x)), act]
           }
           break

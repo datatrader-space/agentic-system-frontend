@@ -138,6 +138,58 @@ describe('ChatActionButtons', () => {
     expect(w.find('.ca-done').exists()).toBe(true)
   })
 
+  it('setup: a link to the Connectors page, never a key field in chat', async () => {
+    const { w } = mountIt(reply([action({ kind: 'setup', service: 'Stripe', label: 'Set up Stripe' })]))
+    await flushPromises()
+    expect(w.find('button.ca-btn').exists()).toBe(false)
+    const link = w.findComponent(RouterLinkStub)
+    expect(link.props('to')).toBe('/dashboard/connectors')
+    expect(link.text()).toContain('Set up Stripe')
+    expect(w.find('input').exists()).toBe(false)
+  })
+
+  it('custom MCP by address: the click adds it, then waits on the server it created', async () => {
+    const popup = { closed: false, close: vi.fn(), location: { href: '' } }
+    vi.spyOn(window, 'open').mockReturnValue(popup)
+    api.connectorAction.mockResolvedValue({ data: { status: 'authorize', authorize_url: 'https://mcp.acme.io/authorize?x=1',
+      auto_assign: true, target_kind: 'mcp', target_id: 91, since: '2026-09-25T10:00:00+00:00' } })
+    const { w, chat } = mountIt(reply([action({ target_kind: 'mcp_url', target_id: null, url: 'https://mcp.acme.io/mcp',
+      service: 'mcp.acme.io', label: 'Connect mcp.acme.io', auto_assign: true })]))
+    await flushPromises()
+    expect(api.connectorActionStatus).not.toHaveBeenCalled()          // nothing to ask about before the click
+    await w.find('button.ca-btn').trigger('click')
+    await flushPromises()
+    expect(api.connectorAction).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'connect', target_kind: 'mcp_url', url: 'https://mcp.acme.io/mcp' }))
+    api.connectorActionStatus.mockResolvedValueOnce({ data: { connected: true, assigned: true } })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(api.connectorActionStatus).toHaveBeenLastCalledWith(expect.objectContaining({
+      target_kind: 'mcp', target_id: 91 }))
+    expect(w.find('.ca-done').text()).toContain('mcp.acme.io is connected and assigned')
+    expect(chat.sendMessage).toHaveBeenCalledWith("I've connected mcp.acme.io. Please continue.")
+  })
+
+  it('sign in again: waits for a sign-in NEWER than the click, not just "connected"', async () => {
+    const popup = { closed: false, close: vi.fn(), location: { href: '' } }
+    vi.spyOn(window, 'open').mockReturnValue(popup)
+    api.connectorAction.mockResolvedValue({ data: { status: 'authorize', authorize_url: 'https://github.com/login/oauth/authorize',
+      auto_assign: false, since: '2026-09-25T10:00:00+00:00' } })
+    const { w, chat } = mountIt(reply([action({ reauthorize: true, label: 'Sign in to GitHub again' })]))
+    await flushPromises()
+    await w.find('button.ca-btn').trigger('click')
+    await flushPromises()
+    expect(api.connectorAction).toHaveBeenCalledWith(expect.objectContaining({ reauthorize: true }))
+    api.connectorActionStatus.mockResolvedValueOnce({ data: { connected: true, assigned: true, renewed: false } })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(w.find('.ca-done').exists()).toBe(false)                  // still the OLD sign-in
+    expect(api.connectorActionStatus).toHaveBeenLastCalledWith(expect.objectContaining({
+      since: '2026-09-25T10:00:00+00:00' }))
+    api.connectorActionStatus.mockResolvedValueOnce({ data: { connected: true, assigned: true, renewed: true } })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(w.find('.ca-done').text()).toContain("signed in to GitHub again")
+    expect(chat.sendMessage).toHaveBeenCalledWith("I've signed in to GitHub again. Please continue.")
+  })
+
   it('an assign blocked server-side says why', async () => {
     api.connectorAction.mockRejectedValue({ response: { data: { error: "You can't change which connectors 'Store Agent' uses." } } })
     const { w } = mountIt(reply([action({ kind: 'assign' })]))
