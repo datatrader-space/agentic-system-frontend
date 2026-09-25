@@ -1841,8 +1841,14 @@ export const useChatStore = defineStore('chat', {
           // Answer to the poll above. Only meaningful while a resumed turn is still on screen.
           const pm = this._cur()
           if (!msg.progress || !Object.keys(msg.progress).length) {
-            // The turn ended between polls. Stop polling and let the history refetch land the answer.
+            // The turn ended between polls. Stop polling and let the history refetch land the answer —
+            // unless the server says it died unanswered (worker restarted), where there is nothing to land.
             this._stopProgressPolling()
+            if (msg.interrupted && this.isStreaming) {
+              this._recovering = false
+              this._errAssistant('This reply was interrupted because the server restarted. Send your message again.', true, true)
+              break
+            }
             if (this.isStreaming) this._recoverAfterReconnect()
           } else if (pm && pm.status === 'streaming') {
             pm.prepStatus = resumeStatusLine(msg.progress)
@@ -1854,6 +1860,14 @@ export const useChatStore = defineStore('chat', {
           // persisted mid-run, so the loaded history can end at the user's message. If so, re-fetch once to
           // pull in the completed answer (no-op when there's nothing new).
           this._stopProgressPolling()
+          // The server says the turn DIED unanswered (its worker restarted mid-turn; conv 1947, 2026-09-25).
+          // There is no answer to wait for, so say so now and offer a resend, instead of polling history
+          // for 90s and then clearing the bubble without a word.
+          if (msg.interrupted && (this.isStreaming || this._recovering)) {
+            this._recovering = false
+            this._errAssistant('This reply was interrupted because the server restarted. Send your message again.', true, true)
+            break
+          }
           const last = this.messages[this.messages.length - 1]
           if (last && last.role === 'user') this._refreshHistory()
           // Nothing is running server-side, so a spinner left over from before the drop is a lie. Settle
