@@ -95,6 +95,7 @@ const nav = [
   { to: '/admin-dashboard/training-data', label: 'Training Data', icon: ['M4 6c0-1.66 3.58-3 8-3s8 1.34 8 3-3.58 3-8 3-8-1.34-8-3z', 'M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6', 'M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6'] },
   { to: '/admin-dashboard/crawler-export', label: 'Crawler Export API', icon: ['M21 2H3v16h5v4l4-4h5l4-4z', 'M8 9h8', 'M8 13h6'] },
   { to: '/admin-dashboard/partner-keys', label: 'Partner Agent API', icon: ['M15 7a2 2 0 0 1 2 2m4-2a6 6 0 0 1-7.7 5.7l-4 4a2 2 0 0 1-1.4.6H8v2H6v2H2v-4l6.3-6.3A6 6 0 1 1 21 7z'] },
+  { to: '/admin-dashboard/fitmywall-data', label: 'Fitmywall Data', icon: ['M3 5h18v14H3z', 'M3 15l5-5 4 4 3-3 6 6', 'M15 9h.01'] },
   { to: '/admin-dashboard/help-center', match: '/admin-dashboard/help-center', label: 'Help Center', icon: ['M4 4h16v16H4z', 'M8 8h8', 'M8 12h8', 'M8 16h5'] },
   { to: '/admin-dashboard/help-analytics', label: 'Help Analytics', icon: ['M3 3v18h18', 'M7 16l4-4 3 3 5-6'] },
   { to: '/admin-dashboard/builtin-agents', label: 'Built-in Agents', icon: ['M12 8V4H8', 'M4 12a8 8 0 0 1 8-8', 'M2 14h2', 'M20 14h2', 'M15 13v2', 'M9 13v2', 'M6 10h12v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z'] },
