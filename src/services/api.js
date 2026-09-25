@@ -1215,10 +1215,6 @@ export default {
   deleteBudget: (id, orgId) => api.delete(`/budgets/${id}/`, { params: orgId ? { organization_id: orgId } : {} }),
   getBudgetStatus: (id, period, orgId) => api.get(`/budgets/${id}/status/`, { params: { ...(period ? { period } : {}), ...(orgId ? { organization_id: orgId } : {}) } }),
   getBudgetApprovals: () => api.get('/budgets/approvals/'),
-  // Approvals a connected app (MCP) raised — they belong to no chat, so this page is where they're answered.
-  getPendingApprovals: () => api.get('/approvals/pending/'),
-  decideApproval: (id, decision, comment = '') =>
-    api.post(`/approvals/${id}/decide/`, { decision, comment }),
   decideBudgetApproval: (eventId, decision) => api.post(`/budgets/approvals/${eventId}/decide/`, { decision }),
   getBudgetEvents: (orgId) => api.get('/budgets/events/', { params: orgId ? { organization_id: orgId } : {} }),
   getBudgetRules: (orgId) => api.get('/budget-rules/', { params: orgId ? { organization_id: orgId } : {} }),
