@@ -85,8 +85,9 @@
         </div>
       </div>
 
-      <!-- Footer nav -->
-      <footer v-if="!isFinalStep" class="flex items-center justify-between border-t border-[#E5E7EB] bg-white px-6 py-3">
+      <!-- Footer nav. Right padding clears the floating help button (fixed, 56px wide, 30px from the right):
+           with px-6 it sat on top of the primary action and cut "Continue to Final" off (live test 2026-09-25). -->
+      <footer v-if="!isFinalStep" class="flex items-center justify-between border-t border-[#E5E7EB] bg-white py-3 pl-6 pr-24">
         <button class="btn-secondary" :disabled="stepIndex === 0" @click="prev"><ArrowLeft :size="15" :stroke-width="2" /> Back</button>
         <div class="flex items-center gap-3">
           <button v-if="step === 'tools' || step === 'credentials'" class="btn-secondary" @click="next">Skip for now</button>

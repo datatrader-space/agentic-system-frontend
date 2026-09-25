@@ -92,7 +92,7 @@
            two iterations nothing is streaming at all while the backend verifies the goal and dispatches
            the next segment. Binding the Stop button to the bubble made it vanish mid-run and come back
            moments later, which read as the run finishing and then restarting. -->
-      <ChatComposer :streaming="chat.isBusy" :attachments="chat.pendingAttachments"
+      <ChatComposer ref="composerRef" :streaming="chat.isBusy" :attachments="chat.pendingAttachments"
         :agent-id="chat.selectedAgentId"
         :conversation-id="chat.conversationId"
         :run-mode="chat.currentAgent && chat.currentAgent.agent_run_mode"
@@ -180,6 +180,33 @@ import ChatDock from './ChatDock.vue'
 import { fmtTokens, fmtCost } from '../../composables/tokens'
 
 const chat = useChatStore()
+
+// WHERE THE COMPOSER STARTS, as a CSS variable the docked approval / sign-in card positions itself by.
+// The card used a fixed 104px gap, but the composer (input, controls, hint line) is ~150px and grows as
+// the user types, so the card covered part of it (live test 2026-09-25, the "Connect GitHub" card).
+// Measured as "viewport bottom minus the composer's top edge", so everything under it is included.
+const composerRef = ref(null)
+let _composerRo = null
+function _publishComposerHeight() {
+  const el = composerRef.value && (composerRef.value.$el || composerRef.value)
+  if (!el || !el.getBoundingClientRect) return
+  const h = Math.max(0, Math.round(window.innerHeight - el.getBoundingClientRect().top))
+  document.documentElement.style.setProperty('--chat-composer-h', `${h}px`)
+}
+onMounted(() => {
+  _publishComposerHeight()
+  window.addEventListener('resize', _publishComposerHeight)
+  const el = composerRef.value && (composerRef.value.$el || composerRef.value)
+  if (typeof ResizeObserver !== 'undefined' && el && el.nodeType === 1) {
+    _composerRo = new ResizeObserver(_publishComposerHeight)
+    _composerRo.observe(el)
+  }
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', _publishComposerHeight)
+  if (_composerRo) { _composerRo.disconnect(); _composerRo = null }
+  document.documentElement.style.removeProperty('--chat-composer-h')
+})
 const canvas = useCanvasStore()
 const layout = useLayoutStore()
 const plan = usePlanStore()

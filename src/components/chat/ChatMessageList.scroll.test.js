@@ -78,6 +78,17 @@ describe('following the conversation', () => {
     expect(view.atBottom()).toBe(true)
   })
 
+  it('keeps following when the new turn grows the thread before our own scroll event lands', async () => {
+    // Live test 2026-09-25: the "Working" card rendered between our scrollToBottom and the scroll event it
+    // triggered, so the event saw a >64px gap, read it as the user leaving, and turned the follow off —
+    // the live card sat behind the composer under a jump button for the rest of the turn.
+    const { el, height, view } = await setup()
+    height.value += 300                        // the new turn's card renders
+    el.dispatchEvent(new Event('scroll'))      // the late event from our own scroll (no upward move)
+    resizeCb && resizeCb()                     // the observer sees the growth
+    expect(view.atBottom()).toBe(true)
+  })
+
   it('stays at the end when images load after the text', async () => {
     // THE ACTUAL BUG. No character changes here — only the height does, exactly as six rendered
     // FitMyWall images do when they finish loading. The old length watcher could not see this.

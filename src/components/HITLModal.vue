@@ -741,7 +741,8 @@ watch(currentRequest, () => {
   backdrop-filter: none;
   align-items: flex-end;            /* dock to bottom… */
   justify-content: center;          /* …centered over the chat column */
-  padding: 0 16px 104px;            /* sit just above the message composer */
+  /* sit just above the message composer — its real height, published by ChatWorkspace; 104px elsewhere */
+  padding: 0 16px calc(var(--chat-composer-h, 92px) + 12px);
   pointer-events: none;            /* clicks pass through to the chat */
 }
 .hitl-overlay--compact .hitl-modal {

@@ -156,16 +156,31 @@ const scrollToBottom = () => {
   const el = scrollEl.value
   if (!el) return
   el.scrollTop = el.scrollHeight
+  lastTop = el.scrollTop
   atBottom.value = true
   hasNew.value = false
 }
+
+// Last scrollTop seen, so a scroll event can tell the USER moving up from content growing underneath.
+let lastTop = 0
 
 function onScroll() {
   const el = scrollEl.value
   if (!el || prepending.value) return
   const at = distanceFromBottom(el) <= BOTTOM_SLACK
-  atBottom.value = at
-  if (at) hasNew.value = false      // they came back on their own; nothing is unread any more
+  // ONLY AN UPWARD SCROLL LEAVES THE BOTTOM. The scroll event our own `scrollToBottom` triggers arrives
+  // asynchronously; by then the new turn's "Working" card may already have grown the content, so the
+  // distance check alone read "the user scrolled away" and switched the follow off at the start of every
+  // turn — the live card sat behind the composer under a jump button (live test 2026-09-25). A reader
+  // who scrolls up still stops the follow; content growth never does.
+  const movedUp = el.scrollTop < lastTop - 2
+  lastTop = el.scrollTop
+  if (at) {
+    atBottom.value = true
+    hasNew.value = false             // they came back on their own; nothing is unread any more
+  } else if (movedUp) {
+    atBottom.value = false
+  }
 }
 
 function jumpToLatest() {
