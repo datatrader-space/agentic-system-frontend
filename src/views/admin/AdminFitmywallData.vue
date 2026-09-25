@@ -21,6 +21,19 @@
       <div class="fw-stat"><span class="fw-stat-k">Captures</span><span class="fw-stat-v">{{ num(summary.captures) }}</span></div>
       <div class="fw-stat"><span class="fw-stat-k">Shops</span><span class="fw-stat-v">{{ num(summary.shops) }}</span></div>
       <div class="fw-stat"><span class="fw-stat-k">Photos</span><span class="fw-stat-v">{{ num(summary.images) }}</span></div>
+      <button class="fw-stat fw-stat-btn" :class="{ todo: summary.unreviewed }" title="Show events not yet reviewed"
+              @click="showUnreviewed">
+        <span class="fw-stat-k">To review</span><span class="fw-stat-v">{{ num(summary.unreviewed) }}</span>
+      </button>
+      <div class="fw-stat"><span class="fw-stat-k">AI reviewed</span><span class="fw-stat-v">{{ num(summary.ai_reviewed) }}</span></div>
+      <div class="fw-stat" title="A vision model's estimate, not measured accuracy">
+        <span class="fw-stat-k">Avg AI accuracy</span>
+        <span class="fw-stat-v">{{ summary.avg_accuracy != null ? pct(summary.avg_accuracy) : '—' }}</span>
+      </div>
+      <button class="fw-stat fw-stat-btn" :class="{ bad: summary.low_accuracy }" @click="showLowAccuracy"
+              :title="`Show AI-reviewed events scored below ${lowThreshold}%`">
+        <span class="fw-stat-k">Low accuracy (&lt;{{ lowThreshold }}%)</span><span class="fw-stat-v">{{ num(summary.low_accuracy) }}</span>
+      </button>
       <div class="fw-stat" :class="{ warn: summary.dims_mismatch }">
         <span class="fw-stat-k">Size mismatches</span><span class="fw-stat-v">{{ num(summary.dims_mismatch) }}</span>
       </div>
@@ -44,6 +57,21 @@
           <option value="">All surfaces</option>
           <option v-for="s in facets.surfaces" :key="s" :value="s">{{ s }}</option>
         </select>
+        <select v-model="f.reviewed" class="fw-input" @change="reload">
+          <option value="">Reviewed or not</option>
+          <option value="false">Not reviewed</option>
+          <option value="true">Reviewed</option>
+        </select>
+        <select v-model="f.reviewed_by" class="fw-input" @change="reload">
+          <option value="">Any reviewer</option>
+          <option value="agent">Reviewed by AI</option>
+          <option value="staff">Reviewed by staff</option>
+          <option value="none">No reviewer yet</option>
+        </select>
+        <select v-model="f.accuracy_lt" class="fw-input" @change="reload">
+          <option value="">Any AI accuracy</option>
+          <option v-for="t in [50, 70, 90]" :key="t" :value="String(t)">Below {{ t }}%</option>
+        </select>
         <select v-model="f.dims_match" class="fw-input" @change="reload">
           <option value="">Any photo size</option>
           <option value="true">Size matches</option>
@@ -51,6 +79,12 @@
         </select>
         <label class="fw-date"><span>From</span><input v-model="f.from" class="fw-input" type="date" @change="reload" /></label>
         <label class="fw-date"><span>To</span><input v-model="f.to" class="fw-input" type="date" @change="reload" /></label>
+        <select v-model="sort" class="fw-input" @change="reload">
+          <option value="-received_at">Newest first</option>
+          <option value="received_at">Oldest first</option>
+          <option value="accuracy">Lowest AI accuracy</option>
+          <option value="-accuracy">Highest AI accuracy</option>
+        </select>
         <button v-if="hasFilters" class="fw-btn ghost" @click="clearFilters">Clear</button>
       </div>
     </section>
@@ -71,7 +105,8 @@
         <table class="fw-table">
           <thead>
             <tr><th>Photo</th><th>Received</th><th>Event</th><th>Capture</th><th>Shop</th><th>Surface</th>
-                <th>Walls</th><th>Size</th><th></th></tr>
+                <th>Walls</th><th>Size</th><th title="A vision model's estimate, not measured accuracy">AI accuracy</th>
+                <th>Reviewed</th><th></th></tr>
           </thead>
           <tbody>
             <tr v-for="r in rows" :key="r.id" class="fw-row" @click="open(r)">
@@ -89,6 +124,19 @@
                 <span v-if="r.image_dims_match === true" class="fw-ok">✓</span>
                 <span v-else-if="r.image_dims_match === false" class="fw-bad" title="Photo size differs from payload image size">Mismatch</span>
                 <span v-else class="fw-muted">—</span>
+              </td>
+              <td>
+                <span v-if="r.accuracy != null" class="fw-acc" :class="accClass(r.accuracy)">{{ pct(r.accuracy) }}</span>
+                <span v-else-if="r.review_attempts" class="fw-bad" :title="`${r.review_attempts} failed AI attempt(s)`">
+                  Failed ×{{ r.review_attempts }}</span>
+                <span v-else class="fw-muted">—</span>
+              </td>
+              <td @click.stop>
+                <button class="fw-rev" :class="{ on: r.reviewed }" :disabled="savingReview[r.id]"
+                        :title="r.reviewed ? 'Reviewed — click to mark not reviewed' : 'Not reviewed — click to mark reviewed'"
+                        @click="toggleReviewed(r)">
+                  {{ r.reviewed ? `✓ ${r.reviewed_by === 'agent' ? 'AI' : 'Staff'}` : 'Not reviewed' }}
+                </button>
               </td>
               <td class="fw-actions" @click.stop>
                 <button class="fw-btn sm" @click="open(r)">View</button>
@@ -115,6 +163,10 @@
             <div class="fw-sub"><code class="fw-mono">{{ detail?.capture_id }}</code></div>
           </div>
           <div class="fw-drawer-actions">
+            <button v-if="detail" class="fw-rev lg" :class="{ on: detail.reviewed }" :disabled="savingReview[detail.id]"
+                    @click="toggleReviewed(detail)">
+              {{ detail.reviewed ? '✓ Reviewed' : 'Mark reviewed' }}
+            </button>
             <button v-if="detail?.image" class="fw-btn" @click="downloadPhoto">⬇ Photo</button>
             <button v-if="detail" class="fw-btn danger" @click="remove(detail, true)">Delete</button>
             <button class="fw-btn ghost" @click="close">✕ Close</button>
@@ -148,6 +200,43 @@
               overlay may not line up.
             </p>
           </div>
+
+          <section class="fw-acc-block">
+            <div class="fw-acc-head">
+              <div>
+                <div class="fw-acc-k">AI accuracy <span class="fw-muted">(estimate)</span></div>
+                <div class="fw-acc-big" :class="detail.accuracy != null ? accClass(detail.accuracy) : ''">
+                  {{ detail.accuracy != null ? pct(detail.accuracy) : 'Not scored' }}
+                </div>
+                <div class="fw-muted">
+                  <template v-if="detail.reviewed">Reviewed by {{ detail.reviewed_by === 'agent' ? 'AI agent' : 'staff' }}
+                    · {{ fmt(detail.reviewed_at) }}</template>
+                  <template v-else>Not reviewed yet</template>
+                </div>
+              </div>
+              <div class="fw-override">
+                <label class="fw-acc-k" for="fw-override">Staff score</label>
+                <div class="fw-override-row">
+                  <input id="fw-override" v-model="override" class="fw-input" type="number" min="0" max="100"
+                         step="1" placeholder="0–100" @keyup.enter="saveOverride" />
+                  <button class="fw-btn sm primary" :disabled="overrideSaving || override === ''" @click="saveOverride">Save</button>
+                </div>
+              </div>
+            </div>
+            <ul v-if="detail.wall_scores?.length" class="fw-walls">
+              <li v-for="w in detail.wall_scores" :key="w.wall">
+                <span class="fw-swatch" :style="{ background: COLORS[(w.wall - 1) % COLORS.length] }"></span>
+                <strong>Wall {{ w.wall }}</strong>
+                <span class="fw-acc" :class="accClass(w.accuracy)">{{ pct(w.accuracy) }}</span>
+                <span v-if="w.issues?.length" class="fw-issues">{{ w.issues.join(' · ') }}</span>
+              </li>
+            </ul>
+            <p v-if="detail.accuracy_notes" class="fw-notes">{{ detail.accuracy_notes }}</p>
+            <p v-if="!detail.reviewed && detail.review_attempts" class="fw-warn">
+              The AI review failed {{ detail.review_attempts }} time(s){{ detail.review_attempts >= 3 ? ' and will not retry. Score it here' : '' }}.
+              Last error: {{ detail.review_error || '—' }}
+            </p>
+          </section>
 
           <dl class="fw-meta">
             <div><dt>Received</dt><dd>{{ fmt(detail.received_at) }}</dd></div>
@@ -194,7 +283,13 @@ const loadError = ref('')
 const exporting = ref(false)
 const summary = ref({})
 const facets = ref({ events: [], shops: [], surfaces: [] })
-const f = reactive({ q: '', event: '', shop: '', surface: '', dims_match: '', from: '', to: '' })
+const f = reactive({ q: '', event: '', shop: '', surface: '', reviewed: '', reviewed_by: '', accuracy_lt: '',
+  dims_match: '', from: '', to: '' })
+const sort = ref('-received_at')
+const override = ref('')
+const overrideSaving = ref(false)
+const lowThreshold = computed(() => summary.value.low_accuracy_threshold ?? 70)
+const savingReview = reactive({})
 
 const detailOpen = ref(false)
 const detailLoading = ref(false)
@@ -206,6 +301,7 @@ const hasFilters = computed(() => Object.values(f).some(Boolean))
 
 function params(extra = {}) {
   const p = { ...extra }
+  if (sort.value !== '-received_at') p.sort = sort.value
   for (const [k, v] of Object.entries(f)) if (v) p[k] = typeof v === 'string' ? v.trim() : v
   return p
 }
@@ -243,6 +339,7 @@ function go(p) { page.value = p; load() }
 
 function clearFilters() {
   Object.keys(f).forEach(k => { f[k] = '' })
+  sort.value = '-received_at'
   reload()
 }
 
@@ -250,6 +347,7 @@ async function open(r) {
   detailOpen.value = true
   detailLoading.value = true
   detail.value = null
+  override.value = ''
   try {
     detail.value = (await api.getWallEvent(r.id)).data
   } catch (e) {
@@ -279,6 +377,61 @@ async function remove(r, fromDrawer = false) {
   } catch (e) {
     notify.error('Failed to delete: ' + errText(e))
   }
+}
+
+async function toggleReviewed(r) {
+  const next = !r.reviewed
+  savingReview[r.id] = true
+  try {
+    const { data } = await api.setWallEventReviewed(r.id, next)
+    // Keep the table row and the open drawer in step with what the server saved.
+    const row = rows.value.find(x => x.id === r.id)
+    if (row) Object.assign(row, { reviewed: data.reviewed, reviewed_by: data.reviewed_by })
+    if (detail.value?.id === r.id) detail.value = data
+    if (summary.value.unreviewed != null) summary.value.unreviewed += data.reviewed ? -1 : 1
+    notify.success(data.reviewed ? 'Marked reviewed' : 'Marked not reviewed')
+    // Under a reviewed filter the row no longer belongs on this page.
+    if (f.reviewed && String(data.reviewed) !== f.reviewed) await load()
+  } catch (e) {
+    notify.error('Failed to update: ' + errText(e))
+  } finally {
+    delete savingReview[r.id]
+  }
+}
+
+function showLowAccuracy() {
+  Object.keys(f).forEach(k => { f[k] = '' })
+  f.reviewed_by = 'agent'
+  f.accuracy_lt = String(lowThreshold.value)
+  sort.value = 'accuracy'
+  reload()
+}
+
+async function saveOverride() {
+  const value = Number(override.value)
+  if (override.value === '' || Number.isNaN(value) || value < 0 || value > 100) {
+    notify.warning('Enter a score from 0 to 100')
+    return
+  }
+  overrideSaving.value = true
+  try {
+    const { data } = await api.setWallEventAccuracy(detail.value.id, value)
+    detail.value = data
+    const row = rows.value.find(x => x.id === data.id)
+    if (row) Object.assign(row, { accuracy: data.accuracy, reviewed: data.reviewed, reviewed_by: data.reviewed_by })
+    override.value = ''
+    notify.success(`Saved staff score ${pct(data.accuracy)}`)
+    load()
+  } catch (e) {
+    notify.error('Failed to save score: ' + errText(e))
+  } finally {
+    overrideSaving.value = false
+  }
+}
+
+function showUnreviewed() {
+  f.reviewed = 'false'
+  reload()
 }
 
 async function exportJson() {
@@ -334,6 +487,8 @@ const strokeW = computed(() => Math.max(2, Math.round(Math.max(space.value.w, sp
 const labelSize = computed(() => Math.max(14, Math.round(Math.max(space.value.w, space.value.h) / 45)))
 
 // ── Formatting ──────────────────────────────────────────────────────────────────────────────────────
+function pct(v) { return v == null ? '—' : `${Math.round(Number(v))}%` }
+function accClass(v) { return v >= 90 ? 'good' : v >= lowThreshold.value ? 'ok' : 'low' }
 function num(v) { return v == null ? '—' : Number(v).toLocaleString() }
 function kb(bytes) { return bytes == null ? '—' : bytes > 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB` }
 function fmt(ts) {
@@ -369,6 +524,34 @@ onMounted(load)
 .fw-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 20px; }
 .fw-stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
 .fw-stat.warn { border-color: #fde68a; background: #fffbeb; }
+.fw-stat-btn { text-align: left; font: inherit; cursor: pointer; transition: border-color .15s; }
+.fw-stat-btn:hover { border-color: #a5b4fc; }
+.fw-stat.todo { border-color: #c7d2fe; background: #eef2ff; }
+.fw-stat.bad { border-color: #fecaca; background: #fef2f2; }
+.fw-acc { font-size: 12px; font-weight: 800; padding: 2px 9px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+.fw-acc.good { background: #dcfce7; color: #15803d; }
+.fw-acc.ok { background: #fef9c3; color: #a16207; }
+.fw-acc.low { background: #fee2e2; color: #b91c1c; }
+.fw-acc-block { border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; margin-top: 16px; }
+.fw-acc-head { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.fw-acc-k { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: .03em; font-weight: 700; display: block; margin-bottom: 4px; }
+.fw-acc-big { font-size: 28px; font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; }
+.fw-acc-big.good { color: #15803d; }
+.fw-acc-big.ok { color: #a16207; }
+.fw-acc-big.low { color: #b91c1c; }
+.fw-override-row { display: flex; gap: 6px; }
+.fw-override-row .fw-input { width: 96px; }
+.fw-walls { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.fw-walls li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fw-swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.fw-issues { color: #64748b; font-size: 12px; }
+.fw-notes { margin-top: 10px; font-size: 13px; color: #334155; line-height: 1.55; white-space: pre-wrap; }
+.fw-rev { border: 1px solid #cbd5e1; background: #fff; color: #64748b; border-radius: 999px; padding: 3px 10px;
+  font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: all .15s; }
+.fw-rev:hover:not(:disabled) { border-color: #94a3b8; color: #334155; }
+.fw-rev.on { background: #dcfce7; border-color: #bbf7d0; color: #15803d; }
+.fw-rev:disabled { opacity: .6; cursor: default; }
+.fw-rev.lg { padding: 8px 14px; font-size: 13px; border-radius: 9px; }
 .fw-stat-k { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: .03em; font-weight: 600; }
 .fw-stat-v { font-size: 22px; font-weight: 800; color: #0f172a; font-variant-numeric: tabular-nums; }
 .fw-stat-v.sm { font-size: 15px; font-weight: 700; padding-top: 5px; }

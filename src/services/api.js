@@ -238,6 +238,8 @@ export default {
   getWallEvent: (id) => api.get(`/admin/wall-marking/events/${id}/`),
   exportWallEvents: (params) => api.get('/admin/wall-marking/events/export/', { params }),
   deleteWallEvent: (id) => api.delete(`/admin/wall-marking/events/${id}/`),
+  setWallEventReviewed: (id, reviewed) => api.patch(`/admin/wall-marking/events/${id}/`, { reviewed }),
+  setWallEventAccuracy: (id, accuracy) => api.patch(`/admin/wall-marking/events/${id}/`, { accuracy }),
   getWallImage: (id) => api.get(`/admin/wall-marking/images/${id}/`, { responseType: 'blob' }),
 
   // ARTC — Agent-Run Training Corpus: feedback labels / consent / governed pull of own runs
