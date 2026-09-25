@@ -60,6 +60,7 @@ const SupportCenter = () => import('./views/SupportCenter.vue')
 const ApiReference = () => import('./views/ApiReference.vue')
 const GettingStarted = () => import('./views/GettingStarted.vue')
 const BudgetsPage = () => import('./views/BudgetsPage.vue')
+const ApprovalsPage = () => import('./views/ApprovalsPage.vue')
 const OrganizationPage = () => import('./views/OrganizationPage.vue')
 const OrganizationModulePage = () => import('./views/OrganizationModulePage.vue')
 const AgentApprovalsPage = () => import('./views/AgentApprovalsPage.vue')
@@ -289,6 +290,8 @@ const router = createRouter({
         { path: 'schedules', name: 'dashboard-schedules', component: SchedulesPage },
         { path: 'workspaces', name: 'dashboard-workspaces', redirect: '/dashboard/connectors' },
         { path: 'budgets', name: 'dashboard-budgets', component: BudgetsPage },
+        // Approvals a connected app (MCP) raised. Reached from the bell; they belong to no chat.
+        { path: 'approvals', name: 'dashboard-approvals', component: ApprovalsPage },
         { path: 'organization', name: 'dashboard-organization', component: OrganizationPage },
         { path: 'organization/:module', name: 'dashboard-organization-module', component: OrganizationModulePage },
         { path: 'activity', name: 'dashboard-activity', component: LLMDashboard },
