@@ -124,6 +124,8 @@ const primaryNav = [
   // Runs has no nav entry of its own — it is reached from the Workflow Builder page's Runs button.
   // The route stays live (/dashboard/workflow-runs) and the page is still CROSS-workflow; only its
   // entry point moved, so the sidebar does not carry two lines for one feature.
+  // Training Data is its own Django-rendered app (training_models_data), so the link leaves the SPA.
+  { to: '/training-data/', label: 'Training Data', external: true, icon: ['M4 6c0-1.66 3.58-3 8-3s8 1.34 8 3-3.58 3-8 3-8-1.34-8-3z', 'M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6', 'M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6'] },
   { to: '/dashboard/schedules', label: 'Schedules', 'data-tour': 'schedules', icon: ['M8 2v4', 'M16 2v4', 'M3 10h18', 'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z', 'M12 14v3l2 1'] },
   { to: '/dashboard/activity', label: 'Activity', 'data-tour': 'activity', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
   { to: '/dashboard/budgets', label: 'Budgets', 'data-tour': 'budgets', icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6'] },

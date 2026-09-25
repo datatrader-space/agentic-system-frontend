@@ -1,6 +1,8 @@
 <template>
-  <router-link
-    :to="to"
+  <!-- `external`: a server-rendered page outside the SPA (e.g. /training-data/), so a real link, not the router. -->
+  <component
+    :is="external ? 'a' : 'router-link'"
+    v-bind="external ? { href: to } : { to }"
     class="nav-item"
     :class="{ active: isActive, collapsed, child }"
     :style="{ animationDelay: (index * 45) + 'ms' }"
@@ -24,7 +26,7 @@
     <svg v-if="!collapsed && expandable" class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true" :class="{ open }">
       <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
-  </router-link>
+  </component>
 </template>
 
 <script setup>
@@ -36,6 +38,7 @@ const props = defineProps({
   label: { type: String, required: true },
   icon: { type: Array, default: () => [] }, // array of SVG path `d` strings
   badge: { type: String, default: '' },
+  external: { type: Boolean, default: false },
   exact: { type: Boolean, default: false },
   // Optional prefix used for active-state matching when it differs from `to`
   // (e.g. Settings links to /settings/general but is active across all tabs).

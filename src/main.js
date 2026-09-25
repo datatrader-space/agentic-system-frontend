@@ -357,7 +357,6 @@ const router = createRouter({
         { path: 'training-data', name: 'admin-training-data', component: () => import('./views/TrainingDataPage.vue') },
         { path: 'crawler-export', name: 'admin-crawler-export', component: CrawlerExportAPI },
         { path: 'partner-keys', name: 'admin-partner-keys', component: () => import('./views/admin/AdminPartnerKeys.vue') },
-        { path: 'fitmywall-data', name: 'admin-fitmywall-data', component: () => import('./views/admin/AdminFitmywallData.vue') },
         { path: 'api-reference', name: 'admin-api-reference', component: () => import('./views/admin/AdminApiReference.vue') },
         { path: 'help-analytics', name: 'admin-help-analytics', component: () => import('./views/admin/AdminHelpAnalytics.vue') },
         // Unified Help Center CMS hub (Content · Guided Tours · API Reference as tabs).
