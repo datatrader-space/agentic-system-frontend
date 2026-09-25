@@ -7,7 +7,10 @@
      page — a connector that needs a key is never set up in chat.
 
      Non-blocking by design: the run has already finished its turn. When the action completes and this is the
-     latest reply, a short continuation is sent so the agent picks the original request back up. -->
+     latest reply, a short continuation is sent so the agent picks the original request back up — also after a
+     reload, a switch to another chat, or a phone unloading the tab while the provider's page was open: a
+     started sign-in is remembered in this browser until it lands (or expires), and exactly one open page
+     continues the chat. -->
 <template>
   <div v-if="actions.length" class="ca-list">
     <div v-for="a in actions" :key="keyOf(a)" class="ca-row">
@@ -74,10 +77,19 @@ const actions = computed(() => (Array.isArray(props.message.chatActions) ? props
 // gets one when the click adds it).
 const ui = reactive({})
 const timers = {}
+const ticks = {}
 const popupUrls = {}
 
 const POLL_MS = 2000
-const POLL_LIMIT_MS = 10 * 60 * 1000   // the OAuth state itself expires in 10 minutes
+// From the CLICK, not from when this page started watching: the OAuth state expires after 10 minutes and an
+// MCP server syncs its tools after that, so a sign-in finished in time can take a little longer to land.
+const POLL_LIMIT_MS = 15 * 60 * 1000
+
+// A STARTED SIGN-IN SURVIVES THE PAGE. The chat continues once the sign-in lands — but a reload, switching
+// chats, or a phone unloading the chat tab while the provider's page is open used to lose the waiting, and the
+// user had to type "continue" themselves. The click is remembered in this browser (per viewer, never
+// authoritative — the server re-checks everything), so a returning page resumes waiting and continues.
+const PENDING_PREFIX = 'aadml:connect:'
 
 const keyOf = (a) => a.id || `${a.kind}:${a.target_kind}:${a.target_id}:${a.url || ''}`
 function stateOf(a) {
@@ -86,6 +98,29 @@ function stateOf(a) {
   return ui[k]
 }
 const busy = (a) => ['starting', 'waiting'].includes(stateOf(a).phase)
+
+function savePending(a, rec) {
+  try { localStorage.setItem(PENDING_PREFIX + keyOf(a), JSON.stringify(rec)) } catch { /* storage off */ }
+}
+function loadPending(a) {
+  try {
+    const raw = localStorage.getItem(PENDING_PREFIX + keyOf(a))
+    if (!raw) return null
+    const rec = JSON.parse(raw)
+    if (!rec || !rec.startedAt || Date.now() - rec.startedAt > POLL_LIMIT_MS) {
+      localStorage.removeItem(PENDING_PREFIX + keyOf(a))
+      return null
+    }
+    return rec
+  } catch { return null }
+}
+// Read-and-remove: whichever open page gets here first continues the chat, so two tabs on one conversation
+// never both send the continuation.
+function takePending(a) {
+  const rec = loadPending(a)
+  if (rec) { try { localStorage.removeItem(PENDING_PREFIX + keyOf(a)) } catch { /* storage off */ } }
+  return rec
+}
 
 // Assigning — directly, or as the auto-assign a connect promises — needs edit rights on the agent.
 const needsOwner = (a) => a.can_edit === false && (a.kind === 'assign' || !!a.auto_assign)
@@ -119,20 +154,30 @@ function doneText(a, st) {
     : `${a.service} is connected.`
 }
 
-function finish(a, st) {
+// `viaSignIn`: the sign-in this button started has landed. Only the page that claims the remembered sign-in
+// continues the chat (see takePending); a direct result (an assign, an "already done") continues at once.
+function finish(a, st, { viaSignIn = false } = {}) {
   const s = stateOf(a)
   stopPoll(a)
   s.phase = 'done'
   s.error = ''
   s.message = doneText(a, st)
+  if (viaSignIn && !takePending(a)) return
   continueConversation(a)
 }
 
 // Resume the original request — only from the LATEST reply, and never on top of a running turn. An old
-// button clicked from history just shows its ✓.
-function continueConversation(a) {
+// button clicked from history just shows its ✓. A page that has just loaded may still be rejoining a turn,
+// so a busy chat is waited out briefly rather than skipped.
+let unmounted = false
+function continueConversation(a, attempt = 0) {
+  if (unmounted) return
   const last = [...chat.messages].reverse().find((m) => m.role === 'assistant')
-  if (!last || last.id !== props.message.id || chat.isStreaming) return
+  if (!last || last.id !== props.message.id) return
+  if (chat.isStreaming) {
+    if (attempt < 15) setTimeout(() => continueConversation(a, attempt + 1), POLL_MS)
+    return
+  }
   const what = a.kind === 'assign' ? `I've assigned ${a.service} to this agent.`
     : a.reauthorize ? `I've signed in to ${a.service} again.`
     : `I've connected ${a.service}.`
@@ -174,8 +219,11 @@ async function run(a) {
         s.error = 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.'
         return
       }
+      const startedAt = Date.now()
+      savePending(a, { startedAt, since: s.since, target: s.target, autoAssign: !!data.auto_assign,
+                       authorizeUrl: data.authorize_url })
       s.phase = 'waiting'
-      startPoll(a, !!data.auto_assign)
+      startPoll(a, !!data.auto_assign, startedAt)
       return
     }
     if (popup) popup.close()
@@ -196,16 +244,17 @@ function reopen(a) {
   if (url) window.open(url, 'aadml_connect', 'width=600,height=720,scrollbars=yes')
 }
 
-function startPoll(a, autoAssign) {
+function startPoll(a, autoAssign, startedAt = Date.now(), { now = false } = {}) {
   stopPoll(a)
   const k = keyOf(a)
-  const began = Date.now()
   const tick = async () => {
     const s = stateOf(a)
     if (s.phase !== 'waiting') return
-    if (Date.now() - began > POLL_LIMIT_MS) {
+    if (Date.now() - startedAt > POLL_LIMIT_MS) {
       s.phase = 'idle'
       s.error = `Signing in to ${a.service} timed out. Try again.`
+      stopPoll(a)
+      takePending(a)
       return
     }
     try {
@@ -216,23 +265,48 @@ function startPoll(a, autoAssign) {
       // counts. Otherwise connected is enough when the agent already held the connector; a promised
       // auto-assign must land too (it runs after the MCP tool sync, a few seconds after the redirect).
       const ok = a.reauthorize ? !!data.renewed : (data.connected && (data.assigned || !autoAssign))
-      if (ok) { finish(a, data); return }
+      if (ok) { finish(a, data, { viaSignIn: true }); return }
     } catch { /* transient — keep waiting */ }
-    timers[k] = setTimeout(tick, POLL_MS)
+    if (stateOf(a).phase === 'waiting' && ticks[k]) timers[k] = setTimeout(tick, POLL_MS)
   }
-  timers[k] = setTimeout(tick, POLL_MS)
+  ticks[k] = tick
+  timers[k] = setTimeout(tick, now ? 0 : POLL_MS)
 }
 
 function stopPoll(a) {
   const k = keyOf(a)
   if (timers[k]) { clearTimeout(timers[k]); delete timers[k] }
+  delete ticks[k]
 }
 
-// A reloaded thread: a button whose job is already done shows its ✓ instead of inviting a repeat click.
-// Not for "sign in again" (its connector is connected by definition) nor a custom MCP server the click has
-// not added yet (there is nothing to ask about).
+// Back from the provider's tab: look now instead of up to two seconds later (a phone also throttles timers
+// in a hidden tab, so the next scheduled look may be much later than that).
+function onVisible() {
+  if (document.visibilityState !== 'visible') return
+  for (const [k, tick] of Object.entries(ticks)) {
+    if (timers[k]) clearTimeout(timers[k])
+    timers[k] = setTimeout(tick, 0)
+  }
+}
+
 onMounted(async () => {
+  document.addEventListener('visibilitychange', onVisible)
   for (const a of actions.value) {
+    // A sign-in this browser started from this button and has not seen land: keep waiting for it, and
+    // continue the chat when it does — whether it landed while the page was gone or lands now.
+    const rec = loadPending(a)
+    if (rec) {
+      const s = stateOf(a)
+      s.since = rec.since || ''
+      s.target = rec.target || null
+      s.phase = 'waiting'
+      if (rec.authorizeUrl) popupUrls[keyOf(a)] = rec.authorizeUrl
+      startPoll(a, !!rec.autoAssign, rec.startedAt, { now: true })
+      continue
+    }
+    // A reloaded thread: a button whose job is already done shows its ✓ instead of inviting a repeat
+    // click. Not for "sign in again" (its connector is connected by definition) nor a custom MCP server
+    // the click has not added yet (there is nothing to ask about).
     if (needsOwner(a) || a.reauthorize || a.target_kind === 'mcp_url') continue
     try {
       const { data } = await api.connectorActionStatus(params(a))
@@ -245,7 +319,11 @@ onMounted(async () => {
   }
 })
 
-onUnmounted(() => { for (const k of Object.keys(timers)) clearTimeout(timers[k]) })
+onUnmounted(() => {
+  unmounted = true
+  document.removeEventListener('visibilitychange', onVisible)
+  for (const k of Object.keys(timers)) clearTimeout(timers[k])
+})
 </script>
 
 <style scoped>

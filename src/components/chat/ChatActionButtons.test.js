@@ -8,7 +8,7 @@
 // model wrote), that a finished connect resumes the conversation, and that someone who can't edit the agent
 // is sent to its owner instead of being given a button that would fail.
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { mount, flushPromises, RouterLinkStub } from '@vue/test-utils'
+import { mount, flushPromises, RouterLinkStub, enableAutoUnmount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 
 vi.mock('../../services/api', () => ({
@@ -19,6 +19,9 @@ vi.mock('../../services/api', () => ({
 }))
 
 import api from '../../services/api'
+
+// Each test's buttons poll and listen on `document`; one left mounted would answer the next test's events.
+enableAutoUnmount(afterEach)
 import ChatActionButtons from './ChatActionButtons.vue'
 import { useChatStore } from '../../stores/useChatStore'
 
@@ -47,6 +50,7 @@ describe('ChatActionButtons', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.useFakeTimers()
+    localStorage.clear()
     api.connectorAction.mockReset()
     api.connectorActionStatus.mockReset()
     // On mount a reloaded button checks whether its job is already done — by default it is not.
@@ -197,5 +201,122 @@ describe('ChatActionButtons', () => {
     await w.find('button.ca-btn').trigger('click')
     await flushPromises()
     expect(w.find('.ca-err').text()).toContain("You can't change which connectors")
+  })
+})
+
+// A STARTED SIGN-IN SURVIVES THE PAGE. Reload, switch chats, or a phone unloading the chat tab while the
+// provider's page is open: the chat still continues once the sign-in lands — exactly once.
+describe('ChatActionButtons — the chat continues after the page came back', () => {
+  const KEY = 'aadml:connect:a1'
+  const remember = (extra = {}) => localStorage.setItem(KEY, JSON.stringify({
+    startedAt: Date.now(), since: '2026-09-25T10:00:00+00:00', target: null, autoAssign: true,
+    authorizeUrl: 'https://github.com/login/oauth/authorize?x=1', ...extra }))
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.useFakeTimers()
+    localStorage.clear()
+    api.connectorAction.mockReset()
+    api.connectorActionStatus.mockReset()
+    api.connectorActionStatus.mockResolvedValue({ data: { connected: false, assigned: false } })
+  })
+  afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); localStorage.clear() })
+
+  it('the click remembers the sign-in in this browser', async () => {
+    vi.spyOn(window, 'open').mockReturnValue({ closed: false, close: vi.fn(), location: { href: '' } })
+    api.connectorAction.mockResolvedValue({ data: { status: 'authorize', authorize_url: 'https://github.com/x',
+      auto_assign: true, since: '2026-09-25T10:00:00+00:00' } })
+    const { w } = mountIt(reply([action({ auto_assign: true })]))
+    await flushPromises()
+    await w.find('button.ca-btn').trigger('click')
+    await flushPromises()
+    const rec = JSON.parse(localStorage.getItem(KEY))
+    expect(rec.autoAssign).toBe(true)
+    expect(rec.since).toBe('2026-09-25T10:00:00+00:00')
+  })
+
+  it('a reloaded page keeps waiting, then continues when the sign-in lands', async () => {
+    remember()
+    const { w, chat } = mountIt(reply([action({ auto_assign: true })]))
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(w.find('button.ca-btn').text()).toContain('Waiting for GitHub')
+    expect(w.find('.ca-hint').text()).toContain('Open it again')          // the sign-in page can be reopened
+    expect(chat.sendMessage).not.toHaveBeenCalled()
+
+    api.connectorActionStatus.mockResolvedValue({ data: { connected: true, assigned: true } })
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(w.find('.ca-done').text()).toContain('GitHub is connected and assigned to Store Agent')
+    expect(chat.sendMessage).toHaveBeenCalledTimes(1)
+    expect(chat.sendMessage).toHaveBeenCalledWith("I've connected GitHub. Please continue.")
+    expect(localStorage.getItem(KEY)).toBeNull()
+  })
+
+  it('a sign-in that landed while the page was gone continues as soon as the page is back', async () => {
+    remember()
+    api.connectorActionStatus.mockResolvedValue({ data: { connected: true, assigned: true } })
+    const { chat } = mountIt(reply([action({ auto_assign: true })]))
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(chat.sendMessage).toHaveBeenCalledWith("I've connected GitHub. Please continue.")
+  })
+
+  it('a chat still rejoining its turn is waited out, not skipped', async () => {
+    remember()
+    api.connectorActionStatus.mockResolvedValue({ data: { connected: true, assigned: true } })
+    const { chat } = mountIt(reply([action({ auto_assign: true })]))
+    chat.isStreaming = true
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(chat.sendMessage).not.toHaveBeenCalled()
+    chat.isStreaming = false
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(chat.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('two open pages on one conversation continue it once', async () => {
+    remember()
+    api.connectorActionStatus.mockResolvedValue({ data: { connected: true, assigned: true } })
+    const msg = reply([action({ auto_assign: true })])
+    const { chat } = mountIt(msg)
+    mount(ChatActionButtons, { props: { message: msg }, global: { stubs: { RouterLink: RouterLinkStub } } })
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(0)
+    await flushPromises()
+    expect(chat.sendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('an expired sign-in is forgotten — no waiting, no message', async () => {
+    remember({ startedAt: Date.now() - 16 * 60 * 1000 })
+    const { w, chat } = mountIt(reply([action({ auto_assign: true })]))
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(w.find('button.ca-btn').text()).toBe('Connect GitHub')
+    expect(localStorage.getItem(KEY)).toBeNull()
+    expect(chat.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('an older reply shows its ✓ but never continues', async () => {
+    remember()
+    api.connectorActionStatus.mockResolvedValue({ data: { connected: true, assigned: true } })
+    const msg = reply([action({ auto_assign: true })])
+    const { w, chat } = mountIt(msg)
+    chat.messages.push({ id: 'm3', role: 'user', content: 'later' }, { id: 'm4', role: 'assistant', content: 'x' })
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(w.find('.ca-done').exists()).toBe(true)
+    expect(chat.sendMessage).not.toHaveBeenCalled()
+    expect(localStorage.getItem(KEY)).toBeNull()
+  })
+
+  it('coming back to the tab looks at once instead of waiting for the next poll', async () => {
+    remember()
+    mountIt(reply([action({ auto_assign: true })]))
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(0)
+    const before = api.connectorActionStatus.mock.calls.length
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(api.connectorActionStatus.mock.calls.length).toBe(before + 1)
   })
 })
