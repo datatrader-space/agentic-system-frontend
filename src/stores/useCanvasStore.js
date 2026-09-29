@@ -140,6 +140,9 @@ export const useCanvasStore = defineStore('canvas', {
 
     // ── web_builder provider state (Phase 3B) ────────────────────────────────────────────────────
     previewUrl: '',        // signed, short-lived, cross-origin URL for <iframe :src> (kept as last-good)
+    // sandbox provider: what the served project IS, from the event -- { type, framework, fileCount, port }.
+    // The footer names the project from this; without it a Next.js app was labelled "index.html".
+    project: null,
     previewExpiresAt: null,
     previewLoading: false,
     previewError: '',      // non-blocking: shown as a Retry affordance while last-good stays visible
@@ -219,6 +222,12 @@ export const useCanvasStore = defineStore('canvas', {
             // which is exactly why it is never stored — it is re-minted the next time the project is
             // served, and a new event carries the new URL.
             if (msg.url) this.previewUrl = msg.url
+            this.project = {
+              type: msg.project_type || (this.project && this.project.type) || '',
+              framework: msg.framework || (this.project && this.project.framework) || '',
+              fileCount: msg.file_count != null ? Number(msg.file_count) : (this.project && this.project.fileCount),
+              port: msg.port != null ? Number(msg.port) : (this.project && this.project.port),
+            }
             this.status = this.previewUrl ? 'live' : 'error'
             if (!this.previewUrl) this.previewError = 'The project preview URL was not provided.'
           } else if (this.provider === 'web_builder') {

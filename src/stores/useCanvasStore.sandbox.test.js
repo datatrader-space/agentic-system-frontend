@@ -140,3 +140,31 @@ describe('the other providers are untouched', () => {
     expect(canvas.loadPreviewUrl).toHaveBeenCalled()
   })
 })
+
+describe('the store remembers what the served project is', () => {
+  // Conv 2106 (2026-09-29): the footer called a Next.js app "index.html · HTML Document" because nothing
+  // told it otherwise. The event now names the framework, file count and port, and the store keeps them.
+  let canvas
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    canvas = useCanvasStore()
+    canvas.loadArtifact = vi.fn()
+    canvas.loadPreviewUrl = vi.fn()
+    canvas.refreshMeta = vi.fn()
+  })
+
+  it('keeps the framework, file count and port', () => {
+    canvas.handleEvent({ type: 'preview_ready', canvas_id: 'c1', canvas_type: 'static', provider: 'sandbox',
+      url: URL_WITH_TOKEN, revision: 3, project_type: 'node', framework: 'Next.js', file_count: 6, port: 3000,
+      first: true })
+    expect(canvas.project).toEqual({ type: 'node', framework: 'Next.js', fileCount: 6, port: 3000 })
+  })
+
+  it('an older event without the new fields keeps what it knew', () => {
+    canvas.handleEvent({ type: 'preview_ready', canvas_id: 'c1', provider: 'sandbox', url: URL_WITH_TOKEN,
+      project_type: 'node', framework: 'Next.js', file_count: 6, port: 3000, first: true })
+    canvas.handleEvent({ type: 'preview_updated', canvas_id: 'c1', provider: 'sandbox', url: URL_WITH_TOKEN })
+    expect(canvas.project.framework).toBe('Next.js')
+    expect(canvas.project.fileCount).toBe(6)
+  })
+})

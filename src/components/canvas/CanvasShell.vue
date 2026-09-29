@@ -180,8 +180,19 @@
 
     <!-- Footer summary card -->
     <footer class="cv-foot">
+      <!-- sandbox project: what was built and where it is served. It has no single document, so the
+           static card's "index.html · HTML Document" was simply untrue of it (conv 2106). -->
+      <template v-if="isSandboxProject">
+        <div class="cv-foot-file" data-test="cv-foot-project">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7l9-4 9 4-9 4-9-4z" stroke-linejoin="round"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4" stroke-linejoin="round"/></svg>
+          <div>
+            <strong>{{ projectTitle }}</strong>
+            <small>{{ projectLine }}</small>
+          </div>
+        </div>
+      </template>
       <!-- static: the downloadable HTML document -->
-      <template v-if="!isWebBuilder">
+      <template v-else-if="!isWebBuilder">
         <div class="cv-foot-file">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>
           <div>
@@ -213,6 +224,20 @@ const canvas = useCanvasStore()
 // Provider-aware chrome: the capability map (keyed by provider) decides which tabs/controls render.
 const cap = computed(() => canvas.capabilities)
 const isWebBuilder = computed(() => canvas.isWebBuilder)
+const isSandboxProject = computed(() => canvas.provider === 'sandbox')
+const projectTitle = computed(() => {
+  const p = canvas.project || {}
+  if (p.framework) return `${p.framework} app`
+  return p.type === 'node' ? 'Node project' : 'Static site'
+})
+const projectLine = computed(() => {
+  const p = canvas.project || {}
+  const parts = []
+  if (p.fileCount) parts.push(`${p.fileCount} file${p.fileCount === 1 ? '' : 's'}`)
+  parts.push(p.port ? `served from the sandbox on port ${p.port}` : 'served from the sandbox')
+  parts.push(`rev ${canvas.displayRevision}`)
+  return parts.join(' · ')
+})
 // WHICH IFRAME THIS PROVIDER NEEDS, asked separately from WHICH PROVIDER it is.
 //
 // Rendering and chrome were the same question while there were two providers; with a third they are
