@@ -337,7 +337,18 @@
         <!-- Persistent drift warning: chunks embedded by a different model are silently ignored by RAG. -->
         <div v-else-if="embeddingHealth.needs_reindex" class="mt-3 flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-[10px] bg-amber-50 border border-amber-200 max-w-2xl">
           <p class="text-[12px] text-amber-700 flex-1 leading-snug">
-            <strong>{{ embeddingHealth.stale_chunks }}</strong> of {{ embeddingHealth.total_chunks }} knowledge chunk(s) were embedded with a different model and are <strong>not being used in answers</strong>. Re-index to fix.
+            <!-- Two different facts: another MODEL keeps a chunk out of answers; an older CHUNKER does not. -->
+            <template v-if="embeddingHealth.embedder_stale_chunks === undefined">
+              <strong>{{ embeddingHealth.stale_chunks }}</strong> of {{ embeddingHealth.total_chunks }} knowledge chunk(s) were embedded with a different model and are <strong>not being used in answers</strong>. Re-index to fix.
+            </template>
+            <template v-else>
+              <span v-if="embeddingHealth.embedder_stale_chunks > 0">
+                <strong>{{ embeddingHealth.embedder_stale_chunks }}</strong> of {{ embeddingHealth.total_chunks }} knowledge chunk(s) were embedded with a different model and are <strong>not being used in answers</strong>. Re-index to fix.
+              </span>
+              <span v-if="embeddingHealth.chunker_stale_chunks > 0">
+                <strong>{{ embeddingHealth.chunker_stale_chunks }}</strong> of {{ embeddingHealth.total_chunks }} chunk(s) were split by an older version of the chunker. They are still used in answers; re-indexing re-splits them for better matches.
+              </span>
+            </template>
           </p>
           <button @click="reindexEmbeddings" :disabled="reindexing" type="button"
                   class="px-3.5 py-2 text-[12px] font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-60 transition-colors whitespace-nowrap">
