@@ -236,7 +236,7 @@
       <div class="px-5 sm:px-6 pb-5 sm:pb-6 border-t border-slate-100 pt-5">
         <label class="block text-[13px] font-semibold text-slate-700">Embedding model
           <span class="text-[11px] font-normal text-slate-400">— used for knowledge / RAG vectors</span></label>
-        <p class="text-[11px] text-slate-400 mt-0.5 mb-3 leading-snug">Default is <strong>text-embedding-3-small</strong> (served via your OpenAI or OpenRouter provider). Pick a larger model (e.g. text-embedding-3-large) to override. Switching the model <strong>requires re-indexing</strong> — existing knowledge won't match the new embedder until you re-index.<span v-if="embeddingHealth.supported_dims && embeddingHealth.supported_dims.length"> Only models whose dimension is one of <strong>{{ embeddingHealth.supported_dims.join(', ') }}</strong> can be selected (each has a native ANN index).</span></p>
+        <p class="text-[11px] text-slate-400 mt-0.5 mb-3 leading-snug">Default is <strong>text-embedding-3-small</strong> (served via your OpenAI or OpenRouter provider). Pick a larger model (e.g. text-embedding-3-large) to override. Switching to a <strong>different</strong> model <strong>requires re-indexing</strong> — existing knowledge won't match the new embedder until you re-index. The <strong>same</strong> model on another provider (text-embedding-3-small on OpenRouter or OpenAI) makes the same vectors, so your knowledge carries over as it is.<span v-if="embeddingHealth.supported_dims && embeddingHealth.supported_dims.length"> Only models whose dimension is one of <strong>{{ embeddingHealth.supported_dims.join(', ') }}</strong> can be selected (each has a native ANN index).</span></p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
           <div>
             <label class="block text-[12px] font-semibold text-slate-600 mb-1.5">Provider</label>
@@ -697,10 +697,17 @@ const saveOperationModels = async () => {
 const onEmbeddingChange = async () => {
   const label = currentLabel('embedding_model_id') || 'Default (text-embedding-3-small)'
   try {
-    await api.updateOperationModels(opModels.value)
-    embeddingDirty.value = true
+    const res = await api.updateOperationModels(opModels.value)
     reindexProgress.value.done_flag = false        // a new change supersedes any prior "complete" note
-    notify(`Embedding model saved${label ? ' — ' + label : ''}. Re-index your knowledge to apply it.`, 'success')
+    if (res?.data?.embedding_switch === 'same_model') {
+      // The same model on another provider: the stored vectors were kept (renamed server-side), so there
+      // is nothing to re-index -- telling the user to re-index would send them to pay for what they have.
+      embeddingDirty.value = false
+      notify(`Embedding model saved${label ? ' — ' + label : ''}. Same model on a new provider: your knowledge base keeps working as it is, nothing to re-index.`, 'success')
+    } else {
+      embeddingDirty.value = true
+      notify(`Embedding model saved${label ? ' — ' + label : ''}. Re-index your knowledge to apply it.`, 'success')
+    }
     // Refresh the health badge so the user immediately sees the new model vs. the stored vectors.
     await loadEmbeddingHealth()
   } catch (e) {
