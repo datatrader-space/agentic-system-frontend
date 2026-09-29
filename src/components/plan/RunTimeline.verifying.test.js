@@ -89,3 +89,23 @@ describe('and stays out of the way otherwise', () => {
     expect(w.find('[data-test="rt-verifying"]').exists()).toBe(false)
   })
 })
+
+describe('a check under stopped work is not shown as running', () => {
+  // Prod conv 2102 (2026-09-29): a stopped run's card spun "Checking the work · 5 steps" under a PAUSED
+  // footer until reloaded. The server drops the check for stopped work; the card must not promise it.
+  for (const state of ['PAUSED', 'ACHIEVED', 'EXHAUSTED', 'ABANDONED']) {
+    it(`says it was not checked when the goal is ${state}`, () => {
+      const w = mount(RunTimeline, {
+        props: { runId: RUN, goal: { state, outcome: 'build it',
+                 verification_phase: { state: 'queued', step_count: 5, waiting: true } } },
+      })
+      expect(label(w)).toContain('Not checked')
+      expect(label(w)).not.toContain('Checking the work')
+      expect(row(w).attributes('data-state')).not.toBe('active')
+    })
+  }
+
+  it('still says checking while the goal is active', () => {
+    expect(label(render({ state: 'queued', step_count: 5, waiting: true }))).toContain('Checking the work')
+  })
+})

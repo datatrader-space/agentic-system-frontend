@@ -113,11 +113,18 @@ const PHASE_VERDICT_LABEL = {
   NEEDS_USER: 'Checked — needs you',
   UNDECIDABLE: 'Could not be checked',
 }
+// A goal in one of these states is not being worked on, so a check still marked "queued" under it is not
+// running: the server drops the check for stopped work. Saying "checking" there spun forever on a PAUSED
+// run (prod conv 2102) until the page was reloaded.
+const SETTLED_GOAL = ['PAUSED', 'ACHIEVED', 'EXHAUSTED', 'ABANDONED']
 const checkRow = computed(() => {
   const v = props.goal && props.goal.verification_phase
   if (!v || !v.state) return null
   const n = Number(v.step_count || 0)
   const of = n ? ` ${n} step${n === 1 ? '' : 's'}` : ''
+  if (v.state === 'queued' && SETTLED_GOAL.includes(String(props.goal.state || '').toUpperCase())) {
+    return { live: false, label: 'Not checked — the work stopped', tone: 'warn', secs: null }
+  }
   if (v.state === 'queued') {
     // `waiting: false` means the server has stopped expecting it back; saying "checking" then would be
     // a promise the backend is no longer making.

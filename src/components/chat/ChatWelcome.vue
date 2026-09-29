@@ -169,12 +169,31 @@
               :agent-id="chat.currentAgent.id"
               :run-mode="chat.currentAgent.agent_run_mode"
               placement="up" @change="onModeChange" />
-            <!-- Sticky Canvas-mode chip (toggle lives in the "+" menu; × turns it off). -->
-            <span v-if="canvasMode" class="canvas-chip" title="Canvas mode on — designs open in the live preview">
+            <!-- Sticky Canvas-mode chip. The chip IS the kind control, as on the in-thread composer: on a new
+                 chat the first message decides what gets built, so Static / Next.js has to be one click away
+                 HERE. Without it the choice was invisible and silently whatever was picked last -- a Next.js
+                 request went out as Static (conv 2102, 2026-09-29). -->
+            <span v-if="canvasMode" class="canvas-chip canvas-kind-chip" :title="'Canvas — ' + activeKind.hint">
               <span class="canvas-chip-body" title="Open the live preview" @click="canvas.show()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9" stroke-linecap="round"/></svg>
-                <span>Canvas</span>
+                <span class="rs-name">Canvas</span>
               </span>
+              <button type="button" class="canvas-chip-body rs-toggle" data-test="welcome-canvas-kind-toggle"
+                      aria-haspopup="menu" :aria-expanded="kindOpen ? 'true' : 'false'"
+                      :aria-label="'Canvas kind: ' + activeKind.label + '. Change it'"
+                      @click.stop="kindOpen = !kindOpen">
+                <span class="rs-current">{{ activeKind.label }}</span>
+                <svg class="rs-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M6 15l6-6 6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div v-if="kindOpen" class="rs-menu" role="menu" data-test="welcome-canvas-kind-menu" @click.stop>
+                <button v-for="k in kindOptions" :key="k.value" type="button" class="rs-opt" role="menuitemradio"
+                        :class="{ 'is-on': canvas.kind === k.value }"
+                        :aria-checked="canvas.kind === k.value ? 'true' : 'false'"
+                        :data-test="'welcome-canvas-kind-' + k.value" @click="setKind(k.value)">
+                  <span class="rs-opt-label">{{ k.label }}</span>
+                  <span class="rs-opt-hint">{{ k.hint }}</span>
+                </button>
+              </div>
               <button type="button" class="canvas-chip-x" title="Turn off Canvas mode" aria-label="Turn off Canvas mode"
                       @click.stop="canvas.setMode(false)">×</button>
             </span>
@@ -346,6 +365,20 @@ const researchMode = computed(() => chat.researchMode)
 const researchDepth = computed(() => chat.researchDepth)
 const activeDepth = computed(() => depthOptions.find(o => o.value === chat.researchDepth) || depthOptions[1])
 const depthOpen = ref(false)
+// The Canvas kind, the same three the in-thread composer offers (and the backend's closed vocabulary).
+const kindOptions = [
+  { value: 'static',      label: 'Static',      hint: 'Plain HTML, CSS and JS files, built and served in a sandbox' },
+  { value: 'nextjs',      label: 'Next.js',     hint: 'A Next.js app, installed, built and served in a sandbox' },
+  { value: 'web_builder', label: 'Web Builder', hint: 'A page on your Kurumera storefront (needs it connected)' },
+]
+const activeKind = computed(() => kindOptions.find(k => k.value === canvas.kind) || kindOptions[0])
+const kindOpen = ref(false)
+const setKind = (value) => {
+  canvas.setKind(value)
+  kindOpen.value = false
+  const opt = kindOptions.find(k => k.value === value)
+  notify.info(`Canvas: ${opt.label} — ${opt.hint}.`)
+}
 const setDepth = (value) => {
   chat.researchDepth = value
   depthOpen.value = false
@@ -378,6 +411,7 @@ const onDocClick = (e) => {
   // The depth popup lives on the chip, outside plusRootEl, so it needs its own containment test — and it
   // must run BEFORE the early return below, or a click anywhere while the "+" menu is shut leaves it open.
   if (!(e.target.closest && e.target.closest('.research-chip'))) depthOpen.value = false
+  if (!(e.target.closest && e.target.closest('.canvas-kind-chip'))) kindOpen.value = false
   if (!menuOpen.value && !urlOpen.value) return
   if (plusRootEl.value && !plusRootEl.value.contains(e.target)) closeMenu()
 }
@@ -715,6 +749,8 @@ const submit = () => {
 .plus-search-input::placeholder { color: var(--vm-ink-faint); }
 .plus-on-tag { margin-left: 6px; padding: 0 6px; border-radius: 9999px; background: var(--vm-violet); color: #fff; font-size: 0.6rem; font-weight: 700; vertical-align: middle; }
 .research-chip { position: relative; padding: 0 4px 0 10px; gap: 4px; }
+/* The Canvas chip carries its kind menu the same way the research chip carries depth. */
+.canvas-kind-chip { position: relative; padding: 0 4px 0 10px; gap: 4px; }
 .rs-toggle { border: 0; background: transparent; padding: 0; color: inherit; font: inherit; gap: 5px; }
 .rs-name { font-weight: 600; }
 .rs-current { padding: 1px 6px; border-radius: 9999px; background: var(--vm-violet, #6d28d9); color: #fff; font-size: 0.68rem; font-weight: 700; }
