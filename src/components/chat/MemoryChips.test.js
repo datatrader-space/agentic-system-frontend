@@ -79,13 +79,13 @@ describe('MemoryChips', () => {
     expect(w.find('.mc-chip').classes()).toContain('forgotten')
   })
 
-  it("says so when the memory isn't the person's to change", async () => {
+  it("says so when the memory is gone or isn't the person's to change", async () => {
     api.updateGlobalMemory.mockRejectedValue({ response: { status: 404 } })
     const w = mountIt([FACT])
     await w.find('.mc-chip').trigger('click')
     await w.find('[data-test="outdated"]').trigger('click')
     await flushPromises()
-    expect(w.find('[role="alert"]').text()).toContain("isn't one of yours")
+    expect(w.find('[role="alert"]').text()).toContain('no longer there')
     expect(w.find('.mc-chip').classes()).not.toContain('outdated')
   })
 

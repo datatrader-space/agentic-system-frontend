@@ -94,8 +94,10 @@ function toggle (c) {
 
 function failure (c, err) {
   const status = err && err.response && err.response.status
+  // 404 is both "already forgotten" (the chip is saved with the answer, so it outlives the memory) and
+  // "not yours" (a shared agent's memory) — the server gives one answer to both on purpose.
   stateOf(c).error = status === 404
-    ? "This memory can't be changed here — it isn't one of yours."
+    ? "This memory is no longer there, or isn't one you can change."
     : "Couldn't update this memory. Try again."
 }
 
