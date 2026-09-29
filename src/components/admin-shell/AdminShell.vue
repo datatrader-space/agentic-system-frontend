@@ -1,7 +1,10 @@
 <template>
-  <div class="admin-shell">
+  <div class="admin-shell" @keydown.esc="menuOpen = false">
+    <!-- Below 900px the sidebar is a drawer: the menu button opens it, and picking a page, tapping outside or
+         Escape closes it. Wider than that it is always there. -->
+    <div v-if="menuOpen" class="admin-backdrop" aria-hidden="true" @click="menuOpen = false"></div>
     <!-- Sidebar -->
-    <aside class="admin-sidebar">
+    <aside id="admin-sidebar" class="admin-sidebar" :class="{ open: menuOpen }" aria-label="Admin navigation">
       <div class="admin-brand">
         <span class="admin-logo">⚙</span>
         <div>
@@ -38,6 +41,14 @@
 
     <!-- Main -->
     <main class="admin-main">
+      <div class="admin-topbar">
+        <button type="button" class="admin-menu-btn" aria-controls="admin-sidebar" :aria-expanded="String(menuOpen)"
+                @click="menuOpen = !menuOpen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+          <span>Menu</span>
+        </button>
+        <span class="admin-topbar-title">Admin</span>
+      </div>
       <AppBreadcrumbs />
       <router-view v-slot="{ Component }">
         <Suspense>
@@ -74,13 +85,16 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
 import AppBreadcrumbs from '../common/AppBreadcrumbs.vue'
 
 const route = useRoute()
 const user = ref(null)
+const menuOpen = ref(false)
+
+watch(() => route.fullPath, () => { menuOpen.value = false })
 
 const nav = [
   { to: '/admin-dashboard/overview', label: 'Overview', icon: ['M3 13h8V3H3zM13 21h8V3h-8zM3 21h8v-6H3z'] },
@@ -178,6 +192,29 @@ onMounted(async () => {
 .admin-skeleton__line.mid { width: 88%; margin-top: 8px; }
 .admin-skeleton__foot { display: flex; gap: 9px; margin-top: 20px; }
 .admin-skeleton__foot span { flex: 1; height: 38px; }
+.admin-topbar { display: none; }
+@media (max-width: 900px) {
+  .admin-sidebar {
+    position: fixed; inset: 0 auto 0 0; z-index: 60; width: min(280px, 86vw);
+    transform: translateX(-100%); transition: transform .2s ease; box-shadow: 0 20px 40px rgba(0, 0, 0, .35);
+  }
+  .admin-sidebar.open { transform: translateX(0); }
+  .admin-backdrop { position: fixed; inset: 0; z-index: 55; background: rgba(15, 23, 42, .45); }
+  .admin-topbar {
+    position: sticky; top: 0; z-index: 40; display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; border-bottom: 1px solid #e2e8f0; background: #fff;
+  }
+  .admin-menu-btn {
+    display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid #d8e1ec;
+    border-radius: 9px; background: #fff; color: #0f172a; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .admin-menu-btn svg { width: 18px; height: 18px; }
+  .admin-menu-btn:focus-visible { outline: 3px solid rgba(99, 102, 241, .35); outline-offset: 2px; }
+  .admin-topbar-title { color: #0f172a; font-size: 14px; font-weight: 800; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .admin-sidebar { transition: none; }
+}
 @media (max-width: 680px) {
   .admin-route-loading { padding: 22px 16px; }
   .admin-skeleton__toolbar { flex-direction: column; }
