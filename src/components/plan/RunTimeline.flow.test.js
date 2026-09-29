@@ -182,6 +182,19 @@ describe('RunTimeline — the run in order', () => {
     await w.setProps({ goal: done.work_goal })
     expect(w.find('[data-test="rt-answer-a2"]').text()).toContain('Attempt two answer')
   })
+
+  it('one spinner while the result is checked: the answer waits as a draft (conv 2106)', async () => {
+    chat.messages[5] = { ...chat.messages[5], status: 'done', content: 'Attempt two answer' }
+    const checking = snapshot({ state: 'ACTIVE', verdicts: [{ segment: 1, verdict: 'not_met', findings: [] }],
+                                verification_phase: { state: 'queued', step_count: 5, waiting: true } },
+                              { run_status: 'executing' })
+    const w = rail(checking)
+    const a = w.find('[data-test="rt-answer-a2"]')
+    expect(a.text()).toContain('Draft answer — held until the result is checked')
+    expect(a.text()).not.toContain('Verifying results…')
+    expect(a.find('.retry-spin').exists()).toBe(false)
+    expect(w.find('[data-test="rt-verifying-label"]').text()).toContain('Checking the result')
+  })
 })
 
 describe('RunTimeline — preparation, reasoning and labels live inside the rail', () => {

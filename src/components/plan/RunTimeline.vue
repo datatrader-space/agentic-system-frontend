@@ -130,7 +130,9 @@ const checkRow = computed(() => {
     // a promise the backend is no longer making.
     return v.waiting === false
       ? { live: false, label: 'The check did not come back', tone: 'warn', secs: null }
-      : { live: true, label: `Checking the work${of}`, tone: '', secs: null }
+      // THE RESULT, not the steps: once the work is finished the verifier judges the delivered result
+      // against what was asked, and the steps rest on their own receipts (WORK_VERIFICATION_OUTCOME_FIRST).
+      : { live: true, label: 'Checking the result', tone: '', secs: null }
   }
   const status = String(v.status || '').toUpperCase()
   const ok = status === 'PASS' || status === 'NOT_REQUIRED'
@@ -784,8 +786,10 @@ function fmt(ms) {
           <span class="mkr" aria-hidden="true" />
           <div class="msg">
             <div class="verifying" :data-test="`rt-verifying-${it.id}`">
-              <span class="retry-spin" aria-hidden="true" />
-              <span class="retry-lb">{{ it.streaming ? 'Writing the answer…' : 'Verifying results…' }}</span>
+              <!-- ONE SPINNER: while the result is being checked, that row carries it and the answer waits
+                   quietly as a draft. Two spinners for one check read as two checks. -->
+              <span v-if="it.streaming || !(checkRow && checkRow.live)" class="retry-spin" aria-hidden="true" />
+              <span class="retry-lb">{{ it.streaming ? 'Writing the answer…' : (checkRow && checkRow.live ? 'Draft answer — held until the result is checked' : 'Verifying results…') }}</span>
               <button v-if="!it.streaming" type="button" class="more" @click="toggle(it.id)">
                 {{ isOpen(it.id) ? 'Hide draft' : 'Show draft' }}
               </button>

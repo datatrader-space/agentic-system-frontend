@@ -35,8 +35,10 @@ describe('the verification phase is visible while it runs', () => {
   it('says the work is being checked once the phase is queued', () => {
     const w = render({ state: 'queued', step_count: 5, waiting: true })
     expect(row(w).exists()).toBe(true)
-    expect(label(w)).toContain('Checking the work')
-    expect(label(w)).toContain('5 steps')
+    // The RESULT is what is checked once the work is finished (outcome first), so the row says so and no
+    // longer counts steps that are not being re-asked.
+    expect(label(w)).toContain('Checking the result')
+    expect(label(w)).not.toContain('5 steps')
   })
 
   it('shows it as live, not finished', () => {
@@ -100,12 +102,12 @@ describe('a check under stopped work is not shown as running', () => {
                  verification_phase: { state: 'queued', step_count: 5, waiting: true } } },
       })
       expect(label(w)).toContain('Not checked')
-      expect(label(w)).not.toContain('Checking the work')
+      expect(label(w)).not.toContain('Checking the result')
       expect(row(w).attributes('data-state')).not.toBe('active')
     })
   }
 
   it('still says checking while the goal is active', () => {
-    expect(label(render({ state: 'queued', step_count: 5, waiting: true }))).toContain('Checking the work')
+    expect(label(render({ state: 'queued', step_count: 5, waiting: true }))).toContain('Checking the result')
   })
 })
