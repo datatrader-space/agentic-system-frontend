@@ -623,6 +623,9 @@ export const useChatStore = defineStore('chat', {
         // Connector buttons (Connect / Sign in again / Assign) CONNECT_SERVICE offered with this answer,
         // persisted on model_info so they stay in history after a reload.
         chatActions: pickArray(info.chat_actions),
+        // The memories this answer drew on ({ref, kind, text, via, id?, status?}) — shown as chips under
+        // it, where a fact can be marked outdated or forgotten. Persisted on model_info like the rest.
+        memories: pickArray(info.memories),
         conversationId: String(conversationId),
       }
     },
@@ -1419,6 +1422,8 @@ export const useChatStore = defineStore('chat', {
           // Same connector buttons as the main loader; the live copy until the server row carries them.
           chatActions: pickArray(m.model_info && m.model_info.chat_actions).length
             ? pickArray(m.model_info.chat_actions) : ((_prev && _prev.chatActions) || []),
+          memories: pickArray(m.model_info && m.model_info.memories).length
+            ? pickArray(m.model_info.memories) : ((_prev && _prev.memories) || []),
           conversationId: String(this.conversationId),
         }))
         this._hydratePlanAnchors(this.conversationId)
@@ -1506,6 +1511,7 @@ export const useChatStore = defineStore('chat', {
         answerBasis: null, // provenance envelope (label + cited-or-top4) set on assistant_message_complete
         timeline: null, // activity-timeline snapshot, pinned on completion (friendly, param-free)
         chatActions: [], // connector buttons offered by CONNECT_SERVICE (live `chat_action` frames)
+        memories: [], // memories this answer drew on (live `memories_used` frame, after the save)
         _serverMid: null, // §4b: server's per-turn message_id, adopted from the first stamped event
       })
       this._assistantId = this.messages[this.messages.length - 1].id
@@ -1820,6 +1826,14 @@ export const useChatStore = defineStore('chat', {
           // bind to the last assistant message rather than only to a still-streaming one.
           const target = m || [...this.messages].reverse().find((x) => x.role === 'assistant')
           if (target && msg.message_id != null) target.serverId = msg.message_id
+          break
+        }
+        case 'memories_used': {
+          // The memories the answer drew on, sent once the answer is saved (its pk is in the frame).
+          const target = (msg.message_id != null
+            && this.messages.find((x) => x.role === 'assistant' && String(x.serverId ?? x.id) === String(msg.message_id)))
+            || m || [...this.messages].reverse().find((x) => x.role === 'assistant')
+          if (target && Array.isArray(msg.memories)) target.memories = msg.memories
           break
         }
         case 'run_usage': {

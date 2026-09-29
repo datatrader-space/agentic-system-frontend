@@ -99,6 +99,10 @@
         <SourcesList v-if="message.status !== 'streaming' && panelCitations.length"
                      :citations="panelCitations" />
 
+        <!-- The memories this answer drew on — where a wrong one is marked outdated or forgotten -->
+        <MemoryChips v-if="message.status !== 'streaming' && message.memories && message.memories.length"
+                     :message="message" />
+
         <!-- Per-response token usage -->
         <TokenUsage v-if="message.status !== 'streaming'" :usage="message.usage" />
 
@@ -244,6 +248,7 @@ import api from '../../services/api'
 import AgentActivityTimeline from '../AgentActivityTimeline.vue'
 import { usePlanStore } from '../../stores/usePlanStore'
 import TokenUsage from '../activity/TokenUsage.vue'
+import MemoryChips from './MemoryChips.vue'
 import SourcesList from './SourcesList.vue'
 import ProvenanceFooter from './ProvenanceFooter.vue'
 import ChatActionButtons from './ChatActionButtons.vue'
