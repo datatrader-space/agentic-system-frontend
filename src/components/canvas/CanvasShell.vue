@@ -107,6 +107,9 @@
             <p>{{ isWebBuilder ? 'Could not load the store preview.' : 'Could not load the project preview.' }}</p>
             <button class="cv-retry-btn" @click="retryPreview">Retry</button>
           </div>
+          <div v-else-if="!canvas.previewUrl && canvas.previewLoading && !isWebBuilder" class="cv-empty">
+            <p>Starting the project preview…</p>
+          </div>
           <div v-else-if="!canvas.previewUrl && canvas.status !== 'preparing'" class="cv-empty">
             <p v-if="isWebBuilder">Ask the agent to design your store — the live preview appears here.</p>
             <p v-else>Ask the agent to build the project and open the preview — it appears here.</p>

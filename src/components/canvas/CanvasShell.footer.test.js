@@ -36,3 +36,20 @@ describe('the Canvas footer', () => {
     expect(w.text()).toContain('index.html')
   })
 })
+
+describe('a sandbox project being brought back', () => {
+  // Reopening resumes the sandbox and waits for its server; until the link arrives the panel says so,
+  // rather than inviting the person to ask the agent to build what is already built.
+  it('says it is starting, not that there is nothing', () => {
+    const canvas = useCanvasStore()
+    canvas.provider = 'sandbox'
+    canvas.canvasId = 'c1'
+    canvas.open = true
+    canvas.previewUrl = ''
+    canvas.previewLoading = true
+    canvas.status = 'live'
+    const w = mountShell()
+    expect(w.text()).toContain('Starting the project preview')
+    expect(w.text()).not.toContain('Ask the agent to build the project')
+  })
+})

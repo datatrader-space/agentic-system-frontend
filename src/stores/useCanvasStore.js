@@ -76,7 +76,7 @@ const CAPABILITIES = {
     viewport: true,
     zoom: true,
     download: false,
-    openInTab: true,       // opens the tokenised preview URL
+    openInTab: true,       // opens the signed preview link
     revisions: true,
     select: false,
     routeSelector: false,
@@ -214,14 +214,16 @@ export const useCanvasStore = defineStore('canvas', {
           // First preview opens the panel automatically; subsequent updates refresh in place.
           if (msg.type === 'preview_ready' || msg.first) this.open = true
           if (this.provider === 'sandbox') {
-            // THE URL ARRIVES ON THE EVENT, already carrying a freshly minted access token.
+            // THE URL ARRIVES ON THE EVENT, a freshly signed link to the served port.
             //
-            // Unlike web_builder there is nothing to fetch: the backend served the project and minted
-            // the token in the same call that produced this event, so asking for it again would mint a
-            // second one and race the first. A token is short-lived and rotates when the sandbox stops,
-            // which is exactly why it is never stored — it is re-minted the next time the project is
-            // served, and a new event carries the new URL.
-            if (msg.url) this.previewUrl = msg.url
+            // Nothing to fetch here: the backend served the project and signed the link in the same call
+            // that produced this event, so asking for it again would sign a second one and race the
+            // first. The link expires, which is exactly why it is never stored — reopening the
+            // conversation, or Refresh, fetches a new one (`loadPreviewUrl`).
+            if (msg.url) {
+              this.previewUrl = msg.url
+              this.previewExpiresAt = msg.expires_at || null
+            }
             this.project = {
               type: msg.project_type || (this.project && this.project.type) || '',
               framework: msg.framework || (this.project && this.project.framework) || '',
@@ -285,7 +287,19 @@ export const useCanvasStore = defineStore('canvas', {
         if (c.route != null) this.route = c.route
         if (c.page_id != null) this.pageId = c.page_id
         if (c.trusted_origin) this.trustedOrigin = c.trusted_origin
-        if (this.provider === 'web_builder') {
+        if (this.provider === 'sandbox') {
+          // A PROJECT, REOPENED. The link from the turn that built it has expired and its sandbox has
+          // usually parked, so the backend resumes it, serves it and signs a new link. Rendering the
+          // stored files instead showed a Next.js app as its source tree.
+          const p = c.project || {}
+          this.project = {
+            type: p.type || '', framework: p.framework || '',
+            fileCount: p.file_count != null ? Number(p.file_count) : undefined,
+            port: p.port != null ? Number(p.port) : undefined,
+          }
+          this.previewUrl = ''
+          await this.loadPreviewUrl()
+        } else if (this.provider === 'web_builder') {
           await this.loadPreviewUrl(this.route)
         } else if (c.active_revision) {
           await this.loadArtifact(c.active_revision)
@@ -322,20 +336,25 @@ export const useCanvasStore = defineStore('canvas', {
       }
     },
 
-    // web_builder: fetch a fresh signed, short-lived preview URL for the current (or a given) route.
-    // The URL is NEVER persisted server-side and is kept here only as the last-good src. On failure we
-    // keep the previous URL on screen and surface a non-blocking Retry (previewError) instead of blanking.
+    // web_builder and sandbox: fetch a fresh signed, short-lived preview URL (for web_builder, for the
+    // current or a given route). The URL is NEVER persisted server-side and is kept here only as the
+    // last-good src. On failure we keep the previous URL on screen and surface a non-blocking Retry
+    // (previewError) instead of blanking.
     async loadPreviewUrl(route) {
       if (!this.canvasId) return
+      const canvasId = this.canvasId
       this.previewLoading = true
       this.previewError = ''
       try {
         const targetRoute = route != null ? route : this.route
         // Path matches the shipped canvas REST convention (`/api/canvas/{id}/...`, trailing slash) —
         // the api client baseURL is `/api`, and the backend route is `canvas/<uuid>/preview/`.
-        const { data } = await api.get(`/canvas/${this.canvasId}/preview/`, {
+        const { data } = await api.get(`/canvas/${canvasId}/preview/`, {
           params: targetRoute != null ? { route: targetRoute } : {},
         })
+        // Reopening a sandbox project can take a minute; the person may have moved to another
+        // conversation meanwhile, and its Canvas must not be handed this one's link.
+        if (this.canvasId !== canvasId) return
         const url = data.url || data.preview_url || ''
         if (!url) throw new Error('no preview url')
         // Defense-in-depth: pin the origin we'll accept selection postMessages from. The backend already
@@ -346,6 +365,9 @@ export const useCanvasStore = defineStore('canvas', {
         if (data.route != null) this.route = data.route
         if (data.page_id != null) this.pageId = data.page_id
         if (providerFrom(data)) this.provider = providerFrom(data)
+        if (this.provider === 'sandbox' && data.port != null) {
+          this.project = { ...(this.project || {}), port: Number(data.port) }
+        }
         // A fresh render means the previous selection anchor may be stale — clear it.
         this.selectedElement = null
         this.selectMode = false
@@ -353,11 +375,14 @@ export const useCanvasStore = defineStore('canvas', {
         this.frameKey += 1
         this.loadBuilderVersions()   // refresh the version history (a mutation likely added one)
       } catch (e) {
+        if (this.canvasId !== canvasId) return
         // Keep the last-good preview visible; show a Retry affordance. Only hard-error if we have nothing.
-        this.previewError = 'Could not refresh the store preview.'
+        this.previewError = this.provider === 'sandbox'
+          ? (e?.response?.data?.error || 'Could not open the project preview.')
+          : 'Could not refresh the store preview.'
         this.status = this.previewUrl ? 'live' : 'error'
       } finally {
-        this.previewLoading = false
+        if (this.canvasId === canvasId) this.previewLoading = false
       }
     },
 
@@ -462,17 +487,23 @@ export const useCanvasStore = defineStore('canvas', {
     },
     setViewport(v) { if (VIEWPORTS[v]) this.viewport = v },
     refreshFrame() { this.frameKey += 1 },
-    // Provider-aware manual refresh: re-mint the signed URL for web_builder, hard-reload the srcdoc frame
-    // for static.
+    // Provider-aware manual refresh: re-mint the signed URL for web_builder and a sandbox project (whose
+    // link expires, and whose server stops when the sandbox parks), hard-reload the srcdoc frame for static.
     refreshPreview() {
-      if (this.provider === 'web_builder') this.loadPreviewUrl()
+      if (this.provider === 'web_builder' || this.provider === 'sandbox') this.loadPreviewUrl()
       else this.refreshFrame()
     },
     // Phase 5 click-to-select.
     setSelectMode(on) { this.selectMode = !!on },
     setSelectedElement(el) { this.selectedElement = el || null; this.selectMode = false },
     clearSelection() { this.selectedElement = null },
-    show() { if (this.canvasId) this.open = true },
+    show() {
+      if (!this.canvasId) return
+      this.open = true
+      // A sandbox link that expired while the panel was closed is re-minted before it is looked at.
+      if (this.provider === 'sandbox' && this.previewExpiresAt && !this.previewLoading
+          && Date.parse(this.previewExpiresAt) <= Date.now()) this.loadPreviewUrl()
+    },
     close() { this.open = false },
     toggle() { this.open = !this.open && !!this.canvasId ? true : !this.open },
 
