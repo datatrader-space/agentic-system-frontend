@@ -209,6 +209,17 @@ describe('a sandbox project gets a fresh link whenever it is looked at again', (
     expect(canvas.loadArtifact).not.toHaveBeenCalled()
   })
 
+  it('a Canvas saved before its framework was recorded learns it from the reopen', async () => {
+    // Conv 2118's footer read "Node project"; the reopen reads the files and names the framework.
+    answers(
+      { canvas_id: 'c1', canvas_type: 'static', provider: 'sandbox', status: 'live',
+        project: { type: 'node', framework: '', file_count: null, port: 3000 } },
+      { canvas_id: 'c1', provider: 'sandbox', url: SIGNED, port: 3000, project_type: 'node',
+        framework: 'Next.js', file_count: 7 })
+    await canvas.adoptConversation(2118)
+    expect(canvas.project).toEqual({ type: 'node', framework: 'Next.js', fileCount: 7, port: 3000 })
+  })
+
   it('a project that cannot come back says why, with a way to retry', async () => {
     api.get.mockImplementation((path) => (path.startsWith('/conversations/')
       ? Promise.resolve({ data: { canvas: { canvas_id: 'c1', provider: 'sandbox', status: 'live' } } })

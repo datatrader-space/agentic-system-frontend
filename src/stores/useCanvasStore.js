@@ -365,8 +365,14 @@ export const useCanvasStore = defineStore('canvas', {
         if (data.route != null) this.route = data.route
         if (data.page_id != null) this.pageId = data.page_id
         if (providerFrom(data)) this.provider = providerFrom(data)
-        if (this.provider === 'sandbox' && data.port != null) {
-          this.project = { ...(this.project || {}), port: Number(data.port) }
+        if (this.provider === 'sandbox') {
+          const was = this.project || {}
+          this.project = {
+            type: data.project_type || was.type || '',
+            framework: data.framework || was.framework || '',
+            fileCount: data.file_count != null ? Number(data.file_count) : was.fileCount,
+            port: data.port != null ? Number(data.port) : was.port,
+          }
         }
         // A fresh render means the previous selection anchor may be stale — clear it.
         this.selectedElement = null

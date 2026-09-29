@@ -16,7 +16,7 @@
               <span class="urgency-badge" :class="`urgency-${currentRequest.urgency}`">
                 {{ currentRequest.urgency }}
               </span>
-              <button v-if="currentRequest.response_type === 'none' || currentRequest.interaction_type === 'credential_setup'" @click="dismiss" class="close-btn" aria-label="Close">&times;</button>
+              <button v-if="currentRequest.response_type === 'none' || currentRequest.interaction_type === 'credential_setup' || isExpired" @click="dismiss" class="close-btn" aria-label="Close">&times;</button>
             </div>
           </div>
 
@@ -122,6 +122,7 @@
                 <button
                   v-for="option in currentRequest.options"
                   :key="option.id"
+                  :disabled="isExpired"
                   @click="respond(option.id)"
                   class="option-button"
                 >
@@ -136,9 +137,17 @@
                   v-model="textResponse"
                   class="text-input"
                   placeholder="…or type your own answer"
+                  :disabled="isExpired"
                   @keydown.enter="textResponse.trim() && respond(textResponse)"
                 />
-                <button class="btn btn-submit choice-text-send" :disabled="!textResponse.trim()" @click="respond(textResponse)">Send</button>
+                <button class="btn btn-submit choice-text-send" :disabled="isExpired || !textResponse.trim()" @click="respond(textResponse)">Send</button>
+              </div>
+              <!-- A question whose time ran out cannot be answered: the request is closed on the server and
+                   the run has moved on. Still offering its buttons is how an answer typed minutes later met
+                   "Request already timeout" (conv 2118). Say it, and let the card be closed. -->
+              <div v-if="isExpired" class="choice-expired" data-test="hitl-expired">
+                <span>This question timed out — an answer can no longer reach the agent.</span>
+                <button class="btn-link" @click="dismiss">Close</button>
               </div>
             </div>
 
@@ -151,7 +160,7 @@
                 rows="4"
                 @keydown.ctrl.enter="respond(textResponse)"
               ></textarea>
-              <button @click="respond(textResponse)" class="btn btn-submit" :disabled="!textResponse.trim()">
+              <button @click="respond(textResponse)" class="btn btn-submit" :disabled="isExpired || !textResponse.trim()">
                 Submit Answer
               </button>
             </div>
@@ -427,6 +436,12 @@ const timeRemaining = computed(() => {
   return `${seconds}s`;
 });
 
+// Past its deadline: the server has closed the request, so nothing typed here can be delivered.
+const isExpired = computed(() => {
+  if (!currentRequest.value?.timeout_at) return false;
+  return new Date(currentRequest.value.timeout_at).getTime() <= currentTime.value;
+});
+
 const isNearTimeout = computed(() => {
   if (!currentRequest.value?.timeout_at) return false;
   const timeout = new Date(currentRequest.value.timeout_at).getTime();
@@ -478,7 +493,7 @@ const getTitle = (type) => {
 
 // Actions
 const respond = (value, feedbackOverride = null) => {
-  if (!currentRequest.value) return;
+  if (!currentRequest.value || isExpired.value) return;
 
   emit('respond', {
     request_id: currentRequest.value.request_id,
@@ -1191,6 +1206,23 @@ watch(currentRequest, () => {
 .choice-guidance-input {
   resize: vertical;
   width: 100%;
+}
+
+.choice-expired {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 13px;
+}
+.option-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* "…or type your own answer" row under the option buttons */
