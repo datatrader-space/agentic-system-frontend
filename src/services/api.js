@@ -1178,6 +1178,9 @@ export default {
   createGlobalMemory: (data) => api.post('/me/memories/', data),
   updateGlobalMemory: (id, data) => api.patch(`/me/memories/${id}/`, data),
   deleteGlobalMemory: (id) => api.delete(`/me/memories/${id}/`),
+  // "Not helpful" on a Learned chip: retires the learned practice; the DELETE is its Undo.
+  markLearnedNotHelpful: (id) => api.post(`/me/learned-practices/${id}/not-helpful/`),
+  undoLearnedNotHelpful: (id) => api.delete(`/me/learned-practices/${id}/not-helpful/`),
   updateKnowledgeConfig: (agentId, data) => api.patch(`/agents/${agentId}/knowledge/config/`, data),
   updateKnowledgeCard: (agentId, cardId, data) => api.patch(`/agents/${agentId}/knowledge/cards/${cardId}/`, data),
   createKnowledgeCard: (agentId, data) => api.post(`/agents/${agentId}/knowledge/cards/`, data),

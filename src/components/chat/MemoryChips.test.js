@@ -5,7 +5,8 @@
 // The backend records the saved facts, past runs and learned practices that were in front of the agent (or
 // that it opened) with each answer. These pin that they are shown, that a saved fact is corrected right
 // there — outdated (with undo) or forgotten (after asking once more) — through the Settings → Memory
-// endpoints, and that past runs and learned practices are shown but never edited.
+// endpoints, that a learned practice is retired ("Not helpful", with Undo) only by the person it belongs to,
+// and that a past run is shown but never edited.
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -14,6 +15,8 @@ vi.mock('../../services/api', () => ({
   default: {
     updateGlobalMemory: vi.fn(),
     deleteGlobalMemory: vi.fn(),
+    markLearnedNotHelpful: vi.fn(),
+    undoLearnedNotHelpful: vi.fn(),
   },
 }))
 
@@ -28,6 +31,8 @@ const FACT = { ref: 'm:2302', kind: 'fact', id: 2302, status: 'current', via: 'p
 const RUN = { ref: 'run:2978', kind: 'run', via: 'opened', outcome: 'partial',
   text: 'Count the lines in the file /tmp/acc-tau.md' }
 const HINT = { ref: 'hint:45', kind: 'hint', via: 'prompt', text: 'Run migrations before seeding data.' }
+const MY_HINT = { ...HINT, ref: 'hint:9', id: 9, status: 'active', can_retire: true,
+  text: 'Provided deployment sequence: staging first, then production' }
 
 const mountIt = (memories) => mount(MemoryChips, {
   props: { message: { id: 'm2', role: 'assistant', status: 'done', content: 'ok', memories } },
@@ -89,10 +94,42 @@ describe('MemoryChips', () => {
     expect(w.find('.mc-chip').classes()).not.toContain('outdated')
   })
 
-  it('shows past runs and learned practices without edit actions', async () => {
-    const w = mountIt([RUN, HINT])
+  it("shows past runs, and practices that aren't the person's, without edit actions", async () => {
+    const w = mountIt([RUN, HINT, { ...MY_HINT, can_retire: false }])
     for (const chip of w.findAll('.mc-chip')) await chip.trigger('click')
     expect(w.find('.mc-panel').exists()).toBe(false)
+  })
+
+  it('retires a learned practice the person owns, and undoes it', async () => {
+    api.markLearnedNotHelpful.mockResolvedValue({ data: { id: 9, status: 'retired' } })
+    api.undoLearnedNotHelpful.mockResolvedValue({ data: { id: 9, status: 'active' } })
+    const w = mountIt([MY_HINT])
+    await w.find('.mc-chip').trigger('click')
+    await w.find('[data-test="not-helpful"]').trigger('click')
+    await flushPromises()
+    expect(api.markLearnedNotHelpful).toHaveBeenCalledWith(9)
+    expect(w.find('.mc-chip').classes()).toContain('retired')
+    await w.find('[data-test="undo-retire"]').trigger('click')
+    await flushPromises()
+    expect(api.undoLearnedNotHelpful).toHaveBeenCalledWith(9)
+    expect(w.find('.mc-chip').classes()).not.toContain('retired')
+  })
+
+  it('an Undo cannot bring back a practice the platform retired itself', async () => {
+    api.undoLearnedNotHelpful.mockResolvedValue({ data: { id: 9, status: 'retired' } })
+    const w = mountIt([{ ...MY_HINT, status: 'retired' }])
+    await w.find('.mc-chip').trigger('click')
+    await w.find('[data-test="undo-retire"]').trigger('click')
+    await flushPromises()
+    expect(w.find('.mc-chip').classes()).toContain('retired')
+    expect(w.find('[role="alert"]').text()).toContain('stays retired')
+  })
+
+  it('shows the state the server reports on load, not the one saved with the answer', () => {
+    const w = mountIt([{ ...FACT, status: 'closed' }, { ...FACT, ref: 'm:1', id: 1, status: 'gone' },
+      { ...MY_HINT, status: 'retired' }])
+    expect(w.findAll('.mc-chip').map((c) => c.classes().find((k) => ['outdated', 'forgotten', 'retired'].includes(k))))
+      .toEqual(['outdated', 'forgotten', 'retired'])
   })
 })
 
