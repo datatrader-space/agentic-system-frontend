@@ -205,6 +205,11 @@
                 <span v-if="s.trust_status === 'trusted'" class="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600">trusted</span>
               </div>
               <p v-if="s.description" class="mt-0.5 text-[12px] text-[#64748B]">{{ s.description }}</p>
+              <!-- Authoring tips from the server (never block a save). The agent picks a skill from its
+                   description alone, so a missing "Use when …" sentence decides whether it is ever used. -->
+              <ul v-if="(s.lint || []).length" class="mt-1.5 grid gap-0.5">
+                <li v-for="w in s.lint" :key="w.code" class="text-[11.5px] font-medium text-amber-700">⚠ {{ w.message }}</li>
+              </ul>
               <!-- Bundled files (imported bundles): scripts flagged; locked until the skill is trusted. -->
               <div v-if="s.files && s.files.length" class="mt-1.5 flex flex-wrap items-center gap-1.5">
                 <span v-for="f in s.files" :key="f.path"

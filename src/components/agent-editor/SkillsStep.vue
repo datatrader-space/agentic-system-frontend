@@ -210,6 +210,8 @@ async function createSkill() {
     ensureIds()
     await saveIds([...selectedIds.value, data.id])          // create → auto-assign
     notify.success(`Added & assigned ${data.name}`)
+    // Authoring tip from the server — the agent picks this skill from its description alone.
+    if ((data.lint || []).length) notify.warning(`${data.name}: ${data.lint[0].message}`, { timeout: 9000 })
     draft.value = { name: '', description: '', body: '' }
     skillMd.value = ''
     showCreate.value = false

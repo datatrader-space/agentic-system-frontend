@@ -4,8 +4,8 @@
       <div>
         <h1>Registry Governance</h1>
         <p>Configuration hygiene over the live system — tool schemas that no longer resolve in the code
-          registry, MCP tools without a healthy server, imported skills awaiting trust review, and agents
-          that are bare (nothing to act with) or paused.</p>
+          registry, MCP tools without a healthy server, imported skills awaiting trust review, whether
+          skills are actually loaded, and agents that are bare (nothing to act with) or paused.</p>
       </div>
       <button class="btn primary" :disabled="loading" @click="load">
         <Icon icon="lucide:refresh-cw" :class="{ spin: loading }" /> Refresh
@@ -129,6 +129,53 @@
         </div>
       </section>
 
+      <!-- Skill usage — are playbooks actually loaded? (SKILLS_LOADING_PLAN Phase 6) -->
+      <section class="card">
+        <div class="card-head">
+          <h2>Skill usage</h2>
+          <span class="count">{{ num(usage.loads || 0) }} loads · last {{ usage.window_days || 7 }} days</span>
+        </div>
+        <div v-if="usage.refused_skill_tool_calls" class="state err">
+          {{ num(usage.refused_skill_tool_calls) }} skill tool call(s) were refused in this window — agents are
+          being told about a playbook they cannot open. This should be 0.
+        </div>
+        <div v-if="!(usage.top_skills || []).length" class="state">
+          No skill was loaded in this window ({{ num(usage.agents_with_skills || 0) }} agents have skills assigned).
+        </div>
+        <div v-else class="sub-block">
+          <div class="sub-title">Most loaded</div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th>Skill</th><th class="r">Loads</th></tr></thead>
+              <tbody>
+                <tr v-for="s in usage.top_skills" :key="s.capability_id">
+                  <td><strong>{{ s.capability_id }}</strong></td>
+                  <td class="r">{{ num(s.loads) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div v-if="usage.assigned_never_loaded?.count" class="sub-block">
+          <div class="sub-title">Assigned but never loaded
+            <span class="muted">— often a description with no “Use when …” sentence</span></div>
+          <div class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th>Skill</th><th>Slug</th></tr></thead>
+              <tbody>
+                <tr v-for="s in usage.assigned_never_loaded.items" :key="s.id">
+                  <td><strong>{{ s.name }}</strong></td>
+                  <td class="muted">{{ s.slug }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-if="usage.assigned_never_loaded.count > usage.assigned_never_loaded.items.length" class="more">
+            Showing first {{ usage.assigned_never_loaded.items.length }} of {{ num(usage.assigned_never_loaded.count) }}.
+          </div>
+        </div>
+      </section>
+
       <!-- Agents -->
       <section class="card">
         <div class="card-head">
@@ -186,6 +233,7 @@ const err = (s) => !!(s && s.error)
 const stale = computed(() => err(data.value?.stale_tool_schemas) ? { checked: false, count: 0, items: [], registry_size: 0 } : (data.value?.stale_tool_schemas || { checked: false, count: 0, items: [] }))
 const mcp = computed(() => err(data.value?.mcp) ? {} : (data.value?.mcp || {}))
 const skills = computed(() => err(data.value?.skills) ? {} : (data.value?.skills || {}))
+const usage = computed(() => err(data.value?.skill_usage) ? {} : (data.value?.skill_usage || {}))
 const agents = computed(() => err(data.value?.agents) ? {} : (data.value?.agents || {}))
 
 const tiles = computed(() => [
@@ -198,6 +246,11 @@ const tiles = computed(() => [
     tone: 'neutral', note: `${num(mcp.value.tools_on_disabled_servers?.count || 0)} tools still bound` },
   { label: 'Skills to review', value: num(skills.value.untrusted_imported || 0),
     tone: (skills.value.untrusted_imported || 0) > 0 ? 'warn' : 'good', note: 'imported + untrusted' },
+  { label: 'Skill loads', value: num(usage.value.loads || 0),
+    tone: (usage.value.refused_skill_tool_calls || 0) > 0 ? 'warn' : 'neutral',
+    note: (usage.value.refused_skill_tool_calls || 0) > 0
+      ? `${num(usage.value.refused_skill_tool_calls)} refused — should be 0`
+      : `last ${usage.value.window_days || 7} days` },
   { label: 'Bare agents', value: num(agents.value.bare?.count || 0),
     tone: (agents.value.bare?.count || 0) > 0 ? 'warn' : 'good', note: 'no tools, skills, or knowledge' },
   { label: 'Paused agents', value: num(agents.value.paused?.count || 0), tone: 'neutral', note: 'refusing new runs' },

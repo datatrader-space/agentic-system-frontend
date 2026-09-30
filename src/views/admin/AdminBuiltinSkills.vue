@@ -56,6 +56,9 @@
             <td>
               <strong>{{ s.name }}</strong>
               <div class="sub">{{ s.description || '—' }}</div>
+              <div v-if="(s.lint || []).length" class="lint" :title="lintText(s)">
+                <Icon icon="lucide:triangle-alert" /> {{ s.lint.length }} authoring tip{{ s.lint.length === 1 ? '' : 's' }}
+              </div>
             </td>
             <td><span class="cat">{{ s.category || 'general' }}</span></td>
             <td class="muted">
@@ -137,6 +140,12 @@ watch([query], () => { page.value = 1 })
 watch(pageCount, (n) => { if (page.value > n) page.value = n })
 
 const scriptCount = (s) => (s.files || []).filter(f => f.is_script).length
+// Authoring warnings from the server (never block a save): a description with no "Use when …" sentence, an
+// over-long body. The agent picks a skill by its description alone, so these decide whether it is ever used.
+const lintText = (s) => (s.lint || []).map(w => `• ${w.message}`).join('\n')
+function warnLint(s) {
+  if ((s?.lint || []).length) notify.warning(`${s.name}: ${s.lint[0].message}`, { timeout: 9000 })
+}
 const shortDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
 
 const canSave = computed(() => {
@@ -197,6 +206,7 @@ async function save() {
         name: draft.value.name.trim(), description: draft.value.description.trim(), body: draft.value.body })
       rows.value = rows.value.map(s => s.id === data.id ? data : s)
       notify.success(`Updated ${data.name}`)
+      warnLint(data)
     } else if (mode.value === 'import') {
       const file = zipEl.value?.files?.[0]
       let res
@@ -210,6 +220,7 @@ async function save() {
       }
       rows.value = [res.data, ...rows.value]
       notify.success(`Installed built-in ${res.data.name} — mark it trusted to unlock its scripts`)
+      warnLint(res.data)
     } else {
       const payload = mode.value === 'paste'
         ? { skill_md: skillMd.value, make_system: true }
@@ -218,6 +229,7 @@ async function save() {
       const { data } = await api.post('/skills/', payload)
       rows.value = [data, ...rows.value]
       notify.success(`Created built-in ${data.name}`)
+      warnLint(data)
     }
     closeForm()
   } catch (e) {
@@ -282,6 +294,8 @@ onMounted(load)
 .tbl td { padding: 13px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
 .tbl tr:last-child td { border-bottom: 0; }
 .sub { color: #94a3b8; font-size: 11.5px; margin-top: 3px; max-width: 480px; }
+.lint { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 11px; font-weight: 700; color: #b45309; cursor: help; }
+.lint svg { width: 12px; height: 12px; }
 .muted { color: #94a3b8; }
 .cat { border-radius: 6px; padding: 3px 9px; font-size: 10.5px; font-weight: 850; text-transform: capitalize; background: #f1f5f9; color: #64748b; }
 .trust { border-radius: 6px; padding: 3px 9px; font-size: 10.5px; font-weight: 850; }
