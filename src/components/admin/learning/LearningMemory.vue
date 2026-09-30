@@ -22,7 +22,7 @@
     <template v-if="view === 'saved'">
       <div v-if="!added.length" class="empty-state"><Icon icon="lucide:database" /><strong>No memories written</strong><span>No facts were added in this window.</span></div>
       <ul v-else class="activity-feed">
-        <li v-for="fact in added" :key="fact.id">
+        <li v-for="fact in savedPage.visible" :key="fact.id">
           <span class="feed-marker success"><Icon icon="lucide:plus" /></span>
           <div class="feed-content">
             <div class="feed-meta">
@@ -36,12 +36,14 @@
           </div>
         </li>
       </ul>
+      <LearningPager v-model:page="savedPage.page" v-model:size="savedPage.pageSize" :total="savedPage.total"
+                     :of="memory.facts_added" label="Saved memories" />
     </template>
 
     <template v-else-if="view === 'corrections'">
       <div v-if="!corrections.length" class="empty-state"><Icon icon="lucide:file-diff" /><strong>No corrections</strong><span>A correction appears when a newer fact replaces an older one.</span></div>
       <ul v-else class="activity-feed">
-        <li v-for="c in corrections" :key="c.id">
+        <li v-for="c in correctionsPage.visible" :key="c.id">
           <span class="feed-marker warning"><Icon icon="lucide:refresh-ccw" /></span>
           <div class="feed-content">
             <div class="feed-meta">
@@ -54,6 +56,8 @@
           </div>
         </li>
       </ul>
+      <LearningPager v-model:page="correctionsPage.page" v-model:size="correctionsPage.pageSize"
+                     :total="correctionsPage.total" :of="memory.facts_invalidated" label="Corrections" />
     </template>
 
     <template v-else>
@@ -62,7 +66,7 @@
         <table class="data-table card-table">
           <thead><tr><th>Topic</th><th>Scope</th><th>Summary given to the agent</th><th class="numeric">Facts</th><th class="numeric">Updated</th></tr></thead>
           <tbody>
-            <tr v-for="t in topics" :key="t.id">
+            <tr v-for="t in topicsPage.visible" :key="t.id">
               <td class="card-title"><strong>{{ t.title }}</strong></td>
               <td data-label="Scope"><span class="status-badge neutral">{{ t.scope }}</span></td>
               <td data-label="Summary" class="summary-cell">{{ t.summary || 'No summary yet.' }}</td>
@@ -72,6 +76,8 @@
           </tbody>
         </table>
       </div>
+      <LearningPager v-model:page="topicsPage.page" v-model:size="topicsPage.pageSize" :total="topicsPage.total"
+                     :of="memory.topics_total" label="Topics" />
     </template>
   </section>
 </template>
@@ -80,6 +86,8 @@
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { formatNumber, shortTime } from './learningFormat'
+import LearningPager from './LearningPager.vue'
+import { usePaged } from './usePaged'
 
 const props = defineProps({
   snap: { type: Object, required: true },
@@ -90,6 +98,9 @@ const memory = computed(() => props.snap.memory || {})
 const added = computed(() => memory.value.added || [])
 const corrections = computed(() => memory.value.corrections || [])
 const topics = computed(() => memory.value.topics || [])
+const savedPage = usePaged(added, { resetOn: () => props.snap })
+const correctionsPage = usePaged(corrections, { resetOn: () => props.snap })
+const topicsPage = usePaged(topics, { resetOn: () => props.snap })
 const views = computed(() => [
   { key: 'saved', label: 'Saved', n: memory.value.facts_added ?? added.value.length },
   { key: 'corrections', label: 'Corrected', n: memory.value.facts_invalidated ?? corrections.value.length },

@@ -53,7 +53,7 @@ const BROKEN = {
 function board () {
   return { window_days: 7, generated_at: '2026-09-29T12:00:00Z', series: [day('2026-09-28'), day('2026-09-29')],
     totals: totals(), previous: totals({ success_rate: 0.7, mistakes_per_run: 0.4, repeat_rate: 0.5 }),
-    agents: [BROKEN, STORE], thresholds: { min_runs: 5 } }
+    agents: [BROKEN, STORE], agents_total: 40, thresholds: { min_runs: 5 } }
 }
 function detail () {
   return { ...board(), agents: [STORE], detail: {
@@ -134,7 +134,9 @@ describe('AdminLearningMonitor — overview', () => {
 describe('AdminLearningMonitor — agents', () => {
   it('shows every agent with its trend and the numbers behind it', async () => {
     const w = await mountWith()
+    expect(w.find('[data-tab="agents"] .count').attributes('title')).toBe('agents active in the last 7 days, of 40 in total')
     await openTab(w, 'agents')
+    expect(w.text()).toContain('2 of 40 agents were active in the last 7 days')
     const rows = w.findAll('tbody tr')
     expect(rows).toHaveLength(2)
     expect(rows[1].text()).toContain('Improving')
@@ -213,6 +215,52 @@ describe('AdminLearningMonitor — review queue', () => {
     expect(post.mock.calls[0][1].verdict).toBe('bad')
     expect(error).toHaveBeenCalledWith('nope')
     expect(w.findAll('.review-actions')).toHaveLength(1)
+  })
+})
+
+describe('AdminLearningMonitor — pages', () => {
+  const fact = (i) => ({ id: i, statement: `Fact ${i}`, topic: { scope: 'agent', title: 'Store' }, source: 'autopilot',
+    current: true, at: '2026-09-29T10:00:00Z', agent: { name: 'kurumera mcp agent' } })
+  const practice = (i) => ({ id: `practice-${i}`, trigger: `when ${i}`, action: `do ${i}`, domain: 'general',
+    scope: 'agent', confidence: 0.5, runs: 1 })
+
+  it('shows 10 rows at a time, says how many exist, and pages through them', async () => {
+    const snap = snapshot()
+    snap.memory.added = Array.from({ length: 23 }, (_, i) => fact(i + 1))
+    snap.memory.facts_added = 164
+    const w = await mountWith(snap)
+    await openTab(w, 'memory')
+    const rows = () => w.findAll('.activity-feed li .feed-content > p').map((p) => p.text())
+    expect(rows()).toHaveLength(10)
+    expect(w.find('.pager').text()).toContain('1–10 of 23')
+    expect(w.find('.pager').text()).toContain('latest 23 of 164')
+
+    await w.find('[aria-label="Next page"]').trigger('click')
+    expect(rows()[0]).toBe('Fact 11')
+    await w.find('[aria-label="Page 3"]').trigger('click')
+    expect(rows()).toEqual(['Fact 21', 'Fact 22', 'Fact 23'])
+
+    await w.find('.pager select').setValue('15')
+    expect(rows()).toHaveLength(15)
+    expect(rows()[0]).toBe('Fact 1')
+  })
+
+  it('a short list has no pager', async () => {
+    const w = await mountWith()
+    await openTab(w, 'memory')
+    expect(w.find('.pager').exists()).toBe(false)
+  })
+
+  it('judging a practice keeps the page it was on', async () => {
+    post.mockResolvedValue({ data: { confidence: 0.8 } })
+    const w = await mountWith(snapshot({ instincts: { review_queue: Array.from({ length: 12 }, (_, i) => practice(i + 1)) } }))
+    await openTab(w, 'practices')
+    await w.find('[aria-label="Next page"]').trigger('click')
+    expect(w.findAll('.review-actions')).toHaveLength(2)
+    await w.findAll('.review-actions button')[0].trigger('click')
+    await flushPromises()
+    expect(w.findAll('.review-actions')).toHaveLength(1)
+    expect(w.find('.pager').text()).toContain('11–11 of 11')
   })
 })
 

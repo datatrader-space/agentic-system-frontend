@@ -42,7 +42,7 @@
     <nav class="tabs" aria-label="Learning monitor sections">
       <button v-for="t in tabs" :key="t.key" type="button" class="tab" :class="{ active: tab === t.key }"
               :aria-current="tab === t.key ? 'page' : undefined" :data-tab="t.key" @click="tab = t.key">
-        <Icon :icon="t.icon" />{{ t.label }}<span v-if="t.count != null" class="count">{{ t.count }}</span>
+        <Icon :icon="t.icon" />{{ t.label }}<span v-if="t.count != null" class="count" :title="t.hint">{{ t.count }}<span class="sr-only"> {{ t.hint }}</span></span>
       </button>
     </nav>
 
@@ -145,9 +145,11 @@ const visibleConversations = computed(() => (scope.value.conversations || [])
 
 const tabs = computed(() => [
   { key: 'overview', label: 'Overview', icon: 'lucide:layout-dashboard' },
-  { key: 'agents', label: 'Agents', icon: 'lucide:bot', count: board.value?.agents?.length ?? null },
+  { key: 'agents', label: 'Agents', icon: 'lucide:bot', count: board.value?.agents?.length ?? null,
+    hint: `agents active in the last ${days.value} day${days.value === 1 ? '' : 's'}, of ${board.value?.agents_total ?? '—'} in total` },
   { key: 'memory', label: 'Memory', icon: 'lucide:database-zap' },
-  { key: 'practices', label: 'Practices', icon: 'lucide:sparkles', count: reviewQueue.value.length || null },
+  { key: 'practices', label: 'Practices', icon: 'lucide:sparkles', count: reviewQueue.value.length || null,
+    hint: 'learned practices waiting for your review' },
   { key: 'pipeline', label: 'Pipeline', icon: 'lucide:workflow' },
 ])
 

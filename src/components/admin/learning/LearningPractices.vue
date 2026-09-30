@@ -30,7 +30,7 @@
         <Icon icon="lucide:clipboard-check" /><strong>Nothing waiting for review</strong><span>Every practice here has been judged at least once.</span>
       </div>
       <ul v-else class="activity-feed">
-        <li v-for="instinct in reviewQueue" :key="instinct.id">
+        <li v-for="instinct in reviewPage.visible" :key="instinct.id">
           <span class="feed-marker violet"><Icon icon="lucide:sparkles" /></span>
           <div class="feed-content">
             <div class="feed-meta">
@@ -51,12 +51,14 @@
           </div>
         </li>
       </ul>
+      <LearningPager v-model:page="reviewPage.page" v-model:size="reviewPage.pageSize" :total="reviewPage.total"
+                     label="Review queue" />
     </template>
 
     <template v-else-if="view === 'recent'">
       <div v-if="!recent.length" class="empty-state"><Icon icon="lucide:sparkles" /><strong>No practices learned yet</strong><span>They appear after finished runs are reviewed.</span></div>
       <ul v-else class="activity-feed">
-        <li v-for="instinct in recent" :key="instinct.id">
+        <li v-for="instinct in recentPage.visible" :key="instinct.id">
           <span class="feed-marker violet"><Icon icon="lucide:sparkles" /></span>
           <div class="feed-content">
             <div class="feed-meta">
@@ -69,6 +71,8 @@
           </div>
         </li>
       </ul>
+      <LearningPager v-model:page="recentPage.page" v-model:size="recentPage.pageSize" :total="recentPage.total"
+                     :of="instincts.total" label="Recently learned" />
     </template>
 
     <template v-else>
@@ -93,7 +97,7 @@
         <table class="data-table card-table">
           <thead><tr><th>Practice</th><th class="numeric">With advice</th><th class="numeric">Held out</th><th class="numeric">Difference</th></tr></thead>
           <tbody>
-            <tr v-for="row in conclusive" :key="row.instinct_id">
+            <tr v-for="row in holdoutPage.visible" :key="row.instinct_id">
               <td class="card-title"><strong>{{ row.instinct_id }}</strong></td>
               <td data-label="With advice" class="numeric">{{ percent(row.injected_success_rate) }} <span class="muted">/ {{ formatNumber(row.injected_n) }}</span></td>
               <td data-label="Held out" class="numeric">{{ percent(row.held_out_success_rate) }} <span class="muted">/ {{ formatNumber(row.held_out_n) }}</span></td>
@@ -102,6 +106,8 @@
           </tbody>
         </table>
       </div>
+      <LearningPager v-model:page="holdoutPage.page" v-model:size="holdoutPage.pageSize" :total="holdoutPage.total"
+                     label="Advice measured" />
     </template>
   </section>
 </template>
@@ -110,6 +116,8 @@
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import { formatNumber, percent, signedPoints } from './learningFormat'
+import LearningPager from './LearningPager.vue'
+import { usePaged } from './usePaged'
 
 const props = defineProps({
   snap: { type: Object, required: true },
@@ -126,6 +134,9 @@ const recent = computed(() => instincts.value.recent || [])
 const holdout = computed(() => instincts.value.holdout || {})
 const conclusive = computed(() => [...(holdout.value.conclusive || [])].sort((a, b) => (a.delta ?? 0) - (b.delta ?? 0)))
 const harmful = computed(() => holdout.value.harmful || [])
+const reviewPage = usePaged(computed(() => props.reviewQueue), { resetOn: () => props.snap })
+const recentPage = usePaged(recent, { resetOn: () => props.snap })
+const holdoutPage = usePaged(conclusive, { resetOn: () => props.snap })
 const views = computed(() => [
   { key: 'review', label: 'Review queue', n: props.reviewQueue.length },
   { key: 'recent', label: 'Recently learned', n: recent.value.length },

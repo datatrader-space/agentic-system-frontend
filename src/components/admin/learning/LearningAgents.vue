@@ -7,8 +7,10 @@
         <div>
           <h2 id="agents-title">Agents</h2>
           <p>
-            The last {{ days }} days against the {{ days }} before. A trend needs {{ minRuns }} finished runs;
-            the reasons under it are the numbers that decided it.
+            <strong>{{ agents.length }} of {{ total }} agents</strong> were active in the last {{ days }} days: they
+            finished a run, made a mistake or were warned. Agents that did nothing in this window are not listed;
+            choose 30d or 90d to look further back. Each trend compares the last {{ days }} days with the
+            {{ days }} before, needs {{ minRuns }} finished runs, and shows the numbers that decided it.
           </p>
         </div>
       </div>
@@ -40,7 +42,7 @@
         </thead>
         <tbody>
           <tr
-            v-for="card in shown"
+            v-for="card in agentsPage.visible"
             :key="card.agent.id"
             class="selectable-row"
             tabindex="0"
@@ -93,6 +95,8 @@
         </tbody>
       </table>
     </div>
+    <LearningPager v-if="shown.length" v-model:page="agentsPage.page" v-model:size="agentsPage.pageSize"
+                   :total="agentsPage.total" label="Agents" />
     <div v-if="quiet.length" class="more-row">
       <button type="button" class="button tertiary" :aria-expanded="String(showQuiet)" @click="showQuiet = !showQuiet">
         <Icon :icon="showQuiet ? 'lucide:chevron-up' : 'lucide:chevron-down'" />
@@ -106,6 +110,8 @@
 import { computed, ref } from 'vue'
 import { Icon } from '@iconify/vue'
 import SuccessSparkline from './SuccessSparkline.vue'
+import LearningPager from './LearningPager.vue'
+import { usePaged } from './usePaged'
 import { change, formatNumber, percent, trendMeta } from './learningFormat'
 
 const props = defineProps({
@@ -118,7 +124,9 @@ const agents = computed(() => props.report.agents || [])
 const showQuiet = ref(false)
 const quiet = computed(() => agents.value.filter((a) => a.trend.status === 'too_little_data'))
 const shown = computed(() => (showQuiet.value ? agents.value : agents.value.filter((a) => a.trend.status !== 'too_little_data')))
+const agentsPage = usePaged(shown, { resetOn: () => props.report })
 const days = computed(() => props.report.window_days)
+const total = computed(() => props.report.agents_total ?? agents.value.length)
 const minRuns = computed(() => props.report.thresholds?.min_runs ?? 5)
 
 function deltaClass (tone) {

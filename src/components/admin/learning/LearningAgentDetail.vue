@@ -51,7 +51,7 @@
           </div>
           <div v-if="!practices.length" class="empty-state compact"><Icon icon="lucide:sparkles" /><strong>No practices yet</strong><span>They are learned from finished runs.</span></div>
           <ul v-else class="activity-feed">
-            <li v-for="p in practices" :key="p.id">
+            <li v-for="p in practicesPage.visible" :key="p.id">
               <div class="feed-content">
                 <div class="feed-meta">
                   <span class="status-badge" :class="p.status === 'active' ? 'success' : 'neutral'">{{ p.status === 'candidate' ? 'learning' : p.status }}</span>
@@ -63,6 +63,8 @@
               </div>
             </li>
           </ul>
+          <LearningPager v-model:page="practicesPage.page" v-model:size="practicesPage.pageSize"
+                         :total="practicesPage.total" label="Learned practices" />
         </section>
       </div>
 
@@ -75,7 +77,7 @@
         </div>
         <div v-if="!mistakes.length" class="empty-state compact"><Icon icon="lucide:circle-check" /><strong>No mistakes of its own in this window</strong></div>
         <ul v-else class="activity-feed">
-          <li v-for="(m, i) in mistakes" :key="`${m.episode}-${i}`">
+          <li v-for="(m, i) in mistakesPage.visible" :key="`${m.episode}-${i}`">
             <span class="feed-marker" :class="m.recovered ? 'warning' : 'danger'"><Icon :icon="m.recovered ? 'lucide:rotate-ccw' : 'lucide:x'" /></span>
             <div class="feed-content">
               <div class="feed-meta">
@@ -89,6 +91,8 @@
             </div>
           </li>
         </ul>
+        <LearningPager v-model:page="mistakesPage.page" v-model:size="mistakesPage.pageSize"
+                       :total="mistakesPage.total" label="Recent mistakes" />
       </section>
     </template>
   </div>
@@ -99,6 +103,8 @@ import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import LearningOverview from './LearningOverview.vue'
 import ToolsChart from './ToolsChart.vue'
+import LearningPager from './LearningPager.vue'
+import { usePaged } from './usePaged'
 import { shortTime, trendMeta } from './learningFormat'
 
 const props = defineProps({
@@ -113,6 +119,8 @@ const tools = computed(() => props.report?.detail?.tools || [])
 const practices = computed(() => props.report?.detail?.practices || [])
 const counts = computed(() => props.report?.detail?.practice_counts || {})
 const mistakes = computed(() => props.report?.detail?.recent_mistakes || [])
+const practicesPage = usePaged(practices, { resetOn: () => props.report })
+const mistakesPage = usePaged(mistakes, { resetOn: () => props.report })
 </script>
 
 <style scoped>

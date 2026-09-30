@@ -68,7 +68,7 @@
           <table class="data-table card-table">
             <thead><tr><th>Agent</th><th>Conversation</th><th>Status</th><th class="numeric">Saved</th><th class="numeric">When</th></tr></thead>
             <tbody>
-              <tr v-for="run in recent" :key="run.id">
+              <tr v-for="run in recentPage.visible" :key="run.id">
                 <td class="card-title"><strong>{{ run.agent?.name || 'No agent' }}</strong></td>
                 <td data-label="Conversation">
                   <button type="button" class="conversation-link" @click="$emit('pick-conversation', run.conversation?.id)">
@@ -85,6 +85,8 @@
             </tbody>
           </table>
         </div>
+        <LearningPager v-model:page="recentPage.page" v-model:size="recentPage.pageSize" :total="recentPage.total"
+                       :of="runs.total" label="Learning passes" />
       </template>
 
       <template v-else-if="view === 'agents'">
@@ -93,7 +95,7 @@
           <table class="data-table card-table">
             <thead><tr><th>Agent</th><th class="numeric">Passes</th><th class="numeric">Reviewed</th><th class="numeric">Saved</th><th class="numeric">Skipped</th><th class="numeric">Waiting</th><th class="numeric">Errors</th></tr></thead>
             <tbody>
-              <tr v-for="row in byAgent" :key="row.agent.id ?? 'none'">
+              <tr v-for="row in agentsPage.visible" :key="row.agent.id ?? 'none'">
                 <td class="card-title"><strong>{{ row.agent.name }}</strong></td>
                 <td data-label="Passes" class="numeric">{{ formatNumber(row.runs) }}</td>
                 <td data-label="Reviewed" class="numeric positive">{{ formatNumber(row.reviewed) }}</td>
@@ -105,12 +107,14 @@
             </tbody>
           </table>
         </div>
+        <LearningPager v-model:page="agentsPage.page" v-model:size="agentsPage.pageSize" :total="agentsPage.total"
+                       label="Passes by agent" />
       </template>
 
       <template v-else>
         <div v-if="!errorRows.length" class="empty-state"><Icon icon="lucide:shield-check" /><strong>No learning failures</strong><span>No learning pass failed in this window.</span></div>
         <ul v-else class="activity-feed">
-          <li v-for="failure in errorRows" :key="failure.id">
+          <li v-for="failure in errorsPage.visible" :key="failure.id">
             <span class="feed-marker danger"><Icon icon="lucide:x" /></span>
             <div class="feed-content">
               <div class="feed-meta">
@@ -121,6 +125,8 @@
             </div>
           </li>
         </ul>
+        <LearningPager v-model:page="errorsPage.page" v-model:size="errorsPage.pageSize" :total="errorsPage.total"
+                       :of="errors" label="Errors" />
       </template>
     </section>
 
@@ -134,6 +140,8 @@ import { Icon } from '@iconify/vue'
 import api from '../../../services/api'
 import { notify } from '@/composables/useNotify'
 import { formatMoney, formatNumber, shortTime } from './learningFormat'
+import LearningPager from './LearningPager.vue'
+import { usePaged } from './usePaged'
 
 const props = defineProps({
   snap: { type: Object, required: true },
@@ -156,6 +164,9 @@ const errorRows = computed(() => runs.value.errors || [])
 const reviewed = computed(() => (runs.value.by_status?.reviewed || 0) + (runs.value.by_status?.done || 0))
 const pending = computed(() => runs.value.pending_review || 0)
 const errors = computed(() => runs.value.by_status?.error || 0)
+const recentPage = usePaged(recent, { resetOn: () => props.snap })
+const agentsPage = usePaged(byAgent, { resetOn: () => props.snap })
+const errorsPage = usePaged(errorRows, { resetOn: () => props.snap })
 const views = computed(() => [
   { key: 'recent', label: 'Recent', n: runs.value.total || 0 },
   { key: 'agents', label: 'By agent', n: byAgent.value.length },
