@@ -2102,6 +2102,29 @@ export const useChatStore = defineStore('chat', {
           if (qm) qm.queued = false
           break
         }
+        case 'followup_turn_started': {
+          // A turn the SERVER started. The user typed while the agent was working, the turn ended
+          // before draining the queue, and the backend is now running that message as its own turn —
+          // but this tab never sent a `chat_message` for it, so nothing here opened a bubble.
+          //
+          // Without one, `assistant_message_chunk` does `if (m) m.content += …` and silently drops
+          // every streamed token, and then `assistant_message_complete` falls back to
+          // `_lastAssistantOfTurn()` and OVERWRITES the previous turn's answer with this turn's.
+          //
+          // Production conv 2163: 'hi' was answered, 'what you can do' was queued and answered, and on
+          // screen the second answer had replaced the first — both rows were correct in the database.
+          // Opening the bubble here is what keeps the two answers apart, the same way `work_segment`
+          // does for a later Work iteration.
+          //
+          // Scoped to THIS conversation on purpose. The frame is not in `WORK_FORWARDED_TYPES`, so the
+          // cross-conversation guard in `_onEvent` does not cover it, and a user who navigated to
+          // another chat between the queue and the drain would otherwise get an empty bubble opened in
+          // whatever thread they are now looking at.
+          if (msg.conversation_id != null && this.conversationId != null &&
+              String(msg.conversation_id) !== String(this.conversationId)) break
+          if (!this.isStreaming) this._beginAssistant()
+          break
+        }
         // ── Work mode: a run that keeps going in bounded ITERATIONS ──────────────────────────────
         // Each iteration is a separate dispatch and ends with its own assistant_message_complete, so
         // the bubble still closes per iteration (the answers stay separate, which is what the user
