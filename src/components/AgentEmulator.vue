@@ -228,8 +228,9 @@
         <div v-if="error" class="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-2 py-1 mt-2">{{ error }}</div>
         <div class="flex items-center justify-between mt-2 text-[11px]">
           <span class="text-gray-500">Model ▸ {{ modelName || 'default' }}</span>
-          <span v-if="sessionTokens" class="text-gray-600 tabular-nums" :title="'Total tokens used in this session'">
-            Session {{ fmtTokens(sessionTokens) }}<span v-if="sessionCost"> · {{ fmtCost(sessionCost) }}</span>
+          <span v-if="sessionTokens" class="text-gray-600 tabular-nums"
+                title="Every run in this conversation so far, added up. It is not the cost of the last reply.">
+            This conversation so far: {{ fmtTokens(sessionTokens) }} tokens<span v-if="sessionCost"> · {{ fmtCost(sessionCost) }} total</span>
           </span>
           <span :class="connected ? 'text-green-600' : 'text-gray-400'">● {{ connected ? 'Connected' : (reconnecting ? 'Reconnecting…' : 'Offline') }}</span>
         </div>

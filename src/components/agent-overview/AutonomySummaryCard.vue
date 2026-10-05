@@ -62,7 +62,6 @@ const rows = computed(() => {
   const bool = (v) => ({ value: v ? 'On' : 'Off', on: !!v, icon: v ? Check : X })
   return [
     { label: 'Run Mode', value: modeLabel(a.agent_run_mode), icon: null, on: false },
-    { label: 'Verify After Run', ...bool(a.verify_after_completion) },
     {
       label: 'Checkpoint Every',
       value: a.checkpoint_every_n_steps ? `${a.checkpoint_every_n_steps} steps` : '—',

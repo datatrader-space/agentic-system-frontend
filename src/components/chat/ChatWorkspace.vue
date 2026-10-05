@@ -102,8 +102,12 @@
         @attach="chat.addAttachments" @remove-attach="chat.removeAttachment" />
       <!-- Opens when a provider account refuses the turn (key limit / credits / rejected key). -->
       <ProviderSwitchDialog />
-      <div v-if="chat.sessionTokens" class="session-meter" :title="`Total tokens used in this chat`">
-        Session {{ fmtTokens(chat.sessionTokens) }}<span v-if="chat.sessionCost"> · {{ fmtCost(chat.sessionCost) }}</span>
+      <!-- THE WHOLE CONVERSATION, AND IT HAS TO SAY SO. It read "Session 7993.6k · $11.35", which a person
+           takes for what the reply above it cost; it is every run in this conversation added up (that one
+           was a week of runs). The last reply's own cost is on its message. -->
+      <div v-if="chat.sessionTokens" class="session-meter"
+           title="Every run in this conversation so far, added up. It is not the cost of the last reply.">
+        This conversation so far: {{ fmtTokens(chat.sessionTokens) }} tokens<span v-if="chat.sessionCost"> · {{ fmtCost(chat.sessionCost) }} total</span>
       </div>
     </div>
 
