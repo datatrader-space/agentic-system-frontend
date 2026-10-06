@@ -19,12 +19,12 @@
         {{ t.label }}
         <span v-if="t.key === 'providers' && providers.length" class="text-[11px] font-bold px-1.5 py-0.5 rounded-md"
               :class="pageTab === t.key ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-500'">{{ providers.length }}</span>
-        <span v-if="t.key === 'models' && models.length" class="text-[11px] font-bold px-1.5 py-0.5 rounded-md"
-              :class="pageTab === t.key ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-500'">{{ models.length }}</span>
+        <span v-if="t.key === 'models' && modelTotal" class="text-[11px] font-bold px-1.5 py-0.5 rounded-md"
+              :class="pageTab === t.key ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-200 text-slate-500'">{{ modelTotal }}</span>
       </button>
     </div>
 
-    <PageLoader v-if="loading && !hasLoaded" label="Loading providers & models…" min-height="320px" />
+    <PageLoader v-if="loading && !hasLoaded" label="Loading providers…" min-height="320px" />
     <template v-else>
     <!-- Which provider everything runs on, why, and a manual switch to another one (same backend switch the
          chat offers when a provider caps out — here it can be asked for at any time, in either direction). -->
@@ -66,7 +66,7 @@
                <div>
                   <div class="flex items-center gap-2 mb-0.5">
                       <p class="font-semibold text-slate-900 text-[14px]">{{ provider.name }}</p>
-                      <span v-if="provider.api_key" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-100"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Key Set</span>
+                      <span v-if="provider.has_api_key" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-100"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Key Set</span>
                       <span v-else class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-600 border border-amber-100"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>No Key</span>
                   </div>
                   <p class="text-[12px] font-mono text-slate-500 truncate max-w-[200px] sm:max-w-md">
@@ -219,7 +219,9 @@
                   <option :value="null">{{ opProvider[op.key] ? 'Select a model…' : 'Agent default' }}</option>
                   <option v-for="m in modelsForProvider(opProvider[op.key], false)" :key="m.id" :value="m.id">{{ m.name }}</option>
                 </select>
-                <p v-if="opProvider[op.key] && modelsForProvider(opProvider[op.key], false).length === 0"
+                <p v-if="opProvider[op.key] && !providerModelsReady(opProvider[op.key])"
+                   class="text-[11px] text-slate-400 mt-1">Loading this provider's models…</p>
+                <p v-else-if="opProvider[op.key] && modelsForProvider(opProvider[op.key], false).length === 0"
                    class="text-[11px] text-amber-600 mt-1">No active chat models for this provider — sync or activate models below.</p>
               </div>
             </div>
@@ -253,7 +255,9 @@
               <option :value="null">{{ embProvider ? 'Select a model…' : 'Default — text-embedding-3-small' }}</option>
               <option v-for="m in embModels" :key="m.id" :value="m.id">{{ m.name }}</option>
             </select>
-            <p v-if="embProvider && embModels.length === 0"
+            <p v-if="embProvider && !providerModelsReady(embProvider)"
+               class="text-[11px] text-slate-400 mt-1">Loading this provider's models…</p>
+            <p v-else-if="embProvider && embModels.length === 0"
                class="text-[11px] text-amber-600 mt-1 flex items-center gap-2">
               <span>No models found for this provider.</span>
               <button type="button" @click="syncEmbeddingModels" :disabled="syncingEmb"
@@ -262,7 +266,7 @@
                 {{ syncingEmb ? 'Syncing…' : 'Sync now to discover them' }}
               </button>
             </p>
-            <p v-if="embProvider && embProviderType === 'openrouter' && embModels.length === 0" class="text-[11px] text-amber-600 mt-1">
+            <p v-if="embProvider && providerModelsReady(embProvider) && embProviderType === 'openrouter' && embModels.length === 0" class="text-[11px] text-amber-600 mt-1">
               No OpenRouter embedding models found yet. Click <strong>“Sync now to discover them”</strong> above — OpenRouter offers ~26 embedding models (e.g. gemini-embedding-2, e5, gte) that are only fetched on a fresh sync.
             </p>
           </div>
@@ -381,15 +385,18 @@
       </div>
 
       <div class="p-0">
-        <div v-if="models.length === 0" class="p-8 text-center text-[13px] font-medium text-slate-500">
+        <div v-if="modelsLoading && modelRows.length === 0" class="p-8 text-center text-[13px] font-medium text-slate-400">
+          Loading models…
+        </div>
+        <div v-else-if="modelCount === 0 && !modelFilter" class="p-8 text-center text-[13px] font-medium text-slate-500">
           No models configured yet.
         </div>
-        <div v-else-if="filteredModels.length === 0" class="p-8 text-center text-[13px] font-medium text-slate-500">
+        <div v-else-if="modelCount === 0" class="p-8 text-center text-[13px] font-medium text-slate-500">
           No models for this provider.
         </div>
-        <div v-else class="divide-y divide-slate-100 max-h-[640px] overflow-y-auto">
+        <div v-else class="divide-y divide-slate-100 max-h-[640px] overflow-y-auto" :class="{ 'opacity-60': modelsLoading }">
           <div
-            v-for="model in pagedModels"
+            v-for="model in modelRows"
             :key="model.id"
             class="group flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-5 hover:bg-slate-50/50 transition-colors gap-4"
           >
@@ -441,9 +448,9 @@
         </div>
 
         <!-- Pagination -->
-        <div v-if="filteredModels.length > MODELS_PER_PAGE" class="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/30">
+        <div v-if="modelCount > MODELS_PER_PAGE" class="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/30">
           <span class="text-[12px] text-slate-500">
-            Showing {{ (modelPage - 1) * MODELS_PER_PAGE + 1 }}–{{ Math.min(modelPage * MODELS_PER_PAGE, filteredModels.length) }} of {{ filteredModels.length }}
+            Showing {{ (modelPage - 1) * MODELS_PER_PAGE + 1 }}–{{ Math.min(modelPage * MODELS_PER_PAGE, modelCount) }} of {{ modelCount }}
           </span>
           <div class="flex items-center gap-1.5">
             <button @click="modelPage = Math.max(1, modelPage - 1)" :disabled="modelPage <= 1" type="button"
@@ -497,13 +504,16 @@
           <h2 class="text-base font-bold text-slate-900">Recent LLM Requests</h2>
           <p class="text-[13px] text-slate-500 mt-0.5">Last 15 requests grouped by provider and model.</p>
         </div>
-        <div v-if="statsLoading" class="text-[13px] font-medium text-slate-400 flex items-center gap-2">
+        <div v-if="activityLoading" class="text-[13px] font-medium text-slate-400 flex items-center gap-2">
             <svg class="animate-spin h-3.5 w-3.5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
             Loading...
         </div>
       </div>
       <div class="p-0">
-        <div v-if="groupedRequests.length === 0" class="p-8 text-center text-[13px] font-medium text-slate-500">
+        <div v-if="activityLoading && groupedRequests.length === 0" class="p-8 text-center text-[13px] font-medium text-slate-400">
+          Loading recent requests…
+        </div>
+        <div v-else-if="groupedRequests.length === 0" class="p-8 text-center text-[13px] font-medium text-slate-500">
           No request history yet.
         </div>
         <div v-else class="p-5 sm:p-6 space-y-6">
@@ -515,7 +525,7 @@
             <div class="divide-y divide-slate-100 text-[13px]">
               <div
                 v-for="request in group.requests"
-                :key="request.created_at"
+                :key="request.id"
                 class="px-4 py-2.5 grid grid-cols-2 sm:grid-cols-5 gap-3 items-center hover:bg-slate-50/30 transition-colors"
               >
                 <div class="flex items-center gap-1.5">
@@ -556,8 +566,9 @@ const onProviderSwitched = async (result) => {
   const n = (result?.changes || []).length
   notify(`Switched ${n} model${n === 1 ? '' : 's'} to ${result?.to_provider?.name || 'the new provider'}`, 'success')
   for (const w of (result?.warnings || [])) notify(w, 'info')
-  await Promise.all([loadProviders().catch(() => {}), loadModels().catch(() => {})])
-  await loadOperationModels()
+  await Promise.all([loadProviders().catch(() => {}), refreshModels().catch(() => {})])
+  // An unopened tab reads the post-switch picks when it is first opened, so only an open one is re-read.
+  if (tabLoaded.value.internal) await loadOperationModels()
 }
 
 // Page-level initial-load state → drives the full-page spinner on first paint.
@@ -578,10 +589,7 @@ const apiError = (e, fallback = 'Something went wrong') => {
 }
 
 const providers = ref([])
-const models = ref([])
 const modelFilter = ref('')
-const stats = ref(null)
-const statsLoading = ref(false)
 
 // Page-level tabs so the four areas aren't stacked into one long scroll.
 const pageTabs = [
@@ -594,9 +602,68 @@ const pageTab = ref('providers')
 const showAddProvider = ref(false)   // add-forms are collapsed by default to save vertical space
 const showAddModel = ref(false)
 
-// Configured Models pagination (10 per page, scrollable list).
+// EACH TAB FETCHES ITS OWN DATA, THE FIRST TIME IT IS OPENED. The page used to download all four tabs'
+// data before showing the first one: every model row in full (~900 KB for an OpenRouter account) to
+// render ten of them, a usage report to show its last 15 lines, and the embedding health check.
+// `providers` is the tab the page opens on, so it is what mount loads.
+const tabLoaded = ref({ providers: true })
+const openTab = async (key) => {
+  if (tabLoaded.value[key]) return
+  tabLoaded.value[key] = true
+  try {
+    if (key === 'models') await loadModelsPage()
+    else if (key === 'internal') await Promise.all([loadOperationModels(), loadEmbeddingHealth()])
+    else if (key === 'activity') await loadRecentRequests()
+  } catch (e) {
+    tabLoaded.value[key] = false     // so opening the tab again retries
+    notify(apiError(e, 'Failed to load this tab'), 'error')
+  }
+}
+
+// Configured Models: one page of 10 at a time, paged and filtered by the server.
 const modelPage = ref(1)
 const MODELS_PER_PAGE = 10
+const modelRows = ref([])
+const modelCount = ref(0)
+const modelsLoading = ref(false)
+// The Models tab's count comes with the providers, so the badge needs no model rows.
+const modelTotal = computed(() => providers.value.reduce((n, p) => n + (p.model_count || 0), 0))
+
+// The pickers on the Internal & Embedding tab fetch models ONE PROVIDER AT A TIME, when a picker points at
+// that provider. `selectedModels` are the saved picks' own rows, which arrive with the picks themselves.
+const modelsByProvider = ref({})     // { [providerId]: rows }
+const selectedModels = ref([])
+const providerModelsReady = (pid) => !pid || !!modelsByProvider.value[pid]
+// A provider's rows, or — until its list arrives — just the saved picks on it, so a picker shows its
+// current choice at once instead of an empty box.
+const providerModels = (pid) => modelsByProvider.value[pid] || selectedModels.value.filter((m) => m.provider === pid)
+const modelIndex = computed(() => {
+  const index = {}
+  for (const m of selectedModels.value) index[m.id] = m
+  for (const rows of Object.values(modelsByProvider.value)) for (const m of rows) index[m.id] = m
+  return index
+})
+const loadProviderModels = async (pid, force = false) => {
+  if (!pid || (!force && modelsByProvider.value[pid])) return
+  const { data } = await api.getLlmModels({ slim: 1, provider: pid })
+  modelsByProvider.value = { ...modelsByProvider.value, [pid]: data.results || data }
+}
+// The list behind every provider a picker currently points at.
+const pickerProviders = () => [...new Set([...Object.values(opProvider.value), embProvider.value].filter(Boolean))]
+const loadPickerLists = (force = false) =>
+  Promise.all(pickerProviders().map((pid) => loadProviderModels(pid, force).catch(() => {})))
+
+// After anything that adds, removes or re-syncs models: re-read what is on screen, and forget the lists
+// that are not (a picker fetches them again when it next needs them).
+const refreshModels = async () => {
+  const shown = new Set(tabLoaded.value.internal ? pickerProviders() : [])
+  modelsByProvider.value = Object.fromEntries(
+    Object.entries(modelsByProvider.value).filter(([pid]) => shown.has(Number(pid))))
+  await Promise.all([
+    tabLoaded.value.models ? loadModelsPage() : null,
+    tabLoaded.value.internal ? loadPickerLists(true) : null,
+  ])
+}
 
 // ── Models for internal operations (per-user; null = agent default) ──
 const operationDefs = [
@@ -630,7 +697,7 @@ const embProvider = ref(null)
 // (OpenRouter/OpenAI sync tags them), show ONLY those so the user isn't hunting through hundreds of
 // chat models. Otherwise fall back to all active models (providers whose flag is unreliable).
 const embModels = computed(() => {
-  const active = models.value.filter((m) => m.provider === embProvider.value && m.is_active !== false)
+  const active = providerModels(embProvider.value).filter((m) => m.is_active !== false)
   const flagged = active.filter((m) => m.is_embedding)
   return flagged.length ? flagged : active
 })
@@ -647,7 +714,7 @@ const syncEmbeddingModels = async () => {
   syncingEmb.value = true
   try {
     await api.syncModels(embProvider.value)
-    await loadModels()
+    await Promise.all([refreshModels(), loadProviders().catch(() => {})])
     // `notify` here is the INJECTED function form notify(msg, type) — NOT the imported object with
     // .success()/.error() methods. Calling notify.success(...) throws "is not a function".
     if (embModels.value.length) notify(`Found ${embModels.value.length} model(s)`, 'success')
@@ -662,27 +729,35 @@ const syncEmbeddingModels = async () => {
 // Active models for a provider, split by chat vs embedding so each picker only shows what fits.
 const modelsForProvider = (pid, embedding = false) => {
   if (!pid) return []
-  return models.value.filter((m) => m.provider === pid && m.is_active !== false && !!m.is_embedding === embedding)
+  return providerModels(pid).filter((m) => m.is_active !== false && !!m.is_embedding === embedding)
 }
-const onOpProviderChange = (key) => { opModels.value[key] = null }
-const onEmbProviderChange = () => { opModels.value.embedding_model_id = null }
+// Choosing a provider in a picker is what fetches that provider's models.
+const onOpProviderChange = (key) => {
+  opModels.value[key] = null
+  loadProviderModels(opProvider.value[key]).catch((e) => notify(apiError(e, 'Failed to load models'), 'error'))
+}
+const onEmbProviderChange = () => {
+  opModels.value.embedding_model_id = null
+  loadProviderModels(embProvider.value).catch((e) => notify(apiError(e, 'Failed to load models'), 'error'))
+}
 const currentLabel = (key) => {
-  const m = models.value.find((x) => x.id === opModels.value[key])
+  const m = modelIndex.value[opModels.value[key]]
   return m ? `${m.provider_name} • ${m.name}` : ''
 }
-// After models + saved selections load, pre-select the provider that owns each chosen model.
+// After the saved selections load, pre-select the provider that owns each chosen model.
 const deriveOpProviders = () => {
   for (const key of ['ask_llm_model_id', 'summarize_model_id', 'artifact_summarize_model_id', 'turn_router_model_id', 'enrichment_model_id', 'verifier_model_id', 'rag_contextual_model_id', 'planning_model_id']) {
-    const m = models.value.find((x) => x.id === opModels.value[key])
+    const m = modelIndex.value[opModels.value[key]]
     opProvider.value[key] = m ? m.provider : null
   }
-  const em = models.value.find((x) => x.id === opModels.value.embedding_model_id)
+  const em = modelIndex.value[opModels.value.embedding_model_id]
   embProvider.value = em ? em.provider : null
 }
 
 const loadOperationModels = async () => {
   try {
     const r = await api.getOperationModels()
+    selectedModels.value = r.data.selected_models || []
     opModels.value = {
       ask_llm_model_id: r.data.ask_llm_model_id ?? null,
       summarize_model_id: r.data.summarize_model_id ?? null,
@@ -695,6 +770,7 @@ const loadOperationModels = async () => {
       embedding_model_id: r.data.embedding_model_id ?? null,
     }
     deriveOpProviders()
+    await loadPickerLists()
   } catch (e) { /* unset is fine — falls back to agent default */ }
 }
 const saveOperationModels = async () => {
@@ -909,28 +985,40 @@ const loadProviders = async () => {
   providers.value = response.data.results || response.data
 }
 
-const loadModels = async () => {
-  const params = {}
+const loadModelsPage = async () => {
+  const params = { slim: 1, page: modelPage.value, page_size: MODELS_PER_PAGE }
   if (ownerFilter.value) params.owner = ownerFilter.value
-  if (modelFilter.value) {
-    params.provider = modelFilter.value
-  }
-  const response = await api.getLlmModels(params)
-  models.value = response.data.results || response.data
-}
-
-const reloadAll = async () => {
-  await loadProviders()
-  await loadModels()
-}
-
-const loadStats = async () => {
+  if (modelFilter.value) params.provider = modelFilter.value
+  modelsLoading.value = true
   try {
-    statsLoading.value = true
-    const response = await api.getLlmStats()
-    stats.value = response.data
+    const { data } = await api.getLlmModels(params)
+    modelRows.value = data.results || []
+    modelCount.value = data.count || 0
+  } catch (e) {
+    // A page past the end (its last model was just deleted): step back, and the page watcher re-reads.
+    if (e?.response?.status === 404 && modelPage.value > 1) { modelPage.value -= 1; return }
+    throw e
   } finally {
-    statsLoading.value = false
+    modelsLoading.value = false
+  }
+}
+
+// Owner filter changed: everything on screen is for the wrong owner.
+const reloadAll = async () => {
+  if (modelPage.value !== 1) modelPage.value = 1     // the page watcher re-reads the models
+  await Promise.all([loadProviders(), refreshModels()])
+}
+
+// Activity: the last 15 requests — asked for as 15 requests, not as a whole usage report.
+const recentRequests = ref([])
+const activityLoading = ref(false)
+const loadRecentRequests = async () => {
+  activityLoading.value = true
+  try {
+    const { data } = await api.getLlmRequests({ page_size: 15 })
+    recentRequests.value = data.results || []
+  } finally {
+    activityLoading.value = false
   }
 }
 
@@ -983,8 +1071,7 @@ const createProvider = async () => {
       api_key: '',
       is_active: true
     }
-    await loadProviders()
-    await loadModels()
+    await Promise.all([loadProviders(), refreshModels()])
     showAddProvider.value = false
   } catch (e) {
     // e.g. duplicate name → backend returns {name: ["You already have a provider named …"]}
@@ -1003,7 +1090,7 @@ const createModel = async () => {
       context_window: 0,
       is_active: true
     }
-    await loadModels()
+    await Promise.all([loadProviders(), refreshModels()])     // providers carry the model counts
     showAddModel.value = false
   } catch (e) {
     notify(apiError(e, 'Failed to add model'), 'error')
@@ -1024,21 +1111,22 @@ const toggleModel = async (model) => {
     is_active: model.is_active
   })
   notify('Model updated', 'success')
+  // The pickers list active models only, so a list already fetched for this provider is now out of date.
+  if (modelsByProvider.value[model.provider]) loadProviderModels(model.provider, true).catch(() => {})
 }
 
 const removeProvider = async (provider) => {
   if (!(await confirm({ title: 'Delete provider?', message: `Delete provider "${provider.name}"?`, confirmText: 'Delete', danger: true }))) return
   await api.deleteLlmProvider(provider.id)
   notify('Provider deleted', 'success')
-  await loadProviders()
-  await loadModels()
+  await Promise.all([loadProviders(), refreshModels()])
 }
 
 const removeModel = async (model) => {
   if (!(await confirm({ title: 'Delete model?', message: `Delete model "${model.name}"?`, confirmText: 'Delete', danger: true }))) return
   await api.deleteLlmModel(model.id)
   notify('Model deleted', 'success')
-  await loadModels()
+  await Promise.all([loadProviders(), refreshModels()])       // providers carry the model counts
 }
 
 // Generic manual re-sync — works for every syncable provider type via one backend endpoint.
@@ -1048,7 +1136,7 @@ const syncModels = async (provider) => {
   try {
     const response = await api.syncModels(provider.id)
     notify(response.data.message || 'Models synced', 'success')
-    await loadModels()
+    await refreshModels()
   } catch (error) {
     notify('Failed to sync: ' + apiError(error, 'upstream error'), 'error')
   } finally {
@@ -1058,20 +1146,10 @@ const syncModels = async (provider) => {
   }
 }
 
-const filteredModels = computed(() => {
-  if (!modelFilter.value) return models.value
-  return models.value.filter((model) => model.provider === parseInt(modelFilter.value, 10))
-})
-
-const totalModelPages = computed(() => Math.max(1, Math.ceil(filteredModels.value.length / MODELS_PER_PAGE)))
-const pagedModels = computed(() => {
-  const start = (modelPage.value - 1) * MODELS_PER_PAGE
-  return filteredModels.value.slice(start, start + MODELS_PER_PAGE)
-})
-watch(filteredModels, () => { if (modelPage.value > totalModelPages.value) modelPage.value = totalModelPages.value })
+const totalModelPages = computed(() => Math.max(1, Math.ceil(modelCount.value / MODELS_PER_PAGE)))
 
 const groupedRequests = computed(() => {
-  const recent = stats.value?.recent_requests || []
+  const recent = recentRequests.value
   const groups = {}
   recent.forEach((request) => {
     const label = `${request.provider || 'unknown'} / ${request.model || 'default'}`
@@ -1093,38 +1171,25 @@ const formatDate = (value) => {
   return new Date(value).toLocaleString()
 }
 
-watch(modelFilter, () => { modelPage.value = 1; loadModels() })
+// A page turn or a provider filter re-reads the one page on screen. Changing the filter goes back to
+// page 1; if that moves the page, the page watcher does the read, otherwise the filter watcher does.
+const reloadModelsPage = () => loadModelsPage().catch((e) => notify(apiError(e, 'Failed to load models'), 'error'))
+watch(modelPage, reloadModelsPage)
+watch(modelFilter, () => {
+  if (modelPage.value !== 1) modelPage.value = 1
+  else reloadModelsPage()
+})
+watch(pageTab, openTab)
 
 onMounted(async () => {
-  // One /llm/configure-bundle/ round-trip (providers + models + stats + operation-models)
-  // instead of 4 calls. The individual loaders above still handle owner/provider filter
-  // changes after mount. Falls back to the separate calls if the bundle is unavailable.
+  // Only the tab the page opens on. Every other tab loads its own data when it is first opened (openTab).
   try {
-    const { data } = await api.getLlmConfigureBundle()
-    providers.value = data.providers?.results || data.providers || []
-    models.value = data.models?.results || data.models || []
-    stats.value = data.stats || {}
-    const om = data.operation_models || {}
-    opModels.value = {
-      ask_llm_model_id: om.ask_llm_model_id ?? null,
-      summarize_model_id: om.summarize_model_id ?? null,
-      artifact_summarize_model_id: om.artifact_summarize_model_id ?? null,
-      turn_router_model_id: om.turn_router_model_id ?? null,
-      enrichment_model_id: om.enrichment_model_id ?? null,
-      verifier_model_id: om.verifier_model_id ?? null,
-      rag_contextual_model_id: om.rag_contextual_model_id ?? null,
-      planning_model_id: om.planning_model_id ?? null,
-      embedding_model_id: om.embedding_model_id ?? null,
-    }
-    deriveOpProviders()
+    await loadProviders()
   } catch (e) {
-    console.error('LLM configure bundle failed — falling back', e)
-    await Promise.all([loadProviders(), loadModels(), loadStats()])
-    await loadOperationModels()
+    notify(apiError(e, 'Failed to load providers'), 'error')
   } finally {
     loading.value = false
     hasLoaded.value = true
-    loadEmbeddingHealth()
   }
 })
 </script>

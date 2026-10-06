@@ -446,10 +446,8 @@ export default {
   getLlmAudit: (params) => api.get('/llm/audit/', { params }),
   // Per-conversation cost breakdown (Usage → Cost Breakdown tab): totals + by-source + by-model + calls.
   getLlmCostByConversation: (params) => api.get('/llm/conversation-breakdown/', { params }),
-  // One-shot loads: Activity page (agents+stats+usage+requests+audit) and
-  // Settings → LLM tab (providers+models+stats+operation-models).
+  // One-shot load for the Activity page (agents+stats+usage+requests+audit).
   getLlmDashboard: (params) => api.get('/llm/dashboard/', { params }),
-  getLlmConfigureBundle: () => api.get('/llm/configure-bundle/'),
   // Admin — DB-backed model pricing (staff only; backend enforces IsAdminUser)
   getModelPricing: (params) => api.get('/admin/model-pricing/', { params }),
   setModelPricing: (id, data) => api.post(`/admin/model-pricing/${id}/`, data),
