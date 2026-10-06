@@ -679,6 +679,30 @@ samp {
 .chat-media-wrap:hover .chat-media-dl { opacity: 1; }
 .chat-media-dl:hover { background: rgba(0, 0, 0, 0.78); }
 
+/* Two or more images in a row (ADM-486): a grid of equal tiles instead of a column of full-width
+   pictures. 2 columns; 3 on a wide screen when the reply has 3 or more. Built by groupImageRuns in
+   utils/chatMedia.js, so a chat bubble and the Work rail get the same layout. */
+.chat-media-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  max-width: 40rem;
+  margin-top: 0.5rem;
+}
+.chat-media-grid .chat-media-wrap { display: block; }
+.chat-media-grid .chat-media-img {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  margin-top: 0;
+}
+.chat-media-grid .chat-media-dl { top: 0.4rem; right: 0.4rem; }
+@media (min-width: 900px) {
+  .chat-media-grid--many { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 48rem; }
+}
+
 /* Dashboard theme audit layer.
    Keeps older utility-heavy pages visually aligned with Getting Started,
    Documentation, Tutorials, and Guided Tours without touching public pages. */

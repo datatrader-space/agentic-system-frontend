@@ -294,7 +294,7 @@
 /* what a call produced, under its row */
 .rt .act-media{display:flex; flex-wrap:wrap; gap:8px; padding:4px 0 8px 20px}
 .rt .act-thumb{width:120px; max-width:100%; aspect-ratio:1/1; object-fit:cover; border-radius:8px;
-  border:1px solid var(--line); background:var(--surface-2)}
+  border:1px solid var(--line); background:var(--surface-2); cursor:zoom-in}
 /* a goal check whose next attempt is already running: alive, not an ending */
 .rt .node[data-live="true"] .mkr{animation:rt-breathe 1.2s ease-in-out infinite}
 .rt .node[data-live="true"] .verdict{animation:rt-verdict-pulse 2.4s ease-in-out infinite}

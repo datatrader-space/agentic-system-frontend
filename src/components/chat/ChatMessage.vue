@@ -221,12 +221,7 @@
     </template>
 
     <!-- Click-to-preview lightbox for rendered chat images. Teleported to body so it overlays the app. -->
-    <Teleport to="body">
-      <div v-if="previewSrc" class="img-lightbox" @click="previewSrc = null">
-        <img :src="previewSrc" class="img-lightbox-img" alt="preview" @click.stop />
-        <button type="button" class="img-lightbox-close" aria-label="Close" @click="previewSrc = null">×</button>
-      </div>
-    </Teleport>
+    <ImageLightbox ref="lightbox" />
 
     <!-- Workspace-file preview modal: opened when a /api/workspace/files/… link in the answer is clicked
          (see onCodeCopy). Renders markdown/code/json/csv/pdf/image by extension, with a Download button.
@@ -240,9 +235,10 @@
 </template>
 
 <script setup>
-import { computed, ref, shallowRef, nextTick, onMounted, onUnmounted } from 'vue'
+import { computed, ref, shallowRef, nextTick } from 'vue'
 import { marked } from 'marked'
 import { enhanceChatMedia } from '../../utils/chatMedia'
+import ImageLightbox from './ImageLightbox.vue'
 import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
 import api from '../../services/api'
 import AgentActivityTimeline from '../AgentActivityTimeline.vue'
@@ -327,7 +323,7 @@ const emit = defineEmits(['retry', 'regenerate', 'edit', 'feedback'])
 function openAttachment(a) {
   // Images open in the in-chat preview lightbox; other files open in a new tab.
   if (!a || !a.url) return
-  if (a.isImage) previewSrc.value = a.url
+  if (a.isImage) lightbox.value?.open(a.url)
   else window.open(a.url, '_blank', 'noopener')
 }
 
@@ -502,10 +498,7 @@ const rendered = computed(() =>
 // Click-to-preview: clicking a rendered chat image opens a full-screen lightbox. The download button
 // (.chat-media-dl, a sibling <a>) is unaffected — clicking it never matches an <img>, so it still
 // downloads. Delegated here because v-html content isn't Vue-reactive.
-const previewSrc = ref(null)
-const _onEsc = (e) => { if (e.key === 'Escape' && previewSrc.value) previewSrc.value = null }
-onMounted(() => window.addEventListener('keydown', _onEsc))
-onUnmounted(() => window.removeEventListener('keydown', _onEsc))
+const lightbox = ref(null)
 const fileViewer = ref(null)
 // Resolved FileViewer component, loaded the first time a workspace-file link is clicked (see the
 // template note). shallowRef because this holds a component definition, not reactive data.
@@ -528,7 +521,7 @@ const onCodeCopy = async (e) => {
   const img = e.target?.closest?.('img.chat-media-img')
   if (img && img.getAttribute('src')) {
     e.preventDefault()
-    previewSrc.value = img.getAttribute('src')
+    lightbox.value?.open(img.getAttribute('src'))
     return
   }
   // Workspace file link (agent working-memory file): open the preview modal instead of downloading. The
@@ -595,41 +588,6 @@ const copy = async () => {
 <style scoped>
 /* Rendered chat images are clickable → open the preview lightbox. */
 :deep(.chat-media-img) { cursor: zoom-in; }
-
-.img-lightbox {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  cursor: zoom-out;
-}
-.img-lightbox-img {
-  max-width: 95vw;
-  max-height: 92vh;
-  object-fit: contain;
-  border-radius: 6px;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
-  cursor: default;
-}
-.img-lightbox-close {
-  position: fixed;
-  top: 16px;
-  right: 20px;
-  width: 40px;
-  height: 40px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-}
-.img-lightbox-close:hover { background: rgba(255, 255, 255, 0.3); }
 
 .msg {
   display: flex;

@@ -16,6 +16,7 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 import { fileLinkPayload } from '../../composables/fileLinks'
 import SourcesList from '../chat/SourcesList.vue'
+import ImageLightbox from '../chat/ImageLightbox.vue'
 import { useRunTimeline } from '../../stores/useRunTimeline'
 import { useChatStore } from '../../stores/useChatStore'
 import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
@@ -538,7 +539,17 @@ async function copyFinal() {
 // (FileViewer pulls in highlight.js), and awaited so the first click is not swallowed.
 const fileViewer = ref(null)
 const FileViewerComp = shallowRef(null)
+// AN IMAGE IN AN ANSWER opens the same preview a chat bubble opens (ADM-486). On a Work run the bubble is not
+// drawn at all, so this handler is the only one on screen: with no image branch a click did nothing. The
+// download button beside the image is an <a>, never an <img>, so it still downloads.
+const lightbox = ref(null)
 async function onAnswerClick(e) {
+  const img = e.target?.closest?.('img.chat-media-img')
+  if (img && img.getAttribute('src')) {
+    e.preventDefault()
+    lightbox.value?.open(img.getAttribute('src'))
+    return
+  }
   const payload = fileLinkPayload(e.target?.closest?.('a[href*="/api/workspace/files/"], a[href*="/api/documents/"]'))
   if (!payload) return
   e.preventDefault()
@@ -723,7 +734,8 @@ function fmt(ms) {
               <div v-if="a.status === 'failed' && a.reason" class="act-note fail-note">{{ a.reason }}</div>
               <!-- What this call produced, right under it. -->
               <div v-if="a.media.length" class="act-media" :data-test="`rt-media-${a.key}`">
-                <img v-for="(x, i) in a.media" :key="i" :src="x.url" alt="" loading="lazy" class="act-thumb" />
+                <img v-for="(x, i) in a.media" :key="i" :src="x.url" alt="" loading="lazy" class="act-thumb"
+                     @click="lightbox?.open(x.url)" />
               </div>
             </template>
             <!-- NO "what the step can use" list. It came from the step's capability BINDING — 286 tools for an
@@ -894,5 +906,6 @@ function fmt(ms) {
       </div>
     </div>
     <component :is="FileViewerComp" v-if="FileViewerComp" ref="fileViewer" />
+    <ImageLightbox ref="lightbox" />
   </div>
 </template>
