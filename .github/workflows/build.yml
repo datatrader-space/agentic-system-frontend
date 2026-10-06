@@ -1,9 +1,9 @@
 name: Build and push image
 
 # Runs on every push to main: tests, builds the production image, pushes it to ECR.
-# On SUCCESS it chains straight into deploy.yml (`workflow_run`), so a push to main ships.
-# The suite gates that: a red test run or a failed build fails here, deploy.yml's guard sees a
-# non-success conclusion, and the server is never touched.
+# On SUCCESS its final job calls deploy.yml (`needs: build` + `uses:`), so a push to main ships.
+# The suite gates that: a red test run or a failed build fails here, the `deploy` job never
+# starts, and the server is never touched.
 
 on:
   push:
