@@ -1,0 +1,161 @@
+// The browser card's store: which browser a conversation is using, and who drives it.
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { setActivePinia, createPinia } from 'pinia'
+
+vi.mock('../services/api', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
+vi.mock('../composables/useNotify', () => ({ notify: { error: vi.fn(), success: vi.fn() } }))
+
+import api from '../services/api'
+import { notify } from '../composables/useNotify'
+import { useBrowserStore, POLL_MS } from './useBrowserStore'
+
+const card = (over = {}) => ({
+  session_id: 'bs_1', state: 'ACTIVE', site: 'shop.example', address: 'https://shop.example/cart',
+  watchable: true, action_count: 3, control: { holder: 'agent', epoch: 1, mine: false }, ...over,
+})
+
+beforeEach(() => {
+  setActivePinia(createPinia())
+  vi.clearAllMocks()
+  vi.useFakeTimers()
+})
+afterEach(() => { vi.useRealTimers() })
+
+describe('which browser a conversation is using', () => {
+  it('is asked for when the conversation opens', async () => {
+    api.get.mockResolvedValue({ data: { session: card() } })
+    const browser = useBrowserStore()
+    browser.bind(42)
+    await vi.waitFor(() => expect(browser.hasSession).toBe(true))
+    expect(api.get).toHaveBeenCalledWith('/browser/sessions/current/', { params: { conversation_id: 42 }, noCache: true })
+    expect(browser.label).toBe('Working')
+  })
+
+  it('is empty for a conversation that never browsed, and no card is shown', async () => {
+    api.get.mockResolvedValue({ data: { session: null } })
+    const browser = useBrowserStore()
+    browser.bind(42)
+    await vi.waitFor(() => expect(api.get).toHaveBeenCalled())
+    expect(browser.hasSession).toBe(false)
+    expect(browser.thumbUrl).toBe('')
+  })
+
+  it('does not carry one chat\'s browser into the next', async () => {
+    api.get.mockResolvedValueOnce({ data: { session: card() } })
+    const browser = useBrowserStore()
+    browser.bind(42)
+    await vi.waitFor(() => expect(browser.hasSession).toBe(true))
+    browser.show()
+    api.get.mockResolvedValueOnce({ data: { session: null } })
+    browser.bind(43)
+    expect(browser.session).toBeNull()
+    expect(browser.open).toBe(false)
+  })
+
+  it('ignores an answer that arrives after the chat has changed', async () => {
+    let answer
+    api.get.mockImplementationOnce(() => new Promise((resolve) => { answer = resolve }))
+    const browser = useBrowserStore()
+    browser.bind(42)
+    browser.conversationId = 43                      // the user moved on while the request was out
+    answer({ data: { session: card() } })
+    await Promise.resolve(); await Promise.resolve()
+    expect(browser.hasSession).toBe(false)
+  })
+})
+
+describe('polling', () => {
+  it('happens only while a turn is running', async () => {
+    api.get.mockResolvedValue({ data: { session: null } })
+    const browser = useBrowserStore()
+    browser.bind(42)
+    await vi.waitFor(() => expect(api.get).toHaveBeenCalledTimes(1))
+
+    await vi.advanceTimersByTimeAsync(POLL_MS * 3)
+    expect(api.get).toHaveBeenCalledTimes(1)        // an idle chat asks nothing
+
+    browser.follow(true)
+    await vi.advanceTimersByTimeAsync(POLL_MS * 2 + 50)
+    const whileRunning = api.get.mock.calls.length
+    expect(whileRunning).toBeGreaterThanOrEqual(3)
+
+    browser.follow(false)                            // one last look, then quiet
+    await vi.advanceTimersByTimeAsync(50)
+    const afterEnd = api.get.mock.calls.length
+    expect(afterEnd).toBe(whileRunning + 1)
+    await vi.advanceTimersByTimeAsync(POLL_MS * 3)
+    expect(api.get).toHaveBeenCalledTimes(afterEnd)
+  })
+
+  it('asks for a new thumbnail only when the browser has moved', () => {
+    const browser = useBrowserStore()
+    browser.applySession(card())
+    const first = browser.thumbTick
+    browser.applySession(card())
+    expect(browser.thumbTick).toBe(first)
+    browser.applySession(card({ action_count: 4 }))
+    expect(browser.thumbTick).toBe(first + 1)
+    browser.applySession(card({ action_count: 4, address: 'https://shop.example/checkout' }))
+    expect(browser.thumbTick).toBe(first + 2)
+  })
+
+  it('builds a same-origin thumbnail address with nothing secret in it', () => {
+    const browser = useBrowserStore()
+    browser.applySession(card({ session_id: 'bs a/b' }))
+    expect(browser.thumbUrl).toBe(`/api/browser/sessions/bs%20a%2Fb/frame/?t=${browser.thumbTick}`)
+  })
+})
+
+describe('taking and handing back control', () => {
+  it('asks the backend and applies the card it answers with', async () => {
+    api.post.mockResolvedValue({ data: {} })
+    api.get.mockResolvedValue({ data: { session: card({ control: { holder: 'human', epoch: 2, mine: true } }) } })
+    const browser = useBrowserStore()
+    browser.applySession(card())
+    expect(await browser.takeControl()).toBe(true)
+    expect(api.post).toHaveBeenCalledWith('/browser/sessions/bs_1/take-control/', {})
+    expect(browser.mine).toBe(true)
+    expect(browser.label).toBe('You are in control')
+
+    api.get.mockResolvedValue({ data: { session: card({ control: { holder: 'agent', epoch: 3, mine: false } }) } })
+    expect(await browser.releaseControl()).toBe(true)
+    expect(api.post).toHaveBeenLastCalledWith('/browser/sessions/bs_1/release-control/', {})
+    expect(browser.mine).toBe(false)
+  })
+
+  it('says so when somebody else already has the browser', async () => {
+    api.post.mockRejectedValue({ response: { status: 409 } })
+    const browser = useBrowserStore()
+    browser.applySession(card())
+    expect(await browser.takeControl()).toBe(false)
+    expect(notify.error).toHaveBeenCalledWith('Somebody already has control of this browser.')
+    expect(browser.busy).toBe(false)
+  })
+
+  it('does nothing without a session', async () => {
+    const browser = useBrowserStore()
+    expect(await browser.takeControl()).toBe(false)
+    expect(api.post).not.toHaveBeenCalled()
+  })
+})
+
+describe('the pane', () => {
+  it('opens only when there is a browser to show', () => {
+    const browser = useBrowserStore()
+    browser.show()
+    expect(browser.open).toBe(false)
+    browser.applySession(card())
+    browser.show()
+    expect(browser.open).toBe(true)
+    browser.toggle()
+    expect(browser.open).toBe(false)
+  })
+
+  it('closes when the session is gone', () => {
+    const browser = useBrowserStore()
+    browser.applySession(card())
+    browser.show()
+    browser.applySession(null)
+    expect(browser.open).toBe(false)
+  })
+})

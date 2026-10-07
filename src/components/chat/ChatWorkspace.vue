@@ -67,6 +67,10 @@
       </div>
     </header>
 
+    <!-- The browser the agent is using in this chat, when it is using one: a small picture of the page
+         and a way to watch it live in the dock (BrowserPanel). One card per conversation. -->
+    <BrowserCard v-if="!chat.isEmpty && browser.hasSession" />
+
     <!-- Body -->
     <div class="chat-body">
       <ChatWelcome v-if="chat.isEmpty" @submit="onSend" />
@@ -169,6 +173,8 @@ import { useCanvasStore } from '../../stores/useCanvasStore'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { usePlanStore } from '../../stores/usePlanStore'
 import { useArtifactsStore } from '../../stores/useArtifactsStore'
+import { useBrowserStore } from '../../stores/useBrowserStore'
+import BrowserCard from '../browser/BrowserCard.vue'
 import ChatWelcome from './ChatWelcome.vue'
 import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
@@ -215,6 +221,7 @@ const canvas = useCanvasStore()
 const layout = useLayoutStore()
 const plan = usePlanStore()
 const artifacts = useArtifactsStore()
+const browser = useBrowserStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -263,7 +270,8 @@ function closeMoreOnEsc(e) { if (e.key === 'Escape') moreOpen.value = false }
 
 // ── Canvas side panel (resizable) ────────────────────────────────────────────────────────────────
 const canvasOpen = computed(() => canvas.open && canvas.hasCanvas)
-const dockOpen = computed(() => canvasOpen.value || artifacts.open)
+const browserOpen = computed(() => browser.open && browser.hasSession)
+const dockOpen = computed(() => canvasOpen.value || artifacts.open || browserOpen.value)
 const isMobile = ref(typeof window !== 'undefined' && window.innerWidth < 768)
 
 // Auto-collapse the left side navigation while the Canvas panel is open (more room for the preview),
@@ -406,6 +414,8 @@ async function _startNewChat() {
 
 onBeforeUnmount(() => {
   artifacts.closePanel()
+  browser.stopWatching()
+  browser.close()
   window.removeEventListener('resize', onWinResize)
   document.removeEventListener('click', closeMoreOnOutside)
   document.removeEventListener('keydown', closeMoreOnEsc)
@@ -447,6 +457,14 @@ watch(
   (id) => { if (String(id || '') !== String(artifacts.conversationId || '')) artifacts.bind(id) },
   { immediate: true }
 )
+
+// The browser card follows the open conversation the same way, and for the same reason. It asks the
+// backend which browser this chat is using only WHILE A TURN RUNS — the one time a browser can appear or
+// move — so an idle chat asks nothing. A page that needs a person opens the live view by itself: the
+// agent is blocked on them, and a card they have to notice is a run that sits waiting.
+watch(() => chat.conversationId, (id) => browser.bind(id), { immediate: true })
+watch(() => chat.isBusy, (busy) => browser.follow(busy), { immediate: true })
+watch(() => browser.needsPerson, (needs) => { if (needs) browser.show() })
 
 // Once a brand-new chat gets a conversation id, reflect it in the URL so the
 // session is bookmarkable and highlighted in the sidebar. openConversation()

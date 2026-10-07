@@ -6,6 +6,8 @@
     <div class="dock-tabs" role="tablist">
       <button v-if="canvasAvailable" class="dock-tab" role="tab" :aria-selected="tab === 'canvas'"
               :class="{ on: tab === 'canvas' }" @click="select('canvas')">Canvas</button>
+      <button v-if="browserAvailable" class="dock-tab" role="tab" :aria-selected="tab === 'browser'"
+              :class="{ on: tab === 'browser' }" data-test="dock-tab-browser" @click="select('browser')">Browser</button>
       <button class="dock-tab" role="tab" :aria-selected="tab === 'artifacts'"
               :class="{ on: tab === 'artifacts' }" @click="select('artifacts')">
         Artifacts
@@ -20,6 +22,9 @@
          not tear down the canvas iframe (it would reload the preview and lose scroll/selection). -->
     <div class="dock-body">
       <CanvasShell v-if="canvasAvailable" v-show="tab === 'canvas'" class="dock-pane" />
+      <!-- v-if, not only v-show: closing the Browser pane must close its live connection, so the agent's
+           browser stops streaming to nobody. `active` pauses the stream while another tab is on top. -->
+      <BrowserPanel v-if="browserAvailable" v-show="tab === 'browser'" :active="tab === 'browser'" class="dock-pane" />
       <ArtifactsPanel v-show="tab === 'artifacts'" class="dock-pane" />
     </div>
   </section>
@@ -29,18 +34,30 @@
 import { computed, ref, watch } from 'vue'
 import CanvasShell from '../canvas/CanvasShell.vue'
 import ArtifactsPanel from '../artifacts/ArtifactsPanel.vue'
+import BrowserPanel from '../browser/BrowserPanel.vue'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import { useArtifactsStore } from '../../stores/useArtifactsStore'
+import { useBrowserStore } from '../../stores/useBrowserStore'
 
 const canvas = useCanvasStore()
 const artifacts = useArtifactsStore()
+const browser = useBrowserStore()
 
 const canvasAvailable = computed(() => canvas.open && canvas.hasCanvas)
+const browserAvailable = computed(() => browser.open && browser.hasSession)
 
-// Which pane is on top. Whichever surface the user (or the agent) most recently opened wins; with no
-// canvas at all the dock can only be showing Artifacts.
+// Which pane is on top. Whichever surface the user (or the agent) most recently opened wins. A pane that
+// is wanted but no longer there falls to one that is; with neither a canvas nor a browser the dock can
+// only be showing Artifacts.
 const _tab = ref('canvas')
-const tab = computed(() => (canvasAvailable.value ? _tab.value : 'artifacts'))
+const tab = computed(() => {
+  if (_tab.value === 'canvas' && canvasAvailable.value) return 'canvas'
+  if (_tab.value === 'browser' && browserAvailable.value) return 'browser'
+  if (_tab.value === 'artifacts') return 'artifacts'
+  if (canvasAvailable.value) return 'canvas'
+  if (browserAvailable.value) return 'browser'
+  return 'artifacts'
+})
 
 function select(t) {
   _tab.value = t
@@ -50,15 +67,17 @@ function select(t) {
 // The agent producing a design pulls the canvas forward; the user opening Artifacts pulls that forward.
 watch(canvasAvailable, (on) => { if (on) _tab.value = 'canvas' })
 watch(() => artifacts.open, (on) => { if (on) { _tab.value = 'artifacts'; artifacts.unseen = 0 } })
+watch(browserAvailable, (on) => { if (on) _tab.value = 'browser' }, { immediate: true })
 
+// Close the pane that is showing, then show whichever other one is still open.
 function closeDock() {
-  if (tab.value === 'artifacts') {
-    artifacts.closePanel()
-    if (canvasAvailable.value) _tab.value = 'canvas'
-  } else {
-    canvas.close()
-    if (artifacts.open) _tab.value = 'artifacts'
-  }
+  const closing = tab.value
+  if (closing === 'artifacts') artifacts.closePanel()
+  else if (closing === 'browser') browser.close()
+  else canvas.close()
+  if (closing !== 'canvas' && canvasAvailable.value) _tab.value = 'canvas'
+  else if (closing !== 'browser' && browserAvailable.value) _tab.value = 'browser'
+  else if (closing !== 'artifacts' && artifacts.open) _tab.value = 'artifacts'
 }
 </script>
 
