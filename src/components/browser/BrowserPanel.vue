@@ -120,6 +120,7 @@ const overlayText = computed(() => {
     if (phaseCode.value === 'TOO_MANY_VIEWERS') return 'This browser is already open in three other windows.'
     if (phaseCode.value === 'BROWSER_DISABLED') return 'Browsing is switched off right now.'
     if (phaseCode.value === 'NOT_RUNNING') return hasPicture.value ? '' : 'The browser is no longer running.'
+    if (phaseCode.value === 'PARKED') return hasPicture.value ? '' : 'The browser is paused until the agent uses it again.'
     return 'The live view is not available right now.'
   }
   if (phase.value === 'connecting') return 'Connecting to the browser…'
@@ -130,6 +131,7 @@ const overlayText = computed(() => {
 const hint = computed(() => {
   if (browser.ended || phase.value === 'ended') return 'This browser session has ended.'
   if (phase.value === 'unavailable' && phaseCode.value === 'NOT_RUNNING') return 'The browser is no longer running. This is the last picture of it.'
+  if (phase.value === 'unavailable' && phaseCode.value === 'PARKED') return 'The agent has finished for now, so its browser is paused. It comes back here when the agent uses it again.'
   if (browser.mine) return 'You are in control. The agent is paused until you hand back.'
   if (heldElsewhere.value) return 'This browser is being controlled from another window.'
   if (browser.needsPerson) return 'The agent is waiting for you to finish this step.'

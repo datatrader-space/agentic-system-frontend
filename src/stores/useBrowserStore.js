@@ -25,7 +25,8 @@ export const useBrowserStore = defineStore('browser', {
     thumbTick: 0,           // bumped to make the card ask for a fresh thumbnail
     busy: false,            // a take / hand-back request is in flight
     _timer: null,
-    _asking: false,
+    _asking: null,          // the conversation a request is out for, so another chat's ask is not skipped
+    _following: false,     // a turn is running, whether or not there is a conversation to ask about yet
   }),
 
   getters: {
@@ -49,18 +50,22 @@ export const useBrowserStore = defineStore('browser', {
     bind(conversationId) {
       const next = conversationId || null
       if (String(next || '') === String(this.conversationId || '')) return
-      this.stopWatching()
+      this._stopTimer()
       this.conversationId = next
       this.session = null
       this.open = false
       this.thumbTick = 0
-      if (next) this.refresh()
+      if (!next) return
+      this.refresh()
+      // A NEW chat starts its turn before it has an id: `follow(true)` came first and had nothing to ask
+      // about. The id arriving is what starts the asking, or the card never appears until a reload.
+      if (this._following) this._startTimer()
     },
 
     async refresh() {
       const asked = this.conversationId
-      if (!asked || this._asking) return
-      this._asking = true
+      if (!asked || String(this._asking || '') === String(asked)) return
+      this._asking = asked
       try {
         const { data } = await api.get('/browser/sessions/current/', {
           params: { conversation_id: asked }, noCache: true,
@@ -70,7 +75,7 @@ export const useBrowserStore = defineStore('browser', {
       } catch (e) {
         // A card that cannot refresh keeps what it last knew. Nothing to tell the user: the chat works.
       } finally {
-        this._asking = false
+        if (String(this._asking || '') === String(asked)) this._asking = null
       }
     },
 
@@ -93,11 +98,20 @@ export const useBrowserStore = defineStore('browser', {
         this.stopWatching()
         return
       }
+      this._following = true
       if (this._timer || !this.conversationId) return
       this.refresh()
-      this._timer = setInterval(() => this.refresh(), POLL_MS)
+      this._startTimer()
     },
     stopWatching() {
+      this._following = false
+      this._stopTimer()
+    },
+    _startTimer() {
+      if (this._timer) return
+      this._timer = setInterval(() => this.refresh(), POLL_MS)
+    },
+    _stopTimer() {
       if (this._timer) { clearInterval(this._timer); this._timer = null }
     },
 

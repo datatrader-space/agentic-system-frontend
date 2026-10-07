@@ -87,6 +87,43 @@ describe('polling', () => {
     expect(api.get).toHaveBeenCalledTimes(afterEnd)
   })
 
+  // Seen live on 2026-10-07, conversation 2636: a NEW chat starts its turn before it has an id. The
+  // "a turn is running" signal came first and had no conversation to ask about; the id arrived, was asked
+  // about once (no browser yet), and nothing ever asked again. The agent browsed three pages and the card
+  // appeared only after a reload.
+  it('starts when a new chat gets its id after its turn has already begun', async () => {
+    api.get.mockResolvedValue({ data: { session: null } })
+    const browser = useBrowserStore()
+    browser.follow(true)                             // the turn began; the chat has no id yet
+    await vi.advanceTimersByTimeAsync(POLL_MS * 2)
+    expect(api.get).not.toHaveBeenCalled()
+
+    browser.bind(2636)                               // the id arrives
+    await vi.advanceTimersByTimeAsync(50)
+    expect(api.get).toHaveBeenCalledTimes(1)
+    api.get.mockResolvedValue({ data: { session: card() } })   // the agent opens its browser
+    await vi.advanceTimersByTimeAsync(POLL_MS + 50)
+    expect(browser.hasSession).toBe(true)
+  })
+
+  it('keeps asking when the user switches to another chat while a turn runs, and stops when it ends', async () => {
+    api.get.mockResolvedValue({ data: { session: null } })
+    const browser = useBrowserStore()
+    browser.bind(42)
+    browser.follow(true)
+    browser.bind(43)
+    await vi.advanceTimersByTimeAsync(POLL_MS + 50)
+    const asked = api.get.mock.calls.filter(([, o]) => o.params.conversation_id === 43).length
+    expect(asked).toBeGreaterThanOrEqual(2)
+
+    browser.follow(false)
+    await vi.advanceTimersByTimeAsync(50)
+    const settled = api.get.mock.calls.length
+    browser.bind(44)                                 // an idle chat is asked about once, never polled
+    await vi.advanceTimersByTimeAsync(POLL_MS * 3)
+    expect(api.get).toHaveBeenCalledTimes(settled + 1)
+  })
+
   it('asks for a new thumbnail only when the browser has moved', () => {
     const browser = useBrowserStore()
     browser.applySession(card())

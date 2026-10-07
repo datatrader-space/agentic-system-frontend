@@ -241,6 +241,15 @@ describe('driving', () => {
 })
 
 describe('when there is nothing to stream', () => {
+  it('a browser paused after its run says it is paused, not broken', async () => {
+    const w = open()
+    sock.handlers.onStatus('unavailable', 'PARKED')
+    await nextTick()
+    expect(w.find('[data-test="bl-overlay"]').text()).toContain('paused until the agent uses it again')
+    expect(w.find('[data-test="bl-hint"]').text()).toContain('its browser is paused')
+    expect(w.find('[data-test="bl-take"]').exists()).toBe(false)
+  })
+
   it('a browser that has gone shows its last picture and says so', async () => {
     const w = open()
     sock.handlers.onStatus('unavailable', 'NOT_RUNNING')

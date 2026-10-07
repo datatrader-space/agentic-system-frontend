@@ -92,7 +92,9 @@ export function stateLabel(session) {
     case 'READY':
       return 'Starting'
     case 'ACTIVE':
-      return 'Working'
+      // A finished run parks its browser: the session is kept, nothing is running in it, and it comes
+      // back when the agent next uses it. "Working" beside a browser that is asleep is not true.
+      return session.unwatchable_reason === 'PARKED' ? 'Paused' : 'Working'
     case 'WAITING_HUMAN':
       return 'Waiting for you'
     case 'CHECKPOINTING':

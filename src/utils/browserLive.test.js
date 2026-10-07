@@ -101,6 +101,8 @@ describe('a key', () => {
 describe('what a session is called', () => {
   it('reads as a person would say it', () => {
     expect(stateLabel({ state: 'ACTIVE' })).toBe('Working')
+    // A finished run parks its browser: the session stays ACTIVE with nothing running in it.
+    expect(stateLabel({ state: 'ACTIVE', unwatchable_reason: 'PARKED' })).toBe('Paused')
     expect(stateLabel({ state: 'READY' })).toBe('Starting')
     expect(stateLabel({ state: 'WAITING_HUMAN' })).toBe('Waiting for you')
     expect(stateLabel({ state: 'STOPPED' })).toBe('Ended')
