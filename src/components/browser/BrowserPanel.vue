@@ -135,6 +135,7 @@ const hint = computed(() => {
   if (browser.mine) return 'You are in control. The agent is paused until you hand back.'
   if (heldElsewhere.value) return 'This browser is being controlled from another window.'
   if (browser.needsPerson) return 'The agent is waiting for you to finish this step.'
+  if (!browser.running) return 'The agent is not running right now. The browser stays open for a few minutes; you can still take control.'
   return 'The agent is driving. Click the page to take control.'
 })
 

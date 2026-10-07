@@ -38,7 +38,14 @@ export const useBrowserStore = defineStore('browser', {
     watchable: (s) => !!(s.session && s.session.watchable),
     mine: (s) => !!(s.session && s.session.control && s.session.control.mine),
     needsPerson: (s) => !!(s.session && s.session.state === 'WAITING_HUMAN'),
-    label: (s) => stateLabel(s.session),
+    // A turn is running in this chat. The browser outlives the turn by a few minutes, and for those
+    // minutes nobody is driving it: seen live on 2026-10-07 (conversation 2643), the run had stopped and
+    // the card still read "Working" with "The agent is driving" under the picture.
+    running: (s) => !!s._following,
+    label: (s) => {
+      const words = stateLabel(s.session)
+      return words === 'Working' && !s._following ? 'Idle' : words
+    },
     // Same-origin and cookie-authenticated, like an artifact download: no blob, no token in the URL.
     // The tick only defeats the browser's own cache; the response is `no-store` already.
     thumbUrl: (s) => (s.session && s.session.session_id

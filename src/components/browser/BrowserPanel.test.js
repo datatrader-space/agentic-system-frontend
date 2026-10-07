@@ -39,7 +39,10 @@ let browser
 function open(session = card(), props = {}) {
   browser.applySession(session)
   browser.show()
-  return mount(BrowserPanel, { props, attachTo: document.body })
+  if (!('running' in props)) browser._following = true      // a turn is running, unless the test says not
+  const { running, ...panelProps } = props
+  if (running === false) browser._following = false
+  return mount(BrowserPanel, { props: panelProps, attachTo: document.body })
 }
 const frame = (header = {}, bytes = 3) => sock.handlers.onFrame({ t: 'frame', seq: 1, w: 1440, h: 900, ...header }, new Uint8Array(bytes))
 
@@ -236,6 +239,20 @@ describe('driving', () => {
     await vi.waitFor(() => expect(sock.syncs).toBe(1))
     await nextTick()
     expect(api.post).toHaveBeenCalledWith('/browser/sessions/bs_1/release-control/', {})
+    expect(w.find('[data-test="bl-take"]').exists()).toBe(true)
+  })
+})
+
+describe('after the run has stopped', () => {
+  // Seen live on 2026-10-07, conversation 2643: the run had stopped and the pane still said the agent
+  // was driving. The browser stays up for a few minutes after a run; nobody is driving it then.
+  it('does not say the agent is driving, and a person can still take control', async () => {
+    const w = open(card(), { running: false })
+    frame()
+    await nextTick()
+    const hint = w.find('[data-test="bl-hint"]').text()
+    expect(hint).toContain('The agent is not running right now')
+    expect(hint).not.toContain('The agent is driving')
     expect(w.find('[data-test="bl-take"]').exists()).toBe(true)
   })
 })

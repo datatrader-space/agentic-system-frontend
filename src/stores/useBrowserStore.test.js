@@ -28,7 +28,12 @@ describe('which browser a conversation is using', () => {
     browser.bind(42)
     await vi.waitFor(() => expect(browser.hasSession).toBe(true))
     expect(api.get).toHaveBeenCalledWith('/browser/sessions/current/', { params: { conversation_id: 42 }, noCache: true })
+    expect(browser.label).toBe('Idle')                // no turn is running in this chat
+    browser.follow(true)
     expect(browser.label).toBe('Working')
+    expect(browser.running).toBe(true)
+    browser.follow(false)                             // the run stopped; the browser is still up
+    expect(browser.label).toBe('Idle')
   })
 
   it('is empty for a conversation that never browsed, and no card is shown', async () => {
