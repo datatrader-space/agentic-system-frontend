@@ -3,9 +3,7 @@
     <transition name="wm-fade">
       <div v-if="show" class="wm-overlay" @click.self="$emit('later')">
         <div class="wm-card" role="dialog" aria-modal="true" aria-labelledby="wm-title">
-          <div class="wm-mark">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
-          </div>
+          <div class="wm-mark"><BrandMark /></div>
           <h2 id="wm-title" class="wm-title">Welcome to Aadml{{ name ? `, ${name}` : '' }}!</h2>
           <p class="wm-sub">
             This is your workspace for building AI agents that chat, run tools, automate workflows, and write code.
@@ -27,6 +25,8 @@
 </template>
 
 <script setup>
+import BrandMark from '../common/BrandMark.vue'
+
 defineProps({
   show: { type: Boolean, default: false },
   name: { type: String, default: '' },
@@ -48,11 +48,8 @@ defineEmits(['create', 'tour', 'later'])
   animation: wmPop .35s var(--vm-ease, cubic-bezier(.2,.8,.2,1)) both;
 }
 .wm-mark {
-  width: 56px; height: 56px; margin: 0 auto 18px; border-radius: 16px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--vm-g-brand, linear-gradient(135deg,#7c3aed,#0ea5e9)); box-shadow: var(--vm-glow-v, 0 8px 24px rgba(124,58,237,.4));
+  width: 56px; height: 56px; margin: 0 auto 18px;
 }
-.wm-mark svg { width: 28px; height: 28px; }
 .wm-title { font-family: var(--vm-font-display, inherit); font-size: 1.375rem; font-weight: 700; color: var(--vm-ink, #0f172a); margin: 0 0 10px; }
 .wm-sub { font-size: 0.9375rem; line-height: 1.55; color: var(--vm-ink-soft, #475569); margin: 0 0 16px; }
 .wm-steps {

@@ -13,23 +13,7 @@
         <div class="branding-content">
           <!-- Logo -->
           <router-link to="/" class="logo-link">
-            <div class="logo-icon">
-              <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="2" y="2" width="28" height="28" rx="8" stroke="url(#login-gradient)" stroke-width="2.5"/>
-                <path d="M10 16L14 20L22 12" stroke="url(#login-gradient)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="16" cy="8" r="2" fill="url(#login-gradient)"/>
-                <circle cx="8" cy="16" r="2" fill="url(#login-gradient)"/>
-                <circle cx="24" cy="16" r="2" fill="url(#login-gradient)"/>
-                <circle cx="16" cy="24" r="2" fill="url(#login-gradient)"/>
-                <defs>
-                  <linearGradient id="login-gradient" x1="0" y1="0" x2="32" y2="32">
-                    <stop stop-color="#6366f1"/>
-                    <stop offset="0.5" stop-color="#2563EB"/>
-                    <stop offset="1" stop-color="#d946ef"/>
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
+            <div class="logo-icon"><BrandMark /></div>
             <div class="logo-text">
               <span class="logo-main">AADML</span>
             </div>
@@ -297,6 +281,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import BrandMark from '../components/common/BrandMark.vue'
 import api from '../services/api'
 
 const router = useRouter()
@@ -653,11 +638,6 @@ watch(() => formData.value.password, () => {
 .logo-icon {
   width: 44px;
   height: 44px;
-}
-
-.logo-icon svg {
-  width: 100%;
-  height: 100%;
 }
 
 .logo-text {

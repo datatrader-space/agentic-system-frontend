@@ -16,21 +16,7 @@
       <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <!-- Brand -->
         <router-link to="/" class="flex items-center gap-2.5" @click="closeMobile">
-          <span class="pl-logo">
-            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="2" y="2" width="28" height="28" rx="8" stroke="url(#pl-g)" stroke-width="2.5" />
-              <path d="M10 16L14 20L22 12" stroke="url(#pl-g)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-              <circle cx="16" cy="8" r="2" fill="url(#pl-g)" />
-              <circle cx="8" cy="16" r="2" fill="url(#pl-g)" />
-              <circle cx="24" cy="16" r="2" fill="url(#pl-g)" />
-              <circle cx="16" cy="24" r="2" fill="url(#pl-g)" />
-              <defs>
-                <linearGradient id="pl-g" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                  <stop stop-color="#2563EB" /><stop offset="1" stop-color="#14B8A6" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </span>
+          <span class="pl-logo"><BrandMark /></span>
           <span class="font-display text-lg font-extrabold tracking-tight text-ink">AADML</span>
         </router-link>
 
@@ -103,17 +89,7 @@
         <div class="grid gap-10 md:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div>
             <div class="flex items-center gap-2.5">
-              <span class="pl-logo pl-logo-sm">
-                <svg viewBox="0 0 32 32" fill="none">
-                  <rect x="2" y="2" width="28" height="28" rx="8" stroke="url(#pl-gf)" stroke-width="2.5" />
-                  <path d="M10 16L14 20L22 12" stroke="url(#pl-gf)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-                  <defs>
-                    <linearGradient id="pl-gf" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                      <stop stop-color="#2563EB" /><stop offset="1" stop-color="#14B8A6" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </span>
+              <span class="pl-logo pl-logo-sm"><BrandMark /></span>
               <span class="font-display text-base font-extrabold text-ink">AADML</span>
             </div>
             <p class="mt-4 max-w-xs text-sm leading-relaxed text-ink-soft">
@@ -149,6 +125,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
+import BrandMark from '../common/BrandMark.vue'
 import CookieConsent from './CookieConsent.vue'
 import AppBreadcrumbs from '../common/AppBreadcrumbs.vue'
 
@@ -261,7 +238,6 @@ onUnmounted(() => scrollEl.value?.removeEventListener('scroll', onScroll))
   box-shadow: var(--vm-shadow-s);
 }
 .pl-logo { display: inline-flex; width: 32px; height: 32px; }
-.pl-logo svg { width: 100%; height: 100%; }
 .pl-logo-sm { width: 28px; height: 28px; }
 
 .pl-nav-link {

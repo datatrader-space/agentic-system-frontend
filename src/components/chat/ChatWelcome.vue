@@ -1,9 +1,7 @@
 <template>
   <div class="welcome">
     <div class="welcome-inner">
-      <div class="welcome-mark">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
-      </div>
+      <div class="welcome-mark"><BrandMark /></div>
       <h1 class="welcome-title">What would you like your <span class="vm-grad-text">agent</span> to do?</h1>
       <p class="welcome-sub">Ask about repositories, run tools, inspect system state, or generate a plan.</p>
 
@@ -244,6 +242,7 @@
 <script setup>
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+import BrandMark from '../common/BrandMark.vue'
 import { useChatStore } from '../../stores/useChatStore'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import api from '../../services/api'
@@ -553,15 +552,8 @@ const submit = () => {
   width: 56px;
   height: 56px;
   margin: 0 auto 22px;
-  border-radius: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--vm-g-brand);
-  box-shadow: var(--vm-glow-v);
   animation: vmPop .7s var(--vm-ease) both, vmFloat 5s ease-in-out infinite;
 }
-.welcome-mark svg { width: 28px; height: 28px; }
 .welcome-title {
   font-family: var(--vm-font-display);
   font-size: 1.875rem;
@@ -819,10 +811,9 @@ const submit = () => {
 @media (max-width: 640px) {
   .welcome { padding: 18px 12px; }
   .welcome-mark {
-    width: 40px; height: 40px; margin: 0 auto 12px; border-radius: 12px;
+    width: 40px; height: 40px; margin: 0 auto 12px;
     animation: vmPop .7s var(--vm-ease) both;   /* no idle float: it drags on a phone GPU */
   }
-  .welcome-mark svg { width: 21px; height: 21px; }
   .welcome-title { font-size: 1.375rem; line-height: 1.25; margin: 0 0 5px; }
   .welcome-sub { font-size: 0.8125rem; line-height: 1.4; margin: 0 0 14px; }
   .agent-pick { margin-bottom: 14px; }

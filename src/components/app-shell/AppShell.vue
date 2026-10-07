@@ -17,9 +17,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" /></svg>
         </button>
         <div class="bar-brand">
-          <span class="bar-mark">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" /></svg>
-          </span>
+          <span class="bar-mark"><BrandMark /></span>
           <span class="bar-title">Aadml<span class="bar-v">v2</span></span>
         </div>
         <button class="bar-btn" title="Search (Ctrl/Cmd+K)" aria-label="Open command palette" @click="paletteOpen = true">
@@ -83,6 +81,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import BrandMark from '../common/BrandMark.vue'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { useChatStore } from '../../stores/useChatStore'
 import LeftSidebar from './LeftSidebar.vue'
@@ -305,8 +304,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   .nav-toggle { display: none; }
 }
 .bar-brand { display: flex; align-items: center; gap: 9px; }
-.bar-mark { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: var(--vm-g-brand); box-shadow: var(--vm-glow-v); }
-.bar-mark svg { width: 17px; height: 17px; }
+.bar-mark { width: 30px; height: 30px; flex-shrink: 0; }
 .bar-title { font-family: var(--vm-font-display); font-size: 1.0625rem; font-weight: 700; letter-spacing: -.02em; color: var(--vm-ink); }
 .bar-v { font-size: 0.6rem; font-weight: 700; background: var(--vm-g-brand); -webkit-background-clip: text; background-clip: text; color: transparent; vertical-align: super; margin-left: 1px; }
 

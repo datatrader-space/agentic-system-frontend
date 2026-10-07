@@ -40,7 +40,7 @@ export function notifyRunFinished({ agentName, snippet, conversationId }) {
     if (!conversationId || _activelyViewing(conversationId)) return
     const title = `${agentName || 'Your agent'} finished`
     const body = String(snippet || '').replace(/\s+/g, ' ').trim().slice(0, 140) || 'The run is complete.'
-    const n = new Notification(title, { body, tag: 'run-' + conversationId, icon: '/favicon.ico' })
+    const n = new Notification(title, { body, tag: 'run-' + conversationId, icon: '/icon-192.png' })
     n.onclick = () => {
       try { window.focus() } catch { /* */ }
       try {

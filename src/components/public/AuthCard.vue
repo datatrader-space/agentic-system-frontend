@@ -12,13 +12,7 @@
       </router-link>
 
       <div class="brand">
-        <span class="brand-logo">
-          <svg viewBox="0 0 32 32" fill="none">
-            <rect x="2" y="2" width="28" height="28" rx="8" stroke="url(#ac-g)" stroke-width="2.5" />
-            <path d="M10 16L14 20L22 12" stroke="url(#ac-g)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-            <defs><linearGradient id="ac-g" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse"><stop stop-color="#2563EB" /><stop offset="1" stop-color="#14B8A6" /></linearGradient></defs>
-          </svg>
-        </span>
+        <span class="brand-logo"><BrandMark /></span>
         <span class="font-display text-lg font-extrabold text-ink">AADML</span>
       </div>
 
@@ -31,6 +25,8 @@
 </template>
 
 <script setup>
+import BrandMark from '../common/BrandMark.vue'
+
 defineProps({ title: { type: String, required: true }, subtitle: { type: String, default: '' } })
 </script>
 
@@ -68,7 +64,6 @@ defineProps({ title: { type: String, required: true }, subtitle: { type: String,
 .back:hover { color: var(--vm-ink); }
 .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
 .brand-logo { display: inline-flex; width: 32px; height: 32px; }
-.brand-logo svg { width: 100%; height: 100%; }
 .title { font-family: var(--vm-font-display); font-size: 1.55rem; font-weight: 800; color: var(--vm-ink); }
 .subtitle { margin-top: 6px; font-size: .92rem; color: var(--vm-ink-soft); }
 @media (prefers-reduced-motion: reduce) { .ab { animation: none; } }

@@ -16,7 +16,7 @@
              line nothing moves sideways. -->
         <div v-if="isStreaming && !railShown" class="prep-row" data-test="rail-pending">
           <div class="avatar assistant-avatar prep-avatar" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+            <BrandMark />
           </div>
           <div class="prep-status">
             <span class="prep-spinner"></span>{{ (chat.liveStatus && chat.liveStatus.label) || 'Starting work…' }}
@@ -31,7 +31,7 @@
     <!-- Assistant -->
     <template v-else-if="message.role === 'assistant'">
       <div class="avatar assistant-avatar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+        <BrandMark />
       </div>
       <div class="bubble-wrap">
         <!-- Live activity timeline: Thinking → Searching → Generating → Done. Renders ONLY friendly,
@@ -237,6 +237,7 @@
 <script setup>
 import { computed, ref, shallowRef, nextTick } from 'vue'
 import { marked } from 'marked'
+import BrandMark from '../common/BrandMark.vue'
 import { enhanceChatMedia } from '../../utils/chatMedia'
 import ImageLightbox from './ImageLightbox.vue'
 import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
@@ -607,14 +608,7 @@ const copy = async () => {
   height: 32px;
   flex-shrink: 0;
   margin-top: 2px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--vm-g-brand);
-  box-shadow: var(--vm-glow-v);
 }
-.assistant-avatar svg { width: 18px; height: 18px; }
 
 .bubble-wrap { min-width: 0; flex: 1; }
 .tool-calls { display: flex; flex-direction: column; align-items: flex-start; }
