@@ -124,6 +124,43 @@ describe('polling', () => {
     expect(api.get).toHaveBeenCalledTimes(settled + 1)
   })
 
+  // Seen live on 2026-10-07, conversation 2638. The shell re-creates the chat view when /chat/new becomes
+  // /chat/<id>, and sets the new view up before it cleans the old one up.
+  it('is not stopped by the cleanup of a chat view that has been replaced', async () => {
+    api.get.mockResolvedValue({ data: { session: null } })
+    const browser = useBrowserStore()
+    const oldView = browser.attach()
+    browser.follow(true)                             // the turn begins in the new chat
+    browser.bind(2638)                               // its id arrives; the address changes
+    const newView = browser.attach()                 // the new view is set up first…
+    expect(newView).not.toBe(oldView)
+    browser.bind(2638)
+    browser.follow(true)
+    browser.show()
+    browser.detach(oldView)                          // …and only then is the old one cleaned up
+    await vi.advanceTimersByTimeAsync(50)
+    const before = api.get.mock.calls.length
+    api.get.mockResolvedValue({ data: { session: card() } })
+    await vi.advanceTimersByTimeAsync(POLL_MS * 2 + 50)
+    expect(api.get.mock.calls.length).toBeGreaterThanOrEqual(before + 2)
+    expect(browser.hasSession).toBe(true)
+  })
+
+  it('is stopped and closed when the view that owns it goes away', async () => {
+    api.get.mockResolvedValue({ data: { session: card() } })
+    const browser = useBrowserStore()
+    const view = browser.attach()
+    browser.bind(42)
+    browser.follow(true)
+    await vi.waitFor(() => expect(browser.hasSession).toBe(true))
+    browser.show()
+    browser.detach(view)                             // the user left the chat for another page
+    expect(browser.open).toBe(false)
+    const settled = api.get.mock.calls.length
+    await vi.advanceTimersByTimeAsync(POLL_MS * 3)
+    expect(api.get).toHaveBeenCalledTimes(settled)
+  })
+
   it('asks for a new thumbnail only when the browser has moved', () => {
     const browser = useBrowserStore()
     browser.applySession(card())

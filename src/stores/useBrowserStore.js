@@ -26,7 +26,9 @@ export const useBrowserStore = defineStore('browser', {
     busy: false,            // a take / hand-back request is in flight
     _timer: null,
     _asking: null,          // the conversation a request is out for, so another chat's ask is not skipped
-    _following: false,     // a turn is running, whether or not there is a conversation to ask about yet
+    _following: false,      // a turn is running, whether or not there is a conversation to ask about yet
+    _owner: 0,              // the chat view this store currently serves (see `attach`); 0 is nobody
+    _views: 0,              // how many views have attached, so each gets a number of its own
   }),
 
   getters: {
@@ -45,6 +47,26 @@ export const useBrowserStore = defineStore('browser', {
   },
 
   actions: {
+    // ONE CHAT VIEW OWNS THIS STORE AT A TIME. The app shell keys the chat view on the address, so when a
+    // new chat gets its id (/chat/new -> /chat/<id>) the whole view is created again — and the new view is
+    // set up BEFORE the old one's cleanup runs. The old view's cleanup used to stop the asking the new view
+    // had just started: seen live on 2026-10-07 in conversation 2638, one request and then silence while
+    // the agent browsed eight pages. A view that has been replaced stops nothing.
+    //
+    // `attach` hands the view a number, not an object: state is reactive, and an object kept in it comes
+    // back wrapped, so it would never compare equal to the one the view holds.
+    attach() {
+      this._views += 1
+      this._owner = this._views
+      return this._owner
+    },
+    detach(token) {
+      if (!token || this._owner !== token) return
+      this._owner = 0
+      this.stopWatching()
+      this.close()
+    },
+
     // Point the store at a conversation. A browser belongs to one conversation; carrying a card from one
     // chat into the next would read as a leak, so a real change clears everything first.
     bind(conversationId) {

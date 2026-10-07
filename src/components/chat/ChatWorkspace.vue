@@ -222,6 +222,10 @@ const layout = useLayoutStore()
 const plan = usePlanStore()
 const artifacts = useArtifactsStore()
 const browser = useBrowserStore()
+// This view takes the browser store as soon as it is set up. When a new chat gets its id the shell builds
+// a fresh chat view and only then cleans up the old one; the old one's cleanup hands back a store it no
+// longer owns, which does nothing, instead of stopping what the new view started.
+const browserView = browser.attach()
 const route = useRoute()
 const router = useRouter()
 
@@ -414,8 +418,7 @@ async function _startNewChat() {
 
 onBeforeUnmount(() => {
   artifacts.closePanel()
-  browser.stopWatching()
-  browser.close()
+  browser.detach(browserView)
   window.removeEventListener('resize', onWinResize)
   document.removeEventListener('click', closeMoreOnOutside)
   document.removeEventListener('keydown', closeMoreOnEsc)
