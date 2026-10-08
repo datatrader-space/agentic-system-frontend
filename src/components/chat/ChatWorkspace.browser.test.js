@@ -89,3 +89,41 @@ describe('the browser card in a new chat', () => {
     expect(asksAboutTheBrowser()).toBe(settled)
   })
 })
+
+// The place a person is sent to watch (`viewer.url` from the MCP tool): the chat, with `?browser=1`.
+describe('a link that asks for the browser', () => {
+  const arrive = async (query) => {
+    chat.conversationId = '2638'
+    route.path = '/dashboard/chat/2638'
+    route.params = { sessionId: '2638' }
+    route.query = query
+    api.get.mockImplementation((url) => Promise.resolve(
+      url.endsWith('/timeline/') ? { data: { actions: [] } } : { data: { session: SESSION } }))
+    const w = view()
+    await vi.advanceTimersByTimeAsync(50)
+    return w
+  }
+
+  it('opens the pane once the chat\'s browser is known', async () => {
+    const w = await arrive({ browser: '1' })
+    expect(browser.hasSession).toBe(true)
+    expect(browser.open).toBe(true)
+    w.unmount()
+  })
+
+  it('does not reopen it after the person closes it', async () => {
+    const w = await arrive({ browser: '1' })
+    browser.close()
+    browser.applySession({ ...SESSION, action_count: 9 })      // the browser moves on
+    await vi.advanceTimersByTimeAsync(50)
+    expect(browser.open).toBe(false)
+    w.unmount()
+  })
+
+  it('an ordinary link to the chat leaves the pane closed', async () => {
+    const w = await arrive({})
+    expect(browser.hasSession).toBe(true)
+    expect(browser.open).toBe(false)
+    w.unmount()
+  })
+})

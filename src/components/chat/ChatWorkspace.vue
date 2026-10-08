@@ -468,6 +468,15 @@ watch(
 watch(() => chat.conversationId, (id) => browser.bind(id), { immediate: true })
 watch(() => chat.isBusy, (busy) => browser.follow(busy), { immediate: true })
 watch(() => browser.needsPerson, (needs) => { if (needs) browser.show() })
+// A LINK THAT SAYS "SHOW ME THE BROWSER" (`?browser=1`, what the MCP tool hands a person as the place to
+// watch). The pane opens once this chat's browser is known — and once only: a person who then closes it
+// has closed it, and a link in the address bar must not keep reopening it under them.
+let openedFromLink = false
+watch(() => [route.query.browser, browser.hasSession], ([asked, has]) => {
+  if (!asked || !has || openedFromLink) return
+  openedFromLink = true
+  browser.show()
+}, { immediate: true })
 
 // Once a brand-new chat gets a conversation id, reflect it in the URL so the
 // session is bookmarkable and highlighted in the sidebar. openConversation()
