@@ -468,6 +468,18 @@ watch(
 // agent is blocked on them, and a card they have to notice is a run that sits waiting.
 watch(() => chat.conversationId, (id) => browser.bind(id), { immediate: true })
 watch(() => chat.isBusy, (busy) => browser.follow(busy), { immediate: true })
+// AND WHENEVER A MESSAGE LANDS OR SETTLES. "Busy" is the chat's own account of its stream, and it can be
+// wrong for the length of a turn: seen live on 2026-10-08 (conversation 2659), the sandbox took three and
+// a half minutes to wake, the chat stopped calling itself busy after about a hundred seconds of silence,
+// the asking stopped with it, and the browser that started two minutes later was never shown — the
+// answer arrived with no card beside it. A message arriving or finishing is proof something happened in
+// this chat, whatever the stream flag says, so that asks once too. The store drops an ask that is
+// already out.
+watch(() => {
+  const all = chat.messages || []
+  const last = all[all.length - 1]
+  return `${all.length}:${last ? `${last.id || ''}:${last.status || ''}` : ''}`
+}, () => { browser.refresh() })
 watch(() => browser.needsPerson, (needs) => { if (needs) browser.show() })
 // A LINK THAT SAYS "SHOW ME THE BROWSER" (`?browser=1`, what the MCP tool hands a person as the place to
 // watch). The pane opens once this chat's browser is known — and once only: a person who then closes it

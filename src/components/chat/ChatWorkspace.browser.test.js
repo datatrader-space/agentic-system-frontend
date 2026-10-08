@@ -75,6 +75,32 @@ describe('the browser card in a new chat', () => {
     second.unmount()
   })
 
+  it('is asked for when an answer lands, even if the chat never called itself busy', async () => {
+    // Conversation 2659: a three-and-a-half-minute sandbox wake. The chat dropped its busy flag during
+    // the silence, the asking stopped, and the browser that then started was never shown.
+    chat.conversationId = '2659'
+    chat.isStreaming = false
+    route.path = '/dashboard/chat/2659'
+    route.params = { sessionId: '2659' }
+    chat.messages = [{ id: 'm1', role: 'user', content: 'open a page', status: 'done' }]
+    const only = view()
+    await vi.advanceTimersByTimeAsync(50)
+    expect(browser.hasSession).toBe(false)
+
+    api.get.mockResolvedValue({ data: { session: SESSION } })      // the browser has started by now
+    const before = asksAboutTheBrowser()
+    chat.messages = [...chat.messages, { id: 'm2', role: 'assistant', content: '', status: 'streaming' }]
+    await vi.advanceTimersByTimeAsync(50)
+    expect(asksAboutTheBrowser()).toBe(before + 1)
+    expect(browser.hasSession).toBe(true)
+
+    const settled = asksAboutTheBrowser()
+    chat.messages = chat.messages.map((m) => (m.id === 'm2' ? { ...m, content: 'Internet - Wikipedia', status: 'done' } : m))
+    await vi.advanceTimersByTimeAsync(50)
+    expect(asksAboutTheBrowser()).toBe(settled + 1)                 // and once more when it settles
+    only.unmount()
+  })
+
   it('stops being asked for when the person leaves the chat', async () => {
     chat.conversationId = '2638'
     chat.isStreaming = true
