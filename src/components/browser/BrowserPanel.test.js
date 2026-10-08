@@ -293,3 +293,85 @@ describe('when there is nothing to stream', () => {
     expect(w.find('[data-test="bl-overlay"]').text()).toContain('three other windows')
   })
 })
+
+// LOOKING BACK: the pane shows the page as one earlier action left it. It is a picture and nothing else.
+describe('looking back', () => {
+  const steps = [
+    { action_id: 'a1', sequence: 1, action: 'navigate', label: 'Opened a page', state: 'VERIFIED', keyframe: true, title: 'Cart', address: 'https://shop.example/cart' },
+    { action_id: 'a2', sequence: 2, action: 'click', label: 'Clicked', state: 'VERIFIED', keyframe: true, title: 'Checkout', address: 'https://shop.example/checkout' },
+  ]
+  // The backend answers the timeline with these steps and every other read with the session's card.
+  const backend = async (session) => {
+    const api = (await import('../../services/api')).default
+    api.get.mockImplementation((url) => Promise.resolve(
+      url.endsWith('/timeline/') ? { data: { session_id: 'bs_1', actions: steps } } : { data: { session } }))
+    return api
+  }
+  const lookingAt = async (id, session = card()) => {
+    await backend(session)
+    const w = open(session)
+    sock.handlers.onStatus('live')
+    frame({ address: 'https://shop.example/now' })
+    await vi.waitFor(() => expect(browser.timeline).toHaveLength(2))
+    browser.view(id)
+    await nextTick()
+    return w
+  }
+
+  it('shows that moment\'s picture, where the browser was then, and says it is not live', async () => {
+    const w = await lookingAt('a1')
+    expect(w.find('[data-test="bl-past"]').attributes('src')).toBe('/api/browser/sessions/bs_1/keyframes/a1/')
+    expect(w.find('[data-test="bl-img"]').isVisible()).toBe(false)
+    expect(w.find('[data-test="bl-earlier"]').exists()).toBe(true)
+    expect(w.find('[data-test="bl-live"]').exists()).toBe(false)
+    expect(w.text()).toContain('https://shop.example/cart')
+    expect(w.text()).not.toContain('https://shop.example/now')
+    expect(w.find('[data-test="bl-hint"]').text()).toBe(
+      'Looking back: Opened a page · Cart. This is a picture of that moment, not the live page.')
+  })
+
+  it('offers the way back to live and nothing that drives the browser', async () => {
+    const w = await lookingAt('a2')
+    expect(w.find('[data-test="bl-take"]').exists()).toBe(false)
+    await w.find('[data-test="bl-to-live"]').trigger('click')
+    expect(browser.viewing).toBeNull()
+    expect(w.find('[data-test="bl-past"]').exists()).toBe(false)
+    expect(w.find('[data-test="bl-img"]').isVisible()).toBe(true)
+    expect(w.find('[data-test="bl-live"]').exists()).toBe(true)
+    expect(w.find('[data-test="bl-take"]').exists()).toBe(true)
+  })
+
+  it('a click on an earlier picture does not ask to take control and sends nothing', async () => {
+    const w = await lookingAt('a1')
+    await pointer(w.find('[data-test="bl-past"]'), 'pointerdown', { clientX: 10, clientY: 10 })
+    expect(confirmMock).not.toHaveBeenCalled()
+    expect(sock.inputs).toEqual([])
+  })
+
+  it('a person who holds control is on the live page, whatever was being looked at', async () => {
+    const w = await lookingAt('a1', mineCard())
+    expect(w.find('[data-test="bl-past"]').exists()).toBe(false)
+    expect(w.find('[data-test="bl-release"]').exists()).toBe(true)
+  })
+
+  it('taking control puts the pane on the live page', async () => {
+    const api = await backend(mineCard())                // what the backend says once the take went through
+    api.post.mockResolvedValue({ data: {} })
+    confirmMock.mockResolvedValue(true)
+    const w = open()
+    frame()
+    await vi.waitFor(() => expect(browser.timeline).toHaveLength(2))
+    await w.find('[data-test="bl-take"]').trigger('click')
+    await vi.waitFor(() => expect(browser.mine).toBe(true))
+    browser.view('a1')                                   // whatever was being looked at
+    await nextTick()
+    expect(w.find('[data-test="bl-past"]').exists()).toBe(false)
+    expect(w.find('[data-test="bl-release"]').exists()).toBe(true)
+  })
+
+  it('has the strip under the picture', async () => {
+    const w = await lookingAt('a2')
+    expect(w.findAll('[data-test="bl-mark"]')).toHaveLength(2)
+    expect(w.find('[data-test="bl-count"]').text()).toBe('2 of 2')
+  })
+})

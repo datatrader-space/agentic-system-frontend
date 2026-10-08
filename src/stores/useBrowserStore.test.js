@@ -238,3 +238,110 @@ describe('the pane', () => {
     expect(browser.open).toBe(false)
   })
 })
+
+// LOOKING BACK (BROWSER_LIVE_VIEW_PLAN.md, section 6): the session's actions in order, and the page each
+// one left. The strip is the backend's ledger; this store only holds it and which mark is being looked at.
+describe('looking back', () => {
+  const steps = () => ([
+    { action_id: 'a1', sequence: 1, action: 'navigate', label: 'Opened a page', state: 'VERIFIED', keyframe: true, title: 'Cart', address: 'https://shop.example/cart' },
+    { action_id: 'a2', sequence: 2, action: 'observe', label: 'Looked at the page', state: 'VERIFIED', keyframe: false, title: '', address: '' },
+    { action_id: 'a3', sequence: 3, action: 'click', label: 'Clicked', state: 'VERIFIED', keyframe: true, title: 'Checkout', address: 'https://shop.example/checkout' },
+  ])
+  const answering = (actions) => api.get.mockImplementation((url) => Promise.resolve(
+    url.endsWith('/timeline/') ? { data: { session_id: 'bs_1', actions } } : { data: { session: card() } }))
+
+  it('asks for the timeline when the pane opens, not for the card', async () => {
+    answering(steps())
+    const browser = useBrowserStore()
+    browser.applySession(card())
+    expect(api.get).not.toHaveBeenCalled()             // a card needs none of it
+    browser.show()
+    await vi.waitFor(() => expect(browser.timeline).toHaveLength(3))
+    expect(api.get).toHaveBeenCalledWith('/browser/sessions/bs_1/timeline/', { noCache: true })
+    expect(browser.pictured.map((a) => a.action_id)).toEqual(['a1', 'a3'])
+  })
+
+  it('asks again when the browser has taken another action, while the pane is open', async () => {
+    answering(steps())
+    const browser = useBrowserStore()
+    browser.applySession(card({ action_count: 3 }))
+    browser.show()
+    await vi.waitFor(() => expect(browser.timeline).toHaveLength(3))
+    const before = api.get.mock.calls.length
+    browser.applySession(card({ action_count: 3, address: 'https://shop.example/other' }))   // moved, no new action
+    expect(api.get.mock.calls.length).toBe(before)
+    browser.applySession(card({ action_count: 4 }))
+    await vi.waitFor(() => expect(api.get.mock.calls.length).toBe(before + 1))
+  })
+
+  it('steps only to an action that left a picture', async () => {
+    answering(steps())
+    const browser = useBrowserStore()
+    browser.applySession(card())
+    browser.show()
+    await vi.waitFor(() => expect(browser.timeline).toHaveLength(3))
+    browser.view('a2')                                 // it only looked: there is nothing to show
+    expect(browser.viewing).toBeNull()
+    browser.view('a3')
+    expect(browser.viewed.label).toBe('Clicked')
+    expect(browser.keyframeUrl).toBe('/api/browser/sessions/bs_1/keyframes/a3/')
+    browser.backToLive()
+    expect(browser.keyframeUrl).toBe('')
+  })
+
+  it('steps mark by mark, and past the newest is the live page', async () => {
+    answering(steps())
+    const browser = useBrowserStore()
+    browser.applySession(card())
+    browser.show()
+    await vi.waitFor(() => expect(browser.timeline).toHaveLength(3))
+    browser.step(-1)
+    expect(browser.viewing).toBe('a3')                 // from live, one back is the newest picture
+    browser.step(-1)
+    expect(browser.viewing).toBe('a1')                 // the action without a picture is passed over
+    browser.step(-1)
+    expect(browser.viewing).toBe('a1')                 // there is nothing earlier
+    browser.step(1)
+    browser.step(1)
+    expect(browser.viewing).toBeNull()
+  })
+
+  it('goes back to the live page when the pane closes or the chat changes', async () => {
+    answering(steps())
+    const browser = useBrowserStore()
+    browser.bind(42)
+    await vi.waitFor(() => expect(browser.hasSession).toBe(true))
+    browser.show()
+    await vi.waitFor(() => expect(browser.timeline).toHaveLength(3))
+    browser.view('a1')
+    browser.close()
+    expect(browser.viewing).toBeNull()
+    browser.show()
+    browser.view('a1')
+    browser.bind(43)
+    expect([browser.viewing, browser.timeline]).toEqual([null, []])
+  })
+
+  it('does not carry one browser\'s marks onto another', async () => {
+    answering(steps())
+    const browser = useBrowserStore()
+    browser.applySession(card())
+    browser.show()
+    await vi.waitFor(() => expect(browser.timeline).toHaveLength(3))
+    browser.view('a3')
+    api.get.mockImplementation(() => new Promise(() => {}))    // the new browser's timeline has not come yet
+    browser.applySession(card({ session_id: 'bs_2', action_count: 1 }))
+    expect([browser.viewing, browser.timeline]).toEqual([null, []])
+  })
+
+  it('keeps the marks it has when the timeline cannot be read', async () => {
+    answering(steps())
+    const browser = useBrowserStore()
+    browser.applySession(card())
+    browser.show()
+    await vi.waitFor(() => expect(browser.timeline).toHaveLength(3))
+    api.get.mockRejectedValue(new Error('offline'))
+    await browser.loadTimeline()
+    expect(browser.timeline).toHaveLength(3)
+  })
+})

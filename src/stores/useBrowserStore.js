@@ -24,6 +24,11 @@ export const useBrowserStore = defineStore('browser', {
     session: null,          // the card, as `live.describe` returns it
     thumbTick: 0,           // bumped to make the card ask for a fresh thumbnail
     busy: false,            // a take / hand-back request is in flight
+    // LOOKING BACK. `timeline` is the session's actions in order, as the backend's ledger has them;
+    // `viewing` is the action whose picture the pane is showing, or null for the live page.
+    timeline: [],
+    viewing: null,
+    _timelineOut: null,     // the session a timeline request is out for
     _timer: null,
     _asking: null,          // the conversation a request is out for, so another chat's ask is not skipped
     _following: false,      // a turn is running, whether or not there is a conversation to ask about yet
@@ -50,6 +55,14 @@ export const useBrowserStore = defineStore('browser', {
     // The tick only defeats the browser's own cache; the response is `no-store` already.
     thumbUrl: (s) => (s.session && s.session.session_id
       ? `/api/browser/sessions/${encodeURIComponent(s.session.session_id)}/frame/?t=${s.thumbTick}`
+      : ''),
+    // The actions that left a picture, which are the ones a person can step to.
+    pictured: (s) => s.timeline.filter((a) => a.keyframe),
+    viewed: (s) => (s.viewing ? s.timeline.find((a) => a.action_id === s.viewing) || null : null),
+    // Same-origin and cookie-authenticated like the thumbnail. An action id is not a secret and is not
+    // an authorization: the backend finds the action inside the caller's own session or answers 404.
+    keyframeUrl: (s) => (s.viewing && s.session && s.session.session_id
+      ? `/api/browser/sessions/${encodeURIComponent(s.session.session_id)}/keyframes/${encodeURIComponent(s.viewing)}/`
       : ''),
   },
 
@@ -84,6 +97,8 @@ export const useBrowserStore = defineStore('browser', {
       this.session = null
       this.open = false
       this.thumbTick = 0
+      this.timeline = []
+      this.viewing = null
       if (!next) return
       this.refresh()
       // A NEW chat starts its turn before it has an id: `follow(true)` came first and had nothing to ask
@@ -112,11 +127,49 @@ export const useBrowserStore = defineStore('browser', {
     applySession(session) {
       const before = this.session
       this.session = session || null
-      if (!session) { this.open = false; return }
-      const moved = !before || before.session_id !== session.session_id
-        || before.action_count !== session.action_count || before.address !== session.address
-        || before.state !== session.state
+      if (!session) { this.open = false; this.timeline = []; this.viewing = null; return }
+      const another = !before || before.session_id !== session.session_id
+      const moved = another || before.action_count !== session.action_count
+        || before.address !== session.address || before.state !== session.state
+      if (another) { this.timeline = []; this.viewing = null }
       if (moved) this.thumbTick += 1
+      // A new action is a new mark. Only asked for while the pane is open: the card needs none of it.
+      if (this.open && (another || before.action_count !== session.action_count)) this.loadTimeline()
+    },
+
+    // The session's actions, in order, for the strip under the picture. Replaced whole each time: the
+    // ledger is the truth and it is short. A failure keeps the marks already shown.
+    async loadTimeline() {
+      const id = this.sessionId
+      if (!id || this._timelineOut === id) return
+      this._timelineOut = id
+      try {
+        const { data } = await api.get(`/browser/sessions/${encodeURIComponent(id)}/timeline/`, { noCache: true })
+        if (id !== this.sessionId) return                 // the chat changed meanwhile
+        this.timeline = Array.isArray(data && data.actions) ? data.actions : []
+        // The action being looked at is still there, or the pane goes back to the live page.
+        if (this.viewing && !this.timeline.some((a) => a.action_id === this.viewing && a.keyframe)) this.viewing = null
+      } catch (e) {
+        // Looking back is extra; the live view does not depend on it.
+      } finally {
+        if (this._timelineOut === id) this._timelineOut = null
+      }
+    },
+
+    // Step to the page as one action left it. Only an action that has a picture can be stepped to.
+    view(actionId) {
+      const found = this.timeline.find((a) => a.action_id === actionId)
+      if (found && found.keyframe) this.viewing = actionId
+    },
+    backToLive() { this.viewing = null },
+    // One mark earlier or later among the pictured actions; past the newest is the live page.
+    step(by) {
+      const marks = this.pictured
+      if (!marks.length) return
+      const at = this.viewing ? marks.findIndex((a) => a.action_id === this.viewing) : marks.length
+      const next = at + by
+      if (next >= marks.length) { this.viewing = null; return }
+      this.viewing = marks[Math.max(0, next)].action_id
     },
 
     // Poll only while something can change: `active` is "a turn is running in this chat".
@@ -144,8 +197,12 @@ export const useBrowserStore = defineStore('browser', {
       if (this._timer) { clearInterval(this._timer); this._timer = null }
     },
 
-    show() { if (this.hasSession) this.open = true },
-    close() { this.open = false },
+    show() {
+      if (!this.hasSession) return
+      this.open = true
+      this.loadTimeline()
+    },
+    close() { this.open = false; this.viewing = null },
     toggle() { this.open ? this.close() : this.show() },
 
     // Driving is a lease the backend grants; these only ask. The live pane hears the answer on its own

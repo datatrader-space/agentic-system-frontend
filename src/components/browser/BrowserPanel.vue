@@ -9,7 +9,8 @@
         <div class="bl-site" data-test="bl-site">{{ site || 'Browser' }}</div>
         <div v-if="address" class="bl-addr" :title="address">{{ address }}</div>
       </div>
-      <span v-if="showLive" class="bl-live" data-test="bl-live">LIVE</span>
+      <span v-if="lookingBack" class="bl-earlier" data-test="bl-earlier">EARLIER</span>
+      <span v-else-if="showLive" class="bl-live" data-test="bl-live">LIVE</span>
       <span v-else-if="browser.ended" class="bl-ended" data-test="bl-ended">Ended</span>
     </header>
 
@@ -24,24 +25,30 @@
          @keydown="onKey($event, 'down')" @keyup="onKey($event, 'up')"
          @paste="onPaste" @compositionend="onComposed">
       <div class="bl-frame" :class="{ lit: browser.mine }">
-        <img v-show="hasPicture" ref="imgEl" class="bl-img" :src="pictureUrl" draggable="false"
+        <!-- An earlier moment is a picture and nothing else: no pointer, no keys, no take-over. -->
+        <img v-if="lookingBack" class="bl-img past" :src="browser.keyframeUrl" draggable="false"
+             :alt="`The page after: ${browser.viewed.label}`" data-test="bl-past" @contextmenu.prevent />
+        <img v-show="hasPicture && !lookingBack" ref="imgEl" class="bl-img" :src="pictureUrl" draggable="false"
              alt="The page the agent's browser is showing" data-test="bl-img"
              @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp"
              @pointercancel="onPointerUp" @contextmenu.prevent @dragstart.prevent />
-        <div v-if="masked" class="bl-plate" data-test="bl-plate">
+        <div v-if="masked && !lookingBack" class="bl-plate" data-test="bl-plate">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
           <span>Filling in a saved credential</span>
         </div>
-        <div v-else-if="overlayText" class="bl-overlay" :class="{ soft: hasPicture }" data-test="bl-overlay">
+        <div v-else-if="overlayText && !lookingBack" class="bl-overlay" :class="{ soft: hasPicture }" data-test="bl-overlay">
           <span v-if="overlaySpins" class="bl-spin" aria-hidden="true"></span>
           <span>{{ overlayText }}</span>
         </div>
       </div>
     </div>
 
+    <BrowserScrubber />
+
     <footer class="bl-foot">
       <span class="bl-hint" data-test="bl-hint">{{ hint }}</span>
-      <button v-if="browser.mine" class="bl-btn primary" :disabled="browser.busy" data-test="bl-release"
+      <button v-if="lookingBack" class="bl-btn" data-test="bl-to-live" @click="browser.backToLive()">Back to live</button>
+      <button v-else-if="browser.mine" class="bl-btn primary" :disabled="browser.busy" data-test="bl-release"
               @click="handBack">Hand back to the agent</button>
       <button v-else-if="canTake" class="bl-btn" :disabled="browser.busy" data-test="bl-take"
               @click="takeControl">Take control</button>
@@ -54,6 +61,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useBrowserStore } from '../../stores/useBrowserStore'
 import { createBrowserLive } from '../../composables/useBrowserLive'
 import { confirm as confirmDialog } from '../../composables/useConfirm'
+import BrowserScrubber from './BrowserScrubber.vue'
 import {
   challengeLabel, keyAction, pointerEvent, textEvent, toRemotePoint, wheelEvent,
 } from '../../utils/browserLive'
@@ -95,8 +103,13 @@ const live = createBrowserLive({
 })
 
 // ── what is shown ───────────────────────────────────────────────────────────
+// LOOKING BACK: the pane shows the page as one earlier action left it (`BrowserScrubber`). A person who
+// holds control is driving the live page, so they are never looking back.
+const lookingBack = computed(() => !!browser.viewed && !browser.mine)
 const site = computed(() => (browser.session && browser.session.site) || '')
-const address = computed(() => liveAddress.value || (browser.session && browser.session.address) || '')
+const address = computed(() => (lookingBack.value
+  ? browser.viewed.address
+  : liveAddress.value || (browser.session && browser.session.address) || ''))
 const showLive = computed(() => phase.value === 'live' && !browser.ended)
 const heldElsewhere = computed(() => {
   const c = browser.session && browser.session.control
@@ -129,6 +142,10 @@ const overlayText = computed(() => {
 })
 
 const hint = computed(() => {
+  if (lookingBack.value) {
+    const what = browser.viewed.title ? `${browser.viewed.label} · ${browser.viewed.title}` : browser.viewed.label
+    return `Looking back: ${what}. This is a picture of that moment, not the live page.`
+  }
   if (browser.ended || phase.value === 'ended') return 'This browser session has ended.'
   if (phase.value === 'unavailable' && phaseCode.value === 'NOT_RUNNING') return 'The browser is no longer running. This is the last picture of it.'
   if (phase.value === 'unavailable' && phaseCode.value === 'PARKED') return 'The agent has finished for now, so its browser is paused. It comes back here when the agent uses it again.'
@@ -168,6 +185,7 @@ async function takeControl() {
   })
   if (!ok) return
   if (await browser.takeControl()) {
+    browser.backToLive()
     live.sync()
     if (stageEl.value) stageEl.value.focus()
   }
@@ -284,6 +302,8 @@ onBeforeUnmount(() => {
 .bl-addr { font-family: var(--vm-font-mono, ui-monospace, monospace); font-size: 11.5px; color: var(--vm-ink-soft, #64748b); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bl-live, .bl-ended { flex: 0 0 auto; font-size: 10.5px; font-weight: 800; letter-spacing: .08em; padding: 3px 8px; border-radius: 9999px; }
 .bl-live { background: #0f172a; color: #fff; }
+.bl-earlier { flex: 0 0 auto; font-size: 10.5px; font-weight: 800; letter-spacing: .08em; padding: 3px 8px; border-radius: 9999px;
+  background: #fef3c7; color: #92400e; }
 .bl-ended { background: var(--vm-surface-2, #f1f5f9); color: var(--vm-ink-soft, #64748b); }
 
 .bl-banner { display: flex; align-items: center; gap: 8px; padding: 9px 14px; font-size: 12.5px; background: #fffbeb; color: #92400e; border-bottom: 1px solid #fde68a; }
@@ -297,6 +317,7 @@ onBeforeUnmount(() => {
 .bl-frame.lit { border-color: var(--vm-violet, #2563eb); }
 .bl-img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; touch-action: none; cursor: pointer; }
 .bl-stage.driving .bl-img { cursor: default; }
+.bl-img.past { cursor: default; touch-action: auto; }
 
 .bl-overlay, .bl-plate { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 16px; text-align: center;
   font-size: 13px; font-weight: 600; color: var(--vm-ink, #0f172a); background: var(--vm-surface, #fff); }
