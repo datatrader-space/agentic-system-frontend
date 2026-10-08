@@ -69,6 +69,87 @@ describe('the dock', () => {
     expect(selected(w)).toEqual(['Artifacts'])
   })
 
+  it('expands the browser view over the chat and puts it back', async () => {
+    browser.applySession(card)
+    browser.show()
+    const w = shallowMount(ChatDock, { attachTo: document.body })
+    await nextTick()
+    const dock = w.get('[data-test="dock"]')
+    const button = w.get('[data-test="dock-expand"]')
+    expect(dock.classes()).not.toContain('expanded')
+    expect(button.attributes('aria-pressed')).toBe('false')
+
+    await button.trigger('click')
+    expect(browser.expanded).toBe(true)
+    expect(dock.classes()).toContain('expanded')
+    expect(button.attributes('aria-pressed')).toBe('true')
+    expect(button.attributes('aria-label')).toBe('Back to the side panel')
+
+    await button.trigger('click')
+    expect(browser.expanded).toBe(false)
+    expect(browser.open).toBe(true)                     // put back, not closed
+    expect(dock.classes()).not.toContain('expanded')
+    w.unmount()
+  })
+
+  it('a click on the dimmed surround, or Escape, puts the large view back in the dock', async () => {
+    browser.applySession(card)
+    browser.expand()
+    const w = shallowMount(ChatDock, { attachTo: document.body })
+    await nextTick()
+    await w.get('[data-test="dock"]').trigger('click')            // the surround itself, not the box in it
+    expect(browser.expanded).toBe(false)
+
+    browser.expand()
+    await nextTick()
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(browser.expanded).toBe(false)
+    expect(browser.open).toBe(true)
+    w.unmount()
+  })
+
+  it('a click inside the large view does not put it back', async () => {
+    browser.applySession(card)
+    browser.expand()
+    const w = shallowMount(ChatDock, { attachTo: document.body })
+    await nextTick()
+    await w.get('.dock-box').trigger('click')
+    expect(browser.expanded).toBe(true)
+    w.unmount()
+  })
+
+  it('Escape belongs to the remote page while the person is driving it', async () => {
+    browser.applySession({ ...card, control: { holder: 'human', mine: true } })
+    browser.expand()
+    const w = shallowMount(ChatDock, { attachTo: document.body })
+    await nextTick()
+    expect(browser.mine).toBe(true)
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(browser.expanded).toBe(true)
+    w.unmount()
+  })
+
+  it('is the ordinary dock again behind Artifacts, and offers no expand there', async () => {
+    browser.applySession(card)
+    browser.expand()
+    const w = shallowMount(ChatDock, { attachTo: document.body })
+    await nextTick()
+    await w.findAll('[role="tab"]')[1].trigger('click')           // Artifacts
+    expect(w.get('[data-test="dock"]').classes()).not.toContain('expanded')
+    expect(w.find('[data-test="dock-expand"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('closing the large view closes the browser pane and ends the large view', async () => {
+    browser.applySession(card)
+    browser.expand()
+    const w = shallowMount(ChatDock, { attachTo: document.body })
+    await nextTick()
+    await w.get('.dock-x').trigger('click')
+    expect([browser.open, browser.expanded]).toEqual([false, false])
+    w.unmount()
+  })
+
   it('closing on Artifacts leaves the browser pane open', async () => {
     browser.applySession(card)
     browser.show()

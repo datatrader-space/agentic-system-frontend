@@ -20,6 +20,9 @@ export const POLL_MS = 3000
 export const useBrowserStore = defineStore('browser', {
   state: () => ({
     open: false,
+    // EXPANDED: the browser view is drawn large over the chat instead of in the side dock, so a page
+    // can actually be read. Only meaningful while `open`; closing the view always ends it.
+    expanded: false,
     conversationId: null,
     session: null,          // the card, as `live.describe` returns it
     thumbTick: 0,           // bumped to make the card ask for a fresh thumbnail
@@ -202,8 +205,15 @@ export const useBrowserStore = defineStore('browser', {
       this.open = true
       this.loadTimeline()
     },
-    close() { this.open = false; this.viewing = null },
+    close() { this.open = false; this.expanded = false; this.viewing = null },
     toggle() { this.open ? this.close() : this.show() },
+    // Open the view large (from the corner preview, or the dock's expand button), and put it back in
+    // the side dock. Collapsing does not close it: the person asked for it smaller, not gone.
+    expand() {
+      this.show()
+      if (this.open) this.expanded = true
+    },
+    collapse() { this.expanded = false },
 
     // Driving is a lease the backend grants; these only ask. The live pane hears the answer on its own
     // socket, so the returned card is applied here just to make the button respond at once.

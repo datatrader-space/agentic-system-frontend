@@ -67,9 +67,10 @@
       </div>
     </header>
 
-    <!-- The browser the agent is using in this chat, when it is using one: a small picture of the page
-         and a way to watch it live in the dock (BrowserPanel). One card per conversation. -->
-    <BrowserCard v-if="!chat.isEmpty && browser.hasSession" />
+    <!-- The browser the agent is using in this chat, when it is using one: a square preview of the page
+         pinned in the top corner of the chat, which opens the browser view large (BrowserPanel in the
+         dock, expanded). One per conversation; out of the way while the large view is up. -->
+    <BrowserCard v-if="!chat.isEmpty && browser.hasSession && !browser.expanded" />
 
     <!-- Body -->
     <div class="chat-body">
