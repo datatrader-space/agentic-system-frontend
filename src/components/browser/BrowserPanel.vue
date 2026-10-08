@@ -338,6 +338,11 @@ onBeforeUnmount(() => {
 .bl-btn:disabled { opacity: .6; cursor: default; }
 .bl-btn:focus-visible { outline: 2px solid var(--vm-violet, #2563eb); outline-offset: 2px; }
 
+/* The app's help button floats over the bottom-right corner of the window (GlobalHelpAssistant: 56px wide,
+   30px in from the edge, hidden on a chat at 640px and under). This pane sits in that corner, and its
+   Take control / Hand back / Back to live button was underneath it. Keep the corner clear. */
+@media (min-width: 641px) { .bl-foot { padding-right: 98px; } }
+
 @media (max-width: 480px) {
   .bl-stage { padding: 8px; }
   .bl-foot { flex-direction: column; align-items: stretch; }

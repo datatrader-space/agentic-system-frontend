@@ -74,6 +74,9 @@ watch(() => browser.timeline.length, async () => {
 .bs-live.on { background: #0f172a; border-color: #0f172a; color: #fff; }
 .bs-live:focus-visible { outline: 2px solid var(--vm-violet, #2563eb); outline-offset: 2px; }
 
+/* Clear of the app's floating help button, which covers this corner of the window (see BrowserPanel). */
+@media (min-width: 641px) { .bs { padding-right: 98px; } }
+
 @media (max-width: 480px) {
   .bs { padding: 8px; gap: 8px; }
   .bs-mark { width: 12px; height: 22px; }
