@@ -49,6 +49,14 @@
               <FlaskConical :size="15" :stroke-width="2" />
               Test
             </router-link>
+            <button
+              v-if="canDeploy"
+              class="inline-flex items-center gap-2 rounded-[11px] border border-[#E5E7EB] bg-white px-3.5 py-2.5 text-[13.5px] font-medium text-[#475569] transition hover:border-slate-300"
+              @click="showDeploy = true"
+            >
+              <Rocket :size="15" :stroke-width="2" />
+              Deploy
+            </button>
             <router-link
               :to="configureLink"
               class="inline-flex items-center gap-2 rounded-[11px] bg-[#2563EB] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_1px_2px_rgba(37,99,235,0.25)] transition hover:bg-[#1D4ED8]"
@@ -116,6 +124,9 @@
         </aside>
       </div>
     </div>
+
+    <!-- Deploy & integrate: channel switches, access key, public widget -->
+    <DeploySettings v-if="canDeploy" :agent="agent" v-model="showDeploy" />
   </div>
 </template>
 
@@ -123,7 +134,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-  ChevronLeft, FlaskConical, Settings2, AlertTriangle, Dot,
+  ChevronLeft, FlaskConical, Settings2, AlertTriangle, Dot, Rocket,
 } from 'lucide-vue-next'
 import api from '../services/api'
 import { setBreadcrumbLabel } from '@/composables/useBreadcrumbs'
@@ -134,6 +145,7 @@ import AgentActionsPreview from '../components/agent-overview/AgentActionsPrevie
 import ConnectedCredentialsPreview from '../components/agent-overview/ConnectedCredentialsPreview.vue'
 import AutonomySummaryCard from '../components/agent-overview/AutonomySummaryCard.vue'
 import AgentQuickTestPanel from '../components/agent-overview/AgentQuickTestPanel.vue'
+import DeploySettings from '../components/agent/DeploySettings.vue'
 
 const route = useRoute()
 const agentId = computed(() => route.params.id)
@@ -141,6 +153,11 @@ const agentId = computed(() => route.params.id)
 const agent = ref({})
 const loading = ref(true)
 const error = ref(false)
+
+// The panel reads the key off the agent it is given, so it only opens on the fully loaded one —
+// on a half-loaded agent it would offer "Generate" over a key that already exists.
+const showDeploy = ref(false)
+const canDeploy = computed(() => !loading.value && !!agent.value?.id && agent.value.is_owner !== false)
 
 setBreadcrumbLabel(() => agent.value?.name)
 
@@ -208,6 +225,12 @@ const loadAll = () => {
 const onTestComplete = (payload) => {
   lastTest.value = payload
 }
+
+// The panel publishes and switches channels on the server; pick that up without the loading skeleton.
+watch(showDeploy, async (open) => {
+  if (open) return
+  try { agent.value = (await api.get(`/agents/${agentId.value}/`)).data || agent.value } catch (e) { /* keep what is shown */ }
+})
 
 watch(agentId, (id) => { if (id) loadAll() })
 onMounted(() => { if (agentId.value) loadAll() })

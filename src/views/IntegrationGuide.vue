@@ -7,7 +7,10 @@
           <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2"><span>🔌</span> Integration Guide</h1>
           <p class="text-sm text-gray-500 mt-0.5">Use <span class="font-medium text-gray-700">{{ agentName }}</span> from another project</p>
         </div>
-        <button @click="goBack" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">&larr; Back</button>
+        <div class="flex items-center gap-4">
+          <button v-if="canManage" @click="showDeploy = true" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">Deploy settings</button>
+          <button @click="goBack" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">&larr; Back</button>
+        </div>
       </div>
       <!-- Tabs -->
       <div class="max-w-4xl mx-auto px-6">
@@ -45,10 +48,12 @@
               <div class="flex gap-2">
                 <code class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono truncate">{{ apiKey }}</code>
                 <button v-if="hasKey" @click="copy(apiKey, 'key')" class="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm">{{ copied === 'key' ? '✓' : '📋' }}</button>
+                <button v-else-if="canManage" :disabled="generatingKey" @click="generateKey" class="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:opacity-60">{{ generatingKey ? 'Generating…' : 'Generate key' }}</button>
               </div>
-              <p v-if="!hasKey" class="text-xs text-amber-600 mt-1">No key yet — generate one in the Deploy panel, then refresh.</p>
+              <p v-if="!hasKey" class="text-xs text-amber-600 mt-1">{{ canManage ? 'No key yet — generate one to connect.' : 'No key yet — the agent\'s owner generates it.' }}</p>
             </div>
           </div>
+          <p v-if="agent && agent.ws_chat_enabled === false" class="text-xs text-amber-600 mt-2">Live Chat is off for this agent, so token connections are refused. Turn it on in <b>Deploy settings</b>.</p>
         </section>
 
         <section>
@@ -108,16 +113,19 @@
               <div class="flex gap-2">
                 <code class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono truncate">{{ apiKey }}</code>
                 <button v-if="hasKey" @click="copy(apiKey, 'key')" class="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm">{{ copied === 'key' ? '✓' : '📋' }}</button>
+                <button v-else-if="canManage" :disabled="generatingKey" @click="generateKey" class="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium disabled:opacity-60">{{ generatingKey ? 'Generating…' : 'Generate key' }}</button>
               </div>
+              <p v-if="!hasKey" class="text-xs text-amber-600 mt-1">{{ canManage ? 'No key yet — generate one to connect.' : 'No key yet — the agent\'s owner generates it.' }}</p>
             </div>
           </div>
+          <p v-if="agent && !agent.signal_enabled" class="text-xs text-amber-600 mt-2">Webhook is off for this agent, so the URL answers <code class="kbd">403</code>. Turn it on in <b>Deploy settings</b>.</p>
         </section>
 
         <section>
           <h2 class="text-base font-semibold text-gray-900 mb-2">Authentication</h2>
           <ul class="text-sm text-gray-700 space-y-1 list-disc pl-5">
             <li>Header <code class="kbd">Authorization: Bearer &lt;API_KEY&gt;</code>, <b>or</b></li>
-            <li>HMAC <code class="kbd">X-Signature: sha256=&lt;hex&gt;</code> (set the HMAC secret in the Deploy panel → Webhook → Advanced).</li>
+            <li>HMAC <code class="kbd">X-Signature: sha256=&lt;hex&gt;</code> (set the HMAC secret in Deploy settings → Webhook → Advanced).</li>
           </ul>
         </section>
 
@@ -150,11 +158,12 @@
       <template v-else>
         <section>
           <h2 class="text-lg font-semibold text-gray-900 mb-1">🌐 Embeddable widget</h2>
-          <p class="text-sm text-gray-600">A drop-in chat bubble for a public website — anonymous visitors, no login. Enable the <b>Public Widget</b> in the Deploy panel first.</p>
+          <p class="text-sm text-gray-600">A drop-in chat bubble for a public website — anonymous visitors, no login. Enable the <b>Public Widget</b> in Deploy settings first.</p>
         </section>
 
         <section v-if="!shareToken" class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
-          The public share link isn't enabled yet. Turn on <b>Public Widget</b> in the Deploy panel, then refresh this page to see your embed code.
+          The public share link isn't enabled yet. Turn on <b>Public Widget</b> in Deploy settings to see your embed code.
+          <button v-if="canManage" @click="showDeploy = true" class="ml-1 font-semibold underline">Open Deploy settings</button>
         </section>
 
         <template v-else>
@@ -175,21 +184,26 @@
             <h2 class="text-base font-semibold text-gray-900 mb-2">Good to know</h2>
             <ul class="text-sm text-gray-700 space-y-1 list-disc pl-5">
               <li>Public chat runs with guardrails (rate-limited, destructive tools blocked) and only serves the <b>published</b> snapshot.</li>
-              <li>Appearance (name, greeting, color, launcher, proactive message) is configured in the Deploy panel → Public Widget.</li>
-              <li>Regenerating the link in the Deploy panel revokes the old one immediately.</li>
+              <li>Appearance (name, greeting, color, launcher, proactive message) is configured in Deploy settings → Public Widget.</li>
+              <li>Regenerating the link in Deploy settings revokes the old one immediately.</li>
             </ul>
           </section>
         </template>
       </template>
 
     </div>
+
+    <!-- The channel switches, key rotation and widget appearance live here. -->
+    <DeploySettings v-if="canManage" :agent="agent" v-model="showDeploy" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, h } from 'vue'
+import { ref, computed, watch, onMounted, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../services/api'
+import { notify } from '@/composables/useNotify'
+import DeploySettings from '../components/agent/DeploySettings.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -207,12 +221,19 @@ function setTab(id) {
 }
 
 const agentId = computed(() => route.params.agentId || '<AGENT_ID>')
-const agentName = ref('this agent')
-const apiKey = ref('<YOUR_API_KEY>')
-const hasKey = computed(() => apiKey.value && !apiKey.value.startsWith('<'))
-const shareToken = ref('')
-const publicSlug = ref('')
+// The agent as the server returned it. Deploy settings writes a new key straight onto this object,
+// so everything below is derived from it and the page follows without a refresh.
+const agent = ref(null)
+const canManage = computed(() => !!agent.value && agent.value.is_owner !== false)
+const agentName = computed(() => agent.value?.name || 'this agent')
+const apiKey = computed(() => agent.value?.signal_api_key || '<YOUR_API_KEY>')
+const hasKey = computed(() => !!agent.value?.signal_api_key)
+// The token outlives a switched-off widget (only `is_public` flips), so the switch decides.
+const shareToken = computed(() => (agent.value?.is_public ? agent.value.public_share_token || '' : ''))
+const publicSlug = computed(() => agent.value?.public_slug || '')
 const copied = ref('')
+const showDeploy = ref(false)
+const generatingKey = ref(false)
 
 const publicOrigin = window.location.origin
 const apiBase = (import.meta.env.VITE_PUBLIC_API_BASE || window.location.origin).replace(/\/+$/, '')
@@ -315,20 +336,29 @@ function goBack() {
   else router.push('/dashboard/agents')
 }
 
-onMounted(async () => {
+async function loadAgent() {
   const id = route.params.agentId
   if (!id) return
   try {
     const res = await api.get(`/agents/${id}/`)
-    const a = res.data || {}
-    if (a.name) agentName.value = a.name
-    if (a.signal_api_key) apiKey.value = a.signal_api_key
-    if (a.public_share_token) shareToken.value = a.public_share_token
-    if (a.public_slug) publicSlug.value = a.public_slug
+    agent.value = res.data || null
   } catch (e) {
     // not logged in / not found — guide still renders with placeholders
   }
-})
+}
+
+async function generateKey() {
+  generatingKey.value = true
+  try {
+    const res = await api.rotateSignalApiKey(agent.value.id)
+    agent.value.signal_api_key = res.data.api_key
+  } catch (e) { notify.error('Failed to generate key: ' + (e.response?.data?.error || e.message)) }
+  finally { generatingKey.value = false }
+}
+
+onMounted(loadAgent)
+// The widget switch and link are saved by the panel, not written onto `agent` — re-read on close.
+watch(showDeploy, (open) => { if (!open) loadAgent() })
 
 // Inline helpers: copy-able URL row + code block.
 const UrlRow = (p, { emit }) => h('div', { class: p.class }, [

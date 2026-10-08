@@ -103,6 +103,19 @@
                   <p class="di-hint">Auth: <code class="di-kbd">Bearer &lt;KEY&gt;</code> or HMAC <code class="di-kbd">X-Signature</code>. Returns <code class="di-kbd">202</code> + a <code class="di-kbd">result_url</code> to poll.</p>
                 </div>
 
+                <!-- One key serves both channels; with Live Chat off its card (and key row) is hidden. -->
+                <div v-if="!wsOn">
+                  <label class="di-label">API key</label>
+                  <div class="di-field">
+                    <code>{{ agent.signal_api_key ? (showApiKey ? agent.signal_api_key : '••••••••••••••••••••') : 'Not generated yet' }}</code>
+                    <button v-if="agent.signal_api_key" class="di-iconbtn" :title="showApiKey ? 'Hide' : 'Show'" @click="showApiKey = !showApiKey"><Icon :icon="showApiKey ? 'lucide:eye-off' : 'lucide:eye'" :width="15" /></button>
+                    <button class="di-btn" :disabled="rotatingKey" @click="rotateApiKey">
+                      <Icon :icon="rotatingKey ? 'lucide:loader-2' : (agent.signal_api_key ? 'lucide:refresh-cw' : 'lucide:key-round')" :width="14" :class="rotatingKey && 'di-spin'" />
+                      {{ agent.signal_api_key ? 'Rotate' : 'Generate' }}
+                    </button>
+                  </div>
+                </div>
+
                 <div class="di-acc">
                   <button class="di-acc-head" @click="showAdvanced = !showAdvanced">
                     <span><Icon icon="lucide:sliders-horizontal" :width="14" /> Advanced &amp; monitoring</span>
