@@ -34,7 +34,7 @@
               </div>
               <p class="mt-1.5 text-[11.5px] font-medium text-[#64748B]">
                 Select credentials to attach to this agent. Need a new credential?
-                <button class="ml-1 inline-flex items-center gap-1 font-semibold text-[#2563EB]" @click="go('/dashboard/connections?tab=credentials')">
+                <button class="ml-1 inline-flex items-center gap-1 font-semibold text-[#2563EB]" @click="shell.openUserPage('/dashboard/connections?tab=credentials', go)">
                   Manage Vault <ExternalLink :size="11" />
                 </button>
               </p>
@@ -161,10 +161,12 @@ import { Check, ChevronLeft, ChevronRight, ExternalLink, Eye, Lock, LockKeyhole,
 import { credentialsApi } from '../../services/toolsApi'
 import { notify } from '@/composables/useNotify'
 import { ago } from '../dashboard/time'
+import { useEditorShell } from '../../composables/editorShell'
 
 const props = defineProps({ agent: { type: Object, required: true } })
 const router = useRouter()
 const go = (to) => router.push(to)
+const shell = useEditorShell()
 
 const loading = ref(true)
 const rows = ref([])
@@ -243,7 +245,7 @@ async function loadCredentials() {
   }
 }
 async function attach(cred) {
-  if (!props.agent.id) return
+  if (!props.agent.id) { notify.info('Save your agent first, then attach credentials.'); return }
   attachingId.value = cred.id
   try {
     await credentialsApi.assign(props.agent.id, cred.id)
@@ -263,7 +265,7 @@ async function attach(cred) {
   }
 }
 async function detach(cred) {
-  if (!props.agent.id) return
+  if (!props.agent.id) { notify.info('Save your agent first, then detach credentials.'); return }
   detachingId.value = cred.id
   try {
     await credentialsApi.detach(props.agent.id, cred.id)

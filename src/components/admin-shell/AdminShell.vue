@@ -52,7 +52,7 @@
       <AppBreadcrumbs />
       <router-view v-slot="{ Component }">
         <Suspense>
-          <component :is="Component" :key="route.fullPath" />
+          <component :is="Component" :key="route.meta.keyOnPath ? route.path : route.fullPath" />
           <template #fallback>
             <div class="admin-route-loading">
               <div class="admin-skeleton__toolbar">

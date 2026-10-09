@@ -59,11 +59,11 @@
           <span v-if="agent.is_assistant" class="font-semibold text-[#7C3AED]">This agent currently powers the AI Assistant widget.</span>
           <span v-else>Assign this agent to the product-wide AI Assistant widget.</span>
         </p>
-        <label class="flex items-center gap-2" :class="{ 'opacity-50': !(isBuiltinScope && form.builtin_enabled) }">
-          <input type="checkbox" v-model="form.set_as_assistant" :disabled="!(isBuiltinScope && form.builtin_enabled)" />
+        <label class="flex items-center gap-2" :class="{ 'opacity-50': !canBeAssistant }">
+          <input type="checkbox" v-model="form.set_as_assistant" :disabled="!canBeAssistant" />
           <span class="text-[13px] text-[#334155]">Set as the AI Assistant</span>
         </label>
-        <p v-if="!(isBuiltinScope && form.builtin_enabled)" class="mt-1 text-[11px] text-[#98A2B3]">Only an enabled system built-in can be the assistant — pick a non-Personal scope and enable it above first.</p>
+        <p v-if="!canBeAssistant" class="mt-1 text-[11px] text-[#98A2B3]">Only an enabled system built-in can be the assistant — pick a non-Personal scope and enable it above first.</p>
       </section>
 
       <div class="flex items-center justify-end gap-3">
@@ -77,7 +77,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
@@ -110,6 +110,11 @@ const form = reactive({
   set_as_assistant: false,
 })
 const isBuiltinScope = computed(() => scope.value !== 'personal')
+// Only an enabled system built-in can be the assistant. A disabled checkbox keeps its tick, so when the
+// box stops being allowed (scope back to Personal, or Enabled unticked) the tick is cleared — otherwise
+// the next Apply sent set_as_assistant: true for a choice the user could no longer see or undo.
+const canBeAssistant = computed(() => isBuiltinScope.value && !!form.builtin_enabled)
+watch(canBeAssistant, (ok) => { if (!ok) form.set_as_assistant = false })
 
 async function saveAnswerPolicy() {
   busy.value = true
@@ -129,7 +134,7 @@ async function apply() {
       builtin_key: form.builtin_key,
       builtin_visibility: scope.value,   // 'admin' | 'user' | 'system'
       builtin_enabled: form.builtin_enabled,
-      set_as_assistant: form.set_as_assistant,
+      set_as_assistant: canBeAssistant.value && !!form.set_as_assistant,
     })
   }
   try {

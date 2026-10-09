@@ -123,6 +123,9 @@ import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 
 const props = defineProps({ agent: { type: Object, required: true } })
+// `saved` carries exactly what this step's own PATCH changed, so the editor records it as confirmed
+// server state instead of seeing a pending edit on its next save.
+const emit = defineEmits(['saved'])
 const agentId = computed(() => props.agent.id)
 
 const skills = ref([])
@@ -161,8 +164,17 @@ watch(filtered, () => { if (page.value > totalPages.value) page.value = totalPag
 async function loadSkills() {
   loading.value = true
   try {
-    const { data } = await api.get('/skills/')
-    skills.value = pickArray(data)
+    // The endpoint is server-paginated (20 a page by default). Walk every page, as the Skills library
+    // does — one request showed only the first 20 skills, and the rest could not be assigned here.
+    const all = []
+    let pageNo = 1
+    for (;;) {
+      const { data } = await api.get('/skills/', { params: { page: pageNo, page_size: 100 } })
+      all.push(...pickArray(data))
+      if (!data?.next) break
+      pageNo += 1
+    }
+    skills.value = all
   } catch (e) {
     notify.error('Could not load your skills.')
   } finally {
@@ -179,6 +191,7 @@ async function saveIds(next) {
     const s = byId.get(id)
     return { id, name: s ? s.name : '', slug: s ? s.slug : '', description: s ? s.description : '' }
   })
+  emit('saved', { skill_ids: props.agent.skill_ids, skills: props.agent.skills })
   return true
 }
 
@@ -208,8 +221,15 @@ async function createSkill() {
     const { data } = await api.post('/skills/', payload)
     skills.value = [data, ...skills.value]
     ensureIds()
-    await saveIds([...selectedIds.value, data.id])          // create → auto-assign
-    notify.success(`Added & assigned ${data.name}`)
+    // create → auto-assign. Without a saved agent there is nothing to assign to, and a failed assignment
+    // must not undo the report that the skill itself now exists — so say what actually happened.
+    let assigned = false
+    if (agentId.value) {
+      try { assigned = await saveIds([...selectedIds.value, data.id]) } catch (e) { assigned = false }
+    }
+    if (assigned) notify.success(`Added & assigned ${data.name}`)
+    else if (!agentId.value) notify.success(`Created ${data.name}. Save your agent first, then assign it here.`)
+    else notify.warning(`Created ${data.name}, but it could not be assigned. Assign it from the list below.`)
     // Authoring tip from the server — the agent picks this skill from its description alone.
     if ((data.lint || []).length) notify.warning(`${data.name}: ${data.lint[0].message}`, { timeout: 9000 })
     draft.value = { name: '', description: '', body: '' }

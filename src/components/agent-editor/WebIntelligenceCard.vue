@@ -81,7 +81,7 @@
             </select>
             <p v-if="!groupedModels.length" class="mt-1 text-[11.5px] text-[#667085]">
               No verified web-search models yet.
-              <RouterLink to="/dashboard/llm-settings" class="font-semibold text-[#2563EB]">
+              <RouterLink to="/dashboard/llm-settings" :target="shell.linkTarget.value" class="font-semibold text-[#2563EB]">
                 Connect an AI provider
               </RouterLink>
               to enable model-based search.
@@ -163,12 +163,14 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { useEditorShell } from '../../composables/editorShell'
 import { RouterLink } from 'vue-router'
 import { Globe, Lock, Save } from 'lucide-vue-next'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 
 const props = defineProps({ agent: { type: Object, required: true } })
+const shell = useEditorShell()
 
 const MODES = [
   { value: 'auto', label: 'Auto — recommended',
@@ -236,7 +238,9 @@ function snapshot() { return JSON.stringify({ ...payload() }) }
 const dirty = computed(() => snapshot() !== saved.value)
 
 function payload() {
-  const [provider, model_id] = modelKey.value ? modelKey.value.split('::') : [null, null]
+  // Cut at the FIRST "::" only — a model id may itself contain "::".
+  const cut = modelKey.value.indexOf('::')
+  const [provider, model_id] = cut < 0 ? [null, null] : [modelKey.value.slice(0, cut), modelKey.value.slice(cut + 2)]
   const cost = String(costLimit.value).trim()
   return {
     ...cfg,
@@ -297,7 +301,12 @@ async function probe() {
   try {
     const { data } = await api.probeWebSearchModel(m.provider, m.model_id)
     probeResult.value = data
-    if (data.status !== 'verified') await load()   // a failed probe disables the model server-side
+    // A failed probe disables the model server-side. Refresh ONLY the models list so its new
+    // availability shows — the full load() replaced the form with server values and silently threw
+    // away whatever the user had changed and not yet saved.
+    if (data.status !== 'verified') {
+      try { models.value = (await api.getWebSearchModels()).data?.models || models.value } catch (err) { /* keep the list we have */ }
+    }
   } catch (e) {
     probeResult.value = { status: 'failed', detail: 'Could not reach the provider' }
   } finally {

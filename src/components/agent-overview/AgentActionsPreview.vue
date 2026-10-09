@@ -68,7 +68,7 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
 })
 
-const editLink = computed(() => `/dashboard/agents/${props.agent?.id ?? ''}/editor?step=actions`)
+const editLink = computed(() => `/dashboard/agents/${props.agent?.id ?? ''}/editor?step=tools`)
 const tools = computed(() => (Array.isArray(props.agent?.tools) ? props.agent.tools : []))
 const bundleCount = computed(() =>
   Array.isArray(props.agent?.tool_bundles) ? props.agent.tool_bundles.length : 0,

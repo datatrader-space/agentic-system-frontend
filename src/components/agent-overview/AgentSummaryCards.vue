@@ -91,7 +91,7 @@ const cards = computed(() => [
       ? `${knowledgeCount.value} source${knowledgeCount.value === 1 ? '' : 's'}`
       : 'No knowledge',
     sub: props.agent?.knowledge_scope ? `Scope: ${props.agent.knowledge_scope}` : 'Add files or pages',
-    to: `${configureBase.value}?step=knowledge`,
+    to: `${configureBase.value}?step=tools`,
   },
   {
     key: 'tools',
@@ -102,7 +102,7 @@ const cards = computed(() => [
       ? `${toolCount.value} action${toolCount.value === 1 ? '' : 's'}`
       : 'No actions',
     sub: 'Connected capabilities',
-    to: `${configureBase.value}?step=actions`,
+    to: `${configureBase.value}?step=tools`,
   },
   {
     key: 'credentials',

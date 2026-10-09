@@ -31,11 +31,18 @@
           </span>
         </button>
       </div>
+      <!-- The grid shows "blank" plus the first three templates; the rest are behind this toggle. -->
+      <div v-if="templates.length > 4" class="mt-3 flex justify-center">
+        <button type="button" class="text-[13px] font-semibold text-[#2563EB] hover:text-[#1D4ED8]"
+                @click="showMoreTemplates = !showMoreTemplates">
+          {{ showMoreTemplates ? 'Show fewer' : 'Show all templates' }}
+        </button>
+      </div>
       <div class="mt-4 flex justify-center">
         <button
           type="button"
           class="inline-flex items-center gap-2 rounded-[10px] border border-[#C7D7F7] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#2563EB] shadow-[0_1px_2px_rgba(16,24,40,0.04)] hover:border-[#2563EB] hover:bg-[#EFF4FF]"
-          @click="router.push({ name: 'builtin-agent-library' })"
+          @click="router.push({ name: shell.isAdmin.value ? 'admin-builtin-agents' : 'builtin-agent-library' })"
         >
           View all built-in agents to clone
           <ArrowRight :size="15" :stroke-width="2" />
@@ -83,12 +90,14 @@
 
 <script setup>
 import { computed, ref, onMounted, watch } from 'vue'
+import { useEditorShell } from '../../composables/editorShell'
 import { useRouter } from 'vue-router'
 import { ArrowRight, Check, ChevronDown, Database, FileText, Lightbulb, MessageCircle, Plus, Search, Sparkles, Users } from 'lucide-vue-next'
 import api from '../../services/api'
 import tenancyApi from '../../services/tenancyApi'
 
 const router = useRouter()
+const shell = useEditorShell()
 const props = defineProps({
   agent: { type: Object, required: true },
   isNew: { type: Boolean, default: false },
@@ -114,15 +123,48 @@ const templates = computed(() => [
     raw: t,
   })),
 ])
-const visibleTemplates = computed(() => showMoreTemplates.value ? templates.value : templates.value.slice(0, 4))
+// Collapsed, the grid is "blank" plus the first three — and whichever template is SELECTED, wherever it
+// sits. "Show fewer" used to fold the chosen card out of sight while its config stayed applied.
+const visibleTemplates = computed(() => {
+  if (showMoreTemplates.value) return templates.value
+  return templates.value.filter((t, i) => i < 4 || t.key === selectedTemplate.value)
+})
+
+// The fields a template overwrites, as they were BEFORE the first template was applied. Choosing another
+// template — or "Start from blank" — puts them back first. Without this the first template's prompt,
+// rules and tools stayed behind under whatever was picked next, and "blank" was not blank.
+const TEMPLATE_FIELDS = ['system_prompt_template', 'description', 'prompt_mode', 'agent_rules', 'tool_ids']
+let beforeTemplate = null
+// The description the current template filled in (null when it filled none). Only THAT text is ever
+// taken back out — a purpose the user typed themselves is theirs and stays.
+let templateDescription = null
+const copyOf = (v) => (Array.isArray(v) ? [...v] : v)
+
+function restoreBeforeTemplate() {
+  if (!beforeTemplate) return
+  for (const k of TEMPLATE_FIELDS) {
+    if (k === 'description' && props.agent.description !== templateDescription) continue
+    if (k in beforeTemplate) props.agent[k] = copyOf(beforeTemplate[k])
+    else delete props.agent[k]
+  }
+  templateDescription = null
+}
 
 // Selecting a real template applies its actual config as a starting point (user can still edit).
 function selectTemplate(template) {
   selectedTemplate.value = template.key
+  restoreBeforeTemplate()
   const t = template.raw
-  if (!t) return // "Start from blank" — apply nothing
+  if (!t) return // "Start from blank" — restore only, apply nothing
+  if (!beforeTemplate) {
+    beforeTemplate = {}
+    for (const k of TEMPLATE_FIELDS) if (k in props.agent) beforeTemplate[k] = copyOf(props.agent[k])
+  }
   if (t.system_prompt_template) props.agent.system_prompt_template = t.system_prompt_template
-  if (!props.agent.description) props.agent.description = t.template_description || t.description || ''
+  if (!props.agent.description) {
+    templateDescription = t.template_description || t.description || ''
+    props.agent.description = templateDescription
+  }
   if (t.prompt_mode) props.agent.prompt_mode = t.prompt_mode
   if (Array.isArray(t.agent_rules)) props.agent.agent_rules = [...t.agent_rules]
   if (Array.isArray(t.tools)) props.agent.tool_ids = t.tools.map(x => x.id)

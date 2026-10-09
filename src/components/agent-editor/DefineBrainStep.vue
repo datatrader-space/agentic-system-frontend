@@ -175,14 +175,14 @@
                 <p class="card-sub">What this agent sees each turn and what it's allowed to remember.</p>
               </div>
             </div>
-            <RouterLink to="/dashboard/settings/memory" class="edit-btn"><Settings2 :size="13" :stroke-width="2" /> Account settings</RouterLink>
+            <RouterLink to="/dashboard/settings/memory" :target="shell.linkTarget.value" class="edit-btn"><Settings2 :size="13" :stroke-width="2" /> Account settings</RouterLink>
           </header>
 
           <!-- Account master is off → everything here is inert. Honest, DB-driven copy (no env/system wording). -->
           <div v-if="masterOff" class="mb-3 flex items-start gap-2 rounded-xl border border-[#FEC84B] bg-[#FFFAEB] px-3.5 py-2.5">
             <Info :size="15" :stroke-width="2" class="mt-0.5 shrink-0 text-[#B54708]" />
             <p class="text-[12.5px] leading-snug text-[#B54708]">
-              Memory is turned off in <RouterLink to="/dashboard/settings/memory" class="font-semibold underline">Settings → Memory</RouterLink>. Turn it on there to use any of these.
+              Memory is turned off in <RouterLink to="/dashboard/settings/memory" :target="shell.linkTarget.value" class="font-semibold underline">Settings → Memory</RouterLink>. Turn it on there to use any of these.
             </p>
           </div>
 
@@ -240,7 +240,7 @@
                         @click="(!masterOff && allowRemember) && (agent.end_of_run_learning_enabled = !agent.end_of_run_learning_enabled)"><span class="knob" /></button>
               </div>
             </div>
-            <RouterLink to="/dashboard/settings/memory" class="mt-2.5 inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#2563EB]">
+            <RouterLink to="/dashboard/settings/memory" :target="shell.linkTarget.value" class="mt-2.5 inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#2563EB]">
               Manage all memory settings <ArrowRight :size="13" :stroke-width="2.2" />
             </RouterLink>
           </div>
@@ -349,6 +349,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue'
+import { useEditorShell } from '../../composables/editorShell'
 import { RouterLink } from 'vue-router'
 import { Activity, ArrowRight, CheckCircle2, ChevronDown, Cpu, Database, ExternalLink, FileText, Info, Pencil, Plus, Settings2, ShieldCheck, X } from 'lucide-vue-next'
 import api from '../../services/api'
@@ -356,17 +357,19 @@ import ModelPicker from '../common/ModelPicker.vue'
 import ContextProfilePicker from '../agent/ContextProfilePicker.vue'
 
 const props = defineProps({ agent: { type: Object, required: true } })
+const shell = useEditorShell()
 
 // ── Context profile (agent_policy.context_profile) + effective-policy preview/matrix ──
 // For a new agent (no id) the exact-budget table isn't available yet; the picker still shows its dropdown.
 const availableProfiles = ref([])
 const profilePreview = ref(null)
 const profilesMatrix = ref(null)
+// READ-ONLY: a missing/invalid policy reads as a fresh {} and is never written back. This is called from
+// a computed, and it used to assign `agent.agent_policy = {}` — so merely rendering the step made the
+// draft differ from the server copy. The only write is onProfileChange, on a real change.
 function _policy() {
-  if (!props.agent.agent_policy || typeof props.agent.agent_policy !== 'object' || Array.isArray(props.agent.agent_policy)) {
-    props.agent.agent_policy = {}
-  }
-  return props.agent.agent_policy
+  const p = props.agent.agent_policy
+  return (p && typeof p === 'object' && !Array.isArray(p)) ? p : {}
 }
 const contextProfile = computed(() => _policy().context_profile || '')   // '' = Automatic
 function onProfileChange(key) { props.agent.agent_policy = { ..._policy(), context_profile: key || '' } }
@@ -497,10 +500,18 @@ const searchModelGroups = computed(() => {
     .sort((a, b) => (Number(b.anyAvailable) - Number(a.anyAvailable)) || a.label.localeCompare(b.label))
 })
 
+// "<provider>::<model_id>" → [provider, model_id], cut at the FIRST "::" only. A plain split('::')
+// truncated a model id that itself contains "::".
+function splitSearchModel(value) {
+  const s = String(value || '')
+  const i = s.indexOf('::')
+  return i < 0 ? [s, ''] : [s.slice(0, i), s.slice(i + 2)]
+}
+
 // Why a listed model still cannot run (missing provider credentials, usually). Empty when fine.
 const searchModelUnavailable = computed(() => {
   if (!searchModelValue.value) return ''
-  const [p, id] = String(searchModelValue.value).split('::')
+  const [p, id] = splitSearchModel(searchModelValue.value)
   const m = searchModels.value.find(x => x.provider === p && x.model_id === id)
   return (m && !m.available) ? (m.unavailable_reason || 'unavailable') : ''
 })
@@ -534,7 +545,7 @@ async function setSearchModel(next) {
   searchModelSaving.value = true
   searchModelError.value = ''
   try {
-    const [provider, model_id] = next ? String(next).split('::') : ['', '']
+    const [provider, model_id] = next ? splitSearchModel(next) : ['', '']
     await api.updateAgentWebIntelligence(props.agent.id, {
       search_model: next ? { provider, model_id } : null,
     })

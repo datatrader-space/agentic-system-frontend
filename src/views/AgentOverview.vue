@@ -183,8 +183,10 @@ const subNav = computed(() => {
   return [
     { key: 'overview', label: 'Overview', to: base, active: true },
     { key: 'brain', label: 'Brain', to: `${base}/editor?step=brain`, active: false },
-    { key: 'knowledge', label: 'Knowledge', to: `${base}/editor?step=knowledge`, active: false },
-    { key: 'actions', label: 'Actions', to: `${base}/editor?step=actions`, active: false },
+    // Knowledge and Actions are ONE editor step ('tools' — Knowledge & Tools). `knowledge` / `actions`
+    // are not step keys, so those links silently opened step 1.
+    { key: 'knowledge', label: 'Knowledge', to: `${base}/editor?step=tools`, active: false },
+    { key: 'actions', label: 'Actions', to: `${base}/editor?step=tools`, active: false },
     { key: 'autonomy', label: 'Autonomy', to: `${base}/editor?step=autonomy`, active: false },
     { key: 'activity', label: 'Activity', to: `${base}/monitor`, active: false },
   ]

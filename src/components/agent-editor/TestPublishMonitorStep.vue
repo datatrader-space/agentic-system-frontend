@@ -42,7 +42,7 @@
             </div>
           </div>
 
-          <button class="wide-btn mt-4" @click="go(`/dashboard/agents/${agent.id}/monitor`)">View Full Test Details</button>
+          <button class="wide-btn mt-4" @click="go(shell.agentPage(agent.id, 'monitor'))">View Full Test Details</button>
         </section>
 
         <section class="panel">
@@ -72,7 +72,9 @@
 
           <div class="mt-4 grid grid-cols-[1fr_1fr_auto] gap-2">
             <button class="wide-btn" @click="publish">{{ publishing ? 'Updating...' : publishButtonLabel }}</button>
-            <button class="wide-btn" @click="rollback">Rollback</button>
+            <button class="wide-btn disabled:cursor-not-allowed disabled:opacity-50" :disabled="!canRollback || rollingBack"
+                    :title="canRollback ? '' : 'Nothing to roll back to — this agent has not been published yet.'"
+                    @click="rollback">{{ rollingBack ? 'Rolling back...' : 'Rollback' }}</button>
             <button class="icon-btn"><MoreHorizontal :size="16" /></button>
           </div>
         </section>
@@ -82,7 +84,7 @@
         <section class="panel">
           <div class="mb-4 flex items-center justify-between">
             <h3 class="text-[17px] font-bold text-[#0F172A]">Activity Summary <span class="font-medium text-[#667085]">(7 days)</span></h3>
-            <button class="mini-btn" @click="go(`/dashboard/agents/${agent.id}/monitor`)">View Analytics</button>
+            <button class="mini-btn" @click="go(shell.agentPage(agent.id, 'monitor'))">View Analytics</button>
           </div>
           <div class="grid gap-3 sm:grid-cols-4">
             <div v-for="item in activityStats" :key="item.label" class="flex items-center gap-3">
@@ -113,7 +115,7 @@
         <section class="panel">
           <div class="mb-4 flex items-center justify-between">
             <h3 class="text-[17px] font-bold text-[#0F172A]">Recent Runs</h3>
-            <button class="mini-btn" @click="go(`/dashboard/agents/${agent.id}/monitor`)">View All</button>
+            <button class="mini-btn" @click="go(shell.agentPage(agent.id, 'monitor'))">View All</button>
           </div>
           <div class="space-y-3">
             <div v-for="run in recentRuns" :key="run.id" class="flex items-center gap-3">
@@ -148,7 +150,7 @@
       <section class="panel flex min-h-[620px] flex-col overflow-hidden p-0">
         <div class="flex items-center justify-between border-b border-[#EEF2F6] px-4 py-3">
           <h3 class="flex items-center gap-2 text-[15px] font-bold text-[#0F172A]"><Activity :size="17" class="text-[#2563EB]" /> Quick Test</h3>
-          <button v-if="published" class="text-[12px] font-semibold text-[#344054] hover:text-[#2563EB]" @click="go(`/dashboard/agents/${agent.id}/monitor`)">Expand</button>
+          <button v-if="published" class="text-[12px] font-semibold text-[#344054] hover:text-[#2563EB]" @click="go(shell.agentPage(agent.id, 'monitor'))">Expand</button>
         </div>
 
         <!-- Locked until the agent is published (matches the legacy emulator gating) -->
@@ -200,13 +202,21 @@ import {
 } from 'lucide-vue-next'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
+import { confirm } from '@/composables/useConfirm'
+import { useEditorShell } from '../../composables/editorShell'
 import { ago } from '../dashboard/time'
 import AgentEmulator from '../AgentEmulator.vue'
 
-const props = defineProps({ agent: { type: Object, required: true } })
+const props = defineProps({
+  agent: { type: Object, required: true },
+  // Supplied by the editor: saves the pending edits and resolves true/false. Without it this step's
+  // Publish published what the server last saw, not what is on screen (the header's button saves first).
+  saveFirst: { type: Function, default: null },
+})
 const emit = defineEmits(['published'])
 const router = useRouter()
 const go = (to) => router.push(to)
+const shell = useEditorShell()
 
 const loading = ref(false)
 const publishing = ref(false)
@@ -239,10 +249,10 @@ const recentRuns = computed(() => {
   ]
 })
 const statusCards = computed(() => [
-  { title: 'Overall Status', value: publishStatus.value, sub: published.value ? 'Live and available' : 'Ready to publish', cta: 'Details', icon: CheckCircle2, tint: 'bg-emerald-50 text-emerald-600', valueClass: 'text-[#12B76A]', action: () => go(`/dashboard/agents/${props.agent.id}/monitor`) },
-  { title: 'Health', value: healthLabel(health.value.status), sub: 'All systems operational', cta: 'Health', icon: ShieldCheck, tint: 'bg-emerald-50 text-emerald-600', valueClass: 'text-[#12B76A]', action: () => go(`/dashboard/agents/${props.agent.id}/monitor`) },
-  { title: 'Success Rate (24h)', value: `${kpis.value.success_rate ?? 100}%`, sub: `${kpis.value.runs_24h ?? 0} runs in last 24h`, cta: 'Analytics', icon: LineChart, tint: 'bg-emerald-50 text-emerald-600', valueClass: 'text-[#12B76A]', action: () => go(`/dashboard/agents/${props.agent.id}/monitor`) },
-  { title: 'Avg. Response Time', value: latencyLabel(kpis.value.avg_response_ms), sub: 'Based on recent runs', cta: 'Performance', icon: Clock3, tint: 'bg-violet-50 text-violet-600', valueClass: '', action: () => go(`/dashboard/agents/${props.agent.id}/monitor`) },
+  { title: 'Overall Status', value: publishStatus.value, sub: published.value ? 'Live and available' : 'Ready to publish', cta: 'Details', icon: CheckCircle2, tint: 'bg-emerald-50 text-emerald-600', valueClass: 'text-[#12B76A]', action: () => go(shell.agentPage(props.agent.id, 'monitor')) },
+  { title: 'Health', value: healthLabel(health.value.status), sub: 'All systems operational', cta: 'Health', icon: ShieldCheck, tint: 'bg-emerald-50 text-emerald-600', valueClass: 'text-[#12B76A]', action: () => go(shell.agentPage(props.agent.id, 'monitor')) },
+  { title: 'Success Rate (24h)', value: `${kpis.value.success_rate ?? 100}%`, sub: `${kpis.value.runs_24h ?? 0} runs in last 24h`, cta: 'Analytics', icon: LineChart, tint: 'bg-emerald-50 text-emerald-600', valueClass: 'text-[#12B76A]', action: () => go(shell.agentPage(props.agent.id, 'monitor')) },
+  { title: 'Avg. Response Time', value: latencyLabel(kpis.value.avg_response_ms), sub: 'Based on recent runs', cta: 'Performance', icon: Clock3, tint: 'bg-violet-50 text-violet-600', valueClass: '', action: () => go(shell.agentPage(props.agent.id, 'monitor')) },
 ])
 const testRows = computed(() => [
   { label: 'Test Case', value: runName(recentRuns.value[0]), label2: 'Result', value2: 'All assertions passed' },
@@ -311,6 +321,10 @@ async function publish() {
   if (publishing.value) return
   publishing.value = true
   try {
+    // Save, then publish. A failed save has already told the user why; publishing anyway would put the
+    // OLD configuration live while the screen shows the new one.
+    if (props.saveFirst && !(await props.saveFirst())) return
+    if (!props.agent.id) return
     const res = await api.publishAgent(props.agent.id)
     emit('published', res.data)
     notify.success(published.value ? 'Configuration updated' : 'Published')
@@ -321,7 +335,20 @@ async function publish() {
     publishing.value = false
   }
 }
+// Rollback restores the last PUBLISHED snapshot, so there is nothing to roll back to before the first
+// publish — and it discards unpublished changes, so it asks first (same wording as the Monitor page).
+const rollingBack = ref(false)
+const canRollback = computed(() => !!props.agent.id && !!publishInfo.value.published_at)
 async function rollback() {
+  if (!canRollback.value || rollingBack.value) return
+  const ok = await confirm({
+    title: 'Roll back to published snapshot?',
+    message: 'This restores the agent config (prompt, model, tools, settings) from the last publish, discarding unpublished changes.',
+    confirmText: 'Roll back',
+    danger: true,
+  })
+  if (!ok) return
+  rollingBack.value = true
   try {
     const res = await api.rollbackAgent(props.agent.id)
     emit('published', res.data)
@@ -329,6 +356,8 @@ async function rollback() {
     await loadMonitoring()
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Rollback failed')
+  } finally {
+    rollingBack.value = false
   }
 }
 

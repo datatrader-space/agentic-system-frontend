@@ -52,7 +52,7 @@
       <!-- Stepper (dashed connectors) -->
       <nav class="flex items-center gap-2 overflow-x-auto border-b border-[#E5E7EB] bg-white px-6 py-4">
         <template v-for="(s, i) in steps" :key="s.key">
-          <button class="flex shrink-0 items-center gap-2.5 text-left" @click="step = s.key">
+          <button class="flex shrink-0 items-center gap-2.5 text-left" @click="openStep(s.key)">
             <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-bold transition"
                   :class="s.key === step ? 'bg-[#2563EB] text-white' : (stepDone(i) ? 'bg-[#E6F7EE] text-[#12B76A]' : 'bg-white text-[#667085] ring-1 ring-[#E5E7EB]')">{{ s.n }}</span>
             <span class="leading-tight">
@@ -70,13 +70,13 @@
       <div :key="step" class="min-h-0 flex-1 overflow-y-auto py-5">
         <AgentIdentityStep v-if="step === 'identity'" :agent="agent" :is-new="isNew" />
         <DefineBrainStep v-else-if="step === 'brain'" :agent="agent" />
-        <KnowledgeToolsStep v-else-if="step === 'tools'" :agent="agent" />
-        <SubAgentsStep v-else-if="step === 'team'" :agent="agent" />
-        <SkillsStep v-else-if="step === 'skills'" :agent="agent" />
+        <KnowledgeToolsStep v-else-if="step === 'tools'" :agent="agent" @saved="mergeAgent" />
+        <SubAgentsStep v-else-if="step === 'team'" :agent="agent" @saved="mergeAgent" />
+        <SkillsStep v-else-if="step === 'skills'" :agent="agent" @saved="mergeAgent" />
         <CredentialsStep v-else-if="step === 'credentials'" :agent="agent" />
-        <AutonomySafetyStep v-else-if="step === 'autonomy'" :agent="agent" />
+        <AutonomySafetyStep v-else-if="step === 'autonomy'" :agent="agent" @open-step="openStep" />
         <ScopeAssistantStep v-else-if="step === 'scope'" :agent="agent" />
-        <TestPublishMonitorStep v-else-if="step === 'final'" :agent="agent" @published="mergeAgent" />
+        <TestPublishMonitorStep v-else-if="step === 'final'" :agent="agent" :save-first="flushPendingEdits" @published="mergeAgent" />
         <div v-else class="mx-auto max-w-3xl px-8 py-10 text-center">
           <div class="rounded-2xl border border-dashed border-[#E5E7EB] bg-white p-10">
             <p class="text-[15px] font-semibold text-[#0F172A]">{{ currentStep.title }}</p>
@@ -105,7 +105,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ChevronRight, ChevronDown, ArrowLeft, ArrowRight, Save, Play, Pause as PauseIcon, Rocket, Pencil, MoreHorizontal, MessageCircle, UploadCloud } from 'lucide-vue-next'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
-import { changedFields, snapshot } from '../composables/agentDiff'
+import { changedFields, snapshot, withoutReadOnly, idListsFrom } from '../composables/agentDiff'
 import DefineBrainStep from '../components/agent-editor/DefineBrainStep.vue'
 import AgentIdentityStep from '../components/agent-editor/AgentIdentityStep.vue'
 import KnowledgeToolsStep from '../components/agent-editor/KnowledgeToolsStep.vue'
@@ -116,6 +116,7 @@ import AutonomySafetyStep from '../components/agent-editor/AutonomySafetyStep.vu
 import ScopeAssistantStep from '../components/agent-editor/ScopeAssistantStep.vue'
 import TestPublishMonitorStep from '../components/agent-editor/TestPublishMonitorStep.vue'
 import { ago } from '../components/dashboard/time'
+import { provideEditorShell } from '../composables/editorShell'
 
 const route = useRoute()
 const router = useRouter()
@@ -125,6 +126,11 @@ const go = (to) => router.push(to)
 // stays inside the shell it was opened from, so an admin editing a system agent is never bounced
 // into the user dashboard.
 const shellBase = computed(() => (route.path.startsWith('/admin-dashboard') ? '/admin-dashboard' : '/dashboard'))
+// The steps ask this where their links go (composables/editorShell.js) instead of assuming /dashboard.
+provideEditorShell({
+  isAdmin: computed(() => shellBase.value === '/admin-dashboard'),
+  href: (to) => router.resolve(to).href,
+})
 
 const loading = ref(true)
 const saving = ref(false)
@@ -171,26 +177,44 @@ const steps = computed(() => {
 const stepIndex = computed(() => Math.max(0, steps.value.findIndex(s => s.key === step.value)))
 const currentStep = computed(() => steps.value[stepIndex.value] || steps.value[0])
 const isFinalStep = computed(() => step.value === 'final' || currentStep.value.key === 'final')
+// The three steps that name where they lead take that name from the step that ACTUALLY comes next. They
+// were hardcoded: leaving Knowledge & Tools said "Credentials" (Team is next), and leaving Autonomy said
+// "Final" even for staff, whose next step is Scope.
+const NEXT_NAMES = { team: 'Team', autonomy: 'Autonomy', scope: 'Scope', final: 'Final' }
 const nextLabel = computed(() => {
   if (isNew.value && step.value === 'identity') return 'Create Agent'
-  if (step.value === 'tools') return 'Continue to Credentials'
-  if (step.value === 'credentials') return 'Continue to Autonomy'
-  if (step.value === 'autonomy') return 'Continue to Final'
+  const nxt = steps.value[stepIndex.value + 1]
+  if (nxt && ['tools', 'credentials', 'autonomy'].includes(step.value)) return `Continue to ${NEXT_NAMES[nxt.key] || nxt.title}`
   return 'Continue'
 })
 const stepDone = (i) => i < stepIndex.value
-async function next() {
-  if (stepIndex.value >= steps.value.length - 1) return
-  // New mode needs a name to create the draft.
-  if (!agent.value.id && !(agent.value.name || '').trim()) {
-    notify.warning('Please name your agent first.')
+// New mode needs a name to create the draft. Asked by every path that would POST — Continue AND the
+// header Save, which used to send the empty name and report only "Failed to save".
+function missingName() {
+  if (agent.value.id || (agent.value.name || '').trim()) return false
+  notify.warning('Please name your agent first.')
+  return true
+}
+// Stepper click. Every step after the first loads and saves against the agent's id (/agents/<id>/…), so
+// before the agent exists opening one only produced requests to /agents/undefined/….
+function openStep(key) {
+  if (!agent.value.id && key !== steps.value[0].key) {
+    notify.warning('Create the agent first — name it and press Create Agent.')
     return
   }
+  step.value = key
+}
+async function next() {
+  if (stepIndex.value >= steps.value.length - 1) return
+  if (missingName()) return
   if (!agent.value.id) {
     // FIRST save must complete: we need the new draft's id before later steps can load/save against it.
-    const ok = await save()
+    // The target step rides along in the replaced URL (see save), because replacing the route rebuilds
+    // this component in the dashboard shell and a step set only here would be lost with it.
+    const target = steps.value[stepIndex.value + 1].key
+    const ok = await save({ thenStep: target })
     if (!ok) return
-    step.value = steps.value[stepIndex.value + 1].key
+    step.value = target
     return
   }
   // Already created → advance the UI immediately and persist THIS step's changes in the background
@@ -201,6 +225,8 @@ async function next() {
 }
 function prev() { if (stepIndex.value > 0) step.value = steps.value[stepIndex.value - 1].key }
 function applyQueryStep() {
+  // A new agent (no id in the route) has only its first step — same rule as openStep.
+  if (!route.params.id) return
   const q = String(route.query.step || '')
   if (q === 'test' || q === 'deploy' || q === 'publish') {
     step.value = 'final'
@@ -211,11 +237,25 @@ function applyQueryStep() {
 }
 
 function mergeAgent(data) {
-  // Child steps call this with what the SERVER returned, so it is confirmed state, not a pending edit.
+  // Child steps call this with what the SERVER returned (publish, rollback) or with exactly the keys
+  // their own PATCH just changed (team, skills, knowledge attach), so it is confirmed state, not a
+  // pending edit.
   if (data) {
-    agent.value = { ...agent.value, ...data }
-    serverCopy = { ...serverCopy, ...snapshot(data) }
+    // A whole agent from the server carries the rows but never the write-only id lists. Derive the ones
+    // it speaks for — a rollback that restored the tools must not leave the editor on the old tool_ids.
+    const confirmed = { ...idListsFrom(data, { onlyReturned: true }), ...data }
+    agent.value = { ...agent.value, ...confirmed }
+    serverCopy = { ...serverCopy, ...snapshot(confirmed) }
   }
+}
+
+// Handed to the final step so ITS Publish button saves first, like the header's "Configure / Publish".
+// save() does not run while another save is in flight — it queues a trailing one and answers false —
+// and arriving on the final step with Continue starts exactly such a background save. Wait that out,
+// or a quick Publish would be dropped without a word.
+async function flushPendingEdits() {
+  while (saving.value) await new Promise(r => setTimeout(r, 60))
+  return save({ quiet: true })
 }
 
 // Header "Chat" — jump straight into a chat with THIS agent, pre-selected via ?agent=<id> exactly like
@@ -267,7 +307,10 @@ async function load() {
     const a = res.data || {}
     // Always derive tool_ids from the authoritative `tools` so a later PATCH preserves the real set
     // (never wipes it). The GET doesn't return tool_ids (write-only), so without this a save could send [].
-    a.tool_ids = Array.isArray(a.tools) ? a.tools.map(t => t.id) : []
+    // The same for knowledge_source_ids / sub_agent_ids / skill_ids, and BEFORE the snapshot: their steps
+    // used to derive them on mount, so merely opening Team or Skills made the draft differ from the server
+    // copy and the next save re-sent a list nobody had touched.
+    Object.assign(a, idListsFrom(a))
     agent.value = a
     serverCopy = snapshot(a)
     lastSavedAt.value = a.updated_at || null
@@ -278,14 +321,39 @@ async function load() {
   }
 }
 
-async function save({ quiet = false } = {}) {
+// Why a save was refused, in the server's words when it gave any: a duplicate name answers
+// 400 {"name": ["An agent with this name already exists."]}, and "Failed to save" told the user nothing.
+function saveErrorReason(e) {
+  const d = e?.response?.data
+  if (!d || typeof d !== 'object') return ''
+  const first = (v) => (Array.isArray(v) ? v[0] : v)
+  if (typeof first(d.name) === 'string') return first(d.name)
+  if (typeof d.detail === 'string') return d.detail
+  for (const [field, v] of Object.entries(d)) {
+    const msg = first(v)
+    if (typeof msg === 'string' && msg) return field === 'non_field_errors' ? msg : `${field}: ${msg}`
+  }
+  return ''
+}
+
+// A newly created agent moves from /agents/new to its own URL, carrying the step to open on.
+function openAgentRoute(stepKey) {
+  if (!agent.value.id) return
+  router.replace({ path: `${shellBase.value}/agents/${agent.value.id}/editor`, query: { step: stepKey } })
+}
+
+// `thenStep` — the step to land on once a NEW agent has been created (Continue passes the next one).
+// `holdRoute` — the caller moves to the new agent's URL itself, once it has finished (saveAndPublish).
+async function save({ quiet = false, thenStep = null, holdRoute = false } = {}) {
+  if (missingName()) return false
   // If a save is already in flight, queue a trailing one so the latest edits aren't lost (rapid Continue).
   if (saving.value) { resaveQueued = true; return false }
   saving.value = true
   try {
     let res
     if (agent.value.id) {
-      const changes = changedFields(agent.value, serverCopy)
+      // Only what differs from the server copy, and never a key the server only returns.
+      const changes = withoutReadOnly(changedFields(agent.value, serverCopy))
       if (!Object.keys(changes).length) {
         lastSavedAt.value = new Date().toISOString()
         if (!quiet) notify.success('Saved')
@@ -295,20 +363,43 @@ async function save({ quiet = false } = {}) {
       agent.value = { ...agent.value, ...res.data }
       serverCopy = snapshot(agent.value)
     } else {
-      // First save in new mode → create. OMIT tool_ids so the backend's default-tool assignment isn't
-      // wiped by an empty list (the bug that left agents with 0 tools). Adopt the assigned set afterwards.
-      const { tool_ids, ...payload } = agent.value
-      res = await api.post('/agents/', payload)
-      agent.value = { ...agent.value, ...res.data }
-      if (Array.isArray(res.data?.tools)) agent.value.tool_ids = res.data.tools.map(t => t.id)
+      // First save in new mode → create. The POST goes without tool_ids and the tools follow in their own
+      // PATCH. (The omission once protected the backend's default-tool assignment from being wiped by an
+      // empty list. The backend assigns NO default tools on create any more, so all the omission did was
+      // throw away the tools picked before the first save — a template's, above all — and then overwrite
+      // the local list with the server's empty one.)
+      const { tool_ids: pickedTools, ...payload } = agent.value
+      res = await api.post('/agents/', withoutReadOnly(payload))
+      let created = res.data || {}
+      let toolsNotAdded = false
+      if (created.id && Array.isArray(pickedTools) && pickedTools.length) {
+        try {
+          const patched = await api.patch(`/agents/${created.id}/`, { tool_ids: pickedTools })
+          created = { ...created, ...patched.data }
+        } catch (e) {
+          // The agent exists; only its tools did not make it. Keep it, and adopt the server's tool list
+          // rather than showing tools the agent does not have.
+          toolsNotAdded = true
+        }
+      }
+      // Adopt every id list from what the server holds, exactly as load() does.
+      agent.value = { ...agent.value, ...created, ...idListsFrom(created) }
       serverCopy = snapshot(agent.value)
-      if (agent.value.id) router.replace(`${shellBase.value}/agents/${agent.value.id}/editor`)
+      if (toolsNotAdded) {
+        notify.warning('The agent was created, but its tools could not be added. You can add them in Knowledge & Tools.', { timeout: 9000 })
+      }
+      // The step travels in the URL: the dashboard shell keys the routed view on route.path, so this
+      // replace REBUILDS the editor, and the new one would otherwise open on step 1. With ?step= it opens
+      // on the next step after "Create Agent", and stays on the current one after a plain Save — whether
+      // or not the component is rebuilt.
+      if (!holdRoute) openAgentRoute(thenStep || step.value)
     }
     lastSavedAt.value = new Date().toISOString()
     if (!quiet) notify.success('Saved')
     return true
   } catch (e) {
-    notify.error('Failed to save')
+    const reason = saveErrorReason(e)
+    notify.error(reason || 'Failed to save')
     return false
   } finally {
     saving.value = false
@@ -317,7 +408,14 @@ async function save({ quiet = false } = {}) {
 }
 
 async function saveAndPublish() {
-  const ok = await save()
+  // A background save may be in flight (Continue starts one); save() would only queue behind it and
+  // answer false, and this button would do nothing. Wait it out first.
+  while (saving.value) await new Promise(r => setTimeout(r, 60))
+  // On a NEW agent the create replaces the route, which rebuilds the editor; the rebuilt one loads the
+  // agent as it is at that moment. So publish BEFORE moving to the agent's own URL — otherwise it loaded
+  // the draft and showed "Draft" for an agent this very click had just published.
+  const wasNew = !agent.value.id
+  const ok = await save({ holdRoute: true })
   if (!ok) return
   try {
     const res = await api.publishAgent(agent.value.id)
@@ -329,10 +427,23 @@ async function saveAndPublish() {
   } catch (e) {
     notify.error('Failed to publish')
   }
+  if (wasNew) openAgentRoute(step.value)
 }
 
 watch(() => route.params.id, load)
 watch(() => route.query.step, applyQueryStep)
+// The URL names the step on screen. It used to keep whatever ?step= the editor was opened with, so after
+// moving on a refresh went back to that step (and a link to the step already named there did nothing).
+// Only for a saved agent — a new one has no URL of its own yet; openAgentRoute gives it one.
+watch(step, (key) => {
+  if (!route.params.id || String(route.query.step || '') === key) return
+  router.replace({ path: route.path, query: { ...route.query, step: key } })
+})
+// `?step=scope` names a step that exists only once the user is known to be staff, and the first
+// applyQueryStep() runs before /auth/me has answered — so it found no such step and stayed on step 1.
+// Apply it again when staff resolves (only for that step: anything else was already applied, and
+// re-applying it could pull the user back from a step they have moved to since).
+watch(isStaff, (staff) => { if (staff && String(route.query.step || '') === 'scope') applyQueryStep() })
 onMounted(() => {
   applyQueryStep(); load()
   // Reveal the staff-only "Scope & Assistant" step for staff users. /auth/me returns { user: {...} }.

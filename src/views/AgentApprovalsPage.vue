@@ -11,11 +11,22 @@
         </div>
         <div class="head-actions">
           <button class="ghost" @click="openAudit"><Icon icon="lucide:file-clock" /> View audit log</button>
-          <button class="primary" :disabled="!canEdit || saving" @click="saveGuardrails">
+          <button class="primary" :disabled="!canEdit || saving || !loaded" @click="saveGuardrails">
             <Icon icon="lucide:save" /> {{ saving ? 'Saving…' : 'Save guardrails' }}
           </button>
         </div>
       </header>
+
+      <!-- The agent's policy did not load: what is on screen is the form's defaults, not this agent's
+           settings. Say so, offer a retry, and keep Save disabled until a load succeeds. -->
+      <section v-if="loadFailed" class="notice load-error">
+        <span><Icon icon="lucide:triangle-alert" /></span>
+        <div>
+          <strong>Could not load this agent’s guardrails.</strong>
+          <p>The settings below are defaults, not this agent’s. Saving is turned off until they load.</p>
+        </div>
+        <button class="ghost" :disabled="policyLoading" @click="loadPolicy">{{ policyLoading ? 'Retrying…' : 'Retry' }}</button>
+      </section>
 
       <section class="notice">
         <span><Icon icon="lucide:shield" /></span>
@@ -343,7 +354,7 @@
           </div>
           <div v-for="(r, i) in audit.recent" :key="i" class="audit-row">
             <span>{{ r.at ? new Date(r.at).toLocaleString() : '—' }}</span>
-            <span :class="{ 'over-cap': r.over_cap }">{{ r.actions }}</span>
+            <span>{{ r.actions }}</span>
             <span>{{ r.stop_reason || '—' }}</span>
             <span>{{ r.duration_ms ? Math.round(r.duration_ms / 100) / 10 + 's' : '—' }}</span>
           </div>
@@ -374,9 +385,15 @@ import { normalizeRunMode, isAutonomous, isPlanReview } from '@/composables/agen
 // weakening value at save time. This page never edits the org policy.
 const route = useRoute()
 const agentId = computed(() => route.params.id)
-// Optimistic: allow editing by default so the Save button is never stuck disabled when the detail fetch is
-// slow/fails. Ownership is enforced server-side on PATCH (a non-owner gets a 403 + clear message).
+// Ownership is enforced server-side on PATCH (a non-owner gets a 403 + clear message), so the controls
+// are editable by default.
 const canEdit = ref(true)
+// Saving is a different matter. Until the agent's policy has LOADED, the form holds only its built-in
+// defaults, and "Save guardrails" would write those over the agent's real policy. A failed load used to
+// be swallowed with Save left enabled; now Save waits for a successful load and a failure is shown.
+const loaded = ref(false)
+const loadFailed = ref(false)
+const policyLoading = ref(false)
 const dirty = ref(false)
 const saving = ref(false)
 const rawPolicy = ref({})            // full agent_policy as loaded, so we preserve unknown keys on save
@@ -489,7 +506,9 @@ function applyPolicy(p) {
   dirty.value = false
 }
 async function loadPolicy() {
-  if (!agentId.value) return
+  if (!agentId.value || policyLoading.value) return
+  policyLoading.value = true
+  loadFailed.value = false
   try {
     const a = (await api.getAgent(agentId.value)).data || {}
     applyPolicy(a.agent_policy || {})
@@ -500,7 +519,10 @@ async function loadPolicy() {
     toolIds.value = Array.isArray(a.tool_ids) ? a.tool_ids
       : (Array.isArray(a.tools) ? a.tools.map(t => t.id) : [])
     canEdit.value = true                // owner-scoped detail; a non-owner PATCH is rejected 403
-  } catch (e) { /* keep static UI usable */ }
+    loaded.value = true
+  } catch (e) {
+    loadFailed.value = true             // shown with a Retry; Save stays disabled (see `loaded`)
+  } finally { policyLoading.value = false }
 }
 
 // Behavioral rules (free-text guardrails) + blocked tools (forbidden_tools). Legacy opaque keys map to
@@ -550,7 +572,7 @@ function applyPreset(preset) {
   notify.info(`${preset.button} preset applied — click “Save guardrails” to persist`)
 }
 async function saveGuardrails() {
-  if (saving.value || !agentId.value) return
+  if (saving.value || !agentId.value || !loaded.value) return
   saving.value = true
   try {
     const agent_policy = {
@@ -680,11 +702,16 @@ button, input, select { font: inherit; }
 }
 .ghost { border: 1px solid #d9e3f0; background: #fff; color: #334155; }
 .primary { border: 0; background: #4a47ea; color: #fff; box-shadow: 0 12px 24px rgba(74,71,234,.18); }
+.primary:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
 .notice, .policy-card, .escalation-card, .rail-card {
   border: 1px solid #dfe7f2; border-radius: 11px; background: #fff; box-shadow: 0 8px 22px rgba(15,23,42,.03);
 }
 .notice { display: flex; gap: 14px; align-items: center; padding: 18px 20px; margin-bottom: 14px; }
 .notice strong { display: block; font-size: 13px; margin-bottom: 5px; }
+.notice.load-error { border-color: #fecaca; background: #fef2f2; }
+.notice.load-error > span { background: #fee2e2; color: #dc2626; }
+.notice.load-error > div { flex: 1; }
+.notice.load-error .ghost:disabled { opacity: .6; cursor: not-allowed; }
 .policy-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .policy-card, .escalation-card { padding: 18px; }
 .context-profile-card { order: 1; }
@@ -857,7 +884,6 @@ select, input {
 .audit-list { border: 1px solid #eef2f6; border-radius: 10px; overflow: hidden; }
 .audit-row { display: grid; grid-template-columns: 1.6fr .7fr 1.3fr .7fr; gap: 8px; padding: 9px 12px; font-size: 12px; color: #334155; border-top: 1px solid #f1f5f9; }
 .audit-row-head { background: #f8fafc; font-weight: 750; color: #64748b; border-top: 0; text-transform: uppercase; font-size: 10.5px; letter-spacing: .03em; }
-.audit-row .over-cap { color: #dc2626; font-weight: 800; }
 .audit-empty { padding: 18px; text-align: center; color: #98a2b3; font-size: 12.5px; }
 .audit-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; font-size: 12px; color: #64748b; }
 @media (max-width: 640px) {

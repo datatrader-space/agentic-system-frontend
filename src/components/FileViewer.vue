@@ -187,7 +187,7 @@ import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import api from '../services/api';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark-dimmed.css';
-import { marked } from 'marked';
+import { renderUntrustedMarkdown } from '../utils/safeMarkdown';
 import { useTheme } from '../composables/useTheme';
 import { saveBlob } from '../utils/saveBlob';
 
@@ -363,10 +363,13 @@ const highlightedContent = computed(() => {
 });
 
 // ── Markdown ──
+// A workspace file is written by an agent (or fetched from anywhere the agent went), so it is untrusted:
+// it goes into `v-html`, and plain `marked` passes raw HTML through — `<img src=x onerror=…>` in a .md
+// file would run on our origin. Same sanitising renderer the chat surfaces use.
 const renderedMarkdown = computed(() => {
   if (!content.value) return '';
   try {
-    return marked(content.value);
+    return renderUntrustedMarkdown(content.value);
   } catch {
     return `<pre>${escapeHtml(content.value)}</pre>`;
   }

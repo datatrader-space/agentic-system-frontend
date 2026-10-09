@@ -730,7 +730,7 @@ function handleEvent(raw) {
       // Say WHERE the run is (step / tool / elapsed), not just that one exists. A turn owned by another
       // worker streams nothing here, so a bare spinner is indistinguishable from a hung run.
       const resumed = streamingAssistant()
-      if (resumed) resumed.prepStatus = resumeStatusLine(data.progress, data.status)
+      if (resumed) resumed.prepStatus = resumeStatusLine(evt.progress, evt.status)
       busy.value = true
       scrollToBottom()
       break

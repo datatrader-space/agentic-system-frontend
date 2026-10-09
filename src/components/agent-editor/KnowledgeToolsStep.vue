@@ -28,7 +28,7 @@
           </div>
           <div class="flex items-center gap-3">
             <span class="text-[12px] font-semibold text-[#667085]">{{ attachedKsIds.length }} attached</span>
-            <router-link to="/dashboard/knowledge" class="text-[12px] font-semibold text-indigo-600 hover:text-indigo-700">
+            <router-link to="/dashboard/knowledge" :target="shell.linkTarget.value" class="text-[12px] font-semibold text-indigo-600 hover:text-indigo-700">
               Manage Knowledge &amp; RAG →
             </router-link>
           </div>
@@ -38,7 +38,7 @@
         <div v-else-if="!filteredUserKb.length" class="py-10 text-center">
           <Database :size="26" :stroke-width="1.5" class="mx-auto text-[#CBD5E1]" />
           <p class="mt-2 text-[13px] font-semibold text-[#475467]">{{ userKbResources.length ? 'No matches' : 'No knowledge bases yet' }}</p>
-          <router-link to="/dashboard/knowledge" class="mt-1 inline-block text-[12px] font-semibold text-indigo-600 hover:text-indigo-700">
+          <router-link to="/dashboard/knowledge" :target="shell.linkTarget.value" class="mt-1 inline-block text-[12px] font-semibold text-indigo-600 hover:text-indigo-700">
             {{ userKbResources.length ? '' : 'Create your first knowledge base →' }}
           </router-link>
         </div>
@@ -153,7 +153,7 @@
           <h3 class="text-base font-semibold text-[#0F172A]">Agent Tools &amp; Capabilities</h3>
           <p class="text-[13px] text-[#64748B]">Enable tools and capabilities to allow your agent to take action and get work done.</p>
         </div>
-        <button class="btn-outline" @click="go('/dashboard/tools')">Manage Tools</button>
+        <button class="btn-outline" @click="shell.openUserPage('/dashboard/tools', go)">Manage Tools</button>
       </div>
 
       <div v-if="loadingTools" class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -465,6 +465,7 @@ import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { ago } from '../dashboard/time'
+import { useEditorShell } from '../../composables/editorShell'
 import AddWebsiteSourceModal from '../knowledge/AddWebsiteSourceModal.vue'
 import WebSourcePagesModal from '../knowledge/WebSourcePagesModal.vue'
 import IntegrationHubModal from '../connectors/IntegrationHubModal.vue'
@@ -472,8 +473,12 @@ import WebIntelligenceCard from './WebIntelligenceCard.vue'
 import ToolIcon from '../knowledge/ToolIcon.js'
 
 const props = defineProps({ agent: { type: Object, required: true } })
+// `saved` carries exactly what this step's own PATCH changed (the knowledge attach), so the editor
+// records it as confirmed server state instead of seeing a pending edit on its next save.
+const emit = defineEmits(['saved'])
 const router = useRouter()
 const go = (to) => router.push(to)
+const shell = useEditorShell()
 const agentId = computed(() => props.agent.id)
 
 // View-all modal open state (card visuals stay untouched; rich detail lives in these overlays)
@@ -776,6 +781,7 @@ const sharedLibraryItems = computed(() => sharedSources.value.map(s => ({
 async function saveKsIds(next) {
   await api.patch(`/agents/${agentId.value}/`, { knowledge_source_ids: next })
   props.agent.knowledge_source_ids = next
+  emit('saved', { knowledge_source_ids: next })
 }
 
 // ── User Knowledge & RAG resources (the single "attach" card) ──
@@ -814,6 +820,8 @@ async function loadUserKb() {
 }
 
 async function toggleAttach(r) {
+  // No id yet → the PATCH below would go to /agents/undefined/.
+  if (!agentId.value) { notify.info('Save your agent first, then attach knowledge.'); return }
   ensureKsIds()
   ksSaving.value = true
   const wasAttached = isAttached(r.id)

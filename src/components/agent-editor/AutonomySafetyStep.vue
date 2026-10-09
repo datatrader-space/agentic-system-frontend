@@ -5,7 +5,10 @@
         <h2 class="text-[21px] font-bold tracking-tight text-[#0F172A]">Configure Autonomy &amp; Safety</h2>
         <p class="mt-1 text-[13.5px] text-[#475569]">Set how your agent works, when it acts, and the boundaries it must follow.</p>
       </div>
-      <button class="guide-btn" @click="go('/dashboard/docs?topic=autonomy-safety')">
+      <!-- The documentation page is /dashboard/help-center/docs and reads ?area= (a product area) and ?q=.
+           It has no per-topic address, so this opens the Agents area — the closest real destination.
+           (The old target, /dashboard/docs?topic=autonomy-safety, was not a route at all.) -->
+      <button class="guide-btn" @click="shell.openUserPage({ path: '/dashboard/help-center/docs', query: { area: 'Agents' } }, go)">
         <BookOpen :size="16" :stroke-width="2" /> View Autonomy Guide
       </button>
     </div>
@@ -237,7 +240,7 @@
             </select>
           </li>
           <li v-if="!selectedToolRows.length" class="py-6 text-center text-[12px] text-[#98A2B3]">
-            No tools selected yet — pick tools in the <button class="link-btn inline" @click="go(`/dashboard/agents/${agent.id}/editor`)">Knowledge &amp; Tools</button> step first.
+            No tools selected yet — pick tools in the <button class="link-btn inline" @click="emit('open-step', 'tools')">Knowledge &amp; Tools</button> step first.
           </li>
         </ul>
 
@@ -249,7 +252,7 @@
               <span class="text-[11px] text-[#98A2B3]">· {{ previewStats.total }} agent rule(s)</span>
             </div>
             <div class="flex items-center gap-3">
-              <button class="link-btn" @click="go(`/dashboard/agents/${agent.id}/guardrails`)">Manage guardrails <ChevronRight :size="14" /></button>
+              <button class="link-btn" @click="go(shell.agentPage(agent.id, 'guardrails'))">Manage guardrails <ChevronRight :size="14" /></button>
               <button class="link-btn" @click="openRulesModal">View all rules <ChevronRight :size="15" /></button>
             </div>
           </div>
@@ -276,7 +279,7 @@
           Behavioral rules, blocked tools, external-write control, approvals, checkpoints and escalation
           are managed on the agent’s dedicated Guardrails page.
         </p>
-        <button class="link-btn mt-3" @click="go(`/dashboard/agents/${agent.id}/guardrails`)">Manage guardrails <ChevronRight :size="14" /></button>
+        <button class="link-btn mt-3" @click="go(shell.agentPage(agent.id, 'guardrails'))">Manage guardrails <ChevronRight :size="14" /></button>
       </section>
 
     </div>
@@ -302,7 +305,7 @@
 
         <div class="mt-4 flex items-center justify-between border-t border-[#F2F4F7] pt-3">
           <div class="flex items-center gap-4">
-            <button class="link-btn" @click="go('/dashboard/budgets')">Budgets <ChevronRight :size="14" /></button>
+            <button class="link-btn" @click="shell.openUserPage('/dashboard/budgets', go)">Budgets <ChevronRight :size="14" /></button>
             <!-- Re-homed from the removed Action Limits card so the activity telemetry stays reachable. -->
             <button class="link-btn" @click="openUsageModal">View usage <ChevronRight :size="15" /></button>
           </div>
@@ -369,7 +372,7 @@
           <span class="inline-flex items-center gap-2 rounded-lg bg-[#E6F7EE] px-3 py-2 text-[13px] font-semibold text-[#027A48]">
             <CheckCircle2 :size="16" :stroke-width="2.4" /> Configuration looks good
           </span>
-          <button class="test-btn" @click="go(`/dashboard/agents/${agent.id}/monitor`)">
+          <button class="test-btn" @click="go(shell.agentPage(agent.id, 'monitor'))">
             <Play :size="15" :stroke-width="2" /> Test these settings
           </button>
         </div>
@@ -418,7 +421,7 @@
                   <span class="w-[104px] shrink-0 text-[#98A2B3]">{{ fmtWhen(r.at) }}</span>
                   <span class="flex-1 truncate text-[#334155]">{{ r.stop_reason || 'completed' }}</span>
                   <span class="shrink-0 text-[#98A2B3]">{{ fmtDur(r.duration_ms) }}</span>
-                  <span class="w-[92px] shrink-0 text-right font-semibold" :class="r.over_cap ? 'text-red-600' : 'text-[#0F172A]'">{{ r.actions }} action{{ r.actions === 1 ? '' : 's' }}</span>
+                  <span class="w-[92px] shrink-0 text-right font-semibold text-[#0F172A]">{{ r.actions }} action{{ r.actions === 1 ? '' : 's' }}</span>
                 </li>
                 <li v-if="!usage.recent.length" class="py-4 text-center text-[12px] text-[#98A2B3]">No runs yet.</li>
               </ul>
@@ -497,11 +500,18 @@ import {
   Zap,
 } from 'lucide-vue-next'
 import api from '../../services/api'
+import { notify } from '@/composables/useNotify'
+import { useEditorShell } from '../../composables/editorShell'
 import { normalizeRunMode, isAutonomous, isPlanReview } from '../../composables/agentModes'
 
 const props = defineProps({ agent: { type: Object, required: true } })
 const router = useRouter()
 const go = (to) => router.push(to)
+const shell = useEditorShell()
+// Another step of THIS editor is asked for, not navigated to: the editor is already on its own route, so
+// a push to `?step=tools` is a no-op whenever the URL already says so (arrived from the Overview's Tools
+// card, then stepped forward to here) — and the link did nothing.
+const emit = defineEmits(['open-step'])
 
 const effectiveGuardrails = ref([])
 // "View all rules" modal — the agent's complete EFFECTIVE policy (risk ceiling + external-write +
@@ -538,11 +548,12 @@ const runModes = [
   { key: 'plan_review_autonomous', title: 'Plan review → Autonomous', desc: 'Agent plans (reviewed automatically), then runs autonomously.', icon: ListChecks, iconClass: 'text-emerald-600' },
 ]
 const policy = computed({
+  // READ-ONLY getter: a missing/invalid policy reads as a fresh {} and is never written back. It used
+  // to assign `agent.agent_policy = {}` on read, so merely rendering this step made the draft differ
+  // from the server copy. Every writer below goes through the setter with a whole new object.
   get() {
-    if (!props.agent.agent_policy || typeof props.agent.agent_policy !== 'object' || Array.isArray(props.agent.agent_policy)) {
-      props.agent.agent_policy = {}
-    }
-    return props.agent.agent_policy
+    const p = props.agent.agent_policy
+    return (p && typeof p === 'object' && !Array.isArray(p)) ? p : {}
   },
   set(value) {
     props.agent.agent_policy = value

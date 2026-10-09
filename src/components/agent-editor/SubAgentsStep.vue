@@ -74,7 +74,7 @@
         <p class="mt-2 text-[13px] font-semibold text-[#475467]">
           {{ candidates.length ? 'No matches' : (isSuper ? 'No built-in agents yet' : 'You have no other agents yet') }}
         </p>
-        <router-link v-if="!candidates.length && !isSuper" to="/dashboard/agents"
+        <router-link v-if="!candidates.length && !isSuper" to="/dashboard/agents" :target="shell.linkTarget.value"
                      class="mt-1 inline-block text-[12px] font-semibold text-indigo-600 hover:text-indigo-700">
           Create another agent →
         </router-link>
@@ -127,11 +127,16 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useEditorShell } from '../../composables/editorShell'
 import { Users, Search, Sparkles, Bot } from 'lucide-vue-next'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 
 const props = defineProps({ agent: { type: Object, required: true } })
+const shell = useEditorShell()
+// `saved` carries exactly what this step's own PATCH changed, so the editor records it as confirmed
+// server state instead of seeing a pending edit on its next save.
+const emit = defineEmits(['saved'])
 
 const agentId = computed(() => props.agent.id)
 const isSuper = computed(() => !!props.agent.is_platform_super_agent)
@@ -197,6 +202,7 @@ async function saveIds(next) {
     const a = byId.get(id)
     return { id, name: a ? a.name : '', is_paused: a ? !!a.is_paused : false }
   })
+  emit('saved', { sub_agent_ids: props.agent.sub_agent_ids, sub_agents: props.agent.sub_agents })
 }
 
 async function toggle(a) {

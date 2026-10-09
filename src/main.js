@@ -371,8 +371,14 @@ const router = createRouter({
         // no fork) — admins editing a system/built-in agent stay on the admin side instead of being
         // bounced into the user dashboard. AgentEditor derives its breadcrumb/redirect base from the
         // active route, so both mounts navigate within their own shell.
-        { path: 'agents/new', name: 'admin-agent-new', component: AgentEditor },
-        { path: 'agents/:id/editor', name: 'admin-agent-editor', component: AgentEditor },
+        // keyOnPath: AdminShell keys a page on its FULL path, so a query change rebuilds it. The editor
+        // keeps its step in ?step=, and must not be rebuilt (and lose unsaved edits) each time it moves.
+        { path: 'agents/new', name: 'admin-agent-new', component: AgentEditor, meta: { keyOnPath: true } },
+        { path: 'agents/:id/editor', name: 'admin-agent-editor', component: AgentEditor, meta: { keyOnPath: true } },
+        // An agent's own pages, reached from links inside the editor's steps. Same views as /dashboard,
+        // so an admin working on a built-in agent is not sent out of the admin shell to see them.
+        { path: 'agents/:id/guardrails', name: 'admin-agent-guardrails', component: AgentApprovalsPage },
+        { path: 'agents/:id/monitor', name: 'admin-agent-monitor', component: AgentMonitor },
         // The shared Platform Super Agent overview — the SAME view as /dashboard/super-agent, surfaced
         // in the admin shell (the super agent is admin-configured; users just chat with it).
         { path: 'super-agent', name: 'admin-super-agent', component: SuperAgentView },

@@ -277,7 +277,18 @@ const tilt = (e) => {
 };
 const untilt = (e) => { e.currentTarget.style.transform = ''; };
 
-const clearFilters = () => { searchQuery.value = ''; statusFilter.value = 'all'; };
+// The owner filter counts as a filter for the no-match state (`hasFilters`), so "Clear filters" has to
+// reset it too — otherwise the button left the list still filtered and the empty state still showing.
+// Search and status refetch through their own watchers; the owner filter has none (OwnerFilter refetches
+// on its own change event), so a change to it is fetched here.
+const clearFilters = () => {
+    const ownerWasSet = !!ownerFilter.value;
+    const othersWereSet = !!searchQuery.value || statusFilter.value !== 'all';
+    searchQuery.value = '';
+    statusFilter.value = 'all';
+    ownerFilter.value = '';
+    if (ownerWasSet && !othersWereSet) { page.value === 1 ? fetchAgents() : (page.value = 1); }
+};
 
 const loadError = ref('');
 
@@ -310,7 +321,9 @@ const fetchAgents = async () => {
             agents.value = d?.results || [];
             totalMatching.value = Number(d?.count ?? agents.value.length);
         }
-        if (page.value > totalPages.value) { page.value = totalPages.value; return fetchAgents(); }
+        // Past the last page: move to it and stop. The page watcher fetches it — calling fetchAgents()
+        // here as well fetched the same page twice.
+        if (page.value > totalPages.value) { page.value = totalPages.value; return; }
         if (statsRes.status === 'fulfilled' && statsRes.value?.data) {
             stats.value = statsRes.value.data;
         } else {
@@ -429,11 +442,17 @@ const deleteAgent = async (agentId) => {
     try {
         await api.delete(`/agents/${agentId}/`);
 
-        // Remove from local state
-        agents.value = agents.value.filter(a => a.id !== agentId);
-
         // Show success message
         notify.success('✅ Agent deleted successfully');
+
+        // Refetch rather than only dropping the card: the stat tiles, the total and the pager are
+        // all counted by the server, and stayed stale when just the local array was updated. If that
+        // was the last card on this page, step back one first — asking the server for a page that
+        // no longer exists is an error, not an empty list.
+        const wasLastOnPage = agents.value.filter(a => a.id !== agentId).length === 0;
+        agents.value = agents.value.filter(a => a.id !== agentId);
+        if (wasLastOnPage && page.value > 1) page.value -= 1;   // the page watcher refetches
+        else await fetchAgents();
     } catch (error) {
         console.error('Failed to delete agent:', error);
         notify.error(

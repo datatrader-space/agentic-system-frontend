@@ -117,6 +117,9 @@ const bundle = ref({})
 
 const kpis = computed(() => bundle.value.kpis || {})
 
+// Back to where agents are listed in THIS shell: the library, or the admin's built-in agents console.
+function goBack() { router.push(route.path.startsWith('/admin-dashboard') ? '/admin-dashboard/builtin-agents' : '/dashboard/agents') }
+
 const publishLabel = computed(() => {
   const s = bundle.value.publish?.status
   return s === 'published' ? 'Published' : s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Draft'
