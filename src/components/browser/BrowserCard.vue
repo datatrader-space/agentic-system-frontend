@@ -1,6 +1,8 @@
 <template>
-  <!-- "The agent is using a browser": a square preview of the page, pinned in the top corner of the chat.
+  <!-- "The agent is using a browser": a preview of the page, pinned in the top corner of the chat.
        One press opens the browser view LARGE, where the page can be read, watched and taken over.
+       The picture is the shape of the browser's own window (16:10), so the WHOLE page shows: at 132
+       pixels square it was a corner of the page, too small to tell what the agent was looking at.
        Drawn once per conversation, not once per tool call, and out of the way of the messages: it used
        to be a wide card in the middle of the chat, above the first message. -->
   <button class="blc" type="button" :class="{ on: browser.open, wait: browser.needsPerson }"
@@ -45,9 +47,9 @@ const dot = computed(() => {
 </script>
 
 <style scoped>
-/* A square in the chat's top corner. `.chat-workspace` is the positioned ancestor; the offset clears the
-   chat header. It sits over the chat's empty margin on a wide window and stays small on a narrow one. */
-.blc { position: absolute; top: 72px; right: 18px; z-index: 6; width: 132px; height: 132px; padding: 0; display: flex; flex-direction: column;
+/* A preview in the chat's top corner. `.chat-workspace` is the positioned ancestor; the offset clears the
+   chat header. It sits over the chat's empty margin on a wide window and shrinks as that margin does. */
+.blc { position: absolute; top: 72px; right: 18px; z-index: 6; width: 300px; padding: 0; display: flex; flex-direction: column;
   border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 12px; overflow: hidden; background: var(--vm-surface, #fff); color: var(--vm-ink, #0f172a);
   text-align: left; cursor: pointer; box-shadow: var(--vm-shadow-m, 0 8px 24px rgba(15, 23, 42, .12)); }
 .blc:hover { border-color: var(--vm-violet, #2563eb); }
@@ -55,27 +57,31 @@ const dot = computed(() => {
 .blc.wait { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, .25), var(--vm-shadow-m, 0 8px 24px rgba(15, 23, 42, .12)); }
 .blc:focus-visible { outline: 2px solid var(--vm-violet, #2563eb); outline-offset: 2px; }
 
-.blc-thumb { flex: 1 1 auto; min-height: 0; display: grid; place-items: center; background: var(--vm-surface-2, #f1f5f9); color: var(--vm-ink-soft, #64748b); }
+.blc-thumb { flex: 0 0 auto; width: 100%; aspect-ratio: 16 / 10; display: grid; place-items: center; overflow: hidden;
+  background: var(--vm-surface-2, #f1f5f9); color: var(--vm-ink-soft, #64748b); }
 .blc-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top left; display: block; }
-.blc-thumb svg { width: 26px; height: 26px; }
+.blc-thumb svg { width: 34px; height: 34px; }
 
 /* The expand mark: always visible, so the square reads as "this opens larger" without hovering. */
-.blc-expand { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center;
+.blc-expand { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
   background: rgba(15, 23, 42, .72); color: #fff; }
-.blc-expand svg { width: 13px; height: 13px; }
+.blc-expand svg { width: 15px; height: 15px; }
 .blc:hover .blc-expand { background: var(--vm-violet, #2563eb); }
 
-.blc-text { flex: 0 0 auto; display: flex; flex-direction: column; gap: 1px; padding: 5px 8px 6px; border-top: 1px solid var(--vm-line-2, #e5e7eb); min-width: 0; }
-.blc-site { font-size: 11.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.blc-state { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--vm-ink-soft, #64748b); white-space: nowrap; }
-.blc-dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 9999px; background: var(--vm-ink-soft, #94a3b8); }
+.blc-text { flex: 0 0 auto; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 9px; border-top: 1px solid var(--vm-line-2, #e5e7eb); min-width: 0; }
+.blc-site { font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.blc-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--vm-ink-soft, #64748b); white-space: nowrap; }
+.blc-dot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 9999px; background: var(--vm-ink-soft, #94a3b8); }
 .blc-dot.on { background: #16a34a; }
 .blc-dot.wait { background: #f59e0b; }
 .blc-dot.you { background: var(--vm-violet, #2563eb); }
 
-/* A narrow window has no empty margin to sit in, so the square shrinks to a picture with its mark. */
+/* The chat's empty margin narrows with the window, and the preview with it, so it does not sit on the
+   messages. A phone-width window has no margin at all: there it is a small picture with its mark. */
+@media (max-width: 1500px) { .blc { width: 240px; } }
+@media (max-width: 1280px) { .blc { width: 200px; } }
 @media (max-width: 900px) {
-  .blc { width: 84px; height: 84px; top: 64px; right: 10px; }
+  .blc { width: 132px; top: 64px; right: 10px; }
   .blc-text { display: none; }
 }
 </style>
