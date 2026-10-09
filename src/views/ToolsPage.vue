@@ -289,6 +289,13 @@ async function openDetails(tool) {
 }
 
 // ── Actions ────────────────────────────────────────────────
+// The registry is shared by every account, so the server lets only a platform administrator change it
+// and says so. Show what it said: "Failed to update tool" reads as a fault to someone who was refused.
+function refusal(e) {
+  const data = e && e.response && e.response.data
+  return (data && (data.details || data.error)) || ''
+}
+
 async function toggleTool(tool) {
   if (!tool) return
   const next = !tool.enabled
@@ -298,7 +305,7 @@ async function toggleTool(tool) {
     tool.status = next ? (tool.requires_auth ? 'needs_config' : 'enabled') : 'disabled'
     notify.success(`${tool.display_name || tool.name} ${next ? 'enabled' : 'disabled'}`)
   } catch (e) {
-    notify.error('Failed to update tool')
+    notify.error(refusal(e) || 'Failed to update tool')
   }
 }
 
@@ -316,7 +323,7 @@ async function removeTool(tool) {
     notify.success('Tool deleted')
     if (selected.value?.name === tool.name) drawerOpen.value = false
   } catch (e) {
-    notify.error('Failed to delete tool')
+    notify.error(refusal(e) || 'Failed to delete tool')
   }
 }
 

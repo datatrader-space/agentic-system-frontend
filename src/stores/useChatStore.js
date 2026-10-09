@@ -43,6 +43,15 @@ const WORK_FORWARDED_TYPES = new Set([
   'source_citation', 'agent_turn_summary', 'token_usage',
 ])
 
+// Frames only a turn that is STILL RUNNING sends. One of these arriving is proof the turn is alive,
+// which a keepalive `ping` is not (the socket pings whether or not anything is running), and neither is
+// a frame that ends a turn.
+const TURN_ALIVE_TYPES = new Set([
+  'assistant_message_chunk', 'reasoning_delta', 'reasoning_done', 'tool_call', 'tool_result',
+  'tool_blocked', 'work_segment', 'agent_status', 'agent_step_started', 'agent_step_completed',
+  'agent_step_failed', 'source_citation', 'token_usage',
+])
+
 function pickArray(d) {
   if (Array.isArray(d)) return d
   if (d && Array.isArray(d.results)) return d.results
@@ -222,6 +231,13 @@ export const useChatStore = defineStore('chat', {
     //: or a half-open connection — and then nothing on this page ever learns the turn finished.
     _lastFrameAt: 0,
     _deafTimer: null,
+    //: When this page last had PROOF the turn on screen is still running: a frame of the turn itself,
+    //: or the server answering "it is running" to a `turn_progress` question. Recovery reads it so it
+    //: never settles a turn that is plainly still going.
+    _turnAliveAt: 0,
+    //: One recovery at a time. Three things ask for one (the socket opening, the server saying nothing
+    //: runs, the silence watchdog) and they overlap.
+    _recoveryRunning: false,
   }),
   getters: {
     isEmpty: (s) => s.messages.length === 0,
@@ -1306,10 +1322,44 @@ export const useChatStore = defineStore('chat', {
     },
 
     async _recoverAfterReconnect() {
-      this._stopProgressPolling()
       this._recovering = false
       const m = this._cur()
       if (m) m.reconnecting = false
+      if (this._recoveryRunning) return
+      this._recoveryRunning = true
+      try {
+        await this._recover()
+      } finally {
+        this._recoveryRunning = false
+      }
+    },
+
+    async _recover() {
+      const wasPolling = !!this._progressTimer
+      this._stopProgressPolling()
+      // A TURN THAT IS STILL RUNNING IS NOT ONE TO RECOVER.
+      //
+      // This loop answers "did the turn finish while this page was not listening?" by reading history
+      // until an answer is there, and after 90 seconds it stops waiting and settles the turn. It never
+      // asked the other question: is the turn simply still going? MEASURED, production conversation
+      // 2659 (2026-10-08): the socket opened with the first message already on its way, so recovery
+      // began at second 1 of the turn; the turn then waited 3.5 minutes for the sandbox server to start,
+      // sending a status line every 15 seconds the whole time; and at second 105 this loop ran out and
+      // marked the turn finished. The chat went quiet with the work still running, the composer came
+      // back, and the browser preview never appeared because nothing was watching for it any more.
+      //
+      // So the loop now looks for proof the turn is alive and, on finding it, goes back to listening:
+      // a frame of the turn itself arriving on this socket, or the server answering a `turn_progress`
+      // question with a snapshot (it answers with nothing when nothing runs). The silence watchdog is
+      // re-armed on the way out, so a turn that later goes quiet is looked at again.
+      const since = Date.now()
+      const stillRunning = () => this._turnAliveAt > since
+      const backToListening = () => {
+        if (!this.isStreaming) return
+        this._startDeafWatchdog()
+        // A resumed turn owned by another worker says where it is only when asked.
+        if (wasPolling && !this._progressTimer) this._startProgressPolling()
+      }
       // Poll for the backend to persist the turn's final answer, then swap in the server's truth.
       //
       // NINETY SECONDS, AND THAT NUMBER IS MEASURED. This was ~30s (12 x 2500ms), and the answer does
@@ -1329,9 +1379,19 @@ export const useChatStore = defineStore('chat', {
         const landed = await this._refreshHistory()
         if (landed) { this.isStreaming = false; this._taskRunActive = false; this._assistantId = null; return }
         if (!this.isStreaming) return
+        if (stillRunning()) { backToListening(); return }
+        // Ask the server outright. Not on the first pass: a message sent as the socket opens is on the
+        // wire ahead of this question, and the turn should be registered before it is asked about.
+        if (i > 0 && this.conversationId) {
+          try { this._conn?.sendIfOpen({ type: 'turn_progress', conversation_id: this.conversationId }) }
+          catch { /* socket down; history is still being read */ }
+        }
         await new Promise((r) => setTimeout(r, 2500))
       }
-      // Waited ~90s and the turn never landed — clear the spinner without a scary error.
+      if (!this.isStreaming) return
+      if (stillRunning()) { backToListening(); return }
+      // Waited ~90s with no answer saved and no sign the turn is running — clear the spinner without a
+      // scary error.
       this._endAssistant()
     },
 
@@ -1687,6 +1747,7 @@ export const useChatStore = defineStore('chat', {
           WORK_FORWARDED_TYPES.has(t) && String(msg.conversation_id) !== String(this.conversationId)) {
         return
       }
+      if (TURN_ALIVE_TYPES.has(t) && this.isStreaming) this._turnAliveAt = Date.now()
       // Inline plan artifact (INLINE_PLAN_ARTIFACT_PLAN.md): a pushed, exact-version plan snapshot.
       // Owned entirely by the plan store — it carries no chat content/usage. Scope to THIS window's
       // conversation (the frame is broadcast to the user group with conversation_id inside). The store
@@ -1854,6 +1915,7 @@ export const useChatStore = defineStore('chat', {
           // step, running tool and elapsed time — instead of a bare "still working…", which a user
           // cannot tell apart from a hung run.
           if (!this.isStreaming) this._beginAssistant()
+          this._turnAliveAt = Date.now()   // the server has just said this turn is running
           const rm = this._cur()
           if (rm) { rm.reconnecting = false; rm.prepStatus = resumeStatusLine(msg.progress, msg.status) }
           // A turn owned by ANOTHER worker (the usual shape for a signal / schedule / webhook run) never
@@ -1875,8 +1937,14 @@ export const useChatStore = defineStore('chat', {
               break
             }
             if (this.isStreaming) this._recoverAfterReconnect()
-          } else if (pm && pm.status === 'streaming') {
-            pm.prepStatus = resumeStatusLine(msg.progress)
+          } else {
+            // A snapshot means the turn is running. That is the answer recovery is waiting for.
+            if (this.isStreaming) this._turnAliveAt = Date.now()
+            // The line under the bubble is for a RESUMED turn, which is the only kind that is polled
+            // on a timer. A turn streaming on this socket already says where it is in its timeline.
+            if (pm && pm.status === 'streaming' && this._progressTimer) {
+              pm.prepStatus = resumeStatusLine(msg.progress)
+            }
           }
           break
         }

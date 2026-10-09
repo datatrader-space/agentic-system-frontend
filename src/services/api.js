@@ -880,7 +880,7 @@ export default {
   getToolAgents: (name) => api.get(`/tools/${name}/agents/`),
   createYamlTool: (data) => api.post('/tools/create/yaml/', data),
   registerRemoteTool: (data) => api.post('/tools/register/remote/', data),
-  deleteTool: (name) => api.post(`/tools/${name}/delete/`),
+  deleteTool: (name) => api.delete(`/tools/${name}/delete/`),   // the route answers DELETE only
   // ── Templates ──
   listAgentTemplates: () => api.get('/agents/templates/'),
   saveAgentAsTemplate: (id, data) => api.post(`/agents/${id}/save-as-template/`, data),
