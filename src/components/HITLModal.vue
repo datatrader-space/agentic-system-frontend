@@ -23,6 +23,10 @@
           <!-- Body -->
           <div class="modal-body">
             <p class="summary">{{ approvalTitle }}</p>
+            <!-- WHY IT IS ASKING, when that is more than "this call changes something": the agent's own
+                 rule, or a browser signed in to an account. Without it a card for a harmless tool reads
+                 as a fault (seen live 2026-10-09, conversation 2667: "Approve ECHO?" and nothing else). -->
+            <p v-if="heldBecause" class="held-because" data-test="hitl-held-because">Asked because {{ heldBecause }}.</p>
 
             <!-- Tool-approval: show EXACTLY what will run before approving -->
             <div v-if="actionPreview" class="action-preview">
@@ -410,6 +414,13 @@ const actionPreview = computed(() => {
   return '';
 });
 
+// The reason the platform gave for holding this call (`held_because` on a tool approval), as one clause.
+const heldBecause = computed(() => {
+  const p = currentRequest.value?.payload;
+  if (!p || p.kind !== 'tool_approval') return '';
+  return String(p.held_because || '').trim().replace(/\.+$/, '');
+});
+
 // Title line — for tool approvals, keep it short ("Approve SSH_EXEC?") since the command shows below.
 const approvalTitle = computed(() => {
   const p = currentRequest.value?.payload;
@@ -744,6 +755,7 @@ watch(currentRequest, () => {
 .hitl-modal--compact.hitl-modal--approval { max-width: 520px; }
 .hitl-modal--approval .modal-body { padding-top: 8px; }
 .hitl-modal--approval .summary { margin-bottom: 10px; }
+.held-because { margin: -4px 0 12px; font-size: 13px; line-height: 1.5; color: #4b5563; overflow-wrap: anywhere; }
 .hitl-modal--approval .action-preview { margin-bottom: 12px; }
 .hitl-modal--approval .action-preview__cmd { max-height: 160px; font-size: 12px; }
 .hitl-modal--approval .button-group { gap: 10px; }
