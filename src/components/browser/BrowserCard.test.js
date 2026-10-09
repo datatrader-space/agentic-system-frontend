@@ -29,9 +29,12 @@ describe('the browser card', () => {
     const w = mount(BrowserCard)
     const card = w.get('[data-test="bl-card"]')
     expect(card.element.tagName).toBe('BUTTON')
+    // Named for what it is. It was headed with the site's address, which read as a link to that site.
+    expect(w.get('[data-test="bl-card-title"]').text()).toBe('Live Browser')
     expect(w.get('[data-test="bl-card-site"]').text()).toBe('kurumera.com')
     expect(w.get('[data-test="bl-card-state"]').text()).toBe(browser.label)
     expect(card.attributes('aria-label')).toContain('kurumera.com')
+    expect(card.attributes('aria-label')).toContain('live browser')
     expect(card.attributes('title')).toContain('open the browser view')
   })
 

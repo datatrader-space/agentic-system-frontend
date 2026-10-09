@@ -6,8 +6,8 @@
        Drawn once per conversation, not once per tool call, and out of the way of the messages: it used
        to be a wide card in the middle of the chat, above the first message. -->
   <button class="blc" type="button" :class="{ on: browser.open, wait: browser.needsPerson }"
-          :title="`${site} · ${browser.label} — open the browser view`"
-          :aria-label="`Open the browser view: ${site}, ${browser.label}`"
+          :title="`Live Browser · ${browser.label}${site ? ' · ' + site : ''} — open the browser view`"
+          :aria-label="`Open the live browser view: ${browser.label}${site ? ', ' + site : ''}`"
           data-test="bl-card" @click="browser.expand()">
     <span class="blc-thumb" aria-hidden="true">
       <img v-if="thumbOk" :key="browser.thumbTick" :src="browser.thumbUrl" alt="" draggable="false"
@@ -17,10 +17,13 @@
     <span class="blc-expand" aria-hidden="true" data-test="bl-card-expand">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
     </span>
+    <!-- It is named for what it IS. It used to be headed with the site's address ("ftp.gnu.org"), which
+         read as a link to that site and not as the agent's browser. The address is the second line. -->
     <span class="blc-text">
-      <span class="blc-site" data-test="bl-card-site">{{ site }}</span>
-      <span class="blc-state" data-test="bl-card-state">
-        <span class="blc-dot" :class="dot"></span>{{ browser.label }}
+      <span class="blc-title" data-test="bl-card-title">Live Browser</span>
+      <span class="blc-line">
+        <span class="blc-state" data-test="bl-card-state"><span class="blc-dot" :class="dot"></span>{{ browser.label }}</span>
+        <span v-if="site" class="blc-site" data-test="bl-card-site">{{ site }}</span>
       </span>
     </span>
   </button>
@@ -37,7 +40,7 @@ const browser = useBrowserStore()
 const thumbOk = ref(true)
 watch(() => browser.thumbTick, () => { thumbOk.value = true })
 
-const site = computed(() => (browser.session && browser.session.site) || 'Browser')
+const site = computed(() => (browser.session && browser.session.site) || '')
 const dot = computed(() => {
   if (browser.ended) return 'off'
   if (browser.mine) return 'you'
@@ -69,8 +72,11 @@ const dot = computed(() => {
 .blc:hover .blc-expand { background: var(--vm-violet, #2563eb); }
 
 .blc-text { flex: 0 0 auto; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 9px; border-top: 1px solid var(--vm-line-2, #e5e7eb); min-width: 0; }
-.blc-site { font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.blc-state { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--vm-ink-soft, #64748b); white-space: nowrap; }
+.blc-title { font-size: 13.5px; font-weight: 700; white-space: nowrap; }
+.blc-line { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--vm-ink-soft, #64748b); }
+.blc-state { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.blc-site { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.blc-site::before { content: "·"; margin-right: 8px; }
 .blc-dot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 9999px; background: var(--vm-ink-soft, #94a3b8); }
 .blc-dot.on { background: #16a34a; }
 .blc-dot.wait { background: #f59e0b; }

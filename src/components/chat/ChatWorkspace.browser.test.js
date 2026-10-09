@@ -19,6 +19,7 @@ vi.mock('../../services/api', () => ({
 
 import api from '../../services/api'
 import ChatWorkspace from './ChatWorkspace.vue'
+import BrowserCard from '../browser/BrowserCard.vue'
 import { useChatStore } from '../../stores/useChatStore'
 import { useBrowserStore, POLL_MS } from '../../stores/useBrowserStore'
 
@@ -150,6 +151,33 @@ describe('a link that asks for the browser', () => {
     const w = await arrive({})
     expect(browser.hasSession).toBe(true)
     expect(browser.open).toBe(false)
+    w.unmount()
+  })
+})
+
+describe('the preview goes when the browser has ended', () => {
+  const card = (w) => w.findComponent(BrowserCard).exists()
+
+  it('shows while the browser is there and is gone once it has ended', async () => {
+    route.path = '/dashboard/chat/2671'
+    route.params = { sessionId: '2671' }
+    const w = view()
+    chat.messages = [{ id: 'm1', role: 'user', content: 'open a page', status: 'done' }]
+    chat.conversationId = '2671'
+    await vi.advanceTimersByTimeAsync(50)              // the view points the store at this chat first
+    browser.applySession(SESSION)
+    await w.vm.$nextTick()
+    expect(card(w)).toBe(true)
+
+    for (const state of ['STOPPED', 'FAILED', 'CANCELLED', 'REAPED']) {
+      browser.applySession({ ...SESSION, state })
+      await w.vm.$nextTick()
+      expect(card(w)).toBe(false)
+    }
+
+    browser.applySession({ ...SESSION, session_id: 'bs_2' })     // the agent starts another browser
+    await w.vm.$nextTick()
+    expect(card(w)).toBe(true)
     w.unmount()
   })
 })

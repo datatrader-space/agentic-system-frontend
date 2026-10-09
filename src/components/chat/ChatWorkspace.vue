@@ -70,7 +70,9 @@
     <!-- The browser the agent is using in this chat, when it is using one: a square preview of the page
          pinned in the top corner of the chat, which opens the browser view large (BrowserPanel in the
          dock, expanded). One per conversation; out of the way while the large view is up. -->
-    <BrowserCard v-if="!chat.isEmpty && browser.hasSession && !browser.expanded" />
+    <!-- Gone once the browser has ended: a preview headed "Ended" over a blank picture is a card for
+         something that is no longer there. It comes back with the next browser the agent starts. -->
+    <BrowserCard v-if="!chat.isEmpty && browser.hasSession && !browser.ended && !browser.expanded" />
 
     <!-- Body -->
     <div class="chat-body">
