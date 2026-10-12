@@ -878,7 +878,6 @@ export default {
   getToolDetail: (name) => api.get(`/tools/${name}/`),
   updateTool: (name, data) => api.post(`/tools/${name}/update/`, data),
   getToolAgents: (name) => api.get(`/tools/${name}/agents/`),
-  createYamlTool: (data) => api.post('/tools/create/yaml/', data),
   registerRemoteTool: (data) => api.post('/tools/register/remote/', data),
   deleteTool: (name) => api.delete(`/tools/${name}/delete/`),   // the route answers DELETE only
   // ── Templates ──
