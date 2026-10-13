@@ -6,8 +6,9 @@
     <div class="mb-4">
       <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A]">Team &amp; Sub-Agents</h2>
       <p class="mt-0.5 text-[13.5px] text-[#64748B]">
-        Give this agent a team of your other agents to delegate sub-tasks to. It hands focused work to the
-        best-matching teammate and folds the result back.
+        Give this agent a team to hand work to: the built-in agent types (general-purpose, Explore, Plan)
+        and your other agents. It launches a teammate for a focused task and folds the result back. With
+        no team, the agent does everything itself.
       </p>
     </div>
 
@@ -88,6 +89,8 @@
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
               <span class="truncate text-[13px] font-medium text-[#0F172A]" :title="a.name">{{ a.name }}</span>
+              <span v-if="a.builtin_type" data-test="builtin-agent-type"
+                    class="shrink-0 rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600">built-in</span>
               <span v-if="a.is_paused"
                     class="shrink-0 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600">paused</span>
             </div>
@@ -141,8 +144,8 @@ const emit = defineEmits(['saved'])
 const agentId = computed(() => props.agent.id)
 const isSuper = computed(() => !!props.agent.is_platform_super_agent)
 
-// Candidates: for a normal agent, the user's OTHER agents (owner-scoped; builtins + ephemeral already
-// excluded server-side). For the SUPER agent, the platform's BUILT-IN agents — its team serves every user,
+// Candidates: for a normal agent, the built-in agent types and the user's OTHER agents (owner-scoped;
+// other builtins + ephemeral already excluded server-side). For the SUPER agent, the platform's BUILT-IN agents — its team serves every user,
 // so nobody's private agent may join it. The backend enforces the same split twice
 // (validate_sub_agent_ids on write, eligible_agents at delegation time); this only decides what to offer.
 const candidates = ref([])
@@ -185,7 +188,14 @@ async function loadAgents() {
     // The super agent's roster is drawn from built-ins (admin-only endpoint), everything else from the
     // caller's own agents. /agents/ deliberately never lists built-ins, so it cannot serve both.
     const { data } = isSuper.value ? await api.adminListBuiltinAgents() : await api.getAgents()
-    candidates.value = pickArray(data).filter(a => String(a.id) !== String(agentId.value))
+    // A normal agent can also be given the built-in agent types, listed first. It has none of them
+    // until its owner adds one here. The Super Agent has them already, with nothing assigned. If the
+    // list cannot be read the owner's own agents are still offered.
+    let types = []
+    if (!isSuper.value) {
+      try { types = pickArray((await api.listAssignableAgentTypes()).data) } catch (e) { types = [] }
+    }
+    candidates.value = [...types, ...pickArray(data)].filter(a => String(a.id) !== String(agentId.value))
   } catch (e) {
     error.value = isSuper.value ? 'Could not load the built-in agents.' : 'Could not load your agents.'
   } finally {

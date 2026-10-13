@@ -607,6 +607,9 @@ export default {
   // Admin — built-in (system) agents console (platform-admin only). READ + destroy/publish/clone only:
   // authoring/editing happens in the normal agent builder (make_builtin on /agents/) — one write path.
   adminListBuiltinAgents: (params) => api.get('/admin/builtin-agents/', { noCache: true, params }),
+  // The built-in agent types an owner can put on an agent's team (general-purpose, Explore, Plan, help).
+  // A normal agent has none of them until its owner adds one.
+  listAssignableAgentTypes: () => api.get('/agents/agent-types/', { noCache: true }),
   adminDeleteBuiltinAgent: (id) => api.delete(`/admin/builtin-agents/${id}/`),
   adminToggleBuiltinAgent: (id, enabled) => api.post(`/admin/builtin-agents/${id}/publish/`, { enabled }),
   adminCloneBuiltinAgent: (id) => api.post(`/admin/builtin-agents/${id}/clone/`, {}),
