@@ -65,8 +65,8 @@
 
 <script setup>
 import { ref, watch, onMounted, computed } from 'vue'
-import { marked } from 'marked'
 import api from '../services/api'
+import { renderUntrustedMarkdown } from '../utils/safeMarkdown'
 
 const props = defineProps({
   repository: {
@@ -81,15 +81,11 @@ const error = ref(null)
 const requirementsContent = ref('')
 const filename = ref('')
 
-// Configure marked (syntax highlighting removed - can add back later if needed)
-marked.setOptions({
-  breaks: true,
-  gfm: true
-})
-
+// The file comes from a cloned repository, which somebody else wrote. Plain `marked` passes raw HTML
+// through, so an event-handler attribute in that file ran as script when the Docs tab was opened.
 const renderedRequirements = computed(() => {
     if (!requirementsContent.value) return ''
-    return marked(requirementsContent.value)
+    return renderUntrustedMarkdown(requirementsContent.value)
 })
 
 const fetchRequirements = async () => {

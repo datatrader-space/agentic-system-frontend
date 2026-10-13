@@ -174,6 +174,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import api from '../services/api'
 import { resumeStatusLine } from '../utils/resumeStatus'
+import { renderUntrustedMarkdown } from '../utils/safeMarkdown'
 import { showMemorySavedToast } from '@/composables/useMemoryToast'
 import { confirm } from '@/composables/useConfirm'
 import HITLModal from './HITLModal.vue'
@@ -451,20 +452,10 @@ const scrollToBottom = async () => {
   }
 }
 
-const formatMessage = (content) => {
-  // Basic markdown-like formatting
-  let formatted = content
-    .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n/g, '<br>')
-
-  // Code blocks
-  formatted = formatted.replace(/```(\w+)?\n([\s\S]+?)```/g, (match, lang, code) => {
-    return `<pre class="code-block"><code class="language-${lang || 'text'}">${code.trim()}</code></pre>`
-  })
-
-  return formatted
-}
+// The planner reads repositories, so what the model says here can carry text an outsider wrote. This
+// used to turn the content into HTML with three regular expressions and no escaping, so
+// `<img src=x onerror=…>` in an answer ran as script. Same renderer as every other chat surface.
+const formatMessage = (content) => renderUntrustedMarkdown(content)
 
 const activeModels = computed(() => models.value.filter((model) => model.is_active))
 

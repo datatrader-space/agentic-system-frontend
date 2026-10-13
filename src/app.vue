@@ -328,20 +328,16 @@ const handleLogout = async () => {
 
 // Connect GitHub
 const connectGitHub = () => {
-  const state = (typeof crypto !== 'undefined' && crypto.randomUUID)
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2)
-
+  // The backend starts the flow. It makes the OAuth `state`, keeps it in the session and checks it on
+  // the callback. This page used to build GitHub's URL itself with a state nobody stored, so the
+  // callback could not tell a flow this browser started from one somebody else did.
   api.githubConfig()
     .then((response) => {
-      const { client_id: clientId, redirect_uri: redirectUri, scope } = response.data
-      const params = new URLSearchParams({
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        scope,
-        state
-      })
-      window.location.href = `https://github.com/login/oauth/authorize?${params.toString()}`
+      if (response.data?.configured === false) {
+        addNotification(response.data.error || 'GitHub OAuth is not configured.', 'error')
+        return
+      }
+      window.location.href = '/api/auth/github/login'
     })
     .catch((error) => {
       console.error('Failed to load GitHub OAuth config:', error)
