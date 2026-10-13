@@ -40,7 +40,7 @@
                      thing happening once. The wording is the backend's; only the count is added. -->
                 <span v-if="step.repeatCount > 1" class="agent-step-count">×{{ step.repeatCount }}</span>
                 <!-- Delegation verification badge (Phase 4): rendered only when this step's
-                     tool result self-identifies as a DELEGATE_TO_AGENT / DELEGATE_PARALLEL
+                     tool result self-identifies as an Agent tool (delegation)
                      verdict (see stepVerdicts). Never guessed, never on the public tier. -->
                 <VerificationBadge
                   v-if="stepVerdicts[step.stepId]"
@@ -231,7 +231,7 @@ const renderedSteps = computed(() => (showAllSteps.value ? visibleSteps.value.ma
 // Delegation verification badges (Phase 4), stepId → {verified, status, note?}. This renderer receives
 // tool results GENERICALLY (no per-tool parsing), so the enhancement is contained here and keyed on the
 // tool name / a self-identifying payload:
-//  • the step summary parses as a DELEGATE_TO_AGENT / DELEGATE_PARALLEL result (carries verified+status), or
+//  • the step summary parses as an Agent tool result (carries verified+status), or
 //  • the step is a known delegation tool (builder tier sends `tool`) that FAILED — unambiguous without payload.
 // A successful delegation step whose payload was redacted by the tier gets NO badge (never guess a verdict).
 const stepVerdicts = computed(() => {

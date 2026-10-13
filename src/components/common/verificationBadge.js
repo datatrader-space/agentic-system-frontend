@@ -1,11 +1,13 @@
 // verificationBadge.js — pure helpers behind VerificationBadge.vue (Phase 4, verification-tier badges).
 // Deterministic delegation verification already exists in the data (DelegationRecord.verified +
-// .verification + .status, and the DELEGATE_TO_AGENT / DELEGATE_PARALLEL tool-result JSON). This module
+// .verification + .status, and the Agent tool's result JSON). This module
 // turns those raw fields into a badge tier and parses tool-result payloads — pure functions only, so the
 // tier logic is unit-testable without mounting the SFC.
 
-// Delegation tools whose results carry a verification verdict.
-const DELEGATION_TOOLS = new Set(['DELEGATE_TO_AGENT', 'DELEGATE_PARALLEL'])
+// Tools whose results carry a verification verdict. An agent launches another with the Agent tool
+// (recorded as AGENT). DELEGATE_TO_AGENT and DELEGATE_PARALLEL are the tools it replaced: they can no
+// longer be called, and stay here so the steps of earlier conversations still show their badge.
+const DELEGATION_TOOLS = new Set(['AGENT', 'DELEGATE_TO_AGENT', 'DELEGATE_PARALLEL'])
 
 export function isDelegationTool(name) {
   return DELEGATION_TOOLS.has(String(name || '').trim().toUpperCase())
@@ -23,7 +25,7 @@ export function badgeTier(verified, status) {
   return 'unverified'
 }
 
-// Parse a DELEGATE_TO_AGENT / DELEGATE_PARALLEL tool-result payload (object or JSON string) into
+// Parse an Agent tool result (or an earlier DELEGATE_TO_AGENT / DELEGATE_PARALLEL one; object or JSON string) into
 // { verified, status, note?, parallel, verification? } — or null when the payload does not
 // SELF-IDENTIFY as a delegation result. Never guesses: unrecognizable input → null (no badge),
 // because a wrong badge is worse than none.

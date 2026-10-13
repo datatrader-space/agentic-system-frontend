@@ -33,7 +33,11 @@ describe('badgeTier', () => {
 })
 
 describe('isDelegationTool', () => {
-  it('matches the two delegation tools, case/space-insensitively', () => {
+  it('matches the Agent tool, as the runtime records it and as the model spells it', () => {
+    expect(isDelegationTool('AGENT')).toBe(true)
+    expect(isDelegationTool('Agent')).toBe(true)
+  })
+  it('still matches the two tools it replaced, so earlier conversations keep their badge', () => {
     expect(isDelegationTool('DELEGATE_TO_AGENT')).toBe(true)
     expect(isDelegationTool('delegate_parallel')).toBe(true)
     expect(isDelegationTool(' DELEGATE_TO_AGENT ')).toBe(true)
