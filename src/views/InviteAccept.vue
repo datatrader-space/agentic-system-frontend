@@ -28,7 +28,7 @@
         <div class="invite-icon invite-icon--success">✓</div>
         <h2>Already Accepted</h2>
         <p>You've already joined <strong>{{ invite.organization_name }}</strong>.</p>
-        <router-link :to="`/org/${invite.organization_slug}`" class="btn-primary">Go to Organisation</router-link>
+        <router-link to="/dashboard" class="btn-primary">Go to the dashboard</router-link>
       </div>
 
       <!-- Declined -->
@@ -83,8 +83,8 @@
       <div v-else-if="acceptedOrg" class="invite-card invite-accepted">
         <div class="invite-icon invite-icon--success">✓</div>
         <h2>Welcome to {{ acceptedOrg.name }}!</h2>
-        <p>You've successfully joined the organisation.</p>
-        <router-link :to="`/org/${acceptedOrg.slug}`" class="btn-primary">Go to Organisation</router-link>
+        <p>You've successfully joined the organisation. Taking you there…</p>
+        <a :href="acceptedNext" class="btn-primary">Continue</a>
       </div>
     </div>
   </div>
@@ -106,6 +106,9 @@ const invite      = ref(null)
 const accepting   = ref(false)
 const declining   = ref(false)
 const acceptedOrg = ref(null)
+// Where the server says to go once it is accepted: the project the person was invited to, or the dashboard. A
+// Training page is served by the server, not by this app, so it is opened as a page, not as a route.
+const acceptedNext = ref('/dashboard')
 
 // Check if user is logged in via session cookie presence
 const isLoggedIn  = ref(false)
@@ -145,7 +148,9 @@ async function accept() {
   try {
     const r = await tenancyApi.acceptInvite(token.value)
     acceptedOrg.value = r.data.organization
+    acceptedNext.value = r.data.next || '/dashboard'
     invite.value = null // hide the pending card
+    window.location.assign(acceptedNext.value)
   } catch (err) {
     const msg = err?.response?.data?.detail || err?.response?.data?.error || 'Failed to accept'
     notify.show(msg)
