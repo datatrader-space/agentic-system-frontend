@@ -53,7 +53,7 @@
               <div class="add-menu">
                 <button @click="openCustomMcp" class="add-menu-item">
                   <span class="add-menu-title">Custom MCP</span>
-                  <span class="add-menu-sub">stdio · http · sse server</span>
+                  <span class="add-menu-sub">{{ isPlatformAdmin ? 'stdio · http · sse server' : 'http · sse server' }}</span>
                 </button>
                 <button @click="openRegisterService" class="add-menu-item">
                   <span class="add-menu-title">Register service</span>

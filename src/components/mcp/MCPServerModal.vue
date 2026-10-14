@@ -14,14 +14,16 @@
         <!-- Step 1: choose type -->
         <div>
           <label class="block text-[13px] font-semibold text-slate-700 mb-2">How do you connect to it?</label>
-          <div class="grid grid-cols-2 gap-3">
+          <!-- A local program is a command the SERVER runs; only a platform admin may add one (the API
+               refuses anyone else). It is shown to a non-admin only when they are viewing such a server. -->
+          <div class="grid gap-3" :class="showLocalMode ? 'grid-cols-2' : 'grid-cols-1'">
             <button type="button" @click="form.mode = 'hosted'"
               class="text-left px-4 py-3 rounded-xl border-2 transition-colors"
               :class="form.mode === 'hosted' ? 'border-indigo-500 bg-indigo-50/40' : 'border-slate-200 hover:border-slate-300'">
               <div class="text-[13px] font-semibold text-slate-800">🌐 Hosted (URL)</div>
               <div class="text-[11px] text-slate-500 mt-0.5">A server you reach over the web.</div>
             </button>
-            <button type="button" @click="form.mode = 'local'"
+            <button v-if="showLocalMode" type="button" @click="form.mode = 'local'"
               class="text-left px-4 py-3 rounded-xl border-2 transition-colors"
               :class="form.mode === 'local' ? 'border-indigo-500 bg-indigo-50/40' : 'border-slate-200 hover:border-slate-300'">
               <div class="text-[13px] font-semibold text-slate-800">💻 Local program</div>
@@ -281,7 +283,15 @@ export default {
       if (d.ok && d.connection_id) _finishOauth(d.connection_id)
       else { _clearPoll(); oauth.busy = false; oauth.error = d.message || 'Authorization failed.' }
     }
-    onMounted(() => window.addEventListener('message', _onOauthMessage))
+    // Fail closed: without proof of platform admin, the local-program option stays hidden.
+    const isPlatformAdmin = ref(false)
+    const showLocalMode = computed(() => isPlatformAdmin.value || form.mode === 'local')
+    onMounted(() => {
+      window.addEventListener('message', _onOauthMessage)
+      api.getCurrentUser()
+        .then(({ data }) => { isPlatformAdmin.value = !!(data?.user?.is_platform_admin ?? data?.is_platform_admin) })
+        .catch(() => { isPlatformAdmin.value = false })
+    })
     onUnmounted(() => { window.removeEventListener('message', _onOauthMessage); _clearPoll() })
     // Changing the URL invalidates any prior connection (tokens are bound to the server URL).
     watch(() => form.endpoint_url, () => { _clearPoll(); oauth.connected = false; oauth.connectionId = null; oauth.error = ''; oauth.busy = false })
@@ -399,7 +409,7 @@ export default {
 
     const finish = () => { emit('saved'); emit('close') }
 
-    return { form, argsText, saving, savedOk, testResult, headersTouched, isEditMode, canSave, handleSubmit, finish, oauth, startOauth }
+    return { form, argsText, saving, savedOk, testResult, headersTouched, isEditMode, canSave, handleSubmit, finish, oauth, startOauth, showLocalMode }
   }
 }
 </script>
