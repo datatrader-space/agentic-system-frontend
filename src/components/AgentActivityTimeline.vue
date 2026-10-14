@@ -470,8 +470,10 @@ function fmtDuration(ms) {
 .agent-step-count {
   @apply text-[11px] text-gray-400 tabular-nums flex-shrink-0;
 }
+/* Lined up with the rows above it: the list has a 12px side padding and this button sat outside it, on
+   the panel's edge (seen 2026-10-14, conversation 2741). */
 .at-steps-toggle {
-  @apply mt-1 text-[11px] font-medium text-gray-400 hover:text-gray-600 select-none transition-colors text-left;
+  @apply mx-3 -mt-1 mb-2 text-[11px] font-medium text-gray-400 hover:text-gray-600 select-none transition-colors text-left;
 }
 .agent-step-dur {
   @apply text-gray-400 tabular-nums flex-shrink-0;
