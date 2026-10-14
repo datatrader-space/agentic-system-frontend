@@ -19,6 +19,17 @@
       <h3 class="card-title">Account</h3>
       <p class="card-sub">Your profile details.</p>
       <div class="field">
+        <label>Name</label>
+        <div class="name-row">
+          <input v-model="name" maxlength="150" placeholder="First and last name" @keydown.enter="saveName" />
+          <button class="save-btn" :disabled="saving || !name.trim() || name.trim() === (currentUser?.full_name || '')" @click="saveName">
+            {{ saving ? 'Saving…' : 'Save' }}</button>
+        </div>
+        <span class="field-hint">Others see your name instead of your e-mail address.</span>
+        <span v-if="saved" class="field-ok">Saved.</span>
+        <span v-if="nameError" class="field-err">{{ nameError }}</span>
+      </div>
+      <div class="field">
         <label>Username</label>
         <input :value="currentUser?.username || ''" readonly />
       </div>
@@ -47,12 +58,41 @@
 </template>
 
 <script setup>
-import { inject, ref } from 'vue'
+import { inject, ref, watch } from 'vue'
+import api from '../../services/api'
 import { useRouter } from 'vue-router'
 import { useTheme } from '../../composables/useTheme'
 import { useOnboarding } from '../../composables/useOnboarding'
 
 const currentUser = inject('currentUser', ref(null))
+
+// The person's own name: shown instead of their e-mail address across AADML (2026-10-14).
+const name = ref(currentUser.value?.full_name || '')
+const saving = ref(false)
+const saved = ref(false)
+const nameError = ref('')
+watch(() => currentUser.value?.full_name, (value) => { if (!saving.value) name.value = value || '' })
+const saveName = async () => {
+  const wanted = name.value.trim()
+  if (!wanted || saving.value) return
+  saving.value = true
+  saved.value = false
+  nameError.value = ''
+  try {
+    const response = await api.updateMyName(wanted)
+    const user = response.data.user
+    if (currentUser.value) currentUser.value = { ...currentUser.value, ...user }
+    try {
+      const stored = JSON.parse(localStorage.getItem('user') || 'null')
+      if (stored) localStorage.setItem('user', JSON.stringify({ ...stored, ...user }))
+    } catch (e) { /* the page still has the new name */ }
+    name.value = user.full_name || wanted
+    saved.value = true
+  } catch (err) {
+    nameError.value = err?.response?.data?.error || 'Your name could not be saved. Try again.'
+  }
+  saving.value = false
+}
 // setTheme applies + persists the choice; isDark drives the active highlight.
 const { isDark, setTheme } = useTheme()
 
@@ -88,4 +128,11 @@ const replayTour = () => {
 .field label { font-size: 0.8125rem; font-weight: 500; color: var(--vm-ink-soft, #475569); }
 .field input { padding: 9px 12px; font-size: 0.875rem; color: var(--vm-ink, #0f172a); background: var(--vm-surface-soft, #f8fafc); border: 1px solid var(--vm-line, #e2e8f0); border-radius: 9px; }
 .field input[readonly] { color: var(--vm-ink-faint, #64748b); cursor: default; }
+.name-row { display: flex; gap: 8px; }
+.name-row input { flex: 1; min-width: 0; }
+.save-btn { padding: 9px 16px; font-size: 0.8125rem; font-weight: 600; color: #fff; background: var(--vm-primary, #4f46e5); border: none; border-radius: 9px; cursor: pointer; }
+.save-btn:disabled { opacity: .5; cursor: default; }
+.field-hint { font-size: 0.75rem; color: var(--vm-ink-faint, #94a3b8); }
+.field-ok { font-size: 0.75rem; color: #067647; }
+.field-err { font-size: 0.75rem; color: #d92d20; }
 </style>

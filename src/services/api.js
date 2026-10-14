@@ -533,6 +533,8 @@ export default {
   login: (data) => api.post('/auth/login', data),
   logout: () => api.post('/auth/logout'),
   getCurrentUser: () => api.get('/auth/me'),
+  // Change one's own name (Settings -> General).
+  updateMyName: (name) => api.patch('/auth/me', { name }),
   checkAuth: () => api.get('/auth/check'),
   // First-run onboarding state (feature tour). Best-effort persistence so the tour
   // follows the user across devices. Body: { onboarding_completed?, onboarding_step? }.

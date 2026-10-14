@@ -110,6 +110,27 @@
 
           <!-- Form -->
           <form v-if="!twoFA.active" @submit.prevent="handleSubmit" class="login-form">
+            <!-- Name: asked at sign-up, so people are called by it instead of their e-mail address -->
+            <div v-if="!isLogin" class="form-group">
+              <label class="form-label">Your name</label>
+              <div class="input-wrapper" :class="{ 'input-focused': focusedField === 'name', 'input-error': validationErrors.name }">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                </svg>
+                <input
+                  v-model="formData.name"
+                  type="text"
+                  required
+                  maxlength="150"
+                  placeholder="First and last name"
+                  @focus="focusedField = 'name'"
+                  @blur="focusedField = null"
+                  autocomplete="name"
+                />
+              </div>
+              <span v-if="validationErrors.name" class="field-error">{{ validationErrors.name }}</span>
+            </div>
+
             <!-- Email/Username Field -->
             <div class="form-group">
               <label class="form-label">
@@ -335,6 +356,7 @@ const twoFA = ref({ active: false, token: '', code: '' })
 const socialProviders = ref([])
 
 const formData = ref({
+  name: '',
   username: '',
   password: ''
 })
@@ -375,6 +397,7 @@ const isFormValid = computed(() => {
   const { username, password } = formData.value
 
   if (!username || !password) return false
+  if (!isLogin.value && !(formData.value.name || '').trim()) return false
   if (!isLogin.value && password.length < 8) return false
   if (Object.keys(validationErrors.value).length > 0) return false
 
@@ -413,7 +436,7 @@ const toggleMode = () => {
   error.value = null
   success.value = null
   validationErrors.value = {}
-  formData.value = { username: '', password: '' }
+  formData.value = { name: '', username: '', password: '' }
   showPassword.value = false
 }
 
@@ -425,6 +448,10 @@ const handleSubmit = async () => {
 
   // Validate before submit
   if (!isLogin.value) {
+    if (!(formData.value.name || '').trim()) {
+      validationErrors.value.name = 'Please enter your name'
+      return
+    }
     if (!validateEmail(formData.value.username)) {
       validationErrors.value.username = 'Please enter a valid email address'
       return
@@ -443,6 +470,7 @@ const handleSubmit = async () => {
       password: formData.value.password,
       email: formData.value.username
     }
+    if (!isLogin.value) data.name = (formData.value.name || '').trim()
 
     if (isLogin.value) {
       // Login
