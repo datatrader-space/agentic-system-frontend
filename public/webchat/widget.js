@@ -14,7 +14,11 @@
 
   var st = { token: null, mode: 'bubble', target: '#agent-chat', cfg: null, open: false, panel: null, launcher: null, proactiveEl: null };
 
-  function el(tag, css, html) { var e = document.createElement(tag); if (css) e.style.cssText = css; if (html != null) e.innerHTML = html; return e; }
+  // TEXT, never HTML: this script runs on a customer's page, and the agent's branding text and image URL
+  // came from the agent config. Built as nodes, so neither can add markup to the host page (audit A15).
+  function el(tag, css, text) { var e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; }
+  function safeColor(c) { return /^#[0-9a-fA-F]{3,8}$|^[a-zA-Z]{3,20}$/.test(c || '') ? c : '#4f46e5'; }
+  function safeImageUrl(u) { try { var x = new URL(u, ORIGIN); return (x.protocol === 'https:' || x.protocol === 'http:') ? x.href : ''; } catch (e) { return ''; } }
   function iframeSrc() { return ORIGIN + '/embed/' + encodeURIComponent(st.token); }
 
   function buildPanel() {
@@ -23,10 +27,11 @@
     p.appendChild(f); document.body.appendChild(p); st.panel = p;
   }
   function buildLauncher() {
-    var color = (st.cfg && st.cfg.theme_color) || '#4f46e5';
-    var img = st.cfg && st.cfg.button_image_url;
+    var color = safeColor(st.cfg && st.cfg.theme_color);
+    var img = safeImageUrl(st.cfg && st.cfg.button_image_url);
     var b = el('button', 'position:fixed;bottom:20px;right:20px;width:56px;height:56px;border:none;border-radius:50%;background:' + color + ';color:#fff;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.22);z-index:2147483000;display:flex;align-items:center;justify-content:center;font-size:24px;overflow:hidden;',
-      img ? '<img src="' + img + '" style="width:100%;height:100%;object-fit:cover"/>' : '💬');
+      img ? null : '💬');
+    if (img) { var i = document.createElement('img'); i.setAttribute('src', img); i.style.cssText = 'width:100%;height:100%;object-fit:cover'; b.appendChild(i); }
     b.onclick = toggle; document.body.appendChild(b); st.launcher = b;
   }
   function showProactive() {

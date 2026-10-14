@@ -207,7 +207,7 @@
             <span class="hit-meta">{{ h.source_type }}<span v-if="h.section"> · {{ h.section }}</span> · score {{ (h.score || 0).toFixed(2) }}</span>
             <button class="btn tiny danger" @click="archiveChunk(h.chunk_id)">Mark outdated</button>
           </div>
-          <a v-if="h.url" :href="h.url" target="_blank" class="hit-url">{{ h.url }}</a>
+          <a v-if="h.url" :href="safeHref(h.url)" target="_blank" class="hit-url">{{ h.url }}</a>
           <p class="hit-snip">{{ h.snippet }}</p>
           <button class="btn tiny" @click="prefillCorrection(h.title)">Mark wrong → add correction</button>
         </div>
@@ -277,6 +277,10 @@
 
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
+import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
+// Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
+// followed (security audit, frontend finding A12).
+const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
 import api from '@/services/api'
 import { notify } from '@/composables/useNotify'
 

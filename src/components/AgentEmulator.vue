@@ -251,6 +251,10 @@
 
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
+// Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
+// followed (security audit, frontend finding A12).
+const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
 import { marked } from 'marked'
 import { renderUntrustedMarkdown } from '../utils/safeMarkdown'
 import { resumeStatusLine } from '../utils/resumeStatus'
@@ -408,7 +412,7 @@ function onPaste(e) {
   if (long) { e.preventDefault(); attachLongText(text) }
 }
 function openEmuAttachment(a) {
-  if (a && a.url) window.open(a.url, '_blank', 'noopener')
+  if (a && _isSafeUrl(a.url)) window.open(a.url, '_blank', 'noopener')
 }
 function removeEmuAttachment(i) {
   const a = emuAttachments.value[i]

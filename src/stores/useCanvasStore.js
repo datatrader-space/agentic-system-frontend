@@ -220,7 +220,7 @@ export const useCanvasStore = defineStore('canvas', {
             // that produced this event, so asking for it again would sign a second one and race the
             // first. The link expires, which is exactly why it is never stored — reopening the
             // conversation, or Refresh, fetches a new one (`loadPreviewUrl`).
-            if (msg.url) {
+            if (msg.url && this._isSeparatePreviewOrigin(msg.url)) {
               this.previewUrl = msg.url
               this.previewExpiresAt = msg.expires_at || null
             }
@@ -357,6 +357,7 @@ export const useCanvasStore = defineStore('canvas', {
         if (this.canvasId !== canvasId) return
         const url = data.url || data.preview_url || ''
         if (!url) throw new Error('no preview url')
+        if (!this._isSeparatePreviewOrigin(url)) throw new Error('preview url is not a separate origin')
         // Defense-in-depth: pin the origin we'll accept selection postMessages from. The backend already
         // rejects any URL whose origin ≠ the trusted preview host (Contract 4); we mirror it locally.
         this.trustedOrigin = data.trusted_origin || this._originOf(url)
@@ -512,6 +513,19 @@ export const useCanvasStore = defineStore('canvas', {
     },
     close() { this.open = false },
     toggle() { this.open = !this.open && !!this.canvasId ? true : !this.open },
+
+    // The preview frame runs agent-written code with `allow-same-origin`, which isolates it only while its
+    // origin is NOT this app's (security audit, Canvas frame findings). So a preview URL must be an
+    // absolute https address on another origin; http is accepted only when the app itself is on http
+    // (local development). Anything else is refused rather than framed.
+    _isSeparatePreviewOrigin(url) {
+      try {
+        const u = new URL(url)
+        const here = typeof window !== 'undefined' && window.location ? window.location : null
+        const proto = u.protocol === 'https:' || (u.protocol === 'http:' && here?.protocol === 'http:')
+        return proto && (!here || u.origin !== here.origin)
+      } catch (e) { return false }
+    },
 
     _originOf(url) {
       try { return new URL(url, window.location.origin).origin } catch (e) { return '' }

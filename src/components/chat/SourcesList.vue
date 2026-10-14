@@ -13,7 +13,7 @@
     <ul v-if="open" class="sources-list">
       <li v-for="c in citations" :key="c.n" class="src">
         <span class="src-n">[{{ c.n }}]</span>
-        <component :is="c.url ? 'a' : 'span'" :href="c.url || undefined" target="_blank" rel="noopener" class="src-title">
+        <component :is="c.url ? 'a' : 'span'" :href="safeHref(c.url)" target="_blank" rel="noopener" class="src-title">
           {{ c.title || 'source' }}
         </component>
         <span v-if="c.section" class="src-meta">· {{ c.section }}</span>
@@ -25,6 +25,10 @@
 
 <script setup>
 import { ref } from 'vue'
+import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
+// Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
+// followed (security audit, frontend finding A12).
+const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
 defineProps({ citations: { type: Array, default: () => [] } })
 const open = ref(false)
 </script>

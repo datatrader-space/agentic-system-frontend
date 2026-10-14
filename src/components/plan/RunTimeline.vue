@@ -14,6 +14,10 @@
 // announcement of a node patches the node that exists instead of appending beside it. The store
 // enforces it; `:key` here must not undo it.
 import { computed, ref, shallowRef, watch } from 'vue'
+import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
+// Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
+// followed (security audit, frontend finding A12).
+const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
 import { fileLinkPayload } from '../../composables/fileLinks'
 import SourcesList from '../chat/SourcesList.vue'
 import ImageLightbox from '../chat/ImageLightbox.vue'
@@ -557,7 +561,7 @@ async function onAnswerClick(e) {
     try {
       FileViewerComp.value = (await import('../FileViewer.vue')).default
     } catch {
-      window.open(payload.download_url, '_blank', 'noopener')
+      if (_isSafeUrl(payload.download_url)) window.open(payload.download_url, '_blank', 'noopener')
       return
     }
     await new Promise((r) => setTimeout(r, 0))
@@ -764,7 +768,7 @@ function fmt(ms) {
           <ul class="srcs">
             <li v-for="x in shownSources" :key="x.ref || x.name" class="src" data-test="rt-source">
               <span class="src-dom">{{ domainOf(x.ref) || x.kind || 'source' }}</span>
-              <a v-if="x.ref" :href="x.ref" target="_blank" rel="noopener noreferrer" class="src-name"
+              <a v-if="x.ref" :href="safeHref(x.ref)" target="_blank" rel="noopener noreferrer" class="src-name"
                  :title="x.ref">{{ x.name }}</a>
               <span v-else class="src-name">{{ x.name }}</span>
             </li>

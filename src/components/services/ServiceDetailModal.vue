@@ -363,6 +363,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { isTrustedPopupMessage } from '@/utils/popupMessages'
 import api from '../../services/api'
 import { Icon } from '@iconify/vue'
 import ServiceEditModal from './ServiceEditModal.vue'
@@ -535,6 +536,7 @@ const startOAuth = async () => {
 }
 
 const handleOAuthMessage = (event) => {
+  if (!isTrustedPopupMessage(event)) return
   if (event.data?.type !== 'oauth_result') return
   oauthBusy.value = false
   if (event.data.status === 'success') {

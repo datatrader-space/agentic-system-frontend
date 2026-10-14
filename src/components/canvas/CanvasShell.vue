@@ -134,7 +134,10 @@
           </div>
         </template>
 
-        <!-- static: local HTML rendered via <iframe srcdoc> (unchanged). -->
+        <!-- static: local HTML (a revision from before the sandbox era) in <iframe srcdoc>. NO allow-same-origin:
+             a srcdoc frame inherits THIS app's origin, so with it the agent-written page could read the
+             app's cookies and call its API as the user (security audit H-28). The select bridge talks
+             over postMessage, which works from the opaque origin the frame now has. -->
         <template v-else>
           <div v-if="!canvas.html && canvas.status !== 'preparing'" class="cv-empty">
             <p>Ask the agent to design a page — the live preview appears here.</p>
@@ -146,7 +149,7 @@
               :srcdoc="frameHtml"
               class="cv-frame"
               :style="frameStyle"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+              sandbox="allow-scripts allow-popups allow-forms"
               referrerpolicy="no-referrer"
               title="Design preview"
               @load="onFrameLoad"

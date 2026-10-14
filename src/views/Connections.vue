@@ -730,6 +730,7 @@
 
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
+import { isTrustedPopupMessage } from '@/utils/popupMessages'
 import { useRoute } from 'vue-router'
 import api from '../services/api'
 import CredentialManager from '../components/tools/CredentialManager.vue'
@@ -1154,6 +1155,7 @@ export default {
         }
 
         const onMessage = (event) => {
+          if (!isTrustedPopupMessage(event)) return
           if (event.data?.type === 'oauth-connection-result') {
             if (event.data.status === 'success') {
               showToast(true, `Connected to ${provider.name}!`)

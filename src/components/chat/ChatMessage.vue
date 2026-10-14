@@ -236,6 +236,10 @@
 
 <script setup>
 import { computed, ref, shallowRef, nextTick } from 'vue'
+import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
+// Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
+// followed (security audit, frontend finding A12).
+const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
 import { marked } from 'marked'
 import BrandMark from '../common/BrandMark.vue'
 import { enhanceChatMedia } from '../../utils/chatMedia'
@@ -325,7 +329,7 @@ function openAttachment(a) {
   // Images open in the in-chat preview lightbox; other files open in a new tab.
   if (!a || !a.url) return
   if (a.isImage) lightbox.value?.open(a.url)
-  else window.open(a.url, '_blank', 'noopener')
+  else if (_isSafeUrl(a.url)) window.open(a.url, '_blank', 'noopener')
 }
 
 marked.setOptions({ breaks: true, gfm: true })

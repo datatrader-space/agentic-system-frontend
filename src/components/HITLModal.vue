@@ -52,7 +52,7 @@
                 {{ currentRequest.payload.reason }}
               </p>
               <a
-                :href="currentRequest.payload?.authorize_url"
+                :href="safeHref(currentRequest.payload?.authorize_url)"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="btn btn-connect"
@@ -336,6 +336,10 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
+// Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
+// followed (security audit, frontend finding A12).
+const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
 
 const props = defineProps({
   requests: {

@@ -22,7 +22,7 @@
       <div class="td-progress"><i :style="{ width: percent + '%' }" /></div>
 
       <section v-if="tutorial.video_url" class="td-video">
-        <a :href="tutorial.video_url" target="_blank" rel="noopener">
+        <a :href="safeHref(tutorial.video_url)" target="_blank" rel="noopener">
           <Icon icon="lucide:play" /> Watch the video
         </a>
       </section>
@@ -33,7 +33,7 @@
           <h2>{{ activeStep.title }}</h2>
         </div>
         <div class="step-body" v-html="activeStep.content_html || activeStep.content"></div>
-        <a v-if="activeStep.video_url" :href="activeStep.video_url" target="_blank" rel="noopener" class="step-video">
+        <a v-if="activeStep.video_url" :href="safeHref(activeStep.video_url)" target="_blank" rel="noopener" class="step-video">
           <Icon icon="lucide:play" /> Watch step video
         </a>
       </article>
@@ -76,6 +76,10 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
+// Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
+// followed (security audit, frontend finding A12).
+const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
 import { RouterLink, useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'

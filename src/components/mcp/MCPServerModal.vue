@@ -206,6 +206,7 @@
 
 <script>
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
+import { isTrustedPopupMessage } from '@/utils/popupMessages'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 
@@ -278,6 +279,7 @@ export default {
       if (!isEditMode.value && canSave.value && !savedOk.value && !saving.value) handleSubmit()
     }
     function _onOauthMessage(ev) {
+      if (!isTrustedPopupMessage(ev)) return
       const d = ev && ev.data
       if (!d || d.type !== 'mcp_oauth_result') return
       if (d.ok && d.connection_id) _finishOauth(d.connection_id)

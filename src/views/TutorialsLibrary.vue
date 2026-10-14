@@ -171,6 +171,10 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
+// Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
+// followed (security audit, frontend finding A12).
+const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
 import { RouterLink, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
@@ -198,7 +202,7 @@ function progressPercent(t) {
 }
 
 function openTutorial(t) {
-  if (t.video_url) { window.open(t.video_url, '_blank', 'noopener'); return }
+  if (t.video_url && _isSafeUrl(t.video_url)) { window.open(t.video_url, '_blank', 'noopener'); return }
   if (t.slug) router.push(`/dashboard/help-center/tutorials/${t.slug}`)
 }
 

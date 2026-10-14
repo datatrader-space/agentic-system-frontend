@@ -464,6 +464,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { isTrustedPopupMessage } from '@/utils/popupMessages'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
@@ -786,6 +787,7 @@ async function startServiceOAuthPopup(c) {
 onUnmounted(() => window.removeEventListener('message', oauthResultListener))
 
 function oauthResultListener(event) {
+  if (!isTrustedPopupMessage(event)) return
   if (event?.data?.type !== 'oauth_result') return
   actionLoading.value = false
   if (event.data.status === 'success') {

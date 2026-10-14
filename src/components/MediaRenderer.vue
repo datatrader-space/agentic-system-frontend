@@ -162,6 +162,10 @@
 
 <script setup>
 import { ref } from 'vue';
+import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
+// Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
+// followed (security audit, frontend finding A12).
+const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
 
 const props = defineProps({
     artifacts: {
@@ -204,7 +208,7 @@ const downloadMedia = async (artifact) => {
         setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
     } catch (e) {
         // Fallback: open in a new tab so the user can save manually (e.g. CORS-restricted host).
-        try { window.open(artifact.url, '_blank', 'noopener'); } catch (_) { /* ignore */ }
+        try { if (_isSafeUrl(artifact.url)) window.open(artifact.url, '_blank', 'noopener'); } catch (_) { /* ignore */ }
     } finally {
         downloading.value = false;
     }

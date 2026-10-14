@@ -422,6 +422,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { isTrustedPopupMessage } from '@/utils/popupMessages'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../../services/api'
@@ -629,6 +630,7 @@ function startRegisteredServiceOAuth(reg, name) {
         return resolve()
       }
       const onMsg = async (event) => {
+        if (!isTrustedPopupMessage(event)) return
         if (event?.data?.type !== 'oauth_result') return
         window.removeEventListener('message', onMsg)
         if (event.data.status === 'success') {
@@ -734,6 +736,7 @@ function _startMcpStatusPoll(connId) {
 }
 
 function _onMcpOauthMsg(ev) {
+  if (!isTrustedPopupMessage(ev)) return
   const d = ev && ev.data
   if (!d || d.type !== 'mcp_oauth_result') return
   // Auth done ≠ connected. The popup only tells us the token was (or wasn't) obtained; tools still sync on

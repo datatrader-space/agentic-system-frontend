@@ -24,6 +24,7 @@
 //   await connectOAuth(api, providerSlug, { owner: 'org', scopes: 'a,b' })
 
 import { clearApiCache } from '@/services/api'
+import { isTrustedPopupMessage } from '@/utils/popupMessages'
 
 // Written by the popup as a second channel in case the message is lost. Kept in sync with
 // `_STORAGE_KEY` in agent/services/oauth_popup.py.
@@ -111,6 +112,7 @@ export function connectOAuth(api, providerSlug, opts = {}) {
         }
 
         const onMessage = (event) => {
+          if (!isTrustedPopupMessage(event)) return
           if (event.data?.type !== 'oauth-connection-result') return
           if (!cleanup()) return
           if (event.data.status === 'success') {
