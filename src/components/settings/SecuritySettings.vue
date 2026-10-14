@@ -59,10 +59,11 @@
 
       <!-- Disable: confirm with password -->
       <div v-else-if="twofa.step === 'disable'" class="setup">
-        <p class="setup-step">Enter your password to turn off two-factor authentication.</p>
+        <p class="setup-step">Enter your password and a code from your authenticator app (or a recovery code) to turn off two-factor authentication.</p>
         <div class="confirm-row">
           <input v-model="twofa.disablePassword" type="password" placeholder="Password" class="inp" autocomplete="current-password" />
-          <button class="btn-danger" :disabled="busy.twofa || !twofa.disablePassword" @click="disable2fa">Disable 2FA</button>
+          <input v-model="twofa.disableCode" type="text" placeholder="Code" class="inp" autocomplete="one-time-code" inputmode="numeric" />
+          <button class="btn-danger" :disabled="busy.twofa || !twofa.disablePassword || !twofa.disableCode" @click="disable2fa">Disable 2FA</button>
           <button class="btn-soft sm" @click="cancelDisable">Cancel</button>
         </div>
       </div>
@@ -133,7 +134,7 @@ const logout = inject('logout', () => {})
 
 const busy = reactive({ pw: false, twofa: false, resend: false })
 const pw = reactive({ current: '', next: '', confirm: '' })
-const twofa = reactive({ enabled: false, recoveryRemaining: 0, step: 'idle', secret: '', uri: '', code: '', recoveryCodes: [], disablePassword: '' })
+const twofa = reactive({ enabled: false, recoveryRemaining: 0, step: 'idle', secret: '', uri: '', code: '', recoveryCodes: [], disablePassword: '', disableCode: '' })
 
 const pwValid = computed(() => pw.current && pw.next.length >= 8 && pw.next === pw.confirm)
 
@@ -213,16 +214,17 @@ function finishSetup() {
   refreshTwofa()
 }
 
-function cancelDisable() { twofa.step = 'idle'; twofa.disablePassword = '' }
+function cancelDisable() { twofa.step = 'idle'; twofa.disablePassword = ''; twofa.disableCode = '' }
 
 async function disable2fa() {
-  if (!twofa.disablePassword) return
+  if (!twofa.disablePassword || !twofa.disableCode) return
   busy.twofa = true
   try {
-    await api.twofaDisable(twofa.disablePassword)
+    await api.twofaDisable(twofa.disablePassword, twofa.disableCode)
     twofa.enabled = false
     twofa.step = 'idle'
     twofa.disablePassword = ''
+    twofa.disableCode = ''
     notify.success('2FA disabled')
     await refreshUser()
     await refreshTwofa()

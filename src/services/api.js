@@ -700,7 +700,7 @@ export default {
   twofaStatus: () => api.get('/auth/2fa/status'),
   twofaSetup: () => api.post('/auth/2fa/setup'),
   twofaConfirm: (code) => api.post('/auth/2fa/confirm', { code }),
-  twofaDisable: (password) => api.post('/auth/2fa/disable', { password }),
+  twofaDisable: (password, code) => api.post('/auth/2fa/disable', { password, code }),
   twofaVerify: (ephemeral_token, code) => api.post('/auth/2fa/verify', { ephemeral_token, code }),
 
   // Billing (Track C — Stripe). Plans is public; the rest are org-scoped + auth.
