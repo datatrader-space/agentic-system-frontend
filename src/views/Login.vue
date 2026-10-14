@@ -299,14 +299,21 @@ const route = useRoute()
  * so anything absolute (`https://evil.test`) or protocol-relative (`//evil.test`) is discarded rather
  * than followed — that is the open-redirect this guard exists to prevent.
  */
+// Paths the SERVER answers even where a router route has a similar name: Django's admin lives at
+// `/admin/` while this app has its own `/admin` route, so a `next` there must reach the server.
+const SERVER_PATHS = ['/admin/', '/api/', '/training-data/']
+
 function goNext(fallback = '/dashboard') {
   const next = route.query.next
+  // Backslashes and control characters are refused too: browsers read `/\evil.test` as
+  // `//evil.test`, which passed the old check and left the site after a real sign-in.
   const target = typeof next === 'string' && next.startsWith('/') && !next.startsWith('//')
+    && !/[\\\u0000-\u001F\u007F]/.test(next)
     ? next
     : fallback
   // A path the router does not recognise is a backend route — hard-navigate so the browser actually
   // requests it (and carries the freshly-issued session cookie with it).
-  if (router.resolve(target).matched.length === 0) {
+  if (SERVER_PATHS.some((p) => target.startsWith(p)) || router.resolve(target).matched.length === 0) {
     window.location.assign(target)
     return
   }
@@ -518,6 +525,14 @@ onMounted(async () => {
   // Surface any social-login error passed back as ?social_error=...
   const se = route.query.social_error
   if (se) error.value = SOCIAL_ERRORS[se] || 'Social sign-in failed. Please try again.'
+  // A social sign-in for an account with two-factor on comes back here for the code. The challenge
+  // token rides in the URL FRAGMENT, which the browser never sends to a server or a log, and is
+  // removed from the address bar at once.
+  const twofaToken = new URLSearchParams((window.location.hash || '').replace(/^#/, '')).get('twofa')
+  if (twofaToken) {
+    twoFA.value = { active: true, token: twofaToken, code: '' }
+    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+  }
   // Discover which provider buttons to enable.
   try {
     const { data } = await api.get('/auth/social/providers')
