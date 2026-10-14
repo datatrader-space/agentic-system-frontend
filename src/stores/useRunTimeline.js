@@ -152,7 +152,10 @@ export function runHasEnded(plan) {
   // run; this function had not, because it only ever looked at `run_status` — and a run that pauses
   // with no work goal is neither terminal nor 'blocked' nor a closed goal, so it fell through every
   // branch and the chip kept claiming the run was going.
-  if (String(plan.plan_status_user || '') === 'blocked') return true
+  // `paused` too: it is what the server says for a run that is only unfinished (a Stop, or a turn that
+  // ended with steps left, 2026-10-14). An approval wait is NOT ended (its steps are not "stopped"); the
+  // places that ask whether a plan is RUNNING check that separately (`planIsRunning`).
+  if (['blocked', 'paused'].includes(String(plan.plan_status_user || ''))) return true
   const goal = plan.work_goal
   return !!(goal && CLOSED_GOAL_STATES.includes(String(goal.state || '')))
 }

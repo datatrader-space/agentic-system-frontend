@@ -253,6 +253,10 @@ describe('the chip and the card must not disagree', () => {
     expect(runHasEnded({ run_status: 'executing', plan_status_user: 'active' })).toBe(false)
   })
 
+  it('a run that is only unfinished (paused) has ended its work for now', () => {
+    expect(runHasEnded({ run_status: 'paused', plan_status_user: 'paused' })).toBe(true)
+  })
+
   it('an approval wait is not treated as ended', () => {
     expect(runHasEnded({ run_status: 'awaiting_plan_approval', plan_status_user: 'awaiting_approval' }))
       .toBe(false)

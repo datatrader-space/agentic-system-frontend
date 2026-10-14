@@ -86,7 +86,7 @@
       <button v-if="activePlan" type="button" class="active-plan-chip" @click="scrollToActivePlan"
               aria-label="Jump to the active plan">
         <span class="apc-dot" aria-hidden="true"></span>
-        <span class="apc-label">Active plan</span>
+        <span class="apc-label">{{ activePlan.awaitingApproval ? 'Plan awaiting approval' : 'Active plan' }}</span>
         <span class="apc-count">{{ activePlan.done }}/{{ activePlan.total }}</span>
         <span class="apc-arrow" aria-hidden="true">↑</span>
       </button>

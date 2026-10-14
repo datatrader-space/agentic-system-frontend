@@ -49,6 +49,15 @@ describe('usePlanStore', () => {
     expect(store.progressForConversation(5).ended).toBe(false)
   })
 
+  it('a plan waiting for approval is not ended and says it is waiting (conv 2742)', async () => {
+    mockApi.get.mockResolvedValueOnce({ data: snap({ run_status: 'awaiting_plan_approval',
+      plan_status_user: 'awaiting_approval' }) })
+    await store.hydrateRun('system_b:5')
+    const p = store.progressForConversation(5)
+    expect(p.ended).toBe(false)
+    expect(p.awaitingApproval).toBe(true)
+  })
+
   it('supports multiple runs in one conversation', async () => {
     mockApi.get.mockResolvedValueOnce({ data: snap({ run_id: 'system_a:1', conversation_id: 7 }) })
     mockApi.get.mockResolvedValueOnce({ data: snap({ run_id: 'system_b:2', conversation_id: 7 }) })

@@ -70,6 +70,8 @@ export const usePlanStore = defineStore('plan', {
         // Over, whatever the step counts say: a paused Work run leaves steps unfinished (conv 1645 showed
         // "Active plan 0/1" under "Paused").
         ended: runHasEnded(p),
+        // Waiting for a person's approval: not ended (the card is live), and not running either.
+        awaitingApproval: String(p.plan_status_user || '') === 'awaiting_approval',
         lastTitle: (last && (last.title || last.description)) || '',
         status: p.plan_status, purpose: p.plan_purpose || 'execution',
       }

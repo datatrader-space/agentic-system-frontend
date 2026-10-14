@@ -321,7 +321,9 @@ export const useChatStore = defineStore('chat', {
     planRunning: (s) => {
       try {
         const p = usePlanStore().progressForConversation(s.conversationId)
-        return !!(p && !p.ended && p.total > 0 && p.done < p.total)
+        // A plan waiting for approval is not running: the turn ended on the approval card, and reading it
+        // as running kept the activity panel on "Working" (prod conv 2742, 2026-10-14).
+        return !!(p && !p.ended && !p.awaitingApproval && p.total > 0 && p.done < p.total)
       } catch (e) {
         return false
       }
@@ -1653,7 +1655,7 @@ export const useChatStore = defineStore('chat', {
     _planStillRunning() {
       try {
         const p = usePlanStore().progressForConversation(this.conversationId)
-        return !!(p && !p.ended && p.total > 0 && p.done < p.total)
+        return !!(p && !p.ended && !p.awaitingApproval && p.total > 0 && p.done < p.total)
       } catch (e) {
         // A guard that throws must not be able to strand a turn as permanently unfinished.
         return false
