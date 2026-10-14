@@ -852,7 +852,10 @@ export default {
       try {
         const resp = await api.checkAuth()
         const user = resp.data?.user
-        isAdmin.value = user?.is_staff || user?.is_org_admin || false
+        // The OAuth provider catalogue is the PLATFORM's: only a platform administrator may add or configure it,
+        // and the server enforces that. `is_org_admin` (owning an organization) is true for nearly every
+        // account, so it showed these controls to everyone and they failed (security audit, Low).
+        isAdmin.value = Boolean(user?.is_platform_admin || user?.is_staff)
       } catch { isAdmin.value = false }
     }
 
