@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { useChatStore } from './useChatStore'
+import { useChatStore, PLAN_APPROVED_CONTINUE } from './useChatStore'
 
 describe('useChatStore — Manual Mode plan approval (v3 Layer 2)', () => {
   beforeEach(() => {
@@ -34,7 +34,7 @@ describe('useChatStore — Manual Mode plan approval (v3 Layer 2)', () => {
     expect(chat.pendingPlan).toBeNull()
   })
 
-  it('plan_approved resumes by re-sending the last user message', () => {
+  it('plan_approved resumes by carrying out the approved plan, not by repeating the request', () => {
     const chat = useChatStore()
     const sendMessage = vi.fn()
     chat._conn = { sendMessage }
@@ -47,7 +47,8 @@ describe('useChatStore — Manual Mode plan approval (v3 Layer 2)', () => {
     chat.pendingPlan = { title: 'plan' }
     chat._onEvent({ type: 'plan_approved', plan: {} })
     expect(chat.pendingPlan).toBeNull()
-    expect(sendMessage).toHaveBeenCalledWith('Deploy the new script', 7)
+    expect(sendMessage).toHaveBeenCalledWith(PLAN_APPROVED_CONTINUE, 7)
+    expect(sendMessage).not.toHaveBeenCalledWith('Deploy the new script', 7)
   })
 
   it('plan_rejected clears the card and does not resume', () => {

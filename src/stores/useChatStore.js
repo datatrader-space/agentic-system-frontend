@@ -52,6 +52,9 @@ const TURN_ALIVE_TYPES = new Set([
   'agent_step_failed', 'source_citation', 'token_usage',
 ])
 
+//: What the page sends after "Approve & run" (see `_resumeAfterPlan`).
+export const PLAN_APPROVED_CONTINUE = 'Approved. Carry out the approved plan, from its first step that is not done.'
+
 function pickArray(d) {
   if (Array.isArray(d)) return d
   if (d && Array.isArray(d.results)) return d.results
@@ -1046,12 +1049,16 @@ export const useChatStore = defineStore('chat', {
       this._conn?.sendPlanDecision('revise', feedback)
     },
     // Resume after the server approves the plan: re-run the last user instruction (now unblocked).
+    // THE APPROVAL IS ALREADY ON THE SERVER; this only starts the turn that carries the plan out. It used
+    // to re-send the person's first message, and when that message said "launch the Plan agent and make
+    // its plan the tracked plan" the agent did exactly that again: a new plan, a new approval card, the
+    // same answer twice (prod conversations 2744 and 2746, 2026-10-14). The turn is told what it is for.
     _resumeAfterPlan() {
       const lastUser = [...this.messages].reverse().find((m) => m.role === 'user')
       if (!lastUser) return
       if (!this._conn && this.conversationId) this._connect()
       this._beginAssistant()
-      this._conn?.sendMessage(lastUser.content, this.selectedAgentId)
+      this._conn?.sendMessage(PLAN_APPROVED_CONTINUE, this.selectedAgentId)
     },
     // Resume after a revision request: the feedback IS the next instruction (shown as a user turn),
     // and the agent re-plans from it.

@@ -118,7 +118,7 @@ function submitDecision(decision) {
         <span class="ipc-done-ic" v-if="planState === 'completed'" aria-hidden="true">✓</span>
         <span v-else class="ipc-chev" :class="{ open: expanded }" aria-hidden="true">▸</span>
       </button>
-      <span class="ipc-title">{{ plan.title || 'Plan' }}</span>
+      <span class="ipc-title" :title="plan.title || ''">{{ plan.title || 'Plan' }}</span>
       <span v-if="justUpdated" class="ipc-upd" role="status" aria-live="polite">updated</span>
       <span v-if="reconnecting" class="ipc-pill pill-reconnect" role="status">Reconnecting…</span>
       <span v-else class="ipc-pill" :class="`pill-${isRoadmap ? 'revised' : planState}`" role="status" aria-live="polite">
@@ -225,7 +225,9 @@ function submitDecision(decision) {
 .ipc-done-ic { width: 18px; height: 18px; border-radius: 50%; background: var(--done); color: #fff;
   display: grid; place-items: center; font-size: 11px; font-weight: 700; }
 .ipc-title { font-weight: 600; font-size: 14.5px; flex: 1; min-width: 0; letter-spacing: -.005em;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* A plan's title can be the whole request restated (conv 2751): two lines, the rest on hover. */
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  line-clamp: 2; overflow-wrap: anywhere; line-height: 1.3; }
 .ipc-progress { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--ink2); flex: none; }
 .ipc-upd { font-size: 11px; font-weight: 600; color: var(--acc); animation: fade 2.6s ease-out; }
 @keyframes fade { 0% { opacity: 1 } 80% { opacity: 1 } 100% { opacity: 0 } }

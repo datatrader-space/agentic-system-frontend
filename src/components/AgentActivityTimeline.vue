@@ -37,8 +37,10 @@
               <span class="agent-step-name">
                 <span class="agent-step-label">{{ step.label }}</span>
                 <!-- Folded rows say how many they stand for, so a count is never mistaken for one
-                     thing happening once. The wording is the backend's; only the count is added. -->
-                <span v-if="step.repeatCount > 1" class="agent-step-count">×{{ step.repeatCount }}</span>
+                     thing happening once. The wording is the backend's; only the count is added.
+                     A status row ("Getting ready", "Working…") is not counted: its count is how
+                     many rounds the run took, which says nothing to the reader (conv 2751: ×9). -->
+                <span v-if="step.repeatCount > 1 && !step.isPhase" class="agent-step-count">×{{ step.repeatCount }}</span>
                 <!-- Delegation verification badge (Phase 4): rendered only when this step's
                      tool result self-identifies as an Agent tool (delegation)
                      verdict (see stepVerdicts). Never guessed, never on the public tier. -->
