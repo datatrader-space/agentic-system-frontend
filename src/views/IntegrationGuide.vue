@@ -125,7 +125,7 @@
           <h2 class="text-base font-semibold text-gray-900 mb-2">Authentication</h2>
           <ul class="text-sm text-gray-700 space-y-1 list-disc pl-5">
             <li>Header <code class="kbd">Authorization: Bearer &lt;API_KEY&gt;</code>, <b>or</b></li>
-            <li>HMAC <code class="kbd">X-Signature: sha256=&lt;hex&gt;</code> (set the HMAC secret in Deploy settings → Webhook → Advanced).</li>
+            <li>HMAC <code class="kbd">X-Signature: sha256=&lt;hex&gt;</code> with <code class="kbd">X-Signature-Timestamp: &lt;unix seconds&gt;</code>. The HMAC-SHA256 covers <code class="kbd">&lt;timestamp&gt;.&lt;raw body&gt;</code>; a timestamp more than 5 minutes old, or a repeated signature, is refused (set the HMAC secret in Deploy settings → Webhook → Advanced).</li>
           </ul>
         </section>
 

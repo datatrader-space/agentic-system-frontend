@@ -722,10 +722,6 @@ export default {
   // GitHub OAuth
   githubConfig: () => api.get('/auth/github/config'),
   githubLogin: () => api.get('/auth/github/login'),
-  githubTestToken: (token = null) => {
-    const url = token ? `/auth/github/test?token=${token}` : '/auth/github/test'
-    return api.get(url)
-  },
   githubListRepos: () => api.get('/auth/github/repos'),
   githubGetRepoInfo: (githubUrl) => api.post('/auth/github/repo-info', { github_url: githubUrl }),
 

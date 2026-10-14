@@ -100,7 +100,7 @@
                 <div>
                   <label class="di-label">POST URL</label>
                   <div class="di-field"><code>{{ webhookUrl }}</code><button class="di-iconbtn" title="Copy" @click="copy(webhookUrl)"><Icon icon="lucide:copy" :width="15" /></button></div>
-                  <p class="di-hint">Auth: <code class="di-kbd">Bearer &lt;KEY&gt;</code> or HMAC <code class="di-kbd">X-Signature</code>. Returns <code class="di-kbd">202</code> + a <code class="di-kbd">result_url</code> to poll.</p>
+                  <p class="di-hint">Auth: <code class="di-kbd">Bearer &lt;KEY&gt;</code> or HMAC <code class="di-kbd">X-Signature</code> + <code class="di-kbd">X-Signature-Timestamp</code> (signs <code class="di-kbd">&lt;timestamp&gt;.&lt;body&gt;</code>, 5-minute window). Returns <code class="di-kbd">202</code> + a <code class="di-kbd">result_url</code> to poll.</p>
                 </div>
 
                 <!-- One key serves both channels; with Live Chat off its card (and key row) is hidden. -->
