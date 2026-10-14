@@ -101,6 +101,9 @@ const input = ref('')
 const busy = ref(false)
 const error = ref('')
 const conversationId = ref(null)
+// Issued by the server with `conversation_created`: after a reconnect it is what proves this visitor
+// started the conversation (a public link is shared by every visitor, so the id alone does not).
+const resumeKey = ref(null)
 const scroller = ref(null)
 let intentionalClose = false
 let reconnectAttempts = 0
@@ -206,7 +209,10 @@ function handleEvent(raw) {
     return
   }
   switch (evt.type) {
-    case 'conversation_created': conversationId.value = evt.conversation_id; break
+    case 'conversation_created':
+      conversationId.value = evt.conversation_id
+      resumeKey.value = evt.resume_key || null
+      break
     case 'assistant_typing':
     case 'tool_call':
     case 'tool_result':
@@ -257,6 +263,7 @@ function send() {
   input.value = ''; error.value = ''; busy.value = true; scrollToBottom()
   const payload = { type: 'chat_message', message: text }
   if (conversationId.value) payload.conversation_id = conversationId.value
+  if (resumeKey.value) payload.resume_key = resumeKey.value
   let tries = 0
   const trySend = () => {
     if (ws.value && ws.value.readyState === WebSocket.OPEN) ws.value.send(JSON.stringify(payload))
@@ -267,7 +274,7 @@ function send() {
 }
 function stop() {
   if (ws.value && ws.value.readyState === WebSocket.OPEN) {
-    try { ws.value.send(JSON.stringify({ type: 'stop_execution', conversation_id: conversationId.value })) } catch (e) { /* noop */ }
+    try { ws.value.send(JSON.stringify({ type: 'stop_execution', conversation_id: conversationId.value, resume_key: resumeKey.value })) } catch (e) { /* noop */ }
   }
   const m = streamingAssistant()
   if (m) {

@@ -699,6 +699,7 @@ export default {
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (token, password) => api.post('/auth/reset-password', { token, password }),
   changePassword: (current_password, new_password) => api.post('/auth/change-password', { current_password, new_password }),
+  signOutOtherSessions: (password) => api.post('/auth/sessions/sign-out-others', { password }),
   twofaStatus: () => api.get('/auth/2fa/status'),
   twofaSetup: () => api.post('/auth/2fa/setup'),
   twofaConfirm: (code) => api.post('/auth/2fa/confirm', { code }),

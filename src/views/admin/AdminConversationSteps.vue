@@ -79,6 +79,8 @@
                 <tr v-if="rawOpen[s.id]" :key="s.id + '-raw'" class="bg-slate-900">
                   <td colspan="10" class="px-4 py-3">
                     <div class="flex items-center gap-2 mb-2">
+                      <input v-model="rawReason" @keyup.enter="loadRaw(s)" placeholder="Why you are opening it (recorded)"
+                        class="bg-slate-800 text-slate-200 placeholder-slate-500 rounded-[8px] px-2.5 py-1 text-[12px] border border-slate-700 outline-none w-72" />
                       <input v-model="rawQuery[s.id]" @keyup.enter="loadRaw(s)" placeholder="grep within output (optional)"
                         class="bg-slate-800 text-slate-200 placeholder-slate-500 rounded-[8px] px-2.5 py-1 text-[12px] border border-slate-700 outline-none w-64" />
                       <button @click="loadRaw(s)" class="text-[12px] font-semibold px-3 py-1 rounded-[8px] bg-indigo-600 hover:bg-indigo-500 text-white">Apply</button>
@@ -160,6 +162,8 @@ const rawContent = reactive({})
 const rawLoading = reactive({})
 const rawErr = reactive({})
 const rawQuery = reactive({})
+// Opening another account's raw output needs a reason, which the server records (security audit M-9).
+const rawReason = ref('')
 
 const fmt = (n) => (n == null ? '0' : Number(n).toLocaleString())
 const fmtDate = (s) => (s ? new Date(s).toLocaleString() : '—')
@@ -212,11 +216,13 @@ async function loadRaw(s) {
   try {
     const params = {}
     if (rawQuery[s.id]) params.query = rawQuery[s.id]
+    if (rawReason.value) params.reason = rawReason.value
     const res = await api.get(`/admin/conversation-steps/${s.id}/raw/`, { params })
     rawContent[s.id] = res.data?.content ?? ''
   } catch (e) {
     const code = e?.response?.status
-    if (code === 403) rawErr[s.id] = 'Forbidden (scope).'
+    if (code === 400 && e?.response?.data?.error === 'reason_required') rawErr[s.id] = 'Write why you are opening it (at least 10 characters), then Apply.'
+    else if (code === 403) rawErr[s.id] = 'Forbidden (scope).'
     else if (code === 409) rawErr[s.id] = 'Integrity check failed.'
     else if (code === 404) rawErr[s.id] = 'Not found.'
     else rawErr[s.id] = 'Failed to load raw output.'

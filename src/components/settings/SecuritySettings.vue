@@ -11,6 +11,16 @@
         </div>
         <button class="btn-danger" @click="logout">Sign out</button>
       </div>
+      <div class="row">
+        <div>
+          <div class="row-label">Sign out everywhere else</div>
+          <div class="row-hint">End every other session of this account, on any browser or device. This one stays signed in.</div>
+        </div>
+        <div class="confirm-row">
+          <input v-model="others.password" type="password" placeholder="Password" class="inp" autocomplete="current-password" />
+          <button class="btn-danger" :disabled="busy.others || !others.password" @click="signOutOthers">Sign out others</button>
+        </div>
+      </div>
     </div>
 
     <!-- Email verification -->
@@ -132,7 +142,8 @@ import { notify } from '../../composables/useNotify'
 const currentUser = inject('currentUser', ref(null))
 const logout = inject('logout', () => {})
 
-const busy = reactive({ pw: false, twofa: false, resend: false })
+const busy = reactive({ pw: false, twofa: false, resend: false, others: false })
+const others = reactive({ password: '' })
 const pw = reactive({ current: '', next: '', confirm: '' })
 const twofa = reactive({ enabled: false, recoveryRemaining: 0, step: 'idle', secret: '', uri: '', code: '', recoveryCodes: [], disablePassword: '', disableCode: '' })
 
@@ -165,6 +176,18 @@ async function changePassword() {
   } catch (e) {
     notify.error(e.response?.data?.error || 'Could not update password')
   } finally { busy.pw = false }
+}
+
+async function signOutOthers() {
+  if (!others.password) return
+  busy.others = true
+  try {
+    await api.signOutOtherSessions(others.password)
+    others.password = ''
+    notify.success('Every other session is signed out')
+  } catch (e) {
+    notify.error(e.response?.data?.error || 'Could not sign out the other sessions')
+  } finally { busy.others = false }
 }
 
 async function resendVerification() {
