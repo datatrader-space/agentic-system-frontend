@@ -130,7 +130,7 @@
               <button class="ce-btn" @click="addQuick('trigger.schedule')">â° Schedule</button>
               <button class="ce-btn" @click="addQuick('trigger.webhook')">🔗 Webhook</button>
               <button class="ce-btn" @click="addQuick('agent.run')">🤖 Agent</button>
-              <button class="ce-btn" @click="addQuick('action.http')">ðŸŒ HTTP</button>
+              <button class="ce-btn" @click="addQuick('action.http')">🌐 HTTP</button>
             </div>
             <button class="ce-more" @click="openPalette()">Browse all nodes (⌘K)</button>
           </div>
@@ -535,7 +535,7 @@
       <!-- Inspector empty state -->
       <aside class="inspector wfb-inspector ins-empty-wrap" v-else-if="!inspectorCollapsed" :style="{ width: inspectorW + 'px' }">
         <div class="ins-empty">
-          <div class="ins-empty-ic">âš™ï¸</div>
+          <div class="ins-empty-ic">⚙️</div>
           <p class="ins-empty-t">Nothing selected</p>
           <p class="ins-empty-s">Click a node to configure it, or a connection to label it.</p>
         </div>
@@ -1260,7 +1260,7 @@ const paletteGroups = computed(() => {
     if (!match(t.name, t.description, t.category, t.category_label)) continue
     const cat = t.category || 'other'
     if (!byCat[cat]) byCat[cat] = { label: t.category_label || _prettyCat(cat), items: [] }
-    byCat[cat].items.push({ key: 'tool:' + t.name, icon: _CONNECTOR_CATS.has(cat) ? '🔌' : 'ðŸ› ï¸',
+    byCat[cat].items.push({ key: 'tool:' + t.name, icon: _CONNECTOR_CATS.has(cat) ? '🔌' : '🛠️',
       label: t.name, sub: t.description || cat, family: 'action', kind: 'tool', toolName: t.name,
       badge: _CONNECTOR_CATS.has(cat) ? 'connector' : null })
   }

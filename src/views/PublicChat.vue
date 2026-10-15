@@ -9,7 +9,7 @@
   <div class="pc-root" :style="themeVars">
     <div v-if="offline" class="pc-offline">
       <div class="pc-offline-card">
-        <div class="pc-offline-ico">ðŸš«</div>
+        <div class="pc-offline-ico">🚫</div>
         <p>This assistant isn’t available right now.</p>
       </div>
     </div>
@@ -18,7 +18,7 @@
       <!-- top bar -->
       <header class="pc-top">
         <div class="pc-id">
-          <span class="pc-av" :style="avatarStyle"><img v-if="cfg.avatar_url" :src="cfg.avatar_url" alt="" /><span v-else>ðŸ¤–</span></span>
+          <span class="pc-av" :style="avatarStyle"><img v-if="cfg.avatar_url" :src="cfg.avatar_url" alt="" /><span v-else>🤖</span></span>
           <span class="pc-name">{{ cfg.name || 'Assistant' }}</span>
           <span class="pc-dot"></span>
         </div>
@@ -30,7 +30,7 @@
         <div class="pc-wrap">
           <!-- welcome (empty) -->
           <div v-if="messages.length === 0" class="pc-welcome">
-            <span class="pc-av-lg" :style="avatarStyle"><img v-if="cfg.avatar_url" :src="cfg.avatar_url" alt="" /><span v-else>ðŸ¤–</span></span>
+            <span class="pc-av-lg" :style="avatarStyle"><img v-if="cfg.avatar_url" :src="cfg.avatar_url" alt="" /><span v-else>🤖</span></span>
             <h1 class="pc-wtitle">{{ cfg.name || 'Assistant' }}</h1>
             <p class="pc-wgreet">{{ cfg.greeting || 'How can I help you today?' }}</p>
           </div>
@@ -40,7 +40,7 @@
               <div class="pc-bubble">{{ m.content }}</div>
             </template>
             <template v-else>
-              <span class="pc-msg-av" :style="avatarStyle"><img v-if="cfg.avatar_url" :src="cfg.avatar_url" alt="" /><span v-else>ðŸ¤–</span></span>
+              <span class="pc-msg-av" :style="avatarStyle"><img v-if="cfg.avatar_url" :src="cfg.avatar_url" alt="" /><span v-else>🤖</span></span>
               <div class="pc-asst">
                 <!-- Public-safe activity timeline — the sole renderer. Never debug, never reasoning/tokens. -->
                 <AgentActivityTimeline
@@ -71,7 +71,7 @@
           <button v-if="busy" class="pc-ib pc-stop" @click="stop" title="Stop">â– </button>
           <button v-else class="pc-ib pc-send" :disabled="!input.trim()" @click="send" title="Send">↑</button>
         </div>
-        <div v-if="cfg.show_branding !== false" class="pc-brand">âš¡ Powered by Aadml</div>
+        <div v-if="cfg.show_branding !== false" class="pc-brand">⚡ Powered by Aadml</div>
       </footer>
     </template>
   </div>

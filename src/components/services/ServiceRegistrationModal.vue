@@ -228,7 +228,7 @@
               <input type="file" @change="handleHTMLDocsUpload" accept=".html,.htm,.md,.txt" class="hidden" />
             </label>
             <div class="bg-amber-50 border border-amber-200 rounded-[10px] px-4 py-3 flex items-start gap-2">
-              <span class="text-amber-500 text-lg leading-none mt-0.5">âš ï¸</span>
+              <span class="text-amber-500 text-lg leading-none mt-0.5">⚠️</span>
               <p class="text-[12px] text-amber-800 font-medium">Experimental: Extracts endpoints using pattern matching. Results should be reviewed.</p>
             </div>
           </div>
@@ -548,7 +548,7 @@
           </div>
 
           <div class="bg-amber-50 border border-amber-200 rounded-[12px] px-4 py-4 flex items-start gap-3">
-            <span class="text-amber-500 text-xl leading-none mt-0.5">âš ï¸</span>
+            <span class="text-amber-500 text-xl leading-none mt-0.5">⚠️</span>
             <div class="text-[13px] text-amber-800">
               <strong>Note:</strong> After registration, all selected actions will be created as tools and immediately available to assign to your agents.
             </div>
