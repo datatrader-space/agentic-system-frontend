@@ -91,7 +91,12 @@
 
       <!-- Setup: show secret + confirm code -->
       <div v-else-if="twofa.step === 'setup'" class="setup">
-        <p class="setup-step">1. Add this secret to your authenticator app (Google Authenticator, 1Password, etc.):</p>
+        <p class="setup-step">1. Scan this QR code with your authenticator app (Google Authenticator, 1Password, etc.), or enter the secret below:</p>
+        <svg v-if="qr" class="otp-qr" :viewBox="`0 0 ${qr.size} ${qr.size}`" shape-rendering="crispEdges"
+             role="img" aria-label="QR code for your authenticator app">
+          <rect :width="qr.size" :height="qr.size" fill="#ffffff" />
+          <path :d="qr.path" fill="#0f172a" />
+        </svg>
         <div class="secret-box">
           <code>{{ twofa.secret }}</code>
           <button class="btn-soft sm" @click="copy(twofa.secret)">Copy</button>
@@ -138,6 +143,7 @@
 import { inject, ref, reactive, computed, onMounted } from 'vue'
 import api from '../../services/api'
 import { notify } from '../../composables/useNotify'
+import { encode } from 'uqr'
 
 const currentUser = inject('currentUser', ref(null))
 const logout = inject('logout', () => {})
@@ -146,6 +152,18 @@ const busy = reactive({ pw: false, twofa: false, resend: false, others: false })
 const others = reactive({ password: '' })
 const pw = reactive({ current: '', next: '', confirm: '' })
 const twofa = reactive({ enabled: false, recoveryRemaining: 0, step: 'idle', secret: '', uri: '', code: '', recoveryCodes: [], disablePassword: '', disableCode: '' })
+
+// The enrolment QR code, drawn here from the otpauth URI: the secret never goes to an outside QR service, and
+// the modules become one SVG path Vue renders as an attribute (no v-html).
+const qr = computed(() => {
+  if (!twofa.uri) return null
+  try {
+    const { size, data } = encode(twofa.uri, { border: 2, ecc: 'M' })
+    let d = ''
+    data.forEach((row, y) => row.forEach((on, x) => { if (on) d += `M${x} ${y}h1v1h-1z` }))
+    return { size, path: d }
+  } catch { return null }
+})
 
 const pwValid = computed(() => pw.current && pw.next.length >= 8 && pw.next === pw.confirm)
 
@@ -287,6 +305,7 @@ async function copy(text) {
 .setup-step { font-size: 0.85rem; color: #334155; margin: 4px 0; }
 .secret-box { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 9px; }
 .secret-box code { font-family: monospace; font-size: 0.9rem; letter-spacing: 1px; color: #0f172a; word-break: break-all; }
+.otp-qr { width: 184px; height: 184px; border: 1px solid #e2e8f0; border-radius: 9px; }
 .otp-link { font-size: 0.8rem; font-weight: 600; color: #2563EB; text-decoration: none; }
 .confirm-row { display: flex; align-items: center; gap: 10px; }
 .codes { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 9px; }
