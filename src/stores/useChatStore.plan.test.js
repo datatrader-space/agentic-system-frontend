@@ -82,6 +82,21 @@ describe('useChatStore — Manual Mode plan approval (v3 Layer 2)', () => {
     expect(chat.isStreaming).toBe(false)
   })
 
+  it('a turn that stops on the plan card stops streaming and is marked as paused', () => {
+    const chat = useChatStore()
+    chat._conn = { sendMessage: vi.fn() }
+    chat.conversationId = 'c1'
+    chat.messages = [{ id: 'm1', role: 'user', content: 'Count the issues' }]
+    chat._beginAssistant()
+    expect(chat.isStreaming).toBe(true)
+    chat._onEvent({ type: 'plan_approval_required', plan: { title: 'plan' } })
+    const paused = chat.messages[chat.messages.length - 1]
+    expect(chat.isStreaming).toBe(false)
+    expect(paused.status).toBe('done')
+    expect(paused.pausedFor).toBe('plan_approval')
+    expect(chat.planAwaitingApproval).toBe(true)
+  })
+
   it('a paused plan reads as awaiting approval, and a running one does not', () => {
     const chat = useChatStore()
     chat.pendingPlan = { title: 'plan' }

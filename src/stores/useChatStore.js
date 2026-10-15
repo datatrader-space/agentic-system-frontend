@@ -1737,6 +1737,26 @@ export const useChatStore = defineStore('chat', {
       }
     },
 
+    // A turn that stopped to wait for the person (a plan to approve). It is over, so it stops streaming
+    // and keeps its timeline; but nothing finished, so there is no "run finished" notification and no
+    // history refetch for a missing answer (there is no answer to fetch).
+    _pauseAssistant(reason) {
+      this._stopDeafWatchdog()
+      this._stopProgressPolling()
+      const m = this._cur()
+      if (m) {
+        const safeTail = _think.flush()
+        if (safeTail) m.content += safeTail
+        _tl.finalize()
+        if (_tl.hasActivity()) m.timeline = _tl.snapshot()
+        if (m.status === 'streaming') m.status = 'done'
+        m.pausedFor = reason
+      }
+      this.isStreaming = false
+      this._taskRunActive = false
+      this._assistantId = null
+    },
+
     _persistTurnMeta(m) {
       // Snapshot the finished activity timeline back to the server so the "Done · N steps · …"
       // accordion + reasoning survive a page refresh (usage/stop are already persisted server-side).
@@ -2319,8 +2339,13 @@ export const useChatStore = defineStore('chat', {
         }
         // ── v3 Plan Gate (Manual Mode): a plan is ready and awaits a human. The timeline label is
         // already shown via the catch-all ingest above; surface the approval card with the content.
+        //
+        // THE TURN IS OVER WHEN THIS ARRIVES: the server sends it and ends the turn, with no completion
+        // frame after it. Left streaming, the page kept a spinning "Working" and a Stop button over a plan
+        // that waited for the person (prod conv 2814, 2026-10-15).
         case 'plan_approval_required':
           this.pendingPlan = msg.plan || {}
+          this._pauseAssistant('plan_approval')
           break
         // Human approved server-side → resume by re-sending the original instruction (it now
         // executes because the plan is approved). Rejection just clears the card + ends the turn.

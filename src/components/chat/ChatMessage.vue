@@ -61,11 +61,11 @@
           :sources="isStreaming ? chat.liveSources : message.timeline.sources"
           :summary="isStreaming ? chat.liveSummary : message.timeline.summary"
           :is-complete="turnReallyFinished"
-          :paused-label="waitingForApproval ? 'Waiting for approval' : ''"
+          :paused-label="pausedLabel"
           :has-failures="isStreaming ? chat.liveHasFailures : message.timeline.hasFailures"
           :tokens="(message.usage && message.usage.total_tokens) || null"
           :reasoning="isStreaming ? chat.liveReasoning : reasoningItems(message.timeline && message.timeline.steps)"
-          :running="!turnReallyFinished && !waitingForApproval"
+          :running="!turnReallyFinished && !pausedLabel"
           :work-iteration="message.workIteration || null" />
 
         <!-- Attachment prep: while a document sent WITH the question is still converting/indexing, we
@@ -466,12 +466,14 @@ const turnReallyFinished = computed(() => {
 // PAUSED ON THE PLAN CARD. A turn that ends on "Approve & run" has no answer text, so by the rule above
 // it is not finished — and it drew a spinning "Working… Getting ready to run" while nothing ran at all.
 // It is waiting for the person: the latest answer-less turn, while the plan awaits their decision.
-const waitingForApproval = computed(() => {
-  if (isStreaming.value || !chat.planAwaitingApproval) return false
+// Once the person has decided, that turn stays what it was: the turn that proposed the plan.
+const pausedLabel = computed(() => {
   const m = props.message
-  if (m.role !== 'assistant' || (m.content || '').trim() || m.error) return false
+  if (isStreaming.value || m.role !== 'assistant' || (m.content || '').trim() || m.error) return ''
   const lastAssistant = [...(chat.messages || [])].reverse().find((x) => x.role === 'assistant')
-  return !!lastAssistant && lastAssistant.id === m.id
+  const latest = !!lastAssistant && lastAssistant.id === m.id
+  if (chat.planAwaitingApproval && latest) return 'Waiting for approval'
+  return m.pausedFor === 'plan_approval' ? 'Plan proposed' : ''
 })
 // Only preparation so far: nothing but status rows, no tool running, no reasoning, no text.
 const preparingOnly = computed(() => {
