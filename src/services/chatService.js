@@ -267,6 +267,9 @@ export class ChatConnection {
       // approve = read the whole (context-overflowing) doc; reject = targeted on the original question;
       // focus = targeted on focus_query. Per-turn only; absent on a normal message.
       rag_cost_decision: opts.ragCostDecision || undefined,
+      // 'plan_approval' on the turn that carries out an approved plan. The server runs it once per
+      // approval and records it as the approval, not as something the person typed.
+      continuation: opts.continuation || undefined,
     })
   }
 

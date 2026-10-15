@@ -24,8 +24,14 @@
              bar already say a new segment started, so the prompt itself is suppressed rather than
              restyled. Only the bubble is skipped: anything anchored to the message (plan artifacts
              below) still renders in place. -->
+        <!-- "APPROVE & RUN" IS AN APPROVAL, NOT A MESSAGE. The turn that carries out the plan is given
+             a fixed instruction the person never typed; it was drawn as their own bubble after a reload. -->
+        <div v-if="m.kind === 'plan_approval'" class="msg-approval" data-test="plan-approval-row">
+          <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.3 3.29 6.8-6.8a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
+          <span>You approved the plan</span>
+        </div>
         <ChatMessage
-          v-if="!isRunScaffolding(m)"
+          v-else-if="!isRunScaffolding(m)"
           :message="m"
           @retry="chat.retryLast()"
           @regenerate="chat.regenerate(m.id)"
@@ -351,4 +357,9 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
 }
 .load-earlier-btn:disabled { opacity: .6; cursor: default; }
 .load-earlier-btn:focus-visible { outline: 2px solid var(--vm-accent, #3a5bd9); outline-offset: 2px; }
+
+/* The approval that started a plan: a quiet event line, not a speech bubble. */
+.msg-approval { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 4px 0 10px;
+  font-size: 12.5px; color: var(--text-secondary, #6b7280); }
+.msg-approval svg { width: 14px; height: 14px; color: var(--success, #16a34a); }
 </style>

@@ -54,6 +54,8 @@ const TURN_ALIVE_TYPES = new Set([
 
 //: What the page sends after "Approve & run" (see `_resumeAfterPlan`).
 export const PLAN_APPROVED_CONTINUE = 'Approved. Carry out the approved plan, from its first step that is not done.'
+//: A second resume for the same approval inside this window is not sent (the server would refuse it).
+const PLAN_RESUME_DEDUPE_MS = 15000
 
 function pickArray(d) {
   if (Array.isArray(d)) return d
@@ -227,6 +229,7 @@ export const useChatStore = defineStore('chat', {
 
     _conn: null,
     _assistantId: null,
+    _planResumeSentAt: 0,   // when this page last sent the turn that carries out an approved plan
     // setInterval handle for the resumed-turn progress poll (see _startProgressPolling).
     _progressTimer: null,
     //: When a frame last arrived from the server, and the watchdog that notices when they stop.
@@ -321,6 +324,17 @@ export const useChatStore = defineStore('chat', {
     //: Computed here rather than delegating to the action so it tracks the plan store reactively —
     //: a getter that calls an action is recomputed on the wrong dependencies, which for a live progress
     //: readout means a header that stops updating halfway through.
+    //: True while this conversation's plan waits for the person's decision: the turn has ended on the
+    //: approval card and nothing runs until they choose. The paused turn reads "Waiting for approval".
+    planAwaitingApproval: (s) => {
+      if (s.pendingPlan) return true
+      try {
+        const p = usePlanStore().progressForConversation(s.conversationId)
+        return !!(p && !p.ended && p.awaitingApproval)
+      } catch (e) {
+        return false
+      }
+    },
     planRunning: (s) => {
       try {
         const p = usePlanStore().progressForConversation(s.conversationId)
@@ -593,6 +607,8 @@ export const useChatStore = defineStore('chat', {
         // backend (thumbs feedback) address this, not the local `id`.
         serverId: m.id ?? null,
         role: m.role === 'assistant' ? 'assistant' : 'user',
+        // 'plan_approval' marks the turn "Approve & run" started; it renders as the approval, not a bubble.
+        kind: m.kind || 'message',
         content: stripThinkBlocks(m.content || ''),
         status: 'done',
         error: '',
@@ -1053,12 +1069,24 @@ export const useChatStore = defineStore('chat', {
     // to re-send the person's first message, and when that message said "launch the Plan agent and make
     // its plan the tracked plan" the agent did exactly that again: a new plan, a new approval card, the
     // same answer twice (prod conversations 2744 and 2746, 2026-10-14). The turn is told what it is for.
+    //
+    // ONE APPROVAL, ONE RUN. Two frames announce an approval (the decision's `plan_approved` ack and the
+    // run's `approved` plan event), and both called this, so one click could start the plan twice. The
+    // server is the guard: it runs a continuation only against the one-time token the approval issued
+    // (agent/services/plan_resume.py) and answers `plan_resume_refused` to any other. The local guard
+    // only saves the second request. The approval shows as an approval row, never as a user bubble.
     _resumeAfterPlan() {
       const lastUser = [...this.messages].reverse().find((m) => m.role === 'user')
       if (!lastUser) return
+      const now = Date.now()
+      if (this._planResumeSentAt && now - this._planResumeSentAt < PLAN_RESUME_DEDUPE_MS) return
+      this._planResumeSentAt = now
       if (!this._conn && this.conversationId) this._connect()
+      this.messages.push({ id: nid(), role: 'user', kind: 'plan_approval', content: PLAN_APPROVED_CONTINUE,
+                           status: 'done', error: '', toolCalls: [] })
       this._beginAssistant()
-      this._conn?.sendMessage(PLAN_APPROVED_CONTINUE, this.selectedAgentId)
+      this._conn?.sendMessage(PLAN_APPROVED_CONTINUE, this.selectedAgentId, null,
+                              { continuation: 'plan_approval' })
     },
     // Resume after a revision request: the feedback IS the next instruction (shown as a user turn),
     // and the agent re-plans from it.
@@ -1457,6 +1485,7 @@ export const useChatStore = defineStore('chat', {
           serverId: m.id != null ? m.id : (_prev ? _prev.serverId : null),
           feedback: _prev ? _prev.feedback : null,
           role: m.role === 'assistant' ? 'assistant' : 'user',
+          kind: m.kind || 'message',
           content: m.content || '',
           status: 'done',
           error: '',
@@ -2299,6 +2328,22 @@ export const useChatStore = defineStore('chat', {
           this.pendingPlan = null
           this._resumeAfterPlan()
           break
+        // The server ran no turn: this approval had already started its plan (or there was none).
+        // Take back the approval row and the empty bubble this page opened for it. Not `_endAssistant`:
+        // nothing finished, so nothing is pinned and no "run finished" notification is sent.
+        case 'plan_resume_refused': {
+          const opened = this.messages.findIndex((x) => x.id === this._assistantId)
+          if (opened >= 0 && !String(this.messages[opened].content || '').trim()) {
+            this.messages.splice(opened, 1)
+            const row = opened - 1
+            if (row >= 0 && this.messages[row].kind === 'plan_approval' && this.messages[row].serverId == null) {
+              this.messages.splice(row, 1)
+            }
+            this._assistantId = null
+            this.isStreaming = false
+          }
+          break
+        }
         case 'plan_rejected':
           this.pendingPlan = null
           this._endAssistant()

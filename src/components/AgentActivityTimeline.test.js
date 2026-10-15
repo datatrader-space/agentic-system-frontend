@@ -251,4 +251,17 @@ describe('a Work iteration finishing is not the run finishing', () => {
     expect(t).toMatch(/Thought for|Done/)
     expect(t).not.toContain('Iteration')
   })
+
+  // A turn paused on the plan card is neither running nor done (prod conv 2803's panel showed a spinning "Working…
+  // Getting ready to run" while the plan waited for the person).
+  it('a turn paused on a decision reads "Waiting for approval", with no live header or spinner', () => {
+    const preparing = { ...builderStep, stepId: 'P', phase: 'build_autorun', label: 'Getting ready to run',
+                        status: 'running' }
+    const w = mount(AgentActivityTimeline, {
+      props: { steps: [preparing], running: false, isComplete: false, pausedLabel: 'Waiting for approval' },
+    })
+    expect(w.find('[data-test="timeline-paused"]').text()).toContain('Waiting for approval')
+    expect(w.text()).not.toContain('Working')
+    expect(w.find('.agent-spinner').exists()).toBe(false)
+  })
 })

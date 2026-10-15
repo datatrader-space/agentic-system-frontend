@@ -4,7 +4,14 @@
          "✓ Done · N steps · Xs · Yk tokens" header; click to expand the full row detail. -->
     <div class="at-card" :class="{ 'at-warn': summaryWarn }">
       <!-- DONE: collapsible summary header -->
-      <button v-if="isComplete && (visibleSteps.length || (reasoning && reasoning.length))" type="button" class="at-head" @click="expanded = !expanded">
+      <!-- PAUSED: the turn ended on a plan that waits for the person. Not "Working" (nothing runs) and
+           not "Done" (nothing was carried out); the steps so far stay one click away. -->
+      <button v-if="pausedLabel && !isComplete" type="button" class="at-head at-paused" data-test="timeline-paused" @click="expanded = !expanded">
+        <svg class="at-pause" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM7.5 6.5a.75.75 0 0 0-.75.75v5.5a.75.75 0 0 0 1.5 0v-5.5a.75.75 0 0 0-.75-.75Zm5 0a.75.75 0 0 0-.75.75v5.5a.75.75 0 0 0 1.5 0v-5.5a.75.75 0 0 0-.75-.75Z" clip-rule="evenodd"/></svg>
+        <span class="at-head-text">{{ pausedLabel }}<span v-if="visibleSteps.length"> · {{ visibleSteps.length }} step{{ visibleSteps.length === 1 ? '' : 's' }}</span></span>
+        <svg class="at-chevron" :class="{ open: expanded }" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4Z" clip-rule="evenodd"/></svg>
+      </button>
+      <button v-else-if="isComplete && (visibleSteps.length || (reasoning && reasoning.length))" type="button" class="at-head" @click="expanded = !expanded">
         <svg class="at-check" :class="summaryWarn ? 'warn' : 'ok'" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.3 3.29 6.8-6.8a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
         <span class="at-head-text">{{ headLabel }}<span v-if="visibleSteps.length"> · {{ visibleSteps.length }} step{{ visibleSteps.length === 1 ? '' : 's' }}</span><span v-if="tokensText && !publicSafe"> · {{ tokensText }}</span></span>
         <svg class="at-chevron" :class="{ open: expanded }" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4Z" clip-rule="evenodd"/></svg>
@@ -19,7 +26,7 @@
 
       <!-- Rows: shown live while running; when done, only after expanding. Reasoning ("thinking") rows are
            excluded here — they're surfaced in the collapsible reasoning panel below (latest-thought only). -->
-      <ul v-if="visibleSteps.length && (!isComplete || expanded)" class="agent-steps" :class="{ 'at-rows-done': isComplete }">
+      <ul v-if="visibleSteps.length && ((!isComplete && !pausedLabel) || expanded)" class="agent-steps" :class="{ 'at-rows-done': isComplete }">
         <li
           v-for="step in renderedSteps"
           :key="step.stepId"
@@ -78,7 +85,7 @@
 
       <!-- The raw list, one click away. Offered only when folding actually removed rows — a toggle
            that reveals the list it already shows is noise of its own. Never on the public tier. -->
-      <button v-if="canShowAll && !publicSafe && (!isComplete || expanded)" type="button"
+      <button v-if="canShowAll && !publicSafe && ((!isComplete && !pausedLabel) || expanded)" type="button"
               class="at-steps-toggle" @click="showAllSteps = !showAllSteps">
         {{ showAllSteps ? 'Show milestones' : `Show all ${visibleSteps.length} steps` }}
       </button>
@@ -91,7 +98,7 @@
 
       <!-- Model reasoning — folded INTO the one panel (ChatGPT-style "Thought for…"). Shown live and in
            the expanded done view. Never on the public tier (and the backend never sends reasoning there). -->
-      <div v-if="!publicSafe && reasoning && reasoning.length && (!isComplete || expanded)"
+      <div v-if="!publicSafe && reasoning && reasoning.length && ((!isComplete && !pausedLabel) || expanded)"
            class="at-reasoning" :class="{ 'at-rows-done': isComplete }">
         <!-- Done + expanded: the full reasoning history. -->
         <template v-if="isComplete">
@@ -183,6 +190,8 @@ const props = defineProps({
   isComplete: { type: Boolean, default: false },
   hasFailures: { type: Boolean, default: false },
   running: { type: Boolean, default: false },
+  // Set while the turn is paused on a decision ("Waiting for approval"): replaces the live header.
+  pausedLabel: { type: String, default: '' },
   // Builder/debug tier (emulator). When true, render the extra collapsible "Debug details" section
   // with the builder-only fields the backend sent. NEVER enable on the user/public tiers.
   debug: { type: Boolean, default: false },
@@ -381,6 +390,10 @@ function fmtDuration(ms) {
 }
 .at-check.warn {
   @apply text-amber-500;
+}
+/* Paused on a decision: a still, amber mark - nothing is running. */
+.at-pause {
+  @apply w-4 h-4 flex-shrink-0 text-amber-500;
 }
 .at-head-text {
   @apply text-left;

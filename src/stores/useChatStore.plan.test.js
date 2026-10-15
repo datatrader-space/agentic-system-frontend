@@ -47,8 +47,47 @@ describe('useChatStore — Manual Mode plan approval (v3 Layer 2)', () => {
     chat.pendingPlan = { title: 'plan' }
     chat._onEvent({ type: 'plan_approved', plan: {} })
     expect(chat.pendingPlan).toBeNull()
-    expect(sendMessage).toHaveBeenCalledWith(PLAN_APPROVED_CONTINUE, 7)
+    expect(sendMessage).toHaveBeenCalledWith(PLAN_APPROVED_CONTINUE, 7, null, { continuation: 'plan_approval' })
     expect(sendMessage).not.toHaveBeenCalledWith('Deploy the new script', 7)
+  })
+
+  it('one approval starts the plan once, and shows as an approval, not a user bubble', () => {
+    const chat = useChatStore()
+    const sendMessage = vi.fn()
+    chat._conn = { sendMessage }
+    chat.conversationId = 'c1'
+    chat.selectedAgentId = 7
+    chat.messages = [
+      { id: 'm1', role: 'user', content: 'Count the issues' },
+      { id: 'm2', role: 'assistant', content: '' },
+    ]
+    chat.pendingPlan = { title: 'plan' }
+    chat._onEvent({ type: 'plan_approved', plan: {} })
+    chat._onEvent({ type: 'plan_approved', plan: {} })     // the same approval announced again
+    expect(sendMessage).toHaveBeenCalledTimes(1)
+    const approvals = chat.messages.filter((m) => m.kind === 'plan_approval')
+    expect(approvals).toHaveLength(1)
+  })
+
+  it('a refused resume takes back the approval row and the empty bubble it opened', () => {
+    const chat = useChatStore()
+    chat._conn = { sendMessage: vi.fn() }
+    chat.conversationId = 'c1'
+    chat.messages = [{ id: 'm1', role: 'user', content: 'Count the issues' },
+                     { id: 'm2', role: 'assistant', content: '' }]
+    chat._onEvent({ type: 'plan_approved', plan: {} })
+    expect(chat.messages).toHaveLength(4)
+    chat._onEvent({ type: 'plan_resume_refused', conversation_id: 'c1' })
+    expect(chat.messages.map((m) => m.id)).toEqual(['m1', 'm2'])
+    expect(chat.isStreaming).toBe(false)
+  })
+
+  it('a paused plan reads as awaiting approval, and a running one does not', () => {
+    const chat = useChatStore()
+    chat.pendingPlan = { title: 'plan' }
+    expect(chat.planAwaitingApproval).toBe(true)
+    chat.pendingPlan = null
+    expect(chat.planAwaitingApproval).toBe(false)
   })
 
   it('plan_rejected clears the card and does not resume', () => {
