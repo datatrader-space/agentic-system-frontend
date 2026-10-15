@@ -31,7 +31,7 @@
     var color = safeColor(st.cfg && st.cfg.theme_color);
     var img = safeImageUrl(st.cfg && st.cfg.button_image_url);
     var b = el('button', 'position:fixed;bottom:20px;right:20px;width:56px;height:56px;border:none;border-radius:50%;background:' + color + ';color:#fff;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.22);z-index:2147483000;display:flex;align-items:center;justify-content:center;font-size:24px;overflow:hidden;',
-      img ? null : '💬');  // the speech-balloon emoji, escaped: this file runs on pages of any charset
+      img ? null : '\uD83D\uDCAC');  // the speech-balloon emoji, escaped: this file runs on pages of any charset
     if (img) { var i = document.createElement('img'); i.setAttribute('src', img); i.style.cssText = 'width:100%;height:100%;object-fit:cover'; b.appendChild(i); }
     b.onclick = toggle; document.body.appendChild(b); st.launcher = b;
   }
