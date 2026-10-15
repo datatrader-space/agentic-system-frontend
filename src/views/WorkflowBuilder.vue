@@ -127,7 +127,7 @@
             <p class="ce-sub">Start with a trigger, then add an agent or action. Drag from the left palette, or pick a starter:</p>
             <div class="ce-btns">
               <button class="ce-btn" @click="addQuick('trigger.manual')">▶ Manual Trigger</button>
-              <button class="ce-btn" @click="addQuick('trigger.schedule')">â° Schedule</button>
+              <button class="ce-btn" @click="addQuick('trigger.schedule')">⏰ Schedule</button>
               <button class="ce-btn" @click="addQuick('trigger.webhook')">🔗 Webhook</button>
               <button class="ce-btn" @click="addQuick('agent.run')">🤖 Agent</button>
               <button class="ce-btn" @click="addQuick('action.http')">🌐 HTTP</button>
@@ -1986,7 +1986,7 @@ async function stopRun() {
   if (!activeRunId.value) return
   try {
     await api.cancelWorkflowGraphRun(activeRunId.value)
-    addLog('warn', 'â¹ Stop requested — halting at the next node…')
+    addLog('warn', '⏹ Stop requested — halting at the next node…')
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Failed to stop')
   }

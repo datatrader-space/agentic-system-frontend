@@ -1,6 +1,6 @@
 ﻿<template>
   <PublicLayout>
-    <!-- â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- ── Hero ─────────────────────────────────────────────── -->
     <section class="relative overflow-hidden">
       <HeroBackdrop />
       <div class="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-16 sm:px-6 lg:px-8 lg:pb-24 lg:pt-24">
@@ -55,14 +55,14 @@
             <div class="flex items-center gap-2 text-sm font-semibold text-ink">
               <Icon icon="lucide:git-pull-request" class="h-4 w-4 text-violet" /> PR opened · 3 files
             </div>
-            <div class="mt-0.5 text-xs text-ink-faint">+128 âˆ’42 · verified âœ“</div>
+            <div class="mt-0.5 text-xs text-ink-faint">+128 −42 · verified ✓</div>
           </div>
         </div>
       </div>
       </div>
     </section>
 
-    <!-- â”€â”€ Logo cloud â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- ── Logo cloud ──────────────────────────────────────── -->
     <section class="border-y border-line bg-surface/60">
       <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <p class="text-center text-xs font-semibold uppercase tracking-[0.2em] text-ink-faint">
@@ -74,7 +74,7 @@
       </div>
     </section>
 
-    <!-- â”€â”€ Feature bento â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- ── Feature bento ───────────────────────────────────── -->
     <section class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
       <div class="mx-auto max-w-2xl text-center" v-reveal>
         <h2 class="font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">Everything an agent needs to ship work</h2>
@@ -101,7 +101,7 @@
       </div>
     </section>
 
-    <!-- â”€â”€ How it works â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- ── How it works ────────────────────────────────────── -->
     <section class="border-y border-line bg-g-warm">
       <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24">
         <div class="mx-auto max-w-2xl text-center" v-reveal>
@@ -118,7 +118,7 @@
       </div>
     </section>
 
-    <!-- â”€â”€ Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- ── Stats ───────────────────────────────────────────── -->
     <section class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
       <div class="grid gap-8 rounded-2xl border border-line bg-surface p-10 shadow-m sm:grid-cols-4" v-reveal>
         <div v-for="st in stats" :key="st.label" class="text-center">
@@ -128,7 +128,7 @@
       </div>
     </section>
 
-    <!-- â”€â”€ Final CTA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ -->
+    <!-- ── Final CTA ───────────────────────────────────────── -->
     <section class="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
       <div class="cta-box" v-reveal>
         <h2 class="font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Ready to deploy your first agent?</h2>
@@ -187,16 +187,16 @@ const stats = [
   { value: '24/7', label: 'Autonomous' },
 ]
 
-/* â”€â”€ Animated terminal â”€â”€ */
+/* ── Animated terminal ── */
 const sequence = [
   '<span class="c-gray">// agent: implement the change</span>',
   '<span class="c-violet">search_code</span>(<span class="c-str">"checkout limit enforcement"</span>)',
   '<span class="c-gray">// 3 results · ranked by graph proximity</span>',
   '<span class="c-violet">propose_diff</span>({ files: <span class="c-num">3</span> })',
   '<span class="c-gray">// running focused verify…</span>',
-  '<span class="c-ok">âœ“ py_compile ok · 4 related tests pass</span>',
+  '<span class="c-ok">✓ py_compile ok · 4 related tests pass</span>',
   '<span class="c-violet">export_pr</span>({ base: <span class="c-str">"main"</span> })',
-  '<span class="c-ok">âœ“ PR opened · awaiting review</span>',
+  '<span class="c-ok">✓ PR opened · awaiting review</span>',
 ]
 const shownLines = ref([])
 const typing = ref(true)

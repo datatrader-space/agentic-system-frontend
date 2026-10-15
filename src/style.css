@@ -463,11 +463,11 @@ samp {
    cleanup). Mirror of tailwind.config.js so scoped styles can use them.
    ============================================================ */
 :root {
-  /* â”€â”€ Aadml design language (design.md §3) — clean white surfaces on a soft
+  /* ── Aadml design language (design.md §3) — clean white surfaces on a soft
         blue-tinted canvas, blue primary, teal/green accents, very soft shadows, Inter.
         THE single source of truth: token NAMES kept from the legacy vibrant-mesh system
         so every existing component re-skins automatically. The old purple/glass theme is
-        retired — these values ARE the Aadml palette. â”€â”€ */
+        retired — these values ARE the Aadml palette. ── */
   --vm-bg: #F8FBFF;            /* page background */
   --vm-ink: #0F172A;           /* text strong */
   --vm-ink-soft: #334155;      /* text normal */
@@ -630,7 +630,7 @@ samp {
 @media (prefers-reduced-motion: reduce) {
   .vm-reveal { opacity: 1 !important; transform: none !important; }
 }
-/* â”€â”€ Inline chat media (generated images/videos auto-embedded into responses) â”€â”€
+/* ── Inline chat media (generated images/videos auto-embedded into responses) ──
    Shared sizing so generated/pasted media renders consistently in every chat UI. */
 .chat-media-img {
   max-width: 100%;

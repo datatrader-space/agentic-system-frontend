@@ -22,7 +22,7 @@
           <span class="pc-name">{{ cfg.name || 'Assistant' }}</span>
           <span class="pc-dot"></span>
         </div>
-        <button v-if="messages.length" class="pc-reset" @click="reset" title="New chat">âŸ²</button>
+        <button v-if="messages.length" class="pc-reset" @click="reset" title="New chat">⟲</button>
       </header>
 
       <!-- conversation -->

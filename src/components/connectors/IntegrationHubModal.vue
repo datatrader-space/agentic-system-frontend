@@ -589,7 +589,7 @@ const installedItems = computed(() => {
   return out
 })
 
-// â”€â”€ Detail / install actions (service-generic; driven by the open detailItem) â”€â”€
+// ── Detail / install actions (service-generic; driven by the open detailItem) ──
 function openDetail(item) {
   detailItem.value = item
   setupOpen.value = false

@@ -42,8 +42,8 @@
 
         <div class="cmdk-foot">
           <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
-          <span><kbd>â†µ</kbd> open</span>
-          <span class="brandline">Aadml · âŒ˜K</span>
+          <span><kbd>↵</kbd> open</span>
+          <span class="brandline">Aadml · ⌘K</span>
         </div>
       </div>
     </div>

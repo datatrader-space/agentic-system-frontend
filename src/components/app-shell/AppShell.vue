@@ -3,7 +3,7 @@
     <!-- Global animated color-mesh canvas (Vibrant Light Mesh) -->
     <MeshBackground />
 
-    <!-- Left sidebar — inline on desktop (â‰¥1024px) -->
+    <!-- Left sidebar — inline on desktop (≥1024px) -->
     <LeftSidebar class="sidebar-desktop" />
 
     <!-- Left sidebar — slide-out drawer on mobile/tablet (<1024px) -->
