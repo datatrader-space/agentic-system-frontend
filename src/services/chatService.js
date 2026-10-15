@@ -25,6 +25,15 @@ const STALE_MS = 35000       // no message (incl. pong) for this long => socket 
 const RECONNECT_MAX = 10     // give up after this many consecutive failed reconnects
 const RECONNECT_CAP_MS = 10000
 
+/** The browser's IANA time zone ("Asia/Karachi"), or undefined when the browser does not say. */
+export function browserTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
+  } catch {
+    return undefined
+  }
+}
+
 export class ChatConnection {
   constructor(conversationId, handlers = {}) {
     this.conversationId = conversationId
@@ -229,6 +238,9 @@ export class ChatConnection {
       attachment_ids: (opts.attachmentIds && opts.attachmentIds.length) ? opts.attachmentIds : undefined,
       // Client-generated id for message idempotency (retries/reconnects don't double-create/rebind).
       client_message_id: opts.clientMessageId || undefined,
+      // The person's time zone (IANA name), so the agent knows the local date and time. Without it an
+      // agent asked "what date is today" woke a sandbox to run `date` and took 3 minutes (conv 2789).
+      timezone: browserTimeZone(),
       // Canvas mode, and WHICH Canvas (static | nextjs | web_builder): the backend grants a different
       // toolset for each kind. Only sent with Canvas on — a kind means nothing without it.
       canvas_mode: opts.canvasMode || undefined,
