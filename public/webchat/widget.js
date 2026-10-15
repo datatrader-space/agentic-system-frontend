@@ -18,7 +18,8 @@
   // came from the agent config. Built as nodes, so neither can add markup to the host page (audit A15).
   function el(tag, css, text) { var e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; }
   function safeColor(c) { return /^#[0-9a-fA-F]{3,8}$|^[a-zA-Z]{3,20}$/.test(c || '') ? c : '#4f46e5'; }
-  function safeImageUrl(u) { try { var x = new URL(u, ORIGIN); return (x.protocol === 'https:' || x.protocol === 'http:') ? x.href : ''; } catch (e) { return ''; } }
+  // No image set means no image: `new URL('', ORIGIN)` is the site root, which the launcher drew as a broken picture.
+  function safeImageUrl(u) { if (!u || typeof u !== 'string') return ''; try { var x = new URL(u, ORIGIN); return (x.protocol === 'https:' || x.protocol === 'http:') ? x.href : ''; } catch (e) { return ''; } }
   function iframeSrc() { return ORIGIN + '/embed/' + encodeURIComponent(st.token); }
 
   function buildPanel() {
