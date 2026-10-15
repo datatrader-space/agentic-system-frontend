@@ -97,6 +97,14 @@ describe('useChatStore — Manual Mode plan approval (v3 Layer 2)', () => {
     expect(chat.planAwaitingApproval).toBe(true)
   })
 
+  it('a chat that fails to start reports the message as NOT sent, so the page can give it back', async () => {
+    const chat = useChatStore()
+    chat.selectedAgentId = 7
+    chat.ensureConversation = vi.fn().mockResolvedValue(null)
+    expect(await chat.sendMessage('Count the ADM issues')).toBe(false)
+    expect(chat.messages).toHaveLength(0)
+  })
+
   it('a paused plan reads as awaiting approval, and a running one does not', () => {
     const chat = useChatStore()
     chat.pendingPlan = { title: 'plan' }

@@ -523,6 +523,14 @@ const reset = async () => {
   autoGrow()
 }
 
+// Give back text that was not sent (the chat failed to start). Never overwrites something already typed.
+const restoreDraft = (text) => {
+  if (draft.value.trim() || !text) return
+  draft.value = text
+  nextTick(autoGrow)
+}
+defineExpose({ restoreDraft })
+
 const onSubmit = () => {
   const text = draft.value.trim()
   if (!text && props.attachments.length === 0) return

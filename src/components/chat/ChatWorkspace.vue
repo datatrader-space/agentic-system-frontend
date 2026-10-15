@@ -348,7 +348,11 @@ const onModeChange = (patch) => {
   }
 }
 
-const onSend = (text) => chat.sendMessage(text)
+// A message that was not sent goes back into the box: the composer clears itself on submit.
+const onSend = async (text) => {
+  const sent = await chat.sendMessage(text)
+  if (sent === false) composerRef.value?.restoreDraft?.(text)
+}
 
 // Media gallery open state + attach handler (bind chosen existing media to the next message BY ID).
 const mediaOpen = ref(false)

@@ -799,6 +799,7 @@ export const useChatStore = defineStore('chat', {
         return this.conversationId
       } catch {
         this.error = 'Failed to start chat.'
+        notify.error('Could not start the chat. Your message is still in the box, so you can send it again.')
         return null
       }
     },
@@ -863,10 +864,13 @@ export const useChatStore = defineStore('chat', {
       return { attachmentIds, docs }
     },
 
+    // Returns false when the message was NOT sent, so the page can give the person their text back:
+    // the composer clears itself on submit, and a chat that failed to start used to lose the message
+    // without a word (seen twice in live tests right after a deploy, 2026-10-15).
     async sendMessage(text) {
       const content = (text || '').trim()
       const atts = this.pendingAttachments.slice()
-      if (!content && atts.length === 0) return
+      if (!content && atts.length === 0) return false
       // Ask for browser-notification permission on this user gesture (once). Lets us notify the user when
       // the run finishes if they've stepped away to another window/tab. No-op if already asked/decided.
       ensureNotifyPermission()
@@ -877,7 +881,7 @@ export const useChatStore = defineStore('chat', {
       // reference is bound to this steering message too (previously attachments were silently dropped here,
       // which is one way the "agent can't see the uploaded image" race happened).
       if (this.isStreaming) {
-        if ((!content && atts.length === 0) || !this.conversationId || !this._conn) return
+        if ((!content && atts.length === 0) || !this.conversationId || !this._conn) return false
         this.messages.push({
           id: nid(), role: 'user', content, status: 'done', queued: true,
           attachments: atts.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url, mime: a.mime })),
@@ -894,21 +898,21 @@ export const useChatStore = defineStore('chat', {
           attachmentIds: steerIds,
           clientMessageId: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         })
-        return
+        return true
       }
 
       // No agents at all → don't silently swallow the message. Tell the user what to do.
       if (this.needsAgent) {
         this.error = 'Create an agent before sending a message.'
         notify.warning('Create an agent before you can chat — no agents exist yet.')
-        return
+        return false
       }
 
       // Start a conversation on the first message (or reuse one already created — e.g. by
       // ensureConversation() when the user added a link before typing).
       if (!this.conversationId) {
         const cid = await this.ensureConversation()
-        if (!cid) return
+        if (!cid) return false
       } else if (!this._conn) {
         this._connect()
       }
@@ -973,6 +977,7 @@ export const useChatStore = defineStore('chat', {
         attachmentIds,
         clientMessageId: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
+      return true
     },
 
     // Await a just-uploaded document through the MarkItDown pipeline. Resolves 'ready' | 'failed' |

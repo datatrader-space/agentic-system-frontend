@@ -198,3 +198,22 @@ describe('ChatComposer — send', () => {
     expect(w.emitted('send')[0]).toEqual(['hello world'])
   })
 })
+
+describe('a message that was not sent comes back', () => {
+  beforeEach(() => setActivePinia(createPinia()))
+
+  it('restoreDraft puts the unsent text back into an empty box', async () => {
+    const w = mountC()
+    w.vm.restoreDraft('Count the ADM issues')
+    await w.vm.$nextTick()
+    expect(w.find('textarea').element.value).toBe('Count the ADM issues')
+  })
+
+  it('never overwrites what the person has typed since', async () => {
+    const w = mountC()
+    await w.find('textarea').setValue('something new')
+    w.vm.restoreDraft('the old message')
+    await w.vm.$nextTick()
+    expect(w.find('textarea').element.value).toBe('something new')
+  })
+})
