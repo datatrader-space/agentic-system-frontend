@@ -152,7 +152,8 @@
                   class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl border shadow-sm shrink-0"
                   :style="{ backgroundColor: (provider.color || '#6366f1') + '15', borderColor: (provider.color || '#6366f1') + '30' }"
                 >
-                  {{ provider.icon || '🔗' }}
+                  <Icon v-if="isIconName(provider.icon)" :icon="provider.icon" class="w-7 h-7" />
+                  <template v-else>{{ provider.icon || '🔗' }}</template>
                 </div>
                 <div class="pt-0.5">
                   <div class="flex items-center gap-2">
@@ -581,7 +582,8 @@
                   class="w-8 h-8 rounded-lg flex items-center justify-center text-lg"
                   :style="{ backgroundColor: (scopePickerProvider?.color || '#6366f1') + '15' }"
                 >
-                  {{ scopePickerProvider?.icon || '🔗' }}
+                  <Icon v-if="isIconName(scopePickerProvider?.icon)" :icon="scopePickerProvider.icon" class="w-5 h-5" />
+                  <template v-else>{{ scopePickerProvider?.icon || '🔗' }}</template>
                 </div>
                 <h2 class="text-lg font-bold text-gray-900">Connect to {{ scopePickerProvider?.name }}</h2>
               </div>
@@ -662,7 +664,8 @@
                   class="provider-modal-icon"
                   :style="{ backgroundColor: (configureProvider?.color || '#6366f1') + '15' }"
                 >
-                  {{ configureProvider?.icon || '🔗' }}
+                  <Icon v-if="isIconName(configureProvider?.icon)" :icon="configureProvider.icon" class="w-6 h-6" />
+                  <template v-else>{{ configureProvider?.icon || '🔗' }}</template>
                 </div>
                 <div>
                   <h2>Configure {{ configureProvider?.name }}</h2>
@@ -734,11 +737,12 @@ import { isTrustedPopupMessage } from '@/utils/popupMessages'
 import { useRoute } from 'vue-router'
 import api from '../services/api'
 import CredentialManager from '../components/tools/CredentialManager.vue'
+import { Icon } from '@iconify/vue'
 import { confirm } from '@/composables/useConfirm'
 
 export default {
   name: 'Connections',
-  components: { CredentialManager },
+  components: { CredentialManager, Icon },
   setup() {
     const route = useRoute()
     const VALID_TABS = ['personal', 'organization', 'credentials']
@@ -759,6 +763,9 @@ export default {
     const actionLoading = ref(null)
     const toast = ref({ show: false, success: true, message: '' })
     const isAdmin = ref(false)
+    // A provider's icon is an emoji or an Iconify name ("logos:github-icon"); the name drawn as text spilled
+    // across the card title. Same test as ConnectorsPage.isIconify.
+    const isIconName = (icon) => typeof icon === 'string' && icon.includes(':')
 
     // Modal state
     const presets = ref([])
@@ -1216,7 +1223,7 @@ export default {
 
     return {
       credManagerRef, openAddCredential,
-      providers, orgData, loading, activeTab, actionLoading, toast, isAdmin,
+      providers, orgData, loading, activeTab, actionLoading, toast, isAdmin, isIconName,
       presets, selectedPreset, applyPreset,
       showModal, editingProvider, saving, form, availableScopes, defaultScopeSet, extraParamsInput,
       showScopePicker, scopePickerProvider, pickerScopes, allPickerSelected,
