@@ -76,7 +76,7 @@
 
     <!-- Body -->
     <div class="chat-body">
-      <ChatWelcome v-if="chat.isEmpty" @submit="onSend" />
+      <ChatWelcome v-if="chat.isEmpty" ref="welcomeRef" @submit="onSend" />
       <ChatMessageList v-else />
     </div>
 
@@ -219,6 +219,7 @@ watch(() => chat.isBusy, (busy, was) => {
 // the user types, so the card covered part of it (live test 2026-09-25, the "Connect GitHub" card).
 // Measured as "viewport bottom minus the composer's top edge", so everything under it is included.
 const composerRef = ref(null)
+const welcomeRef = ref(null)   // the new-chat screen's own message box
 let _composerRo = null
 function _publishComposerHeight() {
   const el = composerRef.value && (composerRef.value.$el || composerRef.value)
@@ -371,7 +372,7 @@ const onModeChange = (patch) => {
 // A message that was not sent goes back into the box: the composer clears itself on submit.
 const onSend = async (text) => {
   const sent = await chat.sendMessage(text)
-  if (sent === false) composerRef.value?.restoreDraft?.(text)
+  if (sent === false) (welcomeRef.value || composerRef.value)?.restoreDraft?.(text)
 }
 
 // Media gallery open state + attach handler (bind chosen existing media to the next message BY ID).

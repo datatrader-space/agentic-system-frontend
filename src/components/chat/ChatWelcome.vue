@@ -577,6 +577,16 @@ const onKeydown = (e) => {
   }
 }
 
+// Give back text that was not sent (the chat failed to start). This is the box of a NEW chat, which is
+// exactly where a start can fail: the live check of 52a14b2 restored only the thread's composer and this
+// one still lost the message. Never overwrites something typed since.
+const restoreDraft = (text) => {
+  if (draft.value.trim() || !text) return
+  draft.value = text
+  resizeSoon()
+}
+defineExpose({ restoreDraft })
+
 const submit = () => {
   // No agent yet → route to the genuine next setup step instead of sending into the void:
   // a provider (if no models exist) or agent creation.
