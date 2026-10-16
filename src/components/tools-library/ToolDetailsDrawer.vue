@@ -149,7 +149,7 @@ function goAgents() {
   router.push({ name: 'dashboard-agents' })
 }
 function goAgent(id) {
-  router.push({ name: 'dashboard-agent-editor', params: { id } })
+  router.push({ name: 'dashboard-agent-overview', params: { id } })
 }
 </script>
 

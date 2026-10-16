@@ -96,7 +96,7 @@
           <div class="flex items-center gap-3">
             <router-link
               v-if="mode !== 'monitoring'"
-              :to="`/dashboard/integrations/agents/${agent.id}`"
+              :to="`/integration-guide/${agent.id}`"
               target="_blank"
               rel="noopener"
               class="text-xs text-indigo-600 hover:text-indigo-800 font-medium"

@@ -7,11 +7,11 @@
   Styled with the Vibrant Light Mesh system (vm tokens · lucide icons · gradient accents).
 -->
 <template>
-  <Teleport to="body" :disabled="inline">
+  <Teleport to="body">
     <Transition name="di">
-      <div v-if="inline || modelValue" :class="inline ? 'di-inline' : 'di-overlay'">
-        <div v-if="!inline" class="di-backdrop" @click="close"></div>
-        <aside :class="inline ? 'di-panel di-panel-inline' : 'di-panel vm-scroll'">
+      <div v-if="modelValue" class="di-overlay">
+        <div class="di-backdrop" @click="close"></div>
+        <aside class="di-panel vm-scroll">
           <!-- header -->
           <header class="di-head">
             <div class="di-head-l">
@@ -27,17 +27,17 @@
                 <Icon :icon="busy ? 'lucide:loader-2' : 'lucide:upload-cloud'" :width="15" :class="busy && 'di-spin'" />
                 {{ busy ? 'Publishing…' : 'Publish Changes' }}
               </button>
-              <button v-if="!inline" class="di-close" @click="close" aria-label="Close"><Icon icon="lucide:x" :width="18" /></button>
+              <button class="di-close" @click="close" aria-label="Close"><Icon icon="lucide:x" :width="18" /></button>
             </div>
           </header>
 
           <div v-if="loading" class="di-loading"><span class="vm-skel" style="width:180px;height:14px"></span></div>
 
           <div v-else class="di-body">
-            <p v-if="!section" class="di-intro">Turn on any combination of the three channels below — each works on its own.</p>
+            <p class="di-intro">Turn on any combination of the three channels below — each works on its own.</p>
 
             <!-- ════════════ 1. LIVE CHAT (WebSocket) ════════════ -->
-            <section v-if="!section || section === 'websocket'" class="di-card" :class="{ 'is-on': wsOn }">
+            <section class="di-card" :class="{ 'is-on': wsOn }">
               <div class="di-card-head">
                 <span class="di-chip" :style="{ background: 'var(--vm-g-cool)' }"><Icon icon="lucide:messages-square" :width="20" /></span>
                 <div class="di-card-meta">
@@ -81,12 +81,12 @@
                   </div>
                 </div>
 
-                <GuideLink v-if="!inline" tab="websocket" />
+                <GuideLink tab="websocket" />
               </div>
             </section>
 
             <!-- ════════════ 2. WEBHOOK (async events) ════════════ -->
-            <section v-if="!section || section === 'webhook'" class="di-card" :class="{ 'is-on': webhookOn }">
+            <section class="di-card" :class="{ 'is-on': webhookOn }">
               <div class="di-card-head">
                 <span class="di-chip" :style="{ background: 'var(--vm-g-teal)' }"><Icon icon="lucide:webhook" :width="19" /></span>
                 <div class="di-card-meta">
@@ -125,12 +125,12 @@
                   <div v-if="showAdvanced" class="di-acc-body"><SignalPanel :agent="agent" mode="monitoring" /></div>
                 </div>
 
-                <GuideLink v-if="!inline" tab="webhook" />
+                <GuideLink tab="webhook" />
               </div>
             </section>
 
             <!-- ════════════ 3. PUBLIC WIDGET (embed) ════════════ -->
-            <section v-if="!section || section === 'widget'" class="di-card" :class="{ 'is-on': share.is_public }">
+            <section class="di-card" :class="{ 'is-on': share.is_public }">
               <div class="di-card-head">
                 <span class="di-chip" :style="{ background: 'var(--vm-g-warm)' }"><Icon icon="lucide:globe" :width="19" /></span>
                 <div class="di-card-meta">
@@ -204,7 +204,7 @@
 
                   <div class="di-actions">
                     <button class="di-btn grow" :disabled="busy" @click="saveSettings"><Icon icon="lucide:save" :width="14" /> {{ busy ? 'Saving…' : 'Save widget settings' }}</button>
-                    <GuideLink v-if="!inline" tab="widget" />
+                    <GuideLink tab="widget" />
                   </div>
                 </div>
 
@@ -234,10 +234,6 @@ import SignalPanel from '../SignalPanel.vue'
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   agent: { type: Object, default: null },
-  // inline: rendered as part of a page (the Integrations & Deploy page), not as a drawer.
-  inline: { type: Boolean, default: false },
-  // section: show one channel only ('websocket' | 'webhook' | 'widget'); '' shows all three.
-  section: { type: String, default: '' },
 })
 const emit = defineEmits(['update:modelValue'])
 const close = () => emit('update:modelValue', false)
@@ -291,7 +287,7 @@ const embedCode = computed(() => {
 
 // Guide link — small render fn (just a styled router-link with an icon).
 const GuideLink = (p) => h(RouterLink, {
-  to: `/dashboard/integrations/agents/${agentId.value}?tab=${p.tab}`,
+  to: `/dashboard/integration-guide/${agentId.value}?tab=${p.tab}`,
   target: '_blank', rel: 'noopener', class: 'di-guide',
 }, () => [h(Icon, { icon: 'lucide:book-open', width: 14 }), ' Integration guide', h(Icon, { icon: 'lucide:arrow-up-right', width: 13 })])
 GuideLink.props = ['tab']
@@ -368,13 +364,6 @@ async function toggleShare() {
     const res = share.value.is_public ? await api.disableAgentShare(agentId.value) : await api.enableAgentShare(agentId.value)
     if (share.value.is_public) { share.value = { ...share.value, is_public: false } }
     else { share.value = res.data; applySettings(share.value.share_settings); notify.success('Share link enabled') }
-    // Written onto the agent like the WebSocket and Webhook switches, so a page that shows this agent (the
-    // Integrations & Deploy guide below the settings) follows without a refresh.
-    if (props.agent) {
-      props.agent.is_public = !!share.value.is_public
-      if (share.value.public_share_token) props.agent.public_share_token = share.value.public_share_token
-      if (share.value.public_slug) props.agent.public_slug = share.value.public_slug
-    }
   } catch (e) { notify.error('Failed: ' + (e.response?.data?.error || e.message)) }
   finally { busy.value = false }
 }
@@ -412,8 +401,6 @@ async function regenerate() {
 function copy(text) { try { navigator.clipboard.writeText(text); notify.success('Copied') } catch (e) { /* noop */ } }
 
 watch(() => props.modelValue, (open) => { if (open) { testToken.value = ''; load() } })
-// On the Integrations & Deploy page the settings are part of the page, not a drawer: load as soon as the agent is known.
-watch(() => [props.inline, agentId.value], ([inline, id]) => { if (inline && id) load() }, { immediate: true })
 </script>
 
 <style scoped>
@@ -422,12 +409,6 @@ watch(() => [props.inline, agentId.value], ([inline, id]) => { if (inline && id)
 .di-backdrop { position: absolute; inset: 0; background: rgba(25, 20, 39, .34); backdrop-filter: blur(2px); }
 .di-panel { position: relative; margin-left: auto; height: 100%; width: 100%; max-width: 720px; background: var(--vm-bg);
   box-shadow: -24px 0 60px rgba(25,20,39,.18); display: flex; flex-direction: column; overflow-y: auto; }
-
-/* inline: part of the Integrations & Deploy page */
-.di-inline { font-family: var(--vm-font-sans); }
-.di-panel-inline { margin: 0; height: auto; max-width: none; box-shadow: none; overflow: visible;
-  border: 1px solid var(--vm-line-2); border-radius: 16px; }
-.di-panel-inline .di-head { position: static; border-radius: 16px 16px 0 0; }
 
 /* enter/leave */
 .di-enter-active, .di-leave-active { transition: opacity .22s var(--vm-ease2); }

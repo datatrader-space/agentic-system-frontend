@@ -24,6 +24,9 @@ vi.mock('vue-router', () => ({ useRoute: () => routeBox.route, useRouter: () => 
 import AgentLibrary from './AgentLibrary.vue'
 import AgentApprovalsPage from './AgentApprovalsPage.vue'
 import AgentMonitor from './AgentMonitor.vue'
+import AgentOverview from './AgentOverview.vue'
+import AgentSummaryCards from '../components/agent-overview/AgentSummaryCards.vue'
+import AgentActionsPreview from '../components/agent-overview/AgentActionsPreview.vue'
 
 const Link = { props: ['to'], template: '<a class="rl" :data-to="typeof to === \'string\' ? to : JSON.stringify(to)"><slot/></a>' }
 const OwnerFilter = { props: ['modelValue'], emits: ['update:modelValue'], template: '<div class="owner-stub" />' }
@@ -158,5 +161,27 @@ describe('AgentMonitor', () => {
     await flushPromises()
     await button(w, '← Agents').trigger('click')
     expect(router.push).toHaveBeenCalledWith('/dashboard/agents')
+  })
+})
+
+describe('overview links open real editor steps', () => {
+  const STEP_KEYS = ['identity', 'brain', 'tools', 'team', 'skills', 'credentials', 'autonomy', 'scope', 'final']
+  const stepsIn = (w) => w.findAll('a.rl').map(a => a.attributes('data-to'))
+    .map(to => (to.match(/[?&]step=([a-z_]+)/) || [])[1]).filter(Boolean)
+
+  it('AgentOverview sub-nav', async () => {
+    api.get.mockResolvedValue({ data: { id: 7, name: 'A' } })
+    const w = mount(AgentOverview, { global: { stubs: { ...stubs, AgentSummaryCards: true, AgentActionsPreview: true } } })
+    await flushPromises()
+    const steps = stepsIn(w)
+    expect(steps).toEqual(['final', 'brain', 'tools', 'tools', 'autonomy'])
+    for (const s of steps) expect(STEP_KEYS).toContain(s)
+  })
+
+  it('AgentSummaryCards and AgentActionsPreview', () => {
+    const cards = mount(AgentSummaryCards, { props: { agent: { id: 7 } }, global: { stubs } })
+    expect(stepsIn(cards)).toEqual(['tools', 'tools', 'credentials', 'autonomy'])
+    const actions = mount(AgentActionsPreview, { props: { agent: { id: 7 } }, global: { stubs } })
+    expect(stepsIn(actions)).toEqual(['tools'])
   })
 })

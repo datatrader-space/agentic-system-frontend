@@ -28,11 +28,6 @@
               <button v-if="agent.id" class="btn-secondary" :disabled="saving" @click="openChat">
                 <MessageCircle :size="15" :stroke-width="2" /> Chat
               </button>
-              <!-- WebSocket, Webhook and Widget: their switches, settings and guide (the old Overview's Deploy). -->
-              <button v-if="agent.id && agent.is_owner !== false && shellBase === '/dashboard'" class="btn-secondary"
-                      @click="go(`/dashboard/integrations/agents/${agent.id}`)">
-                <Plug :size="15" :stroke-width="2" /> Integrations &amp; Deploy
-              </button>
               <button v-if="agent.id" class="btn-secondary" :disabled="pausing" @click="togglePause">
                 <component :is="agent.is_paused ? Play : PauseIcon" :size="15" :stroke-width="2" />
                 {{ pausing ? '…' : (agent.is_paused ? 'Resume' : 'Pause') }}
@@ -107,7 +102,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChevronRight, ChevronDown, ArrowLeft, ArrowRight, Save, Play, Pause as PauseIcon, Rocket, Pencil, MoreHorizontal, MessageCircle, UploadCloud, Plug } from 'lucide-vue-next'
+import { ChevronRight, ChevronDown, ArrowLeft, ArrowRight, Save, Play, Pause as PauseIcon, Rocket, Pencil, MoreHorizontal, MessageCircle, UploadCloud } from 'lucide-vue-next'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import { changedFields, snapshot, withoutReadOnly, idListsFrom } from '../composables/agentDiff'
