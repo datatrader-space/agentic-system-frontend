@@ -17,8 +17,9 @@
             <div class="di-head-l">
               <span class="di-rocket"><Icon icon="lucide:rocket" :width="18" /></span>
               <div class="min-w-0">
-                <h2 class="di-title">Deploy &amp; Integrate</h2>
-                <p class="di-sub">Connect this agent to the outside world</p>
+                <!-- On the Integrations & Deploy page the page has the title: this box is that channel's settings. -->
+                <h2 class="di-title">{{ inline ? 'Settings' : 'Deploy & Integrate' }}</h2>
+                <p class="di-sub">{{ inline ? 'Saved here; Publish Changes makes them live' : 'Connect this agent to the outside world' }}</p>
               </div>
               <span v-if="anyLive" class="di-livepill"><span class="vm-orb is-live"></span> Live</span>
             </div>

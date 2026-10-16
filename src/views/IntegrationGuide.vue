@@ -103,7 +103,7 @@
       <!-- ════════════ WEBHOOK ════════════ -->
       <template v-else-if="tab === 'webhook'">
         <section>
-          <h2 class="text-lg font-semibold text-gray-900 mb-1">🪝 Push an event via Webhook</h2>
+          <h2 class="text-lg font-semibold text-gray-900 mb-1">🔗 Push an event via Webhook</h2>
           <p class="text-sm text-gray-600">Fire-and-forget for backend events — no live user waiting. Returns <code class="kbd">202</code> + a <code class="kbd">result_url</code> you poll for the reply &amp; usage.</p>
           <p class="text-sm text-gray-600 mt-1">Building a back-and-forth chat instead of one-off events? Add a stable <code class="kbd">flow_key</code> (below) so the agent keeps context — or use <b>WebSocket</b>, which is built for chat.</p>
         </section>
@@ -212,7 +212,7 @@ const router = useRouter()
 
 const tabs = [
   { id: 'websocket', label: 'WebSocket', icon: '💬' },
-  { id: 'webhook', label: 'Webhook', icon: '🪝' },
+  { id: 'webhook', label: 'Webhook', icon: '🔗' },
   { id: 'widget', label: 'Widget', icon: '🌐' },
 ]
 const validTabs = tabs.map(t => t.id)
