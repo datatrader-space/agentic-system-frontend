@@ -381,7 +381,7 @@ const openWorkspace = (agent) => {
 
 const openIntegrationGuide = (agent) => {
     openMenuId.value = null;
-    window.open(`/integration-guide/${agent.id}`, '_blank', 'noopener');
+    window.open(`/dashboard/integrations/agents/${agent.id}`, '_blank', 'noopener');
 };
 
 const duplicateAgent = async (agent) => {

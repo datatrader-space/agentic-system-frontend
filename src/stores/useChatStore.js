@@ -231,6 +231,8 @@ export const useChatStore = defineStore('chat', {
     _conn: null,
     _assistantId: null,
     _planResumeSentAt: 0,   // when this page last sent the turn that carries out an approved plan
+    newChatProjectId: null, // the project a NEW chat is started in (?project= on /dashboard/chat/new)
+    conversationProjectId: null, // the project the OPEN chat is filed in (null: none)
     // setInterval handle for the resumed-turn progress poll (see _startProgressPolling).
     _progressTimer: null,
     //: When a frame last arrived from the server, and the watchdog that notices when they stop.
@@ -586,6 +588,8 @@ export const useChatStore = defineStore('chat', {
       this.messagesTotal = 0
       this.pendingPlan = null
       this.fullDocCostGate = null
+      this.newChatProjectId = null
+      this.conversationProjectId = null
       this._clearAttachments()
       this._conn?.setConversation(null)
     },
@@ -714,6 +718,7 @@ export const useChatStore = defineStore('chat', {
       try {
         const res = await api.getConversation(id)
         const data = res.data || {}
+        this.conversationProjectId = data.project ?? null
         this.messages = pickArray(data.messages).map((m) => this._mapServerMessage(m, id))
         // Message windowing: the server returns the most recent page (see ChatConversationSerializer)
         // and reports whether older ones exist. loadOlderMessages() walks backwards from the oldest
@@ -789,11 +794,12 @@ export const useChatStore = defineStore('chat', {
         return null
       }
       try {
-        const res = await api.startAgentChat(this.selectedAgentId)
+        const res = await api.startAgentChat(this.selectedAgentId, null, this.newChatProjectId)
         const d = res.data || {}
         this.conversationId = String(d.conversation_id ?? d.profile_id ?? '')
         this.repoId = d.repository_id || 0
         if (!this.conversationId) throw new Error('no conversation id')
+        this.conversationProjectId = d.project_id ?? this.newChatProjectId ?? null
         this._connect()
         this.loadSessions(true)      // force-refresh this agent's history so the new chat shows up
         this.loadAllSessions(true)   // force-refresh the global recent-chats list + search

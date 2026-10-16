@@ -780,6 +780,18 @@ export default {
   // `before` is an EXCLUSIVE message id (cursor, not an offset — safe while messages are appended).
   getConversationMessages: (id, params) => api.get(`/conversations/${id}/messages/`, { params }),
   createConversation: (data) => api.post('/conversations/', data),
+  updateConversation: (id, data) => api.patch(`/conversations/${id}/`, data),
+  deleteConversation: (id) => api.delete(`/conversations/${id}/`),
+  // File a chat in a project, or take it out (projectId null). Ownership is checked server-side.
+  moveConversation: (id, projectId) => api.post(`/conversations/${id}/move/`, { project: projectId }),
+
+  // ── Chat projects: folders of chats, private to their owner (CHAT_PROJECTS_PLAN.md) ──
+  getChatProjects: () => api.get('/chat-projects/'),
+  createChatProject: (data) => api.post('/chat-projects/', data),
+  updateChatProject: (id, data) => api.patch(`/chat-projects/${id}/`, data),
+  // deleteChats=false moves the project's chats back to recent chats (the default).
+  deleteChatProject: (id, deleteChats = false) =>
+    api.delete(`/chat-projects/${id}/`, { params: deleteChats ? { delete_chats: 1 } : {} }),
 
   // ── Conversation sharing (ChatGPT-style links) ──────────────────────────────────────────
   // Owner surface. Creating a link FREEZES a snapshot — messages sent afterwards stay private
@@ -1026,9 +1038,11 @@ export default {
     api.post(`/workflow-graph-runs/${runId}/control/`, { action, ...payload }),
 
   // Agent Chat
-  startAgentChat: (agentProfileId, repositoryId = null) => {
+  startAgentChat: (agentProfileId, repositoryId = null, projectId = null) => {
     const payload = {};
     if (repositoryId) payload.repository_id = repositoryId;
+    // A new chat started inside one of the person's projects.
+    if (projectId) payload.project_id = projectId;
     return api.post(`/agents/${agentProfileId}/chat/`, payload);
   },
 

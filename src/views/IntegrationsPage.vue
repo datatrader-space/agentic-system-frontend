@@ -11,6 +11,9 @@
         </div>
       </header>
 
+      <!-- ══ Your agents in your app, backend or website ══ -->
+      <AgentIntegrationsList class="mb-6" />
+
       <!-- ══ AADML as an MCP server ═══════════════════════════════════════════════════════════════ -->
       <section class="rounded-[10px] border border-[#DDE6F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <!-- Section header -->
@@ -268,6 +271,7 @@ import { computed, onMounted, ref } from 'vue'
 import { Copy, Info, Plug, RefreshCw } from 'lucide-vue-next'
 
 import api from '../services/api'
+import AgentIntegrationsList from '../components/integrations/AgentIntegrationsList.vue'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 

@@ -68,3 +68,45 @@ describe('DeploySettings access key', () => {
     expect(agent.signal_api_key).toBe('sk-signal-live')
   })
 })
+
+// On the Integrations & Deploy page the settings are part of the page (owner, 2026-10-16): no drawer to open,
+// one channel per tab, and the widget switch updates the agent the page shows.
+describe('DeploySettings inline', () => {
+  const mountInline = async (agent, section, share = { is_public: false }) => {
+    api.getAgentShare.mockResolvedValue({ data: share })
+    const w = mount(DeploySettings, {
+      props: { inline: true, section, agent },
+      global: { stubs: { Teleport: true, Transition: false, Icon: true, SignalPanel: true } },
+    })
+    await flushPromises()
+    return w
+  }
+
+  it('loads at once and shows only the channel of its tab, with no close button', async () => {
+    const agent = reactive({ id: 9, ws_chat_enabled: true, signal_enabled: true, signal_api_key: 'sk' })
+    const w = await mountInline(agent, 'webhook')
+    expect(api.getAgentShare).toHaveBeenCalledWith(9)
+    expect(w.find('.di-overlay').exists()).toBe(false)
+    expect(w.find('.di-backdrop').exists()).toBe(false)
+    expect(w.find('.di-close').exists()).toBe(false)
+    const titles = w.findAll('.di-card-title').map(t => t.text())
+    expect(titles).toHaveLength(1)
+    expect(titles[0]).toContain('Webhook')
+    expect(w.find('.di-guide').exists()).toBe(false)       // the guide is the page itself
+
+    await w.setProps({ section: 'widget' })
+    expect(w.findAll('.di-card-title').map(t => t.text())[0]).toContain('Public Widget')
+  })
+
+  it('turning the widget on is written onto the agent the page shows', async () => {
+    api.enableAgentShare = vi.fn().mockResolvedValue({ data: { is_public: true, public_share_token: 'tok9', public_slug: 'nine', share_settings: {} } })
+    const agent = reactive({ id: 9, is_public: false })
+    const w = await mountInline(agent, 'widget')
+    await w.find('.di-toggle').trigger('click')
+    await flushPromises()
+    expect(api.enableAgentShare).toHaveBeenCalledWith(9)
+    expect(agent.is_public).toBe(true)
+    expect(agent.public_share_token).toBe('tok9')
+    expect(agent.public_slug).toBe('nine')
+  })
+})

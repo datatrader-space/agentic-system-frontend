@@ -62,6 +62,24 @@
                 <span class="mi-sub">Reuse this chat's images &amp; files</span>
               </span>
             </button>
+            <!-- File this chat in a project, or take it out (agentic-docs/CHAT_PROJECTS_PLAN.md). -->
+            <button role="menuitem" data-test="move-to-project" :disabled="!chat.conversationId"
+                    :title="chat.conversationId ? '' : 'Send a message first to start the chat'"
+                    @click="toggleMovePicker">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.7.9l.8 1.2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+              <span class="mi-text">
+                Move to project
+                <span class="mi-sub">{{ currentProjectName ? `In ${currentProjectName}` : 'File this chat in a project' }}</span>
+              </span>
+            </button>
+            <div v-if="movePickerOpen" class="move-picker" role="group" aria-label="Projects">
+              <button v-for="p in projects.projects" :key="p.id" role="menuitem" :data-test="`header-move-${p.id}`"
+                      :disabled="String(p.id) === String(chat.conversationProjectId)" @click="moveTo(p.id)">
+                {{ p.name }}
+              </button>
+              <button v-if="chat.conversationProjectId" role="menuitem" @click="moveTo(null)">Remove from project</button>
+              <span v-if="!projects.projects.length" class="move-empty">Create a project in the sidebar first.</span>
+            </div>
           </div>
         </div>
       </div>
@@ -172,6 +190,7 @@
 <script setup>
 import { computed, watch, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useProjectsStore } from '../../stores/useProjectsStore'
 import { useChatStore } from '../../stores/useChatStore'
 import api from '../../services/api'
 import { useCanvasStore } from '../../stores/useCanvasStore'
@@ -279,6 +298,26 @@ const workspaceAgent = computed(
 
 // Header overflow ("…") menu → Artifacts, which opens the right dock's Artifacts tab.
 const moreOpen = ref(false)
+
+// "Move to project" in the header menu: the one place to file an existing chat in a project.
+const projects = useProjectsStore()
+const movePickerOpen = ref(false)
+const currentProjectName = computed(() => {
+  const p = chat.conversationProjectId ? projects.byId(chat.conversationProjectId) : null
+  return p ? p.name : ''
+})
+const toggleMovePicker = async () => {
+  movePickerOpen.value = !movePickerOpen.value
+  if (movePickerOpen.value && !projects.loaded) await projects.load()
+}
+const moveTo = async (projectId) => {
+  const from = chat.conversationProjectId
+  const ok = await projects.moveChat(chat.conversationId, projectId, from)
+  if (ok) chat.conversationProjectId = projectId
+  movePickerOpen.value = false
+  moreOpen.value = false
+}
+watch(moreOpen, (open) => { if (!open) movePickerOpen.value = false })
 function openArtifacts() {
   moreOpen.value = false
   artifacts.openPanel(chat.conversationId)
@@ -435,6 +474,8 @@ async function _selectAgentById(id) {
 }
 
 async function _startNewChat() {
+  // A new chat inside a project (sidebar "New chat in this project"): the project rides in the URL.
+  chat.newChatProjectId = route.query.project || null
   const qAgent = route.query.agent
   if (qAgent && await _selectAgentById(qAgent)) return
   // No agent in the URL → the chat belongs to the Platform Super Agent (the product default).
@@ -478,6 +519,12 @@ watch(
     if (String(a) === String(chat.selectedAgentId)) return
     _selectAgentById(a)
   }
+)
+
+// "New chat in this project" while already on /dashboard/chat/new: only ?project changes.
+watch(
+  () => route.query.project,
+  (p) => { if (!route.params.sessionId) chat.newChatProjectId = p || null }
 )
 
 // Keep the Artifacts panel pointed at the open conversation. Artifacts are conversation-scoped, so
@@ -652,6 +699,11 @@ watch(
 .more-wrap { position: relative; display: inline-flex; }
 /* Unread marker on the "…" button: artifacts produced while the panel was closed. */
 .more-dot { position: absolute; top: 2px; right: 2px; width: 8px; height: 8px; border-radius: 9999px; background: var(--vm-violet-d, #4f46e5); box-shadow: 0 0 0 2px var(--vm-surface, #fff); pointer-events: none; }
+.move-picker { display: flex; flex-direction: column; margin: 0 6px 6px 34px; padding-left: 8px; border-left: 2px solid var(--vm-line); }
+.move-picker button { border: 0; background: transparent; text-align: left; padding: 6px 10px; border-radius: 8px; font: 500 12.5px var(--vm-font-sans); color: var(--vm-ink); cursor: pointer; }
+.move-picker button:hover:not(:disabled) { background: var(--vm-glass-strong); }
+.move-picker button:disabled { color: var(--vm-ink-faint, #8a8fa3); cursor: default; }
+.move-empty { padding: 6px 10px; font-size: 12px; color: var(--vm-ink-faint, #8a8fa3); }
 .more-menu {
   position: absolute;
   top: calc(100% + 6px);

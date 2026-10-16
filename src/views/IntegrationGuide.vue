@@ -4,11 +4,10 @@
     <div class="bg-white border-b border-gray-200 sticky top-0 z-10">
       <div class="max-w-4xl mx-auto px-6 pt-4 flex items-center justify-between">
         <div>
-          <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2"><span>🔌</span> Integration Guide</h1>
-          <p class="text-sm text-gray-500 mt-0.5">Use <span class="font-medium text-gray-700">{{ agentName }}</span> from another project</p>
+          <h1 class="text-xl font-bold text-gray-900 flex items-center gap-2"><span>🔌</span> Integrations &amp; Deploy</h1>
+          <p class="text-sm text-gray-500 mt-0.5">Turn on and set up how <span class="font-medium text-gray-700">{{ agentName }}</span> is used outside AADML, with the guide for each channel</p>
         </div>
         <div class="flex items-center gap-4">
-          <button v-if="canManage" @click="showDeploy = true" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">Deploy settings</button>
           <button @click="goBack" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">&larr; Back</button>
         </div>
       </div>
@@ -24,6 +23,11 @@
     </div>
 
     <div class="max-w-4xl mx-auto px-6 py-8 space-y-10">
+
+      <!-- The channel's switch and settings, on the page (they were a drawer behind a "Deploy settings" button). -->
+      <DeploySettings v-if="canManage" inline :section="tab" :agent="agent" />
+      <!-- Where the guide starts: the "Guide" link on Integrations opens the page here. -->
+      <div id="guide" class="scroll-mt-32"></div>
 
       <!-- ════════════ WEBSOCKET ════════════ -->
       <template v-if="tab === 'websocket'">
@@ -53,7 +57,7 @@
               <p v-if="!hasKey" class="text-xs text-amber-600 mt-1">{{ canManage ? 'No key yet — generate one to connect.' : 'No key yet — the agent\'s owner generates it.' }}</p>
             </div>
           </div>
-          <p v-if="agent && agent.ws_chat_enabled === false" class="text-xs text-amber-600 mt-2">Live Chat is off for this agent, so token connections are refused. Turn it on in <b>Deploy settings</b>.</p>
+          <p v-if="agent && agent.ws_chat_enabled === false" class="text-xs text-amber-600 mt-2">Live Chat is off for this agent, so token connections are refused. Turn it on above.</p>
         </section>
 
         <section>
@@ -118,14 +122,14 @@
               <p v-if="!hasKey" class="text-xs text-amber-600 mt-1">{{ canManage ? 'No key yet — generate one to connect.' : 'No key yet — the agent\'s owner generates it.' }}</p>
             </div>
           </div>
-          <p v-if="agent && !agent.signal_enabled" class="text-xs text-amber-600 mt-2">Webhook is off for this agent, so the URL answers <code class="kbd">403</code>. Turn it on in <b>Deploy settings</b>.</p>
+          <p v-if="agent && !agent.signal_enabled" class="text-xs text-amber-600 mt-2">Webhook is off for this agent, so the URL answers <code class="kbd">403</code>. Turn it on above.</p>
         </section>
 
         <section>
           <h2 class="text-base font-semibold text-gray-900 mb-2">Authentication</h2>
           <ul class="text-sm text-gray-700 space-y-1 list-disc pl-5">
             <li>Header <code class="kbd">Authorization: Bearer &lt;API_KEY&gt;</code>, <b>or</b></li>
-            <li>HMAC <code class="kbd">X-Signature: sha256=&lt;hex&gt;</code> with <code class="kbd">X-Signature-Timestamp: &lt;unix seconds&gt;</code>. The HMAC-SHA256 covers <code class="kbd">&lt;timestamp&gt;.&lt;raw body&gt;</code>; a timestamp more than 5 minutes old, or a repeated signature, is refused (set the HMAC secret in Deploy settings → Webhook → Advanced).</li>
+            <li>HMAC <code class="kbd">X-Signature: sha256=&lt;hex&gt;</code> with <code class="kbd">X-Signature-Timestamp: &lt;unix seconds&gt;</code>. The HMAC-SHA256 covers <code class="kbd">&lt;timestamp&gt;.&lt;raw body&gt;</code>; a timestamp more than 5 minutes old, or a repeated signature, is refused (set the HMAC secret in Webhook → Advanced, above).</li>
           </ul>
         </section>
 
@@ -158,12 +162,11 @@
       <template v-else>
         <section>
           <h2 class="text-lg font-semibold text-gray-900 mb-1">🌐 Embeddable widget</h2>
-          <p class="text-sm text-gray-600">A drop-in chat bubble for a public website — anonymous visitors, no login. Enable the <b>Public Widget</b> in Deploy settings first.</p>
+          <p class="text-sm text-gray-600">A drop-in chat bubble for a public website — anonymous visitors, no login. Turn on <b>Public Widget</b> above first.</p>
         </section>
 
         <section v-if="!shareToken" class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
-          The public share link isn't enabled yet. Turn on <b>Public Widget</b> in Deploy settings to see your embed code.
-          <button v-if="canManage" @click="showDeploy = true" class="ml-1 font-semibold underline">Open Deploy settings</button>
+          The public share link isn't enabled yet. Turn on <b>Public Widget</b> above to see your embed code.
         </section>
 
         <template v-else>
@@ -184,8 +187,8 @@
             <h2 class="text-base font-semibold text-gray-900 mb-2">Good to know</h2>
             <ul class="text-sm text-gray-700 space-y-1 list-disc pl-5">
               <li>Public chat runs with guardrails (rate-limited, destructive tools blocked) and only serves the <b>published</b> snapshot.</li>
-              <li>Appearance (name, greeting, color, launcher, proactive message) is configured in Deploy settings → Public Widget.</li>
-              <li>Regenerating the link in Deploy settings revokes the old one immediately.</li>
+              <li>Appearance (name, greeting, color, launcher, proactive message) is set in Public Widget, above.</li>
+              <li>Regenerating the link revokes the old one immediately.</li>
             </ul>
           </section>
         </template>
@@ -193,17 +196,16 @@
 
     </div>
 
-    <!-- The channel switches, key rotation and widget appearance live here. -->
-    <DeploySettings v-if="canManage" :agent="agent" v-model="showDeploy" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, h } from 'vue'
+import { ref, computed, onMounted, nextTick, h } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import DeploySettings from '../components/agent/DeploySettings.vue'
+import { setBreadcrumbLabel } from '@/composables/useBreadcrumbs'
 
 const route = useRoute()
 const router = useRouter()
@@ -221,18 +223,19 @@ function setTab(id) {
 }
 
 const agentId = computed(() => route.params.agentId || '<AGENT_ID>')
-// The agent as the server returned it. Deploy settings writes a new key straight onto this object,
+// The agent as the server returned it. The settings above write a new key straight onto this object,
 // so everything below is derived from it and the page follows without a refresh.
 const agent = ref(null)
 const canManage = computed(() => !!agent.value && agent.value.is_owner !== false)
 const agentName = computed(() => agent.value?.name || 'this agent')
+// Integrations › <agent name>
+setBreadcrumbLabel(() => agent.value?.name)
 const apiKey = computed(() => agent.value?.signal_api_key || '<YOUR_API_KEY>')
 const hasKey = computed(() => !!agent.value?.signal_api_key)
 // The token outlives a switched-off widget (only `is_public` flips), so the switch decides.
 const shareToken = computed(() => (agent.value?.is_public ? agent.value.public_share_token || '' : ''))
 const publicSlug = computed(() => agent.value?.public_slug || '')
 const copied = ref('')
-const showDeploy = ref(false)
 const generatingKey = ref(false)
 
 const publicOrigin = window.location.origin
@@ -333,7 +336,7 @@ async function copy(text, id) {
 
 function goBack() {
   if (window.history.length > 1) router.back()
-  else router.push('/dashboard/agents')
+  else router.push('/dashboard/integrations')
 }
 
 async function loadAgent() {
@@ -356,9 +359,10 @@ async function generateKey() {
   finally { generatingKey.value = false }
 }
 
-onMounted(loadAgent)
-// The widget switch and link are saved by the panel, not written onto `agent` — re-read on close.
-watch(showDeploy, (open) => { if (!open) loadAgent() })
+onMounted(async () => {
+  await loadAgent()
+  if (route.hash === '#guide') { await nextTick(); document.getElementById('guide')?.scrollIntoView({ block: 'start' }) }
+})
 
 // Inline helpers: copy-able URL row + code block.
 const UrlRow = (p, { emit }) => h('div', { class: p.class }, [

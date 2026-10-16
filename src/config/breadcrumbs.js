@@ -23,13 +23,13 @@ export default {
   'dashboard-home': { label: 'Home' },
 
   'dashboard-agents': { label: 'Agents', parent: 'dashboard-home' },
-  'dashboard-agent-overview': { label: 'Agent', parent: 'dashboard-agents', dynamic: true },
 
   'dashboard-tools': { label: 'Tools', parent: 'dashboard-home' },
   'dashboard-connectors': { label: 'Connectors', parent: 'dashboard-home' },
   'dashboard-connections': { label: 'Connections', parent: 'dashboard-home' },
   'dashboard-connection-docs': { label: 'Connection docs', parent: 'dashboard-connections' },
-  'dashboard-integration-guide': { label: 'Integration guide', parent: 'dashboard-home' },
+  'dashboard-integrations': { label: 'Integrations', parent: 'dashboard-home' },
+  'dashboard-integrations-agent': { label: 'Agent', parent: 'dashboard-integrations', dynamic: true },
 
   'dashboard-workflow-builder': { label: 'Workflows', parent: 'dashboard-home' },
   'dashboard-workflow-canvas': { label: 'Canvas', parent: 'dashboard-workflow-builder' },

@@ -23,14 +23,16 @@
     <!-- Scrollable nav -->
     <div class="sidebar-scroll">
       <nav class="nav-group" aria-label="Primary">
-        <SidebarNavItem
-          v-for="(item, i) in visibleNav"
-          :key="item.to"
-          v-bind="item"
-          :index="i"
-          :collapsed="collapsed"
-          @toggle="toggleNavGroup(item)"
-        />
+        <template v-for="(item, i) in visibleNav" :key="item.to">
+          <SidebarNavItem
+            v-bind="item"
+            :index="i"
+            :collapsed="collapsed"
+            @toggle="toggleNavGroup(item)"
+          />
+          <!-- Projects, right after Home (agentic-docs/CHAT_PROJECTS_PLAN.md; owner, 2026-10-16) -->
+          <SidebarProjects v-if="item.to === '/dashboard'" :collapsed="collapsed" />
+        </template>
       </nav>
 
       <!-- Recent chats — global across agents: preview line + agent · time,
@@ -75,6 +77,7 @@ import BrandMark from '../common/BrandMark.vue'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { useChatStore } from '../../stores/useChatStore'
 import SidebarNavItem from './SidebarNavItem.vue'
+import SidebarProjects from './SidebarProjects.vue'
 import NotificationBell from './NotificationBell.vue'
 import WorkspaceSwitcher from '../layout/WorkspaceSwitcher.vue'
 import { useOnboarding } from '../../composables/useOnboarding'
