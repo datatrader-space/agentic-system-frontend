@@ -359,7 +359,6 @@ const PROVIDER_ICONS = Object.freeze({
   openrouter: 'simple-icons:openrouter',
   ollama: 'simple-icons:ollama',
   xai: 'simple-icons:xai',
-  cloudinary: 'logos:cloudinary-icon',
   custom: 'lucide:server-cog',
 })
 

@@ -133,7 +133,7 @@ const emit = defineEmits(['switched'])
 
 const PROVIDER_NAMES = {
   openrouter: 'OpenRouter', openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Google Gemini',
-  xai: 'xAI (Grok)', ollama: 'Ollama', custom: 'Custom', cloudinary: 'Cloudinary',
+  xai: 'xAI (Grok)', ollama: 'Ollama', custom: 'Custom',
 }
 const providerLabel = (t) => PROVIDER_NAMES[t] || t || 'no provider'
 
