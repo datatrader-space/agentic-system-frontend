@@ -787,6 +787,7 @@ export default {
 
   // ── Chat projects: folders of chats, private to their owner (CHAT_PROJECTS_PLAN.md) ──
   getChatProjects: () => api.get('/chat-projects/'),
+  getChatProject: (id) => api.get(`/chat-projects/${id}/`),
   createChatProject: (data) => api.post('/chat-projects/', data),
   updateChatProject: (id, data) => api.patch(`/chat-projects/${id}/`, data),
   // deleteChats=false moves the project's chats back to recent chats (the default).

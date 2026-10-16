@@ -248,6 +248,8 @@ const router = createRouter({
         { path: 'chat', redirect: '/dashboard/chat/new' },
         { path: 'chat/new', name: 'dashboard-chat-new', component: ChatWorkspace },
         { path: 'chat/:sessionId', name: 'dashboard-chat', component: ChatWorkspace },
+        // A chat project's own page: its instructions and its chats (agentic-docs/CHAT_PROJECTS_PLAN.md).
+        { path: 'projects/:id', name: 'dashboard-project', component: () => import('./views/ProjectPage.vue') },
         { path: 'lets-code', name: 'dashboard-lets-code', component: LetsCode },
         { path: 'systems', redirect: '/dashboard/lets-code' },
         // Legacy pages re-housed inside the shell so navigation never leaves it.

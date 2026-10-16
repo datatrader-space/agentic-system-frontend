@@ -54,6 +54,7 @@
           </div>
 
           <div v-if="menu === `p${p.id}`" class="sp-menu" role="menu" @click.stop>
+            <button type="button" role="menuitem" data-test="open-project" @click="openProject(p)">Open project</button>
             <button type="button" role="menuitem" @click="newChatIn(p)">New chat in this project</button>
             <button type="button" role="menuitem" @click="startRenameProject(p)">Rename</button>
             <button type="button" role="menuitem" class="danger" @click="askDelete(p)">Delete</button>
@@ -180,6 +181,13 @@ const confirmDelete = async () => {
   if (!d) return
   if (openId.value === d.id) openId.value = null
   await projects.remove(d.id, !!d.withChats)
+}
+
+// The project's own page: its instructions and all its chats.
+const openProject = (p) => {
+  closeMenus()
+  layout.closeMobileNav?.()
+  router.push(`/dashboard/projects/${p.id}`)
 }
 
 const openChat = (id) => {
