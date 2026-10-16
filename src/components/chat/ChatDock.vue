@@ -13,6 +13,8 @@
               :class="{ on: tab === 'canvas' }" @click="select('canvas')">Canvas</button>
       <button v-if="browserAvailable" class="dock-tab" role="tab" :aria-selected="tab === 'browser'"
               :class="{ on: tab === 'browser' }" data-test="dock-tab-browser" @click="select('browser')">Browser</button>
+      <button v-if="videoAvailable" class="dock-tab" role="tab" :aria-selected="tab === 'video'"
+              :class="{ on: tab === 'video' }" data-test="dock-tab-video" @click="select('video')">Video</button>
       <button class="dock-tab" role="tab" :aria-selected="tab === 'artifacts'"
               :class="{ on: tab === 'artifacts' }" @click="select('artifacts')">
         Artifacts
@@ -38,6 +40,7 @@
            browser stops streaming to nobody. `active` pauses the stream while another tab is on top. -->
       <BrowserPanel v-if="browserAvailable" v-show="tab === 'browser'" :active="tab === 'browser'" class="dock-pane" />
       <ArtifactsPanel v-show="tab === 'artifacts'" class="dock-pane" />
+      <VideoPanel v-if="videoAvailable" v-show="tab === 'video'" class="dock-pane" />
     </div>
    </div>
   </section>
@@ -48,16 +51,20 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import CanvasShell from '../canvas/CanvasShell.vue'
 import ArtifactsPanel from '../artifacts/ArtifactsPanel.vue'
 import BrowserPanel from '../browser/BrowserPanel.vue'
+import VideoPanel from '../video/VideoPanel.vue'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import { useArtifactsStore } from '../../stores/useArtifactsStore'
 import { useBrowserStore } from '../../stores/useBrowserStore'
+import { useVideoStore } from '../../stores/useVideoStore'
 
 const canvas = useCanvasStore()
 const artifacts = useArtifactsStore()
 const browser = useBrowserStore()
+const video = useVideoStore()
 
 const canvasAvailable = computed(() => canvas.open && canvas.hasCanvas)
 const browserAvailable = computed(() => browser.open && browser.hasSession)
+const videoAvailable = computed(() => video.panelOpen)
 
 // Which pane is on top. Whichever surface the user (or the agent) most recently opened wins. A pane that
 // is wanted but no longer there falls to one that is; with neither a canvas nor a browser the dock can
@@ -66,9 +73,11 @@ const _tab = ref('canvas')
 const tab = computed(() => {
   if (_tab.value === 'canvas' && canvasAvailable.value) return 'canvas'
   if (_tab.value === 'browser' && browserAvailable.value) return 'browser'
+  if (_tab.value === 'video' && videoAvailable.value) return 'video'
   if (_tab.value === 'artifacts') return 'artifacts'
   if (canvasAvailable.value) return 'canvas'
   if (browserAvailable.value) return 'browser'
+  if (videoAvailable.value) return 'video'
   return 'artifacts'
 })
 
@@ -96,15 +105,19 @@ function select(t) {
 watch(canvasAvailable, (on) => { if (on) _tab.value = 'canvas' })
 watch(() => artifacts.open, (on) => { if (on) { _tab.value = 'artifacts'; artifacts.unseen = 0 } })
 watch(browserAvailable, (on) => { if (on) _tab.value = 'browser' }, { immediate: true })
+// Opening the Video panel (a finished render, "Open in Video panel", a project) brings it forward.
+watch(() => [video.panelOpen, video.panelTab], ([on]) => { if (on) _tab.value = 'video' })
 
 // Close the pane that is showing, then show whichever other one is still open.
 function closeDock() {
   const closing = tab.value
   if (closing === 'artifacts') artifacts.closePanel()
   else if (closing === 'browser') browser.close()
+  else if (closing === 'video') video.closePanel()
   else canvas.close()
   if (closing !== 'canvas' && canvasAvailable.value) _tab.value = 'canvas'
   else if (closing !== 'browser' && browserAvailable.value) _tab.value = 'browser'
+  else if (closing !== 'video' && videoAvailable.value) _tab.value = 'video'
   else if (closing !== 'artifacts' && artifacts.open) _tab.value = 'artifacts'
 }
 </script>

@@ -451,7 +451,7 @@ const CAPS = [
   // Audio TRANSCRIPTION (speech-to-text) — distinct from Audio generation (text-to-speech) below.
   { field: 'audio_transcription_model', label: 'Audio transcription', capability: 'can_transcribe_audio', hint: 'Used to convert uploaded audio/video speech into text for document indexing. Not the same as Audio generation.' },
   { field: 'audio_model', label: 'Audio generation', capability: 'can_generate_audio', hint: 'Text-to-speech output. Not used for transcribing uploaded audio.' },
-  { field: 'video_model', label: 'Video generation', capability: 'can_generate_video', hint: 'Text-to-video and image-to-video. Powers both GENERATE_VIDEO and IMAGE_TO_VIDEO, and the video pipeline.' },
+  { field: 'video_model', label: 'Video generation', capability: 'can_generate_video', hint: 'Makes and edits video: new clips from text, images and references, edits, continuations and story projects (Video mode).' },
 ]
 
 // EVERY capability picker offers EVERY model, exactly like the Main model picker.

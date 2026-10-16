@@ -99,6 +99,8 @@
            two iterations nothing is streaming at all while the backend verifies the goal and dispatches
            the next segment. Binding the Stop button to the bubble made it vanish mid-run and come back
            moments later, which read as the run finishing and then restarting. -->
+      <!-- Video jobs of this chat: estimates waiting for Generate, renders in flight (Video mode). -->
+      <VideoJobsTray :conversation-id="chat.conversationId" />
       <ChatComposer ref="composerRef" :streaming="chat.isBusy" :attachments="chat.pendingAttachments"
         :agent-id="chat.selectedAgentId"
         :conversation-id="chat.conversationId"
@@ -190,9 +192,27 @@ import MediaGallery from './MediaGallery.vue'
 import ShareModal from './ShareModal.vue'
 import AgentWorkspacePanel from '../AgentWorkspacePanel.vue'
 import ChatDock from './ChatDock.vue'
+import VideoJobsTray from '../video/VideoJobsTray.vue'
+import { useVideoStore } from '../../stores/useVideoStore'
 import { fmtTokens, fmtCost } from '../../composables/tokens'
 
 const chat = useChatStore()
+const video = useVideoStore()
+// Video mode state follows the conversation: its jobs and the project it has open come from the server,
+// so a reload or a later visit shows the same estimates, renders and storyboard.
+watch(() => chat.conversationId, async (cid, prev) => {
+  if (String(cid || '') === String(prev || '')) return
+  video.reset()
+  if (cid) {
+    await video.loadJobs(cid)
+    const p = await video.loadProject(cid)
+    if (p) video.openPanel()
+  }
+}, { immediate: true })
+// After a turn, the assistant may have planned or changed the project: show the current records.
+watch(() => chat.isBusy, (busy, was) => {
+  if (was && !busy && chat.conversationId && (video.mode || video.project)) video.loadProject(chat.conversationId)
+})
 
 // WHERE THE COMPOSER STARTS, as a CSS variable the docked approval / sign-in card positions itself by.
 // The card used a fixed 104px gap, but the composer (input, controls, hint line) is ~150px and grows as
@@ -278,7 +298,7 @@ function closeMoreOnEsc(e) { if (e.key === 'Escape') moreOpen.value = false }
 // ── Canvas side panel (resizable) ────────────────────────────────────────────────────────────────
 const canvasOpen = computed(() => canvas.open && canvas.hasCanvas)
 const browserOpen = computed(() => browser.open && browser.hasSession)
-const dockOpen = computed(() => canvasOpen.value || artifacts.open || browserOpen.value)
+const dockOpen = computed(() => canvasOpen.value || artifacts.open || browserOpen.value || video.panelOpen)
 const isMobile = ref(typeof window !== 'undefined' && window.innerWidth < 768)
 
 // Auto-collapse the left side navigation while the Canvas panel is open (more room for the preview),

@@ -1,0 +1,161 @@
+<template>
+  <!-- One video job (plan section 4.3): the estimate with Generate / Decline, then honest phase labels while it
+       renders (never an invented percentage), then the result or the reason it failed. -->
+  <article class="vjc" :class="'is-' + job.state" :data-test="'video-job-' + job.state">
+    <header class="vjc-head">
+      <span class="vjc-op">{{ opLabel }}</span>
+      <span class="vjc-model" v-if="job.model">{{ job.model }}</span>
+      <span class="vjc-state" :class="stateClass">{{ stateLabel }}</span>
+    </header>
+
+    <p v-if="job.effective_config && job.effective_config.prompt" class="vjc-prompt">“{{ job.effective_config.prompt }}”</p>
+    <p class="vjc-config">{{ configLine }}</p>
+
+    <!-- Estimate -->
+    <template v-if="job.state === 'awaiting_authorization'">
+      <div v-if="adjustments.length" class="vjc-adj" role="group" aria-label="Changes the model needs">
+        <p class="vjc-adj-title">This model needs a few changes:</p>
+        <ul>
+          <li v-for="a in adjustments" :key="a.field">
+            <strong>{{ fieldLabel(a.field) }}</strong>: {{ a.requested }} → {{ a.proposed }}
+            <span class="vjc-why">({{ a.reason }})</span>
+          </li>
+        </ul>
+      </div>
+      <p class="vjc-price" v-if="job.quote">
+        <template v-if="job.quote.pricing_status === 'unknown'">The provider publishes no price for this request; ${{ money(job.quote.max_usd) }} is held and the actual cost is charged.</template>
+        <template v-else-if="job.quote.pricing_status === 'estimated'">About ${{ money(job.quote.estimate_usd) }}, at most ${{ money(job.quote.max_usd) }} (the provider's reported cost is charged).</template>
+        <template v-else>${{ money(job.quote.estimate_usd) }}</template>
+      </p>
+      <div class="vjc-actions">
+        <button type="button" class="vjc-btn primary" data-test="video-generate" :disabled="pending" @click="go">
+          {{ adjustments.length ? 'Accept changes and generate' : 'Generate' }}
+        </button>
+        <button type="button" class="vjc-btn" :disabled="pending" @click="video.decline(job)">Decline</button>
+      </div>
+    </template>
+
+    <!-- In flight -->
+    <template v-else-if="!terminal">
+      <p class="vjc-phase">{{ job.phase || 'Working' }}<span v-if="elapsed"> · {{ elapsed }}</span></p>
+      <p v-if="job.state === 'submission_uncertain'" class="vjc-warn">
+        We could not confirm the provider received this request, so it was NOT sent again. It will be checked;
+        starting a new attempt may be charged twice.
+      </p>
+      <p v-if="job.state === 'provider_status_unknown'" class="vjc-warn">
+        The provider is not answering about this render right now. It is still tracked; nothing is lost.
+      </p>
+      <div class="vjc-actions" v-if="paid">
+        <button type="button" class="vjc-btn" @click="video.stopWaiting(job)">Stop waiting</button>
+      </div>
+    </template>
+
+    <!-- Done -->
+    <template v-else-if="job.state === 'ready' && job.output">
+      <video v-if="isVideo" class="vjc-video" :src="job.output.url" controls preload="metadata" playsinline></video>
+      <img v-else class="vjc-video" :src="job.output.url" alt="Saved frame" />
+      <div class="vjc-actions">
+        <button type="button" class="vjc-btn primary" @click="openPanel">Open in Video panel</button>
+        <span v-if="job.actual_cost_usd" class="vjc-cost">Cost ${{ money(job.actual_cost_usd) }}</span>
+      </div>
+    </template>
+    <template v-else-if="job.state === 'failed'">
+      <p class="vjc-err" role="alert">{{ (job.error && job.error.message) || 'The job failed.' }}</p>
+      <div class="vjc-actions"><button type="button" class="vjc-btn" @click="video.dismiss(job.job_id)">Dismiss</button></div>
+    </template>
+    <template v-else>
+      <div class="vjc-actions"><button type="button" class="vjc-btn" @click="video.dismiss(job.job_id)">Dismiss</button></div>
+    </template>
+  </article>
+</template>
+
+<script setup>
+import { computed, onBeforeUnmount, ref } from 'vue'
+import { useVideoStore } from '../../stores/useVideoStore'
+
+const props = defineProps({ job: { type: Object, required: true } })
+const video = useVideoStore()
+const pending = ref(false)
+
+const OPS = { generate: 'New clip', change: 'Video change', extend: 'Continue clip', trim: 'Trim', split: 'Split',
+              join: 'Join', retime: 'Speed', crop: 'Reframe', overlay: 'Overlay', caption: 'Captions',
+              audio: 'Sound', frame: 'Save frame', export: 'Export' }
+const STATES = { awaiting_authorization: 'Estimate', queued: 'Queued', submitting: 'Sending', running: 'Rendering',
+                 ingesting: 'Saving', ready: 'Ready', failed: 'Failed', cancelled: 'Cancelled',
+                 submission_uncertain: 'Checking', provider_status_unknown: 'Checking' }
+const opLabel = computed(() => OPS[props.job.operation] || 'Video')
+const stateLabel = computed(() => STATES[props.job.state] || props.job.state)
+const terminal = computed(() => ['ready', 'failed', 'cancelled'].includes(props.job.state))
+const paid = computed(() => ['generate', 'change', 'extend'].includes(props.job.operation))
+const isVideo = computed(() => props.job.operation !== 'frame')
+const stateClass = computed(() => ({ ok: props.job.state === 'ready', bad: props.job.state === 'failed',
+                                     wait: props.job.state === 'awaiting_authorization' }))
+const adjustments = computed(() => (props.job.quote && props.job.quote.adjustments) || [])
+const configLine = computed(() => {
+  const c = props.job.effective_config || {}
+  const bits = []
+  if (c.duration) bits.push(`${c.duration} s`)
+  if (c.aspect_ratio) bits.push(c.aspect_ratio)
+  if (c.size) bits.push(c.size)
+  if (c.resolution) bits.push(c.resolution)
+  if (c.audio) bits.push('with sound')
+  if (c.fallback === 'new_adjacent_shot') bits.push('continues as a new shot from the last frame')
+  const refs = (props.job.references || []).length
+  if (refs) bits.push(`${refs} reference${refs > 1 ? 's' : ''}`)
+  return bits.join(' · ')
+})
+function fieldLabel(f) {
+  return { duration: 'Length', resolution: 'Resolution', aspect_ratio: 'Shape', sound: 'Sound',
+           continuation: 'Continue' }[f] || f
+}
+function money(v) {
+  const n = Number(v || 0)
+  return n >= 1 ? n.toFixed(2) : n.toFixed(n >= 0.1 ? 2 : 3)
+}
+async function go() {
+  pending.value = true
+  try { await video.start(props.job, true) } finally { pending.value = false }
+}
+function openPanel() {
+  video.previewAttachmentId = null
+  video.openPanel('preview')
+}
+
+const now = ref(Date.now())
+const timer = setInterval(() => { now.value = Date.now() }, 1000)
+onBeforeUnmount(() => clearInterval(timer))
+const elapsed = computed(() => {
+  if (!props.job.created_at || terminal.value) return ''
+  const s = Math.max(0, Math.round((now.value - Date.parse(props.job.created_at)) / 1000))
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`
+})
+</script>
+
+<style scoped>
+.vjc { border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 12px; padding: 12px 14px; background: var(--vm-surface, #fff);
+  display: grid; gap: 8px; max-width: 560px; }
+.vjc.is-awaiting_authorization { border-color: var(--vm-violet, #6366f1); }
+.vjc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vjc-op { font-weight: 700; font-size: 13.5px; }
+.vjc-model { font-size: 12px; color: var(--vm-ink-soft, #64748b); }
+.vjc-state { margin-left: auto; font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--vm-surface-2, #f1f5f9); }
+.vjc-state.ok { background: #dcfce7; color: #166534; }
+.vjc-state.bad { background: #fee2e2; color: #991b1b; }
+.vjc-state.wait { background: var(--vm-violet-soft, #eef2ff); color: var(--vm-violet-d, #4f46e5); }
+.vjc-prompt { margin: 0; font-size: 13px; color: var(--vm-ink, #0f172a); }
+.vjc-config, .vjc-phase, .vjc-cost { margin: 0; font-size: 12.5px; color: var(--vm-ink-soft, #64748b); }
+.vjc-price { margin: 0; font-size: 13px; font-weight: 600; }
+.vjc-adj { background: #fffbeb; border: 1px solid #fde68a; border-radius: 9px; padding: 8px 10px; font-size: 12.5px; }
+.vjc-adj-title { margin: 0 0 4px; font-weight: 700; }
+.vjc-adj ul { margin: 0; padding-left: 18px; }
+.vjc-why { color: var(--vm-ink-soft, #64748b); }
+.vjc-warn { margin: 0; font-size: 12.5px; color: #92400e; }
+.vjc-err { margin: 0; font-size: 13px; color: #991b1b; }
+.vjc-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vjc-btn { min-height: 40px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--vm-line-2, #e5e7eb); background: var(--vm-surface, #fff);
+  font-weight: 600; font-size: 13px; cursor: pointer; }
+.vjc-btn.primary { background: var(--vm-violet-d, #4f46e5); color: #fff; border-color: transparent; }
+.vjc-btn:disabled { opacity: .55; cursor: not-allowed; }
+.vjc-btn:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: 2px; }
+.vjc-video { width: 100%; max-height: 320px; border-radius: 9px; background: #000; }
+</style>

@@ -10,6 +10,7 @@ import { ChatConnection } from '../services/chatService'
 import { useCanvasStore } from './useCanvasStore'
 import { useArtifactsStore } from './useArtifactsStore'
 import { usePlanStore } from './usePlanStore'
+import { useVideoStore } from './useVideoStore'
 import { useAgentTimeline, isRichEvent } from '../composables/useAgentTimeline'
 import { ensureNotifyPermission, notifyRunFinished } from '../composables/useRunNotifications'
 import { stripThinkBlocks, ThinkStreamFilter } from '../utils/thinkFilter'
@@ -1811,6 +1812,17 @@ export const useChatStore = defineStore('chat', {
         return
       }
       if (TURN_ALIVE_TYPES.has(t) && this.isStreaming) this._turnAliveAt = Date.now()
+      // Video jobs (VIDEO_WORKSPACE_PLAN.md section 7) are broadcast to the user group with their
+      // conversation inside. The video store mirrors every one (its tray filters by conversation); when the
+      // server posted a finished result into THIS conversation, reload the thread so the message shows.
+      if (t === 'video_job') {
+        try { useVideoStore().onFrame(msg) } catch { /* the chat continues without the card */ }
+        if (msg.message_posted && this.conversationId != null
+            && String(msg.conversation_id || '') === String(this.conversationId) && !this.isStreaming) {
+          this._refreshHistory()
+        }
+        return
+      }
       // Inline plan artifact (INLINE_PLAN_ARTIFACT_PLAN.md): a pushed, exact-version plan snapshot.
       // Owned entirely by the plan store — it carries no chat content/usage. Scope to THIS window's
       // conversation (the frame is broadcast to the user group with conversation_id inside). The store
