@@ -874,7 +874,9 @@ export const useChatStore = defineStore('chat', {
     // Returns false when the message was NOT sent, so the page can give the person their text back:
     // the composer clears itself on submit, and a chat that failed to start used to lose the message
     // without a word (seen twice in live tests right after a deploy, 2026-10-15).
-    async sendMessage(text) {
+    // `opts.videoRequest`: the Video panel's choices, sent with this message (Video mode goes through the
+    // agent, like Create-Image; see useVideoStore.request).
+    async sendMessage(text, opts = {}) {
       const content = (text || '').trim()
       const atts = this.pendingAttachments.slice()
       if (!content && atts.length === 0) return false
@@ -899,6 +901,7 @@ export const useChatStore = defineStore('chat', {
           ...this._canvasSendOpts(),
           turnMode: this.turnMode === 'auto' ? undefined : this.turnMode,
           imageMode: this.imageMode || undefined,
+          videoRequest: opts.videoRequest || undefined,
           researchMode: this.researchMode || undefined,
           researchDepth: this.researchMode ? this.researchDepth : undefined,
           reasoningEffort: this.reasoningEffort || undefined,
@@ -978,6 +981,7 @@ export const useChatStore = defineStore('chat', {
         // it actually suppresses a Work goal instead of reading as "no preference".
         turnMode: this.turnMode === 'auto' ? undefined : this.turnMode,
         imageMode: this.imageMode || undefined,
+        videoRequest: opts.videoRequest || undefined,
         researchMode: this.researchMode || undefined,
         researchDepth: this.researchMode ? this.researchDepth : undefined,
         reasoningEffort: this.reasoningEffort || undefined,

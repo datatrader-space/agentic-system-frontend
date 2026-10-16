@@ -248,6 +248,9 @@ export class ChatConnection {
       // Create-Image mode: run the agent as a focused image assistant for this turn (image toolset +
       // guided pipeline prompt). Backend gates on this flag + the agent having an image model.
       image_mode: opts.imageMode || undefined,
+      // Video mode: the Video panel's choices for THIS message (task, the video model the person picked,
+      // settings, references with roles). The agent writes the video prompt; the backend applies these.
+      video_request: opts.videoRequest || undefined,
       // Deep Research mode + the depth the user chose (quick | standard | deep). The depth sets the
       // sub-question breadth and the sources read per sub-question, so the cost of a research run is a
       // deliberate choice rather than whatever the model happens to pick. Backend enforces both.

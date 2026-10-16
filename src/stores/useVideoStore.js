@@ -63,7 +63,20 @@ export const useVideoStore = defineStore('video', {
         resolutions: out.resolutions || [],
         aspectRatios: out.aspect_ratios || [],
         audio: !!out.audio,
-        frames: out.frame_roles || [],
+      }
+    },
+    // Which features the chosen model really offers (its `offered` tasks: declared by the provider's catalog
+    // or proven by a conformance render; merely advertised does not count). The panel shows ONLY these, so
+    // a person is never offered a reference slot, an edit or a continuation the model cannot do.
+    can() {
+      const off = new Set((this.route && this.route.offered) || [])
+      return {
+        references: off.has('reference_to_video'),
+        startFrame: off.has('image_to_video') || off.has('first_last_frame'),
+        endFrame: off.has('first_last_frame'),
+        edit: off.has('edit_uploaded') || off.has('edit_generated'),
+        // Native continuation, or a new shot started from the clip's last frame (labelled as such).
+        extend: off.has('native_extend') || off.has('image_to_video'),
       }
     },
     jobsFor: (state) => (conversationId) => Object.values(state.jobs)
@@ -186,43 +199,46 @@ export const useVideoStore = defineStore('video', {
     },
 
     /**
-     * "Get estimate": plan, price and create the job WITHOUT spending. The card then asks for Generate.
-     * For a story, it creates the project and asks the agent to plan the scenes (planning is free).
+     * "Get estimate": send the person's words to the AGENT as their chat message, with the panel's choices
+     * beside it. The agent writes a production-quality video prompt and calls GENERATE_VIDEO / EDIT_VIDEO;
+     * the backend applies these choices (the model, settings, references) over the agent's arguments. The
+     * estimate card arrives as a `video_job` frame and nothing is spent until Generate. Works like
+     * Create-Image: the request, the agent's reply and the result all stay in the conversation.
+     * task: 'quick' (new clip) | 'edit' (change footage) | 'extend' (continue a clip).
      */
-    async estimate({ prompt, chat, operation = 'generate', baseAttachmentId = null, accept = null, sceneId = null }) {
-      if (this.busy) return null
+    async request({ prompt, chat, task = null, baseAttachmentId = null, sceneId = null }) {
+      if (this.busy) return false
+      const kind = task || (this.task === 'edit' ? 'edit' : 'quick')
       const text = (prompt || '').trim()
+      if (!text) return false
       this.busy = true
       try {
         const cid = await chat.ensureConversation()
-        if (!cid) return null
+        if (!cid) return false
         const references = await this._uploadRefs(cid)
         const edit = references.find((r) => r.role === 'edit_source')
-        const params = { aspect_ratio: this.settings.aspect_ratio, duration: Number(this.settings.duration) || undefined,
-                         sound: this.options.audio ? !!this.settings.sound : undefined }
-        if (this.settings.resolution) params.resolution = this.settings.resolution
-        const body = {
-          operation, prompt: text, params, conversation_id: cid, agent_id: chat.selectedAgentId,
+        const base = baseAttachmentId || (edit && edit.attachment_id) || undefined
+        if (kind === 'edit' && !base) {
+          notify.warning('Add the video to edit first (Edit footage needs a source video).')
+          return false
+        }
+        const videoRequest = {
+          task: kind,
+          route_id: this.routeId || undefined,
+          duration: Number(this.settings.duration) || undefined,
+          aspect_ratio: this.settings.aspect_ratio || undefined,
+          resolution: this.settings.resolution || undefined,
+          sound: this.options.audio ? !!this.settings.sound : undefined,
           references: references.filter((r) => r.role !== 'edit_source'),
-          base_attachment_id: baseAttachmentId || (edit && edit.attachment_id) || undefined,
-          route_id: this.routeId || undefined, accept: accept || undefined,
-          project_id: this.project ? this.project.project_id : undefined, scene_id: sceneId || undefined,
+          base_attachment_id: base,
+          scene_id: sceneId || undefined,
         }
-        if (this.task === 'edit' && operation === 'generate') {
-          if (!body.base_attachment_id) {
-            notify.warning('Add the video to edit first (Edit footage needs a source video).')
-            return null
-          }
-          body.operation = 'change'
-        }
-        const res = await api.post('/video/jobs/', body, {
-          headers: { 'Idempotency-Key': `est-${cid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` },
-        })
-        this.refs = []
-        return this._put(res.data)
+        const sent = await chat.sendMessage(text, { videoRequest })
+        if (sent) this.refs = []
+        return !!sent
       } catch (e) {
-        notify.error(errText(e, (e && e.message) || 'Could not get an estimate.'))
-        return null
+        notify.error((e && e.message) || 'Could not send the video request.')
+        return false
       } finally {
         this.busy = false
       }

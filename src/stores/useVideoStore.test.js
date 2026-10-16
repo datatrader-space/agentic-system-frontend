@@ -1,4 +1,5 @@
-// Video mode store: settings follow the chosen model, estimates never spend, frames mirror the server.
+// Video mode store: settings and features follow the chosen model, requests go through the agent, frames
+// mirror the server.
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
@@ -19,8 +20,7 @@ import { useVideoStore } from './useVideoStore'
 const KLING = {
   route_id: 7, model_id: 'kwaivgi/kling-v3.0-pro', name: 'Kling Pro', via: 'openrouter', state: 'active',
   connections: [{ route_id: 7, connection_id: 1, connection: 'or' }],
-  outputs: { durations: [3, 4, 5, 10], resolutions: ['720p'], aspect_ratios: ['16:9', '9:16'], audio: false,
-             frame_roles: ['first_frame'] },
+  outputs: { durations: [3, 4, 5, 10], resolutions: ['720p'], aspect_ratios: ['16:9', '9:16'], audio: false },
 }
 const chatStub = (over = {}) => ({
   selectedAgentId: 5, conversationId: 'c1', ensureConversation: vi.fn(() => Promise.resolve('c1')),
@@ -49,38 +49,59 @@ describe('useVideoStore', () => {
     expect(video.settings.sound).toBe(false)
   })
 
-  it('an estimate uploads references, names them by id with roles, and spends nothing', async () => {
+  it('a request goes to the agent as the person\'s message, with the panel\'s choices beside it', async () => {
+    // Like Create-Image: the agent writes the video prompt; the request and its result stay in the thread.
     api.get.mockResolvedValue({ data: { routes: [KLING], default_route_id: 7 } })
     await video.loadCapabilities(5)
     api.uploadConversationFile.mockResolvedValue({ data: { attachment_id: 'att-1' } })
-    api.post.mockResolvedValue({ data: job() })
+    video.pickRoute('7')
+    video.settings.duration = 4
+    video.settings.resolution = '720p'
     video.addRef(new File(['x'], 'shoe.png', { type: 'image/png' }), 'first_frame')
     const chat = chatStub()
-    const out = await video.estimate({ prompt: 'a shoe on a rock', chat })
-    expect(out.state).toBe('awaiting_authorization')
-    const [url, body, cfg] = api.post.mock.calls[0]
-    expect(url).toBe('/video/jobs/')
-    expect(body.references).toEqual([{ attachment_id: 'att-1', role: 'first_frame' }])
-    expect(body.operation).toBe('generate')
-    expect(body.agent_id).toBe(5)
-    expect(cfg.headers['Idempotency-Key']).toMatch(/^est-c1-/)
+    const sent = await video.request({ prompt: 'a shoe on a rock', chat })
+    expect(sent).toBe(true)
+    expect(api.post).not.toHaveBeenCalled()            // no direct estimate: the agent makes the call
+    expect(chat.sendMessage).toHaveBeenCalledWith('a shoe on a rock', { videoRequest: {
+      task: 'quick', route_id: '7', duration: 4, aspect_ratio: '16:9', resolution: '720p', sound: undefined,
+      references: [{ attachment_id: 'att-1', role: 'first_frame' }], base_attachment_id: undefined,
+      scene_id: undefined } })
     expect(video.refs).toEqual([])
   })
 
-  it('edit footage needs a source video', async () => {
-    video.setTask('edit')
-    const out = await video.estimate({ prompt: 'warmer', chat: chatStub() })
-    expect(out).toBeNull()
-    expect(notify.warning).toHaveBeenCalled()
-    expect(api.post).not.toHaveBeenCalled()
+  it('continuing a clip names the video and the extend task', async () => {
+    const chat = chatStub()
+    await video.request({ prompt: 'Continue this clip', chat, task: 'extend', baseAttachmentId: 'vid-1' })
+    const [, opts] = chat.sendMessage.mock.calls[0]
+    expect(opts.videoRequest.task).toBe('extend')
+    expect(opts.videoRequest.base_attachment_id).toBe('vid-1')
   })
 
-  it('shows the server refusal with the models that can do it', async () => {
-    api.post.mockRejectedValue({ response: { status: 400, data: { error: {
-      code: 'task_not_offered', message: 'Reference images is not supported for x.',
-      alternatives: [{ name: 'Veo 3.1', model_id: 'google/veo-3.1' }] } } } })
-    await video.estimate({ prompt: 'x', chat: chatStub() })
-    expect(notify.error).toHaveBeenCalledWith('Reference images is not supported for x. Models that can do it: Veo 3.1.')
+  it('edit footage needs a source video, and nothing is sent without one', async () => {
+    video.setTask('edit')
+    const chat = chatStub()
+    const sent = await video.request({ prompt: 'warmer', chat })
+    expect(sent).toBe(false)
+    expect(notify.warning).toHaveBeenCalled()
+    expect(chat.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('nothing is sent without a description', async () => {
+    const chat = chatStub()
+    expect(await video.request({ prompt: '  ', chat })).toBe(false)
+    expect(chat.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('the panel offers only the features the chosen model has', async () => {
+    api.get.mockResolvedValue({ data: { routes: [
+      { ...KLING, offered: ['text_to_video', 'image_to_video'] },
+      { ...KLING, route_id: 9, model_id: 'seedance', connections: [{ route_id: 9 }],
+        offered: ['text_to_video', 'image_to_video', 'first_last_frame', 'reference_to_video', 'edit_uploaded'] },
+    ], default_route_id: 7 } })
+    await video.loadCapabilities(5)
+    expect(video.can).toEqual({ references: false, startFrame: true, endFrame: false, edit: false, extend: true })
+    video.pickRoute('9')
+    expect(video.can).toEqual({ references: true, startFrame: true, endFrame: true, edit: true, extend: true })
   })
 
   it('a start frame replaces the previous one', () => {

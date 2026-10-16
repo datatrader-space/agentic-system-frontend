@@ -4,7 +4,7 @@
        "Get estimate" (or "Plan the story"). The render starts only from the estimate card's Generate. -->
   <section class="vcp" aria-label="Video mode" data-test="video-composer-panel">
     <div v-if="showTasks" class="vcp-tasks" role="radiogroup" aria-label="What would you like to create?">
-      <button v-for="t in tasks" :key="t.value" type="button" role="radio" class="vcp-task"
+      <button v-for="t in visibleTasks" :key="t.value" type="button" role="radio" class="vcp-task"
               :class="{ on: video.task === t.value }" :aria-checked="video.task === t.value ? 'true' : 'false'"
               :data-test="'video-task-' + t.value" @click="video.setTask(t.value)">
         <span class="vcp-task-ic" aria-hidden="true" v-html="t.icon"></span>
@@ -15,9 +15,9 @@
 
     <!-- Reference slots: each upload becomes a chip with a ROLE the server receives with it. -->
     <input ref="fileEl" type="file" class="vcp-file" :accept="pickAccept" @change="onPick" />
-    <div class="vcp-slots">
+    <div v-if="slots.length" class="vcp-slots">
       <button v-for="s in slots" :key="s.role" type="button" class="vcp-slot" :data-test="'video-slot-' + s.role"
-              :disabled="s.disabled" :title="s.disabled ? s.why : s.hint" @click="pick(s)">
+              :title="s.hint" @click="pick(s)">
         <span class="vcp-slot-ic" aria-hidden="true" v-html="s.icon"></span>
         <span>{{ s.label }}</span>
       </button>
@@ -29,7 +29,7 @@
         <span class="vcp-chip-name" :title="r.name">{{ r.name }}</span>
         <label class="vcp-sr" :for="'role-' + r.key">Role of {{ r.name }}</label>
         <select :id="'role-' + r.key" class="vcp-role" :value="r.role" @change="video.setRefRole(r.key, $event.target.value)">
-          <option v-for="o in roleOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+          <option v-for="o in visibleRoles" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
         <button type="button" class="vcp-chip-x" :aria-label="'Remove ' + r.name" @click="video.removeRef(r.key)">×</button>
       </li>
@@ -119,24 +119,43 @@ const roleOptions = [
 ]
 
 const o = computed(() => video.options)
+const can = computed(() => video.can)
 const autoName = computed(() => {
   const r = video.routes.find((x) => String(x.route_id) === String(video.defaultRouteId))
   return r ? r.name : ''
 })
+// Only what the chosen model offers is shown (owner, 2026-10-16): no reference slot for a model that takes
+// no references, no Edit footage for a model that cannot edit video, no end frame without start+end support.
+const visibleTasks = computed(() => tasks.filter((t) => t.value !== 'edit' || can.value.edit))
 const slots = computed(() => {
-  const frames = o.value.frames || []
+  const refSlot = { role: 'subject', label: 'Add references', icon: ICON.plus, accept: 'image/*,video/*,audio/*',
+                    hint: 'A product, a character or a place to keep' }
   if (video.task === 'edit') {
     return [{ role: 'edit_source', label: 'Video to edit', icon: ICON.video, accept: 'video/*', hint: 'The footage to change' },
-            { role: 'subject', label: 'Add references', icon: ICON.plus, accept: 'image/*,video/*', hint: 'Images to guide the change' }]
+            ...(can.value.references ? [{ ...refSlot, accept: 'image/*,video/*', hint: 'Images to guide the change' }] : [])]
   }
   return [
-    { role: 'subject', label: 'Add references', icon: ICON.plus, accept: 'image/*,video/*,audio/*', hint: 'A product, a character or a place to keep' },
-    { role: 'first_frame', label: 'Start frame', icon: ICON.frame, accept: 'image/*', hint: 'The first frame of the clip',
-      disabled: video.routes.length > 0 && !frames.includes('first_frame'), why: 'This model takes no start frame' },
-    { role: 'last_frame', label: 'End frame', icon: ICON.frame, accept: 'image/*', hint: 'The last frame of the clip',
-      disabled: video.routes.length > 0 && !frames.includes('last_frame'), why: 'This model takes no end frame' },
-    { role: 'style', label: 'Style or subject', icon: ICON.style, accept: 'image/*,video/*', hint: 'A look to follow' },
+    ...(can.value.references ? [refSlot] : []),
+    ...(can.value.startFrame ? [{ role: 'first_frame', label: 'Start frame', icon: ICON.frame, accept: 'image/*',
+                                  hint: 'The first frame of the clip' }] : []),
+    ...(can.value.endFrame ? [{ role: 'last_frame', label: 'End frame', icon: ICON.frame, accept: 'image/*',
+                                hint: 'The last frame of the clip' }] : []),
+    ...(can.value.references ? [{ role: 'style', label: 'Style or subject', icon: ICON.style, accept: 'image/*,video/*',
+                                  hint: 'A look to follow' }] : []),
   ]
+})
+// A chip's role can only be one the model takes.
+const visibleRoles = computed(() => roleOptions.filter((r) => ({
+  subject: can.value.references, style: can.value.references, motion: can.value.references,
+  audio: can.value.references, first_frame: can.value.startFrame, last_frame: can.value.endFrame,
+  edit_source: video.task === 'edit',
+}[r.value])))
+// Switching to a model that cannot do the chosen task or a reference's role drops back to what it can do.
+watch(can, (c) => {
+  if (video.task === 'edit' && !c.edit) video.setTask('quick')
+  const allowed = new Set(visibleRoles.value.map((r) => r.value))
+  const dropped = video.refs.filter((r) => !allowed.has(r.role))
+  if (dropped.length) dropped.forEach((r) => video.removeRef(r.key))
 })
 const fileEl = ref(null)
 const pending = ref(null)
@@ -151,8 +170,8 @@ function onPick(e) {
   if (e.target) e.target.value = ''
 }
 
-const primaryDisabled = computed(() => video.busy || (!props.draft.trim() && video.task !== 'edit'
-  && !video.refs.some((r) => r.role === 'first_frame')))
+// The agent writes the video prompt from what the person typed, so a request needs their words.
+const primaryDisabled = computed(() => video.busy || !props.draft.trim())
 const hint = computed(() => {
   if (!video.routes.length) return 'No video model is available yet. Assign one on the agent’s Video generation card.'
   if (video.task === 'story') return 'Planning is free: the assistant writes the scenes, then you render them one by one.'
@@ -166,8 +185,9 @@ async function onPrimary() {
     if (ok) emit('done')
     return
   }
-  const job = await video.estimate({ prompt: text, chat })
-  if (job) emit('done')
+  // The request goes to the agent, which writes the video prompt and prepares the estimate.
+  const sent = await video.request({ prompt: text, chat })
+  if (sent) emit('done')
 }
 
 watch(() => chat.selectedAgentId, (id) => { if (id) video.loadCapabilities(id) }, { immediate: true })

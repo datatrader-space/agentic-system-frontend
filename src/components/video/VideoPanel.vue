@@ -23,7 +23,7 @@
       </div>
       <div class="vp-actions" v-if="active">
         <button type="button" class="vp-btn" @click="editScene">Edit {{ activeScene ? 'scene' : 'video' }}</button>
-        <button type="button" class="vp-btn" data-test="video-continue" @click="continueClip">Continue</button>
+        <button v-if="video.can.extend" type="button" class="vp-btn" data-test="video-continue" @click="continueClip">Continue</button>
         <button type="button" class="vp-btn" @click="toggleCompare" :disabled="video.versions.length < 2">
           {{ compare ? 'Stop comparing' : 'Compare' }}</button>
         <button type="button" class="vp-btn" data-test="video-save-frame" @click="saveFrame">Save frame</button>
@@ -174,8 +174,8 @@ function editScene() {
 }
 async function continueClip() {
   if (!active.value) return
-  await video.estimate({ prompt: 'Continue the action naturally.', chat, operation: 'extend',
-                         baseAttachmentId: active.value.attachment_id })
+  await video.request({ prompt: 'Continue this clip: carry the action on naturally from its last moment.',
+                        chat, task: 'extend', baseAttachmentId: active.value.attachment_id })
 }
 async function saveFrame() {
   if (!active.value) return
@@ -195,7 +195,8 @@ async function selectScene(s) {
                                            { conversationId: chat.conversationId, sceneId: s.scene_id })
 }
 async function renderScene(s) {
-  await video.estimate({ prompt: s.intent || s.title, chat, sceneId: s.scene_id })
+  await video.request({ prompt: `Render the scene "${s.title || 'Untitled'}": ${s.intent || s.title || ''}`.trim(),
+                        chat, task: 'quick', sceneId: s.scene_id })
 }
 function sceneList(override = {}) {
   return scenes.value.map((x, i) => ({ scene_id: x.scene_id, title: x.title, intent: x.intent, planned_ms: x.planned_ms,
