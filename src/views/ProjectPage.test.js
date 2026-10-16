@@ -16,6 +16,9 @@ const { api } = vi.hoisted(() => ({
     getChatProject: vi.fn(),
     getConversations: vi.fn(),
     updateChatProject: vi.fn(),
+    getChatProjectFiles: vi.fn(),
+    uploadChatProjectFile: vi.fn(),
+    deleteGenericFile: vi.fn(),
   },
 }))
 vi.mock('../services/api', () => ({ default: api }))
@@ -41,6 +44,7 @@ beforeEach(() => {
   push.mockClear()
   api.getChatProject.mockResolvedValue({ data: { id: 7, name: 'Amsal Foods', instructions: 'Quote in PKR.' } })
   api.getConversations.mockResolvedValue({ data: { results: [{ id: 41, title: 'Price list', agent_profile_name: 'Sales' }], count: 1 } })
+  api.getChatProjectFiles.mockResolvedValue({ data: [{ id: 5, name: 'rates.pdf', status: 'ready' }] })
 })
 
 describe('ProjectPage', () => {
@@ -73,5 +77,37 @@ describe('ProjectPage', () => {
     useChatStore().selectedAgentId = '3163'
     await w.find('[data-test="project-new-chat"]').trigger('click')
     expect(push).toHaveBeenCalledWith({ path: '/dashboard/chat/new', query: { project: 7, agent: '3163' } })
+  })
+
+  it('lists the project files with whether each is searchable', async () => {
+    const w = await mountP()
+    const rows = w.findAll('[data-test="project-file"]')
+    expect(rows).toHaveLength(1)
+    expect(rows[0].text()).toContain('rates.pdf')
+    expect(rows[0].text()).toContain('Searchable')
+  })
+
+  it('uploads picked files to this project and refreshes the list', async () => {
+    api.uploadChatProjectFile.mockResolvedValue({ data: { id: 6 } })
+    const w = await mountP()
+    api.getChatProjectFiles.mockResolvedValue({ data: [{ id: 6, name: 'menu.md', status: 'ready' }, { id: 5, name: 'rates.pdf', status: 'ready' }] })
+    const input = w.find('[data-test="project-file-input"]')
+    const file = new File(['# Menu'], 'menu.md', { type: 'text/markdown' })
+    Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+    await input.trigger('change')
+    await flushPromises()
+    expect(api.uploadChatProjectFile).toHaveBeenCalledWith(7, file)
+    expect(w.findAll('[data-test="project-file"]')).toHaveLength(2)
+  })
+
+  it('removes a file only after the second, explicit click', async () => {
+    api.deleteGenericFile.mockResolvedValue({})
+    const w = await mountP()
+    await w.find('[data-test="remove-file"]').trigger('click')
+    expect(api.deleteGenericFile).not.toHaveBeenCalled()
+    await w.find('[data-test="confirm-remove-file"]').trigger('click')
+    await flushPromises()
+    expect(api.deleteGenericFile).toHaveBeenCalledWith(5)
+    expect(w.findAll('[data-test="project-file"]')).toHaveLength(0)
   })
 })

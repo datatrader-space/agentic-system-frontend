@@ -4,6 +4,24 @@
 const DAY = 86400000
 
 /**
+ * Markdown as the words a person reads, on one line. An answer that opens with "- **Chat** — ID: **2839**"
+ * was shown in the chat lists with its asterisks and list dash.
+ */
+export function plainText(md) {
+  return String(md || '')
+    .replace(/```[\s\S]*?```/g, ' ')                 // fenced code blocks
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')        // images -> alt text
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')         // links -> their text
+    .replace(/^\s{0,3}(#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/gm, '') // headings, quotes, list markers
+    .replace(/(\*\*|__)(.+?)\1/g, '$2')              // bold
+    .replace(/(^|[^\w*])[*_]([^*_\n]+)[*_](?=[^\w*]|$)/g, '$1$2') // italics
+    .replace(/`([^`]+)`/g, '$1')                     // inline code
+    .replace(/~~(.+?)~~/g, '$1')                     // strikethrough
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
  * Turn a raw last-message body into a clean one-line preview. Agents that answer in JSON
  * (e.g. PitchPilot's `{"fit_verdict":"go","fit_score":82,...}`) would otherwise dump the raw
  * blob into the sidebar — summarize those into something readable instead.
@@ -11,7 +29,7 @@ const DAY = 86400000
 function humanizePreview(raw) {
   if (!raw) return ''
   const looksJson = raw[0] === '{' || raw[0] === '['
-  if (!looksJson) return raw
+  if (!looksJson) return plainText(raw)
 
   let obj = null
   try { obj = JSON.parse(raw) } catch { /* possibly truncated — fall through to regex */ }

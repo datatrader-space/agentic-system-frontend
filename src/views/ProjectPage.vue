@@ -36,6 +36,31 @@
         </div>
       </section>
 
+      <section class="pp-card" aria-labelledby="pp-files">
+        <div class="pp-card-head">
+          <h2 id="pp-files">Files</h2>
+          <span class="pp-count">{{ files.length }}</span>
+          <label class="pp-upload" :class="{ busy: uploading }">
+            <input type="file" class="pp-file-input" data-test="project-file-input" :disabled="uploading"
+                   multiple @change="onPick" />
+            {{ uploading ? 'Uploading…' : 'Add files' }}
+          </label>
+        </div>
+        <p class="pp-help">Every chat in this project can search these files. Chats outside the project cannot.</p>
+        <ul v-if="files.length" class="pp-files">
+          <li v-for="f in files" :key="f.id" class="pp-file" data-test="project-file">
+            <span class="pp-file-name" :title="f.name">{{ f.name }}</span>
+            <span class="pp-pill" :class="`is-${f.status}`">{{ STATUS_LABEL[f.status] || f.status }}</span>
+            <button v-if="confirmingId !== f.id" type="button" class="pp-link" data-test="remove-file"
+                    @click="confirmingId = f.id">Remove</button>
+            <span v-else class="pp-confirm">
+              <button type="button" class="pp-link danger" data-test="confirm-remove-file" @click="removeFile(f)">Remove file</button>
+              <button type="button" class="pp-link" @click="confirmingId = null">Keep</button>
+            </span>
+          </li>
+        </ul>
+      </section>
+
       <section class="pp-card" aria-labelledby="pp-chats">
         <div class="pp-card-head">
           <h2 id="pp-chats">Chats</h2>
@@ -58,7 +83,7 @@
 </template>
 
 <script setup>
-import { nextTick, onMounted, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../services/api'
 import { notify } from '../composables/useNotify'
@@ -82,6 +107,11 @@ const nameDraft = ref('')
 const nameInput = ref(null)
 const chats = ref([])
 const total = ref(0)
+const files = ref([])
+const uploading = ref(false)
+const confirmingId = ref(null)
+const STATUS_LABEL = { ready: 'Searchable', processing: 'Reading…', failed: 'Could not read', not_searchable: 'Not searchable' }
+let filesTimer = null
 
 const rows = (data) => (Array.isArray(data) ? data : (data && data.results) || [])
 
@@ -96,7 +126,7 @@ async function load() {
     const { data } = await api.getChatProject(route.params.id)
     project.value = data
     instructions.value = data.instructions || ''
-    await loadChats(PAGE)
+    await Promise.all([loadChats(PAGE), loadFiles()])
   } catch (_e) {
     project.value = null
   } finally {
@@ -110,6 +140,40 @@ async function loadChats(limit) {
     chats.value = rows(data)
     total.value = (data && typeof data.count === 'number') ? data.count : chats.value.length
   } catch (_e) { /* keep the list */ }
+}
+
+// While a file is still being read, look again every few seconds so its status turns to Searchable.
+async function loadFiles() {
+  clearTimeout(filesTimer)
+  try {
+    const { data } = await api.getChatProjectFiles(route.params.id)
+    files.value = rows(data)
+  } catch (_e) { /* keep the list */ }
+  if (files.value.some((f) => f.status === 'processing')) filesTimer = setTimeout(loadFiles, 4000)
+}
+
+async function onPick(event) {
+  const picked = Array.from(event.target.files || [])
+  event.target.value = ''
+  if (!picked.length) return
+  uploading.value = true
+  let failed = 0
+  for (const file of picked) {
+    try { await api.uploadChatProjectFile(project.value.id, file) } catch (_e) { failed += 1 }
+  }
+  uploading.value = false
+  if (failed) notify.error(failed === 1 ? 'One file could not be uploaded.' : `${failed} files could not be uploaded.`)
+  await loadFiles()
+}
+
+async function removeFile(f) {
+  confirmingId.value = null
+  try {
+    await api.deleteGenericFile(f.id)
+    files.value = files.value.filter((x) => x.id !== f.id)
+  } catch (_e) {
+    notify.error('Could not remove the file.')
+  }
 }
 
 async function saveInstructions() {
@@ -148,6 +212,7 @@ function newChat() {
 }
 
 onMounted(load)
+onBeforeUnmount(() => clearTimeout(filesTimer))
 watch(() => route.params.id, (id) => { if (id) load() })
 </script>
 
@@ -177,5 +242,21 @@ watch(() => route.params.id, (id) => { if (id) load() })
 .pp-chat-meta { flex-shrink: 0; font-size: 12px; color: var(--vm-ink-faint, #8a8fa3); }
 .pp-more { align-self: flex-start; border: 0; background: transparent; padding: 6px 8px; border-radius: 8px; font: 600 12.5px var(--vm-font-sans); color: var(--vm-violet-d, #6d28d9); cursor: pointer; }
 .pp-more:hover { background: var(--vm-glass-strong); }
+.pp-upload { margin-left: auto; position: relative; border-radius: 10px; padding: 6px 12px; border: 1px solid var(--vm-line); font: 600 12.5px var(--vm-font-sans); color: var(--vm-violet-d, #6d28d9); cursor: pointer; }
+.pp-upload:hover { background: var(--vm-glass-strong); }
+.pp-upload:focus-within { outline: 2px solid var(--vm-violet, #7c3aed); outline-offset: 1px; }
+.pp-upload.busy { opacity: .6; cursor: default; }
+.pp-file-input { position: absolute; inset: 0; opacity: 0; cursor: inherit; width: 100%; }
+.pp-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.pp-file { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; }
+.pp-file:hover { background: var(--vm-glass-strong); }
+.pp-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--vm-ink); }
+.pp-pill { flex-shrink: 0; font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--vm-glass-strong); color: var(--vm-ink-soft); }
+.pp-pill.is-ready { background: #dcfce7; color: #166534; }
+.pp-pill.is-failed { background: #fee2e2; color: #991b1b; }
+.pp-link { flex-shrink: 0; border: 0; background: transparent; padding: 4px 6px; border-radius: 6px; font: 600 12px var(--vm-font-sans); color: var(--vm-ink-soft); cursor: pointer; }
+.pp-link:hover { background: var(--vm-glass-strong); color: var(--vm-ink); }
+.pp-link.danger { color: #b91c1c; }
+.pp-confirm { display: inline-flex; gap: 2px; flex-shrink: 0; }
 @media (max-width: 480px) { .pp { padding: 20px 16px 48px; } .pp-head { flex-wrap: wrap; } }
 </style>

@@ -788,6 +788,13 @@ export default {
   // ── Chat projects: folders of chats, private to their owner (CHAT_PROJECTS_PLAN.md) ──
   getChatProjects: () => api.get('/chat-projects/'),
   getChatProject: (id) => api.get(`/chat-projects/${id}/`),
+  // A project's files: every chat in the project can search them. Removed with deleteGenericFile(fileId).
+  getChatProjectFiles: (id) => api.get(`/chat-projects/${id}/files/`),
+  uploadChatProjectFile: (id, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post(`/chat-projects/${id}/files/`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
   createChatProject: (data) => api.post('/chat-projects/', data),
   updateChatProject: (id, data) => api.patch(`/chat-projects/${id}/`, data),
   // deleteChats=false moves the project's chats back to recent chats (the default).
