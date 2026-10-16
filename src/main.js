@@ -67,7 +67,6 @@ const SchedulesPage = () => import('./views/SchedulesPage.vue')
 const AgentLibrary = () => import('./views/AgentLibrary.vue')
 const SuperAgentView = () => import('./views/SuperAgentView.vue')
 const DelegationsPage = () => import('./views/DelegationsPage.vue')
-const AgentOverview = () => import('./views/AgentOverview.vue')
 const AgentEditor = () => import('./views/AgentEditor.vue')
 const AgentMonitor = () => import('./views/AgentMonitor.vue')
 const LandingPage = () => import('./views/LandingPage.vue')
@@ -267,8 +266,10 @@ const router = createRouter({
         { path: 'agents/:id/configure', redirect: to => `/dashboard/agents/${to.params.id}/editor` },
         { path: 'agents/:id/advanced', redirect: to => `/dashboard/agents/${to.params.id}/editor` },
         { path: 'agents/:id/monitor', name: 'dashboard-agent-monitor', component: AgentMonitor },
-        { path: 'agents/:id/playground', redirect: to => `/dashboard/agents/${to.params.id}` },
-        { path: 'agents/:id', name: 'dashboard-agent-overview', component: AgentOverview },
+        // The agent Overview page was removed (owner, 2026-10-16): an agent opens in its editor, and its Deploy
+        // settings live on Integrations & Deploy. These addresses stay so old links and bookmarks still land.
+        { path: 'agents/:id/playground', redirect: to => `/dashboard/agents/${to.params.id}/editor` },
+        { path: 'agents/:id', name: 'dashboard-agent-overview', redirect: to => `/dashboard/agents/${to.params.id}/editor` },
         // Tools library (Screen 24) — revived standalone page; Services / MCP / Workspaces still fold into Connectors.
         { path: 'tools', name: 'dashboard-tools', component: ToolsPage },
         { path: 'services', name: 'dashboard-services', redirect: '/dashboard/connectors' },
@@ -278,6 +279,9 @@ const router = createRouter({
         // section only, so `connectors` stays a real page rather than a redirect: retiring it now would
         // orphan services, MCP servers and tools before their sections exist.
         { path: 'integrations', name: 'dashboard-integrations', component: IntegrationsPage },
+        // One agent's channels (WebSocket, Webhook, Widget): switches, settings and the guide. Reached from the
+        // agent list on Integrations and from the agent editor (owner, 2026-10-16).
+        { path: 'integrations/agents/:agentId', name: 'dashboard-integrations-agent', component: IntegrationGuide },
         { path: 'knowledge', name: 'dashboard-knowledge', component: () => import('./views/KnowledgeRag.vue') },
         { path: 'integration-hub', redirect: '/dashboard/connectors' },
         // Workflow Builder (NEW node-canvas system — lazy-loaded; separate from old /workflows feature)
@@ -326,7 +330,9 @@ const router = createRouter({
         { path: 'workspace/:wsId/:tab', name: 'dashboard-workspace-tab', component: WorkspaceDashboard },
         { path: 'connections', name: 'dashboard-connections', component: Connections },
         { path: 'connections/docs', name: 'dashboard-connection-docs', component: ConnectionDocs },
-        { path: 'integration-guide/:agentId?', name: 'dashboard-integration-guide', component: IntegrationGuide },
+        // The page moved under Integrations; old links and bookmarks keep working (the tab is kept).
+        { path: 'integration-guide/:agentId?', name: 'dashboard-integration-guide',
+          redirect: to => ({ path: to.params.agentId ? `/dashboard/integrations/agents/${to.params.agentId}` : '/dashboard/integrations', query: to.query }) },
         { path: 'org/:orgSlug/settings', name: 'dashboard-org-settings', component: OrgSettings },
         { path: 'org/:orgSlug/settings/:tab', name: 'dashboard-org-settings-tab', component: OrgSettings },
         { path: 'org-guardrails', name: 'dashboard-org-guardrails', component: () => import('./views/OrgGuardrails.vue') },
@@ -408,7 +414,7 @@ const router = createRouter({
     { path: '/services', name: 'services', redirect: '/dashboard/services' },
     { path: '/mcp', name: 'mcp-servers', redirect: '/dashboard/mcp' },
     { path: '/agents', name: 'agent-library', redirect: '/dashboard/agents' },
-    { path: '/agents/:id', name: 'agent-playground', redirect: to => `/dashboard/agents/${to.params.id}` },
+    { path: '/agents/:id', name: 'agent-playground', redirect: to => `/dashboard/agents/${to.params.id}/editor` },
     { path: '/services/register', name: 'service-registration-v2', redirect: '/dashboard/services/register' },
     { path: '/services/wizard', name: 'service-wizard', redirect: '/dashboard/services/wizard' },
     { path: '/services/drafts', name: 'service-drafts', redirect: '/dashboard/services/drafts' },
@@ -419,7 +425,7 @@ const router = createRouter({
     { path: '/workspace/:wsId/:tab', name: 'workspace-tab', redirect: to => `/dashboard/workspace/${to.params.wsId}/${to.params.tab}` },
     { path: '/connections', name: 'connections', redirect: '/dashboard/connections' },
     { path: '/docs/connections', name: 'connection-docs', redirect: '/dashboard/connections/docs' },
-    { path: '/integration-guide/:agentId?', name: 'integration-guide', redirect: to => `/dashboard/integration-guide${to.params.agentId ? '/' + to.params.agentId : ''}` },
+    { path: '/integration-guide/:agentId?', name: 'integration-guide', redirect: to => ({ path: to.params.agentId ? `/dashboard/integrations/agents/${to.params.agentId}` : '/dashboard/integrations', query: to.query }) },
     {
       path: '/invite/accept/:token',
       name: 'invite-accept',

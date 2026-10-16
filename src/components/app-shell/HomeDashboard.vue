@@ -27,7 +27,7 @@
         :loading="loading"
         @view-all="go('/dashboard/agents')"
         @create="go('/dashboard/agents/new')"
-        @open="(a) => go(`/dashboard/agents/${a.id}`)"
+        @open="(a) => go(`/dashboard/agents/${a.id}/editor`)"
       />
       <RecentActivityCard
         :activities="recentActivity"

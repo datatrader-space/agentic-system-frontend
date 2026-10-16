@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// The integration guide — the key can be generated here, and Deploy settings opens from here.
+// Integrations & Deploy — the key can be generated here, and each tab carries its channel's settings on the page.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { reactive } from 'vue'
@@ -16,7 +16,7 @@ vi.mock('vue-router', () => ({ useRoute: () => routeBox.route, useRouter: () => 
 
 import IntegrationGuide from './IntegrationGuide.vue'
 
-const DeploySettings = { name: 'DeploySettings', props: ['modelValue', 'agent'], emits: ['update:modelValue'], template: '<div class="deploy-stub" />' }
+const DeploySettings = { name: 'DeploySettings', props: { modelValue: Boolean, agent: Object, inline: Boolean, section: String }, emits: ['update:modelValue'], template: '<div class="deploy-stub" />' }
 const button = (w, text) => w.findAll('button').find(b => b.text().trim().startsWith(text))
 const open = async (agent, tab = 'websocket') => {
   routeBox.route = reactive({ params: { agentId: '3418' }, query: { tab } })
@@ -58,20 +58,21 @@ describe('IntegrationGuide', () => {
     expect(w.findComponent(DeploySettings).exists()).toBe(false)
   })
 
-  it('Deploy settings opens from the header, and closing it re-reads the agent', async () => {
+  it('the settings of the open tab are on the page, and turning the widget on shows its embed code', async () => {
     const w = await open({ id: 3418, is_owner: true, is_public: false, public_share_token: 'tok' }, 'widget')
+    expect(button(w, 'Deploy settings')).toBeUndefined()          // no drawer behind a button any more
+    const panel = w.findComponent(DeploySettings)
+    expect(panel.props('inline')).toBe(true)
+    expect(panel.props('section')).toBe('widget')
+    expect(panel.props('agent').id).toBe(3418)
     // The token is still on the agent, but the widget is switched off.
     expect(w.text()).toContain("The public share link isn't enabled yet")
 
-    await button(w, 'Deploy settings').trigger('click')
-    const panel = w.findComponent(DeploySettings)
-    expect(panel.props('modelValue')).toBe(true)
-    expect(panel.props('agent').id).toBe(3418)
-
-    api.get.mockResolvedValue({ data: { id: 3418, is_owner: true, is_public: true, public_share_token: 'tok' } })
-    panel.vm.$emit('update:modelValue', false)
+    panel.props('agent').is_public = true                         // what the switch writes (DeploySettings)
     await flushPromises()
-    expect(api.get).toHaveBeenCalledTimes(2)
     expect(w.text()).toContain('AgentChat.init({ token: "tok"')
+
+    await button(w, '💬 WebSocket').trigger('click')
+    expect(w.findComponent(DeploySettings).props('section')).toBe('websocket')
   })
 })
