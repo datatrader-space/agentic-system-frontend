@@ -129,6 +129,39 @@ describe('DefineBrainStep — capability pickers are not filtered', () => {
   })
 })
 
+describe('DefineBrainStep — the Video generation picker lists video models only', () => {
+  // The video flag is the provider's own catalog answer (`/videos/models`), and the backend refuses any
+  // other model for video. Before this, 31 video models were buried among 747 chat models.
+  const videoCap = { field: 'video_model', label: 'Video generation', capability: 'can_generate_video' }
+  const WITH_VIDEO = [
+    ...MANY,
+    { id: 20, name: 'Kling v3.0 Pro', model_id: 'kwaivgi/kling-v3.0-pro', provider: 1, can_generate_video: true, metadata: {} },
+    { id: 21, name: 'Veo 3.1', model_id: 'google/veo-3.1', provider: 1, can_generate_video: true, metadata: {} },
+  ]
+  async function mountVideo(agent = {}) {
+    const api = (await import('../../services/api')).default
+    api.get.mockImplementation((url) => Promise.resolve({
+      data: String(url).includes('providers') ? [{ id: 1, name: 'P', provider_type: 'openrouter' }] : WITH_VIDEO,
+    }))
+    return mountExpanded(agent)
+  }
+
+  it('offers only the models the video catalog lists', async () => {
+    const w = await mountVideo()
+    expect(w.vm.modelsFor(videoCap).map(m => m.id).sort()).toEqual([20, 21])
+  })
+
+  it('keeps the agent\'s current pick listed even when it is not a video model, so it can be changed', async () => {
+    const w = await mountVideo({ video_model: 13 })
+    expect(w.vm.modelsFor(videoCap).map(m => m.id).sort()).toEqual([13, 20, 21])
+  })
+
+  it('leaves the other capability pickers unfiltered', async () => {
+    const w = await mountVideo()
+    expect(w.vm.modelsFor({ field: 'vision_model' }).length).toBe(WITH_VIDEO.length)
+  })
+})
+
 describe('DefineBrainStep — the capability warning replaces the filter', () => {
   const visionCap = { field: 'vision_model', label: 'Image input (vision)', capability: 'supports_vision' }
 

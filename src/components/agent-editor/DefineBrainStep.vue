@@ -53,7 +53,7 @@
                     <p v-if="c.hint" class="mb-1 text-[10.5px] leading-snug text-[#98A2B3]">{{ c.hint }}</p>
                     <ModelPicker
                       :model-value="agent[c.field]"
-                      :models="modelsFor()"
+                      :models="modelsFor(c)"
                       placeholder="Auto (use main model)"
                       @update:model-value="agent[c.field] = $event"
                     />
@@ -470,7 +470,17 @@ const CAPS = [
 // So nothing is hidden. The risk the filter existed for is handled by `capabilityWarning` below, which
 // says the model does not declare the capability and lets the user proceed anyway — the flags describe
 // the catalog's knowledge, not the model's actual ability, and a stale flag must not veto a real choice.
-function modelsFor() {
+//
+// VIDEO IS THE EXCEPTION (2026-10-16). Its flag is not inferred: it comes from OpenRouter's own video
+// catalog (`/videos/models`), refreshed on every model sync, and a model that leaves the catalog loses it.
+// The backend also refuses any other model for video ("not a video model this platform can run"), so a
+// chat model here is a choice that can only fail — and it buried 31 video models among 747 chat models.
+// The agent's current pick stays listed even if it lost the flag, so it can be seen and changed.
+function modelsFor(c) {
+  if (c && c.field === 'video_model') {
+    const current = props.agent.video_model
+    return filteredModels.value.filter(m => m.can_generate_video || m.id === current)
+  }
   return filteredModels.value
 }
 

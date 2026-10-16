@@ -189,16 +189,22 @@ const available = computed(() =>
 );
 const totalCount = computed(() => available.value.length);
 
+// Search by name: every word typed must appear in the model's name, id or vendor, punctuation ignored, so
+// "kling pro" finds "Kling v3.0 Pro" and "veo 3.1" finds "google/veo-3.1". A whole-string match missed any
+// query whose words were not adjacent. A model whose description holds every word still matches.
+const _norm = (s) => String(s || '').toLowerCase().replace(/[-_/:.,()]+/g, ' ');
 const filtered = computed(() => {
   let list = available.value;
-  const q = search.value.toLowerCase().trim();
-  if (q) {
-    list = list.filter((m) =>
-      (m.name || '').toLowerCase().includes(q) ||
-      (m.model_id || '').toLowerCase().includes(q) ||
-      vendorLabel(m).toLowerCase().includes(q) ||
-      (m.metadata?.description || '').toLowerCase().includes(q)
-    );
+  const words = _norm(search.value).split(/\s+/).filter(Boolean);
+  if (words.length) {
+    const byName = [];
+    const byDesc = [];
+    for (const m of list) {
+      const hay = ` ${_norm(m.name)} ${_norm(m.model_id)} ${_norm(vendorLabel(m))} `;
+      if (words.every((w) => hay.includes(w))) byName.push(m);
+      else if (words.every((w) => _norm(m.metadata?.description).includes(w))) byDesc.push(m);
+    }
+    list = byName.concat(byDesc);
   }
   if (activeFilters.value.size) {
     list = list.filter((m) => {
