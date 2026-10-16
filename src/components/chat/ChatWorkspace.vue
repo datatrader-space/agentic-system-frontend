@@ -5,9 +5,9 @@
          per-message settings (which agent, which run mode, does this message make an image), and this
          chooses what KIND of thing the session does. A control at that altitude reads wrongly when it
          sits beside the attach button. -->
-    <div v-if="chat.isEmpty" class="turnmode-bar"><TurnModeSwitch /></div>
+    <div v-if="showWelcome" class="turnmode-bar"><TurnModeSwitch /></div>
 
-    <div v-if="chat.isEmpty" class="floating-history" :class="{ tucked: historyOpen }">
+    <div v-if="showWelcome" class="floating-history" :class="{ tucked: historyOpen }">
       <button class="icon-btn" data-history-toggle title="Chat history" aria-label="Chat history"
               :aria-expanded="historyOpen" @click.stop="toggleHistory">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 3v6h6" /><path d="M12 7v5l3 2" /></svg>
@@ -15,7 +15,7 @@
     </div>
 
     <!-- Thread header (only once a conversation has started) -->
-    <header v-if="!chat.isEmpty" class="chat-header">
+    <header v-if="!showWelcome" class="chat-header">
       <div class="chat-head-text">
         <h2 class="chat-title">{{ title }}</h2>
         <span v-if="chat.currentAgent" class="chat-agent">{{ chat.currentAgent.name }}</span>
@@ -90,16 +90,16 @@
          dock, expanded). One per conversation; out of the way while the large view is up. -->
     <!-- Gone once the browser has ended: a preview headed "Ended" over a blank picture is a card for
          something that is no longer there. It comes back with the next browser the agent starts. -->
-    <BrowserCard v-if="!chat.isEmpty && browser.hasSession && !browser.ended && !browser.expanded" />
+    <BrowserCard v-if="!showWelcome && browser.hasSession && !browser.ended && !browser.expanded" />
 
     <!-- Body -->
     <div class="chat-body">
-      <ChatWelcome v-if="chat.isEmpty" ref="welcomeRef" @submit="onSend" />
+      <ChatWelcome v-if="showWelcome" ref="welcomeRef" @submit="onSend" />
       <ChatMessageList v-else />
     </div>
 
     <!-- Composer (thread mode; welcome screen has its own) -->
-    <div v-if="!chat.isEmpty" class="chat-footer">
+    <div v-if="!showWelcome" class="chat-footer">
       <!-- Active-plan navigation chip: scrolls back to the inline plan card when it's out of view. -->
       <button v-if="activePlan" type="button" class="active-plan-chip" @click="scrollToActivePlan"
               aria-label="Jump to the active plan">
@@ -228,6 +228,10 @@ watch(() => chat.conversationId, async (cid, prev) => {
     if (p) video.openPanel()
   }
 }, { immediate: true })
+// The welcome screen is for a chat with nothing in it. A video estimate made from the welcome composer
+// creates the conversation and a job but no message, and the estimate card lives in the thread's jobs tray:
+// keying the welcome on messages alone kept the card out of sight (live test 2026-10-16, conversation 2830).
+const showWelcome = computed(() => chat.isEmpty && !video.jobsFor(chat.conversationId).length)
 // After a turn, the assistant may have planned or changed the project: show the current records.
 watch(() => chat.isBusy, (busy, was) => {
   if (was && !busy && chat.conversationId && (video.mode || video.project)) video.loadProject(chat.conversationId)
