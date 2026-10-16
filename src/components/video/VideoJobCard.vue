@@ -27,7 +27,15 @@
         <template v-else-if="job.quote.pricing_status === 'estimated'">About ${{ money(job.quote.estimate_usd) }}, at most ${{ money(job.quote.max_usd) }} (the provider's reported cost is charged).</template>
         <template v-else>${{ money(job.quote.estimate_usd) }}</template>
       </p>
-      <div class="vjc-actions">
+      <!-- An estimate holds for a short time so the price stays current; the server refuses an expired one,
+           so the card says so instead of offering a Generate that can only fail. -->
+      <template v-if="expired">
+        <p class="vjc-warn" data-test="video-estimate-expired">This estimate has expired. Get a new one to see the current price.</p>
+        <div class="vjc-actions">
+          <button type="button" class="vjc-btn primary" data-test="video-reestimate" @click="reestimate">Get a new estimate</button>
+        </div>
+      </template>
+      <div v-else class="vjc-actions">
         <button type="button" class="vjc-btn primary" data-test="video-generate" :disabled="pending" @click="go">
           {{ adjustments.length ? 'Accept changes and generate' : 'Generate' }}
         </button>
@@ -124,6 +132,17 @@ function openPanel() {
 const now = ref(Date.now())
 const timer = setInterval(() => { now.value = Date.now() }, 1000)
 onBeforeUnmount(() => clearInterval(timer))
+const expired = computed(() => {
+  const at = props.job.quote && props.job.quote.expires_at
+  return props.job.state === 'awaiting_authorization' && !!at && Date.parse(at) <= now.value
+})
+// End the stale estimate and hand its description back to the composer, where Get estimate asks again
+// with the settings the person already chose.
+async function reestimate() {
+  const prompt = (props.job.effective_config && props.job.effective_config.prompt) || ''
+  await video.decline(props.job)
+  if (prompt) window.dispatchEvent(new CustomEvent('video-compose', { detail: { text: prompt } }))
+}
 const elapsed = computed(() => {
   if (!props.job.created_at || terminal.value) return ''
   const s = Math.max(0, Math.round((now.value - Date.parse(props.job.created_at)) / 1000))

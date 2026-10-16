@@ -54,6 +54,33 @@ describe('VideoJobCard', () => {
     expect(w.text()).toContain('NOT sent again')
   })
 
+  it('an expired estimate says so and offers a new one instead of a Generate that can only fail', async () => {
+    // Live test 2026-10-16: Generate on a 15-minute-old estimate was refused ("This estimate has expired").
+    const job = { ...base, state: 'awaiting_authorization',
+                  quote: { estimate_usd: '0.12', max_usd: '0.12', pricing_status: 'exact', adjustments: [],
+                           expires_at: '2020-01-01T00:00:00Z' } }
+    api.post.mockResolvedValue({ data: { ...job, state: 'cancelled' } })
+    const heard = []
+    const onCompose = (e) => heard.push(e.detail.text)
+    window.addEventListener('video-compose', onCompose)
+    const w = mount(VideoJobCard, { props: { job } })
+    expect(w.find('[data-test="video-generate"]').exists()).toBe(false)
+    expect(w.find('[data-test="video-estimate-expired"]').exists()).toBe(true)
+    await w.find('[data-test="video-reestimate"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    window.removeEventListener('video-compose', onCompose)
+    expect(api.post).toHaveBeenCalledWith('/video/jobs/j1/decline/')
+    expect(heard).toEqual(['a shoe'])
+  })
+
+  it('a fresh estimate keeps its Generate button', () => {
+    const job = { ...base, state: 'awaiting_authorization',
+                  quote: { estimate_usd: '0.12', max_usd: '0.12', pricing_status: 'exact', adjustments: [],
+                           expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString() } }
+    const w = mount(VideoJobCard, { props: { job } })
+    expect(w.find('[data-test="video-generate"]').exists()).toBe(true)
+  })
+
   it('a failure shows the reason', () => {
     const w = mount(VideoJobCard, { props: { job: { ...base, state: 'failed', error: { message: 'Monthly limit reached.' } } } })
     expect(w.find('[role="alert"]').text()).toContain('Monthly limit reached.')
