@@ -102,13 +102,14 @@
 
           <!-- Invite Row -->
           <div v-if="showInvite" class="invite-row">
+            <input v-model="inviteName" type="text" maxlength="150" class="settings-input" placeholder="Their name" autocomplete="off" @keydown.enter="inviteMember" />
             <input v-model="inviteEmail" type="email" class="settings-input" placeholder="colleague@company.com" @keydown.enter="inviteMember" />
             <select v-model="inviteRole" class="settings-select">
               <option value="member">Member</option>
               <option value="admin">Admin</option>
               <option value="viewer">Viewer</option>
             </select>
-            <button class="btn-primary btn-sm" @click="inviteMember" :disabled="inviting">
+            <button class="btn-primary btn-sm" @click="inviteMember" :disabled="inviting || !inviteEmail.trim() || !inviteName.trim()">
               {{ inviting ? 'Inviting…' : 'Send Invite' }}
             </button>
           </div>
@@ -164,9 +165,9 @@
               >
                 <div class="member-avatar" style="background: rgba(251,146,60,0.15); color: #C2410C;">✉</div>
                 <div class="member-info">
-                  <span class="member-name">{{ inv.email }}</span>
+                  <span class="member-name">{{ inv.name || inv.email }}</span>
                   <span class="member-email">
-                    Invited {{ timeAgo(inv.created_at) }}
+                    <template v-if="inv.name">{{ inv.email }} · </template>Invited {{ timeAgo(inv.created_at) }}
                     <template v-if="inv.invited_by_username"> by {{ inv.invited_by_username }}</template>
                     · Expires {{ timeAgo(inv.expires_at, true) }}
                   </span>
@@ -395,6 +396,7 @@ const loadingWs     = ref(false)
 const saving        = ref(false)
 const deleting      = ref(false)
 const showInvite    = ref(false)
+const inviteName    = ref('')
 const inviteEmail   = ref('')
 const inviteRole    = ref('member')
 const inviting      = ref(false)
@@ -461,13 +463,15 @@ async function saveGeneral() {
 }
 
 async function inviteMember() {
-  if (!inviteEmail.value || inviting.value) return
+  if (!inviteEmail.value.trim() || !inviteName.value.trim() || inviting.value) return
   inviting.value = true
   try {
     await tenancyApi.inviteOrgMember(orgSlug.value, {
       email: inviteEmail.value,
+      name: inviteName.value.trim(),
       role: inviteRole.value,
     })
+    inviteName.value = ''
     inviteEmail.value = ''
     showInvite.value = false
     await loadInvites()

@@ -197,6 +197,11 @@
 
                   <label class="di-check"><input type="checkbox" v-model="s.allow_uploads" /> Allow file uploads</label>
 
+                  <label class="di-label">Allowed websites <span class="di-label-hint">only these sites can show the widget; one per line</span></label>
+                  <textarea v-model="allowedSitesText" rows="3" class="di-input di-sites" spellcheck="false"
+                            placeholder="https://www.yourshop.com&#10;https://*.yourshop.com"></textarea>
+                  <p v-if="!allowedSitesText.trim()" class="di-sites-hint">No site added yet: the widget shows only here, in the preview. Add the address of each site that embeds it.</p>
+
                   <div class="di-actions">
                     <button class="di-btn grow" :disabled="busy" @click="saveSettings"><Icon icon="lucide:save" :width="14" /> {{ busy ? 'Saving…' : 'Save widget settings' }}</button>
                     <GuideLink tab="widget" />
@@ -248,6 +253,10 @@ const s = reactive({
   proactive: { enabled: false, text: '', delay_s: 4 },
   branding: { name: '', greeting: '', avatar_url: '', theme_color: '#2563EB' },
 })
+// The sites allowed to frame /embed/<token> (the server checks each and sends them as frame-ancestors).
+const allowedSitesText = ref('')
+const allowedSitesList = () => allowedSitesText.value.split(/[\s,]+/).map((x) => x.trim()).filter(Boolean)
+const settingsPayload = () => ({ ...s, allowed_sites: allowedSitesList() })
 
 const agentId = computed(() => props.agent && props.agent.id)
 const wsOn = computed(() => props.agent && props.agent.ws_chat_enabled !== false)
@@ -289,6 +298,7 @@ function applySettings(ss) {
   s.launcher = ss.launcher || 'bubble'
   s.button_image_url = ss.button_image_url || ''
   s.allow_uploads = !!ss.allow_uploads
+  allowedSitesText.value = (Array.isArray(ss.allowed_sites) ? ss.allowed_sites : []).join('\n')
   s.proactive = { enabled: false, text: '', delay_s: 4, ...(ss.proactive || {}) }
   s.branding = { name: '', greeting: '', avatar_url: '', theme_color: '#2563EB', ...(ss.branding || {}) }
 }
@@ -361,18 +371,19 @@ async function toggleShare() {
 async function saveSettings() {
   busy.value = true
   try {
-    const res = await api.updateAgentShareSettings(agentId.value, { ...s })
+    const res = await api.updateAgentShareSettings(agentId.value, settingsPayload())
     share.value = res.data
+    applySettings(share.value.share_settings)
     previewKey.value++
     notify.success('Saved — click Publish Changes to make it live')
-  } catch (e) { notify.error('Save failed') }
+  } catch (e) { notify.error(e?.response?.data?.detail || 'Save failed') }
   finally { busy.value = false }
 }
 
 async function publish() {
   busy.value = true
   try {
-    if (share.value.is_public) await api.updateAgentShareSettings(agentId.value, { ...s })
+    if (share.value.is_public) await api.updateAgentShareSettings(agentId.value, settingsPayload())
     await api.publishAgent(agentId.value)
     previewKey.value++
     notify.success('Published ✓')
@@ -505,6 +516,8 @@ watch(() => props.modelValue, (open) => { if (open) { testToken.value = ''; load
 .di-seg button.on { border-color: var(--vm-violet); background: var(--vm-violet-soft); color: var(--vm-violet-d); font-weight: 600; }
 .di-stack { display: flex; flex-direction: column; gap: 9px; }
 .di-row { display: flex; gap: 10px; }
+.di-sites { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; resize: vertical; }
+.di-sites-hint { font-size: 12px; color: var(--vm-ink-faint); margin: -2px 0 4px; }
 .di-input { width: 100%; font-size: 13px; color: var(--vm-ink); background: #fff; border: 1px solid var(--vm-line-2); border-radius: 11px; padding: 9px 12px; transition: border-color .15s, box-shadow .15s; }
 .di-input:focus { outline: none; border-color: var(--vm-violet); box-shadow: 0 0 0 3px var(--vm-violet-soft); }
 .di-color { display: grid; place-items: center; width: 44px; border: 1px solid var(--vm-line-2); border-radius: 11px; cursor: pointer; overflow: hidden; }

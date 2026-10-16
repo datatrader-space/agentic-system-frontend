@@ -249,6 +249,10 @@
             <!-- Organization scope: email invite -->
             <template v-if="invite.scope === 'org'">
               <div class="form-row">
+                <label>Name</label>
+                <input v-model="invite.name" type="text" maxlength="150" placeholder="Their name" autocomplete="off" @keydown.enter="submitInvite" />
+              </div>
+              <div class="form-row">
                 <label>Email</label>
                 <input v-model="invite.email" type="email" placeholder="colleague@company.com" @keydown.enter="submitInvite" />
               </div>
@@ -296,7 +300,7 @@
 
             <div class="modal-actions">
               <button class="btn-cancel" @click="invite.open = false">Cancel</button>
-              <button v-if="invite.scope === 'org'" class="btn-primary" :disabled="invite.busy || !invite.email.trim()" @click="submitInvite">
+              <button v-if="invite.scope === 'org'" class="btn-primary" :disabled="invite.busy || !invite.email.trim() || !invite.name.trim()" @click="submitInvite">
                 {{ invite.busy ? 'Sending…' : 'Send Invite' }}
               </button>
               <button v-else class="btn-primary" :disabled="invite.busy || !invite.workspaceId || !invite.userId" @click="submitWorkspaceAdd">
@@ -354,13 +358,14 @@ const invite = reactive({
   open: false, busy: false,
   scope: 'org',
   // org scope
-  email: '', role: 'member',
+  name: '', email: '', role: 'member',
   // workspace scope
   workspaceId: '', userId: '', wsRole: 'member',
   candidates: [], candidatesLoading: false,
 })
 function openInvite() {
   invite.scope = 'org'
+  invite.name = ''
   invite.email = ''
   invite.role = 'member'
   invite.workspaceId = ''
@@ -399,11 +404,12 @@ async function onInviteWorkspaceChange() {
 }
 async function submitInvite() {
   const email = invite.email.trim()
-  if (!email || invite.busy) return
+  const name = invite.name.trim()
+  if (!email || !name || invite.busy) return
   if (!store.orgSlug) { notify.error('No organization selected'); return }
   invite.busy = true
   try {
-    await tenancyApi.inviteOrgMember(store.orgSlug, { email, role: invite.role })
+    await tenancyApi.inviteOrgMember(store.orgSlug, { email, name, role: invite.role })
     notify.success(`Invitation sent to ${email}`)
     invite.open = false
     store.loadMembers()
