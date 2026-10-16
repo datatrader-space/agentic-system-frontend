@@ -83,7 +83,11 @@ describe('where the switch appears', () => {
     // under test is one directive. Sliced past the comment so prose cannot satisfy the assertion.
     const text = src('./ChatWorkspace.vue')
     const bar = text.slice(text.indexOf('class="turnmode-bar"') - 200, text.indexOf('class="turnmode-bar"') + 60)
-    expect(bar).toContain('v-if="chat.isEmpty"')
+    // `showWelcome` is "no messages and no video jobs": a chat whose only content is a video estimate is
+    // not empty (its card lives in the thread), so the switch goes with the welcome screen, not with
+    // `chat.isEmpty` alone.
+    expect(bar).toContain('v-if="showWelcome"')
+    expect(text).toContain('const showWelcome = computed(() => chat.isEmpty && ')
     expect(text.match(/<TurnModeSwitch /g) || []).toHaveLength(1)
   })
 })
