@@ -2,7 +2,7 @@
   <div class="min-h-full bg-[#F8FAFC] px-5 py-7 sm:px-7 lg:px-8">
     <div class="mx-auto max-w-[1390px]">
       <!-- Header -->
-      <header class="mb-8 flex flex-wrap items-start justify-between gap-4">
+      <header class="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 class="text-[28px] font-[850] leading-tight tracking-normal text-[#0F172A]">Integrations</h1>
           <p class="mt-2 max-w-[70ch] text-[14px] text-[#52627A]">
@@ -11,11 +11,22 @@
         </div>
       </header>
 
+      <!-- Two kinds of integration, one tab each (the tab is kept in the address: ?tab=agents|mcp). -->
+      <nav class="mb-5 flex gap-1 border-b border-[#DDE6F2]" aria-label="Integrations">
+        <button v-for="t in pageTabs" :key="t.id" type="button"
+                class="-mb-px inline-flex items-center gap-2 border-b-2 px-3.5 py-2.5 text-[13.5px] font-semibold transition"
+                :class="tab === t.id ? 'border-[#2563EB] text-[#2563EB]' : 'border-transparent text-[#52627A] hover:text-[#0F172A]'"
+                :aria-current="tab === t.id ? 'page' : undefined" @click="setTab(t.id)">
+          <component :is="t.icon" :size="15" /> {{ t.label }}
+          <span v-if="t.badge" class="rounded-full bg-[#EFF4FF] px-1.5 py-px text-[11px] font-bold text-[#2563EB]">{{ t.badge }}</span>
+        </button>
+      </nav>
+
       <!-- ══ Your agents in your app, backend or website ══ -->
-      <AgentIntegrationsList class="mb-6" />
+      <AgentIntegrationsList v-if="tab === 'agents'" />
 
       <!-- ══ AADML as an MCP server ═══════════════════════════════════════════════════════════════ -->
-      <section class="rounded-[10px] border border-[#DDE6F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <section v-if="tab === 'mcp'" class="rounded-[10px] border border-[#DDE6F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <!-- Section header -->
         <div class="flex flex-wrap items-start justify-between gap-4 border-b border-[#EDF2F9] px-6 py-5">
           <div class="flex min-w-0 items-start gap-3.5">
@@ -268,7 +279,8 @@
  * third-party MCP servers AADML consumes (outbound). Neither is ever labelled bare "MCP".
  */
 import { computed, onMounted, ref } from 'vue'
-import { Copy, Info, Plug, RefreshCw } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
+import { Bot, Copy, Info, Plug, RefreshCw } from 'lucide-vue-next'
 
 import api from '../services/api'
 import AgentIntegrationsList from '../components/integrations/AgentIntegrationsList.vue'
@@ -284,6 +296,15 @@ const revoking = ref(null)
 const clientTab = ref('chatgpt')
 
 const activeCount = computed(() => connections.value.filter((c) => c.is_active).length)
+
+const route = useRoute()
+const router = useRouter()
+const tab = computed(() => (route.query.tab === 'mcp' ? 'mcp' : 'agents'))
+const pageTabs = computed(() => [
+  { id: 'agents', label: 'Agents', icon: Bot },
+  { id: 'mcp', label: 'AADML as an MCP server', icon: Plug, badge: activeCount.value || null },
+])
+function setTab(id) { router.replace({ query: { ...route.query, tab: id } }) }
 
 // Instructions are per-client because the two products word the same flow differently, and a user
 // following ChatGPT's wording inside Claude gives up rather than translating.
