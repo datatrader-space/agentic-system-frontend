@@ -40,7 +40,8 @@ export const useVideoStore = defineStore('video', {
     // Jobs by id (mirrors the server) and the conversation they belong to.
     jobs: {},
     busy: false,
-    // The open project and the panel.
+    // The open project and the panel. conversationId is the chat they were loaded for.
+    conversationId: null,
     project: null,
     versions: [],
     panelOpen: false,
@@ -59,7 +60,8 @@ export const useVideoStore = defineStore('video', {
     options() {
       const out = (this.route && this.route.outputs) || {}
       return {
-        durations: out.durations || [],
+        // The catalog lists durations in its own order (Veo: 8, 4, 6); a person reads them shortest first.
+        durations: [...(out.durations || [])].sort((a, b) => a - b),
         resolutions: out.resolutions || [],
         aspectRatios: out.aspect_ratios || [],
         audio: !!out.audio,
@@ -88,6 +90,8 @@ export const useVideoStore = defineStore('video', {
         if (v) return v
       }
       if (state.project && state.project.active_video) return state.project.active_video
+      const chosen = state.versions.find((x) => x.is_active)
+      if (chosen) return chosen
       const ready = Object.values(state.jobs).filter((j) => j.state === 'ready' && j.output && j.output.url
         && (j.operation !== 'frame'))
       ready.sort((a, b) => String(b.completed_at).localeCompare(String(a.completed_at)))
@@ -185,9 +189,13 @@ export const useVideoStore = defineStore('video', {
     onFrame(data) {
       const prev = this.jobs[data.job_id]
       const job = this._put(data)
-      if (prev && !TERMINAL.has(prev.state) && job.state === 'ready' && job.project_id && this.project
-          && String(this.project.project_id) === String(job.project_id)) {
-        this.loadProject(job.conversation_id)
+      // A free local edit (trim, speed) can finish before its first frame arrives: no earlier state counts.
+      if ((!prev || !TERMINAL.has(prev.state)) && job.state === 'ready') {
+        if (job.project_id && this.project && String(this.project.project_id) === String(job.project_id)) {
+          this.loadProject(job.conversation_id)
+        } else if (String(job.conversation_id || '') === String(this.conversationId || '')) {
+          this.loadVersions()
+        }
       }
     },
     async loadJobs(conversationId) {
@@ -288,14 +296,15 @@ export const useVideoStore = defineStore('video', {
 
     // ── project & panel ───────────────────────────────────────────────────────────────────────────
     async loadProject(conversationId) {
-      if (!conversationId) { this.project = null; return null }
+      this.conversationId = conversationId || null
+      if (!conversationId) { this.project = null; this.versions = []; return null }
       try {
         const res = await api.get('/video/projects/', { params: { conversation_id: conversationId } })
         this.project = res.data.project || null
-        if (this.project) this.loadVersions()
       } catch {
         this.project = null
       }
+      this.loadVersions()
       return this.project
     },
     async createProject({ chat, title, prompt }) {
@@ -356,11 +365,16 @@ export const useVideoStore = defineStore('video', {
       await this.patchProject({ scenes: next.map((x) => ({ scene_id: x.scene_id, title: x.title, intent: x.intent,
                                                           planned_ms: x.planned_ms, references: x.references })) })
     },
+    // A project's versions, or, in a chat with no project, the chat's own generated and edited videos (the
+    // chat keeps its own active video, so Restore works there too).
     async loadVersions() {
-      if (!this.project) { this.versions = []; return }
       try {
-        const res = await api.get(`/video/projects/${this.project.project_id}/versions/`)
-        this.versions = res.data.versions || []
+        const res = this.project
+          ? await api.get(`/video/projects/${this.project.project_id}/versions/`)
+          : this.conversationId
+            ? await api.get('/video/versions/', { params: { conversation_id: this.conversationId } })
+            : null
+        this.versions = (res && res.data.versions) || []
       } catch { this.versions = [] }
     },
     async pin(item, role, conversationId) {
@@ -388,6 +402,7 @@ export const useVideoStore = defineStore('video', {
         })
         this.previewAttachmentId = null
         if (this.project) await this.loadProject(conversationId)
+        else await this.loadVersions()
         notify.success(`Version v${version.version} is now the active video.`)
       } catch (e) {
         notify.error(errText(e, 'Could not restore that version.'))
@@ -400,6 +415,7 @@ export const useVideoStore = defineStore('video', {
     closePanel() { this.panelOpen = false },
     reset() {
       this.jobs = {}
+      this.conversationId = null
       this.project = null
       this.versions = []
       this.refs = []

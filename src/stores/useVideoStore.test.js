@@ -133,4 +133,32 @@ describe('useVideoStore', () => {
     expect(chat.sendMessage).toHaveBeenCalledWith(expect.stringContaining('Do not render anything yet.'))
     expect(video.panelOpen).toBe(true)
   })
+
+  it('a chat with no project lists its own versions, and the restored one is the active video', async () => {
+    // Live 2026-10-16: a chat's clip and its trim never showed in Versions (project-only), so no restore.
+    const versions = [{ attachment_id: 'v2', version: 2, is_active: false, url: '/v2.mp4' },
+                      { attachment_id: 'v1', version: 1, is_active: true, url: '/v1.mp4' }]
+    api.get.mockImplementation((url) => Promise.resolve({ data: url === '/video/projects/'
+      ? { project: null } : { versions } }))
+    await video.loadProject('c1')
+    await Promise.resolve()
+    expect(api.get).toHaveBeenCalledWith('/video/versions/', { params: { conversation_id: 'c1' } })
+    expect(video.versions).toHaveLength(2)
+    expect(video.activeVideo.attachment_id).toBe('v1')
+  })
+
+  it('a free edit that arrives already finished refreshes the chat\'s versions', async () => {
+    api.get.mockResolvedValue({ data: { project: null, versions: [] } })
+    await video.loadProject('c1')
+    api.get.mockClear()
+    video.onFrame(job({ job_id: 'trim', operation: 'trim', state: 'ready', output: { url: '/t.mp4' } }))
+    expect(api.get).toHaveBeenCalledWith('/video/versions/', { params: { conversation_id: 'c1' } })
+  })
+
+  it('clip lengths are offered shortest first', async () => {
+    api.get.mockResolvedValue({ data: { routes: [{ ...KLING, outputs: { ...KLING.outputs, durations: [8, 4, 6] } }],
+                                        default_route_id: 7 } })
+    await video.loadCapabilities(5)
+    expect(video.options.durations).toEqual([4, 6, 8])
+  })
 })
