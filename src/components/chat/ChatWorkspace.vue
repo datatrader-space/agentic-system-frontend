@@ -93,7 +93,7 @@
     <BrowserCard v-if="!showWelcome && browser.hasSession && !browser.ended && !browser.expanded" />
 
     <!-- Body -->
-    <div class="chat-body">
+    <div class="chat-body" :class="{ 'welcome-scroll': showWelcome }">
       <ChatWelcome v-if="showWelcome" ref="welcomeRef" @submit="onSend" />
       <ChatMessageList v-else />
     </div>
@@ -751,6 +751,9 @@ watch(
 /* Drawer styles live in ChatHistoryDrawer.vue. */
 
 .chat-body { flex: 1; min-height: 0; }
+/* The welcome composer grows with video settings and references. Give it its own scroll area:
+   the outer split intentionally clips overflow, while the message list owns scrolling in a thread. */
+.chat-body.welcome-scroll { overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
 .chat-footer { flex-shrink: 0; background: linear-gradient(to top, var(--vm-bg) 55%, transparent); }
 .session-meter {
   text-align: right; padding: 2px 20px 6px; font-size: 11px; color: var(--vm-text-3, #6b7280);
