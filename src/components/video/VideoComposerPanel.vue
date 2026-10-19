@@ -3,10 +3,10 @@
        row that only offers what the chosen model can do, and one primary action that never spends money:
        "Get estimate" (or "Plan the story"). The render starts only from the estimate card's Generate. -->
   <section class="vcp" aria-label="Video mode" data-test="video-composer-panel">
-    <div v-if="showTasks" class="vcp-tasks" role="radiogroup" aria-label="What would you like to create?">
+    <div v-if="showTasks" class="vcp-tasks" :style="{ '--task-count': visibleTasks.length }" role="radiogroup" aria-label="What would you like to create?">
       <button v-for="t in visibleTasks" :key="t.value" type="button" role="radio" class="vcp-task"
               :class="{ on: video.task === t.value }" :aria-checked="video.task === t.value ? 'true' : 'false'"
-              :data-test="'video-task-' + t.value" @click="video.setTask(t.value)">
+              :tabindex="video.task === t.value ? 0 : -1" @keydown="navigateTask($event, t.value)" :data-test="'video-task-' + t.value" @click="video.setTask(t.value)">
         <span class="vcp-task-ic" aria-hidden="true" v-html="t.icon"></span>
         <span class="vcp-task-text"><span class="vcp-task-title">{{ t.label }}</span>
           <span class="vcp-task-desc">{{ t.desc }}</span></span>
@@ -36,8 +36,10 @@
     </ul>
 
     <!-- Settings row: values come from the chosen route's declared outputs; nothing else is offered. -->
+    <details class="vcp-options" :open="settingsInitiallyOpen">
+      <summary>Video settings <span>{{ video.settings.aspect_ratio }} ? {{ video.task === 'story' ? video.targetSeconds : video.settings.duration }} s</span></summary>
     <div class="vcp-settings">
-      <label class="vcp-field">
+      <label class="vcp-field vcp-model">
         <span class="vcp-label">Video model</span>
         <select data-test="video-route" :value="video.routeId" @change="video.pickRoute($event.target.value)">
           <option value="">Auto{{ autoName ? ` (${autoName})` : '' }}</option>
@@ -73,15 +75,18 @@
       </label>
       <label class="vcp-check" :class="{ off: !o.audio }" :title="o.audio ? 'Generate sound with the video' : 'This model renders silent video'">
         <input type="checkbox" v-model="video.settings.sound" :disabled="!o.audio" />
-        <span>Sound</span>
+        <span>{{ o.audio ? 'Sound' : 'Silent video' }}</span>
       </label>
+    </div>
+    </details>
+    <div class="vcp-footer">
+      <p class="vcp-hint">{{ hint }}</p>
       <button type="button" class="vcp-primary" data-test="video-estimate" :disabled="primaryDisabled"
               @click="onPrimary">
         {{ video.busy ? 'Working…' : (video.task === 'story' ? 'Plan the story' : 'Get estimate') }}
         <span aria-hidden="true">›</span>
       </button>
     </div>
-    <p class="vcp-hint">{{ hint }}</p>
   </section>
 </template>
 
@@ -94,6 +99,7 @@ const props = defineProps({
   draft: { type: String, default: '' },
   showTasks: { type: Boolean, default: true },
 })
+const settingsInitiallyOpen = typeof window === 'undefined' || window.innerWidth >= 640
 const emit = defineEmits(['done'])
 const video = useVideoStore()
 const chat = useChatStore()
@@ -127,6 +133,16 @@ const autoName = computed(() => {
 // Only what the chosen model offers is shown (owner, 2026-10-16): no reference slot for a model that takes
 // no references, no Edit footage for a model that cannot edit video, no end frame without start+end support.
 const visibleTasks = computed(() => tasks.filter((t) => t.value !== 'edit' || can.value.edit))
+function navigateTask(event, value) {
+  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
+  event.preventDefault()
+  const values = visibleTasks.value.map((t) => t.value)
+  const index = values.indexOf(value)
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? values.length - 1
+    : (index + (['ArrowRight', 'ArrowDown'].includes(event.key) ? 1 : -1) + values.length) % values.length
+  video.setTask(values[next])
+  event.currentTarget.parentElement.querySelectorAll('[role="radio"]')[next]?.focus()
+}
 const slots = computed(() => {
   const refSlot = { role: 'subject', label: 'Add references', icon: ICON.plus, accept: 'image/*,video/*,audio/*',
                     hint: 'A product, a character or a place to keep' }
@@ -194,18 +210,18 @@ watch(() => chat.selectedAgentId, (id) => { if (id) video.loadCapabilities(id) }
 </script>
 
 <style scoped>
-.vcp { display: grid; gap: 10px; padding: 10px 12px 4px; border-bottom: 1px solid var(--vm-line-2, #e5e7eb); }
-.vcp-tasks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.vcp-task { display: flex; gap: 10px; align-items: flex-start; text-align: left; min-height: 56px; padding: 10px 12px;
+.vcp { display: grid; gap: 16px; padding: 8px 4px 16px; min-width: 0; container-type: inline-size; text-align: left; border-bottom: 1px solid var(--vm-line-2, #e5e7eb); }
+.vcp-tasks { display: grid; grid-template-columns: repeat(var(--task-count, 2), minmax(0, 1fr)); gap: 8px; }
+.vcp-task { display: flex; gap: 10px; align-items: flex-start; text-align: left; min-height: 76px; padding: 14px;
   border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 12px; background: var(--vm-surface, #fff); cursor: pointer; }
 .vcp-task:hover { border-color: var(--vm-violet, #6366f1); }
-.vcp-task.on { border-color: var(--vm-violet-d, #4f46e5); box-shadow: 0 0 0 2px var(--vm-violet-soft, #eef2ff); }
+.vcp-task.on { background: var(--vm-violet-soft, #eef2ff); border-color: var(--vm-violet-d, #4f46e5); box-shadow: 0 0 0 2px var(--vm-violet-soft, #eef2ff); }
 .vcp-task:focus-visible, .vcp-slot:focus-visible, .vcp-primary:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: 2px; }
 .vcp-task-ic { width: 22px; height: 22px; flex: 0 0 22px; color: var(--vm-violet-d, #4f46e5); }
 .vcp-task-ic :deep(svg) { width: 22px; height: 22px; }
 .vcp-task-text { display: grid; gap: 2px; min-width: 0; }
 .vcp-task-title { font-weight: 700; font-size: 13.5px; color: var(--vm-ink, #0f172a); }
-.vcp-task-desc { font-size: 12px; color: var(--vm-ink-soft, #64748b); }
+.vcp-task-desc { line-height: 1.45; font-size: 12px; color: var(--vm-ink-soft, #64748b); }
 .vcp-file { display: none; }
 .vcp-slots { display: flex; flex-wrap: wrap; gap: 8px; }
 .vcp-slot { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border: 1px dashed var(--vm-line, #cbd5e1);
@@ -217,22 +233,38 @@ watch(() => chat.selectedAgentId, (id) => { if (id) video.loadCapabilities(id) }
 .vcp-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 10px; background: var(--vm-surface, #fff); }
 .vcp-thumb { width: 34px; height: 34px; object-fit: cover; border-radius: 6px; }
 .vcp-chip-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
-.vcp-role { font-size: 12px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 6px; padding: 3px 4px; }
-.vcp-chip-x { border: none; background: transparent; font-size: 16px; width: 28px; height: 28px; cursor: pointer; color: var(--vm-ink-soft, #64748b); }
-.vcp-settings { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
-.vcp-field { display: grid; gap: 3px; font-size: 12px; }
+.vcp-role { min-height: 44px; max-width: 100%; font-size: 12px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 6px; padding: 3px 4px; }
+.vcp-chip-x { min-width: 44px; min-height: 44px; border: none; background: transparent; font-size: 16px; width: 28px; height: 28px; cursor: pointer; color: var(--vm-ink-soft, #64748b); }
+.vcp-options { min-width: 0; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 12px; background: var(--vm-surface-2, #f8fafc); }
+.vcp-options summary { cursor: pointer; padding: 12px; color: var(--vm-ink, #0f172a); font-size: 13px; font-weight: 600; min-height: 44px; box-sizing: border-box; }
+.vcp-options summary span { float: right; color: var(--vm-ink-soft, #64748b); font-weight: 400; }
+.vcp-options summary:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: 2px; border-radius: 10px; }
+.vcp-options > .vcp-settings { padding: 0 12px 12px; }
+.vcp-settings { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; gap: 12px; }
+.vcp-model { grid-column: 1 / -1; }
+.vcp-footer { display: flex; align-items: center; gap: 16px; padding-top: 4px; }
+.vcp-field { display: grid; min-width: 0; gap: 7px; font-size: 12px; }
 .vcp-label { color: var(--vm-ink-soft, #64748b); font-weight: 600; }
-.vcp-field select { min-height: 36px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 9px; padding: 0 8px; background: var(--vm-surface, #fff); max-width: 260px; }
-.vcp-check { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: 13px; }
+.vcp-field select { min-height: 44px; width: 100%; min-width: 0; box-sizing: border-box; color: var(--vm-ink, #0f172a); font: inherit; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 9px; padding: 0 8px; background: var(--vm-surface, #fff); max-width: 100%; }
+.vcp-check { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 13px; }
+.vcp-check input { width: 16px; height: 16px; accent-color: var(--vm-violet-d, #4f46e5); }
 .vcp-check.off { opacity: .55; }
-.vcp-primary { margin-left: auto; min-height: 44px; padding: 0 18px; border: none; border-radius: 11px; background: var(--vm-violet-d, #4f46e5);
+.vcp-primary { flex-shrink: 0; margin-left: auto; min-height: 44px; padding: 0 18px; border: none; border-radius: 11px; background: var(--vm-violet-d, #4f46e5);
   color: #fff; font-weight: 700; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
 .vcp-primary:disabled { opacity: .5; cursor: not-allowed; }
-.vcp-hint { margin: 0; font-size: 12px; color: var(--vm-ink-soft, #64748b); }
+.vcp-hint { line-height: 1.5; flex: 1; margin: 0; font-size: 12px; color: var(--vm-ink-soft, #64748b); }
 .vcp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-@media (max-width: 640px) {
+@container (max-width: 480px) {
   .vcp-tasks { grid-template-columns: 1fr; }
+  .vcp-field select { font-size: 16px; }
+  .vcp-task { min-height: 60px; padding: 12px; }
+  .vcp-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .vcp-footer { flex-direction: column; align-items: stretch; gap: 12px; }
+  .vcp-slot { flex: 1 1 120px; justify-content: center; }
+  .vcp-chip { max-width: 100%; flex-wrap: wrap; box-sizing: border-box; }
+  .vcp-chip-name { flex: 1; min-width: 0; }
   .vcp-primary { width: 100%; justify-content: center; margin-left: 0; }
 }
+.vcp-field select:focus-visible, .vcp-role:focus-visible, .vcp-chip-x:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .vcp * { transition: none !important; } }
 </style>

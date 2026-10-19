@@ -27,7 +27,8 @@
         <svg v-if="isExpanded" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
         <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
       </button>
-      <button class="dock-x" :class="{ 'after-expand': tab === 'browser' }" title="Close panel" aria-label="Close panel" @click="closeDock">
+      <span v-if="tab === 'video'" class="dock-return">Back to chat</span>
+      <button class="dock-x" :class="{ 'after-expand': tab === 'browser' }" :title="tab === 'video' ? 'Back to chat' : 'Close panel'" :aria-label="tab === 'video' ? 'Back to chat' : 'Close panel'" @click="closeDock">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
@@ -123,7 +124,7 @@ function closeDock() {
 </script>
 
 <style scoped>
-.dock { height: 100%; min-height: 0; background: var(--vm-surface, #fff); border-left: 1px solid var(--vm-line-2, #e5e7eb); }
+.dock { min-width: 0; height: 100%; min-height: 0; background: var(--vm-surface, #fff); border-left: 1px solid var(--vm-line-2, #e5e7eb); }
 .dock-box { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 /* Expanded: over the chat, above its header and the floating help button, below our own dialogs (the
    take-control question and approval cards must stay on top of it). `!important` because the chat gives
@@ -134,12 +135,16 @@ function closeDock() {
   box-shadow: 0 24px 64px rgba(15, 23, 42, .35); }
 .dock-x.after-expand { margin-left: 2px; }
 @media (max-width: 640px) { .dock.expanded { padding: 0; } .dock.expanded .dock-box { border-radius: 0; } }
-.dock-tabs { display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--vm-line-2, #e5e7eb); }
-.dock-tab { position: relative; display: inline-flex; align-items: center; gap: 6px; border: none; background: transparent; border-radius: 9px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; color: var(--vm-ink-soft, #64748b); cursor: pointer; }
+.dock-return { margin-left: auto; font-size: 12px; color: var(--vm-ink-soft, #64748b); }
+.dock-return + .dock-x { margin-left: 0; }
+.dock-tabs { overflow-x: auto; flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--vm-line-2, #e5e7eb); }
+.dock-tab { min-height: 44px; flex-shrink: 0; position: relative; display: inline-flex; align-items: center; gap: 6px; border: none; background: transparent; border-radius: 9px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; color: var(--vm-ink-soft, #64748b); cursor: pointer; }
 .dock-tab:hover { background: var(--vm-surface-2, #f1f5f9); }
 .dock-tab.on { background: var(--vm-violet-soft, #eef2ff); color: var(--vm-violet-d, #4f46e5); }
 .dock-badge { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 9999px; background: var(--vm-violet-d, #4f46e5); color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; }
-.dock-x, .dock-expand { margin-left: auto; display: grid; place-items: center; width: 28px; height: 28px; border: none; background: transparent; border-radius: 8px; color: var(--vm-ink-soft, #64748b); cursor: pointer; }
+.dock-x, .dock-expand { margin-left: auto; display: grid; place-items: center; min-width: 44px; width: 44px; height: 44px; flex-shrink: 0; border: none; background: transparent; border-radius: 8px; color: var(--vm-ink-soft, #64748b); cursor: pointer; }
+.dock-x:focus-visible, .dock-tab:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: -2px; }
+@media (max-width: 480px) { .dock-return { display: none; } }
 .dock-x:hover, .dock-expand:hover { background: var(--vm-surface-2, #f1f5f9); }
 .dock-x svg, .dock-expand svg { width: 15px; height: 15px; }
 .dock-expand[aria-pressed="true"] { color: var(--vm-violet-d, #4f46e5); }

@@ -4,9 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
-    "build": "vite build",
+    "build": "vite build && vite build --config training-data/vite.config.mjs",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run && node --test \"training-data/tests/*.test.mjs\"",
     "test:watch": "vitest"
   },
   "dependencies": {

@@ -1,5 +1,5 @@
 <template>
-  <div class="welcome">
+  <div class="welcome" :class="{ 'welcome-video': video.mode }">
     <div class="welcome-inner">
       <div class="welcome-mark"><BrandMark /></div>
       <template v-if="video.mode">
@@ -611,6 +611,16 @@ const submit = () => {
   padding: 32px 20px;
   font-family: var(--vm-font-sans);
 }
+.welcome-video { align-items: safe center; }
+.welcome-video .welcome-inner { max-width: 760px; min-width: 0; }
+.welcome-video .welcome-mark { width: 40px; height: 40px; margin-bottom: 14px; animation: none; }
+.welcome-video .composer { padding: 18px; }
+.welcome-video .composer-input { min-height: 76px; padding-top: 14px; }
+@media (max-width: 640px) {
+  .welcome-video { align-items: flex-start; }
+  .welcome-video .composer { padding: 12px; }
+  .welcome-video .welcome-mark { display: none; }
+}
 .welcome-inner {
   width: 100%;
   max-width: 680px;
@@ -806,9 +816,9 @@ const submit = () => {
 .plus-ic--link   { color: #0284c7; }
 .plus-ic--canvas { color: #d97706; }
 .plus-item:disabled .plus-ic { color: var(--vm-ink-faint); }
-.plus-body { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1; }
+.plus-body { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; flex: 1; }
 .plus-title { font-size: 0.875rem; font-weight: 600; color: var(--vm-ink); white-space: nowrap; }
-.plus-desc { font-size: 0.8125rem; color: var(--vm-ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.plus-desc { max-width: 100%; font-size: 0.8125rem; color: var(--vm-ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .plus-badge { margin-left: auto; flex-shrink: 0; padding: 1px 8px; border-radius: 9999px; background: var(--vm-violet, #6d28d9); color: #fff; font-size: 0.625rem; font-weight: 700; letter-spacing: .02em; }
 .plus-search { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 9px 11px; border-top: 1px solid var(--vm-line); }
 .plus-search svg { width: 16px; height: 16px; color: var(--vm-ink-faint); flex-shrink: 0; }

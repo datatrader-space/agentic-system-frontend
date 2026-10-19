@@ -1,6 +1,7 @@
 <template>
-  <router-link
-    :to="to"
+  <component
+    :is="external ? 'a' : 'router-link'"
+    v-bind="external ? { href: to } : { to }"
     class="nav-item"
     :class="{ active: isActive, collapsed, child }"
     :style="{ animationDelay: (index * 45) + 'ms' }"
@@ -24,7 +25,7 @@
     <svg v-if="!collapsed && expandable" class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true" :class="{ open }">
       <path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
-  </router-link>
+  </component>
 </template>
 
 <script setup>
@@ -44,6 +45,9 @@ const props = defineProps({
   child: { type: Boolean, default: false },
   expandable: { type: Boolean, default: false },
   open: { type: Boolean, default: false },
+  // A page this app does not render (its own index.html, e.g. Training Data): a plain link, so the
+  // browser loads it instead of the router looking for a matching route.
+  external: { type: Boolean, default: false },
   // Index for staggered slide-in (Vibrant Light Mesh motion). Purely cosmetic.
   index: { type: Number, default: 0 },
 })
@@ -52,6 +56,7 @@ const emit = defineEmits(['toggle'])
 
 const route = useRoute()
 const isActive = computed(() => {
+  if (props.external) return false
   if (props.match) return route.path.startsWith(props.match)
   return props.exact ? route.path === props.to : route.path.startsWith(props.to)
 })

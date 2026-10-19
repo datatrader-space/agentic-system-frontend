@@ -343,7 +343,8 @@ function closeMoreOnEsc(e) { if (e.key === 'Escape') moreOpen.value = false }
 const canvasOpen = computed(() => canvas.open && canvas.hasCanvas)
 const browserOpen = computed(() => browser.open && browser.hasSession)
 const dockOpen = computed(() => canvasOpen.value || artifacts.open || browserOpen.value || video.panelOpen)
-const isMobile = ref(typeof window !== 'undefined' && window.innerWidth < 768)
+const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1280)
+const isMobile = computed(() => viewportWidth.value < (video.panelOpen ? 1024 : 768))
 
 // Auto-collapse the left side navigation while the Canvas panel is open (more room for the preview),
 // then restore whatever the user had before. Transient — we don't persist this over their real
@@ -361,7 +362,7 @@ watch(dockOpen, (open) => {
 const splitEl = ref(null)
 const canvasWidth = ref(Number(localStorage.getItem('cv.width')) || 620)
 let _resizing = false
-const onWinResize = () => { isMobile.value = window.innerWidth < 768 }
+const onWinResize = () => { viewportWidth.value = window.innerWidth }
 
 function startResize(e) {
   _resizing = true

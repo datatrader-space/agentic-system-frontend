@@ -748,9 +748,9 @@ const onKeydown = (e) => {
 .plus-ic--canvas { color: #d97706; }
 .plus-ic--research { color: #059669; }
 .plus-item:disabled .plus-ic { color: var(--vm-ink-faint); }
-.plus-body { display: flex; align-items: baseline; gap: 8px; min-width: 0; flex: 1; }
+.plus-body { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-width: 0; flex: 1; }
 .plus-title { font-size: 0.875rem; font-weight: 600; color: var(--vm-ink); white-space: nowrap; }
-.plus-desc {
+.plus-desc { max-width: 100%;
   font-size: 0.8125rem; color: var(--vm-ink-faint);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
 }

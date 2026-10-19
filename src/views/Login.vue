@@ -322,7 +322,9 @@ const route = useRoute()
  */
 // Paths the SERVER answers even where a router route has a similar name: Django's admin lives at
 // `/admin/` while this app has its own `/admin` route, so a `next` there must reach the server.
-const SERVER_PATHS = ['/admin/', '/api/', '/training-data/']
+// `/dashboard/training-data` is the new Training Data page: its own index.html under a /dashboard path, which
+// the router would otherwise match to the dashboard shell.
+const SERVER_PATHS = ['/admin/', '/api/', '/training-data/', '/dashboard/training-data']
 
 function goNext(fallback = '/dashboard') {
   const next = route.query.next

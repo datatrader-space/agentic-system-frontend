@@ -49,6 +49,14 @@ describe('VideoComposerPanel', () => {
     expect(w.find('[data-test="video-estimate"]').text()).toContain('Plan the story')
   })
 
+  it('lets keyboard users choose the next workflow', async () => {
+    const w = await mounted('')
+    await w.find('[data-test="video-task-quick"]').trigger('keydown', { key: 'ArrowRight' })
+    expect(useVideoStore().task).toBe('story')
+    expect(w.find('[data-test="video-task-story"]').attributes('tabindex')).toBe('0')
+    w.unmount()
+  })
+
   it('a model without references, end frame or video edits shows none of them', async () => {
     // Owner, 2026-10-16: show only what the selected model can do, so nobody is offered a dead control.
     const w = await mounted()

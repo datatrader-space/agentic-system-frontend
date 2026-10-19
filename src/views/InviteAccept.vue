@@ -152,8 +152,12 @@ async function accept() {
     invite.value = null // hide the pending card
     window.location.assign(acceptedNext.value)
   } catch (err) {
-    const msg = err?.response?.data?.detail || err?.response?.data?.error || 'Failed to accept'
-    notify.show(msg)
+    // A refusal is never shown as a success: notify.show guesses the colour from the words, and "We sent a link"
+    // came out green while the invitation was NOT accepted (2026-10-16).
+    const data = err?.response?.data || {}
+    const msg = data.detail || (data.error && data.error !== 'email_not_verified' ? data.error : '') || 'The invitation was not accepted.'
+    if (data.error === 'email_not_verified') notify.warning(msg, { timeout: 12000 })
+    else notify.error(msg)
   }
   accepting.value = false
 }

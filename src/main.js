@@ -457,6 +457,13 @@ function _snapshotFrom(response) {
 }
 
 router.beforeEach(async (to, from, next) => {
+  // Training Data is its own page (training-data/index.html), not a route of this app. Anything that pushes its
+  // path here hands it to the browser, which loads that page; the router would otherwise render the dashboard.
+  if (to.path === '/dashboard/training-data' || to.path.startsWith('/dashboard/training-data/')) {
+    window.location.assign(to.fullPath)
+    return next(false)
+  }
+
   // Progress bar + perf mark for every navigation (the bar only shows past its 120ms delay,
   // so cached/instant navigations never flash it).
   startNavProgress()

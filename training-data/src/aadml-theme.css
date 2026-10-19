@@ -1,0 +1,60 @@
+/* Prototype-only AADML identity. Palette from the existing app's tailwind.config.js;
+   Inter matches its index.html. No shared application styles are changed. */
+:root {
+  --aadml-primary:#2563eb;
+  --aadml-primary-dark:#1d4ed8;
+  --aadml-navy:#0f172a;
+  --aadml-tint:#f8fbff;
+  --aadml-soft:#eff6ff;
+  --aadml-outline:#bfdbfe;
+  --aadml-focus:#60a5fa;
+  --aadml-teal:#0f766e;
+  --aadml-font:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --accent:var(--aadml-primary);
+  --accent-soft:var(--aadml-soft);
+  --muted:#64748b;
+  --border:#e2e8f0;
+  --surface:#ffffff;
+  font-family:var(--aadml-font);
+  color:#0f172a;
+  background:#f8fafc;
+}
+body,button,input,textarea,select {font-family:var(--aadml-font)}
+h1,h2,h3 {font-family:var(--aadml-font);color:#0f172a;letter-spacing:-.025em}
+h1 {font-weight:750}
+h2,h3 {font-weight:650}
+.workspace {background:#f8fafc}
+.workspace>.sidebar {background:#fff;color:#475569;border-right:1px solid #e2e8f0;box-shadow:2px 0 14px #0f172a04}
+.workspace-switch {background:#f8fafc;border-color:#e2e8f0;color:#0f172a}
+.workspace-switch>span {color:#2563eb}
+.sidebar .nav-link,.sidebar .sidebar-utility {color:#475569;font-weight:550}
+.sidebar .nav-link:hover,.sidebar-utility:hover,.sidebar-profile:hover {background:#f1f5f9;color:#0f172a}
+.sidebar .nav-link.active {background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe;box-shadow:inset 3px 0 #2563eb}
+.sidebar .sidebar-utility.utility-active {background:#eff6ff;color:#1d4ed8;outline-color:#bfdbfe}
+.sidebar .sidebar-upgrade {background:linear-gradient(120deg,#2563eb,#1d4ed8);color:#fff;font-weight:650;box-shadow:0 3px 8px #2563eb20}
+.sidebar-profile {color:#334155}
+.sidebar-profile>span {background:#ccfbf1;color:#0f766e;border-color:#99f6e4}
+.sidebar-wordmark {color:#64748b;font-weight:650;letter-spacing:.02em}
+.sidebar-collapse {background:#e2e8f0;color:#475569}
+.workspace>.project-sidebar {background:#f8fafc;border-color:#e2e8f0}
+.project-nav-link {color:#475569}
+.project-nav-link.active {background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+.project-nav-link:hover {background:#eff6ff}
+.project-flyout {background:#fff;color:#475569;border-color:#e2e8f0;box-shadow:8px 0 30px #0f172a12}
+.project-flyout h3,.project-flyout strong,.flyout-workspace {color:#0f172a}
+.flyout-workspace {border-color:#e2e8f0}
+.project-flyout>button:not(.button) {color:#475569}
+.project-flyout>button:not(.button):hover {color:#2563eb}
+.project-flyout>.button {background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+.button--primary {background:#2563eb;border-color:#2563eb;color:#fff;box-shadow:0 2px 5px #2563eb18}
+.button--primary:hover:not(:disabled) {background:#1d4ed8;border-color:#1d4ed8}
+.topbar {background:#fff;border-color:#e2e8f0}
+.badge--purple {color:#1d4ed8;background:#eff6ff;border-color:#bfdbfe}
+/* Dark floating utilities retain contrast while using AADML navy/blue. */
+.sidebar .utility-panel {background:#0f172a;border-color:#334155}
+.sidebar .utility-panel h2 {color:#f8fafc}
+.sidebar .utility-panel button:hover {background:#1e293b}
+.sidebar .utility-panel i {background:#60a5fa}
+.sidebar .utility-panel strong {color:#f8fafc}
+input[type=checkbox],input[type=radio],input[type=range] {accent-color:#2563eb}
+.sidebar .nav-count{color:#fff;background:#2563eb;font-weight:600;min-width:18px;text-align:center;border-radius:9px}

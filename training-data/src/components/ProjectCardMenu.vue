@@ -1,0 +1,36 @@
+<script setup>
+import { ref } from 'vue';
+import { MoreVertical, Clipboard, ArrowLeftRight, Copy, Images, GitMerge, Pencil, UserRoundPen, Globe, LockKeyhole, Trash2 } from 'lucide-vue-next';
+import UiDialog from './UiDialog.vue';
+import UiButton from './UiButton.vue';
+import UiBadge from './UiBadge.vue';
+const props=defineProps({project:Object,projects:Array,folders:Array});
+const emit=defineEmits(['rename','move']);
+// Renaming and moving a project are its Owner's (the backend refuses anyone else; this only says so first).
+const owns=()=>(props.project.rights||[]).includes('manage');
+function move(){emit('move',value.value);action.value='';}
+const popup=ref(null);const trigger=ref(null);const action=ref('');const value=ref('');const message=ref('');
+const options=[{name:'Copy Project Id',icon:Clipboard},{name:'Move Project',icon:ArrowLeftRight,divider:true},{name:'Duplicate Project',icon:Copy},{name:'Copy Images to Project',icon:Images},{name:'Merge Projects...',icon:GitMerge},{name:'Rename Project',icon:Pencil,divider:true},{name:'Change Owner',icon:UserRoundPen},{name:'Make Public',icon:Globe},{name:'Move to Trash',icon:Trash2,divider:true}];
+function toggle(){if(popup.value.matches(':popover-open'))popup.value.hidePopover();else{const rect=trigger.value.getBoundingClientRect();popup.value.style.left=`${Math.max(12,Math.min(rect.right-240,window.innerWidth-252))}px`;popup.value.style.top=`${Math.max(12,Math.min(rect.bottom+5,window.innerHeight-408))}px`;popup.value.showPopover();}}
+function choose(name){popup.value.hidePopover();action.value=name;value.value=name==='Rename Project'?props.project.name:name==='Duplicate Project'?`${props.project.name} copy`:name==='Move Project'?(props.project.folder||''):'';message.value='';}
+async function copyId(){try{await navigator.clipboard.writeText(props.project.id);message.value='Project ID copied.';}catch{message.value='Copy the project ID from the field above.';}}
+function rename(){if(!value.value.trim()){message.value='Enter a project name.';return;}emit('rename',value.value.trim());action.value='';}
+const explanations={ 'Move Project':'Choose a destination folder for this project.', 'Duplicate Project':'Create a separate copy of this project.', 'Copy Images to Project':'Copy images into another project while retaining the source images.', 'Merge Projects...':'Choose a destination project to combine datasets. Class conflicts must be reviewed before a real merge.', 'Change Owner':'Transfer project ownership to another workspace member.', 'Make Public':'Make the project listing discoverable. Photo and annotation access remains governed by the project data policy.', 'Move to Trash':'Move this project to a recoverable trash area. This preview does not delete or move any data.' };
+</script>
+<template>
+  <button ref="trigger" class="project-more icon-button" :aria-label="`Options for ${project.name}`" aria-haspopup="true" @click.stop="toggle"><MoreVertical :size="18"/></button>
+  <div ref="popup" popover="auto" class="project-options" :aria-label="`Actions for ${project.name}`">
+    <button v-for="item in options" :key="item.name" :class="{separator:item.divider,danger:item.name==='Move to Trash'}" @click="choose(item.name)"><component :is="item.icon" :size="16"/><span>{{item.name==='Make Public'&&project.details?.visibility==='Public'?'Make Private':item.name}}</span></button>
+  </div>
+  <UiDialog :open="!!action" :title="action==='Make Public'&&project.details?.visibility==='Public'?'Make Private':action" @close="action=''">
+    <p class="dialog-description">{{project.name}}</p>
+    <template v-if="action==='Copy Project Id'"><label class="field-label">Project ID<input class="text-input" :value="project.id" readonly></label><div class="dialog-actions"><UiButton @click="copyId">Copy ID</UiButton></div></template>
+    <template v-else-if="action==='Rename Project'"><label class="field-label">Project name<input v-model="value" class="text-input" maxlength="80" @keydown.enter="rename"></label><p v-if="!owns()" class="dialog-description">Only the project's Owner can rename it.</p><div class="dialog-actions"><UiButton @click="action=''">Cancel</UiButton><UiButton variant="primary" :disabled="!owns()" @click="rename">Rename Project</UiButton></div></template>
+    <template v-else-if="action==='Move Project'"><p class="dialog-description">{{explanations[action]}}</p><label class="field-label">Destination folder<select v-model="value" class="text-input" :disabled="!owns()"><option value="">Workspace root</option><option v-for="folder in folders" :key="folder">{{folder}}</option></select></label><p v-if="!owns()" class="dialog-description">Only the project's Owner can move it.</p><div class="dialog-actions"><UiButton @click="action=''">Cancel</UiButton><UiButton variant="primary" :disabled="!owns()" @click="move">Move Project</UiButton></div></template>
+    <template v-else><p class="dialog-description">{{action==='Make Public'&&project.details?.visibility==='Public'?'Hide this project listing from public discovery.':explanations[action]}}</p><label v-if="action==='Move Project'" class="field-label">Destination folder<select v-model="value" class="text-input"><option value="">Workspace root</option><option v-for="folder in folders" :key="folder">{{folder}}</option></select></label><label v-else-if="['Copy Images to Project','Merge Projects...'].includes(action)" class="field-label">Destination project<select v-model="value" class="text-input"><option value="">Choose a project</option><option v-for="other in projects.filter(p=>p.id!==project.id)" :key="other.id" :value="other.id">{{other.name}}</option></select></label><label v-else-if="action==='Duplicate Project'" class="field-label">New project name<input v-model="value" class="text-input" maxlength="80"></label><p v-else-if="action==='Change Owner'" class="dialog-description">Workspace member selection will be available when the backend is connected.</p><div class="pending"><UiBadge tone="purple">Coming soon</UiBadge><p>No changes will be applied.</p></div><div class="dialog-actions"><UiButton @click="action=''">Close</UiButton><UiButton disabled>{{action}}</UiButton></div></template>
+    <p v-if="message" role="status" class="dialog-description">{{message}}</p>
+  </UiDialog>
+</template>
+<style scoped>
+.project-more{position:absolute;right:10px;top:10px;background:#fffffff0;border:1px solid var(--aadml-soft);z-index:2;width:30px;height:30px}.project-options{position:fixed;inset:auto;margin:0;width:240px;padding:5px;border:1px solid #dfe1e8;border-radius:10px;background:white;color:#536074;box-shadow:0 5px 16px #18223424;z-index:100}.project-options button{width:100%;display:flex;align-items:center;gap:12px;padding:11px 12px;border:0;background:white;text-align:left;font-size:14px;color:inherit}.project-options button:hover,.project-options button:focus-visible{background:var(--aadml-tint);color:var(--aadml-primary)}.project-options svg{color:#99a1b0}.project-options .separator{border-top:1px solid #e4e5eb;margin-top:3px;padding-top:14px}.project-options .danger,.project-options .danger svg{color:#e73d7b}.pending{margin-top:20px}.pending p{font-size:12px;margin-top:10px}
+</style>
