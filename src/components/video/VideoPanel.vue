@@ -350,7 +350,7 @@ function musicLabel(id) {
 
 const tlTotal = computed(() => tl.clips.reduce((t, c) => t + Math.max(0, c.out_s - c.in_s), 0))
 const tlSummary = computed(() => `${tl.clips.length} clips · ${Math.round(tlTotal.value * 10) / 10} s`
-  + (tl.cues.length ? ` · ${tl.cues.length} captions` : '') + (tl.music.attachment_id ? ' · music' : ''))
+  + (tl.cues.length ? ` · ${tl.cues.length} caption${tl.cues.length === 1 ? '' : 's'}` : '') + (tl.music.attachment_id ? ' · music' : ''))
 const tlError = computed(() => {
   for (const [i, c] of tl.clips.entries()) {
     if (c.out_s <= c.in_s) return `Scene ${i + 1}: the end must be after the start.`
