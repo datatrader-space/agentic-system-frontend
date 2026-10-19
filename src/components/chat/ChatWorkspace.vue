@@ -791,5 +791,12 @@ watch(
   .turnmode-bar { padding: 6px 0 0; }
   .active-plan-chip { font-size: 0.75rem; }
 }
+/* Touch targets of at least 44px (plan 4.4) without widening the header: the visible button keeps its
+   size and an invisible hit area extends it. */
+@media (pointer: coarse) {
+  .icon-btn, .header-btn { position: relative; }
+  .icon-btn::after, .header-btn::after { content: ''; position: absolute; left: 50%; top: 50%;
+    width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
+}
 
 </style>

@@ -15,8 +15,11 @@
 
     <slot />
 
-    <!-- Reference slots: each upload becomes a chip with a ROLE the server receives with it. -->
+    <!-- Reference slots: each upload becomes a chip with a ROLE the server receives with it. Below 1024px they
+         open in a bottom sheet (plan 4.4). -->
     <input ref="fileEl" type="file" class="vcp-file" :accept="pickAccept" @change="onPick" />
+    <BottomSheet v-if="slots.length || video.refs.length" label="References" :summary="refsSummary" test-id="video-refs-sheet">
+    <div class="vcp-refs">
     <div v-if="slots.length" class="vcp-slots">
       <button v-for="s in slots" :key="s.role" type="button" class="vcp-slot" :data-test="'video-slot-' + s.role"
               :title="s.hint" @click="pick(s)">
@@ -25,25 +28,44 @@
       </button>
     </div>
     <ul v-if="video.refs.length" class="vcp-chips" aria-label="Files used for this video">
-      <li v-for="r in video.refs" :key="r.key" class="vcp-chip">
+      <li v-for="r in video.refs" :key="r.key" class="vcp-chip" :class="{ bad: problemOf(r) }" :data-test="problemOf(r) ? 'video-ref-unusable' : null">
         <video v-if="r.isVideo && r.url" :src="r.url" class="vcp-thumb" muted preload="metadata" aria-hidden="true"></video>
         <img v-else-if="r.url" :src="r.url" class="vcp-thumb" alt="" />
         <span class="vcp-chip-name" :title="r.name">{{ r.name }}</span>
         <label class="vcp-sr" :for="'role-' + r.key">Role of {{ r.name }}</label>
         <select :id="'role-' + r.key" class="vcp-role" :value="r.role" @change="video.setRefRole(r.key, $event.target.value)">
-          <option v-for="o in visibleRoles" :key="o.value" :value="o.value">{{ o.label }}</option>
+          <option v-for="o in rolesFor(r)" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
         <button type="button" class="vcp-chip-x" :aria-label="'Remove ' + r.name" @click="video.removeRef(r.key)">×</button>
+        <span v-if="problemOf(r)" class="vcp-chip-why">This model {{ problemOf(r) }}: remove it or choose another model.</span>
       </li>
     </ul>
+    </div>
+    </BottomSheet>
 
-    <!-- Settings row: values come from the chosen route's declared outputs; nothing else is offered. -->
-    <details class="vcp-options" :open="settingsInitiallyOpen">
-      <summary>Video settings <span>{{ video.settings.aspect_ratio }} · {{ video.task === 'story' ? video.targetSeconds : video.settings.duration }} s</span></summary>
+    <!-- A model switch that would change something waits for the user (never applied silently). -->
+    <div v-if="video.pendingSwitch" class="vcp-switch" role="alertdialog" aria-labelledby="vcp-switch-title" data-test="video-switch-plan">
+      <p id="vcp-switch-title" class="vcp-switch-title">Switching to {{ video.pendingSwitch.name }} changes:</p>
+      <ul class="vcp-switch-list">
+        <li v-for="c in video.pendingSwitch.changes" :key="c.field">{{ c.label }}: {{ c.from }} → {{ c.toLabel }} <span>({{ c.reason }})</span></li>
+        <li v-if="video.pendingSwitch.task">Task: {{ video.pendingSwitch.task.from }} → Quick clip <span>({{ video.pendingSwitch.task.reason }})</span></li>
+        <li v-for="r in video.pendingSwitch.unusable" :key="r.key">{{ r.name }} would not be used <span>({{ r.reason }})</span></li>
+      </ul>
+      <div class="vcp-switch-actions">
+        <button type="button" class="vcp-primary" data-test="video-switch-apply" @click="video.applySwitch()">Switch and apply</button>
+        <button type="button" class="vcp-secondary" data-test="video-switch-keep" @click="video.keepCurrentModel()">Keep {{ currentName }}</button>
+      </div>
+    </div>
+
+    <!-- Settings row: values come from the chosen route's declared outputs; nothing else is offered. Below
+         1024px it opens in a bottom sheet (plan 4.4). -->
+    <BottomSheet label="Video settings" :summary="settingsSummary" test-id="video-settings-sheet" v-slot="{ sheet }">
+    <details class="vcp-options" :class="{ 'in-sheet': sheet }" :open="sheet || settingsInitiallyOpen">
+      <summary>Video settings <span>{{ settingsSummary }}</span></summary>
     <div class="vcp-settings">
       <label class="vcp-field vcp-model">
         <span class="vcp-label">Video model</span>
-        <select data-test="video-route" :value="video.routeId" @change="video.pickRoute($event.target.value)">
+        <select data-test="video-route" :value="video.pendingSwitch ? video.pendingSwitch.routeId : video.routeId" @change="video.pickRoute($event.target.value)">
           <option value="">Auto{{ autoName ? ` (${autoName})` : '' }}</option>
           <option v-for="r in video.routes" :key="r.route_id" :value="r.route_id" :disabled="r.state !== 'active'">
             {{ r.name }} · via {{ r.via }}{{ r.state !== 'active' ? ' (unavailable)' : '' }}
@@ -81,6 +103,7 @@
       </label>
     </div>
     </details>
+    </BottomSheet>
     <div class="vcp-footer">
       <p class="vcp-hint">{{ hint }}</p>
       <button type="button" class="vcp-primary" data-test="video-estimate" :disabled="primaryDisabled"
@@ -96,6 +119,7 @@
 import { computed, ref, watch } from 'vue'
 import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
+import BottomSheet from './BottomSheet.vue'
 
 const props = defineProps({
   draft: { type: String, default: '' },
@@ -135,7 +159,12 @@ const autoName = computed(() => {
 })
 // Only what the chosen model offers is shown (owner, 2026-10-16): no reference slot for a model that takes
 // no references, no Edit footage for a model that cannot edit video, no end frame without start+end support.
-const visibleTasks = computed(() => tasks.filter((t) => t.value !== 'edit' || can.value.edit))
+// The chosen task stays visible even when the model cannot do it, so it is never switched behind the user.
+const visibleTasks = computed(() => tasks.filter((t) => t.value !== 'edit' || can.value.edit || video.task === 'edit'))
+const taskUnavailable = computed(() => video.task === 'edit' && !can.value.edit)
+const currentName = computed(() => (video.route ? video.route.name : 'the current model'))
+const settingsSummary = computed(() => `${video.settings.aspect_ratio} · ${video.task === 'story' ? video.targetSeconds : video.settings.duration} s`)
+const refsSummary = computed(() => (video.refs.length ? `${video.refs.length} added` : 'None yet'))
 function navigateTask(event, value) {
   if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
   event.preventDefault()
@@ -169,13 +198,14 @@ const visibleRoles = computed(() => roleOptions.filter((r) => ({
   audio: can.value.references, first_frame: can.value.startFrame, last_frame: can.value.endFrame,
   edit_source: video.task === 'edit',
 }[r.value])))
-// Switching to a model that cannot do the chosen task or a reference's role drops back to what it can do.
-watch(can, (c) => {
-  if (video.task === 'edit' && !c.edit) video.setTask('quick')
-  const allowed = new Set(visibleRoles.value.map((r) => r.value))
-  const dropped = video.refs.filter((r) => !allowed.has(r.role))
-  if (dropped.length) dropped.forEach((r) => video.removeRef(r.key))
-})
+// A reference the current model cannot use is flagged, never removed (owner review 2026-10-19).
+const problems = computed(() => Object.fromEntries(video.unusableRefs.map((r) => [r.key, r.problem])))
+function problemOf(r) { return problems.value[r.key] || '' }
+// Its own role stays selectable, so the chip shows the truth until the user changes or removes it.
+function rolesFor(r) {
+  const list = visibleRoles.value
+  return list.some((o) => o.value === r.role) ? list : [...list, roleOptions.find((o) => o.value === r.role)].filter(Boolean)
+}
 const fileEl = ref(null)
 const pending = ref(null)
 const pickAccept = computed(() => (pending.value && pending.value.accept) || 'image/*,video/*,audio/*')
@@ -191,9 +221,13 @@ function onPick(e) {
 
 // The agent writes the video prompt from what the person typed, so a request needs their words.
 const preparing = ref(false)
-const primaryDisabled = computed(() => preparing.value || video.busy || chat.isBusy || !props.draft.trim())
+const primaryDisabled = computed(() => preparing.value || video.busy || chat.isBusy || !props.draft.trim()
+  || !!video.pendingSwitch || video.unusableRefs.length > 0 || taskUnavailable.value)
 const hint = computed(() => {
   if (!video.routes.length) return 'No video model is available yet. Assign one on the agent’s Video generation card.'
+  if (video.pendingSwitch) return 'Apply the model change or keep the current model to continue.'
+  if (taskUnavailable.value) return `${currentName.value} cannot edit footage. Choose a model that can, or another task.`
+  if (video.unusableRefs.length) return 'A file is not usable with this model. Remove it or choose another model.'
   if (video.task === 'story') return 'Planning is free: the assistant writes the scenes, then you render them one by one.'
   return 'An estimate never spends anything. The render starts only when you press Generate on the estimate.'
 })
@@ -248,12 +282,27 @@ watch(() => chat.selectedAgentId, (id) => { if (id) video.loadCapabilities(id) }
 .vcp-thumb { width: 34px; height: 34px; object-fit: cover; border-radius: 6px; }
 .vcp-chip-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
 .vcp-role { min-height: 44px; max-width: 100%; font-size: 12px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 6px; padding: 3px 4px; }
-.vcp-chip-x { min-width: 44px; min-height: 44px; border: none; background: transparent; font-size: 16px; width: 28px; height: 28px; cursor: pointer; color: var(--vm-ink-soft, #64748b); }
+.vcp-chip-x { min-width: 44px; min-height: 44px; border: none; background: transparent; font-size: 16px; cursor: pointer; color: var(--vm-ink-soft, #64748b); }
+.vcp-chip { flex-wrap: wrap; }
+.vcp-chip.bad { border-color: #d97706; background: #fffbeb; }
+.vcp-chip-why { flex-basis: 100%; font-size: 12px; color: #92400e; padding: 0 4px 4px; }
+.vcp-switch { border: 1px solid #d97706; background: #fffbeb; border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; }
+.vcp-switch-title { margin: 0; font-weight: 700; font-size: 13px; color: var(--vm-ink, #0f172a); }
+.vcp-switch-list { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6; color: var(--vm-ink, #0f172a); }
+.vcp-switch-list span { color: var(--vm-ink-soft, #64748b); }
+.vcp-switch-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.vcp-switch-actions .vcp-primary { margin-left: 0; }
+.vcp-secondary { min-height: 44px; padding: 0 16px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 11px; background: var(--vm-surface, #fff); font-weight: 600; font-size: 14px; cursor: pointer; color: var(--vm-ink, #0f172a); }
+.vcp-secondary:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: 2px; }
 .vcp-options { min-width: 0; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 12px; background: var(--vm-surface-2, #f8fafc); }
 .vcp-options summary { cursor: pointer; padding: 12px; color: var(--vm-ink, #0f172a); font-size: 13px; font-weight: 600; min-height: 44px; box-sizing: border-box; }
 .vcp-options summary span { float: right; color: var(--vm-ink-soft, #64748b); font-weight: 400; }
 .vcp-options summary:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: 2px; border-radius: 10px; }
 .vcp-options > .vcp-settings { padding: 0 12px 12px; }
+.vcp-options.in-sheet { border: none; background: transparent; }
+.vcp-options.in-sheet > summary { display: none; }
+.vcp-options.in-sheet > .vcp-settings { padding: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vcp-refs { display: grid; gap: 12px; min-width: 0; }
 .vcp-settings { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; gap: 12px; }
 .vcp-model { grid-column: 1 / -1; }
 .vcp-footer { display: flex; align-items: center; gap: 16px; padding-top: 4px; }

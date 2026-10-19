@@ -81,7 +81,8 @@ describe('VideoComposerPanel', () => {
     }
   })
 
-  it('switching to a model that cannot edit leaves Edit footage', async () => {
+  it('switching to a model that cannot edit shows what changes and waits for the user', async () => {
+    // Owner review 2026-10-19: never switched behind the user — the plan is shown, nothing moves until applied.
     const w = await mounted()
     const video = useVideoStore()
     video.pickRoute('9')
@@ -89,7 +90,30 @@ describe('VideoComposerPanel', () => {
     video.setTask('edit')
     video.pickRoute('7')
     await w.vm.$nextTick()
+    expect(video.task).toBe('edit')
+    const plan = w.find('[data-test="video-switch-plan"]')
+    expect(plan.exists()).toBe(true)
+    expect(plan.text()).toContain('cannot edit footage')
+    expect(w.find('[data-test="video-estimate"]').attributes('disabled')).toBeDefined()
+    await w.find('[data-test="video-switch-keep"]').trigger('click')
+    expect(video.task).toBe('edit')
+    expect(String(video.routeId)).toBe('9')
+    video.pickRoute('7')
+    await w.vm.$nextTick()
+    await w.find('[data-test="video-switch-apply"]').trigger('click')
     expect(video.task).toBe('quick')
+    expect(String(video.routeId)).toBe('7')
+  })
+
+  it('a reference the model cannot use stays on screen, flagged', async () => {
+    const w = await mounted()
+    const video = useVideoStore()
+    video.addRef(new File(['x'], 'look.png', { type: 'image/png' }), 'style')
+    await w.vm.$nextTick()
+    const chip = w.find('[data-test="video-ref-unusable"]')
+    expect(chip.exists()).toBe(true)
+    expect(chip.text()).toContain('does not take style references')
+    expect(w.find('[data-test="video-estimate"]').attributes('disabled')).toBeDefined()
   })
 
   it('nothing to estimate without a description', () => {

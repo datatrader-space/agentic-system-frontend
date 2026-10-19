@@ -19,8 +19,14 @@ import { useVideoStore } from './useVideoStore'
 
 const KLING = {
   route_id: 7, model_id: 'kwaivgi/kling-v3.0-pro', name: 'Kling Pro', via: 'openrouter', state: 'active',
-  connections: [{ route_id: 7, connection_id: 1, connection: 'or' }],
+  connections: [{ route_id: 7, connection_id: 1, connection: 'or' }], offered: ['text_to_video', 'image_to_video'],
   outputs: { durations: [3, 4, 5, 10], resolutions: ['720p'], aspect_ratios: ['16:9', '9:16'], audio: false },
+}
+// Takes references and makes 8 s clips only, with sound.
+const VEO = {
+  route_id: 8, model_id: 'google/veo-3.1-lite', name: 'Veo 3.1 Lite', via: 'openrouter', state: 'active',
+  connections: [{ route_id: 8 }], offered: ['text_to_video', 'reference_to_video'],
+  outputs: { durations: [8], resolutions: ['720p'], aspect_ratios: ['16:9'], audio: true },
 }
 const chatStub = (over = {}) => ({
   selectedAgentId: 5, conversationId: 'c1', ensureConversation: vi.fn(() => Promise.resolve('c1')),
@@ -153,6 +159,65 @@ describe('useVideoStore', () => {
     api.get.mockClear()
     video.onFrame(job({ job_id: 'trim', operation: 'trim', state: 'ready', output: { url: '/t.mp4' } }))
     expect(api.get).toHaveBeenCalledWith('/video/versions/', { params: { conversation_id: 'c1' } })
+  })
+
+  it('switching model never changes settings or drops references without asking', async () => {
+    // Owner review 2026-10-19: the spec requires explaining required changes, not silently dropping inputs.
+    api.get.mockResolvedValue({ data: { routes: [VEO, KLING], default_route_id: 8 } })
+    await video.loadCapabilities(5)
+    video.settings.duration = 8
+    video.addRef(new File(['x'], 'shoe.png', { type: 'image/png' }), 'subject')
+    video.pickRoute('7')
+    expect(video.routeId).toBe('')                       // not switched yet
+    expect(video.settings.duration).toBe(8)
+    expect(video.refs).toHaveLength(1)
+    const plan = video.pendingSwitch
+    expect(plan.changes.map((c) => [c.field, c.toLabel])).toEqual([['duration', '5 s']])
+    expect(plan.unusable.map((r) => r.name)).toEqual(['shoe.png'])
+    expect(plan.unusable[0].reason).toContain('does not take reference images')
+    // A request waits while the change is undecided.
+    expect(await video.request({ prompt: 'a shoe', chat: chatStub() })).toBe(false)
+    video.keepCurrentModel()
+    expect(video.pendingSwitch).toBe(null)
+    expect(video.refs).toHaveLength(1)
+    video.pickRoute('7')
+    video.applySwitch()
+    expect(video.routeId).toBe('7')
+    expect(video.settings.duration).toBe(5)
+    expect(video.refs).toEqual([])
+  })
+
+  it('a compatible model is switched to at once', async () => {
+    api.get.mockResolvedValue({ data: { routes: [VEO, KLING], default_route_id: 8 } })
+    await video.loadCapabilities(5)
+    video.settings.duration = 5
+    video.pickRoute('7')
+    expect(video.pendingSwitch).toBe(null)
+    expect(video.routeId).toBe('7')
+  })
+
+  it('a reference the current model cannot use is flagged and blocks the request, never removed', async () => {
+    api.get.mockResolvedValue({ data: { routes: [KLING], default_route_id: 7 } })
+    await video.loadCapabilities(5)
+    video.addRef(new File(['x'], 'style.png', { type: 'image/png' }), 'style')
+    expect(video.unusableRefs.map((r) => r.name)).toEqual(['style.png'])
+    const chat = chatStub()
+    expect(await video.request({ prompt: 'a shoe', chat })).toBe(false)
+    expect(chat.sendMessage).not.toHaveBeenCalled()
+    expect(video.refs).toHaveLength(1)
+  })
+
+  it('a saved timeline revision is what the export renders', async () => {
+    video.project = { project_id: 'p1', scenes: [], timeline: null }
+    api.post.mockResolvedValueOnce({ data: { revision: 3, revision_id: 41, edl: { tracks: [] } } })
+    const saved = await video.saveTimeline({ tracks: [{ kind: 'video', clips: [{ scene_id: 's1', out_ms: 2000 }] }] })
+    expect(api.post).toHaveBeenCalledWith('/video/projects/p1/timeline/', expect.objectContaining({ edl: expect.any(Object) }))
+    expect(saved.revision_id).toBe(41)
+    expect(video.project.timeline.revision).toBe(3)
+    api.post.mockResolvedValueOnce({ data: { job_id: 'e1', state: 'queued', operation: 'export' } })
+    await video.exportTimeline(['9:16'], { chat: chatStub(), revisionId: 41 })
+    expect(api.post).toHaveBeenLastCalledWith('/video/jobs/', expect.objectContaining({
+      operation: 'export', params: { aspects: ['9:16'], timeline_revision_id: 41 }, project_id: 'p1' }))
   })
 
   it('clip lengths are offered shortest first', async () => {

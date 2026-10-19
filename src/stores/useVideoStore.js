@@ -12,6 +12,45 @@ import { notify } from '../composables/useNotify'
 
 const TERMINAL = new Set(['ready', 'failed', 'cancelled'])
 
+function findRoute(routes, id) {
+  return routes.find((r) => (r.connections || []).some((c) => String(c.route_id) === String(id)))
+    || routes.find((r) => String(r.route_id) === String(id)) || null
+}
+// What a route's settings row may offer: only values it declares (plan 4.1).
+function optionsFor(route) {
+  const out = (route && route.outputs) || {}
+  return {
+    // The catalog lists durations in its own order (Veo: 8, 4, 6); a person reads them shortest first.
+    durations: [...(out.durations || [])].sort((a, b) => a - b),
+    resolutions: out.resolutions || [],
+    aspectRatios: out.aspect_ratios || [],
+    audio: !!out.audio,
+  }
+}
+// Which features a route really offers (its `offered` tasks: declared by the provider's catalog or proven
+// by a conformance render; merely advertised does not count).
+function canFor(route) {
+  const off = new Set((route && route.offered) || [])
+  return {
+    references: off.has('reference_to_video'),
+    startFrame: off.has('image_to_video') || off.has('first_last_frame'),
+    endFrame: off.has('first_last_frame'),
+    edit: off.has('edit_uploaded') || off.has('edit_generated'),
+    // Native continuation, or a new shot started from the clip's last frame (labelled as such).
+    extend: off.has('native_extend') || off.has('image_to_video'),
+  }
+}
+const ROLE_NEEDS = { subject: 'references', style: 'references', motion: 'references', audio: 'references',
+                     first_frame: 'startFrame', last_frame: 'endFrame' }
+const ROLE_WORDS = { subject: 'reference images', style: 'style references', motion: 'motion references',
+                     audio: 'audio references', first_frame: 'a start frame', last_frame: 'an end frame' }
+/** Why a reference cannot be used by a route ('' when it can). */
+function refProblem(ref, can, task) {
+  if (ref.role === 'edit_source') return task === 'edit' && !can.edit ? 'cannot edit footage' : ''
+  const need = ROLE_NEEDS[ref.role]
+  return need && !can[need] ? `does not take ${ROLE_WORDS[ref.role]}` : ''
+}
+
 function errText(e, fallback) {
   const d = e && e.response && e.response.data
   const err = d && d.error
@@ -49,38 +88,22 @@ export const useVideoStore = defineStore('video', {
     panelTab: 'preview',
     previewAttachmentId: null,
     compareAttachmentId: null,
+    // A model switch that would change settings or leave references unused, waiting for the user to apply
+    // it or keep the previous model (owner review 2026-10-19: never change or drop inputs silently).
+    pendingSwitch: null,
   }),
 
   getters: {
-    route(state) {
-      const id = state.routeId || state.defaultRouteId
-      return state.routes.find((r) => r.connections.some((c) => String(c.route_id) === String(id)))
-        || state.routes.find((r) => String(r.route_id) === String(id)) || null
-    },
-    // What the settings row may offer: only values the chosen route declares (plan 4.1).
-    options() {
-      const out = (this.route && this.route.outputs) || {}
-      return {
-        // The catalog lists durations in its own order (Veo: 8, 4, 6); a person reads them shortest first.
-        durations: [...(out.durations || [])].sort((a, b) => a - b),
-        resolutions: out.resolutions || [],
-        aspectRatios: out.aspect_ratios || [],
-        audio: !!out.audio,
-      }
-    },
-    // Which features the chosen model really offers (its `offered` tasks: declared by the provider's catalog
-    // or proven by a conformance render; merely advertised does not count). The panel shows ONLY these, so
-    // a person is never offered a reference slot, an edit or a continuation the model cannot do.
-    can() {
-      const off = new Set((this.route && this.route.offered) || [])
-      return {
-        references: off.has('reference_to_video'),
-        startFrame: off.has('image_to_video') || off.has('first_last_frame'),
-        endFrame: off.has('first_last_frame'),
-        edit: off.has('edit_uploaded') || off.has('edit_generated'),
-        // Native continuation, or a new shot started from the clip's last frame (labelled as such).
-        extend: off.has('native_extend') || off.has('image_to_video'),
-      }
+    route(state) { return findRoute(state.routes, state.routeId || state.defaultRouteId) },
+    options() { return optionsFor(this.route) },
+    // The panel shows ONLY what the chosen model offers, so a person is never offered a reference slot, an
+    // edit or a continuation the model cannot do.
+    can() { return canFor(this.route) },
+    // References the current model cannot use (e.g. after the agent's default model changed). They are
+    // never removed behind the user's back: the chip is flagged and the request waits until it is resolved.
+    unusableRefs() {
+      const c = this.can
+      return this.refs.map((r) => ({ ...r, problem: refProblem(r, c, this.task) })).filter((r) => r.problem)
     },
     jobsFor: (state) => (conversationId) => Object.values(state.jobs)
       .filter((j) => String(j.conversation_id || '') === String(conversationId || ''))
@@ -120,24 +143,72 @@ export const useVideoStore = defineStore('video', {
         this.routes = []
       }
     },
+    /**
+     * Choose a video model. A model that keeps every setting and reference is switched to at once; one
+     * that cannot (another clip length, no references, no editing…) is NOT applied: `pendingSwitch` lists
+     * each change and why, and nothing changes until applySwitch() or keepCurrentModel().
+     */
     pickRoute(routeId) {
-      this.routeId = routeId || ''
-      this._fitSettings()
+      const plan = this._switchPlan(routeId || '')
+      if (!plan.changes.length && !plan.unusable.length && !plan.task) {
+        this.routeId = routeId || ''
+        this.pendingSwitch = null
+        return
+      }
+      this.pendingSwitch = plan
     },
-    // Keep compatible settings; replace the rest with a value the route supports (shown, not silent:
-    // the estimate still lists any change it proposes).
+    applySwitch() {
+      const p = this.pendingSwitch
+      if (!p) return
+      this.routeId = p.routeId
+      for (const c of p.changes) this.settings[c.field] = c.to
+      if (p.task) this.task = p.task.to
+      const drop = new Set(p.unusable.map((r) => r.key))
+      this.refs = this.refs.filter((r) => !drop.has(r.key))
+      this.pendingSwitch = null
+    },
+    keepCurrentModel() { this.pendingSwitch = null },
+    /** What switching to `routeId` would change: settings it cannot honor, references it cannot use. */
+    _switchPlan(routeId) {
+      const route = findRoute(this.routes, routeId || this.defaultRouteId)
+      const o = optionsFor(route)
+      const c = canFor(route)
+      const name = route ? route.name : 'Auto'
+      const changes = this._settingChanges(o, name)
+      const task = this.task === 'edit' && !c.edit
+        ? { from: 'Edit footage', to: 'quick', reason: `${name} cannot edit footage` } : null
+      const unusable = this.refs.map((r) => ({ key: r.key, name: r.name, role: r.role,
+                                               problem: refProblem(r, c, task ? 'quick' : this.task) }))
+        .filter((r) => r.problem).map((r) => ({ ...r, reason: `${name} ${r.problem}` }))
+      return { routeId, name, changes, unusable, task }
+    },
+    _settingChanges(o, name) {
+      const out = []
+      const s = this.settings
+      if (o.durations.length && !o.durations.includes(Number(s.duration))) {
+        out.push({ field: 'duration', label: 'Clip length', from: `${s.duration} s`,
+                   to: o.durations.includes(5) ? 5 : o.durations[0], reason: `${name} makes ${o.durations.join(', ')} s clips` })
+      }
+      if (o.aspectRatios.length && !o.aspectRatios.includes(s.aspect_ratio)) {
+        out.push({ field: 'aspect_ratio', label: 'Shape', from: s.aspect_ratio, to: o.aspectRatios[0],
+                   reason: `${name} renders ${o.aspectRatios.join(', ')}` })
+      }
+      if (o.resolutions.length && s.resolution && !o.resolutions.includes(s.resolution)) {
+        out.push({ field: 'resolution', label: 'Resolution', from: s.resolution, to: '',
+                   reason: `${name} renders ${o.resolutions.join(', ')}` })
+      }
+      if (!o.audio && s.sound) {
+        out.push({ field: 'sound', label: 'Sound', from: 'on', to: false, reason: `${name} renders silent video` })
+      }
+      return out.map((x) => ({ ...x, toLabel: x.field === 'duration' ? `${x.to} s`
+        : x.field === 'resolution' ? 'model default' : x.field === 'sound' ? 'off' : String(x.to) }))
+    },
+    // On first load the settings are still the defaults, so they are simply fitted to the model; a change
+    // the user would notice goes through pickRoute's switch plan instead.
     _fitSettings() {
-      const o = this.options
-      if (o.durations.length && !o.durations.includes(Number(this.settings.duration))) {
-        this.settings.duration = o.durations.includes(5) ? 5 : o.durations[0]
+      for (const c of this._settingChanges(this.options, this.route ? this.route.name : 'Auto')) {
+        this.settings[c.field] = c.to
       }
-      if (o.aspectRatios.length && !o.aspectRatios.includes(this.settings.aspect_ratio)) {
-        this.settings.aspect_ratio = o.aspectRatios[0]
-      }
-      if (o.resolutions.length && this.settings.resolution && !o.resolutions.includes(this.settings.resolution)) {
-        this.settings.resolution = ''
-      }
-      if (!o.audio) this.settings.sound = false
     },
 
     // ── reference slots ───────────────────────────────────────────────────────────────────────────
@@ -221,6 +292,14 @@ export const useVideoStore = defineStore('video', {
       const kind = task || (this.task === 'edit' ? 'edit' : 'quick')
       const text = (prompt || '').trim()
       if (!text) return false
+      if (this.pendingSwitch) {
+        notify.warning('Apply the model change or keep the current model first.')
+        return false
+      }
+      if (this.unusableRefs.length) {
+        notify.warning(`${this.unusableRefs[0].name}: this model ${this.unusableRefs[0].problem}. Remove it or choose another model.`)
+        return false
+      }
       this.busy = true
       try {
         const cid = await chat.ensureConversation()
@@ -369,6 +448,28 @@ export const useVideoStore = defineStore('video', {
     },
     // A project's versions, or, in a chat with no project, the chat's own generated and edited videos (the
     // chat keeps its own active video, so Restore works there too).
+    /**
+     * Save the finishing timeline (trims, captions, music) as a new revision. The server freezes each scene
+     * to its current take, so the export renders exactly this cut even if a take changes later.
+     */
+    async saveTimeline(edl) {
+      if (!this.project) return null
+      try {
+        const res = await api.post(`/video/projects/${this.project.project_id}/timeline/`, { edl })
+        const timeline = { revision: res.data.revision, revision_id: res.data.revision_id, edl: res.data.edl }
+        this.project = { ...this.project, timeline }
+        return timeline
+      } catch (e) {
+        notify.error(errText(e, 'Could not save the timeline.'))
+        return null
+      }
+    },
+    // Export the saved timeline revision in each shape. Without a revision the server freezes the scenes'
+    // current takes at request time.
+    async exportTimeline(aspects, { chat, revisionId = null } = {}) {
+      return this.local('export', { aspects: aspects && aspects.length ? aspects : ['16:9'],
+                                    timeline_revision_id: revisionId || undefined }, { chat })
+    },
     async loadVersions() {
       try {
         const res = this.project
@@ -418,6 +519,7 @@ export const useVideoStore = defineStore('video', {
     reset() {
       this.jobs = {}
       this.conversationId = null
+      this.pendingSwitch = null
       this.project = null
       this.versions = []
       this.refs = []

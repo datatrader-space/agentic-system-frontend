@@ -179,7 +179,7 @@ const elapsed = computed(() => {
 .vjc-warn { margin: 0; font-size: 12.5px; color: #92400e; }
 .vjc-err { margin: 0; font-size: 13px; color: #991b1b; }
 .vjc-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.vjc-btn { min-height: 40px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--vm-line-2, #e5e7eb); background: var(--vm-surface, #fff);
+.vjc-btn { min-height: 44px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--vm-line-2, #e5e7eb); background: var(--vm-surface, #fff);
   font-weight: 600; font-size: 13px; cursor: pointer; }
 .vjc-btn.primary { background: var(--vm-violet-d, #4f46e5); color: #fff; border-color: transparent; }
 .vjc-btn:disabled { opacity: .55; cursor: not-allowed; }
