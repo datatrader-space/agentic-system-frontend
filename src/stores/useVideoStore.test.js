@@ -162,3 +162,14 @@ describe('useVideoStore', () => {
     expect(video.options.durations).toEqual([4, 6, 8])
   })
 })
+
+
+it('keeps a selected version when studio polling sees an already completed job again', () => {
+  setActivePinia(createPinia())
+  const video = useVideoStore()
+  const ready = { job_id: 'saved', state: 'ready', operation: 'generate', output: { url: '/clip.mp4' } }
+  video._put(ready)
+  video.previewAttachmentId = 'earlier-version'
+  video._put(ready)
+  expect(video.previewAttachmentId).toBe('earlier-version')
+})

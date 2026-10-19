@@ -224,8 +224,8 @@ watch(() => chat.conversationId, async (cid, prev) => {
   video.reset()
   if (cid) {
     await video.loadJobs(cid)
-    const p = await video.loadProject(cid)
-    if (p) video.openPanel()
+    await video.loadProject(cid)
+    // Saved video projects are opened in Video Studio, rather than expanding the chat composer.
   }
 }, { immediate: true })
 // The welcome screen is for a chat with nothing in it. A video estimate made from the welcome composer

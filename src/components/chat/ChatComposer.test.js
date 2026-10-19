@@ -3,6 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 
+const { studioPush } = vi.hoisted(() => ({ studioPush: vi.fn() }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push: studioPush }), useRoute: () => ({ path: '/dashboard/chat/c1', query: {}, params: {} }) }))
+
 const { notify } = vi.hoisted(() => ({
   notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }))
@@ -19,6 +22,8 @@ vi.mock('../../composables/useVoiceInput', () => ({
 }))
 
 import ChatComposer from './ChatComposer.vue'
+import { useChatStore } from '../../stores/useChatStore'
+import { useVideoStore } from '../../stores/useVideoStore'
 
 const stubs = {
   AgentModePicker: { template: '<div class="mode-stub" />' },
@@ -216,4 +221,20 @@ describe('a message that was not sent comes back', () => {
     await w.vm.$nextTick()
     expect(w.find('textarea').element.value).toBe('something new')
   })
+})
+
+
+it('opens Video Studio from an existing chat with the current draft', async () => {
+  const chat = useChatStore()
+  chat.agents = [{ id: 7, name: 'Video expert', video_model: 86 }]
+  chat.selectedAgentId = '7'
+  chat.conversationId = 'c1'
+  const wrapper = mountC()
+  await wrapper.get('textarea.composer-input').setValue('A cinematic product video')
+  await wrapper.get('[data-test="composer-plus"]').trigger('click')
+  await wrapper.get('[data-test="plus-video-mode"]').trigger('click')
+  expect(studioPush).toHaveBeenCalledWith({ path: '/dashboard/video-studio', query: { agent: '7', conversation: 'c1' } })
+  expect(useVideoStore().studioDraft).toBe('A cinematic product video')
+  expect(wrapper.find('[data-test="video-composer-panel"]').exists()).toBe(false)
+  wrapper.unmount()
 })

@@ -1,16 +1,11 @@
 <template>
-  <div class="welcome" :class="{ 'welcome-video': video.mode }">
+  <div class="welcome">
     <div class="welcome-inner">
       <div class="welcome-mark"><BrandMark /></div>
-      <template v-if="video.mode">
-        <p class="welcome-eyebrow" data-test="video-mode-eyebrow">VIDEO MODE</p>
-        <h1 class="welcome-title">What would you like to create?</h1>
-        <p class="welcome-sub">Turn an idea, your images, or existing footage into a video.</p>
-      </template>
-      <template v-else>
+
         <h1 class="welcome-title">What would you like your <span class="vm-grad-text">agent</span> to do?</h1>
         <p class="welcome-sub">Ask about repositories, run tools, inspect system state, or generate a plan.</p>
-      </template>
+
 
       <!-- No agents yet: prominent, unmissable call to action. The composer below is disabled
            so the user understands chatting isn't available until an agent exists.
@@ -41,14 +36,13 @@
 
       <!-- Suggestion chips (hidden when there's no agent to act on them) -->
       <div v-if="!chat.needsAgent" class="chips">
-        <button v-for="s in (video.mode ? videoSuggestions : suggestions)" :key="s.text || s" class="chip"
-                @click="video.mode ? useVideoSuggestion(s) : useSuggestion(s)">{{ s.text || s }}</button>
+        <button v-for="s in suggestions" :key="s.text || s" class="chip"
+                @click="useSuggestion(s)">{{ s.text || s }}</button>
       </div>
 
       <!-- Composer -->
       <form class="composer" :class="{ 'composer-disabled': chat.needsAgent }" @submit.prevent="submit">
-        <!-- Video mode: the three tasks, reference slots, settings and "Get estimate". -->
-        <VideoComposerPanel v-if="video.mode" :draft="draft" :show-tasks="true" @done="clearDraft" />
+
         <!-- Staged attachments -->
         <div v-if="chat.pendingAttachments.length" class="attach-strip">
           <div v-for="(a, i) in chat.pendingAttachments" :key="i" class="attach-chip">
@@ -69,7 +63,7 @@
             rows="1"
             :disabled="chat.needsAgent"
             :placeholder="chat.needsAgent ? 'Create an agent to start chatting…'
-              : (video.mode ? (video.task === 'story' ? 'Describe the story you want to tell…' : 'Describe the video you want to make…') : 'Message your agent…')"
+              : 'Message your agent...'"
             @input="autoGrow"
             @keydown="onKeydown"
             @paste="onPaste"
@@ -121,15 +115,15 @@
                   </button>
 
                   <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-video-mode"
-                          :class="{ 'is-on': video.mode }" :disabled="!hasVideoModel && !video.mode"
+                          :disabled="!hasVideoModel"
                           v-show="pShow('create video generate edit clip story animate movie')"
                           @click="toggleVideoModeFromMenu">
                     <span class="plus-ic plus-ic--image">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2" stroke-linejoin="round"/></svg>
                     </span>
                     <span class="plus-body"><span class="plus-title">Create video</span>
-                      <span class="plus-desc">{{ hasVideoModel ? 'Generate and edit videos' : 'Assign a video model first' }}</span></span>
-                    <span v-if="video.mode" class="plus-badge">On</span>
+                      <span class="plus-desc">{{ hasVideoModel ? 'Open Video Studio' : 'Assign a video model first' }}</span></span>
+
                   </button>
 
                   <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-link"
@@ -218,15 +212,6 @@
               <button type="button" class="canvas-chip-x" title="Turn off Canvas mode" aria-label="Turn off Canvas mode"
                       @click.stop="canvas.setMode(false)">×</button>
             </span>
-            <!-- Video pill (toggle lives in the "+" menu; × turns Video mode off — saved projects stay). -->
-            <span v-if="video.mode" class="canvas-chip image-chip" data-test="welcome-video-chip" title="Video mode on">
-              <span class="canvas-chip-body">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2"/></svg>
-                <span>Video</span>
-              </span>
-              <button type="button" class="canvas-chip-x" title="Turn off Video mode" aria-label="Turn off Video mode"
-                      @click.stop="video.toggleMode(false)">×</button>
-            </span>
             <!-- Sticky Create-Image chip (toggle lives in the "+" menu; × turns it off). -->
             <span v-if="imageMode" class="canvas-chip image-chip" title="Create-Image mode on — the agent focuses on images">
               <span class="canvas-chip-body">
@@ -285,7 +270,6 @@ import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import { useVoiceInput } from '../../composables/useVoiceInput'
 import { notify } from '../../composables/useNotify'
 import { useVideoStore } from '../../stores/useVideoStore'
-import VideoComposerPanel from '../video/VideoComposerPanel.vue'
 
 // Long pasted text becomes a .txt attachment instead of a giant inline blob (matches ChatComposer).
 const LONG_PASTE_CHAR_LIMIT = 8000
@@ -389,24 +373,13 @@ const toggleImageModeFromMenu = () => {
 const video = useVideoStore()
 const hasVideoModel = computed(() => !!(chat.currentAgent && chat.currentAgent.video_model))
 const toggleVideoModeFromMenu = () => {
-  if (!hasVideoModel.value && !video.mode) {
-    notify.info('Assign a video model to this agent first, then Video mode becomes available.')
-    return
-  }
-  video.toggleMode()
+  if (!hasVideoModel.value) return
+  video.studioDraft = draft.value
+  video.mode = false
   closeMenu()
-  notify.info(video.mode ? 'Video mode on — make a clip, plan a story or edit footage.' : 'Video mode off.')
-}
-const videoSuggestions = [
-  { text: 'Animate my product', task: 'quick', prompt: 'Animate my product with a slow, premium camera move and soft studio light.' },
-  { text: 'Create a launch story', task: 'story', prompt: 'A short launch story for my product: reveal, detail, in motion.' },
-  { text: 'Edit an existing clip', task: 'edit', prompt: 'Make it warmer and slow the ending down.' },
-]
-const useVideoSuggestion = (s) => {
-  video.setTask(s.task)
-  draft.value = s.prompt
-  resizeSoon()
-  inputEl.value?.focus()
+  router.push({ path: '/dashboard/video-studio', query: {
+    agent: chat.selectedAgentId || undefined, conversation: chat.conversationId || undefined,
+  } })
 }
 const clearDraft = () => { draft.value = ''; resizeSoon() }
 // DEEP RESEARCH. The mode is a yes/no; the DEPTH is the cost decision, and it is the user's because the
@@ -611,16 +584,6 @@ const submit = () => {
   min-height: 100%;
   padding: 32px 20px;
   font-family: var(--vm-font-sans);
-}
-.welcome-video { align-items: safe center; }
-.welcome-video .welcome-inner { max-width: 760px; min-width: 0; }
-.welcome-video .welcome-mark { width: 40px; height: 40px; margin-bottom: 14px; animation: none; }
-.welcome-video .composer { padding: 18px; }
-.welcome-video .composer-input { min-height: 76px; padding-top: 14px; }
-@media (max-width: 640px) {
-  .welcome-video { align-items: flex-start; }
-  .welcome-video .composer { padding: 12px; }
-  .welcome-video .welcome-mark { display: none; }
 }
 .welcome-inner {
   width: 100%;

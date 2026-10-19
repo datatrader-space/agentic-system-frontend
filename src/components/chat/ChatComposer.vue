@@ -22,8 +22,6 @@
 
     <!-- Single unified container: text area on top, action toolbar on the bottom. -->
     <form class="composer" :class="{ focused }" @submit.prevent="onSubmit">
-      <!-- Video mode: tasks, reference slots, settings and "Get estimate" (VIDEO_WORKSPACE_PLAN.md 4.1). -->
-      <VideoComposerPanel v-if="video.mode" :draft="draft" :show-tasks="false" @done="clearDraft" />
       <!-- Accept everything: images (native vision) + documents/PDF/sheets/audio (MarkItDown RAG). -->
       <input ref="fileEl" type="file" multiple class="file-hidden" @change="onFiles" />
 
@@ -33,7 +31,7 @@
           v-model="draft"
           class="composer-input"
           rows="1"
-          :placeholder="video.mode ? (video.task === 'story' ? 'Describe the story you want to tell…' : 'Describe the video, or your next change…') : placeholder"
+          :placeholder="placeholder"
           aria-label="Message your agent"
           @input="autoGrow"
           @keydown="onKeydown"
@@ -99,15 +97,15 @@
                 </button>
 
                 <button type="button" class="plus-item" role="menuitem" data-test="plus-video-mode"
-                        :class="{ 'is-on': video.mode }" :disabled="!hasVideoModel && !video.mode"
+                        :disabled="!hasVideoModel"
                         v-show="pShow('create video generate edit clip story animate movie')"
                         @click="toggleVideoModeFromMenu">
                   <span class="plus-ic plus-ic--image">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2" stroke-linejoin="round"/></svg>
                   </span>
                   <span class="plus-body"><span class="plus-title">Create video</span>
-                    <span class="plus-desc">{{ hasVideoModel ? 'Generate and edit videos' : 'Assign a video model first' }}</span></span>
-                  <span v-if="video.mode" class="plus-badge">On</span>
+                    <span class="plus-desc">{{ hasVideoModel ? 'Open Video Studio' : 'Assign a video model first' }}</span></span>
+
                 </button>
 
                 <button type="button" class="plus-item" role="menuitem" data-test="plus-add-link"
@@ -168,15 +166,6 @@
                     @click.stop="chat.imageMode = false">×</button>
           </span>
 
-          <!-- Video pill (toggle lives in the "+" menu; × turns Video mode off — saved projects stay). -->
-          <span v-if="video.mode" class="canvas-chip image-chip" data-test="video-chip" title="Video mode on">
-            <span class="canvas-chip-body" @click="video.openPanel()">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2"/></svg>
-              <span>Video</span>
-            </span>
-            <button type="button" class="canvas-chip-x" title="Turn off Video mode" aria-label="Turn off Video mode"
-                    @click.stop="video.toggleMode(false)">×</button>
-          </span>
 
           <!-- Shared (system-owned) agents: run mode is admin-set globally → the pill becomes the MODEL
                picker (each user runs the shared agent on their own provider). Own agents keep the mode pill. -->
@@ -262,6 +251,7 @@
 </template>
 
 <script setup>
+import { useRouter } from 'vue-router'
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import AgentModePicker from '../agent/AgentModePicker.vue'
 import AgentModelPicker from '../agent/AgentModelPicker.vue'
@@ -273,21 +263,21 @@ import { notify } from '../../composables/useNotify'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import { useChatStore } from '../../stores/useChatStore'
 import { useVideoStore } from '../../stores/useVideoStore'
-import VideoComposerPanel from '../video/VideoComposerPanel.vue'
 
+const router = useRouter()
 const canvas = useCanvasStore()
 const chat = useChatStore()
 const video = useVideoStore()
 // Video mode is offered when the agent has a video model (the backend refuses without one as well).
 const hasVideoModel = computed(() => !!(chat.currentAgent && chat.currentAgent.video_model))
 const toggleVideoModeFromMenu = () => {
-  if (!hasVideoModel.value && !video.mode) {
-    notify.info('Assign a video model to this agent first, then Video mode becomes available.')
-    return
-  }
-  video.toggleMode()
-  notify.info(video.mode ? 'Video mode on — make a clip, plan a story or edit footage.' : 'Video mode off.')
+  if (!hasVideoModel.value) return
+  video.studioDraft = draft.value
+  video.mode = false
   closeMenu()
+  router.push({ path: '/dashboard/video-studio', query: {
+    agent: chat.selectedAgentId || undefined, conversation: chat.conversationId || undefined,
+  } })
 }
 // Create-Image mode lives in the chat store (single source of truth, read at send time to set the
 // `image_mode` WS flag). Sticky across turns until turned off. The composer only lets it turn on when the

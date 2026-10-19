@@ -4,6 +4,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 
+const { push } = vi.hoisted(() => ({ push: vi.fn() }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
+
 vi.mock('../../services/api', () => ({ default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() } }))
 vi.mock('../../composables/useNotify', () => ({
   notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
@@ -85,4 +88,13 @@ describe('VideoJobCard', () => {
     const w = mount(VideoJobCard, { props: { job: { ...base, state: 'failed', error: { message: 'Monthly limit reached.' } } } })
     expect(w.find('[role="alert"]').text()).toContain('Monthly limit reached.')
   })
+})
+
+
+it('opens a completed result in the dedicated studio with its conversation', async () => {
+  setActivePinia(createPinia())
+  const wrapper = mount(VideoJobCard, { props: { job: { ...base, state: 'ready', output: { attachment_id: 'out', url: '/clip.mp4' } } } })
+  await wrapper.findAll('button').find((b) => b.text() === 'Open in Video Studio').trigger('click')
+  expect(push).toHaveBeenCalledWith({ path: '/dashboard/video-studio', query: { conversation: 'c1' } })
+  wrapper.unmount()
 })

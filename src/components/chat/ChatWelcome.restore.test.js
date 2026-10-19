@@ -7,6 +7,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 
+const { push } = vi.hoisted(() => ({ push: vi.fn() }))
+vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
+
 const { notify } = vi.hoisted(() => ({
   notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }))
@@ -26,12 +29,14 @@ vi.mock('../../services/api', () => ({
 
 import ChatWelcome from './ChatWelcome.vue'
 import { useChatStore } from '../../stores/useChatStore'
+import { useVideoStore } from '../../stores/useVideoStore'
 
 const stubs = {
   AgentModePicker: { template: '<div />' },
   AgentModelPicker: { template: '<div />' },
   AgentSwitcher: { template: '<div />' },
   AddDocumentUrl: { template: '<div />' },
+  RouterLink: { template: '<a><slot /></a>' },
   TurnModeSwitch: { template: '<div />' },
 }
 
@@ -56,5 +61,25 @@ describe('the new-chat box gives back a message that was not sent', () => {
     w.vm.restoreDraft('the old message')
     await w.vm.$nextTick()
     expect(w.find('textarea.composer-input').element.value).toBe('something new')
+  })
+})
+
+
+describe('Create video opens the dedicated studio', () => {
+  it('carries the agent, conversation and draft without expanding the chat composer', async () => {
+    const chat = useChatStore()
+    chat.agents = [{ id: 7, name: 'Video expert', video_model: 86 }]
+    chat.selectedAgentId = '7'
+    chat.conversationId = 'c1'
+    chat.loadAgents = vi.fn().mockResolvedValue()
+    const wrapper = mountW()
+    await wrapper.get('textarea.composer-input').setValue('Animate this product')
+    await wrapper.get('[data-test="welcome-plus"]').trigger('click')
+    await wrapper.get('[data-test="welcome-plus-video-mode"]').trigger('click')
+    expect(push).toHaveBeenCalledWith({ path: '/dashboard/video-studio', query: { agent: '7', conversation: 'c1' } })
+    expect(useVideoStore().studioDraft).toBe('Animate this product')
+    expect(useVideoStore().mode).toBe(false)
+    expect(wrapper.find('[data-test="video-composer-panel"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 })

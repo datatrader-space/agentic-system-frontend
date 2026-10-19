@@ -13,6 +13,8 @@
       </button>
     </div>
 
+    <slot />
+
     <!-- Reference slots: each upload becomes a chip with a ROLE the server receives with it. -->
     <input ref="fileEl" type="file" class="vcp-file" :accept="pickAccept" @change="onPick" />
     <div v-if="slots.length" class="vcp-slots">
@@ -37,7 +39,7 @@
 
     <!-- Settings row: values come from the chosen route's declared outputs; nothing else is offered. -->
     <details class="vcp-options" :open="settingsInitiallyOpen">
-      <summary>Video settings <span>{{ video.settings.aspect_ratio }} ? {{ video.task === 'story' ? video.targetSeconds : video.settings.duration }} s</span></summary>
+      <summary>Video settings <span>{{ video.settings.aspect_ratio }} · {{ video.task === 'story' ? video.targetSeconds : video.settings.duration }} s</span></summary>
     <div class="vcp-settings">
       <label class="vcp-field vcp-model">
         <span class="vcp-label">Video model</span>
@@ -83,7 +85,7 @@
       <p class="vcp-hint">{{ hint }}</p>
       <button type="button" class="vcp-primary" data-test="video-estimate" :disabled="primaryDisabled"
               @click="onPrimary">
-        {{ video.busy ? 'Working…' : (video.task === 'story' ? 'Plan the story' : 'Get estimate') }}
+        {{ video.busy || preparing ? 'Working…' : (video.task === 'story' ? 'Plan the story' : 'Get estimate') }}
         <span aria-hidden="true">›</span>
       </button>
     </div>
@@ -98,6 +100,7 @@ import { useChatStore } from '../../stores/useChatStore'
 const props = defineProps({
   draft: { type: String, default: '' },
   showTasks: { type: Boolean, default: true },
+  ensureProject: { type: Boolean, default: false },
 })
 const settingsInitiallyOpen = typeof window === 'undefined' || window.innerWidth >= 640
 const emit = defineEmits(['done'])
@@ -187,7 +190,8 @@ function onPick(e) {
 }
 
 // The agent writes the video prompt from what the person typed, so a request needs their words.
-const primaryDisabled = computed(() => video.busy || !props.draft.trim())
+const preparing = ref(false)
+const primaryDisabled = computed(() => preparing.value || video.busy || chat.isBusy || !props.draft.trim())
 const hint = computed(() => {
   if (!video.routes.length) return 'No video model is available yet. Assign one on the agent’s Video generation card.'
   if (video.task === 'story') return 'Planning is free: the assistant writes the scenes, then you render them one by one.'
@@ -195,15 +199,25 @@ const hint = computed(() => {
 })
 
 async function onPrimary() {
-  const text = props.draft
-  if (video.task === 'story') {
-    const ok = await video.planStory({ prompt: text, chat })
-    if (ok) emit('done')
-    return
-  }
-  // The request goes to the agent, which writes the video prompt and prepares the estimate.
-  const sent = await video.request({ prompt: text, chat })
-  if (sent) emit('done')
+  if (primaryDisabled.value) return
+  preparing.value = true
+  try {
+    const text = props.draft
+    // Studio clips are saved projects too, so they can be reopened from My projects.
+    if (props.ensureProject && !video.project) {
+      const project = await video.createProject({ chat, prompt: text,
+        targetSeconds: video.task === 'story' ? video.targetSeconds : video.settings.duration })
+      if (!project) return
+      video.panelTab = video.task === 'story' ? 'storyboard' : 'preview'
+    }
+    if (video.task === 'story') {
+      const ok = await video.planStory({ prompt: text, chat })
+      if (ok) emit('done')
+      return
+    }
+    const sent = await video.request({ prompt: text, chat })
+    if (sent) emit('done')
+  } finally { preparing.value = false }
 }
 
 watch(() => chat.selectedAgentId, (id) => { if (id) video.loadCapabilities(id) }, { immediate: true })

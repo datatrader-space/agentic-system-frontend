@@ -97,3 +97,34 @@ describe('VideoComposerPanel', () => {
     expect(w.find('[data-test="video-estimate"]').attributes('disabled')).toBeDefined()
   })
 })
+
+
+describe('studio project preparation', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    api.get.mockResolvedValue({ data: { routes: [ROUTE], default_route_id: 7 } })
+  })
+  it('does not request a render estimate if the project could not be created', async () => {
+    const video = useVideoStore()
+    vi.spyOn(video, 'createProject').mockResolvedValue(null)
+    const request = vi.spyOn(video, 'request')
+    const wrapper = mount(VideoComposerPanel, { props: { draft: 'Product reveal', ensureProject: true } })
+    await wrapper.get('[data-test="video-estimate"]').trigger('click')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(request).not.toHaveBeenCalled()
+    expect(wrapper.emitted('done')).toBeUndefined()
+    wrapper.unmount()
+  })
+  it('saves quick clips as projects before requesting an estimate', async () => {
+    const video = useVideoStore()
+    const project = vi.spyOn(video, 'createProject').mockResolvedValue({ project_id: 'p1' })
+    const request = vi.spyOn(video, 'request').mockResolvedValue(true)
+    const wrapper = mount(VideoComposerPanel, { props: { draft: 'Product reveal', ensureProject: true } })
+    await wrapper.get('[data-test="video-estimate"]').trigger('click')
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(project).toHaveBeenCalledWith(expect.objectContaining({ prompt: 'Product reveal' }))
+    expect(project.mock.invocationCallOrder[0]).toBeLessThan(request.mock.invocationCallOrder[0])
+    expect(wrapper.emitted('done')).toHaveLength(1)
+    wrapper.unmount()
+  })
+})

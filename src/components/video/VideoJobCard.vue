@@ -63,7 +63,7 @@
       <video v-if="isVideo" class="vjc-video" :src="job.output.url" controls preload="metadata" playsinline></video>
       <img v-else class="vjc-video" :src="job.output.url" alt="Saved frame" />
       <div class="vjc-actions">
-        <button type="button" class="vjc-btn primary" @click="openPanel">Open in Video panel</button>
+        <button type="button" class="vjc-btn primary" @click="openPanel">{{ inStudio ? 'View result' : 'Open in Video Studio' }}</button>
         <span v-if="job.actual_cost_usd" class="vjc-cost">Cost ${{ money(job.actual_cost_usd) }}</span>
       </div>
     </template>
@@ -79,10 +79,13 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useVideoStore } from '../../stores/useVideoStore'
 
-const props = defineProps({ job: { type: Object, required: true } })
+const props = defineProps({ job: { type: Object, required: true }, inStudio: { type: Boolean, default: false } })
+const emit = defineEmits(['open'])
 const video = useVideoStore()
+const router = useRouter()
 const pending = ref(false)
 
 const OPS = { generate: 'New clip', change: 'Video change', extend: 'Continue clip', trim: 'Trim', split: 'Split',
@@ -125,8 +128,13 @@ async function go() {
   try { await video.start(props.job, true) } finally { pending.value = false }
 }
 function openPanel() {
-  video.previewAttachmentId = null
-  video.openPanel('preview')
+  if (props.inStudio) {
+    video.previewAttachmentId = props.job.output?.attachment_id || null
+    video.panelTab = 'preview'
+    emit('open')
+    return
+  }
+  router.push({ path: '/dashboard/video-studio', query: { conversation: props.job.conversation_id || undefined } })
 }
 
 const now = ref(Date.now())

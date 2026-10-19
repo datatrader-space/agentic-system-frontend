@@ -26,6 +26,7 @@ export const useVideoStore = defineStore('video', {
   state: () => ({
     // Composer: the Video pill and the chosen task (quick | story | edit).
     mode: false,
+    studioDraft: '',
     task: 'quick',
     // Settings row. '' = let the route decide; values come from the chosen route's declared outputs.
     routeId: '',
@@ -180,8 +181,9 @@ export const useVideoStore = defineStore('video', {
     // ── jobs ──────────────────────────────────────────────────────────────────────────────────────
     _put(job) {
       if (!job || !job.job_id) return job
+      const previousState = this.jobs[job.job_id]?.state
       this.jobs = { ...this.jobs, [job.job_id]: { ...(this.jobs[job.job_id] || {}), ...job } }
-      if (job.state === 'ready' && job.output && job.operation !== 'frame' && job.operation !== 'export') {
+      if (previousState !== 'ready' && job.state === 'ready' && job.output && job.operation !== 'frame' && job.operation !== 'export') {
         this.previewAttachmentId = null
       }
       return this.jobs[job.job_id]
@@ -307,13 +309,13 @@ export const useVideoStore = defineStore('video', {
       this.loadVersions()
       return this.project
     },
-    async createProject({ chat, title, prompt }) {
+    async createProject({ chat, title, prompt, targetSeconds }) {
       const cid = await chat.ensureConversation()
       if (!cid) return null
       try {
         const res = await api.post('/video/projects/', {
           conversation_id: cid, title: (title || prompt || 'Untitled video').slice(0, 120),
-          aspect_ratio: this.settings.aspect_ratio, target_duration_ms: Math.round(this.targetSeconds * 1000),
+          aspect_ratio: this.settings.aspect_ratio, target_duration_ms: Math.round((targetSeconds ?? this.targetSeconds) * 1000),
           brief: { goal: prompt || '' },
         })
         this.project = res.data
