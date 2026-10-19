@@ -7,10 +7,10 @@ import { Check, Copy, ShieldCheck, Trash2, KeyRound } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
-import { getDataUse, saveDataUse, renameProject, deleteProject, dataUseAnswers, dataUseForm } from '../api/training.js';
+import { getDataUse, saveDataUse, renameProject, trashProject, dataUseAnswers, dataUseForm } from '../api/training.js';
 
 const props = defineProps({ project: Object });
-const emit = defineEmits(['navigate', 'renamed', 'deleted']);
+const emit = defineEmits(['navigate', 'renamed', 'trashed']);
 const owner = computed(() => (props.project?.rights || []).includes('manage'));
 const name = ref(props.project?.name || ''); const savedName = ref(props.project?.name || '');
 const form = reactive({ training: '', access: '', retention: '', aws: false, local: false, deletion: false });
@@ -40,8 +40,8 @@ async function copyId() {
   catch { notice.value = `The project id is ${props.project.ref}.`; }
 }
 async function remove() {
-  const answer = await act(() => deleteProject(props.project.ref, confirmText.value.trim()), '');
-  if (answer) { deleting.value = false; emit('deleted', savedName.value); }
+  const answer = await act(() => trashProject(props.project.ref), '');
+  if (answer) { deleting.value = false; emit('trashed', savedName.value); }
 }
 </script>
 
@@ -82,16 +82,16 @@ async function remove() {
     </section>
 
     <section v-if="owner" class="panel settings-block settings-danger">
-      <h2><Trash2 :size="18"/> Delete this project</h2>
-      <p class="field-help">The project is deleted with its photos, records, labels and files. This cannot be undone.</p>
-      <UiButton class="danger" @click="deleting=true;confirmText=''">Delete project</UiButton>
+      <h2><Trash2 :size="18"/> Move this project to the Trash</h2>
+      <p class="field-help">It leaves every list at once and its apps can no longer send to it. You can restore it from Workspace Settings → Trash within 30 days; after that it is deleted for good, with its photos, records, labels and files.</p>
+      <UiButton class="danger" @click="deleting=true;confirmText=''">Move to Trash</UiButton>
     </section>
 
-    <UiDialog :open="deleting" title="Delete this project" @close="deleting=false">
-      <p class="dialog-description">“{{ savedName }}” is deleted with its photos, records, labels and files. Type the project name to confirm.</p>
+    <UiDialog :open="deleting" title="Move this project to the Trash" @close="deleting=false">
+      <p class="dialog-description">“{{ savedName }}” leaves every list now and is deleted for good in 30 days unless you restore it. Type the project name to confirm.</p>
       <input v-model="confirmText" class="text-input" :aria-label="`Type ${savedName} to confirm`" :placeholder="savedName">
       <p v-if="error" class="field-error" role="alert">{{ error }}</p>
-      <div class="dialog-actions"><UiButton @click="deleting=false">Cancel</UiButton><UiButton variant="primary" class="danger-fill" :disabled="busy||confirmText.trim()!==savedName" @click="remove">Delete for ever</UiButton></div>
+      <div class="dialog-actions"><UiButton @click="deleting=false">Cancel</UiButton><UiButton variant="primary" class="danger-fill" :disabled="busy||confirmText.trim()!==savedName" @click="remove">Move to Trash</UiButton></div>
     </UiDialog>
   </div>
 </template>
