@@ -5,7 +5,7 @@
 // processing, dedicated deployment and dependent workflows have no backend yet and say so.
 // Backend: app_api.py deploy/… (deployments.py, connected_apps.py); approvals are the Models page's calls.
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { Ban, Check, Copy, KeyRound, Plus, RotateCcw, ShieldCheck, Upload, X } from 'lucide-vue-next';
+import { Ban, Check, Copy, KeyRound, Plus, RotateCcw, ShieldCheck, Square, Upload, X } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -51,7 +51,8 @@ async function run(call, after) {
 }
 const deploy = env => run(() => deployApi.act(props.projectRef, env.key, 'deploy', { model: chosen.value[env.key] }));
 const cancel = env => run(() => deployApi.act(props.projectRef, env.key, 'cancel'));
-const goingBack = ref(null); const backTo = ref(null);
+const goingBack = ref(null); const backTo = ref(null); const stopping = ref(null);
+async function stopEnv() { const env = stopping.value; if (await run(() => deployApi.act(props.projectRef, env.key, 'stop'))) stopping.value = null; }
 function askBack(env) { goingBack.value = env; backTo.value = env.earlier.find(m => !m.refused)?.number ?? null; }
 async function goBack() { const env = goingBack.value; if (await run(() => deployApi.act(props.projectRef, env.key, 'rollback', { model: backTo.value }))) goingBack.value = null; }
 
@@ -61,7 +62,12 @@ async function approved(answer) { approving.value = null; notice.value = answer.
 async function approvalUnanswered() { approving.value = null; await load(); error.value = 'No answer came back, so the page read it again: check below whether it was done before trying again.'; }
 
 // Apps (the project's Owner).
-const appName = ref(''); const revoking = ref(null);
+const appName = ref(''); const revoking = ref(null); const deletingApp = ref(null); const deleteName = ref('');
+const setAppOn = (app, on) => run(() => deployApi.app(props.projectRef, app.id, on ? 'enable' : 'disable', {}));
+async function deleteApp() {
+  const app = deletingApp.value;
+  if (await run(() => deployApi.app(props.projectRef, app.id, 'delete', { confirm: deleteName.value.trim() }))) { deletingApp.value = null; deleteName.value = ''; }
+}
 async function addApp() { if (await run(() => deployApi.addApp(props.projectRef, appName.value.trim()))) appName.value = ''; }
 const makeKey = app => run(() => deployApi.app(props.projectRef, app.id, 'key', {}), answer => { newKey.value = answer.new_key; });
 const grant = app => run(() => deployApi.app(props.projectRef, app.id, 'grant', allow.value[app.id]));
@@ -118,6 +124,7 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
                   </template>
                   <span v-else class="deploy-meta">No model has an approval for {{ env.label.toLowerCase() }}.{{ env.key==='production' ? ' Production needs a release approval.' : '' }}</span>
                   <UiButton v-if="env.earlier.length" :disabled="busy" @click="askBack(env)"><RotateCcw :size="14"/> Go back to an earlier version…</UiButton>
+                  <UiButton v-if="env.live" class="danger" :disabled="busy" @click="stopping=env"><Square :size="13"/> Stop {{ env.label.toLowerCase() }}…</UiButton>
                 </template>
               </div>
               <details v-if="env.history.length" class="history">
@@ -177,7 +184,12 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
           </form>
           <p v-if="!data.apps.length" class="deploy-meta">No app yet. Add one, allow it what it needs, then make it a key.</p>
           <article v-for="app in data.apps" :key="app.id" class="app-block">
-            <header><h3>{{ app.name }}</h3><UiBadge v-if="app.disabled">Disabled</UiBadge></header>
+            <header><h3>{{ app.name }}</h3><UiBadge v-if="app.disabled" tone="amber">Turned off</UiBadge>
+              <span v-if="app.can_manage" class="app-head-actions">
+                <UiButton class="small" :disabled="busy" @click="setAppOn(app, app.disabled)">{{ app.disabled ? 'Turn on' : 'Turn off' }}</UiButton>
+                <UiButton class="small danger" :disabled="busy" @click="deletingApp=app;deleteName=''">Delete…</UiButton>
+              </span></header>
+            <p v-if="app.disabled" class="deploy-meta">Turned off: every key of this app is refused until it is turned on again.</p>
             <div class="app-cols">
               <div>
                 <h4>Access to this project</h4>
@@ -230,6 +242,19 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
         <div class="dialog-actions"><UiButton @click="revoking=null">Cancel</UiButton><UiButton variant="primary" class="danger-fill" :disabled="busy" @click="revokeKey">Revoke key</UiButton></div>
       </template>
     </UiDialog>
+    <UiDialog :open="!!stopping" title="Stop this environment" @close="stopping=null">
+      <template v-if="stopping">
+        <p class="dialog-description">{{ stopping.live.model.name }} {{ stopping.live.model.version }} stops answering on {{ stopping.label.toLowerCase() }} at once; apps calling it get "no model is deployed" until you deploy a version or go back to one. Nothing is deleted.</p>
+        <div class="dialog-actions"><UiButton @click="stopping=null">Cancel</UiButton><UiButton variant="primary" class="danger-fill" :disabled="busy" @click="stopEnv">Stop {{ stopping.label.toLowerCase() }}</UiButton></div>
+      </template>
+    </UiDialog>
+    <UiDialog :open="!!deletingApp" title="Delete this app" @close="deletingApp=null">
+      <template v-if="deletingApp">
+        <p class="dialog-description">"{{ deletingApp.name }}" is deleted with all its keys and its access in every project. Its past calls stay in the usage history. This cannot be undone; to stop it for a while, turn it off instead. Type the app's name to confirm.</p>
+        <input v-model="deleteName" class="text-input" :aria-label="`Type ${deletingApp.name} to confirm`" :placeholder="deletingApp.name">
+        <div class="dialog-actions"><UiButton @click="deletingApp=null">Cancel</UiButton><UiButton variant="primary" class="danger-fill" :disabled="busy||deleteName.trim()!==deletingApp.name" @click="deleteApp">Delete the app</UiButton></div>
+      </template>
+    </UiDialog>
     <ApprovalDialog :asked="approving" :project-ref="projectRef" @close="approving=null" @done="approved" @unanswered="approvalUnanswered"/>
   </div>
 </template>
@@ -271,6 +296,8 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
 .new-key{background:#f3fbf7;border:1px solid #b9e3cf;border-radius:8px;padding:12px 14px;font-size:12px;color:#1f5b45;margin-bottom:12px}
 .new-key pre{background:white;border:1px solid #d6eadf;border-radius:6px;padding:10px;margin:8px 0;white-space:pre-wrap;overflow-wrap:anywhere;user-select:all}
 .app-block{border-top:1px solid #eef0f4;padding-top:14px;margin-top:14px}
+.app-head-actions{margin-left:auto;display:flex;gap:6px}
+.app-block header .badge{margin-left:8px}
 .app-cols{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:8px}
 .app-cols h4{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:#6d7c92;margin:0 0 6px;font-weight:600}
 .chip{display:inline-flex;align-items:center;gap:4px;background:var(--aadml-soft);color:var(--aadml-primary);border-radius:6px;padding:3px 4px 3px 8px;font-size:11px;margin:0 6px 6px 0}

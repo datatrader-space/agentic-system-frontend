@@ -28,7 +28,7 @@ const daysLeft = iso => Math.max(0, Math.ceil((new Date(iso) - Date.now()) / 864
 <template>
   <div class="trash-page">
     <h2>Trash</h2>
-    <p class="trash-intro">Projects moved to the Trash are hidden from everyone and take no data from their apps. Restore one within {{ days }} days; after that it is deleted for good, with its photos, labels and files.</p>
+    <p class="trash-intro">Projects moved to the Trash are hidden from everyone: their apps can neither send them data nor get predictions from their models. Restore one within {{ days }} days; after that it is deleted for good, with its photos, labels and files.</p>
     <div v-if="notice" class="notice" role="status"><Check :size="16"/><span>{{ notice }}</span></div>
     <p v-if="error" class="field-error" role="alert">{{ error }}</p>
     <p v-if="loading">Loading…</p>
