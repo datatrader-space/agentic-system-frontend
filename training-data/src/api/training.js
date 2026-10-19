@@ -17,6 +17,9 @@ export const listKinds = opts => apiFetch(`${BASE}/kinds/`, opts);
 export const createFolder = (name, opts) => apiFetch(`${BASE}/folders/`, { ...opts, method: 'POST', body: { name } });
 export const saveDataUse = (ref, answers, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/data-use/`, { ...opts, method: 'POST', body: answers });
 export const getDataUse = (ref, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/data-use/`, opts);
+// A language-model project's three extra data-use answers (backend: llm/app_api.py).
+export const saveLlmDataUse = (ref, answers, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/llm/data-use/`, { ...opts, method: 'POST', body: answers });
+export const getLlmDataUse = (ref, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/llm/data-use/`, opts);
 export const trashProject = (ref, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/trash/`, { ...opts, method: 'POST', body: {} });
 export const listTrash = opts => apiFetch(`${BASE}/trash/`, opts);
 export const trashAction = (id, action, body = {}, opts) => apiFetch(`${BASE}/trash/${enc(id)}/${action}/`, { ...opts, method: 'POST', body });
@@ -52,6 +55,9 @@ export const TYPE_KIND = {
   'Object Detection': 'object_detection', Classification: 'classification', 'Instance Segmentation': 'instance_segmentation',
   'Action Recognition': 'action_recognition', 'Keypoint Detection': 'keypoint_detection', Multimodal: 'multimodal',
   'Semantic Segmentation': 'semantic_segmentation', 'Data Collection': 'data_only',
+  // The language-model kinds (families.LLM_KINDS), shown when the first answer is "Language model".
+  'Chat assistant': 'llm_chat_assistant', 'Questions and answers': 'llm_qa', 'Document knowledge': 'llm_documents',
+  Preference: 'llm_preference',
 };
 
 // The New project screen's data policy, as the five data-use answers the backend stores (policy.read_form).
@@ -70,6 +76,15 @@ export function dataUseAnswers(form) {
   return {
     training, viewers, retention: days ? Number(days[1]) : 'forever',
     allow_aws: !!form.aws, allow_own_machine: !!form.local, deletion_rule_confirmed: !!form.deletion,
+  };
+}
+
+// The data policy step's three extra questions of a language-model project, as the answers the backend stores
+// (llm/data_use.read_form).
+export function llmDataUseAnswers(form) {
+  return {
+    personal_data: form.personal || 'redact', source: (form.source || '').trim(),
+    right_confirmed: !!form.right, judge_allowed: !!form.judge,
   };
 }
 
@@ -92,6 +107,7 @@ export function ago(iso, now = Date.now()) {
 export function toCard(row, index = 0) {
   return {
     id: row.ref, ref: row.ref, serverId: row.id, name: row.name, description: row.description, type: row.task_label,
+    family: row.family || '',
     images: row.photos ?? 0, models: row.models ?? 0, ready: 0, variant: index % 3,
     date: ago(row.last_activity || row.created_at), folder: row.folder?.name, folderId: row.folder?.id ?? null,
     role: row.role, rights: row.rights || [], details: { visibility: row.visibility === 'shared' ? 'Shared' : 'Private' },

@@ -8,6 +8,7 @@ import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import { listKeys, createKey, rotateKey, revokeKey, sendingGuide, ago } from '../api/training.js';
+import { llmApi, pathName } from '../api/llm.js';
 
 const props = defineProps({ project: Object });
 const emit = defineEmits(['navigate']);
@@ -15,11 +16,35 @@ const owner = computed(() => (props.project?.rights || []).includes('manage'));
 const loading = ref(true); const error = ref(''); const keys = ref(null); const guide = ref(null);
 const keyName = ref(''); const busy = ref(false); const fresh = ref(null); const copied = ref('');
 const confirm = ref(null);
+// A language-model project's form of this page (plan §2.1): how an app sends conversations, and the key mapping for
+// payloads of the app's own shape (llm/app_api.py chat_sending_guide, chat_mapping).
+const isLlm = computed(() => props.project?.family === 'llm');
+const mapping = ref(null); const chosen = ref({ user: '', assistant: '', system: '', group: '', system_text: '' }); const mapped = ref('');
+function showMapping(body) {
+  mapping.value = body;
+  const m = body.mapping || {};
+  const key = path => (path ? JSON.stringify(path) : '');
+  chosen.value = { user: key(m.user), assistant: key(m.assistant), system: key(m.system), group: key(m.group), system_text: m.system_text || '' };
+}
+async function saveMapping() {
+  if (busy.value) return; busy.value = true; error.value = ''; mapped.value = '';
+  const path = value => (value ? JSON.parse(value) : null);
+  try {
+    const body = await llmApi.saveMapping(props.project.ref, { user: path(chosen.value.user), assistant: path(chosen.value.assistant),
+      system: path(chosen.value.system), group: path(chosen.value.group), system_text: chosen.value.system_text });
+    showMapping(body);
+    mapped.value = `Saved. ${body.made?.made ?? 0} waiting record(s) became examples; ${body.waiting} still wait.`;
+  } catch (e) { error.value = e.message; }
+  finally { busy.value = false; }
+}
 
 async function load() {
   if (!props.project || !owner.value) { loading.value = false; return; }
   loading.value = true; error.value = '';
-  try { [keys.value, guide.value] = await Promise.all([listKeys(props.project.ref), sendingGuide(props.project.ref)]); }
+  try {
+    [keys.value, guide.value] = await Promise.all([listKeys(props.project.ref), isLlm.value ? llmApi.sending(props.project.ref) : sendingGuide(props.project.ref)]);
+    if (isLlm.value) showMapping(await llmApi.mapping(props.project.ref));
+  }
   catch (e) { error.value = e.message; }
   finally { loading.value = false; }
 }
@@ -44,7 +69,13 @@ async function copy(text, what) {
   try { await navigator.clipboard.writeText(text); copied.value = what; setTimeout(() => { copied.value = ''; }, 2000); }
   catch { copied.value = ''; }
 }
-const curl = computed(() => guide.value ? [
+const curl = computed(() => guide.value && isLlm.value ? [
+  `curl -X POST '${guide.value.endpoint}' \\`,
+  `  -H 'Authorization: Bearer <your key>' \\`,
+  `  -H 'Idempotency-Key: <one value per conversation>' \\`,
+  `  -H 'Content-Type: application/json' \\`,
+  `  -d '${JSON.stringify({ payload: guide.value.example_payload })}'`,
+].join('\n') : guide.value ? [
   `curl -X POST '${guide.value.endpoint}' \\`,
   `  -H 'Authorization: Bearer <your key>' \\`,
   `  -H 'Idempotency-Key: <a unique id for this record>' \\`,
@@ -73,7 +104,43 @@ const curl = computed(() => guide.value ? [
         <p v-else-if="keys" class="field-help">No key yet.</p>
       </section>
 
-      <section v-if="guide" class="panel">
+      <section v-if="guide && isLlm" class="panel">
+        <div class="eyebrow">INTEGRATION GUIDE</div>
+        <h2><Plug :size="18" /> How your app sends conversations</h2>
+        <p>Send one conversation per request to this address, as JSON, with the project key. Every conversation becomes one training example at once.</p>
+        <label class="field-label">Address<div class="connect-line"><code>{{ guide.endpoint }}</code><UiButton @click="copy(guide.endpoint, 'address')"><Copy :size="15" /> {{ copied === 'address' ? 'Copied' : 'Copy' }}</UiButton></div></label>
+        <p v-if="guide.training_refused" class="connect-refused"><UiBadge>Note</UiBadge> {{ guide.training_refused }}</p>
+        <h3>Example</h3>
+        <pre class="code-block">{{ curl }}</pre>
+        <UiButton @click="copy(curl, 'curl')"><Copy :size="15" /> {{ copied === 'curl' ? 'Copied' : 'Copy example' }}</UiButton>
+        <h3>The payload</h3>
+        <pre class="code-block">{{ JSON.stringify(guide.example_payload, null, 2) }}</pre>
+        <table class="connect-table"><thead><tr><th>Field</th><th>Needed</th><th>What it is</th></tr></thead><tbody>
+          <tr v-for="field in guide.fields" :key="field.key"><td><code>{{ field.key }}</code></td><td>{{ field.required ? 'Yes' : 'No' }}</td><td>{{ field.about }}</td></tr>
+        </tbody></table>
+        <p class="field-help">{{ guide.file_part }}</p>
+        <h3>A payload of your own shape</h3>
+        <p>{{ guide.mapping_about }}</p>
+        <template v-if="mapping">
+          <p class="field-help">{{ mapping.records }} record(s) received; {{ mapping.waiting }} wait for a mapping.</p>
+          <div v-if="mapping.keys.length" class="connect-mapping">
+            <label v-for="(label, field) in {user: 'User message', assistant: 'Assistant answer', system: 'System message (optional)', group: 'Conversation id (optional)'}" :key="field" class="field-label">{{ label }}
+              <select v-model="chosen[field]" class="text-input"><option value="">{{ field === 'user' || field === 'assistant' ? 'Choose…' : 'None' }}</option>
+                <option v-for="k in mapping.keys" :key="JSON.stringify(k.path)" :value="JSON.stringify(k.path)">{{ pathName(k.path) }} ({{ k.records }} records{{ k.example ? `, e.g. ${String(k.example).slice(0, 40)}` : '' }})</option></select></label>
+            <label class="field-label">Fixed system message (optional)<input v-model="chosen.system_text" class="text-input" maxlength="4000" placeholder="Used when no key holds it"></label>
+          </div>
+          <p v-else class="field-help">No record has arrived yet: the keys to map show here once one has.</p>
+          <UiButton v-if="mapping.keys.length" variant="primary" :disabled="busy" @click="saveMapping">Save the mapping</UiButton>
+          <p v-if="mapped" class="field-help" role="status">{{ mapped }}</p>
+        </template>
+        <h3>What the address answers</h3>
+        <table class="connect-table"><thead><tr><th>Status</th><th>Body</th><th>When</th></tr></thead><tbody>
+          <tr v-for="answer in guide.answers" :key="answer.status + answer.body"><td>{{ answer.status }}</td><td><code>{{ answer.body }}</code></td><td>{{ answer.when }}</td></tr>
+        </tbody></table>
+        <p class="field-help">{{ guide.after }}</p>
+      </section>
+
+      <section v-else-if="guide" class="panel">
         <div class="eyebrow">INTEGRATION GUIDE</div>
         <h2><Plug :size="18" /> How to send</h2>
         <p>Send one record per request to this address. {{ guide.vision ? `Send the photo as the part named file (${guide.formats.join(', ')}, at most ${guide.file_mb} MB) and the record as the part named payload.` : 'Send the record as JSON.' }} The payload is at most {{ guide.payload_mb }} MB. {{ guide.rate }}</p>
@@ -122,4 +189,5 @@ const curl = computed(() => guide.value ? [
 .connect-table td{padding:8px;border-bottom:1px solid #f1f5f9;vertical-align:top}
 .connect-table tr.revoked td{color:#94a3b8}
 .code-block{white-space:pre-wrap;word-break:break-all;font-size:12px;min-height:0}
+.connect-mapping{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:12px 0}
 </style>

@@ -37,3 +37,12 @@ test('a project row becomes a card; a Labeller sees no numbers, shown as 0', () 
   assert.equal(ago('2026-10-15T10:00:00Z', Date.parse('2026-10-15T12:00:00Z')), '2 hours ago');
   assert.equal(ago('2026-10-15T11:59:40Z', Date.parse('2026-10-15T12:00:00Z')), 'Just now');
 });
+
+test('a language-model project names its kind, and its three extra answers go to the backend', async () => {
+  const { llmDataUseAnswers } = await import('../src/api/training.js');
+  assert.deepEqual(['Chat assistant', 'Questions and answers', 'Document knowledge', 'Preference'].map(name => TYPE_KIND[name]),
+    ['llm_chat_assistant', 'llm_qa', 'llm_documents', 'llm_preference']);
+  assert.deepEqual(llmDataUseAnswers({ personal: 'drop', source: '  Our support chats ', right: true, judge: false }),
+    { personal_data: 'drop', source: 'Our support chats', right_confirmed: true, judge_allowed: false });
+  assert.deepEqual(llmDataUseAnswers({}), { personal_data: 'redact', source: '', right_confirmed: false, judge_allowed: false });
+});

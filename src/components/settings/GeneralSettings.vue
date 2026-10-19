@@ -44,6 +44,26 @@
     </div>
 
     <div class="card">
+      <h3 class="card-title">Model training</h3>
+      <p class="card-sub">Whether your data may be used to train AI models.</p>
+      <label class="row toggle">
+        <div>
+          <div class="row-label">Use my data for model training</div>
+          <div class="row-hint">When this is on, AADML may use your conversations and the data you send to train AI models. It is off until you turn it on, and you can turn it off at any time.</div>
+        </div>
+        <input type="checkbox" class="switch" :checked="trainingUse.allowed" :disabled="trainingBusy || !trainingUse.loaded" @change="setTrainingUse($event.target.checked)" />
+      </label>
+      <label v-for="org in trainingUse.organizations" :key="org.id" class="row toggle">
+        <div>
+          <div class="row-label">Allow it in {{ org.name }}</div>
+          <div class="row-hint">You own this organisation. Turned off, nobody's data in it is used for training, whatever their own setting says.</div>
+        </div>
+        <input type="checkbox" class="switch" :checked="org.allowed" :disabled="trainingBusy" @change="setOrganizationTrainingUse(org, $event.target.checked)" />
+      </label>
+      <span v-if="trainingError" class="field-err">{{ trainingError }}</span>
+    </div>
+
+    <div class="card">
       <h3 class="card-title">Help &amp; onboarding</h3>
       <p class="card-sub">New here, or want a refresher? Replay the guided product tour.</p>
       <div class="row">
@@ -96,6 +116,26 @@ const saveName = async () => {
 // setTheme applies + persists the choice; isDark drives the active highlight.
 const { isDark, setTheme } = useTheme()
 
+// "Use my data for model training" (LLM-POC 42): off until the person turns it on. An organisation's Owner also sees
+// the switch for everyone in it; turned off there, it wins over a person's own setting.
+const trainingUse = ref({ loaded: false, allowed: false, organizations: [] })
+const trainingBusy = ref(false)
+const trainingError = ref('')
+const showTrainingUse = (data) => { trainingUse.value = { loaded: true, allowed: !!data.allowed, organizations: data.organizations || [] } }
+api.getTrainingUse().then(({ data }) => showTrainingUse(data)).catch(() => { trainingError.value = 'Your model training setting could not be read.' })
+const changeTrainingUse = async (call) => {
+  trainingBusy.value = true
+  trainingError.value = ''
+  try {
+    showTrainingUse((await call()).data)
+  } catch (err) {
+    trainingError.value = err?.response?.data?.error || 'The setting could not be saved. Try again.'
+  }
+  trainingBusy.value = false
+}
+const setTrainingUse = (allowed) => changeTrainingUse(() => api.setTrainingUse(allowed))
+const setOrganizationTrainingUse = (org, allowed) => changeTrainingUse(() => api.setOrganizationTrainingUse(org.id, allowed))
+
 // Replay the guided tour (resets the completed flag + relaunches). The tour overlay is
 // mounted in AppShell, so it picks up immediately while staying on the dashboard.
 const router = useRouter()
@@ -135,4 +175,7 @@ const replayTour = () => {
 .field-hint { font-size: 0.75rem; color: var(--vm-ink-faint, #94a3b8); }
 .field-ok { font-size: 0.75rem; color: #067647; }
 .field-err { font-size: 0.75rem; color: #d92d20; }
+.row.toggle { cursor: pointer; gap: 16px; margin-top: 12px; }
+.row.toggle .row-hint { max-width: 560px; }
+.switch { width: 38px; height: 22px; flex-shrink: 0; accent-color: var(--vm-primary, #4f46e5); cursor: pointer; }
 </style>

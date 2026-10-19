@@ -1,8 +1,13 @@
 <script setup>
 import { watch, ref, computed, inject, onMounted, onUnmounted, provide } from 'vue';
 import { signOut } from './api/session.js';
-import { trashProject, getProject, listProjects, createProject, createFolder, moveProject, renameProject, saveDataUse, listKinds, dataUseAnswers, TYPE_KIND, toCard } from './api/training.js';
+import { trashProject, getProject, listProjects, createProject, createFolder, moveProject, renameProject, saveDataUse, saveLlmDataUse, listKinds, dataUseAnswers, llmDataUseAnswers, TYPE_KIND, toCard } from './api/training.js';
 import ConnectApp from './components/ConnectApp.vue';
+import LlmUpload from './components/LlmUpload.vue';
+import LlmExamples from './components/LlmExamples.vue';
+import LlmReview from './components/LlmReview.vue';
+import LlmVersions from './components/LlmVersions.vue';
+import { NOT_FOR_LLM, LATER_FOR_LLM } from './api/llm.js';
 import { Aperture, FolderOpen, Box, Layers, ArrowUpRight, Plus, Search, LayoutGrid, List, Menu, X, ArrowLeft, Upload, ScanLine, Images, Tags, ChartNoAxesCombined, GitBranch, LockKeyhole, ArrowRight, Check, Sparkles, Network, Server, Orbit, Bell, Settings, ChevronLeft, ChevronRight, CircleArrowUp, KeyRound, Users , Trash2 } from 'lucide-vue-next';
 import SidebarUtilities from './components/SidebarUtilities.vue';
 import BackendConnection from './components/BackendConnection.vue';
@@ -68,9 +73,11 @@ async function moveTo(project, name){const folder=folderRows.value.find(f=>f.nam
 async function rename(project, name){try { const row=await renameProject(project.ref, name); project.name=row.name; } catch (error) { notice.value=error.message; }}
 // New project: create it, then save its data policy as the project's data-use answers. Returns the new card.
 async function submitProject(form){
-  const kind=TYPE_KIND[form.task]; const task=kinds.value.find(k=>k.key===kind)?.task||'';
-  const row=await createProject({name:form.name, description:form.purpose, task});
+  const kind=TYPE_KIND[form.task]; const chosen=kinds.value.find(k=>k.key===kind); const task=chosen?.task||'';
+  // A language-model project names its kind too: the kind sets where its training starts.
+  const row=await createProject({name:form.name, description:form.purpose, task, ...(chosen?.family==='llm'?{kind}:{})});
   await saveDataUse(row.ref, dataUseAnswers(form));
+  if (row.family==='llm') await saveLlmDataUse(row.ref, llmDataUseAnswers(form));
   const card=toCard({...row, visibility: dataUseAnswers(form).viewers==='me'?'private':'shared'}, projects.value.length);
   projects.value.unshift(card);
   return card;
@@ -118,13 +125,14 @@ onUnmounted(() => { clearInterval(unreadTimer); window.removeEventListener('hash
       <button class="sidebar-collapse" :aria-label="navCollapsed?'Expand navigation':'Collapse navigation'" @click="navCollapsed=!navCollapsed;projectFlyout=false"><ChevronRight v-if="navCollapsed" :size="14"/><ChevronLeft v-else :size="14"/></button>
       <div class="sidebar-bottom"><button class="sidebar-upgrade" title="Upgrade" @click="sidebarDialog='Upgrade'"><CircleArrowUp :size="14"/><span class="nav-text">Upgrade</span></button><SidebarUtilities @select="openSetting"/><button class="sidebar-profile" :title="`${session.user.name} account`" @click="sidebarDialog='Account'"><span>{{ session.user.initials.slice(0,1) }}</span><strong class="nav-text">{{ session.user.name.toUpperCase() }}</strong></button><a class="sidebar-wordmark" href="#projects" @click="selected=null"><Aperture :size="15"/><span class="nav-text">AADML workspace</span></a></div>
     </aside>
-    <aside v-if="selected" class="project-sidebar"><button class="project-back" @click="selected = null; navigate('projects')"><ArrowLeft :size="13" /> MY WORKSPACE</button><div class="project-context"><span>{{ selected.type }}</span><RoomArt :variant="selected.variant" /><h3>{{ selected.name }}</h3></div><div class="nav-label">DATA</div><nav aria-label="Project"><a v-for="item in projectSections" :key="item.id" :href="`#${item.id}`" :class="['project-nav-link', {active:page === item.id}]" :aria-current="page === item.id ? 'page' : undefined"><component :is="item.icon" :size="15" />{{ item.name }}</a></nav></aside>
+    <aside v-if="selected" class="project-sidebar"><button class="project-back" @click="selected = null; navigate('projects')"><ArrowLeft :size="13" /> MY WORKSPACE</button><div class="project-context"><span>{{ selected.type }}</span><RoomArt :variant="selected.variant" /><h3>{{ selected.name }}</h3></div><div class="nav-label">DATA</div><nav aria-label="Project"><a v-for="item in projectSections.filter(s=>!(selected.family==='llm'&&NOT_FOR_LLM.includes(s.id)))" :key="item.id" :href="`#${item.id}`" :class="['project-nav-link', {active:page === item.id}]" :aria-current="page === item.id ? 'page' : undefined"><component :is="item.icon" :size="15" />{{ item.name }}</a></nav></aside>
     <div class="main-shell">
       <header class="topbar"><div class="breadcrumb"><button class="icon-button mobile-menu" aria-label="Open navigation" @click="drawer = true"><Menu :size="21" /></button><span>Workspace</span><span class="breadcrumb-slash">/</span><strong>{{ title }}</strong></div><div class="topbar-right"><BackendConnection/><UiBadge tone="purple"><span class="live-dot"></span> Phase 2 preview</UiBadge><span class="avatar" :title="session.user.name">{{ session.user.initials.slice(0,1) }}</span></div></header>
       <main id="main" tabindex="-1">
         <div class="page-heading"><div><div class="eyebrow">TRAINING DATA</div><h1>{{ title }}</h1><p>{{ page === 'projects' ? 'Great models start with well-organized data.' : page === 'components' ? 'One consistent visual language for your entire workflow.' : page === 'members' ? 'Invite your team and manage project access.' : selected?.name || (page === 'models' ? 'Manage, deploy, and monitor models in your workspace.' : 'Your independent vision workspace.') }}</p></div><UiButton v-if="page === 'projects'" variant="primary" @click="dialog = true"><Plus :size="17" /> New project</UiButton></div>
         <div v-if="notice" class="notice" role="status"><Check :size="18" /><span>{{ notice }}</span><button class="icon-button" aria-label="Dismiss notification" @click="notice = ''"><X :size="17" /></button></div>
-        <ProjectUpload v-if="page === 'upload'" :key="selected?.id || 'default'" :project="selected" @continue="receiveBatch" @navigate="navigate" />
+        <LlmUpload v-if="page === 'upload' && selected?.family === 'llm'" :key="selected.ref" :project="selected" @navigate="navigate" />
+        <ProjectUpload v-else-if="page === 'upload'" :key="selected?.id || 'default'" :project="selected" @continue="receiveBatch" @navigate="navigate" />
         <WorkspaceExtras v-else-if="['agent','assets','workflows','events','discover'].includes(page)" :page="page" @navigate="navigate" @create="dialog=true" />
         <section v-else-if="page==='deployments'" class="panel screen-placeholder"><Server :size="36"/><h2>Deployments</h2><UiBadge tone="purple">Coming soon</UiBadge><p>Workspace deployment management will be available when the backend is connected.</p></section>
         <WorkspaceModels v-else-if="page === 'models' && !selected" @create="dialog = true" />
@@ -133,6 +141,10 @@ onUnmounted(() => { clearInterval(unreadTimer); window.removeEventListener('hash
         <TrashPage v-else-if="page==='trash'" @restored="loadProjects" />
         <ProjectSettings v-else-if="page==='settings'&&selected" :key="selected.ref" :project="selected" @navigate="navigate" @renamed="projectRenamed" @trashed="projectTrashed" />
         <TrainingNotifications v-else-if="page==='notifications'" @changed="n=>unreadCount=n" />
+        <LlmExamples v-else-if="selected?.family==='llm' && page==='dataset'" :key="`d-${selected.ref}`" :project="selected" @navigate="navigate" />
+        <LlmReview v-else-if="selected?.family==='llm' && page==='annotate'" :key="`a-${selected.ref}`" :project="selected" :open-assignment="openAssignment" @opened="openAssignment=null" @navigate="navigate" />
+        <LlmVersions v-else-if="selected?.family==='llm' && page==='versions'" :key="`v-${selected.ref}`" :project="selected" @navigate="navigate" />
+        <section v-else-if="selected?.family==='llm' && (LATER_FOR_LLM[page] || NOT_FOR_LLM.includes(page))" class="panel screen-placeholder"><Layers :size="32" /><UiBadge tone="purple">{{ LATER_FOR_LLM[page] ? `Language models · phase ${LATER_FOR_LLM[page]}` : 'Vision projects only' }}</UiBadge><h2>{{ title }}</h2><p>{{ LATER_FOR_LLM[page] ? `The language-model form of this page is built in phase ${LATER_FOR_LLM[page]} of the plan.` : 'This page is for vision projects. A language-model project does not use it.' }}</p></section>
         <ProjectStudio v-else-if="!['projects','components'].includes(page)" :page="page" :project="selected" :open-assignment="openAssignment" :open-upload="openUpload" @opened="openAssignment=null" @opened-upload="openUpload=null" @navigate="navigate" @create="dialog = true" />
         <template v-else-if="page === 'projects'">
           <section class="welcome-panel"><div class="welcome-copy"><UiBadge tone="purple">YOUR DATA → YOUR MODEL</UiBadge><h2>Build with a clearer view.</h2><p>Bring your images together, refine your labels,<br class="desktop-break"> and prepare a dataset you can trust.</p><a href="#components" class="text-link">Explore the UI foundation <ArrowRight :size="16" /></a></div><div class="workflow-preview" aria-label="Workflow preview"><div><span class="step-icon"><Upload :size="20" /></span><strong>Upload</strong><small>Collect your images</small></div><span class="connector"></span><div><span class="step-icon"><ScanLine :size="20" /></span><strong>Annotate</strong><small>Make every label count</small></div><span class="connector"></span><div><span class="step-icon"><Layers :size="20" /></span><strong>Prepare</strong><small>Ready for training</small></div></div></section>

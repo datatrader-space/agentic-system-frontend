@@ -535,6 +535,10 @@ export default {
   getCurrentUser: () => api.get('/auth/me'),
   // Change one's own name (Settings -> General).
   updateMyName: (name) => api.patch('/auth/me', { name }),
+  // "Use my data for model training" (Training app, LLM-POC 42): off until the person turns it on.
+  getTrainingUse: () => api.get('/training-data/app/training-use/'),
+  setTrainingUse: (allowed) => api.post('/training-data/app/training-use/', { allowed }),
+  setOrganizationTrainingUse: (id, allowed) => api.post(`/training-data/app/training-use/organizations/${id}/`, { allowed }),
   checkAuth: () => api.get('/auth/check'),
   // First-run onboarding state (feature tour). Best-effort persistence so the tour
   // follows the user across devices. Body: { onboarding_completed?, onboarding_step? }.
