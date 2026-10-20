@@ -31,7 +31,7 @@
       <div class="create-inner">
         <h2 class="create-title">What would you like to create?</h2>
         <p class="create-sub">Turn an idea, your images or existing footage into a video. The agent writes the prompt and shows
-          the cost before anything renders.</p>
+          the cost before anything renders. <router-link to="/video-studio/help" class="create-help" data-test="studio-help-link">How it works</router-link></p>
         <div v-if="!hasVideoAgent" class="setup" data-test="studio-not-ready">
           <h2>Video Studio can’t render yet</h2>
           <p>No video model is set for the Video Studio agent. A platform admin sets it once, for everyone.</p>
@@ -353,6 +353,8 @@ onBeforeUnmount(() => {
   box-sizing: border-box; }
 .create-inner > .composer { flex: 1; display: flex; flex-direction: column; padding: 0 0 16px; }
 .create-title { margin: 0; text-align: center; font-size: 28px; line-height: 1.2; font-weight: 600; letter-spacing: -.02em; }
+.create-help { color: var(--vs-accent-ink, var(--vm-violet)); text-decoration: underline; text-underline-offset: 3px; white-space: nowrap; }
+.create-help:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 2px; }
 .create-sub { margin: -8px auto 6px; max-width: 40em; text-align: center; font-size: 14.5px; line-height: 1.6; color: var(--vm-ink-soft); }
 .ideas { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .idea { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 1px solid var(--vm-line); border-radius: 999px;

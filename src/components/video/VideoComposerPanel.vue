@@ -30,10 +30,8 @@
           <img v-else-if="r.url" :src="r.url" class="vcp-thumb" alt="" />
           <span v-else class="vcp-thumb vcp-thumb-sound" aria-hidden="true"></span>
           <span class="vcp-chip-name" :title="r.name">{{ r.name }}</span>
-          <label class="vcp-sr" :for="'role-' + r.key">Use {{ r.name }} as</label>
-          <select :id="'role-' + r.key" class="vcp-role" :value="r.role" data-test="video-ref-role" @change="video.setRefRole(r.key, $event.target.value)">
-            <option v-for="o in rolesFor(r)" :key="o.value" :value="o.value">{{ o.label }}</option>
-          </select>
+          <VideoChoice class="vcp-role" :model-value="r.role" :options="rolesFor(r)" :label="'Use ' + r.name + ' as'"
+                       test-id="video-ref-role" @update:model-value="(v) => video.setRefRole(r.key, v)" />
           <button type="button" class="vcp-chip-x" :aria-label="'Remove ' + r.name" @click="video.removeRef(r.key)">
             <span aria-hidden="true" v-html="ICON.x"></span></button>
           <span v-if="problemOf(r)" class="vcp-chip-why">{{ currentName }} {{ problemOf(r) }}.
@@ -92,39 +90,15 @@
           <BottomSheet label="Video settings" :summary="settingsSummary" test-id="video-settings-sheet" v-slot="{ sheet }">
             <div v-show="sheet || variant !== 'chat' || showSettings" class="vcp-pills" :class="{ 'in-sheet': sheet }" role="group" aria-label="Video settings">
               <VideoModelPicker :in-sheet="sheet" />
-              <label v-if="o.aspectRatios.length" class="vcp-pill" title="Shape">
-                <span class="vcp-pill-ic" aria-hidden="true" v-html="ICON.shape"></span>
-                <span class="vcp-pill-label">Shape</span>
-                <select v-model="video.settings.aspect_ratio" data-test="video-aspect">
-                  <option v-for="a in o.aspectRatios" :key="a" :value="a">{{ a }}</option>
-                </select>
-                <span class="vcp-chev" aria-hidden="true" v-html="ICON.chev"></span>
-              </label>
-              <label v-if="video.task === 'story'" class="vcp-pill" title="Final length">
-                <span class="vcp-pill-ic" aria-hidden="true" v-html="ICON.clock"></span>
-                <span class="vcp-pill-label">Final length</span>
-                <select v-model.number="video.targetSeconds">
-                  <option v-for="s in [8, 12, 15, 20, 30, 45, 60]" :key="s" :value="s">{{ s }} s</option>
-                </select>
-                <span class="vcp-chev" aria-hidden="true" v-html="ICON.chev"></span>
-              </label>
-              <label v-else-if="o.durations.length" class="vcp-pill" title="Clip length">
-                <span class="vcp-pill-ic" aria-hidden="true" v-html="ICON.clock"></span>
-                <span class="vcp-pill-label">Clip length</span>
-                <select v-model.number="video.settings.duration">
-                  <option v-for="d in o.durations" :key="d" :value="d">{{ d }} s</option>
-                </select>
-                <span class="vcp-chev" aria-hidden="true" v-html="ICON.chev"></span>
-              </label>
-              <label v-if="o.resolutions.length" class="vcp-pill" title="Resolution">
-                <span class="vcp-pill-ic" aria-hidden="true" v-html="ICON.screen"></span>
-                <span class="vcp-pill-label">Resolution</span>
-                <select v-model="video.settings.resolution">
-                  <option value="">Model default</option>
-                  <option v-for="r in o.resolutions" :key="r" :value="r">{{ r }}</option>
-                </select>
-                <span class="vcp-chev" aria-hidden="true" v-html="ICON.chev"></span>
-              </label>
+              <!-- Only what the chosen model offers; switching model changes the choices (owner, 2026-10-20). -->
+              <VideoChoice v-if="shapeOptions.length" v-model="video.settings.aspect_ratio" :options="shapeOptions" label="Shape"
+                           :icon="ICON.shape" :in-sheet="sheet" test-id="video-aspect" />
+              <VideoChoice v-if="video.task === 'story'" v-model="video.targetSeconds" :options="storyLengthOptions" label="Final length"
+                           :icon="ICON.clock" layout="grid" :in-sheet="sheet" test-id="video-length" />
+              <VideoChoice v-else-if="lengthOptions.length" v-model="video.settings.duration" :options="lengthOptions" label="Clip length"
+                           :icon="ICON.clock" layout="grid" :in-sheet="sheet" test-id="video-length" />
+              <VideoChoice v-if="resolutionOptions.length" v-model="video.settings.resolution" :options="resolutionOptions" label="Resolution"
+                           :icon="ICON.screen" :in-sheet="sheet" test-id="video-resolution" />
               <button type="button" class="vcp-pill vcp-pill-toggle" data-test="video-sound" :disabled="!o.audio"
                       :aria-pressed="o.audio && video.settings.sound ? 'true' : 'false'"
                       :title="o.audio ? 'Generate sound with the video' : 'This model makes silent video'"
@@ -155,6 +129,8 @@ import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
 import BottomSheet from './BottomSheet.vue'
 import VideoModelPicker from './VideoModelPicker.vue'
+import VideoChoice from './VideoChoice.vue'
+import { TASK_ART } from './videoArt'
 
 const props = defineProps({
   draft: { type: String, default: '' },
@@ -183,17 +159,10 @@ const ICON = {
   mute: S('<path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M16 10l4 4M20 10l-4 4"/>'),
   sliders: S('<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>'),
 }
-// What each task makes, drawn as frames: one shot; scenes in sequence; footage with a cut.
-const FRAME = 'fill="#000" stroke="currentColor" stroke-width="1.2"'
-const ART = {
-  quick: `<svg viewBox="0 0 160 90"><rect x="22" y="12" width="116" height="66" rx="2" ${FRAME}/><path d="M74 33l16 12-16 12z" fill="currentColor"/></svg>`,
-  story: `<svg viewBox="0 0 160 90"><rect x="8" y="22" width="44" height="46" rx="2" ${FRAME}/><rect x="58" y="22" width="44" height="46" rx="2" ${FRAME}/><rect x="108" y="22" width="44" height="46" rx="2" ${FRAME}/><text x="30" y="50" text-anchor="middle" font-size="12" fill="currentColor">1</text><text x="80" y="50" text-anchor="middle" font-size="12" fill="currentColor">2</text><text x="130" y="50" text-anchor="middle" font-size="12" fill="currentColor">3</text></svg>`,
-  edit: `<svg viewBox="0 0 160 90"><rect x="6" y="20" width="148" height="50" rx="2" ${FRAME}/><path d="M6 28h148M6 62h148" stroke="currentColor" stroke-width="1" stroke-dasharray="4 5"/><path d="M96 10v70" stroke="currentColor" stroke-width="2"/><circle cx="96" cy="10" r="4" fill="currentColor"/></svg>`,
-}
 const tasks = [
-  { value: 'quick', label: 'Quick clip', desc: 'One shot from words or images', art: ART.quick },
-  { value: 'story', label: 'Story video', desc: 'Plan scenes, then build the whole video', art: ART.story },
-  { value: 'edit', label: 'Edit footage', desc: 'Add a video and describe the change', art: ART.edit },
+  { value: 'quick', label: 'Quick clip', desc: 'One shot from words or images', art: TASK_ART.quick },
+  { value: 'story', label: 'Story video', desc: 'Plan scenes, then build the whole video', art: TASK_ART.story },
+  { value: 'edit', label: 'Edit footage', desc: 'Add a video and describe the change', art: TASK_ART.edit },
 ]
 // What a file is used as, in the words the Library uses.
 const roleOptions = [
@@ -203,6 +172,26 @@ const roleOptions = [
 ]
 
 const o = computed(() => video.options)
+// The settings' choices, from the chosen model's declared outputs only.
+const SHAPE_NAMES = { '16:9': 'Landscape', '9:16': 'Vertical', '1:1': 'Square', '4:3': 'Classic', '3:4': 'Portrait',
+                      '21:9': 'Cinema wide', '4:5': 'Portrait', '2:3': 'Portrait', '3:2': 'Landscape' }
+function frameGlyph(ar) {
+  const m = /^(\d+):(\d+)$/.exec(String(ar))
+  const w = m ? Number(m[1]) : 16
+  const h = m ? Number(m[2]) : 9
+  const k = Math.min(20 / w, 16 / h)
+  const W = w * k
+  const H = h * k
+  return `<svg viewBox="0 0 22 18"><rect x="${(22 - W) / 2}" y="${(18 - H) / 2}" width="${W}" height="${H}" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`
+}
+const RES_ORDER = ['480p', '540p', '720p', '768p', '1080p', '2K', '4K']
+const RES_NAMES = { '480p': 'Draft quality', '540p': 'Draft quality', '720p': 'HD', '768p': 'HD', '1080p': 'Full HD', '2K': 'Sharper than Full HD', '4K': 'Ultra HD' }
+const shapeOptions = computed(() => o.value.aspectRatios.map((a) => ({ value: a, label: a, hint: SHAPE_NAMES[a] || '', glyph: frameGlyph(a) })))
+const lengthOptions = computed(() => o.value.durations.map((d) => ({ value: d, label: `${d} s` })))
+const storyLengthOptions = [8, 12, 15, 20, 30, 45, 60].map((n) => ({ value: n, label: `${n} s` }))
+const resolutionOptions = computed(() => o.value.resolutions.slice()
+  .sort((x, y) => RES_ORDER.indexOf(x) - RES_ORDER.indexOf(y))
+  .map((r) => ({ value: r, label: r, hint: RES_NAMES[r] || '' })))
 const can = computed(() => video.can)
 // Edit footage shows when some offered model can edit; the chosen task stays visible even when the model cannot do
 // it, so it is never switched behind the user.
@@ -402,8 +391,7 @@ defineExpose({ submit: onPrimary })
 .vcp-thumb { width: 32px; height: 32px; object-fit: cover; border-radius: 4px; background: #000; }
 .vcp-thumb-sound { display: block; background: var(--vm-surface-2, #e5e7eb); }
 .vcp-chip-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
-.vcp-role { min-height: 32px; max-width: 100%; padding: 0 4px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 4px;
-  background: var(--vm-surface-2, #fff); color: var(--vm-ink, #0f172a); font: inherit; font-size: 12px; }
+.vcp-role :deep(.vch-pill) { min-height: 30px; padding: 0 8px; font-size: 12px; }
 .vcp-chip-x { display: grid; place-items: center; min-width: 32px; min-height: 32px; border: 0; border-radius: 4px; background: transparent;
   color: var(--vm-ink-soft, #64748b); cursor: pointer; }
 .vcp-chip-x:hover { color: var(--vm-ink, #0f172a); }
@@ -421,10 +409,6 @@ defineExpose({ submit: onPrimary })
 .vcp-pill:focus-within { border-color: var(--vm-violet, #4f46e5); }
 .vcp-pill-ic { width: 16px; height: 16px; flex-shrink: 0; color: var(--vm-ink-soft, #64748b); }
 .vcp-pill-ic :deep(svg) { width: 16px; height: 16px; display: block; }
-.vcp-pill-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.vcp-pill select { min-width: 0; max-width: 100%; padding: 0 16px 0 0; border: 0; background: transparent; color: inherit; font: inherit; font-size: 13px;
-  appearance: none; -webkit-appearance: none; cursor: pointer; text-overflow: ellipsis; }
-.vcp-pill select option { background: var(--vm-surface, #fff); color: var(--vm-ink, #0f172a); }
 .vcp-chev { position: absolute; right: 9px; width: 12px; height: 12px; pointer-events: none; color: var(--vm-ink-soft, #64748b); }
 .vcp-chev :deep(svg) { width: 12px; height: 12px; display: block; }
 .vcp-pill-toggle[aria-pressed="false"] { color: var(--vm-ink-soft, #64748b); }
@@ -432,8 +416,6 @@ defineExpose({ submit: onPrimary })
 /* In the phone sheet the choices are a labelled list. */
 .vcp-pills.in-sheet { display: grid; gap: 8px; }
 .vcp-pills.in-sheet .vcp-pill { width: 100%; max-width: none; min-height: 48px; border-radius: 8px; }
-.vcp-pills.in-sheet .vcp-pill-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; flex: 0 0 96px; color: var(--vm-ink-soft, #64748b); }
-.vcp-pills.in-sheet .vcp-pill select { flex: 1; font-size: 16px; }
 
 /* The model-switch notice. */
 .vcp-switch { display: grid; gap: 8px; margin: 0 8px 4px; padding: 12px 14px; border: 1px solid var(--vs-warn-line, #d97706); border-radius: 8px; background: var(--vs-warn-bg, #fffbeb); }
@@ -455,7 +437,7 @@ defineExpose({ submit: onPrimary })
 .vcp-hint span { color: var(--vm-ink-soft, #64748b); }
 .vcp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .vcp-card:focus-visible, .vcp-plus:focus-visible, .vcp-chip-fix:focus-visible, .vcp-primary:focus-visible, .vcp-secondary:focus-visible,
-.vcp-pill:focus-visible, .vcp-pill select:focus-visible, .vcp-role:focus-visible, .vcp-chip-x:focus-visible { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
+.vcp-pill:focus-visible, .vcp-chip-x:focus-visible { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
 
 /* Touch: every control reaches 44px. */
 @media (pointer: coarse) {

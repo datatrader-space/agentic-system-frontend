@@ -69,9 +69,17 @@ describe('VideoComposerPanel', () => {
     await input.trigger('change')
     expect(useVideoStore().refs.map((r) => r.role)).toEqual(['first_frame'])
     expect(w.find('[data-test="video-ref-unusable"]').exists()).toBe(false)
-    const durations = w.findAll('option').map((o) => o.text())
-    expect(durations).toContain('10 s')
-    expect(durations).not.toContain('8 s')
+    // Only what Kling Pro offers: 5 or 10 s, one resolution (shown as a fact, not a list of one), two shapes.
+    await w.get('[data-test="video-length"]').trigger('click')
+    expect(w.get('[data-test="video-length-panel"]').findAll('.vch-opt').map((o) => o.text())).toEqual(['5 s', '10 s'])
+    expect(w.get('[data-test="video-resolution"]').element.tagName).toBe('SPAN')
+    expect(w.get('[data-test="video-resolution"]').text()).toBe('720p')
+    expect(useVideoStore().settings.resolution).toBe('720p')
+    await w.get('[data-test="video-aspect"]').trigger('click')
+    expect(w.get('[data-test="video-aspect-panel"]').text()).toContain('9:16')
+    expect(w.get('[data-test="video-aspect-panel"]').text()).toContain('Vertical')
+    expect(w.get('[data-test="video-aspect-panel"]').text()).not.toContain('1:1')
+    expect(w.find('select').exists()).toBe(false)                        // no raw browser lists
     expect(w.get('[data-test="video-sound"]').attributes('disabled')).toBeDefined()
     expect(w.get('[data-test="video-sound"]').text()).toBe('Silent')
   })
@@ -85,8 +93,25 @@ describe('VideoComposerPanel', () => {
     expect(w.get('[data-test="video-add-note"]').text()).toContain('references and opening and closing shots')
     video.addRef(new File(['x'], 'shoe.png', { type: 'image/png' }), 'subject')
     await w.vm.$nextTick()
-    const roles = w.get('[data-test="video-ref-role"]').findAll('option').map((o) => o.text())
+    await w.get('[data-test="video-ref-role"]').trigger('click')
+    const roles = w.get('[data-test="video-ref-role-panel"]').findAll('.vch-opt-label').map((o) => o.text())
     expect(roles).toEqual(expect.arrayContaining(['Product, character or place', 'Style', 'Opening shot', 'Closing shot']))
+  })
+
+  it('switching model changes the choices to what the new model offers', async () => {
+    const w = await mounted()
+    const video = useVideoStore()
+    const WIDE = { ...FULL, route_id: 11, model_id: 'google/veo-3.1', name: 'Veo 3.1', connections: [{ route_id: 11 }],
+                   outputs: { durations: [4, 6, 8], resolutions: ['1080p', '720p', '4K'], aspect_ratios: ['16:9', '9:16'], audio: true } }
+    video.routes = [ROUTE, FULL, WIDE]
+    video.settings.duration = 8                                          // not on Kling, on Veo: no switch plan needed
+    video.pickRoute('11')
+    if (video.pendingSwitch) video.applySwitch()
+    await w.vm.$nextTick()
+    await w.get('[data-test="video-resolution"]').trigger('click')
+    expect(w.get('[data-test="video-resolution-panel"]').findAll('.vch-opt-label').map((o) => o.text())).toEqual(['720p', '1080p', '4K'])
+    await w.get('[data-test="video-length"]').trigger('click')
+    expect(w.get('[data-test="video-length-panel"]').findAll('.vch-opt').map((o) => o.text())).toEqual(['4 s', '6 s', '8 s'])
   })
 
   it('the "+" offers this device or the Library, and closes after a choice', async () => {

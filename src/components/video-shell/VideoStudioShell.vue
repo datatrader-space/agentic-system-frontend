@@ -6,8 +6,8 @@
     <div v-if="menuOpen" class="vs-backdrop" aria-hidden="true" @click="menuOpen = false"></div>
     <aside id="vs-sidebar" class="vs-sidebar" :class="{ open: menuOpen }" aria-label="Video Studio" data-test="video-studio-nav">
       <router-link to="/video-studio" class="vs-brand">
-        <svg class="vs-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-             stroke-linejoin="round" aria-hidden="true"><path d="M3 8V5h3M18 5h3v3M21 16v3h-3M6 19H3v-3" /><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none" /></svg>
+        <!-- The AADML mark: Video Studio is part of AADML (owner, 2026-10-20). -->
+        <span class="vs-mark"><BrandMark /></span>
         <span>Video Studio</span>
       </router-link>
       <nav class="vs-nav" aria-label="Video Studio pages">
@@ -44,6 +44,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
+import BrandMark from '../common/BrandMark.vue'
 import { useChatStore } from '../../stores/useChatStore'
 
 const route = useRoute()
@@ -57,6 +58,7 @@ const nav = [
   { key: 'projects', to: '/video-studio/projects', label: 'Projects', icon: ['M3 7h7l2 2h9v10H3z'] },
   { key: 'library', to: '/video-studio/library', label: 'Library', icon: ['M4 4h16v16H4z', 'M4 15l5-5 4 4 3-3 4 4', 'M15.5 8.5h.01'] },
   { key: 'ingredients', to: '/video-studio/ingredients', label: 'Ingredients', icon: ['M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8z', 'M4 21a8 8 0 0 1 16 0'] },
+  { key: 'help', to: '/video-studio/help', label: 'Help', icon: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M9.5 9.2a2.6 2.6 0 0 1 5 .8c0 1.8-2.5 2.2-2.5 3.8', 'M12 17h.01'] },
 ]
 function isActive(item) {
   return item.exact ? route.path === item.to || route.path === item.to + '/' : route.path.startsWith(item.to)
@@ -120,7 +122,7 @@ body.vs-theme {
   padding: 14px 10px 12px; background: var(--vm-bg); border-right: 1px solid var(--vm-line-2); }
 .vs-brand { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 10px; margin-bottom: 14px; border-radius: 6px;
   color: var(--vm-ink); font-size: 15px; font-weight: 600; letter-spacing: -.01em; text-decoration: none; }
-.vs-mark { width: 22px; height: 22px; color: var(--vs-accent-ink); flex-shrink: 0; }
+.vs-mark { display: block; width: 24px; height: 24px; flex-shrink: 0; }
 .vs-nav { display: flex; flex-direction: column; gap: 2px; }
 .vs-nav-item { position: relative; display: flex; align-items: center; gap: 11px; min-height: 40px; padding: 0 10px; border-radius: 6px;
   color: var(--vm-ink-soft); font-size: 13.5px; font-weight: 500; text-decoration: none; transition: background-color .15s, color .15s; }

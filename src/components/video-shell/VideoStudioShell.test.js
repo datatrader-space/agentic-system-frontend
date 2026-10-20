@@ -19,7 +19,7 @@ async function mountAt(path) {
     routes: [
       { path: '/video-studio', component: VideoStudioShell, children: [
         { path: '', component: Blank }, { path: 'projects', component: Blank },
-        { path: 'library', component: Blank }, { path: 'ingredients', component: Blank }] },
+        { path: 'library', component: Blank }, { path: 'ingredients', component: Blank }, { path: 'help', component: Blank }] },
       { path: '/dashboard/:rest(.*)*', component: Blank },
     ],
   })
@@ -37,6 +37,7 @@ describe('VideoStudioShell', () => {
     const { w } = await mountAt('/video-studio/library')
     expect(w.get('[data-test="vs-nav-library"]').attributes('aria-current')).toBe('page')
     expect(w.get('[data-test="vs-nav-create"]').attributes('aria-current')).toBeUndefined()
+    expect(w.get('[data-test="vs-nav-help"]').attributes('href')).toBe('/video-studio/help')
     w.unmount()
   })
 

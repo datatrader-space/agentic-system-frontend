@@ -357,6 +357,7 @@ const router = createRouter({
       children: [
         { path: '', name: 'video-studio', component: () => import('./views/VideoStudio.vue') },
         { path: 'projects', name: 'video-studio-projects', component: () => import('./views/VideoStudioProjects.vue') },
+        { path: 'help', name: 'video-studio-help', component: () => import('./views/VideoStudioHelp.vue') },
         { path: 'library', name: 'video-studio-library', component: () => import('./views/VideoStudioLibrary.vue'),
           meta: { libraryTab: 'files' } },
         { path: 'ingredients', name: 'video-studio-ingredients', component: () => import('./views/VideoStudioLibrary.vue'),

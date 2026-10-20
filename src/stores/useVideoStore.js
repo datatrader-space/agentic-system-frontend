@@ -17,7 +17,7 @@ function findRoute(routes, id) {
     || routes.find((r) => String(r.route_id) === String(id)) || null
 }
 // What a route's settings row may offer: only values it declares (plan 4.1).
-function optionsFor(route) {
+export function optionsFor(route) {
   const out = (route && route.outputs) || {}
   return {
     // The catalog lists durations in its own order (Veo: 8, 4, 6); a person reads them shortest first.
@@ -29,7 +29,14 @@ function optionsFor(route) {
 }
 // Which features a route really offers (its `offered` tasks: declared by the provider's catalog or proven
 // by a conformance render; merely advertised does not count).
-function canFor(route) {
+const RESOLUTION_ORDER = ['480p', '540p', '720p', '768p', '1080p', '2K', '4K']
+// The resolution a model starts on: 720p when it offers it (the common default and a modest price), else its lowest.
+export function defaultResolution(list) {
+  if (!list || !list.length) return ''
+  if (list.includes('720p')) return '720p'
+  return list.slice().sort((a, b) => RESOLUTION_ORDER.indexOf(a) - RESOLUTION_ORDER.indexOf(b))[0]
+}
+export function canFor(route) {
   const off = new Set((route && route.offered) || [])
   return {
     references: off.has('reference_to_video'),
@@ -164,6 +171,7 @@ export const useVideoStore = defineStore('video', {
       if (!plan.changes.length && !plan.unusable.length && !plan.task) {
         this.routeId = routeId || ''
         this.pendingSwitch = null
+        this._fillResolution()
         return
       }
       this.pendingSwitch = plan
@@ -177,6 +185,7 @@ export const useVideoStore = defineStore('video', {
       const drop = new Set(p.unusable.map((r) => r.key))
       this.refs = this.refs.filter((r) => !drop.has(r.key))
       this.pendingSwitch = null
+      this._fillResolution()
     },
     keepCurrentModel() { this.pendingSwitch = null },
     /** What switching to `routeId` would change: settings it cannot honor, references it cannot use. */
@@ -205,14 +214,13 @@ export const useVideoStore = defineStore('video', {
                    reason: `${name} renders ${o.aspectRatios.join(', ')}` })
       }
       if (o.resolutions.length && s.resolution && !o.resolutions.includes(s.resolution)) {
-        out.push({ field: 'resolution', label: 'Resolution', from: s.resolution, to: '',
+        out.push({ field: 'resolution', label: 'Resolution', from: s.resolution, to: defaultResolution(o.resolutions),
                    reason: `${name} renders ${o.resolutions.join(', ')}` })
       }
       if (!o.audio && s.sound) {
         out.push({ field: 'sound', label: 'Sound', from: 'on', to: false, reason: `${name} renders silent video` })
       }
-      return out.map((x) => ({ ...x, toLabel: x.field === 'duration' ? `${x.to} s`
-        : x.field === 'resolution' ? 'model default' : x.field === 'sound' ? 'off' : String(x.to) }))
+      return out.map((x) => ({ ...x, toLabel: x.field === 'duration' ? `${x.to} s` : x.field === 'sound' ? 'off' : String(x.to) }))
     },
     // On first load the settings are still the defaults, so they are simply fitted to the model; a change
     // the user would notice goes through pickRoute's switch plan instead.
@@ -220,6 +228,14 @@ export const useVideoStore = defineStore('video', {
       for (const c of this._settingChanges(this.options, this.route ? this.route.name : 'Auto')) {
         this.settings[c.field] = c.to
       }
+      this._fillResolution()
+    },
+    // Resolution is always one the chosen model offers (720p when it has it, else its lowest), never an unnamed
+    // "model default", so what the settings show is what the render asks for. A model that declares none: none.
+    _fillResolution() {
+      const list = this.options.resolutions
+      if (!list.length) this.settings.resolution = ''
+      else if (!list.includes(this.settings.resolution)) this.settings.resolution = defaultResolution(list)
     },
 
     // ── reference slots ───────────────────────────────────────────────────────────────────────────
