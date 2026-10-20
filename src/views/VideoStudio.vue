@@ -15,7 +15,9 @@
             <path d="M4 4h16v16H4z" /><path d="M4 15l5-5 4 4 3-3 4 4" /></svg>
           <span>Add from Library</span>
         </button>
-        <button type="button" class="btn" data-test="studio-new" :disabled="loading || chat.isBusy || video.busy || refreshing" @click="newVideo">
+        <!-- Only once a chat is open: before that the page already is a new video (owner, 2026-10-20: "nothing
+             happening when click"). -->
+        <button v-if="phase === 'workspace'" type="button" class="btn" data-test="studio-new" :disabled="loading || chat.isBusy || video.busy || refreshing" @click="newVideo">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
           <span>New video</span>
         </button>
@@ -116,6 +118,9 @@
         </section>
       </div>
     </template>
+    <!-- The Library opens from the page bar in both stages, so it lives here, not in the canvas (absent before the
+         first message). -->
+    <VideoLibrary v-if="video.libraryOpen" />
     <HITLModal :requests="chat.hitlRequests" :show-stop="true" @respond="chat.respondHitl" @dismiss="chat.dismissHitl" @skip="chat.skipHitl" @stop="chat.stop" />
     <FullDocCostCard />
     <ProviderSwitchDialog />
@@ -133,6 +138,7 @@ import { notify } from '../composables/useNotify'
 import VideoComposerPanel from '../components/video/VideoComposerPanel.vue'
 import VideoJobsTray from '../components/video/VideoJobsTray.vue'
 import VideoPanel from '../components/video/VideoPanel.vue'
+import VideoLibrary from '../components/video/VideoLibrary.vue'
 import ChatMessageList from '../components/chat/ChatMessageList.vue'
 import HITLModal from '../components/HITLModal.vue'
 import FullDocCostCard from '../components/chat/FullDocCostCard.vue'

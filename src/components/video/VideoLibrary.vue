@@ -47,17 +47,26 @@
           <ul class="lib-grid" aria-label="Files">
             <li v-for="it in lib.items" :key="it.attachment_id" class="lib-card" :class="{ picked: picked.has(it.attachment_id) }"
                 :data-test="'lib-item'">
-              <video v-if="it.media_type === 'video'" :src="it.url" muted preload="metadata" class="lib-thumb" aria-hidden="true"></video>
-              <span v-else-if="it.media_type === 'audio'" class="lib-thumb lib-audio" aria-hidden="true">Audio</span>
+              <!-- Click to see it whole, or play it (owner, 2026-10-20). -->
+              <button v-if="it.media_type !== 'document'" type="button" class="lib-thumb-btn" :aria-label="'Preview ' + it.title"
+                      data-test="lib-preview" @click="openViewer(it)">
+                <video v-if="it.media_type === 'video'" :src="it.url" muted preload="metadata" class="lib-thumb" aria-hidden="true"></video>
+                <span v-else-if="it.media_type === 'audio'" class="lib-thumb lib-audio" aria-hidden="true">Audio</span>
+                <img v-else :src="it.url" alt="" class="lib-thumb" loading="lazy" />
+                <span v-if="it.media_type === 'video'" class="lib-play" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg></span>
+              </button>
               <!-- A document: a page with its file type, not a broken image. -->
               <span v-else-if="it.media_type === 'document'" class="lib-thumb lib-doc" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4" /></svg>
                 <span class="lib-doc-ext">{{ (it.ext || 'file').toUpperCase() }}</span>
               </span>
-              <img v-else :src="it.url" alt="" class="lib-thumb" loading="lazy" />
               <span class="lib-name" :title="it.title">{{ it.title }}</span>
               <span class="lib-meta">{{ it.source === 'generated' ? 'Made with AI' : 'Uploaded' }}, {{ day(it.created_at) }}{{ it.size_bytes ? ', ' + size(it.size_bytes) : '' }}</span>
+              <!-- The chat it came from, one click away (owner, 2026-10-20). -->
+              <router-link v-if="it.conversation_id" :to="chatLink(it)" class="lib-chat" :title="'Open the chat: ' + (it.conversation_title || 'its chat')"
+                           data-test="lib-chat">From {{ it.conversation_title || 'its chat' }}</router-link>
               <span v-if="it.ingredients && it.ingredients.length" class="lib-ing">{{ it.ingredients.join(', ') }}</span>
               <!-- A document is listed to open; a video uses images, clips and sounds. -->
               <div v-if="it.media_type === 'document'" class="lib-actions">
@@ -76,6 +85,7 @@
               </div>
             </li>
           </ul>
+          <MediaViewer v-if="viewIndex >= 0 && viewable[viewIndex]" :items="viewable" v-model:index="viewIndex" @close="viewIndex = -1" />
           <button v-if="lib.hasMore" type="button" class="lib-btn wide" :disabled="lib.loading" @click="video.loadLibrary({ more: true })">
             {{ lib.loading ? 'Loading…' : 'Load more' }}</button>
 
@@ -144,6 +154,7 @@ import { useRouter } from 'vue-router'
 import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
 import VideoChoice from './VideoChoice.vue'
+import MediaViewer from './MediaViewer.vue'
 
 // mode 'drawer': over the Create page, "Use" adds the file at once. mode 'page': Video Studio's Library and
 // Ingredients pages, where "Use" queues the file and opens Create, which applies it to its project.
@@ -187,6 +198,15 @@ function day(iso) { return iso ? new Date(iso).toLocaleDateString(undefined, { m
 function size(n) {
   const b = Number(n) || 0
   return b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : b >= 1024 ? `${Math.round(b / 1024)} KB` : `${b} B`
+}
+// The preview: every loaded image, video and sound, in the order shown; a document opens in its own tab instead.
+const viewIndex = ref(-1)
+const viewable = computed(() => lib.value.items.filter((i) => i.media_type !== 'document'))
+function openViewer(it) { viewIndex.value = viewable.value.findIndex((i) => i.attachment_id === it.attachment_id) }
+// A Studio chat opens in the Studio; any other chat in the main chat.
+function chatLink(it) {
+  return it.conversation_in_studio ? { path: '/video-studio', query: { conversation: String(it.conversation_id) } }
+    : `/dashboard/chat/${it.conversation_id}`
 }
 function kindLabel(k) { return (kinds.find((x) => x.value === k) || { label: k }).label }
 function rolesFor(it) { return ROLES[it.media_type] || ROLES.image }
@@ -294,6 +314,17 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 .lib-thumb { width: 100%; aspect-ratio: 16/10; object-fit: cover; border-radius: 4px; background: #000; display: grid; place-items: center; color: #a7a8ae; font-size: 12px; }
 .lib-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lib-meta { margin: 0; font-size: 12px; color: var(--vm-ink-soft, #64748b); }
+/* The thumbnail opens the preview: a quiet button the size of the picture, a play mark on videos. */
+.lib-thumb-btn { position: relative; display: block; width: 100%; padding: 0; border: 0; border-radius: 4px; background: transparent; cursor: zoom-in; }
+.lib-thumb-btn:focus-visible { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
+.lib-thumb-btn:hover .lib-thumb { filter: brightness(1.08); }
+.lib-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; width: 40px; height: 40px;
+  border-radius: 999px; background: rgba(0, 0, 0, .55); color: #fff; pointer-events: none; }
+.lib-play svg { width: 18px; height: 18px; margin-left: 2px; }
+.lib-chat { font-size: 12px; color: var(--vs-accent-ink, var(--vm-violet-d, #4f46e5)); text-decoration: none; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.lib-chat:hover { text-decoration: underline; text-underline-offset: 2px; }
+.lib-chat:focus-visible { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
 .lib-doc { display: grid; place-items: center; align-content: center; gap: 4px; background: var(--vm-surface-2, #f1f5f9); color: var(--vm-ink-soft, #64748b); }
 .lib-doc svg { width: 34px; height: 34px; }
 .lib-doc-ext { font-size: 11.5px; font-weight: 600; letter-spacing: .02em; color: var(--vm-ink, #0f172a); }

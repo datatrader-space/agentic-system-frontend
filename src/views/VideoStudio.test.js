@@ -22,6 +22,7 @@ const stubs = {
   VideoJobCard: { props: ['job'], template: '<div data-test="job">{{ job.state }}</div>' },
   ChatMessageList: { template: '<div data-test="messages" />' },
   HITLModal: { name: 'HITLModal', props: ['requests'], template: '<div data-test="hitl" />' },
+  VideoLibrary: { template: '<div data-test="library" />' },
   FullDocCostCard: true, ProviderSwitchDialog: true, RouterLink: { template: '<a><slot /></a>' },
 }
 const button = (label) => wrapper.findAll('button').find((b) => b.text() === label)
@@ -176,10 +177,26 @@ describe('Video Studio', () => {
   })
 
   it('prevents switching sessions while the assistant is working', async () => {
+    state.chat.conversationId = 'saved-session'
     await render()
     state.chat.isBusy = true
     await wrapper.vm.$nextTick()
     expect(button('New video').attributes('disabled')).toBeDefined()
+  })
+
+  // Owner, 2026-10-20: "nothing happening when click" on the start screen. The Library opens there too (it is
+  // mounted by the page, not by the canvas, which is absent before the first message), and "New video" is shown
+  // only once a chat is open, since the start screen already is a new video.
+  it('opens the Library from the start screen and shows "New video" only in a chat', async () => {
+    await render()
+    expect(wrapper.find('[data-test="studio-create"]').exists()).toBe(true)
+    expect(button('New video')).toBeUndefined()
+    await wrapper.get('[data-test="studio-open-library"]').trigger('click')
+    expect(wrapper.find('[data-test="library"]').exists()).toBe(true)
+    state.chat.conversationId = 'saved-session'
+    await flushPromises()
+    expect(button('New video')).toBeDefined()
+    expect(wrapper.findAll('[data-test="library"]')).toHaveLength(1)
   })
 
   it('does not redirect back after leaving while the studio is loading', async () => {

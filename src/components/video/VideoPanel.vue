@@ -226,7 +226,8 @@
         </li>
       </ul>
     </section>
-    <VideoLibrary v-if="video.libraryOpen" />
+    <!-- In Video Studio (bare) the page mounts the Library, so it opens before the first message too. -->
+    <VideoLibrary v-if="video.libraryOpen && !bare" />
   </div>
 </template>
 

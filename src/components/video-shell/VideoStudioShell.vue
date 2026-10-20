@@ -18,6 +18,7 @@
           <span>{{ item.label }}</span>
         </router-link>
       </nav>
+      <StudioRecentChats />
       <div class="vs-foot">
         <router-link :to="backTo" class="vs-back" data-test="vs-back">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -45,6 +46,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
 import BrandMark from '../common/BrandMark.vue'
+import StudioRecentChats from './StudioRecentChats.vue'
 import { useChatStore } from '../../stores/useChatStore'
 
 const route = useRoute()

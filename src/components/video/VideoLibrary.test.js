@@ -112,3 +112,48 @@ describe('VideoLibrary', () => {
     w.unmount()
   })
 })
+
+// Owner, 2026-10-20: a file can be previewed (image whole, video and sound played), and each card says which chat it
+// came from and opens it (a Studio chat in the Studio, any other in the main chat).
+describe('VideoLibrary preview and source chat', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    const video = useVideoStore()
+    video.libraryOpen = true
+    api.get.mockImplementation((url) => Promise.resolve({ data: url === '/video/library/'
+      ? { items: [
+        { ...ITEMS[0], conversation_id: 2874, conversation_title: 'Candle reel', conversation_in_studio: true },
+        { ...ITEMS[1], conversation_id: 15, conversation_title: 'Old chat', conversation_in_studio: false },
+        { attachment_id: 'doc-1', source: 'uploaded', media_type: 'document', title: 'notes.txt', url: '/n.txt', ext: 'txt' },
+      ], page: 1, has_more: false } : { ingredients: [] } }))
+  })
+  const stubs = { global: { stubs: { RouterLink: { props: ['to'], template: '<a :data-to="JSON.stringify(to)"><slot /></a>' } } } }
+
+  it('opens the chat a file came from: the Studio for a Studio chat, the main chat otherwise', async () => {
+    const w = mount(VideoLibrary, { attachTo: document.body, ...stubs })
+    await flush()
+    const links = Array.from(document.querySelectorAll('[data-test="lib-chat"]'))
+    expect(links.map((a) => a.textContent.trim())).toEqual(['From Candle reel', 'From Old chat'])
+    expect(JSON.parse(links[0].dataset.to)).toEqual({ path: '/video-studio', query: { conversation: '2874' } })
+    expect(JSON.parse(links[1].dataset.to)).toBe('/dashboard/chat/15')
+    w.unmount()
+  })
+
+  it('previews an image and plays a video, moving between them; a document has no preview', async () => {
+    const w = mount(VideoLibrary, { attachTo: document.body, ...stubs })
+    await flush()
+    const previews = document.querySelectorAll('[data-test="lib-preview"]')
+    expect(previews.length).toBe(2)                                     // not the document
+    previews[0].click()
+    await flush()
+    expect(document.querySelector('[data-test="media-viewer-image"]')).not.toBeNull()
+    document.querySelector('[aria-label="Next file"]').click()
+    await flush()
+    expect(document.querySelector('[data-test="media-viewer-video"]')).not.toBeNull()
+    document.querySelector('[data-test="media-viewer-close"]').click()
+    await flush()
+    expect(document.querySelector('[data-test="media-viewer"]')).toBeNull()
+    w.unmount()
+  })
+})
