@@ -1,7 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
-import { prefetchRoutesWhenIdle } from './utils/prefetchRoutes'
 // import App from './App.vue'
 import App from './app.vue'
 import './style.css'
@@ -635,7 +634,3 @@ app.provide('notify', (message, type = 'info') => {
 
 app.use(router)
 app.mount('#app')
-
-// Warm the dashboard pages' code once the app is idle, so a first visit to a page does not wait on its
-// download (src/utils/prefetchRoutes.js).
-prefetchRoutesWhenIdle(router)
