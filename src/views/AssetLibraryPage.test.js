@@ -29,9 +29,36 @@ beforeEach(() => vi.clearAllMocks())
 afterEach(() => wrapper?.unmount())
 
 describe('AssetLibraryPage', () => {
-  it('asks the one Library for AADML files only', async () => {
+  it('asks the one Library for AADML files only, 15 at a time', async () => {
     await mountPage([photo])
-    expect(api.get).toHaveBeenCalledWith('/library/', { params: expect.objectContaining({ origin: 'aadml', type: 'all', source: 'all', page: 1 }) })
+    expect(api.get).toHaveBeenCalledWith('/library/', { params: expect.objectContaining({ origin: 'aadml', type: 'all', source: 'all', page: 1, limit: 15 }) })
+    expect(wrapper.find('.pager').exists()).toBe(false)              // one page only: no pager
+  })
+
+  it('pages with Previous and Next', async () => {
+    await mountPage([photo], true)
+    const [previous, next] = wrapper.findAll('.pager button')
+    expect(previous.attributes('disabled')).toBeDefined()
+    api.get.mockResolvedValue({ data: { items: [made], page: 2, has_more: false } })
+    await next.trigger('click')
+    await flushPromises()
+    expect(api.get).toHaveBeenLastCalledWith('/library/', { params: expect.objectContaining({ origin: 'aadml', page: 2, limit: 15 }) })
+    expect(wrapper.find('.page-no').text()).toBe('Page 2')
+    expect(wrapper.findAll('.card')).toHaveLength(1)                 // the page is replaced, not appended
+    expect(wrapper.findAll('.pager button')[1].attributes('disabled')).toBeDefined()
+  })
+
+  it('shows a cropped thumbnail, and the whole file only in the preview on click', async () => {
+    await mountPage([photo])
+    expect(document.querySelector('[data-test="asset-preview"]')).toBeNull()
+    await wrapper.find('.card .thumb').trigger('click')
+    const dialog = document.querySelector('[data-test="asset-preview"]')
+    expect(dialog).not.toBeNull()
+    expect(dialog.getAttribute('role')).toBe('dialog')
+    expect(dialog.querySelector('.viewer-media img').getAttribute('src')).toBe('/media/context_files/2026/10/20/kitchen.jpg')
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(document.querySelector('[data-test="asset-preview"]')).toBeNull()
   })
 
   it('shows each file with its chat, and downloads from this site only', async () => {
