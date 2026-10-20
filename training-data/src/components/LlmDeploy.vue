@@ -268,7 +268,8 @@ const revoked = m => m.approvals.filter(a => !a.active);
             <p v-if="m.download_refused" class="deploy-meta">{{ m.download_refused }}</p>
             <p v-else-if="m.merged" class="deploy-meta"><UiBadge :tone="mergedTone(m.merged.state)">Merged weights: {{ m.merged.state_label }}</UiBadge>
               <template v-if="m.merged.state === 'ready'"> {{ bytesText(m.merged.size) }}</template>
-              <template v-else-if="m.merged.state === 'preparing'"> This takes a few minutes; the page asks again on its own.</template>
+              <template v-else-if="m.merged.state === 'preparing' && m.merged.packing"> The job has finished; its files are being checked and packed. For a large model this takes a few minutes; the page asks again on its own.</template>
+              <template v-else-if="m.merged.state === 'preparing'"> The merge job is running. This takes a few minutes; the page asks again on its own.</template>
               <template v-else-if="m.merged.failure"> {{ m.merged.failure }}</template></p>
           </div>
           <div v-if="!m.download_refused" class="env-actions">

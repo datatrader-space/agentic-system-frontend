@@ -40,6 +40,14 @@ test('a project row becomes a card; a Labeller sees no numbers, shown as 0', () 
   assert.equal(ago('2026-10-15T11:59:40Z', Date.parse('2026-10-15T12:00:00Z')), 'Just now');
 });
 
+test('a card counts photos, or the examples of a language-model project', () => {
+  assert.equal(toCard({ ref: 'leads', photos: 1, examples: 0 }).data, '1 Image');
+  assert.equal(toCard({ ref: 'leads', family: 'vision', photos: 14 }).data, '14 Images');
+  assert.equal(toCard({ ref: 'bot', family: 'llm', photos: 0, examples: 32, models: 1 }).data, '32 Examples');
+  assert.equal(toCard({ ref: 'bot', family: 'llm', examples: 1 }).data, '1 Example');
+  assert.equal(toCard({ ref: '~4', family: 'llm', examples: null }).data, '0 Examples');      // a Labeller sees no numbers
+});
+
 test('a language-model project names its kind, and its three extra answers go to the backend', async () => {
   const { llmDataUseAnswers } = await import('../src/api/training.js');
   assert.deepEqual(['Chat assistant', 'Questions and answers', 'Document knowledge', 'Preference'].map(name => TYPE_KIND[name]),

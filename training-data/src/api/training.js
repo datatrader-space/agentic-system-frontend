@@ -122,11 +122,20 @@ export function ago(iso, now = Date.now()) {
 }
 
 // A project row from the API as the project cards read it. ``id`` is the project's address (``ref``).
+// A card's count of the project's data, in words: "3 Images", or "1 Example" for a language-model project.
+export function dataCount(row) {
+  const llm = row.family === 'llm';
+  const n = (llm ? row.examples : row.photos) ?? 0;
+  return `${n} ${llm ? (n === 1 ? 'Example' : 'Examples') : (n === 1 ? 'Image' : 'Images')}`;
+}
+
 export function toCard(row, index = 0) {
   return {
     id: row.ref, ref: row.ref, serverId: row.id, name: row.name, description: row.description, type: row.task_label,
     family: row.family || '',
     images: row.photos ?? 0, models: row.models ?? 0, ready: 0, variant: index % 3,
+    // What the card counts as the project's data: photos, or a language-model project's examples.
+    data: dataCount(row),
     // The newest photo, small, for a role that sees the whole project (app_api.project_thumbnail); '' otherwise.
     thumbnail: row.thumbnail || '',
     date: ago(row.last_activity || row.created_at), folder: row.folder?.name, folderId: row.folder?.id ?? null,
