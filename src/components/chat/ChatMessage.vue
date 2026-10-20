@@ -890,7 +890,7 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 .bubble.assistant :deep(h2),
 .bubble.assistant :deep(h3) {
   margin: 22px 0 9px;
-  color: #0f172a;
+  color: var(--vm-ink, #0f172a);
   font-weight: 650;
   line-height: 1.3;
   letter-spacing: -0.02em;
@@ -964,8 +964,10 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   background: rgba(52, 211, 153, 0.12);
   opacity: 1;
 }
-.bubble.assistant :deep(strong) { font-weight: 600; color: #0f172a; }
-.bubble.assistant :deep(a) { color: #4f46e5; text-decoration: underline; }
+/* Theme colours with the light values as fallbacks: fixed light-theme colours were near-black on a dark theme
+   (Video Studio, the app's dark mode), so bold words and headings could not be read (owner, 2026-10-20). */
+.bubble.assistant :deep(strong) { font-weight: 600; color: var(--vm-ink, #0f172a); }
+.bubble.assistant :deep(a) { color: var(--vs-accent-ink, #4f46e5); text-decoration: underline; }
 
 /* Tables (GFM) */
 .bubble.assistant :deep(table) {
@@ -974,27 +976,27 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   border-spacing: 0;
   margin: 4px 0 12px;
   font-size: 0.9em;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--vm-line-2, #e2e8f0);
   border-radius: 10px;
   overflow: hidden;
   display: table;
 }
 .bubble.assistant :deep(thead th) {
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--vm-surface-2, #f8fafc);
+  color: var(--vm-ink, #0f172a);
   font-weight: 600;
   text-align: left;
 }
 .bubble.assistant :deep(th),
 .bubble.assistant :deep(td) {
   padding: 8px 12px;
-  border-bottom: 1px solid #e2e8f0;
-  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--vm-line-2, #e2e8f0);
+  border-right: 1px solid var(--vm-line-2, #e2e8f0);
   vertical-align: top;
 }
 .bubble.assistant :deep(th:last-child),
 .bubble.assistant :deep(td:last-child) { border-right: none; }
 .bubble.assistant :deep(tbody tr:last-child td) { border-bottom: none; }
-.bubble.assistant :deep(tbody tr:nth-child(even)) { background: #fafbfc; }
+.bubble.assistant :deep(tbody tr:nth-child(even)) { background: var(--vm-surface-2, #fafbfc); }
 .bubble.assistant :deep(table code) { background: rgba(15, 23, 42, 0.06); }
 </style>
