@@ -40,6 +40,13 @@
               the Storyboard tab.</li>
           </ul>
           <p>Every take is kept on the Versions tab. Restore an earlier one at any time without rendering again.</p>
+          <h3 class="doc-h3">Images</h3>
+          <p>Choose <strong>Image</strong> above the box to make pictures instead: a product shot, the opening shot of a video,
+            or a character you want to keep the same in every scene. Pick the image model, the shape (only the shapes that
+            model makes) and how many, from one to four. Add up to four photos for the model to keep or to follow the look of.
+            Images are made as soon as you press Create, and each one is charged to your budget. They show on the Images tab,
+            where <strong>Use in video</strong> adds one as the opening shot or a reference, and <strong>Save as
+            ingredient</strong> keeps it for any later video.</p>
         </section>
 
         <!-- How a video gets made: a real sequence, so the frames are numbered -->
@@ -377,6 +384,7 @@ onMounted(async () => {
 .doc-section + .doc-section { margin-top: 40px; padding-top: 36px; border-top: 1px solid var(--vm-line-2); }
 .doc h2 { margin: 0 0 16px; font-size: 22px; line-height: 1.25; font-weight: 600; letter-spacing: -.015em; }
 .doc h3 { margin: 0 0 4px; font-size: 15.5px; font-weight: 600; }
+.doc .doc-h3 { margin-top: 24px; }
 .doc strong { font-weight: 600; color: var(--vm-ink); }
 .plain { margin: 0 0 14px; padding-left: 20px; display: grid; gap: 6px; }
 .note { font-size: 14px; color: var(--vm-ink-soft); }

@@ -58,6 +58,16 @@ function refProblem(ref, can, task) {
   return need && !can[need] ? `does not take ${ROLE_WORDS[ref.role]}` : ''
 }
 
+// Image mode (VIDEO_STUDIO_AGENT_FLOW_PLAN.md D14): references are images only, up to what the model takes.
+/** Why a reference cannot be used by an image model ('' when it can). index: its place among the references. */
+function imageRefProblem(ref, model, index) {
+  if (ref.isVideo || /^audio\//.test(String(ref.mime || ''))) return 'uses images only'
+  const max = model ? Number(model.max_references || 0) : 4
+  if (!max) return 'makes images from words only'
+  return index >= max ? `takes up to ${max} reference image${max === 1 ? '' : 's'}` : ''
+}
+export const IMAGE_ROLES = ['subject', 'style']
+
 function errText(e, fallback) {
   const d = e && e.response && e.response.data
   const err = d && d.error
@@ -70,9 +80,15 @@ function errText(e, fallback) {
 
 export const useVideoStore = defineStore('video', {
   state: () => ({
-    // The Studio composer: its draft and the chosen task (quick | story | edit).
+    // The Studio composer: its draft, what it makes (image | video) and the chosen video task (quick | story | edit).
     studioDraft: '',
+    kind: 'video',
     task: 'quick',
+    // Image mode (D14): the image models this person may pick (/video/image-capabilities/), the pick ('' = Auto,
+    // the agent's image model), the shape and how many. Shapes come from the chosen model only.
+    image: { models: [], defaultModelId: null, loadedFor: null, modelId: '', aspect_ratio: '1:1', n: 1 },
+    // Images made in this session, newest first (the canvas's Images tab).
+    sessionImages: [],
     // Settings row. '' = let the route decide; values come from the chosen route's declared outputs.
     routeId: '',
     settings: { aspect_ratio: '16:9', duration: 5, resolution: '', sound: false },
@@ -118,16 +134,33 @@ export const useVideoStore = defineStore('video', {
     // References the current model cannot use (e.g. after the agent's default model changed). They are
     // never removed behind the user's back: the chip is flagged and the request waits until it is resolved.
     unusableRefs() {
+      if (this.kind === 'image') {
+        const m = this.imageModel
+        return this.refs.map((r, i) => ({ ...r, problem: imageRefProblem(r, m, i) })).filter((r) => r.problem)
+      }
       const c = this.can
       return this.refs.map((r) => ({ ...r, problem: refProblem(r, c, this.task) })).filter((r) => r.problem)
     },
+    // The image model a request uses: the person's pick, else the agent's (Auto).
+    imageModel(state) {
+      const id = state.image.modelId || state.image.defaultModelId
+      return state.image.models.find((m) => String(m.model_id) === String(id)) || null
+    },
+    imageShapes() { return (this.imageModel && this.imageModel.shapes) || ['1:1'] },
     // An offered model that can edit footage (Edit footage proposes it when the chosen model cannot).
     editRoute() { return this.routes.find((r) => r.state === 'active' && canFor(r).edit) || null },
     // A model the person could switch to so this file can be used (the switch still goes through the
     // model-switch notice), or null when no offered model takes it.
     alternativeFor() {
-      return (ref) => this.routes.find((r) => r.state === 'active' && r !== this.route
-        && !refProblem(ref, canFor(r), this.task)) || null
+      return (ref) => {
+        if (this.kind === 'image') {
+          const i = this.refs.findIndex((r) => r.key === ref.key)
+          const m = this.image.models.find((x) => x !== this.imageModel && !imageRefProblem(ref, x, i))
+          return m ? { id: String(m.model_id), name: m.name, kind: 'image' } : null
+        }
+        const r = this.routes.find((x) => x.state === 'active' && x !== this.route && !refProblem(ref, canFor(x), this.task))
+        return r ? { id: String(r.route_id), name: r.name, kind: 'video' } : null
+      }
     },
     jobsFor: (state) => (conversationId) => Object.values(state.jobs)
       .filter((j) => String(j.conversation_id || '') === String(conversationId || ''))
@@ -163,6 +196,46 @@ export const useVideoStore = defineStore('video', {
         this.routes = []
       }
     },
+    async loadImageCapabilities(agentId, { force = false } = {}) {
+      if (!force && this.image.loadedFor === String(agentId || '')) return
+      try {
+        const res = await api.get('/video/image-capabilities/', { params: agentId ? { agent_id: agentId } : {} })
+        this.image.models = res.data.models || []
+        this.image.defaultModelId = res.data.default_model_id
+        this.image.loadedFor = String(agentId || '')
+        if (this.image.modelId && !this.image.models.some((m) => String(m.model_id) === String(this.image.modelId))) this.image.modelId = ''
+        if (!this.imageShapes.includes(this.image.aspect_ratio)) this.image.aspect_ratio = this.imageShapes[0]
+      } catch {
+        this.image.models = []
+      }
+    },
+    setKind(kind) {
+      this.kind = kind === 'image' ? 'image' : 'video'
+      this.pendingSwitch = null
+      // A video role an image request has no word for keeps the file as the thing to show.
+      if (this.kind === 'image') for (const r of this.refs) if (!IMAGE_ROLES.includes(r.role)) r.role = 'subject'
+    },
+    /**
+     * Choose an image model. A model that keeps the shape and every reference is switched to at once; one that
+     * cannot goes through the same switch notice as a video model (never applied silently).
+     */
+    pickImageModel(modelId) {
+      const id = modelId || ''
+      const m = this.image.models.find((x) => String(x.model_id) === String(id || this.image.defaultModelId)) || null
+      const name = m ? m.name : 'Auto'
+      const shapes = (m && m.shapes) || ['1:1']
+      const changes = shapes.includes(this.image.aspect_ratio) ? [] : [{
+        field: 'aspect_ratio', label: 'Shape', from: this.image.aspect_ratio, to: shapes[0], toLabel: shapes[0],
+        reason: `${name} makes ${shapes.join(', ')}` }]
+      const unusable = this.refs.map((r, i) => ({ key: r.key, name: r.name, problem: imageRefProblem(r, m, i) }))
+        .filter((r) => r.problem).map((r) => ({ ...r, reason: `${name} ${r.problem}` }))
+      if (!changes.length && !unusable.length) {
+        this.image.modelId = id
+        this.pendingSwitch = null
+        return
+      }
+      this.pendingSwitch = { kind: 'image', modelId: id, name, changes, unusable, task: null }
+    },
     /**
      * Choose a video model. A model that keeps every setting and reference is switched to at once; one
      * that cannot (another clip length, no references, no editing…) is NOT applied: `pendingSwitch` lists
@@ -181,6 +254,14 @@ export const useVideoStore = defineStore('video', {
     applySwitch() {
       const p = this.pendingSwitch
       if (!p) return
+      if (p.kind === 'image') {
+        this.image.modelId = p.modelId
+        for (const c of p.changes) this.image[c.field] = c.to
+        const drop = new Set(p.unusable.map((r) => r.key))
+        this.refs = this.refs.filter((r) => !drop.has(r.key))
+        this.pendingSwitch = null
+        return
+      }
       this.routeId = p.routeId
       for (const c of p.changes) this.settings[c.field] = c.to
       if (p.task) this.task = p.task.to
@@ -249,13 +330,14 @@ export const useVideoStore = defineStore('video', {
         this.refs = this.refs.filter((r) => r.role !== role)
       }
       this.refs.push({ key: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, role, name: file.name,
-                       url, file, isVideo: /^video\//.test(file.type || '') })
+                       url, file, mime: file.type || '', isVideo: /^video\//.test(file.type || '') })
     },
     addExistingRef(item, role = 'subject') {
       if (!item || !item.attachment_id) return
       if (this.refs.some((r) => r.attachment_id === item.attachment_id && r.role === role)) return
       this.refs.push({ key: item.attachment_id + role, role, name: item.title || item.filename || 'file',
-                       url: item.url, attachment_id: item.attachment_id, isVideo: item.media_type === 'video' })
+                       url: item.url, attachment_id: item.attachment_id, isVideo: item.media_type === 'video',
+                       mime: item.media_type === 'audio' ? 'audio/' : '' })
     },
     setRefRole(key, role) {
       const r = this.refs.find((x) => x.key === key)
@@ -360,6 +442,55 @@ export const useVideoStore = defineStore('video', {
       } finally {
         this.busy = false
       }
+    },
+    /**
+     * "Create image": send the person's words to the AGENT with the Image panel's choices beside it (D14). The agent
+     * writes the image prompt and calls GENERATE_IMAGE once; the backend applies the model, shape, count and
+     * references over the agent's arguments. The images arrive in the chat and on the canvas's Images tab.
+     */
+    async requestImage({ prompt, chat }) {
+      if (this.busy) return false
+      const text = (prompt || '').trim()
+      if (!text) return false
+      if (this.pendingSwitch) {
+        notify.warning('Apply the model change or keep the current model first.')
+        return false
+      }
+      if (this.unusableRefs.length) {
+        notify.warning(`${this.unusableRefs[0].name}: this model ${this.unusableRefs[0].problem}. Remove it or choose another model.`)
+        return false
+      }
+      this.busy = true
+      try {
+        const cid = await chat.ensureConversation()
+        if (!cid) return false
+        const references = (await this._uploadRefs(cid)).map((r) => ({ attachment_id: r.attachment_id,
+          role: IMAGE_ROLES.includes(r.role) ? r.role : 'subject' }))
+        const imageRequest = {
+          model_id: this.image.modelId ? Number(this.image.modelId) : undefined,
+          aspect_ratio: this.image.aspect_ratio || undefined,
+          n: Number(this.image.n) || 1,
+          references,
+        }
+        const sent = await chat.sendMessage(text, { imageRequest, imageMode: true })
+        if (sent) this.refs = []
+        return !!sent
+      } catch (e) {
+        notify.error((e && e.message) || 'Could not send the image request.')
+        return false
+      } finally {
+        this.busy = false
+      }
+    },
+    // The images made in this chat, newest first (generated only: an upload is not a result).
+    async loadSessionImages(conversationId) {
+      if (!conversationId) { this.sessionImages = []; return }
+      try {
+        const res = await api.getConversationMedia(conversationId, { source: 'generated', type: 'image' })
+        this.sessionImages = (res.data.media || []).filter((m) => m.attachment_id && m.url)
+          .map((m) => ({ attachment_id: m.attachment_id, url: m.url, title: m.title || m.filename || 'Image',
+                         media_type: 'image', created_at: m.created_at }))
+      } catch { /* keep what is shown */ }
     },
     async local(operation, params, { chat, baseAttachmentId = null, sceneId = null } = {}) {
       try {
@@ -661,6 +792,7 @@ export const useVideoStore = defineStore('video', {
     closePanel() { this.panelOpen = false },
     reset() {
       this.jobs = {}
+      this.sessionImages = []
       this.conversationId = null
       this.pendingSwitch = null
       this.project = null

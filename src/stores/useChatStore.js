@@ -875,7 +875,8 @@ export const useChatStore = defineStore('chat', {
     // the composer clears itself on submit, and a chat that failed to start used to lose the message
     // without a word (seen twice in live tests right after a deploy, 2026-10-15).
     // `opts.videoRequest`: the Video panel's choices, sent with this message (Video mode goes through the
-    // agent, like Create-Image; see useVideoStore.request).
+    // agent, like Create-Image; see useVideoStore.request). `opts.imageRequest` + `opts.imageMode`: the Studio's
+    // Image panel (useVideoStore.requestImage), for this one message.
     async sendMessage(text, opts = {}) {
       const content = (text || '').trim()
       const atts = this.pendingAttachments.slice()
@@ -900,8 +901,9 @@ export const useChatStore = defineStore('chat', {
         this._conn.sendMessage(content, this.selectedAgentId, null, {
           ...this._canvasSendOpts(),
           turnMode: this.turnMode === 'auto' ? undefined : this.turnMode,
-          imageMode: this.imageMode || undefined,
+          imageMode: opts.imageMode || this.imageMode || undefined,
           videoRequest: opts.videoRequest || undefined,
+          imageRequest: opts.imageRequest || undefined,
           researchMode: this.researchMode || undefined,
           researchDepth: this.researchMode ? this.researchDepth : undefined,
           reasoningEffort: this.reasoningEffort || undefined,
@@ -980,8 +982,9 @@ export const useChatStore = defineStore('chat', {
         // 'auto' sends NOTHING, which is what lets the Brain decide. 'chat' is now sent, so choosing
         // it actually suppresses a Work goal instead of reading as "no preference".
         turnMode: this.turnMode === 'auto' ? undefined : this.turnMode,
-        imageMode: this.imageMode || undefined,
+        imageMode: opts.imageMode || this.imageMode || undefined,
         videoRequest: opts.videoRequest || undefined,
+        imageRequest: opts.imageRequest || undefined,
         researchMode: this.researchMode || undefined,
         researchDepth: this.researchMode ? this.researchDepth : undefined,
         reasoningEffort: this.reasoningEffort || undefined,

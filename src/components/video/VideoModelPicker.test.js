@@ -85,3 +85,43 @@ describe('VideoModelPicker', () => {
     w.unmount()
   })
 })
+
+// Image mode (D14): the same picker lists the image models a person may use, with their shapes in plain words.
+describe('VideoModelPicker for images', () => {
+  beforeEach(() => {
+    video.image.models = [
+      { model_id: 21, model: 'google/gemini-2.5-flash-image', name: 'Gemini 2.5 Flash Image', maker: 'Google',
+        shapes: ['1:1', '2:3', '3:2', '9:16', '16:9'], max_references: 4, price_per_image: 0.039, platform: true, own_key: false },
+      { model_id: 22, model: 'gpt-image-1', name: 'GPT Image 1', maker: 'OpenAI', shapes: ['1:1', '2:3', '3:2'],
+        max_references: 0, price_per_image: null, platform: false, own_key: true },
+    ]
+    video.image.defaultModelId = 21
+  })
+
+  it('shows Auto with the agent\'s image model, then each model by maker with its shapes', async () => {
+    const w = mount(VideoModelPicker, { props: { kind: 'image' }, attachTo: document.body })
+    expect(w.find('[data-test="video-route"]').exists()).toBe(false)
+    await w.get('[data-test="image-model"]').trigger('click')
+    expect(w.get('[data-test="image-model"]').text()).toContain('Auto (Gemini 2.5 Flash Image)')
+    expect(w.get('[data-test="image-model-auto"]').text()).toContain("The agent's image model, Gemini 2.5 Flash Image")
+    const google = w.get('[data-test="image-model-21"]').text()
+    expect(google).toContain('5 shapes, including 16:9 and 9:16')
+    expect(google).toContain('up to 4 reference images')
+    expect(google).toContain('$0.039 an image')
+    const openai = w.get('[data-test="image-model-22"]').text()
+    expect(openai).toContain('from words only')
+    expect(openai).toContain('Your key')
+    expect(w.findAll('.vmp-group').map((g) => g.text())).toEqual(['Google', 'OpenAI'])
+    w.unmount()
+  })
+
+  it('picking goes through pickImageModel', async () => {
+    const pick = vi.spyOn(video, 'pickImageModel')
+    const w = mount(VideoModelPicker, { props: { kind: 'image' }, attachTo: document.body })
+    await w.get('[data-test="image-model"]').trigger('click')
+    await w.get('[data-test="image-model-22"]').trigger('click')
+    expect(pick).toHaveBeenCalledWith('22')
+    expect(video.image.modelId).toBe('22')
+    w.unmount()
+  })
+})

@@ -251,6 +251,9 @@ export class ChatConnection {
       // Video mode: the Video panel's choices for THIS message (task, the video model the person picked,
       // settings, references with roles). The agent writes the video prompt; the backend applies these.
       video_request: opts.videoRequest || undefined,
+      // Image mode in Video Studio: the Image panel's choices for THIS message (image model, shape, count,
+      // references). The agent writes the image prompt; the backend applies these.
+      image_request: opts.imageRequest || undefined,
       // Deep Research mode + the depth the user chose (quick | standard | deep). The depth sets the
       // sub-question breadth and the sources read per sub-question, so the cost of a research run is a
       // deliberate choice rather than whatever the model happens to pick. Backend enforces both.

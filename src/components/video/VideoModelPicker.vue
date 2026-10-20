@@ -1,39 +1,40 @@
 <template>
-  <!-- The video model picker (owner, 2026-10-19: "show models list nice, not raw"). A pill that opens a panel:
-       search, Auto (the agent's pick), then every offered model grouped by maker, each with what it can do in
-       plain words. Picking goes through pickRoute, so a model that would change a setting shows the switch
-       notice first (never silently). In the phone settings sheet the list opens in place instead of floating. -->
+  <!-- The model picker (owner, 2026-10-19: "show models list nice, not raw"). A pill that opens a panel: search,
+       Auto (the agent's pick), then every offered model grouped by maker, each with what it can do in plain words.
+       kind 'video' lists video models, kind 'image' the image models of Image mode (D14). Picking goes through
+       pickRoute / pickImageModel, so a model that would change a setting shows the switch notice first (never
+       silently). In the phone settings sheet the list opens in place instead of floating. -->
   <div ref="root" class="vmp" :class="{ 'in-sheet': inSheet }" @keydown.esc.stop="close">
-    <button ref="trigger" type="button" class="vmp-pill" data-test="video-route" aria-haspopup="listbox" :aria-expanded="open ? 'true' : 'false'"
-            :aria-label="'Video model: ' + currentLabel" @click="toggle">
-      <span class="vmp-ic" aria-hidden="true" v-html="ICON.clip"></span>
-      <span v-if="inSheet" class="vmp-pill-label">Video model</span>
+    <button ref="trigger" type="button" class="vmp-pill" :data-test="isImage ? 'image-model' : 'video-route'" aria-haspopup="listbox"
+            :aria-expanded="open ? 'true' : 'false'" :aria-label="noun + ': ' + currentLabel" :title="currentLabel" @click="toggle">
+      <span class="vmp-ic" aria-hidden="true" v-html="isImage ? ICON.image : ICON.clip"></span>
+      <span v-if="inSheet" class="vmp-pill-label">{{ noun }}</span>
       <span class="vmp-pill-text">{{ currentLabel }}</span>
       <span class="vmp-chev" aria-hidden="true" v-html="ICON.chev"></span>
     </button>
 
-    <div v-if="open" class="vmp-panel" :class="{ 'align-end': alignEnd }" data-test="video-model-panel">
+    <div v-if="open" class="vmp-panel" :class="{ 'align-end': alignEnd }" :data-test="kind + '-model-panel'">
       <label class="vmp-search">
-        <span class="vmp-sr">Search video models</span>
+        <span class="vmp-sr">Search {{ isImage ? 'image' : 'video' }} models</span>
         <span class="vmp-search-ic" aria-hidden="true" v-html="ICON.search"></span>
         <input ref="searchEl" v-model="q" type="search" placeholder="Search models" autocomplete="off" @keydown.down.prevent="focusOption(0)" />
       </label>
-      <div class="vmp-list" role="listbox" :aria-label="'Video models'" @keydown="onListKey">
+      <div class="vmp-list" role="listbox" :aria-label="isImage ? 'Image models' : 'Video models'" @keydown="onListKey">
         <button v-if="!q" type="button" role="option" class="vmp-opt" :class="{ on: !selectedId }" :aria-selected="!selectedId ? 'true' : 'false'"
-                data-test="video-model-auto" @click="pick('')">
+                :data-test="kind + '-model-auto'" @click="pick('')">
           <span class="vmp-opt-main">
             <span class="vmp-opt-name">Auto</span>
-            <span class="vmp-opt-meta">{{ autoName ? `The agent picks ${shortName(autoName)} unless a task needs another` : 'The agent picks a model for each task' }}</span>
+            <span class="vmp-opt-meta">{{ autoMeta }}</span>
           </span>
           <span v-if="!selectedId" class="vmp-check" aria-hidden="true" v-html="ICON.check"></span>
         </button>
         <template v-for="g in groups" :key="g.maker">
           <p class="vmp-group" role="presentation">{{ g.maker }}</p>
-          <button v-for="r in g.models" :key="r.route_id" type="button" role="option" class="vmp-opt" :class="{ on: isSelected(r), off: !usable(r) }"
+          <button v-for="r in g.models" :key="idOf(r)" type="button" role="option" class="vmp-opt" :class="{ on: isSelected(r), off: !usable(r) }"
                   :aria-selected="isSelected(r) ? 'true' : 'false'" :aria-disabled="usable(r) ? undefined : 'true'"
-                  :data-test="'video-model-' + r.route_id" @click="usable(r) && pick(String(r.route_id))">
+                  :data-test="kind + '-model-' + idOf(r)" @click="usable(r) && pick(String(idOf(r)))">
             <span class="vmp-opt-main">
-              <span class="vmp-opt-name">{{ shortName(r.name) }}
+              <span class="vmp-opt-name">{{ nameOf(r) }}
                 <span v-if="ownKey(r)" class="vmp-tag" title="Renders on your own provider key">Your key</span></span>
               <span class="vmp-opt-meta">{{ describe(r) }}</span>
             </span>
@@ -50,8 +51,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useVideoStore } from '../../stores/useVideoStore'
 
-defineProps({ inSheet: { type: Boolean, default: false } })
+const props = defineProps({ inSheet: { type: Boolean, default: false }, kind: { type: String, default: 'video' } })
 const video = useVideoStore()
+const isImage = computed(() => props.kind === 'image')
+const noun = computed(() => (isImage.value ? 'Image model' : 'Video model'))
+const items = computed(() => (isImage.value ? video.image.models : video.routes))
+function idOf(r) { return isImage.value ? r.model_id : r.route_id }
 const root = ref(null)
 const trigger = ref(null)
 const searchEl = ref(null)
@@ -63,35 +68,70 @@ const alignEnd = ref(false)
 const S = (d, w = '1.8') => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`
 const ICON = {
   clip: S('<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/>'),
+  image: S('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M3 17l5-5 4 4 3-3 6 6"/>'),
   chev: S('<path d="M7 10l5 5 5-5"/>', '2'),
   check: S('<path d="M5 12.5l4.5 4.5L19 7.5"/>', '2.2'),
   search: S('<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/>'),
 }
 
 // While a switch waits for the person, the picker shows the model they chose.
-const selectedId = computed(() => String(video.pendingSwitch ? video.pendingSwitch.routeId : (video.routeId || '')))
+const selectedId = computed(() => {
+  const p = video.pendingSwitch
+  if (isImage.value) return String(p && p.kind === 'image' ? p.modelId : (video.image.modelId || ''))
+  return String(p && p.kind !== 'image' ? p.routeId : (video.routeId || ''))
+})
 // The default may be any connection of a model (the user's own key, a second connection), not only the first.
-function hasRoute(r, id) { return String(r.route_id) === String(id) || (r.connections || []).some((c) => String(c.route_id) === String(id)) }
+function hasRoute(r, id) {
+  if (isImage.value) return String(r.model_id) === String(id)
+  return String(r.route_id) === String(id) || (r.connections || []).some((c) => String(c.route_id) === String(id))
+}
+const defaultId = computed(() => (isImage.value ? video.image.defaultModelId : video.defaultRouteId))
 const autoName = computed(() => {
-  const r = video.defaultRouteId ? video.routes.find((x) => hasRoute(x, video.defaultRouteId)) : null
-  return r ? r.name : ''
+  const r = defaultId.value ? items.value.find((x) => hasRoute(x, defaultId.value)) : null
+  return r ? nameOf(r) : ''
+})
+const autoMeta = computed(() => {
+  if (isImage.value) return autoName.value ? `The agent's image model, ${autoName.value}` : "The agent's image model"
+  return autoName.value ? `The agent picks ${autoName.value} unless a task needs another` : 'The agent picks a model for each task'
 })
 const currentLabel = computed(() => {
-  const r = selectedId.value && video.routes.find((x) => hasRoute(x, selectedId.value))
-  return r ? shortName(r.name) : `Auto${autoName.value ? ` (${shortName(autoName.value)})` : ''}`
+  const r = selectedId.value && items.value.find((x) => hasRoute(x, selectedId.value))
+  return r ? nameOf(r) : `Auto${autoName.value ? ` (${autoName.value})` : ''}`
 })
 function isSelected(r) { return !!selectedId.value && hasRoute(r, selectedId.value) }
 
-// "Google: Veo 3.1" → maker "Google", model "Veo 3.1".
-function maker(r) { const i = String(r.name || '').indexOf(': '); return i > 0 ? r.name.slice(0, i) : (r.creator || 'Other') }
+// "Google: Veo 3.1" → maker "Google", model "Veo 3.1". An image model carries its maker.
+function maker(r) {
+  if (isImage.value) return r.maker || 'Other'
+  const i = String(r.name || '').indexOf(': ')
+  return i > 0 ? r.name.slice(0, i) : (r.creator || 'Other')
+}
 function shortName(name) { const s = String(name || ''); const i = s.indexOf(': '); return i > 0 ? s.slice(i + 2) : s }
-const mixed = computed(() => video.routes.some((r) => (r.connections || []).some((c) => c.connection === 'AADML')))
-function ownKey(r) { return mixed.value && (r.connections || []).some((c) => c.connection && c.connection !== 'AADML') }
-function usable(r) { return r.state === 'active' && (r.offered || []).length > 0 }
+function nameOf(r) { return isImage.value ? String(r.name || r.model || '') : shortName(r.name) }
+const mixed = computed(() => (isImage.value ? video.image.models.some((r) => r.platform)
+  : video.routes.some((r) => (r.connections || []).some((c) => c.connection === 'AADML'))))
+function ownKey(r) {
+  if (isImage.value) return mixed.value && !!r.own_key
+  return mixed.value && (r.connections || []).some((c) => c.connection && c.connection !== 'AADML')
+}
+function usable(r) { return isImage.value || (r.state === 'active' && (r.offered || []).length > 0) }
 
 const RES = ['480p', '540p', '720p', '768p', '1080p', '2K', '4K']
+// An image model in plain words: its shapes, how many reference images it takes, its price when known.
+function describeImage(r) {
+  const sh = r.shapes || []
+  // The shapes a video starts from (16:9, 9:16) are named first: an image here is often a video's opening shot.
+  const video = ['16:9', '9:16'].filter((x) => sh.includes(x))
+  const parts = [sh.length <= 1 ? 'Square only'
+    : video.length ? `${sh.length} shapes, including ${video.join(' and ')}` : `${sh.length} shapes: ${sh.join(', ')}`]
+  const n = Number(r.max_references || 0)
+  parts.push(n ? `up to ${n} reference image${n === 1 ? '' : 's'}` : 'from words only')
+  if (r.price_per_image) parts.push(`$${Number(r.price_per_image).toFixed(3)} an image`)
+  return parts.join(', ')
+}
 // What the model does, in plain words: what it starts from, its clip lengths, its best resolution, sound.
 function describe(r) {
+  if (isImage.value) return describeImage(r)
   if (r.state !== 'active') return 'Not offered right now'
   const t = new Set(r.offered || [])
   if (!t.size) return 'Not available for new videos yet'
@@ -111,14 +151,14 @@ function describe(r) {
 const groups = computed(() => {
   const term = q.value.trim().toLowerCase()
   const by = {}
-  for (const r of video.routes) {
-    if (term && !`${r.name} ${r.model_id} ${describe(r)}`.toLowerCase().includes(term)) continue
+  for (const r of items.value) {
+    if (term && !`${r.name} ${r.model_id} ${r.model || ''} ${describe(r)}`.toLowerCase().includes(term)) continue
     ;(by[maker(r)] = by[maker(r)] || []).push(r)
   }
   return Object.keys(by).sort((a, b) => a.localeCompare(b)).map((m) => ({
     maker: m,
     // Usable models first, then by name.
-    models: by[m].sort((a, b) => (usable(b) - usable(a)) || shortName(a.name).localeCompare(shortName(b.name))),
+    models: by[m].sort((a, b) => (usable(b) - usable(a)) || nameOf(a).localeCompare(nameOf(b))),
   }))
 })
 
@@ -134,7 +174,8 @@ async function toggle() {
 }
 function close() { if (open.value) { open.value = false; trigger.value?.focus() } }
 function pick(id) {
-  video.pickRoute(id)
+  if (isImage.value) video.pickImageModel(id)
+  else video.pickRoute(id)
   close()
 }
 function options() { return Array.from(root.value?.querySelectorAll('.vmp-opt:not(.off)') || []) }
@@ -155,8 +196,10 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onOutside))
 </script>
 
 <style scoped>
-.vmp { position: relative; min-width: 0; max-width: 100%; }
-.vmp-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; max-width: min(260px, 100%); padding: 0 10px; box-sizing: border-box;
+/* The cap sits on the wrapper: a percentage cap on the pill alone does not shrink the wrapper in a row of settings,
+   which left a gap after a long model name. */
+.vmp { position: relative; min-width: 0; max-width: min(260px, 100%); }
+.vmp-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; max-width: 100%; padding: 0 10px; box-sizing: border-box;
   border: 1px solid var(--vm-line, #dce3ee); border-radius: 999px; background: transparent; color: var(--vm-ink, #0f172a); font: inherit; font-size: 13px; cursor: pointer; }
 .vmp-pill:hover, .vmp-pill[aria-expanded="true"] { background: var(--vm-surface, #f1f5f9); }
 .vmp-ic { width: 16px; height: 16px; flex-shrink: 0; color: var(--vm-ink-soft, #64748b); }
@@ -194,7 +237,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onOutside))
 .vmp-pill:focus-visible { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
 
 /* In the phone settings sheet: a full-width row, and the list opens in place below it. */
-.vmp.in-sheet { width: 100%; }
+.vmp.in-sheet { width: 100%; max-width: none; }
 .vmp.in-sheet .vmp-pill { width: 100%; max-width: none; min-height: 48px; border-radius: 8px; }
 .vmp.in-sheet .vmp-pill-text { flex: 1; text-align: left; }
 .vmp.in-sheet .vmp-panel { position: static; width: 100%; max-height: 52vh; margin-top: 8px; box-shadow: none; }

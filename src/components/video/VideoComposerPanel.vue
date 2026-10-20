@@ -3,9 +3,19 @@
        box with the files added, the prompt, a "+" for media, every setting as a choice, and the main action.
        variant 'chat': the same box at the foot of the agent column, with the host's Send beside "Get estimate".
        Nothing here spends money: "Get estimate" (or "Plan the story") prices it; the render starts only from the
-       estimate card's Generate. -->
-  <section class="vcp" :class="'vcp-' + variant" aria-label="Describe your video" data-test="video-composer-panel">
-    <div v-if="variant === 'create' && showTasks" class="vcp-cards" :style="{ '--task-count': visibleTasks.length }" role="radiogroup"
+       estimate card's Generate. The Image / Video switch (D14) turns the same box into an image request: the image
+       model, shape and how many; "Create image" sends it and the images are made straight away. -->
+  <section class="vcp" :class="['vcp-' + variant, 'is-' + video.kind]" :aria-label="video.kind === 'image' ? 'Describe your image' : 'Describe your video'"
+           data-test="video-composer-panel">
+    <div class="vcp-kind" role="radiogroup" aria-label="What to make" data-test="studio-kind">
+      <button v-for="k in kinds" :key="k.value" type="button" role="radio" class="vcp-kind-opt" :class="{ on: video.kind === k.value }"
+              :aria-checked="video.kind === k.value ? 'true' : 'false'" :tabindex="video.kind === k.value ? 0 : -1"
+              :disabled="k.value === 'image' && !imageAvailable" :title="k.value === 'image' && !imageAvailable ? 'No image model is set up yet' : undefined"
+              :data-test="'studio-kind-' + k.value" @keydown="navigateKind" @click="video.setKind(k.value)">
+        <span class="vcp-kind-ic" aria-hidden="true" v-html="k.icon"></span>{{ k.label }}
+      </button>
+    </div>
+    <div v-if="variant === 'create' && showTasks && video.kind === 'video'" class="vcp-cards" :style="{ '--task-count': visibleTasks.length }" role="radiogroup"
          aria-label="What would you like to create?">
       <button v-for="t in visibleTasks" :key="t.value" type="button" role="radio" class="vcp-card"
               :class="{ on: video.task === t.value }" :aria-checked="video.task === t.value ? 'true' : 'false'"
@@ -37,7 +47,7 @@
             <span aria-hidden="true" v-html="ICON.x"></span></button>
           <span v-if="problemOf(r)" class="vcp-chip-why">{{ currentName }} {{ problemOf(r) }}.
             <button v-if="video.alternativeFor(r)" type="button" class="vcp-chip-fix" data-test="video-ref-switch"
-                    @click="video.pickRoute(String(video.alternativeFor(r).route_id))">Use {{ video.alternativeFor(r).name }}</button>
+                    @click="useAlternative(r)">Use {{ video.alternativeFor(r).name }}</button>
             <template v-else> Remove it to continue.</template>
           </span>
         </li>
@@ -62,20 +72,20 @@
       <div class="vcp-bar">
         <div ref="addEl" class="vcp-add" @keydown.esc="addOpen = false">
           <button type="button" class="vcp-plus" data-test="video-add-media" aria-haspopup="menu" :aria-expanded="addOpen ? 'true' : 'false'"
-                  aria-label="Add an image, video or sound" title="Add an image, video or sound" @click="addOpen = !addOpen">
+                  :aria-label="addLabel" :title="addLabel" @click="addOpen = !addOpen">
             <span aria-hidden="true" v-html="ICON.plus"></span>
           </button>
           <div v-if="addOpen" class="vcp-add-menu" role="menu" aria-label="Add media">
             <button type="button" role="menuitem" class="vcp-add-item" data-test="video-add-upload" @click="upload">
               <span class="vcp-add-ic" aria-hidden="true" v-html="ICON.upload"></span>
-              <span class="vcp-add-text"><span>Upload from this device</span><small>Images, videos or sounds</small></span>
+              <span class="vcp-add-text"><span>Upload from this device</span><small>{{ video.kind === 'image' ? 'Images to keep or follow' : 'Images, videos or sounds' }}</small></span>
             </button>
             <button type="button" role="menuitem" class="vcp-add-item" data-test="video-add-library" @click="fromLibrary">
               <span class="vcp-add-ic" aria-hidden="true" v-html="ICON.library"></span>
               <span class="vcp-add-text"><span>Choose from the Library</span><small>Anything you uploaded or made, and your ingredients</small></span>
             </button>
           </div>
-          <input ref="fileEl" type="file" class="vcp-file" accept="image/*,video/*,audio/*" multiple @change="onPick" />
+          <input ref="fileEl" type="file" class="vcp-file" :accept="video.kind === 'image' ? 'image/*' : 'image/*,video/*,audio/*'" multiple @change="onPick" />
         </div>
 
         <!-- Every setting the chosen model offers, as a choice (owner, 2026-10-19). Below 1024px they open in a
@@ -89,41 +99,49 @@
             <span class="vcp-toggle-text">{{ settingsLine }}</span>
             <span class="vcp-chev" aria-hidden="true" v-html="ICON.chev"></span>
           </button>
-          <BottomSheet label="Video settings" :summary="settingsSummary" test-id="video-settings-sheet" v-slot="{ sheet }">
+          <BottomSheet :label="settingsTitle" :summary="settingsSummary" test-id="video-settings-sheet" v-slot="{ sheet }">
             <div v-show="sheet || variant !== 'chat' || showSettings" class="vcp-pills"
                  :class="{ 'in-sheet': sheet || variant === 'chat', 'is-pop': variant === 'chat' && !sheet }"
-                 role="group" aria-label="Video settings" data-test="video-settings-panel">
+                 role="group" :aria-label="settingsTitle" data-test="video-settings-panel">
               <div v-if="variant === 'chat' && !sheet" class="vcp-pop-head">
-                <span class="vcp-pop-title">Video settings</span>
+                <span class="vcp-pop-title">{{ settingsTitle }}</span>
                 <button type="button" class="vcp-pop-done" data-test="video-settings-done" @click="showSettings = false">Done</button>
               </div>
-              <VideoModelPicker :in-sheet="sheet || variant === 'chat'" />
-              <!-- Only what the chosen model offers; switching model changes the choices (owner, 2026-10-20). -->
-              <VideoChoice v-if="shapeOptions.length" v-model="video.settings.aspect_ratio" :options="shapeOptions" label="Shape"
-                           :icon="ICON.shape" :in-sheet="sheet || variant === 'chat'" test-id="video-aspect" />
-              <VideoChoice v-if="video.task === 'story'" v-model="video.targetSeconds" :options="storyLengthOptions" label="Final length"
-                           :icon="ICON.clock" layout="grid" :in-sheet="sheet || variant === 'chat'" test-id="video-length" />
-              <VideoChoice v-else-if="lengthOptions.length" v-model="video.settings.duration" :options="lengthOptions" label="Clip length"
-                           :icon="ICON.clock" layout="grid" :in-sheet="sheet || variant === 'chat'" test-id="video-length" />
-              <VideoChoice v-if="resolutionOptions.length" v-model="video.settings.resolution" :options="resolutionOptions" label="Resolution"
-                           :icon="ICON.screen" :in-sheet="sheet || variant === 'chat'" test-id="video-resolution" />
-              <button type="button" class="vcp-pill vcp-pill-toggle" data-test="video-sound" :disabled="!o.audio"
-                      :aria-pressed="o.audio && video.settings.sound ? 'true' : 'false'"
-                      :title="o.audio ? 'Generate sound with the video' : 'This model makes silent video'"
-                      @click="video.settings.sound = !video.settings.sound">
-                <span class="vcp-pill-ic" aria-hidden="true" v-html="o.audio && video.settings.sound ? ICON.sound : ICON.mute"></span>
-                <span>{{ !o.audio ? 'Silent' : video.settings.sound ? 'Sound on' : 'Sound off' }}</span>
-              </button>
+              <!-- Image mode: the image model, then only the shapes it makes, then how many (D14). -->
+              <template v-if="video.kind === 'image'">
+                <VideoModelPicker kind="image" :in-sheet="sheet || variant === 'chat'" />
+                <VideoChoice v-model="video.image.aspect_ratio" :options="imageShapeOptions" label="Shape" :icon="ICON.shape"
+                             :in-sheet="sheet || variant === 'chat'" test-id="image-aspect" />
+                <VideoChoice v-model="video.image.n" :options="countOptions" label="How many" :icon="ICON.stack" layout="grid"
+                             :in-sheet="sheet || variant === 'chat'" test-id="image-count" />
+              </template>
+              <template v-else>
+                <VideoModelPicker :in-sheet="sheet || variant === 'chat'" />
+                <!-- Only what the chosen model offers; switching model changes the choices (owner, 2026-10-20). -->
+                <VideoChoice v-if="shapeOptions.length" v-model="video.settings.aspect_ratio" :options="shapeOptions" label="Shape"
+                             :icon="ICON.shape" :in-sheet="sheet || variant === 'chat'" test-id="video-aspect" />
+                <VideoChoice v-if="video.task === 'story'" v-model="video.targetSeconds" :options="storyLengthOptions" label="Final length"
+                             :icon="ICON.clock" layout="grid" :in-sheet="sheet || variant === 'chat'" test-id="video-length" />
+                <VideoChoice v-else-if="lengthOptions.length" v-model="video.settings.duration" :options="lengthOptions" label="Clip length"
+                             :icon="ICON.clock" layout="grid" :in-sheet="sheet || variant === 'chat'" test-id="video-length" />
+                <VideoChoice v-if="resolutionOptions.length" v-model="video.settings.resolution" :options="resolutionOptions" label="Resolution"
+                             :icon="ICON.screen" :in-sheet="sheet || variant === 'chat'" test-id="video-resolution" />
+                <button type="button" class="vcp-pill vcp-pill-toggle" data-test="video-sound" :disabled="!o.audio"
+                        :aria-pressed="o.audio && video.settings.sound ? 'true' : 'false'"
+                        :title="o.audio ? 'Generate sound with the video' : 'This model makes silent video'"
+                        @click="video.settings.sound = !video.settings.sound">
+                  <span class="vcp-pill-ic" aria-hidden="true" v-html="o.audio && video.settings.sound ? ICON.sound : ICON.mute"></span>
+                  <span>{{ !o.audio ? 'Silent' : video.settings.sound ? 'Sound on' : 'Sound off' }}</span>
+                </button>
+              </template>
             </div>
           </BottomSheet>
         </div>
 
         <div class="vcp-go">
           <!-- The host's own actions (in the agent column: Send or Stop, the main action, at the right end). -->
-          <button type="button" class="vcp-primary" :class="{ quiet: variant === 'chat' }" data-test="video-estimate" :disabled="primaryDisabled"
-                  @click="onPrimary">
-            {{ video.busy || preparing ? 'Working…' : (video.task === 'story' ? 'Plan the story' : 'Get estimate') }}
-          </button>
+          <button type="button" class="vcp-primary" :class="{ quiet: variant === 'chat' }" :data-test="video.kind === 'image' ? 'image-create' : 'video-estimate'"
+                  :disabled="primaryDisabled" @click="onPrimary">{{ primaryLabel }}</button>
           <slot name="actions" />
         </div>
       </div>
@@ -166,6 +184,20 @@ const ICON = {
   sound: S('<path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>'),
   mute: S('<path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M16 10l4 4M20 10l-4 4"/>'),
   sliders: S('<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>'),
+  image: S('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M3 17l5-5 4 4 3-3 6 6"/>'),
+  stack: S('<rect x="7" y="7" width="13" height="13" rx="1.5"/><path d="M4 16V5a1 1 0 0 1 1-1h11"/>'),
+}
+// Image or Video: the first choice, above everything else in the box (owner, 2026-10-20).
+const kinds = [{ value: 'image', label: 'Image', icon: ICON.image }, { value: 'video', label: 'Video', icon: ICON.clip }]
+// Image mode needs an image model on the agent and at least one the person may use.
+const imageAvailable = computed(() => !!(chat.currentAgent && chat.currentAgent.image_model) && video.image.models.length > 0)
+function navigateKind(event) {
+  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
+  event.preventDefault()
+  const next = video.kind === 'image' ? 'video' : 'image'
+  if (next === 'image' && !imageAvailable.value) return
+  video.setKind(next)
+  event.currentTarget.parentElement.querySelector(`[data-test="studio-kind-${next}"]`)?.focus()
 }
 const tasks = [
   { value: 'quick', label: 'Quick clip', desc: 'One shot from words or images', art: TASK_ART.quick },
@@ -178,11 +210,14 @@ const roleOptions = [
   { value: 'first_frame', label: 'Opening shot' }, { value: 'last_frame', label: 'Closing shot' },
   { value: 'motion', label: 'Motion' }, { value: 'audio', label: 'Sound' }, { value: 'edit_source', label: 'Video to edit' },
 ]
+// An image request keeps a file's subject, or follows its look.
+const imageRoleOptions = [{ value: 'subject', label: 'Keep this' }, { value: 'style', label: 'Follow its look' }]
 
 const o = computed(() => video.options)
 // The settings' choices, from the chosen model's declared outputs only.
 const SHAPE_NAMES = { '16:9': 'Landscape', '9:16': 'Vertical', '1:1': 'Square', '4:3': 'Classic', '3:4': 'Portrait',
-                      '21:9': 'Cinema wide', '4:5': 'Portrait', '2:3': 'Portrait', '3:2': 'Landscape' }
+                      '21:9': 'Cinema wide', '4:5': 'Portrait', '2:3': 'Portrait', '3:2': 'Landscape', '5:4': 'Landscape',
+                      '4:7': 'Tall portrait', '7:4': 'Wide landscape' }
 function frameGlyph(ar) {
   const m = /^(\d+):(\d+)$/.exec(String(ar))
   const w = m ? Number(m[1]) : 16
@@ -197,6 +232,8 @@ const RES_NAMES = { '480p': 'Draft quality', '540p': 'Draft quality', '720p': 'H
 const shapeOptions = computed(() => o.value.aspectRatios.map((a) => ({ value: a, label: a, hint: SHAPE_NAMES[a] || '', glyph: frameGlyph(a) })))
 const lengthOptions = computed(() => o.value.durations.map((d) => ({ value: d, label: `${d} s` })))
 const storyLengthOptions = [8, 12, 15, 20, 30, 45, 60].map((n) => ({ value: n, label: `${n} s` }))
+const imageShapeOptions = computed(() => video.imageShapes.map((a) => ({ value: a, label: a, hint: SHAPE_NAMES[a] || '', glyph: frameGlyph(a) })))
+const countOptions = [1, 2, 3, 4].map((n) => ({ value: n, label: n === 1 ? '1 image' : `${n} images` }))
 const resolutionOptions = computed(() => o.value.resolutions.slice()
   .sort((x, y) => RES_ORDER.indexOf(x) - RES_ORDER.indexOf(y))
   .map((r) => ({ value: r, label: r, hint: RES_NAMES[r] || '' })))
@@ -210,8 +247,14 @@ function chooseTask(value) {
   if (value === 'edit' && !can.value.edit && video.editRoute) video.pickRoute(String(video.editRoute.route_id))
 }
 const taskUnavailable = computed(() => video.task === 'edit' && !can.value.edit)
-const currentName = computed(() => (video.route ? video.route.name : 'The current model'))
-const settingsSummary = computed(() => `${video.settings.aspect_ratio}, ${video.task === 'story' ? video.targetSeconds : video.settings.duration} s`)
+const currentName = computed(() => {
+  if (video.kind === 'image') return video.imageModel ? video.imageModel.name : 'The current model'
+  return video.route ? video.route.name : 'The current model'
+})
+const settingsTitle = computed(() => (video.kind === 'image' ? 'Image settings' : 'Video settings'))
+const settingsSummary = computed(() => (video.kind === 'image'
+  ? `${video.image.aspect_ratio}, ${video.image.n === 1 ? '1 image' : `${video.image.n} images`}`
+  : `${video.settings.aspect_ratio}, ${video.task === 'story' ? video.targetSeconds : video.settings.duration} s`))
 const showSettings = ref(false)
 const settingsWrap = ref(null)
 // The settings panel closes on a click outside it (and on Escape, and Done).
@@ -222,6 +265,11 @@ onMounted(() => document.addEventListener('pointerdown', closeSettingsOutside))
 onBeforeUnmount(() => document.removeEventListener('pointerdown', closeSettingsOutside))
 // The agent column's one-line summary: the model, then the shape and length.
 const settingsLine = computed(() => {
+  // The chip is narrow: the model's short name ("Nano Banana", not its long form in brackets).
+  if (video.kind === 'image') {
+    const name = video.imageModel ? String(video.imageModel.name).replace(/\s*\([^)]*\)\s*$/, '') : 'Auto'
+    return `${name}, ${settingsSummary.value}`
+  }
   const r = video.route
   const n = r ? String(r.name || '').replace(/^[^:]+:\s*/, '') : 'Auto'
   return `${n}, ${settingsSummary.value}`
@@ -245,8 +293,16 @@ const visibleRoles = computed(() => roleOptions.filter((r) => ({
 // A reference the current model cannot use is flagged, never removed (owner review 2026-10-19).
 const problems = computed(() => Object.fromEntries(video.unusableRefs.map((r) => [r.key, r.problem])))
 function problemOf(r) { return problems.value[r.key] || '' }
+// A model that can use the flagged file, through the same switch notice as any model change.
+function useAlternative(r) {
+  const alt = video.alternativeFor(r)
+  if (!alt) return
+  if (alt.kind === 'image') video.pickImageModel(alt.id)
+  else video.pickRoute(alt.id)
+}
 // Its own role stays selectable, so the chip shows the truth until the user changes or removes it.
 function rolesFor(r) {
+  if (video.kind === 'image') return imageRoleOptions
   const list = visibleRoles.value
   return list.some((x) => x.value === r.role) ? list : [...list, roleOptions.find((x) => x.value === r.role)].filter(Boolean)
 }
@@ -256,8 +312,15 @@ const fileEl = ref(null)
 const addEl = ref(null)
 const addOpen = ref(false)
 const dragging = ref(false)
+const addLabel = computed(() => (video.kind === 'image' ? 'Add an image' : 'Add an image, video or sound'))
 // What the chosen model does with media, said once under the box.
 const addNote = computed(() => {
+  if (video.kind === 'image') {
+    const m = video.imageModel
+    if (!m) return ''
+    const refs = Number(m.max_references || 0)
+    return refs ? `${m.name} takes up to ${refs} reference image${refs === 1 ? '' : 's'}.` : `${m.name} makes images from words only.`
+  }
   if (!video.routes.length) return ''
   if (video.task === 'edit') return can.value.edit ? `Add the video to change; ${currentName.value} edits it.` : ''
   const uses = []
@@ -267,6 +330,7 @@ const addNote = computed(() => {
 })
 // The best role the chosen model takes for a new file; the person can change it on the chip.
 function defaultRole(file) {
+  if (video.kind === 'image') return 'subject'
   const type = String((file && file.type) || '')
   if (type.startsWith('audio/')) return 'audio'
   if (video.task === 'edit' && type.startsWith('video/') && !video.refs.some((r) => r.role === 'edit_source')) return 'edit_source'
@@ -304,9 +368,27 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
 
 // The agent writes the video prompt from what the person typed, so a request needs their words.
 const preparing = ref(false)
+const isImage = computed(() => video.kind === 'image')
 const primaryDisabled = computed(() => preparing.value || video.busy || chat.isBusy || !props.draft.trim()
-  || !!video.pendingSwitch || video.unusableRefs.length > 0 || taskUnavailable.value)
+  || !!video.pendingSwitch || video.unusableRefs.length > 0 || (!isImage.value && taskUnavailable.value)
+  || (isImage.value && !imageAvailable.value))
+const primaryLabel = computed(() => {
+  if (video.busy || preparing.value) return 'Working…'
+  if (isImage.value) return video.image.n === 1 ? 'Create image' : `Create ${video.image.n} images`
+  return video.task === 'story' ? 'Plan the story' : 'Get estimate'
+})
+// What one image costs on the chosen model, when the platform has a price for it.
+const imagePrice = computed(() => {
+  const p = video.imageModel && video.imageModel.price_per_image
+  return p ? ` About $${Number(p).toFixed(3)} an image.` : ''
+})
 const hint = computed(() => {
+  if (isImage.value) {
+    if (!imageAvailable.value) return 'No image model is available yet.'
+    if (video.pendingSwitch) return 'Apply the model change or keep the current model to continue.'
+    if (video.unusableRefs.length) return 'A file is not usable with this model. Remove it or choose another model.'
+    return `Images are made as soon as you press Create, and each one is charged to your budget.${imagePrice.value}`
+  }
   if (!video.routes.length) return 'No video model is available yet.'
   if (video.pendingSwitch) return 'Apply the model change or keep the current model to continue.'
   if (taskUnavailable.value) return `${currentName.value} cannot edit footage. Choose a model that can, or another task.`
@@ -315,7 +397,8 @@ const hint = computed(() => {
   return 'An estimate never spends anything; the render starts only when you press Generate on it.'
 })
 // Something the person has to act on before a request can go (the agent column shows only these).
-const blocked = computed(() => !video.routes.length || !!video.pendingSwitch || taskUnavailable.value || video.unusableRefs.length > 0)
+const blocked = computed(() => (isImage.value ? !imageAvailable.value : (!video.routes.length || taskUnavailable.value))
+  || !!video.pendingSwitch || video.unusableRefs.length > 0)
 
 async function onPrimary() {
   if (primaryDisabled.value) return
@@ -327,7 +410,12 @@ async function onPrimary() {
       const project = await video.createProject({ chat, prompt: text,
         targetSeconds: video.task === 'story' ? video.targetSeconds : video.settings.duration })
       if (!project) return
-      video.panelTab = video.task === 'story' ? 'storyboard' : 'preview'
+      video.panelTab = isImage.value ? 'images' : video.task === 'story' ? 'storyboard' : 'preview'
+    }
+    if (isImage.value) {
+      const sent = await video.requestImage({ prompt: text, chat })
+      if (sent) { video.panelTab = 'images'; emit('done') }
+      return
     }
     if (video.task === 'story') {
       const ok = await video.planStory({ prompt: text, chat })
@@ -339,7 +427,13 @@ async function onPrimary() {
   } finally { preparing.value = false }
 }
 
-watch(() => chat.selectedAgentId, (id) => { if (id) video.loadCapabilities(id) }, { immediate: true })
+watch(() => chat.selectedAgentId, (id) => {
+  if (!id) return
+  video.loadCapabilities(id)
+  video.loadImageCapabilities(id)
+}, { immediate: true })
+// Image mode cannot stay on when the agent has no image model the person may use.
+watch(imageAvailable, (ok) => { if (!ok && video.kind === 'image' && video.image.loadedFor) video.setKind('video') })
 // The host runs the main action from the keyboard (Ctrl+Enter in the prompt).
 defineExpose({ submit: onPrimary })
 </script>
@@ -369,6 +463,23 @@ defineExpose({ submit: onPrimary })
 .vcp-card-check { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px;
   background: var(--vm-violet-d, #4f46e5); color: #fff; }
 .vcp-card-check :deep(svg) { width: 14px; height: 14px; }
+
+/* Image or Video: one segmented switch. On the create screen it sits centred under the title, the first choice; in the
+   agent column it sits small at the left above the box. The chosen side is lifted, with the accent on its icon. */
+.vcp-kind { display: inline-flex; justify-self: start; gap: 2px; padding: 3px; border: 1px solid var(--vm-line, #dce3ee); border-radius: 999px;
+  background: var(--vm-bg, #f8fafc); }
+.vcp-create > .vcp-kind { align-self: center; }
+.vcp-kind-opt { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 14px; border: 0; border-radius: 999px;
+  background: transparent; color: var(--vm-ink-soft, #64748b); font: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer;
+  transition: background-color .15s, color .15s; }
+.vcp-kind-opt:hover:not(:disabled):not(.on) { color: var(--vm-ink, #0f172a); }
+.vcp-kind-opt.on { background: var(--vm-surface-2, #fff); color: var(--vm-ink, #0f172a); box-shadow: 0 0 0 1px var(--vm-line, #dce3ee); }
+.vcp-kind-opt:disabled { opacity: .45; cursor: not-allowed; }
+.vcp-kind-ic { width: 16px; height: 16px; flex-shrink: 0; }
+.vcp-kind-ic :deep(svg) { width: 16px; height: 16px; display: block; }
+.vcp-kind-opt.on .vcp-kind-ic { color: var(--vs-accent-ink, var(--vm-violet, #4f46e5)); }
+.vcp-create .vcp-kind-opt { min-height: 40px; padding: 0 20px; font-size: 14px; }
+.vcp-kind-opt:focus-visible { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
 
 /* The box. */
 .vcp-box { position: relative; display: grid; min-width: 0; border: 1px solid var(--vm-line, #dce3ee); border-radius: 10px;
@@ -470,6 +581,7 @@ defineExpose({ submit: onPrimary })
 
 /* Touch: every control reaches 44px. */
 @media (pointer: coarse) {
+  .vcp-kind-opt { min-height: 44px; }
   .vcp-plus { width: 44px; height: 44px; }
   .vcp-pill, .vcp-role, .vcp-chip-x, .vcp-primary, .vcp-secondary { min-height: 44px; }
   .vcp-chip-x { min-width: 44px; }

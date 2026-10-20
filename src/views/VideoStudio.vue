@@ -30,8 +30,8 @@
     <div v-else-if="phase === 'create'" class="create" data-test="studio-create">
       <div class="create-inner">
         <h2 class="create-title">What would you like to create?</h2>
-        <p class="create-sub">Turn an idea, your images or existing footage into a video. The agent writes the prompt and shows
-          the cost before anything renders. <router-link to="/video-studio/help" class="create-help" data-test="studio-help-link">How it works</router-link></p>
+        <p class="create-sub">Make an image or a video from an idea, your photos or existing footage. The agent writes the prompt;
+          a video shows its cost before it renders. <router-link to="/video-studio/help" class="create-help" data-test="studio-help-link">How it works</router-link></p>
         <div v-if="!hasVideoAgent" class="setup" data-test="studio-not-ready">
           <h2>Video Studio can’t render yet</h2>
           <p>No video model is set for the Video Studio agent. A platform admin sets it once, for everyone.</p>
@@ -76,7 +76,7 @@
           </header>
           <div class="agent-log">
             <ChatMessageList v-if="chat.messages.length" />
-            <p v-else class="agent-wait">Ask the agent for a video or a change to this one. The conversation shows here.</p>
+            <p v-else class="agent-wait">Ask the agent for an image, a video or a change. The conversation shows here.</p>
           </div>
 
           <VideoJobsTray class="tray" :conversation-id="chat.conversationId" in-studio @open="mobileTab = 'canvas'" />
@@ -87,7 +87,7 @@
             <VideoComposerPanel ref="composerEl" variant="chat" :draft="video.studioDraft" ensure-project @done="created">
               <label class="prompt" for="studio-prompt">
                 <span class="sr-only">Message the video agent</span>
-                <textarea id="studio-prompt" v-model="video.studioDraft" rows="2" placeholder="Describe your next change…" data-test="studio-prompt"
+                <textarea id="studio-prompt" v-model="video.studioDraft" rows="2" :placeholder="video.kind === 'image' ? 'Describe the image…' : 'Describe your next change…'" data-test="studio-prompt"
                           @keydown="onPromptKey"></textarea>
               </label>
               <template #actions>
@@ -153,14 +153,17 @@ const summary = computed(() => {
   const secs = Math.round(scenes.value.reduce((t, s) => t + (s.planned_ms || 0), 0) / 1000)
   return [n ? `${n} scene${n === 1 ? '' : 's'}` : '', secs ? `${secs} s planned` : '', video.project.aspect_ratio || ''].filter(Boolean).join(', ')
 })
-const promptLabel = computed(() => (video.task === 'story' ? 'Describe your story' : video.task === 'edit' ? 'What would you like to change?' : 'Describe your video'))
-const placeholder = computed(() => (video.task === 'story'
-  ? 'A 30-second ad for my café: the espresso pour, a regular saying hello, the logo at the end'
-  : video.task === 'edit' ? 'Make it slower and warmer, and remove the person on the left'
-    : 'A slow camera move around my product, with soft studio light'))
+const promptLabel = computed(() => (video.kind === 'image' ? 'Describe your image'
+  : video.task === 'story' ? 'Describe your story' : video.task === 'edit' ? 'What would you like to change?' : 'Describe your video'))
+const placeholder = computed(() => (video.kind === 'image'
+  ? 'My candle on a wet black stone, soft rim light, seen from slightly above'
+  : video.task === 'story'
+    ? 'A 30-second ad for my café: the espresso pour, a regular saying hello, the logo at the end'
+    : video.task === 'edit' ? 'Make it slower and warmer, and remove the person on the left'
+      : 'A slow camera move around my product, with soft studio light'))
 // Starting points: each fills the prompt and picks its task; nothing is sent until the person presses a button.
 const IDEA = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`
-const starts = [
+const videoStarts = [
   { task: 'quick', label: 'Animate my product', icon: IDEA('<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/>'),
     text: 'A slow push-in on my product on a white table, soft window light' },
   { task: 'story', label: 'Create a launch story', icon: IDEA('<rect x="3" y="5" width="5" height="14" rx="1"/><rect x="10" y="5" width="5" height="14" rx="1"/><rect x="17" y="5" width="4" height="14" rx="1"/>'),
@@ -168,6 +171,16 @@ const starts = [
   { task: 'quick', label: 'Bring a photo to life', icon: IDEA('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/>'),
     text: 'Animate my photo: wind moves through the trees as the camera drifts right' },
 ]
+// Image mode's starting points: the pictures a video usually starts from.
+const imageStarts = [
+  { label: 'Product shot', icon: IDEA('<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/>'),
+    text: 'My product on a clean studio table, soft daylight from the left, a shallow shadow, photo-real' },
+  { label: 'Opening shot for a video', icon: IDEA('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9.5v5l4-2.5z"/>'),
+    text: 'The first frame of my video: a wide, calm morning street outside my café, warm light' },
+  { label: 'A character to reuse', icon: IDEA('<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 4-5.5 7-5.5s5.8 1.9 7 5.5"/>'),
+    text: 'A friendly barista in a green apron, front view, plain background, so I can reuse them in every scene' },
+]
+const starts = computed(() => (video.kind === 'image' ? imageStarts : videoStarts))
 
 async function refreshSession() {
   if (!chat.conversationId || refreshing.value || disposed) return
@@ -265,7 +278,7 @@ async function focusPrompt() {
   document.getElementById('studio-prompt')?.focus()
 }
 function useStart(s) {
-  video.setTask(s.task)
+  if (s.task) video.setTask(s.task)
   video.studioDraft = s.text
   focusPrompt()
 }
@@ -298,6 +311,8 @@ watch(() => chat.conversationId, async (cid) => {
   await video.loadJobs(cid)
 })
 watch(() => chat.isBusy, (busy, was) => { if (was && !busy) refreshSession() })
+// The canvas follows what is being made: the Images tab for Image, the monitor for Video.
+watch(() => video.kind, (kind) => { if (phase.value === 'workspace') video.panelTab = kind === 'image' ? 'images' : 'preview' })
 // A file queued in the Library is added as soon as a video agent is chosen.
 watch(hasVideoAgent, (ok) => { if (ok && !loading.value && video.queuedUse.length) video.applyQueuedUse({ chat }) })
 watch(() => route.query.conversation, (cid) => {

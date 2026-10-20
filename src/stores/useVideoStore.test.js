@@ -287,3 +287,61 @@ it('keeps a selected version when studio polling sees an already completed job a
   video._put(ready)
   expect(video.previewAttachmentId).toBe('earlier-version')
 })
+
+// Image mode (VIDEO_STUDIO_AGENT_FLOW_PLAN.md D14).
+describe('useVideoStore image mode', () => {
+  const NANO = { model_id: 21, name: 'Gemini 2.5 Flash Image', shapes: ['1:1', '9:16', '16:9'], max_references: 4 }
+  const GPT = { model_id: 22, name: 'GPT Image 1', shapes: ['1:1', '2:3', '3:2'], max_references: 0 }
+  let video
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    video = useVideoStore()
+  })
+
+  it('loads the image models and keeps the shape one the default model makes', async () => {
+    api.get.mockResolvedValue({ data: { models: [GPT, NANO], default_model_id: 22 } })
+    video.image.aspect_ratio = '16:9'
+    await video.loadImageCapabilities(5)
+    expect(api.get).toHaveBeenCalledWith('/video/image-capabilities/', { params: { agent_id: 5 } })
+    expect(video.imageModel.name).toBe('GPT Image 1')
+    expect(video.image.aspect_ratio).toBe('1:1')
+  })
+
+  it('Image keeps a file as the thing to show; a video role has no image meaning', () => {
+    video.refs = [{ key: 'a', role: 'first_frame', name: 'a.png' }, { key: 'b', role: 'style', name: 'b.png' }]
+    video.setKind('image')
+    expect(video.refs.map((r) => r.role)).toEqual(['subject', 'style'])
+  })
+
+  it('sends the image request through the agent, with uploads named by id', async () => {
+    Object.assign(video.image, { models: [NANO], defaultModelId: 21, modelId: '21', aspect_ratio: '9:16', n: 4 })
+    video.setKind('image')
+    video.addRef(new File(['x'], 'candle.png', { type: 'image/png' }))
+    api.uploadConversationFile.mockResolvedValue({ data: { attachment_id: 'att-9' } })
+    const chat = chatStub()
+    expect(await video.requestImage({ prompt: 'my candle', chat })).toBe(true)
+    expect(chat.sendMessage).toHaveBeenCalledWith('my candle', {
+      imageRequest: { model_id: 21, aspect_ratio: '9:16', n: 4, references: [{ attachment_id: 'att-9', role: 'subject' }] },
+      imageMode: true })
+    expect(video.refs).toEqual([])
+  })
+
+  it('a file the model cannot use stops the request with a reason', async () => {
+    Object.assign(video.image, { models: [GPT], defaultModelId: 22 })
+    video.setKind('image')
+    video.addRef(new File(['x'], 'candle.png', { type: 'image/png' }))
+    const chat = chatStub()
+    expect(await video.requestImage({ prompt: 'my candle', chat })).toBe(false)
+    expect(chat.sendMessage).not.toHaveBeenCalled()
+    expect(notify.warning).toHaveBeenCalledWith(expect.stringContaining('makes images from words only'))
+  })
+
+  it('lists the images this chat made, newest first as the server gives them', async () => {
+    api.getConversationMedia = vi.fn().mockResolvedValue({ data: { media: [
+      { attachment_id: 'i2', url: '/2.png', title: 'Two', type: 'image' }, { attachment_id: null, url: '/x.png' }] } })
+    await video.loadSessionImages('c1')
+    expect(api.getConversationMedia).toHaveBeenCalledWith('c1', { source: 'generated', type: 'image' })
+    expect(video.sessionImages).toEqual([{ attachment_id: 'i2', url: '/2.png', title: 'Two', media_type: 'image', created_at: undefined }])
+  })
+})

@@ -70,6 +70,11 @@
       </div>
     </section>
 
+    <!-- IMAGES (D14): what Image mode made in this session -->
+    <section v-show="video.panelTab === 'images'" class="vp-body" role="tabpanel" id="video-pane-images" aria-labelledby="video-tab-images" tabindex="0">
+      <VideoImageResults />
+    </section>
+
     <!-- STORYBOARD -->
     <section v-show="video.panelTab === 'storyboard'" class="vp-body" role="tabpanel" id="video-pane-storyboard" aria-labelledby="video-tab-storyboard" tabindex="0">
       <p v-if="!video.project" class="vp-empty">Start a Story video to plan scenes here.</p>
@@ -233,6 +238,7 @@ import { useChatStore } from '../../stores/useChatStore'
 import { notify } from '../../composables/useNotify'
 import BottomSheet from './BottomSheet.vue'
 import VideoLibrary from './VideoLibrary.vue'
+import VideoImageResults from './VideoImageResults.vue'
 
 // bare: the host shows the project title itself and frames the panel (Video Studio's canvas).
 defineProps({ bare: { type: Boolean, default: false } })
@@ -270,7 +276,8 @@ function clock(t) {
 const totalSeconds = computed(() => Math.round(scenes.value.reduce((t, s) => t + (s.planned_ms || 0), 0) / 1000))
 const allRendered = computed(() => scenes.value.length > 0 && scenes.value.every((s) => s.selected_take))
 const tabs = computed(() => [
-  { value: 'preview', label: 'Preview' }, { value: 'storyboard', label: 'Storyboard' },
+  { value: 'preview', label: 'Preview' }, { value: 'images', label: 'Images', count: video.sessionImages.length || 0 },
+  { value: 'storyboard', label: 'Storyboard' },
   { value: 'assets', label: 'Assets' }, { value: 'versions', label: 'Versions', count: video.versions.length || 0 },
 ])
 

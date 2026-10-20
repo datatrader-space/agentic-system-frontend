@@ -8,9 +8,9 @@ vi.mock('../../services/api', () => ({ default: { get: vi.fn(), post: vi.fn(), p
 vi.mock('../../composables/useNotify', () => ({
   notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }))
-vi.mock('../../stores/useChatStore', () => ({
-  useChatStore: () => ({ selectedAgentId: 5, conversationId: null, ensureConversation: vi.fn() }),
-}))
+// One chat store for the file, so a test can give the agent an image model (Image mode, D14).
+const chatMock = vi.hoisted(() => ({ selectedAgentId: 5, conversationId: null, currentAgent: null, isBusy: false }))
+vi.mock('../../stores/useChatStore', () => ({ useChatStore: () => chatMock }))
 
 import api from '../../services/api'
 import VideoComposerPanel from './VideoComposerPanel.vue'
@@ -39,6 +39,7 @@ describe('VideoComposerPanel', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    Object.assign(chatMock, { currentAgent: null, ensureConversation: vi.fn(), sendMessage: vi.fn() })
     api.get.mockResolvedValue({ data: { routes: [ROUTE, FULL], default_route_id: 7 } })
   })
 
@@ -241,5 +242,101 @@ describe('studio project preparation', () => {
     expect(project.mock.invocationCallOrder[0]).toBeLessThan(request.mock.invocationCallOrder[0])
     expect(wrapper.emitted('done')).toHaveLength(1)
     wrapper.unmount()
+  })
+})
+
+
+// Image mode (VIDEO_STUDIO_AGENT_FLOW_PLAN.md D14): an Image / Video switch above the box; Image shows the image model,
+// only the shapes it makes and how many, and "Create image" sends the request to the agent.
+const NANO = { model_id: 21, model: 'google/gemini-2.5-flash-image', name: 'Gemini 2.5 Flash Image', maker: 'Google',
+               shapes: ['1:1', '2:3', '3:2', '9:16', '16:9'], max_references: 4, price_per_image: 0.039, platform: true, own_key: false }
+const GPT = { model_id: 22, model: 'gpt-image-1', name: 'GPT Image 1', maker: 'OpenAI', shapes: ['1:1', '2:3', '3:2'],
+              max_references: 0, price_per_image: null, platform: false, own_key: true }
+
+describe('VideoComposerPanel image mode', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    Object.assign(chatMock, { currentAgent: { id: 5, image_model: 3, video_model: 4 },
+                              ensureConversation: vi.fn().mockResolvedValue('c1'), sendMessage: vi.fn().mockResolvedValue(true) })
+    api.get.mockImplementation((url) => Promise.resolve({ data: String(url).includes('image-capabilities')
+      ? { models: [NANO, GPT], default_model_id: 21 } : { routes: [ROUTE, FULL], default_route_id: 7 } }))
+  })
+
+  it('Image is not offered while the agent has no image model', async () => {
+    chatMock.currentAgent = { id: 5, image_model: null, video_model: 4 }
+    const w = await mounted()
+    expect(w.get('[data-test="studio-kind-image"]').attributes('disabled')).toBeDefined()
+    expect(w.get('[data-test="studio-kind-video"]').attributes('aria-checked')).toBe('true')
+  })
+
+  it('switching to Image shows only image settings, and the main action names the count', async () => {
+    const w = await mounted('a candle')
+    await w.get('[data-test="studio-kind-image"]').trigger('click')
+    const video = useVideoStore()
+    expect(video.kind).toBe('image')
+    expect(w.get('[data-test="studio-kind-image"]').attributes('aria-checked')).toBe('true')
+    expect(w.find('[data-test="video-task-quick"]').exists()).toBe(false)          // video tasks belong to Video
+    expect(w.find('[data-test="video-length"]').exists()).toBe(false)
+    expect(w.find('[data-test="video-sound"]').exists()).toBe(false)
+    expect(w.get('[data-test="image-model"]').text()).toContain('Auto (Gemini 2.5 Flash Image)')
+    await w.get('[data-test="image-aspect"]').trigger('click')
+    expect(w.get('[data-test="image-aspect-panel"]').findAll('.vch-opt-label').map((o) => o.text()))
+      .toEqual(['1:1', '2:3', '3:2', '9:16', '16:9'])
+    await w.get('[data-test="image-count"]').trigger('click')
+    const three = w.get('[data-test="image-count-panel"]').findAll('.vch-opt').find((o) => o.text() === '3 images')
+    await three.trigger('click')
+    expect(video.image.n).toBe(3)
+    expect(w.get('[data-test="image-create"]').text()).toBe('Create 3 images')
+    const note = w.get('[data-test="video-add-note"]').text()
+    expect(note).toContain('Gemini 2.5 Flash Image takes up to 4 reference images.')
+    expect(note).toContain('each one is charged to your budget')
+    expect(note).toContain('About $0.039 an image.')
+  })
+
+  it('a model that makes other shapes waits for the person in the switch notice', async () => {
+    const w = await mounted()
+    const video = useVideoStore()
+    video.setKind('image')
+    video.image.aspect_ratio = '16:9'
+    video.pickImageModel('22')
+    await w.vm.$nextTick()
+    expect(video.image.modelId).toBe('')                                           // not applied yet
+    expect(w.get('[data-test="video-switch-plan"]').text()).toContain('Shape: 16:9 to 1:1')
+    expect(w.get('[data-test="image-create"]').attributes('disabled')).toBeDefined()
+    await w.get('[data-test="video-switch-apply"]').trigger('click')
+    expect(video.image.modelId).toBe('22')
+    expect(video.image.aspect_ratio).toBe('1:1')
+  })
+
+  it('a video file is flagged in Image mode, and a words-only model flags an image with a model that takes it', async () => {
+    const w = await mounted()
+    const video = useVideoStore()
+    video.setKind('image')
+    video.addRef(new File(['x'], 'clip.mp4', { type: 'video/mp4' }))
+    await w.vm.$nextTick()
+    expect(w.get('[data-test="video-ref-unusable"]').text()).toContain('uses images only')
+    video.refs = []
+    video.image.modelId = '22'
+    video.addRef(new File(['x'], 'candle.png', { type: 'image/png' }))
+    await w.vm.$nextTick()
+    const chip = w.get('[data-test="video-ref-unusable"]')
+    expect(chip.text()).toContain('makes images from words only')
+    await chip.get('[data-test="video-ref-switch"]').trigger('click')
+    expect(video.image.modelId).toBe('21')
+  })
+
+  it('Create image sends the request to the agent with the person\'s settings', async () => {
+    const w = await mounted('my candle on black stone')
+    const video = useVideoStore()
+    video.setKind('image')
+    Object.assign(video.image, { modelId: '21', aspect_ratio: '9:16', n: 2 })
+    await w.vm.$nextTick()
+    await w.get('[data-test="image-create"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(chatMock.sendMessage).toHaveBeenCalledWith('my candle on black stone', {
+      imageRequest: { model_id: 21, aspect_ratio: '9:16', n: 2, references: [] }, imageMode: true })
+    expect(video.panelTab).toBe('images')
+    expect(w.emitted('done')).toHaveLength(1)
   })
 })
