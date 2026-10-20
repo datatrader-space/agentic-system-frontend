@@ -39,6 +39,7 @@ describe('useVideoStore', () => {
   let video
   beforeEach(() => {
     setActivePinia(createPinia())
+    useVideoStore().studioMode = 'manual'      // these tests cover Manual mode (D15)
     vi.clearAllMocks()
     video = useVideoStore()
   })
@@ -295,6 +296,7 @@ describe('useVideoStore image mode', () => {
   let video
   beforeEach(() => {
     setActivePinia(createPinia())
+    useVideoStore().studioMode = 'manual'      // these tests cover Manual mode (D15)
     vi.clearAllMocks()
     video = useVideoStore()
   })
@@ -343,5 +345,52 @@ describe('useVideoStore image mode', () => {
     await video.loadSessionImages('c1')
     expect(api.getConversationMedia).toHaveBeenCalledWith('c1', { source: 'generated', type: 'image' })
     expect(video.sessionImages).toEqual([{ attachment_id: 'i2', url: '/2.png', title: 'Two', media_type: 'image', created_at: undefined }])
+  })
+})
+
+// Agent mode (VIDEO_STUDIO_AGENT_FLOW_PLAN.md D15): a plain message, with the files added by "+" sent as chat
+// attachments; the agent picks every setting, so nothing is flagged here.
+describe('useVideoStore agent mode', () => {
+  let video
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    try { localStorage.removeItem('aadml.studio.mode') } catch { /* no storage */ }
+    video = useVideoStore()
+  })
+  const agentChat = (sent = true) => {
+    const chat = { pendingAttachments: [], sendMessage: vi.fn(() => Promise.resolve(sent)) }
+    chat.addAttachments = vi.fn((files) => files.forEach((file) => chat.pendingAttachments.push({ file, name: file.name })))
+    chat.addExistingMedia = vi.fn((items) => items.forEach((m) => chat.pendingAttachments.push({ attachment_id: m.attachment_id, existing: true })))
+    return chat
+  }
+
+  it('Agent is the default, and the choice is remembered', () => {
+    expect(video.studioMode).toBe('agent')
+    video.setStudioMode('manual')
+    expect(video.studioMode).toBe('manual')
+    let saved = null
+    try { saved = localStorage.getItem('aadml.studio.mode') } catch { /* no storage */ }
+    if (saved !== null) expect(saved).toBe('manual')
+  })
+
+  it('sends the words with the files as attachments, and never flags a file', async () => {
+    video.addRef(new File(['x'], 'candle.png', { type: 'image/png' }))
+    video.addExistingRef({ attachment_id: 'att-1', title: 'clip', url: '/c.mp4', media_type: 'video' }, 'first_frame')
+    expect(video.unusableRefs).toEqual([])
+    const chat = agentChat()
+    expect(await video.sendAgentMessage({ prompt: 'make a reel of my candle', chat })).toBe(true)
+    expect(chat.sendMessage).toHaveBeenCalledWith('make a reel of my candle')
+    expect(chat.addAttachments).toHaveBeenCalledTimes(1)
+    expect(chat.addExistingMedia).toHaveBeenCalledWith([expect.objectContaining({ attachment_id: 'att-1', type: 'video' })])
+    expect(video.refs).toEqual([])
+  })
+
+  it('a message that did not go keeps the files in the box and leaves no stray attachments', async () => {
+    video.addRef(new File(['x'], 'candle.png', { type: 'image/png' }))
+    const chat = agentChat(false)
+    expect(await video.sendAgentMessage({ prompt: 'hi', chat })).toBe(false)
+    expect(video.refs).toHaveLength(1)
+    expect(chat.pendingAttachments).toEqual([])
   })
 })

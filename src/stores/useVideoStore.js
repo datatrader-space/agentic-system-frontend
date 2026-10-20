@@ -11,6 +11,11 @@ import api from '../services/api'
 import { notify } from '../composables/useNotify'
 
 const TERMINAL = new Set(['ready', 'failed', 'cancelled'])
+// Agent or Manual (VIDEO_STUDIO_AGENT_FLOW_PLAN.md D15), remembered per person in this browser. Agent is the default.
+const MODE_KEY = 'aadml.studio.mode'
+function savedMode() {
+  try { return localStorage.getItem(MODE_KEY) === 'manual' ? 'manual' : 'agent' } catch { return 'agent' }
+}
 
 function findRoute(routes, id) {
   return routes.find((r) => (r.connections || []).some((c) => String(c.route_id) === String(id)))
@@ -82,6 +87,8 @@ export const useVideoStore = defineStore('video', {
   state: () => ({
     // The Studio composer: its draft, what it makes (image | video) and the chosen video task (quick | story | edit).
     studioDraft: '',
+    // 'agent': the agent runs the work from the conversation; 'manual': the person picks every setting (D15).
+    studioMode: savedMode(),
     kind: 'video',
     task: 'quick',
     // Image mode (D14): the image models this person may pick (/video/image-capabilities/), the pick ('' = Auto,
@@ -134,6 +141,8 @@ export const useVideoStore = defineStore('video', {
     // References the current model cannot use (e.g. after the agent's default model changed). They are
     // never removed behind the user's back: the chip is flagged and the request waits until it is resolved.
     unusableRefs() {
+      // In Agent mode the agent decides how each file is used and picks a model that takes it.
+      if (this.studioMode === 'agent') return []
       if (this.kind === 'image') {
         const m = this.imageModel
         return this.refs.map((r, i) => ({ ...r, problem: imageRefProblem(r, m, i) })).filter((r) => r.problem)
@@ -208,6 +217,32 @@ export const useVideoStore = defineStore('video', {
       } catch {
         this.image.models = []
       }
+    },
+    setStudioMode(mode) {
+      this.studioMode = mode === 'manual' ? 'manual' : 'agent'
+      this.pendingSwitch = null
+      try { localStorage.setItem(MODE_KEY, this.studioMode) } catch { /* the choice still holds for this visit */ }
+    },
+    /**
+     * Agent mode: a plain message to the agent, with the files added by "+" bound to it like any chat attachment
+     * (D15). The agent asks what it needs, picks the models and settings, and every paid step waits on a card.
+     */
+    async sendAgentMessage({ prompt, chat }) {
+      const text = (prompt || '').trim()
+      if (!text && !this.refs.length) return false
+      const before = chat.pendingAttachments.length
+      for (const r of this.refs) {
+        if (r.attachment_id) {
+          chat.addExistingMedia([{ attachment_id: r.attachment_id, filename: r.name, url: r.url,
+                                   type: r.isVideo ? 'video' : 'image' }])
+        } else if (r.file) {
+          chat.addAttachments([r.file])
+        }
+      }
+      const sent = await chat.sendMessage(text)
+      if (sent) this.refs = []
+      else chat.pendingAttachments.splice(before)
+      return !!sent
     },
     setKind(kind) {
       this.kind = kind === 'image' ? 'image' : 'video'

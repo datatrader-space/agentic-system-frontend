@@ -40,11 +40,18 @@
               the Storyboard tab.</li>
           </ul>
           <p>Every take is kept on the Versions tab. Restore an earlier one at any time without rendering again.</p>
+          <h3 class="doc-h3">Agent or Manual</h3>
+          <p>Above the box you choose who picks the settings. In <strong>Agent</strong> mode, the default, you just talk:
+            say what you want to make, add your photos or clips with "+", and the agent asks what it needs, picks the
+            image and video models that suit the job, chooses the shape, length, resolution and sound, and carries the
+            work through. In <strong>Manual</strong> mode you pick the model and every setting yourself and the agent
+            writes the prompt. In both modes you can always send the agent a message, and every image and every video
+            waits for you on a card with its price: nothing is made or charged until you approve it.</p>
           <h3 class="doc-h3">Images</h3>
-          <p>Choose <strong>Image</strong> above the box to make pictures instead: a product shot, the opening shot of a video,
+          <p>In Manual mode, choose <strong>Image</strong> in the Make menu beside the settings to make pictures instead: a product shot, the opening shot of a video,
             or a character you want to keep the same in every scene. Pick the image model, the shape (only the shapes that
             model makes) and how many, from one to four. Add up to four photos for the model to keep or to follow the look of.
-            Images are made as soon as you press Create, and each one is charged to your budget. They show on the Images tab,
+            Press Create, then approve the card that shows the price; each image is charged to your budget. They show on the Images tab,
             where <strong>Use in video</strong> adds one as the opening shot or a reference, and <strong>Save as
             ingredient</strong> keeps it for any later video.</p>
         </section>

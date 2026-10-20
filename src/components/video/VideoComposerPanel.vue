@@ -4,18 +4,20 @@
        variant 'chat': the same box at the foot of the agent column, with the host's Send beside "Get estimate".
        Nothing here spends money: "Get estimate" (or "Plan the story") prices it; the render starts only from the
        estimate card's Generate. The Image / Video switch (D14) turns the same box into an image request: the image
-       model, shape and how many; "Create image" sends it and the images are made straight away. -->
-  <section class="vcp" :class="['vcp-' + variant, 'is-' + video.kind]" :aria-label="video.kind === 'image' ? 'Describe your image' : 'Describe your video'"
+       model, shape and how many. Agent / Manual (D15): in Agent mode the box is a plain chat ("+" and the host's
+       Send): the agent asks what it needs, picks every setting, and each paid step waits on a card. -->
+  <section class="vcp" :class="['vcp-' + variant, 'is-' + video.kind, 'mode-' + video.studioMode]" :aria-label="boxLabel"
            data-test="video-composer-panel">
-    <div class="vcp-kind" role="radiogroup" aria-label="What to make" data-test="studio-kind">
-      <button v-for="k in kinds" :key="k.value" type="button" role="radio" class="vcp-kind-opt" :class="{ on: video.kind === k.value }"
-              :aria-checked="video.kind === k.value ? 'true' : 'false'" :tabindex="video.kind === k.value ? 0 : -1"
-              :disabled="k.value === 'image' && !imageAvailable" :title="k.value === 'image' && !imageAvailable ? 'No image model is set up yet' : undefined"
-              :data-test="'studio-kind-' + k.value" @keydown="navigateKind" @click="video.setKind(k.value)">
-        <span class="vcp-kind-ic" aria-hidden="true" v-html="k.icon"></span>{{ k.label }}
+    <div class="vcp-switches">
+    <div class="vcp-kind vcp-mode" role="radiogroup" aria-label="Who picks the settings" data-test="studio-mode">
+      <button v-for="m in modes" :key="m.value" type="button" role="radio" class="vcp-kind-opt" :class="{ on: video.studioMode === m.value }"
+              :aria-checked="video.studioMode === m.value ? 'true' : 'false'" :tabindex="video.studioMode === m.value ? 0 : -1"
+              :title="m.title" :data-test="'studio-mode-' + m.value" @keydown="navigateMode" @click="video.setStudioMode(m.value)">
+        <span class="vcp-kind-ic" aria-hidden="true" v-html="m.icon"></span>{{ m.label }}
       </button>
     </div>
-    <div v-if="variant === 'create' && showTasks && video.kind === 'video'" class="vcp-cards" :style="{ '--task-count': visibleTasks.length }" role="radiogroup"
+    </div>
+    <div v-if="variant === 'create' && showTasks && !isAgent && video.kind === 'video'" class="vcp-cards" :style="{ '--task-count': visibleTasks.length }" role="radiogroup"
          aria-label="What would you like to create?">
       <button v-for="t in visibleTasks" :key="t.value" type="button" role="radio" class="vcp-card"
               :class="{ on: video.task === t.value }" :aria-checked="video.task === t.value ? 'true' : 'false'"
@@ -28,8 +30,10 @@
     </div>
     <!-- The host's starting ideas (create), above the note and the box. -->
     <slot name="above" />
-    <p v-if="variant === 'create'" class="vcp-hint" data-test="video-add-note"><span>{{ addNote }}</span> {{ hint }}</p>
-    <p v-else-if="blocked" class="vcp-hint is-alert" role="status" data-test="video-add-note">{{ hint }}</p>
+    <p v-if="variant === 'create' && isAgent" class="vcp-hint" data-test="video-add-note">The agent asks what it needs, picks the models
+      and settings, and shows the price on a card before anything is made.</p>
+    <p v-else-if="variant === 'create'" class="vcp-hint" data-test="video-add-note"><span>{{ addNote }}</span> {{ hint }}</p>
+    <p v-else-if="blocked && !isAgent" class="vcp-hint is-alert" role="status" data-test="video-add-note">{{ hint }}</p>
 
     <!-- One box, like a chat input: the files added, the prompt (the host's slot), then a bar with the "+" (always
          there, owner 2026-10-19), the settings and the actions. Each file gets the best role the chosen model takes;
@@ -41,7 +45,7 @@
           <img v-else-if="r.url" :src="r.url" class="vcp-thumb" alt="" />
           <span v-else class="vcp-thumb vcp-thumb-sound" aria-hidden="true"></span>
           <span class="vcp-chip-name" :title="r.name">{{ r.name }}</span>
-          <VideoChoice class="vcp-role" :model-value="r.role" :options="rolesFor(r)" :label="'Use ' + r.name + ' as'"
+          <VideoChoice v-if="!isAgent" class="vcp-role" :model-value="r.role" :options="rolesFor(r)" :label="'Use ' + r.name + ' as'"
                        test-id="video-ref-role" @update:model-value="(v) => video.setRefRole(r.key, v)" />
           <button type="button" class="vcp-chip-x" :aria-label="'Remove ' + r.name" @click="video.removeRef(r.key)">
             <span aria-hidden="true" v-html="ICON.x"></span></button>
@@ -78,19 +82,19 @@
           <div v-if="addOpen" class="vcp-add-menu" role="menu" aria-label="Add media">
             <button type="button" role="menuitem" class="vcp-add-item" data-test="video-add-upload" @click="upload">
               <span class="vcp-add-ic" aria-hidden="true" v-html="ICON.upload"></span>
-              <span class="vcp-add-text"><span>Upload from this device</span><small>{{ video.kind === 'image' ? 'Images to keep or follow' : 'Images, videos or sounds' }}</small></span>
+              <span class="vcp-add-text"><span>Upload from this device</span><small>{{ !isAgent && video.kind === 'image' ? 'Images to keep or follow' : 'Images, videos or sounds' }}</small></span>
             </button>
             <button type="button" role="menuitem" class="vcp-add-item" data-test="video-add-library" @click="fromLibrary">
               <span class="vcp-add-ic" aria-hidden="true" v-html="ICON.library"></span>
               <span class="vcp-add-text"><span>Choose from the Library</span><small>Anything you uploaded or made, and your ingredients</small></span>
             </button>
           </div>
-          <input ref="fileEl" type="file" class="vcp-file" :accept="video.kind === 'image' ? 'image/*' : 'image/*,video/*,audio/*'" multiple @change="onPick" />
+          <input ref="fileEl" type="file" class="vcp-file" :accept="!isAgent && video.kind === 'image' ? 'image/*' : 'image/*,video/*,audio/*'" multiple @change="onPick" />
         </div>
 
         <!-- Every setting the chosen model offers, as a choice (owner, 2026-10-19). Below 1024px they open in a
              bottom sheet (plan 4.4). Values come from the model's declared outputs; nothing else is offered. -->
-        <div ref="settingsWrap" class="vcp-pills-wrap" @keydown.esc="showSettings = false">
+        <div v-if="!isAgent" ref="settingsWrap" class="vcp-pills-wrap" @keydown.esc="showSettings = false">
           <!-- In the agent column the choices fold behind one summary chip that opens a settings panel above the box
                (owner, 2026-10-20: compact); the create screen shows them all in the row. -->
           <button v-if="variant === 'chat'" type="button" class="vcp-pill vcp-settings-toggle" data-test="video-settings-toggle"
@@ -134,13 +138,19 @@
                   <span>{{ !o.audio ? 'Silent' : video.settings.sound ? 'Sound on' : 'Sound off' }}</span>
                 </button>
               </template>
+              <!-- Image or Video, beside the other settings (owner, 2026-10-20): switching keeps the same chat, so an
+                   image made here can be the next video's opening shot. -->
+              <VideoChoice :model-value="video.kind" :options="kindOptions" label="Make" :icon="video.kind === 'image' ? ICON.image : ICON.clip"
+                           :in-sheet="sheet || variant === 'chat'" test-id="studio-kind" @update:model-value="video.setKind" />
             </div>
           </BottomSheet>
         </div>
 
         <div class="vcp-go">
           <!-- The host's own actions (in the agent column: Send or Stop, the main action, at the right end). -->
-          <button type="button" class="vcp-primary" :class="{ quiet: variant === 'chat' }" :data-test="video.kind === 'image' ? 'image-create' : 'video-estimate'"
+          <!-- In Agent mode the host's Send is the only action: the agent starts every paid step itself, on a card. -->
+          <button v-if="!isAgent" type="button" class="vcp-primary" :class="{ quiet: variant === 'chat' || secondaryPrimary }"
+                  :data-test="video.kind === 'image' ? 'image-create' : 'video-estimate'"
                   :disabled="primaryDisabled" @click="onPrimary">{{ primaryLabel }}</button>
           <slot name="actions" />
         </div>
@@ -160,6 +170,8 @@ import { TASK_ART } from './videoArt'
 
 const props = defineProps({
   draft: { type: String, default: '' },
+  // The host shows its own Send as the main action (the create screen in Manual mode): this button is quieter.
+  secondaryPrimary: { type: Boolean, default: false },
   showTasks: { type: Boolean, default: true },
   ensureProject: { type: Boolean, default: false },
   // 'create': the first screen (task cards, large box). 'chat': the box at the foot of the agent column.
@@ -187,18 +199,30 @@ const ICON = {
   image: S('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M3 17l5-5 4 4 3-3 6 6"/>'),
   stack: S('<rect x="7" y="7" width="13" height="13" rx="1.5"/><path d="M4 16V5a1 1 0 0 1 1-1h11"/>'),
 }
-// Image or Video: the first choice, above everything else in the box (owner, 2026-10-20).
-const kinds = [{ value: 'image', label: 'Image', icon: ICON.image }, { value: 'video', label: 'Video', icon: ICON.clip }]
-// Image mode needs an image model on the agent and at least one the person may use.
-const imageAvailable = computed(() => !!(chat.currentAgent && chat.currentAgent.image_model) && video.image.models.length > 0)
-function navigateKind(event) {
+// Agent or Manual (D15): who picks the settings. Agent is the default.
+const modes = [
+  { value: 'agent', label: 'Agent', title: 'The agent asks what it needs and picks every setting',
+    icon: S('<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18.5 15l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z"/>') },
+  { value: 'manual', label: 'Manual', title: 'You pick the model and every setting',
+    icon: S('<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>') },
+]
+const isAgent = computed(() => video.studioMode === 'agent')
+const boxLabel = computed(() => (isAgent.value ? 'Message the Video Studio agent'
+  : video.kind === 'image' ? 'Describe your image' : 'Describe your video'))
+function navigateMode(event) {
   if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
   event.preventDefault()
-  const next = video.kind === 'image' ? 'video' : 'image'
-  if (next === 'image' && !imageAvailable.value) return
-  video.setKind(next)
-  event.currentTarget.parentElement.querySelector(`[data-test="studio-kind-${next}"]`)?.focus()
+  const next = isAgent.value ? 'manual' : 'agent'
+  video.setStudioMode(next)
+  event.currentTarget.parentElement.querySelector(`[data-test="studio-mode-${next}"]`)?.focus()
 }
+// Image or Video: a choice in the settings row (owner, 2026-10-20). Image only when an image model is there.
+const kindOptions = computed(() => [
+  { value: 'video', label: 'Video', hint: 'A clip from words, images or footage', glyph: ICON.clip },
+  ...(imageAvailable.value ? [{ value: 'image', label: 'Image', hint: 'Pictures to start a video from', glyph: ICON.image }] : []),
+])
+// Image mode needs an image model on the agent and at least one the person may use.
+const imageAvailable = computed(() => !!(chat.currentAgent && chat.currentAgent.image_model) && video.image.models.length > 0)
 const tasks = [
   { value: 'quick', label: 'Quick clip', desc: 'One shot from words or images', art: TASK_ART.quick },
   { value: 'story', label: 'Story video', desc: 'Plan scenes, then build the whole video', art: TASK_ART.story },
@@ -312,7 +336,7 @@ const fileEl = ref(null)
 const addEl = ref(null)
 const addOpen = ref(false)
 const dragging = ref(false)
-const addLabel = computed(() => (video.kind === 'image' ? 'Add an image' : 'Add an image, video or sound'))
+const addLabel = computed(() => (!isAgent.value && video.kind === 'image' ? 'Add an image' : 'Add an image, video or sound'))
 // What the chosen model does with media, said once under the box.
 const addNote = computed(() => {
   if (video.kind === 'image') {
@@ -387,7 +411,7 @@ const hint = computed(() => {
     if (!imageAvailable.value) return 'No image model is available yet.'
     if (video.pendingSwitch) return 'Apply the model change or keep the current model to continue.'
     if (video.unusableRefs.length) return 'A file is not usable with this model. Remove it or choose another model.'
-    return `Images are made as soon as you press Create, and each one is charged to your budget.${imagePrice.value}`
+    return `Nothing is made until you approve the card that shows the price; each image is charged to your budget.${imagePrice.value}`
   }
   if (!video.routes.length) return 'No video model is available yet.'
   if (video.pendingSwitch) return 'Apply the model change or keep the current model to continue.'
@@ -467,11 +491,15 @@ defineExpose({ submit: onPrimary })
   background: var(--vm-violet-d, #4f46e5); color: #fff; }
 .vcp-card-check :deep(svg) { width: 14px; height: 14px; }
 
+/* Agent / Manual and, in Manual, Image / Video: one row of segmented switches above the box. */
+.vcp-switches { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.vcp-create > .vcp-switches { justify-content: center; }
+.vcp-switches .vcp-kind { justify-self: auto; }
 /* Image or Video: one segmented switch. On the create screen it sits centred under the title, the first choice; in the
    agent column it sits small at the left above the box. The chosen side is lifted, with the accent on its icon. */
 .vcp-kind { display: inline-flex; justify-self: start; gap: 2px; padding: 3px; border: 1px solid var(--vm-line, #dce3ee); border-radius: 999px;
   background: var(--vm-bg, #f8fafc); }
-.vcp-create > .vcp-kind { align-self: center; }
+
 .vcp-kind-opt { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 14px; border: 0; border-radius: 999px;
   background: transparent; color: var(--vm-ink-soft, #64748b); font: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer;
   transition: background-color .15s, color .15s; }

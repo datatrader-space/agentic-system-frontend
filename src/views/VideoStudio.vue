@@ -30,8 +30,9 @@
     <div v-else-if="phase === 'create'" class="create" data-test="studio-create">
       <div class="create-inner">
         <h2 class="create-title">What would you like to create?</h2>
-        <p class="create-sub">Make an image or a video from an idea, your photos or existing footage. The agent writes the prompt;
-          a video shows its cost before it renders. <router-link to="/video-studio/help" class="create-help" data-test="studio-help-link">How it works</router-link></p>
+        <p class="create-sub">{{ agentMode ? 'Tell the agent what you want to make. It asks what it needs, picks the models and settings, and shows the price before anything is made.'
+          : 'Make an image or a video from an idea, your photos or existing footage. You pick every setting; the agent writes the prompt.' }}
+          <router-link to="/video-studio/help" class="create-help" data-test="studio-help-link">How it works</router-link></p>
         <div v-if="!hasVideoAgent" class="setup" data-test="studio-not-ready">
           <h2>Video Studio can’t render yet</h2>
           <p>No video model is set for the Video Studio agent. A platform admin sets it once, for everyone.</p>
@@ -53,6 +54,17 @@
                 <textarea id="studio-prompt" v-model="video.studioDraft" rows="3" :placeholder="placeholder" data-test="studio-prompt"
                           @keydown="onPromptKey"></textarea>
               </label>
+              <!-- Send works in both modes (owner, 2026-10-20): in Agent mode it is the only action; in Manual it asks
+                   the agent a question beside "Get estimate". -->
+              <template #actions>
+                <button v-if="chat.isBusy" type="button" class="btn" data-test="studio-stop" @click="chat.stop()">Stop</button>
+                <button v-else type="button" class="btn send" :class="{ quiet: !agentMode && phase === 'create' }" data-test="studio-send-message"
+                        :disabled="!video.studioDraft.trim() && !(agentMode && video.refs.length)" @click="sendMessage">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 12l16-8-6 16-2.5-6.5z" /></svg>
+                  <span>Send</span>
+                </button>
+              </template>
             </VideoComposerPanel>
           </fieldset>
         </template>
@@ -87,12 +99,13 @@
             <VideoComposerPanel ref="composerEl" variant="chat" :draft="video.studioDraft" ensure-project @done="created">
               <label class="prompt" for="studio-prompt">
                 <span class="sr-only">Message the video agent</span>
-                <textarea id="studio-prompt" v-model="video.studioDraft" rows="2" :placeholder="video.kind === 'image' ? 'Describe the image…' : 'Describe your next change…'" data-test="studio-prompt"
+                <textarea id="studio-prompt" v-model="video.studioDraft" rows="2" :placeholder="agentMode ? 'Message the agent…' : video.kind === 'image' ? 'Describe the image…' : 'Describe your next change…'" data-test="studio-prompt"
                           @keydown="onPromptKey"></textarea>
               </label>
               <template #actions>
                 <button v-if="chat.isBusy" type="button" class="btn" data-test="studio-stop" @click="chat.stop()">Stop</button>
-                <button v-else type="button" class="btn send" data-test="studio-send-message" :disabled="!video.studioDraft.trim()" @click="sendMessage">
+                <button v-else type="button" class="btn send" :class="{ quiet: !agentMode && phase === 'create' }" data-test="studio-send-message"
+                        :disabled="!video.studioDraft.trim() && !(agentMode && video.refs.length)" @click="sendMessage">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M4 12l16-8-6 16-2.5-6.5z" /></svg>
                   <span>Send</span>
@@ -153,9 +166,13 @@ const summary = computed(() => {
   const secs = Math.round(scenes.value.reduce((t, s) => t + (s.planned_ms || 0), 0) / 1000)
   return [n ? `${n} scene${n === 1 ? '' : 's'}` : '', secs ? `${secs} s planned` : '', video.project.aspect_ratio || ''].filter(Boolean).join(', ')
 })
-const promptLabel = computed(() => (video.kind === 'image' ? 'Describe your image'
+// Agent or Manual (D15), sent with every message while the Studio is open.
+const agentMode = computed(() => video.studioMode === 'agent')
+const promptLabel = computed(() => (agentMode.value ? 'Message the Video Studio agent' : video.kind === 'image' ? 'Describe your image'
   : video.task === 'story' ? 'Describe your story' : video.task === 'edit' ? 'What would you like to change?' : 'Describe your video'))
-const placeholder = computed(() => (video.kind === 'image'
+const placeholder = computed(() => (agentMode.value
+  ? 'Hi, I want a short product video of my candle for Instagram. What do you need from me?'
+  : video.kind === 'image'
   ? 'My candle on a wet black stone, soft rim light, seen from slightly above'
   : video.task === 'story'
     ? 'A 30-second ad for my café: the espresso pour, a regular saying hello, the logo at the end'
@@ -180,7 +197,16 @@ const imageStarts = [
   { label: 'A character to reuse', icon: IDEA('<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 4-5.5 7-5.5s5.8 1.9 7 5.5"/>'),
     text: 'A friendly barista in a green apron, front view, plain background, so I can reuse them in every scene' },
 ]
-const starts = computed(() => (video.kind === 'image' ? imageStarts : videoStarts))
+// Agent mode's starting points are things to say: the agent takes it from there.
+const agentStarts = [
+  { label: 'A product video', icon: IDEA('<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/>'),
+    text: 'I want a short product video of my candle for Instagram. What do you need from me?' },
+  { label: 'An ad for my business', icon: IDEA('<rect x="3" y="5" width="5" height="14" rx="1"/><rect x="10" y="5" width="5" height="14" rx="1"/><rect x="17" y="5" width="4" height="14" rx="1"/>'),
+    text: 'Help me make a 15-second ad for my café. Ask me what you need.' },
+  { label: 'Bring my photo to life', icon: IDEA('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15l5-5 4 4 3-3 6 6"/>'),
+    text: 'I have a photo I want to turn into a short video. How should we start?' },
+]
+const starts = computed(() => (agentMode.value ? agentStarts : video.kind === 'image' ? imageStarts : videoStarts))
 
 async function refreshSession() {
   if (!chat.conversationId || refreshing.value || disposed) return
@@ -285,7 +311,14 @@ function useStart(s) {
 // A plain message to the agent (a question, or a change in words); the composer's own button asks for an estimate.
 async function sendMessage() {
   const text = video.studioDraft.trim()
-  if (!text || chat.isBusy || !hasVideoAgent.value) return
+  if (chat.isBusy || !hasVideoAgent.value) return
+  // Agent mode: the files added with "+" go with the message; the agent decides how each is used.
+  if (agentMode.value) {
+    if (!text && !video.refs.length) return
+    if (await video.sendAgentMessage({ prompt: text, chat })) video.studioDraft = ''
+    return
+  }
+  if (!text) return
   const sent = await chat.sendMessage(text)
   if (sent) video.studioDraft = ''
 }
@@ -293,7 +326,8 @@ async function sendMessage() {
 // Enter sends to the agent and Shift+Enter is a new line.
 function onPromptKey(e) {
   if (e.key !== 'Enter' || e.isComposing) return
-  if (phase.value === 'create') {
+  // Agent mode is a chat on both screens: Enter sends, Shift+Enter is a new line.
+  if (phase.value === 'create' && !agentMode.value) {
     if (e.ctrlKey || e.metaKey) { e.preventDefault(); composerEl.value?.submit() }
     return
   }
@@ -311,6 +345,8 @@ watch(() => chat.conversationId, async (cid) => {
   await video.loadJobs(cid)
 })
 watch(() => chat.isBusy, (busy, was) => { if (was && !busy) refreshSession() })
+// Every message sent while the Studio is open carries its mode (cleared when the Studio closes).
+watch(() => video.studioMode, (mode) => { chat.studioMode = mode }, { immediate: true })
 // The canvas follows what is being made: the Images tab for Image, the monitor for Video.
 watch(() => video.kind, (kind) => { if (phase.value === 'workspace') video.panelTab = kind === 'image' ? 'images' : 'preview' })
 // A file queued in the Library is added as soon as a video agent is chosen.
@@ -326,6 +362,7 @@ onMounted(async () => {
   if (!disposed) pollTimer = setInterval(() => { if (!loading.value && !openingProject.value && !video.busy && !chat.isBusy) refreshSession() }, 8000)
 })
 onBeforeUnmount(() => {
+  chat.studioMode = ''
   if (!chat.imageMode) chat.imageMode = previousModes.image
   if (!canvas.mode) canvas.mode = previousModes.canvas
   disposed = true; clearInterval(pollTimer); window.removeEventListener('video-compose', composeEdit) })
@@ -351,6 +388,9 @@ onBeforeUnmount(() => {
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn.send { border-color: transparent; background: var(--vm-violet-d); color: #fff; font-weight: 600; }
 .btn.send:hover:not(:disabled) { background: var(--vm-violet); }
+/* Manual mode's first screen: Send asks the agent a question; "Get estimate" stays the main action. */
+.btn.send.quiet { border-color: var(--vm-line); background: transparent; color: var(--vm-ink); font-weight: 500; }
+.btn.send.quiet:hover:not(:disabled) { background: var(--vm-surface-2); }
 
 .status { padding: 24px 20px; font-size: 14px; color: var(--vm-ink-soft); }
 .status p { margin: 0 0 12px; }

@@ -38,6 +38,7 @@ async function mounted(draft = 'a shoe') {
 describe('VideoComposerPanel', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    useVideoStore().studioMode = 'manual'      // these tests cover Manual mode (D15)
     vi.clearAllMocks()
     Object.assign(chatMock, { currentAgent: null, ensureConversation: vi.fn(), sendMessage: vi.fn() })
     api.get.mockResolvedValue({ data: { routes: [ROUTE, FULL], default_route_id: 7 } })
@@ -218,6 +219,7 @@ describe('VideoComposerPanel', () => {
 describe('studio project preparation', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    useVideoStore().studioMode = 'manual'      // these tests cover Manual mode (D15)
     api.get.mockResolvedValue({ data: { routes: [ROUTE], default_route_id: 7 } })
   })
   it('does not request a render estimate if the project could not be created', async () => {
@@ -256,6 +258,7 @@ const GPT = { model_id: 22, model: 'gpt-image-1', name: 'GPT Image 1', maker: 'O
 describe('VideoComposerPanel image mode', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    useVideoStore().studioMode = 'manual'      // these tests cover Manual mode (D15)
     vi.clearAllMocks()
     Object.assign(chatMock, { currentAgent: { id: 5, image_model: 3, video_model: 4 },
                               ensureConversation: vi.fn().mockResolvedValue('c1'), sendMessage: vi.fn().mockResolvedValue(true) })
@@ -266,16 +269,19 @@ describe('VideoComposerPanel image mode', () => {
   it('Image is not offered while the agent has no image model', async () => {
     chatMock.currentAgent = { id: 5, image_model: null, video_model: 4 }
     const w = await mounted()
-    expect(w.get('[data-test="studio-kind-image"]').attributes('disabled')).toBeDefined()
-    expect(w.get('[data-test="studio-kind-video"]').attributes('aria-checked')).toBe('true')
+    // Video is the only thing to make: shown as a fact, not a list of one.
+    expect(w.get('[data-test="studio-kind"]').element.tagName).toBe('SPAN')
+    expect(w.get('[data-test="studio-kind"]').text()).toBe('Video')
   })
 
   it('switching to Image shows only image settings, and the main action names the count', async () => {
     const w = await mounted('a candle')
-    await w.get('[data-test="studio-kind-image"]').trigger('click')
+    // Image or Video is a dropdown beside the other settings (owner, 2026-10-20), not a switch above the box.
+    await w.get('[data-test="studio-kind"]').trigger('click')
+    await w.get('[data-test="studio-kind-panel"]').findAll('.vch-opt').find((o) => o.text().includes('Image')).trigger('click')
     const video = useVideoStore()
     expect(video.kind).toBe('image')
-    expect(w.get('[data-test="studio-kind-image"]').attributes('aria-checked')).toBe('true')
+    expect(w.get('[data-test="studio-kind"]').text()).toContain('Image')
     expect(w.find('[data-test="video-task-quick"]').exists()).toBe(false)          // video tasks belong to Video
     expect(w.find('[data-test="video-length"]').exists()).toBe(false)
     expect(w.find('[data-test="video-sound"]').exists()).toBe(false)
@@ -290,7 +296,7 @@ describe('VideoComposerPanel image mode', () => {
     expect(w.get('[data-test="image-create"]').text()).toBe('Create 3 images')
     const note = w.get('[data-test="video-add-note"]').text()
     expect(note).toContain('Gemini 2.5 Flash Image takes up to 4 reference images.')
-    expect(note).toContain('each one is charged to your budget')
+    expect(note).toContain('Nothing is made until you approve the card that shows the price')
     expect(note).toContain('About $0.039 an image.')
   })
 
@@ -344,6 +350,7 @@ describe('VideoComposerPanel image mode', () => {
 describe('the box empties once a request is sent', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    useVideoStore().studioMode = 'manual'      // these tests cover Manual mode (D15)
     vi.clearAllMocks()
     Object.assign(chatMock, { currentAgent: { id: 5, image_model: 3, video_model: 4 },
                               ensureConversation: vi.fn().mockResolvedValue('c1'), sendMessage: vi.fn().mockResolvedValue(true) })
@@ -359,5 +366,37 @@ describe('the box empties once a request is sent', () => {
     await w.get('[data-test="image-create"]').trigger('click')
     await new Promise((r) => setTimeout(r, 0))
     expect(video.studioDraft).toBe('')
+  })
+})
+
+describe('VideoComposerPanel agent mode', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    Object.assign(chatMock, { currentAgent: { id: 5, image_model: 3, video_model: 4 }, ensureConversation: vi.fn(), sendMessage: vi.fn() })
+    api.get.mockResolvedValue({ data: { routes: [ROUTE], default_route_id: 7, models: [NANO], default_model_id: 21 } })
+  })
+
+  it('is a plain chat box: no Image / Video, no tasks, no settings and no estimate button', async () => {
+    const video = useVideoStore()
+    video.studioMode = 'agent'
+    const w = await mounted('hi, I want a product video')
+    expect(w.get('[data-test="studio-mode-agent"]').attributes('aria-checked')).toBe('true')
+    for (const sel of ['studio-kind', 'video-task-quick', 'video-settings-panel', 'video-estimate', 'image-create', 'video-route']) {
+      expect(w.find(`[data-test="${sel}"]`).exists()).toBe(false)
+    }
+    expect(w.find('[data-test="video-add-media"]').exists()).toBe(true)          // "+" stays
+    expect(w.get('[data-test="video-add-note"]').text()).toContain('picks the models and settings')
+  })
+
+  it('switching to Manual brings back every setting', async () => {
+    const video = useVideoStore()
+    video.studioMode = 'agent'
+    const w = await mounted('a shoe')
+    await w.get('[data-test="studio-mode-manual"]').trigger('click')
+    expect(video.studioMode).toBe('manual')
+    expect(w.find('[data-test="studio-kind"]').exists()).toBe(true)
+    expect(w.find('[data-test="video-estimate"]').exists()).toBe(true)
+    expect(w.find('[data-test="video-task-quick"]').exists()).toBe(true)
   })
 })
