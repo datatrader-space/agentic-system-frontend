@@ -15,4 +15,6 @@
 .studio textarea.text-input:focus-visible{outline:3px solid var(--aadml-outline);outline-offset:3px}
 @media (max-width:700px){.llm-table{display:block;overflow-x:auto}}
 @media (max-width:550px){.llm-facts{grid-template-columns:1fr;gap:2px}.llm-facts dd{margin-bottom:10px}}
+/* On a phone a page's tabs take the whole row, so none is cut off; the button beside them moves below. */
+@media (max-width:550px){.llm-test>.studio-actions>.studio-tabs,.llm-analytics>.studio-actions>.studio-tabs{flex-basis:100%}}
 @media (prefers-reduced-motion:reduce){.llm-row{transition:none}}

@@ -44,7 +44,80 @@ export const llmApi = {
   trainingRun: (ref, number) => apiFetch(`${llm(ref)}/training/runs/${number}/`),
   trainingMove: (ref, number, move) => post(`${llm(ref)}/training/runs/${number}/${move}/`, {}),
   models: ref => apiFetch(`${llm(ref)}/models/`),
+  // Test page: the chat with a test server, and the blind comparison (LLM-POC 21, 24)
+  trials: ref => apiFetch(`${llm(ref)}/trials/`),
+  startTrial: (ref, body) => post(`${llm(ref)}/trials/`, body, { timeoutMs: 120000 }),
+  stopTrial: ref => post(`${llm(ref)}/trials/stop/`, {}),
+  chat: (ref, body) => post(`${llm(ref)}/trials/chat/`, body, { timeoutMs: 300000 }),
+  compare: ref => apiFetch(`${llm(ref)}/compare/`),
+  comparePairs: (ref, number) => apiFetch(`${llm(ref)}/compare/${number}/`),
+  decidePair: (ref, number, pair, body) => post(`${llm(ref)}/compare/${number}/pairs/${pair}/`, body),
+  // Analytics page: test questions, the AI judge, criteria and evaluations (LLM-POC 22-27)
+  questions: ref => apiFetch(`${llm(ref)}/questions/`),
+  saveQuestions: (ref, cases) => post(`${llm(ref)}/questions/`, { cases }),
+  uploadQuestions: (ref, file, replace) => {
+    const form = new FormData();
+    form.append('file', file);
+    if (replace) form.append('replace', 'true');
+    return post(`${llm(ref)}/questions/upload/`, form, { timeoutMs: 120000 });
+  },
+  setUpJudge: (ref, body) => post(`${llm(ref)}/judges/`, body),
+  approveCriteria: (ref, body) => post(`${llm(ref)}/criteria/`, body),
+  evaluations: ref => apiFetch(`${llm(ref)}/evaluations/`),
+  startEvaluation: (ref, body) => post(`${llm(ref)}/evaluations/`, body),
+  evaluation: (ref, number) => apiFetch(`${llm(ref)}/evaluations/${number}/`),
+  evaluationPairs: (ref, number) => apiFetch(`${llm(ref)}/evaluations/${number}/pairs/`),
+  evaluationMove: (ref, number, move) => post(`${llm(ref)}/evaluations/${number}/${move}/`, {}),
 };
+
+// An evaluation's verdict in words, and the badge tone it is shown with (plan §9.6).
+export const VERDICT = {
+  measured: ['Measured', 'neutral'], passed: ['Passed', 'green'], failed: ['Failed', 'dark'], inconclusive: ['Inconclusive', 'purple'],
+};
+export const verdictLabel = verdict => (VERDICT[verdict] || ['—', 'neutral'])[0];
+export const verdictTone = verdict => (VERDICT[verdict] || ['—', 'neutral'])[1];
+
+// A share from 0 to 1 as a percentage, "—" when there is none.
+export const percent = (value, digits = 0) => (typeof value === 'number' && Number.isFinite(value) ? `${(value * 100).toFixed(digits)}%` : '—');
+
+// The four parts of a marking from the trained model's side, as widths of a stacked bar (they add up to 100), with
+// each part's count: [{key, label, count, width}]. Empty when nothing was marked.
+export function tallyParts(tally) {
+  const t = tally || {};
+  const parts = [['trained_better', 'Trained model better'], ['same', 'The same'], ['both_wrong', 'Both wrong'], ['base_better', 'Base model better']]
+    .map(([key, label]) => ({ key, label, count: Number(t[key] || 0) }));
+  const total = parts.reduce((sum, p) => sum + p.count, 0);
+  if (!total) return [];
+  return parts.map(p => ({ ...p, width: (p.count / total) * 100 }));
+}
+
+// The same marking in one sentence, for a person who cannot see the bar.
+export function tallyInWords(tally) {
+  const t = tally || {};
+  if (!t.marked) return 'Nothing was marked.';
+  return `Of ${t.marked} marked: the trained model better ${t.trained_better || 0}, the same ${t.same || 0}, both wrong `
+    + `${t.both_wrong || 0}, the base model better ${t.base_better || 0}. Win rate ${percent(t.win_rate)}.`;
+}
+
+// Test questions as the page edits them (one question, its expected answer, its rubric) and as the backend takes
+// them back: a row without a question is dropped.
+export function questionRows(cases) {
+  return (cases || []).map(c => {
+    const user = [...(c.messages || [])].reverse().find(m => m.role === 'user');
+    return { question: user?.content || '', expected: c.expected || '', rubric: c.rubric || '', messages: c.messages, tags: c.tags || [] };
+  });
+}
+export function questionCases(rows) {
+  return (rows || []).filter(r => String(r.question || '').trim()).map(r => {
+    const earlier = (r.messages || []).slice(0, -1);
+    const kept = earlier.length && (r.messages || []).at(-1)?.content === r.question ? earlier : [];
+    return { messages: [...kept, { role: 'user', content: r.question.trim() }], expected: (r.expected || '').trim(),
+      rubric: (r.rubric || '').trim(), tags: r.tags || [] };
+  });
+}
+
+// A new key for a request that must not be done twice (starting an evaluation).
+export const requestKey = () => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 
 // What a person may set over a named configuration on the Train page: only the values typed in are sent.
 export function trainingOverrides(form) {
@@ -93,8 +166,8 @@ export function lossPoints(history, key = 'loss', width = 240, height = 60) {
 // The pages an LLM project shows its own form of, and the pages it does not show (plan §2.1).
 export const LLM_PAGES = ['dataset', 'annotate', 'versions'];
 export const NOT_FOR_LLM = ['classes', 'nas', 'active'];
-// Pages whose LLM form is built in a later phase of the plan (Test, Evaluation, Deploy).
-export const LATER_FOR_LLM = { test: 4, analytics: 4, deploy: 5 };
+// Pages whose LLM form is built in a later phase of the plan (Deploy).
+export const LATER_FOR_LLM = { deploy: 5 };
 
 export const KIND_LABEL = { chat: 'Conversation', instruction: 'Question and answer', preference: 'Preference', document: 'Document' };
 export const SOURCE_LABEL = { record: 'Sent by an app', upload: 'Uploaded', run_trace: 'An agent run', human: 'Written by a person', synthetic: 'Written by a model' };
@@ -130,6 +203,7 @@ export const FINDING = {
   cut_into_pieces: 'Cut into pieces that fit the model',
   split_corrected: 'Its side was put right',
   shares_words_with_test: 'Shares 13 words in a row with a test example',
+  shares_words_with_test_question: 'Shares 13 words in a row with one of your test questions',
 };
 export const findingText = code => FINDING[code] || code;
 

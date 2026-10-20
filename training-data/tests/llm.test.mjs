@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM, trainingOverrides, lossPoints, configSummary, lossInWords } from '../src/api/llm.js';
+import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM, trainingOverrides, lossPoints, configSummary, lossInWords, percent, tallyParts, tallyInWords, questionRows, questionCases, verdictLabel, verdictTone } from '../src/api/llm.js';
 
 const CHAT = { kind: 'chat', system: 'You are the support agent.', weight_on: 'last_assistant',
   messages: [{ role: 'user', content: 'Where is order 42?' },
@@ -50,7 +50,7 @@ test('filters become a query; empty ones are left out', () => {
 
 test('a language-model project hides the vision-only pages and names the phase of the pages still to build', () => {
   assert.deepEqual(NOT_FOR_LLM, ['classes', 'nas', 'active']);
-  assert.deepEqual(Object.keys(LATER_FOR_LLM).sort(), ['analytics', 'deploy', 'test']);
+  assert.deepEqual(Object.keys(LATER_FOR_LLM).sort(), ['deploy']);
 });
 
 test('a training configuration reads as words, not JSON', () => {
@@ -71,4 +71,31 @@ test('the Train page sends only the settings typed in, and a loss curve fits its
 test('a loss curve can be read as words too', () => {
   assert.equal(lossInWords([{ step: 1, loss: 2.917 }, { step: 3 }, { step: 6, loss: 2.4 }]), 'from 2.92 at step 1 to 2.40 at step 6');
   assert.equal(lossInWords([{ step: 1, loss: 2 }]), '');
+});
+
+test('a marking reads as a stacked bar and as words, from the trained model’s side', () => {
+  const tally = { marked: 4, trained_better: 2, base_better: 1, same: 1, both_wrong: 0, win_rate: 0.625 };
+  assert.deepEqual(tallyParts(tally).map(p => [p.key, p.count, p.width]),
+    [['trained_better', 2, 50], ['same', 1, 25], ['both_wrong', 0, 0], ['base_better', 1, 25]]);
+  assert.deepEqual(tallyParts({ marked: 0 }), []);
+  assert.equal(tallyInWords(tally), 'Of 4 marked: the trained model better 2, the same 1, both wrong 0, the base model better 1. Win rate 63%.');
+  assert.equal(tallyInWords(null), 'Nothing was marked.');
+  assert.equal(percent(0.5), '50%');
+  assert.equal(percent(0.1234, 1), '12.3%');
+  assert.equal(percent(null), '—');
+  assert.deepEqual([verdictLabel('passed'), verdictTone('passed'), verdictLabel('inconclusive'), verdictLabel('')], ['Passed', 'green', 'Inconclusive', '—']);
+});
+
+test('test questions are edited as rows and sent back as conversations, empty rows dropped', () => {
+  const cases = [{ messages: [{ role: 'system', content: 'Be brief.' }, { role: 'user', content: 'Refund time?' }], expected: 'Five days.', rubric: '', tags: ['refunds'] }];
+  const rows = questionRows(cases);
+  assert.deepEqual(rows.map(r => [r.question, r.expected]), [['Refund time?', 'Five days.']]);
+  rows.push({ question: '  ', expected: 'x', rubric: '', tags: [] });
+  rows.push({ question: 'New one? ', expected: '', rubric: 'Polite.', tags: [] });
+  assert.deepEqual(questionCases(rows), [
+    { messages: [{ role: 'system', content: 'Be brief.' }, { role: 'user', content: 'Refund time?' }], expected: 'Five days.', rubric: '', tags: ['refunds'] },
+    { messages: [{ role: 'user', content: 'New one?' }], expected: '', rubric: 'Polite.', tags: [] },
+  ]);
+  rows[0].question = 'Changed?';
+  assert.deepEqual(questionCases(rows)[0].messages, [{ role: 'user', content: 'Changed?' }]);
 });
