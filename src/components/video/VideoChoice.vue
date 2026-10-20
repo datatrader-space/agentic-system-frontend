@@ -3,7 +3,7 @@
        picker (owner, 2026-10-20: no raw browser lists). Only the values the model offers are passed in, so switching
        model changes what is offered. A setting with a single value is shown as a fact, not a dropdown of one. In the
        phone settings sheet the panel opens in place. -->
-  <div ref="root" class="vch" :class="{ 'in-sheet': inSheet }" @keydown.esc.stop="close">
+  <div ref="root" class="vch" :class="{ 'in-sheet': inSheet, 'drop-down': drop === 'down' }" @keydown.esc.stop="close">
     <span v-if="options.length === 1" class="vch-pill single" :title="`${label}: ${current.label}, the only one this model offers`"
           :data-test="testId" :aria-label="`${label}: ${current.label}, the only one this model offers`">
       <span class="vch-ic" aria-hidden="true" v-html="icon"></span>
@@ -18,7 +18,7 @@
         <span class="vch-text">{{ current.label }}</span>
         <span class="vch-chev" aria-hidden="true" v-html="CHEV"></span>
       </button>
-      <div v-if="open" class="vch-panel" :class="'is-' + layout" role="listbox" :aria-label="label" :data-test="testId + '-panel'" @keydown="onKey">
+      <div v-if="open" class="vch-panel" :class="['is-' + layout, { 'align-end': alignEnd }]" role="listbox" :aria-label="label" :data-test="testId + '-panel'" @keydown="onKey">
         <p class="vch-title">{{ label }}</p>
         <div class="vch-options">
           <button v-for="o in options" :key="o.value" type="button" role="option" class="vch-opt" :class="{ on: isOn(o) }"
@@ -49,11 +49,15 @@ const props = defineProps({
   layout: { type: String, default: 'list' },
   inSheet: { type: Boolean, default: false },
   testId: { type: String, default: '' },
+  // 'up' (default, from a box at the bottom of the screen) or 'down' (near the top of a page).
+  drop: { type: String, default: 'up' },
 })
 const emit = defineEmits(['update:modelValue'])
 const root = ref(null)
 const trigger = ref(null)
 const open = ref(false)
+// A panel that would run past the right edge of the window opens from the pill's right edge instead.
+const alignEnd = ref(false)
 const CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10l5 5 5-5"/></svg>'
 const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
 
@@ -63,7 +67,10 @@ const current = computed(() => props.options.find(isOn) || props.options[0] || {
 async function toggle() {
   open.value = !open.value
   if (!open.value) return
+  alignEnd.value = false
   await nextTick()
+  const panel = !props.inSheet && root.value && root.value.querySelector('.vch-panel')
+  if (panel && panel.getBoundingClientRect().right > window.innerWidth - 8) alignEnd.value = true
   const on = root.value && (root.value.querySelector('.vch-opt.on') || root.value.querySelector('.vch-opt'))
   on && on.focus()
 }
@@ -105,6 +112,8 @@ button.vch-pill:hover, .vch-pill[aria-expanded="true"] { background: var(--vm-su
 .vch-panel { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 40; min-width: 200px; max-height: min(420px, 60vh); overflow-y: auto; padding: 6px;
   border: 1px solid var(--vm-line, #dce3ee); border-radius: 10px; background: var(--vm-surface, #fff); box-shadow: var(--vm-shadow-l, 0 14px 34px rgba(15, 23, 42, .14)); }
 .vch-panel.is-grid { width: 264px; }
+.vch.drop-down .vch-panel { bottom: auto; top: calc(100% + 6px); }
+.vch-panel.align-end { left: auto; right: 0; }
 .vch-title { margin: 2px 6px 6px; font-size: 12px; font-weight: 600; color: var(--vm-ink-soft, #64748b); }
 .vch-options { display: grid; gap: 2px; }
 .is-grid .vch-options { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }

@@ -121,9 +121,11 @@
         <!-- Library and ingredients -->
         <section id="library" class="doc-section" aria-labelledby="h-library">
           <h2 id="h-library">Your Library and ingredients</h2>
-          <p><strong>The Library</strong> holds every image, video and sound you uploaded or made, from every chat. Press
-            <strong>Use</strong> on a file to add it to the video you are making, or press + in the prompt box and choose
-            <strong>Choose from the Library</strong>.</p>
+          <p><strong>The Library</strong> holds every image, video, sound and document you uploaded or made, from every chat.
+            Filter it by type, by how the file got there, or by project. Press <strong>Use</strong> on an image, clip or
+            sound to add it to the video you are making, or press + in the prompt box and choose <strong>Choose from the
+            Library</strong>. Documents open from there; a video uses images, clips and sounds, so for a script, paste the
+            part you need into the prompt.</p>
           <p><strong>An ingredient</strong> is a named character, product, place or style made of up to 8 of your files,
             for example "Nova" or "Red sneaker". Select the files in the Library and save them as an ingredient. Use it in
             any video, or tell the agent its name, so the same product or person appears in every scene.</p>

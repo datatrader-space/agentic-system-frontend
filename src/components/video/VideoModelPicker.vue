@@ -12,7 +12,7 @@
       <span class="vmp-chev" aria-hidden="true" v-html="ICON.chev"></span>
     </button>
 
-    <div v-if="open" class="vmp-panel" data-test="video-model-panel">
+    <div v-if="open" class="vmp-panel" :class="{ 'align-end': alignEnd }" data-test="video-model-panel">
       <label class="vmp-search">
         <span class="vmp-sr">Search video models</span>
         <span class="vmp-search-ic" aria-hidden="true" v-html="ICON.search"></span>
@@ -57,6 +57,8 @@ const trigger = ref(null)
 const searchEl = ref(null)
 const open = ref(false)
 const q = ref('')
+// A panel that would run past the right edge of the window opens from the pill's right edge instead.
+const alignEnd = ref(false)
 
 const S = (d, w = '1.8') => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`
 const ICON = {
@@ -122,7 +124,13 @@ const groups = computed(() => {
 
 async function toggle() {
   open.value = !open.value
-  if (open.value) { q.value = ''; await nextTick(); searchEl.value?.focus() }
+  if (!open.value) return
+  q.value = ''
+  alignEnd.value = false
+  await nextTick()
+  const panel = root.value && root.value.querySelector('.vmp-panel')
+  if (panel && getComputedStyle(panel).position === 'absolute' && panel.getBoundingClientRect().right > window.innerWidth - 8) alignEnd.value = true
+  searchEl.value?.focus()
 }
 function close() { if (open.value) { open.value = false; trigger.value?.focus() } }
 function pick(id) {
@@ -160,6 +168,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onOutside))
 .vmp-panel { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 40; display: flex; flex-direction: column; width: min(420px, 86vw);
   max-height: min(520px, 62vh); border: 1px solid var(--vm-line, #dce3ee); border-radius: 10px; background: var(--vm-surface, #fff);
   box-shadow: var(--vm-shadow-l, 0 14px 34px rgba(15, 23, 42, .14)); overflow: hidden; }
+.vmp-panel.align-end { left: auto; right: 0; }
 .vmp-search { position: relative; display: block; flex-shrink: 0; padding: 8px; border-bottom: 1px solid var(--vm-line-2, #e5e7eb); }
 .vmp-search-ic { position: absolute; left: 20px; top: 50%; width: 16px; height: 16px; transform: translateY(-50%); color: var(--vm-ink-faint, #94a3b8); pointer-events: none; }
 .vmp-search input { width: 100%; min-height: 38px; box-sizing: border-box; padding: 0 10px 0 34px; border: 1px solid var(--vm-line, #dce3ee); border-radius: 6px;

@@ -100,7 +100,9 @@ export const useVideoStore = defineStore('video', {
     // The Library: every file the user uploaded or generated, in any chat, and their named Ingredients
     // (VIDEO_STUDIO_AGENT_FLOW_PLAN.md D4).
     libraryOpen: false,
-    library: { items: [], page: 1, hasMore: false, loading: false, error: '', type: 'all', source: 'all', q: '' },
+    library: { items: [], page: 1, hasMore: false, loading: false, error: '', type: 'all', source: 'all', q: '', project: '' },
+    // The person's video projects, for the Library's project filter: [{ project_id, title }].
+    libraryProjects: [],
     ingredients: [],
     // Files chosen on the Library / Ingredients pages, applied by the Create page once it has an agent and a
     // project: [{ kind: 'file', item, role } | { kind: 'ingredient', ingredient }].
@@ -498,6 +500,14 @@ export const useVideoStore = defineStore('video', {
                                     timeline_revision_id: revisionId || undefined }, { chat })
     },
     // ── Library and Ingredients ───────────────────────────────────────────────────────────────────
+    async loadLibraryProjects() {
+      try {
+        const res = await api.get('/video/projects/')
+        this.libraryProjects = (res.data.projects || []).map((p) => ({ project_id: p.project_id, title: p.title || 'Untitled video' }))
+      } catch {
+        this.libraryProjects = []
+      }
+    },
     async loadLibrary({ more = false } = {}) {
       const lib = this.library
       const page = more ? lib.page + 1 : 1
@@ -505,7 +515,7 @@ export const useVideoStore = defineStore('video', {
       lib.error = ''
       try {
         const res = await api.get('/video/library/', { params: {
-          type: lib.type, source: lib.source, q: lib.q || undefined, page, limit: 40 } })
+          type: lib.type, source: lib.source, q: lib.q || undefined, project_id: lib.project || undefined, page, limit: 40 } })
         lib.items = more ? [...lib.items, ...(res.data.items || [])] : (res.data.items || [])
         lib.page = page
         lib.hasMore = !!res.data.has_more

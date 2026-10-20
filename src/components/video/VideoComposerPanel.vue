@@ -18,7 +18,8 @@
     </div>
     <!-- The host's starting ideas (create), above the note and the box. -->
     <slot name="above" />
-    <p class="vcp-hint" data-test="video-add-note"><span>{{ addNote }}</span> {{ hint }}</p>
+    <p v-if="variant === 'create'" class="vcp-hint" data-test="video-add-note"><span>{{ addNote }}</span> {{ hint }}</p>
+    <p v-else-if="blocked" class="vcp-hint is-alert" role="status" data-test="video-add-note">{{ hint }}</p>
 
     <!-- One box, like a chat input: the files added, the prompt (the host's slot), then a bar with the "+" (always
          there, owner 2026-10-19), the settings and the actions. Each file gets the best role the chosen model takes;
@@ -79,26 +80,33 @@
 
         <!-- Every setting the chosen model offers, as a choice (owner, 2026-10-19). Below 1024px they open in a
              bottom sheet (plan 4.4). Values come from the model's declared outputs; nothing else is offered. -->
-        <div class="vcp-pills-wrap">
-          <!-- In the agent column the choices fold behind one summary chip (desktop); the create screen shows them all. -->
+        <div ref="settingsWrap" class="vcp-pills-wrap" @keydown.esc="showSettings = false">
+          <!-- In the agent column the choices fold behind one summary chip that opens a settings panel above the box
+               (owner, 2026-10-20: compact); the create screen shows them all in the row. -->
           <button v-if="variant === 'chat'" type="button" class="vcp-pill vcp-settings-toggle" data-test="video-settings-toggle"
-                  :aria-expanded="showSettings ? 'true' : 'false'" @click="showSettings = !showSettings">
+                  aria-haspopup="dialog" :aria-expanded="showSettings ? 'true' : 'false'" @click="showSettings = !showSettings">
             <span class="vcp-pill-ic" aria-hidden="true" v-html="ICON.sliders"></span>
             <span class="vcp-toggle-text">{{ settingsLine }}</span>
             <span class="vcp-chev" aria-hidden="true" v-html="ICON.chev"></span>
           </button>
           <BottomSheet label="Video settings" :summary="settingsSummary" test-id="video-settings-sheet" v-slot="{ sheet }">
-            <div v-show="sheet || variant !== 'chat' || showSettings" class="vcp-pills" :class="{ 'in-sheet': sheet }" role="group" aria-label="Video settings">
-              <VideoModelPicker :in-sheet="sheet" />
+            <div v-show="sheet || variant !== 'chat' || showSettings" class="vcp-pills"
+                 :class="{ 'in-sheet': sheet || variant === 'chat', 'is-pop': variant === 'chat' && !sheet }"
+                 role="group" aria-label="Video settings" data-test="video-settings-panel">
+              <div v-if="variant === 'chat' && !sheet" class="vcp-pop-head">
+                <span class="vcp-pop-title">Video settings</span>
+                <button type="button" class="vcp-pop-done" data-test="video-settings-done" @click="showSettings = false">Done</button>
+              </div>
+              <VideoModelPicker :in-sheet="sheet || variant === 'chat'" />
               <!-- Only what the chosen model offers; switching model changes the choices (owner, 2026-10-20). -->
               <VideoChoice v-if="shapeOptions.length" v-model="video.settings.aspect_ratio" :options="shapeOptions" label="Shape"
-                           :icon="ICON.shape" :in-sheet="sheet" test-id="video-aspect" />
+                           :icon="ICON.shape" :in-sheet="sheet || variant === 'chat'" test-id="video-aspect" />
               <VideoChoice v-if="video.task === 'story'" v-model="video.targetSeconds" :options="storyLengthOptions" label="Final length"
-                           :icon="ICON.clock" layout="grid" :in-sheet="sheet" test-id="video-length" />
+                           :icon="ICON.clock" layout="grid" :in-sheet="sheet || variant === 'chat'" test-id="video-length" />
               <VideoChoice v-else-if="lengthOptions.length" v-model="video.settings.duration" :options="lengthOptions" label="Clip length"
-                           :icon="ICON.clock" layout="grid" :in-sheet="sheet" test-id="video-length" />
+                           :icon="ICON.clock" layout="grid" :in-sheet="sheet || variant === 'chat'" test-id="video-length" />
               <VideoChoice v-if="resolutionOptions.length" v-model="video.settings.resolution" :options="resolutionOptions" label="Resolution"
-                           :icon="ICON.screen" :in-sheet="sheet" test-id="video-resolution" />
+                           :icon="ICON.screen" :in-sheet="sheet || variant === 'chat'" test-id="video-resolution" />
               <button type="button" class="vcp-pill vcp-pill-toggle" data-test="video-sound" :disabled="!o.audio"
                       :aria-pressed="o.audio && video.settings.sound ? 'true' : 'false'"
                       :title="o.audio ? 'Generate sound with the video' : 'This model makes silent video'"
@@ -111,12 +119,12 @@
         </div>
 
         <div class="vcp-go">
-          <!-- The host's own actions (in the agent column: Send, Stop) sit beside the estimate. -->
-          <slot name="actions" />
+          <!-- The host's own actions (in the agent column: Send or Stop, the main action, at the right end). -->
           <button type="button" class="vcp-primary" :class="{ quiet: variant === 'chat' }" data-test="video-estimate" :disabled="primaryDisabled"
                   @click="onPrimary">
             {{ video.busy || preparing ? 'Working…' : (video.task === 'story' ? 'Plan the story' : 'Get estimate') }}
           </button>
+          <slot name="actions" />
         </div>
       </div>
     </div>
@@ -205,6 +213,13 @@ const taskUnavailable = computed(() => video.task === 'edit' && !can.value.edit)
 const currentName = computed(() => (video.route ? video.route.name : 'The current model'))
 const settingsSummary = computed(() => `${video.settings.aspect_ratio}, ${video.task === 'story' ? video.targetSeconds : video.settings.duration} s`)
 const showSettings = ref(false)
+const settingsWrap = ref(null)
+// The settings panel closes on a click outside it (and on Escape, and Done).
+function closeSettingsOutside(e) {
+  if (showSettings.value && settingsWrap.value && !settingsWrap.value.contains(e.target)) showSettings.value = false
+}
+onMounted(() => document.addEventListener('pointerdown', closeSettingsOutside))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', closeSettingsOutside))
 // The agent column's one-line summary: the model, then the shape and length.
 const settingsLine = computed(() => {
   const r = video.route
@@ -299,6 +314,8 @@ const hint = computed(() => {
   if (video.task === 'story') return 'Planning is free: the agent writes the scenes, then you render them.'
   return 'An estimate never spends anything; the render starts only when you press Generate on it.'
 })
+// Something the person has to act on before a request can go (the agent column shows only these).
+const blocked = computed(() => !video.routes.length || !!video.pendingSwitch || taskUnavailable.value || video.unusableRefs.length > 0)
 
 async function onPrimary() {
   if (primaryDisabled.value) return
@@ -360,9 +377,21 @@ defineExpose({ submit: onPrimary })
 .vcp-box:focus-within { border-color: var(--vm-violet, #4f46e5); box-shadow: 0 0 0 1px var(--vm-violet, #4f46e5); }
 .vcp-box.dragging { border-style: dashed; border-color: var(--vm-violet, #4f46e5); }
 .vcp-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; padding: 6px 8px 8px; }
-.vcp-pills-wrap { flex: 1 1 auto; min-width: 0; display: grid; gap: 6px; }
+.vcp-pills-wrap { flex: 1 1 auto; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .vcp-chat .vcp-pills-wrap { flex-basis: 0; }
-.vcp-settings-toggle { justify-self: start; max-width: 100%; }
+.vcp-settings-toggle { justify-self: start; min-width: 0; max-width: 100%; overflow: hidden; }
+/* The agent column's settings panel: floats above the box, one labelled row per setting, lists open in place. */
+.vcp-pills.is-pop { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 35; display: grid; gap: 8px;
+  max-height: min(70vh, 560px); overflow-y: auto; padding: 0 12px 12px; box-sizing: border-box; border: 1px solid var(--vm-line, #dce3ee);
+  border-radius: 10px; background: var(--vm-surface, #fff); box-shadow: var(--vm-shadow-l, 0 14px 34px rgba(15, 23, 42, .14)); }
+.vcp-pop-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 0 -12px; padding: 10px 12px; background: var(--vm-surface, #fff); border-bottom: 1px solid var(--vm-line-2, #e5e7eb); }
+.vcp-pop-title { font-size: 13.5px; font-weight: 600; }
+.vcp-pop-done { min-height: 34px; padding: 0 12px; border: 1px solid var(--vm-line, #dce3ee); border-radius: 6px; background: transparent;
+  color: var(--vm-ink, #0f172a); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+.vcp-pop-done:hover { background: var(--vm-surface-2, #f1f5f9); }
+.vcp-pop-done:focus-visible { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
+.vcp-hint.is-alert { color: var(--vs-warn-ink, #92400e); }
 .vcp-toggle-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 12px; }
 @media (max-width: 1023px) { .vcp-settings-toggle { display: none; } }
 .vcp-go { display: flex; align-items: center; gap: 6px; margin-left: auto; }
@@ -451,7 +480,9 @@ defineExpose({ submit: onPrimary })
   .vcp-card { grid-template-rows: none; grid-template-columns: 112px minmax(0, 1fr); align-items: center; }
   .vcp-card-art { aspect-ratio: 16 / 10; padding: 6px; }
   .vcp-card-text { padding: 10px 36px 10px 12px; }
-  .vcp-go { flex: 1 1 100%; justify-content: flex-end; }
+  .vcp-create .vcp-go { flex: 1 1 100%; justify-content: flex-end; }
 }
+/* The agent column keeps "+", the settings chip and the two actions on one row until it is very narrow. */
+@container (max-width: 360px) { .vcp-chat .vcp-go { flex: 1 1 100%; justify-content: flex-end; } }
 @media (prefers-reduced-motion: reduce) { .vcp * { transition: none !important; } }
 </style>

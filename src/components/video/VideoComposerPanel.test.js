@@ -114,6 +114,23 @@ describe('VideoComposerPanel', () => {
     expect(w.get('[data-test="video-length-panel"]').findAll('.vch-opt').map((o) => o.text())).toEqual(['4 s', '6 s', '8 s'])
   })
 
+  it('in the agent column the settings are one chip that opens a labelled panel, and only problems are hinted', async () => {
+    const w = mount(VideoComposerPanel, { props: { draft: 'a shoe', variant: 'chat' }, attachTo: document.body })
+    await new Promise((r) => setTimeout(r, 0))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="video-add-note"]').exists()).toBe(false)          // nothing to act on: no hint
+    const panel = () => w.get('[data-test="video-settings-panel"]')
+    expect(panel().element.style.display).toBe('none')
+    await w.get('[data-test="video-settings-toggle"]').trigger('click')
+    expect(panel().element.style.display).toBe('')
+    expect(panel().classes()).toContain('is-pop')
+    expect(panel().text()).toContain('Video settings')
+    expect(panel().find('.vch.in-sheet').exists()).toBe(true)                    // labelled rows, lists open in place
+    await w.get('[data-test="video-settings-done"]').trigger('click')
+    expect(panel().element.style.display).toBe('none')
+    w.unmount()
+  })
+
   it('the "+" offers this device or the Library, and closes after a choice', async () => {
     const w = await mounted()
     await w.get('[data-test="video-add-media"]').trigger('click')

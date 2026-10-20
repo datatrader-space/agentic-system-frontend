@@ -9,7 +9,7 @@
           <component :is="isPage ? 'h1' : 'h2'" id="lib-title">{{ isPage ? (initialTab === 'ingredients' ? 'Ingredients' : 'Library') : 'Library' }}</component>
           <p v-if="isPage" class="lib-lead">{{ initialTab === 'ingredients'
             ? 'Characters, products, places and styles you named, ready for any video.'
-            : 'Every image, video and sound you uploaded or made, from every chat.' }}</p>
+            : 'Every image, video, sound and document you uploaded or made, from every chat.' }}</p>
           <button v-if="!isPage" type="button" class="lib-x" aria-label="Close Library" @click="close">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
@@ -28,29 +28,41 @@
               <button v-for="t in types" :key="t.value" type="button" class="lib-chip" :class="{ on: lib.type === t.value }"
                       :aria-pressed="lib.type === t.value ? 'true' : 'false'" @click="setType(t.value)">{{ t.label }}</button>
             </div>
-            <label class="lib-field"><span class="lib-sr">Made or uploaded</span>
-              <select :value="lib.source" data-test="lib-source" @change="setSource($event.target.value)">
-                <option value="all">Everything</option><option value="generated">Made with AI</option>
-                <option value="uploaded">Uploaded</option></select></label>
+            <div class="lib-types" role="group" aria-label="Made or uploaded">
+              <button v-for="s in sources" :key="s.value" type="button" class="lib-chip" :class="{ on: lib.source === s.value }"
+                      :aria-pressed="lib.source === s.value ? 'true' : 'false'" :data-test="'lib-source-' + s.value"
+                      @click="setSource(s.value)">{{ s.label }}</button>
+            </div>
+            <!-- One project's files: its chats and what was linked to it (owner, 2026-10-20). -->
+            <VideoChoice v-if="video.libraryProjects.length" class="lib-project" :model-value="lib.project" :options="projectOptions"
+                         label="Project" :icon="PROJECT_ICON" drop="down" test-id="lib-project" @update:model-value="setProject" />
             <label class="lib-field lib-search"><span class="lib-sr">Search the Library</span>
               <input type="search" :value="lib.q" placeholder="Search by name…" data-test="lib-search" @input="onSearch($event.target.value)" /></label>
           </div>
           <p v-if="lib.error" class="lib-error" role="alert">{{ lib.error }}</p>
           <p v-else-if="!lib.loading && !lib.items.length" class="lib-empty">
-            {{ lib.q ? 'Nothing matches that search.' : 'Files you upload or make appear here, from every chat.' }}</p>
+            {{ lib.q ? 'Nothing matches that search.' : 'Files and documents you upload or make appear here, from every chat.' }}</p>
           <ul class="lib-grid" aria-label="Files">
             <li v-for="it in lib.items" :key="it.attachment_id" class="lib-card" :class="{ picked: picked.has(it.attachment_id) }"
                 :data-test="'lib-item'">
               <video v-if="it.media_type === 'video'" :src="it.url" muted preload="metadata" class="lib-thumb" aria-hidden="true"></video>
               <span v-else-if="it.media_type === 'audio'" class="lib-thumb lib-audio" aria-hidden="true">Audio</span>
+              <!-- A document: a page with its file type, not a broken image. -->
+              <span v-else-if="it.media_type === 'document'" class="lib-thumb lib-doc" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4" /></svg>
+                <span class="lib-doc-ext">{{ (it.ext || 'file').toUpperCase() }}</span>
+              </span>
               <img v-else :src="it.url" alt="" class="lib-thumb" loading="lazy" />
               <span class="lib-name" :title="it.title">{{ it.title }}</span>
-              <span class="lib-meta">{{ it.source === 'generated' ? 'Made with AI' : 'Uploaded' }}, {{ day(it.created_at) }}</span>
+              <span class="lib-meta">{{ it.source === 'generated' ? 'Made with AI' : 'Uploaded' }}, {{ day(it.created_at) }}{{ it.size_bytes ? ', ' + size(it.size_bytes) : '' }}</span>
               <span v-if="it.ingredients && it.ingredients.length" class="lib-ing">{{ it.ingredients.join(', ') }}</span>
-              <div v-if="usingId === it.attachment_id" class="lib-use">
-                <label class="lib-field"><span class="lib-sr">Use as</span>
-                  <select v-model="useRole" data-test="lib-role">
-                    <option v-for="r in rolesFor(it)" :key="r.value" :value="r.value">{{ r.label }}</option></select></label>
+              <!-- A document is listed to open; a video uses images, clips and sounds. -->
+              <div v-if="it.media_type === 'document'" class="lib-actions">
+                <a :href="it.url" class="lib-btn" target="_blank" rel="noopener noreferrer" data-test="lib-open">Open</a>
+              </div>
+              <div v-else-if="usingId === it.attachment_id" class="lib-use">
+                <VideoChoice v-model="useRole" :options="rolesFor(it)" label="Use as" drop="down" test-id="lib-role" />
                 <button type="button" class="lib-btn primary" data-test="lib-use-confirm" @click="confirmUse(it)">Add</button>
                 <button type="button" class="lib-btn" @click="usingId = ''">Cancel</button>
               </div>
@@ -68,8 +80,8 @@
           <form v-if="picked.size" class="lib-save" data-test="lib-save-ingredient" @submit.prevent="saveIngredient">
             <p class="lib-save-title">Save {{ picked.size }} file{{ picked.size === 1 ? '' : 's' }} as an ingredient</p>
             <label class="lib-field"><span>Name</span><input v-model="draft.name" maxlength="80" required data-test="lib-ing-name" /></label>
-            <label class="lib-field"><span>Kind</span>
-              <select v-model="draft.kind"><option v-for="k in kinds" :key="k.value" :value="k.value">{{ k.label }}</option></select></label>
+            <div class="lib-field"><span>Kind</span>
+              <VideoChoice v-model="draft.kind" :options="kinds" label="Kind" test-id="lib-ing-kind" /></div>
             <label class="lib-field"><span>Description (optional)</span><textarea v-model="draft.description" rows="2" maxlength="1000"></textarea></label>
             <div class="lib-actions">
               <button type="submit" class="lib-btn primary" :disabled="!draft.name.trim() || saving">{{ saving ? 'Saving…' : 'Save ingredient' }}</button>
@@ -129,6 +141,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'v
 import { useRouter } from 'vue-router'
 import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
+import VideoChoice from './VideoChoice.vue'
 
 // mode 'drawer': over the Create page, "Use" adds the file at once. mode 'page': Video Studio's Library and
 // Ingredients pages, where "Use" queues the file and opens Create, which applies it to its project.
@@ -144,8 +157,9 @@ const lib = computed(() => video.library)
 const panelEl = ref(null)
 const tab = ref(props.initialTab === 'ingredients' ? 'ingredients' : 'files')
 const tabs = [{ value: 'files', label: 'Files' }, { value: 'ingredients', label: 'Ingredients' }]
+const sources = [{ value: 'all', label: 'All sources' }, { value: 'generated', label: 'Made with AI' }, { value: 'uploaded', label: 'Uploaded' }]
 const types = [{ value: 'all', label: 'All' }, { value: 'image', label: 'Images' }, { value: 'video', label: 'Videos' },
-               { value: 'audio', label: 'Audio' }]
+               { value: 'audio', label: 'Audio' }, { value: 'document', label: 'Documents' }]
 const kinds = [{ value: 'character', label: 'Character' }, { value: 'product', label: 'Product' },
                { value: 'location', label: 'Location' }, { value: 'style', label: 'Style' }]
 // What a file can be used as. The composer then shows whether the chosen model takes it.
@@ -168,10 +182,18 @@ let searchTimer = null
 
 function close() { video.libraryOpen = false }
 function day(iso) { return iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '' }
+function size(n) {
+  const b = Number(n) || 0
+  return b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : b >= 1024 ? `${Math.round(b / 1024)} KB` : `${b} B`
+}
 function kindLabel(k) { return (kinds.find((x) => x.value === k) || { label: k }).label }
 function rolesFor(it) { return ROLES[it.media_type] || ROLES.image }
 function setType(t) { video.library.type = t; video.loadLibrary() }
 function setSource(s) { video.library.source = s; video.loadLibrary() }
+function setProject(id) { video.library.project = id; video.loadLibrary() }
+const PROJECT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h7l2 2h9v10H3z"/></svg>'
+const projectOptions = computed(() => [{ value: '', label: 'All projects' },
+  ...video.libraryProjects.map((p) => ({ value: p.project_id, label: p.title }))])
 function onSearch(q) {
   video.library.q = q
   clearTimeout(searchTimer)
@@ -225,6 +247,7 @@ async function remove(ing) { if (await video.deleteIngredient(ing.ingredient_id)
 onMounted(async () => {
   video.loadLibrary()
   video.loadIngredients()
+  video.loadLibraryProjects()
   await nextTick()
   if (!isPage.value) panelEl.value?.focus()
 })
@@ -253,6 +276,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 .lib-tab.on { color: var(--vm-ink, #0f172a); border-bottom-color: var(--vm-violet, #4f46e5); }
 .lib-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 24px; display: grid; gap: 14px; align-content: start; }
 .lib-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.lib-project :deep(.vch-pill) { min-height: 40px; border-radius: 8px; max-width: 240px; }
 .lib-types { display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; }
 .lib-chip { min-height: 34px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: var(--vm-ink-soft, #64748b);
   font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
@@ -268,6 +292,10 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 .lib-thumb { width: 100%; aspect-ratio: 16/10; object-fit: cover; border-radius: 4px; background: #000; display: grid; place-items: center; color: #a7a8ae; font-size: 12px; }
 .lib-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lib-meta { margin: 0; font-size: 12px; color: var(--vm-ink-soft, #64748b); }
+.lib-doc { display: grid; place-items: center; align-content: center; gap: 4px; background: var(--vm-surface-2, #f1f5f9); color: var(--vm-ink-soft, #64748b); }
+.lib-doc svg { width: 34px; height: 34px; }
+.lib-doc-ext { font-size: 11.5px; font-weight: 600; letter-spacing: .02em; color: var(--vm-ink, #0f172a); }
+a.lib-btn { display: inline-flex; align-items: center; text-decoration: none; }
 .lib-ing { font-size: 12px; color: var(--vs-accent-ink, var(--vm-violet-d, #4f46e5)); }
 .lib-actions, .lib-use, .lib-confirm { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .lib-use { display: grid; }
