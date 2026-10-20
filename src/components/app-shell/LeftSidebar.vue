@@ -120,6 +120,8 @@ const primaryNav = [
   // (and services / tools / OAuth providers) once those sections land — see INTEGRATIONS_HUB_PLAN.md.
   { to: '/dashboard/integrations', match: '/dashboard/integrations', label: 'Integrations', 'data-tour': 'integrations', icon: ['M9 2v6', 'M15 2v6', 'M5 8h14v4a7 7 0 0 1-14 0z', 'M12 19v3'] },
   { to: '/dashboard/knowledge', match: '/dashboard/knowledge', label: 'Knowledge & RAG', 'data-tour': 'knowledge', icon: ['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'] },
+  // The AADML Asset Library: the files of the person's chats only (Video Studio and Training Data keep their own).
+  { to: '/dashboard/assets', match: '/dashboard/assets', label: 'Asset Library', 'data-tour': 'assets', icon: ['M18 22H4a2 2 0 0 1-2-2V6', 'M8 2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z', 'M11 8h.01', 'M22 13l-3.5-3.5L10 18'] },
   { to: '/dashboard/workflow-builder', match: '/dashboard/workflow-builder', label: 'Workflow Builder', 'data-tour': 'workflow', icon: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M10 7h4a3 3 0 0 1 3 3v4'] },
   // Runs has no nav entry of its own — it is reached from the Workflow Builder page's Runs button.
   // The route stays live (/dashboard/workflow-runs) and the page is still CROSS-workflow; only its

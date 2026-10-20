@@ -288,6 +288,7 @@ const router = createRouter({
         // agent list on Integrations and from the agent editor (owner, 2026-10-16).
         { path: 'integrations/agents/:agentId', name: 'dashboard-integrations-agent', component: IntegrationGuide },
         { path: 'knowledge', name: 'dashboard-knowledge', component: () => import('./views/KnowledgeRag.vue') },
+        { path: 'assets', name: 'dashboard-assets', component: () => import('./views/AssetLibraryPage.vue') },
         { path: 'integration-hub', redirect: '/dashboard/connectors' },
         // Workflow Builder (NEW node-canvas system — lazy-loaded; separate from old /workflows feature)
         { path: 'workflow-builder', name: 'dashboard-workflow-builder', component: () => import('./views/WorkflowsList.vue') },

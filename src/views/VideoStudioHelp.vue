@@ -135,7 +135,7 @@
         <!-- Library and ingredients -->
         <section id="library" class="doc-section" aria-labelledby="h-library">
           <h2 id="h-library">Your Library and ingredients</h2>
-          <p><strong>The Library</strong> holds every image, video, sound and document you uploaded or made, from every chat.
+          <p><strong>The Library</strong> holds every image, video, sound and document you uploaded or made in Video Studio.
             Filter it by type, by how the file got there, or by project. Press <strong>Use</strong> on an image, clip or
             sound to add it to the video you are making, or press + in the prompt box and choose <strong>Choose from the
             Library</strong>. Documents open from there; a video uses images, clips and sounds, so for a script, paste the

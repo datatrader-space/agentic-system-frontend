@@ -1,6 +1,8 @@
 <template>
-  <!-- The Library (VIDEO_STUDIO_AGENT_FLOW_PLAN.md D4): every file the user uploaded or generated, in any chat,
-       and their named Ingredients. "Use" links a file to this video's project and adds it to the composer. -->
+  <!-- The Library (VIDEO_STUDIO_AGENT_FLOW_PLAN.md D4): every file the user uploaded or generated in Video Studio,
+       and their named Ingredients. One Library is shared by every origin and never mixed (backend
+       ASSET_LIBRARY_ORIGINS_PLAN.md): AADML's chats and Training Data list their own. "Use" links a file to this
+       video's project and adds it to the composer. -->
   <Teleport to="body" :disabled="isPage">
     <div class="lib-backdrop" :class="{ page: isPage }" @click.self="!isPage && close()">
       <section ref="panelEl" class="lib" :role="isPage ? 'region' : 'dialog'" :aria-modal="isPage ? undefined : 'true'"
@@ -9,7 +11,7 @@
           <component :is="isPage ? 'h1' : 'h2'" id="lib-title">{{ isPage ? (initialTab === 'ingredients' ? 'Ingredients' : 'Library') : 'Library' }}</component>
           <p v-if="isPage" class="lib-lead">{{ initialTab === 'ingredients'
             ? 'Characters, products, places and styles you named, ready for any video.'
-            : 'Every image, video, sound and document you uploaded or made, from every chat.' }}</p>
+            : 'Every image, video, sound and document you uploaded or made in Video Studio.' }}</p>
           <button v-if="!isPage" type="button" class="lib-x" aria-label="Close Library" @click="close">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
@@ -41,7 +43,7 @@
           </div>
           <p v-if="lib.error" class="lib-error" role="alert">{{ lib.error }}</p>
           <p v-else-if="!lib.loading && !lib.items.length" class="lib-empty">
-            {{ lib.q ? 'Nothing matches that search.' : 'Files and documents you upload or make appear here, from every chat.' }}</p>
+            {{ lib.q ? 'Nothing matches that search.' : 'Files and documents you upload or make in Video Studio appear here.' }}</p>
           <ul class="lib-grid" aria-label="Files">
             <li v-for="it in lib.items" :key="it.attachment_id" class="lib-card" :class="{ picked: picked.has(it.attachment_id) }"
                 :data-test="'lib-item'">

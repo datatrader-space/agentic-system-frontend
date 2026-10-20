@@ -20,7 +20,7 @@ import UiDialog from './components/UiDialog.vue';
 import UiBadge from './components/UiBadge.vue';
 import ProjectCreate from './components/ProjectCreate.vue';
 import ProjectUpload from './components/ProjectUpload.vue';
-import WorkspaceExtras from './components/WorkspaceExtras.vue';
+import WorkspaceAssets from './components/WorkspaceAssets.vue';
 import ProjectStudio from './components/ProjectStudio.vue';
 import WorkspaceModels from './components/WorkspaceModels.vue';
 import WorkspaceDeployments from './components/WorkspaceDeployments.vue';
@@ -40,7 +40,7 @@ import { joinToken } from './api/members.js';
 import { selectWorkspace } from './api/workspaces.js';
 import { listNotifications, readDeepLink, findProject } from './api/notifications.js';
 const sections = [{id:'agent',name:'Agent',icon:Sparkles},{id:'assets',name:'Asset Library',icon:Images},{id:'workflows',name:'Workflows',icon:GitBranch},{id:'events',name:'Vision events',icon:ChartNoAxesCombined},{id:'discover',name:'Universe',icon:Orbit},{id:'notifications',name:'Notifications',icon:Bell},{id:'members',name:'Team Members',icon:Users},{id:'trash',name:'Trash',icon:Trash2},{id:'audit',name:'Audit log',icon:ClipboardList},{ id: 'projects', name: 'Projects', icon: FolderOpen }, { id: 'models', name: 'Models', icon: Network }, {id:'deployments',name:'Deployments',icon:Server}];
-const PAGE_LINES = { deployments: 'Where the models of your projects answer, and how often they are asked.', events: 'What your apps sent to your projects, and what they asked their models.', agent: 'An assistant that does Training work for you, with your own role in each project.', workflows: 'Your workflows in AADML.', audit: 'Who did what in this workspace, and whether it was allowed.' };
+const PAGE_LINES = { assets: 'Your photos and videos, ready to add to your projects.', discover: 'Public datasets for your projects.', deployments: 'Where the models of your projects answer, and how often they are asked.', events: 'What your apps sent to your projects, and what they asked their models.', agent: 'An assistant that does Training work for you, with your own role in each project.', workflows: 'Your workflows in AADML.', audit: 'Who did what in this workspace, and whether it was allowed.' };
 const projectSections = [{id:'settings',name:'Settings',icon:Settings},{id:'train',name:'Train',icon:Box},{id:'models',name:'Models',icon:Box},{id:'nas',name:'NAS',icon:Layers},{id:'test',name:'Test',icon:ScanLine},{id:'deploy',name:'Deployments',icon:Upload},{id:'active',name:'Active learning',icon:GitBranch},{ id: 'upload', name: 'Upload data', icon: Upload }, { id: 'connect', name: 'Connect app', icon: KeyRound }, { id: 'annotate', name: 'Annotate', icon: ScanLine }, { id: 'dataset', name: 'Dataset', icon: Images }, { id: 'versions', name: 'Versions', icon: GitBranch }, { id: 'analytics', name: 'Analytics', icon: ChartNoAxesCombined }, { id: 'classes', name: 'Classes & tags', icon: Tags }];
 sections.sort((a,b)=>['agent','projects','assets','workflows','models','deployments','events','discover','notifications'].indexOf(a.id)-['agent','projects','assets','workflows','models','deployments','events','discover','notifications'].indexOf(b.id));
 projectSections.sort((a,b)=>['upload','connect','annotate','dataset','versions','analytics','classes','train','models','nas','test','deploy','active','settings'].indexOf(a.id)-['upload','connect','annotate','dataset','versions','analytics','classes','train','models','nas','test','deploy','active','settings'].indexOf(b.id));
@@ -116,6 +116,8 @@ function navigate(id) { location.hash = id; page.value = id; drawer.value = fals
 let noticePage = '';
 watch(notice, text => { if (text) noticePage = page.value; });
 watch(page, now => { if (notice.value && now !== noticePage) notice.value = ''; });
+// Back on Projects from another page: the cards are read again, so what was done there (photos, models) shows.
+watch(page, (now, before) => { if (now === 'projects' && before && before !== 'projects') loadProjects(); });
 function openProject(project) { selected.value = project; savedBatch.value = null; projectFlyout.value = false; navigate('upload'); }
 onMounted(() => { media = window.matchMedia('(max-width: 700px)'); syncMobile(); media.addEventListener('change', syncMobile); window.addEventListener('keydown', onKey); readHash(); window.addEventListener('hashchange', readHash); loadProjects(); loadUnread(); unreadTimer=setInterval(loadUnread,60000); listKinds().then(body => { kinds.value = body.kinds; }).catch(() => {}); });
 onUnmounted(() => { clearInterval(unreadTimer); window.removeEventListener('hashchange', readHash); window.removeEventListener('keydown', onKey); media?.removeEventListener('change', syncMobile); });
@@ -152,7 +154,8 @@ onUnmounted(() => { clearInterval(unreadTimer); window.removeEventListener('hash
         <WorkspaceWorkflows v-else-if="page==='workflows'" />
         <WorkspaceEvents v-else-if="page==='events'" />
         <WorkspaceAudit v-else-if="page==='audit'" />
-        <WorkspaceExtras v-else-if="['assets','discover'].includes(page)" :page="page" @navigate="navigate" @create="dialog=true" />
+        <WorkspaceAssets v-else-if="page==='assets'" @navigate="navigate" />
+        <section v-else-if="page==='discover'" class="panel screen-placeholder"><span class="placeholder-icon"><Orbit :size="32" /></span><UiBadge tone="purple">Coming soon</UiBadge><h2>Universe</h2><p>Public datasets you could add to your projects. Each dataset's licence has to be checked before its photos can train a model, so this is not available yet.</p></section>
         <WorkspaceDeployments v-else-if="page==='deployments'" />
         <WorkspaceModels v-else-if="page === 'models' && !selected" @create="dialog = true" @navigate="navigate" />
         <ConnectApp v-else-if="page === 'connect'" :key="selected?.ref" :project="selected" @navigate="navigate" />

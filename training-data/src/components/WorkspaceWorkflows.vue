@@ -52,7 +52,7 @@ const RUN = { completed: 'green', succeeded: 'green', success: 'green', failed: 
         </tbody>
       </table>
     </div>
-    <p class="muted note">A workflow cannot yet start by itself when a Training model answers or goes live: that trigger is coming soon.</p>
+    <p class="muted note"><UiBadge tone="purple">Coming soon</UiBadge> A workflow that starts by itself when a Training model answers or goes live.</p>
   </div>
 </template>
 
