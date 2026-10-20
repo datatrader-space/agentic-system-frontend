@@ -17,10 +17,17 @@ const props = defineProps({ conversationId: { type: [String, Number], default: n
 const emit = defineEmits(['open'])
 const video = useVideoStore()
 
-// Open work, plus failures (so the reason stays next to the job until dismissed) and results that could
-// not be posted to a chat (a job with no conversation).
-const visible = computed(() => video.jobsFor(props.conversationId).filter((j) =>
-  !['ready', 'cancelled'].includes(j.state) || (j.state === 'ready' && !j.conversation_id)))
+// Open work, plus failures (so the reason stays next to the job until dismissed or a newer job replaces it) and
+// results that could not be posted to a chat (a job with no conversation). A failure is SUPERSEDED once a newer job
+// starts in this chat: the person asked again, so the old reason no longer stands above the box (owner, 2026-10-20:
+// a refused render's card stayed after the retry had rendered).
+const visible = computed(() => {
+  const jobs = video.jobsFor(props.conversationId)          // oldest first
+  return jobs.filter((j, i) => {
+    if (j.state === 'failed') return !jobs.slice(i + 1).length
+    return !['ready', 'cancelled'].includes(j.state) || (j.state === 'ready' && !j.conversation_id)
+  })
+})
 
 const announcement = ref('')
 const seen = {}
@@ -35,6 +42,6 @@ watch(() => visible.value.map((j) => `${j.job_id}:${j.state}`).join('|'), () => 
 </script>
 
 <style scoped>
-.vjt { display: grid; gap: 8px; padding: 6px 0 8px; }
+.vjt { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 6px 0 8px; }
 .vjt-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 </style>

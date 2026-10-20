@@ -160,7 +160,10 @@ const elapsed = computed(() => {
 
 <style scoped>
 .vjc { border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; padding: 12px 14px; background: var(--vm-surface, #fff); color: var(--vm-ink, #0f172a);
-  display: grid; gap: 8px; max-width: 560px; }
+  display: grid; gap: 8px; max-width: 560px; min-width: 0;
+  /* A provider's message can carry a long URL with no spaces; it wraps inside the card instead of widening the agent
+     column (owner, 2026-10-20). */
+  overflow-wrap: anywhere; }
 .vjc.is-awaiting_authorization { border-color: var(--vm-violet, #6366f1); }
 .vjc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .vjc-op { font-weight: 600; font-size: 13.5px; }
