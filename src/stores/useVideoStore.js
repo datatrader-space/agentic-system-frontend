@@ -1,8 +1,8 @@
 /**
- * Video mode (agentic-docs/VIDEO_WORKSPACE_PLAN.md in the backend repo).
+ * Video Studio (agentic-docs/VIDEO_WORKSPACE_PLAN.md and VIDEO_STUDIO_AGENT_FLOW_PLAN.md in the backend repo).
  *
- * One store for the composer's Video pill, the reference slots, the settings row, the estimate/job cards
- * and the Video panel (Preview / Storyboard / Assets / Versions). It talks to /api/video/*; the job state
+ * One store for the Studio's composer, the reference slots, the settings row, the estimate/job cards, the
+ * Video panel (Preview / Storyboard / Assets / Versions) and the Library. It talks to /api/video/*; the job state
  * itself is the server's — this store mirrors it from responses and from `video_job` socket frames, and
  * never invents progress.
  */
@@ -43,7 +43,7 @@ function canFor(route) {
 const ROLE_NEEDS = { subject: 'references', style: 'references', motion: 'references', audio: 'references',
                      first_frame: 'startFrame', last_frame: 'endFrame' }
 const ROLE_WORDS = { subject: 'reference images', style: 'style references', motion: 'motion references',
-                     audio: 'audio references', first_frame: 'a start frame', last_frame: 'an end frame' }
+                     audio: 'audio references', first_frame: 'an opening shot', last_frame: 'a closing shot' }
 /** Why a reference cannot be used by a route ('' when it can). */
 function refProblem(ref, can, task) {
   if (ref.role === 'edit_source') return task === 'edit' && !can.edit ? 'cannot edit footage' : ''
@@ -63,8 +63,7 @@ function errText(e, fallback) {
 
 export const useVideoStore = defineStore('video', {
   state: () => ({
-    // Composer: the Video pill and the chosen task (quick | story | edit).
-    mode: false,
+    // The Studio composer: its draft and the chosen task (quick | story | edit).
     studioDraft: '',
     task: 'quick',
     // Settings row. '' = let the route decide; values come from the chosen route's declared outputs.
@@ -91,6 +90,14 @@ export const useVideoStore = defineStore('video', {
     // A model switch that would change settings or leave references unused, waiting for the user to apply
     // it or keep the previous model (owner review 2026-10-19: never change or drop inputs silently).
     pendingSwitch: null,
+    // The Library: every file the user uploaded or generated, in any chat, and their named Ingredients
+    // (VIDEO_STUDIO_AGENT_FLOW_PLAN.md D4).
+    libraryOpen: false,
+    library: { items: [], page: 1, hasMore: false, loading: false, error: '', type: 'all', source: 'all', q: '' },
+    ingredients: [],
+    // Files chosen on the Library / Ingredients pages, applied by the Create page once it has an agent and a
+    // project: [{ kind: 'file', item, role } | { kind: 'ingredient', ingredient }].
+    queuedUse: [],
   }),
 
   getters: {
@@ -104,6 +111,14 @@ export const useVideoStore = defineStore('video', {
     unusableRefs() {
       const c = this.can
       return this.refs.map((r) => ({ ...r, problem: refProblem(r, c, this.task) })).filter((r) => r.problem)
+    },
+    // An offered model that can edit footage (Edit footage proposes it when the chosen model cannot).
+    editRoute() { return this.routes.find((r) => r.state === 'active' && canFor(r).edit) || null },
+    // A model the person could switch to so this file can be used (the switch still goes through the
+    // model-switch notice), or null when no offered model takes it.
+    alternativeFor() {
+      return (ref) => this.routes.find((r) => r.state === 'active' && r !== this.route
+        && !refProblem(ref, canFor(r), this.task)) || null
     },
     jobsFor: (state) => (conversationId) => Object.values(state.jobs)
       .filter((j) => String(j.conversation_id || '') === String(conversationId || ''))
@@ -124,10 +139,6 @@ export const useVideoStore = defineStore('video', {
   },
 
   actions: {
-    toggleMode(on) {
-      this.mode = on === undefined ? !this.mode : !!on
-      if (this.mode) this.panelOpen = this.panelOpen || !!this.project
-    },
     setTask(t) { this.task = t },
 
     // ── capabilities ──────────────────────────────────────────────────────────────────────────────
@@ -469,6 +480,112 @@ export const useVideoStore = defineStore('video', {
     async exportTimeline(aspects, { chat, revisionId = null } = {}) {
       return this.local('export', { aspects: aspects && aspects.length ? aspects : ['16:9'],
                                     timeline_revision_id: revisionId || undefined }, { chat })
+    },
+    // ── Library and Ingredients ───────────────────────────────────────────────────────────────────
+    async loadLibrary({ more = false } = {}) {
+      const lib = this.library
+      const page = more ? lib.page + 1 : 1
+      lib.loading = true
+      lib.error = ''
+      try {
+        const res = await api.get('/video/library/', { params: {
+          type: lib.type, source: lib.source, q: lib.q || undefined, page, limit: 40 } })
+        lib.items = more ? [...lib.items, ...(res.data.items || [])] : (res.data.items || [])
+        lib.page = page
+        lib.hasMore = !!res.data.has_more
+      } catch (e) {
+        lib.error = errText(e, 'Could not load your Library.')
+      } finally {
+        lib.loading = false
+      }
+    },
+    async loadIngredients(q = '') {
+      try {
+        this.ingredients = (await api.get('/video/ingredients/', { params: q ? { q } : {} })).data.ingredients || []
+      } catch { this.ingredients = [] }
+    },
+    async createIngredient({ kind, name, description, attachmentIds }) {
+      try {
+        const res = await api.post('/video/ingredients/', { kind, name, description, attachment_ids: attachmentIds })
+        this.ingredients = [res.data, ...this.ingredients]
+        notify.success(`Saved "${res.data.name}" as an ingredient.`)
+        return res.data
+      } catch (e) {
+        notify.error(errText(e, 'Could not save the ingredient.'))
+        return null
+      }
+    },
+    async updateIngredient(id, changes) {
+      try {
+        const res = await api.patch(`/video/ingredients/${id}/`, changes)
+        this.ingredients = this.ingredients.map((i) => (i.ingredient_id === id ? res.data : i))
+        return res.data
+      } catch (e) {
+        notify.error(errText(e, 'Could not save the ingredient.'))
+        return null
+      }
+    },
+    async deleteIngredient(id) {
+      try {
+        await api.delete(`/video/ingredients/${id}/`)
+        this.ingredients = this.ingredients.filter((i) => i.ingredient_id !== id)
+        return true
+      } catch (e) {
+        notify.error(errText(e, 'Could not delete the ingredient.'))
+        return false
+      }
+    },
+    // A Library file is used in the open project (one is created when none is open); it is linked to the
+    // project on the server, which is what lets the project's renders use it, and added to the composer.
+    async _projectForLibrary(chat, title) {
+      if (this.project) return this.project
+      const tab = this.panelTab
+      const p = await this.createProject({ chat, title: title || 'Untitled video', prompt: '' })
+      this.panelTab = tab
+      return p
+    },
+    async useLibraryItem(item, role, { chat } = {}) {
+      const p = await this._projectForLibrary(chat, item.title)
+      if (!p) return false
+      try {
+        const res = await api.post(`/video/projects/${p.project_id}/assets/`, {
+          attachment_id: item.attachment_id, role, source: 'library' })
+        this.project = res.data
+        this.addExistingRef(item, role)
+        notify.success(`${item.title || 'File'} added to this video.`)
+        return true
+      } catch (e) {
+        notify.error(errText(e, 'Could not use that file.'))
+        return false
+      }
+    },
+    async useIngredient(ing, { chat } = {}) {
+      const p = await this._projectForLibrary(chat, ing.name)
+      if (!p) return false
+      try {
+        const res = await api.post(`/video/ingredients/${ing.ingredient_id}/use/`, { project_id: p.project_id })
+        this.project = res.data.project
+        for (const f of ing.files || []) this.addExistingRef(f, ing.role)
+        notify.success(`${ing.name} added to this video.`)
+        return true
+      } catch (e) {
+        notify.error(errText(e, 'Could not use that ingredient.'))
+        return false
+      }
+    },
+    queueUse(entry) { if (entry) this.queuedUse = [...this.queuedUse, entry] },
+    // Apply what the Library pages queued. Each entry is removed only once it is applied, so a failure keeps
+    // it for the next try instead of losing the user's choice.
+    async applyQueuedUse({ chat } = {}) {
+      while (this.queuedUse.length) {
+        const [entry] = this.queuedUse
+        const ok = entry.kind === 'ingredient'
+          ? await this.useIngredient(entry.ingredient, { chat })
+          : await this.useLibraryItem(entry.item, entry.role, { chat })
+        if (!ok) return false
+        this.queuedUse = this.queuedUse.slice(1)
+      }
+      return true
     },
     async loadVersions() {
       try {

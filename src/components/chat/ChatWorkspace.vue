@@ -234,7 +234,7 @@ watch(() => chat.conversationId, async (cid, prev) => {
 const showWelcome = computed(() => chat.isEmpty && !video.jobsFor(chat.conversationId).length)
 // After a turn, the assistant may have planned or changed the project: show the current records.
 watch(() => chat.isBusy, (busy, was) => {
-  if (was && !busy && chat.conversationId && (video.mode || video.project)) video.loadProject(chat.conversationId)
+  if (was && !busy && chat.conversationId && video.project) video.loadProject(chat.conversationId)
 })
 
 // WHERE THE COMPOSER STARTS, as a CSS variable the docked approval / sign-in card positions itself by.

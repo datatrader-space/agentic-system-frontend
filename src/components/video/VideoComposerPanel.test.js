@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Video mode in the composer: three tasks, role-tagged reference slots, settings limited to the model.
+// The Video Studio composer: three tasks, one input with an always-present "+", settings limited to the model.
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -16,7 +16,7 @@ import api from '../../services/api'
 import VideoComposerPanel from './VideoComposerPanel.vue'
 import { useVideoStore } from '../../stores/useVideoStore'
 
-// A model that renders from text and a start frame only (no references, no end frame, no video edits).
+// A model that renders from text and an opening shot only (no references, no closing shot, no video edits).
 const ROUTE = {
   route_id: 7, model_id: 'kwaivgi/kling-v3.0-pro', name: 'Kling Pro', via: 'openrouter', state: 'active',
   connections: [{ route_id: 7 }], offered: ['text_to_video', 'image_to_video'],
@@ -57,27 +57,76 @@ describe('VideoComposerPanel', () => {
     w.unmount()
   })
 
-  it('a model without references, end frame or video edits shows none of them', async () => {
-    // Owner, 2026-10-16: show only what the selected model can do, so nobody is offered a dead control.
+  it('the "+" is always there and says what the model uses; an image becomes its opening shot', async () => {
+    // Owner, 2026-10-19: a "+" in the input for every model. Owner, 2026-10-16: what a model cannot do is not
+    // offered as a control; here it is said under the input, and a file it cannot use is flagged (next tests).
     const w = await mounted()
-    expect(w.find('[data-test="video-slot-first_frame"]').exists()).toBe(true)
-    expect(w.find('[data-test="video-slot-subject"]').exists()).toBe(false)
-    expect(w.find('[data-test="video-slot-style"]').exists()).toBe(false)
-    expect(w.find('[data-test="video-slot-last_frame"]').exists()).toBe(false)
-    expect(w.find('[data-test="video-task-edit"]').exists()).toBe(false)
+    expect(w.find('[data-test="video-add-media"]').exists()).toBe(true)
+    expect(w.get('[data-test="video-add-note"]').text()).toContain('Kling Pro uses an opening shot.')
+    expect(w.find('[data-test="video-task-edit"]').exists()).toBe(true)   // another offered model can edit
+    const input = w.get('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [new File(['x'], 'shoe.png', { type: 'image/png' })], configurable: true })
+    await input.trigger('change')
+    expect(useVideoStore().refs.map((r) => r.role)).toEqual(['first_frame'])
+    expect(w.find('[data-test="video-ref-unusable"]').exists()).toBe(false)
     const durations = w.findAll('option').map((o) => o.text())
     expect(durations).toContain('10 s')
     expect(durations).not.toContain('8 s')
-    expect(w.find('input[type="checkbox"]').attributes('disabled')).toBeDefined()
+    expect(w.get('[data-test="video-sound"]').attributes('disabled')).toBeDefined()
+    expect(w.get('[data-test="video-sound"]').text()).toBe('Silent')
   })
 
   it('picking a model that can do more shows its features', async () => {
     const w = await mounted()
-    useVideoStore().pickRoute('9')
+    const video = useVideoStore()
+    video.pickRoute('9')
     await w.vm.$nextTick()
-    for (const t of ['video-slot-subject', 'video-slot-first_frame', 'video-slot-last_frame', 'video-slot-style',
-                     'video-task-edit']) {
-      expect(w.find(`[data-test="${t}"]`).exists()).toBe(true)
+    expect(w.find('[data-test="video-task-edit"]').exists()).toBe(true)
+    expect(w.get('[data-test="video-add-note"]').text()).toContain('references and opening and closing shots')
+    video.addRef(new File(['x'], 'shoe.png', { type: 'image/png' }), 'subject')
+    await w.vm.$nextTick()
+    const roles = w.get('[data-test="video-ref-role"]').findAll('option').map((o) => o.text())
+    expect(roles).toEqual(expect.arrayContaining(['Product, character or place', 'Style', 'Opening shot', 'Closing shot']))
+  })
+
+  it('the "+" offers this device or the Library, and closes after a choice', async () => {
+    const w = await mounted()
+    await w.get('[data-test="video-add-media"]').trigger('click')
+    expect(w.get('[data-test="video-add-media"]').attributes('aria-expanded')).toBe('true')
+    expect(w.find('[data-test="video-add-upload"]').exists()).toBe(true)
+    await w.get('[data-test="video-add-library"]').trigger('click')
+    expect(useVideoStore().libraryOpen).toBe(true)
+    expect(w.find('[role="menu"]').exists()).toBe(false)
+  })
+
+  it('a second image never replaces the opening shot: it is flagged with a model that can use it', async () => {
+    const w = await mounted()
+    const video = useVideoStore()
+    const input = w.get('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { configurable: true,
+      value: [new File(['a'], 'one.png', { type: 'image/png' }), new File(['b'], 'two.png', { type: 'image/png' })] })
+    await input.trigger('change')
+    expect(video.refs.map((r) => [r.name, r.role])).toEqual([['one.png', 'first_frame'], ['two.png', 'subject']])
+    const flagged = w.get('[data-test="video-ref-unusable"]')
+    expect(flagged.text()).toContain('Kling Pro does not take reference images')
+    expect(w.find('[data-test="video-estimate"]').attributes('disabled')).toBeDefined()
+    const pick = vi.spyOn(video, 'pickRoute')
+    await flagged.get('[data-test="video-ref-switch"]').trigger('click')
+    expect(pick).toHaveBeenCalledWith('9')
+  })
+
+  it('Edit footage on a model that cannot edit proposes one that can, and waits for the user', async () => {
+    const w = await mounted()
+    const video = useVideoStore()
+    expect(String(video.routeId || video.defaultRouteId)).toBe('7')        // Kling: no edits
+    await w.get('[data-test="video-task-edit"]').trigger('click')
+    expect(video.task).toBe('edit')
+    const plan = w.find('[data-test="video-switch-plan"]')
+    if (plan.exists()) {
+      expect(plan.text()).toContain('Seedance 2.0')                          // proposed, not applied
+      expect(String(video.routeId || video.defaultRouteId)).toBe('7')
+    } else {
+      expect(String(video.routeId)).toBe('9')                                // nothing to change: switched
     }
   })
 

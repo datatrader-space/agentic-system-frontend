@@ -630,6 +630,8 @@ export default {
   // capability inventory / tool catalog / model-options blocks entirely (~26 queries → a handful).
   // The chat model picker fetches /agents/<id>/model-options/ separately when the user opens it.
   getSuperAgentCard: () => api.get('/agents/super-agent/', { params: { slim: 1 } }),
+  // The one built-in Video Studio agent (shared, system-owned), as the chat card Video Studio opens.
+  getVideoStudioAgent: () => api.get('/video/studio-agent/'),
   // Shared-agent model picker: the caller's provider cards + models, and their sticky pick.
   getAgentModelOptions: (id) => api.get(`/agents/${id}/model-options/`, { noCache: true }),
   // What the chat Effort control may offer: agent config reasoning on/off + the efforts the caller's model accepts.

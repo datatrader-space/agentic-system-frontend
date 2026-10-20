@@ -63,7 +63,7 @@ onBeforeUnmount(() => { if (query) query.removeEventListener ? query.removeEvent
   color: var(--vm-ink, #0f172a); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-align: left; }
 .bs-trigger-sum { color: var(--vm-ink-soft, #64748b); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bs-trigger:focus-visible, .bs-close:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: 2px; }
-.bs-backdrop { position: fixed; inset: 0; z-index: 2000; background: rgba(15, 23, 42, .45); display: flex; align-items: flex-end; }
+.bs-backdrop { position: fixed; inset: 0; z-index: 2000; background: var(--vs-scrim, rgba(15, 23, 42, .45)); display: flex; align-items: flex-end; }
 .bs-sheet { width: 100%; max-height: 85dvh; display: flex; flex-direction: column; background: var(--vm-surface, #fff);
   border-radius: 18px 18px 0 0; box-shadow: 0 -12px 40px rgba(15, 23, 42, .25); padding-bottom: env(safe-area-inset-bottom); outline: none; }
 .bs-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 18px;

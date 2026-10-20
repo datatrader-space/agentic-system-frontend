@@ -29,7 +29,6 @@ vi.mock('../../services/api', () => ({
 
 import ChatWelcome from './ChatWelcome.vue'
 import { useChatStore } from '../../stores/useChatStore'
-import { useVideoStore } from '../../stores/useVideoStore'
 
 const stubs = {
   AgentModePicker: { template: '<div />' },
@@ -65,21 +64,17 @@ describe('the new-chat box gives back a message that was not sent', () => {
 })
 
 
-describe('Create video opens the dedicated studio', () => {
-  it('carries the agent, conversation and draft without expanding the chat composer', async () => {
+describe('No video mode on the welcome screen', () => {
+  it('offers no Create video entry: Video Studio is its own dashboard', async () => {
     const chat = useChatStore()
     chat.agents = [{ id: 7, name: 'Video expert', video_model: 86 }]
     chat.selectedAgentId = '7'
-    chat.conversationId = 'c1'
     chat.loadAgents = vi.fn().mockResolvedValue()
     const wrapper = mountW()
-    await wrapper.get('textarea.composer-input').setValue('Animate this product')
     await wrapper.get('[data-test="welcome-plus"]').trigger('click')
-    await wrapper.get('[data-test="welcome-plus-video-mode"]').trigger('click')
-    expect(push).toHaveBeenCalledWith({ path: '/dashboard/video-studio', query: { agent: '7', conversation: 'c1' } })
-    expect(useVideoStore().studioDraft).toBe('Animate this product')
-    expect(useVideoStore().mode).toBe(false)
-    expect(wrapper.find('[data-test="video-composer-panel"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="welcome-plus-video-mode"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Create video')
+    expect(push).not.toHaveBeenCalledWith(expect.objectContaining({ path: '/video-studio' }))
     wrapper.unmount()
   })
 })

@@ -109,7 +109,6 @@ const initials = computed(() => {
 // stay alive through Phase 5; dashboard children render inside this shell).
 const primaryNav = [
   { to: '/dashboard', exact: true, label: 'Home', 'data-tour': 'home', icon: ['M3 12l9-9 9 9', 'M5 10v10h14V10'] },
-  { to: '/dashboard/video-studio', label: 'Video Studio', icon: ['M3 5h14v14H3z', 'M17 10l4-3v10l-4-3'] },
   // Hidden for now (route/page still works directly): Let's Code.
   // { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", 'data-tour': 'lets-code', icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6'] },
   { to: '/dashboard/agents', match: '/dashboard/agents', label: 'Agents', 'data-tour': 'agents', icon: ['M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93', 'M12 18a8 8 0 0 1-8-8', 'M20 10a8 8 0 0 1-8 8', 'M12 11.5a1.5 1.5 0 1 0 0 .01'] },
@@ -128,6 +127,9 @@ const primaryNav = [
   // Training Data is its own page (training-data/index.html), served at this path by nginx, so it is a plain
   // link. Shown to everyone signed in; the page lists only the projects each person may see.
   { to: '/dashboard/training-data/', external: true, label: 'Training Data', 'data-tour': 'training-data', icon: ['M3 5h18v14H3z', 'M3 15l5-5 4 4 3-3 6 6', 'M15.5 8.5h.01'] },
+  // Video Studio is its own dashboard inside this app, with its own side navigation (owner, 2026-10-19). This is
+  // the one way in: the chat composer has no video mode.
+  { to: '/video-studio', match: '/video-studio', label: 'Video Studio', 'data-tour': 'video-studio', icon: ['M3 6h13v12H3z', 'M16 10l5-3v10l-5-3'] },
   { to: '/dashboard/schedules', label: 'Schedules', 'data-tour': 'schedules', icon: ['M8 2v4', 'M16 2v4', 'M3 10h18', 'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z', 'M12 14v3l2 1'] },
   { to: '/dashboard/activity', label: 'Activity', 'data-tour': 'activity', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
   { to: '/dashboard/budgets', label: 'Budgets', 'data-tour': 'budgets', icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6'] },

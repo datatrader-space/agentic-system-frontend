@@ -220,6 +220,55 @@ describe('useVideoStore', () => {
       operation: 'export', params: { aspects: ['9:16'], timeline_revision_id: 41 }, project_id: 'p1' }))
   })
 
+  it('the Library loads every chat\'s files and pages on', async () => {
+    api.get.mockResolvedValueOnce({ data: { items: [{ attachment_id: 'a1' }], page: 1, has_more: true } })
+    video.library.type = 'image'
+    await video.loadLibrary()
+    expect(api.get).toHaveBeenCalledWith('/video/library/', { params: { type: 'image', source: 'all', q: undefined, page: 1, limit: 40 } })
+    api.get.mockResolvedValueOnce({ data: { items: [{ attachment_id: 'a2' }], page: 2, has_more: false } })
+    await video.loadLibrary({ more: true })
+    expect(video.library.items.map((i) => i.attachment_id)).toEqual(['a1', 'a2'])
+    expect(video.library.hasMore).toBe(false)
+  })
+
+  it('using a Library file links it to the project, then adds it to the composer', async () => {
+    video.project = { project_id: 'p1', scenes: [] }
+    api.post.mockResolvedValueOnce({ data: { project_id: 'p1', scenes: [], assets: [{ attachment_id: 'a1' }] } })
+    const ok = await video.useLibraryItem({ attachment_id: 'a1', title: 'shoe.png', media_type: 'image', url: '/a1.png' },
+                                          'subject', { chat: chatStub() })
+    expect(ok).toBe(true)
+    expect(api.post).toHaveBeenCalledWith('/video/projects/p1/assets/', { attachment_id: 'a1', role: 'subject', source: 'library' })
+    expect(video.refs.map((r) => [r.attachment_id, r.role])).toEqual([['a1', 'subject']])
+  })
+
+  it('with no project open, using a Library file creates one first', async () => {
+    api.post.mockResolvedValueOnce({ data: { project_id: 'p9', scenes: [] } })               // createProject
+      .mockResolvedValueOnce({ data: { project_id: 'p9', scenes: [], assets: [] } })          // pin
+    video.panelTab = 'assets'
+    await video.useLibraryItem({ attachment_id: 'a1', title: 'shoe.png', media_type: 'image' }, 'style', { chat: chatStub() })
+    expect(api.post.mock.calls[0][0]).toBe('/video/projects/')
+    expect(api.post.mock.calls[1][0]).toBe('/video/projects/p9/assets/')
+    expect(video.panelTab).toBe('assets')                                                       // the user stays where they were
+  })
+
+  it('an ingredient is used with its role and saved, renamed and deleted', async () => {
+    video.project = { project_id: 'p1', scenes: [] }
+    const ing = { ingredient_id: 'i1', name: 'Nova', role: 'subject', files: [{ attachment_id: 'f1', title: 'nova.png', media_type: 'image' }] }
+    api.post.mockResolvedValueOnce({ data: { project: { project_id: 'p1', scenes: [] }, references: [] } })
+    await video.useIngredient(ing, { chat: chatStub() })
+    expect(api.post).toHaveBeenCalledWith('/video/ingredients/i1/use/', { project_id: 'p1' })
+    expect(video.refs[0]).toMatchObject({ attachment_id: 'f1', role: 'subject' })
+    api.post.mockResolvedValueOnce({ data: { ...ing, ingredient_id: 'i2', name: 'Red sneaker' } })
+    await video.createIngredient({ kind: 'product', name: 'Red sneaker', description: '', attachmentIds: ['f1'] })
+    expect(api.post).toHaveBeenLastCalledWith('/video/ingredients/', { kind: 'product', name: 'Red sneaker', description: '', attachment_ids: ['f1'] })
+    api.patch.mockResolvedValueOnce({ data: { ...ing, ingredient_id: 'i2', name: 'Hero sneaker' } })
+    await video.updateIngredient('i2', { name: 'Hero sneaker' })
+    expect(video.ingredients[0].name).toBe('Hero sneaker')
+    api.delete.mockResolvedValueOnce({})
+    await video.deleteIngredient('i2')
+    expect(video.ingredients).toEqual([])
+  })
+
   it('clip lengths are offered shortest first', async () => {
     api.get.mockResolvedValue({ data: { routes: [{ ...KLING, outputs: { ...KLING.outputs, durations: [8, 4, 6] } }],
                                         default_route_id: 7 } })

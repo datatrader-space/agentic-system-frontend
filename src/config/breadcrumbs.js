@@ -21,7 +21,6 @@
 export default {
   // ── Dashboard (root: Home) ────────────────────────────────────────────────
   'dashboard-home': { label: 'Home' },
-  'dashboard-video-studio': { label: 'Video Studio', parent: 'dashboard-home' },
 
   'dashboard-agents': { label: 'Agents', parent: 'dashboard-home' },
 

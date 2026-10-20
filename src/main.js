@@ -245,7 +245,8 @@ const router = createRouter({
         { path: '', name: 'dashboard-home', component: HomeDashboard },
         // Bare /dashboard/chat matched NOTHING, so the shell rendered an empty page rather than a
         // chat. It is a natural thing to type and to link to, so it lands where a new chat starts.
-        { path: 'video-studio', name: 'dashboard-video-studio', component: () => import('./views/VideoStudio.vue') },
+        // Video Studio has its own dashboard (/video-studio). Old links keep working, with their query.
+        { path: 'video-studio', redirect: (to) => ({ path: '/video-studio', query: to.query }) },
         { path: 'chat', redirect: '/dashboard/chat/new' },
         { path: 'chat/new', name: 'dashboard-chat-new', component: ChatWorkspace },
         { path: 'chat/:sessionId', name: 'dashboard-chat', component: ChatWorkspace },
@@ -348,6 +349,20 @@ const router = createRouter({
     },
     // ── Separate ADMIN dashboard (own shell + sidebar, staff-gated). Admin pages live here, not in
     //    the user /dashboard. requiresAdmin on the parent gates every child.
+    {
+      // Video Studio: its own dashboard with its own side navigation, inside this app (owner, 2026-10-19).
+      path: '/video-studio',
+      component: () => import('./components/video-shell/VideoStudioShell.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        { path: '', name: 'video-studio', component: () => import('./views/VideoStudio.vue') },
+        { path: 'projects', name: 'video-studio-projects', component: () => import('./views/VideoStudioProjects.vue') },
+        { path: 'library', name: 'video-studio-library', component: () => import('./views/VideoStudioLibrary.vue'),
+          meta: { libraryTab: 'files' } },
+        { path: 'ingredients', name: 'video-studio-ingredients', component: () => import('./views/VideoStudioLibrary.vue'),
+          meta: { libraryTab: 'ingredients' } },
+      ],
+    },
     {
       path: '/admin-dashboard',
       component: AdminShell,

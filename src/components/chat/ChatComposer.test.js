@@ -23,7 +23,6 @@ vi.mock('../../composables/useVoiceInput', () => ({
 
 import ChatComposer from './ChatComposer.vue'
 import { useChatStore } from '../../stores/useChatStore'
-import { useVideoStore } from '../../stores/useVideoStore'
 
 const stubs = {
   AgentModePicker: { template: '<div class="mode-stub" />' },
@@ -224,17 +223,17 @@ describe('a message that was not sent comes back', () => {
 })
 
 
-it('opens Video Studio from an existing chat with the current draft', async () => {
+it('has no video mode: video is made in Video Studio, reached from the side navigation', async () => {
+  // Owner, 2026-10-19: Video Studio is its own dashboard; the chat composer offers no video entry.
   const chat = useChatStore()
   chat.agents = [{ id: 7, name: 'Video expert', video_model: 86 }]
   chat.selectedAgentId = '7'
   chat.conversationId = 'c1'
   const wrapper = mountC()
-  await wrapper.get('textarea.composer-input').setValue('A cinematic product video')
   await wrapper.get('[data-test="composer-plus"]').trigger('click')
-  await wrapper.get('[data-test="plus-video-mode"]').trigger('click')
-  expect(studioPush).toHaveBeenCalledWith({ path: '/dashboard/video-studio', query: { agent: '7', conversation: 'c1' } })
-  expect(useVideoStore().studioDraft).toBe('A cinematic product video')
-  expect(wrapper.find('[data-test="video-composer-panel"]').exists()).toBe(false)
+  expect(wrapper.find('[data-test="composer-plus-menu"]').exists()).toBe(true)
+  expect(wrapper.find('[data-test="plus-video-mode"]').exists()).toBe(false)
+  expect(wrapper.text()).not.toContain('Create video')
+  expect(studioPush).not.toHaveBeenCalled()
   wrapper.unmount()
 })

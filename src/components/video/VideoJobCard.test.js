@@ -95,6 +95,6 @@ it('opens a completed result in the dedicated studio with its conversation', asy
   setActivePinia(createPinia())
   const wrapper = mount(VideoJobCard, { props: { job: { ...base, state: 'ready', output: { attachment_id: 'out', url: '/clip.mp4' } } } })
   await wrapper.findAll('button').find((b) => b.text() === 'Open in Video Studio').trigger('click')
-  expect(push).toHaveBeenCalledWith({ path: '/dashboard/video-studio', query: { conversation: 'c1' } })
+  expect(push).toHaveBeenCalledWith({ path: '/video-studio', query: { conversation: 'c1' } })
   wrapper.unmount()
 })

@@ -1,10 +1,10 @@
 <template>
   <!-- The Video panel (prototype screen 2): what the next request will act on is always visible. The chat
        and these controls edit the same project records on the server. -->
-  <div class="vp" data-test="video-panel">
-    <header class="vp-header">
-      <div><p class="vp-eyebrow">VIDEO STUDIO</p><h2>{{ video.project ? video.project.title : 'Your video workspace' }}</h2>
-        <p class="vp-header-sub">{{ video.project ? `${scenes.length} scenes · ${totalSeconds} seconds planned` : 'Preview, refine and keep every version.' }}</p></div>
+  <div class="vp" :class="{ bare }" data-test="video-panel">
+    <header v-if="!bare" class="vp-header">
+      <div><h2>{{ video.project ? video.project.title : 'Video' }}</h2>
+        <p class="vp-header-sub">{{ video.project ? `${scenes.length} scenes, ${totalSeconds} s planned` : 'Preview, refine and keep every version.' }}</p></div>
       <span v-if="active" class="vp-badge">v{{ active.version || 1 }}</span>
     </header>
     <div class="vp-tabs" role="tablist" aria-label="Video panel">
@@ -15,16 +15,24 @@
 
     <!-- PREVIEW -->
     <section v-show="video.panelTab === 'preview'" class="vp-body" role="tabpanel" id="video-pane-preview" aria-labelledby="video-tab-preview" tabindex="0">
-      <div v-if="active" class="vp-player">
-        <span v-if="sceneLabel" class="vp-scene-label">{{ sceneLabel }}</span>
-        <div class="vp-compare" :class="{ split: !!compare }">
-          <video ref="playerEl" :key="active.url" :src="active.url" controls preload="metadata" playsinline class="vp-video"></video>
+      <div class="vp-viewer" :style="{ '--ar': monitorRatio }">
+        <div v-if="active" class="vp-monitor" :class="{ split: !!compare }" data-test="video-monitor">
+          <video ref="playerEl" :key="active.url" :src="active.url" controls preload="metadata" playsinline class="vp-video"
+                 @timeupdate="onTime" @loadedmetadata="onTime"></video>
           <video v-if="compare" :key="compare.url" :src="compare.url" controls preload="metadata" playsinline class="vp-video"></video>
         </div>
-        <p class="vp-meta">v{{ active.version || 1 }}<span v-if="compare"> compared with v{{ compare.version }}</span></p>
-      </div>
-      <div v-else class="vp-empty">
-        <span class="vp-empty-icon" aria-hidden="true">▶</span><h3>Your next video starts in chat</h3><p>Describe a clip, add a reference, or plan a story. Your preview and editing tools will appear here.</p>
+        <div v-else class="vp-monitor vp-slate" data-test="video-monitor-empty">
+          <span class="vp-safe" aria-hidden="true"></span>
+          <div class="vp-slate-text">
+            <p class="vp-slate-title">No take yet</p>
+            <p>Describe the video to the agent. The first take plays here.</p>
+          </div>
+        </div>
+        <p v-if="active" class="vp-readout">
+          <span class="vp-tc" aria-label="Playback position">{{ clock(pos) }} / {{ clock(dur) }}</span>
+          <span>Version {{ active.version || 1 }}<template v-if="compare">, compared with version {{ compare.version }}</template></span>
+          <span v-if="sceneLabel" class="vp-readout-scene">{{ sceneLabel }}</span>
+        </p>
       </div>
       <div class="vp-actions" v-if="active">
         <button type="button" class="vp-btn" @click="editScene">Edit {{ activeScene ? 'scene' : 'video' }}</button>
@@ -34,7 +42,7 @@
         <button type="button" class="vp-btn" data-test="video-save-frame" @click="saveFrame">Save frame</button>
       </div>
       <div v-if="video.project" class="vp-story">
-        <h3 class="vp-h">Your story <span class="vp-sub">{{ scenes.length }} scenes · {{ totalSeconds }} seconds</span></h3>
+        <h3 class="vp-h">Your story <span class="vp-sub">{{ scenes.length }} scenes, {{ totalSeconds }} s</span></h3>
         <ol class="vp-scenes" aria-label="Scenes">
           <li v-for="(s, i) in scenes" :key="s.scene_id" class="vp-scene" :class="{ on: s.scene_id === video.project.active_scene_id }">
             <button type="button" class="vp-scene-btn" :aria-current="s.scene_id === video.project.active_scene_id ? 'true' : 'false'"
@@ -42,7 +50,7 @@
               <video v-if="s.selected_take" :src="s.selected_take.url" muted preload="metadata" class="vp-thumb" aria-hidden="true"></video>
               <span v-else class="vp-thumb vp-thumb-empty" aria-hidden="true">No take yet</span>
               <span class="vp-scene-title">{{ String(i + 1).padStart(2, '0') }} {{ s.title || 'Scene' }}</span>
-              <span class="vp-scene-meta">{{ seconds(s.planned_ms) }} · {{ s.selected_take ? 'Ready' : 'Not rendered' }}
+              <span class="vp-scene-meta">{{ seconds(s.planned_ms) }}, {{ s.selected_take ? 'ready' : 'not rendered' }}
                 <span v-if="s.selected_take && s.selected_take.version > 1" class="vp-badge">v{{ s.selected_take.version }}</span></span>
             </button>
             <div class="vp-scene-ops">
@@ -54,10 +62,10 @@
             </div>
           </li>
         </ol>
-        <div v-if="tl.music.attachment_id" class="vp-music">♪ Music on the timeline · {{ musicLabel(tl.music.attachment_id) }}</div>
+        <div v-if="tl.music.attachment_id" class="vp-music">Music on the timeline: {{ musicLabel(tl.music.attachment_id) }}</div>
         <div class="vp-next">
-          <span class="vp-next-text"><strong>Next edit</strong> {{ activeScene ? (activeScene.title || 'this scene') + ' only' : 'the active video' }} · model and cost after estimate</span>
-          <button type="button" class="vp-btn primary" @click="editScene">Get edit estimate ›</button>
+          <span class="vp-next-text">The next edit changes {{ activeScene ? (activeScene.title || 'this scene') + ' only' : 'the active video' }}. The model and cost come with the estimate.</span>
+          <button type="button" class="vp-btn" @click="editScene">Describe the edit</button>
         </div>
       </div>
     </section>
@@ -164,7 +172,11 @@
 
     <!-- ASSETS -->
     <section v-show="video.panelTab === 'assets'" class="vp-body" role="tabpanel" id="video-pane-assets" aria-labelledby="video-tab-assets" tabindex="0">
-      <p v-if="!video.project" class="vp-empty">Assets belong to a project. Start a Story video to keep references here.</p>
+      <div class="vp-actions">
+        <button type="button" class="vp-btn primary" data-test="video-open-library" @click="video.libraryOpen = true">Open Library</button>
+        <span class="vp-sub">Everything you uploaded or made, in every chat, and your ingredients.</span>
+      </div>
+      <p v-if="!video.project" class="vp-empty">Assets belong to a project. Use a file from the Library, or start a Story video, to keep references here.</p>
       <template v-else>
         <ul class="vp-assets">
           <li v-for="a in assets" :key="a.asset_id" class="vp-asset">
@@ -195,12 +207,12 @@
 
     <!-- VERSIONS -->
     <section v-show="video.panelTab === 'versions'" class="vp-body" role="tabpanel" id="video-pane-versions" aria-labelledby="video-tab-versions" tabindex="0">
-      <div v-if="!video.versions.length" class="vp-empty"><h3>Every take, kept together</h3><p>Generate or edit a video to see its history here. Restore an earlier version without rendering again.</p></div>
+      <div v-if="!video.versions.length" class="vp-empty"><h3>No versions yet</h3><p>Every take you render or edit is kept here. Restore an earlier one without rendering again.</p></div>
       <ul class="vp-versions">
         <li v-for="v in video.versions" :key="v.attachment_id" class="vp-version" :class="{ on: v.is_active }">
           <video :src="v.url" muted preload="metadata" class="vp-thumb"></video>
           <span class="vp-version-text"><strong>v{{ v.version }}</strong> {{ v.title }}
-            <span class="vp-sub">{{ v.source_kind }}<span v-if="v.duration_ms"> · {{ seconds(v.duration_ms) }}</span></span></span>
+            <span class="vp-sub">{{ v.source_kind }}<span v-if="v.duration_ms">, {{ seconds(v.duration_ms) }}</span></span></span>
           <span v-if="v.is_active" class="vp-badge">Active</span>
           <div class="vp-version-ops">
             <button type="button" class="vp-mini wide" @click="previewVersion(v)">View</button>
@@ -209,6 +221,7 @@
         </li>
       </ul>
     </section>
+    <VideoLibrary v-if="video.libraryOpen" />
   </div>
 </template>
 
@@ -219,7 +232,10 @@ import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
 import { notify } from '../../composables/useNotify'
 import BottomSheet from './BottomSheet.vue'
+import VideoLibrary from './VideoLibrary.vue'
 
+// bare: the host shows the project title itself and frames the panel (Video Studio's canvas).
+defineProps({ bare: { type: Boolean, default: false } })
 const video = useVideoStore()
 const chat = useChatStore()
 const playerEl = ref(null)
@@ -234,7 +250,23 @@ const musicOptions = computed(() => assets.value.filter((a) => a.role === 'music
 const activeScene = computed(() => scenes.value.find((s) => video.project && s.scene_id === video.project.active_scene_id) || null)
 const active = computed(() => video.activeVideo)
 const compare = computed(() => video.versions.find((v) => v.attachment_id === video.compareAttachmentId) || null)
-const sceneLabel = computed(() => activeScene.value ? `Scene ${scenes.value.indexOf(activeScene.value) + 1} · ${activeScene.value.title || ''}` : '')
+const sceneLabel = computed(() => activeScene.value ? `Scene ${scenes.value.indexOf(activeScene.value) + 1}${activeScene.value.title ? ': ' + activeScene.value.title : ''}` : '')
+// The monitor takes the project's shape (16:9 until a project says otherwise).
+const monitorRatio = computed(() => {
+  const m = /^(\d+):(\d+)$/.exec((video.project && video.project.aspect_ratio) || '')
+  return m && Number(m[2]) ? Number(m[1]) / Number(m[2]) : 16 / 9
+})
+const pos = ref(0)
+const dur = ref(0)
+function onTime(e) { pos.value = e.target.currentTime || 0; dur.value = Number.isFinite(e.target.duration) ? e.target.duration : 0 }
+watch(() => active.value && active.value.url, () => { pos.value = 0; dur.value = 0 })
+// m:ss.t: the position a person reads off the monitor (no frame count: the clip's frame rate is not known here).
+function clock(t) {
+  const tenths = Math.floor((t || 0) * 10)
+  const m = Math.floor(tenths / 600)
+  const sec = Math.floor((tenths % 600) / 10)
+  return `${m}:${String(sec).padStart(2, '0')}.${tenths % 10}`
+}
 const totalSeconds = computed(() => Math.round(scenes.value.reduce((t, s) => t + (s.planned_ms || 0), 0) / 1000))
 const allRendered = computed(() => scenes.value.length > 0 && scenes.value.every((s) => s.selected_take))
 const tabs = computed(() => [
@@ -345,12 +377,12 @@ function setCue(i, key, value) { tl.cues[i][key] = key === 'text' ? value : num(
 function removeCue(i) { tl.cues.splice(i, 1); dirty.value = true }
 function musicLabel(id) {
   const a = assets.value.find((x) => x.attachment_id === id)
-  return a ? `${a.role === 'music' ? 'Music' : 'Audio'} · ${String(id).slice(0, 8)}` : String(id).slice(0, 8)
+  return a ? `${a.role === 'music' ? 'Music' : 'Audio'} ${String(id).slice(0, 8)}` : String(id).slice(0, 8)
 }
 
 const tlTotal = computed(() => tl.clips.reduce((t, c) => t + Math.max(0, c.out_s - c.in_s), 0))
-const tlSummary = computed(() => `${tl.clips.length} clips · ${Math.round(tlTotal.value * 10) / 10} s`
-  + (tl.cues.length ? ` · ${tl.cues.length} caption${tl.cues.length === 1 ? '' : 's'}` : '') + (tl.music.attachment_id ? ' · music' : ''))
+const tlSummary = computed(() => `${tl.clips.length} clips, ${Math.round(tlTotal.value * 10) / 10} s`
+  + (tl.cues.length ? `, ${tl.cues.length} caption${tl.cues.length === 1 ? '' : 's'}` : '') + (tl.music.attachment_id ? ', music' : ''))
 const tlError = computed(() => {
   for (const [i, c] of tl.clips.entries()) {
     if (c.out_s <= c.in_s) return `Scene ${i + 1}: the end must be after the start.`
@@ -420,103 +452,129 @@ watch(() => [video.panelTab, chat.conversationId], loadChatMedia, { immediate: t
 </script>
 
 <style scoped>
-.vp { container-type: inline-size; min-width: 0; background: var(--vm-surface-2, #f8fafc); display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.vp-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 20px 18px 16px; background: var(--vm-surface, #fff); }
+/* The canvas. Colours come from the --vm-* tokens, so it reads right in the chat dock (light) and in Video Studio
+   (the grading-suite greys); --vs-* only for status colours, with light fallbacks. */
+.vp { container-type: inline-size; min-width: 0; display: flex; flex-direction: column; height: 100%; min-height: 0;
+  background: var(--vm-surface-2, #f8fafc); color: var(--vm-ink, #0f172a); }
+.vp.bare { background: transparent; }
+.vp-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 18px 12px; background: var(--vm-surface, #fff); }
 .vp-header > div { min-width: 0; }
-.vp-eyebrow { margin: 0 0 6px; font-size: 10px; letter-spacing: .14em; font-weight: 700; color: var(--vm-violet-d, #4f46e5); }
-.vp-header h2 { margin: 0; font-size: 18px; line-height: 1.3; letter-spacing: -.02em; overflow-wrap: anywhere; color: var(--vm-ink, #0f172a); }
-.vp-header-sub { margin: 6px 0 0; font-size: 12px; line-height: 1.5; color: var(--vm-ink-soft, #64748b); }
-.vp-tabs { flex-shrink: 0; background: var(--vm-surface, #fff); display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid var(--vm-line-2, #e5e7eb); overflow-x: auto; }
-.vp-tab { border: none; background: transparent; border-radius: 9px; padding: 8px 14px; min-height: 44px; flex: 1; justify-content: center; white-space: nowrap; font-weight: 700; font-size: 13px;
-  color: var(--vm-ink-soft, #64748b); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
-.vp-tab.on { background: var(--vm-violet-soft, #eef2ff); color: var(--vm-violet-d, #4f46e5); }
-.vp-tab:focus-visible, .vp-btn:focus-visible, .vp-mini:focus-visible, .vp-scene-btn:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: 2px; }
-.vp-count { font-size: 11px; background: var(--vm-surface-2, #f1f5f9); border-radius: 999px; padding: 1px 6px; }
-.vp-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 18px; display: grid; gap: 12px; align-content: start; }
-.vp-player { min-width: 0; position: relative; padding: 8px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 16px; background: var(--vm-surface, #fff); }
-.vp-scene-label { position: absolute; z-index: 1; top: 10px; left: 10px; background: rgba(15, 23, 42, .75); color: #fff; font-size: 12.5px; font-weight: 700; padding: 4px 10px; border-radius: 8px; }
-.vp-compare.split { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.vp-video { width: 100%; max-height: 52vh; border-radius: 12px; background: #000; }
-.vp-meta { padding: 8px 4px 2px; }
-.vp-meta, .vp-sub { font-size: 12px; color: var(--vm-ink-soft, #64748b); margin: 0; font-weight: 500; }
-.vp-empty { text-align: center; padding: 36px 20px; border: 1px dashed var(--vm-line, #cbd5e1); border-radius: 16px; background: var(--vm-surface, #fff); line-height: 1.6; color: var(--vm-ink-soft, #64748b); font-size: 13px; }
-.vp-empty h3 { font-size: 16px; margin: 8px 0; color: var(--vm-ink, #0f172a); }
+.vp-header h2 { margin: 0; font-size: 16px; line-height: 1.3; font-weight: 600; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.vp-header-sub { margin: 4px 0 0; font-size: 12px; line-height: 1.5; color: var(--vm-ink-soft, #64748b); }
+.vp-tabs { flex-shrink: 0; display: flex; gap: 4px; padding: 0 14px; overflow-x: auto; border-bottom: 1px solid var(--vm-line-2, #e5e7eb); }
+.vp:not(.bare) .vp-tabs { background: var(--vm-surface, #fff); }
+.vp-tab { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent;
+  background: transparent; color: var(--vm-ink-soft, #64748b); font: inherit; font-size: 13.5px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.vp-tab:hover { color: var(--vm-ink, #0f172a); }
+.vp-tab.on { color: var(--vm-ink, #0f172a); border-bottom-color: var(--vm-violet, #4f46e5); }
+.vp-count { font-size: 11.5px; color: var(--vm-ink-faint, #64748b); font-variant-numeric: tabular-nums; }
+.vp-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 20px; display: grid; gap: 14px; align-content: start; }
+
+/* The monitor: a black frame of the project's shape, centred in the canvas; its readout sits on its left edge. */
+.vp-viewer { width: min(100%, calc(60vh * var(--ar, 1.7778))); margin: 0 auto; display: grid; gap: 8px; min-width: 0; }
+.vp-monitor { position: relative; width: 100%; aspect-ratio: var(--ar, 1.7778); background: #000; border-radius: 2px; overflow: hidden; }
+.vp-monitor.split { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.vp-video { display: block; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.vp-slate { display: grid; place-items: center; background: #111214; }
+.vp-safe { position: absolute; inset: 7%; pointer-events: none;
+  background:
+    linear-gradient(#5b5c63, #5b5c63) left top / 18px 1px no-repeat, linear-gradient(#5b5c63, #5b5c63) left top / 1px 18px no-repeat,
+    linear-gradient(#5b5c63, #5b5c63) right top / 18px 1px no-repeat, linear-gradient(#5b5c63, #5b5c63) right top / 1px 18px no-repeat,
+    linear-gradient(#5b5c63, #5b5c63) left bottom / 18px 1px no-repeat, linear-gradient(#5b5c63, #5b5c63) left bottom / 1px 18px no-repeat,
+    linear-gradient(#5b5c63, #5b5c63) right bottom / 18px 1px no-repeat, linear-gradient(#5b5c63, #5b5c63) right bottom / 1px 18px no-repeat; }
+.vp-slate-text { position: relative; max-width: 30em; padding: 0 12%; text-align: center; color: #a7a8ae; font-size: 13.5px; line-height: 1.55; }
+.vp-slate-text p { margin: 0; }
+.vp-slate-title { margin-bottom: 4px !important; color: #ededef; font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
+.vp-readout { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; margin: 0; font-size: 12.5px; color: var(--vm-ink-soft, #64748b); }
+.vp-tc { font-size: 15px; font-weight: 600; color: var(--vm-ink, #0f172a); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.vp-readout-scene { color: var(--vm-ink, #0f172a); }
+
+.vp-meta, .vp-sub { margin: 0; font-size: 12px; font-weight: 400; color: var(--vm-ink-soft, #64748b); }
+.vp-empty { padding: 28px 20px; border: 1px dashed var(--vm-line, #cbd5e1); border-radius: 8px; color: var(--vm-ink-soft, #64748b); font-size: 13.5px; line-height: 1.6; }
+.vp-empty h3 { margin: 0 0 4px; font-size: 15px; font-weight: 600; color: var(--vm-ink, #0f172a); }
 .vp-empty p { margin: 0; }
-.vp-empty-icon { font-size: 32px; color: var(--vm-violet-d, #4f46e5); }
-.vp-help { margin: 0; font-size: 12px; line-height: 1.6; color: var(--vm-ink-soft, #64748b); }
-.vp-story { display: grid; gap: 14px; min-width: 0; }
+.vp-help { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--vm-ink-soft, #64748b); }
+.vp-story { display: grid; gap: 14px; min-width: 0; padding-top: 6px; border-top: 1px solid var(--vm-line-2, #e5e7eb); }
 .vp-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.vp-btn { min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--vm-line-2, #e5e7eb); background: var(--vm-surface, #fff); font-weight: 600; font-size: 13px; cursor: pointer; }
-.vp-btn.primary { background: var(--vm-violet-d, #4f46e5); color: #fff; border-color: transparent; }
-.vp-btn:disabled { opacity: .5; cursor: not-allowed; }
-.vp-h { flex-wrap: wrap; margin: 0; font-size: 15px; display: flex; gap: 8px; align-items: baseline; }
-.vp-h4 { margin: 4px 0 0; font-size: 13px; }
-.vp-scenes { list-style: none; margin: 0; padding: 0; display: flex; gap: 10px; overflow-x: auto; }
-.vp-scene { flex: 0 0 200px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 12px; padding: 6px; display: grid; gap: 6px; }
-.vp-scene.on { border-color: var(--vm-violet-d, #4f46e5); box-shadow: 0 0 0 2px var(--vm-violet-soft, #eef2ff); }
-.vp-scene-btn { border: none; background: transparent; text-align: left; display: grid; gap: 4px; cursor: pointer; padding: 0; }
-.vp-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; background: #0f172a; display: grid; place-items: center; color: #94a3b8; font-size: 11px; }
-.vp-scene-title { font-weight: 700; font-size: 13px; }
+.vp-viewer + .vp-actions { justify-content: center; }
+.vp-btn { min-height: 40px; padding: 0 14px; border: 1px solid var(--vm-line, #e5e7eb); border-radius: 6px; background: transparent; color: var(--vm-ink, #0f172a);
+  font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: background-color .15s; }
+.vp-btn:hover:not(:disabled) { background: var(--vm-surface, #fff); }
+.vp-btn.primary { background: var(--vm-violet-d, #4f46e5); border-color: transparent; color: #fff; font-weight: 600; }
+.vp-btn.primary:hover:not(:disabled) { background: var(--vm-violet, #6366f1); }
+.vp-btn:disabled { opacity: .45; cursor: not-allowed; }
+.vp-h { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin: 0; font-size: 14px; font-weight: 600; }
+.vp-h4 { margin: 4px 0 0; font-size: 13px; font-weight: 600; }
+.vp-scenes { list-style: none; margin: 0; padding: 0 0 4px; display: flex; gap: 10px; overflow-x: auto; }
+.vp-scene { flex: 0 0 200px; display: grid; gap: 6px; padding: 6px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; }
+.vp-scene.on { border-color: var(--vm-violet, #4f46e5); box-shadow: inset 0 0 0 1px var(--vm-violet, #4f46e5); }
+.vp-scene-btn { display: grid; gap: 4px; padding: 0; border: none; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.vp-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 4px; background: #000; display: grid; place-items: center; color: #a7a8ae; font-size: 11.5px; }
+.vp-scene-title { font-weight: 600; font-size: 13px; }
 .vp-scene-meta { font-size: 12px; color: var(--vm-ink-soft, #64748b); }
-.vp-badge { font-size: 11px; font-weight: 700; background: var(--vm-violet-soft, #eef2ff); color: var(--vm-violet-d, #4f46e5); border-radius: 999px; padding: 1px 7px; }
+.vp-badge { font-size: 11.5px; font-weight: 600; color: var(--vs-accent-ink, var(--vm-violet-d, #4f46e5)); font-variant-numeric: tabular-nums; }
 .vp-scene-ops { display: flex; gap: 4px; }
-.vp-mini { min-width: 44px; min-height: 44px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; background: var(--vm-surface, #fff); cursor: pointer; font-size: 13px; }
+.vp-mini { min-width: 40px; min-height: 40px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 6px; background: transparent; color: var(--vm-ink, #0f172a);
+  font: inherit; font-size: 13px; cursor: pointer; }
 .vp-mini.wide { padding: 0 10px; }
-.vp-mini:disabled { opacity: .4; }
-.vp-music { border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 10px; padding: 10px; font-size: 13px; }
-.vp-timeline { display: grid; gap: 12px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 14px; padding: 14px; background: var(--vm-surface, #fff); min-width: 0; }
+.vp-mini:hover:not(:disabled) { background: var(--vm-surface, #fff); }
+.vp-mini:disabled { opacity: .4; cursor: not-allowed; }
+.vp-music { padding: 10px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 6px; font-size: 13px; }
+.vp-timeline { display: grid; gap: 12px; min-width: 0; padding-top: 14px; border-top: 1px solid var(--vm-line-2, #e5e7eb); }
 .vp-tl-clips { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .vp-tl-clip { display: grid; grid-template-columns: minmax(0, 1fr) 96px 96px; gap: 10px; align-items: end; }
-.vp-tl-name { font-weight: 700; font-size: 13px; display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
-.vp-tl-group { border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 10px; padding: 10px 12px; display: grid; gap: 10px; min-width: 0; }
-.vp-tl-group legend { font-size: 12.5px; font-weight: 700; padding: 0 4px; }
-.vp-tl-cue { display: grid; grid-template-columns: minmax(0, 1fr) 84px 84px 44px; gap: 8px; align-items: end; }
+.vp-tl-name { display: grid; gap: 2px; min-width: 0; font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.vp-tl-group { display: grid; gap: 10px; min-width: 0; margin: 0; padding: 10px 12px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 6px; }
+.vp-tl-group legend { padding: 0 4px; font-size: 12.5px; font-weight: 600; }
+.vp-tl-cue { display: grid; grid-template-columns: minmax(0, 1fr) 84px 84px 40px; gap: 8px; align-items: end; }
 .vp-tl-music { display: grid; gap: 4px; }
 .vp-tl-pos { min-width: 140px; }
 .vp-timeline label { display: grid; gap: 6px; min-width: 0; }
-.vp-timeline input, .vp-timeline select { width: 100%; min-width: 0; min-height: 44px; box-sizing: border-box; background: var(--vm-surface, #fff); border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; padding: 8px; font: inherit; color: var(--vm-ink, #0f172a); }
-.vp-timeline .vp-check { display: inline-flex; grid-auto-flow: column; align-items: center; gap: 8px; min-height: 44px; font-size: 13px; }
+.vp-timeline input, .vp-timeline select, .vp-field input, .vp-field textarea, .vp-board input, .vp-board textarea, .vp-role {
+  width: 100%; min-width: 0; min-height: 40px; box-sizing: border-box; padding: 8px; border: 1px solid var(--vm-line, #e5e7eb); border-radius: 6px;
+  background: var(--vm-surface, #fff); color: var(--vm-ink, #0f172a); font: inherit; font-size: 13.5px; font-weight: 400; }
+.vp-timeline .vp-check { display: inline-flex; grid-auto-flow: column; align-items: center; gap: 8px; min-height: 40px; font-size: 13px; }
 .vp-timeline .vp-check input { width: 18px; min-height: 18px; }
-.vp-error { margin: 0; font-size: 12.5px; color: #b91c1c; }
+.vp-error { margin: 0; font-size: 12.5px; color: var(--vs-bad-ink, #b91c1c); }
 .vp-export { display: grid; gap: 10px; }
-.vp-next { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 12px; padding: 10px; }
-.vp-next-text { font-size: 12.5px; color: var(--vm-ink-soft, #64748b); }
-.vp-field { display: grid; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--vm-ink-soft, #64748b); }
-.vp-field input, .vp-field textarea, .vp-board input, .vp-board textarea, .vp-role { width: 100%; min-width: 0; min-height: 44px; box-sizing: border-box; background: var(--vm-surface, #fff); border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; padding: 8px; font: inherit; color: var(--vm-ink, #0f172a); font-weight: 400; }
+.vp-next { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.vp-next-text { font-size: 12.5px; line-height: 1.5; color: var(--vm-ink-soft, #64748b); }
+.vp-field { display: grid; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--vm-ink-soft, #64748b); }
 .vp-board { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.vp-board-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 80px 44px; gap: 12px; align-items: end; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 14px; padding: 14px; background: var(--vm-surface, #fff); }
-.vp-board-title { grid-column: 2 / -1; }
-.vp-board-intent { grid-column: 2 / -1; }
+.vp-board-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) 80px 40px; gap: 12px; align-items: end; padding: 12px;
+  border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; }
+.vp-board-title, .vp-board-intent { grid-column: 2 / -1; }
 .vp-board-len { grid-column: 2 / 4; max-width: 120px; }
 .vp-board label { display: grid; gap: 6px; min-width: 0; }
-.vp-input-label { font-size: 11px; color: var(--vm-ink-soft, #64748b); font-weight: 600; }
-.vp-board-n { grid-column: 1; grid-row: 1; align-self: center; color: var(--vm-violet-d, #4f46e5); }
-.vp-board-n { font-weight: 700; padding-top: 8px; }
-.vp-aspects { border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 10px; display: flex; flex-wrap: wrap; gap: 14px; padding: 8px 12px; font-size: 13px; }
-.vp-aspects label { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.vp-input-label { font-size: 11.5px; font-weight: 500; color: var(--vm-ink-soft, #64748b); }
+.vp-board-n { grid-column: 1; grid-row: 1; align-self: center; padding-top: 8px; font-weight: 600; color: var(--vm-ink-soft, #64748b); font-variant-numeric: tabular-nums; }
+.vp-aspects { display: flex; flex-wrap: wrap; gap: 14px; padding: 8px 12px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 6px; font-size: 13px; }
+.vp-aspects label { min-height: 40px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .vp-assets, .vp-versions { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.vp-asset, .vp-version { display: grid; grid-template-columns: 80px minmax(0, 1fr) auto; gap: 12px; align-items: center; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 12px; padding: 10px; background: var(--vm-surface, #fff); }
-.vp-version.on { background: var(--vm-violet-soft, #eef2ff); border-radius: 10px; }
-.vp-version-text { min-width: 0; overflow-wrap: anywhere; display: grid; font-size: 13px; }
-.vp-version-ops { grid-column: 2 / -1; justify-content: flex-end; display: flex; gap: 4px; }
+.vp-asset, .vp-version { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px;
+  border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; }
+.vp-version.on { border-color: var(--vm-violet, #4f46e5); }
+.vp-version-text { display: grid; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+.vp-version-ops { grid-column: 2 / -1; display: flex; justify-content: flex-end; gap: 4px; }
 .vp-asset-role { font-size: 12.5px; text-transform: capitalize; }
 .vp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.vp input:focus-visible, .vp textarea:focus-visible, .vp select:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: 2px; }
-.vp-btn:hover:not(:disabled), .vp-mini:hover:not(:disabled) { border-color: var(--vm-violet-d, #4f46e5); }
+.vp-tab:focus-visible, .vp-btn:focus-visible, .vp-mini:focus-visible, .vp-scene-btn:focus-visible, .vp-body:focus-visible,
+.vp input:focus-visible, .vp textarea:focus-visible, .vp select:focus-visible { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
+@media (pointer: coarse) { .vp-btn, .vp-mini, .vp-timeline input, .vp-timeline select, .vp-field input, .vp-board input, .vp-role { min-height: 44px; } .vp-mini { min-width: 44px; } }
 @container (max-width: 420px) {
-  .vp-header { padding: 16px 12px; }
+  .vp-header { padding: 14px 12px 10px; }
   .vp-body { padding: 12px; }
-  .vp-tab { padding: 8px; font-size: 12px; }
-  .vp-compare.split { grid-template-columns: 1fr; }
-  .vp-board-row { padding: 12px; gap: 10px; grid-template-columns: 20px minmax(0, 1fr) 60px 44px; }
+  .vp-tabs { padding: 0 6px; }
+  .vp-tab { padding: 0 8px; font-size: 12.5px; }
+  .vp-monitor.split { grid-template-columns: 1fr; aspect-ratio: auto; }
+  .vp-board-row { padding: 10px; gap: 10px; grid-template-columns: 20px minmax(0, 1fr) 60px 40px; }
   .vp-next .vp-btn { width: 100%; }
-  .vp-asset, .vp-version { grid-template-columns: 64px minmax(0, 1fr) auto; gap: 8px; }
+  .vp-asset, .vp-version { grid-template-columns: 72px minmax(0, 1fr) auto; gap: 8px; }
   .vp-tl-clip { grid-template-columns: 1fr 1fr; }
   .vp-tl-name { grid-column: 1 / -1; }
   .vp-tl-cue { grid-template-columns: 1fr 1fr 44px; }
   .vp-tl-cue-text { grid-column: 1 / -1; }
-  .vp-timeline input, .vp-timeline select { font-size: 16px; }
-  .vp-field input, .vp-field textarea, .vp-board input, .vp-board textarea, .vp-role { font-size: 16px; }
+  .vp-timeline input, .vp-timeline select, .vp-field input, .vp-field textarea, .vp-board input, .vp-board textarea, .vp-role { font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .vp * { transition: none !important; } }
 </style>

@@ -96,18 +96,6 @@
                   <span v-if="imageMode" class="plus-badge">On</span>
                 </button>
 
-                <button type="button" class="plus-item" role="menuitem" data-test="plus-video-mode"
-                        :disabled="!hasVideoModel"
-                        v-show="pShow('create video generate edit clip story animate movie')"
-                        @click="toggleVideoModeFromMenu">
-                  <span class="plus-ic plus-ic--image">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2" stroke-linejoin="round"/></svg>
-                  </span>
-                  <span class="plus-body"><span class="plus-title">Create video</span>
-                    <span class="plus-desc">{{ hasVideoModel ? 'Open Video Studio' : 'Assign a video model first' }}</span></span>
-
-                </button>
-
                 <button type="button" class="plus-item" role="menuitem" data-test="plus-add-link"
                         :disabled="!conversationId" :title="conversationId ? '' : 'Send a message first to start the chat'"
                         v-show="pShow('ask link youtube webpage url paste video')" @click="openUrl">
@@ -251,7 +239,6 @@
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router'
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import AgentModePicker from '../agent/AgentModePicker.vue'
 import AgentModelPicker from '../agent/AgentModelPicker.vue'
@@ -262,23 +249,11 @@ import { useVoiceInput } from '../../composables/useVoiceInput'
 import { notify } from '../../composables/useNotify'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import { useChatStore } from '../../stores/useChatStore'
-import { useVideoStore } from '../../stores/useVideoStore'
 
-const router = useRouter()
+// Video is made in Video Studio, its own dashboard (side navigation); the composer has no video mode
+// (owner, 2026-10-19).
 const canvas = useCanvasStore()
 const chat = useChatStore()
-const video = useVideoStore()
-// Video mode is offered when the agent has a video model (the backend refuses without one as well).
-const hasVideoModel = computed(() => !!(chat.currentAgent && chat.currentAgent.video_model))
-const toggleVideoModeFromMenu = () => {
-  if (!hasVideoModel.value) return
-  video.studioDraft = draft.value
-  video.mode = false
-  closeMenu()
-  router.push({ path: '/dashboard/video-studio', query: {
-    agent: chat.selectedAgentId || undefined, conversation: chat.conversationId || undefined,
-  } })
-}
 // Create-Image mode lives in the chat store (single source of truth, read at send time to set the
 // `image_mode` WS flag). Sticky across turns until turned off. The composer only lets it turn on when the
 // agent has an image model (hasImageModel prop) — the backend also blocks it, this is the UX guard.
@@ -561,7 +536,6 @@ const reset = async () => {
   autoGrow()
 }
 // The estimate was created: the description now lives on its card.
-const clearDraft = () => { reset() }
 
 // Give back text that was not sent (the chat failed to start). Never overwrites something already typed.
 const restoreDraft = (text) => {

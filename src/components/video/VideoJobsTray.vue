@@ -4,7 +4,7 @@
        flight in view. State changes are announced politely for screen readers. -->
   <div v-if="visible.length" class="vjt" data-test="video-jobs-tray">
     <div class="vjt-live" aria-live="polite" role="status">{{ announcement }}</div>
-    <VideoJobCard v-for="j in visible" :key="j.job_id" :job="j" />
+    <VideoJobCard v-for="j in visible" :key="j.job_id" :job="j" :in-studio="inStudio" @open="emit('open')" />
   </div>
 </template>
 
@@ -13,7 +13,8 @@ import { computed, ref, watch } from 'vue'
 import { useVideoStore } from '../../stores/useVideoStore'
 import VideoJobCard from './VideoJobCard.vue'
 
-const props = defineProps({ conversationId: { type: [String, Number], default: null } })
+const props = defineProps({ conversationId: { type: [String, Number], default: null }, inStudio: { type: Boolean, default: false } })
+const emit = defineEmits(['open'])
 const video = useVideoStore()
 
 // Open work, plus failures (so the reason stays next to the job until dismissed) and results that could

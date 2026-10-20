@@ -114,18 +114,6 @@
                     <span v-if="imageMode" class="plus-badge">On</span>
                   </button>
 
-                  <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-video-mode"
-                          :disabled="!hasVideoModel"
-                          v-show="pShow('create video generate edit clip story animate movie')"
-                          @click="toggleVideoModeFromMenu">
-                    <span class="plus-ic plus-ic--image">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2" stroke-linejoin="round"/></svg>
-                    </span>
-                    <span class="plus-body"><span class="plus-title">Create video</span>
-                      <span class="plus-desc">{{ hasVideoModel ? 'Open Video Studio' : 'Assign a video model first' }}</span></span>
-
-                  </button>
-
                   <button type="button" class="plus-item" role="menuitem" data-test="welcome-plus-link"
                           :disabled="chat.needsAgent || urlBusy" v-show="pShow('ask link youtube webpage url paste video')"
                           @click="openUrl">
@@ -269,7 +257,6 @@ import AgentSwitcher from './AgentSwitcher.vue'
 import AddDocumentUrl from '../knowledge/AddDocumentUrl.vue'
 import { useVoiceInput } from '../../composables/useVoiceInput'
 import { notify } from '../../composables/useNotify'
-import { useVideoStore } from '../../stores/useVideoStore'
 
 // Long pasted text becomes a .txt attachment instead of a giant inline blob (matches ChatComposer).
 const LONG_PASTE_CHAR_LIMIT = 8000
@@ -369,19 +356,7 @@ const toggleImageModeFromMenu = () => {
     ? 'Create-Image mode on — the agent will focus on generating and editing images.'
     : 'Create-Image mode off.')
 }
-// Video mode (VIDEO_WORKSPACE_PLAN.md section 4.1): offered when the selected agent has a video model.
-const video = useVideoStore()
-const hasVideoModel = computed(() => !!(chat.currentAgent && chat.currentAgent.video_model))
-const toggleVideoModeFromMenu = () => {
-  if (!hasVideoModel.value) return
-  video.studioDraft = draft.value
-  video.mode = false
-  closeMenu()
-  router.push({ path: '/dashboard/video-studio', query: {
-    agent: chat.selectedAgentId || undefined, conversation: chat.conversationId || undefined,
-  } })
-}
-const clearDraft = () => { draft.value = ''; resizeSoon() }
+// Video is made in Video Studio, its own dashboard (side navigation); no video mode here (owner, 2026-10-19).
 // DEEP RESEARCH. The mode is a yes/no; the DEPTH is the cost decision, and it is the user's because the
 // same request costs cents at one breadth and dollars at another. Each depth is a pair of budgets the
 // backend ENFORCES — sub-questions per fan-out, and source pages per sub-question. These labels must match

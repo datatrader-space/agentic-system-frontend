@@ -187,11 +187,12 @@ const handleToggleTheme = () => {
 // Layout computed properties
 const isFullScreen = computed(() => route.name === 'repository-detail' || route.name === 'agent-playground')
 
-// v2 app shell routes (/dashboard/*) and the separate admin dashboard (/admin-dashboard/*) render
-// full-bleed with their own sidebar/header.
+// v2 app shell routes (/dashboard/*), the separate admin dashboard (/admin-dashboard/*) and Video Studio's
+// dashboard (/video-studio/*) render full-bleed with their own sidebar/header.
 const isAppShell = computed(() =>
   route.path === '/dashboard' || route.path.startsWith('/dashboard/') ||
-  route.path === '/admin-dashboard' || route.path.startsWith('/admin-dashboard/'))
+  route.path === '/admin-dashboard' || route.path.startsWith('/admin-dashboard/') ||
+  route.path === '/video-studio' || route.path.startsWith('/video-studio/'))
 
 // Public webchat pages render completely bare (no app header, no main wrapper).
 const isBareChat = computed(() => route.path.startsWith('/a/') || route.path.startsWith('/embed/'))
