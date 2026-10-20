@@ -38,33 +38,3 @@ export async function signOut({ fetchImpl = fetch, store, session = globalThis.s
   try { (store || globalThis.localStorage)?.clear(); session?.clear(); } catch { /* storage blocked: nothing to clear */ }
   go('/login');
 }
-
-export class ConnectionError extends Error {
-  constructor(code, message) { super(message); this.code = code; }
-}
-
-export async function checkSession(fetchImpl = fetch, timeoutMs = 8000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetchImpl('/api/auth/me', {
-      method: 'GET', credentials: 'same-origin', redirect: 'error', cache: 'no-store',
-      headers: { Accept: 'application/json' }, signal: controller.signal,
-    });
-    if (response.redirected) throw new ConnectionError('redirect', 'The session endpoint redirected. Sign in through the existing application.');
-    if ([401, 403].includes(response.status)) throw new ConnectionError('auth', 'No accessible session. Sign in through the existing application on the same hostname, then retry.');
-    if (!response.ok) throw new ConnectionError('server', 'The local backend is unavailable or refused the request.');
-    if (!(response.headers.get('content-type') || '').split(';')[0].trim().match(/^application\/(json|[\w.+-]+\+json)$/i)) {
-      throw new ConnectionError('format', 'The backend returned a page instead of session data.');
-    }
-    let body;
-    try { body = await response.json(); } catch { throw new ConnectionError('format', 'The session response could not be read.'); }
-    const user = body?.user;
-    if (!user || !Number.isSafeInteger(user.id) || user.id < 1) throw new ConnectionError('schema', 'The backend returned an unsupported session response.');
-    // Deliberately discard email, external account IDs and admin flags. Identity is not project permission.
-    return { displayName: typeof user.full_name === 'string' && user.full_name.trim() ? user.full_name.trim().slice(0, 120) : 'Signed-in user' };
-  } catch (error) {
-    if (error instanceof ConnectionError) throw error;
-    throw new ConnectionError(controller.signal.aborted ? 'timeout' : 'network', controller.signal.aborted ? 'The session check timed out. Try again.' : 'Could not reach the local session endpoint. Check the backend and existing sign-in.');
-  } finally { clearTimeout(timer); }
-}

@@ -40,3 +40,16 @@ test('a cut touches a shape only when its segment crosses the outline or a click
   assert.equal(crosses(square, [-50, 50], [-10, 50]), false);      // on the line through the shape, but far from it
   assert.equal(crosses(square, [150, 0], [150, 100]), false);
 });
+
+test('two shapes overlap by the share of the place they both cover', async () => {
+  const { overlap, bestMatch } = await import('../src/geometry.js');
+  assert.ok(Math.abs(overlap(square, square) - 1) < 1e-9);
+  assert.equal(overlap(square, [[200, 200], [300, 200], [300, 300], [200, 300]]), 0);
+  const half = [[50, 0], [150, 0], [150, 100], [50, 100]];
+  assert.ok(Math.abs(overlap(square, half) - 1 / 3) < 0.03, String(overlap(square, half)));
+  const drawn = { kind: 'wall', points: [[5, 5], [95, 3], [97, 98], [2, 96]] };
+  const found = [{ kind: 'window', points: square }, { kind: 'wall', points: half }, { kind: 'wall', points: square }];
+  assert.equal(bestMatch(drawn, found).shape, found[2]);                       // the same kind, most of the same place
+  assert.equal(bestMatch({ kind: 'door', points: square }, found), null);      // nothing of its kind
+  assert.equal(bestMatch(drawn, [{ kind: 'wall', points: [[90, 90], [200, 90], [200, 200], [90, 200]] }]), null);  // too little
+});

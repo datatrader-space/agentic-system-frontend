@@ -34,6 +34,8 @@ test('a project row becomes a card; a Labeller sees no numbers, shown as 0', () 
     rights: ['label', 'view'], folder: { id: 2, name: 'Pilots' }, created_at: '2026-10-15T10:00:00Z' });
   assert.equal(card.id, '~4'); assert.equal(card.images, 0); assert.equal(card.folder, 'Pilots'); assert.equal(card.folderId, 2);
   assert.equal(card.details.visibility, 'Shared');
+  assert.equal(card.thumbnail, '');                                                    // a Labeller's card has no photo of the whole project
+  assert.equal(toCard({ ref: 'leads', thumbnail: '/api/training-data/app/projects/leads/thumbnail/?p=1' }).thumbnail, '/api/training-data/app/projects/leads/thumbnail/?p=1');
   assert.equal(ago('2026-10-15T10:00:00Z', Date.parse('2026-10-15T12:00:00Z')), '2 hours ago');
   assert.equal(ago('2026-10-15T11:59:40Z', Date.parse('2026-10-15T12:00:00Z')), 'Just now');
 });

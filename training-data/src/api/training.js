@@ -109,6 +109,8 @@ export function toCard(row, index = 0) {
     id: row.ref, ref: row.ref, serverId: row.id, name: row.name, description: row.description, type: row.task_label,
     family: row.family || '',
     images: row.photos ?? 0, models: row.models ?? 0, ready: 0, variant: index % 3,
+    // The newest photo, small, for a role that sees the whole project (app_api.project_thumbnail); '' otherwise.
+    thumbnail: row.thumbnail || '',
     date: ago(row.last_activity || row.created_at), folder: row.folder?.name, folderId: row.folder?.id ?? null,
     role: row.role, rights: row.rights || [], details: { visibility: row.visibility === 'shared' ? 'Shared' : 'Private' },
   };

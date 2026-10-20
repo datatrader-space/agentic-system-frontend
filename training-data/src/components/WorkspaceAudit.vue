@@ -46,7 +46,7 @@ const at = iso => new Date(iso).toLocaleString(undefined, { day: 'numeric', mont
                 <td data-label="When">{{ at(e.at) }}<small>{{ timeAgo(e.at) }}</small></td>
                 <td data-label="Who">{{ e.by }}</td>
                 <td data-label="What">{{ e.label }}</td>
-                <td data-label="On"><code v-if="e.item">{{ e.item }}</code><span v-else class="muted">—</span></td>
+                <td data-label="On"><template v-if="e.item_name">{{ e.item_name }}<small>{{ e.item }}</small></template><code v-else-if="e.item">{{ e.item }}</code><span v-else class="muted">—</span></td>
                 <td data-label="Result"><UiBadge :tone="e.outcome==='denied' ? 'amber' : 'green'">{{ e.outcome==='denied' ? 'Refused' : 'Allowed' }}</UiBadge><small v-if="e.reason">{{ e.reason }}</small></td>
               </tr>
             </tbody>

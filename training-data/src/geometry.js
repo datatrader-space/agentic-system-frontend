@@ -297,3 +297,33 @@ export function box(a, b) {
   const left = Math.min(a[0], b[0]), right = Math.max(a[0], b[0]), top = Math.min(a[1], b[1]), bottom = Math.max(a[1], b[1]);
   return [[left, top], [right, top], [right, bottom], [left, bottom]];
 }
+
+// How much two shapes cover the same place, from 0 (apart) to 1 (the same): the share of the points of a grid over both
+// shapes' box that lie in both, of those that lie in either. Sampled, so it holds for shapes that are not convex.
+export function overlap(a, b, steps = 48) {
+  const xs = [...a, ...b].map(p => p[0]), ys = [...a, ...b].map(p => p[1]);
+  const left = Math.min(...xs), top = Math.min(...ys), width = Math.max(...xs) - left, height = Math.max(...ys) - top;
+  if (!(width > 0) || !(height > 0)) return 0;
+  let both = 0, either = 0;
+  for (let i = 0; i < steps; i += 1) {
+    for (let j = 0; j < steps; j += 1) {
+      const at = [left + (i + 0.5) * width / steps, top + (j + 0.5) * height / steps];
+      const inA = contains(a, at), inB = contains(b, at);
+      if (inA || inB) either += 1;
+      if (inA && inB) both += 1;
+    }
+  }
+  return either ? both / either : 0;
+}
+
+// The shape among ``candidates`` (each {kind, points}) of the same kind as ``target`` that covers most of the same
+// place, when it covers at least ``least`` of it; else null. AI refine replaces the target with it.
+export function bestMatch(target, candidates, least = 0.3) {
+  let found = null;
+  for (const candidate of candidates || []) {
+    if (candidate.kind !== target.kind || (candidate.points || []).length < 3) continue;
+    const share = overlap(target.points, candidate.points);
+    if (share >= least && (!found || share > found.share)) found = { shape: candidate, share };
+  }
+  return found;
+}
