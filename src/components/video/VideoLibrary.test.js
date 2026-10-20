@@ -124,7 +124,7 @@ describe('VideoLibrary preview and source chat', () => {
     api.get.mockImplementation((url) => Promise.resolve({ data: url === '/video/library/'
       ? { items: [
         { ...ITEMS[0], conversation_id: 2874, conversation_title: 'Candle reel', conversation_in_studio: true },
-        { ...ITEMS[1], conversation_id: 15, conversation_title: 'Old chat', conversation_in_studio: false },
+        { ...ITEMS[1], conversation_id: 15, conversation_title: 'Chat with Video Studio', conversation_preview: 'Old chat', conversation_in_studio: false },
         { attachment_id: 'doc-1', source: 'uploaded', media_type: 'document', title: 'notes.txt', url: '/n.txt', ext: 'txt' },
       ], page: 1, has_more: false } : { ingredients: [] } }))
   })
@@ -137,6 +137,8 @@ describe('VideoLibrary preview and source chat', () => {
     expect(links.map((a) => a.textContent.trim())).toEqual(['From Candle reel', 'From Old chat'])
     expect(JSON.parse(links[0].dataset.to)).toEqual({ path: '/video-studio', query: { conversation: '2874' } })
     expect(JSON.parse(links[1].dataset.to)).toBe('/dashboard/chat/15')
+    links[0].click()                                    // following it leaves the Library
+    expect(useVideoStore().libraryOpen).toBe(false)
     w.unmount()
   })
 

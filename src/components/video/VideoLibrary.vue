@@ -65,8 +65,8 @@
               <span class="lib-name" :title="it.title">{{ it.title }}</span>
               <span class="lib-meta">{{ it.source === 'generated' ? 'Made with AI' : 'Uploaded' }}, {{ day(it.created_at) }}{{ it.size_bytes ? ', ' + size(it.size_bytes) : '' }}</span>
               <!-- The chat it came from, one click away (owner, 2026-10-20). -->
-              <router-link v-if="it.conversation_id" :to="chatLink(it)" class="lib-chat" :title="'Open the chat: ' + (it.conversation_title || 'its chat')"
-                           data-test="lib-chat">From {{ it.conversation_title || 'its chat' }}</router-link>
+              <router-link v-if="it.conversation_id" :to="chatLink(it)" class="lib-chat" :title="'Open the chat: ' + fromChat(it)"
+                           data-test="lib-chat" @click="leave">From {{ fromChat(it) }}</router-link>
               <span v-if="it.ingredients && it.ingredients.length" class="lib-ing">{{ it.ingredients.join(', ') }}</span>
               <!-- A document is listed to open; a video uses images, clips and sounds. -->
               <div v-if="it.media_type === 'document'" class="lib-actions">
@@ -85,7 +85,7 @@
               </div>
             </li>
           </ul>
-          <MediaViewer v-if="viewIndex >= 0 && viewable[viewIndex]" :items="viewable" v-model:index="viewIndex" @close="viewIndex = -1" />
+          <MediaViewer v-if="viewIndex >= 0 && viewable[viewIndex]" :items="viewable" v-model:index="viewIndex" @close="viewIndex = -1" @leave="leave" />
           <button v-if="lib.hasMore" type="button" class="lib-btn wide" :disabled="lib.loading" @click="video.loadLibrary({ more: true })">
             {{ lib.loading ? 'Loading…' : 'Load more' }}</button>
 
@@ -155,6 +155,7 @@ import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
 import VideoChoice from './VideoChoice.vue'
 import MediaViewer from './MediaViewer.vue'
+import { chatName } from '../../composables/useChatHistory'
 
 // mode 'drawer': over the Create page, "Use" adds the file at once. mode 'page': Video Studio's Library and
 // Ingredients pages, where "Use" queues the file and opens Create, which applies it to its project.
@@ -203,7 +204,10 @@ function size(n) {
 const viewIndex = ref(-1)
 const viewable = computed(() => lib.value.items.filter((i) => i.media_type !== 'document'))
 function openViewer(it) { viewIndex.value = viewable.value.findIndex((i) => i.attachment_id === it.attachment_id) }
-// A Studio chat opens in the Studio; any other chat in the main chat.
+// The chat's name by the main chat list's rule; a Studio chat opens in the Studio, any other in the main chat.
+// Following a link to a chat leaves the Library: the drawer closes so the chat is in view (it stays on the page).
+function leave() { viewIndex.value = -1; if (!isPage.value) close() }
+function fromChat(it) { return chatName({ title: it.conversation_title, last_message: { content: it.conversation_preview } }) }
 function chatLink(it) {
   return it.conversation_in_studio ? { path: '/video-studio', query: { conversation: String(it.conversation_id) } }
     : `/dashboard/chat/${it.conversation_id}`

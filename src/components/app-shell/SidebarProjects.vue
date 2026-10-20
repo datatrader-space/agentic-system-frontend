@@ -95,7 +95,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useProjectsStore } from '../../stores/useProjectsStore'
 import { useChatStore } from '../../stores/useChatStore'
 import { useLayoutStore } from '../../stores/useLayoutStore'
-import { previewOf } from '../../composables/useChatHistory'
+import { chatName } from '../../composables/useChatHistory'
 
 const props = defineProps({ collapsed: { type: Boolean, default: false } })
 
@@ -213,9 +213,7 @@ const ChatRow = defineComponent({
     return () => {
       const c = props.c
       const key = `c${c.id}`
-      // A name the person gave the chat wins; a default "Chat with <agent>" falls back to its last message.
-      const named = (c.title || '').trim()
-      const label = (named && !/^(chat with |new conversation$)/i.test(named)) ? named : (previewOf(c) || 'Chat')
+      const label = chatName(c)
       const active = String(route.params.sessionId || '') === String(c.id)
       if (renaming.value === key) {
         return h('form', { class: 'sp-inline', onSubmit: (e) => { e.preventDefault(); submitRenameChat(c, props.projectId) } }, [

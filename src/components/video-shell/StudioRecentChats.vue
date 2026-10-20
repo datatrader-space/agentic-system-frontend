@@ -23,6 +23,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
+import { chatName } from '../../composables/useChatHistory'
 import { useChatStore } from '../../stores/useChatStore'
 
 const PAGE = 15
@@ -35,7 +36,8 @@ const loading = ref(false)
 let agentId = null
 
 const hasMore = computed(() => chats.value.length < total.value)
-function label(c) { return String(c.title || '').trim() || 'Untitled chat' }
+// Named as in the main chat list: most Studio chats keep the default "Chat with Video Studio" title.
+const label = chatName
 function isOpen(c) { return String(route.query.conversation || chat.conversationId || '') === String(c.id) }
 function day(iso) {
   if (!iso) return ''

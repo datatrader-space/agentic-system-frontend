@@ -10,11 +10,8 @@
         <header class="mv-bar">
           <div class="mv-text">
             <p class="mv-title" :title="item.title">{{ item.title }}</p>
-            <p class="mv-meta">{{ meta }}
-              <template v-if="item.conversation_id">, from
-                <router-link :to="chatLink" class="mv-chat" data-test="media-viewer-chat" @click="emit('close')">{{ item.conversation_title || 'its chat' }}</router-link>
-              </template>
-            </p>
+            <p class="mv-meta">{{ meta }}<template v-if="item.conversation_id">, from <router-link :to="chatLink" class="mv-chat"
+                data-test="media-viewer-chat" @click="emit('leave')">{{ fromChat }}</router-link></template></p>
           </div>
           <a :href="item.url" target="_blank" rel="noopener noreferrer" class="mv-btn">Open original</a>
           <button ref="closeEl" type="button" class="mv-btn mv-icon" aria-label="Close preview" data-test="media-viewer-close" @click="emit('close')">
@@ -44,15 +41,17 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { chatName } from '../../composables/useChatHistory'
 
 const props = defineProps({
   items: { type: Array, required: true },          // the files that can be previewed, in the order shown
   index: { type: Number, required: true },
 })
-const emit = defineEmits(['close', 'update:index'])
+const emit = defineEmits(['close', 'leave', 'update:index'])   // leave: its chat link was followed
 const closeEl = ref(null)
 const item = computed(() => props.items[props.index] || {})
 // A Studio chat opens in the Studio; any other chat in the main chat.
+const fromChat = computed(() => chatName({ title: item.value.conversation_title, last_message: { content: item.value.conversation_preview } }))
 const chatLink = computed(() => (item.value.conversation_in_studio
   ? { path: '/video-studio', query: { conversation: String(item.value.conversation_id) } }
   : `/dashboard/chat/${item.value.conversation_id}`))
@@ -85,7 +84,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .mv { position: fixed; inset: 0; z-index: 2000;   /* above the Library drawer (1900) it opens from */
   display: grid; place-items: center; padding: 24px; background: rgba(6, 7, 9, .86); }
-.mv-frame { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; width: min(1200px, 100%); height: min(860px, 100%); }
+.mv-frame { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; width: min(1200px, 100%); height: min(860px, calc(100dvh - 48px)); }
 .mv-bar { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .mv-text { flex: 1; min-width: 0; }
 .mv-title { margin: 0; font-size: 15px; font-weight: 600; color: #ededef; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -97,11 +96,11 @@ onBeforeUnmount(() => {
 .mv-icon { width: 40px; padding: 0; }
 .mv-icon svg { width: 18px; height: 18px; }
 .mv-stage { position: relative; display: grid; place-items: center; min-height: 0; border-radius: 8px; background: #000; overflow: hidden; }
-.mv-media { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.mv-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
 .mv-audio { display: grid; justify-items: center; gap: 18px; color: #a7a8ae; }
 .mv-audio svg { width: 64px; height: 64px; }
 .mv-audio audio { width: min(420px, 80vw); }
-.mv-nav { position: absolute; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 44px; height: 44px; border: 0;
+.mv-nav { position: absolute; z-index: 1; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 44px; height: 44px; border: 0;
   border-radius: 999px; background: rgba(0, 0, 0, .55); color: #ededef; cursor: pointer; }
 .mv-nav:hover { background: rgba(0, 0, 0, .8); }
 .mv-nav svg { width: 22px; height: 22px; }
@@ -111,6 +110,7 @@ onBeforeUnmount(() => {
 .mv-btn:focus-visible, .mv-nav:focus-visible, .mv-chat:focus-visible { outline: 2px solid #8db4ff; outline-offset: 2px; }
 @media (max-width: 640px) {
   .mv { padding: 10px; }
+  .mv-frame { height: calc(100dvh - 20px); }
   .mv-bar a.mv-btn { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .mv * { transition: none !important; } }

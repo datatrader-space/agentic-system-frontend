@@ -70,6 +70,13 @@ export function previewOf(s) {
   return title || 'New conversation'
 }
 
+/** A chat's name in a list: the name the person gave it; a default "Chat with <agent>" (or none) falls back to
+ *  its last message. The main chat list and Video Studio (recent chats, the Library's "From") use this one rule. */
+export function chatName(c) {
+  const named = (c && c.title || '').trim()
+  return (named && !/^(chat with |new conversation$)/i.test(named)) ? named : (previewOf(c) || 'Chat')
+}
+
 /** Agent name for the secondary line. */
 export function agentOf(s) {
   return (s && (s.agent_profile_name || s.agent_name)) || 'Agent'
