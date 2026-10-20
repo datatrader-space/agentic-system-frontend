@@ -1,7 +1,7 @@
 <template>
   <!-- The person's Video Studio chats, newest first (owner, 2026-10-20: "no option to open the old conversations or open
-       recent conversation in Video Studio"). Each opens in the Studio with its canvas and agent column. Only their own
-       chats with the built-in Video Studio agent: the conversations API is owner-scoped. -->
+       recent conversation in Video Studio"). Each opens in the Studio with its canvas and agent column, named by what
+       the person asked for (GET /api/video/chats/, owner-scoped). -->
   <section v-if="chats.length" class="vrc" aria-labelledby="vrc-title" data-test="studio-recent-chats">
     <h2 id="vrc-title" class="vrc-title">Recent chats</h2>
     <ul class="vrc-list">
@@ -23,7 +23,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
-import { chatName } from '../../composables/useChatHistory'
 import { useChatStore } from '../../stores/useChatStore'
 
 const PAGE = 15
@@ -33,11 +32,9 @@ const chats = ref([])
 const page = ref(0)
 const total = ref(0)
 const loading = ref(false)
-let agentId = null
 
 const hasMore = computed(() => chats.value.length < total.value)
-// Named as in the main chat list: most Studio chats keep the default "Chat with Video Studio" title.
-const label = chatName
+function label(c) { return c.name || 'Untitled chat' }
 function isOpen(c) { return String(route.query.conversation || chat.conversationId || '') === String(c.id) }
 function day(iso) {
   if (!iso) return ''
@@ -52,11 +49,9 @@ async function load(next = 1) {
   if (loading.value) return
   loading.value = true
   try {
-    if (!agentId) agentId = (await api.getVideoStudioAgent()).data?.id
-    if (!agentId) return
-    const res = await api.getConversations({ agent_profile_id: agentId, ordering: '-updated_at', page: next, page_size: PAGE })
-    const rows = Array.isArray(res.data) ? res.data : (res.data?.results || [])
-    total.value = Array.isArray(res.data) ? rows.length : Number(res.data?.count ?? rows.length)
+    const { data } = await api.get('/video/chats/', { params: { page: next, page_size: PAGE } })
+    const rows = data?.results || []
+    total.value = Number(data?.count ?? rows.length)
     const seen = new Set(next === 1 ? [] : chats.value.map((c) => c.id))
     chats.value = next === 1 ? rows : [...chats.value, ...rows.filter((c) => !seen.has(c.id))]
     page.value = next

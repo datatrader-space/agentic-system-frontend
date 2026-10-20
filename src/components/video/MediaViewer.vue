@@ -41,7 +41,6 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { chatName } from '../../composables/useChatHistory'
 
 const props = defineProps({
   items: { type: Array, required: true },          // the files that can be previewed, in the order shown
@@ -51,7 +50,7 @@ const emit = defineEmits(['close', 'leave', 'update:index'])   // leave: its cha
 const closeEl = ref(null)
 const item = computed(() => props.items[props.index] || {})
 // A Studio chat opens in the Studio; any other chat in the main chat.
-const fromChat = computed(() => chatName({ title: item.value.conversation_title, last_message: { content: item.value.conversation_preview } }))
+const fromChat = computed(() => item.value.conversation_name || 'its chat')
 const chatLink = computed(() => (item.value.conversation_in_studio
   ? { path: '/video-studio', query: { conversation: String(item.value.conversation_id) } }
   : `/dashboard/chat/${item.value.conversation_id}`))

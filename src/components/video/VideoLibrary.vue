@@ -155,7 +155,6 @@ import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
 import VideoChoice from './VideoChoice.vue'
 import MediaViewer from './MediaViewer.vue'
-import { chatName } from '../../composables/useChatHistory'
 
 // mode 'drawer': over the Create page, "Use" adds the file at once. mode 'page': Video Studio's Library and
 // Ingredients pages, where "Use" queues the file and opens Create, which applies it to its project.
@@ -204,10 +203,11 @@ function size(n) {
 const viewIndex = ref(-1)
 const viewable = computed(() => lib.value.items.filter((i) => i.media_type !== 'document'))
 function openViewer(it) { viewIndex.value = viewable.value.findIndex((i) => i.attachment_id === it.attachment_id) }
-// The chat's name by the main chat list's rule; a Studio chat opens in the Studio, any other in the main chat.
 // Following a link to a chat leaves the Library: the drawer closes so the chat is in view (it stays on the page).
 function leave() { viewIndex.value = -1; if (!isPage.value) close() }
-function fromChat(it) { return chatName({ title: it.conversation_title, last_message: { content: it.conversation_preview } }) }
+// The chat's name (the server names it by what the person asked for); a Studio chat opens in the Studio, any other
+// in the main chat.
+function fromChat(it) { return it.conversation_name || 'its chat' }
 function chatLink(it) {
   return it.conversation_in_studio ? { path: '/video-studio', query: { conversation: String(it.conversation_id) } }
     : `/dashboard/chat/${it.conversation_id}`

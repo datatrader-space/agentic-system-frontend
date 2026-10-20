@@ -3,7 +3,7 @@
 import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('../../services/api', () => ({ default: { getVideoStudioAgent: vi.fn(), getConversations: vi.fn() } }))
+vi.mock('../../services/api', () => ({ default: { get: vi.fn() } }))
 vi.mock('vue-router', () => ({ useRoute: () => ({ query: { conversation: '2874' } }) }))
 vi.mock('../../stores/useChatStore', () => ({ useChatStore: () => ({ conversationId: '2874', isBusy: false }) }))
 
@@ -16,20 +16,19 @@ const stubs = { global: { stubs: { RouterLink: { props: ['to'], template: '<a :d
 describe('StudioRecentChats', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    api.getVideoStudioAgent.mockResolvedValue({ data: { id: 3462 } })
   })
 
   it('lists the Studio agent\'s chats newest first, marks the open one, and pages older ones', async () => {
-    api.getConversations.mockResolvedValueOnce({ data: { count: 3, results: [
-      { id: 2874, title: 'Candle reel', updated_at: '2026-10-20T12:30:00Z' }, { id: 2873, title: 'Chat with Video Studio', last_message: { content: 'Make a lavender candle reel' }, updated_at: '2026-10-20T11:58:00Z' }] } })
+    api.get.mockResolvedValueOnce({ data: { count: 3, results: [
+      { id: 2874, name: 'Candle reel', updated_at: '2026-10-20T12:30:00Z' }, { id: 2873, name: 'Make a lavender candle reel', updated_at: '2026-10-20T11:58:00Z' }] } })
     const w = mount(StudioRecentChats, stubs)
     await flush()
-    expect(api.getConversations).toHaveBeenCalledWith({ agent_profile_id: 3462, ordering: '-updated_at', page: 1, page_size: 15 })
+    expect(api.get).toHaveBeenCalledWith('/video/chats/', { params: { page: 1, page_size: 15 } })
     const links = w.findAll('[data-test="studio-recent-chat"]')
-    expect(links.map((a) => a.find('.vrc-name').text())).toEqual(['Candle reel', 'Make a lavender candle reel'])   // a default title is named by its last message
+    expect(links.map((a) => a.find('.vrc-name').text())).toEqual(['Candle reel', 'Make a lavender candle reel'])   // the server names a chat by what was asked
     expect(JSON.parse(links[0].attributes('data-to'))).toEqual({ path: '/video-studio', query: { conversation: '2874' } })
     expect(links[0].classes()).toContain('active')
-    api.getConversations.mockResolvedValueOnce({ data: { count: 3, results: [{ id: 2600, title: 'Older', updated_at: '2026-10-16T10:00:00Z' }] } })
+    api.get.mockResolvedValueOnce({ data: { count: 3, results: [{ id: 2600, name: 'Older', updated_at: '2026-10-16T10:00:00Z' }] } })
     await w.get('[data-test="studio-recent-more"]').trigger('click')
     await flush()
     expect(w.findAll('[data-test="studio-recent-chat"]')).toHaveLength(3)
@@ -37,7 +36,7 @@ describe('StudioRecentChats', () => {
   })
 
   it('shows nothing when there is no chat yet', async () => {
-    api.getConversations.mockResolvedValueOnce({ data: { count: 0, results: [] } })
+    api.get.mockResolvedValueOnce({ data: { count: 0, results: [] } })
     const w = mount(StudioRecentChats, stubs)
     await flush()
     expect(w.find('[data-test="studio-recent-chats"]').exists()).toBe(false)
