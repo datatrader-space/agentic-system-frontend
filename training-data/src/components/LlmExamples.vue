@@ -3,13 +3,14 @@
 // with its revisions; deleting one on request) and the Preparation tab (the settings, "Run preparation", and the
 // report of a run with its findings). Backend: llm/app_api.py.
 import { computed, onMounted, ref, watch } from 'vue';
-import { RefreshCw, Play, Trash2, ShieldCheck } from 'lucide-vue-next';
+import { RefreshCw, Play, Trash2, ShieldCheck, X } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import LlmConversation from './LlmConversation.vue';
 import { llmApi, KIND_LABEL, SOURCE_LABEL, STATE_LABEL, SPLIT_LABEL, ACTION_LABEL, findingText } from '../api/llm.js';
 import { ago } from '../api/training.js';
+import './llm.css';
 
 const props = defineProps({ project: Object });
 const emit = defineEmits(['navigate']);
@@ -94,7 +95,7 @@ onMounted(loadExamples);
   <div class="studio llm-examples">
     <div class="studio-actions"><div class="studio-tabs"><button v-for="t in ['Examples', 'Preparation']" :key="t" :class="{active: tab===t}" @click="tab=t">{{ t }}</button></div>
       <UiButton @click="tab==='Examples' ? loadExamples() : loadPreparation()"><RefreshCw :size="15" /> Refresh</UiButton></div>
-    <div v-if="told" class="notice" role="status"><span>{{ told }}</span><button class="icon-button" aria-label="Dismiss" @click="told=''">×</button></div>
+    <div v-if="told" class="notice" role="status"><span>{{ told }}</span><button class="icon-button" aria-label="Dismiss" @click="told=''"><X :size="16" /></button></div>
     <p v-if="error" class="field-error" role="alert">{{ error }}</p>
 
     <template v-if="tab==='Examples'">
@@ -118,6 +119,7 @@ onMounted(loadExamples);
     </template>
 
     <template v-else>
+      <p v-if="!prep && !error" class="llm-loading">Loading…</p>
       <section class="panel">
         <div class="eyebrow">SETTINGS</div>
         <h2>How examples are checked</h2>
@@ -148,7 +150,7 @@ onMounted(loadExamples);
               <article><span>Tokens</span><strong>{{ report.tokens.total }}</strong></article>
               <article><span>Longest</span><strong>{{ report.tokens.max }}</strong></article>
             </div>
-            <dl class="summary-list">
+            <dl class="llm-facts">
               <dt>Settings</dt><dd>{{ run.settings.base_model }}, at most {{ run.settings.max_length }} tokens (version {{ run.settings.version }}); personal data: {{ run.personal_data }}</dd>
               <dt>Kinds</dt><dd>{{ Object.entries(report.kinds).map(([k, n]) => `${KIND_LABEL[k] || k} ${n}`).join(' · ') || '—' }}</dd>
               <dt>Turns</dt><dd>{{ report.turns.mean }} on average, at most {{ report.turns.max }}</dd>
@@ -194,13 +196,8 @@ onMounted(loadExamples);
 .llm-examples{display:grid;gap:16px}
 .llm-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
 .llm-column-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:12px 0}
-.llm-table{width:100%;border-collapse:collapse;font-size:13px}
-.llm-table th{text-align:left;color:#475569;padding:8px;border-bottom:1px solid #e2e8f0}
-.llm-table td{padding:8px;border-bottom:1px solid #f1f5f9;vertical-align:top}
-.llm-row{cursor:pointer}.llm-row:hover td,.llm-row:focus td{background:#f8fafc}
 .llm-pager{display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:12px;font-size:13px}
 .llm-run-select{max-width:320px}
 .llm-revision{border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin:8px 0}
 .llm-revision summary{cursor:pointer;display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:8px}
-@media (max-width:700px){.llm-table{display:block;overflow-x:auto}}
 </style>

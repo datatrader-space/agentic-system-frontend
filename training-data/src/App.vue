@@ -7,6 +7,8 @@ import LlmUpload from './components/LlmUpload.vue';
 import LlmExamples from './components/LlmExamples.vue';
 import LlmReview from './components/LlmReview.vue';
 import LlmVersions from './components/LlmVersions.vue';
+import LlmTrain from './components/LlmTrain.vue';
+import LlmModels from './components/LlmModels.vue';
 import { NOT_FOR_LLM, LATER_FOR_LLM } from './api/llm.js';
 import { Aperture, FolderOpen, Box, Layers, ArrowUpRight, Plus, Search, LayoutGrid, List, Menu, X, ArrowLeft, Upload, ScanLine, Images, Tags, ChartNoAxesCombined, GitBranch, LockKeyhole, ArrowRight, Check, Sparkles, Network, Server, Orbit, Bell, Settings, ChevronLeft, ChevronRight, CircleArrowUp, KeyRound, Users , Trash2 } from 'lucide-vue-next';
 import SidebarUtilities from './components/SidebarUtilities.vue';
@@ -143,6 +145,8 @@ onUnmounted(() => { clearInterval(unreadTimer); window.removeEventListener('hash
         <TrainingNotifications v-else-if="page==='notifications'" @changed="n=>unreadCount=n" />
         <LlmExamples v-else-if="selected?.family==='llm' && page==='dataset'" :key="`d-${selected.ref}`" :project="selected" @navigate="navigate" />
         <LlmReview v-else-if="selected?.family==='llm' && page==='annotate'" :key="`a-${selected.ref}`" :project="selected" :open-assignment="openAssignment" @opened="openAssignment=null" @navigate="navigate" />
+        <LlmTrain v-else-if="selected?.family==='llm' && page==='train'" :key="`t-${selected.ref}`" :project="selected" @navigate="navigate" />
+        <LlmModels v-else-if="selected?.family==='llm' && page==='models'" :key="`m-${selected.ref}`" :project="selected" @navigate="navigate" />
         <LlmVersions v-else-if="selected?.family==='llm' && page==='versions'" :key="`v-${selected.ref}`" :project="selected" @navigate="navigate" />
         <section v-else-if="selected?.family==='llm' && (LATER_FOR_LLM[page] || NOT_FOR_LLM.includes(page))" class="panel screen-placeholder"><Layers :size="32" /><UiBadge tone="purple">{{ LATER_FOR_LLM[page] ? `Language models · phase ${LATER_FOR_LLM[page]}` : 'Vision projects only' }}</UiBadge><h2>{{ title }}</h2><p>{{ LATER_FOR_LLM[page] ? `The language-model form of this page is built in phase ${LATER_FOR_LLM[page]} of the plan.` : 'This page is for vision projects. A language-model project does not use it.' }}</p></section>
         <ProjectStudio v-else-if="!['projects','components'].includes(page)" :page="page" :project="selected" :open-assignment="openAssignment" :open-upload="openUpload" @opened="openAssignment=null" @opened-upload="openUpload=null" @navigate="navigate" @create="dialog = true" />

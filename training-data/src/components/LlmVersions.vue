@@ -8,6 +8,7 @@ import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import { llmApi, KIND_LABEL, SPLIT_LABEL } from '../api/llm.js';
 import { ago } from '../api/training.js';
+import './llm.css';
 
 const props = defineProps({ project: Object });
 const emit = defineEmits(['navigate']);
@@ -33,6 +34,7 @@ onMounted(load);
     <div class="studio-actions"><p>A version freezes the examples a preparation run kept, as it prepared them: one file per split, and a manifest whose sha256 names it for ever.</p><UiButton @click="load"><RefreshCw :size="15" /> Refresh</UiButton></div>
     <div v-if="told" class="notice" role="status"><span>{{ told }}</span></div>
     <p v-if="error" class="field-error" role="alert">{{ error }}</p>
+    <p v-if="!data && !error" class="llm-loading">Loading…</p>
 
     <section v-if="data" class="panel">
       <div class="eyebrow">NEXT VERSION</div>
@@ -60,8 +62,4 @@ onMounted(load);
 .llm-versions{display:grid;gap:16px}
 .llm-reasons{margin:8px 0;padding-left:18px;font-size:14px}
 .llm-publish{display:flex;gap:12px;align-items:flex-end;margin-top:12px}.llm-publish .field-label{flex:1;margin:0}
-.llm-table{width:100%;border-collapse:collapse;font-size:13px}
-.llm-table th{text-align:left;color:#475569;padding:8px;border-bottom:1px solid #e2e8f0}
-.llm-table td{padding:8px;border-bottom:1px solid #f1f5f9;vertical-align:top}
-@media (max-width:700px){.llm-table{display:block;overflow-x:auto}}
 </style>

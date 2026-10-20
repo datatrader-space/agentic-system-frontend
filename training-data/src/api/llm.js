@@ -39,13 +39,62 @@ export const llmApi = {
   move: (ref, number, move, body = {}) => post(`${llm(ref)}/reviews/${number}/${move}/`, body),
   datasets: ref => apiFetch(`${llm(ref)}/datasets/`),
   publish: (ref, body) => post(`${llm(ref)}/datasets/`, body),
+  training: ref => apiFetch(`${llm(ref)}/training/`),
+  startTraining: (ref, body) => post(`${llm(ref)}/training/`, body),
+  trainingRun: (ref, number) => apiFetch(`${llm(ref)}/training/runs/${number}/`),
+  trainingMove: (ref, number, move) => post(`${llm(ref)}/training/runs/${number}/${move}/`, {}),
+  models: ref => apiFetch(`${llm(ref)}/models/`),
 };
+
+// What a person may set over a named configuration on the Train page: only the values typed in are sent.
+export function trainingOverrides(form) {
+  const out = {};
+  for (const key of ['epochs', 'max_steps']) if (form[key] !== '' && form[key] != null) out[key] = Math.round(Number(form[key]));
+  if (form.learning_rate !== '' && form.learning_rate != null) out.learning_rate = Number(form.learning_rate);
+  if (form.rank !== '' && form.rank != null) out.lora = { rank: Math.round(Number(form.rank)), alpha: Math.round(Number(form.rank)) * 2 };
+  return out;
+}
+
+// A training configuration in words, as the Train page shows it instead of its JSON.
+export function configSummary(values) {
+  const v = values || {};
+  const parts = [];
+  if (v.max_steps) parts.push(`${v.max_steps} steps`);
+  else if (v.epochs) parts.push(`${v.epochs} epoch${v.epochs === 1 ? '' : 's'}`);
+  if (v.batch_size) parts.push(`batch ${v.batch_size}${v.grad_accum_steps > 1 ? ` × ${v.grad_accum_steps}` : ''}`);
+  if (v.max_length) parts.push(`up to ${v.max_length} tokens`);
+  if (v.learning_rate) parts.push(`learning rate ${v.learning_rate}`);
+  if (v.lora?.rank) parts.push(`LoRA rank ${v.lora.rank}`);
+  if (v.beta && ['dpo', 'kto'].includes(v.method)) parts.push(`beta ${v.beta}`);
+  return parts.join(' · ') || 'the defaults';
+}
+
+// The loss curve in words, for a person who cannot see it: "from 2.92 at step 1 to 2.41 at step 6", or ''.
+export function lossInWords(history, key = 'loss') {
+  const rows = (history || []).filter(h => typeof h[key] === 'number' && Number.isFinite(h[key]));
+  if (rows.length < 2) return '';
+  const [first, last] = [rows[0], rows[rows.length - 1]];
+  return `from ${first[key].toFixed(2)} at step ${first.step} to ${last[key].toFixed(2)} at step ${last.step}`;
+}
+
+// A loss curve as the points of an SVG polyline in a width x height box: steps along, loss up. '' with fewer than 2.
+export function lossPoints(history, key = 'loss', width = 240, height = 60) {
+  const rows = (history || []).filter(h => typeof h[key] === 'number' && Number.isFinite(h[key]));
+  if (rows.length < 2) return '';
+  const steps = rows.map(r => r.step); const values = rows.map(r => r[key]);
+  const [x0, x1] = [Math.min(...steps), Math.max(...steps)]; const [y0, y1] = [Math.min(...values), Math.max(...values)];
+  return rows.map(r => {
+    const x = x1 === x0 ? 0 : ((r.step - x0) / (x1 - x0)) * width;
+    const y = y1 === y0 ? height / 2 : height - ((r[key] - y0) / (y1 - y0)) * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+}
 
 // The pages an LLM project shows its own form of, and the pages it does not show (plan §2.1).
 export const LLM_PAGES = ['dataset', 'annotate', 'versions'];
 export const NOT_FOR_LLM = ['classes', 'nas', 'active'];
-// Pages whose LLM form is built in a later phase of the plan (Train, Models, Test, Evaluation, Deploy).
-export const LATER_FOR_LLM = { train: 3, models: 3, test: 5, analytics: 4, deploy: 5 };
+// Pages whose LLM form is built in a later phase of the plan (Test, Evaluation, Deploy).
+export const LATER_FOR_LLM = { test: 4, analytics: 4, deploy: 5 };
 
 export const KIND_LABEL = { chat: 'Conversation', instruction: 'Question and answer', preference: 'Preference', document: 'Document' };
 export const SOURCE_LABEL = { record: 'Sent by an app', upload: 'Uploaded', run_trace: 'An agent run', human: 'Written by a person', synthetic: 'Written by a model' };

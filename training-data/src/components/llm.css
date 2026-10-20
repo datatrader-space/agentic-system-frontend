@@ -1,0 +1,18 @@
+/* The language-model screens' shared rules (LLM_TRAINING_POC_PLAN.md §2.1), on top of the app's own styles.
+   Every class starts with llm-, so nothing of the vision pages changes. */
+.llm-table{width:100%;border-collapse:collapse;font-size:13px}
+.llm-table th{text-align:left;font-weight:600;color:#475569;padding:8px;border-bottom:1px solid #e2e8f0}
+.llm-table td{padding:8px;border-bottom:1px solid #f1f5f9;vertical-align:top;color:#162139}
+.llm-row{cursor:pointer;transition:background-color .15s ease}
+.llm-row:hover td{background:#f8fafc}
+.llm-row:focus-visible{outline:2px solid var(--aadml-focus);outline-offset:-2px}
+.llm-row:focus-visible td{background:#f8fafc}
+/* Label and value side by side, the label as wide as it needs: values stay next to their labels on a wide screen. */
+.llm-facts{display:grid;grid-template-columns:minmax(120px,max-content) minmax(0,1fr);gap:10px 24px;max-width:960px;margin:12px 0}
+.llm-facts dt{color:#64748b}
+.llm-facts dd{margin:0;color:#162139;overflow-wrap:anywhere}
+.llm-loading{color:#64748b;font-size:13px;margin:12px 0}
+.studio textarea.text-input:focus-visible{outline:3px solid var(--aadml-outline);outline-offset:3px}
+@media (max-width:700px){.llm-table{display:block;overflow-x:auto}}
+@media (max-width:550px){.llm-facts{grid-template-columns:1fr;gap:2px}.llm-facts dd{margin-bottom:10px}}
+@media (prefers-reduced-motion:reduce){.llm-row{transition:none}}

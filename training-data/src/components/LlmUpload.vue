@@ -7,6 +7,7 @@ import { Upload, FileText, Check, X } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import { llmApi, csvHeader, csvColumns } from '../api/llm.js';
+import './llm.css';
 
 const props = defineProps({ project: Object });
 const emit = defineEmits(['navigate']);
@@ -103,7 +104,5 @@ async function send() {
 .llm-column-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:10px}
 .llm-result{border-top:1px solid #f1f5f9;padding:10px 0}
 .llm-result header{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.llm-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
-.llm-table th{text-align:left;color:#475569;padding:6px;border-bottom:1px solid #e2e8f0}
-.llm-table td{padding:6px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+.llm-result .llm-table{margin-top:8px}
 </style>

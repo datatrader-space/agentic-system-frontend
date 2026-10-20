@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM } from '../src/api/llm.js';
+import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM, trainingOverrides, lossPoints, configSummary, lossInWords } from '../src/api/llm.js';
 
 const CHAT = { kind: 'chat', system: 'You are the support agent.', weight_on: 'last_assistant',
   messages: [{ role: 'user', content: 'Where is order 42?' },
@@ -50,5 +50,25 @@ test('filters become a query; empty ones are left out', () => {
 
 test('a language-model project hides the vision-only pages and names the phase of the pages still to build', () => {
   assert.deepEqual(NOT_FOR_LLM, ['classes', 'nas', 'active']);
-  assert.deepEqual(Object.keys(LATER_FOR_LLM).sort(), ['analytics', 'deploy', 'models', 'test', 'train']);
+  assert.deepEqual(Object.keys(LATER_FOR_LLM).sort(), ['analytics', 'deploy', 'test']);
+});
+
+test('a training configuration reads as words, not JSON', () => {
+  assert.equal(configSummary({ method: 'sft', epochs: 3, batch_size: 2, grad_accum_steps: 4, max_length: 1024, learning_rate: 0.0002, lora: { rank: 16 } }),
+    '3 epochs · batch 2 × 4 · up to 1024 tokens · learning rate 0.0002 · LoRA rank 16');
+  assert.equal(configSummary({ method: 'dpo', max_steps: 6, batch_size: 1, grad_accum_steps: 1, beta: 0.1 }), '6 steps · batch 1 · beta 0.1');
+  assert.equal(configSummary({}), 'the defaults');
+});
+
+test('the Train page sends only the settings typed in, and a loss curve fits its box', () => {
+  assert.deepEqual(trainingOverrides({ epochs: '2', max_steps: '', learning_rate: '', rank: '8' }), { epochs: 2, lora: { rank: 8, alpha: 16 } });
+  assert.deepEqual(trainingOverrides({ epochs: '', max_steps: '', learning_rate: '', rank: '' }), {});
+  assert.equal(lossPoints([{ step: 1, loss: 2 }, { step: 3, loss: 1 }], 'loss', 100, 10), '0.0,0.0 100.0,10.0');
+  assert.equal(lossPoints([{ step: 1, loss: 2 }]), '');
+  assert.equal(lossPoints([{ step: 1, eval_loss: 2 }, { step: 2, loss: 1 }]), '');
+});
+
+test('a loss curve can be read as words too', () => {
+  assert.equal(lossInWords([{ step: 1, loss: 2.917 }, { step: 3 }, { step: 6, loss: 2.4 }]), 'from 2.92 at step 1 to 2.40 at step 6');
+  assert.equal(lossInWords([{ step: 1, loss: 2 }]), '');
 });

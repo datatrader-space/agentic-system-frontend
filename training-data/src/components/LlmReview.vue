@@ -10,6 +10,7 @@ import UiDialog from './UiDialog.vue';
 import LlmConversation from './LlmConversation.vue';
 import { llmApi, REVIEW_COLUMNS, reviewColumn, fixableOf, withFixes, findingText, KIND_LABEL } from '../api/llm.js';
 import { ago } from '../api/training.js';
+import './llm.css';
 
 const props = defineProps({ project: Object, openAssignment: Number });
 const emit = defineEmits(['navigate', 'opened']);
@@ -155,10 +156,6 @@ watch(() => props.openAssignment, async n => { if (n) { emit('opened'); await op
 <style scoped>
 .llm-review{display:grid;gap:16px}
 .llm-card{text-align:left;cursor:pointer;width:100%;font:inherit}
-.llm-table{width:100%;border-collapse:collapse;font-size:13px}
-.llm-table th{text-align:left;color:#475569;padding:8px;border-bottom:1px solid #e2e8f0}
-.llm-table td{padding:8px;border-bottom:1px solid #f1f5f9;vertical-align:top}
-.llm-row{cursor:pointer}.llm-row:hover td,.llm-row:focus td{background:#f8fafc}
 .llm-timeline{list-style:none;padding:0;margin:8px 0;display:grid;gap:6px;font-size:13px}
 .llm-editor{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:16px;align-items:start}
 @media (max-width:900px){.llm-editor{grid-template-columns:1fr}}
