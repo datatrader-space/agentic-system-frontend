@@ -159,3 +159,28 @@ describe('VideoLibrary preview and source chat', () => {
     w.unmount()
   })
 })
+
+// Owner, 2026-10-20: a card shows the server's small picture, not the whole file; when it cannot load, the file.
+describe('VideoLibrary thumbnails', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    useVideoStore().libraryOpen = true
+    api.get.mockImplementation((url) => Promise.resolve({ data: url === '/video/library/'
+      ? { items: [{ ...ITEMS[1], thumbnail_url: '/api/video/library/vid-1/thumbnail/' }], page: 1, has_more: false }
+      : { ingredients: [] } }))
+  })
+
+  it('shows the thumbnail of a video, and the video itself when the thumbnail fails', async () => {
+    const w = mount(VideoLibrary, { attachTo: document.body })
+    await flush()
+    const thumb = document.querySelector('[data-test="lib-thumbnail"]')
+    expect(thumb.getAttribute('src')).toBe('/api/video/library/vid-1/thumbnail/')
+    expect(document.querySelector('[data-test="lib-preview"] video')).toBeNull()
+    thumb.dispatchEvent(new Event('error'))
+    await flush()
+    expect(document.querySelector('[data-test="lib-thumbnail"]')).toBeNull()
+    expect(document.querySelector('[data-test="lib-preview"] video')).not.toBeNull()
+    w.unmount()
+  })
+})

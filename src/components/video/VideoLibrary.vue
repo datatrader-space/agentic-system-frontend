@@ -50,7 +50,10 @@
               <!-- Click to see it whole, or play it (owner, 2026-10-20). -->
               <button v-if="it.media_type !== 'document'" type="button" class="lib-thumb-btn" :aria-label="'Preview ' + it.title"
                       data-test="lib-preview" @click="openViewer(it)">
-                <video v-if="it.media_type === 'video'" :src="it.url" muted preload="metadata" class="lib-thumb" aria-hidden="true"></video>
+                <!-- A small picture from the server (not the whole file); the file itself when there is none. -->
+                <img v-if="it.thumbnail_url && !thumbFailed.has(it.attachment_id)" :src="it.thumbnail_url" alt="" class="lib-thumb"
+                     loading="lazy" data-test="lib-thumbnail" @error="noThumbnail(it)" />
+                <video v-else-if="it.media_type === 'video'" :src="it.url" muted preload="metadata" class="lib-thumb" aria-hidden="true"></video>
                 <span v-else-if="it.media_type === 'audio'" class="lib-thumb lib-audio" aria-hidden="true">Audio</span>
                 <img v-else :src="it.url" alt="" class="lib-thumb" loading="lazy" />
                 <span v-if="it.media_type === 'video'" class="lib-play" aria-hidden="true">
@@ -200,6 +203,9 @@ function size(n) {
   return b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : b >= 1024 ? `${Math.round(b / 1024)} KB` : `${b} B`
 }
 // The preview: every loaded image, video and sound, in the order shown; a document opens in its own tab instead.
+// Thumbnails that could not be loaded: those cards show the file itself.
+const thumbFailed = ref(new Set())
+function noThumbnail(it) { thumbFailed.value = new Set([...thumbFailed.value, it.attachment_id]) }
 const viewIndex = ref(-1)
 const viewable = computed(() => lib.value.items.filter((i) => i.media_type !== 'document'))
 function openViewer(it) { viewIndex.value = viewable.value.findIndex((i) => i.attachment_id === it.attachment_id) }
