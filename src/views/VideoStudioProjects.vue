@@ -23,7 +23,10 @@
       <!-- A project is a frame of its own shape: the aspect ratio is what tells projects apart at a glance. -->
       <ul class="vsp-grid">
         <li v-for="p in shown" :key="p.project_id">
-          <router-link :to="{ name: 'video-studio', query: { project: p.project_id } }" class="vsp-card" data-test="vsp-project">
+          <!-- A project opens in the chat it was last open in; one never opened gets a new chat (owner, 2026-10-20:
+               opening a project made a new, empty chat every time). -->
+          <router-link :to="{ name: 'video-studio', query: p.conversation_id ? { conversation: String(p.conversation_id) } : { project: p.project_id } }"
+                       class="vsp-card" data-test="vsp-project">
             <span class="vsp-frame" aria-hidden="true"><span class="vsp-shape" :style="{ '--ar': ratio(p.aspect_ratio) }"></span></span>
             <strong class="vsp-name">{{ p.title || 'Untitled video' }}</strong>
             <span class="vsp-meta">{{ p.aspect_ratio ? p.aspect_ratio + ', ' : '' }}edited {{ day(p.updated_at) }}</span>

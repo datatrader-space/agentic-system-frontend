@@ -226,8 +226,9 @@ async function initialize() {
   loading.value = true
   error.value = ''
   try {
-    // ?new=1 (Projects page, "New video"): a fresh session, not the last chat.
-    const fresh = !!route.query.new
+    // ?new=1 (Projects page, "New video") and ?project= (a project never opened in a chat): a fresh session, not the
+    // last chat, so a project is never put into whichever chat happened to be open.
+    const fresh = !!(route.query.new || route.query.project)
     if (fresh) chat.reset()
     const cid = fresh ? null : (route.query.conversation || chat.conversationId)
     chat.imageMode = false

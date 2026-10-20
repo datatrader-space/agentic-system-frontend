@@ -97,6 +97,16 @@ describe('Video Studio', () => {
     expect(state.replace).toHaveBeenCalledWith({ path: '/video-studio', query: { conversation: 'c1' } })
   })
 
+  // Owner, 2026-10-20: a project is never put into whichever chat happened to be open; ?project= (a project not yet
+  // in any chat) starts a fresh session, and the Projects page sends a project used before to its own chat.
+  it('opens a project that is in no chat yet in a fresh session, not the chat that was open', async () => {
+    state.chat.conversationId = 'old'
+    state.route.query = { project: 'p1' }
+    await render()
+    expect(state.chat.reset).toHaveBeenCalled()
+    expect(state.chat.openConversation).not.toHaveBeenCalled()
+  })
+
   it('"New video" from the Projects page starts a fresh session with the Video Studio agent', async () => {
     state.chat.conversationId = 'old'
     state.route.query = { new: '1' }
