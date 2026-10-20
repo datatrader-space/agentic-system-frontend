@@ -82,12 +82,13 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .mv { position: fixed; inset: 0; z-index: 2000;   /* above the Library drawer (1900) it opens from */
-  display: grid; place-items: center; padding: 24px; background: rgba(6, 7, 9, .86); }
+  display: grid; place-items: center; padding: 24px; background: rgba(6, 7, 9, .95); }
 .mv-frame { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 10px; width: min(1200px, 100%); height: min(860px, calc(100dvh - 48px)); }
 .mv-bar { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .mv-text { flex: 1; min-width: 0; }
 .mv-title { margin: 0; font-size: 15px; font-weight: 600; color: #ededef; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mv-meta { margin: 2px 0 0; font-size: 12.5px; color: #a7a8ae; }
+/* One line: a long chat name ends in an ellipsis (seen on a phone: it took four lines). */
+.mv-meta { margin: 2px 0 0; font-size: 12.5px; color: #a7a8ae; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mv-chat { color: #8db4ff; text-decoration: underline; text-underline-offset: 2px; }
 .mv-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 14px; border: 1px solid rgba(255, 255, 255, .18);
   border-radius: 6px; background: transparent; color: #ededef; font: inherit; font-size: 13px; font-weight: 500; text-decoration: none; cursor: pointer; }

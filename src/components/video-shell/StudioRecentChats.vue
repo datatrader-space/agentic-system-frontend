@@ -68,8 +68,11 @@ watch(() => chat.isBusy, (busy, was) => { if (was && !busy) load(1) })
 <style scoped>
 .vrc { margin-top: 18px; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
 .vrc-title { margin: 0 0 6px; padding: 0 10px; font-size: 12px; font-weight: 600; color: var(--vm-ink-faint); }
-/* minmax(0, 1fr): a long name is cut with an ellipsis inside the navigation's width, never widens it. */
-.vrc-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
+/* minmax(0, 1fr): a long name is cut with an ellipsis inside the navigation's width, never widens it. Many chats
+   scroll inside the list, so the brand, the pages and the footer stay in place (seen on a phone: the list ran over
+   "Back to AADML"). */
+.vrc-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px;
+  flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .vrc-item { display: flex; align-items: baseline; gap: 8px; min-height: 36px; padding: 8px 10px; box-sizing: border-box; border-radius: 6px;
   color: var(--vm-ink-soft); font-size: 13px; text-decoration: none; transition: background-color .15s, color .15s; }
 .vrc-item:hover { background: var(--vm-surface); color: var(--vm-ink); }
