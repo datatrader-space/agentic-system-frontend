@@ -48,3 +48,11 @@ test('a language-model project names its kind, and its three extra answers go to
     { personal_data: 'drop', source: 'Our support chats', right_confirmed: true, judge_allowed: false });
   assert.deepEqual(llmDataUseAnswers({}), { personal_data: 'redact', source: '', right_confirmed: false, judge_allowed: false });
 });
+
+test('what a copy did is said in one sentence', async () => {
+  const { copySaid } = await import('../src/api/training.js');
+  assert.equal(copySaid({ copied: 3, already: 0, labels: 2, left_out: 0, reasons: [] }, 'Target'),
+    '3 photos copied into “Target”; 2 accepted labels came along as your drafts, to check there.');
+  assert.equal(copySaid({ copied: 1, already: 2, labels: 0, left_out: 1, reasons: [{ reason: 'deleted from the target on request', photos: 1 }] }, 'T'),
+    '1 photo copied into “T”, 2 photos already there. 1 photo left out: deleted from the target on request (1)');
+});

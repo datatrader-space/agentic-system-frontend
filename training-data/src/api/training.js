@@ -21,6 +21,24 @@ export const getDataUse = (ref, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/
 export const saveLlmDataUse = (ref, answers, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/llm/data-use/`, { ...opts, method: 'POST', body: answers });
 export const getLlmDataUse = (ref, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/llm/data-use/`, opts);
 export const trashProject = (ref, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/trash/`, { ...opts, method: 'POST', body: {} });
+// Duplicate, copy photos, merge, hand over (app_api.py, project_copy.py): copying can take a while on a large project.
+const COPY_TIMEOUT = 180000;
+export const duplicateProject = (ref, name, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/duplicate/`, { timeoutMs: COPY_TIMEOUT, ...opts, method: 'POST', body: { name } });
+export const copyPhotos = (ref, target, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/copy/`, { timeoutMs: COPY_TIMEOUT, ...opts, method: 'POST', body: { target } });
+export const mergeProjects = (ref, target, confirm, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/merge/`, { timeoutMs: COPY_TIMEOUT, ...opts, method: 'POST', body: { target, confirm } });
+export const projectOwner = (ref, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/owner/`, opts);
+export const changeOwner = (ref, user, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/owner/`, { ...opts, method: 'POST', body: { user } });
+
+// What a copy did, in one sentence: how many photos, how many labels to check, and what was left out and why.
+export function copySaid(body, into) {
+  const photos = n => `${n} photo${n === 1 ? '' : 's'}`;
+  let said = `${photos(body.copied)} copied into “${into}”`;
+  if (body.already) said += `, ${photos(body.already)} already there`;
+  if (body.labels) said += `; ${body.labels} accepted label${body.labels === 1 ? '' : 's'} came along as your drafts, to check there`;
+  said += '.';
+  if (body.left_out) said += ` ${photos(body.left_out)} left out: ${(body.reasons || []).map(r => `${r.reason} (${r.photos})`).join('; ')}`;
+  return said;
+}
 export const listTrash = opts => apiFetch(`${BASE}/trash/`, opts);
 export const trashAction = (id, action, body = {}, opts) => apiFetch(`${BASE}/trash/${enc(id)}/${action}/`, { ...opts, method: 'POST', body });
 export const listKeys = (ref, opts) => apiFetch(`${BASE}/projects/${enc(ref)}/keys/`, opts);
