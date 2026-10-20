@@ -10,7 +10,7 @@ import LlmVersions from './components/LlmVersions.vue';
 import LlmTrain from './components/LlmTrain.vue';
 import LlmModels from './components/LlmModels.vue';
 import { NOT_FOR_LLM, LATER_FOR_LLM } from './api/llm.js';
-import { Aperture, FolderOpen, Box, Layers, ArrowUpRight, Plus, Search, LayoutGrid, List, Menu, X, ArrowLeft, Upload, ScanLine, Images, Tags, ChartNoAxesCombined, GitBranch, LockKeyhole, ArrowRight, Check, Sparkles, Network, Server, Orbit, Bell, Settings, ChevronLeft, ChevronRight, CircleArrowUp, KeyRound, Users , Trash2 } from 'lucide-vue-next';
+import { Aperture, FolderOpen, Box, Layers, ArrowUpRight, Plus, Search, LayoutGrid, List, Menu, X, ArrowLeft, Upload, ScanLine, Images, Tags, ChartNoAxesCombined, GitBranch, LockKeyhole, ArrowRight, Check, Sparkles, Network, Server, Orbit, Bell, Settings, ChevronLeft, ChevronRight, CircleArrowUp, KeyRound, Users , Trash2, ClipboardList } from 'lucide-vue-next';
 import SidebarUtilities from './components/SidebarUtilities.vue';
 import BackendConnection from './components/BackendConnection.vue';
 import UiButton from './components/UiButton.vue';
@@ -21,6 +21,12 @@ import ProjectUpload from './components/ProjectUpload.vue';
 import WorkspaceExtras from './components/WorkspaceExtras.vue';
 import ProjectStudio from './components/ProjectStudio.vue';
 import WorkspaceModels from './components/WorkspaceModels.vue';
+import WorkspaceDeployments from './components/WorkspaceDeployments.vue';
+import WorkspaceEvents from './components/WorkspaceEvents.vue';
+import WorkspaceAgent from './components/WorkspaceAgent.vue';
+import WorkspaceWorkflows from './components/WorkspaceWorkflows.vue';
+import WorkspaceAudit from './components/WorkspaceAudit.vue';
+import { SETTINGS_PAGES } from './api/workspace.js';
 import ProjectCardMenu from './components/ProjectCardMenu.vue';
 import { getPreview, addPreviewBatch } from './previewState.js';
 import RoomArt from './components/RoomArt.vue';
@@ -33,7 +39,8 @@ import JoinByLink from './components/JoinByLink.vue';
 import { joinToken } from './api/members.js';
 import { selectWorkspace } from './api/workspaces.js';
 import { listNotifications, readDeepLink, findProject } from './api/notifications.js';
-const sections = [{id:'agent',name:'Agent',icon:Sparkles},{id:'assets',name:'Asset Library',icon:Images},{id:'workflows',name:'Workflows',icon:GitBranch},{id:'events',name:'Vision events',icon:ChartNoAxesCombined},{id:'discover',name:'Universe',icon:Orbit},{id:'notifications',name:'Notifications',icon:Bell},{id:'members',name:'Team Members',icon:Users},{id:'trash',name:'Trash',icon:Trash2},{ id: 'projects', name: 'Projects', icon: FolderOpen }, { id: 'models', name: 'Models', icon: Network }, {id:'deployments',name:'Deployments',icon:Server}, { id: 'components', name: 'UI foundation', icon: Layers }];
+const sections = [{id:'agent',name:'Agent',icon:Sparkles},{id:'assets',name:'Asset Library',icon:Images},{id:'workflows',name:'Workflows',icon:GitBranch},{id:'events',name:'Vision events',icon:ChartNoAxesCombined},{id:'discover',name:'Universe',icon:Orbit},{id:'notifications',name:'Notifications',icon:Bell},{id:'members',name:'Team Members',icon:Users},{id:'trash',name:'Trash',icon:Trash2},{id:'audit',name:'Audit log',icon:ClipboardList},{ id: 'projects', name: 'Projects', icon: FolderOpen }, { id: 'models', name: 'Models', icon: Network }, {id:'deployments',name:'Deployments',icon:Server}, { id: 'components', name: 'UI foundation', icon: Layers }];
+const PAGE_LINES = { deployments: 'Where the models of your projects answer, and how often they are asked.', events: 'What your apps sent to your projects, and what they asked their models.', agent: 'An assistant that does Training work for you, with your own role in each project.', workflows: 'Your workflows in AADML.', audit: 'Who did what in this workspace, and whether it was allowed.' };
 const projectSections = [{id:'settings',name:'Settings',icon:Settings},{id:'train',name:'Train',icon:Box},{id:'models',name:'Models',icon:Box},{id:'nas',name:'NAS',icon:Layers},{id:'test',name:'Test',icon:ScanLine},{id:'deploy',name:'Deployments',icon:Upload},{id:'active',name:'Active learning',icon:GitBranch},{ id: 'upload', name: 'Upload data', icon: Upload }, { id: 'connect', name: 'Connect app', icon: KeyRound }, { id: 'annotate', name: 'Annotate', icon: ScanLine }, { id: 'dataset', name: 'Dataset', icon: Images }, { id: 'versions', name: 'Versions', icon: GitBranch }, { id: 'analytics', name: 'Analytics', icon: ChartNoAxesCombined }, { id: 'classes', name: 'Classes & tags', icon: Tags }];
 sections.sort((a,b)=>['agent','projects','assets','workflows','models','deployments','events','discover','notifications','components'].indexOf(a.id)-['agent','projects','assets','workflows','models','deployments','events','discover','notifications','components'].indexOf(b.id));
 projectSections.sort((a,b)=>['upload','connect','annotate','dataset','versions','analytics','classes','train','models','nas','test','deploy','active','settings'].indexOf(a.id)-['upload','connect','annotate','dataset','versions','analytics','classes','train','models','nas','test','deploy','active','settings'].indexOf(b.id));
@@ -46,13 +53,14 @@ const folders=ref([]);const folderRows=ref([]);const folderName=ref('');const fo
 const loadingProjects=ref(true);
 // Notifications: the unread count beside the sidebar item, and a link "#project/<ref>/<page>[/<assignment>]" (an e-mail's button)
 // opening that project's page, once the projects are loaded.
-// Workspace settings: Team Members is a page of its own; the others are not built yet.
+// Workspace settings: Team Members, Trash and the Audit log are pages here; Plan & Billing and Credit Usage are AADML's own
+// pages (SETTINGS_PAGES); API Keys and Datasources say where those things are.
 // Project settings: a new name shows everywhere; a deleted project leaves the list.
 async function projectRenamed(name){ const ref=selected.value?.ref; await loadProjects(); selected.value=projects.value.find(p=>p.ref===ref)||selected.value; }
 // A project moved to the Trash leaves the list; its Owner restores it from Workspace Settings → Trash within 30 days.
 async function projectTrashed(name){ selected.value=null; navigate('projects'); await loadProjects(); notice.value=`“${name}” is in the Trash. Restore it from Workspace Settings → Trash within 30 days.`; }
 async function trash(project){ try { await trashProject(project.ref); await projectTrashed(project.name); } catch (error) { notice.value=error.message; } }
-function openSetting(name){ if(name==='Team Members'){ selected.value=null; navigate('members'); } else if(name==='Trash'){ selected.value=null; navigate('trash'); } else sidebarDialog.value=name; }
+function openSetting(name){ const here={'Team Members':'members','Trash':'trash','Audit Logs':'audit','Notifications':'notifications'}[name]; if(here){ selected.value=null; navigate(here); } else if(SETTINGS_PAGES[name]) location.assign(SETTINGS_PAGES[name]); else sidebarDialog.value=name; }
 // An invite link (`?join=…`): the person sees what it gives and joins; the address loses the token at once.
 const joining=ref(joinToken());
 function leaveJoin(){ joining.value=''; const url=new URL(location.href); url.searchParams.delete('join'); history.replaceState(null,'',url.pathname+url.search+url.hash); }
@@ -114,30 +122,39 @@ onUnmounted(() => { clearInterval(unreadTimer); window.removeEventListener('hash
 </script>
 <template>
   <a class="skip-link" href="#main" @click.prevent="skipToMain">Skip to content</a>
-  <UiDialog :open="!!sidebarDialog" :title="sidebarDialog" @close="sidebarDialog=''"><p class="dialog-description">{{sidebarDialog==='Workspace'?`Current workspace: ${session.workspace.name}.`:'This section is part of the frontend preview.'}}</p><div class="dialog-info"><UiBadge tone="purple">Coming soon</UiBadge></div><div class="dialog-actions"><UiButton @click="sidebarDialog=''">Close</UiButton><UiButton v-if="sidebarDialog==='Account'" variant="primary" :disabled="signingOut" @click="leave">{{ signingOut ? 'Signing out…' : 'Sign out' }}</UiButton></div></UiDialog>
+  <UiDialog :open="!!sidebarDialog" :title="sidebarDialog" @close="sidebarDialog=''">
+    <template v-if="sidebarDialog==='API Keys'"><p class="dialog-description">Keys belong to a project. The keys an app sends photos and events with are on the project's Connect app page. The apps that ask a deployed model for predictions, with their keys, are on the project's Deployments page.</p><div class="dialog-actions"><UiButton @click="sidebarDialog=''">Close</UiButton><UiButton variant="primary" @click="sidebarDialog='';selected=null;navigate('deployments')">Open Deployments</UiButton></div></template>
+    <template v-else-if="sidebarDialog==='Datasources'"><p class="dialog-description">Importing photos from cloud storage, such as Amazon S3, Google Cloud Storage or Azure Blob Storage, is not available yet. Upload photos on a project's Upload page, or let an app send them with a key from the project's Connect app page.</p><div class="dialog-info"><UiBadge tone="purple">Coming soon</UiBadge></div><div class="dialog-actions"><UiButton @click="sidebarDialog=''">Close</UiButton></div></template>
+    <template v-else-if="sidebarDialog==='Account'"><p class="dialog-description">Signed in to AADML as {{ session.user.name }}.</p><div class="dialog-actions"><a class="button" href="/dashboard/settings/general">Account settings</a><UiButton variant="primary" :disabled="signingOut" @click="leave">{{ signingOut ? 'Signing out…' : 'Sign out' }}</UiButton></div></template>
+    <template v-else><p class="dialog-description">{{sidebarDialog==='Workspace'?`Current workspace: ${session.workspace.name}.`:'This section is not available yet.'}}</p><div class="dialog-info"><UiBadge tone="purple">Coming soon</UiBadge></div><div class="dialog-actions"><UiButton @click="sidebarDialog=''">Close</UiButton></div></template>
+  </UiDialog>
   <JoinByLink v-if="joining" :token="joining" @close="leaveJoin" @joined="joined" />
   <ProjectCreate v-if="dialog" :submit="submitProject" @cancel="dialog = false" @done="finishCreate" />
   <div v-else :class="['workspace', {'with-project': selected,'nav-collapsed':navCollapsed}]">
     <button v-if="drawer" class="nav-backdrop" aria-label="Close navigation" @click="drawer = false"></button>
     <aside @mouseleave="projectFlyout = false" :inert="mobile && !drawer" :class="['sidebar', { 'sidebar--open': drawer }]">
       <WorkspaceSwitcher :session="session" />
-      <nav aria-label="Workspace"><a v-for="item in sections.filter(s=>!['components','members','trash'].includes(s.id))" :key="item.id" :href="`#${item.id}`" :title="item.name" @mouseenter="projectFlyout = item.id === 'projects'" @focus="projectFlyout = item.id === 'projects'" :class="['nav-link', { active: selected ? item.id==='projects' : page === item.id }]" :aria-current="page === item.id ? 'page' : undefined" @click="selected = null; drawer = false"><component :is="item.icon" :size="15" /><span class="nav-text">{{ item.name }}</span><span v-if="item.id==='notifications'&&unreadCount" class="nav-count" :aria-label="`${unreadCount} unread`">{{ unreadCount }}</span></a></nav>
+      <nav aria-label="Workspace"><a v-for="item in sections.filter(s=>!['components','members','trash','audit'].includes(s.id))" :key="item.id" :href="`#${item.id}`" :title="item.name" @mouseenter="projectFlyout = item.id === 'projects'" @focus="projectFlyout = item.id === 'projects'" :class="['nav-link', { active: selected ? item.id==='projects' : page === item.id }]" :aria-current="page === item.id ? 'page' : undefined" @click="selected = null; drawer = false"><component :is="item.icon" :size="15" /><span class="nav-text">{{ item.name }}</span><span v-if="item.id==='notifications'&&unreadCount" class="nav-count" :aria-label="`${unreadCount} unread`">{{ unreadCount }}</span></a></nav>
       <div v-if="projectFlyout && !mobile" class="project-flyout" @mouseenter="projectFlyout = true"><div class="flyout-workspace">{{ session.workspace.name }}<small>Local frontend preview</small></div><h3>Projects</h3><UiButton @click="dialog = true; projectFlyout = false"><Plus :size="16" /> New project</UiButton><div class="flyout-recent">RECENT <a href="#projects" @click="selected = null; projectFlyout = false">View all</a></div><button v-for="project in projects.slice(0,5)" :key="project.id" @click="openProject(project)"><strong>{{ project.name }}</strong><small>{{ project.type }} / {{ project.date }}</small></button></div>
 
       <button class="sidebar-collapse" :aria-label="navCollapsed?'Expand navigation':'Collapse navigation'" @click="navCollapsed=!navCollapsed;projectFlyout=false"><ChevronRight v-if="navCollapsed" :size="14"/><ChevronLeft v-else :size="14"/></button>
-      <div class="sidebar-bottom"><button class="sidebar-upgrade" title="Upgrade" @click="sidebarDialog='Upgrade'"><CircleArrowUp :size="14"/><span class="nav-text">Upgrade</span></button><SidebarUtilities @select="openSetting"/><button class="sidebar-profile" :title="`${session.user.name} account`" @click="sidebarDialog='Account'"><span>{{ session.user.initials.slice(0,1) }}</span><strong class="nav-text">{{ session.user.name.toUpperCase() }}</strong></button><a class="sidebar-wordmark" href="#projects" @click="selected=null"><Aperture :size="15"/><span class="nav-text">AADML workspace</span></a></div>
+      <div class="sidebar-bottom"><button class="sidebar-upgrade" title="Upgrade" @click="openSetting('Plan & Billing')"><CircleArrowUp :size="14"/><span class="nav-text">Upgrade</span></button><SidebarUtilities @select="openSetting" @unread="n=>unreadCount=n"/><button class="sidebar-profile" :title="`${session.user.name} account`" @click="sidebarDialog='Account'"><span>{{ session.user.initials.slice(0,1) }}</span><strong class="nav-text">{{ session.user.name.toUpperCase() }}</strong></button><a class="sidebar-wordmark" href="#projects" @click="selected=null"><Aperture :size="15"/><span class="nav-text">AADML workspace</span></a></div>
     </aside>
     <aside v-if="selected" class="project-sidebar"><button class="project-back" @click="selected = null; navigate('projects')"><ArrowLeft :size="13" /> MY WORKSPACE</button><div class="project-context"><span>{{ selected.type }}</span><RoomArt :variant="selected.variant" /><h3>{{ selected.name }}</h3></div><div class="nav-label">DATA</div><nav aria-label="Project"><a v-for="item in projectSections.filter(s=>!(selected.family==='llm'&&NOT_FOR_LLM.includes(s.id)))" :key="item.id" :href="`#${item.id}`" :class="['project-nav-link', {active:page === item.id}]" :aria-current="page === item.id ? 'page' : undefined"><component :is="item.icon" :size="15" />{{ item.name }}</a></nav></aside>
     <div class="main-shell">
       <header class="topbar"><div class="breadcrumb"><button class="icon-button mobile-menu" aria-label="Open navigation" @click="drawer = true"><Menu :size="21" /></button><span>Workspace</span><span class="breadcrumb-slash">/</span><strong>{{ title }}</strong></div><div class="topbar-right"><BackendConnection/><UiBadge tone="purple"><span class="live-dot"></span> Phase 2 preview</UiBadge><span class="avatar" :title="session.user.name">{{ session.user.initials.slice(0,1) }}</span></div></header>
       <main id="main" tabindex="-1">
-        <div class="page-heading"><div><div class="eyebrow">TRAINING DATA</div><h1>{{ title }}</h1><p>{{ page === 'projects' ? 'Great models start with well-organized data.' : page === 'components' ? 'One consistent visual language for your entire workflow.' : page === 'members' ? 'Invite your team and manage project access.' : selected?.name || (page === 'models' ? 'Manage, deploy, and monitor models in your workspace.' : 'Your independent vision workspace.') }}</p></div><UiButton v-if="page === 'projects'" variant="primary" @click="dialog = true"><Plus :size="17" /> New project</UiButton></div>
+        <div class="page-heading"><div><div class="eyebrow">TRAINING DATA</div><h1>{{ title }}</h1><p>{{ page === 'projects' ? 'Great models start with well-organized data.' : page === 'components' ? 'One consistent visual language for your entire workflow.' : page === 'members' ? 'Invite your team and manage project access.' : selected?.name || (page === 'models' ? 'Manage, deploy, and monitor models in your workspace.' : PAGE_LINES[page] || 'Your independent vision workspace.') }}</p></div><UiButton v-if="page === 'projects'" variant="primary" @click="dialog = true"><Plus :size="17" /> New project</UiButton></div>
         <div v-if="notice" class="notice" role="status"><Check :size="18" /><span>{{ notice }}</span><button class="icon-button" aria-label="Dismiss notification" @click="notice = ''"><X :size="17" /></button></div>
         <LlmUpload v-if="page === 'upload' && selected?.family === 'llm'" :key="selected.ref" :project="selected" @navigate="navigate" />
         <ProjectUpload v-else-if="page === 'upload'" :key="selected?.id || 'default'" :project="selected" @continue="receiveBatch" @navigate="navigate" />
-        <WorkspaceExtras v-else-if="['agent','assets','workflows','events','discover'].includes(page)" :page="page" @navigate="navigate" @create="dialog=true" />
-        <section v-else-if="page==='deployments'" class="panel screen-placeholder"><Server :size="36"/><h2>Deployments</h2><UiBadge tone="purple">Coming soon</UiBadge><p>Workspace deployment management will be available when the backend is connected.</p></section>
-        <WorkspaceModels v-else-if="page === 'models' && !selected" @create="dialog = true" />
+        <WorkspaceAgent v-else-if="page==='agent'" />
+        <WorkspaceWorkflows v-else-if="page==='workflows'" />
+        <WorkspaceEvents v-else-if="page==='events'" />
+        <WorkspaceAudit v-else-if="page==='audit'" />
+        <WorkspaceExtras v-else-if="['assets','discover'].includes(page)" :page="page" @navigate="navigate" @create="dialog=true" />
+        <WorkspaceDeployments v-else-if="page==='deployments'" />
+        <WorkspaceModels v-else-if="page === 'models' && !selected" @create="dialog = true" @navigate="navigate" />
         <ConnectApp v-else-if="page === 'connect'" :key="selected?.ref" :project="selected" @navigate="navigate" />
         <TeamMembers v-else-if="page==='members'" />
         <TrashPage v-else-if="page==='trash'" @restored="loadProjects" />
