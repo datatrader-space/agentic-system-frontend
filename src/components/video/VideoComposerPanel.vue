@@ -414,18 +414,21 @@ async function onPrimary() {
     }
     if (isImage.value) {
       const sent = await video.requestImage({ prompt: text, chat })
-      if (sent) { video.panelTab = 'images'; emit('done') }
+      if (sent) { video.panelTab = 'images'; clearSent(text); emit('done') }
       return
     }
     if (video.task === 'story') {
       const ok = await video.planStory({ prompt: text, chat })
-      if (ok) emit('done')
+      if (ok) { clearSent(text); emit('done') }
       return
     }
     const sent = await video.request({ prompt: text, chat })
-    if (sent) emit('done')
+    if (sent) { clearSent(text); emit('done') }
   } finally { preparing.value = false }
 }
+// The words went to the agent, so the box empties. Done here and not only by the host: the first request opens
+// the workspace, which replaces the create screen before it hears 'done', and the text stayed in the box.
+function clearSent(text) { if (video.studioDraft === text) video.studioDraft = '' }
 
 watch(() => chat.selectedAgentId, (id) => {
   if (!id) return

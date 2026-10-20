@@ -340,3 +340,24 @@ describe('VideoComposerPanel image mode', () => {
     expect(w.emitted('done')).toHaveLength(1)
   })
 })
+
+describe('the box empties once a request is sent', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    Object.assign(chatMock, { currentAgent: { id: 5, image_model: 3, video_model: 4 },
+                              ensureConversation: vi.fn().mockResolvedValue('c1'), sendMessage: vi.fn().mockResolvedValue(true) })
+    api.get.mockResolvedValue({ data: { routes: [ROUTE], default_route_id: 7, models: [NANO], default_model_id: 21 } })
+  })
+  it('even when the create screen is gone before it hears "done"', async () => {
+    const video = useVideoStore()
+    video.studioDraft = 'my candle'
+    vi.spyOn(video, 'requestImage').mockResolvedValue(true)
+    const w = await mounted('my candle')
+    video.setKind('image')
+    await w.vm.$nextTick()
+    await w.get('[data-test="image-create"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(video.studioDraft).toBe('')
+  })
+})
