@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM, trainingOverrides, lossPoints, configSummary, lossInWords, percent, tallyParts, tallyInWords, questionRows, questionCases, verdictLabel, verdictTone } from '../src/api/llm.js';
+import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM, trainingOverrides, lossPoints, configSummary, lossInWords, percent, tallyParts, tallyInWords, questionRows, questionCases, verdictLabel, verdictTone, chatSnippet, chatLiveTag, downloadUrl } from '../src/api/llm.js';
 
 const CHAT = { kind: 'chat', system: 'You are the support agent.', weight_on: 'last_assistant',
   messages: [{ role: 'user', content: 'Where is order 42?' },
@@ -48,9 +48,34 @@ test('filters become a query; empty ones are left out', () => {
   assert.equal(findingText('unknown_code'), 'unknown_code');
 });
 
-test('a language-model project hides the vision-only pages and names the phase of the pages still to build', () => {
+test('a language-model project hides the vision-only pages and has no page left to build', () => {
   assert.deepEqual(NOT_FOR_LLM, ['classes', 'nas', 'active']);
-  assert.deepEqual(Object.keys(LATER_FOR_LLM).sort(), ['deploy']);
+  assert.deepEqual(LATER_FOR_LLM, {});
+});
+
+const CHAT_URL = 'https://aadml.example/api/training-data/v1/projects/7/environments/{environment}/v1/chat/completions';
+
+test('the chat call names the real address for the chosen environment, and never a key', () => {
+  for (const language of ['Python', 'JavaScript', 'HTTP / cURL']) {
+    const code = chatSnippet(language, CHAT_URL, 'production');
+    assert.ok(code.includes('/projects/7/environments/production/v1'), language);
+    assert.ok(!code.includes('{environment}') && !code.includes('/staging/'), language);
+    assert.ok(code.includes("<the app's key>"), language);
+  }
+  // The OpenAI client is given the base address: it adds /chat/completions itself.
+  assert.ok(chatSnippet('Python', CHAT_URL, 'staging').includes('base_url="https://aadml.example/api/training-data/v1/projects/7/environments/staging/v1"'));
+  assert.ok(chatSnippet('HTTP / cURL', CHAT_URL, 'staging').includes('"stream": true'));
+});
+
+test('a chat deployment says whether it answers, and that it is starting', () => {
+  assert.deepEqual(chatLiveTag({ live: null, starting: null }), ['neutral', 'Nothing deployed']);
+  assert.deepEqual(chatLiveTag({ live: null, starting: { number: 1 } }), ['purple', 'Starting']);
+  assert.deepEqual(chatLiveTag({ live: { healthy: true } }), ['green', 'Live']);
+  assert.deepEqual(chatLiveTag({ live: { healthy: false } }), ['amber', 'Live · not answering']);
+});
+
+test('a download is a plain address the session cookie reaches', () => {
+  assert.equal(downloadUrl('~7', 2, 'merged'), '/api/training-data/app/projects/~7/llm/models/2/download/merged/');
 });
 
 test('a training configuration reads as words, not JSON', () => {

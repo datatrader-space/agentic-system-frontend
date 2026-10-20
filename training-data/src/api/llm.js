@@ -68,7 +68,59 @@ export const llmApi = {
   evaluation: (ref, number) => apiFetch(`${llm(ref)}/evaluations/${number}/`),
   evaluationPairs: (ref, number) => apiFetch(`${llm(ref)}/evaluations/${number}/pairs/`),
   evaluationMove: (ref, number, move) => post(`${llm(ref)}/evaluations/${number}/${move}/`, {}),
+  // Deploy page: approvals, deployments, the chat API, "Use in AADML", apps and downloads (LLM-POC 28-32). These
+  // answers look at chat servers, so they get more time.
+  deploy: ref => apiFetch(`${llm(ref)}/deploy/`, { timeoutMs: 60000 }),
+  deployAct: (ref, environment, action, body = {}) => post(`${llm(ref)}/deploy/${enc(environment)}/${action}/`, body, { timeoutMs: 60000 }),
+  approve: (ref, version, body) => post(`${llm(ref)}/models/${version}/approvals/`, body, { timeoutMs: 60000 }),
+  revokeApproval: (ref, version, id, reason) => post(`${llm(ref)}/models/${version}/approvals/${id}/revoke/`, { reason }, { timeoutMs: 60000 }),
+  merge: (ref, version) => post(`${llm(ref)}/models/${version}/merge/`, {}, { timeoutMs: 60000 }),
+  addApp: (ref, name) => post(`${llm(ref)}/deploy/apps/`, { name }, { timeoutMs: 60000 }),
+  app: (ref, id, action, body = {}, item = null) =>
+    post(`${llm(ref)}/deploy/apps/${enc(id)}/${action}/${item === null ? '' : `${enc(item)}/`}`, body, { timeoutMs: 60000 }),
 };
+
+// A version's adapter or merged weights: a plain download, asked for with the person's own session.
+export const downloadUrl = (ref, version, kind) => `/api${llm(ref)}/models/${version}/download/${kind}/`;
+
+// How an app calls a deployed chat model, in three languages, with the project's real address. The key is never
+// filled in. The gateway speaks OpenAI's chat completions, so the OpenAI client libraries work as they are.
+export function chatSnippet(language, url, environment) {
+  const address = url.replace('{environment}', environment);
+  const root = address.replace(/\/chat\/completions$/, '');
+  if (language === 'Python') {
+    return `from openai import OpenAI   # pip install openai
+
+client = OpenAI(base_url="${root}", api_key="<the app's key>")
+answer = client.chat.completions.create(
+    model="live",   # not read: the version live in ${environment} answers, and the answer names it
+    messages=[{"role": "user", "content": "Where is my parcel?"}],
+    max_tokens=256,
+)
+print(answer.model, answer.choices[0].message.content)`;
+  }
+  if (language === 'JavaScript') {
+    return `const answer = await fetch('${address}', {
+  method: 'POST',
+  headers: { Authorization: "Bearer <the app's key>", 'Content-Type': 'application/json' },
+  body: JSON.stringify({ messages: [{ role: 'user', content: 'Where is my parcel?' }], max_tokens: 256 }),
+});
+if (!answer.ok) throw new Error((await answer.json()).error.message);
+const body = await answer.json();
+console.log(body.model, body.choices[0].message.content);`;
+  }
+  return `curl -N "${address}" \\
+  -H "Authorization: Bearer <the app's key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"messages": [{"role": "user", "content": "Where is my parcel?"}], "stream": true}'`;
+}
+
+// What an environment's card says about its chat deployment, in a word and a tone.
+export function chatLiveTag(environment) {
+  if (environment.starting) return ['purple', 'Starting'];
+  if (!environment.live) return ['neutral', 'Nothing deployed'];
+  return environment.live.healthy === false ? ['amber', 'Live · not answering'] : ['green', 'Live'];
+}
 
 // An evaluation's verdict in words, and the badge tone it is shown with (plan §9.6).
 export const VERDICT = {
@@ -166,8 +218,8 @@ export function lossPoints(history, key = 'loss', width = 240, height = 60) {
 // The pages an LLM project shows its own form of, and the pages it does not show (plan §2.1).
 export const LLM_PAGES = ['dataset', 'annotate', 'versions'];
 export const NOT_FOR_LLM = ['classes', 'nas', 'active'];
-// Pages whose LLM form is built in a later phase of the plan (Deploy).
-export const LATER_FOR_LLM = { deploy: 5 };
+// Pages whose LLM form is built in a later phase of the plan: none left (Deploy was the last, phase 5).
+export const LATER_FOR_LLM = {};
 
 export const KIND_LABEL = { chat: 'Conversation', instruction: 'Question and answer', preference: 'Preference', document: 'Document' };
 export const SOURCE_LABEL = { record: 'Sent by an app', upload: 'Uploaded', run_trace: 'An agent run', human: 'Written by a person', synthetic: 'Written by a model' };
