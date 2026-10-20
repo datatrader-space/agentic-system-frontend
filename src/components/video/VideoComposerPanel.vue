@@ -218,7 +218,7 @@ const settingsSummary = computed(() => `${video.settings.aspect_ratio}, ${video.
 const showSettings = ref(false)
 // The agent column's one-line summary: the model, then the shape and length.
 const settingsLine = computed(() => {
-  const r = video.routeId ? video.route : video.routes.find((x) => String(x.route_id) === String(video.defaultRouteId))
+  const r = video.route
   const n = r ? String(r.name || '').replace(/^[^:]+:\s*/, '') : 'Auto'
   return `${n}, ${settingsSummary.value}`
 })

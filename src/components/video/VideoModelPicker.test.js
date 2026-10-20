@@ -45,6 +45,15 @@ describe('VideoModelPicker', () => {
     w.unmount()
   })
 
+  it('names the default even when it is a second connection of a model (the person\'s own key)', async () => {
+    video.routes = [{ ...routes[1], connections: [{ route_id: 2, connection: 'AADML' }, { route_id: 152, connection: 'my openrouter' }] }]
+    video.defaultRouteId = 152
+    const w = await opened()
+    expect(w.get('[data-test="video-route"]').text()).toContain('Auto (Video v3.0 Pro)')
+    expect(w.get('[data-test="video-model-auto"]').text()).toContain('The agent picks Video v3.0 Pro')
+    w.unmount()
+  })
+
   it('a model that offers nothing yet is shown, but cannot be picked', async () => {
     const w = await opened()
     const pick = vi.spyOn(video, 'pickRoute')

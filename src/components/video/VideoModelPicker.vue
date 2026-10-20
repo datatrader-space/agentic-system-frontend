@@ -68,15 +68,17 @@ const ICON = {
 
 // While a switch waits for the person, the picker shows the model they chose.
 const selectedId = computed(() => String(video.pendingSwitch ? video.pendingSwitch.routeId : (video.routeId || '')))
+// The default may be any connection of a model (the user's own key, a second connection), not only the first.
+function hasRoute(r, id) { return String(r.route_id) === String(id) || (r.connections || []).some((c) => String(c.route_id) === String(id)) }
 const autoName = computed(() => {
-  const r = video.routes.find((x) => String(x.route_id) === String(video.defaultRouteId))
+  const r = video.defaultRouteId ? video.routes.find((x) => hasRoute(x, video.defaultRouteId)) : null
   return r ? r.name : ''
 })
 const currentLabel = computed(() => {
-  const r = selectedId.value && video.routes.find((x) => String(x.route_id) === selectedId.value)
+  const r = selectedId.value && video.routes.find((x) => hasRoute(x, selectedId.value))
   return r ? shortName(r.name) : `Auto${autoName.value ? ` (${shortName(autoName.value)})` : ''}`
 })
-function isSelected(r) { return String(r.route_id) === selectedId.value }
+function isSelected(r) { return !!selectedId.value && hasRoute(r, selectedId.value) }
 
 // "Google: Veo 3.1" → maker "Google", model "Veo 3.1".
 function maker(r) { const i = String(r.name || '').indexOf(': '); return i > 0 ? r.name.slice(0, i) : (r.creator || 'Other') }
