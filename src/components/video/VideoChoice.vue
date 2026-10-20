@@ -4,7 +4,7 @@
        model changes what is offered. A setting with a single value is shown as a fact, not a dropdown of one. In the
        phone settings sheet the panel opens in place. -->
   <div ref="root" class="vch" :class="{ 'in-sheet': inSheet }" @keydown.esc.stop="close">
-    <span v-if="options.length === 1" class="vch-pill fixed" :title="`${label}: ${current.label}, the only one this model offers`"
+    <span v-if="options.length === 1" class="vch-pill single" :title="`${label}: ${current.label}, the only one this model offers`"
           :data-test="testId" :aria-label="`${label}: ${current.label}, the only one this model offers`">
       <span class="vch-ic" aria-hidden="true" v-html="icon"></span>
       <span v-if="inSheet" class="vch-label">{{ label }}</span>
@@ -94,7 +94,8 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onOutside))
   border: 1px solid var(--vm-line, #dce3ee); border-radius: 999px; background: transparent; color: var(--vm-ink, #0f172a); font: inherit; font-size: 13px;
   cursor: pointer; white-space: nowrap; }
 button.vch-pill:hover, .vch-pill[aria-expanded="true"] { background: var(--vm-surface, #f1f5f9); }
-.vch-pill.fixed { cursor: default; color: var(--vm-ink-soft, #64748b); border-style: dashed; }
+/* "single", not "fixed": Tailwind's global .fixed sets position: fixed (live 2026-10-20: the pill left the row). */
+.vch-pill.single { cursor: default; color: var(--vm-ink-soft, #64748b); border-style: dashed; }
 .vch-ic { width: 16px; height: 16px; flex-shrink: 0; color: var(--vm-ink-soft, #64748b); }
 .vch-ic :deep(svg), .vch-chev :deep(svg), .vch-check :deep(svg), .vch-glyph :deep(svg) { display: block; width: 100%; height: 100%; }
 .vch-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
