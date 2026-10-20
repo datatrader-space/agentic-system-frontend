@@ -8,14 +8,22 @@
            not "Done" (nothing was carried out); the steps so far stay one click away. -->
       <button v-if="pausedLabel && !isComplete" type="button" class="at-head at-paused" data-test="timeline-paused" @click="expanded = !expanded">
         <svg class="at-pause" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM7.5 6.5a.75.75 0 0 0-.75.75v5.5a.75.75 0 0 0 1.5 0v-5.5a.75.75 0 0 0-.75-.75Zm5 0a.75.75 0 0 0-.75.75v5.5a.75.75 0 0 0 1.5 0v-5.5a.75.75 0 0 0-.75-.75Z" clip-rule="evenodd"/></svg>
-        <span class="at-head-text">{{ pausedLabel }}<span v-if="visibleSteps.length"> · {{ visibleSteps.length }} step{{ visibleSteps.length === 1 ? '' : 's' }}</span></span>
+        <span class="at-head-text">{{ pausedLabel }}<span v-if="workStepCount"> · {{ workStepCount }} step{{ workStepCount === 1 ? '' : 's' }}</span></span>
         <svg class="at-chevron" :class="{ open: expanded }" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4Z" clip-rule="evenodd"/></svg>
       </button>
       <button v-else-if="isComplete && (visibleSteps.length || (reasoning && reasoning.length))" type="button" class="at-head" @click="expanded = !expanded">
         <svg class="at-check" :class="summaryWarn ? 'warn' : 'ok'" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 0 1 0 1.4l-7.5 7.5a1 1 0 0 1-1.4 0L3.3 9.7a1 1 0 1 1 1.4-1.4l3.3 3.29 6.8-6.8a1 1 0 0 1 1.4 0Z" clip-rule="evenodd"/></svg>
-        <span class="at-head-text">{{ headLabel }}<span v-if="visibleSteps.length"> · {{ visibleSteps.length }} step{{ visibleSteps.length === 1 ? '' : 's' }}</span><span v-if="tokensText && !publicSafe"> · {{ tokensText }}</span></span>
+        <span class="at-head-text">{{ headLabel }}<span v-if="workStepCount"> · {{ workStepCount }} step{{ workStepCount === 1 ? '' : 's' }}</span><span v-if="tokensText && !publicSafe"> · {{ tokensText }}</span></span>
         <svg class="at-chevron" :class="{ open: expanded }" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.3 7.3a1 1 0 0 1 1.4 0L10 10.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 0 1 0-1.4Z" clip-rule="evenodd"/></svg>
       </button>
+
+      <!-- What the person ADDED while the run was working stays readable when the card is collapsed: their own
+           words are never hidden behind a click. In the expanded list they sit at the point they were taken in. -->
+      <ul v-if="isComplete && !expanded && steerSteps.length" class="at-steers" data-test="timeline-steers">
+        <li v-for="s in steerSteps" :key="`c-${s.stepId}`" class="at-steer-line">
+          <span class="at-steer-icon" aria-hidden="true">↳</span><span class="at-steer-by">You added:</span> {{ s.label }}
+        </li>
+      </ul>
 
       <!-- RUNNING: live "Working" header -->
       <div v-else-if="running && !isComplete && steps && steps.length" class="at-head-live">
@@ -31,10 +39,11 @@
           v-for="step in renderedSteps"
           :key="step.stepId"
           class="agent-step"
-          :class="`is-${step.status}`"
+          :class="[`is-${step.status}`, { 'is-steer': step.isSteer }]"
         >
           <span class="agent-step-icon" :class="`icon-${step.status}`">
-            <template v-if="step.status === 'running'"><span class="agent-spinner sm" aria-hidden="true"></span></template>
+            <template v-if="step.isSteer">↳</template>
+            <template v-else-if="step.status === 'running'"><span class="agent-spinner sm" aria-hidden="true"></span></template>
             <template v-else-if="step.status === 'failed'">✕</template>
             <template v-else-if="step.status === 'interrupted'">⊘</template>
             <template v-else>✓</template>
@@ -42,7 +51,7 @@
           <div class="agent-step-body">
             <div class="agent-step-head">
               <span class="agent-step-name">
-                <span class="agent-step-label">{{ step.label }}</span>
+                <span class="agent-step-label"><span v-if="step.isSteer" class="at-steer-by">You added:</span> {{ step.label }}</span>
                 <!-- Folded rows say how many they stand for, so a count is never mistaken for one
                      thing happening once. The wording is the backend's; only the count is added.
                      A status row ("Getting ready", "Working…") is not counted: its count is how
@@ -236,6 +245,10 @@ const visibleSteps = computed(() =>
 const showAllSteps = ref(false)
 const milestoneSteps = computed(() => foldMilestones(visibleSteps.value))
 const canShowAll = computed(() => wasFolded(milestoneSteps.value, visibleSteps.value))
+// The person's own messages, taken in by the run while it worked (`useAgentTimeline.addSteer`). Not work
+// the agent did, so they are not counted as steps.
+const steerSteps = computed(() => visibleSteps.value.filter((s) => s.isSteer))
+const workStepCount = computed(() => visibleSteps.value.length - steerSteps.value.length)
 const renderedSteps = computed(() => (showAllSteps.value ? visibleSteps.value.map(
   (s) => ({ ...s, repeatCount: 1, foldedIds: [s.stepId] })) : milestoneSteps.value))
 
@@ -479,6 +492,23 @@ function fmtDuration(ms) {
 }
 .agent-step-label {
   @apply text-gray-700;
+}
+/* The person's own words inside the run: quoted in their voice, set apart from the agent's work. */
+.agent-step.is-steer .agent-step-icon,
+.at-steer-icon {
+  @apply text-blue-600 font-semibold;
+}
+.agent-step.is-steer .agent-step-label {
+  @apply text-gray-900;
+}
+.at-steer-by {
+  @apply font-medium text-blue-700;
+}
+.at-steers {
+  @apply px-3 pb-2 space-y-1 text-[13px] text-gray-900;
+}
+.at-steer-line {
+  @apply flex items-baseline gap-1.5 break-words;
 }
 /* The count on a folded row: quiet, tabular so a column of them lines up, and never louder than the
    label it qualifies. */

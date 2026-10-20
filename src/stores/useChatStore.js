@@ -455,6 +455,22 @@ export const useChatStore = defineStore('chat', {
       return null
     },
 
+    // Make agent `id` resolvable in `agents` so currentAgent, the composer and the header find it. A shared
+    // agent (the Platform Super Agent, a built-in such as Video Studio) is never in the library list and
+    // /agents/<id>/ does not return it, so it comes from the chattable set; any other agent by id.
+    // Without this a reloaded shared-agent chat showed "Choose an agent" and no agent name (2026-10-20).
+    async ensureAgent(id) {
+      const has = () => this.agents.find((a) => String(a.id) === String(id)) || null
+      if (id == null || id === '' || has()) return has()
+      await this.loadChattableAgents().catch(() => null)
+      if (has()) return has()
+      try {
+        const { data } = await api.getAgent(id)
+        if (data && data.id != null && !has()) this.agents.push(data)
+      } catch { /* not visible to this user */ }
+      return has()
+    },
+
     setAgent(id) {
       this.selectedAgentId = String(id)
       // History is NOT prefetched here. `sessions` has exactly one consumer — ChatHistoryDrawer —
@@ -606,6 +622,32 @@ export const useChatStore = defineStore('chat', {
     // ONE mapping from a server message row to the client message shape. Shared by the initial
     // conversation load and by loadOlderMessages() so a prepended page restores attachments, thumbs,
     // plan anchors, timeline and provenance EXACTLY like the first page does.
+    // A STEER row (a message the person sent while a run worked, taken in by that run) is shown INSIDE the
+    // run that took it in: in the following answer's step list, never as a bubble of its own (its saved order
+    // — before the answer — made it jump above the answer on reload). If the answer's saved timeline lacks
+    // the line (the snapshot is written after the answer), it is added at the top of that run's steps. With
+    // no run timeline to hold it, it stays a bubble: the person's words are never dropped.
+    _foldSteers(list) {
+      const out = []
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i]
+        if (!(m && m.role === 'user' && m.kind === 'steer')) { out.push(m); continue }
+        let next = null
+        for (let j = i + 1; j < list.length; j++) { if (list[j] && list[j].role === 'assistant') { next = list[j]; break } }
+        const steps = next && next.timeline && Array.isArray(next.timeline.steps) ? next.timeline.steps : null
+        if (!steps) { out.push(m); continue }
+        const text = String(m.content || '').trim()
+        if (!steps.some((st) => st && st.isSteer && String(st.label || '').trim() === text)) {
+          steps.unshift({
+            stepId: `steer_${m.serverId || i}`, toolCallId: '', phase: 'steer', tool: '', argsPreview: '',
+            label: text, status: 'ok', summary: '', durationMs: null, reason: '', nextAction: '',
+            coalescedCount: 0, isSteer: true,
+          })
+        }
+      }
+      return out
+    },
+
     _mapServerMessage(m, conversationId) {
       const info = m.model_info || {}
       return {
@@ -688,7 +730,7 @@ export const useChatStore = defineStore('chat', {
         if (String(this.conversationId) !== String(id)) return   // switched conversation mid-flight
         const data = res.data || {}
         const older = pickArray(data.results).map((m) => this._mapServerMessage(m, id))
-        this.messages = older.concat(this.messages)
+        this.messages = this._foldSteers(older.concat(this.messages))
         this.messagesHasMore = !!data.has_more
         // Newly-prepended rows may carry their own plan anchors — hydrate so their inline cards render.
         this._hydratePlanAnchors(id)
@@ -721,7 +763,7 @@ export const useChatStore = defineStore('chat', {
         const res = await api.getConversation(id)
         const data = res.data || {}
         this.conversationProjectId = data.project ?? null
-        this.messages = pickArray(data.messages).map((m) => this._mapServerMessage(m, id))
+        this.messages = this._foldSteers(pickArray(data.messages).map((m) => this._mapServerMessage(m, id)))
         // Message windowing: the server returns the most recent page (see ChatConversationSerializer)
         // and reports whether older ones exist. loadOlderMessages() walks backwards from the oldest
         // row we hold. Older servers send neither field — then there is nothing more to fetch.
@@ -735,7 +777,10 @@ export const useChatStore = defineStore('chat', {
         // exposed separately as agent_profile_name — so read the id directly (older code
         // expected a nested object, which left selectedAgentId unset and hid the mode pill).
         const agentPk = (data.agent_profile && data.agent_profile.id) || data.agent_profile
-        if (agentPk) this.selectedAgentId = String(agentPk)
+        if (agentPk) {
+          this.selectedAgentId = String(agentPk)
+          this.ensureAgent(agentPk)   // not awaited: the history renders now, the agent's name follows
+        }
         this._connect()
       } catch {
         this.error = 'Failed to load conversation'
@@ -1547,6 +1592,7 @@ export const useChatStore = defineStore('chat', {
             ? pickArray(m.model_info.memories) : ((_prev && _prev.memories) || []),
           conversationId: String(this.conversationId),
         }))
+        this.messages = this._foldSteers(this.messages)   // a STEER shows inside its run (see _foldSteers)
         this._hydratePlanAnchors(this.conversationId)
         return true
       } catch {
@@ -2256,10 +2302,19 @@ export const useChatStore = defineStore('chat', {
           // ack that the backend queued the steering message (the optimistic bubble already shows it).
           break
         case 'steering_applied': {
-          // the running agent picked up a queued message — drop the "queued" flag on that bubble.
-          const qm = [...this.messages].reverse().find(
-            (m) => m.role === 'user' && m.queued && (m.content || '') === (msg.message || ''))
-          if (qm) qm.queued = false
+          // The running agent took in a message the person sent while it worked. It belongs INSIDE the run:
+          // it leaves the bottom of the thread (where it was typed, below the working run) and becomes a
+          // "You added: …" line in the run's step list at this point — the work before it above, the work and
+          // the answer after it below. Saved with the run's timeline, and the server marks the row a STEER, so
+          // a reload shows it in the same place instead of jumping above the answer.
+          const text = msg.message || ''
+          let qi = -1
+          for (let i = this.messages.length - 1; i >= 0; i--) {
+            const m = this.messages[i]
+            if (m.role === 'user' && m.queued && (m.content || '') === text) { qi = i; break }
+          }
+          if (qi >= 0) this.messages.splice(qi, 1)
+          _tl.addSteer(text)
           break
         }
         case 'followup_turn_started': {

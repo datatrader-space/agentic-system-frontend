@@ -192,7 +192,6 @@ import { computed, watch, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectsStore } from '../../stores/useProjectsStore'
 import { useChatStore } from '../../stores/useChatStore'
-import api from '../../services/api'
 import { useCanvasStore } from '../../stores/useCanvasStore'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { usePlanStore } from '../../stores/usePlanStore'
@@ -463,15 +462,9 @@ onMounted(() => {
 // user lands straight in its composer with no picker step; otherwise pre-build the (auto-)selected agent
 // now, during the idle window before the first message, so it reuses the runner (no ~6.6s cold build).
 async function _selectAgentById(id) {
-  // The agent may not be in the loaded library list — e.g. the Platform Super Agent, which is hidden from
-  // the Agents library for normal users. It's still retrievable by id, so fetch + add it so chat can open it.
-  if (!chat.agents.some((a) => String(a.id) === String(id))) {
-    try {
-      const { data } = await api.getAgent(id)
-      if (data && data.id) chat.agents.push(data)
-    } catch (e) { return false }
-  }
-  if (chat.agents.some((a) => String(a.id) === String(id))) {
+  // The agent may not be in the loaded library list — a shared agent (Platform Super Agent, a built-in)
+  // never is. ensureAgent resolves it from the chattable set, or any other agent by id.
+  if (await chat.ensureAgent(id)) {
     chat.setAgent(String(id))   // sets selectedAgentId + prewarms
     return true
   }

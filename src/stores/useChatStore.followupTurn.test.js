@@ -47,12 +47,17 @@ describe('useChatStore — a turn the server started', () => {
     expect(chat._cur().content).toBe('streamed text')
   })
 
-  it('clears the queued chip when the backend reports the steer was taken up', () => {
+  it('moves a taken-in steer INTO the running turn instead of leaving it below the answer', () => {
+    // 2026-10-20: the steer stayed at the bottom of the thread (below the working run, so below the answer
+    // it changed), and jumped above the answer on reload. It now becomes a line in the run's step list.
     const chat = useChatStore()
     chat.conversationId = 2163
-    chat.messages.push({ id: 'u1', role: 'user', content: 'what you can do', queued: true })
-    chat._onEvent({ type: 'steering_applied', message: 'what you can do' })
-    expect(chat.messages.find((m) => m.id === 'u1').queued).toBe(false)
+    chat._beginAssistant()
+    chat.messages.push({ id: 'u1', role: 'user', content: 'end with PINEAPPLE', queued: true })
+    chat._onEvent({ type: 'steering_applied', message: 'end with PINEAPPLE' })
+    expect(chat.messages.find((m) => m.id === 'u1')).toBeUndefined()
+    const steer = chat.liveSteps.find((s) => s.isSteer)
+    expect(steer && steer.label).toBe('end with PINEAPPLE')
   })
 
   it('ignores a follow-up meant for a conversation the user is no longer looking at', () => {

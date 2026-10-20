@@ -449,6 +449,20 @@ export function useAgentTimeline() {
     }
   }
 
+  // A message the person sent WHILE this run was working, taken in by the run (`steering_applied`). It is
+  // placed in the step list at the point the run took it in — the work before it above, the work and the
+  // answer after it below — so it never jumps, and it is saved with the run's timeline for a reload.
+  function addSteer(text) {
+    const t = String(text || '').trim()
+    if (!t) return
+    steps.value.push({
+      stepId: `steer_${steps.value.length}_${_now()}`,
+      toolCallId: '', phase: 'steer', tool: '', argsPreview: '',
+      label: t, status: 'ok', summary: '', durationMs: null, reason: '', nextAction: '',
+      coalescedCount: 0, isSteer: true, startedAt: _now(),
+    })
+  }
+
   // A plain, deep-copied snapshot for pinning the finished timeline onto a chat message
   // (so it persists after the live refs are reset for the next turn).
   function snapshot() {
@@ -486,6 +500,7 @@ export function useAgentTimeline() {
     tokens,
     reasoning,
     ingest,
+    addSteer,
     reset,
     finalize,
     interrupt,
