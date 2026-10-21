@@ -5,18 +5,31 @@
 // processing, dedicated deployment and dependent workflows have no backend yet and say so.
 // Backend: app_api.py deploy/… (deployments.py, connected_apps.py); approvals are the Models page's calls.
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { Ban, Check, Copy, KeyRound, Plus, RotateCcw, ShieldCheck, Square, Upload, X } from 'lucide-vue-next';
+import {
+  ArrowRight, Ban, Check, Cloud, Copy, GitBranch, KeyRound, Layers, MessageSquare, Plug, Plus, Radio, RotateCcw, ScanSearch,
+  Server, ShieldCheck, Square, Upload, X,
+} from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import ApprovalDialog from './ApprovalDialog.vue';
 import { deployApi, snippet, liveTag } from '../api/deploy.js';
 import { modelsApi, unanswered } from '../api/models.js';
+import { workspaceApi, AADML_CHAT } from '../api/workspace.js';
 
 const props = defineProps({ projectRef: { type: String, required: true } });
 const emit = defineEmits(['navigate']);
-const MODES = ['Cloud API', 'MCP', 'Batch processing', 'Dedicated deployment'];
-const mode = ref('Cloud API');
+// The Developer Quick Start's deploy options, laid out as Roboflow's (owner, 2026-10-21). Only the Cloud API is
+// AADML's today; every other option is shown and says Coming soon.
+const OPTIONS = [
+  { id: 'cloud', name: 'Cloud API', icon: Cloud },
+  { id: 'streaming', name: 'Cloud Streaming', icon: Radio, soon: 'Point the model at a live video stream and receive its answers while the video plays.' },
+  { id: 'mcp', name: 'MCP', icon: Plug, soon: 'Let an AI assistant, such as an AADML agent or Claude, call the model as a tool.' },
+  { id: 'batch', name: 'Batch Processing', icon: Layers, soon: 'Run the model over a whole folder of photos at once and download what it found.', group: 2 },
+  { id: 'dedicated', name: 'Dedicated Deployment', icon: Server, soon: 'The model on servers of its own, kept for your apps only and sized for steady traffic.', group: 2 },
+];
+const option = ref('cloud');
+const chosenOption = computed(() => OPTIONS.find(o => o.id === option.value));
 const data = ref(null); const models = ref([]); const error = ref(''); const notice = ref(''); const busy = ref(false);
 const chosen = ref({}); const allow = ref({}); const newKey = ref(null); const copied = ref('');
 
@@ -81,6 +94,33 @@ async function copy(text, what) {
   try { await navigator.clipboard.writeText(text); copied.value = what; setTimeout(() => { if (copied.value === what) copied.value = ''; }, 2000); }
   catch { error.value = 'The browser did not allow copying. Select the text and copy it.'; }
 }
+// The model the quick start is about: what answers in production, else in staging, else the newest model ready.
+const currentModel = computed(() => {
+  const envs = data.value?.environments || [];
+  const live = (envs.find(e => e.key === 'production')?.live || envs.find(e => e.key === 'staging')?.live)?.model;
+  const newest = models.value[0];
+  const model = live || newest;
+  return model ? `${model.name} ${model.version}` : '';
+});
+
+// "Build on this model": the person's words go to the AADML agent. Its chat starts empty, so the words are copied and
+// the chat is opened (the Training assistant's own conversation where AADML has one).
+const BUILD_CHIPS = [
+  { text: 'Mark the walls in my room photos with this model', icon: ScanSearch },
+  { text: 'Check this model on new photos before it goes to production', icon: Check },
+  { text: 'Customize with Workflows', icon: GitBranch, page: 'workflows' },
+];
+const buildText = ref(''); const buildSaid = ref(''); const chatUrl = ref(AADML_CHAT);
+workspaceApi.assistant().then(body => { if (body.url) chatUrl.value = body.url; }).catch(() => {});
+function chip(item) { if (item.page) emit('navigate', item.page); else buildText.value = item.text; }
+// The link opens the chat in a new tab; the copy starts in the same click, while the page still has the focus.
+function copyWords() {
+  const text = buildText.value.trim();
+  if (!text) { buildSaid.value = ''; return; }
+  navigator.clipboard.writeText(text)
+    .then(() => { buildSaid.value = 'Your words are copied: paste them into the chat.'; })
+    .catch(() => { buildSaid.value = 'Copy your words, then paste them into the chat.'; });
+}
 const when = iso => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '');
 const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', starting: 'purple' }[s] || 'neutral');
 </script>
@@ -90,16 +130,61 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
     <div v-if="notice" class="notice" role="status"><Check :size="16"/><span>{{ notice }}</span><button class="icon-button" aria-label="Dismiss" @click="notice=''"><X :size="14"/></button></div>
     <p v-if="error" class="field-error" role="alert">{{ error }}</p>
     <p v-if="!data&&!error">Loading…</p>
-    <div v-else-if="data" class="deploy-layout">
-      <nav aria-label="Ways to deploy">
-        <button v-for="m in MODES" :key="m" :class="{active:mode===m}" @click="mode=m">{{ m }}<UiBadge v-if="m!=='Cloud API'" tone="purple">Coming soon</UiBadge></button>
-      </nav>
-      <div v-if="mode!=='Cloud API'" class="panel soon">
-        <h2>{{ mode }}</h2><UiBadge tone="purple">Coming soon</UiBadge>
-        <p>{{ mode }} is not available in AADML yet. The Cloud API is how an app asks a model of this project for predictions today.</p>
-        <UiButton @click="mode='Cloud API'">Open Cloud API</UiButton>
-      </div>
-      <div v-else class="deploy-main">
+    <div v-else-if="data" class="deploy-main">
+        <section class="panel quick" aria-labelledby="quick-title">
+          <header class="quick-head">
+            <h2 id="quick-title">Developer Quick Start</h2>
+            <div class="quick-model">
+              <span class="model-chip">Current Model: <strong>{{ currentModel || 'none yet' }}</strong></span>
+              <button type="button" class="square-button" aria-label="Open the Models page" title="Models" @click="emit('navigate','models')"><ArrowRight :size="15"/></button>
+            </div>
+          </header>
+          <div class="quick-body">
+            <nav class="options" aria-label="Deploy options">
+              <p class="options-label">Deploy options</p>
+              <template v-for="(o, i) in OPTIONS" :key="o.id">
+                <hr v-if="o.group===2 && OPTIONS[i-1]?.group!==2">
+                <button type="button" :class="{active:option===o.id}" :aria-pressed="option===o.id" @click="option=o.id">
+                  <component :is="o.icon" :size="16"/><span>{{ o.name }}</span><UiBadge v-if="o.soon" tone="purple">Coming soon</UiBadge>
+                </button>
+              </template>
+            </nav>
+            <div class="quick-main">
+              <template v-if="option==='cloud'">
+                <div class="step"><span class="step-no">1</span><h3>Choose where the model answers, and your language</h3></div>
+                <div class="step-row">
+                  <label class="deploy-meta">Environment <select v-model="callEnv" class="text-input compact"><option value="staging">Staging</option><option value="production">Production</option></select></label>
+                  <div class="studio-tabs lang-tabs"><button v-for="l in ['Python','JavaScript','HTTP / cURL']" :key="l" type="button" :class="{active:language===l}" @click="language=l">{{ l }}</button></div>
+                </div>
+                <div class="step"><span class="step-no">2</span><h3>Copy and Run the Code</h3>
+                  <UiButton class="copy" @click="copy(code,'code')"><Copy :size="15"/> {{ copied==='code' ? 'Copied' : 'Copy' }}</UiButton></div>
+                <pre class="code-block">{{ code }}</pre>
+                <p class="deploy-meta">The file is a JPEG, PNG or WebP room photo of at most {{ data.max_mb }} MB; the photo is not kept. The answer is an fmw-predict.v1 document that names the model version and revision that made it. An app needs a key and access to the environment (Apps, below).</p>
+              </template>
+              <div v-else class="option-soon">
+                <span class="soon-icon"><component :is="chosenOption.icon" :size="24"/></span>
+                <h3>{{ chosenOption.name }} <UiBadge tone="purple">Coming soon</UiBadge></h3>
+                <p>{{ chosenOption.soon }} It is not available in AADML yet: today an app asks this project's model through the Cloud API.</p>
+                <UiButton @click="option='cloud'"><Cloud :size="15"/> Open Cloud API</UiButton>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel build" aria-labelledby="build-title">
+          <span class="eyebrow-chip">AADML AGENT</span>
+          <h2 id="build-title">Build on this Model</h2>
+          <div class="build-row">
+            <input v-model="buildText" class="text-input" aria-label="What you want to build with this model" placeholder="Describe what you want to build with this model…">
+            <a class="button button--primary" :class="{ 'is-off': !buildText.trim() }" :href="chatUrl" target="_blank" rel="noopener" @click="copyWords"><MessageSquare :size="15"/> Open Chat <ArrowRight :size="14"/></a>
+          </div>
+          <p v-if="buildSaid" class="deploy-meta" role="status">{{ buildSaid }}</p>
+          <p class="build-label">I want to…</p>
+          <div class="build-chips">
+            <button v-for="c in BUILD_CHIPS" :key="c.text" type="button" class="build-chip" @click="chip(c)"><component :is="c.icon" :size="14"/> {{ c.text }}</button>
+          </div>
+        </section>
+
         <p v-if="data.serving_refused" class="deploy-warning">{{ data.serving_refused }}</p>
         <section>
           <h2>Where the model answers</h2>
@@ -161,15 +246,6 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
           </div>
         </section>
 
-        <section class="panel">
-          <div class="call-head"><h2>How an app asks for a prediction</h2>
-            <label class="deploy-meta">Environment <select v-model="callEnv" class="text-input compact"><option value="staging">Staging</option><option value="production">Production</option></select></label></div>
-          <div class="studio-tabs"><button v-for="l in ['Python','JavaScript','HTTP / cURL']" :key="l" :class="{active:language===l}" @click="language=l">{{ l }}</button></div>
-          <pre class="code-block">{{ code }}</pre>
-          <UiButton @click="copy(code,'code')"><Copy :size="15"/> {{ copied==='code' ? 'Copied' : 'Copy' }}</UiButton>
-          <p class="deploy-meta">The file is a JPEG, PNG or WebP room photo of at most {{ data.max_mb }} MB; the photo is not kept. The answer is an fmw-predict.v1 document that names the model version and revision that made it. An app needs a key and access to the environment (below).</p>
-        </section>
-
         <section v-if="data.apps" class="panel">
           <h2>Apps that may call the model</h2>
           <p class="deploy-intro">An app is a system outside AADML, such as a customer's own server. Per environment it can be allowed two things only: to ask for predictions, and to send corrections back. It can never start a training run or read the project's photos.</p>
@@ -219,11 +295,15 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
           </article>
         </section>
 
-        <section class="panel">
-          <h2>Dependent workflows</h2><UiBadge tone="purple">Coming soon</UiBadge>
-          <p class="deploy-intro">Workflows that run when a model of this project answers are not available yet.</p>
+        <section class="panel dependent">
+          <header class="dependent-head"><h2>Dependent Workflows <UiBadge tone="purple">Coming soon</UiBadge></h2>
+            <UiButton class="small" @click="emit('navigate','models')">View Models <ArrowRight :size="13"/></UiButton></header>
+          <div class="dependent-empty">
+            <span class="soon-icon"><GitBranch :size="20"/></span>
+            <p>No workflows depend on this project yet. Workflows that run when a model of this project answers are not available yet.</p>
+            <UiButton @click="emit('navigate','workflows')"><GitBranch :size="14"/> Open Workflows</UiButton>
+          </div>
         </section>
-      </div>
     </div>
 
     <UiDialog :open="!!goingBack" title="Go back to an earlier version" @close="goingBack=null">
@@ -264,9 +344,57 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
 </template>
 
 <style scoped>
-.deploy-layout{align-items:start}
-.deploy-layout nav button{display:flex;align-items:center;justify-content:space-between;gap:6px}
 .deploy-main{display:flex;flex-direction:column;gap:20px;min-width:0}
+/* Developer Quick Start */
+.quick{padding:0;overflow:hidden}
+.quick-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid #e9edf3}
+.quick-head h2{margin:0;font-size:15px}
+.quick-model{display:flex;align-items:center;gap:8px;min-width:0}
+.model-chip{display:inline-flex;gap:6px;align-items:center;max-width:420px;padding:6px 10px;border-radius:7px;background:#f3f5f8;font-size:12px;color:#5f6d82;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.model-chip strong{color:#162139;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.square-button{display:grid;place-items:center;width:32px;height:32px;border:1px solid #dde3ec;border-radius:8px;background:#fff;color:#33415c;cursor:pointer}
+.square-button:hover{border-color:var(--aadml-outline);color:var(--aadml-primary)}
+.square-button:focus-visible,.options button:focus-visible,.build-chip:focus-visible{outline:2px solid var(--aadml-focus);outline-offset:2px}
+.quick-body{display:grid;grid-template-columns:300px minmax(0,1fr)}
+.options{display:flex;flex-direction:column;gap:4px;padding:16px 14px;border-right:1px solid #e9edf3}
+.options-label{margin:0 0 6px 8px!important;font-size:11px!important;font-weight:600;letter-spacing:.06em;color:#6d7c92!important}
+.options button{display:flex;align-items:center;gap:9px;width:100%;padding:10px 10px;border:0;border-radius:8px;background:none;font:inherit;font-size:13px;color:#33415c;text-align:left;cursor:pointer;transition:background .15s,color .15s}
+.options button span{flex:1;white-space:nowrap}
+.options button .badge{white-space:nowrap}
+.options button:hover{background:#f3f5f8}
+.options button.active{background:var(--aadml-soft);color:var(--aadml-primary);font-weight:600}
+.options hr{border:0;border-top:1px solid #e9edf3;margin:8px 4px}
+.quick-main{padding:16px 20px 18px;min-width:0}
+.step{display:flex;align-items:center;gap:10px;margin:4px 0 10px}
+.step h3{margin:0;font-size:14px;flex:1}
+.step-no{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#f1f4f8;font-size:12px;font-weight:600;color:#4c5d74;flex-shrink:0}
+.step-row{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 16px 36px}
+.lang-tabs{margin:0;border-bottom:0}
+.lang-tabs button{padding:8px 9px}
+.step .copy{min-height:32px;padding:6px 12px}
+.quick-main .code-block{margin:0 0 10px;max-height:360px}
+.option-soon{display:flex;flex-direction:column;align-items:flex-start;gap:10px;padding:8px 4px}
+.option-soon h3{display:flex;align-items:center;gap:10px;margin:0;font-size:15px}
+.option-soon p{margin:0!important;max-width:620px;font-size:13px}
+.soon-icon{display:grid;place-items:center;width:46px;height:46px;border-radius:10px;background:var(--aadml-soft);color:var(--aadml-primary)}
+/* Build on this model */
+.build{background:linear-gradient(105deg,#fbfcff,#fff 55%,var(--aadml-tint))}
+.eyebrow-chip{display:inline-block;padding:3px 9px;border:1px solid var(--aadml-outline);border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--aadml-primary)}
+.build h2{margin:10px 0 12px!important;font-size:16px}
+.build-row{display:flex;gap:10px}
+.build-row .text-input{flex:1;min-width:0}
+.build-row .button.is-off{opacity:.55}
+.build-label{margin:12px 0 6px!important;font-size:12px!important;color:#5f6d82!important}
+.build-chips{display:flex;flex-wrap:wrap;gap:8px}
+.build-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border:1px solid #dde3ec;border-radius:8px;background:#fff;font:inherit;font-size:12px;color:#33415c;cursor:pointer;transition:border-color .15s,color .15s}
+.build-chip:hover{border-color:var(--aadml-outline);color:var(--aadml-primary)}
+/* Dependent workflows */
+.dependent{padding:0}
+.dependent-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #e9edf3}
+.dependent-head h2{display:flex;align-items:center;gap:10px;margin:0;font-size:15px}
+.dependent-empty{display:flex;flex-direction:column;align-items:center;gap:12px;padding:28px 18px;text-align:center}
+.dependent-empty p{margin:0!important;max-width:520px;font-size:13px}
+.dependent-empty .soon-icon{border-radius:50%;width:40px;height:40px}
 .deploy-main>section>h2,.panel>h2{margin-top:0}
 .deploy-intro{font-size:12px!important;margin:4px 0 14px!important;max-width:820px}
 .deploy-meta{font-size:12px!important;color:#6d7c92!important;margin:4px 0!important}
@@ -295,7 +423,6 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
 .approval-row .history ul{margin-top:6px}
 .approval-row .badge{margin-left:8px}
 .link-button{background:none;border:0;color:var(--aadml-primary);font-size:12px;padding:0 4px;text-decoration:underline}
-.call-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .code-block{white-space:pre;overflow:auto}
 .new-key{background:#f3fbf7;border:1px solid #b9e3cf;border-radius:8px;padding:12px 14px;font-size:12px;color:#1f5b45;margin-bottom:12px}
 .new-key pre{background:white;border:1px solid #d6eadf;border-radius:6px;padding:10px;margin:8px 0;white-space:pre-wrap;overflow-wrap:anywhere;user-select:all}
@@ -312,8 +439,14 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
 .danger-fill{background:#d92d20;border-color:#d92d20}
 .back-choice{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid #e3e6ed;border-radius:7px;margin:8px 0;font-size:12px;cursor:pointer}
 .back-choice.off{opacity:.6;cursor:not-allowed}
-.soon{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
 .badge--red{color:#b42318;background:#fef3f2}
 .badge--amber{color:#93610b;background:#fff4dc}
-@media(max-width:900px){.env-grid,.app-cols{grid-template-columns:1fr}.deploy-layout{grid-template-columns:1fr}.deploy-layout nav{border-right:0;display:flex;overflow:auto}}
+@media(max-width:900px){.env-grid,.app-cols{grid-template-columns:1fr}
+  .quick-body{grid-template-columns:1fr}
+  .options{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid #e9edf3;padding:10px}
+  .options-label,.options hr{display:none}
+  .options button{width:auto;white-space:nowrap}
+  .step-row{margin-left:0}}
+@media(max-width:560px){.build-row{flex-direction:column}.quick-main{padding:14px}}
+@media(prefers-reduced-motion:reduce){.options button,.build-chip{transition:none}}
 </style>

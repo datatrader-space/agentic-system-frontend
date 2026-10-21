@@ -162,7 +162,7 @@ onUnmounted(() => { clearInterval(unreadTimer); window.removeEventListener('hash
         <WorkspaceAudit v-else-if="page==='audit'" />
         <WorkspaceAssets v-else-if="page==='assets'" @navigate="navigate" />
         <section v-else-if="page==='discover'" class="panel screen-placeholder"><span class="placeholder-icon"><Orbit :size="32" /></span><UiBadge tone="purple">Coming soon</UiBadge><h2>Universe</h2><p>Public datasets you could add to your projects. Each dataset's licence has to be checked before its photos can train a model, so this is not available yet.</p></section>
-        <WorkspaceDeployments v-else-if="page==='deployments'" />
+        <WorkspaceDeployments v-else-if="page==='deployments'" @navigate="id => { selected = null; navigate(id); }" @create="dialog = true" />
         <WorkspaceModels v-else-if="page === 'models' && !selected" @create="dialog = true" @navigate="navigate" />
         <ConnectApp v-else-if="page === 'connect'" :key="selected?.ref" :project="selected" @navigate="navigate" />
         <TeamMembers v-else-if="page==='members'" />

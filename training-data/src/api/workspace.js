@@ -15,7 +15,8 @@ export function query(params) {
 
 export const workspaceApi = {
   models: () => apiFetch(`${APP}/workspace/models/`, { timeoutMs: SLOW }),
-  deployments: () => apiFetch(`${APP}/workspace/deployments/`, { timeoutMs: SLOW }),
+  // range: 1w, 2w, 1m (the backend's default) or all: the overview's successful calls, day by day.
+  deployments: (range = '1m') => apiFetch(`${APP}/workspace/deployments/?${query({ range })}`, { timeoutMs: SLOW }),
   events: ({ kind = 'received', project = '', before = '' } = {}) => apiFetch(`${APP}/workspace/events/?${query({ kind, project, before })}`),
   audit: ({ outcome = '', before = '' } = {}) => apiFetch(`${APP}/workspace/audit/?${query({ outcome, before })}`),
   assistant: () => apiFetch(`${APP}/assistant/`, { timeoutMs: SLOW }),
@@ -32,6 +33,48 @@ export const publishedApi = {
     return apiFetch(`${APP}/published/${enc(key)}/predict/`, { method: 'POST', body: form, timeoutMs: 180000 });
   },
 };
+
+// The Deployments overview's time ranges, as the backend names them (app_api.py DEPLOYMENT_RANGES).
+export const RUN_RANGES = [['1w', '1W'], ['2w', '2W'], ['1m', '1M'], ['all', 'All Time']];
+export const API_REFERENCE = '/dashboard/help-center/api-reference';
+
+// The overview's area chart: points {day, answered} drawn in a width × height box as a smooth curve that never dips
+// below zero or overshoots a peak (monotone cubic, Fritsch–Carlson). Answers the line and area paths, the x and y of
+// each point (for the hover readout) and the largest value.
+export function runsChart(series, width = 1000, height = 200, pad = 8) {
+  const n = series.length;
+  if (!n) return { line: '', area: '', xs: [], ys: [], max: 0 };
+  const max = Math.max(0, ...series.map(p => p.answered || 0));
+  const xs = series.map((_, i) => (n === 1 ? width / 2 : (i * width) / (n - 1)));
+  const ys = series.map(p => height - pad - (max ? ((p.answered || 0) / max) * (height - 2 * pad) : 0));
+  const round = v => Math.round(v * 100) / 100;
+  if (n === 1) {
+    const line = `M0,${round(ys[0])} L${width},${round(ys[0])}`;
+    return { line, area: `${line} L${width},${height} L0,${height} Z`, xs, ys, max };
+  }
+  const slopes = xs.slice(1).map((x, i) => (ys[i + 1] - ys[i]) / (x - xs[i]));
+  const tangents = xs.map((_, i) => (i === 0 ? slopes[0] : i === n - 1 ? slopes[n - 2]
+    : slopes[i - 1] * slopes[i] <= 0 ? 0 : (slopes[i - 1] + slopes[i]) / 2));
+  slopes.forEach((d, i) => {
+    if (d === 0) { tangents[i] = 0; tangents[i + 1] = 0; return; }
+    const a = tangents[i] / d; const b = tangents[i + 1] / d; const s = a * a + b * b;
+    if (s > 9) { const t = 3 / Math.sqrt(s); tangents[i] = t * a * d; tangents[i + 1] = t * b * d; }
+  });
+  let line = `M${round(xs[0])},${round(ys[0])}`;
+  for (let i = 0; i < n - 1; i += 1) {
+    const third = (xs[i + 1] - xs[i]) / 3;
+    line += ` C${round(xs[i] + third)},${round(ys[i] + tangents[i] * third)} ${round(xs[i + 1] - third)},${round(ys[i + 1] - tangents[i + 1] * third)} ${round(xs[i + 1])},${round(ys[i + 1])}`;
+  }
+  return { line, area: `${line} L${width},${height} L0,${height} Z`, xs, ys, max };
+}
+
+// A point of the overview in words: "20 Oct" for a day, "week of 13 Oct" for a week.
+export function runsDay(iso, bucket = 'day') {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  const text = new Date(y, m - 1, d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  return bucket === 'week' ? `week of ${text}` : text;
+}
 
 // Where a workspace page opens one of a project's own pages: App.vue follows this address (notifications.readDeepLink).
 export const projectLink = (ref, page) => `#project/${enc(ref)}/${page}`;
