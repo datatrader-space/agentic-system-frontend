@@ -28,7 +28,7 @@ let wrapper, confirmation
 function render(props = {}) {
   document.body.innerHTML = '<div id="app"><button id="opener">Profile</button></div>'
   document.getElementById('opener').focus()
-  wrapper = mount(SettingsModal, { attachTo: document.body, props })
+  wrapper = mount(SettingsModal, { attachTo: document.body, props, global: { stubs: { RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' } } } })
   return wrapper
 }
 async function searchSections(value) {
@@ -44,7 +44,7 @@ describe('compact settings modal', () => {
   it('includes all existing sections, mounts only the selected panel, and searches sections without losing the active panel', async () => {
     render()
     await flushPromises()
-    expect(document.querySelectorAll('nav[aria-label="Settings sections"] button')).toHaveLength(11)
+    expect(document.querySelectorAll('nav[aria-label="Settings sections"] button')).toHaveLength(13)
     expect(document.querySelectorAll('[data-panel]')).toHaveLength(1)
     expect(document.querySelector('[data-panel="general"]')).toBeTruthy()
     section('Security').click()
@@ -124,5 +124,19 @@ describe('settings connection dialogs', () => {
     await flushPromises()
     expect(main.hasAttribute('inert')).toBe(false)
     expect(document.activeElement).toBe(opener)
+  })
+})
+
+describe('settings full-page access', () => {
+  it('retains the original Organization and Budgets URLs', async () => {
+    render()
+    await flushPromises()
+    for (const key of ['organization', 'budgets']) {
+      section(key === 'organization' ? 'Organization' : 'Budgets').click()
+      await flushPromises()
+      const link = document.querySelector('.settings-full-page')
+      expect(link.textContent).toContain('Open full page')
+      expect(link.getAttribute('href')).toBe(`/dashboard/${key}`)
+    }
   })
 })

@@ -1,7 +1,7 @@
 <template>
-  <Teleport to="body">
+  <Teleport :to="settingsDialogHost || 'body'">
     <div class="bm-overlay" @click.self="$emit('close')">
-      <div class="bm-modal" role="dialog" aria-modal="true">
+      <div class="bm-modal" role="dialog" aria-modal="true" :data-settings-owned-dialog="settingsDialogHost ? '' : undefined" @keydown.esc.stop.prevent="$emit('close')">
         <header class="bm-head">
           <h3>{{ form.id ? 'Edit budget' : 'New budget' }}</h3>
           <button class="bm-x" @click="$emit('close')"><Icon icon="lucide:x" /></button>
@@ -97,6 +97,8 @@
 </template>
 
 <script setup>
+import { useSettingsDialog } from '../../composables/useSettingsDialog'
+const { settingsDialogHost } = useSettingsDialog()
 import { ref, reactive, computed, onMounted } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '../../services/api'

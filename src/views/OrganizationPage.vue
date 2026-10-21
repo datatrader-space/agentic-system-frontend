@@ -1,5 +1,5 @@
 <template>
-  <main class="organization-page">
+  <main class="organization-page" :class="{ 'organization-compact': compact }">
     <section class="org-main">
       <header class="page-head">
         <div>
@@ -16,14 +16,16 @@
         </div>
       </header>
 
+      <nav v-if="compact" class="compact-org-tabs" aria-label="Organization sections"><button v-for="tab in compactTabs" :key="tab.key" type="button" :class="{ active: compactTab === tab.key }" :aria-current="compactTab === tab.key ? 'page' : undefined" @click="compactTab = tab.key">{{ tab.label }}</button></nav>
+      <div v-if="compact && compactTab === 'members' && store.orgSlug" class="compact-org-manage"><RouterLink :to="`/dashboard/org/${encodeURIComponent(store.orgSlug)}/settings/members`">Members, roles &amp; invitations <Icon icon="lucide:arrow-up-right" /></RouterLink></div>
       <div v-if="error === 'no_org'" class="state-banner">
         You don't belong to an organization yet. Create one to manage workspaces, members, and budgets.
       </div>
       <div v-else-if="error" class="state-banner err">Couldn't load organization data: {{ error }}</div>
       <div v-else-if="loading && !loaded" class="state-banner">Loading organization…</div>
 
-      <section class="metric-grid">
-        <article v-for="metric in metrics" :key="metric.label" class="metric-card" :class="{ placeholder: metric.placeholder }">
+      <section v-if="!compact || compactTab === 'overview'" class="metric-grid">
+        <article v-for="metric in (compact ? metrics.filter(m => !m.placeholder) : metrics)" :key="metric.label" class="metric-card" :class="{ placeholder: metric.placeholder }">
           <span :class="['metric-icon', metric.tone]"><Icon :icon="metric.icon" /></span>
           <div>
             <p>{{ metric.label }}</p>
@@ -33,8 +35,8 @@
         </article>
       </section>
 
-      <section class="top-grid">
-        <article class="panel workspace-panel">
+      <section v-if="!compact || ['workspaces', 'members'].includes(compactTab)" class="top-grid">
+        <article v-if="!compact || compactTab === 'workspaces'" class="panel workspace-panel">
           <header class="panel-head">
             <h2>Workspaces</h2>
             <RouterLink to="/dashboard/organization/workspaces">View all ({{ store.metrics.workspaces ?? 0 }})</RouterLink>
@@ -52,35 +54,35 @@
             </thead>
             <tbody>
               <tr v-for="workspace in workspaces" :key="workspace.name">
-                <td>
+                <td data-label="Workspace">
                   <span class="table-cell-inline">
                     <span class="table-icon"><Icon icon="lucide:building-2" /></span>
                     <span class="truncate-text">{{ workspace.name }}</span>
                   </span>
                 </td>
-                <td>
+                <td data-label="Owner / Admin">
                   <span class="table-cell-inline">
                     <span :class="['avatar', workspace.avatarTone]">{{ workspace.initial }}</span>
                     <span class="truncate-text">{{ workspace.owner }}</span>
                   </span>
                 </td>
-                <td>{{ workspace.members }}</td>
-                <td>{{ workspace.agents }}</td>
-                <td>
+                <td data-label="Members">{{ workspace.members }}</td>
+                <td data-label="Agents">{{ workspace.agents }}</td>
+                <td data-label="Budget Used">
                   <div v-if="workspace.percent" class="budget-cell">
                     <div class="bar"><i :style="{ width: workspace.percent }" /></div>
                     <em>{{ workspace.percent }}</em>
                   </div>
                   <em v-else class="muted budget-muted">{{ workspace.budgetLabel }}</em>
                 </td>
-                <td><b class="green">Active</b></td>
+                <td data-label="Status"><b class="green">Active</b></td>
               </tr>
               <tr v-if="!workspaces.length"><td colspan="6" class="empty-cell">No workspaces yet.</td></tr>
             </tbody>
           </table>
         </article>
 
-        <article class="panel members-panel">
+        <article v-if="!compact || compactTab === 'members'" class="panel members-panel">
           <header class="panel-head">
             <h2>Organization Members</h2>
             <RouterLink to="/dashboard/organization/activity">View all ({{ store.metrics.members ?? 0 }})</RouterLink>
@@ -95,12 +97,12 @@
             </thead>
             <tbody>
               <tr v-for="member in members" :key="member.email">
-                <td>
+                <td data-label="Member">
                   <span :class="['avatar', member.tone]">{{ member.initials }}</span>
                   <span><strong>{{ member.name }}</strong><small>{{ member.email }}</small></span>
                 </td>
-                <td><em class="role">{{ member.role }}</em></td>
-                <td><b class="green">Active</b></td>
+                <td data-label="Role"><em class="role">{{ member.role }}</em></td>
+                <td data-label="Status"><b class="green">Active</b></td>
               </tr>
               <tr v-if="!members.length"><td colspan="3" class="empty-cell">No members yet.</td></tr>
             </tbody>
@@ -108,7 +110,7 @@
         </article>
       </section>
 
-      <section class="card-grid">
+      <section v-if="!compact || compactTab === 'more'" class="card-grid">
         <article class="panel coming-soon">
           <header class="panel-head"><h2>Approval Queue</h2></header>
           <div class="placeholder-body">
@@ -137,7 +139,7 @@
         </article>
       </section>
 
-      <section class="bottom-grid">
+      <section v-if="!compact || compactTab === 'overview'" class="bottom-grid">
         <article class="panel billing-panel">
           <header class="panel-head">
             <h2>Budget & Billing</h2>
@@ -173,7 +175,7 @@
           </div>
         </article>
 
-        <article class="panel guardrail-panel">
+        <article v-if="!compact" class="panel guardrail-panel">
           <h2>Organization Guardrails</h2>
           <div v-for="guardrail in guardrails" :key="guardrail" class="guardrail-row">
             <span><Icon icon="lucide:shield-check" />{{ guardrail }}</span>
@@ -184,8 +186,8 @@
       </section>
     </section>
 
-    <aside class="org-rail">
-      <section class="rail-card details">
+    <aside class="org-rail" v-if="!compact || ['overview', 'activity', 'more'].includes(compactTab)">
+      <section v-if="!compact || compactTab === 'overview'" class="rail-card details">
         <h2>Organization Details</h2>
         <dl>
           <div><dt>Created</dt><dd>{{ orgDetails.created }}</dd></div>
@@ -196,7 +198,7 @@
         <RouterLink to="/dashboard/budgets">View Billing &amp; Plan</RouterLink>
       </section>
 
-      <section class="rail-card module-card">
+      <section v-if="!compact || compactTab === 'more'" class="rail-card module-card">
         <h2>Organization Modules</h2>
         <div class="module-list">
           <RouterLink v-for="module in organizationModules" :key="module.to" :to="module.to">
@@ -206,7 +208,7 @@
         </div>
       </section>
 
-      <section class="rail-card">
+      <section v-if="!compact || compactTab === 'overview'" class="rail-card">
         <h2>Top Workspaces by Spend</h2>
         <div v-for="workspace in spendWorkspaces" :key="`rail-${workspace.name}`" class="rail-spend">
           <span>{{ workspace.name }}</span>
@@ -216,7 +218,7 @@
         <p v-if="!spendWorkspaces.length" class="muted">No per-workspace budgets configured.</p>
       </section>
 
-      <section class="rail-card">
+      <section v-if="!compact || compactTab === 'activity'" class="rail-card">
         <header class="panel-head compact">
           <h2>Recent Activity</h2>
           <RouterLink to="/dashboard/organization/activity">View all</RouterLink>
@@ -232,10 +234,10 @@
       </section>
     </aside>
 
-    <Teleport to="body">
+    <Teleport :to="settingsDialogHost || 'body'">
       <transition name="org-modal">
         <div v-if="invite.open" class="org-backdrop" @click.self="invite.open = false">
-          <div class="org-modal" role="dialog" aria-modal="true">
+          <div class="org-modal" role="dialog" aria-modal="true" :data-settings-owned-dialog="compact ? '' : undefined" @keydown.esc.stop.prevent="closeCompactDialog">
             <h3>Invite / Add Member</h3>
 
             <div class="form-row">
@@ -312,10 +314,10 @@
       </transition>
     </Teleport>
 
-    <Teleport to="body">
+    <Teleport :to="settingsDialogHost || 'body'">
       <transition name="org-modal">
         <div v-if="ws.open" class="org-backdrop" @click.self="ws.open = false">
-          <div class="org-modal" role="dialog" aria-modal="true">
+          <div class="org-modal" role="dialog" aria-modal="true" :data-settings-owned-dialog="compact ? '' : undefined" @keydown.esc.stop.prevent="closeCompactDialog">
             <h3>New Workspace</h3>
             <div class="form-row">
               <label>Name</label>
@@ -339,14 +341,18 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { storeToRefs } from 'pinia'
 import { useOrganizationStore } from '../stores/useOrganizationStore'
 import tenancyApi from '../services/tenancyApi'
 import { notify } from '../composables/useNotify'
+import { useSettingsDialog } from '../composables/useSettingsDialog'
 
+const props = defineProps({ compact: { type: Boolean, default: false } })
+const compactTab = ref('overview')
+const compactTabs = [{ key: 'overview', label: 'Overview' }, { key: 'workspaces', label: 'Workspaces' }, { key: 'members', label: 'Members' }, { key: 'activity', label: 'Activity' }, { key: 'more', label: 'More' }]
 const store = useOrganizationStore()
 const { org, loading, error, loaded } = storeToRefs(store)
 const isAdmin = computed(() => store.isAdmin)
@@ -460,6 +466,13 @@ async function submitWorkspace() {
   }
 }
 
+const { settingsDialogHost } = useSettingsDialog(computed(() => props.compact && (invite.open || ws.open)))
+function closeCompactDialog() {
+  if (!props.compact) return
+  if (invite.open && !invite.busy) invite.open = false
+  else if (ws.open && !ws.busy) ws.open = false
+}
+
 const AVATAR_TONES = ['violet', 'purple', 'rose', 'pink', 'red', 'indigo']
 const ACTIVITY_TONES = ['blue', 'violet', 'red', 'purple', 'indigo']
 const toneFor = (i, palette) => palette[((i % palette.length) + palette.length) % palette.length]
@@ -500,7 +513,7 @@ const workspaces = computed(() => store.workspaces.map((w, i) => ({
   percent: w.budget_used_pct == null ? null : `${Math.round(w.budget_used_pct)}%`,
 })))
 
-const members = computed(() => store.members.slice(0, 6).map((m, i) => ({
+const members = computed(() => (props.compact ? store.members : store.members.slice(0, 6)).map((m, i) => ({
   name: m.username || m.email || `User ${m.user}`,
   email: m.email || '',
   initials: initialsOf(m.username || m.email || 'U'),
@@ -1879,4 +1892,8 @@ dd { margin: 0; color: #0f172a; font-size: 12px; font-weight: 750; }
     grid-template-columns: 1fr !important;
   }
 }
+
+.organization-page.organization-compact{display:block;min-height:0;padding:14px 0 0;background:transparent}.organization-compact .org-main{max-width:none}.organization-compact .page-head{display:block;margin-bottom:14px}.organization-compact .page-head h1{font-size:14px;line-height:1.5}.organization-compact .page-head p{font-size:11px;margin-top:4px;line-height:1.5}.organization-compact .head-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.organization-compact .head-actions button,.organization-compact .head-actions a{min-height:30px;height:auto;font-size:11px;padding:7px 10px}.organization-compact .status-pill{display:none}.organization-compact .metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px;margin:16px 0}.organization-compact .metric-card{padding:12px;min-height:0;border-radius:8px;box-shadow:none}.organization-compact .metric-card strong{font-size:21px}.organization-compact .metric-icon{width:30px;height:30px}
+.compact-org-tabs{display:flex;gap:16px;overflow:auto;border-bottom:1px solid #e7ecf4;margin-bottom:16px}.compact-org-tabs button{flex-shrink:0;border:0;border-bottom:2px solid transparent;padding:9px 0;background:none;color:#718096;font-size:12px;cursor:pointer}.compact-org-tabs button.active{color:#263951;border-bottom-color:#2563eb}.compact-org-manage{font-size:12px;margin:0 0 14px;color:#526b94}.compact-org-manage a{display:inline-flex;align-items:center;gap:5px}.compact-org-manage svg{width:13px;height:13px}
+.organization-compact .top-grid,.organization-compact .bottom-grid,.organization-compact .card-grid{display:grid;grid-template-columns:minmax(0,1fr)!important;gap:12px;margin:0}.organization-compact .panel,.organization-compact .rail-card{padding:14px;border-radius:9px;box-shadow:none;min-width:0}.organization-compact h2{font-size:13px}.organization-compact .panel-head{gap:10px;flex-wrap:wrap}.organization-compact .panel-head a{font-size:11px}.organization-compact .billing-layout{display:grid;grid-template-columns:minmax(0,1fr)!important;gap:16px}.organization-compact .budget-summary strong{font-size:23px}.organization-compact .billing-cycle{padding:12px 0;border:0}.organization-compact .org-rail{display:grid;grid-template-columns:1fr;position:static;gap:12px;margin-top:12px;width:auto}.organization-compact table,.organization-compact tbody{display:block!important;width:100%!important;min-width:0!important}.organization-compact thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.organization-compact tbody{display:grid!important;gap:10px}.organization-compact tbody tr{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;border:1px solid #e6ebf2;border-radius:8px;padding:12px}.organization-compact table td{display:flex!important;flex-direction:column;align-items:flex-start!important;min-width:0!important;width:auto!important;padding:0!important;border:0!important;white-space:normal!important;font-size:12px!important;gap:4px;overflow-wrap:anywhere}.organization-compact td[data-label]::before{content:attr(data-label);font-size:10px;color:#8b96a7}.organization-compact td[colspan]{grid-column:1/-1}.organization-compact .table-cell-inline{max-width:100%;gap:7px}.organization-compact .table-cell-inline>span:last-child{min-width:0;overflow-wrap:anywhere}.organization-compact .members-panel td:first-child{grid-column:1/-1}.organization-compact .members-panel td:first-child>span{margin:0}.organization-compact .activity-list li{display:grid;grid-template-columns:8px minmax(0,1fr);gap:8px;font-size:12px}.organization-compact .activity-list li em{grid-column:2;font-size:10px}.organization-compact .placeholder-body{padding:16px 0;min-height:0}.organization-compact .placeholder-body p{font-size:12px}
 </style>

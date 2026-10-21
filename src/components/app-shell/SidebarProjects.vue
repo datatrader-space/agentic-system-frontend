@@ -9,10 +9,7 @@
       <button type="button" class="sp-section" :class="{ collapsed }" data-test="projects-toggle"
               :aria-expanded="expanded" :title="collapsed ? 'Projects' : ''"
               :aria-label="collapsed ? 'Projects' : undefined" @click="toggleSection">
-        <svg class="sp-icon-main" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-          <path d="M3 8a2 2 0 0 1 2-2h3.5l2 2H17a2 2 0 0 1 2 2v1" stroke-linecap="round" stroke-linejoin="round" />
-          <path d="M3 8v9a2 2 0 0 0 2 2h12.4a2 2 0 0 0 1.9-1.4l1.6-5A1.5 1.5 0 0 0 19.5 11H8.3a2 2 0 0 0-1.9 1.4L4 19" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+        <FolderOpen class="sp-icon-main" :size="18" :stroke-width="1.7" aria-hidden="true" />
         <span v-if="!collapsed" class="sp-section-label">Projects</span>
         <svg v-if="!collapsed" class="sp-chev" :class="{ open: expanded }" viewBox="0 0 24 24" fill="none"
              stroke="currentColor" stroke-width="2.4" aria-hidden="true">
@@ -92,6 +89,7 @@
 <script setup>
 import { computed, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { FolderOpen } from 'lucide-vue-next'
 import { useProjectsStore } from '../../stores/useProjectsStore'
 import { useChatStore } from '../../stores/useChatStore'
 import { useLayoutStore } from '../../stores/useLayoutStore'
@@ -286,17 +284,9 @@ watch(() => chat.conversationId, (id, prev) => {
 .sp { padding: 0; }
 .sp-head { display: flex; align-items: center; gap: 2px; }
 .sp-head.collapsed { justify-content: center; }
-.sp-section { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 10px 12px; border: 0; border-radius: 13px; background: transparent; color: var(--vm-ink-soft); font: 600 13.5px var(--vm-font-sans); cursor: pointer; text-align: left; transition: background .2s var(--vm-ease2), color .2s var(--vm-ease2), transform .2s var(--vm-ease2); }
-.sp-section:hover { background: var(--vm-glass-strong); color: var(--vm-ink); transform: translateX(2px); }
-.sp-section.collapsed { justify-content: center; padding: 9px 0; }
-.sp-section.collapsed:hover { transform: none; }
-.sp-icon-main { width: 19px; height: 19px; flex-shrink: 0; opacity: .7; }
-.sp-section:hover .sp-icon-main, .sp-section[aria-expanded="true"] .sp-icon-main { opacity: 1; }
-.sp-section-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sp-chev { width: 14px; height: 14px; flex-shrink: 0; opacity: .6; transition: transform .2s var(--vm-ease2); }
-.sp-chev:not(.open) { transform: rotate(-90deg); }
-.sp-body { display: flex; flex-direction: column; gap: 1px; padding-left: 6px; }
-.sp-create { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--vm-violet-d, #6d28d9); font: 600 13px var(--vm-font-sans); cursor: pointer; text-align: left; }
+.sp-section{display:flex;align-items:center;gap:12px;flex:1;min-width:0;min-height:39px;box-sizing:border-box;padding:9px 12px;border:1px solid transparent;border-radius:8px;background:transparent;color:#536177;font:450 13px/20px var(--font-sans);cursor:pointer;text-align:left;transition:background .15s,color .15s}.sp-section:hover{background:#edf1f7;color:#1f3048}.sp-section[aria-expanded="true"]{color:#205bd5;background:#eef3fc}.sp-section.collapsed{justify-content:center;padding:10px 0;min-height:40px}.sp-icon-main{width:18px;height:18px;flex-shrink:0;color:#748299;stroke-width:1.7}.sp-section[aria-expanded="true"] .sp-icon-main{color:#2563eb}.sp-section-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sp-chev{width:13px;height:13px;flex-shrink:0;color:#8c98aa;transition:transform .15s}.sp-chev:not(.open){transform:rotate(-90deg)}
+.sp-body { display:flex;flex-direction:column;gap:2px;margin:5px 0 5px 20px;padding-left:8px;border-left:1px solid #dfe5ef; }
+.sp-create { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--vm-violet-d, #6d28d9); font: 450 12px/1.5 var(--font-sans); cursor: pointer; text-align: left; }
 .sp-create svg { width: 15px; height: 15px; }
 .sp-create:hover { background: var(--vm-glass-strong); }
 .sp-section:focus-visible, .sp-create:focus-visible { outline: 2px solid var(--vm-violet, #7c3aed); outline-offset: 1px; }
@@ -306,7 +296,7 @@ watch(() => chat.conversationId, (id, prev) => {
 .sp-row { display: flex; align-items: center; border-radius: 10px; }
 .sp-row:hover, .sp-row.open { background: var(--vm-glass-strong); }
 .sp-row.active { background: var(--vm-surface); box-shadow: var(--vm-shadow-s); }
-.sp-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 0; background: transparent; color: var(--vm-ink-soft); font: 600 13px var(--vm-font-sans); text-align: left; cursor: pointer; }
+.sp-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 0; background: transparent; color: var(--vm-ink-soft); font: 450 12px/1.5 var(--font-sans); text-align: left; cursor: pointer; }
 .sp-chat .sp-main { font-weight: 500; font-size: 12.5px; }
 .sp-row:hover .sp-main, .sp-row.active .sp-main { color: var(--vm-ink); }
 .sp-folder { width: 16px; height: 16px; flex-shrink: 0; }

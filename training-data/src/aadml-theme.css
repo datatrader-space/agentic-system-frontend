@@ -16,13 +16,17 @@
   --border:#e2e8f0;
   --surface:#ffffff;
   font-family:var(--aadml-font);
+  line-height:1.55;
+  font-optical-sizing:auto;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
   color:#0f172a;
   background:#f8fafc;
 }
 body,button,input,textarea,select {font-family:var(--aadml-font)}
 h1,h2,h3 {font-family:var(--aadml-font);color:#0f172a;letter-spacing:-.025em}
-h1 {font-weight:750}
-h2,h3 {font-weight:650}
+h1 {font-size:28px;font-weight:650;line-height:1.2}
+h2,h3 {font-weight:600;line-height:1.35}
 .workspace {background:#f8fafc}
 .workspace>.sidebar {background:#fff;color:#475569;border-right:1px solid #e2e8f0;box-shadow:2px 0 14px #0f172a04}
 .workspace-switch {background:#f8fafc;border-color:#e2e8f0;color:#0f172a}

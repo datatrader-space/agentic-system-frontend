@@ -16,6 +16,11 @@
     </div>
 
     <div class="card">
+      <h3 class="card-title">Language</h3>
+      <div class="row"><div class="row-label">Interface language</div><span class="row-hint">English</span></div>
+    </div>
+
+    <div class="card">
       <h3 class="card-title">Account</h3>
       <p class="card-sub">Your profile details.</p>
       <div class="field">

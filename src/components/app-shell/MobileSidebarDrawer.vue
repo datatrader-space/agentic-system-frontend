@@ -33,6 +33,7 @@ const layout = useLayoutStore()
   height: 100%;
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
 }
+.drawer-panel :deep(> .sidebar) { width: 100%; max-width: 100%; }
 .drawer-close {
   position: absolute;
   top: 14px;

@@ -1,4 +1,4 @@
-﻿/** @type {import('tailwindcss').Config} */
+/** @type {import('tailwindcss').Config} */
 // ============================================================
 //  Aadml — "Vibrant Light Mesh" design system (APPROVED)
 //  Single source of truth for the new UI. See REDESIGN_PLAN.md §2.
@@ -37,8 +37,8 @@ export default {
         "vm-border": "#E2E8F0",
       },
       fontFamily: {
-        display: ['"Bricolage Grotesque"', "system-ui", "sans-serif"],
-        sans: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],
+        display: ['var(--font-display)', 'Inter', 'sans-serif'],
+        sans: ['var(--font-sans)', 'Inter', 'sans-serif'],
       },
       borderRadius: {
         md: "13px",

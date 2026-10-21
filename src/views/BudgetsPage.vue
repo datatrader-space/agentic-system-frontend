@@ -1,8 +1,8 @@
 ﻿<template>
-  <main class="budgets-page">
+  <main class="budgets-page" :class="{ 'budgets-compact': compact }">
     <section class="budgets-main">
       <header class="page-head">
-        <div>
+        <div v-if="!compact">
           <h1>Budgets</h1>
           <p>Set limits, apply rules, and monitor usage across your workspace.</p>
         </div>
@@ -21,13 +21,16 @@
         </div>
       </header>
 
+      <nav v-if="compact" class="compact-budget-tabs" aria-label="Budget sections">
+        <button v-for="tab in compactTabs" :key="tab.key" type="button" :class="{ active: compactTab === tab.key }" :aria-current="compactTab === tab.key ? 'page' : undefined" @click="compactTab = tab.key">{{ tab.label }}<span v-if="tab.key === 'approvals' && store.approvals.length">{{ store.approvals.length }}</span></button>
+      </nav>
       <div v-if="store.loading && !store.loaded" class="state-banner">Loading budgets…</div>
       <div v-else-if="store.error" class="state-banner error">{{ store.error }}</div>
       <div v-else-if="!store.hasBudget" class="state-banner empty">
-        No organization budget yet. <button class="link-btn" @click="openNewBudget">Create your first budget</button> to start tracking spend against a limit.
+        No organization budget yet. <button class="link-btn" :disabled="!store.canManage" @click="openNewBudget">Create your first budget</button> to start tracking spend against a limit.
       </div>
 
-      <section class="metric-grid">
+      <section v-if="!compact || compactTab === 'limits'" class="metric-grid">
         <article v-for="metric in metrics" :key="metric.label" class="metric-card">
           <div>
             <span>{{ metric.label }}</span>
@@ -44,7 +47,7 @@
         </article>
       </section>
 
-      <section class="chart-grid">
+      <section v-if="!compact" class="chart-grid">
         <article class="panel line-panel">
           <header class="section-head compact">
             <div>
@@ -78,7 +81,7 @@
         </article>
       </section>
 
-      <section class="panel budget-table">
+      <section v-if="!compact || compactTab === 'limits'" class="panel budget-table">
         <header class="section-head">
           <div>
             <h2>Budget by scope</h2>
@@ -106,24 +109,24 @@
           <tbody>
             <tr v-if="!budgetRows.length"><td colspan="8" class="muted-row">No budgets yet.</td></tr>
             <tr v-for="row in budgetRows" :key="row.budget_id">
-              <td><span :class="['scope-icon', row.tone]"><Icon :icon="row.icon" /></span>{{ row.scope }}</td>
-              <td>{{ row.name }}</td>
-              <td>{{ row.monthly }}</td>
-              <td>{{ row.daily }}</td>
-              <td>{{ row.remaining }} <small>{{ row.percent }}</small></td>
-              <td><div class="usage"><i :class="row.statusTone" :style="{ width: row.usage }" /></div></td>
-              <td><b :class="row.statusTone">{{ row.status }}</b></td>
-              <td class="actions">
-                <Icon icon="lucide:pencil" role="button" title="Edit" @click="editBudget(row.budget_id)" />
-                <Icon icon="lucide:trash-2" role="button" title="Delete" @click="deleteBudget(row)" />
+              <td data-label="Scope"><span :class="['scope-icon', row.tone]"><Icon :icon="row.icon" /></span>{{ row.scope }}</td>
+              <td data-label="Name">{{ row.name }}</td>
+              <td data-label="Monthly Budget">{{ row.monthly }}</td>
+              <td data-label="Daily Budget">{{ row.daily }}</td>
+              <td data-label="Remaining">{{ row.remaining }} <small>{{ row.percent }}</small></td>
+              <td data-label="Usage"><div class="usage"><i :class="row.statusTone" :style="{ width: row.usage }" /></div></td>
+              <td data-label="Status"><b :class="row.statusTone">{{ row.status }}</b></td>
+              <td class="actions" data-label="Actions">
+                <button type="button" class="budget-icon-action" :disabled="!store.canManage" :aria-label="`Edit budget for ${row.name}`" @click="editBudget(row.budget_id)"><Icon icon="lucide:pencil" /></button>
+                <button type="button" class="budget-icon-action" :disabled="!store.canManage" :aria-label="`Delete budget for ${row.name}`" @click="deleteBudget(row)"><Icon icon="lucide:trash-2" /></button>
               </td>
             </tr>
           </tbody>
         </table>
-        <button class="add-link" @click="openNewBudget"><Icon icon="lucide:plus" /> Add budget</button>
+        <button class="add-link" :disabled="!store.canManage" @click="openNewBudget"><Icon icon="lucide:plus" /> Add budget</button>
       </section>
 
-      <section class="panel rules-panel">
+      <section v-if="!compact || compactTab === 'limits'" class="panel rules-panel">
         <header class="section-head compact">
           <div>
             <h2>Budget rules</h2>
@@ -137,22 +140,22 @@
           <tbody>
             <tr v-if="!rulesView.length"><td colspan="6" class="muted-row">No rules yet.</td></tr>
             <tr v-for="rule in rulesView" :key="rule.id">
-              <td><Icon icon="lucide:clipboard" />{{ rule.rule }}</td>
-              <td>{{ rule.scope }}</td>
-              <td>{{ rule.type }}</td>
-              <td>{{ rule.limit }}</td>
-              <td :class="rule.tone">{{ rule.current }}</td>
-              <td class="rule-actions">
-                <Icon icon="lucide:pencil" role="button" title="Edit" @click="editRule(rule.raw)" />
-                <Icon icon="lucide:trash-2" role="button" title="Delete" @click="deleteRule(rule.raw)" />
+              <td data-label="Rule"><Icon icon="lucide:clipboard" />{{ rule.rule }}</td>
+              <td data-label="Scope">{{ rule.scope }}</td>
+              <td data-label="Type">{{ rule.type }}</td>
+              <td data-label="Limit">{{ rule.limit }}</td>
+              <td :class="rule.tone" data-label="Current">{{ rule.current }}</td>
+              <td class="rule-actions" data-label="Actions">
+                <button type="button" class="budget-icon-action" :disabled="!store.canManage" :aria-label="`Edit rule ${rule.rule}`" @click="editRule(rule.raw)"><Icon icon="lucide:pencil" /></button>
+                <button type="button" class="budget-icon-action" :disabled="!store.canManage" :aria-label="`Delete rule ${rule.rule}`" @click="deleteRule(rule.raw)"><Icon icon="lucide:trash-2" /></button>
               </td>
             </tr>
           </tbody>
         </table>
-        <button class="add-link" @click="openNewRule"><Icon icon="lucide:plus" /> Add rule</button>
+        <button class="add-link" :disabled="!store.canManage" @click="openNewRule"><Icon icon="lucide:plus" /> Add rule</button>
       </section>
 
-      <section class="panel approvals-panel">
+      <section v-if="!compact || compactTab === 'approvals'" class="panel approvals-panel">
         <header class="section-head compact">
           <div>
             <h2>Approval requests</h2>
@@ -166,13 +169,13 @@
           </thead>
           <tbody>
             <tr v-for="a in store.approvals" :key="a.id">
-              <td>{{ (a.scope_type || 'org') }}</td>
-              <td>{{ ruleLabel(a.rule_type) }}</td>
-              <td>${{ money(a.current_spend) }}</td>
-              <td>${{ money(a.projected_spend) }}</td>
-              <td>{{ a.unit === 'tokens' ? Number(a.limit_value).toLocaleString() + ' tok' : '$' + money(a.limit_value) }}</td>
-              <td>${{ money(a.requested_amount) }}</td>
-              <td class="approve-actions">
+              <td data-label="Scope">{{ (a.scope_type || 'org') }}</td>
+              <td data-label="Rule">{{ ruleLabel(a.rule_type) }}</td>
+              <td data-label="Current">${{ money(a.current_spend) }}</td>
+              <td data-label="Projected">${{ money(a.projected_spend) }}</td>
+              <td data-label="Limit">{{ a.unit === 'tokens' ? Number(a.limit_value).toLocaleString() + ' tok' : '$' + money(a.limit_value) }}</td>
+              <td data-label="Requested">${{ money(a.requested_amount) }}</td>
+              <td class="approve-actions" data-label="Actions">
                 <button class="mini approve" :disabled="!store.canManage" @click="decide(a, 'approve')">Approve</button>
                 <button class="mini deny" :disabled="!store.canManage" @click="decide(a, 'deny')">Deny</button>
               </td>
@@ -182,7 +185,7 @@
         <p v-else class="muted-row">No pending approvals.</p>
       </section>
 
-      <section class="panel events-panel">
+      <section v-if="!compact || compactTab === 'activity'" class="panel events-panel">
         <header class="section-head compact">
           <div>
             <h2>Budget activity</h2>
@@ -195,13 +198,13 @@
           </thead>
           <tbody>
             <tr v-for="e in store.events" :key="e.id">
-              <td>{{ shortTime(e.created_at) }}</td>
-              <td><b :class="eventTone(e.action)">{{ actionLabel(e.action) }}</b></td>
-              <td>{{ e.scope_type || 'org' }}</td>
-              <td>{{ ruleLabel(e.rule_type) }}</td>
-              <td>${{ money(e.projected_spend) }}</td>
-              <td>{{ e.unit === 'tokens' ? Number(e.limit_value).toLocaleString() + ' tok' : '$' + money(e.limit_value) }}</td>
-              <td><span class="status-tag" :class="e.status">{{ e.status }}</span></td>
+              <td data-label="When">{{ shortTime(e.created_at) }}</td>
+              <td data-label="Action"><b :class="eventTone(e.action)">{{ actionLabel(e.action) }}</b></td>
+              <td data-label="Scope">{{ e.scope_type || 'org' }}</td>
+              <td data-label="Rule">{{ ruleLabel(e.rule_type) }}</td>
+              <td data-label="Projected">${{ money(e.projected_spend) }}</td>
+              <td data-label="Limit">{{ e.unit === 'tokens' ? Number(e.limit_value).toLocaleString() + ' tok' : '$' + money(e.limit_value) }}</td>
+              <td data-label="Status"><span class="status-tag" :class="e.status">{{ e.status }}</span></td>
             </tr>
           </tbody>
         </table>
@@ -209,7 +212,7 @@
       </section>
     </section>
 
-    <aside class="budgets-rail">
+    <aside v-if="!compact || compactTab === 'help'" class="budgets-rail">
       <section class="rail-card">
         <h2>How budgets work</h2>
         <article v-for="item in explainers" :key="item.title" class="explain-row">
@@ -225,15 +228,15 @@
           <div><strong>{{ preset.title }}</strong><small v-if="preset.recommended">Recommended</small></div>
           <p>{{ preset.copy }}</p>
           <ul><li v-for="line in preset.lines" :key="line">{{ line }}</li></ul>
-          <button @click="applyPreset(preset)">Apply</button>
+          <button :disabled="!store.canManage" @click="applyPreset(preset)">Apply</button>
         </article>
       </section>
 
       <section class="rail-card help-card">
         <h2>Need help?</h2>
         <p>Learn how budgets and approvals work.</p>
-        <button>View documentation <Icon icon="lucide:arrow-right" /></button>
-        <button>Contact support <Icon icon="lucide:arrow-right" /></button>
+        <RouterLink to="/dashboard/help-center/documentation">View documentation <Icon icon="lucide:arrow-right" /></RouterLink>
+        <RouterLink to="/dashboard/help-center/support">Contact support <Icon icon="lucide:arrow-right" /></RouterLink>
       </section>
     </aside>
 
@@ -247,6 +250,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { RouterLink } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { useBudgetStore, PERIOD_OPTIONS } from '../stores/useBudgetStore'
 import { useNotify } from '../composables/useNotify'
@@ -255,6 +259,9 @@ import BudgetEditModal from '../components/budgets/BudgetEditModal.vue'
 import BudgetRuleModal from '../components/budgets/BudgetRuleModal.vue'
 import { saveBlob } from '../utils/saveBlob'
 
+const props = defineProps({ compact: { type: Boolean, default: false } })
+const compactTab = ref('limits')
+const compactTabs = [{ key: 'limits', label: 'Limits & rules' }, { key: 'approvals', label: 'Approvals' }, { key: 'activity', label: 'Activity' }, { key: 'help', label: 'Presets & help' }]
 const store = useBudgetStore()
 const notify = useNotify()
 const confirm = useConfirm()
@@ -585,5 +592,11 @@ td b { font-size: 11.5px; }
 .muted-row { color: #94a3b8; font-weight: 600; padding: 14px 12px; }
 .actions [role="button"], .rule-actions [role="button"] { cursor: pointer; }
 .actions [role="button"]:hover, .rule-actions [role="button"]:hover { color: #2563eb; }
+
+.budget-icon-action{display:inline-flex;align-items:center;justify-content:center;border:0;background:transparent;padding:5px;color:#62728b;border-radius:5px;cursor:pointer}.budget-icon-action:disabled{opacity:.35;cursor:default}.budget-icon-action:hover:not(:disabled){background:#f1f5f9}.budget-icon-action:focus-visible{outline:2px solid #2563eb}
+.budgets-page.budgets-compact{display:block;min-height:0;padding:14px 0 0;background:transparent}.budgets-compact .head-actions{flex-wrap:wrap;width:100%;gap:8px}.budgets-compact .page-head{margin-bottom:16px}.budgets-compact .head-actions select,.budgets-compact .head-actions button{height:32px;font-size:11px;padding-inline:10px}.budgets-compact .head-actions .primary{margin-left:auto}.budgets-compact .metric-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-block:18px}.budgets-compact .metric-card{padding:12px;min-height:0;border-radius:8px;box-shadow:none}.budgets-compact .metric-card strong{font-size:20px}.budgets-compact .metric-card .spark,.budgets-compact .mini-ring{display:none}.budgets-compact .metric-icon{width:28px;height:28px}
+.compact-budget-tabs{display:flex;gap:16px;border-bottom:1px solid #e8edf4;overflow:auto;margin:0 0 18px}.compact-budget-tabs button{display:flex;align-items:center;gap:6px;flex-shrink:0;padding:9px 0;border:0;border-bottom:2px solid transparent;background:none;color:#718096;font-size:12px;cursor:pointer}.compact-budget-tabs button.active{color:#263951;border-bottom-color:#2563eb}.compact-budget-tabs button span{background:#eef3ff;border-radius:5px;font-size:10px;padding:1px 5px}
+.budgets-compact .budgets-main{max-width:none}.budgets-compact .panel{padding:14px 0;border:0;border-radius:0;box-shadow:none;background:none}.budgets-compact .section-head{flex-wrap:wrap;gap:12px;margin-bottom:14px}.budgets-compact h2{font-size:13px}.budgets-compact .section-head p{font-size:11px;line-height:1.5}.budgets-compact .toggle-wrap{display:none}.budgets-compact table,.budgets-compact tbody{display:block;width:100%;min-width:0}.budgets-compact thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}.budgets-compact tbody{display:grid;gap:10px}.budgets-compact tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:13px;border:1px solid #e5ebf3;border-radius:9px;background:#fff}.budgets-compact td{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;white-space:normal!important;padding:0;border:0;font-size:12px;overflow-wrap:anywhere}.budgets-compact td[data-label]::before{content:attr(data-label);color:#8a96a7;font-size:10px;font-weight:400}.budgets-compact td[colspan]{grid-column:1/-1}.budgets-compact td.actions,.budgets-compact td.rule-actions,.budgets-compact td.approve-actions{display:flex;flex-direction:row;align-items:center;flex-wrap:wrap;gap:6px}.budgets-compact td.actions::before,.budgets-compact td.rule-actions::before,.budgets-compact td.approve-actions::before{flex-basis:100%}.budgets-compact .usage{width:100%;max-width:160px}.budgets-compact .budgets-rail{display:grid;grid-template-columns:1fr;gap:12px;position:static;max-width:none}.budgets-compact .rail-card{padding:14px;border-radius:9px;box-shadow:none}.budgets-compact .presets article{padding:12px}.help-card a{display:flex;align-items:center;gap:5px;margin-top:10px;color:#526b9b;font-size:12px}
+@media(max-width:600px){.budgets-compact .head-actions .primary{margin-left:0}.budgets-compact .metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 

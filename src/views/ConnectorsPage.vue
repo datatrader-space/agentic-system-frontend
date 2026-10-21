@@ -1,5 +1,5 @@
 <template>
-  <div class="connectors-container px-6 py-7 lg:px-8" :class="{ 'connectors-compact': compact }">
+  <div data-tour="connectors" class="connectors-container px-6 py-7 lg:px-8" :class="{ 'connectors-compact': compact }">
     <div class="mx-auto max-w-[1660px]">
       <!-- Header -->
       <div v-if="!compact" class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

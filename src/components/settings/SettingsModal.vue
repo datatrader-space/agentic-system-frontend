@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
-import { Search, X, Settings } from 'lucide-vue-next'
+import { Search, X, Settings, ArrowUpRight } from 'lucide-vue-next'
+import { RouterLink } from 'vue-router'
 import { SETTINGS_SECTIONS } from './settingsSections'
 import { confirmState } from '../../composables/useConfirm'
 
@@ -27,7 +28,7 @@ provide('settingsOverlayActive', async (open) => {
     ;(root?.querySelector('button:not(:disabled), input:not(:disabled), [tabindex="0"]') || root)?.focus()
   } else (mainFocus?.isConnected ? mainFocus : search.value)?.focus()
 })
-const groups = computed(() => ['Preferences', 'Workspace', 'Account'].map(label => ({
+const groups = computed(() => ['Preferences', 'Workspace', 'Usage & billing', 'Account'].map(label => ({
   label,
   sections: SETTINGS_SECTIONS.filter(section => section.group === label && `${section.label} ${section.search}`.toLowerCase().includes(query.value.trim().toLowerCase())),
 })).filter(group => group.sections.length))
@@ -110,7 +111,7 @@ onBeforeUnmount(() => {
           <span class="settings-rail-footer">AADML workspace</span>
         </aside>
         <div class="settings-main">
-          <header class="settings-modal-header"><h2>{{ active.label }}</h2><button type="button" class="settings-close" aria-label="Close settings" @click="close"><X :size="18" aria-hidden="true" /></button></header>
+          <header class="settings-modal-header"><h2>{{ active.label }}</h2><RouterLink v-if="active.fullPage" :to="active.fullPage" class="settings-full-page" @click="close">Open full page<ArrowUpRight :size="13" aria-hidden="true" /></RouterLink><button type="button" class="settings-close" aria-label="Close settings" @click="close"><X :size="18" aria-hidden="true" /></button></header>
           <div ref="content" class="settings-modal-content" :data-section="activeKey">
             <Suspense :timeout="0">
               <component :is="active.component" :key="activeKey" v-bind="active.modalProps || {}" />
@@ -131,8 +132,9 @@ onBeforeUnmount(() => {
 .settings-brand{display:flex;gap:9px;align-items:center;padding:0 8px 18px;color:#475569}.settings-brand h2{font-size:14px;font-weight:600;margin:0;letter-spacing:-.2px;color:#263142}
 .settings-search{display:flex;align-items:center;gap:7px;padding:8px 9px;background:#fff;border:1px solid #e1e4e8;border-radius:8px;color:#8c94a1}.settings-search:focus-within{border-color:#9db6ed;box-shadow:0 0 0 2px #2563eb0c}.settings-search input{min-width:0;width:100%;padding:0;border:0;outline:none;background:transparent;font:inherit;font-size:12px;line-height:1.4;font-weight:400;color:#334155}
 .settings-rail nav{flex:1;min-height:0;overflow-y:auto;margin-top:18px}.settings-group+.settings-group{margin-top:19px}.settings-group h3{margin:0 8px 6px;font-size:10px;line-height:1.5;font-weight:500;color:#9298a3;text-transform:uppercase;letter-spacing:.6px}.settings-group button{display:flex;align-items:center;gap:10px;width:100%;min-height:35px;padding:8px 10px;border:0;border-radius:7px;background:none;color:#606775;text-align:left;font-size:12px;font-weight:450;cursor:pointer}.settings-group button:hover{background:#eeeef0;color:#303846}.settings-group button.selected{background:#e9e9ec;color:#202733;font-weight:550}.settings-group button svg{flex-shrink:0}.settings-group button:focus-visible,.settings-close:focus-visible{outline:2px solid #2563eb;outline-offset:-2px}.settings-rail-footer{padding:14px 8px 0;color:#a0a5af;font-size:10px}.settings-no-results{font-size:12px;line-height:1.5;color:#7b8493;padding:8px}
-.settings-dialog-host{position:fixed;inset:0;pointer-events:none}.settings-dialog-host :deep(>[data-settings-owned-dialog]){pointer-events:auto}
-.settings-main{display:flex;flex-direction:column;min-width:0;min-height:0}.settings-modal-header{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;min-height:66px;padding:18px 28px 14px;border-bottom:1px solid #f0f1f3}.settings-modal-header h2{font-size:16px;letter-spacing:-.3px;font-weight:600;margin:0;color:#1f2937}.settings-close{display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:7px;background:transparent;color:#75808e;cursor:pointer}.settings-close:hover{background:#f3f4f6;color:#111827}
+.settings-dialog-host{position:fixed;inset:0;pointer-events:none}.settings-dialog-host :deep(>*){pointer-events:auto}
+.settings-main{display:flex;flex-direction:column;min-width:0;min-height:0}.settings-modal-header{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;min-height:66px;padding:18px 28px 14px;border-bottom:1px solid #f0f1f3}.settings-modal-header h2{font-size:16px;letter-spacing:-.3px;font-weight:600;margin:0;color:#1f2937}.settings-full-page{display:inline-flex;align-items:center;gap:4px;margin-left:auto;margin-right:14px;color:#62728b;font-size:11px;text-decoration:none}.settings-full-page:hover{color:#2563eb}.settings-full-page:focus-visible{outline:2px solid #2563eb;outline-offset:3px}
+.settings-close{display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:7px;background:transparent;color:#75808e;cursor:pointer}.settings-close:hover{background:#f3f4f6;color:#111827}
 .settings-modal-content{flex:1;min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;padding:8px 28px 28px;scrollbar-width:thin;scrollbar-color:#c9ccd3 transparent}.settings-loading{font-size:13px;color:#718096;padding:20px 0}
 /* Compact the existing panels only inside this modal. Validation, confirmations and handlers stay in their original components. */
 .settings-modal-content :deep(>.panel){gap:0;border:0;border-radius:0;padding:0;box-shadow:none;background:transparent}

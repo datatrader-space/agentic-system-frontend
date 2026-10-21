@@ -4,14 +4,15 @@
     v-bind="external ? { href: to } : { to }"
     class="nav-item"
     :class="{ active: isActive, collapsed, child }"
-    :style="{ animationDelay: (index * 45) + 'ms' }"
+
     :title="collapsed ? label : ''"
     :aria-label="collapsed ? label : undefined"
     :aria-current="isActive ? 'page' : undefined"
     :aria-expanded="expandable ? open : undefined"
     @click="onClick"
   >
-    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <component v-if="iconComponent" :is="iconComponent" class="nav-icon" :size="18" :stroke-width="1.7" aria-hidden="true" />
+    <svg v-else class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
       <path
         v-for="(d, i) in icon"
         :key="i"
@@ -35,6 +36,7 @@ import { useRoute } from 'vue-router'
 const props = defineProps({
   to: { type: String, required: true },
   label: { type: String, required: true },
+  iconComponent: { type: [Object, Function], default: null },
   icon: { type: Array, default: () => [] }, // array of SVG path `d` strings
   badge: { type: String, default: '' },
   exact: { type: Boolean, default: false },
@@ -67,176 +69,6 @@ const onClick = () => {
 </script>
 
 <style scoped>
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 13px;
-  color: var(--vm-ink-soft);
-  text-decoration: none;
-  font-family: var(--vm-font-sans);
-  font-size: 13.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  position: relative;
-  cursor: pointer;
-  opacity: 0;
-  transform: translateX(-12px);
-  animation: vmNavIn .5s var(--vm-ease2) forwards;
-  transition: background .2s var(--vm-ease2), color .2s var(--vm-ease2), transform .2s var(--vm-ease2), box-shadow .2s var(--vm-ease2);
-}
-.nav-item:hover {
-  background: var(--vm-glass-strong);
-  color: var(--vm-ink);
-  transform: translateX(2px);
-}
-.nav-item.active {
-  background: var(--vm-surface);
-  color: var(--vm-violet-d);
-  box-shadow: var(--vm-shadow-s);
-}
-.nav-item.active::before {
-  content: "";
-  position: absolute;
-  left: -2px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 4px;
-  height: 60%;
-  border-radius: 0 4px 4px 0;
-  background: var(--vm-g-brand);
-}
-.nav-item.collapsed {
-  justify-content: center;
-  padding: 10px 0;
-}
-.nav-icon {
-  width: 19px;
-  height: 19px;
-  flex-shrink: 0;
-  opacity: .7;
-  transition: opacity .2s var(--vm-ease), filter .2s var(--vm-ease), stroke .2s;
-}
-.nav-item.active .nav-icon {
-  opacity: 1;
-  stroke: var(--vm-violet);
-  filter: drop-shadow(0 2px 6px rgba(21, 94, 239, .4));
-}
-.nav-label {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.nav-badge {
-  margin-left: auto;
-  padding: 2px 8px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #fff;
-  background: var(--vm-g-warm);
-  border-radius: 999px;
-}
-.nav-chevron {
-  width: 15px;
-  height: 15px;
-  flex-shrink: 0;
-  color: #94a3b8;
-  transition: transform 0.16s ease, color 0.16s ease;
-}
-.nav-chevron.open {
-  transform: rotate(90deg);
-  color: #2563eb;
-}
-.nav-item:focus-visible {
-  outline: 2px solid var(--vm-sky);
-  outline-offset: 2px;
-}
-
-/* Screen 25 nav row treatment */
-.nav-item {
-  min-height: 38px;
-  padding: 9px 11px;
-  border-radius: 9px;
-  color: #475569;
-  font-size: 13px;
-  font-weight: 700;
-  opacity: 1;
-  transform: none;
-  animation: none;
-  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
-}
-.nav-item:hover {
-  background: #f3f7fd;
-  color: #1e293b;
-  transform: none;
-}
-.nav-item.active {
-  background: #ffffff;
-  color: #2563eb;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06), inset 0 0 0 1px #edf2f9;
-}
-.nav-item.active::before {
-  left: -12px;
-  width: 3px;
-  height: 24px;
-  border-radius: 0 4px 4px 0;
-  background: #2563eb;
-}
-.nav-icon {
-  width: 18px;
-  height: 18px;
-  opacity: 0.74;
-  stroke-width: 2.1;
-}
-.nav-item.active .nav-icon {
-  opacity: 1;
-  stroke: #2563eb;
-  filter: none;
-}
-.nav-item.collapsed {
-  padding: 9px 0;
-}
-.nav-item.child:not(.collapsed) {
-  min-height: 34px;
-  margin-left: 22px;
-  padding: 7px 10px;
-  gap: 9px;
-  border-radius: 8px;
-  color: #64748b;
-  font-size: 12.5px;
-  font-weight: 700;
-}
-.nav-item.child:not(.collapsed)::before {
-  content: "";
-  position: absolute;
-  left: -11px;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  border-radius: 999px;
-  background: #dbe5f0;
-}
-.nav-item.child:not(.collapsed).active {
-  color: #2563eb;
-  background: #f8fbff;
-  box-shadow: inset 0 0 0 1px #e3edff;
-}
-.nav-item.child:not(.collapsed).active::before {
-  left: -11px;
-  width: 2px;
-  height: 22px;
-  top: 50%;
-  bottom: auto;
-  transform: translateY(-50%);
-  background: #2563eb;
-}
-.nav-item.child:not(.collapsed) .nav-icon {
-  width: 15px;
-  height: 15px;
-  opacity: 0.62;
-}
-.nav-item.child.collapsed {
-  margin-left: 0;
-}
+.nav-item{position:relative;display:flex;align-items:center;gap:12px;min-height:39px;box-sizing:border-box;padding:9px 12px;border:1px solid transparent;border-radius:8px;background:transparent;color:#536177;text-decoration:none;font-family:var(--font-sans);font-size:13px;line-height:20px;font-weight:450;white-space:nowrap;cursor:pointer;transition:background .15s,color .15s,border-color .15s}.nav-item:hover{background:#edf1f7;color:#1f3048}.nav-item.active{background:#eaf1ff;border-color:#dce7fe;color:#205bd5;font-weight:550}.nav-item.active::before{content:"";position:absolute;left:-1px;top:11px;bottom:11px;width:3px;border-radius:0 3px 3px 0;background:#2563eb}.nav-icon{width:18px;height:18px;flex-shrink:0;color:#748299;stroke-width:1.7}.nav-item:hover .nav-icon{color:#4d6384}.nav-item.active .nav-icon{color:#2563eb}.nav-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}.nav-badge{margin-left:auto;padding:1px 6px;border-radius:5px;background:#e5ecf7;color:#52698a;font-size:10px;line-height:16px;font-weight:500}.nav-chevron{width:14px;height:14px;flex-shrink:0;color:#8c98aa;transition:transform .15s}.nav-chevron.open{transform:rotate(90deg)}.nav-item.collapsed{justify-content:center;min-height:40px;padding:10px 0}.nav-item.child:not(.collapsed){margin-left:22px;min-height:33px;padding:6px 9px;gap:9px;font-size:12px}.nav-item.child:not(.collapsed) .nav-icon{width:15px;height:15px}.nav-item:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){.nav-item,.nav-chevron{transition:none}}
 </style>

@@ -1,7 +1,7 @@
 <template>
   <div class="nb" :class="{ collapsed }">
     <button class="nb-btn" :title="collapsed ? 'Notifications' : ''" aria-label="Notifications" @click="toggle">
-      <Icon icon="lucide:bell" />
+      <Bell :size="18" :stroke-width="1.7" aria-hidden="true" />
       <span v-if="!collapsed" class="nb-label">Notifications</span>
       <span v-if="unread > 0" class="nb-badge">{{ unread > 99 ? '99+' : unread }}</span>
     </button>
@@ -43,6 +43,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
+import { Bell } from 'lucide-vue-next'
 import api from '../../services/api'
 
 defineProps({ collapsed: { type: Boolean, default: false } })
@@ -151,12 +152,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.nb-btn { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; border-radius: 10px; padding: 9px 12px; font-size: 0.8125rem; font-weight: 600; color: var(--vm-ink-soft, #475569); cursor: pointer; }
-.nb-btn:hover { background: rgba(99,102,241,.08); color: var(--vm-ink, #0f172a); }
-.nb-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
-.nb.collapsed .nb-btn { justify-content: center; }
-.nb-badge { position: absolute; top: 3px; left: 22px; min-width: 16px; height: 16px; padding: 0 4px; display: grid; place-items: center; border-radius: 999px; background: #ef4444; color: #fff; font-size: 10px; font-weight: 800; line-height: 1; }
-.nb.collapsed .nb-badge { left: auto; right: 8px; }
+.nb-btn{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:38px;box-sizing:border-box;border:1px solid transparent;border-radius:8px;padding:8px 12px;background:transparent;color:#536177;font:450 13px/20px var(--font-sans);cursor:pointer}.nb-btn:hover{background:#edf1f7;color:#1f3048}.nb-btn svg{width:18px;height:18px;flex-shrink:0;color:#748299}.nb-label{flex:1;text-align:left}.nb-badge{display:grid;place-items:center;flex-shrink:0;min-width:19px;height:19px;padding:0 5px;border-radius:6px;background:#feecee;color:#d13c50;font-size:10px;font-weight:550;line-height:1}.nb.collapsed .nb-btn{justify-content:center;padding-inline:0}.nb.collapsed .nb-badge{position:absolute;top:3px;right:1px;min-width:15px;height:15px;padding:0 3px;border:2px solid #f8fafc;border-radius:99px;font-size:9px;background:#ef4444;color:white}.nb-btn:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
 
 .nb-backdrop { position: fixed; inset: 0; z-index: 120; }
 .nb-panel { position: fixed; left: 16px; bottom: 78px; z-index: 121; width: 360px; max-width: calc(100vw - 32px); max-height: 66vh; display: flex; flex-direction: column; background: #fff; border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 24px 60px rgba(15,23,42,.24); overflow: hidden; }

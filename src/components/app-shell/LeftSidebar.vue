@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <aside class="sidebar" :class="{ collapsed }" aria-label="Sidebar">
     <!-- Brand + workspace -->
     <div class="sidebar-top">
@@ -14,22 +14,21 @@
 
     <!-- New Chat -->
     <button class="new-chat" data-tour="new-chat" :class="{ collapsed }" :title="collapsed ? 'New Chat (Ctrl/Cmd+K)' : ''" aria-label="New chat" @click="newChat">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-        <path d="M12 5v14m-7-7h14" stroke-linecap="round" />
-      </svg>
-      <span v-if="!collapsed">New Chat</span>
+      <Plus :size="18" :stroke-width="1.8" aria-hidden="true" />
+      <span v-if="!collapsed">New chat</span>
+      <kbd v-if="!collapsed" aria-hidden="true">Ctrl K</kbd>
     </button>
 
     <!-- Scrollable nav -->
     <div class="sidebar-scroll">
       <nav class="nav-group" aria-label="Primary">
         <template v-for="(item, i) in visibleNav" :key="item.to">
+          <div v-if="sectionLabels[item.to]" class="nav-section" :class="{ 'is-first': i === 0, 'is-collapsed': collapsed }" aria-hidden="true"><span v-if="!collapsed">{{ sectionLabels[item.to] }}</span></div>
           <SidebarNavItem
             v-bind="item"
             :index="i"
             :collapsed="collapsed"
             @toggle="toggleNavGroup(item)"
-            @click.capture="openSettingsNav($event, item)"
           />
           <!-- Projects, right after Home (agentic-docs/CHAT_PROJECTS_PLAN.md; owner, 2026-10-16) -->
           <SidebarProjects v-if="item.to === '/dashboard'" :collapsed="collapsed" />
@@ -43,10 +42,6 @@
     <!-- Footer: user + collapse toggle -->
     <div class="sidebar-footer">
       <NotificationBell :collapsed="collapsed" />
-      <button class="take-tour" :class="{ collapsed }" :title="collapsed ? 'Take a tour' : ''" aria-label="Take a tour" @click="startTour">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke-linecap="round" stroke-linejoin="round" /><line x1="12" y1="17" x2="12.01" y2="17" stroke-linecap="round" /></svg>
-        <span v-if="!collapsed">Take a tour</span>
-      </button>
 
       <SidebarProfileMenu
         :email="currentUser?.email || ''"
@@ -56,13 +51,12 @@
         :collapsed="collapsed"
         @navigate="openProfilePage"
         @logout="logout"
+        @tour="startTour"
       />
 
       <button v-if="showCollapseToggle" class="collapse-toggle" :title="collapsed ? 'Expand (Ctrl/Cmd+B)' : 'Collapse (Ctrl/Cmd+B)'" :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'" @click="layout.toggleSidebar()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" :style="{ transform: collapsed ? 'rotate(180deg)' : '' }">
-          <path d="M15 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        <span v-if="!collapsed">Collapse</span>
+        <component :is="collapsed ? PanelLeftOpen : PanelLeftClose" :size="17" :stroke-width="1.7" aria-hidden="true" />
+        <span v-if="!collapsed">Collapse sidebar</span>
       </button>
     </div>
   </aside>
@@ -71,6 +65,7 @@
 <script setup>
 import { computed, inject, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { House, Bot, BookOpen, Files, Workflow, Database, Clapperboard, CalendarClock, Activity, ShieldCheck, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
 import BrandMark from '../common/BrandMark.vue'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { useChatStore } from '../../stores/useChatStore'
@@ -107,38 +102,31 @@ const initials = computed(() => {
 
 // Nav items — each `to` points at a working route (existing top-level routes
 // stay alive through Phase 5; dashboard children render inside this shell).
+const sectionLabels = { '/dashboard': 'Workspace', '/dashboard/workflow-builder': 'Create', '/dashboard/schedules': 'Manage' }
 const primaryNav = [
-  { to: '/dashboard', exact: true, label: 'Home', 'data-tour': 'home', icon: ['M3 12l9-9 9 9', 'M5 10v10h14V10'] },
+  { to: '/dashboard', exact: true, label: 'Home', 'data-tour': 'home', iconComponent: House },
   // Hidden for now (route/page still works directly): Let's Code.
   // { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", 'data-tour': 'lets-code', icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6'] },
-  { to: '/dashboard/agents', match: '/dashboard/agents', label: 'Agents', 'data-tour': 'agents', icon: ['M12 2a4 4 0 0 1 4 4c0 1.95-1.4 3.58-3.25 3.93', 'M12 18a8 8 0 0 1-8-8', 'M20 10a8 8 0 0 1-8 8', 'M12 11.5a1.5 1.5 0 1 0 0 .01'] },
+  { to: '/dashboard/agents', match: '/dashboard/agents', label: 'Agents', 'data-tour': 'agents', iconComponent: Bot },
   // Hidden from the sidebar — the route stays live (/dashboard/super-agent), and DelegationsPage +
   // the admin shell still link to it. A naked New Chat already opens the Platform Super Agent.
   // { to: '/dashboard/super-agent', match: '/dashboard/super-agent', label: 'Super Agent', 'data-tour': 'super-agent', icon: ['M12 2l2.5 6.5L21 9l-5 4 1.5 7L12 16l-5.5 4L8 13 3 9l6.5-.5z'] },
-  { to: '/dashboard/connectors', label: 'Connectors', 'data-tour': 'connectors', icon: ['M13.83 10.17a4 4 0 0 0-5.66 0l-4 4a4 4 0 1 0 5.66 5.66l1.1-1.1', 'M10.17 13.83a4 4 0 0 0 5.66 0l4-4a4 4 0 1 0-5.66-5.66l-1.1 1.1'] },
-  // Sits beside Connectors on purpose while it carries only the AADML-MCP section. It absorbs Connectors
-  // (and services / tools / OAuth providers) once those sections land — see INTEGRATIONS_HUB_PLAN.md.
-  { to: '/dashboard/integrations', match: '/dashboard/integrations', label: 'Integrations', 'data-tour': 'integrations', icon: ['M9 2v6', 'M15 2v6', 'M5 8h14v4a7 7 0 0 1-14 0z', 'M12 19v3'] },
-  { to: '/dashboard/knowledge', match: '/dashboard/knowledge', label: 'Knowledge & RAG', 'data-tour': 'knowledge', icon: ['M4 19.5A2.5 2.5 0 0 1 6.5 17H20', 'M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z'] },
+  { to: '/dashboard/knowledge', match: '/dashboard/knowledge', label: 'Knowledge & RAG', 'data-tour': 'knowledge', iconComponent: BookOpen },
   // The AADML Asset Library: the files of the person's chats only (Video Studio and Training Data keep their own).
-  { to: '/dashboard/assets', match: '/dashboard/assets', label: 'Asset Library', 'data-tour': 'assets', icon: ['M18 22H4a2 2 0 0 1-2-2V6', 'M8 2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z', 'M11 8h.01', 'M22 13l-3.5-3.5L10 18'] },
-  { to: '/dashboard/workflow-builder', match: '/dashboard/workflow-builder', label: 'Workflow Builder', 'data-tour': 'workflow', icon: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M10 7h4a3 3 0 0 1 3 3v4'] },
+  { to: '/dashboard/assets', match: '/dashboard/assets', label: 'Asset Library', 'data-tour': 'assets', iconComponent: Files },
+  { to: '/dashboard/workflow-builder', match: '/dashboard/workflow-builder', label: 'Workflow Builder', 'data-tour': 'workflow', iconComponent: Workflow },
   // Runs has no nav entry of its own — it is reached from the Workflow Builder page's Runs button.
   // The route stays live (/dashboard/workflow-runs) and the page is still CROSS-workflow; only its
   // entry point moved, so the sidebar does not carry two lines for one feature.
   // Training Data is its own page (training-data/index.html), served at this path by nginx, so it is a plain
   // link. Shown to everyone signed in; the page lists only the projects each person may see.
-  { to: '/dashboard/training-data/', external: true, label: 'Training Data', 'data-tour': 'training-data', icon: ['M3 5h18v14H3z', 'M3 15l5-5 4 4 3-3 6 6', 'M15.5 8.5h.01'] },
+  { to: '/dashboard/training-data/', external: true, label: 'Training Data', 'data-tour': 'training-data', iconComponent: Database },
   // Video Studio is its own dashboard inside this app, with its own side navigation (owner, 2026-10-19). This is
   // the one way in: the chat composer has no video mode.
-  { to: '/video-studio', match: '/video-studio', label: 'Video Studio', 'data-tour': 'video-studio', icon: ['M3 6h13v12H3z', 'M16 10l5-3v10l-5-3'] },
-  { to: '/dashboard/schedules', label: 'Schedules', 'data-tour': 'schedules', icon: ['M8 2v4', 'M16 2v4', 'M3 10h18', 'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z', 'M12 14v3l2 1'] },
-  { to: '/dashboard/activity', label: 'Activity', 'data-tour': 'activity', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
-  { to: '/dashboard/budgets', label: 'Budgets', 'data-tour': 'budgets', icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6'] },
-  { to: '/dashboard/organization', match: '/dashboard/organization', label: 'Organization', 'data-tour': 'organization', icon: ['M3 21h18', 'M5 21V7l7-4 7 4v14', 'M9 21v-6h6v6', 'M9 9h.01', 'M15 9h.01'] },
-  { to: '/admin-dashboard', match: '/admin-dashboard', label: 'Admin', adminOnly: true, icon: ['M12 2 4 5v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V5z', 'M9 12l2 2 4-4'] },
-  { to: '/dashboard/settings/general', match: '/dashboard/settings', label: 'Settings', 'data-tour': 'settings', icon: ['M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82M4.6 9a1.65 1.65 0 0 0-.33-1.82'] },
-  { to: '/dashboard/help-center', match: '/dashboard/help-center', label: 'Help Center', 'data-tour': 'help-center', icon: ['M9.09 9a3 3 0 1 1 5.83 1c0 2-3 2.25-3 4', 'M12 17h.01', 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z'] },
+  { to: '/video-studio', match: '/video-studio', label: 'Video Studio', 'data-tour': 'video-studio', iconComponent: Clapperboard },
+  { to: '/dashboard/schedules', label: 'Schedules', 'data-tour': 'schedules', iconComponent: CalendarClock },
+  { to: '/dashboard/activity', label: 'Activity', 'data-tour': 'activity', iconComponent: Activity },
+  { to: '/admin-dashboard', match: '/admin-dashboard', label: 'Admin', adminOnly: true, iconComponent: ShieldCheck },
 ]
 
 // Admin-only nav entries (e.g. LLM Context — ops stats, backed by an IsAdminUser endpoint)
@@ -153,17 +141,8 @@ const toggleNavGroup = () => {
   return
 }
 
-// Normal clicks open configuration in place; modified clicks retain the full-page links.
-const openSettingsNav = (event, item) => {
-  if (!openSettings || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-  const section = { '/dashboard/connectors': 'connectors', '/dashboard/integrations': 'integrations', '/dashboard/settings/general': 'general' }[item.to]
-  if (!section) return
-  event.preventDefault()
-  openSettings(section)
-}
-
 const openProfilePage = (path) => {
-  const section = { '/dashboard/connectors': 'connectors', '/dashboard/integrations': 'integrations' }[path]
+  const section = { '/dashboard/connectors': 'connectors', '/dashboard/integrations': 'integrations', '/dashboard/budgets': 'budgets', '/dashboard/organization': 'organization' }[path]
   if (openSettings && (section || path.startsWith('/dashboard/settings/'))) {
     openSettings(section || path.split('/').pop())
     return
@@ -187,274 +166,11 @@ const startTour = () => {
 </script>
 
 <style scoped>
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  width: 256px;
-  height: 100%;
-  font-family: var(--vm-font-sans);
-  background: var(--vm-glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-right: 1px solid var(--vm-line);
-  box-shadow: var(--vm-shadow-m);
-  transition: width 0.2s var(--vm-ease2);
-}
-.sidebar.collapsed {
-  width: 76px;
-}
-
-/* Top */
-.sidebar-top {
-  padding: 18px 14px 8px;
-}
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  text-decoration: none;
-}
-.brand-mark {
-  width: 38px;
-  height: 38px;
-  flex-shrink: 0;
-  animation: vmPop .7s var(--vm-ease) both;
-}
-.brand-letter {
-  color: #fff;
-  font-size: 1rem;
-  font-weight: 700;
-  line-height: 1;
-}
-.brand-text {
-  font-family: var(--vm-font-display);
-  font-size: 1.25rem;
-  font-weight: 700;
-  letter-spacing: -.02em;
-  color: var(--vm-ink);
-}
-.brand-v {
-  font-size: 0.625rem;
-  font-weight: 700;
-  background: var(--vm-g-brand);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  vertical-align: super;
-  margin-left: 1px;
-}
-.ws-switcher-wrap {
-  margin-top: 14px;
-}
-
-/* New Chat */
-.new-chat {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 9px;
-  margin: 10px 14px 12px;
-  padding: 13px 14px;
-  font-family: var(--vm-font-sans);
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #fff;
-  background: var(--vm-g-cool);
-  border: none;
-  border-radius: 15px;
-  cursor: pointer;
-  box-shadow: var(--vm-glow-v);
-  transition: transform 0.2s var(--vm-ease);
-}
-.new-chat:hover { transform: translateY(-2px) scale(1.02); }
-.new-chat:active { transform: scale(0.97); }
-.new-chat::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: -120%;
-  width: 60%;
-  height: 100%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .5), transparent);
-  transform: skewX(-20deg);
-  animation: vmShine 4s ease-in-out infinite;
-}
-.new-chat svg { width: 17px; height: 17px; }
-.new-chat.collapsed { margin: 10px 12px 12px; padding: 13px 0; }
-
-/* Scroll area */
-.sidebar-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 4px 12px 12px;
-}
-.sidebar-scroll::-webkit-scrollbar { width: 0; }
-.nav-group {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-/* Footer */
-.sidebar-footer {
-  border-top: 1px solid var(--vm-line);
-  padding: 10px 12px;
-}
-.take-tour {
-  display: flex; align-items: center; gap: 10px; width: 100%;
-  margin-bottom: 6px; padding: 9px 12px;
-  font: 600 0.8125rem var(--vm-font-sans);
-  color: var(--vm-ink-soft); background: transparent; border: none; border-radius: 11px;
-  cursor: pointer; transition: background .15s, color .15s;
-}
-.take-tour:hover { background: var(--vm-violet-soft); color: var(--vm-violet-d); }
-.take-tour svg { width: 16px; height: 16px; flex-shrink: 0; }
-.take-tour.collapsed { justify-content: center; padding: 9px 0; }
-.user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px;
-  border-radius: 12px;
-}
-.user.collapsed { justify-content: center; }
-.avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #fff;
-  background: var(--vm-g-brand);
-  border-radius: 50%;
-}
-.user-info { display: flex; flex-direction: column; line-height: 1.2; flex: 1; min-width: 0; }
-.user-name { font-size: 0.8125rem; font-weight: 700; color: var(--vm-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.user-plan { font-size: 0.6875rem; color: var(--vm-ink-faint); }
-.logout-btn {
-  display: flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; flex-shrink: 0;
-  background: transparent; border: none; border-radius: 9px;
-  color: var(--vm-ink-faint); cursor: pointer; transition: all 0.15s;
-}
-.logout-btn:hover { background: rgba(239, 68, 68, .1); color: var(--vm-danger); }
-.logout-btn svg { width: 16px; height: 16px; }
-
-.collapse-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  margin-top: 6px;
-  padding: 8px 12px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--vm-ink-faint);
-  background: transparent;
-  border: none;
-  border-radius: 11px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.collapse-toggle:hover { background: var(--vm-glass-strong); color: var(--vm-ink-soft); }
-.collapse-toggle svg { width: 16px; height: 16px; transition: transform 0.2s; }
-.sidebar.collapsed .collapse-toggle { justify-content: center; }
-
-/* Screen 25 sidebar refresh */
-.sidebar {
-  width: 228px;
-  background: #fbfdff;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border-right: 1px solid #e3ebf6;
-  box-shadow: none;
-}
-.sidebar.collapsed {
-  width: 72px;
-}
-.sidebar-top {
-  padding: 18px 16px 10px;
-}
-.brand {
-  gap: 12px;
-}
-.brand-mark {
-  width: 36px;
-  height: 36px;
-  animation: none;
-}
-.brand-letter {
-  display: none;
-}
-.brand-text {
-  font-family: Inter, var(--vm-font-display), var(--vm-font-sans);
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: #111827;
-}
-.brand-v {
-  color: #2563eb;
-  background: none;
-  -webkit-background-clip: initial;
-  background-clip: initial;
-}
-.ws-switcher-wrap {
-  margin-top: 16px;
-}
-.new-chat {
-  margin: 12px 14px;
-  height: 44px;
-  padding: 0 16px;
-  border-radius: 8px;
-  background: #2563eb;
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.2);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.new-chat::after {
-  display: none;
-}
-.new-chat:hover {
-  transform: translateY(-1px);
-  background: #1d4ed8;
-  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.24);
-}
-.new-chat.collapsed {
-  margin: 12px 12px;
-}
-.sidebar-scroll {
-  padding: 6px 12px 14px;
-}
-.nav-group {
-  gap: 4px;
-}
-.sidebar-footer {
-  border-top: 1px solid #e8eef7;
-  padding: 10px 12px 12px;
-  background: #fbfdff;
-}
-.take-tour,
-.collapse-toggle {
-  border-radius: 9px;
-  color: #64748b;
-}
-.take-tour:hover,
-.collapse-toggle:hover {
-  background: #f1f6ff;
-  color: #1d4ed8;
-}
-.user {
-  padding: 8px 6px;
-  border-radius: 10px;
-}
-.avatar {
-  background: #2563eb;
-}
+.sidebar{display:flex;flex-direction:column;flex-shrink:0;width:248px;height:100%;min-height:0;background:#f8fafc;border-right:1px solid #e5e9f0;color:#475569;font-family:var(--font-sans);transition:width .18s ease}
+.sidebar.collapsed{width:72px}.sidebar-top{flex-shrink:0;padding:22px 16px 12px}.brand{display:flex;align-items:center;gap:10px;padding:0 5px;text-decoration:none;width:fit-content}.brand-mark{width:32px;height:32px;flex-shrink:0}.brand-text{font-family:var(--font-sans);font-size:20px;line-height:1.3;font-weight:700;letter-spacing:-.65px;color:#182334}.brand-v{font-size:9px;line-height:1;font-weight:600;letter-spacing:0;color:#2563eb;vertical-align:super;margin-left:3px}.ws-switcher-wrap{margin-top:20px}
+.new-chat{display:flex;align-items:center;gap:10px;flex-shrink:0;min-height:40px;margin:4px 16px 14px;padding:9px 12px;border:1px solid #205bde;border-radius:9px;background:#2563eb;box-shadow:0 2px 4px #2563eb17;color:#fff;font-family:inherit;font-size:13px;line-height:20px;font-weight:550;text-align:left;cursor:pointer;transition:background .15s,box-shadow .15s}.new-chat:hover{background:#1d4ed8;box-shadow:0 3px 8px #2563eb20}.new-chat:active{background:#1e40af}.new-chat svg{flex-shrink:0}.new-chat kbd{margin-left:auto;padding:1px 5px;border:1px solid #ffffff38;border-radius:4px;color:#ffffffbf;font-family:inherit;font-size:10px;line-height:18px;font-weight:400}.new-chat.collapsed{justify-content:center;margin:4px 14px 14px;padding:10px 0}
+.sidebar-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 12px 16px;scrollbar-width:thin;scrollbar-color:transparent transparent}.sidebar-scroll:hover{scrollbar-color:#d9dfe8 transparent}.sidebar-scroll::-webkit-scrollbar{width:4px}.sidebar-scroll::-webkit-scrollbar-thumb{background:transparent;border-radius:4px}.sidebar-scroll:hover::-webkit-scrollbar-thumb{background:#d9dfe8}.nav-group{display:flex;flex-direction:column;gap:3px}.nav-section{display:flex;align-items:center;min-height:24px;margin-top:8px;padding:4px 12px;color:#6f7b8e;font-size:10px;line-height:1.4;font-weight:550;letter-spacing:.075em;text-transform:uppercase}.nav-section.is-first{margin-top:0;min-height:24px}.nav-section.is-collapsed{min-height:0;height:1px;margin:13px 10px 9px;padding:0;background:#e3e8f0}.nav-section.is-collapsed.is-first{display:none}
+.sidebar-footer{flex-shrink:0;padding:8px 12px 12px;border-top:1px solid #e5e9f0;background:#f8fafc}.collapse-toggle{display:flex;align-items:center;gap:11px;width:100%;min-height:34px;margin-top:6px;padding:7px 12px;border:0;border-radius:7px;background:none;color:#728096;font-family:inherit;font-size:11px;line-height:20px;font-weight:450;text-align:left;cursor:pointer}.collapse-toggle:hover{background:#edf1f7;color:#334155}.collapse-toggle svg{flex-shrink:0}.sidebar.collapsed .collapse-toggle{justify-content:center;padding-inline:0}.sidebar.collapsed .sidebar-top{padding:22px 18px 18px}.sidebar.collapsed .brand{padding:0}
+.new-chat:focus-visible,.collapse-toggle:focus-visible,.brand:focus-visible{outline:2px solid #2563eb;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){.sidebar,.new-chat{transition:none}}
 </style>
-

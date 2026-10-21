@@ -52,3 +52,20 @@ describe('sidebar profile menu', () => {
     expect(menu()).toBeNull()
   })
 })
+
+describe('profile account and help destinations', () => {
+  it('has five primary actions and keeps learning and tour links under Help', async () => {
+    const w = render()
+    await w.get('button').trigger('click')
+    expect(document.querySelectorAll('[role="menuitem"]')).toHaveLength(5)
+    item('Help & support').click()
+    await nextTick()
+    expect(item('Documentation')).toBeTruthy()
+    expect(item('Getting started')).toBeTruthy()
+    expect(item('Contact support')).toBeTruthy()
+    item('Replay product tour').click()
+    await nextTick()
+    expect(w.emitted('tour')).toHaveLength(1)
+    expect(menu()).toBeNull()
+  })
+})
