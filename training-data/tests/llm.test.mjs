@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM, trainingOverrides, lossPoints, configSummary, lossInWords, percent, tallyParts, tallyInWords, questionRows, questionCases, verdictLabel, verdictTone, chatSnippet, chatLiveTag, downloadUrl } from '../src/api/llm.js';
+import { turnsOf, fixableOf, withFixes, reviewColumn, csvHeader, csvColumns, query, pathName, findingText, NOT_FOR_LLM, LATER_FOR_LLM, trainingOverrides, lossPoints, configSummary, lossInWords, percent, tallyParts, tallyInWords, questionRows, questionCases, verdictLabel, verdictTone, chatSnippet, chatLiveTag, downloadUrl, cardFacts } from '../src/api/llm.js';
 
 const CHAT = { kind: 'chat', system: 'You are the support agent.', weight_on: 'last_assistant',
   messages: [{ role: 'user', content: 'Where is order 42?' },
@@ -123,4 +123,18 @@ test('test questions are edited as rows and sent back as conversations, empty ro
   ]);
   rows[0].question = 'Changed?';
   assert.deepEqual(questionCases(rows)[0].messages, [{ role: 'user', content: 'Changed?' }]);
+});
+
+test('a model card reads as facts, with the licence use in words', () => {
+  const facts = Object.fromEntries(cardFacts({ model: { kind: 'lora-adapter', lora: { rank: 4 }, method: 'sft', parent: null,
+    base_model: { repo: 'HuggingFaceTB/SmolLM2-135M-Instruct', licence: 'Apache 2.0', use: 'paid' } },
+    dataset: { version: 'llm-v1', rows: { train: 18, validation: 3 } }, metrics: { steps: 8, train_loss: 3.7386, eval_loss: 3.7069 },
+    runtime: { device: 'cpu', instance_type: 'local-cpu' } }));
+  assert.equal(facts['Base model'], 'HuggingFaceTB/SmolLM2-135M-Instruct (Apache 2.0: commercial use allowed)');
+  assert.equal(facts.Method, 'SFT, LoRA rank 4');
+  assert.equal(facts['Started from'], 'the base model');
+  assert.equal(facts.Dataset, 'llm-v1: 18 training and 3 validation rows');
+  assert.equal(facts.Result, '8 steps, training loss 3.739, validation loss 3.707');
+  assert.equal(cardFacts(null)[0][1], '—');
+  assert.equal(Object.fromEntries(cardFacts({ model: { parent: { model_version: 'chat-v1', run: 1, method: 'sft' } } }))['Started from'], 'model chat-v1 (SFT)');
 });

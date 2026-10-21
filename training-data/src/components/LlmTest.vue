@@ -3,6 +3,7 @@
 // from, on a test server only AADML can reach (llm/trials.py); nothing typed is kept. Compare answers: the pairs of an
 // evaluation given to this person, two answers side by side in an order fixed at random and without names; the
 // person says which is better. Backend: llm/app_api.py.
+import { safeMarkdown } from '../markdown.js';
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { Play, Square, Send, RefreshCw, ArrowLeft, ArrowRight, MessageSquarePlus } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
@@ -74,7 +75,7 @@ async function send() {
   try {
     const sent = [...(system.value.trim() ? [{ role: 'system', content: system.value.trim() }] : []), ...messages.value];
     const answer = await llmApi.chat(props.project.ref, { messages: sent, max_tokens: Number(maxTokens.value), temperature: Number(temperature.value) });
-    messages.value.push({ role: 'assistant', content: answer.answer, tokens: answer.completion_tokens, seconds: elapsed.value });
+    messages.value.push({ role: 'assistant', content: answer.answer, tokens: answer.completion_tokens, seconds: elapsed.value, cut: answer.finish_reason === 'length' });
   } catch (e) {
     error.value = e.message;
     messages.value.pop();
@@ -185,8 +186,9 @@ onUnmounted(() => { clearTimeout(pollTimer); clearInterval(clock); });
             <p v-if="!messages.length && !writing" class="llm-loading">{{ trial?.state === 'ready' ? 'Write the first message below.' : 'Start the test server to talk to the model.' }}</p>
             <div v-for="(m, i) in messages" :key="i" :class="['llm-bubble', `llm-bubble--${m.role}`]">
               <span class="llm-turn-label">{{ m.role === 'user' ? 'You' : trial?.model || 'Model' }}</span>
-              <p>{{ m.content || '(an empty answer)' }}</p>
-              <small v-if="m.role === 'assistant'">{{ m.tokens != null ? `${m.tokens} tokens · ` : '' }}{{ m.seconds }} s</small>
+              <div v-if="m.role === 'assistant' && m.content" class="llm-answer-md" v-html="safeMarkdown(m.content)"></div>
+              <p v-else>{{ m.content || '(an empty answer)' }}</p>
+              <small v-if="m.role === 'assistant'">{{ m.tokens != null ? `${m.tokens} tokens · ` : '' }}{{ m.seconds }} s{{ m.cut ? ' · cut at the answer length' : '' }}</small>
             </div>
             <div v-if="writing" class="llm-bubble llm-bubble--assistant llm-writing"><span class="llm-turn-label">{{ trial?.model || 'Model' }}</span><p>Writing the answer… {{ elapsed }} s</p></div>
           </div>
@@ -247,11 +249,12 @@ onUnmounted(() => { clearTimeout(pollTimer); clearInterval(clock); });
 
 <style scoped>
 .llm-test{display:grid;gap:16px}
+.llm-answer-md{overflow-wrap:anywhere}.llm-answer-md :deep(:is(p,ul,ol,pre,blockquote)){margin:0 0 8px}.llm-answer-md :deep(pre){white-space:pre-wrap;background:#f6f7f9;padding:8px;border-radius:6px}
 .llm-test .field-label>.text-input{font-weight:400;margin-top:8px}
 .llm-test .text-input::placeholder{color:#64748b;font-weight:400}
 .llm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:4px 0 0}
 .llm-test-pick-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.llm-test-pick-row select{flex:1 1 260px;width:auto}
+.llm-test-pick-row select{flex:1 1 260px;width:auto;min-width:0;max-width:100%}
 .llm-chat-settings{margin:8px 0 12px}
 .llm-chat-settings summary{cursor:pointer;font-size:13px;color:#334155;min-height:32px;display:flex;align-items:center}
 .llm-chat-log{display:grid;gap:10px;max-height:460px;overflow:auto;padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;min-height:160px;align-content:start}

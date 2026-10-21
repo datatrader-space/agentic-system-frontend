@@ -188,7 +188,7 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
               <span v-if="app.can_manage" class="app-head-actions">
                 <UiButton class="small" :disabled="busy" @click="setAppOn(app, app.disabled)">{{ app.disabled ? 'Turn on' : 'Turn off' }}</UiButton>
                 <UiButton class="small danger" :disabled="busy" @click="deletingApp=app;deleteName=''">Delete…</UiButton>
-              </span></header>
+              </span></header><p v-if="app.other_projects" class="deploy-meta">Also used by {{ app.other_projects }} other project{{ app.other_projects === 1 ? '' : 's' }} of this workspace: turning it off or deleting it stops it there too.</p>
             <p v-if="app.disabled" class="deploy-meta">Turned off: every key of this app is refused until it is turned on again.</p>
             <div class="app-cols">
               <div>
@@ -209,7 +209,7 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
                   <p v-if="!app.keys.length" class="deploy-meta">No key yet.</p>
                   <div v-for="k in app.keys" :key="k.id" class="key-row"><code>{{ k.hint }}</code>
                     <UiBadge v-if="k.revoked">Revoked</UiBadge>
-                    <template v-else><span class="deploy-meta">{{ k.last_used_at ? `used ${when(k.last_used_at)} · ${k.request_count} calls` : 'never used' }}</span>
+                    <template v-else><span class="deploy-meta">{{ k.last_used_at ? `used ${when(k.last_used_at)} · ${k.request_count} call${k.request_count===1?'':'s'}` : 'never used' }}</span>
                       <UiButton class="danger small" :disabled="busy" @click="revoking={app, key:k}"><Ban :size="13"/> Revoke</UiButton></template>
                   </div>
                   <UiButton :disabled="busy" @click="makeKey(app)"><KeyRound :size="14"/> Make a key</UiButton>
@@ -233,25 +233,29 @@ const stateTone = s => ({ live: 'green', failed: 'red', retired: 'neutral', star
           <input v-model.number="backTo" type="radio" name="back-to" :value="m.number" :disabled="!!m.refused">
           <span><strong>{{ m.name }} {{ m.version }}</strong> · was live as revision {{ m.was_live }}<span v-if="m.refused" class="deploy-meta"> — {{ m.refused }}</span></span>
         </label>
+        <p v-if="error" class="field-error" role="alert">{{ error }}</p>
         <div class="dialog-actions"><UiButton @click="goingBack=null">Cancel</UiButton><UiButton variant="primary" :disabled="busy||backTo===null" @click="goBack">Go back</UiButton></div>
       </template>
     </UiDialog>
     <UiDialog :open="!!revoking" title="Revoke this key" @close="revoking=null">
       <template v-if="revoking">
         <p class="dialog-description">{{ revoking.key.hint }} of “{{ revoking.app.name }}” stops working at once: every request with it is refused from now on. This cannot be undone; make a new key if the app still needs one.</p>
+        <p v-if="error" class="field-error" role="alert">{{ error }}</p>
         <div class="dialog-actions"><UiButton @click="revoking=null">Cancel</UiButton><UiButton variant="primary" class="danger-fill" :disabled="busy" @click="revokeKey">Revoke key</UiButton></div>
       </template>
     </UiDialog>
     <UiDialog :open="!!stopping" title="Stop this environment" @close="stopping=null">
       <template v-if="stopping">
         <p class="dialog-description">{{ stopping.live.model.name }} {{ stopping.live.model.version }} stops answering on {{ stopping.label.toLowerCase() }} at once; apps calling it get "no model is deployed" until you deploy a version or go back to one. Nothing is deleted.</p>
+        <p v-if="error" class="field-error" role="alert">{{ error }}</p>
         <div class="dialog-actions"><UiButton @click="stopping=null">Cancel</UiButton><UiButton variant="primary" class="danger-fill" :disabled="busy" @click="stopEnv">Stop {{ stopping.label.toLowerCase() }}</UiButton></div>
       </template>
     </UiDialog>
     <UiDialog :open="!!deletingApp" title="Delete this app" @close="deletingApp=null">
       <template v-if="deletingApp">
-        <p class="dialog-description">"{{ deletingApp.name }}" is deleted with all its keys and its access in every project. Its past calls stay in the usage history. This cannot be undone; to stop it for a while, turn it off instead. Type the app's name to confirm.</p>
+        <p class="dialog-description">"{{ deletingApp.name }}" is deleted with all its keys and its access in every project. Its past calls stay in the usage history. This cannot be undone; to stop it for a while, turn it off instead. Type the app's name to confirm.</p><p v-if="deletingApp.other_projects" class="field-error">It also serves {{ deletingApp.other_projects }} other project{{ deletingApp.other_projects === 1 ? '' : 's' }} of this workspace, which stop working with it.</p>
         <input v-model="deleteName" class="text-input" :aria-label="`Type ${deletingApp.name} to confirm`" :placeholder="deletingApp.name">
+        <p v-if="error" class="field-error" role="alert">{{ error }}</p>
         <div class="dialog-actions"><UiButton @click="deletingApp=null">Cancel</UiButton><UiButton variant="primary" class="danger-fill" :disabled="busy||deleteName.trim()!==deletingApp.name" @click="deleteApp">Delete the app</UiButton></div>
       </template>
     </UiDialog>

@@ -79,6 +79,7 @@ async function send() {
   try {
     const answer = await llmApi.upload(props.project.ref, files.value, hasCsv.value ? csvColumns(mode.value, chosen.value) : null);
     results.value = answer.results; refused.value = answer.training_refused || '';
+    files.value = []; header.value = [];   // sent: the next upload holds only what is chosen next (found 2026-10-21: 24 duplicates)
   } catch (e) { error.value = e.message; }
   finally { busy.value = false; }
 }

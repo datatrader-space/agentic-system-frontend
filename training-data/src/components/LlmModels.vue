@@ -6,7 +6,7 @@ import { onMounted, ref } from 'vue';
 import { RefreshCw, Box } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
-import { llmApi, lossPoints, lossInWords } from '../api/llm.js';
+import { llmApi, lossPoints, lossInWords, cardFacts } from '../api/llm.js';
 import { ago } from '../api/training.js';
 import './llm.css';
 
@@ -40,7 +40,8 @@ onMounted(load);
         <svg class="llm-curve" viewBox="-2 -2 244 64" role="img" :aria-label="`Training loss of ${m.name}, ${lossInWords(m.metrics.history)}`"><polyline :points="lossPoints(m.metrics.history)" fill="none" stroke="currentColor" stroke-width="1.5" /></svg>
         <figcaption class="field-help">Training loss {{ lossInWords(m.metrics.history) }}</figcaption>
       </figure>
-      <details><summary>Model card</summary><pre class="code-block">{{ JSON.stringify(m.card, null, 2) }}</pre></details>
+      <details><summary>Model card</summary><dl class="llm-facts"><template v-for="[label, value] in cardFacts(m.card)" :key="label"><dt>{{ label }}</dt><dd>{{ value }}</dd></template></dl>
+        <details><summary>The whole card (JSON)</summary><pre class="code-block">{{ JSON.stringify(m.card, null, 2) }}</pre></details></details>
     </article>
   </div>
 </template>

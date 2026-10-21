@@ -36,6 +36,8 @@ async function load() {
 let timer = null; let alive = true;
 const waiting = computed(() => (data.value?.environments || []).some(e => e.starting)
   || (data.value?.models || []).some(m => m.merged?.state === 'preparing'));
+// "Revision N is starting" is over once nothing starts or packs any more: the cards say what came of it.
+watch(waiting, (now, before) => { if (before && !now) told.value = ''; });
 function follow() { clearTimeout(timer); timer = alive && waiting.value ? setTimeout(async () => { await load(); follow(); }, 4000) : null; }
 watch(waiting, follow);
 watch(ref_, () => { data.value = null; load(); }, { immediate: true });
@@ -131,7 +133,7 @@ const revoked = m => m.approvals.filter(a => !a.active);
               <p class="env-model"><strong>{{ env.live.model }}</strong></p>
               <p class="deploy-meta">Revision {{ env.live.number }}<template v-if="env.live.rollback_of"> · going back from revision {{ env.live.rollback_of }}</template> · live since {{ when(env.live.live_at) }}</p>
             </template>
-            <p v-else class="deploy-meta">No chat model answers in {{ env.label.toLowerCase() }} yet.</p>
+            <p v-else class="deploy-meta">No chat model is answering in {{ env.label.toLowerCase() }}.</p>
             <p v-if="env.starting" class="deploy-starting"><span class="spinner" aria-hidden="true"></span>Revision {{ env.starting.number }} with {{ env.starting.model }} is loading on the CPU; this takes a minute or two.<template v-if="env.live"> Until then revision {{ env.live.number }} keeps answering.</template></p>
             <p v-else-if="env.failed" class="deploy-error"><strong>Revision {{ env.failed.number }} did not go live.</strong> {{ env.failed.failure }}<template v-if="env.live"> Revision {{ env.live.number }} is still answering.</template></p>
             <div v-if="data.may.train" class="env-actions">
@@ -229,7 +231,7 @@ const revoked = m => m.approvals.filter(a => !a.active);
             <span v-if="app.can_manage" class="app-head-actions">
               <UiButton class="small" :disabled="busy" @click="setAppOn(app, app.disabled)">{{ app.disabled ? 'Turn on' : 'Turn off' }}</UiButton>
               <UiButton class="small danger" :disabled="busy" @click="deletingApp = app; deleteName = ''">Delete…</UiButton>
-            </span></header>
+            </span></header><p v-if="app.other_projects" class="deploy-meta">Also used by {{ app.other_projects }} other project{{ app.other_projects === 1 ? '' : 's' }} of this workspace: turning it off or deleting it stops it there too.</p>
           <p v-if="app.disabled" class="deploy-meta">Turned off: every key of this app is refused until it is turned on again.</p>
           <div class="app-cols">
             <div>
@@ -267,7 +269,7 @@ const revoked = m => m.approvals.filter(a => !a.active);
           <div><strong>{{ m.name }}</strong><span class="deploy-meta"> · {{ m.licence || 'licence unknown' }}</span>
             <p v-if="m.download_refused" class="deploy-meta">{{ m.download_refused }}</p>
             <p v-else-if="m.merged" class="deploy-meta"><UiBadge :tone="mergedTone(m.merged.state)">Merged weights: {{ m.merged.state_label }}</UiBadge>
-              <template v-if="m.merged.state === 'ready'"> {{ bytesText(m.merged.size) }}</template>
+              <template v-if="m.merged.state === 'ready'">{{ ' ' + bytesText(m.merged.size) }}</template>
               <template v-else-if="m.merged.state === 'preparing' && m.merged.packing"> The job has finished; its files are being checked and packed. For a large model this takes a few minutes; the page asks again on its own.</template>
               <template v-else-if="m.merged.state === 'preparing'"> The merge job is running. This takes a few minutes; the page asks again on its own.</template>
               <template v-else-if="m.merged.failure"> {{ m.merged.failure }}</template></p>
@@ -275,7 +277,7 @@ const revoked = m => m.approvals.filter(a => !a.active);
           <div v-if="!m.download_refused" class="env-actions">
             <a class="button" :href="downloadUrl(ref_, m.version, 'adapter')" download><Download :size="14" /> Adapter</a>
             <a v-if="m.merged?.state === 'ready'" class="button" :href="downloadUrl(ref_, m.version, 'merged')" download><Download :size="14" /> Merged weights</a>
-            <UiButton v-else :disabled="busy || m.merged?.state === 'preparing'" @click="merge(m)">{{ m.merged?.state === 'failed' ? 'Make the merged weights again' : 'Make the merged weights' }}</UiButton>
+            <UiButton v-else-if="m.merged?.state !== 'preparing'" :disabled="busy" @click="merge(m)">{{ m.merged?.state === 'failed' ? 'Make the merged weights again' : 'Make the merged weights' }}</UiButton>
           </div>
         </div>
       </section>
@@ -336,7 +338,7 @@ const revoked = m => m.approvals.filter(a => !a.active);
     </UiDialog>
     <UiDialog :open="!!deletingApp" title="Delete this app" @close="deletingApp = null">
       <template v-if="deletingApp">
-        <p class="dialog-description">"{{ deletingApp.name }}" is deleted with all its keys and its access in every project. Its past calls stay in the usage history. This cannot be undone; to stop it for a while, turn it off instead. Type the app's name to confirm.</p>
+        <p class="dialog-description">"{{ deletingApp.name }}" is deleted with all its keys and its access in every project. Its past calls stay in the usage history. This cannot be undone; to stop it for a while, turn it off instead. Type the app's name to confirm.</p><p v-if="deletingApp.other_projects" class="field-error">It also serves {{ deletingApp.other_projects }} other project{{ deletingApp.other_projects === 1 ? '' : 's' }} of this workspace, which stop working with it.</p>
         <input v-model="deleteName" class="text-input" :aria-label="`Type ${deletingApp.name} to confirm`" :placeholder="deletingApp.name">
         <div class="dialog-actions"><UiButton @click="deletingApp = null">Cancel</UiButton><UiButton variant="primary" class="danger-fill" :disabled="busy || deleteName.trim() !== deletingApp.name" @click="deleteApp">Delete the app</UiButton></div>
       </template>
