@@ -29,6 +29,7 @@
             :index="i"
             :collapsed="collapsed"
             @toggle="toggleNavGroup(item)"
+            @click.capture="openSettingsNav($event, item)"
           />
           <!-- Projects, right after Home (agentic-docs/CHAT_PROJECTS_PLAN.md; owner, 2026-10-16) -->
           <SidebarProjects v-if="item.to === '/dashboard'" :collapsed="collapsed" />
@@ -47,18 +48,15 @@
         <span v-if="!collapsed">Take a tour</span>
       </button>
 
-      <div class="user" :class="{ collapsed }">
-        <div class="avatar">{{ initials }}</div>
-        <div v-if="!collapsed" class="user-info">
-          <span class="user-name">{{ currentUser?.username || 'Account' }}</span>
-          <span class="user-plan">{{ currentUser?.github_username ? 'Pro Plan' : 'Free Plan' }}</span>
-        </div>
-        <button v-if="!collapsed" class="logout-btn" title="Sign out" aria-label="Sign out" @click="logout">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-        </button>
-      </div>
+      <SidebarProfileMenu
+        :email="currentUser?.email || ''"
+        :name="currentUser?.username || 'Account'"
+        :initials="initials"
+        :plan="currentUser?.github_username ? 'Pro Plan' : 'Free Plan'"
+        :collapsed="collapsed"
+        @navigate="openProfilePage"
+        @logout="logout"
+      />
 
       <button v-if="showCollapseToggle" class="collapse-toggle" :title="collapsed ? 'Expand (Ctrl/Cmd+B)' : 'Collapse (Ctrl/Cmd+B)'" :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'" @click="layout.toggleSidebar()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" :style="{ transform: collapsed ? 'rotate(180deg)' : '' }">
@@ -80,6 +78,7 @@ import SidebarNavItem from './SidebarNavItem.vue'
 import SidebarProjects from './SidebarProjects.vue'
 import NotificationBell from './NotificationBell.vue'
 import WorkspaceSwitcher from '../layout/WorkspaceSwitcher.vue'
+import SidebarProfileMenu from './SidebarProfileMenu.vue'
 import { useOnboarding } from '../../composables/useOnboarding'
 
 const props = defineProps({
@@ -95,6 +94,7 @@ const router = useRouter()
 
 const currentUser = inject('currentUser', ref(null))
 const logout = inject('logout', () => {})
+const openSettings = inject('openSettings', null)
 
 const collapsed = computed(() => !props.forceExpanded && layout.sidebarCollapsed)
 const showCollapseToggle = computed(() => !props.forceExpanded)
@@ -151,6 +151,25 @@ const visibleNav = computed(() => primaryNav.filter((item) => {
 
 const toggleNavGroup = () => {
   return
+}
+
+// Normal clicks open configuration in place; modified clicks retain the full-page links.
+const openSettingsNav = (event, item) => {
+  if (!openSettings || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  const section = { '/dashboard/connectors': 'connectors', '/dashboard/integrations': 'integrations', '/dashboard/settings/general': 'general' }[item.to]
+  if (!section) return
+  event.preventDefault()
+  openSettings(section)
+}
+
+const openProfilePage = (path) => {
+  const section = { '/dashboard/connectors': 'connectors', '/dashboard/integrations': 'integrations' }[path]
+  if (openSettings && (section || path.startsWith('/dashboard/settings/'))) {
+    openSettings(section || path.split('/').pop())
+    return
+  }
+  layout.closeMobileNav()
+  router.push(path)
 }
 
 const newChat = () => {

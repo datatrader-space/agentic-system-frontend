@@ -1,8 +1,8 @@
 <template>
-  <div class="connectors-container px-6 py-7 lg:px-8">
+  <div class="connectors-container px-6 py-7 lg:px-8" :class="{ 'connectors-compact': compact }">
     <div class="mx-auto max-w-[1660px]">
       <!-- Header -->
-      <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div v-if="!compact" class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 class="font-display text-[29px] font-bold leading-tight tracking-tight text-ink">
             Connectors
@@ -17,6 +17,7 @@
         </button>
       </div>
 
+      <p v-if="compact" class="compact-intro">Manage the tools and services your agents can access.</p>
       <!-- Toolbar: scope · summary · add connector -->
       <div class="conn-toolbar">
         <div class="scope-box">
@@ -78,7 +79,7 @@
       </div>
 
       <!-- Filter tab strip + category/type dropdowns + search -->
-      <ConnectorTabs
+      <ConnectorTabs v-if="!compact || !selected"
         v-model:active="activeTab"
         v-model:category="filterCategory"
         v-model:typeFilter="filterType"
@@ -89,7 +90,7 @@
       <!-- 3-pane: connector list · detail · getting started -->
       <div class="conn-grid">
         <!-- ── Connector list ── -->
-        <section class="pane list-pane">
+        <section v-show="!compact || !selected" class="pane list-pane">
           <PageLoader v-if="loading" label="Loading connectors…" />
           <div v-else-if="error" class="pane-state err">{{ error }}</div>
 
@@ -129,7 +130,8 @@
         </section>
 
         <!-- ── Right: detail panel ── -->
-        <section class="pane detail-pane">
+        <section v-show="!compact || selected" class="pane detail-pane">
+          <button v-if="compact && selected" class="compact-back" type="button" @click="selected = null">&larr; All connectors</button>
           <div v-if="!selected" class="detail-empty">
             <div class="de-orb">
               <svg fill="none" viewBox="0 0 24 24" stroke="#fff"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
@@ -310,10 +312,11 @@
         </section>
 
         <!-- ── Right: Getting started (static) ── -->
-        <ConnectorGettingStartedSidebar class="getting-started-pane" @browse="openBrowse" />
+        <ConnectorGettingStartedSidebar v-if="!compact" class="getting-started-pane" @browse="openBrowse" />
       </div>
 
       <!-- ── Execution sandboxes (Workspace, distinct section) ── -->
+      <details v-if="compact" class="compact-help"><summary>How connectors work</summary><ConnectorGettingStartedSidebar @browse="openBrowse" /></details>
       <section class="sandboxes">
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-3">
@@ -367,6 +370,8 @@
       </section>
     </div>
 
+    <Teleport :to="settingsDialogHost || 'body'" :disabled="!compact">
+    <div v-if="!compact || overlayOpen" :role="compact ? 'dialog' : undefined" :aria-modal="compact ? 'true' : undefined" :aria-label="compact ? 'Connector setup' : undefined" :tabindex="compact ? -1 : undefined" :data-settings-owned-dialog="compact ? '' : undefined" @keydown="overlayKey">
     <!-- Credential slide-over (reuses the existing CredentialManager) -->
     <div
       v-if="credModalConnector"
@@ -459,11 +464,13 @@
         </div>
       </div>
     </div>
+    </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, inject } from 'vue'
 import { isTrustedPopupMessage } from '@/utils/popupMessages'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
@@ -483,6 +490,9 @@ import ConnectorTabs from '../components/connectors/ConnectorTabs.vue'
 import ConnectorGettingStartedSidebar from '../components/connectors/ConnectorGettingStartedSidebar.vue'
 import SecureEntryModal from '../components/connectors/SecureEntryModal.vue'
 
+const props = defineProps({ compact: { type: Boolean, default: false } })
+const settingsDialogHost = inject('settingsDialogHost', null)
+const overlayActive = inject('settingsOverlayActive', () => {})
 const route = useRoute()
 const router = useRouter()
 
@@ -568,7 +578,7 @@ function openSkills() {
 // the user just dismissed.
 function closeHub() {
   showHub.value = false
-  if (route.query.tab) {
+  if (!props.compact && route.query.tab) {
     const q = { ...route.query }
     delete q.tab
     router.replace({ path: route.path, query: q })
@@ -576,16 +586,16 @@ function closeHub() {
 }
 // Deep-link from an agent: ?secure_entry=<id> opens the secure entry form for that request. Closing drops the
 // query so a refresh does not reopen a request that is already answered.
-const secureEntryId = ref(typeof route.query.secure_entry === 'string' ? route.query.secure_entry : '')
+const secureEntryId = ref(!props.compact && typeof route.query.secure_entry === 'string' ? route.query.secure_entry : '')
 // A renewed link replaces the old id in the URL too, so a refresh opens the live request.
 function onSecureEntryRenewed(newId) {
   if (!newId) return
   secureEntryId.value = newId
-  router.replace({ path: route.path, query: { ...route.query, secure_entry: newId } })
+  if (!props.compact) router.replace({ path: route.path, query: { ...route.query, secure_entry: newId } })
 }
 function closeSecureEntry() {
   secureEntryId.value = ''
-  if (route.query.secure_entry) {
+  if (!props.compact && route.query.secure_entry) {
     const q = { ...route.query }
     delete q.secure_entry
     router.replace({ path: route.path, query: q })
@@ -1048,6 +1058,25 @@ async function loadConnectorsBundle() {
   }
 }
 
+// Keep setup dialogs above the compact settings shell, with its focus trap paused underneath.
+const overlayOpen = computed(() => !!(credModalConnector.value || showMcpModal.value || showHub.value || mcpDetail.value || secureEntryId.value || serviceManage.value || showServiceReg.value || showDrafts.value || manageWs.value || showCreateWs.value))
+watch(overlayOpen, open => { if (props.compact) overlayActive(open) })
+onUnmounted(() => { if (props.compact) overlayActive(false) })
+function overlayKey(event) {
+  if (!props.compact || event.key !== 'Escape' || event.defaultPrevented) return
+  event.preventDefault(); event.stopPropagation()
+  if (showCreateWs.value) showCreateWs.value = false
+  else if (manageWs.value) manageWs.value = null
+  else if (showDrafts.value) showDrafts.value = false
+  else if (showServiceReg.value) showServiceReg.value = false
+  else if (serviceManage.value) closeServiceManage()
+  else if (secureEntryId.value) closeSecureEntry()
+  else if (showMcpModal.value) { showMcpModal.value = false; editMcpServer.value = null }
+  else if (mcpDetail.value) closeMcpDetail()
+  else if (showHub.value) closeHub()
+  else if (credModalConnector.value) closeCredModal()
+}
+
 onMounted(() => {
   window.addEventListener('message', oauthResultListener)
 
@@ -1058,12 +1087,12 @@ onMounted(() => {
 
   // Deep-link: ?scope=agent:<id> (e.g. opened from the agent builder Tools step).
   const qScope = route.query.scope
-  if (typeof qScope === 'string' && (qScope === 'global' || qScope.startsWith('agent:'))) {
+  if (!props.compact && typeof qScope === 'string' && (qScope === 'global' || qScope.startsWith('agent:'))) {
     scope.value = qScope
   }
   // Deep-link: ?tab=skills|installed|catalog opens the catalog modal straight onto that tab.
   const qTab = route.query.tab
-  if (typeof qTab === 'string' && ['skills', 'installed', 'catalog'].includes(qTab)) {
+  if (!props.compact && typeof qTab === 'string' && ['skills', 'installed', 'catalog'].includes(qTab)) {
     hubView.value = qTab === 'catalog' ? 'hub' : qTab
     showHub.value = true
   }
@@ -1323,4 +1352,17 @@ onMounted(() => {
   padding: 12px 16px;
 }
 .sandboxes > .space-y-3 > button + button { display: none; }
+
+.connectors-container.connectors-compact{padding:16px 0 0;background:transparent}
+.compact-intro{margin:0 0 16px;font-size:12px;line-height:1.5;color:#718096}
+.connectors-compact .conn-toolbar{padding:12px;gap:12px;margin-bottom:18px;box-shadow:none;border-radius:9px;background:#f9fafb}
+.connectors-compact .scope-box{gap:8px}.connectors-compact .scope-hint{font-size:10px}.connectors-compact .scope-field select{min-width:180px;padding-block:7px;font-size:12px;border-radius:7px}
+.connectors-compact .toolbar-right{width:100%;gap:8px}.connectors-compact .stat-chips{margin-right:auto;gap:5px;flex-wrap:wrap}.connectors-compact .stat-chip{font-size:10px;padding:3px 7px}.connectors-compact .stat-chip:nth-child(n+3){display:none}
+.connectors-compact .add-btn,.connectors-compact .skills-btn{padding:7px 10px;border-radius:7px;box-shadow:none;font-size:11px}.connectors-compact .add-btn{background:#2563eb}
+.connectors-compact .conn-grid{grid-template-columns:minmax(0,1fr);gap:0}.connectors-compact .pane{min-height:0;border:0;border-radius:0;padding:0;box-shadow:none;background:transparent}
+.connectors-compact .conn-row{padding:12px 8px;border-radius:0;border-bottom:1px solid #edf0f4;background:transparent;box-shadow:none}.connectors-compact .conn-row:hover{transform:none;background:#f8fafc}.connectors-compact .row-name{font-size:12px;font-weight:550}.connectors-compact .connector-icon{width:32px;height:32px;border-radius:8px}.connectors-compact .row-action,.connectors-compact .connect-action{font-size:11px}
+.compact-back{display:inline-flex;margin:0 0 18px;padding:5px 0;border:0;background:none;color:#526b94;font-size:12px;font-weight:500;cursor:pointer}.compact-back:hover{color:#2563eb}
+.connectors-compact .sandboxes{margin-top:20px;padding:14px;border-radius:9px;box-shadow:none}.connectors-compact .sandboxes>div:first-child{flex-wrap:wrap;gap:12px}.connectors-compact .sandboxes h2{font-size:13px}.connectors-compact .sandboxes .view-all-link{font-size:11px}
+.compact-help{margin-top:20px;border:1px solid #e7ebf1;border-radius:8px;padding:12px;font-size:12px;color:#64748b}.compact-help summary{cursor:pointer;font-weight:500}.compact-help :deep(aside){margin-top:12px;position:static;width:auto;box-shadow:none}
+.connectors-compact :deep(.ct-tabs){gap:16px;overflow-x:auto;flex-wrap:nowrap}.connectors-compact :deep(.ct-tab){font-size:12px;white-space:nowrap;padding-bottom:10px}.connectors-compact :deep(.ct-controls){gap:8px}.connectors-compact :deep(.ct-search){flex:1 1 100%}.connectors-compact :deep(.ct-search-input){width:100%;font-size:12px;height:34px}.connectors-compact :deep(.ct-select){flex:1;min-width:0}.connectors-compact :deep(.ct-select select){min-width:0;width:100%;font-size:11px;height:32px;padding-left:10px}
 </style>

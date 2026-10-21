@@ -3,7 +3,7 @@
 // editor of one conversation, where its reviewer approves it, fixes the answer, or rejects it, with comments. Flagged
 // examples come first. A reviewer sees the reviews given to them. Backend: llm/app_api.py, llm/review.py.
 import { computed, onMounted, ref, watch } from 'vue';
-import { ArrowLeft, Check, X, Pencil, Send, RefreshCw, MessageSquare } from 'lucide-vue-next';
+import { ArrowLeft, Check, X, Pencil, Send, RefreshCw, MessageSquare, History, CheckCheck, CornerUpLeft, Circle } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -68,6 +68,24 @@ async function move(name, body) {
 function close() { batch.value = null; itemIndex.value = -1; loadBoard(); }
 const itemComments = computed(() => (batch.value?.events || []).filter(e => e.kind === 'comment' && (!item.value || e.item === item.value.position)));
 
+// Event kinds come from the review API. Unknown kinds retain their original detail.
+const eventStyles = {
+  sent: { label: 'Sent for review', icon: Send, tone: 'blue' },
+  approved: { label: 'Example approved', icon: Check, tone: 'green' },
+  fixed: { label: 'Fixed and approved', icon: Pencil, tone: 'green' },
+  rejected: { label: 'Example rejected', icon: X, tone: 'red' },
+  comment: { label: 'Comment added', icon: MessageSquare, tone: 'violet' },
+  returned: { label: 'Returned for approval', icon: CornerUpLeft, tone: 'blue' },
+  accepted: { label: 'Review accepted', icon: CheckCheck, tone: 'green' },
+  sent_back: { label: 'Sent back to reviewer', icon: CornerUpLeft, tone: 'amber' },
+};
+function eventStyle(kind) { return eventStyles[kind] || { label: 'Review updated', icon: Circle, tone: 'neutral' }; }
+function fullTime(value) {
+  const date = new Date(value);
+  return value && !Number.isNaN(date.getTime()) ? date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
+}
+
+
 onMounted(async () => { await loadBoard(); if (props.openAssignment) { emit('opened'); await openBatch(props.openAssignment); } });
 watch(() => props.openAssignment, async n => { if (n) { emit('opened'); await openBatch(n); } });
 </script>
@@ -108,8 +126,23 @@ watch(() => props.openAssignment, async n => { if (n) { emit('opened'); await op
           <tr v-for="(it, i) in batch.items" :key="it.id" class="llm-row" tabindex="0" @click="openItem(i)" @keydown.enter="openItem(i)"><td>{{ it.position }}</td><td><UiBadge :tone="it.why==='flagged' ? 'purple' : 'neutral'">{{ it.why==='flagged' ? 'Flagged' : 'Sample' }}</UiBadge></td><td>{{ KIND_LABEL[it.kind] }}</td>
             <td>{{ it.findings.map(f => findingText(f.code)).join(' · ') || '—' }}</td><td>{{ it.decision_label }}</td></tr>
         </tbody></table>
-        <h3>Timeline</h3>
-        <ol class="llm-timeline"><li v-for="(e, i) in batch.events" :key="i"><strong>{{ e.by || 'AADML' }}</strong> {{ e.kind==='comment' ? `commented${e.item ? ` on example ${e.item}` : ''}:` : '' }} {{ e.detail }} <span class="field-help">{{ ago(e.at) }}</span></li></ol>
+        <section class="review-activity" aria-labelledby="review-timeline-title">
+          <header class="activity-heading">
+            <div class="activity-heading-icon"><History :size="19" aria-hidden="true" /></div>
+            <div><h3 id="review-timeline-title">Timeline <span class="activity-count">{{ batch.events?.length || 0 }}</span></h3><p>The activity and decisions behind this review.</p></div>
+          </header>
+          <ol v-if="batch.events?.length" class="llm-timeline">
+            <li v-for="(e, i) in batch.events" :key="i" class="timeline-event" :class="`event-${eventStyle(e.kind).tone}`">
+              <span class="event-marker" aria-hidden="true"><component :is="eventStyle(e.kind).icon" :size="15" :stroke-width="1.8" /></span>
+              <div class="event-content">
+                <div class="event-heading"><strong>{{ eventStyle(e.kind).label }}</strong><span v-if="e.item" class="event-example">Example {{ e.item }}</span><time v-if="fullTime(e.at)" :datetime="e.at" :title="fullTime(e.at)">{{ ago(e.at) }}</time></div>
+                <div class="event-actor">{{ e.by || 'AADML' }}</div>
+                <p v-if="e.detail" class="event-detail" :class="{ 'event-comment': e.kind === 'comment' }">{{ e.detail }}</p>
+              </div>
+            </li>
+          </ol>
+          <p v-else class="activity-empty">No activity recorded for this review yet.</p>
+        </section>
       </section>
     </template>
 
@@ -131,7 +164,7 @@ watch(() => props.openAssignment, async n => { if (n) { emit('opened'); await op
         </section>
         <aside class="panel">
           <h3><MessageSquare :size="15" /> Comments</h3>
-          <ol class="llm-timeline"><li v-for="(c, i) in itemComments" :key="i"><strong>{{ c.by }}</strong> {{ c.detail }} <span class="field-help">{{ ago(c.at) }}</span></li></ol>
+          <ol class="llm-comments"><li v-for="(c, i) in itemComments" :key="i"><strong>{{ c.by }}</strong> {{ c.detail }} <span class="field-help">{{ ago(c.at) }}</span></li></ol>
           <p v-if="!itemComments.length" class="field-help">No comment on this example.</p>
           <label class="field-label">Comment<textarea v-model="commentText" class="text-input" rows="3" maxlength="4000"></textarea></label>
           <UiButton :disabled="busy || !commentText.trim()" @click="sendComment">Comment</UiButton>
@@ -156,7 +189,30 @@ watch(() => props.openAssignment, async n => { if (n) { emit('opened'); await op
 <style scoped>
 .llm-review{display:grid;gap:16px}
 .llm-card{text-align:left;cursor:pointer;width:100%;font:inherit}
-.llm-timeline{list-style:none;padding:0;margin:8px 0;display:grid;gap:6px;font-size:13px}
+.review-activity{margin-top:32px;padding-top:26px;border-top:1px solid #e9edf5}
+.activity-heading{display:flex;align-items:center;gap:12px;margin-bottom:26px}
+.activity-heading-icon{display:grid;place-items:center;width:40px;height:40px;flex-shrink:0;border:1px solid #e6ebf4;border-radius:12px;background:#f8faff;color:#6479a2}
+.activity-heading h3{display:flex;align-items:center;gap:9px;margin:0;font-size:15px;font-weight:600;letter-spacing:-.2px;color:#24324b}
+.activity-count{display:inline-grid;place-items:center;min-width:23px;height:21px;padding:0 6px;box-sizing:border-box;border:1px solid #e5eaf2;border-radius:6px;background:#f8fafc;font-size:11px;font-weight:500;color:#64748b}
+.activity-heading p{margin:4px 0 0;font-size:12px;color:#64748b;line-height:1.5}
+.llm-timeline{list-style:none;padding:0;margin:0;font-size:13px;max-width:1000px}
+.timeline-event{--event-color:#64748b;--event-bg:#f1f5f9;position:relative;display:grid;grid-template-columns:32px minmax(0,1fr);column-gap:16px;padding-bottom:24px}
+.timeline-event:not(:last-child)::before{content:'';position:absolute;left:15px;top:35px;bottom:3px;width:2px;background:#e8edf5;border-radius:2px}
+.timeline-event:last-child{padding-bottom:0}
+.event-blue{--event-color:#4264d8;--event-bg:#eef3ff}.event-green{--event-color:#20805d;--event-bg:#edf8f2}.event-red{--event-color:#c34c58;--event-bg:#fff0f2}.event-violet{--event-color:#8054c7;--event-bg:#f5f0ff}.event-amber{--event-color:#a36b19;--event-bg:#fff7e8}
+.event-marker{position:relative;z-index:1;display:grid;place-items:center;box-sizing:border-box;width:32px;height:32px;border:1px solid #00000006;border-radius:50%;background:var(--event-bg);color:var(--event-color)}
+.event-content{min-width:0;padding-top:5px}
+.event-heading{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;min-height:20px}
+.event-heading>strong{font-size:13px;font-weight:600;color:#29374e;line-height:1.5}
+.event-example{padding:2px 7px;border-radius:5px;background:#f4f6fa;font-size:10px;font-weight:500;color:#64748b}
+.event-heading time{margin-left:auto;padding-left:16px;font-size:11px;color:#718096;font-weight:400;white-space:nowrap}
+.event-actor{font-size:12px;color:#64748b;margin-top:3px;line-height:1.6;overflow-wrap:anywhere}
+.event-detail{font-size:13px;line-height:1.65;color:#475569;margin:7px 0 0;overflow-wrap:anywhere;white-space:pre-wrap}
+.event-detail.event-comment{padding:12px 16px;border:1px solid #e9e4f4;border-left:3px solid #c5b3e6;border-radius:0 9px 9px 0;background:#faf8fe;color:#514563}
+.activity-empty{font-size:13px;padding:18px 20px;background:#f8fafc;border:1px dashed #dce3ef;border-radius:10px}
+.llm-comments{list-style:none;padding:0;margin:12px 0 20px;display:grid;gap:12px;font-size:13px}
+.llm-comments li{padding:12px;background:#f8fafc;border:1px solid #e8edf5;border-radius:8px;overflow-wrap:anywhere;white-space:pre-wrap;line-height:1.7}.llm-comments strong{display:block;font-size:12px}.llm-comments .field-help{display:block;font-size:11px;margin-top:5px}
+@media(max-width:600px){.review-activity{margin-top:24px;padding-top:22px}.timeline-event{column-gap:12px}.event-heading time{flex-basis:100%;margin-left:0;padding-left:0}.event-detail.event-comment{padding:10px 12px}}
 .llm-editor{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:16px;align-items:start}
 @media (max-width:900px){.llm-editor{grid-template-columns:1fr}}
 </style>

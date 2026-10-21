@@ -6,7 +6,7 @@
   stay right however many agents there are. "Set up" opens the agent's Integrations & Deploy page.
 -->
 <template>
-  <div>
+  <div :class="{ 'agent-integrations-compact': compact }">
     <!-- Tiles -->
     <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <div v-for="t in tiles" :key="t.key" class="rounded-[10px] border border-[#DDE6F2] bg-white px-4 py-3.5">
@@ -81,7 +81,7 @@
       </div>
 
       <!-- Phone: one card per agent -->
-      <ul v-else-if="!loading" class="divide-y divide-[#F2F4F7] md:hidden">
+      <ul v-else-if="!loading" :class="['divide-y divide-[#F2F4F7]', compact ? 'compact-agent-cards' : 'md:hidden']">
         <li v-for="a in rows" :key="'m' + a.id" class="px-4 py-3.5">
           <router-link :to="setupLink(a)" class="block truncate text-[14px] font-[700] text-[#0F172A]">{{ a.name }}</router-link>
           <div class="truncate text-[12.5px] text-[#667994]">{{ a.description || 'No description' }}</div>
@@ -100,7 +100,7 @@
       </ul>
 
       <!-- Table (and the loading rows, on every width) -->
-      <div v-if="!loadError && (loading || rows.length)" :class="['overflow-x-auto', loading ? '' : 'hidden md:block']">
+      <div v-if="!loadError && (loading || rows.length) && (!compact || loading)" :class="['overflow-x-auto', loading ? '' : 'hidden md:block']">
         <table class="w-full min-w-[760px] border-collapse text-left">
           <thead>
             <tr class="border-b border-[#EDF2F9] text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#667994]">
@@ -169,6 +169,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Bot, ChevronLeft, ChevronRight, Globe, Info, MessagesSquare, Radio, Search, Webhook } from 'lucide-vue-next'
 
 import api from '../../services/api'
+
+defineProps({ compact: { type: Boolean, default: false } })
 
 const PAGE_SIZE = 10
 
@@ -284,3 +286,8 @@ watch(page, load)
 onMounted(() => { load(); loadStats() })
 onBeforeUnmount(() => clearTimeout(typing))
 </script>
+
+<style scoped>
+.agent-integrations-compact>div:first-child{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.agent-integrations-compact>div:first-child>div{padding:12px;border-radius:8px}.agent-integrations-compact>div:first-child>div>div:first-child{font-size:10px;letter-spacing:0}.agent-integrations-compact :deep(.text-\[24px\]){font-size:20px}
+.agent-integrations-compact section>div:first-child{padding:12px;gap:8px}.agent-integrations-compact section>div:first-child>div{min-width:0;flex:1 1 100%;max-width:none}.agent-integrations-compact select{font-size:11px;padding:6px 8px;max-width:100%}.compact-agent-cards>li{padding:14px}.compact-agent-cards>li>a:first-child{font-size:13px}.compact-agent-cards>li>div{font-size:11px}.agent-integrations-compact section{box-shadow:none}
+</style>

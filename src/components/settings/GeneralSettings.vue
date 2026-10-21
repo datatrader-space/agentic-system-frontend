@@ -85,6 +85,7 @@ import { useTheme } from '../../composables/useTheme'
 import { useOnboarding } from '../../composables/useOnboarding'
 
 const currentUser = inject('currentUser', ref(null))
+const closeSettings = inject('closeSettings', () => {})
 
 // The person's own name: shown instead of their e-mail address across AADML (2026-10-14).
 const name = ref(currentUser.value?.full_name || '')
@@ -141,6 +142,7 @@ const setOrganizationTrainingUse = (org, allowed) => changeTrainingUse(() => api
 const router = useRouter()
 const onboarding = useOnboarding()
 const replayTour = () => {
+  closeSettings()
   onboarding.resetTour()
   router.push('/dashboard/chat/new')
 }

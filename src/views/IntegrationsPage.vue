@@ -1,8 +1,8 @@
 <template>
-  <div class="min-h-full bg-[#F8FAFC] px-5 py-7 sm:px-7 lg:px-8">
+  <div class="integrations-page min-h-full bg-[#F8FAFC] px-5 py-7 sm:px-7 lg:px-8" :class="{ 'integrations-compact': compact }">
     <div class="mx-auto max-w-[1390px]">
       <!-- Header -->
-      <header class="mb-5 flex flex-wrap items-start justify-between gap-4">
+      <header v-if="!compact" class="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 class="text-[28px] font-[850] leading-tight tracking-normal text-[#0F172A]">Integrations</h1>
           <p class="mt-2 max-w-[70ch] text-[14px] text-[#52627A]">
@@ -11,6 +11,7 @@
         </div>
       </header>
 
+      <p v-if="compact" class="compact-integration-intro">Connect your agents to your apps, or use AADML from an MCP client.</p>
       <!-- Two kinds of integration, one tab each (the tab is kept in the address: ?tab=agents|mcp). -->
       <nav class="mb-5 flex gap-1 border-b border-[#DDE6F2]" aria-label="Integrations">
         <button v-for="t in pageTabs" :key="t.id" type="button"
@@ -23,7 +24,7 @@
       </nav>
 
       <!-- ══ Your agents in your app, backend or website ══ -->
-      <AgentIntegrationsList v-if="tab === 'agents'" />
+      <AgentIntegrationsList v-if="tab === 'agents'" :compact="compact" />
 
       <!-- ══ AADML as an MCP server ═══════════════════════════════════════════════════════════════ -->
       <section v-if="tab === 'mcp'" class="rounded-[10px] border border-[#DDE6F2] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
@@ -82,7 +83,7 @@
           </div>
 
           <!-- ── 1. How to connect ───────────────────────────────────────────────────────────────── -->
-          <div class="grid gap-7 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div class="mcp-setup-grid grid gap-7 px-6 py-6 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div class="min-w-0">
               <h3 class="text-[13px] font-[800] uppercase tracking-wide text-[#667994]">Connect a client</h3>
 
@@ -192,6 +193,13 @@
               </p>
             </div>
 
+            <div v-else-if="compact" class="compact-client-list">
+              <article v-for="c in connections" :key="c.id" class="compact-client">
+                <header><div><strong>{{ c.client_name }}</strong><code>{{ shortId(c.client_id) }}</code></div><span :class="c.is_active ? 'client-active' : 'client-inactive'">{{ c.is_active ? 'Active' : 'Disconnected' }}</span></header>
+                <dl><div><dt>Permissions</dt><dd>{{ (c.scope_labels || []).join(', ') || 'None listed' }}</dd></div><div><dt>Workspaces</dt><dd>{{ c.workspaces?.length ? c.workspaces.map(w => w.name).join(', ') : 'All you can reach' }}</dd></div><div><dt>Connected</dt><dd>{{ fmtDate(c.granted_at) }}</dd></div><div><dt>Last used</dt><dd>{{ c.last_used_at ? fmtDate(c.last_used_at) : 'Never' }}<span v-if="c.active_sessions"> / {{ c.active_sessions }} live sessions</span></dd></div></dl>
+                <footer><button v-if="c.is_active" type="button" class="compact-disconnect" :disabled="revoking === c.id" @click="disconnect(c)">{{ revoking === c.id ? 'Disconnecting...' : 'Disconnect' }}</button><span v-else>Disconnected {{ fmtDate(c.revoked_at) }}</span></footer>
+              </article>
+            </div>
             <!-- Table -->
             <div v-else class="mt-4 overflow-x-auto">
               <table class="w-full min-w-[820px] border-separate border-spacing-0">
@@ -287,6 +295,8 @@ import AgentIntegrationsList from '../components/integrations/AgentIntegrationsL
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 
+const props = defineProps({ compact: { type: Boolean, default: false } })
+const modalTab = ref('agents')
 const info = ref(null)
 const connections = ref([])
 const loading = ref(true)
@@ -299,12 +309,15 @@ const activeCount = computed(() => connections.value.filter((c) => c.is_active).
 
 const route = useRoute()
 const router = useRouter()
-const tab = computed(() => (route.query.tab === 'mcp' ? 'mcp' : 'agents'))
+const tab = computed(() => props.compact ? modalTab.value : (route.query.tab === 'mcp' ? 'mcp' : 'agents'))
 const pageTabs = computed(() => [
   { id: 'agents', label: 'Agents', icon: Bot },
   { id: 'mcp', label: 'AADML as an MCP server', icon: Plug, badge: activeCount.value || null },
 ])
-function setTab(id) { router.replace({ query: { ...route.query, tab: id } }) }
+function setTab(id) {
+  if (props.compact) modalTab.value = id
+  else router.replace({ query: { ...route.query, tab: id } })
+}
 
 // Instructions are per-client because the two products word the same flow differently, and a user
 // following ChatGPT's wording inside Claude gives up rather than translating.
@@ -406,3 +419,12 @@ async function disconnect(connection) {
 
 onMounted(load)
 </script>
+
+<style scoped>
+.integrations-page.integrations-compact{padding:16px 0 0;min-height:0;background:transparent}
+.compact-integration-intro{font-size:12px;line-height:1.5;color:#718096;margin:0 0 18px}
+.integrations-compact>div>nav{gap:4px;margin-bottom:18px}.integrations-compact>div>nav button{font-size:12px;padding:8px 10px}
+.integrations-compact .mcp-setup-grid{grid-template-columns:minmax(0,1fr);gap:16px;padding:16px}.integrations-compact section>div{padding:16px}.integrations-compact h2{font-size:14px}.integrations-compact :deep(.lg\:grid-cols-4){grid-template-columns:repeat(2,minmax(0,1fr))}.integrations-compact :deep(.sm\:grid-cols-3){grid-template-columns:1fr}
+.compact-client-list{display:grid;gap:12px;margin-top:16px}.compact-client{padding:14px;border:1px solid #e5eaf1;border-radius:9px;background:#fff}.compact-client header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.compact-client header>div{min-width:0;display:grid;gap:4px}.compact-client strong{font-size:13px;color:#263246;overflow-wrap:anywhere}.compact-client code{font-size:10px;color:#8492a7}.compact-client header>span{font-size:10px;border-radius:5px;padding:3px 7px;flex-shrink:0}.client-active{color:#157a53;background:#edf8f1}.client-inactive{color:#64748b;background:#f1f5f9}
+.compact-client dl{margin:14px 0 0;display:grid;gap:8px;font-size:11px}.compact-client dl>div{display:grid;grid-template-columns:90px minmax(0,1fr);gap:12px}.compact-client dt{color:#8490a2}.compact-client dd{margin:0;color:#475569;overflow-wrap:anywhere;line-height:1.5}.compact-client footer{display:flex;justify-content:flex-end;border-top:1px solid #f0f2f6;padding-top:10px;margin-top:12px;font-size:11px;color:#8490a2}.compact-disconnect{border:1px solid #f2c6c9;background:#fff;color:#b43c49;border-radius:6px;padding:5px 9px;font-size:11px;cursor:pointer}.compact-disconnect:disabled{opacity:.5}.compact-disconnect:hover{background:#fff5f5}
+</style>

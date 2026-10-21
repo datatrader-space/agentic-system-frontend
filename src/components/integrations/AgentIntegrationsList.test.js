@@ -111,3 +111,16 @@ describe('AgentIntegrationsList', () => {
     expect(w.findAll('tbody tr')).toHaveLength(1)
   })
 })
+
+describe('AgentIntegrationsList in settings', () => {
+  it('uses compact cards with the same server ownership filter and setup links', async () => {
+    api.getAgentsPage.mockResolvedValue(page([agent(7, { is_public: true })]))
+    const w = mount(AgentIntegrationsList, { props: { compact: true }, global: { stubs: { RouterLink, 'router-link': RouterLink } } })
+    await flushPromises()
+    expect(w.find('.compact-agent-cards').exists()).toBe(true)
+    expect(w.find('table').exists()).toBe(false)
+    expect(lastParams().owner).toBe('me')
+    expect(w.findAll('a.rl').some(link => link.text() === 'Set up' && link.attributes('data-to') === '/dashboard/integrations/agents/7')).toBe(true)
+    w.unmount()
+  })
+})

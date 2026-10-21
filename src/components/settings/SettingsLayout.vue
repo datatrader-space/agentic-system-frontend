@@ -62,34 +62,13 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-// New lightweight panels
-import GeneralSettings from './GeneralSettings.vue'
-import MemorySettings from './MemorySettings.vue'
-import SecuritySettings from './SecuritySettings.vue'
-import NotificationSettings from './NotificationSettings.vue'
-import AdvancedSettings from './AdvancedSettings.vue'
-// Reused existing pages (genuinely configuration/usage; Tools, MCP, and
-// Workspaces are primary sidebar destinations now, so they live there — not here).
-import LLMSettings from '../../views/LLMSettings.vue'
-import UsagePage from '../../views/UsagePage.vue'
-import SandboxesPage from '../../views/SandboxesPage.vue'
-import Billing from '../../views/Billing.vue'
+import { SETTINGS_SECTIONS } from './settingsSections'
 
 const route = useRoute()
 const router = useRouter()
 const menuOpen = ref(false)
 
-const tabs = [
-  { key: 'general', label: 'General', component: GeneralSettings },
-  { key: 'providers', label: 'AI Providers', component: LLMSettings },
-  { key: 'memory', label: 'Memory', component: MemorySettings },
-  { key: 'usage', label: 'Usage', component: UsagePage },
-  { key: 'sandboxes', label: 'Sandboxes', component: SandboxesPage },
-  { key: 'billing', label: 'Billing', component: Billing },
-  { key: 'security', label: 'Security', component: SecuritySettings },
-  { key: 'notifications', label: 'Notifications', component: NotificationSettings },
-  { key: 'advanced', label: 'Advanced', component: AdvancedSettings },
-]
+const tabs = SETTINGS_SECTIONS
 
 const activeKey = computed(() => {
   const t = route.params.tab

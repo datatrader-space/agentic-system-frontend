@@ -64,6 +64,8 @@
       </main>
     </div>
 
+    <SettingsModal v-if="settingsOpen" :initial-section="settingsSection" :return-focus="settingsReturnFocus" @close="settingsOpen = false" />
+
     <!-- Command palette (Cmd/Ctrl+K) -->
     <CommandPalette v-model="paletteOpen" />
 
@@ -79,7 +81,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, provide, defineAsyncComponent, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrandMark from '../common/BrandMark.vue'
 import { useLayoutStore } from '../../stores/useLayoutStore'
@@ -100,6 +102,18 @@ const router = useRouter()
 
 // Command palette (Cmd/Ctrl+K) — power-up #2
 const paletteOpen = ref(false)
+const SettingsModal = defineAsyncComponent(() => import('../settings/SettingsModal.vue'))
+const settingsOpen = ref(false)
+const settingsSection = ref('general')
+const settingsReturnFocus = shallowRef(null)
+provide('openSettings', (section = 'general') => {
+  settingsReturnFocus.value = document.activeElement
+  settingsSection.value = section
+  settingsOpen.value = true
+  layout.closeMobileNav()
+})
+provide('closeSettings', () => { settingsOpen.value = false })
+watch(() => route.path, () => { settingsOpen.value = false })
 
 // Close transient overlays whenever the route changes.
 watch(() => route.fullPath, () => layout.closeAllOverlays())
@@ -110,6 +124,7 @@ watch(() => route.fullPath, () => layout.closeAllOverlays())
 //   Cmd/Ctrl+K  open command palette (fuzzy nav + actions)
 //   Escape      close mobile overlays
 const onKey = (e) => {
+  if (settingsOpen.value) return
   if (e.key === 'Escape') {
     layout.closeAllOverlays()
     return
