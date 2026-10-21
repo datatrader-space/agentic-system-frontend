@@ -60,6 +60,25 @@ describe('useChatStore — a turn the server started', () => {
     expect(steer && steer.label).toBe('end with PINEAPPLE')
   })
 
+  it('keeps a SEPARATE request as its own waiting bubble, then answers it as its own turn', () => {
+    // 2026-10-21, the owner's rule: only a message about the running work is taken in; a different request
+    // waits for the run to finish and is answered on its own.
+    const chat = useChatStore()
+    chat.conversationId = 2163
+    chat._beginAssistant()
+    chat.messages.push({ id: 'u2', role: 'user', content: 'weather in Lahore?', queued: true })
+    chat._onEvent({ type: 'steering_deferred', message: 'weather in Lahore?' })
+    const bubble = chat.messages.find((m) => m.id === 'u2')
+    expect(bubble).toMatchObject({ queued: true, queuedAfter: true })
+    expect(chat.liveSteps.some((s) => s.isSteer)).toBe(false)
+
+    chat._onEvent({ type: 'assistant_message_complete', full_message: 'Go releases …' })
+    chat._onEvent({ type: 'followup_turn_started', conversation_id: 2163, messages: ['weather in Lahore?'] })
+    expect(bubble).toMatchObject({ queued: false, queuedAfter: false })
+    const roles = chat.messages.map((m) => m.role)
+    expect(roles.slice(-2)).toEqual(['user', 'assistant'])   // its own answer opens below it
+  })
+
   it('ignores a follow-up meant for a conversation the user is no longer looking at', () => {
     const chat = useChatStore()
     chat.conversationId = 2163

@@ -1830,10 +1830,18 @@ export const useChatStore = defineStore('chat', {
       // Snapshot the finished activity timeline back to the server so the "Done · N steps · …"
       // accordion + reasoning survive a page refresh (usage/stop are already persisted server-side).
       // Best-effort: the row was just saved by the turn, so the backend attaches this to it.
+      //
+      // Addressed to the SAVED ROW by id. The answer frame goes out before the server saves the answer, so
+      // until `message_saved` gives us the id this waits (`timelineUnsent`) and that frame sends it. Sent
+      // without an id, the server put it on "the newest answer": lost when the save was late (conv 2881),
+      // or written onto the previous answer.
       try {
         if (!m || !m.timeline || !this.conversationId || !this._conn) return
+        if (m.serverId == null) { m.timelineUnsent = true; return }
         const timeline = JSON.parse(JSON.stringify(m.timeline))
-        this._conn.send({ type: 'persist_turn_meta', conversation_id: this.conversationId, timeline })
+        this._conn.send({ type: 'persist_turn_meta', conversation_id: this.conversationId,
+                          message_id: m.serverId, timeline })
+        m.timelineUnsent = false
       } catch { /* best-effort — never block the turn */ }
     },
 
@@ -2025,6 +2033,7 @@ export const useChatStore = defineStore('chat', {
           // bind to the last assistant message rather than only to a still-streaming one.
           const target = m || [...this.messages].reverse().find((x) => x.role === 'assistant')
           if (target && msg.message_id != null) target.serverId = msg.message_id
+          if (target && target.timelineUnsent) this._persistTurnMeta(target)   // it waited for this id
           break
         }
         case 'memories_used': {
@@ -2301,6 +2310,15 @@ export const useChatStore = defineStore('chat', {
         case 'message_queued':
           // ack that the backend queued the steering message (the optimistic bubble already shows it).
           break
+        case 'steering_deferred': {
+          // The running agent judged this message a SEPARATE request: it is not taken into the run, and is
+          // answered as its own turn when the run ends. It stays a bubble of its own, marked as waiting.
+          const text = msg.message || ''
+          const qm = [...this.messages].reverse().find(
+            (m) => m.role === 'user' && m.queued && !m.queuedAfter && (m.content || '') === text)
+          if (qm) qm.queuedAfter = true
+          break
+        }
         case 'steering_applied': {
           // The running agent took in a message the person sent while it worked. It belongs INSIDE the run:
           // it leaves the bottom of the thread (where it was typed, below the working run) and becomes a
@@ -2337,6 +2355,16 @@ export const useChatStore = defineStore('chat', {
           // whatever thread they are now looking at.
           if (msg.conversation_id != null && this.conversationId != null &&
               String(msg.conversation_id) !== String(this.conversationId)) break
+          // The messages this turn answers are no longer waiting. (Without a list, every waiting bubble is.)
+          {
+            const names = Array.isArray(msg.messages) ? new Set(msg.messages.map((t) => String(t || ''))) : null
+            for (const m of this.messages) {
+              if (m.role === 'user' && m.queued && (!names || names.has(m.content || ''))) {
+                m.queued = false
+                m.queuedAfter = false
+              }
+            }
+          }
           if (!this.isStreaming) this._beginAssistant()
           break
         }

@@ -197,9 +197,10 @@
             </template>
           </div>
           <span v-if="message.content">{{ message.content }}</span>
-          <span v-if="message.queued" class="user-queued" title="Sent while the agent is working — it will pick this up between steps">
+          <span v-if="message.queued" class="user-queued"
+                :title="message.queuedAfter ? 'A separate request — it is answered on its own when the current run finishes' : 'Sent while the agent is working — it will pick this up between steps'">
             <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>
-            Queued · steering the running agent
+            {{ message.queuedAfter ? 'Queued · runs after this one' : 'Queued · steering the running agent' }}
           </span>
         </div>
 
