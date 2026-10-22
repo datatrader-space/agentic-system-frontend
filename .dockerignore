@@ -24,6 +24,8 @@ AADML_Agentic_UIUX
 old_design
 tests
 scripts
+# Needed at build time: vite.config.js loads the icon-subset plugin from here.
+!scripts/vite-icon-subset.js
 
 # Build/deploy plumbing — used to produce the image, not needed inside it
 Dockerfile*
