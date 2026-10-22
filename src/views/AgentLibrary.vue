@@ -314,8 +314,8 @@ const fetchAgents = async () => {
         loadError.value = '';
         const params = queryParams();
         const [listRes, statsRes] = await Promise.allSettled([
-            api.get('/agents/', { params, signal }),
-            api.get('/agents/stats/', { params: { owner: params.owner }, signal }),
+            api.getAgentsPage(params, { signal }),
+            api.getAgentStats({ owner: params.owner }, { signal }),
         ]);
         if (signal.aborted) return;
         if (listRes.status === 'rejected') throw listRes.reason;

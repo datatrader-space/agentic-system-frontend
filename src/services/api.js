@@ -570,8 +570,9 @@ export default {
   // is_platform_super_agent, updated_at}. For pickers that need nothing else (no models, tools or channel
   // flags); it replaces getAgents()'s page walk there. Params: search, ordering.
   getAgentPicker: (params = {}, config = {}) => api.get('/agents/picker/', { ...config, params }),
-  getAgentsPage: (params = {}) => api.get('/agents/', { params }),
-  getAgentStats: (params = {}) => api.get('/agents/stats/', { params }),
+  // `config` carries an AbortSignal (useRequestScope) so a superseded load is cancelled.
+  getAgentsPage: (params = {}, config = {}) => api.get('/agents/', { ...config, params }),
+  getAgentStats: (params = {}, config = {}) => api.get('/agents/stats/', { ...config, params }),
   getAgent: (id) => api.get(`/agents/${id}/`),
   // Update agent fields (used by the chat Modes picker to persist the canonical agent_run_mode).
   updateAgent: (id, data) => api.patch(`/agents/${id}/`, data),

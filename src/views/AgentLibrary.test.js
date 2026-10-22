@@ -4,7 +4,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
-const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), getAgents: vi.fn(), unpauseAgent: vi.fn() }))
+const api = vi.hoisted(() => {
+  const a = { get: vi.fn(), post: vi.fn(), getAgents: vi.fn(), unpauseAgent: vi.fn() }
+  // The page calls the service helpers; they are thin wrappers over `get`, as in services/api.js.
+  a.getAgentsPage = (params = {}, config = {}) => a.get('/agents/', { ...config, params })
+  a.getAgentStats = (params = {}, config = {}) => a.get('/agents/stats/', { ...config, params })
+  return a
+})
 const router = vi.hoisted(() => ({ push: vi.fn() }))
 const notify = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }))
 
