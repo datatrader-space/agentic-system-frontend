@@ -114,7 +114,8 @@ onBeforeUnmount(() => {
           <header class="settings-modal-header"><h2>{{ active.label }}</h2><RouterLink v-if="active.fullPage" :to="active.fullPage" class="settings-full-page" @click="close">Open full page<ArrowUpRight :size="13" aria-hidden="true" /></RouterLink><button type="button" class="settings-close" aria-label="Close settings" @click="close"><X :size="18" aria-hidden="true" /></button></header>
           <div ref="content" class="settings-modal-content" :data-section="activeKey">
             <Suspense :timeout="0">
-              <component :is="active.component" :key="activeKey" v-bind="active.modalProps || {}" />
+              <!-- KeepAlive: going back to a section shows it as it was, without refetching its data. -->
+              <KeepAlive :max="6"><component :is="active.component" :key="activeKey" v-bind="active.modalProps || {}" /></KeepAlive>
               <template #fallback><p class="settings-loading" role="status">Loading {{ active.label.toLowerCase() }} settings...</p></template>
             </Suspense>
           </div>

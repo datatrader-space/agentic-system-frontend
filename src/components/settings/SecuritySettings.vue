@@ -58,8 +58,20 @@
       <h3 class="card-title">Two-factor authentication</h3>
       <p class="card-sub">Add a second step at sign-in with an authenticator app (TOTP).</p>
 
+      <!-- Status unknown: never offer "Enable 2FA" because the status read failed (2FA may be ON). -->
+      <LoadError
+        v-if="twofa.step === 'idle' && twofaStatus === 'error'"
+        compact
+        title="Couldn't check two-factor authentication"
+        :retrying="twofaStatus === 'loading'"
+        @retry="refreshTwofa"
+      />
+      <div v-else-if="twofa.step === 'idle' && twofaStatus === 'loading'" class="row">
+        <div class="row-hint">Checking…</div>
+      </div>
+
       <!-- Enabled -->
-      <div v-if="twofa.enabled && twofa.step === 'idle'" class="row">
+      <div v-else-if="twofa.enabled && twofa.step === 'idle'" class="row">
         <div>
           <div class="row-label"><span class="chip ok">Enabled</span></div>
           <div class="row-hint">{{ twofa.recoveryRemaining }} recovery code(s) remaining.</div>
@@ -143,6 +155,7 @@
 import { inject, ref, reactive, computed, onMounted } from 'vue'
 import api from '../../services/api'
 import { notify } from '../../composables/useNotify'
+import LoadError from '../common/LoadError.vue'
 import { encode } from 'uqr'
 
 const currentUser = inject('currentUser', ref(null))
@@ -169,12 +182,21 @@ const pwValid = computed(() => pw.current && pw.next.length >= 8 && pw.next === 
 
 onMounted(refreshTwofa)
 
+// 'loading' | 'ok' | 'error'. The 2FA controls show only once the status is known.
+const twofaStatus = ref('loading')
+
 async function refreshTwofa() {
+  const known = twofaStatus.value === 'ok'
+  if (!known) twofaStatus.value = 'loading'
   try {
     const { data } = await api.twofaStatus()
     twofa.enabled = data.enabled
     twofa.recoveryRemaining = data.recovery_codes_remaining || 0
-  } catch (e) { /* non-fatal */ }
+    twofaStatus.value = 'ok'
+  } catch (e) {
+    // Once known (e.g. right after enabling/disabling here), keep the known state on a failed refresh.
+    if (!known) twofaStatus.value = 'error'
+  }
 }
 
 async function refreshUser() {

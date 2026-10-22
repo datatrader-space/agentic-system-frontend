@@ -619,9 +619,10 @@ samp {
   border-radius: 6px;
 }
 
-/* route page transition (AppShell router-view): subtle fade + rise */
-.vm-page-enter-active { transition: opacity .26s var(--vm-ease2), transform .26s var(--vm-ease2); }
-.vm-page-leave-active { transition: opacity .16s var(--vm-ease2), transform .16s var(--vm-ease2); }
+/* route page transition (AppShell router-view): subtle fade + rise. out-in runs leave THEN enter, so the
+   two together are the delay before the next page shows: kept at 150ms in total (F-M1; it was 420ms). */
+.vm-page-enter-active { transition: opacity .1s var(--vm-ease2), transform .1s var(--vm-ease2); }
+.vm-page-leave-active { transition: opacity .05s var(--vm-ease2), transform .05s var(--vm-ease2); }
 .vm-page-enter-from { opacity: 0; transform: translateY(10px); }
 .vm-page-leave-to { opacity: 0; transform: translateY(-6px); }
 @media (prefers-reduced-motion: reduce) {

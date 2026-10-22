@@ -52,6 +52,9 @@
       <div v-if="loading" class="flex items-center justify-center gap-2 py-16 text-[13px] text-slate-400">
         <span class="w-4 h-4 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin"></span> Loading…
       </div>
+      <div v-else-if="loadError && !resources.length" class="p-4">
+        <LoadError title="Couldn't load knowledge" :message="loadError" @retry="load()" />
+      </div>
       <div v-else-if="!filtered.length" class="py-16 text-center">
         <Database :size="30" :stroke-width="1.5" class="mx-auto text-slate-300" />
         <p class="mt-2 text-[13px] font-semibold text-slate-600">{{ resources.length ? 'No matches' : 'No knowledge yet' }}</p>
@@ -153,7 +156,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { Database, FileText, Globe, Download, Trash2, Plus, FileUp, Settings2, Search, RefreshCw } from 'lucide-vue-next'
 import api from '../services/api'
 import { notify } from '../composables/useNotify'
@@ -161,6 +164,8 @@ import { confirm } from '../composables/useConfirm'
 import AddWebsiteSourceModal from '../components/knowledge/AddWebsiteSourceModal.vue'
 import WebSourcePagesModal from '../components/knowledge/WebSourcePagesModal.vue'
 import { saveBlob } from '../utils/saveBlob'
+import LoadError from '../components/common/LoadError.vue'
+import { usePoller } from '../composables/usePoller'
 
 const PAGE_SIZE = 10
 const resources = ref([])
@@ -173,7 +178,11 @@ const q = ref('')
 const kindFilter = ref('all')
 const scopeView = ref('user')          // 'user' = my KnowledgeSources · 'conversation' = chat uploads
 const page = ref(1)
-let poll = null
+// A failed load is an error with Retry, never "No knowledge yet".
+const loadError = ref('')
+// Switching scope (My knowledge / Chat uploads) faster than the server answers must not let the
+// older scope's rows land in the newer view.
+let loadSeq = 0
 
 const isConvScope = computed(() => scopeView.value === 'conversation')
 
@@ -222,15 +231,20 @@ watch(totalPages, (tp) => { if (page.value > tp) page.value = tp })
 watch(scopeView, () => { page.value = 1; resources.value = []; load() })
 
 async function load(silent = false) {
+  const seq = ++loadSeq
+  const scope = scopeView.value
   if (!silent) loading.value = true
   try {
-    const rows = (await api.listKnowledge(scopeView.value)).data.resources || []
+    const rows = (await api.listKnowledge(scope)).data.resources || []
+    if (seq !== loadSeq || scope !== scopeView.value) return
     const byId = Object.fromEntries(resources.value.map(r => [r.id, r]))
     resources.value = rows.map(r => Object.assign(byId[r.id] || {}, r))
+    loadError.value = ''
   } catch (e) {
-    if (!silent) notify.error('Failed to load knowledge: ' + (e.response?.data?.detail || e.message))
+    if (seq !== loadSeq) return
+    if (!silent) loadError.value = e.response?.data?.detail || e.message || 'Request failed'
   } finally {
-    if (!silent) loading.value = false
+    if (!silent && seq === loadSeq) loading.value = false
   }
 }
 
@@ -291,11 +305,14 @@ async function remove(r) {
   }
 }
 
+// Refresh while something is indexing (or the pages modal is open). usePoller pauses while the tab is
+// hidden, never overlaps two loads, and stops on unmount.
+const poller = usePoller(async () => {
+  if (resources.value.some(r => isBusy(r.status)) || pagesSource.value) await load(true)
+}, { interval: 4000 })
+
 onMounted(() => {
   load()
-  poll = setInterval(() => {
-    if (resources.value.some(r => isBusy(r.status)) || pagesSource.value) load(true)
-  }, 4000)
+  poller.start({ immediate: false })
 })
-onUnmounted(() => poll && clearInterval(poll))
 </script>

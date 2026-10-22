@@ -572,13 +572,19 @@ export const useVideoStore = defineStore('video', {
 
     // ── project & panel ───────────────────────────────────────────────────────────────────────────
     async loadProject(conversationId) {
+      const switched = String(this.conversationId || '') !== String(conversationId || '')
       this.conversationId = conversationId || null
       if (!conversationId) { this.project = null; this.versions = []; return null }
       try {
         const res = await api.get('/video/projects/', { params: { conversation_id: conversationId } })
+        // Another conversation was opened while this read was in flight: leave its project alone.
+        if (String(this.conversationId) !== String(conversationId)) return this.project
         this.project = res.data.project || null
       } catch {
-        this.project = null
+        if (String(this.conversationId) !== String(conversationId)) return this.project
+        // A failed BACKGROUND refresh of the same conversation keeps the project on screen (it used to
+        // blank it until the next poll); only a switch to another conversation clears it.
+        if (switched) this.project = null
       }
       this.loadVersions()
       return this.project

@@ -259,13 +259,22 @@ const loadConversationHistory = async () => {
   }
 }
 
+// A failed models call must not stop the planner from connecting: the picker just stays empty.
+let unmounted = false
 const loadModels = async () => {
-  const response = await api.getLlmModels()
-  models.value = response.data.results || response.data
+  try {
+    const response = await api.getLlmModels({ fields: 'picker' })   // ?fields=picker: every row, without the heavy metadata (not read here)
+    if (unmounted) return
+    models.value = response.data.results || response.data
+  } catch (e) {
+    console.warn('Could not load models for the planner picker:', e?.message || e)
+  }
 }
 
 // WebSocket connection
 const connectWebSocket = () => {
+  // Never for a planner that is already gone (an await can land after unmount).
+  if (unmounted) return
   autoReconnect = true       // this component wants the socket; allow reconnects
   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const wsHost = import.meta.env.VITE_WS_HOST || window.location.host
@@ -461,14 +470,14 @@ const activeModels = computed(() => models.value.filter((model) => model.is_acti
 
 // Lifecycle
 onMounted(async () => {
-  // Load conversation history first
-  await loadConversationHistory()
-  await loadModels()
-  // Then connect WebSocket
+  // History and models are independent: one round. Then connect the WebSocket — unless the planner was left.
+  await Promise.all([loadConversationHistory(), loadModels()])
+  if (unmounted) return
   connectWebSocket()
 })
 
 onUnmounted(() => {
+  unmounted = true
   autoReconnect = false      // stop the reconnect loop — component is gone
   if (reconnectTimer) clearTimeout(reconnectTimer)
   if (ws) {

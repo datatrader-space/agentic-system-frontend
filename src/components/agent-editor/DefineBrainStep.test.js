@@ -192,3 +192,27 @@ describe('DefineBrainStep — the capability warning replaces the filter', () =>
     expect(w.vm.capabilityWarning({ field: 'vision_model', label: 'X', capability: null })).toBe('')
   })
 })
+
+describe('DefineBrainStep — loads in one round (Phase 5 item 3)', () => {
+  it('starts every independent read before the model catalog has answered', async () => {
+    const api = (await import('../../services/api')).default
+    let releaseModels
+    api.get.mockImplementationOnce(() => new Promise((r) => { releaseModels = r }))
+    api.getMemorySettings = vi.fn(() => Promise.resolve({ data: { memory_enabled: true } }))
+    api.getAgentMemoryDigest = vi.fn(() => Promise.resolve({ data: null }))
+    api.getAgentMemory = vi.fn(() => Promise.resolve({ data: { memories: [] } }))
+    api.getWebSearchModels = vi.fn(() => Promise.resolve({ data: { models: [] } }))
+    api.getAgentWebIntelligence = vi.fn(() => Promise.resolve({ data: { config: {}, editable: true } }))
+    mount(DefineBrainStep, { props: { agent: { id: 1 } }, global: { stubs } })
+    await flushPromises()
+    // The models request is still pending, and everything else has already been asked for.
+    expect(releaseModels).toBeTypeOf('function')
+    expect(api.getMemorySettings).toHaveBeenCalledTimes(1)
+    expect(api.getAgentMemoryDigest).toHaveBeenCalledTimes(1)
+    expect(api.getAgentEffectivePolicy).toHaveBeenCalled()
+    expect(api.getWebSearchModels).toHaveBeenCalledTimes(1)
+    releaseModels({ data: [] })
+    await flushPromises()
+    for (const k of ['getMemorySettings', 'getAgentMemoryDigest', 'getAgentMemory', 'getWebSearchModels', 'getAgentWebIntelligence']) delete api[k]
+  })
+})

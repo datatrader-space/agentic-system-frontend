@@ -36,11 +36,32 @@ const state = reactive({
   step: 0,
 })
 
+// The id of the signed-in user, learned from hydrateFromUser. A dismissal whose PATCH failed is
+// remembered for THIS user only (the mirror is per browser, not per account).
+let currentUserId = null
+
+function persistCompleted(value) {
+  return api.updateOnboarding({ onboarding_completed: value })
+    .then(() => { saveMirror({ pendingSyncFor: null }) })
+    .catch(() => { /* kept as pendingSyncFor; retried on the next hydrate */ })
+}
+
 // Reconcile with the authoritative backend flag (called when currentUser loads).
+// Exception: the person dismissed the welcome/tour here but the PATCH failed (offline, 5xx). The
+// backend still says "not completed", and believing it made the welcome modal come back on every
+// page load. Keep the local dismissal for that user and retry the PATCH instead.
 function hydrateFromUser(user) {
+  if (user && user.id != null) currentUserId = user.id
   if (user && typeof user.onboarding_completed === 'boolean') {
-    state.completed = user.onboarding_completed
-    saveMirror({ completed: state.completed })
+    const mirror = loadMirror()
+    const pendingForThisUser = mirror.pendingSyncFor != null && String(mirror.pendingSyncFor) === String(user.id)
+    if (!user.onboarding_completed && pendingForThisUser && mirror.completed) {
+      state.completed = true
+      persistCompleted(true)
+    } else {
+      state.completed = user.onboarding_completed
+      saveMirror({ completed: state.completed, pendingSyncFor: null })
+    }
   }
   state.hydrated = true
 }
@@ -72,15 +93,15 @@ function endTour(completed = true) {
   state.active = false
   if (completed) {
     state.completed = true
-    saveMirror({ completed: true })
-    api.updateOnboarding({ onboarding_completed: true }).catch(() => {})
+    saveMirror({ completed: true, pendingSyncFor: currentUserId })
+    persistCompleted(true)
   }
 }
 
 // Replay: clear completion and relaunch (used by "Take a tour" / Settings).
 function resetTour() {
   state.completed = false
-  saveMirror({ completed: false })
+  saveMirror({ completed: false, pendingSyncFor: null })
   api.updateOnboarding({ onboarding_completed: false }).catch(() => {})
   startTour()
 }

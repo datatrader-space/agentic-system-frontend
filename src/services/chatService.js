@@ -22,8 +22,21 @@
 // HEARTBEAT_MS so a single missed pong doesn't false-trip a reconnect.
 const HEARTBEAT_MS = 10000   // send a ping this often (and once immediately on open)
 const STALE_MS = 35000       // no message (incl. pong) for this long => socket is dead
-const RECONNECT_MAX = 10     // give up after this many consecutive failed reconnects
-const RECONNECT_CAP_MS = 10000
+// NEVER give up (page-speed plan F-H4). It used to stop after 10 failures with "Lost connection — please
+// refresh", which after a long outage left a chat that only a refresh could revive. Backoff is capped
+// exponential with FULL jitter (random 0..base), so thousands of tabs reconnecting after a redeploy spread
+// out instead of arriving in waves.
+export const RECONNECT_BASE_MS = 1000
+export const RECONNECT_CAP_MS = 30000
+const RECONNECT_MIN_MS = 250
+// After this many failed attempts in a row the UI offers "Reconnect now" (onConnectionState('lost')).
+export const RECONNECT_LOST_AFTER = 3
+
+/** Delay before reconnect attempt `attempt` (0-based): random in [250ms, min(cap, base*2^attempt)]. */
+export function reconnectDelay(attempt, random = Math.random) {
+  const ceiling = Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_CAP_MS)
+  return Math.max(RECONNECT_MIN_MS, Math.round(random() * ceiling))
+}
 
 /** The browser's IANA time zone ("Asia/Karachi"), or undefined when the browser does not say. */
 export function browserTimeZone() {
@@ -55,7 +68,7 @@ export class ChatConnection {
   // Recover a long-dead socket the INSTANT the environment comes back — network back online, tab
   // refocused, or visibility restored — without waiting out the backoff or forcing a manual refresh.
   // This is what makes a laptop that slept for an hour (or a phone that backgrounded the tab)
-  // reconnect on wake instead of sitting on "Lost connection — please refresh".
+  // reconnect on wake instead of waiting out the backoff.
   _installWakeListeners() {
     if (this._wakeInstalled || typeof window === 'undefined') return
     this._wake = () => {
@@ -113,7 +126,9 @@ export class ChatConnection {
 
     this.ws.onopen = () => {
       this.isOpen = true
+      const wasLost = this._reconnectAttempts >= RECONNECT_LOST_AFTER
       this._reconnectAttempts = 0
+      if (wasLost) this.handlers.onConnectionState?.('open')
       this._lastActivity = Date.now()
       this._startHeartbeat()
       // No 'subscribe' handshake: the chat consumer routes by conversation_id on the
@@ -178,15 +193,11 @@ export class ChatConnection {
 
   _scheduleReconnect() {
     if (this.closedByUs || this._reconnectTimer) return
-    if (this._reconnectAttempts >= RECONNECT_MAX) {
-      this.handlers.onError?.('Lost connection — please refresh.')
-      return
-    }
-    // Exponential backoff with 50–100% jitter so many clients reconnecting after a backend redeploy
-    // don't stampede in lockstep at the same 1/2/4/8/10s boundaries (thundering herd).
-    const base = Math.min(1000 * 2 ** this._reconnectAttempts, RECONNECT_CAP_MS)
-    const delay = Math.round(base * (0.5 + Math.random() * 0.5))
+    // A socket that is still connecting is not a failure: wait for it (its onclose schedules if it fails).
+    if (this.ws && this.ws.readyState === WebSocket.CONNECTING) return
+    const delay = reconnectDelay(this._reconnectAttempts)
     this._reconnectAttempts += 1
+    if (this._reconnectAttempts === RECONNECT_LOST_AFTER) this.handlers.onConnectionState?.('lost')
     this._reconnectTimer = setTimeout(() => {
       this._reconnectTimer = null
       this.connect(this.repoId)
@@ -204,11 +215,25 @@ export class ChatConnection {
   _send(obj) {
     if (this.isOpen && this.ws?.readyState === WebSocket.OPEN) {
       this._raw(obj)
-    } else {
-      // Not connected: keep the message and (re)open the socket — it flushes on reopen.
-      this.queue.push(obj)
-      if (!this.closedByUs) this._scheduleReconnect()
+      return
     }
+    // Not connected: keep the message; it flushes when the socket opens.
+    this.queue.push(obj)
+    if (this.closedByUs) return
+    // Still connecting: the queued message goes out on open. Not a failure, so no attempt is counted.
+    if (this.ws && this.ws.readyState === WebSocket.CONNECTING) return
+    // Dead socket: the person is waiting on THIS message, so connect now instead of sitting out the
+    // backoff, with a fresh attempt budget.
+    this.reconnectNow()
+  }
+
+  // Connect immediately (the "Reconnect now" action, or a send on a dead socket): resets the backoff.
+  reconnectNow() {
+    if (this.closedByUs) return
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return
+    if (this._reconnectTimer) { clearTimeout(this._reconnectTimer); this._reconnectTimer = null }
+    this._reconnectAttempts = 0
+    this.connect(this.repoId)
   }
 
   // The chat socket is keyed by repoId (stable); conversation_id travels PER-MESSAGE, so ONE socket

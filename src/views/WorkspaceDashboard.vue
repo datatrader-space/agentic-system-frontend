@@ -59,6 +59,10 @@
 
       <!-- Panel -->
       <main class="wsd-panel">
+        <!-- A failed load is an error with Retry. It used to fall back to the user's GLOBAL agents,
+             services and MCP servers, which then looked like this workspace's resources. -->
+        <LoadError v-if="loadError" title="Couldn't load this workspace" :message="loadError" :retrying="loading" @retry="loadAll" />
+        <template v-else>
         <!-- ─── Overview ──────────────────────────────── -->
         <section v-if="activeTab === 'overview'">
           <!-- Stats Row -->
@@ -218,6 +222,7 @@
           </div>
           <div class="members-card">
             <div v-if="loadingMembers" class="loading-block"><div class="spinner"></div> Loading members…</div>
+            <LoadError v-else-if="membersError" compact title="Couldn't load members" @retry="loadAll" />
             <div v-else-if="!members.length" class="empty-block">
               <div class="empty-icon">👥</div>
               <p>No members yet. Add organisation members to this workspace.</p>
@@ -320,6 +325,7 @@
             </div>
           </div>
         </section>
+        </template>
       </main>
     </div>
 
@@ -367,13 +373,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { watchOwnRouteParam } from '@/composables/useOwnRouteParam'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../services/api'
 import tenancyApi from '../services/tenancyApi'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import PlatformLlmPolicy from '@/components/admin/PlatformLlmPolicy.vue'
+import LoadError from '@/components/common/LoadError.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -387,6 +395,8 @@ const members       = ref([])
 const activity      = ref([])
 const loading       = ref(false)
 const loadingMembers = ref(false)
+const loadError     = ref('')
+const membersError  = ref(false)
 const activeTab     = ref(route.params.tab || 'overview')
 
 // Settings form
@@ -450,34 +460,55 @@ function formatTime(ts) {
   return `${Math.floor(diff/3600)}h ago`
 }
 
+function errText(err, fallback) {
+  const d = err?.response?.data
+  return d?.detail || d?.error || fallback
+}
+
 async function loadAll() {
   loading.value = true
   loadingMembers.value = true
+  loadError.value = ''
+  membersError.value = false
   try {
-    const wsRes = await tenancyApi.getWorkspace(wsId.value).catch(() => null)
-    if (wsRes) {
-      workspace.value = wsRes.data
-      wsForm.value = { name: wsRes.data.name, slug: wsRes.data.slug }
-      wsLlmPolicy.value = (wsRes.data.llm_policy && typeof wsRes.data.llm_policy === 'object') ? { ...wsRes.data.llm_policy } : {}
+    let wsRes
+    try {
+      wsRes = await tenancyApi.getWorkspace(wsId.value)
+    } catch (err) {
+      loadError.value = errText(err, 'Check your connection and try again.')
+      return
     }
+    workspace.value = wsRes.data
+    wsForm.value = { name: wsRes.data.name, slug: wsRes.data.slug }
+    wsLlmPolicy.value = (wsRes.data.llm_policy && typeof wsRes.data.llm_policy === 'object') ? { ...wsRes.data.llm_policy } : {}
     // Absolute code ceilings (shown as the read-only "max N" next to each field).
     api.getGlobalAgentPolicy().then(r => { wsLlmAbsolute.value = r.data?.llm_policy_absolute || {} }).catch(() => {})
 
     const o = orgSlug.value
     const w = wsSlug.value
+    if (!o || !w) {
+      // Without the org/workspace slugs the workspace's own resources cannot be listed. Never show the
+      // user's global ones in their place.
+      loadError.value = "This workspace's details are incomplete, so its resources can't be listed."
+      return
+    }
 
     const [agRes, svcRes, mcpRes, memRes, actRes] = await Promise.allSettled([
-      (o && w) ? tenancyApi.listWSAgents(o, w) : api.get('/agents/'),
-      (o && w) ? tenancyApi.listWSServices(o, w) : api.get('/services/'),
-      (o && w) ? tenancyApi.listWSMCP(o, w) : api.get('/mcp/servers/'),
-      tenancyApi.getWSMembers(wsId.value).catch(() => ({ data: [] })),
+      tenancyApi.listWSAgents(o, w),
+      tenancyApi.listWSServices(o, w),
+      tenancyApi.listWSMCP(o, w),
+      tenancyApi.getWSMembers(wsId.value),
       api.get('/tools/history/', { params: { limit: 20 } }),
     ])
     if (agRes.status  === 'fulfilled') agents.value     = agRes.value.data?.results ?? agRes.value.data ?? []
     if (svcRes.status === 'fulfilled') services.value   = svcRes.value.data?.services ?? svcRes.value.data ?? []
     if (mcpRes.status === 'fulfilled') mcpServers.value = mcpRes.value.data?.servers ?? mcpRes.value.data ?? []
     if (memRes.status === 'fulfilled') members.value    = memRes.value.data?.results ?? memRes.value.data ?? []
+    else membersError.value = true
     if (actRes.status === 'fulfilled') activity.value   = actRes.value.data?.results ?? actRes.value.data ?? []
+    if ([agRes, svcRes, mcpRes].some((r) => r.status === 'rejected')) {
+      loadError.value = "Some of this workspace's resources couldn't be loaded."
+    }
   } finally {
     loading.value = false
     loadingMembers.value = false
@@ -529,7 +560,9 @@ async function deleteWorkspace() {
   try {
     await tenancyApi.deleteWorkspace(wsId.value)
     router.push(orgSlug.value ? `/org/${orgSlug.value}/settings/workspaces` : '/dashboard')
-  } catch {}
+  } catch (err) {
+    notify.error(errText(err, 'Could not delete the workspace'))
+  }
   deletingWs.value = false
 }
 
@@ -555,7 +588,9 @@ async function removeWSMember(m) {
   try {
     await tenancyApi.removeWSMember(wsId.value, uid)
     members.value = members.value.filter(x => (x.user?.id ?? x.id) !== uid)
-  } catch {}
+  } catch (err) {
+    notify.error(errText(err, 'Could not remove the member'))
+  }
 }
 
 // ── Resource Picker ─────────────────────────────────────────────────────
@@ -589,6 +624,8 @@ async function openPicker(type) {
   } catch (err) {
     console.error('[picker]', err)
     availableItems.value = []
+    showPicker.value = false
+    notify.error(errText(err, 'Could not load the list to add from'))
   } finally {
     pickerLoading.value = false
   }
@@ -617,6 +654,7 @@ async function linkSelected() {
     await loadAll()
   } catch (err) {
     console.error('[link]', err)
+    notify.error(errText(err, 'Could not add to the workspace'))
   } finally {
     pickerLinking.value = false
   }
@@ -640,7 +678,7 @@ async function unlinkResource(type, item) {
   }
 }
 
-watch(wsId, loadAll, { immediate: false })
+watchOwnRouteParam('wsId', loadAll)   // never on the way out (F-M1)
 onMounted(loadAll)
 </script>
 

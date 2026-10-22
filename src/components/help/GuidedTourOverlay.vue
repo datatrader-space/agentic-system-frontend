@@ -2,8 +2,10 @@
   <div v-if="state.active" class="gt-root">
     <!-- Spotlight backdrop: a box at the target rect with a huge surrounding shadow. -->
     <div v-if="rect" class="gt-spotlight" :style="spotStyle"></div>
-    <!-- Dimming layer when there is no anchored element (fallback / center). -->
-    <div v-else class="gt-dim"></div>
+    <!-- Dimming layer when there is no anchored element (fallback / center). When the step HAS a
+         target that is not on screen yet, the dim lets clicks through: the person must be able to
+         navigate to the right screen ("Continue when you're on the right screen"). -->
+    <div v-else class="gt-dim" :class="{ 'gt-dim--passive': !!step.target_selector }"></div>
 
     <!-- Tooltip / fallback card -->
     <div class="gt-card" :class="{ centered: !rect }" :style="cardStyle">
@@ -47,14 +49,17 @@ const isLast = computed(() => state.index >= state.steps.length - 1)
 
 function onSkip() { skip() }
 
-function locate() {
+// `scroll` is true only when a step is (re)located after a step/route change. The scroll and resize
+// listeners re-measure without scrolling: scrolling from inside a scroll handler fought the person's
+// own scrolling and re-fired the handler on every frame.
+function locate(scroll = false) {
   const sel = step.value?.target_selector
   if (!sel) { rect.value = null; return }
   const el = document.querySelector(sel)
   if (el) {
     const r = el.getBoundingClientRect()
     if (r.width === 0 && r.height === 0) { rect.value = null; return }
-    el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    if (scroll) { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }) } catch { /* ignore */ } }
     // Re-read after scroll settles.
     rect.value = { top: r.top, left: r.left, width: r.width, height: r.height }
   } else {
@@ -68,7 +73,7 @@ function relocateWithRetries() {
   clearTimeout(_locateTimer)
   _retries = 0
   const tick = () => {
-    locate()
+    locate(true)
     if (!rect.value && step.value?.target_selector && _retries < 8) {
       _retries += 1
       _locateTimer = setTimeout(tick, 250)
@@ -125,6 +130,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .gt-root { position: fixed; inset: 0; z-index: 1000; pointer-events: none; }
 .gt-dim { position: absolute; inset: 0; background: rgba(15, 23, 42, .55); pointer-events: auto; }
+.gt-dim--passive { pointer-events: none; background: rgba(15, 23, 42, .25); }
 .gt-spotlight {
   position: fixed; border-radius: 10px; pointer-events: none;
   box-shadow: 0 0 0 9999px rgba(15, 23, 42, .55), 0 0 0 2px #6366f1;

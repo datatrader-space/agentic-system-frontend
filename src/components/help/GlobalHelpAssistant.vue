@@ -1,6 +1,8 @@
 <template>
   <!-- Product-wide AI assistant: one FAB + one chat widget, mounted once in AppShell. -->
-  <HelpAssistantWidget ref="widget" v-model:open="state.open" :current-page="currentPage" />
+  <!-- Loaded the first time the assistant is opened, not on every page load (its code is not in the
+       entry bundle). It then stays mounted so its conversation survives closing and reopening. -->
+  <HelpAssistantWidget v-if="everOpened" ref="widget" v-model:open="state.open" :current-page="currentPage" />
   <button class="gha-fab" :class="{ open: state.open, 'on-chat': onChatSurface }"
           :aria-label="state.open ? 'Close AI Assistant' : 'Ask the AI Assistant'"
           @click="toggle">
@@ -12,12 +14,15 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import HelpAssistantWidget from './HelpAssistantWidget.vue'
+import { lazyComponent } from '../../utils/lazyComponent'
 import { useHelpAssistant } from '../../composables/useHelpAssistant'
 
 const route = useRoute()
 const { state, close } = useHelpAssistant()
 const widget = ref(null)
+const HelpAssistantWidget = lazyComponent(() => import('./HelpAssistantWidget.vue'), { showLoading: false })
+const everOpened = ref(!!state.open)
+watch(() => state.open, (open) => { if (open) everOpened.value = true })
 
 // A stable surface label for assistant logging/retrieval context.
 const currentPage = computed(() => route.name?.toString() || route.path || 'app')
@@ -32,14 +37,24 @@ function toggle() { state.open ? close() : (state.open = true) }
 
 // Any page can call openAssistant(q): bumping the nonce both opens the panel and (when a
 // question is seeded) asks it imperatively — even if the panel was already open.
+// The widget loads on first open, so a question asked before it is ready waits for it.
+let pendingQuestion = ''
+function askPending() {
+  if (!pendingQuestion || !widget.value?.ask) return
+  const q = pendingQuestion
+  pendingQuestion = ''
+  widget.value.ask(q)
+}
 watch(() => state.nonce, async () => {
   state.open = true
   if (state.question) {
-    await nextTick()
-    widget.value?.ask(state.question)
+    pendingQuestion = state.question
     state.question = ''
+    await nextTick()
+    askPending()
   }
 })
+watch(widget, askPending)
 </script>
 
 <style scoped>

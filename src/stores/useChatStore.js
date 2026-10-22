@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import api from '../services/api'
 import { notify } from '../composables/useNotify'
 import { ChatConnection } from '../services/chatService'
+import { willIngestChatAttachment } from '../services/ingestionPolicy'
 import { useCanvasStore } from './useCanvasStore'
 import { useArtifactsStore } from './useArtifactsStore'
 import { usePlanStore } from './usePlanStore'
@@ -249,6 +250,13 @@ export const useChatStore = defineStore('chat', {
     //: One recovery at a time. Three things ask for one (the socket opening, the server saying nothing
     //: runs, the silence watchdog) and they overlap.
     _recoveryRunning: false,
+    //: True after several failed reconnects in a row: the chat shows "Connection lost" with a
+    //: "Reconnect now" action while the socket keeps retrying on its own (it never gives up).
+    connectionLost: false,
+    //: openConversation bookkeeping (F-C3): the conversation being loaded right now, and the one whose
+    //: last load FAILED, so re-opening that chat loads it again instead of no-oping on an empty thread.
+    _loadingConversationId: null,
+    _loadFailedConversationId: null,
   }),
   getters: {
     isEmpty: (s) => s.messages.length === 0,
@@ -749,9 +757,15 @@ export const useChatStore = defineStore('chat', {
       // Already pointed at this conversation with a live socket or loaded history → no-op. This also
       // covers the case where ensureConversation() just created the id (to ingest a link before the
       // first message) and the URL replace re-entered here — we must NOT re-clear staged attachments.
-      if (String(this.conversationId) === String(id) && (this.messages.length || this._conn)) return
+      // A load of this same conversation still in flight is not repeated. A load that FAILED is: the
+      // thread is empty and only another request can fill it (it used to no-op whenever a socket existed).
+      const sameId = String(this.conversationId) === String(id)
+      if (sameId && String(this._loadingConversationId) === String(id)) return
+      if (sameId && String(this._loadFailedConversationId) !== String(id) && (this.messages.length || this._conn)) return
       this._clearTurnState()   // switch conversation: clear UI state but KEEP the shared socket
       this.conversationId = String(id)
+      this._loadingConversationId = String(id)
+      this._loadFailedConversationId = null
       this.messages = []
       this.messagesHasMore = false   // recomputed from this conversation's response below
       this.messagesTotal = 0
@@ -761,6 +775,8 @@ export const useChatStore = defineStore('chat', {
       this.error = ''
       try {
         const res = await api.getConversation(id)
+        // The person opened another chat while this one loaded: its response must not land there.
+        if (String(this.conversationId) !== String(id)) return
         const data = res.data || {}
         this.conversationProjectId = data.project ?? null
         this.messages = this._foldSteers(pickArray(data.messages).map((m) => this._mapServerMessage(m, id)))
@@ -783,9 +799,13 @@ export const useChatStore = defineStore('chat', {
         }
         this._connect()
       } catch {
+        if (String(this.conversationId) !== String(id)) return
+        this._loadFailedConversationId = String(id)
         this.error = 'Failed to load conversation'
       } finally {
-        this.loadingHistory = false
+        // Only the load of the chat still on screen owns these flags; a stale one leaves them alone.
+        if (String(this._loadingConversationId) === String(id)) this._loadingConversationId = null
+        if (String(this.conversationId) === String(id)) this.loadingHistory = false
       }
     },
 
@@ -905,7 +925,11 @@ export const useChatStore = defineStore('chat', {
           const attId = res?.data?.attachment_id
           const fileId = res?.data?.id
           if (attId) attachmentIds.push(attId)
-          if (!a.isImage && fileId != null) docs.push({ id: fileId, name: a.name })
+          // Wait for ingestion only for a file the backend ingests (documents); video, audio and opaque
+          // binaries are never ingested, so waiting on them only held Send for ~60 s.
+          if (!a.isImage && fileId != null && willIngestChatAttachment(a.mime || a.file?.type, a.name)) {
+            docs.push({ id: fileId, name: a.name })
+          }
         } catch {
           this.error = 'Failed to upload an attachment.'
         }
@@ -1300,13 +1324,12 @@ export const useChatStore = defineStore('chat', {
           // completes server-side. Without this, the answer only appears after a manual refresh.
           if (this._recovering || this.isStreaming || this._taskRunActive) this._recoverAfterReconnect()
         },
-        onError: (em) => {
-          if (!this.isStreaming) return
-          // Only a TERMINAL give-up (reconnect attempts exhausted) is a real error. Transient
-          // blips just mean "reconnecting" — don't scare the user or kill the turn.
-          if (em && /please refresh/i.test(em)) this._errAssistant(em)
-          else this._enterReconnecting()
+        onError: () => {
+          // The socket never gives up reconnecting, so an error only ever means "reconnecting" —
+          // don't scare the user or kill the turn.
+          if (this.isStreaming) this._enterReconnecting()
         },
+        onConnectionState: (state) => { this.connectionLost = state === 'lost' },
         onClose: () => {
           // Abnormal drop mid-stream. Do NOT finalize as interrupted — the backend turn survives.
           // Show "Reconnecting…"; ChatConnection auto-reconnects and onOpen recovers the result.
@@ -1355,6 +1378,12 @@ export const useChatStore = defineStore('chat', {
       this.isStreaming = false
       this._assistantId = null
       this._recovering = false
+    },
+
+    // "Reconnect now" (shown once a few reconnects in a row have failed): try at once, fresh backoff.
+    reconnectNow() {
+      if (this._conn) this._conn.reconnectNow()
+      else this._connect()
     },
 
     // Full teardown — ONLY for logout / app unmount. Closes the socket for good (no reconnect).
@@ -1480,8 +1509,13 @@ export const useChatStore = defineStore('chat', {
       //
       // The underlying oddity is the run going terminal ahead of its own answer; widening here does not
       // fix that, it stops this client being misled by it.
+      // Bound to the conversation it started for: when the person opens another chat, this stops.
+      const cid = this.conversationId
+      const switched = () => String(this.conversationId) !== String(cid)
       for (let i = 0; i < 36; i++) {
+        if (switched()) return
         const landed = await this._refreshHistory()
+        if (switched()) return
         if (landed) { this.isStreaming = false; this._taskRunActive = false; this._assistantId = null; return }
         if (!this.isStreaming) return
         if (stillRunning()) { backToListening(); return }
@@ -1493,7 +1527,7 @@ export const useChatStore = defineStore('chat', {
         }
         await new Promise((r) => setTimeout(r, 2500))
       }
-      if (!this.isStreaming) return
+      if (!this.isStreaming || switched()) return
       if (stillRunning()) { backToListening(); return }
       // Waited ~90s with no answer saved and no sign the turn is running — clear the spinner without a
       // scary error.
@@ -1506,8 +1540,11 @@ export const useChatStore = defineStore('chat', {
     // (The old assistant-COUNT delta was broken: the optimistic streaming bubble is already counted, so a
     // completed turn never increased the count → recovery gave up and the answer only showed on refresh.)
     async _refreshHistory() {
+      const cid = this.conversationId
       try {
-        const res = await api.getConversation(this.conversationId)
+        const res = await api.getConversation(cid)
+        // Another chat was opened while this read was in flight: never write its rows into that one.
+        if (String(this.conversationId) !== String(cid)) return false
         const rows = pickArray((res.data || {}).messages)
         if (!rows.length) return false
         const last = rows[rows.length - 1]
@@ -1633,14 +1670,17 @@ export const useChatStore = defineStore('chat', {
         const res = await api.getConversation(cid)
         if (String(cid) !== String(this.conversationId)) return
         const assistantRows = pickArray((res.data || {}).messages).filter((m) => m.role === 'assistant')
-        let ai = 0
-        for (const m of this.messages) {
-          if (m.role !== 'assistant') continue
-          const src = assistantRows[ai++]
+        // Aligned from the NEWEST end: the conversation read returns only the latest page of messages,
+        // while the screen may also hold older pages the person loaded, so matching from the start
+        // put one message's plan onto another.
+        const onScreen = this.messages.filter((m) => m.role === 'assistant')
+        const offset = onScreen.length - assistantRows.length
+        onScreen.forEach((m, i) => {
+          const src = assistantRows[i - offset]
           if (src && Array.isArray(src.plan_artifacts) && src.plan_artifacts.length) {
             m.planArtifacts = src.plan_artifacts
           }
-        }
+        })
         const plan = usePlanStore()
         for (const m of this.messages) {
           for (const a of (m.planArtifacts || [])) if (a && a.run_id) plan.hydrateRun(a.run_id)

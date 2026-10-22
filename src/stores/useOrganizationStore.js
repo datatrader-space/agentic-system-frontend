@@ -44,26 +44,30 @@ export const useOrganizationStore = defineStore('organization', {
   },
   actions: {
     // Resolve the org slug: explicit arg → active workspace's org → first owned/member org.
+    // null when it cannot be resolved (no org, or the request failed) — for the module pages.
     async resolveOrgSlug() {
+      try { return await this.fetchOrgSlug() } catch { return null }
+    },
+    // Same, but a FAILED orgs request throws, so the overview shows "couldn't load" with Retry, not
+    // "You don't belong to an organization yet". null only when the user truly has no organization.
+    async fetchOrgSlug() {
       if (this.orgSlug) return this.orgSlug
-      try {
-        const { data } = await tenancyApi.getMyOrgs()
-        const orgs = Array.isArray(data) ? data : (data?.results || [])
-        if (!orgs.length) return null
-        // Prefer a non-personal org the user owns/administers, else the first.
-        const preferred = orgs.find((o) => !o.is_personal) || orgs[0]
-        this.orgSlug = preferred.slug
-        return this.orgSlug
-      } catch {
-        return null
-      }
+      const { data } = await tenancyApi.getMyOrgs()
+      const orgs = Array.isArray(data) ? data : (data?.results || [])
+      if (!orgs.length) return null
+      // Prefer a non-personal org the user owns/administers, else the first.
+      const preferred = orgs.find((o) => !o.is_personal) || orgs[0]
+      this.orgSlug = preferred.slug
+      return this.orgSlug
     },
     async load(slug) {
       if (slug) this.orgSlug = slug
       this.loading = true
       this.error = ''
+      // The budget summary does not depend on the org: fetch it alongside, not after, the overview.
+      this.loadBudget()
       try {
-        const orgSlug = await this.resolveOrgSlug()
+        const orgSlug = await this.fetchOrgSlug()
         if (!orgSlug) {
           this.error = 'no_org'
           return
@@ -75,8 +79,7 @@ export const useOrganizationStore = defineStore('organization', {
         this.topBySpend = data.top_workspaces_by_spend || []
         this.recentActivity = data.recent_activity || []
         this.loaded = true
-        // Budget bundle + members are non-fatal side-loads.
-        this.loadBudget()
+        // Members are a non-fatal side-load (the budget bundle started above).
         this.loadMembers()
       } catch (e) {
         this.error = e?.response?.data?.error || e?.message || 'Failed to load organization'

@@ -23,41 +23,11 @@
 //   import { connectOAuth } from '@/composables/useOAuthConnect'
 //   await connectOAuth(api, providerSlug, { owner: 'org', scopes: 'a,b' })
 
-import { clearApiCache } from '@/services/api'
-import { isTrustedPopupMessage } from '@/utils/popupMessages'
+import { runOAuthPopup } from '@/composables/useOAuthPopup'
 
-// Written by the popup as a second channel in case the message is lost. Kept in sync with
-// `_STORAGE_KEY` in agent/services/oauth_popup.py.
-const RESULT_KEY = 'aadml:oauth-result'
-
-// A COMPLETED OAUTH CONNECT CHANGES SERVER STATE THAT NO SPA MUTATION TOUCHED.
-//
-// The GET cache is invalidated by `api.post/put/patch/delete` — a rule that holds for everything the
-// app writes itself. This flow writes nothing: `startConnection` is a GET, and the connection row is
-// created by GOOGLE redirecting the popup to the backend callback, entirely outside this axios
-// instance. So nothing ever cleared the cache, `/connectors` stayed valid for 30s, and the refresh
-// that runs the instant the popup closes re-read the pre-connect answer.
-//
-// The user saw the success toast and a panel still reading "You are not connected", which corrected
-// itself about half a minute later — the shape of a cache, not of a failed connection.
-function invalidateConnectionReads() {
-  try {
-    clearApiCache()
-  } catch {
-    /* a cache that cannot be cleared must not fail the connect that just succeeded */
-  }
-}
-
-function readStoredResult() {
-  try {
-    const raw = localStorage.getItem(RESULT_KEY)
-    if (!raw) return null
-    localStorage.removeItem(RESULT_KEY)   // consume it, so a stale result cannot satisfy a later attempt
-    return JSON.parse(raw)
-  } catch {
-    return null   // partitioned or blocked storage throws rather than returning null
-  }
-}
+// A completed connect changes server state that no SPA write touched (the provider redirected the popup
+// to the backend callback), so the GET cache must not keep the pre-connect answer: runOAuthPopup clears
+// it before asking the server below and again when the flow ends, whatever the outcome.
 
 // The server is the only authority on whether the connection exists. Returns true/false, never throws —
 // a failed status check must not turn into "connection failed", which is a different claim.
@@ -76,90 +46,23 @@ async function isConnected(api, providerSlug) {
   }
 }
 
-export function connectOAuth(api, providerSlug, opts = {}) {
-  return new Promise((resolve, reject) => {
-    // Clear any result left by a previous attempt before opening, or a stale success could satisfy
-    // a connect the user then cancels.
-    readStoredResult()
-
-    api
-      .startConnection(providerSlug, opts)
-      .then((response) => {
-        const redirectUrl = response.data?.redirect_url
-        if (!redirectUrl) {
-          reject(new Error('No redirect URL received'))
-          return
-        }
-
-        const popup = window.open(
-          redirectUrl,
-          'oauth-connection',
-          'width=600,height=700,left=200,top=100'
-        )
-        if (!popup) {
-          reject(new Error('Popup blocked — please allow popups for this site'))
-          return
-        }
-
-        let settled = false
-        const cleanup = () => {
-          if (settled) return false
-          settled = true
-          window.removeEventListener('message', onMessage)
-          clearInterval(popupPoll)
-          clearTimeout(timeout)
-          return true
-        }
-
-        const onMessage = (event) => {
-          if (!isTrustedPopupMessage(event)) return
-          if (event.data?.type !== 'oauth-connection-result') return
-          if (!cleanup()) return
-          if (event.data.status === 'success') {
-            invalidateConnectionReads()
-            resolve(true)
-          } else reject(new Error(event.data.error || 'Connection failed'))
-        }
-        window.addEventListener('message', onMessage)
-
-        // The popup vanished without telling us anything. Before calling that a failure, check whether
-        // the connection actually landed — see the note at the top of this file.
-        const settleFromServer = async (fallbackMessage) => {
-          const stored = readStoredResult()
-          if (stored) {
-            if (stored.status === 'success' || stored.ok) {
-              invalidateConnectionReads()
-              return resolve(true)
-            }
-            return reject(new Error(stored.error || stored.message || fallbackMessage))
-          }
-          // Cleared BEFORE the check as well as after: `isConnected` reads `/connections/`, which is
-          // itself cached, so a stale entry here would report "not connected" for a connect that just
-          // succeeded and turn it into a false failure.
-          invalidateConnectionReads()
-          if (await isConnected(api, providerSlug)) {
-            invalidateConnectionReads()
-            return resolve(true)
-          }
-          reject(new Error(fallbackMessage))
-        }
-
-        const popupPoll = setInterval(() => {
-          if (!popup.closed) return
-          if (!cleanup()) return
-          // A small delay: the popup can close a beat before the server has finished committing, and
-          // asking too early would produce the very false negative this exists to prevent.
-          setTimeout(() => settleFromServer('Connection window was closed before it finished'), 600)
-        }, 500)
-
-        const timeout = setTimeout(() => {
-          if (!cleanup()) return
-          try { popup.close() } catch { /* already gone */ }
-          settleFromServer('Connection timed out')
-        }, 120000)
-      })
-      .catch((error) => {
-        reject(new Error(error.response?.data?.error || 'Failed to start connection'))
-      })
-  })
+// Resolves true when connected; rejects with an Error whose message can be shown to the person.
+// Call it BEFORE any await in the click handler: the popup opens synchronously (see useOAuthPopup.js).
+export async function connectOAuth(api, providerSlug, opts = {}) {
+  const result = await runOAuthPopup(
+    async () => {
+      try {
+        const response = await api.startConnection(providerSlug, opts)
+        return response.data?.redirect_url
+      } catch (error) {
+        throw new Error(error?.response?.data?.error || 'Failed to start connection')
+      }
+    },
+    {
+      messageTypes: ['oauth-connection-result'],
+      verify: () => isConnected(api, providerSlug),
+    },
+  )
+  if (result.ok) return true
+  throw new Error(result.error || 'Connection failed')
 }

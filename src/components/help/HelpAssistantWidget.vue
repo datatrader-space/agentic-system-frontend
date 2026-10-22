@@ -63,13 +63,11 @@
 import { ref, reactive, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import { marked } from 'marked'
 import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
 import api from '../../services/api'
 import { useGuidedTour } from '../../composables/useGuidedTour'
 import { applyAssistantWsEvent } from '../../utils/assistantStream'
 
-marked.setOptions({ breaks: true, gfm: true })
 // Render the (possibly still-streaming) markdown answer to HTML. Same engine + markdown
 // as New Chat; the widget just parses it instead of showing raw text.
 function renderMd(text) {
@@ -105,6 +103,19 @@ let socket = null
 let streamCtx = null             // { turn, resolve, reject } for the in-flight WS answer
 let lastTurn = null              // last assistant turn (so a late suggested_actions event can attach)
 let engineConvId = null          // generic-engine path: conversation id for multi-turn
+let unmounted = false
+// Watchdog: an answer that goes silent (no event at all) for this long is ended, so the typing dots and the
+// disabled Send can never last forever on a socket that stays open but stops talking.
+const WS_IDLE_MS = 90000
+let idleTimer = null
+function clearIdle() { if (idleTimer) { clearTimeout(idleTimer); idleTimer = null } }
+function armIdle() {
+  clearIdle()
+  idleTimer = setTimeout(() => {
+    idleTimer = null
+    if (streamCtx) { const r = streamCtx.reject; streamCtx = null; r(new Error('ws-timeout')) }
+  }, WS_IDLE_MS)
+}
 
 // Which protocol the current transport speaks. 'agent' = the shared chat engine
 // (/ws/chat/agent/, assistant_message_chunk/_complete); else the dedicated Help Assistant.
@@ -121,6 +132,7 @@ function canStream() {
 }
 
 function closeSocket() {
+  clearIdle()
   if (socket) { try { socket.close() } catch (e) { /* noop */ } }
   socket = null
 }
@@ -142,15 +154,26 @@ async function ensureSocket() {
   if (!fresh) { const { data } = await api.getBuiltinHelpAssistant(); fresh = data?.transport }
   if (fresh?.mode === 'websocket' && fresh.token) transport.value = fresh
   else throw new Error('no-transport')
+  // Closed while the token was fetched: open nothing.
+  if (unmounted) throw new Error('unmounted')
 
   return await new Promise((resolve, reject) => {
     let settled = false
     const sock = new WebSocket(wsUrl())
-    sock.onopen = () => { settled = true; socket = sock; resolve(sock) }
+    // A socket that never opens must not hold the turn: give up and let send() fall back to HTTP.
+    const openTimer = setTimeout(() => {
+      if (!settled) { settled = true; try { sock.close() } catch (e) { /* noop */ } reject(new Error('ws-open-timeout')) }
+    }, 15000)
+    sock.onopen = () => {
+      clearTimeout(openTimer)
+      if (settled) return
+      if (unmounted) { settled = true; try { sock.close() } catch (e) { /* noop */ } reject(new Error('unmounted')); return }
+      settled = true; socket = sock; resolve(sock)
+    }
     sock.onmessage = (e) => handleWsEvent(e.data)
-    sock.onerror = () => { if (!settled) { settled = true; reject(new Error('ws-error')) } }
+    sock.onerror = () => { if (!settled) { clearTimeout(openTimer); settled = true; reject(new Error('ws-error')) } }
     sock.onclose = () => {
-      if (!settled) { settled = true; reject(new Error('ws-closed')) }
+      if (!settled) { clearTimeout(openTimer); settled = true; reject(new Error('ws-closed')) }
       // A close mid-answer rejects the in-flight turn so send() can fall back.
       if (streamCtx) { const r = streamCtx.reject; streamCtx = null; r(new Error('ws-closed')) }
       if (socket === sock) socket = null
@@ -168,8 +191,9 @@ function handleWsEvent(raw) {
   if (!turn) return
   const res = applyAssistantWsEvent(turn.payload, ev)
   if (res.convId) engineConvId = res.convId
-  if (res.done && ctx) { const r = ctx.resolve; streamCtx = null; r(true) }
-  else if (res.error && ctx) { const r = ctx.reject; streamCtx = null; r(new Error(res.error)) }
+  if (ctx && streamCtx === ctx) armIdle()      // any event proves the answer is still alive
+  if (res.done && ctx) { clearIdle(); const r = ctx.resolve; streamCtx = null; r(true) }
+  else if (res.error && ctx) { clearIdle(); const r = ctx.reject; streamCtx = null; r(new Error(res.error)) }
   scrollDown()
 }
 
@@ -180,12 +204,13 @@ async function sendViaWs(text, assistantTurn) {
   return await new Promise((resolve, reject) => {
     streamCtx = { turn: assistantTurn, resolve, reject }
     lastTurn = assistantTurn
+    armIdle()
     try {
       const payload = isEnginePath()
         ? { type: 'chat_message', message: text, ...(engineConvId ? { conversation_id: engineConvId } : {}) }
         : { type: 'user_message', message: text, current_page: props.currentPage, product_area: props.productArea }
       sock.send(JSON.stringify(payload))
-    } catch (e) { streamCtx = null; reject(e) }
+    } catch (e) { clearIdle(); streamCtx = null; reject(e) }
   })
 }
 
@@ -208,6 +233,13 @@ async function send(preset) {
       loading.value = false; scrollDown()
       return
     } catch (e) {
+      if (unmounted) return
+      // Went silent after part of the answer arrived: keep what arrived and end the turn, rather than
+      // asking again over HTTP and showing the answer twice.
+      if (e?.message === 'ws-timeout' && (assistantTurn.payload.answer || assistantTurn.payload.no_answer)) {
+        closeSocket(); loading.value = false; scrollDown()
+        return
+      }
       // WS failed → drop the half-streamed bubble and fall back to HTTP for this session.
       wsBroken.value = true; closeSocket()
       const idx = turns.value.indexOf(assistantTurn)
@@ -278,7 +310,11 @@ watch(() => props.open, async (v) => {
   }
 })
 onMounted(() => { if (props.open) detectMode() })
-onBeforeUnmount(() => closeSocket())
+onBeforeUnmount(() => {
+  unmounted = true
+  if (streamCtx) { const r = streamCtx.reject; streamCtx = null; r(new Error('unmounted')) }
+  closeSocket()
+})
 
 // Imperative entry for the global launcher: open (if needed) and ask a question now,
 // regardless of the open-transition timing.

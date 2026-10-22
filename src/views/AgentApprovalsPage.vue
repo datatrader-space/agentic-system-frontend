@@ -442,25 +442,12 @@ function toggle(group, key) { pol[group][key] = !pol[group][key]; dirty.value = 
 function mark() { dirty.value = true }
 
 // ── Per-tool approval (Card 3) — the tools this agent SELECTED, each Inherit/Ask/Block. ──
+// id -> {id, name, display_name}, from the agent record itself: its `tools` are full ToolDefinition rows
+// (agent serializer). This page used to download every page of /tools/definitions/ just to name them.
 const toolDefsById = ref({})
 const toolIds = ref([])
 const toolPage = ref(1)
 const TOOL_PAGE_SIZE = 4
-async function loadToolDefs() {
-  try {
-    let all = [], next = '/tools/definitions/', guard = 0
-    while (next && guard++ < 60) {
-      const d = (await api.get(next)).data
-      if (Array.isArray(d)) { all = all.concat(d); break }
-      all = all.concat(d.results || [])
-      if (d.next) { const u = new URL(d.next, window.location.origin); next = u.pathname.replace(/^\/api/, '') + u.search }
-      else next = null
-    }
-    const map = {}
-    for (const t of all) map[t.id] = t
-    toolDefsById.value = map
-  } catch (e) { toolDefsById.value = {} }
-}
 const _permRow = (name, label) => ({
   key: String(name).toUpperCase(), name, label: label || name,
   agent: String(pol.tool_permissions[String(name).toUpperCase()] || '').toLowerCase(),
@@ -518,6 +505,9 @@ async function loadPolicy() {
     // GET returns `tools` (full objects); `tool_ids` is write-only. Derive ids from whichever is present.
     toolIds.value = Array.isArray(a.tool_ids) ? a.tool_ids
       : (Array.isArray(a.tools) ? a.tools.map(t => t.id) : [])
+    const defs = {}
+    for (const t of (Array.isArray(a.tools) ? a.tools : [])) if (t && t.id != null) defs[t.id] = t
+    toolDefsById.value = defs
     canEdit.value = true                // owner-scoped detail; a non-owner PATCH is rejected 403
     loaded.value = true
   } catch (e) {
@@ -619,7 +609,7 @@ async function loadAudit() {
 function moreAudit() { audit.offset += 10; loadAudit() }
 const auditHasMore = computed(() => audit.recent.length < audit.total)
 
-onMounted(() => { loadPolicy(); loadToolDefs() })
+onMounted(() => { loadPolicy() })
 
 // Template rows → structured agent_policy keys (labels unchanged; toggles bound to `pol`).
 const approvalDefs = [

@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 // import App from './App.vue'
 import App from './app.vue'
+import './assets/fonts/inter.css'
 import './style.css'
 import Toast, { POSITION, useToast } from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
@@ -10,7 +11,9 @@ import api from './services/api'
 import axios from 'axios'
 import { trackPageview } from './composables/useAnalytics'
 import { addIcon } from '@iconify/vue'
+import 'virtual:icon-subset'
 import { startNavProgress, doneNavProgress } from './components/app-shell/NavProgress.vue'
+import { installChunkReload } from './services/chunkReload'
 
 // Brand logo for the Kurumera connector — registered as a local Iconify icon so `icon="kurumera:logo"`
 // renders it everywhere (catalog cards, detail header) exactly like any other `logos:*` mark, with no
@@ -108,12 +111,11 @@ const HomeDashboard = () => import('./components/app-shell/HomeDashboard.vue')
 const ChatWorkspace = () => import('./components/chat/ChatWorkspace.vue')
 const SettingsLayout = () => import('./components/settings/SettingsLayout.vue')
 
-// Iconify: icons are fetched on-demand from the Iconify API at runtime and cached
-// in the browser, instead of bundling the full lucide + logos collections (~7.9 MB)
-// into every page load. Both static (`icon="lucide:bot"`) and data-driven (`:icon="c.icon"`)
-// names resolve the same way, so nothing else needs to change. Requires the browser to
-// reach api.iconify.design; to keep this fully in-house, run a self-hosted Iconify API
-// and set it via `import { setConfig } from '@iconify/vue'` before the app mounts.
+// Iconify: only the icons this app names in src/ (lucide, logos, simple-icons) are bundled and registered
+// offline by `virtual:icon-subset` (imported at the top) and `virtual:icon-subset-logos` (after mount), both
+// built by scripts/vite-icon-subset.js. Not the full collections (~7.9 MB), and not fetched from
+// api.iconify.design at runtime. An icon name that only arrives at runtime (never written in src/) still
+// falls back to the Iconify API.
 
 // Create router
 const router = createRouter({
@@ -248,8 +250,9 @@ const router = createRouter({
         // Video Studio has its own dashboard (/video-studio). Old links keep working, with their query.
         { path: 'video-studio', redirect: (to) => ({ path: '/video-studio', query: to.query }) },
         { path: 'chat', redirect: '/dashboard/chat/new' },
-        { path: 'chat/new', name: 'dashboard-chat-new', component: ChatWorkspace },
-        { path: 'chat/:sessionId', name: 'dashboard-chat', component: ChatWorkspace },
+        // One viewKey for both: AppShell keeps the same ChatWorkspace when a new chat gets its id.
+        { path: 'chat/new', name: 'dashboard-chat-new', component: ChatWorkspace, meta: { viewKey: 'chat' } },
+        { path: 'chat/:sessionId', name: 'dashboard-chat', component: ChatWorkspace, meta: { viewKey: 'chat' } },
         // A chat project's own page: its instructions and its chats (agentic-docs/CHAT_PROJECTS_PLAN.md).
         { path: 'projects/:id', name: 'dashboard-project', component: () => import('./views/ProjectPage.vue') },
         { path: 'lets-code', name: 'dashboard-lets-code', component: LetsCode },
@@ -396,11 +399,10 @@ const router = createRouter({
         // Agent builder inside the ADMIN shell. Same AgentEditor component as /dashboard (ONE editor,
         // no fork) — admins editing a system/built-in agent stay on the admin side instead of being
         // bounced into the user dashboard. AgentEditor derives its breadcrumb/redirect base from the
-        // active route, so both mounts navigate within their own shell.
-        // keyOnPath: AdminShell keys a page on its FULL path, so a query change rebuilds it. The editor
-        // keeps its step in ?step=, and must not be rebuilt (and lose unsaved edits) each time it moves.
-        { path: 'agents/new', name: 'admin-agent-new', component: AgentEditor, meta: { keyOnPath: true } },
-        { path: 'agents/:id/editor', name: 'admin-agent-editor', component: AgentEditor, meta: { keyOnPath: true } },
+        // active route, so both mounts navigate within their own shell. AdminShell keys a page on its
+        // path, so the editor's ?step= changes never rebuild it (and lose unsaved edits).
+        { path: 'agents/new', name: 'admin-agent-new', component: AgentEditor },
+        { path: 'agents/:id/editor', name: 'admin-agent-editor', component: AgentEditor },
         // An agent's own pages, reached from links inside the editor's steps. Same views as /dashboard,
         // so an admin working on a built-in agent is not sent out of the admin shell to see them.
         { path: 'agents/:id/guardrails', name: 'admin-agent-guardrails', component: AgentApprovalsPage },
@@ -587,6 +589,8 @@ router.afterEach((to) => {
 
 // A failed/aborted navigation must never leave the bar spinning.
 router.onError(() => doneNavProgress())
+// A route chunk that no longer exists (deploy while the tab was open) reloads the target page once.
+installChunkReload(router)
 
 // Create app
 const app = createApp(App)
@@ -634,3 +638,17 @@ app.provide('notify', (message, type = 'info') => {
 
 app.use(router)
 app.mount('#app')
+
+// The brand logos (`logos:*`, ~55 kB gzipped) are their own chunk, registered right after the first
+// render instead of weighing on it. A logo drawn before it lands falls back to the Iconify API once.
+import('virtual:icon-subset-logos').catch(() => { /* the API fallback still draws them */ })
+
+// Real-user page-speed numbers (services/rum.js). Loaded once the browser is idle after the first render,
+// so web-vitals is never part of the entry bundle or the first paint.
+const _startRum = () => {
+  import('./services/rum')
+    .then(({ startRum }) => startRum(() => router.currentRoute.value.name))
+    .catch(() => { /* page-speed reporting must never break the app */ })
+}
+if (typeof requestIdleCallback === 'function') requestIdleCallback(_startRum, { timeout: 5000 })
+else setTimeout(_startRum, 2000)

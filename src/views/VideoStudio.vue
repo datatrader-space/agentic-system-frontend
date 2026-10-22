@@ -135,6 +135,7 @@ import { useChatStore } from '../stores/useChatStore'
 import { useVideoStore } from '../stores/useVideoStore'
 import { useCanvasStore } from '../stores/useCanvasStore'
 import { notify } from '../composables/useNotify'
+import { usePoller } from '../composables/usePoller'
 import VideoComposerPanel from '../components/video/VideoComposerPanel.vue'
 import VideoJobsTray from '../components/video/VideoJobsTray.vue'
 import VideoPanel from '../components/video/VideoPanel.vue'
@@ -160,8 +161,8 @@ const views = [{ value: 'agent', label: 'Agent' }, { value: 'canvas', label: 'Pr
 const phase = computed(() => (chat.conversationId ? 'workspace' : 'create'))
 // Video Studio always talks to the one built-in Video Studio agent (plan D12): nobody sets up or picks one.
 const hasVideoAgent = computed(() => !!chat.currentAgent?.video_model)
-let pollTimer
 const refreshing = ref(false)
+let sessionInFlight = false
 let disposed = false
 
 const scenes = computed(() => (video.project && video.project.scenes) || [])
@@ -214,14 +215,25 @@ const agentStarts = [
 ]
 const starts = computed(() => (agentMode.value ? agentStarts : video.kind === 'image' ? imageStarts : videoStarts))
 
-async function refreshSession() {
-  if (!chat.conversationId || refreshing.value || disposed) return
-  refreshing.value = true
+// `background`: the 8 s refresh. It never sets `refreshing`, which disables New and opening a project, so a
+// background poll can no longer make those buttons flicker off under the person's pointer.
+async function refreshSession({ background = false } = {}) {
+  if (!chat.conversationId || sessionInFlight || disposed) return
+  sessionInFlight = true
+  if (!background) refreshing.value = true
   try {
-    await video.loadJobs(chat.conversationId)
-    await video.loadProject(chat.conversationId)
-  } finally { refreshing.value = false }
+    // Independent reads: one round, not two.
+    await Promise.all([video.loadJobs(chat.conversationId), video.loadProject(chat.conversationId)])
+  } finally {
+    sessionInFlight = false
+    if (!background) refreshing.value = false
+  }
 }
+// One poller: paused while the tab is hidden, cancelled on leave; skips a beat while something else runs.
+const sessionPoller = usePoller(() => {
+  if (loading.value || openingProject.value || video.busy || chat.isBusy) return
+  return refreshSession({ background: true })
+}, { interval: 8000 })
 async function initialize() {
   loading.value = true
   error.value = ''
@@ -245,13 +257,15 @@ async function initialize() {
       chat.setAgent(String(card.id))
     }
     if (disposed) return
-    // Shared or hidden agents may be absent from the ordinary agent library. Fetch only the session's assigned agent.
-    if (chat.selectedAgentId && !chat.agents.some((a) => String(a.id) === String(chat.selectedAgentId))) {
-      const { data } = await api.getAgent(chat.selectedAgentId)
-      if (data?.id) chat.agents.push(data)
-    }
+    // Shared or hidden agents may be absent from the ordinary agent library. Fetch only the session's assigned
+    // agent — in the same round as the session's jobs and project, which do not depend on it.
+    const missingAgent = chat.selectedAgentId && !chat.agents.some((a) => String(a.id) === String(chat.selectedAgentId))
+    const [agentResp] = await Promise.all([
+      missingAgent ? api.getAgent(chat.selectedAgentId) : null,
+      refreshSession(),
+    ])
     if (disposed) return
-    await refreshSession()
+    if (agentResp?.data?.id && !chat.agents.some((a) => String(a.id) === String(agentResp.data.id))) chat.agents.push(agentResp.data)
   } catch (e) { error.value = e.message || 'Could not open Video Studio.' }
   finally { loading.value = false }
   if (disposed || error.value) return
@@ -366,13 +380,13 @@ onMounted(async () => {
   await initialize()
   if (disposed) return
   if (chat.conversationId && !route.query.conversation) router.replace({ path: '/video-studio', query: { conversation: chat.conversationId } })
-  if (!disposed) pollTimer = setInterval(() => { if (!loading.value && !openingProject.value && !video.busy && !chat.isBusy) refreshSession() }, 8000)
+  if (!disposed) sessionPoller.start({ immediate: false })
 })
 onBeforeUnmount(() => {
   chat.studioMode = ''
   if (!chat.imageMode) chat.imageMode = previousModes.image
   if (!canvas.mode) canvas.mode = previousModes.canvas
-  disposed = true; clearInterval(pollTimer); window.removeEventListener('video-compose', composeEdit) })
+  disposed = true; sessionPoller.stop(); window.removeEventListener('video-compose', composeEdit) })
 </script>
 
 <style scoped>

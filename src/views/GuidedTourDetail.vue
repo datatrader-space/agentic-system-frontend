@@ -47,7 +47,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { watchOwnRouteParam } from '@/composables/useOwnRouteParam'
+import { ref, onMounted } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
@@ -83,7 +84,7 @@ async function load() {
 function start() { launch(route.params.slug, { restart: tour.value?.status === 'completed' }) }
 
 onMounted(load)
-watch(() => route.params.slug, load)
+watchOwnRouteParam('slug', load)   // never on the way out (F-M1)
 </script>
 
 <style scoped>

@@ -206,7 +206,7 @@
 
 <script>
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
-import { isTrustedPopupMessage } from '@/utils/popupMessages'
+import { useOAuthPopup } from '@/composables/useOAuthPopup'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 
@@ -278,57 +278,77 @@ export default {
       // other field is somehow incomplete, fall back to the manual button rather than firing a doomed POST.
       if (!isEditMode.value && canSave.value && !savedOk.value && !saving.value) handleSubmit()
     }
-    function _onOauthMessage(ev) {
-      if (!isTrustedPopupMessage(ev)) return
-      const d = ev && ev.data
-      if (!d || d.type !== 'mcp_oauth_result') return
-      if (d.ok && d.connection_id) _finishOauth(d.connection_id)
-      else { _clearPoll(); oauth.busy = false; oauth.error = d.message || 'Authorization failed.' }
-    }
     // Fail closed: without proof of platform admin, the local-program option stays hidden.
     const isPlatformAdmin = ref(false)
     const showLocalMode = computed(() => isPlatformAdmin.value || form.mode === 'local')
     onMounted(() => {
-      window.addEventListener('message', _onOauthMessage)
       api.getCurrentUser()
         .then(({ data }) => { isPlatformAdmin.value = !!(data?.user?.is_platform_admin ?? data?.is_platform_admin) })
         .catch(() => { isPlatformAdmin.value = false })
     })
-    onUnmounted(() => { window.removeEventListener('message', _onOauthMessage); _clearPoll() })
+    onUnmounted(() => { _clearPoll() })
     // Changing the URL invalidates any prior connection (tokens are bound to the server URL).
     watch(() => form.endpoint_url, () => { _clearPoll(); oauth.connected = false; oauth.connectionId = null; oauth.error = ''; oauth.busy = false })
 
+    // The popup's postMessage is usually severed by the browser's Cross-Origin-Opener-Policy after a
+    // cross-origin OAuth redirect, so the connection status is polled while the popup is open (backend =
+    // source of truth). The shared popup flow (useOAuthPopup) opens the window inside the click and always
+    // settles: message, closed popup (then the server is asked once more) or timeout.
+    function _startStatusPoll(connId) {
+      _clearPoll()
+      _pollIv = setInterval(async () => {
+        try {
+          const { data: st } = await api.mcpOauthStatus(connId)
+          if (st?.connected) return _finishOauth(connId)
+          if (st?.status === 'error') { _clearPoll(); oauth.busy = false; oauth.error = st.error || 'Authorization failed.' }
+        } catch { /* keep polling */ }
+      }, 2000)
+    }
+    const oauthPopup = useOAuthPopup()
     async function startOauth() {
+      if (oauth.busy) return
       _clearPoll()
       oauth.error = ''; oauth.connected = false; oauth.connectionId = null; oauth.busy = true
+      let connId = null
       try {
-        const _body = { endpoint_url: form.endpoint_url.trim(), name: form.name.trim() }
-        if (oauth.clientId.trim()) _body.client_id = oauth.clientId.trim()   // manual client fallback (no DCR)
-        const res = await api.mcpOauthInitiate(_body)
-        const url = res.data && res.data.authorize_url
-        const connId = res.data && res.data.connection_id
-        if (!url) throw new Error('No authorization URL returned.')
-        const popup = window.open(url, 'mcp_oauth', 'width=560,height=720')
-        if (!popup) { oauth.busy = false; oauth.error = 'Popup blocked — allow popups for this site and try again.'; return }
-        // The popup's postMessage is usually severed by the browser's Cross-Origin-Opener-Policy after a
-        // cross-origin OAuth redirect — so don't depend on it. Poll the connection status (backend = source
-        // of truth); _onOauthMessage still fires when the opener isn't severed, deduped via _finishOauth.
-        if (connId) {
-          let tries = 0
-          _pollIv = setInterval(async () => {
-            tries++
-            try {
-              const { data: st } = await api.mcpOauthStatus(connId)
-              if (st?.connected) return _finishOauth(connId)
-              if (st?.status === 'error') { _clearPoll(); oauth.busy = false; oauth.error = st.error || 'Authorization failed.' }
-            } catch { /* keep polling */ }
-            if (tries >= 90) { _clearPoll(); oauth.busy = false }   // ~3 min timeout
-          }, 2000)
+        const result = await oauthPopup.run(async () => {
+          const _body = { endpoint_url: form.endpoint_url.trim(), name: form.name.trim() }
+          if (oauth.clientId.trim()) _body.client_id = oauth.clientId.trim()   // manual client fallback (no DCR)
+          let res
+          try {
+            res = await api.mcpOauthInitiate(_body)
+          } catch (e) {
+            throw new Error(e.response?.data?.error || e.message || 'Could not start OAuth for this server.')
+          }
+          const url = res.data && res.data.authorize_url
+          connId = (res.data && res.data.connection_id) || null
+          if (!url) throw new Error('No authorization URL returned.')
+          if (connId) _startStatusPoll(connId)
+          return url
+        }, {
+          name: 'mcp_oauth',
+          features: 'width=560,height=720',
+          messageTypes: ['mcp_oauth_result'],
+          isSuccess: (d) => !!(d?.ok && d.connection_id),
+          timeoutMs: 300000,
+          verify: async () => {
+            if (!connId) return false
+            const { data: st } = await api.mcpOauthStatus(connId)
+            return !!st?.connected
+          },
+        })
+        if (result.status === 'cancelled') return
+        if (result.ok) {
+          _finishOauth(result.data?.connection_id || connId)
+        } else if (!oauth.connected) {
+          _clearPoll()
+          oauth.error = result.status === 'blocked'
+            ? 'Popup blocked — allow popups for this site and try again.'
+            : (result.error || 'Authorization failed.')
         }
-      } catch (e) {
-        _clearPoll()
+      } finally {
+        if (!oauth.connected) _clearPoll()
         oauth.busy = false
-        oauth.error = e.response?.data?.error || e.message || 'Could not start OAuth for this server.'
       }
     }
 
@@ -396,7 +416,13 @@ export default {
             testResult.value = { success: false, message: d.error || e.message, remediation: d.remediation }
           }
         }
-        notify.success(isEditMode.value ? 'Server updated' : 'Server added')
+        // A saved server whose connection test failed is not a success: say what happened, and keep the
+        // red test result on screen (the dialog stays open) instead of a green toast.
+        if (testResult.value && !testResult.value.success) {
+          notify.warning(isEditMode.value ? 'Server updated, but the connection test failed' : 'Server added, but the connection test failed')
+        } else {
+          notify.success(isEditMode.value ? 'Server updated' : 'Server added')
+        }
         // Tell the parent to reload NOW, not when "Done" is finally clicked. The dialog deliberately stays
         // open to show the connection test ("N tools found"), and while it did, the connector list behind
         // it still showed the old set — so a server that had genuinely been created looked like it had not.

@@ -108,6 +108,13 @@
         <span class="apc-count">{{ activePlan.done }}/{{ activePlan.total }}</span>
         <span class="apc-arrow" aria-hidden="true">↑</span>
       </button>
+      <!-- The socket keeps retrying on its own and never gives up; after a few failures in a row the
+           person can also make it try now (replaces the old "Lost connection — please refresh"). -->
+      <div v-if="chat.connectionLost" class="conn-lost" role="status">
+        <span class="conn-lost__dot" aria-hidden="true"></span>
+        <span>Connection lost. Trying again…</span>
+        <button type="button" class="conn-lost__btn" @click="chat.reconnectNow()">Reconnect now</button>
+      </div>
       <!-- URL/YouTube import lives in the composer "+" menu (conversation-scoped DocumentSource →
            MarkItDown pipeline). Explicit action only; we never auto-ingest URLs typed in a message.
            agent-id comes from selectedAgentId (always set once a conversation loads), NOT
@@ -218,15 +225,28 @@ const chat = useChatStore()
 const video = useVideoStore()
 // Video mode state follows the conversation: its jobs and the project it has open come from the server,
 // so a reload or a later visit shows the same estimates, renders and storyboard.
-watch(() => chat.conversationId, async (cid, prev) => {
+//
+// Only for a chat that can HAVE video work (page-speed plan Phase 5 item 3): video tools belong to the
+// built-in Video Studio agent alone (backend agent/tools/studio_only.py), so a chat with any other agent
+// has no jobs or project to fetch, and opening it no longer costs those calls. The video panel being opened
+// also loads them. Live jobs still arrive as `video_job` frames for every chat.
+const chatCanHaveVideo = computed(() => !!chat.currentAgent?.video_model || video.panelOpen)
+let videoLoadedFor = null
+async function loadVideoWork() {
+  const cid = chat.conversationId
+  if (!cid || !chatCanHaveVideo.value || String(videoLoadedFor) === String(cid)) return
+  videoLoadedFor = cid
+  // Independent reads: one round, not two. Saved video projects are opened in Video Studio, rather than
+  // expanding the chat composer.
+  await Promise.all([video.loadJobs(cid), video.loadProject(cid)])
+}
+watch(() => chat.conversationId, (cid, prev) => {
   if (String(cid || '') === String(prev || '')) return
   video.reset()
-  if (cid) {
-    await video.loadJobs(cid)
-    await video.loadProject(cid)
-    // Saved video projects are opened in Video Studio, rather than expanding the chat composer.
-  }
+  videoLoadedFor = null
+  loadVideoWork()
 }, { immediate: true })
+watch(chatCanHaveVideo, (can) => { if (can) loadVideoWork() })
 // The welcome screen is for a chat with nothing in it. A video estimate made from the welcome composer
 // creates the conversation and a job but no message, and the estimate card lives in the thread's jobs tray:
 // keying the welcome on messages alone kept the card out of sight (live test 2026-10-16, conversation 2830).
@@ -764,6 +784,19 @@ watch(
 .active-plan-chip .apc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vm-accent, #3a5bd9); flex: none; }
 .active-plan-chip .apc-count { font-variant-numeric: tabular-nums; color: var(--vm-text-2, #5b6472); font-weight: 600; }
 .active-plan-chip .apc-arrow { color: var(--vm-text-3, #8a92a0); }
+.conn-lost {
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: fit-content; margin: 0 auto 8px;
+  padding: 6px 8px 6px 13px; border: 1px solid var(--vm-border, #e4e8ee); border-radius: 999px;
+  background: var(--vm-surface, #fff); color: var(--vm-text-2, #5b6472); font-size: 12.5px;
+  box-shadow: 0 3px 10px rgba(20, 24, 33, .08);
+}
+.conn-lost__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warning, #f59e0b); flex: none; }
+.conn-lost__btn {
+  padding: 3px 10px; border: 1px solid var(--vm-border, #e4e8ee); border-radius: 999px;
+  background: transparent; color: var(--vm-text, #1a1d23); font: inherit; font-weight: 600; cursor: pointer;
+}
+.conn-lost__btn:hover { background: var(--vm-bg-soft, #f2f4f7); }
+.conn-lost__btn:focus-visible { outline: 2px solid var(--vm-accent, #3a5bd9); outline-offset: 2px; }
 /* The mode bar: centred, quiet, and clear of the thread header's own actions. */
 .turnmode-bar { display: flex; justify-content: center; padding: 10px 0 2px; }
 

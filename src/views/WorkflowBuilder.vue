@@ -734,6 +734,8 @@ import { loadLayout, saveLayout, LAYOUT_BOUNDS } from '../utils/wfLayoutPrefs'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import { usePoller } from '@/composables/usePoller'
+import { RUN_STOP_STATUSES, runStopKind, fetchAllAgents } from '../utils/workflowRunPolling'
 
 const route = useRoute()
 const router = useRouter()
@@ -841,8 +843,8 @@ let clipboard = []
 const showVersions = ref(false)
 const versions = ref([])
 const metrics = ref(null)
-let pollTimer = null
 let runSocket = null
+let unmounted = false
 
 // node types that support retries/timeout/on_error
 const RELIABILITY_TYPES = ['agent.run', 'action.channel', 'action.tool', 'action.http', 'action.script',
@@ -1329,7 +1331,7 @@ async function openPalette(fromNodeId = null) {
   paletteLoading.value = true
   try {
     const [tools, mcp] = await Promise.all([
-      api.get('/tools/').catch(() => ({ data: {} })),
+      fetchToolCatalog().catch(() => ({ data: {} })),
       api.getWorkflowMcpCatalog().catch(() => ({ data: { enabled: false, servers: [] } })),
     ])
     const tl = tools?.data?.tools || tools?.data?.results || tools?.data || []
@@ -1661,6 +1663,11 @@ async function load() {
     wfStatus.value = g.status || 'draft'
     graphTriggers.value = g.triggers || []
     agents.value = (ag?.results || ag || [])
+    // The bundle's agent slice is the FIRST page of the paginated agent list. When there are more, the
+    // agent.run picker would silently miss every agent past it, so read the full list.
+    if (ag && !Array.isArray(ag) && ag.next) {
+      try { agents.value = await fetchAllAgents(api) } catch { /* keep the first page */ }
+    }
     allGraphs.value = (allG?.results || allG || [])
     scripts.value = (scr?.results || scr || [])
     const graph = g.graph || {}
@@ -1783,9 +1790,18 @@ function currentGraph() {
     viewport: obj.viewport || {},
   }
 }
+// ONE /tools/ download per page: the field datalist (loadToolNames) and the Add-node palette both read
+// the same catalog, which used to be fetched twice.
+let _toolCatalogPromise = null
+function fetchToolCatalog() {
+  if (!_toolCatalogPromise) {
+    _toolCatalogPromise = api.get('/tools/').catch((e) => { _toolCatalogPromise = null; throw e })
+  }
+  return _toolCatalogPromise
+}
 async function loadToolNames() {
   try {
-    const { data } = await api.get('/tools/')
+    const { data } = await fetchToolCatalog()
     const list = data?.tools || data?.results || data || []
     toolNames.value = list.map(t => (typeof t === 'string' ? t : (t.name || t.tool || ''))).filter(Boolean)
   } catch { /* optional */ }
@@ -1815,7 +1831,14 @@ function _reportSaveError(e, fallback) {
   notify.error(d.error || fallback)
 }
 
-async function save() {
+// Save, Ctrl+S, Publish and Run can all ask to save; a second request while one is in flight joins it
+// instead of sending a second PUT with the same (soon stale) etag, which the server refuses as a conflict.
+let _savePromise = null
+function save() {
+  if (!_savePromise) _savePromise = _doSave().finally(() => { _savePromise = null })
+  return _savePromise
+}
+async function _doSave() {
   busy.value = true
   try {
     const { data } = await api.saveWorkflowGraph(graphId, {
@@ -1942,6 +1965,7 @@ async function startRun(payload, until = null) {
   try {
     const { data } = await api.runWorkflowGraph(graphId, { payload: payload || {}, dry_run: dry, until_node: until })
     if (!data.run_id) { running.value = false; return }
+    if (unmounted) return   // left the page while the run was starting: no socket or poller for a gone page
     activeRunId.value = data.run_id
     openRunSocket(data.run_id)   // live push
     pollRun(data.run_id)         // fallback / final reconcile
@@ -1957,29 +1981,48 @@ async function startRun(payload, until = null) {
   }
 }
 
-function pollRun(runId) {
-  clearInterval(pollTimer)
-  const tick = async () => {
-    try {
-      const { data } = await api.getWorkflowGraphRun(runId)
-      runDetail.value = data
-      const byNode = {}
-      for (const nr of data.node_runs || []) byNode[nr.node_id] = nr
-      getNodes.value.forEach(n => { if (byNode[n.id]) n.data.__status = byNode[n.id].status })
-      // log any node transitions the WS didn't already capture (dedupe handles overlap)
-      for (const nr of data.node_runs || []) addNodeLog(nr.node_id, nr.status, (nr.output && nr.output.text) || nr.error || (nr.output && nr.output.reason) || '')
-      if (['success', 'failed', 'cancelled'].includes(data.status)) {
-        clearInterval(pollTimer); running.value = false
+// Run status poll (fallback to the socket). usePoller gives it: one poll at a time (so the end-of-run
+// log and toast cannot fire twice), backoff after an error instead of stopping for good, a pause while
+// the tab is hidden, and cancellation on leave. It stops on every state where nothing will change
+// without a person: the final ones (success / failed / cancelled / dead) and the ones that wait on a
+// human or a long delay (waiting / paused / blocked). Approving restarts it (decide()).
+let _pollRunId = null
+const _reportedRunEnds = new Set()
+const runPoller = usePoller(async ({ signal }) => {
+  const runId = _pollRunId
+  const { data } = await api.get(`/workflow-graph-runs/${runId}/`, { signal })
+  if (runId !== _pollRunId || unmounted) return null
+  runDetail.value = data
+  const byNode = {}
+  for (const nr of data.node_runs || []) byNode[nr.node_id] = nr
+  getNodes.value.forEach(n => { if (byNode[n.id]) n.data.__status = byNode[n.id].status })
+  // log any node transitions the WS didn't already capture (dedupe handles overlap)
+  for (const nr of data.node_runs || []) addNodeLog(nr.node_id, nr.status, (nr.output && nr.output.text) || nr.error || (nr.output && nr.output.reason) || '')
+  const kind = runStopKind(data.status)
+  if (kind) {
+    running.value = false
+    const endKey = `${runId}:${data.status}`
+    if (!_reportedRunEnds.has(endKey)) {
+      _reportedRunEnds.add(endKey)
+      if (kind === 'final') {
         addLog(data.status === 'success' ? 'success' : 'error', `■ Run #${runId}: ${data.status}`)
         notify[data.status === 'success' ? 'success' : 'error'](`Run #${runId}: ${data.status}`)
-        loadRuns()
+      } else {
+        addLog('warn', `⏸ Run #${runId}: ${data.status} — it continues after a decision or its scheduled delay`)
       }
-    } catch {
-      clearInterval(pollTimer); running.value = false
+      loadRuns()
     }
   }
-  tick()
-  pollTimer = setInterval(tick, 1200)
+  return data
+}, {
+  interval: 1200,
+  maxInterval: 15000,
+  stopWhen: (data) => !!data && RUN_STOP_STATUSES.includes(data.status),
+})
+function pollRun(runId) {
+  runPoller.stop()
+  _pollRunId = runId
+  runPoller.start()
 }
 
 async function stopRun() {
@@ -2093,8 +2136,20 @@ async function deleteWorkflow() {
   }
 }
 
-onMounted(async () => { await load(); loadRuns(); window.addEventListener('keydown', onKeydown) })
-onBeforeUnmount(() => { clearInterval(pollTimer); try { runSocket?.close() } catch {}; window.removeEventListener('keydown', onKeydown) })
+// The keydown listener is added BEFORE the first await: added after it, a leave during the load
+// attached it to a page that was already gone (and onBeforeUnmount had already run its removal).
+onMounted(async () => {
+  window.addEventListener('keydown', onKeydown)
+  await load()
+  if (unmounted) return
+  loadRuns()
+})
+onBeforeUnmount(() => {
+  unmounted = true
+  runPoller.stop()
+  try { runSocket?.close() } catch {}
+  window.removeEventListener('keydown', onKeydown)
+})
 </script>
 
 <style scoped>

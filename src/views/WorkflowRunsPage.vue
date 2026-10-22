@@ -14,12 +14,22 @@ import { ref, computed, onMounted } from 'vue'
 import api from '../services/api'
 import { useNotify } from '../composables/useNotify'
 import { useConfirm } from '../composables/useConfirm'
+import { useRequestScope, isAbortError } from '../composables/useRequestScope'
+import LoadError from '../components/common/LoadError.vue'
 
 const notify = useNotify()
 const confirm = useConfirm()
 
 const loading = ref(false)
+const loadingMore = ref(false)
+const loadError = ref('')
+const hasMore = ref(false)
 const runs = ref([])
+const PAGE = 50
+// One scope for the list (a filter change aborts the previous filter's request, so its late answer
+// cannot replace the new filter's rows) and one for the timeline (a click on run B drops run A's).
+const listScope = useRequestScope()
+const timelineScope = useRequestScope()
 const attention = ref(null)
 const statusFilter = ref('')
 const attentionOnly = ref(false)
@@ -44,33 +54,67 @@ const STATUS_HINT = {
 const needsAction = computed(() =>
   (attention.value?.dead || 0) + (attention.value?.blocked || 0))
 
+function listParams(offset) {
+  const params = { limit: PAGE, offset }
+  if (statusFilter.value) params.status = statusFilter.value
+  if (attentionOnly.value) params.needs_attention = 'true'
+  return params
+}
+
 async function load() {
+  const signal = listScope.next()
   loading.value = true
+  loadingMore.value = false
+  loadError.value = ''
   try {
-    const params = { limit: 50 }
-    if (statusFilter.value) params.status = statusFilter.value
-    if (attentionOnly.value) params.needs_attention = 'true'
-    const { data } = await api.getWorkflowOpsRuns(params)
+    const { data } = await api.get('/workflow-runs/', { params: listParams(0), signal })
+    if (signal.aborted) return
     runs.value = data.items || []
+    hasMore.value = !!data.has_more
     if (data.attention) attention.value = data.attention
   } catch (e) {
-    notify.error('Could not load workflow runs.')
+    if (isAbortError(e) || signal.aborted) return
+    runs.value = []
+    hasMore.value = false
+    loadError.value = 'Check your connection and try again.'
   } finally {
-    loading.value = false
+    if (!signal.aborted) loading.value = false
+  }
+}
+
+// The server pages with limit/offset and says has_more; the page used to stop at the first 50.
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  const signal = listScope.next()
+  loadingMore.value = true
+  try {
+    const { data } = await api.get('/workflow-runs/', { params: listParams(runs.value.length), signal })
+    if (signal.aborted) return
+    const seen = new Set(runs.value.map((r) => r.id))
+    runs.value = runs.value.concat((data.items || []).filter((r) => !seen.has(r.id)))
+    hasMore.value = !!data.has_more
+  } catch (e) {
+    if (isAbortError(e) || signal.aborted) return
+    notify.error('Could not load more runs.')
+  } finally {
+    if (!signal.aborted) loadingMore.value = false
   }
 }
 
 async function openRun(run) {
+  const signal = timelineScope.next()
   selected.value = run
   timeline.value = null
   timelineLoading.value = true
   try {
-    const { data } = await api.getWorkflowRunTimeline(run.id)
+    const { data } = await api.get(`/workflow-graph-runs/${run.id}/timeline/`, { signal })
+    if (signal.aborted) return
     timeline.value = data
   } catch (e) {
+    if (isAbortError(e) || signal.aborted) return
     notify.error('Could not load the run timeline.')
   } finally {
-    timelineLoading.value = false
+    if (!signal.aborted) timelineLoading.value = false
   }
 }
 
@@ -181,8 +225,18 @@ onMounted(load)
             <td>{{ run.version ?? '—' }}</td>
             <td>{{ run.started_at ? new Date(run.started_at).toLocaleString() : '—' }}</td>
           </tr>
-          <tr v-if="!runs.length && !loading">
+          <tr v-if="loadError && !loading">
+            <td colspan="5">
+              <LoadError title="Couldn't load workflow runs" :message="loadError" compact @retry="load" />
+            </td>
+          </tr>
+          <tr v-else-if="!runs.length && !loading">
             <td colspan="5" class="wf-table__empty">No runs match this filter.</td>
+          </tr>
+          <tr v-if="hasMore && !loading && !loadError">
+            <td colspan="5" class="wf-table__empty">
+              <button class="btn" :disabled="loadingMore" @click.stop="loadMore">{{ loadingMore ? 'Loading…' : 'Load more' }}</button>
+            </td>
           </tr>
         </tbody>
       </table>

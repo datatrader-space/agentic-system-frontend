@@ -1,5 +1,5 @@
 <template>
-  <div class="nb" :class="{ collapsed }">
+  <div ref="rootEl" class="nb" :class="{ collapsed }">
     <button class="nb-btn" :title="collapsed ? 'Notifications' : ''" aria-label="Notifications" @click="toggle">
       <Bell :size="18" :stroke-width="1.7" aria-hidden="true" />
       <span v-if="!collapsed" class="nb-label">Notifications</span>
@@ -7,15 +7,23 @@
     </button>
 
     <Teleport to="body">
-      <div v-if="open" class="nb-backdrop" @click="open = false" />
+      <!-- No click-swallowing backdrop: an outside click closes the panel AND reaches what was
+           clicked (see onDocPointer), so the first click on the page is never lost. -->
       <transition name="nb-pop">
-        <section v-if="open" class="nb-panel" role="dialog" aria-label="Notifications">
+        <section v-if="open" ref="panelEl" class="nb-panel" role="dialog" aria-label="Notifications">
           <header class="nb-head">
             <strong>Notifications</strong>
             <button v-if="unread > 0" class="nb-mark" @click="markAll">Mark all read</button>
           </header>
           <div class="nb-list">
             <div v-if="loading && !items.length" class="nb-empty">Loading…</div>
+            <LoadError
+              v-else-if="loadError && !items.length"
+              compact
+              title="Couldn't load notifications"
+              :retrying="loading"
+              @retry="loadList(true)"
+            />
             <div v-else-if="!items.length" class="nb-empty">
               <Icon icon="lucide:bell-off" /><span>You're all caught up.</span>
             </div>
@@ -45,6 +53,8 @@ import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { Bell } from 'lucide-vue-next'
 import api from '../../services/api'
+import LoadError from '../common/LoadError.vue'
+import { usePoller } from '../../composables/usePoller'
 
 defineProps({ collapsed: { type: Boolean, default: false } })
 const router = useRouter()
@@ -61,22 +71,26 @@ const loading = ref(false)
 const page = ref(1)
 const hasNext = ref(false)
 const total = ref(0)
+// A failed first page is an error, never "You're all caught up".
+const loadError = ref(false)
+const rootEl = ref(null)
+const panelEl = ref(null)
 
 // How many are still unfetched — surfaced on the button so "Load more" is not a blind click.
 const remaining = computed(() => Math.max(0, total.value - items.value.length))
 
-let poll = null
 // Reopening the panel mid-fetch must not let the older page land on top of the fresh list.
 let reqSeq = 0
 
-async function loadCount() {
-  try { const { data } = await api.getNotifUnreadCount(); unread.value = data?.count || 0 } catch (e) { /* silent */ }
+async function fetchCount() {
+  const { data } = await api.getNotifUnreadCount()
+  unread.value = data?.count || 0
 }
 async function loadList(reset = true) {
   if (loading.value && !reset) return
   const seq = ++reqSeq
   loading.value = true
-  if (reset) { page.value = 1; items.value = []; total.value = 0 }
+  if (reset) { page.value = 1; items.value = []; total.value = 0; loadError.value = false }
   try {
     const { data } = await api.getNotifications({ page: page.value, per_page: PAGE_SIZE })
     if (seq !== reqSeq) return          // superseded by a reopen — drop this page
@@ -88,6 +102,7 @@ async function loadList(reset = true) {
     // A failed "load more" must not strand the page counter ahead of what we actually hold,
     // or the next click would silently skip a page.
     if (!reset && seq === reqSeq) page.value = Math.max(1, page.value - 1)
+    if (reset && seq === reqSeq) loadError.value = true
   } finally {
     if (seq === reqSeq) loading.value = false
   }
@@ -105,12 +120,29 @@ async function toggle() {
 async function markAll() {
   try { await api.markAllNotifsRead(); items.value = items.value.map(n => ({ ...n, is_read: true })); unread.value = 0 } catch (e) { /* silent */ }
 }
-async function open_item(n) {
-  if (!n.is_read) {
-    try { await api.markNotifRead(n.id); n.is_read = true; unread.value = Math.max(0, unread.value - 1) } catch (e) { /* silent */ }
-  }
+// Navigate FIRST, then mark read in the background: the click must not wait on the PATCH (a slow or
+// failed mark-read used to hold the navigation).
+function open_item(n) {
   const url = n.metadata?.action_url || (n.metadata?.agent_id ? `/dashboard/agents/${n.metadata.agent_id}/editor` : '')
   if (url) { open.value = false; router.push(url) }
+  if (!n.is_read) {
+    n.is_read = true
+    unread.value = Math.max(0, unread.value - 1)
+    api.markNotifRead(n.id).catch(() => {
+      n.is_read = false
+      unread.value += 1
+    })
+  }
+}
+
+function onDocPointer(e) {
+  if (!open.value) return
+  const t = e.target
+  if (panelEl.value?.contains(t) || rootEl.value?.contains(t)) return
+  open.value = false
+}
+function onDocKey(e) {
+  if (e.key === 'Escape' && open.value) open.value = false
 }
 
 // Relative time (compact).
@@ -127,34 +159,38 @@ function ago(iso) {
 // The bell lives in the shell, so it mounts on EVERY dashboard page. Two adjustments so it never
 // competes with the route's own data:
 //   1) The first count fetch waits for idle — the unread badge is ambient, the page's data is not.
-//   2) The 30s poll pauses while the tab is hidden (a background tab polled all day for nothing) and
-//      refreshes immediately on return, so the badge is still current when the user comes back.
-const _idle = (fn) => (typeof requestIdleCallback === 'function'
-  ? requestIdleCallback(fn, { timeout: 2000 })
-  : setTimeout(fn, 1500))
-
-function startPolling() {
-  if (poll) return
-  poll = setInterval(() => { if (!document.hidden) loadCount() }, 30000)
-}
-function onVisibility() {
-  if (!document.hidden) loadCount()
-}
+//      The idle callback is cancelled on unmount, so a bell that is gone never starts polling.
+//   2) The 30s poll (usePoller) pauses while the tab is hidden and polls once on return, backs off
+//      after errors, and stops on unmount.
+const poller = usePoller(fetchCount, { interval: 30000, maxInterval: 300000 })
+let idleHandle = null
+let idleIsTimeout = false
 
 onMounted(() => {
-  _idle(() => { loadCount(); startPolling() })
-  document.addEventListener('visibilitychange', onVisibility)
+  if (typeof requestIdleCallback === 'function') {
+    idleHandle = requestIdleCallback(() => { idleHandle = null; poller.start() }, { timeout: 2000 })
+  } else {
+    idleIsTimeout = true
+    idleHandle = setTimeout(() => { idleHandle = null; poller.start() }, 1500)
+  }
+  document.addEventListener('pointerdown', onDocPointer, true)
+  document.addEventListener('keydown', onDocKey)
 })
 onBeforeUnmount(() => {
-  if (poll) { clearInterval(poll); poll = null }
-  document.removeEventListener('visibilitychange', onVisibility)
+  if (idleHandle != null) {
+    if (idleIsTimeout) clearTimeout(idleHandle)
+    else if (typeof cancelIdleCallback === 'function') cancelIdleCallback(idleHandle)
+    idleHandle = null
+  }
+  poller.stop()
+  document.removeEventListener('pointerdown', onDocPointer, true)
+  document.removeEventListener('keydown', onDocKey)
 })
 </script>
 
 <style scoped>
 .nb-btn{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:38px;box-sizing:border-box;border:1px solid transparent;border-radius:8px;padding:8px 12px;background:transparent;color:#536177;font:450 13px/20px var(--font-sans);cursor:pointer}.nb-btn:hover{background:#edf1f7;color:#1f3048}.nb-btn svg{width:18px;height:18px;flex-shrink:0;color:#748299}.nb-label{flex:1;text-align:left}.nb-badge{display:grid;place-items:center;flex-shrink:0;min-width:19px;height:19px;padding:0 5px;border-radius:6px;background:#feecee;color:#d13c50;font-size:10px;font-weight:550;line-height:1}.nb.collapsed .nb-btn{justify-content:center;padding-inline:0}.nb.collapsed .nb-badge{position:absolute;top:3px;right:1px;min-width:15px;height:15px;padding:0 3px;border:2px solid #f8fafc;border-radius:99px;font-size:9px;background:#ef4444;color:white}.nb-btn:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
 
-.nb-backdrop { position: fixed; inset: 0; z-index: 120; }
 .nb-panel { position: fixed; left: 16px; bottom: 78px; z-index: 121; width: 360px; max-width: calc(100vw - 32px); max-height: 66vh; display: flex; flex-direction: column; background: #fff; border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 24px 60px rgba(15,23,42,.24); overflow: hidden; }
 .nb-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 15px; border-bottom: 1px solid #eef2f7; }
 .nb-head strong { font-size: 14px; font-weight: 800; color: #0f172a; }

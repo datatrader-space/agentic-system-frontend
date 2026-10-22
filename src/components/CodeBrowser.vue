@@ -157,7 +157,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount, h, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, h } from 'vue'
+import { lazyComponent } from '@/utils/lazyComponent'
 // MONACO IS LOADED WHEN AN EDITOR IS ACTUALLY SHOWN, not on every page view.
 //
 // MEASURED on production, chat route: total JS 5,856 KB across 30 files, of which monaco was 4,154 KB
@@ -172,7 +173,8 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, h, defineAsyncCompone
 // `applyDecorations` is unreachable until `onEditorMount` fires, so by the time `Range` is needed the
 // namespace has resolved; the guard is there for the case where it has not.
 let monacoNs = null
-const MonacoEditor = defineAsyncComponent(async () => {
+// lazyComponent: an error state + one guarded reload when the chunk is stale (F-C1).
+const MonacoEditor = lazyComponent(async () => {
   monacoNs = await import('monaco-editor')
   const mod = await import('monaco-editor-vue3')
   return mod.default || mod

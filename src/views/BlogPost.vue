@@ -74,7 +74,8 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { watchOwnRouteParam } from '@/composables/useOwnRouteParam'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { blogPosts as allPosts } from '../data/blogPosts'
@@ -163,7 +164,7 @@ function copyLink() {
   notify.success('Link copied')
 }
 
-watch(() => route.params.slug, loadPost)
+watchOwnRouteParam('slug', loadPost)   // never on the way out (F-M1)
 onMounted(loadPost)
 </script>
 

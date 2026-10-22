@@ -733,7 +733,7 @@
 
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
-import { isTrustedPopupMessage } from '@/utils/popupMessages'
+import { connectOAuth } from '@/composables/useOAuthConnect'
 import { useRoute } from 'vue-router'
 import api from '../services/api'
 import CredentialManager from '../components/tools/CredentialManager.vue'
@@ -1132,68 +1132,22 @@ export default {
     }
 
     // ── Connect / Disconnect ──
+    // The shared popup flow (connectOAuth -> useOAuthPopup): the window opens inside the click, a closed
+    // popup is checked against the server before it is called a failure, the API cache is cleared when it
+    // ends, and the busy flag is always reset.
     const handleConnect = async (provider, selectedScopes = []) => {
+      if (actionLoading.value) return
       actionLoading.value = provider.slug
       try {
         const opts = {}
         if (activeTab.value === 'organization') opts.owner = 'org'
         if (selectedScopes.length > 0) opts.scopes = selectedScopes.join(',')
-
-        const response = await api.startConnection(provider.slug, opts)
-        const redirectUrl = response.data?.redirect_url
-        if (!redirectUrl) {
-          showToast(false, 'No redirect URL received')
-          actionLoading.value = null
-          return
-        }
-
-        const popup = window.open(redirectUrl, 'oauth-connection', 'width=600,height=700,left=200,top=100')
-        if (!popup) {
-          showToast(false, 'Popup blocked — please allow popups for this site')
-          actionLoading.value = null
-          return
-        }
-
-        let settled = false
-        const cleanup = () => {
-          if (settled) return
-          settled = true
-          window.removeEventListener('message', onMessage)
-          clearInterval(popupPoll)
-          clearTimeout(timeout)
-          actionLoading.value = null
-        }
-
-        const onMessage = (event) => {
-          if (!isTrustedPopupMessage(event)) return
-          if (event.data?.type === 'oauth-connection-result') {
-            if (event.data.status === 'success') {
-              showToast(true, `Connected to ${provider.name}!`)
-              loadProviders()
-            } else {
-              showToast(false, event.data.error || 'Connection failed')
-            }
-            cleanup()
-          }
-        }
-        window.addEventListener('message', onMessage)
-
-        // Poll for popup closed (user closed window without completing)
-        const popupPoll = setInterval(() => {
-          if (popup.closed) {
-            if (!settled) {
-              showToast(false, 'Connection window was closed')
-            }
-            cleanup()
-          }
-        }, 500)
-
-        // Hard timeout fallback (2 min)
-        const timeout = setTimeout(() => {
-          cleanup()
-        }, 120000)
+        await connectOAuth(api, provider.slug, opts)
+        showToast(true, `Connected to ${provider.name}!`)
+        await loadProviders()
       } catch (error) {
-        showToast(false, error.response?.data?.error || 'Failed to start connection')
+        showToast(false, error?.message || 'Connection failed')
+      } finally {
         actionLoading.value = null
       }
     }

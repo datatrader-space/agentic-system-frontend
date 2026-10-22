@@ -625,7 +625,26 @@ function addAgentPerm() {
 }
 
 // ── Resolve the tools the user selected in Step 4 (agent.tool_ids) so Card 1 lists THOSE tools ──
+//
+// The agent record already carries its tools in full (`tools`: id, name, display_name — the agent
+// serializer's ToolDefinitionSerializer), and every save refreshes it. So the names come from there; the
+// whole tool catalog (every page of /tools/definitions/) is fetched only when an id is not on the record,
+// which is a picked-but-not-yet-saved tool. It used to be fetched on every visit to this step.
 const toolDefsById = ref({})
+const recordToolsById = computed(() => {
+  const map = {}
+  for (const t of (Array.isArray(props.agent.tools) ? props.agent.tools : [])) if (t && t.id != null && t.name) map[t.id] = t
+  return map
+})
+const toolById = (id) => recordToolsById.value[id] || toolDefsById.value[id]
+let catalogRequested = false
+function ensureToolDefs() {
+  if (catalogRequested) return
+  const missing = (props.agent.tool_ids || []).some(id => !toolById(id))
+  if (!missing) return
+  catalogRequested = true
+  loadToolDefs()
+}
 async function loadToolDefs() {
   try {
     let all = [], next = '/tools/definitions/', guard = 0
@@ -640,9 +659,9 @@ async function loadToolDefs() {
     const map = {}
     for (const t of all) map[t.id] = t
     toolDefsById.value = map
-  } catch (e) { toolDefsById.value = {} }
+  } catch (e) { toolDefsById.value = {}; catalogRequested = false }
 }
-const selectedTools = computed(() => (props.agent.tool_ids || []).map(id => toolDefsById.value[id]).filter(Boolean))
+const selectedTools = computed(() => (props.agent.tool_ids || []).map(id => toolById(id)).filter(Boolean))
 function _permRow(name, label) {
   const key = String(name).toUpperCase()
   return {
@@ -827,7 +846,10 @@ function fmtWhen(iso) {
 function fmtDur(ms) { if (!ms) return '—'; return ms >= 1000 ? (ms / 1000).toFixed(1) + 's' : ms + 'ms' }
 
 watch(() => props.agent.id, () => { loadGuardrails(); loadAgentBudget() })
-onMounted(() => { loadGuardrails(); loadToolDefs(); loadAgentBudget() })
+// The catalog only when the record does not name a selected tool (see ensureToolDefs) — checked again
+// when the selection or the record changes, and fetched at most once.
+watch(() => [props.agent.tool_ids, props.agent.tools], ensureToolDefs, { deep: true })
+onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
 </script>
 
 <style scoped>

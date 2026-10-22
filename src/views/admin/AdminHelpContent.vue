@@ -85,6 +85,10 @@
           </tr>
         </tbody>
       </table>
+      <!-- The list is paginated (20 a page): offer the rest instead of stopping at the first page. -->
+      <div v-if="!loading && !error && hasMore" class="state">
+        <button class="link" :disabled="loadingMore" @click="loadMore">{{ loadingMore ? 'Loading…' : `Load more (${rows.length} of ${total})` }}</button>
+      </div>
     </section>
 
     <!-- Editor drawer -->
@@ -185,12 +189,20 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount, inject } from 'vue
 import { Icon } from '@iconify/vue'
 import { marked } from 'marked'
 import api from '../../services/api'
+import { usePoller } from '@/composables/usePoller'
+import { useRequestScope, isAbortError } from '@/composables/useRequestScope'
 
 const notify = inject('notify', (m) => console.log(m))
 
 const rows = ref([])
 const loading = ref(true)
+const loadingMore = ref(false)
+const hasMore = ref(false)
+const total = ref(0)
+let page = 1
 const error = ref(false)
+// A newer filter / search aborts the older list request, so a late answer cannot replace newer rows.
+const listScope = useRequestScope()
 const meta = reactive({ types: [], statuses: [], visibilities: [], difficulties: [], product_areas: [] })
 const filters = reactive({ q: '', type: '', product_area: '', status: '' })
 
@@ -256,15 +268,43 @@ function onTitleInput() { if (!form.id && !form._slugTouched) form.slug = slugif
 let _t = null
 function debouncedLoad() { clearTimeout(_t); _t = setTimeout(load, 280) }
 
+function listParams(p) {
+  const params = { page: p }
+  for (const k of ['q', 'type', 'product_area', 'status']) if (filters[k]) params[k] = filters[k]
+  return params
+}
 async function load() {
-  loading.value = true; error.value = false
+  const signal = listScope.next()
+  loading.value = true; loadingMore.value = false; error.value = false
+  page = 1
   try {
-    const params = {}
-    for (const k of ['q', 'type', 'product_area', 'status']) if (filters[k]) params[k] = filters[k]
-    const { data } = await api.adminListHelpContent(params)
+    const { data } = await api.get('/admin/helpcenter/content/', { params: listParams(page), noCache: true, signal })
+    if (signal.aborted) return
     rows.value = Array.isArray(data) ? data : (data.results || [])
-  } catch (e) { error.value = true }
+    hasMore.value = !Array.isArray(data) && !!data.next
+    total.value = Array.isArray(data) ? data.length : (Number(data.count) || rows.value.length)
+  } catch (e) {
+    if (isAbortError(e) || signal.aborted) return
+    error.value = true
+  }
   loading.value = false
+}
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  const signal = listScope.next()
+  loadingMore.value = true
+  try {
+    const { data } = await api.get('/admin/helpcenter/content/', { params: listParams(page + 1), noCache: true, signal })
+    if (signal.aborted) return
+    page += 1
+    rows.value = rows.value.concat(data.results || [])
+    hasMore.value = !!data.next
+  } catch (e) {
+    if (isAbortError(e) || signal.aborted) return
+    notify('Could not load more content', 'error')
+  } finally {
+    if (!signal.aborted) loadingMore.value = false
+  }
 }
 
 async function loadMeta() {
@@ -300,7 +340,8 @@ async function loadRelations() {
 async function loadRelOptions() {
   if (!form.id) { relOptions.value = []; return }
   try {
-    const { data } = await api.adminListHelpContent({})
+    // The largest page the server allows (100); the first page alone (20) left most articles unpickable.
+    const { data } = await api.adminListHelpContent({ page_size: 100 })
     const rows = data.results || data
     relOptions.value = rows.filter(c => c.id !== form.id).map(c => ({ id: c.id, title: c.title }))
   } catch (e) { relOptions.value = [] }
@@ -348,21 +389,25 @@ async function remove() {
   catch (e) { notify('Delete failed', 'error') }
 }
 
-let _pollTimer = null
-function stopPolling() { clearTimeout(_pollTimer); _pollTimer = null }
+// Embedding job status. usePoller: one request at a time, backoff on a transient error, paused while the
+// tab is hidden, and cancelled on leave (the old setTimeout chain re-armed itself after unmount when a
+// request was in flight).
+const embedPoller = usePoller(async ({ signal }) => {
+  const { data } = await api.get('/admin/helpcenter/content/generate-embeddings/status/', { noCache: true, signal })
+  onEmbedStatus(data)
+  return data
+}, { interval: 1500, maxInterval: 15000, stopWhen: (st) => !st || !(st.state === 'running' || st.state === 'started') })
+function stopPolling() { embedPoller.stop() }
+function pollEmbedStatus() { embedPoller.stop(); embedPoller.start() }
 
-async function pollEmbedStatus() {
-  let st
-  try { const { data } = await api.adminHelpEmbeddingsStatus(); st = data }
-  catch { _pollTimer = setTimeout(pollEmbedStatus, 2000); return }  // transient — keep polling
-
+function onEmbedStatus(st) {
+  if (!st) return
   if (st.state === 'running' || st.state === 'started') {
     embedPhase.value = st.phase || 'working…'
-    _pollTimer = setTimeout(pollEmbedStatus, 1500)
     return
   }
   // terminal
-  embedding.value = false; embedPhase.value = ''; stopPolling()
+  embedding.value = false; embedPhase.value = ''
   if (st.state === 'done' && st.stats) {
     embedResult.value = st.stats
     notify(`Help Center KB updated — ${st.stats.embedded} embedded, ${st.stats.chunks} chunks total`, 'success')
@@ -384,16 +429,18 @@ async function generateEmbeddings() {
   }
 }
 
+let unmounted = false
 onMounted(() => {
   load(); loadMeta()
   // If a job is already running (started elsewhere / page reload), re-attach to it.
   api.adminHelpEmbeddingsStatus().then(({ data }) => {
+    if (unmounted) return
     if (data && (data.state === 'running' || data.state === 'started')) {
       embedding.value = true; embedPhase.value = data.phase || 'working…'; pollEmbedStatus()
     }
   }).catch(() => {})
 })
-onBeforeUnmount(stopPolling)
+onBeforeUnmount(() => { unmounted = true; stopPolling(); clearTimeout(_t) })
 </script>
 
 <style scoped>

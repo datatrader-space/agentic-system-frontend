@@ -3,45 +3,21 @@
  * Tenancy API — All calls to /api/v2/
  * Handles orgs, workspaces, members, teams, and workspace-scoped resources.
  */
-import axios from 'axios'
+//
+// Goes through the shared client in api.js (page-speed plan Phase 5 item 7), so tenancy calls get the same
+// timeout, CSRF and X-Workspace-ID headers, session-expiry (401) redirect, GET dedup/cache and
+// cache invalidation on writes as every other call. It used to be a second axios instance with none of
+// the last three: a tenancy write left cached org/workspace reads stale.
+import api from './api'
 
-function getCookie(name) {
-    let value = null
-    if (document.cookie && document.cookie !== '') {
-        document.cookie.split(';').forEach((c) => {
-            const cookie = c.trim()
-            if (cookie.startsWith(name + '=')) {
-                value = decodeURIComponent(cookie.substring(name.length + 1))
-            }
-        })
-    }
-    return value
+const V2 = '/v2'
+const tenancyApi = {
+    get: (url, config) => api.get(V2 + url, config),
+    post: (url, data, config) => api.post(V2 + url, data, config),
+    put: (url, data, config) => api.put(V2 + url, data, config),
+    patch: (url, data, config) => api.patch(V2 + url, data, config),
+    delete: (url, config) => api.delete(V2 + url, config),
 }
-
-const tenancyApi = axios.create({
-    baseURL: '/api/v2',
-    timeout: 30000,
-    withCredentials: true,
-    headers: { 'Content-Type': 'application/json' },
-})
-
-tenancyApi.interceptors.request.use((config) => {
-    const csrf = getCookie('csrftoken')
-    if (csrf) config.headers['X-CSRFToken'] = csrf
-
-    const wsId = localStorage.getItem('activeWorkspaceId')
-    if (wsId) config.headers['X-Workspace-ID'] = wsId
-
-    return config
-})
-
-tenancyApi.interceptors.response.use(
-    (r) => r,
-    (err) => {
-        console.error('[tenancyApi]', err?.response?.status, err?.response?.data || err.message)
-        return Promise.reject(err)
-    }
-)
 
 export default {
     // ── Organisations ──────────────────────────────────────────────────────────

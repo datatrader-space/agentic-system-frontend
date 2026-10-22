@@ -151,6 +151,7 @@ import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { connectOAuth } from '@/composables/useOAuthConnect'
+import { usePoller } from '@/composables/usePoller'
 import CodeBrowser from '../components/CodeBrowser.vue'
 import RepositoryChat from '../components/RepositoryChat.vue'
 import AgentChatPanel from '../components/letscode/AgentChatPanel.vue'
@@ -218,7 +219,6 @@ const repoQuery = ref('')
 const cloningUrl = ref('')
 const proposalDecorations = ref({})
 
-let statusTimer = null
 let ws = null
 
 const crsReady = computed(() => active.value && (active.value.crs_status === 'ready' || active.value.phase === 'ready'))
@@ -341,27 +341,29 @@ async function onSwitchBranch(branch) {
   }
 }
 
+// Slow fallback (7 s); the WebSocket drives live updates. One poller: paused while the tab is hidden, backs
+// off on errors, stops on a final phase and on leave, and never applies a reply for a project that is no
+// longer the open one.
+const isFinalStatus = (d) => !d || d.phase === 'ready' || d.phase === 'error' || d.crs_status === 'ready' || d.crs_status === 'error'
+const statusPoller = usePoller(async () => {
+  const repoId = active.value?.repo_id
+  if (!repoId) return null
+  const { data } = await api.getProject(repoId)
+  if (!active.value || active.value.repo_id !== repoId) return null
+  const wasReady = active.value.clone_ready
+  active.value = { ...active.value, ...data }
+  if (data.log) pipelineLog.value = data.log
+  if (data.clone_ready && !wasReady) browserKey.value++   // files now exist → mount/refresh editor
+  return data
+}, { interval: 7000, stopWhen: isFinalStatus })
+
 function pollStatus() {
-  if (statusTimer) clearInterval(statusTimer)
-  const tick = async () => {
-    if (!active.value) return
-    try {
-      const { data } = await api.getProject(active.value.repo_id)
-      const wasReady = active.value.clone_ready
-      active.value = { ...active.value, ...data }
-      if (data.log) pipelineLog.value = data.log
-      if (data.clone_ready && !wasReady) browserKey.value++   // files now exist → mount/refresh editor
-      if (data.phase === 'ready' || data.phase === 'error' || data.crs_status === 'ready' || data.crs_status === 'error') {
-        if (statusTimer) { clearInterval(statusTimer); statusTimer = null }
-      }
-    } catch { /* keep polling */ }
-  }
-  tick()
-  statusTimer = setInterval(tick, 7000)   // slow fallback; WebSocket drives live updates
+  statusPoller.stop()
+  statusPoller.start()
 }
 
 function closeProject() {
-  if (statusTimer) { clearInterval(statusTimer); statusTimer = null }
+  statusPoller.stop()
   closeWs()
   proposalDecorations.value = {}
   active.value = null
@@ -434,7 +436,7 @@ function toRanges(lines) {
 
 onMounted(async () => { loadUnifiedConfig(); await loadProjects(); loadGithubRepos() })
 onBeforeUnmount(() => {
-  if (statusTimer) clearInterval(statusTimer); closeWs()
+  statusPoller.stop(); closeWs()
   window.removeEventListener('mousemove', onResize); window.removeEventListener('mouseup', stopResize)
 })
 </script>

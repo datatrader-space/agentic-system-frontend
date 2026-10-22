@@ -57,14 +57,24 @@
             <AddToolMenu class="ml-auto" @select="onAdd" />
           </div>
 
-          <!-- Error -->
-          <div v-if="error" class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
-            {{ error }}
-          </div>
+          <!-- A failed load is an error with Retry, never an empty tools table. -->
+          <LoadError
+            v-if="tab !== 'mcp' && error"
+            title="Couldn't load tools"
+            :message="error"
+            :retrying="loading"
+            @retry="loadTools"
+          />
+          <LoadError
+            v-else-if="tab === 'mcp' && mcpError"
+            title="Couldn't load MCP servers"
+            :retrying="mcpLoading"
+            @retry="loadMcp"
+          />
 
           <!-- Tables -->
           <ToolsTable
-            v-if="tab === 'all'"
+            v-else-if="tab === 'all'"
             :tools="pagedTools"
             :loading="loading"
             @select="openDetails"
@@ -91,7 +101,7 @@
             @create="onAdd('yaml')"
           />
 
-            <div v-if="tab !== 'mcp' && !loading" class="mt-7 flex flex-wrap items-center justify-between gap-3">
+            <div v-if="tab !== 'mcp' && !loading && !error" class="mt-7 flex flex-wrap items-center justify-between gap-3">
               <p class="text-[13px] font-medium text-[#64748B]">
                 Showing {{ pageStart }} to {{ pageEnd }} of {{ visibleTools.length }} tools
               </p>
@@ -138,6 +148,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import LoadError from '../components/common/LoadError.vue'
 import { ChevronLeft, ChevronRight, Search, SlidersHorizontal } from 'lucide-vue-next'
 import api from '../services/api'
 import { notify } from '../composables/useNotify'
@@ -154,6 +165,7 @@ import AddToolMenu from '../components/tools-library/AddToolMenu.vue'
 const tools = ref([])
 const loading = ref(false)
 const error = ref('')
+const mcpError = ref(false)
 
 const mcpServers = ref([])
 const mcpLoading = ref(false)
@@ -241,8 +253,7 @@ async function loadTools() {
     const { data } = await api.getTools()
     tools.value = data.tools || []
   } catch (e) {
-    error.value = 'Failed to load tools. Please try again.'
-    notify.error('Failed to load tools')
+    error.value = 'Check your connection and try again.'
   } finally {
     loading.value = false
   }
@@ -250,11 +261,12 @@ async function loadTools() {
 
 async function loadMcp() {
   mcpLoading.value = true
+  mcpError.value = false
   try {
     const { data } = await api.getMCPServers()
     mcpServers.value = data.servers || []
   } catch (e) {
-    notify.error('Failed to load MCP servers')
+    mcpError.value = true
   } finally {
     mcpLoading.value = false
   }
@@ -272,20 +284,18 @@ async function openDetails(tool) {
   selectedUsage.value = null
   drawerOpen.value = true
 
-  // Detail
-  try {
-    const { data } = await api.getToolDetail(tool.name)
-    selectedDetail.value = data
-  } catch (e) { /* drawer falls back to row data */ }
-
-  // Usage (new endpoint)
+  // Detail and usage are independent: fetch both at once. A response for a tool the person has
+  // already clicked away from is dropped (a fast A → B click must not show A's detail under B).
+  const isCurrent = () => selected.value === tool
   usageLoading.value = true
-  try {
-    const { data } = await api.getToolAgents(tool.name)
-    selectedUsage.value = data
-  } catch (e) { /* non-fatal */ } finally {
-    usageLoading.value = false
-  }
+  const [detail, usage] = await Promise.allSettled([
+    api.getToolDetail(tool.name),
+    api.getToolAgents(tool.name),
+  ])
+  if (!isCurrent()) return
+  if (detail.status === 'fulfilled') selectedDetail.value = detail.value.data   // else: row data
+  if (usage.status === 'fulfilled') selectedUsage.value = usage.value.data
+  usageLoading.value = false
 }
 
 // ── Actions ────────────────────────────────────────────────

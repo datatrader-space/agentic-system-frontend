@@ -4,7 +4,9 @@
     <MeshBackground />
 
     <!-- Left sidebar — inline on desktop (≥1024px) -->
-    <LeftSidebar class="sidebar-desktop" />
+    <!-- Mounted only at desktop width: hidden by CSS alone it still ran its own NotificationBell poll
+         beside the drawer's copy on phones. -->
+    <LeftSidebar v-if="isDesktop" class="sidebar-desktop" />
 
     <!-- Left sidebar — slide-out drawer on mobile/tablet (<1024px) -->
     <MobileSidebarDrawer />
@@ -29,10 +31,15 @@
         <AppBreadcrumbs />
         <router-view v-slot="{ Component }">
           <transition name="vm-page" mode="out-in">
-            <Suspense>
+            <!-- timeout 150: a page that takes longer than that to resolve shows the skeleton below
+                 instead of leaving the old page on screen with no feedback (F-M1). -->
+            <Suspense :timeout="150">
               <!-- Key on PATH, not fullPath: a query-only change (e.g. /chat/new?agent=5) must not
-                   destroy/recreate the whole view — ChatWorkspace watches route.query.agent itself. -->
-              <component :is="Component" :key="route.path" />
+                   destroy/recreate the whole view — ChatWorkspace watches route.query.agent itself.
+                   A route can share one key across paths (meta.viewKey): /dashboard/chat/new becoming
+                   /dashboard/chat/{id} on the first message must not rebuild ChatWorkspace mid-stream;
+                   it watches route.params.sessionId itself. -->
+              <component :is="Component" :key="route.meta.viewKey || route.path" />
               <template #fallback>
                 <div class="route-loading">
                   <div class="route-skeleton__toolbar">
@@ -81,7 +88,8 @@
 </template>
 
 <script setup>
-import { ref, shallowRef, provide, defineAsyncComponent, watch, onMounted, onUnmounted } from 'vue'
+import { ref, shallowRef, provide, watch, onMounted, onUnmounted } from 'vue'
+import { lazyComponent } from '../../utils/lazyComponent'
 import { useRoute, useRouter } from 'vue-router'
 import BrandMark from '../common/BrandMark.vue'
 import { useLayoutStore } from '../../stores/useLayoutStore'
@@ -102,7 +110,15 @@ const router = useRouter()
 
 // Command palette (Cmd/Ctrl+K) — power-up #2
 const paletteOpen = ref(false)
-const SettingsModal = defineAsyncComponent(() => import('../settings/SettingsModal.vue'))
+const SettingsModal = lazyComponent(() => import('../settings/SettingsModal.vue'))
+
+// The desktop sidebar is mounted only at ≥1024px (the drawer holds the phone/tablet copy).
+const DESKTOP_QUERY = '(min-width: 1024px)'
+const _mq = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(DESKTOP_QUERY) : null
+const isDesktop = ref(_mq ? _mq.matches : true)
+const _onMq = (e) => { isDesktop.value = e.matches }
+onMounted(() => { _mq?.addEventListener?.('change', _onMq) })
+onUnmounted(() => { _mq?.removeEventListener?.('change', _onMq) })
 const settingsOpen = ref(false)
 const settingsSection = ref('general')
 const settingsReturnFocus = shallowRef(null)

@@ -327,17 +327,24 @@ function runSearch() { executeSearch() }
 // Popular searches / how-to chips — run the smart search and land on the best section.
 function searchFor(term) { search.value = term; executeSearch(term) }
 
-onMounted(async () => {
+// The four reads are independent: they run at once (they used to run one after another, four rounds).
+onMounted(() => Promise.all([loadOnboarding(), loadPopular(), loadTutorials(), loadTopics()]))
+
+async function loadOnboarding() {
   try {
     const { data } = await api.getOnboardingStatus()
     done.value = data?.done || {}
   } catch (e) { /* checklist degrades to all not-done */ }
-  // Real, evolving popular searches — only override the curated default with enough signal.
+}
+// Real, evolving popular searches — only override the curated default with enough signal.
+async function loadPopular() {
   try {
     const { data } = await api.getPopularSearches()
     const terms = (data?.popular_searches || []).filter(Boolean)
     if (terms.length >= 3) popularSearches.value = terms.slice(0, 6)
   } catch (e) { /* keep curated default */ }
+}
+async function loadTutorials() {
   try {
     const { data } = await api.getTutorials()
     const rows = data?.tutorials || []
@@ -352,7 +359,9 @@ onMounted(async () => {
       }))
     }
   } catch (e) { /* keep static featured tutorials */ }
-  // Dynamic topic cards from the Help Knowledge graph (fallback: static `topics`).
+}
+// Dynamic topic cards from the Help Knowledge graph (fallback: static `topics`).
+async function loadTopics() {
   try {
     const { data } = await api.getHelpTopics()
     const t = data?.topics || []
@@ -369,7 +378,7 @@ onMounted(async () => {
       }))
     }
   } catch (e) { /* keep static topics */ }
-})
+}
 
 const TOPIC_ICONS = ['lucide:bot', 'lucide:workflow', 'lucide:link-2', 'lucide:book-open', 'lucide:credit-card', 'lucide:shield', 'lucide:wrench']
 const TOPIC_TONES = ['blue', 'violet', 'teal', 'coral']

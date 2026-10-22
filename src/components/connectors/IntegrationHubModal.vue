@@ -422,7 +422,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { isTrustedPopupMessage } from '@/utils/popupMessages'
+import { useOAuthPopup } from '@/composables/useOAuthPopup'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../../services/api'
@@ -617,37 +617,33 @@ async function afterChange() {
 }
 
 // OAuth — only when the backend reports the provider is configured; otherwise honest message.
-// Per-service OAuth in a popup, for a service registered through the wizard. Resolves when the popup
-// posts its result back, so the caller's busy state ends on the real outcome rather than on the
-// window merely having opened.
-function startRegisteredServiceOAuth(reg, name) {
-  return new Promise((resolve) => {
-    api.startOAuth(reg.service_id).then(({ data }) => {
-      const popup = window.open(data.redirect_url, 'oauth_popup',
-                                'width=600,height=700,scrollbars=yes')
-      if (!popup || popup.closed) {
-        notify.error('Popup blocked. Allow popups for this site, then try again.')
-        return resolve()
-      }
-      const onMsg = async (event) => {
-        if (!isTrustedPopupMessage(event)) return
-        if (event?.data?.type !== 'oauth_result') return
-        window.removeEventListener('message', onMsg)
-        if (event.data.status === 'success') {
-          notify.success(`Connected to ${name}`)
-          await afterChange()
-        } else {
-          notify.error(`${name} connection failed: ` + (event.data.error || 'unknown error'))
-        }
-        resolve()
-      }
-      window.addEventListener('message', onMsg)
-    }).catch((e) => {
+// Per-service OAuth in a popup, for a service registered through the wizard, through the shared popup
+// flow (useOAuthPopup): opened inside the click, settles on the message, a closed popup (then the server
+// is asked) or a timeout, so the caller's busy state always ends on a real outcome.
+const oauthPopup = useOAuthPopup()
+async function startRegisteredServiceOAuth(reg, name) {
+  const result = await oauthPopup.run(async () => {
+    try {
+      const { data } = await api.startOAuth(reg.service_id)
+      return data?.redirect_url
+    } catch (e) {
       const err = e?.response?.data
-      notify.error(err?.detail || err?.error || e?.message || 'Could not start the connection')
-      resolve()
-    })
+      throw new Error(err?.detail || err?.error || e?.message || 'Could not start the connection')
+    }
+  }, {
+    name: 'oauth_popup',
+    messageTypes: ['oauth_result'],
+    verify: async () => !!(await api.getOAuthStatus(reg.service_id)).data?.connected,
   })
+  if (result.status === 'cancelled') return
+  if (result.ok) {
+    notify.success(`Connected to ${name}`)
+    await afterChange()
+  } else if (result.status === 'blocked') {
+    notify.error('Popup blocked. Allow popups for this site, then try again.')
+  } else {
+    notify.error(`${name} connection failed: ` + (result.error || 'unknown error'))
+  }
 }
 
 async function connectWithOAuth() {
@@ -656,6 +652,7 @@ async function connectWithOAuth() {
     notify.warning('OAuth provider is not configured yet. You can use manual setup (Personal Access Token) for now.')
     return
   }
+  if (busy.value) return
   busy.value = true
   try {
     // A DB-REGISTERED service has no shared OAuthProvider row, so `connectOAuth` — which resolves a
@@ -735,39 +732,61 @@ function _startMcpStatusPoll(connId) {
   }, 2000)
 }
 
-function _onMcpOauthMsg(ev) {
-  if (!isTrustedPopupMessage(ev)) return
-  const d = ev && ev.data
-  if (!d || d.type !== 'mcp_oauth_result') return
-  // Auth done ≠ connected. The popup only tells us the token was (or wasn't) obtained; tools still sync on
-  // the backend. Show the syncing state and let the status poll carry it to 'connected'/'error'.
-  if (d.ok) { busy.value = false; syncingTools.value = true }
-  else { busy.value = false; syncingTools.value = false; notify.error(d.message || 'Connection failed') }
-}
-onMounted(() => window.addEventListener('message', _onMcpOauthMsg))
-onBeforeUnmount(() => {
-  window.removeEventListener('message', _onMcpOauthMsg)
-  _stopMcpPoll()
-})
+onBeforeUnmount(() => _stopMcpPoll())
 
+// The popup is opened inside the click (shared useOAuthPopup flow); its postMessage is often severed by
+// the browser's Cross-Origin-Opener-Policy after a cross-origin OAuth redirect, so the connection status
+// poll (backend = source of truth) carries the flow to 'connected'/'error'. Auth done is not connected:
+// the popup only says the token was (or wasn't) obtained; tools still sync on the backend.
+const mcpPopup = useOAuthPopup()
 async function connectMcpOAuth() {
   const srv = mcpServer.value
   if (!srv?.id) { notify.error('This connector isn\'t available yet — reload and try again.'); return }
+  if (busy.value) return
   busy.value = true
   mcpSyncError.value = ''
+  let connId = null
   try {
-    const { data } = await api.mcpOauthInitiate({ server_id: srv.id })
-    const url = data && data.authorize_url
-    if (!url) throw new Error('No authorization URL returned.')
-    window.open(url, 'mcp_oauth', 'width=560,height=720')
-    // The popup's postMessage is often severed by the browser's Cross-Origin-Opener-Policy after a
-    // cross-origin OAuth redirect — so don't depend on it. Poll the connection status (backend = source of
-    // truth); _onMcpOauthMsg still fires when the opener isn't severed. Connected only shows after sync.
-    const connId = data && data.connection_id
-    if (connId) _startMcpStatusPoll(connId)
-  } catch (e) {
+    const result = await mcpPopup.run(async () => {
+      let data
+      try {
+        ({ data } = await api.mcpOauthInitiate({ server_id: srv.id }))
+      } catch (e) {
+        throw new Error(e?.response?.data?.error || e?.message || 'Could not start OAuth for this connector.')
+      }
+      const url = data && data.authorize_url
+      if (!url) throw new Error('No authorization URL returned.')
+      connId = data.connection_id || null
+      if (connId) _startMcpStatusPoll(connId)
+      return url
+    }, {
+      name: 'mcp_oauth',
+      features: 'width=560,height=720',
+      messageTypes: ['mcp_oauth_result'],
+      isSuccess: (d) => !!d?.ok,
+      timeoutMs: 300000,
+    })
+    if (result.status === 'cancelled' || _oauthDone) return
+    if (result.ok) {
+      syncingTools.value = true                              // token in, tools loading; the poll finishes it
+    } else if (result.status === 'closed' || result.status === 'timeout') {
+      // No word from the popup. Ask once: still syncing keeps the spinner, connected finishes, anything
+      // else means the sign-in was not completed, so stop waiting instead of spinning for minutes.
+      if (!connId) return
+      try {
+        const { data: st } = await api.mcpOauthStatus(connId)
+        if (st?.status === 'connected') return _finishMcpOauth(st.tools_count)
+        if (st?.status === 'syncing') { syncingTools.value = true; return }
+      } catch { return }                                     // transient: the poll keeps going
+      _stopMcpPoll()
+      syncingTools.value = false
+    } else {
+      _stopMcpPoll()
+      syncingTools.value = false
+      notify.error(result.error || 'Connection failed')
+    }
+  } finally {
     busy.value = false
-    notify.error(e?.response?.data?.error || e?.message || 'Could not start OAuth for this connector.')
   }
 }
 

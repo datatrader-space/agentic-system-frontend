@@ -29,8 +29,9 @@
       </label>
     </div>
 
-    <p v-if="error" class="error" role="alert">{{ error }}</p>
-    <p v-if="items === null" class="muted">Loading your Asset Library…</p>
+    <!-- A failed load is an error with Retry, never "Nothing here yet". -->
+    <LoadError v-if="error" title="Your Asset Library could not be loaded" :message="error" :retrying="busy" @retry="load(page)" />
+    <p v-else-if="items === null" class="muted">Loading your Asset Library…</p>
     <section v-else-if="!items.length" class="empty">
       <Icon icon="lucide:images" class="empty-icon" />
       <h2>{{ q ? 'Nothing matches that name' : 'Nothing here yet' }}</h2>
@@ -110,6 +111,8 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
+import LoadError from '../components/common/LoadError.vue'
+import { useRequestScope } from '../composables/useRequestScope'
 
 const TYPES = [
   { value: 'all', label: 'Everything' }, { value: 'image', label: 'Images' }, { value: 'video', label: 'Videos' },
@@ -128,21 +131,26 @@ const busy = ref(false)
 const error = ref('')
 
 // One page of 15 files at a time; a filter or a search starts again at page 1.
+// Filters and search change faster than the server answers: each load aborts the one before it, and
+// a response for an older filter is dropped.
+const loads = useRequestScope()
 async function load(pageNo = 1) {
+  const signal = loads.next()
   busy.value = true
-  error.value = ''
   try {
     const { data } = await api.get('/library/', { params: {
       origin: 'aadml', type: type.value, source: source.value, q: q.value.trim(), page: pageNo, limit: PAGE,
-    } })
+    }, signal })
+    if (signal.aborted) return
     items.value = data.items
     page.value = data.page
     more.value = data.has_more
+    error.value = ''
   } catch (e) {
-    error.value = e?.response?.data?.error?.message || 'Your Asset Library could not be loaded. Try again.'
-    if (items.value === null) items.value = []
+    if (signal.aborted) return
+    error.value = e?.response?.data?.error?.message || 'Check your connection and try again.'
   } finally {
-    busy.value = false
+    if (!signal.aborted) busy.value = false
   }
 }
 async function go(pageNo) {

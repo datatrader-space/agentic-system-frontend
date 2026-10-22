@@ -18,6 +18,7 @@
     </div>
 
     <div v-if="loading" class="py-16 text-center text-[13px] text-[#98A2B3]">Loading…</div>
+    <LoadError v-else-if="loadError" title="Couldn't load delegations" :message="loadError" @retry="reload" />
     <div v-else-if="!rows.length" class="rounded-2xl border border-dashed border-[#E5E7EB] bg-[#F8FAFC] px-4 py-14 text-center">
       <p class="text-[14px] font-semibold text-[#475467]">No delegations yet</p>
       <p class="text-[12.5px] text-[#98A2B3]">When an agent hands a sub-task to a teammate, it shows up here.</p>
@@ -76,6 +77,14 @@
         </tbody>
       </table>
     </div>
+    <!-- The feed is paginated (20 a page): offer the rest instead of silently stopping at the first page. -->
+    <div v-if="!loading && !loadError && rows.length" class="mt-3 flex items-center justify-between text-[12px] text-[#98A2B3]">
+      <span>Showing {{ rows.length }}<template v-if="total"> of {{ total }}</template></span>
+      <button v-if="hasMore" type="button" :disabled="loadingMore" @click="loadMore"
+              class="rounded-full border border-[#E5E7EB] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#475467] hover:bg-[#F8FAFC] disabled:opacity-60">
+        {{ loadingMore ? 'Loading…' : 'Load more' }}
+      </button>
+    </div>
   </div>
 </template>
 
@@ -83,12 +92,23 @@
 import { ref, onMounted } from 'vue'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
+import { useRequestScope, isAbortError } from '@/composables/useRequestScope'
+import LoadError from '../components/common/LoadError.vue'
 import VerificationBadge from '../components/common/VerificationBadge.vue'
 import { humanizeReason, CHECK_LABELS } from '../components/common/verificationBadge'
 
 const rows = ref([])
 const loading = ref(true)
+const loadingMore = ref(false)
+const loadError = ref('')
+const hasMore = ref(false)
+const total = ref(0)
 const activeKey = ref('all')
+let currentParams = {}
+let page = 1
+// A filter click aborts the previous filter's request, so a slow "All" response can never replace
+// the rows of the "Failed" filter the user clicked after it.
+const scope = useRequestScope()
 
 // One row's "why" (gate verdict) open at a time — id of the open row, or null.
 const openWhy = ref(null)
@@ -114,15 +134,45 @@ function when(iso) {
 }
 
 async function load(params = {}) {
+  const signal = scope.next()
+  currentParams = params
+  page = 1
   loading.value = true
+  loadingMore.value = false
+  loadError.value = ''
   openWhy.value = null // rows are replaced — an open "why" panel would point at a stale row
   try {
-    const { data } = await api.get('/delegations/', { params })
+    const { data } = await api.get('/delegations/', { params: { ...params, page }, signal })
+    if (signal.aborted) return
     rows.value = pickArray(data)
+    hasMore.value = !!data?.next
+    total.value = Number(data?.count) || 0
   } catch (e) {
-    notify.error('Could not load delegations.')
+    if (isAbortError(e) || signal.aborted) return
+    rows.value = []
+    loadError.value = 'Check your connection and try again.'
   } finally {
-    loading.value = false
+    if (!signal.aborted) loading.value = false
+  }
+}
+
+function reload() { load(currentParams) }
+
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  const signal = scope.next()
+  loadingMore.value = true
+  try {
+    const { data } = await api.get('/delegations/', { params: { ...currentParams, page: page + 1 }, signal })
+    if (signal.aborted) return
+    page += 1
+    rows.value = rows.value.concat(pickArray(data))
+    hasMore.value = !!data?.next
+  } catch (e) {
+    if (isAbortError(e) || signal.aborted) return
+    notify.error('Could not load more delegations.')
+  } finally {
+    if (!signal.aborted) loadingMore.value = false
   }
 }
 

@@ -7,7 +7,7 @@
            These can only make the platform safety floor <strong>stricter</strong>, never weaker — and each
            agent can then only tighten them further.</p>
       </div>
-      <div class="ag-head-actions">
+      <div v-if="loaded" class="ag-head-actions">
         <button class="ag-toggle" :class="pol.enabled ? 'on' : 'off'" :disabled="!canEdit || saving"
                 @click="pol.enabled = !pol.enabled; mark()">
           <span class="ag-toggle-dot"></span>
@@ -19,14 +19,17 @@
       </div>
     </header>
 
-    <div v-if="!canEdit" class="ag-note warn">
+    <div v-if="loaded && !canEdit" class="ag-note warn">
       You have <strong>read-only</strong> access. Only an organization <strong>owner or admin</strong> can change this policy.
     </div>
-    <div v-else-if="!pol.enabled" class="ag-note">
+    <div v-else-if="loaded && !pol.enabled" class="ag-note">
       This organization policy is <strong>disabled</strong> — its rules are not applied. Enable it to add a floor for every agent in the org.
     </div>
 
     <div v-if="loading" class="ag-loading">Loading policy…</div>
+    <!-- A failed load is an error with Retry. It used to render the built-in defaults ("Policy enabled",
+         budget 4, …) as if they were this organization's saved policy. -->
+    <LoadError v-else-if="!loaded" title="Couldn't load the organization policy" :message="loadError" @retry="load" />
 
     <div v-else class="ag-grid">
       <section class="ag-card">
@@ -141,8 +144,11 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import OrgLlmDefaults from '../components/org/OrgLlmDefaults.vue'
+import LoadError from '../components/common/LoadError.vue'
 
 const loading = ref(true)
+const loaded = ref(false)       // true only after the policy was actually read from the server
+const loadError = ref('')
 const saving = ref(false)
 const dirty = ref(false)
 const canEdit = ref(false)
@@ -190,9 +196,15 @@ function apply(d) {
 
 async function load() {
   loading.value = true
-  try { apply((await api.getOrgAgentPolicy()).data) }
-  catch (e) { notify.error('Failed to load the organization policy') }
-  finally { loading.value = false }
+  loadError.value = ''
+  try {
+    apply((await api.getOrgAgentPolicy()).data)
+    loaded.value = true
+  } catch (e) {
+    loadError.value = e?.response?.status === 403
+      ? 'You do not have access to this policy.'
+      : (e?.response?.data?.detail || 'Check your connection and try again.')
+  } finally { loading.value = false }
 }
 
 function addGuardrail() {

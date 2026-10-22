@@ -136,7 +136,8 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import axios from 'axios'
+import api, { isAbortError } from '@/services/api'
+import { usePoller } from '@/composables/usePoller'
 
 const props = defineProps({
   repositoryId: {
@@ -155,8 +156,9 @@ const loading = ref(false)
 const filterType = ref('')
 const filterStatus = ref('')
 
-const loadSessions = async () => {
-  loading.value = true
+// `background`: the 10 s refresh. It never shows the loading state, so the list does not flash.
+const loadSessions = async ({ background = false, signal } = {}) => {
+  if (!background) loading.value = true
   try {
     const params = {}
     if (props.repositoryId) params.repository = props.repositoryId
@@ -166,25 +168,26 @@ const loadSessions = async () => {
     if (filterType.value) params.session_type = filterType.value
     if (filterStatus.value) params.status = filterStatus.value
 
-    const response = await axios.get('/api/sessions/', { params })
+    const response = await api.get('/sessions/', { params, signal })
     sessions.value = response.data.results || response.data
     
-    // Auto-select if only one session found and it matches requested ID
-    if (props.sessionId && sessions.value.length === 1) {
+    // Auto-select if only one session found and it matches requested ID (once, not on every refresh)
+    if (props.sessionId && sessions.value.length === 1 && selectedSession.value?.id !== sessions.value[0].id) {
         viewDetails(sessions.value[0]);
     }
   } catch (error) {
+    if (isAbortError(error)) return
     console.error('Failed to load sessions:', error)
+    if (background) throw error   // let the poller back off
   } finally {
-    loading.value = false
+    if (!background) loading.value = false
   }
 }
 
 const viewDetails = async (session) => {
   try {
     // If session object is sparse, fetch details
-    const response = await axios.get(`/api/sessions/${session.id}/`)
-    console.log('📊 Session detail response:', response.data)
+    const response = await api.get(`/sessions/${session.id}/`)
     selectedSession.value = response.data
   } catch (error) {
     console.error('Failed to load session details:', error)
@@ -218,8 +221,10 @@ watch(() => props.sessionId, () => {
     loadSessions();
 });
 
-// Auto-refresh every 10 seconds
-setInterval(loadSessions, 10000)
+// Auto-refresh every 10 seconds: one poller, paused while the tab is hidden, stopped on unmount
+// (it used to be a bare setInterval that was never cleared and stacked up with every open).
+const refresher = usePoller(({ signal }) => loadSessions({ background: true, signal }), { interval: 10000 })
+onMounted(() => refresher.start({ immediate: false }))
 </script>
 
 <style scoped>

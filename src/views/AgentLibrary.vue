@@ -151,7 +151,7 @@
                 <button @click.stop="openMonitor(agent)"><Icon icon="lucide:activity" /> Monitor</button>
                 <button @click.stop="openWorkspace(agent)"><Icon icon="lucide:folder" /> Workspace</button>
                 <button @click.stop="openIntegrationGuide(agent)"><Icon icon="lucide:book-open" /> Integration Guide <Icon icon="lucide:external-link" class="ext" /></button>
-                <button @click.stop="duplicateAgent(agent)"><Icon icon="lucide:copy" /> Duplicate</button>
+                <button :disabled="!!duplicatingId" @click.stop="duplicateAgent(agent)"><Icon icon="lucide:copy" /> {{ duplicatingId === agent.id ? 'Duplicating…' : 'Duplicate' }}</button>
                 <button v-if="agent.is_owner !== false" class="danger" @click.stop="confirmDelete(agent); closeMenus()"><Icon icon="lucide:trash-2" /> Delete</button>
               </div>
             </div>
@@ -186,6 +186,7 @@ import OwnerFilter from '../components/common/OwnerFilter.vue';
 import { notify } from '@/composables/useNotify';
 import { confirm } from '@/composables/useConfirm';
 import { useCountUp } from '@/composables/useCountUp';
+import { useRequestScope, isAbortError } from '@/composables/useRequestScope';
 
 const router = useRouter();
 const loading = ref(true);
@@ -302,15 +303,21 @@ const queryParams = () => {
     return params;
 };
 
+// Filters, search and paging each start a new load. Only the LATEST may write the list: a slow answer for
+// an older filter used to land after a faster newer one and replace it (page-speed plan Phase 5 item 2).
+// Starting a load aborts the previous one, and leaving the page aborts whatever is in flight.
+const listScope = useRequestScope();
 const fetchAgents = async () => {
+    const signal = listScope.next();
     try {
         loading.value = true;
         loadError.value = '';
         const params = queryParams();
         const [listRes, statsRes] = await Promise.allSettled([
-            api.getAgentsPage(params),
-            api.getAgentStats({ owner: params.owner }),
+            api.get('/agents/', { params, signal }),
+            api.get('/agents/stats/', { params: { owner: params.owner }, signal }),
         ]);
+        if (signal.aborted) return;
         if (listRes.status === 'rejected') throw listRes.reason;
         const d = listRes.value.data;
         if (Array.isArray(d)) {
@@ -330,6 +337,7 @@ const fetchAgents = async () => {
             stats.value = { ...stats.value, total: totalMatching.value };
         }
     } catch (e) {
+        if (signal.aborted || isAbortError(e)) return;
         // This used to be a bare console.error, so a failed load was indistinguishable from an
         // empty account: the page said "No agents yet" to someone with 174 of them and the only
         // trace was in a console nobody had open.
@@ -339,6 +347,8 @@ const fetchAgents = async () => {
             : "Couldn't load your agents — check your connection and retry.";
         agents.value = [];
     } finally {
+        // A superseded load leaves the spinner to the load that replaced it.
+        if (signal.aborted) return;
         loading.value = false;
         barsReady.value = false;
         requestAnimationFrame(() => requestAnimationFrame(() => { barsReady.value = true; }));
@@ -384,8 +394,12 @@ const openIntegrationGuide = (agent) => {
     window.open(`/dashboard/integrations/agents/${agent.id}`, '_blank', 'noopener');
 };
 
+// The agent being duplicated (one at a time): its menu item shows progress and ignores a second click.
+const duplicatingId = ref(null);
+// The menu stays open while it runs, so "Duplicating…" is visible, and closes when it is done.
 const duplicateAgent = async (agent) => {
-    openMenuId.value = null;
+    if (duplicatingId.value) return;
+    duplicatingId.value = agent.id;
     try {
         // Fetch the full agent, strip identity, post a copy
         const res = await api.get(`/agents/${agent.id}/`);
@@ -407,10 +421,15 @@ const duplicateAgent = async (agent) => {
             tool_ids: (full.tools || []).map(t => t.id),
         };
         const created = await api.post('/agents/', copy);
-        await fetchAgents();
+        // Straight to the copy's editor. Waiting for the whole list to reload first only delayed leaving
+        // this page; when the copy has no id to open, the list is refreshed so it shows.
         if (created?.data?.id) router.push(`/dashboard/agents/${created.data.id}/editor`);
+        else fetchAgents();
     } catch (e) {
         notify.error('Failed to duplicate agent: ' + (e.response?.data?.error || e.message));
+    } finally {
+        duplicatingId.value = null;
+        openMenuId.value = null;
     }
 };
 

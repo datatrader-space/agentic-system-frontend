@@ -214,6 +214,7 @@
                 <!-- Run CRS (fresh or not started) -->
                 <button
                   v-if="!repo.crs_status || repo.crs_status === 'not_started'"
+                  :disabled="crsBusy.has('crs:' + repo.id)"
                   @click.stop="runCrs(repo)"
                   class="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700"
                 >
@@ -232,6 +233,7 @@
                 <!-- Re-run CRS (if failed) -->
                 <button
                   v-if="repo.crs_status === 'error' || repo.crs_status === 'failed'"
+                  :disabled="crsBusy.has('crs:' + repo.id)"
                   @click.stop="runCrs(repo)"
                   class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
                 >
@@ -250,6 +252,7 @@
                 <!-- Enrich CRS (after CRS ready, before enrichment) -->
                 <button
                   v-if="repo.crs_status === 'ready' && (!repo.enrichment_status || repo.enrichment_status === 'not_started')"
+                  :disabled="crsBusy.has('enrich:' + repo.id)"
                   @click.stop="enrichCrs(repo)"
                   class="px-3 py-1 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700"
                 >
@@ -268,6 +271,7 @@
                 <!-- Re-enrich (if failed) -->
                 <button
                   v-if="repo.enrichment_status === 'error'"
+                  :disabled="crsBusy.has('enrich:' + repo.id)"
                   @click.stop="enrichCrs(repo, true)"
                   class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
                 >
@@ -277,6 +281,7 @@
                 <!-- Re-run Enrichment (if already complete) -->
                 <button
                   v-if="repo.enrichment_status === 'ready'"
+                  :disabled="crsBusy.has('enrich:' + repo.id)"
                   @click.stop="enrichCrs(repo, true)"
                   class="px-3 py-1 bg-amber-600 text-white rounded text-sm hover:bg-amber-700"
                 >
@@ -1034,7 +1039,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, inject, watch } from 'vue'
+import { ref, reactive, computed, onMounted, inject, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../services/api'
 import { connectOAuth } from '@/composables/useOAuthConnect'
@@ -1101,6 +1106,9 @@ const githubReposError = ref(null)
 const githubNotConnected = ref(false)
 const connectingGithub = ref(false)
 const deletingRepoId = ref(null)
+// CRS run / enrich requests in flight, as 'crs:<repoId>' / 'enrich:<repoId>'. Each is a long, paid
+// pipeline: a second click while the first is in flight must not start it twice.
+const crsBusy = reactive(new Set())
 const repoSearchQuery = ref('')
 
 // Computed
@@ -1270,6 +1278,9 @@ const submitAnswers = async () => {
 }
 
 const runCrs = async (repo) => {
+  const key = 'crs:' + repo.id
+  if (crsBusy.has(key)) return
+  crsBusy.add(key)
   try {
     notify('Running CRS pipeline...', 'info')
     await api.runCrs(systemId, repo.id)
@@ -1278,10 +1289,15 @@ const runCrs = async (repo) => {
   } catch (error) {
     notify('Failed to run CRS pipeline', 'error')
     console.error(error)
+  } finally {
+    crsBusy.delete(key)
   }
 }
 
 const enrichCrs = async (repo, force = false) => {
+  const key = 'enrich:' + repo.id
+  if (crsBusy.has(key)) return
+  crsBusy.add(key)
   try {
     notify(force ? 'Re-running CRS enrichment...' : 'Running CRS enrichment...', 'info')
     await api.enrichCrs(systemId, repo.id, { force })
@@ -1290,6 +1306,8 @@ const enrichCrs = async (repo, force = false) => {
   } catch (error) {
     notify('Failed to enrich CRS', 'error')
     console.error(error)
+  } finally {
+    crsBusy.delete(key)
   }
 }
 

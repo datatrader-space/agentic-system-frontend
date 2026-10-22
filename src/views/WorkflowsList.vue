@@ -25,7 +25,7 @@
             class="h-9 px-3 rounded-[8px] border border-[#d8e2f0] bg-white text-[12px] font-[850] text-[#334155] hover:bg-[#f8fbff] inline-flex items-center gap-1.5">
             <LayoutTemplate :size="15" :stroke-width="2" /> Templates
           </button>
-          <button @click="triggerImport"
+          <button @click="triggerImport" :disabled="creating"
             class="h-9 px-3 rounded-[8px] border border-[#d8e2f0] bg-white text-[12px] font-[850] text-[#334155] hover:bg-[#f8fbff] inline-flex items-center gap-1.5">
             <Upload :size="15" :stroke-width="2" /> Import
           </button>
@@ -137,7 +137,10 @@ async function load() {
   }
 }
 
+// `creating` is the one guard for every action that creates a workflow (New, template, Duplicate,
+// Import): a second click while one is in flight is ignored instead of creating a second copy.
 async function createNew() {
+  if (creating.value) return
   creating.value = true
   try {
     const { data } = await api.createWorkflowGraph({
@@ -155,6 +158,8 @@ async function createNew() {
 function open(g) { router.push(`/dashboard/workflow-builder/${g.id}`) }
 
 async function duplicate(g) {
+  if (creating.value) return
+  creating.value = true
   try {
     const { data: full } = await api.getWorkflowGraph(g.id)
     const { data: copy } = await api.createWorkflowGraph({ name: `${g.name} (copy)`, graph: full.graph })
@@ -162,6 +167,8 @@ async function duplicate(g) {
     router.push(`/dashboard/workflow-builder/${copy.id}`)
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Failed to duplicate')
+  } finally {
+    creating.value = false
   }
 }
 
@@ -187,6 +194,7 @@ async function openTemplates() {
 }
 
 async function useTemplate(t) {
+  if (creating.value) return
   creating.value = true
   try {
     const { data } = await api.createWorkflowGraphFromTemplate(t.key)
@@ -199,12 +207,13 @@ async function useTemplate(t) {
   }
 }
 
-function triggerImport() { fileInput.value?.click() }
+function triggerImport() { if (!creating.value) fileInput.value?.click() }
 
 async function onImportFile(e) {
   const file = e.target.files?.[0]
   e.target.value = ''   // allow re-importing the same file
-  if (!file) return
+  if (!file || creating.value) return
+  creating.value = true
   try {
     const text = await file.text()
     const obj = JSON.parse(text)
@@ -218,6 +227,8 @@ async function onImportFile(e) {
     router.push(`/dashboard/workflow-builder/${data.id}`)
   } catch (err) {
     notify.error(err?.response?.data?.error || 'Could not import — invalid JSON file')
+  } finally {
+    creating.value = false
   }
 }
 

@@ -6,9 +6,9 @@
 import axios from 'axios'
 
 // Create axios instance
-// Default timeout is SHORT (20s) so the 95% read path fails fast instead of hanging up to 2 minutes.
-// Genuinely-long operations (discovery / enrichment / model sync / reindex / analyze / crawl) are bumped
-// back up centrally in the request interceptor below, and a few callers pass an explicit higher timeout.
+// Default timeout is 60s. Genuinely-long operations (discovery / enrichment / model sync / reindex / analyze /
+// crawl / uploads / exports / CRS runs) are bumped to LONG_TIMEOUT centrally in the request interceptor below,
+// and a few callers pass an explicit higher timeout.
 const DEFAULT_TIMEOUT = 60000
 const LONG_TIMEOUT = 120000
 const api = axios.create({
@@ -19,9 +19,15 @@ const api = axios.create({
     'Content-Type': 'application/json'
   }
 })
-// URL fragments for long-running operations that need more than the 20s default. One place to maintain,
+// URL fragments for long-running operations that need more than the 60s default. One place to maintain,
 // covers current + future endpoints matching the pattern; an explicit per-call timeout still wins (Math.max).
-const _LONG_OP = /(discover|enrich|reindex|reembed|\/sync|sync[_-]|\/analyze|\/crawl|generate[_-])/i
+// Exports (knowledge, workflow graphs, coding tasks) and CRS runs are long too; every upload (a FormData
+// body) is handled below by body type, not by URL, so a new upload endpoint cannot miss it.
+export const _LONG_OP = /(discover|enrich|reindex|reembed|\/sync|sync[_-]|\/analyze|\/crawl|generate[_-]|\/export\/|\/crs\/run)/i
+export function _isLongOperation(config) {
+  if (_LONG_OP.test((config && config.url) || '')) return true
+  return typeof FormData !== 'undefined' && config && config.data instanceof FormData
+}
 function getCookie(name) {
   let cookieValue = null
   if (document.cookie && document.cookie !== '') {
@@ -54,9 +60,9 @@ api.interceptors.request.use(
       config.headers['X-Workspace-ID'] = wsId
     }
 
-    // Long-running operations need more than the 20s default. Bump by URL pattern (an explicit higher
-    // per-call timeout still wins via Math.max). Fast reads keep the 20s fail-fast default.
-    if (_LONG_OP.test(config.url || '')) {
+    // Long-running operations need more than the 60s default. Bump by URL pattern or upload body (an explicit
+    // higher per-call timeout still wins via Math.max). Fast reads keep the 60s default.
+    if (_isLongOperation(config)) {
       config.timeout = Math.max(config.timeout || 0, LONG_TIMEOUT)
     }
 
@@ -115,36 +121,59 @@ api.interceptors.response.use(
 //  2) Cache: slow-changing reference data is served from memory for a few seconds, so navigating
 //     between tabs doesn't refetch providers/models/tools/etc. Any write (post/put/patch/delete)
 //     clears the cache, so data is never stale after a mutation. Pass { noCache: true } to bypass.
+//
+// Correctness rules (page-speed plan F-H1/F-H2/F-H3):
+//  - The key carries the active workspace (the X-Workspace-ID the request is sent with), so a
+//    workspace switch can never be answered with the previous workspace's data.
+//  - TTL rules match an EXACT path (regex), never a substring: '/connectors' must not cache
+//    '/connectors/svc/{key}/status'. Status endpoints are never cached.
+//  - A generation counter is bumped on every clear/invalidation. A GET that was in flight across a
+//    clear does not store its (possibly stale) response, and in-flight dedup entries are dropped on
+//    clear so a new caller cannot join an old request.
+//  - A caller that passes an AbortSignal gets its own request (never one another caller could
+//    abort), and is still cached on success.
 // ───────────────────────────────────────────────────────────────────────────
 const _inflight = new Map()
 const _cache = new Map()
+let _generation = 0
 
-// url-path → cache TTL in ms (0 = dedup only, no caching). Matched by substring.
+// Exact url path → cache TTL in ms. A path that matches none is not cached (dedup only).
 const _CACHE_TTL = [
-  ['/auth/me', 60_000], ['/auth/check', 60_000],
-  ['/llm/providers', 60_000], ['/llm/models', 60_000],
-  ['/tools/definitions', 60_000], ['/services/', 60_000], ['/mcp/servers', 60_000],
-  ['/connectors', 30_000], ['/credentials/builtin-scopes', 300_000],
-  ['/v2/orgs', 60_000], ['/workspaces', 60_000],
+  [/^\/auth\/me\/?$/, 60_000], [/^\/auth\/check\/?$/, 60_000],
+  [/^\/llm\/providers\/?$/, 60_000], [/^\/llm\/models\/?$/, 60_000],
+  [/^\/tools\/definitions\/?$/, 60_000],
+  // The tool catalog (ToolsPage, WorkflowBuilder): large and slow-changing; any tool write clears it.
+  [/^\/tools\/?$/, 60_000],
+  // The service list and one service's detail. NOT its sub-resources (repair-schemas, auth, shares,
+  // drafts, enrichment status), which are live.
+  [/^\/services\/?$/, 60_000], [/^\/services\/\d+\/?$/, 60_000],
+  [/^\/mcp\/servers\/?$/, 60_000], [/^\/mcp\/servers\/\d+\/?$/, 60_000],
+  // Connector lists only. Never '/connectors/svc/{key}/status' or '/connectors/{kind}/{id}/tools/'.
+  [/^\/connectors\/?$/, 30_000], [/^\/connectors\/(bundle|services|catalog)\/?$/, 30_000],
+  [/^\/credentials\/builtin-scopes\/?$/, 300_000],
+  [/^\/v2\/orgs\/?$/, 60_000], [/^\/workspaces\/?$/, 60_000],
   // The Platform Super Agent card — fetched on EVERY new-chat mount. Safe to cache briefly: the two
   // things a user can change about it from chat (model / run mode) are POSTs, and any POST clears the
-  // cache, so the next read is fresh. Listed BEFORE nothing else matches '/agents/super-agent'
-  // (_AGENTS_LIST is an exact-match regex on '/agents/', so there is no conflict).
-  ['/agents/super-agent', 30_000],
+  // cache, so the next read is fresh.
+  [/^\/agents\/super-agent\/?$/, 30_000],
+  // The agent LIST is slow-changing reference-ish data refetched on every navigation, so cache it
+  // briefly. Not '/agents/{id}/...' live sub-resources. Any agent write clears the cache.
+  [/^\/agents\/?$/, 30_000], [/^\/agents\/picker\/?$/, 30_000],
 ]
-// The agent LIST is slow-changing reference-ish data refetched on every navigation, so cache it briefly.
-// EXACT match only — '/agents/' (list), NOT '/agents/{id}/...' live sub-resources (signals/credentials/
-// etc.), which the substring list would wrongly cache. Safe because any agent write (POST/PUT/PATCH/
-// DELETE to /agents/) clears the whole cache (it isn't in _NO_CACHE_INVALIDATE), so a created/edited agent
-// shows up immediately.
-const _AGENTS_LIST = /^\/agents\/?$/
-function _ttlFor(url) {
-  if (_AGENTS_LIST.test(url)) return 30_000
-  for (const [frag, ttl] of _CACHE_TTL) if (url.includes(frag)) return ttl
+function _path(url) {
+  return String(url || '').split('?')[0].replace(/^https?:\/\/[^/]+/i, '').replace(/^\/api(?=\/)/, '')
+}
+export function _ttlFor(url) {
+  const p = _path(url)
+  if (/\/status(\/|$)/i.test(p)) return 0
+  for (const [re, ttl] of _CACHE_TTL) if (re.test(p)) return ttl
   return 0
 }
-function _key(url, config) {
-  return url + '::' + JSON.stringify((config && config.params) || {})
+function _activeWorkspaceId() {
+  try { return localStorage.getItem('activeWorkspaceId') || '' } catch { return '' }
+}
+export function _key(url, config) {
+  return 'ws:' + _activeWorkspaceId() + '|' + url + '::' + JSON.stringify((config && config.params) || {})
 }
 
 const _rawGet = api.get.bind(api)
@@ -159,15 +188,18 @@ api.get = (url, config = {}) => {
       return Promise.resolve({ ...c.resp, data: _clone(c.resp.data), _cached: true })
     }
   }
-  if (_inflight.has(key)) return _inflight.get(key)
+  const shareable = !config.signal
+  if (shareable && _inflight.has(key)) return _inflight.get(key)
+  const startedAt = _generation
   const p = _rawGet(url, config)
     .then((resp) => {
-      _inflight.delete(key)
-      if (ttl) _cache.set(key, { resp, expiry: Date.now() + ttl })
+      if (_inflight.get(key) === p) _inflight.delete(key)
+      // Store only if nothing was cleared while this request was in flight.
+      if (ttl && startedAt === _generation) _cache.set(key, { url: _path(url), resp, expiry: Date.now() + ttl })
       return resp
     })
-    .catch((err) => { _inflight.delete(key); throw err })
-  _inflight.set(key, p)
+    .catch((err) => { if (_inflight.get(key) === p) _inflight.delete(key); throw err })
+  if (shareable) _inflight.set(key, p)
   return p
 }
 
@@ -176,35 +208,47 @@ function _clone(d) {
   catch { return d }
 }
 
-// A mutation invalidates the GET cache (simple + always-correct for reference data). EXCEPTION:
-// high-frequency chat/conversation writes (sending a message, etc.) never change any CACHED endpoint
-// (auth/providers/models/tools/services/connectors/orgs/workspaces — see _CACHE_TTL), so clearing the
-// cache after every chat message just forces needless refetches of all that reference data on the next
-// navigation. Skip the clear for those write paths; everything else still clears.
-const _NO_CACHE_INVALIDATE = /\/(chat|messages?|conversations|turn|long-answer|stream)\b/i
-// Entries that survive ordinary mutations: AUTH state only changes via /auth/* writes (login/logout —
-// those trigger a FULL clear below) or session expiry (the global 401 handler). Wiping it on every
-// unrelated save forced the router guard into a blocking /auth/check round trip on the very next
-// navigation — the "click does nothing for seconds" hang. Everything else still clears on write.
-const _KEEP_ON_WRITE = ['/auth/check', '/auth/me']
-function _invalidateForWrite(writeUrl) {
-  // An auth mutation (login/logout/password/2FA) invalidates auth state itself — full clear.
-  if (/\/auth\//i.test(writeUrl || '')) { _cache.clear(); return }
-  for (const key of _cache.keys()) {
-    const url = key.split('::')[0]
-    if (!_KEEP_ON_WRITE.some((frag) => url.includes(frag))) _cache.delete(key)
-  }
+// A mutation invalidates the GET cache (simple + always-correct for reference data). EXCEPTIONS:
+// high-frequency writes that never change any CACHED endpoint (see _CACHE_TTL): chat/conversation
+// messages, notification reads, help-assistant logs, guided-tour progress, draft autosave and the
+// onboarding flag. Clearing after each of those forced refetches of all reference data.
+const _NO_CACHE_INVALIDATE = /\/(chat|messages?|conversations|turn|long-answer|stream)\b|^\/(notifications|help|guided-tours)\/|\/save-draft\/?$|\/onboarding\/?$/i
+// Only a change of WHO is signed in (or of their credentials) wipes everything, auth state included.
+const _FULL_CLEAR_WRITE = /^\/auth\/(login|logout|register|2fa|change-password|reset-password|verify-email|sessions)\b/i
+// A write to the signed-in user's own record (profile, onboarding flag) refreshes the user only.
+const _AUTH_SELF_WRITE = /^\/auth\/me\b/i
+// Entries that survive ordinary mutations: AUTH state only changes via the auth writes above or session
+// expiry (the global 401 handler). Wiping it on every unrelated save forced the router guard into a
+// blocking /auth/check round trip on the very next navigation — the "click does nothing for seconds" hang.
+const _KEEP_ON_WRITE = [/^\/auth\/check\/?$/, /^\/auth\/me\/?$/]
+function _dropWhere(pred) {
+  _generation++
+  _inflight.clear()
+  for (const [key, entry] of _cache) if (pred(entry.url)) _cache.delete(key)
+}
+export function _invalidateForWrite(writeUrl) {
+  const p = _path(writeUrl)
+  if (_FULL_CLEAR_WRITE.test(p)) { clearApiCache(); return }
+  if (_AUTH_SELF_WRITE.test(p)) { _dropWhere((u) => _KEEP_ON_WRITE.some((re) => re.test(u))); return }
+  if (_NO_CACHE_INVALIDATE.test(p)) return
+  _dropWhere((u) => !_KEEP_ON_WRITE.some((re) => re.test(u)))
 }
 for (const m of ['post', 'put', 'patch', 'delete']) {
   const raw = api[m].bind(api)
   api[m] = (url, ...rest) => {
-    if (!_NO_CACHE_INVALIDATE.test(url || '')) _invalidateForWrite(url)
+    _invalidateForWrite(url)
     return raw(url, ...rest)
   }
 }
 
-// Exposed so auth flows (login/logout) can hard-reset cached user/reference data.
-export function clearApiCache() { _cache.clear(); _inflight.clear() }
+// Exposed so auth flows (login/logout), workspace switches and OAuth completions can hard-reset cached
+// user/reference data. Bumps the generation so a GET already in flight cannot write old data back.
+export function clearApiCache() { _generation++; _cache.clear(); _inflight.clear() }
+
+// True when a request was cancelled through its AbortSignal (route leave / unmount / superseded).
+export function isAbortError(err) {
+  return !!err && (axios.isCancel?.(err) || err.name === 'CanceledError' || err.name === 'AbortError' || err.code === 'ERR_CANCELED')
+}
 
 // API methods
 export default {
@@ -269,8 +313,9 @@ export default {
   // One-shot load for the Connectors page: agents + connectors + workspaces.
   getConnectorsBundle: (scope = 'global') => api.get('/connectors/bundle/', { params: { scope } }),
   // Per-connector tools grouped read-only/write + per-tool permissions (P3)
-  getConnectorTools: (kind, id, scope = 'global') =>
-    api.get(`/connectors/${kind}/${id}/tools/`, { params: { scope } }),
+  // `config.signal` lets a page abort the read when the person picks another connector (F-H2 / Phase 5).
+  getConnectorTools: (kind, id, scope = 'global', config = {}) =>
+    api.get(`/connectors/${kind}/${id}/tools/`, { ...config, params: { scope } }),
   updateConnectorPermissions: (kind, id, scope, permissions) =>
     api.patch(`/connectors/${kind}/${id}/permissions/`, { permissions }, { params: { scope } }),
 
@@ -377,7 +422,7 @@ export default {
 
   // MCP Server Management
   getMCPServers: (params) => api.get('/mcp/servers/', { params }),
-  getMCPServer: (id) => api.get(`/mcp/servers/${id}/`),
+  getMCPServer: (id, config = {}) => api.get(`/mcp/servers/${id}/`, config),
   createMCPServer: (data) => api.post('/mcp/servers/create/', data),
   // MCP OAuth 2.1 connect (Phase 1)
   mcpOauthInitiate: (data) => api.post('/mcp/oauth/initiate/', data),
@@ -421,8 +466,6 @@ export default {
     api.get(`/systems/${systemId}/repositories/${repoId}/source-control/status/`),
   getSourceControlDiff: (systemId, repoId, path) =>
     api.get(`/systems/${systemId}/repositories/${repoId}/source-control/diff/`, { params: { path } }),
-  // LLM models (for the IDE model switcher)
-  getLLMModels: () => api.get('/llm/models/'),
 
   // Knowledge
   getKnowledge: (systemId) => api.get(`/systems/${systemId}/knowledge/`),
@@ -522,6 +565,11 @@ export default {
     }
     return { ...last, data: all }
   },
+  // EVERY agent the caller can see, in ONE response, with only what a dropdown shows: {id, name,
+  // description, is_paused, agent_run_mode, effective_run_mode, is_owner, user, is_builtin_agent,
+  // is_platform_super_agent, updated_at}. For pickers that need nothing else (no models, tools or channel
+  // flags); it replaces getAgents()'s page walk there. Params: search, ordering.
+  getAgentPicker: (params = {}, config = {}) => api.get('/agents/picker/', { ...config, params }),
   getAgentsPage: (params = {}) => api.get('/agents/', { params }),
   getAgentStats: (params = {}) => api.get('/agents/stats/', { params }),
   getAgent: (id) => api.get(`/agents/${id}/`),
@@ -926,7 +974,7 @@ export default {
   // Poll fallback for index status (WS push is primary).
   getAgentFileStatus: (fileId) => api.get(`/context_files/${fileId}/status/`),
   // ── Standalone user-scoped Knowledge & RAG (KnowledgeSource-backed, assignable to any agent) ──
-  listKnowledge: (scope) => api.get('/knowledge/', { params: scope ? { scope } : {} }),
+  listKnowledge: (scope, config = {}) => api.get('/knowledge/', { ...config, params: scope ? { scope } : {} }),
   getKnowledge: (id) => api.get(`/knowledge/${id}/`),
   deleteKnowledge: (id) => api.delete(`/knowledge/${id}/`),
   uploadKnowledgeFile: (file, name) => {

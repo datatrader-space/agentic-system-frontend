@@ -1,6 +1,9 @@
 <template>
   <div class="mx-auto grid w-full max-w-[1840px] grid-cols-1 gap-3 px-6 pb-8 font-[Inter,system-ui,sans-serif] xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_390px]">
     <main class="min-w-0 space-y-4">
+      <!-- Monitoring failed to load: say so, with Retry. Never stand-in numbers that look like real ones. -->
+      <LoadError v-if="monitorError" compact title="Couldn't load this agent's activity" :message="monitorError"
+                 :retrying="loading" @retry="loadMonitoring" />
       <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <article v-for="card in statusCards" :key="card.title" class="metric-card">
           <div class="flex h-full items-start gap-3">
@@ -22,14 +25,16 @@
           <div class="mb-4 flex items-center justify-between gap-3">
             <div>
               <div class="flex items-center gap-3">
-                <h3 class="text-[18px] font-bold text-[#0F172A]">Last Test Result</h3>
-                <span class="status-pill bg-[#E6F7EE] text-[#027A48]"><CheckCircle2 :size="13" /> Success</span>
+                <h3 class="text-[18px] font-bold text-[#0F172A]">Last Run</h3>
+                <span v-if="lastRun" class="status-pill" :class="runFailed(lastRun) ? 'bg-[#FEE4E2] text-[#B42318]' : 'bg-[#E6F7EE] text-[#027A48]'">
+                  <component :is="runFailed(lastRun) ? XCircle : CheckCircle2" :size="13" /> {{ runStatusLabel(lastRun) }}
+                </span>
               </div>
-              <p class="mt-2 text-[12.5px] text-[#64748B]">Tested {{ lastRunAgo }}</p>
+              <p class="mt-2 text-[12.5px] text-[#64748B]">{{ lastRun ? `Ran ${lastRunAgo}` : (monitorError ? 'Activity unavailable' : 'No runs yet') }}</p>
             </div>
           </div>
 
-          <div class="overflow-hidden rounded-xl border border-[#E5E7EB]">
+          <div v-if="lastRun" class="overflow-hidden rounded-xl border border-[#E5E7EB]">
             <div v-for="row in testRows" :key="row.label" class="grid grid-cols-2 border-b border-[#EEF2F6] last:border-b-0">
               <div class="border-r border-[#EEF2F6] px-4 py-3">
                 <p class="text-[11.5px] font-medium text-[#667085]">{{ row.label }}</p>
@@ -41,6 +46,9 @@
               </div>
             </div>
           </div>
+          <p v-else class="rounded-xl border border-dashed border-[#E5E7EB] px-4 py-6 text-center text-[12.5px] text-[#64748B]">
+            {{ monitorError ? 'Run details could not be loaded.' : 'Run this agent (Quick Test or chat) to see its latest result here.' }}
+          </p>
 
           <button class="wide-btn mt-4" @click="go(shell.agentPage(agent.id, 'monitor'))">View Full Test Details</button>
         </section>
@@ -71,7 +79,7 @@
           </div>
 
           <div class="mt-4 grid grid-cols-[1fr_1fr_auto] gap-2">
-            <button class="wide-btn" @click="publish">{{ publishing ? 'Updating...' : publishButtonLabel }}</button>
+            <button class="wide-btn disabled:cursor-not-allowed disabled:opacity-60" :disabled="publishing" :aria-busy="publishing" @click="publish">{{ publishing ? 'Updating...' : publishButtonLabel }}</button>
             <button class="wide-btn disabled:cursor-not-allowed disabled:opacity-50" :disabled="!canRollback || rollingBack"
                     :title="canRollback ? '' : 'Nothing to roll back to — this agent has not been published yet.'"
                     @click="rollback">{{ rollingBack ? 'Rolling back...' : 'Rollback' }}</button>
@@ -83,7 +91,7 @@
       <div class="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,.65fr)]">
         <section class="panel">
           <div class="mb-4 flex items-center justify-between">
-            <h3 class="text-[17px] font-bold text-[#0F172A]">Activity Summary <span class="font-medium text-[#667085]">(7 days)</span></h3>
+            <h3 class="text-[17px] font-bold text-[#0F172A]">Activity Summary <span class="font-medium text-[#667085]">(24 hours)</span></h3>
             <button class="mini-btn" @click="go(shell.agentPage(agent.id, 'monitor'))">View Analytics</button>
           </div>
           <div class="grid gap-3 sm:grid-cols-4">
@@ -93,11 +101,14 @@
               </span>
               <div>
                 <p class="text-[11px] font-semibold text-[#667085]">{{ item.label }}</p>
-                <p class="text-[18px] font-bold text-[#0F172A]">{{ item.value }} <span class="text-[11px] font-semibold text-[#64748B]">{{ item.delta }}</span></p>
+                <p class="text-[18px] font-bold text-[#0F172A]">{{ item.value }}</p>
               </div>
             </div>
           </div>
-          <div class="mt-5 h-[155px]">
+          <p v-if="!chartPoints.length" class="mt-5 grid h-[155px] place-items-center rounded-xl border border-dashed border-[#E5E7EB] text-[12.5px] text-[#64748B]">
+            {{ monitorError ? 'Activity could not be loaded.' : 'No activity in the last 24 hours.' }}
+          </p>
+          <div v-else class="mt-5 h-[155px]">
             <svg viewBox="0 0 800 170" class="h-full w-full overflow-visible">
               <defs>
                 <linearGradient id="activityFill" x1="0" x2="0" y1="0" y2="1">
@@ -119,31 +130,19 @@
           </div>
           <div class="space-y-3">
             <div v-for="run in recentRuns" :key="run.id" class="flex items-center gap-3">
-              <CheckCircle2 :size="19" class="shrink-0 text-[#12B76A]" />
+              <component :is="runFailed(run) ? XCircle : CheckCircle2" :size="19" class="shrink-0" :class="runFailed(run) ? 'text-[#D92D20]' : 'text-[#12B76A]'" />
               <div class="min-w-0 flex-1">
                 <p class="truncate text-[13px] font-semibold text-[#0F172A]">{{ runName(run) }}</p>
-                <p class="text-[12px] text-[#667085]">{{ run.status || 'Passed' }} · {{ agoLabel(run.created_at) }}</p>
+                <p class="text-[12px] text-[#667085]">{{ runStatusLabel(run) }} · {{ agoLabel(run.created_at) }}</p>
               </div>
               <span class="text-[12px] font-semibold text-[#64748B]">{{ latencyLabel(run.latency_ms) }}</span>
             </div>
+            <p v-if="!recentRuns.length" class="py-6 text-center text-[12.5px] text-[#64748B]">
+              {{ monitorError ? 'Runs could not be loaded.' : 'No runs yet.' }}
+            </p>
           </div>
         </section>
       </div>
-
-      <section class="panel">
-        <h3 class="mb-4 text-[17px] font-bold text-[#0F172A]">Health Indicators</h3>
-        <div class="grid gap-3 md:grid-cols-3 2xl:grid-cols-6">
-          <div v-for="item in healthItems" :key="item.label" class="flex items-center gap-3 border-r border-[#EEF2F6] last:border-r-0">
-            <span class="grid h-9 w-9 place-items-center rounded-lg" :class="item.tint">
-              <component :is="item.icon" :size="17" />
-            </span>
-            <div>
-              <p class="text-[12px] font-semibold text-[#475569]">{{ item.label }}</p>
-              <p class="mt-0.5 text-[12px] font-bold text-[#027A48]">Operational</p>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
 
     <aside class="space-y-4">
@@ -170,7 +169,7 @@
           <span class="grid h-10 w-10 place-items-center rounded-xl bg-white text-[#475569]"><Bell :size="19" /></span>
           <div>
             <h3 class="text-[14px] font-bold text-[#0F172A]">Monitoring &amp; Alerts</h3>
-            <p class="mt-2 text-[12.5px] leading-5 text-[#64748B]">No active alerts<br />All systems normal</p>
+            <p class="mt-2 text-[12.5px] leading-5 text-[#64748B]">{{ monitoringSummary }}</p>
           </div>
         </div>
       </section>
@@ -186,20 +185,16 @@ import {
   Bell,
   CheckCircle2,
   Clock3,
-  Database,
+  DollarSign,
   LineChart,
   Lock,
   MessageSquare,
   MoreHorizontal,
   Rocket,
-  Send,
-  Server,
   ShieldCheck,
-  Star,
-  Target,
-  Wrench,
-  X,
+  XCircle,
 } from 'lucide-vue-next'
+import LoadError from '../common/LoadError.vue'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
@@ -218,12 +213,13 @@ const router = useRouter()
 const go = (to) => router.push(to)
 const shell = useEditorShell()
 
+// Everything this step shows about runs comes from GET /agents/{id}/monitoring/ (the last 24 hours).
+// When that has nothing, it says so; when it fails, it says that, with Retry. It used to fill both cases
+// with demo figures ("1,842 conversations", "4.8 / 5", five "Passed" runs) that read as the agent's own.
 const loading = ref(false)
 const publishing = ref(false)
 const monitoring = ref(null)
-const quickMessage = ref('')
-const samplePrompt = "I'm interested in your product for our marketing team."
-const testTime = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+const monitorError = ref('')
 
 const kpis = computed(() => monitoring.value?.kpis || {})
 const health = computed(() => monitoring.value?.health || {})
@@ -233,86 +229,114 @@ const published = computed(() => (props.agent.publish_status || publishInfo.valu
 const publishButtonLabel = computed(() => published.value ? 'Update Configuration' : 'Publish Configuration')
 const publishedBy = computed(() => published.value ? 'Current user' : 'Not published')
 const publishedOn = computed(() => publishInfo.value.published_at ? new Date(publishInfo.value.published_at).toLocaleString() : 'Not published yet')
-const lastRunAgo = computed(() => {
-  const run = recentRuns.value[0]
-  return run?.created_at ? ago(run.created_at) : 'just now'
-})
-const recentRuns = computed(() => {
-  const rows = monitoring.value?.recent_runs || []
-  if (rows.length) return rows
-  return [
-    { id: 'a', status: 'Passed', request_source: 'Lead qualification happy path', latency_ms: 1210, created_at: new Date().toISOString() },
-    { id: 'b', status: 'Passed', request_source: 'Missing budget field', latency_ms: 940, created_at: new Date(Date.now() - 15 * 60000).toISOString() },
-    { id: 'c', status: 'Passed', request_source: 'High intent escalation', latency_ms: 1630, created_at: new Date(Date.now() - 60 * 60000).toISOString() },
-    { id: 'd', status: 'Passed', request_source: 'Competitor mentioned', latency_ms: 1380, created_at: new Date(Date.now() - 2 * 3600000).toISOString() },
-    { id: 'e', status: 'Passed', request_source: 'Follow-up scheduling', latency_ms: 1050, created_at: new Date(Date.now() - 3 * 3600000).toISOString() },
-  ]
-})
+const recentRuns = computed(() => monitoring.value?.recent_runs || [])
+const lastRun = computed(() => recentRuns.value[0] || null)
+const lastRunAgo = computed(() => (lastRun.value?.created_at ? ago(lastRun.value.created_at) : ''))
+// No number at all until monitoring has answered: '—', never a default that looks measured.
+const hasMonitoring = computed(() => !!monitoring.value)
+const runs24h = computed(() => Number(kpis.value.runs_24h) || 0)
 const statusCards = computed(() => [
-  { title: 'Overall Status', value: publishStatus.value, sub: published.value ? 'Live and available' : 'Ready to publish', cta: 'Details', icon: CheckCircle2, tint: 'bg-emerald-50 text-emerald-600', valueClass: 'text-[#12B76A]', action: () => go(shell.agentPage(props.agent.id, 'monitor')) },
-  { title: 'Health', value: healthLabel(health.value.status), sub: 'All systems operational', cta: 'Health', icon: ShieldCheck, tint: 'bg-emerald-50 text-emerald-600', valueClass: 'text-[#12B76A]', action: () => go(shell.agentPage(props.agent.id, 'monitor')) },
-  { title: 'Success Rate (24h)', value: `${kpis.value.success_rate ?? 100}%`, sub: `${kpis.value.runs_24h ?? 0} runs in last 24h`, cta: 'Analytics', icon: LineChart, tint: 'bg-emerald-50 text-emerald-600', valueClass: 'text-[#12B76A]', action: () => go(shell.agentPage(props.agent.id, 'monitor')) },
-  { title: 'Avg. Response Time', value: latencyLabel(kpis.value.avg_response_ms), sub: 'Based on recent runs', cta: 'Performance', icon: Clock3, tint: 'bg-violet-50 text-violet-600', valueClass: '', action: () => go(shell.agentPage(props.agent.id, 'monitor')) },
+  { title: 'Overall Status', value: publishStatus.value, sub: published.value ? 'Live and available' : 'Ready to publish', cta: 'Details', icon: CheckCircle2, tint: 'bg-emerald-50 text-emerald-600', valueClass: published.value ? 'text-[#12B76A]' : '', action: () => go(shell.agentPage(props.agent.id, 'monitor')) },
+  { title: 'Health', value: hasMonitoring.value ? healthLabel(health.value.status) : '—', sub: healthSub.value, cta: 'Health', icon: ShieldCheck, tint: 'bg-emerald-50 text-emerald-600', valueClass: healthClass(health.value.status), action: () => go(shell.agentPage(props.agent.id, 'monitor')) },
+  { title: 'Success Rate (24h)', value: hasMonitoring.value && runs24h.value ? `${kpis.value.success_rate}%` : '—', sub: hasMonitoring.value ? `${runs24h.value} runs in last 24h` : 'Not available', cta: 'Analytics', icon: LineChart, tint: 'bg-emerald-50 text-emerald-600', valueClass: '', action: () => go(shell.agentPage(props.agent.id, 'monitor')) },
+  { title: 'Avg. Response Time', value: latencyLabel(kpis.value.avg_response_ms), sub: hasMonitoring.value ? 'Based on the last 24h' : 'Not available', cta: 'Performance', icon: Clock3, tint: 'bg-violet-50 text-violet-600', valueClass: '', action: () => go(shell.agentPage(props.agent.id, 'monitor')) },
 ])
-const testRows = computed(() => [
-  { label: 'Test Case', value: runName(recentRuns.value[0]), label2: 'Result', value2: 'All assertions passed' },
-  { label: 'Response Time', value: latencyLabel(recentRuns.value[0]?.latency_ms), label2: 'Confidence Score', value2: `${Math.min(99, Math.round(kpis.value.success_rate ?? 96))}%` },
-  { label: 'Tools Invoked', value: `${props.agent.tool_ids?.length || props.agent.tools?.length || 2}/2`, label2: 'Tokens Used', value2: '1,248' },
-])
-const activityStats = computed(() => [
-  { label: 'Total Conversations', value: (kpis.value.runs_24h || 1842).toLocaleString(), delta: '+18.4%', icon: MessageSquare, tint: 'bg-indigo-50 text-indigo-600' },
-  { label: 'Successful Responses', value: Math.round((kpis.value.runs_24h || 1842) * ((kpis.value.success_rate || 98.6) / 100)).toLocaleString(), delta: `${kpis.value.success_rate || 98.6}%`, icon: CheckCircle2, tint: 'bg-emerald-50 text-emerald-600' },
-  { label: 'Escalations', value: '27', delta: '-10.0%', icon: Bell, tint: 'bg-orange-50 text-orange-600' },
-  { label: 'Feedback Score', value: '4.8 / 5', delta: '+0.2', icon: Star, tint: 'bg-cyan-50 text-cyan-600' },
-])
-const healthItems = [
-  { label: 'Model Endpoint', icon: Server, tint: 'bg-emerald-50 text-emerald-600' },
-  { label: 'Knowledge Base', icon: Database, tint: 'bg-blue-50 text-blue-600' },
-  { label: 'Tools & Integrations', icon: Wrench, tint: 'bg-indigo-50 text-indigo-600' },
-  { label: 'Guardrails', icon: ShieldCheck, tint: 'bg-emerald-50 text-emerald-600' },
-  { label: 'Data Sync', icon: Target, tint: 'bg-emerald-50 text-emerald-600' },
-  { label: 'Monitoring', icon: Activity, tint: 'bg-emerald-50 text-emerald-600' },
-]
-const chartPoints = computed(() => {
-  let series = monitoring.value?.activity_timeseries?.slice(-7) || [
-    { count: 820 }, { count: 620 }, { count: 860 }, { count: 830 }, { count: 1120 }, { count: 860 }, { count: 1240 },
+const healthSub = computed(() => {
+  if (!hasMonitoring.value) return 'Not available'
+  if (health.value.status === 'idle') return 'No runs in the last 24h'
+  return `${health.value.error_rate ?? 0}% errors in the last 24h`
+})
+const testRows = computed(() => {
+  const run = lastRun.value
+  if (!run) return []
+  return [
+    { label: 'Source', value: runName(run), label2: 'Result', value2: runStatusLabel(run) },
+    { label: 'Response Time', value: latencyLabel(run.latency_ms), label2: 'Model', value2: run.model || '—' },
+    { label: 'Tools Assigned', value: String(props.agent.tool_ids?.length ?? props.agent.tools?.length ?? 0), label2: 'Cost', value2: costLabel(run.cost_estimate) },
   ]
-  if (!series.length || series.every(p => !Number(p.count))) {
-    series = [{ count: 820 }, { count: 620 }, { count: 860 }, { count: 830 }, { count: 1120 }, { count: 860 }, { count: 1240 }]
-  }
-  const max = Math.max(...series.map(p => p.count), 1)
+})
+const activityStats = computed(() => {
+  const has = hasMonitoring.value
+  const errors = has ? Math.round(runs24h.value * ((Number(health.value.error_rate) || 0) / 100)) : null
+  return [
+    { label: 'Runs', value: has ? runs24h.value.toLocaleString() : '—', icon: MessageSquare, tint: 'bg-indigo-50 text-indigo-600' },
+    { label: 'Successful', value: has ? (runs24h.value - errors).toLocaleString() : '—', icon: CheckCircle2, tint: 'bg-emerald-50 text-emerald-600' },
+    { label: 'Errors', value: has ? errors.toLocaleString() : '—', icon: XCircle, tint: 'bg-orange-50 text-orange-600' },
+    { label: 'Cost', value: has ? costLabel(kpis.value.cost_24h) : '—', icon: DollarSign, tint: 'bg-cyan-50 text-cyan-600' },
+  ]
+})
+const monitoringSummary = computed(() => {
+  if (monitorError.value) return 'Monitoring could not be loaded.'
+  if (!hasMonitoring.value) return 'Loading…'
+  const s = health.value.status
+  if (s === 'down' || s === 'degraded') return `${healthLabel(s)}: ${health.value.error_rate ?? 0}% errors, ${latencyLabel(health.value.avg_latency_ms)} average response in the last 24h.`
+  if (s === 'idle') return 'No runs in the last 24 hours.'
+  return 'No problems in the last 24 hours.'
+})
+// The real per-hour series (24 points). No points when there is no activity — the template says so.
+const chartPoints = computed(() => {
+  const series = monitoring.value?.activity_timeseries || []
+  if (!series.length || series.every(p => !Number(p.count))) return []
+  const max = Math.max(...series.map(p => Number(p.count) || 0), 1)
   return series.map((p, i) => ({
     x: 20 + i * (760 / Math.max(series.length - 1, 1)),
-    y: 145 - (p.count / max) * 115,
+    y: 145 - ((Number(p.count) || 0) / max) * 115,
   }))
 })
 const linePath = computed(() => chartPoints.value.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' '))
 const areaPath = computed(() => `${linePath.value} L ${chartPoints.value.at(-1)?.x || 780} 160 L ${chartPoints.value[0]?.x || 20} 160 Z`)
 
 function latencyLabel(ms) {
-  if (!ms) return '1.42s'
+  if (ms === null || ms === undefined || ms === '') return '—'
   return `${(Number(ms) / 1000).toFixed(2)}s`
+}
+function costLabel(v) {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '—'
+  return `$${n.toFixed(n && n < 0.01 ? 4 : 2)}`
 }
 function healthLabel(status) {
   if (status === 'degraded') return 'Degraded'
   if (status === 'down') return 'Needs attention'
   if (status === 'idle') return 'Idle'
-  return 'Healthy'
+  if (status === 'healthy') return 'Healthy'
+  return '—'
+}
+function healthClass(status) {
+  if (status === 'healthy') return 'text-[#12B76A]'
+  if (status === 'down') return 'text-[#D92D20]'
+  if (status === 'degraded') return 'text-[#B54708]'
+  return ''
+}
+function runFailed(run) {
+  return ['error', 'failed', 'timeout'].includes(String(run?.status || '').toLowerCase())
+}
+function runStatusLabel(run) {
+  const s = String(run?.status || '')
+  if (!s) return 'Unknown'
+  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 function runName(run) {
-  return run?.request_source || run?.model || 'Lead qualification happy path'
+  return run?.request_source || run?.model || 'Run'
 }
 function agoLabel(value) {
-  return value ? ago(value) : 'just now'
+  return value ? ago(value) : ''
 }
 async function loadMonitoring() {
   if (!props.agent.id) return
+  const id = props.agent.id
   loading.value = true
+  monitorError.value = ''
   try {
-    const res = await api.getAgentMonitoring(props.agent.id)
+    const res = await api.getAgentMonitoring(id)
+    if (String(props.agent.id) !== String(id)) return
     monitoring.value = res.data || null
   } catch (e) {
+    if (String(props.agent.id) !== String(id)) return
     monitoring.value = null
+    monitorError.value = e?.response?.status === 403
+      ? 'You do not have access to this agent\'s activity.'
+      : 'The activity for this agent could not be loaded.'
   } finally {
     loading.value = false
   }

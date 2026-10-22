@@ -503,7 +503,7 @@ function resolvedLabel(m) {
 
 async function loadModels() {
   try {
-    const { data } = await api.getLLMModels()
+    const { data } = await api.getLlmModels({ fields: 'picker' })   // ?fields=picker: every row, without the heavy metadata (not read here)
     const list = data?.results || data || []
     models.value = list.filter(m => !m.is_embedding).map(m => ({ id: m.id, label: m.name || m.model_id }))
   } catch (e) { models.value = [] }

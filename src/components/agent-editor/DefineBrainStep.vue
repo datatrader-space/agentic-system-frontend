@@ -608,22 +608,26 @@ const currentModelLabel = computed(() => {
   return props.agent.default_model_name || ''
 })
 
-onMounted(async () => {
-  try {
-    const [mRes, pRes] = await Promise.all([api.get('/llm/models/'), api.get('/llm/providers/')])
-    models.value = Array.isArray(mRes.data) ? mRes.data : (mRes.data?.results || [])
-    providers.value = Array.isArray(pRes.data) ? pRes.data : (pRes.data?.results || [])
-    const cur = models.value.find(m => m.id === props.agent.default_model)
-    if (cur) selectedProvider.value = modelProvider(cur)
-  } catch (e) {
-    models.value = []
-    providers.value = []
-  }
-  // Account master switch — read-only here; controls live in Settings → Memory. Failure = assume on.
-  try { account.value = (await api.getMemorySettings()).data } catch (e) { account.value = null }
+// Every read this step needs starts at once (page-speed plan Phase 5 item 3). They are independent, and
+// they used to run in three rounds: the model catalog, then the memory settings, then the rest.
+onMounted(() => {
   loadAgentMemory()
   loadEffectivePolicy()
   loadSearchModel()
+  // Account master switch — read-only here; controls live in Settings → Memory. Failure = assume on.
+  Promise.resolve().then(() => api.getMemorySettings())
+    .then((r) => { account.value = r.data }).catch(() => { account.value = null })
+  return Promise.all([api.get('/llm/models/'), api.get('/llm/providers/')])
+    .then(([mRes, pRes]) => {
+      models.value = Array.isArray(mRes.data) ? mRes.data : (mRes.data?.results || [])
+      providers.value = Array.isArray(pRes.data) ? pRes.data : (pRes.data?.results || [])
+      const cur = models.value.find(m => m.id === props.agent.default_model)
+      if (cur) selectedProvider.value = modelProvider(cur)
+    })
+    .catch(() => {
+      models.value = []
+      providers.value = []
+    })
 })
 
 const showFull = ref(false)

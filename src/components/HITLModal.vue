@@ -337,6 +337,8 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
+import { useOAuthPopup } from '@/composables/useOAuthPopup'
+import { notify } from '@/composables/useNotify'
 // Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
 // followed (security audit, frontend finding A12).
 const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
@@ -600,33 +602,48 @@ const getInstructions = (serviceName) => {
   return svc?.setup_instructions || 'Check service documentation for API key setup.';
 };
 
-const openOAuthPopup = async (svc) => {
-  const startUrl = svc.auth_url;
-  if (!startUrl) return;
-  connectingService.value = svc.name;
-
-  let popupUrl = startUrl;
+// Shared popup flow (useOAuthPopup): the window opens inside the click (as about:blank, then sent to the
+// provider), the start-URL request has a timeout, and the closed-popup watch is removed when this modal
+// unmounts. It used to fetch first and open after, which popup blockers treat as unsolicited, and its
+// 800 ms poll kept running after the modal was gone.
+const OAUTH_START_TIMEOUT_MS = 15000;
+const oauthPopup = useOAuthPopup();
+const resolveOAuthStartUrl = async (startUrl) => {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), OAUTH_START_TIMEOUT_MS);
   try {
-    const res = await fetch(startUrl, { credentials: 'include' });
+    const res = await fetch(startUrl, { credentials: 'include', signal: ctrl.signal });
     if (res.ok) {
       const data = await res.json().catch(() => null);
-      if (data?.redirect_url) popupUrl = data.redirect_url;
+      if (data?.redirect_url) return data.redirect_url;
     }
   } catch (e) {
     console.warn('[HITLModal] Could not fetch OAuth start URL, opening directly:', e);
+  } finally {
+    clearTimeout(timer);
   }
-
-  const popup = window.open(popupUrl, '_blank', 'width=600,height=700,left=200,top=100');
-  const poll = setInterval(() => {
-    if (!popup || popup.closed) {
-      clearInterval(poll);
-      connectingService.value = null;
-      // Don't auto-mark connected — wait for explicit confirmation
-      if (credState.value[svc.name] !== 'connected') {
-        credState.value = { ...credState.value, [svc.name]: 'pending_confirm' };
-      }
+  return startUrl;
+};
+const openOAuthPopup = async (svc) => {
+  const startUrl = svc.auth_url;
+  if (!startUrl || connectingService.value) return;
+  connectingService.value = svc.name;
+  try {
+    const result = await oauthPopup.run(() => resolveOAuthStartUrl(startUrl), {
+      messageTypes: ['oauth-connection-result', 'oauth_result'],
+    });
+    if (result.status === 'cancelled') return;
+    if (result.status === 'blocked') {
+      notify.error('Popup blocked — please allow popups for this site, then try Connect again.');
+      return;
     }
-  }, 800);
+    // Don't auto-mark connected — wait for explicit confirmation
+    if (credState.value[svc.name] !== 'connected') {
+      credState.value = { ...credState.value, [svc.name]: 'pending_confirm' };
+    }
+  } finally {
+    connectingService.value = null;
+  }
 };
 
 const useExistingCred = (serviceName, credName) => {

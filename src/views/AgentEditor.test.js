@@ -50,7 +50,13 @@ async function mountEditor({ id = null, query = {}, path = null, staff = false }
 }
 
 const button = (w, text) => w.findAll('button').find(b => b.text().trim().startsWith(text))
-const draft = (w, cls) => w.findComponent(`.${cls}`).props('agent')
+// The steps sit inside <KeepAlive>, which shares its child's root element, so a CSS selector finds the
+// KeepAlive instead: look the step up by its stub, and take the one on screen (kept steps are detached).
+const stepStub = (w, cls) => {
+  const def = Object.values(stubs).find(d => d.template.includes(`"${cls}"`))
+  return w.findAllComponents(def).find(c => c.exists() && w.element.contains(c.element))
+}
+const draft = (w, cls) => stepStub(w, cls).props('agent')
 const onStep = (w, cls) => w.find(`.${cls}`).exists()
 
 beforeEach(() => {
@@ -146,7 +152,7 @@ describe('AgentEditor — an existing agent', () => {
 
   it('records what a step saved for itself as server state, not as a pending edit', async () => {
     const w = await mountEditor({ id: 7, query: { step: 'team' } })
-    const team = w.findComponent('.s-team')
+    const team = stepStub(w, 's-team')
     const a = team.props('agent')
     a.sub_agent_ids = [9, 11]
     a.sub_agents = [{ id: 9, name: 'x' }, { id: 11, name: 'y' }]
@@ -261,5 +267,67 @@ describe('AgentEditor — a new agent', () => {
     await button(w, 'Create Agent').trigger('click')
     await flushPromises()
     expect(router.replace).toHaveBeenCalledWith({ path: '/admin-dashboard/agents/30/editor', query: { step: 'brain' } })
+  })
+})
+
+describe('AgentEditor — a failed load is not a new agent (F-H11)', () => {
+  it('shows the error with Retry, renders no step, and offers no Save that would create a duplicate', async () => {
+    api.get.mockRejectedValueOnce({ response: { status: 500, data: {} } })
+    const w = await mountEditor({ id: 7 })
+    expect(w.text()).toContain("Couldn't load this agent")
+    for (const cls of ['s-identity', 's-brain', 's-tools', 's-final']) expect(onStep(w, cls)).toBe(false)
+    expect(w.find('nav').exists()).toBe(false)
+    expect(button(w, 'Save')).toBeUndefined()
+    expect(button(w, 'Configure / Publish')).toBeUndefined()
+    expect(api.post).not.toHaveBeenCalled()
+
+    // Retry loads it for real.
+    await button(w, 'Retry').trigger('click')
+    await flushPromises()
+    expect(api.get).toHaveBeenCalledTimes(2)
+    expect(onStep(w, 's-identity')).toBe(true)
+    expect(draft(w, 's-identity').id).toBe(7)
+  })
+
+  it('says when the agent does not exist', async () => {
+    api.get.mockRejectedValueOnce({ response: { status: 404, data: {} } })
+    const w = await mountEditor({ id: 99 })
+    expect(w.text()).toMatch(/does not exist/)
+  })
+})
+
+describe('AgentEditor — Publish runs once per click (F-M13)', () => {
+  it('a double click publishes once, and the button shows progress while it runs', async () => {
+    const w = await mountEditor({ id: 7 })
+    let release
+    api.publishAgent.mockImplementation(() => new Promise((r) => { release = r }))
+    const btn = button(w, 'Configure / Publish')
+    await btn.trigger('click')
+    await flushPromises()
+    await btn.trigger('click')
+    await flushPromises()
+    expect(api.publishAgent).toHaveBeenCalledTimes(1)
+    expect(button(w, 'Publishing').attributes('disabled')).toBeDefined()
+    release({ data: { publish_status: 'published' } })
+    await flushPromises()
+    expect(button(w, 'Configure / Publish').attributes('disabled')).toBeUndefined()
+  })
+})
+
+describe('AgentEditor — steps are kept, not remounted (Phase 5 item 4)', () => {
+  it('going back to a step reuses its instance', async () => {
+    const mounted = vi.fn()
+    const counting = { props: ['agent'], template: '<div class="s-brain" />', mounted }
+    routeBox.route = reactive({ path: '/dashboard/agents/7/editor', params: { id: '7' }, query: { step: 'brain' } })
+    api.getCurrentUser.mockResolvedValue({ data: { user: { is_staff: false } } })
+    const w = mount(AgentEditor, { global: { stubs: { ...stubs, DefineBrainStep: counting } } })
+    await flushPromises()
+    expect(mounted).toHaveBeenCalledTimes(1)
+    await button(w, 'Continue').trigger('click')            // → tools
+    await flushPromises()
+    await button(w, 'Back').trigger('click')                // → brain again
+    await flushPromises()
+    expect(onStep(w, 's-brain')).toBe(true)
+    expect(mounted).toHaveBeenCalledTimes(1)
   })
 })

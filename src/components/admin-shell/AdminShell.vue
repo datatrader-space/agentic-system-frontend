@@ -52,7 +52,9 @@
       <AppBreadcrumbs />
       <router-view v-slot="{ Component }">
         <Suspense>
-          <component :is="Component" :key="route.meta.keyOnPath ? route.path : route.fullPath" />
+          <!-- Keyed on the PATH: a query change (Help-CMS ?tab=, editor ?step=) must not rebuild the page and
+               refetch everything; pages that read the query watch it. -->
+          <component :is="Component" :key="route.path" />
           <template #fallback>
             <div class="admin-route-loading">
               <div class="admin-skeleton__toolbar">

@@ -452,3 +452,130 @@ describe('editor steps in the admin shell', () => {
     expect(router.push).toHaveBeenLastCalledWith('/dashboard/budgets')
   })
 })
+
+describe('TestPublishMonitorStep — only real activity (F-M9/F-H10)', () => {
+  async function mountWith(monitoring) {
+    if (monitoring instanceof Error) api.getAgentMonitoring.mockRejectedValue(monitoring)
+    else api.getAgentMonitoring.mockResolvedValue({ data: monitoring })
+    const w = mount(TestPublishMonitorStep, { props: { agent: reactive({ id: 1, publish_status: 'draft' }) }, global: { stubs } })
+    await flushPromises()
+    return w
+  }
+
+  it('an agent with no runs shows no invented figures or demo runs', async () => {
+    const w = await mountWith({
+      publish: { status: 'draft', published_at: null },
+      kpis: { success_rate: 100, avg_response_ms: null, runs_24h: 0, cost_24h: 0 },
+      health: { status: 'idle', error_rate: 0, avg_latency_ms: null },
+      activity_timeseries: Array.from({ length: 24 }, () => ({ count: 0 })),
+      recent_runs: [],
+    })
+    const text = w.text()
+    for (const fake of ['1,842', '4.8 / 5', '+18.4%', '1,248', 'Lead qualification', 'All assertions passed', '1.42s', 'All systems normal']) {
+      expect(text).not.toContain(fake)
+    }
+    expect(text).toContain('No runs yet')
+    expect(text).toContain('No activity in the last 24 hours')
+    expect(w.find('path[fill="url(#activityFill)"]').exists()).toBe(false)   // no chart drawn from nothing
+  })
+
+  it('shows the real runs and numbers it was given', async () => {
+    const w = await mountWith({
+      publish: { status: 'published', published_at: '2026-10-01T00:00:00Z' },
+      kpis: { success_rate: 75, avg_response_ms: 2500, runs_24h: 4, cost_24h: 0.12 },
+      health: { status: 'degraded', error_rate: 25, avg_latency_ms: 2500 },
+      activity_timeseries: [{ count: 1 }, { count: 3 }],
+      recent_runs: [{ id: 9, status: 'error', request_source: 'chat', model: 'gpt-x', latency_ms: 2000, cost_estimate: 0.03, created_at: new Date().toISOString() }],
+    })
+    const text = w.text()
+    expect(text).toContain('75%')
+    expect(text).toContain('2.50s')
+    expect(text).toContain('gpt-x')
+    expect(text).toContain('Error')
+    expect(text).toContain('25% errors')
+  })
+
+  it('a failed load says so, with Retry — not zeros or demo data', async () => {
+    const w = await mountWith(Object.assign(new Error('boom'), { response: { status: 500 } }))
+    expect(w.text()).toContain("Couldn't load this agent's activity")
+    expect(w.text()).not.toContain('1,842')
+    api.getAgentMonitoring.mockResolvedValue({ data: { kpis: { runs_24h: 2, success_rate: 100 }, health: { status: 'healthy' }, recent_runs: [], activity_timeseries: [] } })
+    await button(w, 'Retry').trigger('click')
+    await flushPromises()
+    expect(api.getAgentMonitoring).toHaveBeenCalledTimes(2)
+    expect(w.text()).not.toContain("Couldn't load this agent's activity")
+  })
+
+  it('Publish runs once while a publish is in flight', async () => {
+    const w = await mountWith({ publish: {} })
+    let release
+    api.publishAgent.mockImplementation(() => new Promise((r) => { release = r }))
+    await button(w, 'Publish Configuration').trigger('click')
+    await button(w, 'Updating').trigger('click')
+    expect(api.publishAgent).toHaveBeenCalledTimes(1)
+    release({ data: { id: 1 } })
+    await flushPromises()
+  })
+})
+
+describe('AutonomySafetyStep — tool names come from the agent record (Phase 5 item 5)', () => {
+  it('does not download the tool catalog when the record names every selected tool', async () => {
+    const agent = reactive({ id: 1, tool_ids: [3], tools: [{ id: 3, name: 'SEND_EMAIL', display_name: 'Send email' }] })
+    const w = mount(AutonomySafetyStep, { props: { agent }, global: { stubs } })
+    await flushPromises()
+    expect(api.get.mock.calls.filter(c => String(c[0]).startsWith('/tools/definitions'))).toHaveLength(0)
+    expect(w.text()).toContain('Send email')
+  })
+
+  it('falls back to the catalog once for a picked tool the record does not carry yet', async () => {
+    api.get.mockImplementation((url) => Promise.resolve({ data: String(url).startsWith('/tools/definitions')
+      ? { results: [{ id: 4, name: 'WEB_SEARCH', display_name: 'Web search' }], next: null } : [] }))
+    const agent = reactive({ id: 1, tool_ids: [4], tools: [] })
+    const w = mount(AutonomySafetyStep, { props: { agent }, global: { stubs } })
+    await flushPromises()
+    agent.tool_ids = [4]                                  // a change must not fetch it again
+    await flushPromises()
+    expect(api.get.mock.calls.filter(c => String(c[0]).startsWith('/tools/definitions'))).toHaveLength(1)
+    expect(w.text()).toContain('Web search')
+  })
+})
+
+describe('KnowledgeToolsStep — file status poller (Phase 5 item 1)', () => {
+  const kbStubs = { ...stubs, WebIntelligenceCard: true, ToolIcon: true, AddWebsiteSourceModal: true, WebSourcePagesModal: true, IntegrationHubModal: true }
+  beforeEach(() => {
+    api.listWebSources = vi.fn().mockResolvedValue({ data: [] })
+    api.getLlmUsage = vi.fn().mockResolvedValue({ data: {} })
+    api.getAgentKnowledgeAttachments = vi.fn().mockResolvedValue({ data: { attached: [] } })
+    api.listKnowledgeSources = vi.fn().mockResolvedValue({ data: { sources: [] } })
+    api.listKnowledge = vi.fn().mockResolvedValue({ data: { resources: [] } })
+    api.getConnectors = vi.fn().mockResolvedValue({ data: { connectors: [] } })
+    api.getAgentFileStatus = vi.fn().mockResolvedValue({ data: { index_status: 'embedding' } })
+    vi.stubGlobal('WebSocket', class { static OPEN = 1; close() {} })
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('polls an indexing file until it is ready, and stops when the step unmounts', async () => {
+    vi.useFakeTimers()
+    api.get.mockImplementation((url) => Promise.resolve({ data: url === '/context_files/' ? [{ id: 11, filename: 'a.pdf', index_status: 'embedding' }] : [] }))
+    const w = mount(KnowledgeToolsStep, { props: { agent: reactive({ id: 1 }) }, global: { stubs: kbStubs } })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(api.getAgentFileStatus).not.toHaveBeenCalled()       // the first check waits one interval
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(api.getAgentFileStatus).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(api.getAgentFileStatus).toHaveBeenCalledTimes(2)
+    w.unmount()
+    await vi.advanceTimersByTimeAsync(20000)
+    expect(api.getAgentFileStatus).toHaveBeenCalledTimes(2)
+  })
+
+  it('stops on a final status', async () => {
+    vi.useFakeTimers()
+    api.get.mockImplementation((url) => Promise.resolve({ data: url === '/context_files/' ? [{ id: 11, filename: 'a.pdf', index_status: 'embedding' }] : [] }))
+    api.getAgentFileStatus.mockResolvedValue({ data: { index_status: 'ready', chunk_count: 4 } })
+    mount(KnowledgeToolsStep, { props: { agent: reactive({ id: 1 }) }, global: { stubs: kbStubs } })
+    await vi.advanceTimersByTimeAsync(2000)
+    await vi.advanceTimersByTimeAsync(20000)
+    expect(api.getAgentFileStatus).toHaveBeenCalledTimes(1)
+  })
+})

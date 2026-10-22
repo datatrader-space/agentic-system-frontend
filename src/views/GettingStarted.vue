@@ -77,7 +77,9 @@
               <h3>{{ template.title }}</h3>
               <p>{{ template.copy }}</p>
             </div>
-            <button @click="useTemplate(template)">Use template</button>
+            <button :disabled="!!creatingTemplate" :aria-busy="creatingTemplate === template.title" @click="useTemplate(template)">
+              {{ creatingTemplate === template.title ? 'Creating…' : 'Use template' }}
+            </button>
           </article>
         </div>
       </section>
@@ -227,15 +229,24 @@ const TPL_ICONS = ['lucide:search', 'lucide:headphones', 'lucide:bar-chart-3', '
 
 function goTo(route) { if (route) router.push(route) }
 
+// Double-submit guard: a second click while the first create is in flight made a second agent.
+const creatingTemplate = ref(null)
+
 async function useTemplate(t) {
-  if (t.id) {
-    try {
-      const { data } = await api.createAgentFromTemplate({ template_id: t.id })
-      const newId = data?.id || data?.agent?.id
-      if (newId) return router.push(`/dashboard/agents/${newId}/editor`)
-    } catch (e) { /* fall through to the builder */ }
+  if (creatingTemplate.value) return
+  creatingTemplate.value = t.title
+  try {
+    if (t.id) {
+      try {
+        const { data } = await api.createAgentFromTemplate({ template_id: t.id })
+        const newId = data?.id || data?.agent?.id
+        if (newId) return router.push(`/dashboard/agents/${newId}/editor`)
+      } catch (e) { /* fall through to the builder */ }
+    }
+    return router.push('/dashboard/agents/new')
+  } finally {
+    creatingTemplate.value = null
   }
-  router.push('/dashboard/agents/new')
 }
 
 onMounted(async () => {

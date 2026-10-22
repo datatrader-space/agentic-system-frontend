@@ -73,7 +73,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { watchOwnRouteParam } from '@/composables/useOwnRouteParam'
+import { ref, computed, onMounted } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { marked } from 'marked'
@@ -132,7 +133,7 @@ async function load() {
   } catch (e) { loadError.value = true }
 }
 onMounted(load)
-watch(slug, load)
+watchOwnRouteParam('slug', load)   // never on the way out (F-M1)
 </script>
 
 <style scoped>

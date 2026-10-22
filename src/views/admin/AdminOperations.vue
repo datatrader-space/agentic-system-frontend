@@ -87,13 +87,13 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import api from '../../services/api'
+import { usePoller } from '@/composables/usePoller'
 
 const loading = ref(true)
 const error = ref('')
 const metrics = ref(null)
 const updatedAt = ref('')
 const autoRefresh = ref(false)
-let timer = null
 
 async function load() {
   loading.value = true
@@ -111,13 +111,24 @@ async function load() {
   }
 }
 
+// Auto-refresh (every 15 s) is a background poll: it does not flip `loading` (that disabled Refresh and
+// flashed the page every tick), keeps the last good numbers when one poll fails and backs off instead,
+// pauses while the tab is hidden, and stops on leave.
+const poller = usePoller(async ({ signal }) => {
+  const { data } = await api.get('/ops/metrics/', { signal })
+  metrics.value = data
+  error.value = ''
+  updatedAt.value = new Date().toLocaleTimeString()
+  return data
+}, { interval: 15000, maxInterval: 120000 })
+
 function onAutoToggle() {
-  clearInterval(timer)
-  if (autoRefresh.value) timer = setInterval(load, 15000)
+  if (autoRefresh.value) poller.start({ immediate: false })
+  else poller.stop()
 }
 
 onMounted(load)
-onBeforeUnmount(() => clearInterval(timer))
+onBeforeUnmount(() => poller.stop())
 
 // ── helpers ──────────────────────────────────────────────────────────────
 const num = (n) => (n ?? 0).toLocaleString()
