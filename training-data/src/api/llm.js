@@ -340,3 +340,19 @@ export function csvColumns(mode, chosen) {
 
 // A key path such as ["payload", "question"] as people read it: question.
 export const pathName = path => (path || []).slice(1).join('.') || '';
+
+// A model card (aadml.llm.model-card.v1) in words, for the Models page; the JSON stays one click away.
+// "use" is the base model's licence class: what a model trained from it may be used for.
+const LICENCE_USE = { paid: 'commercial use allowed', terms: 'allowed with conditions', research: 'research and testing only' };
+export function cardFacts(card) {
+  const c = card || {}; const m = c.model || {}; const base = m.base_model || {}; const d = c.dataset || {}; const s = c.metrics || {};
+  const r = c.runtime || {}; const loss = value => (typeof value === 'number' ? value.toFixed(3) : '—');
+  return [
+    ['Base model', base.repo ? `${base.repo} (${base.licence || 'licence not named'}: ${LICENCE_USE[base.use] || base.use || 'use not named'})` : '—'],
+    ['Method', [(m.method || '').toUpperCase(), m.kind === 'lora-adapter' && m.lora ? `LoRA rank ${m.lora.rank}` : ''].filter(Boolean).join(', ') || '—'],
+    ['Started from', !m.parent ? 'the base model' : `model ${m.parent.model_version ?? '?'}${m.parent.method ? ` (${String(m.parent.method).toUpperCase()})` : ''}`],
+    ['Dataset', d.version ? `${d.version}: ${d.rows?.train ?? 0} training and ${d.rows?.validation ?? 0} validation rows` : '—'],
+    ['Result', `${s.steps ?? '—'} steps, training loss ${loss(s.train_loss)}, validation loss ${loss(s.eval_loss)}`],
+    ['Trained on', [r.instance_type, r.device].filter(Boolean).join(', ') || '—'],
+  ];
+}

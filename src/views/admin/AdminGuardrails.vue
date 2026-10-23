@@ -108,15 +108,15 @@
             <div class="ag-card-head">
               <div>
                 <h2>Answer Assurance</h2>
-                <p>Verify every answer before it ships — final verifier, LLM grounding judge, and per-claim evidence ledger.</p>
+                <p>Check what an agent says it did against what its tools actually returned, before the answer ships.</p>
               </div>
               <span class="ag-card-badge">Verification</span>
             </div>
             <div class="ag-control-grid">
               <label class="ag-field ag-switch-row">
                 <span>
-                  <b>Verify answers before sending</b>
-                  <small>When OFF, the model's answer ships as-is (sanitize + citations only) — no grounding checks, judge, or repair. Turn off if the verifier is over-blocking.</small>
+                  <b>Check actions against tool results</b>
+                  <small>When ON, a reply saying something was published, saved or changed is checked against the tool results. If they disagree, the agent answers again from the results, or the reply ships with a note of what really happened. A reply is never deleted or replaced. When OFF, replies ship as written.</small>
                 </span>
                 <button
                   :class="['ag-switch', { on: pol.final_assurance_enabled }]"
@@ -163,7 +163,7 @@
             <div class="ag-card-head">
               <div>
                 <h2>LLM Policy</h2>
-                <p>Platform ceilings for token, tool, and image budgets — the resolver enforces these across all agents.</p>
+                <p>Platform ceilings for token, tool, and image budgets, and how conversation history is cached and compacted — the resolver enforces these across all agents.</p>
               </div>
               <span class="ag-card-badge">Platform</span>
             </div>
@@ -172,24 +172,6 @@
               :absolute="llmPolicyAbsolute"
               :errors="llmPolicyErrors"
               :disabled="!canEdit"
-              @change="onLlmPolicyChange"
-            />
-          </section>
-
-          <section class="ag-card" data-test="context-profiles">
-            <div class="ag-card-head">
-              <div>
-                <h2>Context Profiles</h2>
-                <p>Per-profile context budgets (history, retrieval, tool, memory). An agent picks one — the resolver splits its token budget accordingly.</p>
-              </div>
-              <span class="ag-card-badge">Platform</span>
-            </div>
-            <ContextProfilesEditor
-              :profiles="contextProfiles"
-              :defaults="contextProfileDefaults"
-              :display="contextProfileDisplay"
-              :disabled="!canEdit"
-              @update="onContextProfilesUpdate"
               @change="onLlmPolicyChange"
             />
           </section>
@@ -273,7 +255,6 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import PlatformLlmPolicy from '@/components/admin/PlatformLlmPolicy.vue'
-import ContextProfilesEditor from '@/components/admin/ContextProfilesEditor.vue'
 
 const loading = ref(true)
 const saving = ref(false)
@@ -313,27 +294,21 @@ const llmPolicy = ref({})
 const llmPolicyAbsolute = ref({})
 const llmPolicyErrors = ref({})
 function onLlmPolicyChange() { dirty.value = true; llmPolicyErrors.value = {} }
-
-// Context profiles (per-profile context budgets) — effective values + code defaults from the policy GET.
-const contextProfiles = ref({})
-const contextProfileDefaults = ref({})
-const contextProfileDisplay = ref([])
-function onContextProfilesUpdate(cps) {
-  // Store the edited budgets as the context_profiles override inside llm_policy — sent on save.
-  llmPolicy.value = { ...llmPolicy.value, context_profiles: cps }
-  dirty.value = true
-}
+// Keys the backend removed and now rejects on save; a stored policy may still hold them, so drop them on load.
+const REMOVED_LLM_POLICY_KEYS = [
+  'context_profiles', 'default_context_profile', 'checkpoint_trigger_tokens', 'conversation_context_strategy',
+  'cache_history_enabled', 'cache_rag_placement', 'cache_segmentation_enabled', 'cache_kb_volatile',
+  'long_context_min_window', 'long_context_chunk_tokens',
+]
 
 function mark() { dirty.value = true }
 
 function apply(d) {
   d = d || {}
   llmPolicy.value = (d.llm_policy && typeof d.llm_policy === 'object') ? { ...d.llm_policy } : {}
+  for (const k of REMOVED_LLM_POLICY_KEYS) delete llmPolicy.value[k]
   llmPolicyAbsolute.value = (d.llm_policy_absolute && typeof d.llm_policy_absolute === 'object') ? { ...d.llm_policy_absolute } : {}
   llmPolicyErrors.value = {}
-  contextProfiles.value = (d.context_profiles && typeof d.context_profiles === 'object') ? d.context_profiles : {}
-  contextProfileDefaults.value = (d.context_profile_defaults && typeof d.context_profile_defaults === 'object') ? d.context_profile_defaults : {}
-  contextProfileDisplay.value = Array.isArray(d.context_profile_display) ? d.context_profile_display : []
   pol.enabled = d.enabled !== false
   pol.risk_ceiling = d.risk_ceiling || ''
   pol.allow_external_write = d.allow_external_write !== false

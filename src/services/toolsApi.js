@@ -4,10 +4,11 @@
  * Handles all API calls for tool management, execution history, credentials, and metrics.
  */
 
-import axios from 'axios'
+// Every call goes through the shared client in api.js (page-speed plan Phase 5 item 7): the 60s timeout
+// (the bare client had none), CSRF, the X-Workspace-ID header, the session-expiry redirect and the GET cache.
 import api from './api'
 
-const API_BASE = '/api/tools'
+const API_BASE = '/tools'
 
 export const toolsApi = {
     // ============================================================================
@@ -17,12 +18,12 @@ export const toolsApi = {
     /**
      * Get all tools from catalog with metadata
      */
-    getCatalog: () => axios.get(`${API_BASE}/catalog/`),
+    getCatalog: () => api.get(`${API_BASE}/catalog/`),
 
     /**
      * Get detailed schema for a specific tool
      */
-    getToolSchema: (toolName) => axios.get(`${API_BASE}/${toolName}/schema/`),
+    getToolSchema: (toolName) => api.get(`${API_BASE}/${toolName}/schema/`),
 
     // ============================================================================
     // Tool Execution
@@ -46,7 +47,7 @@ export const toolsApi = {
         if (repository_id !== undefined) payload.repository_id = repository_id
         if (session_id !== undefined) payload.session_id = session_id
 
-        return axios.post(`${API_BASE}/execute/`, payload)
+        return api.post(`${API_BASE}/execute/`, payload)
     },
 
     // ============================================================================
@@ -58,13 +59,13 @@ export const toolsApi = {
      * @param {Object} filters - { page, page_size, tool_name, status, start_date, end_date, trace_id }
      */
     getHistory: (filters = {}) =>
-        axios.get(`${API_BASE}/history/`, { params: filters }),
+        api.get(`${API_BASE}/history/`, { params: filters }),
 
     /**
      * Get detailed information about a specific execution
      */
     getExecution: (logId) =>
-        axios.get(`${API_BASE}/execution/${logId}/`),
+        api.get(`${API_BASE}/execution/${logId}/`),
 
     /**
      * Replay a previous tool execution (staff only)
@@ -72,7 +73,7 @@ export const toolsApi = {
      * @param {boolean} force - Override safety checks
      */
     replayExecution: (logId, force = false) =>
-        axios.post(`${API_BASE}/replay/${logId}/`, { force }),
+        api.post(`${API_BASE}/replay/${logId}/`, { force }),
 
     // ============================================================================
     // Metrics & Observability
@@ -83,13 +84,13 @@ export const toolsApi = {
      * @param {string} timeRange - '1h', '24h', '7d', '30d'
      */
     getMetrics: (timeRange = '24h') =>
-        axios.get(`${API_BASE}/metrics/`, { params: { time_range: timeRange } }),
+        api.get(`${API_BASE}/metrics/`, { params: { time_range: timeRange } }),
 
     /**
      * Get system health status
      */
     getHealth: () =>
-        axios.get(`${API_BASE}/health/`),
+        api.get(`${API_BASE}/health/`),
 
     // ============================================================================
     // Circuit Breaker
@@ -99,13 +100,13 @@ export const toolsApi = {
      * Get circuit breaker status for all services
      */
     getCircuitBreakerStatus: () =>
-        axios.get(`${API_BASE}/circuit-breaker/status/`),
+        api.get(`${API_BASE}/circuit-breaker/status/`),
 
     /**
      * Reset a circuit breaker (admin only)
      */
     resetCircuitBreaker: (actionId) =>
-        axios.post(`${API_BASE}/circuit-breaker/${actionId}/reset/`),
+        api.post(`${API_BASE}/circuit-breaker/${actionId}/reset/`),
 }
 
 export const credentialsApi = {

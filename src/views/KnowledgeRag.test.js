@@ -67,3 +67,36 @@ describe('KnowledgeRag — indexed page count', () => {
     expect(rowFor('notes.txt').find('[data-test="kb-pages"]').text()).toBe('—')
   })
 })
+
+describe('KnowledgeRag — load failures and scope switches', () => {
+  it('shows an error with Retry when the list fails, never "No knowledge yet"', async () => {
+    api.listKnowledge.mockRejectedValueOnce(Object.assign(new Error('boom'), { response: { data: { detail: 'Server error' } } }))
+    wrapper = mount(KnowledgeRag, { global: { stubs: { AddWebsiteSourceModal: true, WebSourcePagesModal: true } } })
+    await flushPromises()
+    expect(wrapper.text()).toContain("Couldn't load knowledge")
+    expect(wrapper.text()).not.toContain('No knowledge yet')
+    api.listKnowledge.mockResolvedValueOnce({ data: { resources: [healthy] } })
+    await wrapper.find('.load-error__retry').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('notes.txt')
+  })
+
+  it('drops an answer for a scope the person already switched away from', async () => {
+    const answers = []
+    api.listKnowledge.mockImplementation((scope) => new Promise((resolve) => answers.push({ scope, resolve })))
+    wrapper = mount(KnowledgeRag, { global: { stubs: { AddWebsiteSourceModal: true, WebSourcePagesModal: true } } })
+    await flushPromises()
+    // Switch to chat uploads before "My knowledge" answers.
+    const vm = wrapper.vm
+    vm.$.setupState.scopeView = 'conversation'
+    await flushPromises()
+    const conv = answers.find((a) => a.scope === 'conversation')
+    const user = answers.find((a) => a.scope === 'user')
+    conv.resolve({ data: { resources: [{ ...healthy, id: 30, name: 'chat-upload.pdf' }] } })
+    await flushPromises()
+    user.resolve({ data: { resources: [{ ...healthy, id: 31, name: 'my-own.pdf' }] } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('chat-upload.pdf')
+    expect(wrapper.text()).not.toContain('my-own.pdf')
+  })
+})

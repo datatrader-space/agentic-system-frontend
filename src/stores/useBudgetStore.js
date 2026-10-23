@@ -85,6 +85,12 @@ export const useBudgetStore = defineStore('budgets', {
       this.loading = true
       this.error = ''
       try {
+        // One round when the org is already known: the summary, budgets, approvals and events are
+        // independent reads of the same org. On a first load the summary resolves the org, so budgets
+        // and events (org-scoped) follow it, while approvals (not org-scoped) load alongside.
+        const knownOrg = this.selectedOrgId
+        const approvalsP = this.loadApprovals()
+        const orgScopedP = knownOrg ? Promise.all([this.loadBudgets(), this.loadEvents()]) : null
         const { data } = await api.getBudgetsSummary(this.period, this.selectedOrgId)
         this.metrics = data.metrics || {}
         this.byProvider = data.by_provider || {}
@@ -99,8 +105,15 @@ export const useBudgetStore = defineStore('budgets', {
         this.canManage = !!data.can_manage
         // Lock the selected org to whatever the server resolved, so subsequent writes target the same org.
         if (this.organization?.id) this.selectedOrgId = this.organization.id
-        await this.loadBudgets()
-        await this.loadApprovalsAndEvents()
+        const orgChanged = !knownOrg || (this.organization?.id && this.organization.id !== knownOrg)
+        if (orgChanged) {
+          // The early org-scoped reads (if any) were for another org: let them finish, then read again,
+          // so an older answer can never land after the right one.
+          if (orgScopedP) await orgScopedP
+          await Promise.all([approvalsP, this.loadBudgets(), this.loadEvents()])
+        } else {
+          await Promise.all([approvalsP, orgScopedP])
+        }
         this.loaded = true
       } catch (e) {
         this.error = e?.response?.data?.error || e?.message || 'Failed to load budgets'
@@ -114,13 +127,15 @@ export const useBudgetStore = defineStore('budgets', {
         this.budgets = Array.isArray(data) ? data : (data?.results || [])
       } catch { /* non-fatal: summary already drives the view */ }
     },
-    async loadApprovalsAndEvents() {
+    async loadApprovals() {
       try {
-        const [ap, ev] = await Promise.all([
-          api.getBudgetApprovals(),
-          api.getBudgetEvents(this.selectedOrgId),
-        ])
+        const ap = await api.getBudgetApprovals()
         this.approvals = Array.isArray(ap.data) ? ap.data : (ap.data?.results || [])
+      } catch { /* non-fatal */ }
+    },
+    async loadEvents() {
+      try {
+        const ev = await api.getBudgetEvents(this.selectedOrgId)
         this.events = Array.isArray(ev.data) ? ev.data : (ev.data?.results || [])
       } catch { /* non-fatal */ }
     },

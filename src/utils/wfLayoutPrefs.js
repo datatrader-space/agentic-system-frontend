@@ -5,7 +5,7 @@ export const LAYOUT_KEY = 'wfb_layout_v1'
 
 export const LAYOUT_DEFAULTS = {
   paletteW: 248, inspectorW: 330, logH: 200,
-  paletteCollapsed: false, inspectorCollapsed: false, logOpen: false,
+  paletteCollapsed: false, inspectorCollapsed: true, logOpen: false,
 }
 
 // [min, max] for the resizable dimensions.

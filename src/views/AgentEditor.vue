@@ -2,6 +2,17 @@
   <div class="flex h-full flex-col bg-[#F8FAFC] font-[Inter,system-ui,sans-serif]">
     <div v-if="loading" class="flex h-full items-center justify-center text-sm text-[#667085]">Loading agent…</div>
 
+    <!-- A failed load is NOT a new agent: no form, no steps, no Save (which used to create a duplicate) and
+         no step requests against /agents/undefined/. Only Retry, or back to the list. -->
+    <div v-else-if="loadError" class="mx-auto w-full max-w-xl px-6 py-16">
+      <LoadError title="Couldn't load this agent" :message="loadError" :retrying="loading" @retry="retryLoad" />
+      <div class="mt-4 text-center">
+        <button class="btn-secondary" @click="go(shellBase === '/admin-dashboard' ? '/admin-dashboard/builtin-agents' : '/dashboard/agents')">
+          <ArrowLeft :size="15" :stroke-width="2" /> Back to agents
+        </button>
+      </div>
+    </div>
+
     <template v-else>
       <!-- Editor header -->
       <header class="border-b border-[#E5E7EB] bg-white px-6 pt-3 pb-4">
@@ -25,8 +36,8 @@
           <div class="flex flex-col items-end gap-1">
             <div class="flex items-center gap-2">
               <button class="btn-icon"><MoreHorizontal :size="16" :stroke-width="2" /></button>
-              <button v-if="agent.id" class="btn-secondary" :disabled="saving" @click="openChat">
-                <MessageCircle :size="15" :stroke-width="2" /> Chat
+              <button v-if="agent.id" class="btn-secondary" :disabled="saving || openingChat" :aria-busy="openingChat" @click="openChat">
+                <MessageCircle :size="15" :stroke-width="2" /> {{ openingChat ? 'Opening…' : 'Chat' }}
               </button>
               <!-- WebSocket, Webhook and Widget: their switches, settings and guide (the old Overview's Deploy). -->
               <button v-if="agent.id && agent.is_owner !== false && shellBase === '/dashboard'" class="btn-secondary"
@@ -37,8 +48,8 @@
                 <component :is="agent.is_paused ? Play : PauseIcon" :size="15" :stroke-width="2" />
                 {{ pausing ? '…' : (agent.is_paused ? 'Resume' : 'Pause') }}
               </button>
-              <button class="btn-secondary" @click="save"><Save :size="15" :stroke-width="2" /> {{ saving ? 'Saving…' : 'Save' }}</button>
-              <button class="btn-primary" @click="saveAndPublish"><Rocket :size="15" :stroke-width="2" /> Configure / Publish</button>
+              <button class="btn-secondary" :disabled="publishing" @click="save"><Save :size="15" :stroke-width="2" /> {{ saving ? 'Saving…' : 'Save' }}</button>
+              <button class="btn-primary" :disabled="publishing" :aria-busy="publishing" @click="saveAndPublish"><Rocket :size="15" :stroke-width="2" /> {{ publishing ? 'Publishing…' : 'Configure / Publish' }}</button>
             </div>
             <span v-if="lastSaved" class="text-[11.5px] text-[#98A2B3]">Last saved {{ lastSaved }}</span>
           </div>
@@ -69,19 +80,16 @@
         </template>
       </nav>
 
-      <!-- Body — keyed on `step` so Vue always remounts the active step. Without this the heavy
-           v-if/v-else-if chain can skip a patch when the async save() reassigns `agent` mid-switch,
-           leaving the previous screen on-screen (the intermittent "screen didn't change" bug). -->
-      <div :key="step" class="min-h-0 flex-1 overflow-y-auto py-5">
-        <AgentIdentityStep v-if="step === 'identity'" :agent="agent" :is-new="isNew" />
-        <DefineBrainStep v-else-if="step === 'brain'" :agent="agent" />
-        <KnowledgeToolsStep v-else-if="step === 'tools'" :agent="agent" @saved="mergeAgent" />
-        <SubAgentsStep v-else-if="step === 'team'" :agent="agent" @saved="mergeAgent" />
-        <SkillsStep v-else-if="step === 'skills'" :agent="agent" @saved="mergeAgent" />
-        <CredentialsStep v-else-if="step === 'credentials'" :agent="agent" />
-        <AutonomySafetyStep v-else-if="step === 'autonomy'" :agent="agent" @open-step="openStep" />
-        <ScopeAssistantStep v-else-if="step === 'scope'" :agent="agent" />
-        <TestPublishMonitorStep v-else-if="step === 'final'" :agent="agent" :save-first="flushPendingEdits" @published="mergeAgent" />
+      <!-- Body — ONE dynamic component per step, kept alive (page-speed plan Phase 5 item 4). Going back to
+           a step no longer remounts it and refetches its catalogs (tools, models, credentials…). A dynamic
+           component, not the old v-if/v-else-if chain, so an async save() that reassigns `agent` mid-switch
+           cannot leave the previous screen on-screen (the old "screen didn't change" bug the per-step :key
+           worked around). The cache is dropped when the server state changes under every step at once (a new
+           agent loaded, a publish or a rollback), so no kept step shows values from before it. -->
+      <div ref="stepBody" class="min-h-0 flex-1 overflow-y-auto py-5">
+        <KeepAlive v-if="stepComponent" :max="10">
+          <component :is="stepComponent" :key="`${step}:${stepCacheToken}`" v-bind="stepProps" />
+        </KeepAlive>
         <div v-else class="mx-auto max-w-3xl px-8 py-10 text-center">
           <div class="rounded-2xl border border-dashed border-[#E5E7EB] bg-white p-10">
             <p class="text-[15px] font-semibold text-[#0F172A]">{{ currentStep.title }}</p>
@@ -97,7 +105,7 @@
         <div class="flex items-center gap-3">
           <button v-if="step === 'tools' || step === 'credentials'" class="btn-secondary" @click="next">Skip for now</button>
           <button v-if="stepIndex < steps.length - 1" class="btn-primary" @click="next">{{ nextLabel }} <ArrowRight :size="15" :stroke-width="2" /></button>
-          <button v-else class="btn-primary" @click="saveAndPublish"><Rocket :size="15" :stroke-width="2" /> {{ agent.publish_status === 'published' ? 'Update' : 'Publish' }}</button>
+          <button v-else class="btn-primary" :disabled="publishing" :aria-busy="publishing" @click="saveAndPublish"><Rocket :size="15" :stroke-width="2" /> {{ publishing ? 'Publishing…' : (agent.publish_status === 'published' ? 'Update' : 'Publish') }}</button>
         </div>
       </footer>
     </template>
@@ -105,7 +113,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick, markRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ChevronRight, ChevronDown, ArrowLeft, ArrowRight, Save, Play, Pause as PauseIcon, Rocket, Pencil, MoreHorizontal, MessageCircle, UploadCloud, Plug } from 'lucide-vue-next'
 import api from '../services/api'
@@ -120,6 +128,7 @@ import CredentialsStep from '../components/agent-editor/CredentialsStep.vue'
 import AutonomySafetyStep from '../components/agent-editor/AutonomySafetyStep.vue'
 import ScopeAssistantStep from '../components/agent-editor/ScopeAssistantStep.vue'
 import TestPublishMonitorStep from '../components/agent-editor/TestPublishMonitorStep.vue'
+import LoadError from '../components/common/LoadError.vue'
 import { ago } from '../components/dashboard/time'
 import { provideEditorShell } from '../composables/editorShell'
 
@@ -138,7 +147,12 @@ provideEditorShell({
 })
 
 const loading = ref(true)
+// Why the agent could not be loaded ('' = it loaded, or this is a new agent). While set, the editor shows
+// only the error and Retry — never a blank "New Agent" form whose Save would create a duplicate.
+const loadError = ref('')
 const saving = ref(false)
+const publishing = ref(false)            // Publish in progress: one click publishes once
+const openingChat = ref(false)           // header Chat: flushing edits before opening the chat
 let resaveQueued = false                 // trailing-save flag: re-save after an in-flight save finishes
 const agent = ref({})
 // What the server last confirmed for this agent. A save sends ONLY the fields that differ from it.
@@ -193,6 +207,32 @@ const nextLabel = computed(() => {
   return 'Continue'
 })
 const stepDone = (i) => i < stepIndex.value
+
+// The step on screen, as one dynamic component with its props and listeners (see the template).
+const STEP_COMPONENTS = {
+  identity: markRaw(AgentIdentityStep), brain: markRaw(DefineBrainStep), tools: markRaw(KnowledgeToolsStep),
+  team: markRaw(SubAgentsStep), skills: markRaw(SkillsStep), credentials: markRaw(CredentialsStep),
+  autonomy: markRaw(AutonomySafetyStep), scope: markRaw(ScopeAssistantStep), final: markRaw(TestPublishMonitorStep),
+}
+const stepComponent = computed(() => STEP_COMPONENTS[step.value] || null)
+const stepProps = computed(() => {
+  const props = { agent: agent.value }
+  switch (step.value) {
+    case 'identity': return { ...props, isNew: isNew.value }
+    case 'tools': case 'team': case 'skills': return { ...props, onSaved: mergeAgent }
+    case 'autonomy': return { ...props, onOpenStep: openStep }
+    case 'final': return { ...props, saveFirst: flushPendingEdits, onPublished: onPublished }
+    default: return props
+  }
+})
+// Bumped when the server state changes under EVERY step at once (another agent loaded, a publish or a
+// rollback from the final step). It is part of each kept step's key, so the KeepAlive cache is dropped and
+// a step opened next mounts fresh instead of showing values from before.
+const stepCacheToken = ref(0)
+// One scrolling body for every step now that steps are kept alive: start each step at the top, as the
+// remount used to.
+const stepBody = ref(null)
+watch(step, () => nextTick(() => { if (stepBody.value) stepBody.value.scrollTop = 0 }))
 // New mode needs a name to create the draft. Asked by every path that would POST — Continue AND the
 // header Save, which used to send the empty name and report only "Failed to save".
 function missingName() {
@@ -254,6 +294,13 @@ function mergeAgent(data) {
   }
 }
 
+// The final step's publish / rollback: server state for the whole agent. Kept steps hold local copies
+// (rules, response style, workspace…) taken when they mounted, so drop them.
+function onPublished(data) {
+  mergeAgent(data)
+  stepCacheToken.value += 1
+}
+
 // Handed to the final step so ITS Publish button saves first, like the header's "Configure / Publish".
 // save() does not run while another save is in flight — it queues a trailing one and answers false —
 // and arriving on the final step with Continue starts exactly such a background save. Wait that out,
@@ -268,9 +315,14 @@ async function flushPendingEdits() {
 // exercises the config that's on screen; a failed save keeps the user here with the error toast.
 // Chat only exists in the user dashboard shell, so an admin editing a system agent lands there too.
 async function openChat() {
-  if (!agent.value.id || saving.value) return
-  if (!(await save({ quiet: true }))) return
-  router.push({ path: '/dashboard/chat/new', query: { agent: agent.value.id } })
+  if (!agent.value.id || saving.value || openingChat.value) return
+  openingChat.value = true
+  try {
+    if (!(await save({ quiet: true }))) return
+    router.push({ path: '/dashboard/chat/new', query: { agent: agent.value.id } })
+  } finally {
+    openingChat.value = false
+  }
 }
 
 const pausing = ref(false)
@@ -294,6 +346,7 @@ const lastSaved = computed(() => (lastSavedAt.value ? ago(lastSavedAt.value) : '
 
 async function load() {
   const id = route.params.id
+  loadError.value = ''
   // New mode — no id yet: start from a blank draft (created on first Continue/Save).
   if (!id) {
     agent.value = blankAgent()
@@ -309,7 +362,10 @@ async function load() {
   loading.value = true
   try {
     const res = await api.get(`/agents/${id}/`)
+    // The route moved on while this was loading (another agent, or away): its answer is not ours.
+    if (String(route.params.id) !== String(id)) return
     const a = res.data || {}
+    if (!a.id) throw new Error('empty agent')
     // Always derive tool_ids from the authoritative `tools` so a later PATCH preserves the real set
     // (never wipes it). The GET doesn't return tool_ids (write-only), so without this a save could send [].
     // The same for knowledge_source_ids / sub_agent_ids / skill_ids, and BEFORE the snapshot: their steps
@@ -319,12 +375,21 @@ async function load() {
     agent.value = a
     serverCopy = snapshot(a)
     lastSavedAt.value = a.updated_at || null
+    stepCacheToken.value += 1
   } catch (e) {
-    notify.error('Failed to load agent')
+    if (String(route.params.id) !== String(id)) return
+    // Keep NO agent: an empty `agent` reads as "new" (isNew), and its Save would POST a duplicate.
+    agent.value = {}
+    serverCopy = {}
+    const status = e?.response?.status
+    loadError.value = status === 404 ? 'This agent does not exist, or you no longer have access to it.'
+      : status === 403 ? 'You do not have access to this agent.'
+      : 'The agent could not be loaded. Check your connection and try again.'
   } finally {
     loading.value = false
   }
 }
+function retryLoad() { load() }
 
 // Why a save was refused, in the server's words when it gave any: a duplicate name answers
 // 400 {"name": ["An agent with this name already exists."]}, and "Failed to save" told the user nothing.
@@ -350,6 +415,8 @@ function openAgentRoute(stepKey) {
 // `thenStep` — the step to land on once a NEW agent has been created (Continue passes the next one).
 // `holdRoute` — the caller moves to the new agent's URL itself, once it has finished (saveAndPublish).
 async function save({ quiet = false, thenStep = null, holdRoute = false } = {}) {
+  // Belt to the template's braces: an agent that failed to load is never saved (it would be a create).
+  if (loadError.value || (route.params.id && !agent.value.id)) return false
   if (missingName()) return false
   // If a save is already in flight, queue a trailing one so the latest edits aren't lost (rapid Continue).
   if (saving.value) { resaveQueued = true; return false }
@@ -413,29 +480,40 @@ async function save({ quiet = false, thenStep = null, holdRoute = false } = {}) 
 }
 
 async function saveAndPublish() {
-  // A background save may be in flight (Continue starts one); save() would only queue behind it and
-  // answer false, and this button would do nothing. Wait it out first.
-  while (saving.value) await new Promise(r => setTimeout(r, 60))
-  // On a NEW agent the create replaces the route, which rebuilds the editor; the rebuilt one loads the
-  // agent as it is at that moment. So publish BEFORE moving to the agent's own URL — otherwise it loaded
-  // the draft and showed "Draft" for an agent this very click had just published.
-  const wasNew = !agent.value.id
-  const ok = await save({ holdRoute: true })
-  if (!ok) return
+  // One publish per click: a double click (or header + footer) used to save and publish twice, and on a
+  // new agent the second save could POST a second agent.
+  if (publishing.value) return
+  publishing.value = true
   try {
-    const res = await api.publishAgent(agent.value.id)
-    if (res.data) {
-      agent.value = { ...agent.value, ...res.data }
-      serverCopy = { ...serverCopy, ...snapshot(res.data) }
+    // A background save may be in flight (Continue starts one); save() would only queue behind it and
+    // answer false, and this button would do nothing. Wait it out first.
+    while (saving.value) await new Promise(r => setTimeout(r, 60))
+    // On a NEW agent the create replaces the route, which rebuilds the editor; the rebuilt one loads the
+    // agent as it is at that moment. So publish BEFORE moving to the agent's own URL — otherwise it loaded
+    // the draft and showed "Draft" for an agent this very click had just published.
+    const wasNew = !agent.value.id
+    const ok = await save({ holdRoute: true })
+    if (!ok) return
+    try {
+      const res = await api.publishAgent(agent.value.id)
+      if (res.data) {
+        agent.value = { ...agent.value, ...res.data }
+        serverCopy = { ...serverCopy, ...snapshot(res.data) }
+      }
+      notify.success('Published')
+    } catch (e) {
+      notify.error('Failed to publish')
     }
-    notify.success('Published')
-  } catch (e) {
-    notify.error('Failed to publish')
+    if (wasNew) openAgentRoute(step.value)
+  } finally {
+    publishing.value = false
   }
-  if (wasNew) openAgentRoute(step.value)
 }
 
-watch(() => route.params.id, load)
+// Only while this route is still an editor route: leaving the editor clears `:id` before this component
+// is unmounted, and reloading then was pointless at best.
+const EDITOR_PATH = /\/agents\/(new|[^/]+\/editor)\/?$/
+watch(() => route.params.id, () => { if (EDITOR_PATH.test(route.path || '')) load() })
 watch(() => route.query.step, applyQueryStep)
 // The URL names the step on screen. It used to keep whatever ?step= the editor was opened with, so after
 // moving on a refresh went back to that step (and a link to the step already named there did nothing).
@@ -461,7 +539,8 @@ onMounted(() => {
 .btn-secondary:hover:not(:disabled) { border-color: #cdd5e0; color: #0F172A; }
 .btn-secondary:disabled { opacity: .5; cursor: not-allowed; }
 .btn-primary { display: inline-flex; align-items: center; gap: 7px; border: none; background: #2563EB; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; color: #fff; cursor: pointer; box-shadow: 0 1px 2px rgba(37,99,235,.25); transition: background .15s; }
-.btn-primary:hover { background: #1D4ED8; }
+.btn-primary:hover:not(:disabled) { background: #1D4ED8; }
+.btn-primary:disabled { opacity: .6; cursor: not-allowed; }
 .btn-icon { display: grid; place-items: center; height: 36px; width: 36px; border: 1px solid #E5E7EB; background: #fff; border-radius: 10px; color: #475569; cursor: pointer; }
 .btn-icon:hover { border-color: #cdd5e0; color: #0F172A; }
 </style>

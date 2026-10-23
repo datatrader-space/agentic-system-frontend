@@ -1,13 +1,12 @@
 <script setup>
 /**
  * P8 — Org / Workspace LLM Defaults (org-guardrails page).
- * Edits OrgAgentPolicy.llm_policy: the org-level default context profile + LLM ceilings the resolver
- * applies to every agent in the org. Org values may only TIGHTEN below the platform ceilings (P7) — the
+ * Edits OrgAgentPolicy.llm_policy: the org-level LLM ceilings the resolver applies to every agent in
+ * the org. Org values may only TIGHTEN below the platform ceilings (P7) — the
  * API rejects anything larger, and the resolver defensively clamps to platform at runtime. Absolute
  * code guards (ABSOLUTE_*) are never editable here; they are shown as the read-only maximum.
  *
- * Precedence surfaced by the effective preview: agent profile > org default > request-type fallback,
- * and for ceilings: min(ABSOLUTE, platform, org).
+ * The effective preview shows, per ceiling: min(ABSOLUTE, platform, org) and the layer that bound it.
  */
 import { computed, ref } from 'vue'
 
@@ -20,12 +19,6 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue', 'change'])
-
-const PROFILES = [
-  { key: 'short', label: 'Short context' },
-  { key: 'medium', label: 'Medium context' },
-  { key: 'long', label: 'Long context' },
-]
 
 // ABSOLUTE_* code guards (agent/services/llm_policy.py: PLATFORM_LLM_INT_KEYS). These are compile-time
 // constants that never change at runtime, so we keep a local copy as a guaranteed fallback: the max cap
@@ -76,16 +69,6 @@ function placeholderFor(key) {
 
 // Per-key notice shown when the admin's typed value was clamped down to the cap.
 const capped = ref({})
-const profile = computed(() => props.modelValue.default_context_profile || '')
-
-function setProfile(e) {
-  const next = { ...props.modelValue }
-  const v = e.target.value
-  if (!v) delete next.default_context_profile          // blank = no org default -> request-type fallback
-  else next.default_context_profile = v
-  emit('update:modelValue', next)
-  emit('change')
-}
 function setNum(key, e) {
   const raw = e.target.value
   const next = { ...props.modelValue }
@@ -117,11 +100,9 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
 // Preview rows: label + platform ceiling + org value + final resolved + binding source.
 const PREVIEW_ROWS = [
   { key: 'hard_input_limit', label: 'Input tokens', pol: 'max_input_tokens' },
-  // "Total tool context" is now profile-only (no admin cap) — shown for reference, no policy mapping.
-  { key: 'total_tool_context_budget', label: 'Total tool context (profile)', pol: null },
+  // "Total tool context" has no admin cap — shown for reference, no policy mapping.
+  { key: 'total_tool_context_budget', label: 'Total tool context', pol: null },
 ]
-const previewProfile = computed(() => props.preview?.profile || '—')
-const previewProfileSrc = computed(() => props.preview?.profile_source || '—')
 function finalVal(row) { return props.preview?.[row.key] }
 function finalSrc(row) { return props.preview?.sources?.[row.key] || '—' }
 </script>
@@ -133,23 +114,6 @@ function finalSrc(row) { return props.preview?.sources?.[row.key] || '—' }
       make the <strong>platform ceilings stricter</strong> — never larger. A value above the platform limit is
       rejected. Each agent can then tighten further. Leave a field blank to inherit the platform ceiling.
     </p>
-
-    <!-- Default context profile -->
-    <label class="old-profile" data-test="old-default_context_profile">
-      <span class="old-lbl">Default context profile</span>
-      <select :value="profile" :disabled="disabled" @change="setProfile">
-        <option value="">Auto — no org default (each request picks by type)</option>
-        <option v-for="p in PROFILES" :key="p.key" :value="p.key">{{ p.label }}</option>
-      </select>
-      <small class="old-hint">
-        Used when an agent has no profile of its own <em>and</em> the platform sets no default of its own.
-        An agent's own profile always wins, and a platform-wide default (LLM Policy) overrides this org
-        default; with <strong>Auto</strong>, each turn falls back to the request-type default.
-      </small>
-      <small v-if="errors.default_context_profile" class="old-err" data-test="err-default_context_profile">
-        {{ errors.default_context_profile }}
-      </small>
-    </label>
 
     <!-- Numeric ceilings -->
     <div class="old-grid">
@@ -181,11 +145,6 @@ function finalSrc(row) { return props.preview?.sources?.[row.key] || '—' }
     <!-- Effective preview -->
     <div v-if="preview" class="old-preview" data-test="old-preview">
       <h3>Effective for org agents</h3>
-      <div class="old-prow" data-test="preview-profile">
-        <span class="old-pk">Context profile</span>
-        <span class="old-pv">{{ previewProfile }}</span>
-        <span class="old-src" :data-src="previewProfileSrc">{{ previewProfileSrc }}</span>
-      </div>
       <div v-for="row in PREVIEW_ROWS" :key="row.key" class="old-prow" :data-test="`preview-${row.key}`">
         <span class="old-pk">{{ row.label }}</span>
         <span class="old-pv">
@@ -206,13 +165,11 @@ function finalSrc(row) { return props.preview?.sources?.[row.key] || '—' }
 <style scoped>
 .old { display: flex; flex-direction: column; gap: 16px; }
 .old-note { margin: 0; font-size: 13px; line-height: 1.5; color: #64748b; }
-.old-profile { display: flex; flex-direction: column; gap: 5px; max-width: 460px; }
-.old-profile select { height: 36px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px; font-size: 13px; background: #fff; }
 .old-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 .old-field { display: flex; flex-direction: column; gap: 4px; }
 .old-lbl { font-size: 13px; font-weight: 600; }
 .old-field input[type="number"] { padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
-.old-field input:disabled, .old-profile select:disabled { opacity: .6; }
+.old-field input:disabled { opacity: .6; }
 .old-hint { font-size: 11px; color: #94a3b8; }
 .old-cap-from { font-style: normal; color: #cbd5e1; }
 .old-capnote { font-size: 11px; color: #b45309; font-weight: 600; }

@@ -74,7 +74,7 @@ export async function loadBoard(store) {
     if (body.app_photos) uploads.push({ id: 'app', kind: 'upload', source: 'app', name: 'Photos from your app', count: body.app_photos,
       group: 'Sent by an app', status: 'Unassigned', assignee: 'Unassigned', instructions: '', timeline: [] });
     store.batches = [...uploads, ...body.assignments.filter(a => a.state !== 'rejected').map(card)];
-    store.counts = body.counts; store.can = { batch: body.can_batch, upload: body.can_upload }; store.refused = body.refused;
+    store.counts = body.counts; store.photos = body.photos ?? null; store.can = { batch: body.can_batch, upload: body.can_upload }; store.refused = body.refused;
     await loadClasses(store).catch(() => {});
   } catch (error) { store.error = error.message; }
   finally { store.loading = false; }
@@ -112,6 +112,13 @@ export async function loadAssignment(store, batch) {
   keepImages(store, batch.id, body.photos.map(p => ({ id: p.id, batchId: batch.id, name: p.name, url: p.image, width: p.width, height: p.height,
     state: photoState(p.state, p.label_state), label: p.label, labelled: p.state === 'labelled', fix: p.fix, tags: p.tags || [], shapes: [], noObjects: false })));
   return batch;
+}
+
+// What an assignment step answered: where the assignment stands now. Shown at once; what this person may do next
+// comes with the full refresh that follows, so until then nothing is offered (a slow refresh once left "Submit for
+// Review" on screen after the submit had been made).
+export function applyStep(batch, row) {
+  Object.assign(batch, { group: row.state_label, status: row.column, count: row.total, done: row.done, may: {} });
 }
 
 // The labels waiting for approval.

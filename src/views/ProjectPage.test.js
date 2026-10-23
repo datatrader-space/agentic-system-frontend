@@ -110,4 +110,28 @@ describe('ProjectPage', () => {
     expect(api.deleteGenericFile).toHaveBeenCalledWith(5)
     expect(w.findAll('[data-test="project-file"]')).toHaveLength(0)
   })
+  it('polls a file that is still being read, stops when it is searchable, and never after leaving', async () => {
+    vi.useFakeTimers()
+    try {
+      api.getChatProjectFiles
+        .mockResolvedValueOnce({ data: [{ id: 5, name: 'rates.pdf', status: 'processing' }] })
+        .mockResolvedValueOnce({ data: [{ id: 5, name: 'rates.pdf', status: 'ready' }] })
+      const w = await mountP()
+      expect(api.getChatProjectFiles).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(4000)
+      expect(api.getChatProjectFiles).toHaveBeenCalledTimes(2)
+      await vi.advanceTimersByTimeAsync(20000)
+      expect(api.getChatProjectFiles).toHaveBeenCalledTimes(2)   // ready: polling stopped
+
+      api.getChatProjectFiles.mockResolvedValue({ data: [{ id: 5, name: 'rates.pdf', status: 'processing' }] })
+      const w2 = await mountP()
+      const before = api.getChatProjectFiles.mock.calls.length
+      w2.unmount()
+      w.unmount()
+      await vi.advanceTimersByTimeAsync(30000)
+      expect(api.getChatProjectFiles.mock.calls.length).toBe(before)  // nothing after leaving
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

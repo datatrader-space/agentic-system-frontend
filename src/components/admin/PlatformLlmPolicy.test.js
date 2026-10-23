@@ -71,6 +71,44 @@ describe('PlatformLlmPolicy', () => {
     expect(w.text().toLowerCase()).toContain('tighten')
   })
 
+  it('shows only the kept prompt-caching and history controls', () => {
+    const w = mount(PlatformLlmPolicy, { props: { modelValue: {}, absolute: ABSOLUTE } })
+    for (const key of [
+      'prompt_cache_enabled', 'openrouter_session_stickiness_enabled', 'prompt_cache_diagnostics_enabled',
+      'cache_stable_prefix_ttl', 'long_context_trigger_pct', 'long_context_summary_pct',
+    ]) expect(w.find(`[data-test="plp-${key}"]`).exists()).toBe(true)
+    // Removed on the backend (it rejects them as unknown keys): no control may write them.
+    for (const key of [
+      'cache_segmentation_enabled', 'cache_kb_volatile', 'cache_history_enabled', 'cache_rag_placement',
+      'default_context_profile', 'checkpoint_trigger_tokens', 'long_context_min_window', 'long_context_chunk_tokens',
+      'conversation_context_strategy',
+    ]) expect(w.find(`[data-test="plp-${key}"]`).exists()).toBe(false)
+    expect(w.text().toLowerCase()).not.toContain('context profile')
+    expect(w.text()).not.toContain('Phase 2')
+    expect(w.text()).not.toContain('Long-Context')
+  })
+
+  it('bounds the compaction trigger to 50–95', async () => {
+    const w = mount(PlatformLlmPolicy, { props: { modelValue: {}, absolute: ABSOLUTE } })
+    const input = w.find('[data-test="plp-long_context_trigger_pct"] input')
+    expect(input.attributes('min')).toBe('50')
+    expect(input.attributes('max')).toBe('95')
+    expect(w.find('[data-test="plp-long_context_trigger_pct"]').text()).toContain('usable window')
+    await input.setValue('10')
+    expect(w.emitted('update:modelValue').at(-1)[0].long_context_trigger_pct).toBe(50)
+    await input.setValue('99')
+    expect(w.emitted('update:modelValue').at(-1)[0].long_context_trigger_pct).toBe(95)
+    await input.setValue('70')
+    expect(w.emitted('update:modelValue').at(-1)[0].long_context_trigger_pct).toBe(70)
+  })
+
+  it('keeps the summary size at 1–40', () => {
+    const w = mount(PlatformLlmPolicy, { props: { modelValue: {}, absolute: ABSOLUTE } })
+    const input = w.find('[data-test="plp-long_context_summary_pct"] input')
+    expect(input.attributes('min')).toBe('1')
+    expect(input.attributes('max')).toBe('40')
+  })
+
   it('disables all inputs when disabled (non-admin)', () => {
     const w = mount(PlatformLlmPolicy, { props: { modelValue: {}, absolute: ABSOLUTE, disabled: true } })
     expect(w.findAll('input').every((i) => i.element.disabled)).toBe(true)

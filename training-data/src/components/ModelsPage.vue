@@ -115,7 +115,7 @@ const share = (part, whole) => (whole ? `${Math.round((part / whole) * 1000) / 1
         <UiButton variant="primary" @click="emit('navigate','train')">Train a model</UiButton>
         <UiButton disabled title="Coming soon"><Upload :size="15"/> Upload weights</UiButton><UiBadge tone="purple">Coming soon</UiBadge>
       </div>
-      <p v-if="!data.criteria_approved" class="models-note">The thresholds below are proposed targets. They are not approved for this project yet, so an evaluation measures a model but does not pass or fail it.</p>
+      <p v-if="!data.criteria_approved" class="models-note">The thresholds (shown on the Compare tab) are proposed targets. They are not approved for this project yet, so an evaluation measures a model but does not pass or fail it.</p>
       <div v-if="!data.models.length" class="model-empty">
         <Box :size="42"/><h2>No trained models yet</h2>
         <p>A model appears here when a training run of this project finishes and registers it.</p>
@@ -150,6 +150,7 @@ const share = (part, whole) => (whole ? `${Math.round((part / whole) * 1000) / 1
               </div>
             </dl>
             <ul v-if="m.evaluation.reasons.length" class="model-reasons"><li v-for="r in m.evaluation.reasons" :key="r">{{ r }}</li></ul>
+            <a v-if="m.evaluation.report" class="button button--secondary" :href="m.evaluation.report" download>Download the evaluation report (JSON)</a>
           </template>
           <p v-else-if="!m.evaluating&&!m.ended" class="model-meta">Not evaluated yet.</p>
         </section>

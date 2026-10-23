@@ -446,6 +446,7 @@ async function uploadEmuAttachments() {
 // 'ready' | 'failed' | 'timeout'; bounded (~60s) so a stuck conversion can never hang the send.
 async function awaitEmuIngest(fileId) {
   for (let i = 0; i < 40; i++) {
+    if (unmounted) return 'timeout'
     let d
     try { d = (await api.getAgentFileStatus(fileId)).data } catch { d = null }
     const st = d?.index_status
@@ -574,6 +575,10 @@ function attachTimelineSnapshot() {
 let intentionalClose = false
 let reconnectAttempts = 0
 let reconnectTimer = null
+// Set on unmount. Every path that opens a socket checks it after its awaits, so a restore that was waiting on
+// the history request cannot open a socket for a panel that is already gone.
+let unmounted = false
+let restoreSeq = 0
 // The agentId the live socket belongs to, and a debounce timer for agentId changes. The host
 // (AgentBuilderCanvas) briefly flips :agent-id to null whenever the form's dirty/publish state
 // flickers; without debouncing, every flip tore down + reopened the chat socket — a connect/
@@ -610,7 +615,7 @@ function closeSocket() {
 }
 
 function connect() {
-  if (!props.agentId) return
+  if (unmounted || !props.agentId) return
   // Replacing an existing socket (e.g. Restart): DETACH its handlers before closing so its onclose can't
   // fire scheduleReconnect() — otherwise replacing a socket kicks off a 1s reconnect storm.
   if (ws.value) {
@@ -975,6 +980,7 @@ async function loadHistory(id) {
 
 // Restore this agent's saved conversation (if any), else start a fresh connection.
 async function restore() {
+  const run = ++restoreSeq
   closeSocket()
   messages.value = []
   pendingPlan.value = null
@@ -985,6 +991,8 @@ async function restore() {
   if (savedId) {
     conversationId.value = savedId
     const ok = await loadHistory(savedId)
+    // Unmounted, or superseded by a newer restore (another agent), while the history loaded.
+    if (unmounted || run !== restoreSeq) return
     if (!ok) { conversationId.value = null; clearSavedConv() }  // stale/deleted -> fresh
   } else {
     conversationId.value = null
@@ -1028,6 +1036,7 @@ function onEmuKey(e) { if (e.key === 'Escape' && (plusOpen.value || urlOpen.valu
 watch(() => props.agentId, onAgentIdChanged)
 onMounted(() => { restore(); document.addEventListener('keydown', onEmuKey) })
 onBeforeUnmount(() => {
+  unmounted = true
   if (agentIdDebounce) clearTimeout(agentIdDebounce)
   document.removeEventListener('keydown', onEmuKey)
   closeSocket()

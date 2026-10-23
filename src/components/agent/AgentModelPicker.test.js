@@ -210,6 +210,55 @@ describe('AgentModelPicker', () => {
   })
 })
 
+describe('AgentModelPicker — models load on demand and a long list never freezes the page', () => {
+  const summary = {
+    ...payload,
+    // What the page load receives now: each provider's model COUNT, no models.
+    providers: [{ id: 9, name: 'OpenRouter', provider_type: 'openrouter', model_count: 533 }],
+  }
+  const many = Array.from({ length: 533 }, (_, i) => ({ id: 1000 + i, name: `Model ${i}`, model_id: `vendor/model-${i}` }))
+
+  it('loads a provider’s models only when it is opened, once', async () => {
+    api.getAgentModelOptions.mockReset().mockImplementation((_id, params) => Promise.resolve({
+      data: params?.provider ? { ...summary, providers: [{ ...summary.providers[0], models: many }] } : summary,
+    }))
+    const wrapper = mountPicker()
+    await flushPromises()
+    expect(api.getAgentModelOptions).toHaveBeenCalledTimes(1)
+    expect(api.getAgentModelOptions.mock.calls[0][1]).toBeUndefined()
+
+    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
+    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
+    expect(wrapper.get('.amp-provider').text()).toContain('533 chat models')
+    await wrapper.get('.amp-provider').trigger('click')
+    await flushPromises()
+    expect(api.getAgentModelOptions).toHaveBeenLastCalledWith(7, { provider: 9 })
+
+    await wrapper.get('[data-test="model-picker-model-flyout"] .amp-model-back').trigger('click')
+    await wrapper.get('.amp-provider').trigger('click')
+    await flushPromises()
+    expect(api.getAgentModelOptions).toHaveBeenCalledTimes(2)
+  })
+
+  it('draws at most 60 rows and says how to reach the rest; search covers all of them', async () => {
+    api.getAgentModelOptions.mockReset().mockResolvedValue({
+      data: { ...payload, providers: [{ id: 9, name: 'OpenRouter', provider_type: 'openrouter', models: many }] },
+    })
+    const wrapper = mountPicker()
+    await flushPromises()
+    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
+    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
+    await wrapper.get('.amp-provider').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.amp-model')).toHaveLength(60)
+    expect(wrapper.get('[data-test="model-more"]').text()).toContain('Showing 60 of 533')
+
+    await wrapper.get('[data-test="model-search"]').setValue('model-532')
+    expect(wrapper.findAll('.amp-model .amp-model-name').map((el) => el.text())).toEqual(['Model 532'])
+    expect(wrapper.find('[data-test="model-more"]').exists()).toBe(false)
+  })
+})
+
 describe('AgentModelPicker — reasoning options follow the picked model', () => {
   it('loads them for the agent and reloads after a model pick', async () => {
     const w = mountPicker()

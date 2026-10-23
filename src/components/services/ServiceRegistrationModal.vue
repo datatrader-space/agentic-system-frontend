@@ -602,6 +602,7 @@ import api from '../../services/api'
 import { Icon } from '@iconify/vue'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import { usePoller } from '@/composables/usePoller'
 
 export default {
   name: 'ServiceRegistrationWizard',
@@ -746,6 +747,8 @@ export default {
     const draftSavedAt = ref(null)
     const draftSaving = ref(false)
     let draftTimer = null
+    // Set when the modal closes: nothing (autosave, enrichment polling) may run or save after that.
+    let unmounted = false
 
     const discoveredData = ref(null)
     const selectedCategories = ref([])
@@ -1157,53 +1160,72 @@ export default {
       }
     }
 
-    const pollEnrichmentJob = async (jobId) => {
-      const started = Date.now()
-      const MAX_MS = 30 * 60 * 1000
-      try {
-        while (Date.now() - started < MAX_MS) {
-          await new Promise(r => setTimeout(r, 1500))
-          const { data } = await api.getEnrichmentJobStatus(jobId)
-          enrichProgress.value = {
-            done: data.done || 0,
-            total: data.total || 0,
-            percent: data.percent || 0,
-            current: data.current || null,
-            model: data.model || enrichProgress.value.model,
-            modelSource: data.model_source || enrichProgress.value.modelSource
-          }
-          if (data.state === 'done') {
-            (data.results || []).forEach(applyEnriched)
-            saveDraft()          // enrichment is the expensive state — make it durable at once
-            const byLlm = data.enriched_by_llm || 0
-            const failed = data.skipped_error || 0
-            let msg = 'Enriched ' + byLlm + '/' + data.total + ' actions'
-            if (data.model) msg += ' using ' + data.model
-            if (failed) msg += ' - ' + failed + ' could not be enriched'
-            notify.show(msg)
-            return
-          }
-          if (data.state === 'failed') {
-            // A worker restarted mid-job (a deploy) reports `worker_stopped` with the count it did
-            // reach, so partial work is kept rather than the whole run being thrown away.
-            if (data.error === 'worker_stopped' && (data.results || []).length) {
-              (data.results || []).forEach(applyEnriched)
-              saveDraft()        // keep whatever the dead worker did finish
-            }
-            notify.error(data.error_detail || data.error || 'Enrichment failed.')
-            return
-          }
-        }
-        notify.error('Enrichment is taking unusually long - check back on the service page.')
-      } catch (error) {
-        console.error('Enrichment polling failed:', error)
-        notify.error('Lost track of the enrichment job: '
-          + (error.response?.data?.error || error.message))
-      } finally {
-        enriching.value = false
-        enrichJobId.value = null
-      }
+    // Enrichment progress, through the shared poller: paused while the tab is hidden, backs off on a
+    // failed poll instead of giving up, and is cancelled when the modal closes (the old loop ran for up
+    // to 30 minutes after close and kept saving the draft).
+    const ENRICH_MAX_MS = 30 * 60 * 1000
+    let enrichPoll = null           // { jobId, started, resolve }
+    const endEnrichPoll = () => {
+      const job = enrichPoll
+      enrichPoll = null
+      enriching.value = false
+      enrichJobId.value = null
+      if (job) job.resolve()
+      return { final: true }
     }
+    const enrichPoller = usePoller(async () => {
+      const job = enrichPoll
+      if (!job || unmounted) return { final: true }
+      if (Date.now() - job.started > ENRICH_MAX_MS) {
+        notify.error('Enrichment is taking unusually long - check back on the service page.')
+        return endEnrichPoll()
+      }
+      const { data } = await api.getEnrichmentJobStatus(job.jobId)
+      if (unmounted || enrichPoll !== job) return { final: true }
+      enrichProgress.value = {
+        done: data.done || 0,
+        total: data.total || 0,
+        percent: data.percent || 0,
+        current: data.current || null,
+        model: data.model || enrichProgress.value.model,
+        modelSource: data.model_source || enrichProgress.value.modelSource
+      }
+      if (data.state === 'done') {
+        (data.results || []).forEach(applyEnriched)
+        saveDraft()          // enrichment is the expensive state — make it durable at once
+        const byLlm = data.enriched_by_llm || 0
+        const failed = data.skipped_error || 0
+        let msg = 'Enriched ' + byLlm + '/' + data.total + ' actions'
+        if (data.model) msg += ' using ' + data.model
+        if (failed) msg += ' - ' + failed + ' could not be enriched'
+        notify.show(msg)
+        return endEnrichPoll()
+      }
+      if (data.state === 'failed') {
+        // A worker restarted mid-job (a deploy) reports `worker_stopped` with the count it did
+        // reach, so partial work is kept rather than the whole run being thrown away.
+        if (data.error === 'worker_stopped' && (data.results || []).length) {
+          (data.results || []).forEach(applyEnriched)
+          saveDraft()        // keep whatever the dead worker did finish
+        }
+        notify.error(data.error_detail || data.error || 'Enrichment failed.')
+        return endEnrichPoll()
+      }
+      return { final: false }
+    }, {
+      interval: 1500,
+      maxInterval: 15000,
+      stopWhen: (r) => !!r?.final,
+      onError: (error) => console.error('Enrichment poll failed (retrying):', error),
+    })
+
+    // Resolves when the job finishes, fails, times out, or the modal closes.
+    const pollEnrichmentJob = (jobId) => new Promise((resolve) => {
+      if (enrichPoll) enrichPoll.resolve()
+      enrichPoll = { jobId, started: Date.now(), resolve }
+      enrichPoller.stop()
+      enrichPoller.start({ immediate: false })
+    })
 
     /**
      * Everything needed to rebuild the wizard, enriched schemas included — but NOT the raw spec.
@@ -1229,6 +1251,7 @@ export default {
     }
 
     const saveDraft = async ({ silent = true } = {}) => {
+      if (unmounted) return                     // the modal is gone: never write a draft behind it
       if (draftSaving.value) return
       if (!formData.value.name) return          // nothing identifiable to save yet
       draftSaving.value = true
@@ -1294,6 +1317,7 @@ export default {
           const enriched = Object.values(latest.wizard_state.selectedActions || {})
             .flat().filter(a => a?.enriched_by_llm).length
           const detail = enriched ? ` It already has ${enriched} AI-enriched actions.` : ''
+          if (unmounted) return
           if (await confirm(`Resume your unfinished "${latest.name || 'service'}" registration?${detail}`)) {
             restoreDraft(latest)
           }
@@ -1301,6 +1325,8 @@ export default {
       } catch (error) {
         console.debug('No draft to restore:', error?.message)
       }
+      // Closed while the awaits above were pending: arming the timer now would leak it forever.
+      if (unmounted) return
       // Autosave on a timer AND on every step change (below), so the expensive state — the enriched
       // schemas — is never more than 20s from durable.
       draftTimer = setInterval(() => { saveDraft() }, 20000)
@@ -1308,8 +1334,11 @@ export default {
     })
 
     onBeforeUnmount(() => {
+      unmounted = true
       if (draftTimer) clearInterval(draftTimer)
       draftTimer = null
+      enrichPoller.stop()
+      if (enrichPoll) { const job = enrichPoll; enrichPoll = null; job.resolve() }
     })
 
     const nextStep = () => {

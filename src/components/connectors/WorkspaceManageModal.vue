@@ -247,7 +247,7 @@ async function loadAgents() {
   try {
     const [a, p] = await Promise.all([
       api.get(`/workspaces/${ws.value.id}/agents/`),
-      api.getAgents(),
+      api.getAgentPicker(),
     ])
     assignments.value = a.data.assignments || []
     availableAgents.value = p.data?.results || p.data || []

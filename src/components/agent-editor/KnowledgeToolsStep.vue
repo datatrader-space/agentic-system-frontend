@@ -464,6 +464,7 @@ import { FileText, FileType, Link2, Globe, Database, BarChart3, Plus, X, Chevron
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import { usePoller } from '@/composables/usePoller'
 import { ago } from '../dashboard/time'
 import { useEditorShell } from '../../composables/editorShell'
 import AddWebsiteSourceModal from '../knowledge/AddWebsiteSourceModal.vue'
@@ -492,7 +493,8 @@ async function loadKbCost() {
   const id = agentId.value
   if (!id) { kbCost.value = 0; kbCostBySource.value = []; return }
   try {
-    const r = await api.getLlmUsage({ agent_id: id })
+    // days: 'all' — /llm/usage/ defaults to the last 30 days; this card shows the knowledge cost to date.
+    const r = await api.getLlmUsage({ agent_id: id, days: 'all' })
     kbCost.value = r.data?.kb_cost || 0
     kbCostBySource.value = r.data?.kb_cost_by_source || []
   } catch (e) { /* non-fatal — cost is informational */ }
@@ -545,16 +547,42 @@ async function onUpload(e) {
 }
 // Poll fallback: flip the card to ready/failed even if the live WS event is missed (freshly-mounted
 // step, dropped socket, etc.). Stops early once the WS has already resolved the file.
-async function pollFileStatus(docId, tries = 45) {
-  for (let i = 0; i < tries; i++) {
-    const cur = fileIndex({ id: docId, index_status: (files.value.find(f => f.id === docId) || {}).index_status })
-    if (cur.stage === 'ready' || cur.stage === 'failed') return
-    await new Promise(r => setTimeout(r, 2000))
-    let st
-    try { st = (await api.getAgentFileStatus(docId)).data } catch (e) { continue }
-    if (st.index_status === 'ready' || st.index_status === 'failed') { applyFileStatus(docId, st); return }
-    if (st.index_status) setProgress(docId, st.index_status, indexProgress.value[docId]?.percent || 0, '', st.chunk_count || 0)
-  }
+//
+// ONE poller per file (usePoller: pauses while the tab is hidden, backs off after an error, never two
+// requests at once), all stopped when this step unmounts. It used to be a bare loop per call: reloading
+// the list or re-indexing started a second loop for the same file, and none of them stopped on unmount.
+const FILE_POLL_MAX_CHECKS = 45
+const filePollers = new Map()           // docId -> poller
+function fileDone(docId) {
+  const cur = fileIndex({ id: docId, index_status: (files.value.find(f => f.id === docId) || {}).index_status })
+  return cur.stage === 'ready' || cur.stage === 'failed'
+}
+function pollFileStatus(docId) {
+  if (filePollers.has(docId) || fileDone(docId)) return
+  let checks = 0
+  const poller = usePoller(async () => {
+    checks += 1
+    if (fileDone(docId)) return { done: true }
+    try {
+      const st = (await api.getAgentFileStatus(docId)).data || {}
+      if (st.index_status === 'ready' || st.index_status === 'failed') { applyFileStatus(docId, st); return { done: true } }
+      if (st.index_status) setProgress(docId, st.index_status, indexProgress.value[docId]?.percent || 0, '', st.chunk_count || 0)
+    } catch (e) {
+      if (checks >= FILE_POLL_MAX_CHECKS) return { done: true }
+      throw e                                    // back off, keep polling
+    }
+    return { done: checks >= FILE_POLL_MAX_CHECKS }
+  }, {
+    interval: 2000,
+    maxInterval: 30000,
+    stopWhen: (r) => { if (r?.done) { filePollers.delete(docId); return true } return false },
+  })
+  filePollers.set(docId, poller)
+  poller.start({ immediate: false })
+}
+function stopFilePollers() {
+  for (const p of filePollers.values()) p.stop()
+  filePollers.clear()
 }
 function setProgress(docId, stage, percent, message, chunkCount) {
   indexProgress.value = { ...indexProgress.value, [docId]: { stage, percent, message, chunkCount } }
@@ -1137,7 +1165,7 @@ watch(agentId, (id, prev) => {
 })
 // When the agent object hydrates late, derive the attached shared-source ids so toggles show as ON.
 watch(() => props.agent.knowledge_sources, () => ensureKsIds())
-onBeforeUnmount(() => { if (kbWs.value) { try { kbWs.value.close() } catch (e) { /* noop */ } kbWs.value = null } })
+onBeforeUnmount(() => { stopFilePollers(); if (kbWs.value) { try { kbWs.value.close() } catch (e) { /* noop */ } kbWs.value = null } })
 </script>
 
 <style scoped>

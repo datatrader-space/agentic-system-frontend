@@ -189,6 +189,12 @@
         <h2 class="text-base font-bold text-slate-900">Models for internal operations</h2>
         <p class="text-[13px] text-slate-500 mt-0.5">Pick which model runs each internal task. Leave as <strong>Agent default</strong> to use the agent's own model.</p>
       </div>
+      <!-- A failed read of the saved picks is an error with Retry. It used to render every operation as
+           "Agent default", and saving that page then overwrote the real picks. -->
+      <div v-if="opLoadError" class="p-5 sm:p-6">
+        <LoadError title="Couldn't load your internal model choices" :message="opLoadError" :retrying="opRetrying" @retry="retryInternalTab" />
+      </div>
+      <template v-else>
       <!-- Tab bar: one tab per internal operation -->
       <div class="px-5 sm:px-6 pt-4 flex gap-1 border-b border-slate-100 overflow-x-auto">
         <button v-for="op in operationDefs" :key="op.key" @click="opActiveTab = op.key" type="button"
@@ -360,6 +366,7 @@
           </button>
         </div>
       </div>
+      </template>
     </div>
 
     <!-- Models Configuration -->
@@ -554,6 +561,7 @@ import api from '../services/api'
 import OwnerFilter from '../components/common/OwnerFilter.vue'
 import PageLoader from '../components/common/PageLoader.vue'
 import ProviderSwitchCard from '../components/providers/ProviderSwitchCard.vue'
+import LoadError from '../components/common/LoadError.vue'
 import { confirm } from '@/composables/useConfirm'
 
 const notify = inject('notify', () => {})
@@ -568,7 +576,7 @@ const onProviderSwitched = async (result) => {
   for (const w of (result?.warnings || [])) notify(w, 'info')
   await Promise.all([loadProviders().catch(() => {}), refreshModels().catch(() => {})])
   // An unopened tab reads the post-switch picks when it is first opened, so only an open one is re-read.
-  if (tabLoaded.value.internal) await loadOperationModels()
+  if (tabLoaded.value.internal) await loadOperationModels().catch(() => {})   // shown as the tab's error state
 }
 
 // Page-level initial-load state → drives the full-page spinner on first paint.
@@ -754,6 +762,13 @@ const deriveOpProviders = () => {
   embProvider.value = em ? em.provider : null
 }
 
+// The saved picks are read, or the tab shows an error: never the "Agent default" blanks as if saved.
+const opLoadError = ref('')
+const opRetrying = ref(false)
+const retryInternalTab = async () => {
+  opRetrying.value = true
+  try { await openTab('internal') } finally { opRetrying.value = false }
+}
 const loadOperationModels = async () => {
   try {
     const r = await api.getOperationModels()
@@ -770,8 +785,12 @@ const loadOperationModels = async () => {
       embedding_model_id: r.data.embedding_model_id ?? null,
     }
     deriveOpProviders()
+    opLoadError.value = ''
     await loadPickerLists()
-  } catch (e) { /* unset is fine — falls back to agent default */ }
+  } catch (e) {
+    opLoadError.value = apiError(e, 'Check your connection and try again.')
+    throw e
+  }
 }
 const saveOperationModels = async () => {
   try {

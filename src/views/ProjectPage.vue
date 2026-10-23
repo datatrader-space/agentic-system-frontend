@@ -83,13 +83,14 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../services/api'
 import { notify } from '../composables/useNotify'
 import { previewOf, agentOf } from '../composables/useChatHistory'
 import { useProjectsStore } from '../stores/useProjectsStore'
 import { useChatStore } from '../stores/useChatStore'
+import { usePoller } from '../composables/usePoller'
 
 const PAGE = 20
 const route = useRoute()
@@ -111,7 +112,6 @@ const files = ref([])
 const uploading = ref(false)
 const confirmingId = ref(null)
 const STATUS_LABEL = { ready: 'Searchable', processing: 'Reading…', failed: 'Could not read', not_searchable: 'Not searchable' }
-let filesTimer = null
 
 const rows = (data) => (Array.isArray(data) ? data : (data && data.results) || [])
 
@@ -121,16 +121,19 @@ const labelOf = (c) => {
 }
 
 async function load() {
+  const id = route.params.id
+  filesPoller.stop()
   loading.value = true
   try {
-    const { data } = await api.getChatProject(route.params.id)
+    const { data } = await api.getChatProject(id)
+    if (String(route.params.id) !== String(id)) return   // the user moved to another project meanwhile
     project.value = data
     instructions.value = data.instructions || ''
     await Promise.all([loadChats(PAGE), loadFiles()])
   } catch (_e) {
-    project.value = null
+    if (String(route.params.id) === String(id)) project.value = null
   } finally {
-    loading.value = false
+    if (String(route.params.id) === String(id)) loading.value = false
   }
 }
 
@@ -143,13 +146,30 @@ async function loadChats(limit) {
 }
 
 // While a file is still being read, look again every few seconds so its status turns to Searchable.
+// The poller is bound to the project it was started for, stops once nothing is processing, and is
+// cancelled on leave (it used to re-arm after the page was left and then poll the NEXT route's id).
+const isProcessing = () => files.value.some((f) => f.status === 'processing')
+let polledProjectId = null
+const filesPoller = usePoller(async () => {
+  const id = polledProjectId
+  const { data } = await api.getChatProjectFiles(id)
+  if (id !== polledProjectId || String(route.params.id) !== String(id)) return { stale: true }
+  files.value = rows(data)
+  return { stale: false }
+}, { interval: 4000, stopWhen: (r) => r?.stale || !isProcessing() })
+
 async function loadFiles() {
-  clearTimeout(filesTimer)
+  const id = route.params.id
   try {
-    const { data } = await api.getChatProjectFiles(route.params.id)
+    const { data } = await api.getChatProjectFiles(id)
+    if (String(route.params.id) !== String(id)) return
     files.value = rows(data)
   } catch (_e) { /* keep the list */ }
-  if (files.value.some((f) => f.status === 'processing')) filesTimer = setTimeout(loadFiles, 4000)
+  if (isProcessing()) {
+    filesPoller.stop()
+    polledProjectId = id
+    filesPoller.start({ immediate: false })
+  }
 }
 
 async function onPick(event) {
@@ -212,8 +232,8 @@ function newChat() {
 }
 
 onMounted(load)
-onBeforeUnmount(() => clearTimeout(filesTimer))
-watch(() => route.params.id, (id) => { if (id) load() })
+// Only for this page's own route: during the leave transition the next route's :id must not load here.
+watch(() => route.params.id, (id) => { if (id && (!route.name || route.name === 'dashboard-project')) load() })
 </script>
 
 <style scoped>

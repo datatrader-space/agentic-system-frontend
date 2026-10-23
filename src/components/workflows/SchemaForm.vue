@@ -21,6 +21,8 @@
             @input="set(f, $event.target.value)" @blur="$emit('blur', f.key, $event)"
             @dragover.prevent @drop="onDrop(f, $event)"></textarea>
 
+          <MediaRouteSelect v-else-if="f.type === 'media-route'" :context="data" :operation="data.operation" :model-value="data[f.key]" @update:model-value="set(f, $event)" />
+
           <select v-else-if="f.type === 'enum'" class="ins-in" :value="data[f.key]"
             @change="set(f, $event.target.value)">
             <option v-if="f.placeholder" :value="''" disabled>{{ f.placeholder }}</option>
@@ -69,6 +71,7 @@
 <script setup>
 import { computed } from 'vue'
 import { insertAt } from '../../utils/wfVarExpr'
+import MediaRouteSelect from './MediaRouteSelect.vue'
 
 const props = defineProps({
   // The node's `data` object — mutated in place (same ref the parent inspector binds to).

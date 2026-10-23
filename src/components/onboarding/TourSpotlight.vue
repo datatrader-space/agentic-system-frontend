@@ -2,8 +2,18 @@
   <teleport to="body">
     <div class="tour-root" role="dialog" aria-modal="true" :aria-label="`Tour step ${index + 1} of ${total}`">
       <!-- Click-catcher: blocks page interaction while the tour is up. Use Skip / ESC to exit
-           (deliberately does NOT dismiss on outside click — avoids accidental loss of the tour). -->
-      <div class="tour-catcher"></div>
+           (deliberately does NOT dismiss on outside click — avoids accidental loss of the tour).
+           When a step highlights a target, the catcher is four panels AROUND the hole, so the
+           highlighted control itself stays clickable (its "how to" tells the person to click it). -->
+      <template v-if="hasTarget && rect">
+        <div
+          v-for="(panel, i) in catcherPanels"
+          :key="i"
+          class="tour-catcher tour-catcher--panel"
+          :style="panel"
+        ></div>
+      </template>
+      <div v-else class="tour-catcher"></div>
 
       <!-- Spotlight hole — a transparent rounded rect with a massive box-shadow that dims
            everything outside it. Purely visual (pointer-events: none). Hidden on centered steps. -->
@@ -62,6 +72,20 @@ const rect = ref(null) // { top, left, width, height } of the padded target
 const cardStyle = ref({})
 
 const hasTarget = computed(() => !!props.step?.target)
+
+// Four rectangles that cover everything except the spotlight hole.
+const catcherPanels = computed(() => {
+  const r = rect.value
+  if (!r) return []
+  const bottom = r.top + r.height
+  const right = r.left + r.width
+  return [
+    { top: '0px', left: '0px', right: '0px', height: `${r.top}px` },
+    { top: `${bottom}px`, left: '0px', right: '0px', bottom: '0px' },
+    { top: `${r.top}px`, left: '0px', width: `${r.left}px`, height: `${r.height}px` },
+    { top: `${r.top}px`, left: `${right}px`, right: '0px', height: `${r.height}px` },
+  ]
+})
 
 // The sidebar is rendered twice (desktop + mobile drawer), so a selector can match a
 // hidden duplicate. Pick the first match that's actually visible on screen.
@@ -166,8 +190,10 @@ watch(() => props.step, () => findTarget(), { deep: true })
 </script>
 
 <style scoped>
-.tour-root { position: fixed; inset: 0; z-index: 4000; font-family: var(--vm-font-sans); }
-.tour-catcher { position: fixed; inset: 0; background: transparent; }
+.tour-root { position: fixed; inset: 0; z-index: 4000; font-family: var(--vm-font-sans); pointer-events: none; }
+.tour-catcher { position: fixed; inset: 0; background: transparent; pointer-events: auto; }
+.tour-catcher--panel { inset: auto; }
+.tour-card { pointer-events: auto; }
 
 .tour-hole {
   position: fixed;

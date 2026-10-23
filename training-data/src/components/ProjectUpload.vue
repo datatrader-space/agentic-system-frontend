@@ -45,7 +45,10 @@ async function save() {
   if (!batch.value.trim()) errors.value.push('Enter a batch name.');
   if (!real.value.length) errors.value.push('Select an image or a ZIP file before continuing.');
   if (!consent.value.trim()) errors.value.push('Describe where permission to use these images comes from.');
-  if (!groupName.value.trim()) errors.value.push('Enter a home/group name to keep related images together.');
+  // The name is for the images it would otherwise leave without a group: all of them ("one"), none ("file"), or the
+  // ones outside any folder ("folder").
+  const needsName = grouping.value === 'one' || (grouping.value === 'folder' && real.value.some(f => !folderOf(f.path)));
+  if (needsName && !groupName.value.trim()) errors.value.push(grouping.value === 'folder' ? 'Enter a home/group name for the images that are not in a folder.' : 'Enter a home/group name to keep related images together.');
   if (instant.value && !labeller.value) errors.value.push('Choose who labels the new batch.');
   if (errors.value.length || busy.value) return;
   busy.value = true; outcome.value = null;
@@ -126,7 +129,14 @@ const phoneGrouping = () => (grouping.value === 'file' ? 'file' : 'one');
 // are listed and can be stopped.
 const phone = ref({ links: [], made: null, busy: false });
 const phoneQr = computed(() => qrOf(phone.value.made?.url));
-async function loadPhoneLinks() { try { phone.value.links = (await phoneLinksApi.list(props.project.ref)).links; } catch (e) { sourceError.value = e.message; } }
+// While the phone panel is open, its links are read again every 5 s: a phone sends without this page knowing, and the
+// count of photos it sent stayed at 0 until the page was opened again (found 2026-10-21).
+let phoneTimer = null;
+async function loadPhoneLinks() {
+  clearTimeout(phoneTimer);
+  try { phone.value.links = (await phoneLinksApi.list(props.project.ref)).links; } catch (e) { sourceError.value = e.message; }
+  if (help.value === 'Upload from your phone' && phone.value.links.some(link => link.works)) phoneTimer = setTimeout(loadPhoneLinks, 5000);
+}
 async function makePhoneLink() {
   const missing = sourceFields(); if (missing) { sourceError.value = missing; return; }
   phone.value.busy = true; sourceError.value = '';
@@ -160,7 +170,7 @@ async function runMedia() {
     mediaOutcome.value = await extractPhotos(props.project.ref, form);
   } catch (e) { sourceError.value = e.message; } finally { mediaBusy.value = false; }
 }
-onUnmounted(() => files.value.forEach(f => { if(f.url) URL.revokeObjectURL(f.url); }));
+onUnmounted(() => { clearTimeout(phoneTimer); files.value.forEach(f => { if(f.url) URL.revokeObjectURL(f.url); }); });
 </script>
 <template>
 
@@ -181,7 +191,7 @@ onUnmounted(() => files.value.forEach(f => { if(f.url) URL.revokeObjectURL(f.url
       <template v-if="!files.length"><span class="upload-large-icon"><Upload :size="34" /></span><h2>Drag and drop images or a ZIP file to get started</h2><p>Bring your project’s images together in one batch.</p><div class="upload-actions"><UiButton @click="input.click()"><FileImage :size="16" /> Select files</UiButton><UiButton @click="folder.click()"><FolderOpen :size="16" /> Select folder</UiButton></div><div class="format-box"><FileImage :size="19" /><div><strong>JPEG · PNG · WebP</strong><p>Up to 15 MiB per image · 100 images per batch</p></div></div></template>
       <template v-else><div class="upload-queue-header"><div><h2>Drag and drop more images or ZIP files</h2><p>{{ real.length }} selected</p></div><div class="upload-actions"><UiButton @click="input.click()">Select files</UiButton><UiButton @click="folder.click()">Select folder</UiButton></div></div><div class="upload-image-grid"><article v-for="file in files" :key="file.id"><button class="image-open" @click="detail = file" :aria-label="`Preview ${file.name}`"><span v-if="file.zip" class="zip-tile"><FileArchive :size="34" /></span><img v-else :src="file.url" :alt="file.name"><span><Search :size="16" /></span></button><div class="upload-file-name"><span :title="file.name">{{ file.name }}</span><button class="icon-button" :aria-label="`Remove ${file.name}`" @click="remove(file)"><X :size="14" /></button></div><small>{{ file.zip ? `ZIP · ${(file.size/1048576).toFixed(1)} MB` : `${(file.size/1024).toFixed(0)} KiB` }}</small></article></div></template>
     </div>
-    <section class="upload-provenance"><h2>Source & grouping</h2><p>Keep the permission source and related home images together.</p><div class="upload-fields"><label class="field-label">Image source<select v-model="origin" class="text-input"><option value="development">Development / test images</option><option value="customer">Customer images</option></select></label><label class="field-label">Permission source<input v-model="consent" class="text-input" maxlength="200" placeholder="e.g. Synthetic test images or customer consent record"></label><label class="field-label">Grouping<select v-model="grouping" class="text-input"><option value="one">All images belong to one home/group</option><option value="file">Each image is a separate home/group</option><option value="folder">Group by selected folder</option></select></label><label class="field-label">Home/group name<input v-model="groupName" class="text-input" maxlength="100" placeholder="e.g. Demo home 01"></label></div><p class="group-note">Related images must stay together when dataset splits are assigned. Photos with the same home/group always land on the same side: training, validation or test.</p></section>
+    <section class="upload-provenance"><h2>Source & grouping</h2><p>Keep the permission source and related home images together.</p><div class="upload-fields"><label class="field-label">Image source<select v-model="origin" class="text-input"><option value="development">Development / test images</option><option value="customer">Customer images</option></select></label><label class="field-label">Permission source<input v-model="consent" class="text-input" maxlength="200" placeholder="e.g. Synthetic test images or customer consent record"></label><label class="field-label">Grouping<select v-model="grouping" class="text-input"><option value="one">All images belong to one home/group</option><option value="file">Each image is a separate home/group</option><option value="folder">Group by selected folder</option></select></label><label v-if="grouping!=='file'" class="field-label">Home/group name<input v-model="groupName" class="text-input" maxlength="100" :placeholder="grouping==='folder' ? 'For images not in a folder' : 'e.g. Demo home 01'"></label></div><p class="group-note">Related images must stay together when dataset splits are assigned. Photos with the same home/group always land on the same side: training, validation or test.</p></section>
     <div class="upload-bottom"><span role="status">{{ busy ? progress : `${real.length} files · ${tags.length} tags` }}</span><UiButton variant="primary" :disabled="busy" @click="save">{{ busy ? 'Uploading…' : 'Save and Continue' }} <ArrowRight :size="16" /></UiButton></div>
   </section><aside class="upload-help"><h3>Need data to get started?</h3><article v-for="item in [{title:'Bulk upload images',icon:Code,text:'A whole folder of photos, or photos that are already labelled in a ZIP file.',action:'View bulk upload'}, {title:'Upload from your phone',icon:Smartphone,text:'A link a phone opens to send photos straight into this project.',action:'Make a phone link'}, {title:'Connect cloud storage',icon:CloudUpload,text:'Import images from your preferred storage provider.',action:'Read more',soon:true}, {title:'Discover more images',icon:Search,text:'Explore public datasets to broaden yours.',action:'Read more',soon:true}]" :key="item.title"><span class="help-icon"><component :is="item.icon" :size="21" /></span><h3>{{ item.title }}</h3><p>{{ item.text }}</p><UiBadge v-if="item.soon">Coming soon</UiBadge><UiButton @click="help = item.title; if (!item.soon) provider = 'ZIP with annotations'">{{ item.action }}<ArrowRight :size="14" /></UiButton></article></aside></div>
   <UiDialog :open="!!detail" title="Image preview" @close="detail = null"><template v-if="detail"><div class="preview-image"><FileArchive v-if="detail.zip" :size="60" /><img v-else :src="detail.url" :alt="detail.name"></div><h3>{{ detail.name }}</h3><p class="dialog-description">{{ detail.zip ? 'ZIP file · its photos are taken in when you save' : 'Selected · not uploaded yet' }}</p><UiButton @click="detail = null">Back to batch</UiButton></template></UiDialog>

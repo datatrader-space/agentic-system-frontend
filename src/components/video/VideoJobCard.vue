@@ -24,7 +24,7 @@
       </div>
       <p class="vjc-price" v-if="job.quote">
         <template v-if="job.quote.pricing_status === 'unknown'">The provider publishes no price for this request; ${{ money(job.quote.max_usd) }} is held and the actual cost is charged.</template>
-        <template v-else-if="job.quote.pricing_status === 'estimated'">About ${{ money(job.quote.estimate_usd) }}, at most ${{ money(job.quote.max_usd) }} (the provider's reported cost is charged).</template>
+        <template v-else-if="['estimated','range'].includes(job.quote.pricing_status)">About ${{ money(job.quote.estimate_usd) }}, at most ${{ money(job.quote.max_usd) }} (the provider's reported cost is charged).</template>
         <template v-else>${{ money(job.quote.estimate_usd) }}</template>
       </p>
       <!-- An estimate holds for a short time so the price stays current; the server refuses an expired one,
@@ -39,7 +39,7 @@
         <button type="button" class="vjc-btn primary" data-test="video-generate" :disabled="pending" @click="go">
           {{ adjustments.length ? 'Accept changes and generate' : 'Generate' }}
         </button>
-        <button type="button" class="vjc-btn" :disabled="pending" @click="video.decline(job)">Decline</button>
+        <button type="button" class="vjc-btn" :disabled="pending" @click="decline">Decline</button>
       </div>
     </template>
 
@@ -61,9 +61,11 @@
     <!-- Done -->
     <template v-else-if="job.state === 'ready' && job.output">
       <video v-if="isVideo" class="vjc-video" :src="job.output.url" controls preload="metadata" playsinline></video>
-      <img v-else class="vjc-video" :src="job.output.url" alt="Saved frame" />
+      <audio v-else-if="job.modality === 'audio'" :src="job.output.url" controls preload="metadata" />
+      <img v-else-if="!job.modality || job.modality === 'image'" class="vjc-video" :src="job.output.url" alt="Saved frame" />
+      <a v-else :href="job.output.url" target="_blank" rel="noopener noreferrer">Open {{ job.modality }} result</a>
       <div class="vjc-actions">
-        <button type="button" class="vjc-btn primary" @click="openPanel">{{ inStudio ? 'View result' : 'Open in Video Studio' }}</button>
+        <button v-if="isVideo" type="button" class="vjc-btn primary" @click="openPanel">{{ inStudio ? 'View result' : 'Open in Video Studio' }}</button>
         <span v-if="job.actual_cost_usd" class="vjc-cost">Cost ${{ money(job.actual_cost_usd) }}</span>
       </div>
     </template>
@@ -98,7 +100,7 @@ const opLabel = computed(() => OPS[props.job.operation] || 'Video')
 const stateLabel = computed(() => STATES[props.job.state] || props.job.state)
 const terminal = computed(() => ['ready', 'failed', 'cancelled'].includes(props.job.state))
 const paid = computed(() => ['generate', 'change', 'extend'].includes(props.job.operation))
-const isVideo = computed(() => props.job.operation !== 'frame')
+const isVideo = computed(() => props.job.modality ? props.job.modality === 'video' : props.job.operation !== 'frame')
 const stateClass = computed(() => ({ ok: props.job.state === 'ready', bad: props.job.state === 'failed',
                                      wait: props.job.state === 'awaiting_authorization' }))
 const adjustments = computed(() => (props.job.quote && props.job.quote.adjustments) || [])
@@ -124,8 +126,14 @@ function money(v) {
   return n >= 1 ? n.toFixed(2) : n.toFixed(n >= 0.1 ? 2 : 3)
 }
 async function go() {
+  if (pending.value) return
   pending.value = true
   try { await video.start(props.job, true) } finally { pending.value = false }
+}
+async function decline() {
+  if (pending.value) return
+  pending.value = true
+  try { await video.decline(props.job) } finally { pending.value = false }
 }
 function openPanel() {
   if (props.inStudio) {

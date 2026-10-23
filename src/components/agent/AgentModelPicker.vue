@@ -110,7 +110,7 @@
               </span>
               <span class="amp-provider-copy">
                 <span class="amp-provider-name">{{ p.name }}</span>
-                <span class="amp-provider-meta">{{ p.models.length }} chat model{{ p.models.length === 1 ? '' : 's' }}</span>
+                <span class="amp-provider-meta">{{ modelCount(p) }} chat model{{ modelCount(p) === 1 ? '' : 's' }}</span>
               </span>
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m8 5 5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
@@ -163,8 +163,14 @@
                 </span>
                 <svg v-if="current && current.id === m.id" class="amp-check" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 10 4 4 8-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
-              <div v-if="!filteredModels.length" class="amp-model-empty" data-test="model-search-empty">
+              <div v-if="loadingModels && !filteredModels.length" class="amp-model-empty" data-test="model-loading">
+                Loading models…
+              </div>
+              <div v-else-if="!filteredModels.length" class="amp-model-empty" data-test="model-search-empty">
                 No matching models
+              </div>
+              <div v-if="hiddenModelCount > 0" class="amp-model-more" data-test="model-more">
+                Showing {{ filteredModels.length }} of {{ matchingModels.length }}. Type to narrow the list.
               </div>
             </div>
 
@@ -209,6 +215,13 @@ const providers = ref([])
 const current = ref(null)
 const source = ref(null)
 const adminDefault = ref({})
+// A provider's models, fetched when the person opens that provider (`?provider=`), kept for the session. The page
+// load used to fetch every provider's every model (1,111 rows, 194 KB for one account) to show one label.
+const modelsByProvider = ref({})
+const loadingModels = ref(false)
+// Rows drawn at once. One OpenRouter key lists 533 chat models; drawing all of them on a click froze the tab.
+// Search still filters the whole list.
+const RENDER_LIMIT = 60
 
 // ── per-turn thinking effort ──────────────────────────────────────────────────────────────────────────
 
@@ -226,17 +239,21 @@ const pillLabel = computed(() => {
 const sourceLabel = computed(() => ({
   override: 'Your pick',
   admin_default: 'Admin default',
-  fallback: 'Auto',
+  chat_model: 'Your chat model',
   platform: 'Platform default',
 }[source.value] || ''))
 
 const currentProvider = computed(() => {
   if (!current.value) return null
-  return providers.value.find((p) => p.models.some((m) => m.id === current.value.id)) || null
+  const pid = current.value.provider_id
+  if (pid != null) return providers.value.find((p) => p.id === pid) || null
+  // An older payload names no provider: find the one whose (cached) models hold the current pick.
+  return providers.value.find((p) =>
+    (modelsByProvider.value[p.id] || []).some((m) => m.id === current.value.id)) || null
 })
 
 const currentProviderName = computed(() =>
-  currentProvider.value?.name || current.value?.provider_type || 'Automatic')
+  currentProvider.value?.name || current.value?.provider_type || 'Not chosen')
 
 const currentMeta = computed(() => {
   const bits = [currentProviderName.value, sourceLabel.value].filter(Boolean)
@@ -246,13 +263,19 @@ const currentMeta = computed(() => {
 const activeProvider = computed(() =>
   providers.value.find((p) => p.id === activeProviderId.value) || null)
 
-const filteredModels = computed(() => {
-  const models = activeProvider.value?.models || []
+function modelCount(provider) {
+  return provider?.model_count ?? (provider?.models?.length || 0)
+}
+
+const matchingModels = computed(() => {
+  const models = modelsByProvider.value[activeProviderId.value] || []
   const query = modelQuery.value.trim().toLowerCase()
   if (!query) return models
   return models.filter((model) =>
     [model.name, model.model_id].some((value) => String(value || '').toLowerCase().includes(query)))
 })
+const filteredModels = computed(() => matchingModels.value.slice(0, RENDER_LIMIT))
+const hiddenModelCount = computed(() => matchingModels.value.length - filteredModels.value.length)
 
 // Context window + per-1M pricing, formatted exactly like the agent editor's model picker
 // (components/common/ModelPicker.vue) so the same model reads the same way in both places.
@@ -277,6 +300,12 @@ function modelMeta(m) {
 
 function applyPayload(data) {
   providers.value = data.providers || []
+  // A payload that still carries a provider's models (an older backend, or a `?provider=` answer) fills the cache.
+  const cache = { ...modelsByProvider.value }
+  for (const p of providers.value) {
+    if (Array.isArray(p.models)) cache[p.id] = p.models
+  }
+  modelsByProvider.value = cache
   current.value = data.current || null
   source.value = data.source || null
   adminDefault.value = data.admin_default || {}
@@ -323,12 +352,27 @@ function toggleProviders() {
   if (!showProviders.value) closeLayers()
 }
 
+async function loadProviderModels(provider) {
+  if (modelsByProvider.value[provider.id]) return
+  loadingModels.value = true
+  try {
+    const { data } = await api.getAgentModelOptions(props.agentId, { provider: provider.id })
+    const card = (data.providers || []).find((p) => p.id === provider.id)
+    modelsByProvider.value = { ...modelsByProvider.value, [provider.id]: card?.models || [] }
+  } catch {
+    error.value = 'Could not load this provider’s models.'
+  } finally {
+    loadingModels.value = false
+  }
+}
+
 async function selectProvider(provider) {
   activeProviderId.value = provider.id
   modelQuery.value = ''
   showModels.value = true
   await nextTick()
   modelSearchEl.value?.focus()
+  await loadProviderModels(provider)
 }
 
 function clearModelSearch() {
@@ -391,6 +435,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
 watch(() => props.agentId, () => {
   close()
   providers.value = []
+  modelsByProvider.value = {}
   current.value = null
   source.value = null
   load()
@@ -468,6 +513,7 @@ watch(() => props.agentId, () => {
   border: 0; border-radius: 6px; background: transparent; color: #868686; font-size: 17px; line-height: 1; cursor: pointer; }
 .amp-search-clear:hover { background: #ececec; color: #333; }
 .amp-model-empty { padding: 26px 12px; color: #8b8b8b; font-size: 12px; text-align: center; }
+.amp-model-more { padding: 8px 12px 10px; color: #8b8b8b; font-size: 11.5px; text-align: center; }
 .amp-model { position: relative; display: flex; width: 100%; min-height: 34px; align-items: center; gap: 8px; padding: 7px 30px 7px 9px;
   border: 0; border-radius: 8px; background: transparent; color: #303030; text-align: left; cursor: pointer; transition: background .12s ease; }
 .amp-model:hover, .amp-model.active { background: #f1f1f1; }

@@ -261,7 +261,7 @@ const newSystem = ref({
 // Load the user's agents so a system can be assigned to one (blank = auto-provision a coding agent).
 const loadAgents = async () => {
   try {
-    const response = await api.getAgents()
+    const response = await api.getAgentPicker()
     agents.value = response.data?.results || response.data || []
   } catch (error) {
     console.error('Failed to load agents:', error)

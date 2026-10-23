@@ -21,7 +21,7 @@
       <div v-if="error === 'no_org'" class="state-banner">
         You don't belong to an organization yet. Create one to manage workspaces, members, and budgets.
       </div>
-      <div v-else-if="error" class="state-banner err">Couldn't load organization data: {{ error }}</div>
+      <LoadError v-else-if="error" title="Couldn't load organization data" :message="error" :retrying="loading" @retry="store.refresh()" />
       <div v-else-if="loading && !loaded" class="state-banner">Loading organization…</div>
 
       <section v-if="!compact || compactTab === 'overview'" class="metric-grid">
@@ -342,6 +342,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import LoadError from '../components/common/LoadError.vue'
 import { RouterLink } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { storeToRefs } from 'pinia'

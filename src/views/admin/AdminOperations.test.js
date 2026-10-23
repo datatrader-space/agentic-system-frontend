@@ -59,6 +59,35 @@ describe('AdminOperations', () => {
     expect(w.text()).toContain('Admin access')
   })
 
+  it('auto-refresh polls in the background: Refresh stays enabled, a failed poll keeps the last numbers, leaving stops it', async () => {
+    vi.useFakeTimers()
+    try {
+      api.get.mockReset()
+      api.get.mockResolvedValueOnce({ data: METRICS })
+      const w = mount(AdminOperations)
+      await flushPromises()
+      await w.find('.ops-auto input').setValue(true)
+      let release
+      api.get.mockImplementationOnce(() => new Promise((r) => { release = r }))
+      await vi.advanceTimersByTimeAsync(15000)
+      expect(api.get).toHaveBeenCalledTimes(2)
+      expect(w.find('.ops-refresh').attributes('disabled')).toBeUndefined()   // no `loading` flip
+      release({ data: METRICS })
+      await flushPromises()
+      api.get.mockRejectedValueOnce(new Error('network'))
+      await vi.advanceTimersByTimeAsync(15000)
+      await flushPromises()
+      expect(w.find('.ops-error').exists()).toBe(false)                      // last good numbers stay
+      expect(w.text()).toContain('Task Outbox')
+      w.unmount()
+      const calls = api.get.mock.calls.length
+      await vi.advanceTimersByTimeAsync(120000)
+      expect(api.get.mock.calls.length).toBe(calls)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('isolates a guarded/unavailable collector without breaking the page', async () => {
     api.get.mockResolvedValueOnce({ data: { ...METRICS, outbox: { error: 'unavailable' } } })
     const w = mount(AdminOperations)

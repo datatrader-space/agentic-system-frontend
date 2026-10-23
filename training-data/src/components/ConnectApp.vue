@@ -74,13 +74,13 @@ const curl = computed(() => guide.value && isLlm.value ? [
   `  -H 'Authorization: Bearer <your key>' \\`,
   `  -H 'Idempotency-Key: <one value per conversation>' \\`,
   `  -H 'Content-Type: application/json' \\`,
-  `  -d '${JSON.stringify({ payload: guide.value.example_payload })}'`,
+  `  -d '${JSON.stringify(guide.value.example_payload)}'`,
 ].join('\n') : guide.value ? [
   `curl -X POST '${guide.value.endpoint}' \\`,
   `  -H 'Authorization: Bearer <your key>' \\`,
   `  -H 'Idempotency-Key: <a unique id for this record>' \\`,
   guide.value.vision ? `  -F 'payload=${guide.value.payload_line}' \\` : `  -H 'Content-Type: application/json' \\`,
-  guide.value.vision ? `  -F 'file=@photo.jpg'` : `  -d '{"payload": ${guide.value.payload_line}}'`,
+  guide.value.vision ? `  -F 'file=@photo.jpg'` : `  -d '${guide.value.payload_line}'`,
 ].join('\n') : '');
 </script>
 

@@ -149,6 +149,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '../../services/api'
+import { usePoller } from '@/composables/usePoller'
 import {
   utilizationPct,
   utilizationTier,
@@ -167,7 +168,6 @@ const loading = ref(true)
 const error = ref(false)
 const data = ref(null)
 const autoRefresh = ref(false)
-let timer = null
 
 const POOL_LABELS = {
   llm_stream: 'LLM-stream pool',
@@ -253,13 +253,23 @@ async function load() {
   loading.value = false
 }
 
+// Auto-refresh (every 5 s) is a background poll: it does not flip `loading` (that disabled Refresh and
+// flashed the page every tick), keeps the last good numbers when one poll fails and backs off instead,
+// pauses while the tab is hidden, and stops on leave.
+const poller = usePoller(async ({ signal }) => {
+  const { data: d } = await api.get('/admin/ops/runtime-metrics/', { noCache: true, signal })
+  data.value = d
+  error.value = false
+  return d
+}, { interval: 5000, maxInterval: 60000 })
+
 function onAutoToggle() {
-  clearInterval(timer)
-  if (autoRefresh.value) timer = setInterval(load, 5000)
+  if (autoRefresh.value) poller.start({ immediate: false })
+  else poller.stop()
 }
 
 onMounted(load)
-onBeforeUnmount(() => clearInterval(timer))
+onBeforeUnmount(() => poller.stop())
 </script>
 
 <style scoped>

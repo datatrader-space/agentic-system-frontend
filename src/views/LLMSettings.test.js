@@ -142,3 +142,19 @@ describe('LLMSettings loads each tab on demand', () => {
     expect(api.getLlmRequests).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('LLMSettings — Internal tab when the saved picks fail to load', () => {
+  it('shows an error with Retry, never "Agent default" blanks that a Save would write back', async () => {
+    api.getOperationModels.mockRejectedValueOnce(Object.assign(new Error('500'), { response: { data: { detail: 'Server error' } } }))
+    await mountPage()
+    await openTab('Internal')
+    expect(wrapper.text()).toContain("Couldn't load your internal model choices")
+    expect(wrapper.findAll('button').some((b) => b.text() === 'ASK_LLM')).toBe(false)
+
+    await wrapper.find('.load-error__retry').trigger('click')
+    await flushPromises()
+    expect(api.getOperationModels).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).not.toContain("Couldn't load your internal model choices")
+    expect(wrapper.findAll('button').some((b) => b.text() === 'ASK_LLM')).toBe(true)
+  })
+})

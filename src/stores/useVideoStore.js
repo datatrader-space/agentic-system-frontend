@@ -127,6 +127,8 @@ export const useVideoStore = defineStore('video', {
     // The person's video projects, for the Library's project filter: [{ project_id, title }].
     libraryProjects: [],
     ingredients: [],
+    ingredientsLoading: false,
+    ingredientsError: '',
     // Files chosen on the Library / Ingredients pages, applied by the Create page once it has an agent and a
     // project: [{ kind: 'file', item, role } | { kind: 'ingredient', ingredient }].
     queuedUse: [],
@@ -551,7 +553,8 @@ export const useVideoStore = defineStore('video', {
       }
     },
     async decline(job) {
-      try { this._put((await api.post(`/video/jobs/${job.job_id}/decline/`)).data) } catch { /* shown as is */ }
+      try { return this._put((await api.post(`/video/jobs/${job.job_id}/decline/`)).data) }
+      catch (e) { notify.error(errText(e, 'The proposal could not be declined. Try again.')); return null }
     },
     async stopWaiting(job) {
       try {
@@ -572,13 +575,19 @@ export const useVideoStore = defineStore('video', {
 
     // ── project & panel ───────────────────────────────────────────────────────────────────────────
     async loadProject(conversationId) {
+      const switched = String(this.conversationId || '') !== String(conversationId || '')
       this.conversationId = conversationId || null
       if (!conversationId) { this.project = null; this.versions = []; return null }
       try {
         const res = await api.get('/video/projects/', { params: { conversation_id: conversationId } })
+        // Another conversation was opened while this read was in flight: leave its project alone.
+        if (String(this.conversationId) !== String(conversationId)) return this.project
         this.project = res.data.project || null
       } catch {
-        this.project = null
+        if (String(this.conversationId) !== String(conversationId)) return this.project
+        // A failed BACKGROUND refresh of the same conversation keeps the project on screen (it used to
+        // blank it until the next poll); only a switch to another conversation clears it.
+        if (switched) this.project = null
       }
       this.loadVersions()
       return this.project
@@ -692,9 +701,16 @@ export const useVideoStore = defineStore('video', {
       }
     },
     async loadIngredients(q = '') {
+      this.ingredientsLoading = true
+      this.ingredientsError = ''
       try {
         this.ingredients = (await api.get('/video/ingredients/', { params: q ? { q } : {} })).data.ingredients || []
-      } catch { this.ingredients = [] }
+        return true
+      } catch {
+        this.ingredients = []
+        this.ingredientsError = 'Could not load your Elements.'
+        return false
+      } finally { this.ingredientsLoading = false }
     },
     async createIngredient({ kind, name, description, attachmentIds }) {
       try {

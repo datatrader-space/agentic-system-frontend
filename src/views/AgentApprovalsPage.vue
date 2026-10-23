@@ -37,24 +37,6 @@
       </section>
 
       <section class="policy-grid">
-        <article class="policy-card context-profile-card">
-          <header class="card-head">
-            <span><Icon icon="lucide:sliders-horizontal" /></span>
-            <div>
-              <h2>Context Profile</h2>
-              <p>How much conversation, retrieval, and tool context this agent uses per turn.</p>
-            </div>
-          </header>
-          <ContextProfilePicker
-            :model-value="contextProfile"
-            :profiles="availableProfiles"
-            :preview="profilePreview"
-            :matrix="profilesMatrix"
-            :disabled="!canEdit"
-            @update:model-value="onProfileChange"
-          />
-        </article>
-
         <article class="policy-card approval-card">
           <header class="card-head">
             <span>1</span>
@@ -377,7 +359,6 @@ import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
-import ContextProfilePicker from '@/components/agent/ContextProfilePicker.vue'
 import { normalizeRunMode, isAutonomous, isPlanReview } from '@/composables/agentModes'
 
 // ── Wired to the PER-AGENT policy (AgentProfile.agent_policy) + agent_run_mode. ──
@@ -406,23 +387,6 @@ function setApprovalRequired(required) {
   else runMode.value = plan ? 'plan_review_autonomous' : 'autonomous'
 }
 
-// P6: context profile (agent_policy.context_profile) + effective-policy preview.
-const contextProfile = ref('')       // '' = Automatic (request-type default)
-const availableProfiles = ref([])
-const profilePreview = ref(null)
-const profilesMatrix = ref(null)     // exact per-profile token budgets for THIS agent's model
-function onProfileChange(key) { contextProfile.value = key; dirty.value = true }
-async function loadEffectivePolicy() {
-  if (!agentId.value) return
-  try {
-    const d = (await api.getAgentEffectivePolicy(agentId.value)).data || {}
-    availableProfiles.value = d.available_profiles || []
-    profilePreview.value = d.preview || null
-    profilesMatrix.value = d.profiles_matrix || null
-    if (contextProfile.value === '' && d.current_profile) contextProfile.value = d.current_profile
-  } catch (e) { /* preview is best-effort; picker still works */ }
-}
-
 const pol = reactive({
   // hard policy (enforced by policy_layer Hook A/B)
   risk_ceiling: '', allow_external_write: true, tool_call_budget: 4, tool_permissions: {}, forbidden_tools: [],
@@ -442,25 +406,12 @@ function toggle(group, key) { pol[group][key] = !pol[group][key]; dirty.value = 
 function mark() { dirty.value = true }
 
 // ── Per-tool approval (Card 3) — the tools this agent SELECTED, each Inherit/Ask/Block. ──
+// id -> {id, name, display_name}, from the agent record itself: its `tools` are full ToolDefinition rows
+// (agent serializer). This page used to download every page of /tools/definitions/ just to name them.
 const toolDefsById = ref({})
 const toolIds = ref([])
 const toolPage = ref(1)
 const TOOL_PAGE_SIZE = 4
-async function loadToolDefs() {
-  try {
-    let all = [], next = '/tools/definitions/', guard = 0
-    while (next && guard++ < 60) {
-      const d = (await api.get(next)).data
-      if (Array.isArray(d)) { all = all.concat(d); break }
-      all = all.concat(d.results || [])
-      if (d.next) { const u = new URL(d.next, window.location.origin); next = u.pathname.replace(/^\/api/, '') + u.search }
-      else next = null
-    }
-    const map = {}
-    for (const t of all) map[t.id] = t
-    toolDefsById.value = map
-  } catch (e) { toolDefsById.value = {} }
-}
 const _permRow = (name, label) => ({
   key: String(name).toUpperCase(), name, label: label || name,
   agent: String(pol.tool_permissions[String(name).toUpperCase()] || '').toLowerCase(),
@@ -512,12 +463,13 @@ async function loadPolicy() {
   try {
     const a = (await api.getAgent(agentId.value)).data || {}
     applyPolicy(a.agent_policy || {})
-    contextProfile.value = (a.agent_policy && a.agent_policy.context_profile) || ''   // P6
-    loadEffectivePolicy()                                                              // P6 (best-effort)
     runMode.value = normalizeRunMode(a.agent_run_mode)
     // GET returns `tools` (full objects); `tool_ids` is write-only. Derive ids from whichever is present.
     toolIds.value = Array.isArray(a.tool_ids) ? a.tool_ids
       : (Array.isArray(a.tools) ? a.tools.map(t => t.id) : [])
+    const defs = {}
+    for (const t of (Array.isArray(a.tools) ? a.tools : [])) if (t && t.id != null) defs[t.id] = t
+    toolDefsById.value = defs
     canEdit.value = true                // owner-scoped detail; a non-owner PATCH is rejected 403
     loaded.value = true
   } catch (e) {
@@ -585,13 +537,10 @@ async function saveGuardrails() {
       risky_actions: { ...pol.risky_actions }, on_violation: pol.on_violation,
       checkpoints: { ...pol.checkpoints }, default_reviewer: pol.default_reviewer,
       escalation_rules: pol.escalation_rules,
-      context_profile: contextProfile.value || '',   // P6: '' clears the override (Automatic)
     }
     const r = await api.updateAgent(agentId.value, { agent_policy, agent_run_mode: runMode.value })
     const saved = (r.data || {}).agent_policy || agent_policy
     applyPolicy(saved)   // reflect the server-clamped result
-    contextProfile.value = saved.context_profile || ''   // P6: reflect cleared/normalized value
-    loadEffectivePolicy()                                  // P6: refresh the preview for the new profile
     if ((r.data || {}).agent_run_mode) runMode.value = normalizeRunMode(r.data.agent_run_mode)
     notify.success('Agent guardrails saved')
   } catch (e) {
@@ -619,7 +568,7 @@ async function loadAudit() {
 function moreAudit() { audit.offset += 10; loadAudit() }
 const auditHasMore = computed(() => audit.recent.length < audit.total)
 
-onMounted(() => { loadPolicy(); loadToolDefs() })
+onMounted(() => { loadPolicy() })
 
 // Template rows → structured agent_policy keys (labels unchanged; toggles bound to `pol`).
 const approvalDefs = [
@@ -714,7 +663,6 @@ button, input, select { font: inherit; }
 .notice.load-error .ghost:disabled { opacity: .6; cursor: not-allowed; }
 .policy-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .policy-card, .escalation-card { padding: 18px; }
-.context-profile-card { order: 1; }
 .approval-card { order: 2; }
 .risky-card { order: 3; }
 .permissions-card { order: 4; }

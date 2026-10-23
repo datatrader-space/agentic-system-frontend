@@ -32,7 +32,9 @@ async function fetchEditor(){if(!live.value||!item.value)return;const it=item.va
 async function saveLive(review){if(meta.value?.readonly){status.value=meta.value.readonly;return;}const W=meta.value.photo.width,H=meta.value.photo.height;busy.value=true;
   try{const body=await liveApi.saveLabel(props.state.ref,item.value.id,{shapes:toBackend(shapes.value,W,H),action:review?'done':'save',started_from:meta.value.started_from,started_model:meta.value.started_model,nothing_to_mark:empty.value&&!shapes.value.length});
     item.value.state=liveState(body.state);item.value.labelled=body.state==='done';dirty.value=false;
-    status.value=body.faults?.length?`Saved as a draft. The checks found: ${body.faults.map(f=>f.message).join('; ')}`:(body.message||(review?(body.refused_done?'Saved as a draft.':'Finished: sent to review'):'Draft saved'));}
+    status.value=body.faults?.length?`Saved as a draft. The checks found: ${body.faults.map(f=>f.message).join('; ')}`:(body.message||(review?(body.refused_done?'Saved as a draft.':'Finished: sent to review'):'Draft saved'));
+    const it=item.value;liveApi.editor(props.state.ref,it.id).then(b=>{if(item.value===it&&meta.value)meta.value.history=b.history;}).catch(()=>{});   // the History panel shows this save too
+    if(review&&body.state==='done'&&!body.refused_done&&index.value<scopedImages.value.length-1)load(index.value+1);}   // sent: on to the next photo
   catch(e){status.value=e.message;}finally{busy.value=false;}}
 async function reviewLive(accepted){if(!meta.value?.approving){status.value=props.state.can?.batch?'Only a finished label waiting for approval can be approved or sent back.':'Only a person who may approve reviews labels.';return;}
   if(!accepted){reason.value='';reasonOpen.value=true;return;}const W=meta.value.photo.width,H=meta.value.photo.height;busy.value=true;

@@ -33,6 +33,18 @@ describe('VideoLibrary', () => {
       ? { items: ITEMS, page: 1, has_more: false } : { ingredients: [] } }))
   })
 
+  it('cleans the Library and viewer From chat names', async () => {
+    api.get.mockResolvedValue({data:{items:[{...ITEMS[0],conversation_id:9,conversation_name:'I am on the Image page. My chosen preset is Quiet tabletop.'}],ingredients:[]}})
+    const w=mount(VideoLibrary,{props:{mode:'page'},attachTo:document.body,global:{stubs:{RouterLink:{props:['to'],template:'<a><slot /></a>'}}}})
+    await flush()
+    expect(document.querySelector('[data-test="lib-chat"]').textContent).toBe('From Image chat '+String.fromCharCode(183)+' Quiet tabletop')
+    // Open the original file through the existing preview control.
+    document.querySelector('[data-test="lib-preview"]').click()
+    await flush()
+    expect(document.querySelector('[data-test="media-viewer-chat"]').textContent).toBe('Image chat '+String.fromCharCode(183)+' Quiet tabletop')
+    w.unmount()
+  })
+
   it('lists files from every chat and uses one with a role', async () => {
     const w = mount(VideoLibrary, { attachTo: document.body })
     await flush()
@@ -183,4 +195,36 @@ describe('VideoLibrary thumbnails', () => {
     expect(document.querySelector('[data-test="lib-preview"] video')).not.toBeNull()
     w.unmount()
   })
+  it('picks only accepted Library kinds without creating a project or starting a job', async () => {
+    api.get.mockImplementation((url) => Promise.resolve({ data: url === '/video/library/'
+      ? { items: ITEMS, page: 1, has_more: false } : { ingredients: [] } }))
+    const w = mount(VideoLibrary, { global: { stubs: { RouterLink: true } }, props: { mode: 'picker', allowedKinds: ['image'] }, attachTo: document.body })
+    await flush()
+    expect(document.querySelectorAll('[data-test="lib-item"]')).toHaveLength(1)
+    document.querySelector('[data-test="lib-use"]').click(); await flush()
+    expect(w.emitted('pick')[0][0].attachment_id).toBe('img-1')
+    expect(api.post).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-test="lib-preview"] img')).toBeNull()
+    w.unmount()
+  })
+  it('shows a retry when Elements cannot load and clears stale items', async () => {
+    useVideoStore().ingredients = [{ ingredient_id: 'stale', name: 'Old item', kind: 'product', files: [] }]
+    api.get.mockImplementation(url => url === '/video/ingredients/' ? Promise.reject(new Error('Unavailable')) : Promise.resolve({ data: { items: [], projects: [] } }))
+    const w = mount(VideoLibrary, { props: { mode: 'page', initialTab: 'ingredients' } })
+    await flush()
+    expect(w.get('[role="alert"]').text()).toContain('Could not load your Elements')
+    expect(w.findAll('[data-test="lib-ingredient"]')).toHaveLength(0)
+    api.get.mockResolvedValueOnce({ data: { ingredients: [] } })
+    await w.get('[role="alert"] button').trigger('click'); await flush()
+    expect(w.find('[role="alert"]').exists()).toBe(false)
+    expect(w.text()).toContain('An Element is a named')
+    w.unmount()
+  })
+  it('labels the existing Ingredients page as Elements', async () => {
+    const w = mount(VideoLibrary, { props: { mode: 'page', initialTab: 'ingredients' } })
+    await flush()
+    expect(w.get('h1').text()).toBe('Elements')
+    w.unmount()
+  })
+
 })

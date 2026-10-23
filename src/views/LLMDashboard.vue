@@ -58,7 +58,15 @@
           </button>
         </div>
 
-        <div v-if="activeTab === 'requests'" class="table-frame">
+        <LoadError
+          v-if="activeTab !== 'audit' && requestsError"
+          title="Couldn't load the request log"
+          message="Nothing is shown rather than old or sample data."
+          :retrying="requestsLoading"
+          @retry="loadRequests"
+        />
+
+        <div v-else-if="activeTab === 'requests'" class="table-frame">
           <table>
             <thead>
               <tr>
@@ -96,11 +104,16 @@
                   </div>
                 </td>
               </tr>
+              <tr v-if="!pagedRuns.length">
+                <td colspan="6" class="empty-cell">No runs yet.</td>
+              </tr>
             </tbody>
           </table>
         </div>
 
         <div v-else-if="activeTab === 'audit'" class="audit-list">
+          <LoadError v-if="auditError" compact title="Couldn't load the audit trail" @retry="loadAudit" />
+          <p v-else-if="!auditRows.length" class="empty-cell">No audit events yet.</p>
           <article v-for="entry in auditRows" :key="entry.id" class="audit-row">
             <span :class="['agent-icon', entry.tone]"><Icon icon="lucide:file-clock" /></span>
             <div>
@@ -112,6 +125,7 @@
         </div>
 
         <div v-else class="audit-list">
+          <p v-if="!failureRows.length" class="empty-cell">No failed runs on this page.</p>
           <article v-for="run in failureRows" :key="run.id" class="audit-row">
             <span class="agent-icon red"><Icon icon="lucide:triangle-alert" /></span>
             <div>
@@ -191,6 +205,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import PageLoader from '../components/common/PageLoader.vue'
+import LoadError from '../components/common/LoadError.vue'
+import { useRequestScope, isAbortError } from '../composables/useRequestScope'
 
 const loading = ref(false)
 const hasLoaded = ref(false)
@@ -203,79 +219,68 @@ const statusFilter = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const reqCount = ref(0)
+// A failed load is shown as an error with Retry — never as demo rows (the page used to fall back to
+// hard-coded "May 2025" runs and audit events that looked like real activity).
+const requestsError = ref(false)
+const auditError = ref(false)
+const requestsLoading = ref(false)
+// Filters and paging can change faster than the server answers; only the newest answer is applied.
+const requestsScope = useRequestScope()
+const auditScope = useRequestScope()
 
-const fallbackRuns = [
-  { id: 'r1', agent: 'Content Writer', slug: 'content-writer', status: 'Success', startedAt: 'May 20, 2025 10:32 AM', duration: '00:01:24', cost: '$0.021', icon: 'lucide:file-text', tone: 'cyan', statusTone: 'success' },
-  { id: 'r2', agent: 'Research Assistant', slug: 'research-assistant', status: 'Success', startedAt: 'May 20, 2025 10:18 AM', duration: '00:02:11', cost: '$0.034', icon: 'lucide:search', tone: 'violet', statusTone: 'success' },
-  { id: 'r3', agent: 'Data Analyst', slug: 'data-analyst', status: 'Failed', startedAt: 'May 20, 2025 09:50 AM', duration: '00:00:42', cost: '$0.005', icon: 'lucide:bar-chart-3', tone: 'red', statusTone: 'failed' },
-  { id: 'r4', agent: 'Content Writer', slug: 'content-writer', status: 'Success', startedAt: 'May 19, 2025 08:46 PM', duration: '00:01:05', cost: '$0.018', icon: 'lucide:file-text', tone: 'cyan', statusTone: 'success' },
-  { id: 'r5', agent: 'Research Assistant', slug: 'research-assistant', status: 'Success', startedAt: 'May 19, 2025 07:22 PM', duration: '00:01:48', cost: '$0.029', icon: 'lucide:search', tone: 'violet', statusTone: 'success' },
-  { id: 'r6', agent: 'Code Interpreter', slug: 'code-interpreter', status: 'Success', startedAt: 'May 19, 2025 06:41 PM', duration: '00:03:17', cost: '$0.047', icon: 'lucide:code-2', tone: 'green', statusTone: 'success' },
-  { id: 'r7', agent: 'File Reader', slug: 'file-reader', status: 'Success', startedAt: 'May 19, 2025 05:37 PM', duration: '00:00:18', cost: '$0.002', icon: 'lucide:file', tone: 'orange', statusTone: 'success' },
-  { id: 'r8', agent: 'Slack Notifier', slug: 'slack-notifier', status: 'Success', startedAt: 'May 19, 2025 04:15 PM', duration: '00:00:09', cost: '$0.001', icon: 'logos:slack-icon', tone: 'white', statusTone: 'success' },
-  { id: 'r9', agent: 'Data Analyst', slug: 'data-analyst', status: 'Success', startedAt: 'May 19, 2025 03:02 PM', duration: '00:01:33', cost: '$0.026', icon: 'lucide:bar-chart-3', tone: 'red', statusTone: 'success' },
-  { id: 'r10', agent: 'Content Writer', slug: 'content-writer', status: 'Failed', startedAt: 'May 19, 2025 01:41 PM', duration: '00:00:37', cost: '$0.003', icon: 'lucide:file-text', tone: 'cyan', statusTone: 'failed' },
+// Row decoration only (no data): a stable icon/tone per row position.
+const ROW_STYLES = [
+  { icon: 'lucide:file-text', tone: 'cyan' },
+  { icon: 'lucide:search', tone: 'violet' },
+  { icon: 'lucide:bar-chart-3', tone: 'red' },
+  { icon: 'lucide:code-2', tone: 'green' },
+  { icon: 'lucide:file', tone: 'orange' },
 ]
 
-const totalRuns = computed(() => Math.max(reqCount.value || 0, allRuns.value.length || fallbackRuns.length))
+const totalRuns = computed(() => Math.max(reqCount.value || 0, allRuns.value.length))
 const totalPages = computed(() => Math.max(1, Math.ceil(totalRuns.value / pageSize.value)))
 const rangeStart = computed(() => totalRuns.value ? ((currentPage.value - 1) * pageSize.value) + 1 : 0)
 const rangeEnd = computed(() => Math.min(currentPage.value * pageSize.value, totalRuns.value))
 const visiblePages = computed(() => Array.from({ length: Math.min(totalPages.value, 5) }, (_, index) => index + 1))
 
-const allRuns = computed(() => {
-  const source = requests.value.length ? requests.value : fallbackRuns
-  return source.map((request, index) => normalizeRun(request, index))
-})
+const allRuns = computed(() => requests.value.map((request, index) => normalizeRun(request, index)))
 
-const pagedRuns = computed(() => {
-  if (requests.value.length) return allRuns.value.slice(0, pageSize.value)
-  const start = (currentPage.value - 1) * pageSize.value
-  return allRuns.value.slice(start, start + pageSize.value)
-})
+// The server pages the request log, so the current page is what it returned.
+const pagedRuns = computed(() => allRuns.value.slice(0, pageSize.value))
 
 const failureRows = computed(() => allRuns.value.filter((run) => run.statusTone === 'failed').slice(0, 10))
 
-const auditRows = computed(() => {
-  if (!auditEntries.value.length) {
-    return [
-      { id: 'a1', title: 'Agent configuration updated', copy: 'Content Writer settings changed', time: 'May 20, 2025 09:12 AM', tone: 'cyan' },
-      { id: 'a2', title: 'Workflow published', copy: 'Research Assistant workflow moved live', time: 'May 19, 2025 06:45 PM', tone: 'violet' },
-      { id: 'a3', title: 'Credential rotated', copy: 'Slack connector token updated', time: 'May 19, 2025 04:02 PM', tone: 'green' },
-    ]
-  }
-  return auditEntries.value.map((entry, index) => ({
-    id: entry.id || `audit-${index}`,
-    title: entry.action || entry.provider || 'Audit event',
-    copy: entry.model || entry.conversation_id || 'Activity event recorded',
-    time: formatDate(entry.created_at),
-    tone: ['cyan', 'violet', 'green'][index % 3],
-  }))
-})
+const auditRows = computed(() => auditEntries.value.map((entry, index) => ({
+  id: entry.id || `audit-${index}`,
+  title: entry.action || entry.provider || 'Audit event',
+  copy: entry.model || entry.conversation_id || 'Activity event recorded',
+  time: formatDate(entry.created_at),
+  tone: ['cyan', 'violet', 'green'][index % 3],
+})))
 
 watch([agentFilter, statusFilter], () => {
   currentPage.value = 1
 })
 
 watch(currentPage, () => {
-  if (requests.value.length) loadRequests()
+  if (hasLoaded.value) loadRequests()
 })
 
 function normalizeRun(request, index) {
-  if (request.startedAt) return request
-  const fallback = fallbackRuns[index % fallbackRuns.length]
+  const style = ROW_STYLES[index % ROW_STYLES.length]
   const status = request.status === 'error' || request.status === 'failed' ? 'Failed' : 'Success'
   const ms = Number(request.latency_ms || request.duration_ms || 0)
+  const name = request.agent_name || request.agent || 'Agent'
   return {
     id: request.id || `req-${index}`,
-    agent: request.agent_name || request.agent || fallback.agent,
-    slug: slugify(request.agent_slug || request.agent_name || request.agent || fallback.slug),
+    agent: name,
+    slug: slugify(request.agent_slug || name),
     status,
-    startedAt: formatDate(request.created_at) || fallback.startedAt,
-    duration: ms ? formatDuration(ms) : fallback.duration,
+    startedAt: formatDate(request.created_at) || '—',
+    duration: ms ? formatDuration(ms) : '—',
     cost: formatMoney(request.cost_estimate ?? request.cost_usd ?? request.cost ?? 0, 3),
-    icon: fallback.icon,
-    tone: fallback.tone,
+    icon: style.icon,
+    tone: style.tone,
     statusTone: status === 'Failed' ? 'failed' : 'success',
   }
 }
@@ -302,9 +307,10 @@ function formatDate(value) {
   return date.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
+// The agent list only fills the filter dropdown; it is loaded alongside the runs, never before them.
 async function loadAgents() {
   try {
-    const response = await api.getAgents()
+    const response = await api.getAgentPicker()
     agents.value = response.data.results || response.data || []
   } catch (error) {
     console.error('Agents error:', error)
@@ -312,24 +318,37 @@ async function loadAgents() {
 }
 
 async function loadRequests() {
+  const signal = requestsScope.next()
+  requestsLoading.value = true
   try {
     const params = { page: currentPage.value, page_size: pageSize.value }
     if (agentFilter.value) params.agent_id = agentFilter.value
     if (statusFilter.value) params.status = statusFilter.value
-    const response = await api.getLlmRequests(params)
+    const response = await api.get('/llm/requests/', { params, signal })
+    if (signal.aborted) return
     requests.value = response.data.results || []
     reqCount.value = response.data.count || requests.value.length
+    requestsError.value = false
   } catch (error) {
+    if (isAbortError(error) || signal.aborted) return
     console.error('Requests error:', error)
+    requestsError.value = true
+  } finally {
+    if (!signal.aborted) requestsLoading.value = false
   }
 }
 
 async function loadAudit() {
+  const signal = auditScope.next()
   try {
-    const response = await api.getLlmAudit({ page: 1 })
+    const response = await api.get('/llm/audit/', { params: { page: 1 }, signal })
+    if (signal.aborted) return
     auditEntries.value = response.data.results || []
+    auditError.value = false
   } catch (error) {
+    if (isAbortError(error) || signal.aborted) return
     console.error('Audit error:', error)
+    auditError.value = true
   }
 }
 
@@ -341,8 +360,9 @@ async function refreshAll() {
 
 async function loadDashboard() {
   loading.value = true
+  // The agent walk (every page of /agents/) runs in parallel; the runs and audit do not wait for it.
+  loadAgents()
   try {
-    await loadAgents()
     await Promise.all([loadRequests(), loadAudit()])
   } finally {
     loading.value = false
@@ -354,6 +374,12 @@ onMounted(loadDashboard)
 </script>
 
 <style scoped>
+.empty-cell {
+  padding: 28px 16px;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+}
 .activity-page {
   min-height: 100%;
   padding: 28px 32px 38px;

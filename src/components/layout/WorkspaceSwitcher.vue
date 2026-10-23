@@ -329,11 +329,16 @@ onMounted(() => {
   window.addEventListener('resize', onReposition, { passive: true })
   // Deferred to idle, not to first-open: the switcher is shell chrome on every dashboard page, so its
   // org list must not race the route's own data — but it still needs to be populated before the user
-  // opens the dropdown (loading it on open would flash an empty menu). The response is 60s-cached.
-  if (typeof requestIdleCallback === 'function') requestIdleCallback(() => loadMyOrgs(), { timeout: 2000 })
-  else setTimeout(loadMyOrgs, 1500)
+  // opens the dropdown (loading it on open would flash an empty menu). The response is 60s-cached
+  // (tenancyApi goes through api.js's GET cache).
+  if (typeof requestIdleCallback === 'function') idleHandle = requestIdleCallback(() => loadMyOrgs(), { timeout: 2000 })
+  else timeoutHandle = setTimeout(loadMyOrgs, 1500)
 })
+let idleHandle = null
+let timeoutHandle = null
 onUnmounted(() => {
+  if (idleHandle !== null && typeof cancelIdleCallback === 'function') cancelIdleCallback(idleHandle)
+  if (timeoutHandle !== null) clearTimeout(timeoutHandle)
   document.removeEventListener('mousedown', onClickOutside)
   document.removeEventListener('focusin', onFocusOutside)
   window.removeEventListener('scroll', onReposition, true)

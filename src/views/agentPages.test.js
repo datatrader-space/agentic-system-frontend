@@ -7,7 +7,7 @@ import { reactive } from 'vue'
 const api = vi.hoisted(() => ({
   get: vi.fn(), post: vi.fn(), delete: vi.fn(),
   getAgentsPage: vi.fn(), getAgentStats: vi.fn(), getAgents: vi.fn(), unpauseAgent: vi.fn(),
-  getAgent: vi.fn(), updateAgent: vi.fn(), getAgentEffectivePolicy: vi.fn(), getAgentActionUsage: vi.fn(),
+  getAgent: vi.fn(), updateAgent: vi.fn(), getAgentActionUsage: vi.fn(),
   getAgentMonitoring: vi.fn(), publishAgent: vi.fn(), unpublishAgent: vi.fn(), rollbackAgent: vi.fn(),
 }))
 const notify = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }))
@@ -28,7 +28,7 @@ import AgentMonitor from './AgentMonitor.vue'
 const Link = { props: ['to'], template: '<a class="rl" :data-to="typeof to === \'string\' ? to : JSON.stringify(to)"><slot/></a>' }
 const OwnerFilter = { props: ['modelValue'], emits: ['update:modelValue'], template: '<div class="owner-stub" />' }
 const stubs = {
-  Icon: true, OwnerFilter, ContextProfilePicker: true, StatusBadge: true,
+  Icon: true, OwnerFilter, StatusBadge: true,
   RouterLink: Link, 'router-link': Link,
   MetricCard: true, PublishControlsCard: true, LastTestResultCard: true, ActivitySummaryChart: true,
   RecentRunsList: true, HealthIndicatorsBar: true, AgentQuickTestPanel: true,
@@ -117,7 +117,6 @@ describe('AgentLibrary', () => {
 describe('AgentApprovalsPage', () => {
   it('a failed load is shown, Save stays off, and Retry recovers', async () => {
     api.getAgent.mockRejectedValueOnce(new Error('boom'))
-    api.getAgentEffectivePolicy.mockResolvedValue({ data: {} })
     const w = mount(AgentApprovalsPage, { global: { stubs } })
     await flushPromises()
 
@@ -141,7 +140,6 @@ describe('AgentApprovalsPage', () => {
 
   it('Save is on after a normal load', async () => {
     api.getAgent.mockResolvedValue({ data: { agent_policy: {}, tools: [] } })
-    api.getAgentEffectivePolicy.mockResolvedValue({ data: {} })
     const w = mount(AgentApprovalsPage, { global: { stubs } })
     expect(button(w, 'Save guardrails').attributes('disabled')).toBeDefined()   // not before it has loaded
     await flushPromises()

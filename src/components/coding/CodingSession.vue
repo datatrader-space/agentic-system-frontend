@@ -110,6 +110,7 @@ import { Icon } from '@iconify/vue'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import { usePoller } from '@/composables/usePoller'
 
 const props = defineProps({
   systemId: { type: [String, Number], required: true },
@@ -122,7 +123,6 @@ const task = ref(null)
 const open = reactive({})
 const busy = ref(false)
 const exporting = ref(false)
-let timer = null
 
 const running = computed(() => ['queued', 'planning', 'editing', 'verifying', 'exporting'].includes(task.value?.status))
 const reviewable = computed(() => task.value?.status === 'awaiting_review')
@@ -219,24 +219,30 @@ async function exportPr() {
   }
 }
 
-async function poll() {
-  try {
-    const { data } = await api.getCodingTask(props.systemId, props.repoId, props.taskId)
-    task.value = data
-    if (!running.value && timer) { clearInterval(timer); timer = null; emit('changed') }
-  } catch {
-    if (timer) { clearInterval(timer); timer = null }
-  }
-}
+// One poller: one request at a time, backs off (instead of stopping for good) after a failed poll, paused
+// while the tab is hidden, stops when the task is no longer running and on unmount.
+let sawRunning = false
+const poller = usePoller(async () => {
+  const id = props.taskId
+  const { data } = await api.getCodingTask(props.systemId, props.repoId, id)
+  if (id !== props.taskId) return { final: false }
+  task.value = data
+  if (running.value) { sawRunning = true; return { final: false } }
+  if (sawRunning) emit('changed')
+  return { final: true }
+}, {
+  interval: 1600, maxInterval: 20000, stopWhen: (r) => !!r?.final,
+  onError: (e) => { if (e?.response?.status === 404) poller.stop() },   // gone: it will never answer
+})
 
 function startPolling() {
-  if (timer) clearInterval(timer)
-  poll()
-  timer = setInterval(poll, 1600)
+  poller.stop()
+  sawRunning = true
+  poller.start()
 }
 
-onMounted(startPolling)
-onBeforeUnmount(() => { if (timer) clearInterval(timer) })
+onMounted(() => { sawRunning = false; poller.start() })
+onBeforeUnmount(() => poller.stop())
 </script>
 
 <style scoped>

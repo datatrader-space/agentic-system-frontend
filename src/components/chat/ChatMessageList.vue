@@ -32,10 +32,10 @@
         </div>
         <ChatMessage
           v-else-if="!isRunScaffolding(m)"
-          :message="m"
+          :message="presentMessage ? presentMessage(m) : m"
           @retry="chat.retryLast()"
           @regenerate="chat.regenerate(m.id)"
-          @edit="chat.editAndResend(m.id, $event)"
+          @edit="chat.editAndResend(m.id, prepareEdit ? prepareEdit(m, $event) : $event)"
           @feedback="(value, detail) => chat.setFeedback(m.id, value, detail)"
         />
         <!-- Inline live plan artifact — the ONLY plan UI in chat. Rendered at its durable anchor,
@@ -88,6 +88,9 @@ import ChatMessage from './ChatMessage.vue'
 import InlinePlanArtifact from '../plan/InlinePlanArtifact.vue'
 import WorkIterationBar from './WorkIterationBar.vue'
 import { usePlanStore } from '../../stores/usePlanStore'
+
+// Optional display-only adapter; store messages and requests are never modified.
+defineProps({ presentMessage: Function, prepareEdit: Function })
 
 const chat = useChatStore()
 // The rail owns the Work narrative; the iteration bar repeats its segment and attempt counts.

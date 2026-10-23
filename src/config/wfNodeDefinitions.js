@@ -30,6 +30,20 @@
 //   customTail         marker the inspector uses to append extra UI after the schema form
 
 export const WF_NODE_DEFS = {
+  'media.generate': {
+    category: 'media', icon: '▣', label: 'Generate media', sub: 'Review a Studio estimate before spending',
+    defaults: { operation: 'image', route_id: '', prompt: '', params: {}, references: [], cinema: {} },
+    outputSample: { attachment_id: '(attachment)', url: '(url)', extra_attachment_ids: [] },
+    fields: [
+      { key: 'operation', type: 'enum', title: 'Operation', options: ['image','video','edit_image','speech','sound','music','sfx','upscale','lipsync','motion','avatar','voice_change','transcribe'] },
+      { key: 'route_id', type: 'media-route', title: 'Model' },
+      { key: 'prompt', type: 'textarea', title: 'Prompt', insertable: true },
+      { key: 'params_json', type: 'textarea', title: 'Parameters (JSON)', mono: true },
+      { key: 'references_json', type: 'textarea', title: 'References (JSON array)', mono: true, help: '[{"attachment_id":"{{nodes.id.attachment_id}}","role":"subject"}]' },
+      { key: 'cinema_json', type: 'textarea', title: 'Cinema (JSON)', mono: true, showIf: data => data.operation === 'video' },
+    ],
+    hint: 'The run waits on a job approval card. Generate authorizes only that job; Decline stops the run.',
+  },
   'trigger.manual': {
     category: 'trigger', icon: '▶', label: 'Manual trigger', sub: 'Runs on demand',
     defaults: {},
@@ -207,6 +221,7 @@ export const WF_NODE_DEFS = {
 
 // Palette order (excludes paletteHidden entries like action.mcp_tool).
 export const WF_PALETTE_ORDER = [
+  'media.generate',
   'trigger.manual', 'trigger.schedule', 'trigger.webhook', 'trigger.channel', 'trigger.connector',
   'agent.run', 'llm.call', 'action.tool', 'action.script', 'action.channel', 'action.http',
   'logic.condition', 'logic.approval', 'logic.foreach', 'logic.delay', 'action.subworkflow',

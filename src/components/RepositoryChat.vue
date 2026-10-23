@@ -427,13 +427,22 @@ const loadConversationHistory = async () => {
   }
 }
 
+// A failed models call must not stop the chat from connecting: the picker just stays empty.
+let unmounted = false
 const loadModels = async () => {
-  const response = await api.getLlmModels()
-  models.value = response.data.results || response.data
+  try {
+    const response = await api.getLlmModels({ fields: 'picker' })   // ?fields=picker: every row, without the heavy metadata (not read here)
+    if (unmounted) return
+    models.value = response.data.results || response.data
+  } catch (e) {
+    console.warn('Could not load models for the chat picker:', e?.message || e)
+  }
 }
 
 // WebSocket connection
 const connectWebSocket = (repositoryId = props.repository.id) => {
+  // Never open a socket for a chat that is already gone (an await or a reconnect timer can land after unmount).
+  if (unmounted) return
   if (
     ws &&
     (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) &&
@@ -798,14 +807,14 @@ const hasStreamingMsg = computed(() => {
 
 // Lifecycle
 onMounted(async () => {
-  // Load conversation history first
-  await loadConversationHistory()
-  await loadModels()
-  // Then connect WebSocket
+  // History and models are independent: one round. Then connect the WebSocket — unless the chat was left.
+  await Promise.all([loadConversationHistory(), loadModels()])
+  if (unmounted) return
   connectWebSocket(props.repository.id)
 })
 
 onUnmounted(() => {
+  unmounted = true
   autoReconnect = false
   closeWebSocket({ disableReconnect: true })
 })
@@ -820,8 +829,8 @@ watch(() => props.repository.id, async (nextRepositoryId, previousRepositoryId) 
   messages.value = []
   currentStreamingMessage = ''
   selectedModelId.value = null
-  await loadConversationHistory()
-  await loadModels()
+  await Promise.all([loadConversationHistory(), loadModels()])
+  if (unmounted || props.repository.id !== nextRepositoryId) return
   connectWebSocket(nextRepositoryId)
 })
 

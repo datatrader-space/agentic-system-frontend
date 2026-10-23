@@ -229,7 +229,7 @@
               <td><b :class="schedule.statusTone">{{ schedule.status }}</b></td>
               <td>{{ schedule.runs }}</td>
               <td class="actions">
-                <button title="Run now" @click="runNow(schedule)"><Icon icon="lucide:play" /></button>
+                <button title="Run now" :disabled="runningIds.has(schedule.id)" @click="runNow(schedule)"><Icon :icon="runningIds.has(schedule.id) ? 'lucide:loader-2' : 'lucide:play'" /></button>
                 <button title="Run history" @click="openRuns(schedule)"><Icon icon="lucide:history" /></button>
                 <button title="Edit" @click="editSchedule(schedule)"><Icon icon="lucide:pencil" /></button>
                 <div class="menu-wrap">
@@ -246,7 +246,12 @@
                 </div>
               </td>
             </tr>
-            <tr v-if="!loading && !filteredSchedules.length">
+            <tr v-if="!loading && loadError">
+              <td colspan="7">
+                <LoadError title="Couldn't load schedules" :message="loadError" :retrying="loading" compact @retry="loadSchedules" />
+              </td>
+            </tr>
+            <tr v-else-if="!loading && !filteredSchedules.length">
               <td colspan="7" class="empty-row">
                 <Icon icon="lucide:calendar-clock" />
                 <strong>No schedules yet</strong>
@@ -376,6 +381,7 @@ import { useRouter } from 'vue-router'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import LoadError from '../components/common/LoadError.vue'
 
 const router = useRouter()
 
@@ -383,6 +389,10 @@ const agents = ref([])
 const models = ref([])
 const rawSchedules = ref([])
 const loading = ref(true)
+// A failed load is shown as an error with Retry, never as "No schedules yet".
+const loadError = ref('')
+// Schedules with a "Run now" in flight: a second click must not dispatch a second run.
+const runningIds = reactive(new Set())
 const saving = ref(false)
 const copied = ref(false)
 const search = ref('')
@@ -639,13 +649,14 @@ function buildPayload(extra = {}) {
 // ---- CRUD -----------------------------------------------------------------
 async function loadSchedules() {
   loading.value = true
+  loadError.value = ''
   try {
     const { data } = await api.listSchedules()
     const rows = data?.results || data || []
     // Standalone page manages agent schedules (created here / by automation tools).
     rawSchedules.value = rows.filter((r) => r.source === 'agent_tool' || String(r.id).startsWith('as_'))
   } catch (e) {
-    notify.error('Failed to load schedules')
+    loadError.value = e?.response?.data?.error || 'Check your connection and try again.'
   } finally {
     loading.value = false
   }
@@ -653,7 +664,7 @@ async function loadSchedules() {
 
 async function loadAgents() {
   try {
-    const { data } = await api.getAgents()
+    const { data } = await api.getAgentPicker()
     const rows = data?.results || data || []
     agents.value = rows.filter((a) => !a.is_builtin_agent)
   } catch {
@@ -663,7 +674,7 @@ async function loadAgents() {
 
 async function loadModels() {
   try {
-    const { data } = await api.getLLMModels()
+    const { data } = await api.getLlmModels({ fields: 'picker' })   // ?fields=picker: every row, without the heavy metadata (not read here)
     models.value = data?.results || data || []
   } catch {
     models.value = []
@@ -750,11 +761,15 @@ function resetForm() {
 }
 
 async function runNow(row) {
+  if (runningIds.has(row.id)) return
+  runningIds.add(row.id)
   try {
     await api.runSchedule(row.id)
     notify.success(`“${row.name}” dispatched`)
   } catch {
     notify.error('Failed to run schedule')
+  } finally {
+    runningIds.delete(row.id)
   }
 }
 
@@ -1280,6 +1295,7 @@ td b {
 .actions button {
   width: 28px; height: 28px; border-radius: 999px; border: 1px solid #d9e3f0; background: #fff; color: #52637a; display: grid; place-items: center;
 }
+.actions button:disabled { opacity: .55; cursor: default; }
 .menu-wrap { position: relative; }
 .row-menu {
   position: absolute; right: 0; top: 34px; z-index: 30; min-width: 150px; background: #fff; border: 1px solid #dfe7f2; border-radius: 9px; box-shadow: 0 12px 28px rgba(15,23,42,.14); padding: 6px; display: grid; gap: 2px;

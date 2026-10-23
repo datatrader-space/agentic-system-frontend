@@ -70,7 +70,8 @@
         <!-- ─── General ───────────────────────────────── -->
         <section v-if="activeTab === 'general'" class="settings-section">
           <h2 class="settings-section-title">General</h2>
-          <div class="settings-card">
+          <LoadError v-if="orgError" compact title="Couldn't load this organisation" :message="orgError" @retry="load" />
+          <div v-else class="settings-card">
             <div class="form-row">
               <label>Organisation Name</label>
               <input v-model="form.name" class="settings-input" placeholder="Acme Corp" />
@@ -119,6 +120,7 @@
             <div v-if="loadingMembers" class="loading-row">
               <div class="spinner"></div> Loading members…
             </div>
+            <LoadError v-else-if="membersError" compact title="Couldn't load members" :message="membersError" @retry="loadMembers" />
             <div v-else-if="!members.length" class="empty-state">
               No members yet. Invite your team to get started.
             </div>
@@ -215,7 +217,8 @@
                 <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
               </svg>
             </router-link>
-            <div v-if="!loadingWs && !workspaces.length" class="empty-state">
+            <LoadError v-if="!loadingWs && wsError" compact title="Couldn't load workspaces" :message="wsError" @retry="loadWorkspaces" />
+            <div v-else-if="!loadingWs && !workspaces.length" class="empty-state">
               No workspaces yet. Create one to organize your team's resources.
             </div>
           </div>
@@ -384,6 +387,7 @@ import { useRoute } from 'vue-router'
 import tenancyApi from '../services/tenancyApi'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import LoadError from '@/components/common/LoadError.vue'
 
 const route = useRoute()
 const orgSlug = computed(() => route.params.orgSlug)
@@ -407,6 +411,15 @@ const newWsSlug     = ref('')
 const creatingWs    = ref(false)
 
 const form = ref({ name: '', slug: '' })
+// Failed loads are errors with Retry, and failed writes say so: these used to be empty catch
+// blocks, so a failed save looked exactly like a successful one.
+const orgError = ref('')
+const membersError = ref('')
+const wsError = ref('')
+function errText(err, fallback) {
+  const d = err?.response?.data
+  return d?.detail || d?.error || (typeof d === 'object' && d && Object.values(d).flat().find((v) => typeof v === 'string')) || fallback
+}
 
 const activeTab = ref(route.params.tab || 'general')
 
@@ -435,7 +448,10 @@ async function load() {
     const r = await tenancyApi.getOrg(orgSlug.value)
     org.value = r.data
     form.value = { name: r.data.name, slug: r.data.slug }
-  } catch {}
+    orgError.value = ''
+  } catch (err) {
+    orgError.value = errText(err, 'Check your connection and try again.')
+  }
 }
 
 async function loadMembers() {
@@ -443,7 +459,10 @@ async function loadMembers() {
   try {
     const r = await tenancyApi.getOrgMembers(orgSlug.value)
     members.value = r.data?.results ?? r.data ?? []
-  } catch {}
+    membersError.value = ''
+  } catch (err) {
+    membersError.value = errText(err, 'Check your connection and try again.')
+  }
   loadingMembers.value = false
 }
 
@@ -452,13 +471,21 @@ async function loadWorkspaces() {
   try {
     const r = await tenancyApi.getWorkspaces(orgSlug.value)
     workspaces.value = r.data?.results ?? r.data ?? []
-  } catch {}
+    wsError.value = ''
+  } catch (err) {
+    wsError.value = errText(err, 'Check your connection and try again.')
+  }
   loadingWs.value = false
 }
 
 async function saveGeneral() {
   saving.value = true
-  try { await tenancyApi.updateOrg(orgSlug.value, form.value) } catch {}
+  try {
+    await tenancyApi.updateOrg(orgSlug.value, form.value)
+    notify.success('Organisation saved')
+  } catch (err) {
+    notify.error(errText(err, 'Could not save the organisation'))
+  }
   saving.value = false
 }
 
@@ -487,15 +514,20 @@ async function loadInvites() {
   try {
     const r = await tenancyApi.getOrgInvites(orgSlug.value)
     pendingInvites.value = (r.data?.results ?? r.data ?? []).map(i => ({ ...i, _resending: false }))
-  } catch {}
+  } catch (err) {
+    notify.error(errText(err, 'Could not load pending invitations'))
+  }
 }
 
 async function resendInvite(inv) {
   inv._resending = true
   try {
     await tenancyApi.resendInvite(orgSlug.value, inv.id)
+    notify.success(`Invitation resent to ${inv.email}`)
     await loadInvites()
-  } catch {}
+  } catch (err) {
+    notify.error(errText(err, 'Could not resend the invitation'))
+  }
   inv._resending = false
 }
 
@@ -504,7 +536,9 @@ async function cancelInvite(inv) {
   try {
     await tenancyApi.cancelInvite(orgSlug.value, inv.id)
     pendingInvites.value = pendingInvites.value.filter(x => x.id !== inv.id)
-  } catch {}
+  } catch (err) {
+    notify.error(errText(err, 'Could not cancel the invitation'))
+  }
 }
 
 function timeAgo(dateStr, future = false) {
@@ -542,7 +576,9 @@ async function changeRole(m, role) {
   try {
     await tenancyApi.updateOrgMemberRole(orgSlug.value, m.user, { role })
     m.role = role
-  } catch {}
+  } catch (err) {
+    notify.error(errText(err, 'Could not change the role'))
+  }
 }
 
 async function removeMember(m) {
@@ -550,7 +586,9 @@ async function removeMember(m) {
   try {
     await tenancyApi.removeOrgMember(orgSlug.value, m.user)
     members.value = members.value.filter(x => x.user !== m.user)
-  } catch {}
+  } catch (err) {
+    notify.error(errText(err, 'Could not remove the member'))
+  }
 }
 
 async function deleteOrg() {
@@ -559,7 +597,9 @@ async function deleteOrg() {
   try {
     await tenancyApi.deleteOrg(orgSlug.value)
     window.location.href = '/dashboard'
-  } catch {}
+  } catch (err) {
+    notify.error(errText(err, 'Could not delete the organisation'))
+  }
   deleting.value = false
 }
 

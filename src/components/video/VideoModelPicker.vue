@@ -4,12 +4,12 @@
        kind 'video' lists video models, kind 'image' the image models of Image mode (D14). Picking goes through
        pickRoute / pickImageModel, so a model that would change a setting shows the switch notice first (never
        silently). In the phone settings sheet the list opens in place instead of floating. -->
-  <div ref="root" class="vmp" :class="{ 'in-sheet': inSheet }" @keydown.esc.stop="close">
+  <div ref="root" class="vmp" :class="{ 'in-sheet': inSheet, 'two-line': twoLine }" @keydown.esc.stop="close">
     <button ref="trigger" type="button" class="vmp-pill" :data-test="isImage ? 'image-model' : 'video-route'" aria-haspopup="listbox"
-            :aria-expanded="open ? 'true' : 'false'" :aria-label="noun + ': ' + currentLabel" :title="currentLabel" @click="toggle">
+            :aria-expanded="open ? 'true' : 'false'" :aria-label="noun + ': ' + (twoLine ? selectionLabel + ', ' + resolvedName : currentLabel)" :title="twoLine ? resolvedName : currentLabel" @click="toggle">
       <span class="vmp-ic" aria-hidden="true" v-html="isImage ? ICON.image : ICON.clip"></span>
       <span v-if="inSheet" class="vmp-pill-label">{{ noun }}</span>
-      <span class="vmp-pill-text">{{ currentLabel }}</span>
+      <span v-if="twoLine" class="vmp-pill-copy"><span class="vmp-pill-primary">{{ selectionLabel }}</span><span v-if="resolvedName" class="vmp-pill-secondary" :title="resolvedName">{{ resolvedName }}</span></span><span v-else class="vmp-pill-text">{{ currentLabel }}</span>
       <span class="vmp-chev" aria-hidden="true" v-html="ICON.chev"></span>
     </button>
 
@@ -51,7 +51,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useVideoStore } from '../../stores/useVideoStore'
 
-const props = defineProps({ inSheet: { type: Boolean, default: false }, kind: { type: String, default: 'video' } })
+const props = defineProps({ inSheet: { type: Boolean, default: false }, kind: { type: String, default: 'video' }, twoLine: Boolean })
 const video = useVideoStore()
 const isImage = computed(() => props.kind === 'image')
 const noun = computed(() => (isImage.value ? 'Image model' : 'Video model'))
@@ -98,6 +98,8 @@ const currentLabel = computed(() => {
   const r = selectedId.value && items.value.find((x) => hasRoute(x, selectedId.value))
   return r ? nameOf(r) : `Auto${autoName.value ? ` (${autoName.value})` : ''}`
 })
+const selectionLabel = computed(() => selectedId.value ? 'Selected model' : 'Auto')
+const resolvedName = computed(() => selectedId.value ? currentLabel.value : autoName.value)
 function isSelected(r) { return !!selectedId.value && hasRoute(r, selectedId.value) }
 
 // "Google: Veo 3.1" → maker "Google", model "Veo 3.1". An image model carries its maker.
@@ -236,6 +238,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onOutside))
 .vmp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .vmp-pill:focus-visible { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
 
+.vmp.two-line .vmp-pill{min-height:54px;max-width:100%;border-radius:8px}.vmp-pill-copy{display:grid;gap:2px;min-width:0;flex:1;text-align:left}.vmp-pill-primary{font-size:13px;font-weight:600}.vmp-pill-secondary{font-size:12px;font-weight:400;color:var(--vm-ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* In the phone settings sheet: a full-width row, and the list opens in place below it. */
 .vmp.in-sheet { width: 100%; max-width: none; }
 .vmp.in-sheet .vmp-pill { width: 100%; max-width: none; min-height: 48px; border-radius: 8px; }

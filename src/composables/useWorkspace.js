@@ -1,6 +1,7 @@
 // src/composables/useWorkspace.js
 import { ref, computed, readonly } from 'vue'
 import tenancyApi from '../services/tenancyApi'
+import { clearApiCache } from '../services/api'
 
 // Module-level singletons so all components share the same state
 const activeWorkspace = ref(
@@ -23,6 +24,9 @@ export function useWorkspace() {
         localStorage.setItem('activeWorkspace', JSON.stringify(workspace))
         localStorage.setItem('activeOrg', JSON.stringify(org))
         localStorage.setItem('activeWorkspaceId', String(workspace.id))
+        // Cached GETs belong to the previous workspace (the cache key carries the workspace id too);
+        // drop them and any request in flight so nothing from the old workspace is shown.
+        clearApiCache()
     }
 
     function clearWorkspace() {
@@ -31,6 +35,7 @@ export function useWorkspace() {
         localStorage.removeItem('activeWorkspace')
         localStorage.removeItem('activeOrg')
         localStorage.removeItem('activeWorkspaceId')
+        clearApiCache()
     }
 
     async function loadMyOrgs() {

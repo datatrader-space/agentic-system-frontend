@@ -21,7 +21,8 @@
 
     <!-- Scrollable nav -->
     <div class="sidebar-scroll">
-      <nav class="nav-group" aria-label="Primary">
+      <!-- Pointing at a link (hover or keyboard focus) starts downloading that page's code. -->
+      <nav class="nav-group" aria-label="Primary" @mouseover="onNavIntent" @focusin="onNavIntent">
         <template v-for="(item, i) in visibleNav" :key="item.to">
           <div v-if="sectionLabels[item.to]" class="nav-section" :class="{ 'is-first': i === 0, 'is-collapsed': collapsed }" aria-hidden="true"><span v-if="!collapsed">{{ sectionLabels[item.to] }}</span></div>
           <SidebarNavItem
@@ -67,6 +68,7 @@ import { computed, inject, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { House, Bot, BookOpen, Files, Workflow, Database, Clapperboard, CalendarClock, Activity, ShieldCheck, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
 import BrandMark from '../common/BrandMark.vue'
+import { prefetchFromEvent } from '../../utils/prefetchRoute'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { useChatStore } from '../../stores/useChatStore'
 import SidebarNavItem from './SidebarNavItem.vue'
@@ -136,6 +138,8 @@ const visibleNav = computed(() => primaryNav.filter((item) => {
   if (item.adminOnly && !isAdmin.value) return false
   return true
 }))
+
+const onNavIntent = (e) => prefetchFromEvent(router, e)
 
 const toggleNavGroup = () => {
   return

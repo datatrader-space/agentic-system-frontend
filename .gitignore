@@ -135,3 +135,7 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 node_modules/
+
+# Local browser test artifacts
+test-results/
+playwright-report/

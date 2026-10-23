@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useChatStore } from './useChatStore'
@@ -77,6 +78,37 @@ describe('useChatStore — a turn the server started', () => {
     expect(bubble).toMatchObject({ queued: false, queuedAfter: false })
     const roles = chat.messages.map((m) => m.role)
     expect(roles.slice(-2)).toEqual(['user', 'assistant'])   // its own answer opens below it
+  })
+
+  it('acts on the exact saved message, not on another with the same words', () => {
+    // 2026-10-21 (P0-B): every frame now carries the saved row's id; two equal messages stay distinct.
+    const chat = useChatStore()
+    chat.conversationId = 2163
+    chat._beginAssistant()
+    chat.messages.push({ id: 'a', role: 'user', content: 'again', queued: true, clientMessageId: 'c-a' })
+    chat.messages.push({ id: 'b', role: 'user', content: 'again', queued: true, clientMessageId: 'c-b' })
+    chat._onEvent({ type: 'message_queued', conversation_id: '2163', message: 'again', message_id: 11, client_message_id: 'c-a' })
+    chat._onEvent({ type: 'message_queued', conversation_id: '2163', message: 'again', message_id: 12, client_message_id: 'c-b' })
+    chat._onEvent({ type: 'steering_deferred', message: 'again', message_id: 11 })
+    expect(chat.messages.find((m) => m.id === 'a').queuedAfter).toBe(true)
+    expect(chat.messages.find((m) => m.id === 'b').queuedAfter).toBeFalsy()
+    chat._onEvent({ type: 'steering_applied', message: 'again', message_id: 12 })
+    expect(chat.messages.find((m) => m.id === 'b')).toBeUndefined()
+    expect(chat.messages.find((m) => m.id === 'a')).toBeTruthy()
+  })
+
+  it('gives the text of messages a Stop cancelled back to the message box', () => {
+    const chat = useChatStore()
+    chat.conversationId = 2163
+    chat.messages.push({ id: 'w', role: 'user', content: 'weather in Lahore?', queued: true, serverId: 21 })
+    const seen = []
+    const onRestore = (e) => seen.push(e.detail.text)
+    window.addEventListener('composer-restore', onRestore)
+    chat._onEvent({ type: 'queued_messages_cancelled', conversation_id: '2163',
+                    messages: [{ message_id: 21, text: 'weather in Lahore?' }] })
+    window.removeEventListener('composer-restore', onRestore)
+    expect(chat.messages.find((m) => m.id === 'w')).toBeUndefined()
+    expect(seen).toEqual(['weather in Lahore?'])
   })
 
   it('ignores a follow-up meant for a conversation the user is no longer looking at', () => {

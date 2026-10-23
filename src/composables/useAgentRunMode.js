@@ -39,7 +39,8 @@ export function useAgentRunMode(getAgentId, getInitialMode = () => 'manual') {
     const id = getAgentId()
     if (!id) return
     try {
-      const res = await api.getAgent(id)
+      // The chat card (identity + run mode), not the full agent: the full one ships every tool.
+      const res = await api.getAgentCard(id)
       const a = res?.data || {}
       isShared.value = !!(a.is_platform_super_agent || a.is_builtin_agent)
       // effective_run_mode is what THIS caller's chats actually run as — on a shared agent that is their

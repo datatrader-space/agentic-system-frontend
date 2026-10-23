@@ -51,7 +51,7 @@ async function rename() {
 }
 async function saveAnswers() {
   const answer = await act(() => saveDataUse(props.project.ref, dataUseAnswers(form)), 'The data-use answers are saved as a new version. They apply from now on.');
-  if (answer) { version.value = answer.version; form.deletion = false; }
+  if (answer) version.value = answer.version;   // the confirmed rule stays ticked: the saved answers include it
 }
 async function copyId() {
   try { await navigator.clipboard.writeText(props.project.ref); copied.value = true; setTimeout(() => { copied.value = false; }, 1500); }
@@ -85,9 +85,9 @@ async function remove() {
       <form v-else class="settings-policy" @submit.prevent="saveAnswers">
         <fieldset class="policy-card"><legend><span>1</span> May this data be used to train models?</legend><label v-for="(choice, index) in ['No', 'Only this project’s own models', 'Also AADML’s shared models']" :key="choice" class="policy-option"><input v-model="form.training" name="training" type="radio" :value="choice"><div><strong>{{ choice }}</strong><p>{{ ['No labeling assignment, dataset version or training run can be made from it.', 'A person must start each step; nothing is trained automatically.', 'Data may also improve models outside this project.'][index] }}</p></div></label></fieldset>
         <fieldset class="policy-card"><legend><span>2</span> How long may AADML keep the data?</legend><div class="retention-options"><label v-for="choice in ['30 days', '90 days', '180 days', '365 days', '730 days', 'Until I delete it']" :key="choice"><input v-model="form.retention" name="retention" type="radio" :value="choice">{{ choice }}</label></div><p>{{ form.retention === 'Until I delete it' ? 'Nothing is deleted automatically under this choice.' : 'Records older than the selected period are removed with their files. This cannot be undone.' }}</p></fieldset>
-        <fieldset class="policy-card"><legend><span>3</span> Who may see the data?</legend><label v-for="(choice, index) in ['Only me', 'People I invite to the project', 'Also an outside labeling vendor']" :key="choice" class="policy-option"><input v-model="form.access" name="access" type="radio" :value="choice"><div><strong>{{ choice }}</strong><p>{{ ['Nobody else can be given a role; existing roles would stop working.', 'Invited members can only do what their assigned roles allow.', 'A photo assignment may be given to a labeling company you choose.'][index] }}</p></div></label></fieldset>
+        <fieldset class="policy-card"><legend><span>3</span> Who may see the data?</legend><label v-for="(choice, index) in ['Only me', 'People I invite to the project', 'Also an outside labeling vendor']" :key="choice" class="policy-option"><input v-model="form.access" name="access" type="radio" :value="choice"><div><strong>{{ choice }}</strong><p>{{ ['Nobody else can be given a role; existing roles would stop working.', 'Invited members can only do what their assigned roles allow.', 'Its data may be given to a labeling company you choose, one assignment at a time.'][index] }}</p></div></label></fieldset>
         <fieldset class="policy-card"><legend><span>4</span> Where may the data be stored and processed?</legend><label class="policy-option"><input type="checkbox" checked disabled><div><strong>AADML’s servers</strong><p>Required: this is where the data arrives.</p></div></label><label class="policy-option"><input v-model="form.aws" type="checkbox"><div><strong>Also AADML’s AWS</strong><p>Allow GPU training in AADML’s AWS account.</p></div></label><label class="policy-option"><input v-model="form.local" type="checkbox" disabled><div><strong>Also my own machine for training</strong> <UiBadge>Coming soon</UiBadge><p>Allow data to be sent to a machine you connect yourself.</p></div></label></fieldset>
-        <fieldset class="policy-card"><legend><span>5</span> Deletion on request</legend><p>When a person asks for a photo to be deleted: it is removed within 30 days, left out of every future training, and the models trained on it are listed for you.</p><label class="check-line"><input v-model="form.deletion" type="checkbox"> I confirm this rule</label></fieldset>
+        <fieldset class="policy-card"><legend><span>5</span> Deletion on request</legend><p>When a person asks for {{ llm ? 'an example' : 'a photo' }} to be deleted: it is removed within 30 days, left out of every future training, and the models trained on it are listed for you.</p><label class="check-line"><input v-model="form.deletion" type="checkbox"> I confirm this rule</label></fieldset>
         <p class="field-help">Saving makes a new version of the answers; the earlier ones are kept. Choosing “Only me” takes the roles of everyone else away.</p>
         <div class="settings-actions"><UiButton type="submit" variant="primary" :disabled="busy||!form.deletion">Save the answers</UiButton></div>
       </form>
@@ -106,13 +106,13 @@ async function remove() {
 
     <section class="panel settings-block">
       <h2><KeyRound :size="18"/> Apps that send data</h2>
-      <p class="field-help">The keys of the apps that send photos to this project, and how to send them.</p>
+      <p class="field-help">The keys of the apps that send {{ llm ? 'data' : 'photos' }} to this project, and how to send them.</p>
       <UiButton @click="emit('navigate','connect')">Open Connect app</UiButton>
     </section>
 
     <section v-if="owner" class="panel settings-block settings-danger">
       <h2><Trash2 :size="18"/> Move this project to the Trash</h2>
-      <p class="field-help">It leaves every list at once and its apps can no longer send to it. You can restore it from Workspace Settings → Trash within 30 days; after that it is deleted for good, with its photos, records, labels and files.</p>
+      <p class="field-help">It leaves every list at once and its apps can no longer send to it. You can restore it from Workspace Settings → Trash within 30 days; after that it is deleted for good, with its {{ llm ? 'examples' : 'photos' }}, records, labels and files.</p>
       <UiButton class="danger" @click="deleting=true;confirmText=''">Move to Trash</UiButton>
     </section>
 

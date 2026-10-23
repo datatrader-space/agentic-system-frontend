@@ -7,6 +7,7 @@ import { defineStore } from 'pinia'
 import api from '../services/api'
 import { notify } from '../composables/useNotify'
 import { ChatConnection } from '../services/chatService'
+import { willIngestChatAttachment } from '../services/ingestionPolicy'
 import { useCanvasStore } from './useCanvasStore'
 import { useArtifactsStore } from './useArtifactsStore'
 import { usePlanStore } from './usePlanStore'
@@ -202,7 +203,8 @@ export const useChatStore = defineStore('chat', {
     // bare `if (agentsLoading) return` — the second caller resolved IMMEDIATELY against a possibly
     // still-empty `agents`, which is exactly the race that made New Chat mount with no agents.
     _agentsPromise: null,
-    _chattablePromise: null,        // single-flight for loadChattableAgents()
+    _builtinsPromise: null,         // single-flight for the built-in agents list
+    _superAgentPromise: null,       // single-flight for the Super Agent card
 
     // Chat history for the CURRENTLY selected agent (history drawer default scope).
     // Paginated: the drawer opens on the most recent page and pulls older ones on demand.
@@ -249,6 +251,13 @@ export const useChatStore = defineStore('chat', {
     //: One recovery at a time. Three things ask for one (the socket opening, the server saying nothing
     //: runs, the silence watchdog) and they overlap.
     _recoveryRunning: false,
+    //: True after several failed reconnects in a row: the chat shows "Connection lost" with a
+    //: "Reconnect now" action while the socket keeps retrying on its own (it never gives up).
+    connectionLost: false,
+    //: openConversation bookkeeping (F-C3): the conversation being loaded right now, and the one whose
+    //: last load FAILED, so re-opening that chat loads it again instead of no-oping on an empty thread.
+    _loadingConversationId: null,
+    _loadFailedConversationId: null,
   }),
   getters: {
     isEmpty: (s) => s.messages.length === 0,
@@ -392,9 +401,9 @@ export const useChatStore = defineStore('chat', {
         for (const s of shared) {
           if (!this.agents.some((a) => String(a.id) === String(s.id))) this.agents.push(s)
         }
-        if (!this.selectedAgentId && this.agents.length) {
-          this.selectedAgentId = String(this.agents[0].id)
-        }
+        // The list never picks an agent. Which agent a chat runs is the page's decision (?agent=, the
+        // conversation's own agent, else the Platform Super Agent); picking the first library agent here
+        // raced it, and a Super Agent chat loaded another agent's model, voice and effort settings first.
         this.agentsLoaded = true
       } catch {
         this.error = 'Failed to load agents'
@@ -415,44 +424,54 @@ export const useChatStore = defineStore('chat', {
     // preserves shared rows across a refresh — one list means a later refreshAgents() can't silently
     // drop the built-ins out from under an open picker.
     async loadChattableAgents() {
-      if (this._chattablePromise) return this._chattablePromise
-      this._chattablePromise = (async () => {
-        await Promise.all([
-          this.loadAgents(),
-          this.ensureSuperAgent().catch(() => null),
-          (async () => {
-            try {
-              const { data } = await api.listBuiltinAgents()
-              const rows = Array.isArray(data) ? data : (data && data.agents) || []
-              for (const b of rows) {
-                if (!b || b.id == null) continue
-                if (this.agents.some((a) => String(a.id) === String(b.id))) continue
-                this.agents.push({ ...b, is_builtin_agent: true })
-              }
-            } catch (e) { /* built-ins are optional — the picker still lists own agents */ }
-          })(),
-        ])
-      })().finally(() => { this._chattablePromise = null })
-      return this._chattablePromise
+      await Promise.all(this._chattableSources())
+    },
+
+    // The three sources of chattable agents, each its own (shared, in-flight) request.
+    _chattableSources() {
+      return [
+        this.loadAgents(),
+        this.ensureSuperAgent().catch(() => null),
+        this._loadBuiltinAgents(),
+      ]
+    },
+
+    _loadBuiltinAgents() {
+      if (this._builtinsPromise) return this._builtinsPromise
+      this._builtinsPromise = (async () => {
+        try {
+          const { data } = await api.listBuiltinAgents()
+          const rows = Array.isArray(data) ? data : (data && data.agents) || []
+          for (const b of rows) {
+            if (!b || b.id == null) continue
+            if (this.agents.some((a) => String(a.id) === String(b.id))) continue
+            this.agents.push({ ...b, is_builtin_agent: true })
+          }
+        } catch (e) { /* built-ins are optional — the picker still lists own agents */ }
+      })().finally(() => { this._builtinsPromise = null })
+      return this._builtinsPromise
     },
 
     // The ONE shared Platform Super Agent — the DEFAULT agent for a naked New Chat (no ?agent=…).
     // Lazily fetched (the endpoint also provisions it server-side) and cached in the agents list so
     // currentAgent/mode/model wiring all resolve normally. Returns the agent or null.
     async ensureSuperAgent() {
-      let sa = this.agents.find((a) => a.is_platform_super_agent)
+      const sa = this.agents.find((a) => a.is_platform_super_agent)
       if (sa) return sa
-      try {
-        // SLIM card: chat only needs identity + run mode + image model. The full payload (capability
-        // inventory / tool catalog / model options) belongs to the Super Agent page, not to opening a chat.
-        const { data } = await api.getSuperAgentCard()
-        if (data && data.id) {
-          sa = data
-          if (!this.agents.some((a) => String(a.id) === String(data.id))) this.agents.push(data)
-          return sa
-        }
-      } catch { /* no super agent available (e.g. backend down) — caller falls back */ }
-      return null
+      if (this._superAgentPromise) return this._superAgentPromise
+      this._superAgentPromise = (async () => {
+        try {
+          // SLIM card: chat only needs identity + run mode + image model. The full payload (capability
+          // inventory / tool catalog) belongs to the Super Agent page, not to opening a chat.
+          const { data } = await api.getSuperAgentCard()
+          if (data && data.id) {
+            if (!this.agents.some((a) => String(a.id) === String(data.id))) this.agents.push(data)
+            return data
+          }
+        } catch { /* no super agent available (e.g. backend down) — caller falls back */ }
+        return null
+      })().finally(() => { this._superAgentPromise = null })
+      return this._superAgentPromise
     },
 
     // Make agent `id` resolvable in `agents` so currentAgent, the composer and the header find it. A shared
@@ -462,8 +481,13 @@ export const useChatStore = defineStore('chat', {
     async ensureAgent(id) {
       const has = () => this.agents.find((a) => String(a.id) === String(id)) || null
       if (id == null || id === '' || has()) return has()
-      await this.loadChattableAgents().catch(() => null)
-      if (has()) return has()
+      // Settle on the FIRST source that brings the agent in, not on the slowest of the three: the
+      // library list is the slowest, and a Super Agent chat waited for it although its own card was
+      // already in.
+      const found = await Promise.any(this._chattableSources().map((p) => Promise.resolve(p)
+        .catch(() => null)
+        .then(() => has() || Promise.reject(new Error('not in this source'))))).catch(() => null)
+      if (found) return found
       try {
         const { data } = await api.getAgent(id)
         if (data && data.id != null && !has()) this.agents.push(data)
@@ -627,6 +651,23 @@ export const useChatStore = defineStore('chat', {
     // — before the answer — made it jump above the answer on reload). If the answer's saved timeline lacks
     // the line (the snapshot is written after the answer), it is added at the top of that run's steps. With
     // no run timeline to hold it, it stays a bubble: the person's words are never dropped.
+    // The waiting bubble a steering frame is about: by the saved row's id, then by the page's own client id, then
+    // (an older server) by its words. Newest first, so two equal messages resolve to the latest.
+    _queuedBubble(msg, { notDeferred = false } = {}) {
+      const waiting = [...this.messages].reverse().filter(
+        (m) => m.role === 'user' && m.queued && !(notDeferred && m.queuedAfter))
+      if (msg.message_id != null) {
+        const byId = waiting.find((m) => m.serverId != null && String(m.serverId) === String(msg.message_id))
+        if (byId) return byId
+      }
+      if (msg.client_message_id) {
+        const byClient = waiting.find((m) => m.clientMessageId === msg.client_message_id)
+        if (byClient) return byClient
+      }
+      const text = msg.message || ''
+      return waiting.find((m) => (m.content || '') === text) || null
+    },
+
     _foldSteers(list) {
       const out = []
       for (let i = 0; i < list.length; i++) {
@@ -749,9 +790,15 @@ export const useChatStore = defineStore('chat', {
       // Already pointed at this conversation with a live socket or loaded history → no-op. This also
       // covers the case where ensureConversation() just created the id (to ingest a link before the
       // first message) and the URL replace re-entered here — we must NOT re-clear staged attachments.
-      if (String(this.conversationId) === String(id) && (this.messages.length || this._conn)) return
+      // A load of this same conversation still in flight is not repeated. A load that FAILED is: the
+      // thread is empty and only another request can fill it (it used to no-op whenever a socket existed).
+      const sameId = String(this.conversationId) === String(id)
+      if (sameId && String(this._loadingConversationId) === String(id)) return
+      if (sameId && String(this._loadFailedConversationId) !== String(id) && (this.messages.length || this._conn)) return
       this._clearTurnState()   // switch conversation: clear UI state but KEEP the shared socket
       this.conversationId = String(id)
+      this._loadingConversationId = String(id)
+      this._loadFailedConversationId = null
       this.messages = []
       this.messagesHasMore = false   // recomputed from this conversation's response below
       this.messagesTotal = 0
@@ -761,6 +808,8 @@ export const useChatStore = defineStore('chat', {
       this.error = ''
       try {
         const res = await api.getConversation(id)
+        // The person opened another chat while this one loaded: its response must not land there.
+        if (String(this.conversationId) !== String(id)) return
         const data = res.data || {}
         this.conversationProjectId = data.project ?? null
         this.messages = this._foldSteers(pickArray(data.messages).map((m) => this._mapServerMessage(m, id)))
@@ -783,9 +832,13 @@ export const useChatStore = defineStore('chat', {
         }
         this._connect()
       } catch {
+        if (String(this.conversationId) !== String(id)) return
+        this._loadFailedConversationId = String(id)
         this.error = 'Failed to load conversation'
       } finally {
-        this.loadingHistory = false
+        // Only the load of the chat still on screen owns these flags; a stale one leaves them alone.
+        if (String(this._loadingConversationId) === String(id)) this._loadingConversationId = null
+        if (String(this.conversationId) === String(id)) this.loadingHistory = false
       }
     },
 
@@ -905,7 +958,11 @@ export const useChatStore = defineStore('chat', {
           const attId = res?.data?.attachment_id
           const fileId = res?.data?.id
           if (attId) attachmentIds.push(attId)
-          if (!a.isImage && fileId != null) docs.push({ id: fileId, name: a.name })
+          // Wait for ingestion only for a file the backend ingests (documents); video, audio and opaque
+          // binaries are never ingested, so waiting on them only held Send for ~60 s.
+          if (!a.isImage && fileId != null && willIngestChatAttachment(a.mime || a.file?.type, a.name)) {
+            docs.push({ id: fileId, name: a.name })
+          }
         } catch {
           this.error = 'Failed to upload an attachment.'
         }
@@ -939,8 +996,11 @@ export const useChatStore = defineStore('chat', {
       // which is one way the "agent can't see the uploaded image" race happened).
       if (this.isStreaming) {
         if ((!content && atts.length === 0) || !this.conversationId || !this._conn) return false
+        // The same client id travels with the message and comes back on `message_queued` with the saved row's
+        // id, so every later frame (taken in, deferred, cancelled) finds THIS bubble, not one with equal text.
+        const steerClientId = `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
         this.messages.push({
-          id: nid(), role: 'user', content, status: 'done', queued: true,
+          id: nid(), role: 'user', content, status: 'done', queued: true, clientMessageId: steerClientId,
           attachments: atts.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url, mime: a.mime })),
         })
         this.pendingAttachments = []
@@ -956,7 +1016,7 @@ export const useChatStore = defineStore('chat', {
           researchDepth: this.researchMode ? this.researchDepth : undefined,
           reasoningEffort: this.reasoningEffort || undefined,
           attachmentIds: steerIds,
-          clientMessageId: `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          clientMessageId: steerClientId,
         })
         return true
       }
@@ -1300,13 +1360,12 @@ export const useChatStore = defineStore('chat', {
           // completes server-side. Without this, the answer only appears after a manual refresh.
           if (this._recovering || this.isStreaming || this._taskRunActive) this._recoverAfterReconnect()
         },
-        onError: (em) => {
-          if (!this.isStreaming) return
-          // Only a TERMINAL give-up (reconnect attempts exhausted) is a real error. Transient
-          // blips just mean "reconnecting" — don't scare the user or kill the turn.
-          if (em && /please refresh/i.test(em)) this._errAssistant(em)
-          else this._enterReconnecting()
+        onError: () => {
+          // The socket never gives up reconnecting, so an error only ever means "reconnecting" —
+          // don't scare the user or kill the turn.
+          if (this.isStreaming) this._enterReconnecting()
         },
+        onConnectionState: (state) => { this.connectionLost = state === 'lost' },
         onClose: () => {
           // Abnormal drop mid-stream. Do NOT finalize as interrupted — the backend turn survives.
           // Show "Reconnecting…"; ChatConnection auto-reconnects and onOpen recovers the result.
@@ -1355,6 +1414,12 @@ export const useChatStore = defineStore('chat', {
       this.isStreaming = false
       this._assistantId = null
       this._recovering = false
+    },
+
+    // "Reconnect now" (shown once a few reconnects in a row have failed): try at once, fresh backoff.
+    reconnectNow() {
+      if (this._conn) this._conn.reconnectNow()
+      else this._connect()
     },
 
     // Full teardown — ONLY for logout / app unmount. Closes the socket for good (no reconnect).
@@ -1480,8 +1545,13 @@ export const useChatStore = defineStore('chat', {
       //
       // The underlying oddity is the run going terminal ahead of its own answer; widening here does not
       // fix that, it stops this client being misled by it.
+      // Bound to the conversation it started for: when the person opens another chat, this stops.
+      const cid = this.conversationId
+      const switched = () => String(this.conversationId) !== String(cid)
       for (let i = 0; i < 36; i++) {
+        if (switched()) return
         const landed = await this._refreshHistory()
+        if (switched()) return
         if (landed) { this.isStreaming = false; this._taskRunActive = false; this._assistantId = null; return }
         if (!this.isStreaming) return
         if (stillRunning()) { backToListening(); return }
@@ -1493,7 +1563,7 @@ export const useChatStore = defineStore('chat', {
         }
         await new Promise((r) => setTimeout(r, 2500))
       }
-      if (!this.isStreaming) return
+      if (!this.isStreaming || switched()) return
       if (stillRunning()) { backToListening(); return }
       // Waited ~90s with no answer saved and no sign the turn is running — clear the spinner without a
       // scary error.
@@ -1506,8 +1576,11 @@ export const useChatStore = defineStore('chat', {
     // (The old assistant-COUNT delta was broken: the optimistic streaming bubble is already counted, so a
     // completed turn never increased the count → recovery gave up and the answer only showed on refresh.)
     async _refreshHistory() {
+      const cid = this.conversationId
       try {
-        const res = await api.getConversation(this.conversationId)
+        const res = await api.getConversation(cid)
+        // Another chat was opened while this read was in flight: never write its rows into that one.
+        if (String(this.conversationId) !== String(cid)) return false
         const rows = pickArray((res.data || {}).messages)
         if (!rows.length) return false
         const last = rows[rows.length - 1]
@@ -1633,14 +1706,17 @@ export const useChatStore = defineStore('chat', {
         const res = await api.getConversation(cid)
         if (String(cid) !== String(this.conversationId)) return
         const assistantRows = pickArray((res.data || {}).messages).filter((m) => m.role === 'assistant')
-        let ai = 0
-        for (const m of this.messages) {
-          if (m.role !== 'assistant') continue
-          const src = assistantRows[ai++]
+        // Aligned from the NEWEST end: the conversation read returns only the latest page of messages,
+        // while the screen may also hold older pages the person loaded, so matching from the start
+        // put one message's plan onto another.
+        const onScreen = this.messages.filter((m) => m.role === 'assistant')
+        const offset = onScreen.length - assistantRows.length
+        onScreen.forEach((m, i) => {
+          const src = assistantRows[i - offset]
           if (src && Array.isArray(src.plan_artifacts) && src.plan_artifacts.length) {
             m.planArtifacts = src.plan_artifacts
           }
-        }
+        })
         const plan = usePlanStore()
         for (const m of this.messages) {
           for (const a of (m.planArtifacts || [])) if (a && a.run_id) plan.hydrateRun(a.run_id)
@@ -2307,15 +2383,17 @@ export const useChatStore = defineStore('chat', {
           if (this.hitlRequests.length === 0) this.awaitingApproval = false
           break
         // ── Mid-run steering: a message the user sent while the agent was working ──
-        case 'message_queued':
-          // ack that the backend queued the steering message (the optimistic bubble already shows it).
+        case 'message_queued': {
+          // The server SAVED the message (it survives a refresh or a restart from here on) and queued it for the
+          // running turn. Its row id comes back, so later frames find this exact bubble.
+          const qm = this._queuedBubble(msg)
+          if (qm && msg.message_id != null) qm.serverId = msg.message_id
           break
+        }
         case 'steering_deferred': {
           // The running agent judged this message a SEPARATE request: it is not taken into the run, and is
           // answered as its own turn when the run ends. It stays a bubble of its own, marked as waiting.
-          const text = msg.message || ''
-          const qm = [...this.messages].reverse().find(
-            (m) => m.role === 'user' && m.queued && !m.queuedAfter && (m.content || '') === text)
+          const qm = this._queuedBubble(msg, { notDeferred: true })
           if (qm) qm.queuedAfter = true
           break
         }
@@ -2326,13 +2404,25 @@ export const useChatStore = defineStore('chat', {
           // the answer after it below. Saved with the run's timeline, and the server marks the row a STEER, so
           // a reload shows it in the same place instead of jumping above the answer.
           const text = msg.message || ''
-          let qi = -1
-          for (let i = this.messages.length - 1; i >= 0; i--) {
-            const m = this.messages[i]
-            if (m.role === 'user' && m.queued && (m.content || '') === text) { qi = i; break }
-          }
-          if (qi >= 0) this.messages.splice(qi, 1)
+          const qm = this._queuedBubble(msg)
+          if (qm) this.messages.splice(this.messages.indexOf(qm), 1)
           _tl.addSteer(text)
+          break
+        }
+        case 'queued_messages_cancelled': {
+          // Stop means stop: messages that waited behind the run are not answered after it. They leave the
+          // thread and their text goes back into the message box, so nothing the person wrote is lost.
+          if (msg.conversation_id != null && this.conversationId != null &&
+              String(msg.conversation_id) !== String(this.conversationId)) break
+          const back = []
+          for (const it of (Array.isArray(msg.messages) ? msg.messages : [])) {
+            const qm = this._queuedBubble({ message_id: it.message_id, message: it.text })
+            if (qm) this.messages.splice(this.messages.indexOf(qm), 1)
+            if ((it.text || '').trim()) back.push(it.text.trim())
+          }
+          if (back.length && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('composer-restore', { detail: { text: back.join('\n\n') } }))
+          }
           break
         }
         case 'followup_turn_started': {
@@ -2355,11 +2445,16 @@ export const useChatStore = defineStore('chat', {
           // whatever thread they are now looking at.
           if (msg.conversation_id != null && this.conversationId != null &&
               String(msg.conversation_id) !== String(this.conversationId)) break
-          // The messages this turn answers are no longer waiting. (Without a list, every waiting bubble is.)
+          // The messages this turn answers are no longer waiting: by their saved ids, else by their words.
+          // (Without either list, every waiting bubble is.)
           {
+            const ids = Array.isArray(msg.message_ids) ? new Set(msg.message_ids.map(String)) : null
             const names = Array.isArray(msg.messages) ? new Set(msg.messages.map((t) => String(t || ''))) : null
             for (const m of this.messages) {
-              if (m.role === 'user' && m.queued && (!names || names.has(m.content || ''))) {
+              if (m.role !== 'user' || !m.queued) continue
+              const mine = ids && m.serverId != null ? ids.has(String(m.serverId))
+                : (!names || names.has(m.content || ''))
+              if (mine) {
                 m.queued = false
                 m.queuedAfter = false
               }

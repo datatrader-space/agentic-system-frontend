@@ -430,7 +430,7 @@ const fetchProviders = async () => {
 
 const fetchModels = async () => {
   try {
-    const res = await api.getLlmModels();
+    const res = await api.getLlmModels({ fields: 'picker' });   // ?fields=picker: every row, without the heavy metadata (not read here)
     llmModels.value = res.data.results || res.data;
   } catch (e) { console.error('Failed to fetch models:', e); }
 };

@@ -20,6 +20,7 @@
 </template>
 
 <script setup>
+import { studioChatName } from '../../services/studioMessagePresentation'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
@@ -34,7 +35,7 @@ const total = ref(0)
 const loading = ref(false)
 
 const hasMore = computed(() => chats.value.length < total.value)
-function label(c) { return c.name || 'Untitled chat' }
+function label(c) { return studioChatName(c.name) }
 function isOpen(c) { return String(route.query.conversation || chat.conversationId || '') === String(c.id) }
 function day(iso) {
   if (!iso) return ''

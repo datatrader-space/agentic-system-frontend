@@ -304,7 +304,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { watchOwnRouteParam } from '@/composables/useOwnRouteParam'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import tenancyApi from '../services/tenancyApi'
@@ -866,7 +867,7 @@ onMounted(() => {
   if (!orgStore.loaded) orgStore.load()   // populates org name for the breadcrumb
   loadModule()
 })
-watch(() => route.params.module, () => { activityPage.value = 1; loadModule() })
+watchOwnRouteParam('module', () => { activityPage.value = 1; loadModule() })   // never on the way out (F-M1)
 
 async function changeActivityPage(delta) {
   const next = activityPage.value + delta

@@ -8,15 +8,7 @@
        Send): the agent asks what it needs, picks every setting, and each paid step waits on a card. -->
   <section class="vcp" :class="['vcp-' + variant, 'is-' + video.kind, 'mode-' + video.studioMode]" :aria-label="boxLabel"
            data-test="video-composer-panel">
-    <div class="vcp-switches">
-    <div class="vcp-kind vcp-mode" role="radiogroup" aria-label="Who picks the settings" data-test="studio-mode">
-      <button v-for="m in modes" :key="m.value" type="button" role="radio" class="vcp-kind-opt" :class="{ on: video.studioMode === m.value }"
-              :aria-checked="video.studioMode === m.value ? 'true' : 'false'" :tabindex="video.studioMode === m.value ? 0 : -1"
-              :title="m.title" :data-test="'studio-mode-' + m.value" @keydown="navigateMode" @click="video.setStudioMode(m.value)">
-        <span class="vcp-kind-ic" aria-hidden="true" v-html="m.icon"></span>{{ m.label }}
-      </button>
-    </div>
-    </div>
+    <StudioModeSwitch v-if="showMode" />
     <div v-if="variant === 'create' && showTasks && !isAgent && video.kind === 'video'" class="vcp-cards" :style="{ '--task-count': visibleTasks.length }" role="radiogroup"
          aria-label="What would you like to create?">
       <button v-for="t in visibleTasks" :key="t.value" type="button" role="radio" class="vcp-card"
@@ -168,7 +160,9 @@ import VideoModelPicker from './VideoModelPicker.vue'
 import VideoChoice from './VideoChoice.vue'
 import { TASK_ART } from './videoArt'
 
+import StudioModeSwitch from '../studio/StudioModeSwitch.vue'
 const props = defineProps({
+  showMode: { type: Boolean, default: true },
   draft: { type: String, default: '' },
   // The host shows its own Send as the main action (the create screen in Manual mode): this button is quieter.
   secondaryPrimary: { type: Boolean, default: false },
@@ -200,22 +194,9 @@ const ICON = {
   stack: S('<rect x="7" y="7" width="13" height="13" rx="1.5"/><path d="M4 16V5a1 1 0 0 1 1-1h11"/>'),
 }
 // Agent or Manual (D15): who picks the settings. Agent is the default.
-const modes = [
-  { value: 'agent', label: 'Agent', title: 'The agent asks what it needs and picks every setting',
-    icon: S('<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M18.5 15l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z"/>') },
-  { value: 'manual', label: 'Manual', title: 'You pick the model and every setting',
-    icon: S('<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>') },
-]
 const isAgent = computed(() => video.studioMode === 'agent')
 const boxLabel = computed(() => (isAgent.value ? 'Message the Video Studio agent'
   : video.kind === 'image' ? 'Describe your image' : 'Describe your video'))
-function navigateMode(event) {
-  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
-  event.preventDefault()
-  const next = isAgent.value ? 'manual' : 'agent'
-  video.setStudioMode(next)
-  event.currentTarget.parentElement.querySelector(`[data-test="studio-mode-${next}"]`)?.focus()
-}
 // Image or Video: a choice in the settings row (owner, 2026-10-20). Image only when an image model is there.
 const kindOptions = computed(() => [
   { value: 'video', label: 'Video', hint: 'A clip from words, images or footage', glyph: ICON.clip },
@@ -492,25 +473,9 @@ defineExpose({ submit: onPrimary })
 .vcp-card-check :deep(svg) { width: 14px; height: 14px; }
 
 /* Agent / Manual and, in Manual, Image / Video: one row of segmented switches above the box. */
-.vcp-switches { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.vcp-create > .vcp-switches { justify-content: center; }
-.vcp-switches .vcp-kind { justify-self: auto; }
 /* Image or Video: one segmented switch. On the create screen it sits centred under the title, the first choice; in the
    agent column it sits small at the left above the box. The chosen side is lifted, with the accent on its icon. */
-.vcp-kind { display: inline-flex; justify-self: start; gap: 2px; padding: 3px; border: 1px solid var(--vm-line, #dce3ee); border-radius: 999px;
-  background: var(--vm-bg, #f8fafc); }
 
-.vcp-kind-opt { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 14px; border: 0; border-radius: 999px;
-  background: transparent; color: var(--vm-ink-soft, #64748b); font: inherit; font-size: 13.5px; font-weight: 500; cursor: pointer;
-  transition: background-color .15s, color .15s; }
-.vcp-kind-opt:hover:not(:disabled):not(.on) { color: var(--vm-ink, #0f172a); }
-.vcp-kind-opt.on { background: var(--vm-surface-2, #fff); color: var(--vm-ink, #0f172a); box-shadow: 0 0 0 1px var(--vm-line, #dce3ee); }
-.vcp-kind-opt:disabled { opacity: .45; cursor: not-allowed; }
-.vcp-kind-ic { width: 16px; height: 16px; flex-shrink: 0; }
-.vcp-kind-ic :deep(svg) { width: 16px; height: 16px; display: block; }
-.vcp-kind-opt.on .vcp-kind-ic { color: var(--vs-accent-ink, var(--vm-violet, #4f46e5)); }
-.vcp-create .vcp-kind-opt { min-height: 40px; padding: 0 20px; font-size: 14px; }
-.vcp-kind-opt:focus-visible { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
 
 /* The box. */
 .vcp-box { position: relative; display: grid; min-width: 0; border: 1px solid var(--vm-line, #dce3ee); border-radius: 10px;
@@ -612,7 +577,6 @@ defineExpose({ submit: onPrimary })
 
 /* Touch: every control reaches 44px. */
 @media (pointer: coarse) {
-  .vcp-kind-opt { min-height: 44px; }
   .vcp-plus { width: 44px; height: 44px; }
   .vcp-pill, .vcp-role, .vcp-chip-x, .vcp-primary, .vcp-secondary { min-height: 44px; }
   .vcp-chip-x { min-width: 44px; }
@@ -623,9 +587,9 @@ defineExpose({ submit: onPrimary })
   .vcp-card { grid-template-rows: none; grid-template-columns: 112px minmax(0, 1fr); align-items: center; }
   .vcp-card-art { aspect-ratio: 16 / 10; padding: 6px; }
   .vcp-card-text { padding: 10px 36px 10px 12px; }
-  .vcp-create .vcp-go { flex: 1 1 100%; justify-content: flex-end; }
+  .vcp-create.mode-manual .vcp-go { flex: 1 1 100%; justify-content: flex-end; }
 }
 /* The agent column keeps "+", the settings chip and the two actions on one row until it is very narrow. */
-@container (max-width: 360px) { .vcp-chat .vcp-go { flex: 1 1 100%; justify-content: flex-end; } }
+@container (max-width: 360px) { .vcp-chat.mode-manual .vcp-go { flex: 1 1 100%; justify-content: flex-end; } }
 @media (prefers-reduced-motion: reduce) { .vcp * { transition: none !important; } }
 </style>

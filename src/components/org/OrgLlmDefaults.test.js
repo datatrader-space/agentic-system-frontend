@@ -9,7 +9,6 @@ const ABSOLUTE = {
   max_image_bytes: 20971520, max_image_width: 8192, max_image_height: 8192,
 }
 const PREVIEW = {
-  profile: 'long', profile_source: 'org_policy',
   hard_input_limit: 120000, total_tool_context_budget: 30000,
   sources: { hard_input_limit: 'org_policy', total_tool_context_budget: 'org_policy' },
 }
@@ -21,42 +20,14 @@ function mountIt(props = {}) {
 }
 
 describe('OrgLlmDefaults', () => {
-  it('renders the default-profile dropdown and numeric fields', () => {
+  it('renders the numeric fields and no context-profile control', () => {
     const w = mountIt()
-    expect(w.find('[data-test="old-default_context_profile"]').exists()).toBe(true)
+    expect(w.find('[data-test="old-default_context_profile"]').exists()).toBe(false)
+    expect(w.find('select').exists()).toBe(false)
+    expect(w.text().toLowerCase()).not.toContain('context profile')
     expect(w.find('[data-test="old-max_input_tokens"]').exists()).toBe(true)
     expect(w.find('[data-test="old-max_tool_iterations"]').exists()).toBe(false)
     expect(w.find('[data-test="old-image_downscale_enabled"]').exists()).toBe(true)
-  })
-
-  it('lists the three context-size tiers plus the no-default option', () => {
-    const w = mountIt()
-    const opts = w.find('[data-test="old-default_context_profile"] select').findAll('option')
-    // 3 tiers + 1 "no org default"
-    expect(opts.length).toBe(4)
-    const values = opts.map((o) => o.element.value)
-    expect(values).toEqual(['', 'short', 'medium', 'long'])
-  })
-
-  it('loads the current default profile', () => {
-    const w = mountIt({ modelValue: { default_context_profile: 'long' } })
-    const sel = w.find('[data-test="old-default_context_profile"] select')
-    expect(sel.element.value).toBe('long')
-  })
-
-  it('emits the chosen profile', async () => {
-    const w = mountIt()
-    await w.find('[data-test="old-default_context_profile"] select').setValue('long')
-    const last = w.emitted('update:modelValue').at(-1)[0]
-    expect(last.default_context_profile).toBe('long')
-    expect(w.emitted('change')).toBeTruthy()
-  })
-
-  it('clears the profile key when "no org default" is selected', async () => {
-    const w = mountIt({ modelValue: { default_context_profile: 'short' } })
-    await w.find('[data-test="old-default_context_profile"] select').setValue('')
-    const last = w.emitted('update:modelValue').at(-1)[0]
-    expect('default_context_profile' in last).toBe(false)
   })
 
   it('loads a current numeric value', () => {
@@ -132,9 +103,7 @@ describe('OrgLlmDefaults', () => {
 
   it('renders the effective preview with the binding source', () => {
     const w = mountIt()
-    const prof = w.find('[data-test="preview-profile"]')
-    expect(prof.text()).toContain('long')
-    expect(prof.text()).toContain('org_policy')
+    expect(w.find('[data-test="preview-profile"]').exists()).toBe(false)
     const inputRow = w.find('[data-test="preview-hard_input_limit"]')
     expect(inputRow.text()).toContain('120,000')     // final resolved
     expect(inputRow.text()).toContain('org_policy')  // source
@@ -149,7 +118,6 @@ describe('OrgLlmDefaults', () => {
 
   it('disables all inputs when disabled=true', () => {
     const w = mountIt({ disabled: true })
-    expect(w.find('[data-test="old-default_context_profile"] select').element.disabled).toBe(true)
     expect(w.find('[data-test="old-max_input_tokens"] input').element.disabled).toBe(true)
   })
 })

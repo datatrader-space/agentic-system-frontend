@@ -37,6 +37,10 @@
           </tr>
         </tbody>
       </table>
+      <!-- The list is paginated (20 a page): offer the rest instead of stopping at the first page. -->
+      <div v-if="!loading && !error && hasMore" class="state">
+        <button class="link" :disabled="loadingMore" @click="loadMore">{{ loadingMore ? 'Loading…' : `Load more (${rows.length} of ${total})` }}</button>
+      </div>
     </section>
 
     <!-- Editor drawer -->
@@ -120,14 +124,21 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, inject } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, inject } from 'vue'
 import { Icon } from '@iconify/vue'
 import api from '../../services/api'
+import { useRequestScope, isAbortError } from '@/composables/useRequestScope'
 
 const notify = inject('notify', (m) => console.log(m))
 const rows = ref([])
 const loading = ref(true)
+const loadingMore = ref(false)
+const hasMore = ref(false)
+const total = ref(0)
+let page = 1
 const error = ref(false)
+// A newer filter / search aborts the older list request, so a late answer cannot replace newer rows.
+const listScope = useRequestScope()
 const meta = reactive({ statuses: [], visibilities: [], difficulties: [], triggers: [], placements: [], action_types: [], product_areas: [], content: [] })
 const filters = reactive({ q: '', status: '', trigger_context: '' })
 
@@ -146,15 +157,43 @@ function onTitleInput() { if (!form.id && !form._slugTouched) form.slug = slugif
 let _t = null
 function debouncedLoad() { clearTimeout(_t); _t = setTimeout(load, 280) }
 
+function listParams(p) {
+  const params = { page: p }
+  for (const k of ['q', 'status', 'trigger_context']) if (filters[k]) params[k] = filters[k]
+  return params
+}
 async function load() {
-  loading.value = true; error.value = false
+  const signal = listScope.next()
+  loading.value = true; loadingMore.value = false; error.value = false
+  page = 1
   try {
-    const params = {}
-    for (const k of ['q', 'status', 'trigger_context']) if (filters[k]) params[k] = filters[k]
-    const { data } = await api.adminListGuidedTours(params)
+    const { data } = await api.get('/admin/helpcenter/guided-tours/', { params: listParams(page), noCache: true, signal })
+    if (signal.aborted) return
     rows.value = Array.isArray(data) ? data : (data.results || [])
-  } catch (e) { error.value = true }
+    hasMore.value = !Array.isArray(data) && !!data.next
+    total.value = Array.isArray(data) ? data.length : (Number(data.count) || rows.value.length)
+  } catch (e) {
+    if (isAbortError(e) || signal.aborted) return
+    error.value = true
+  }
   loading.value = false
+}
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  const signal = listScope.next()
+  loadingMore.value = true
+  try {
+    const { data } = await api.get('/admin/helpcenter/guided-tours/', { params: listParams(page + 1), noCache: true, signal })
+    if (signal.aborted) return
+    page += 1
+    rows.value = rows.value.concat(data.results || [])
+    hasMore.value = !!data.next
+  } catch (e) {
+    if (isAbortError(e) || signal.aborted) return
+    notify('Could not load more tours', 'error')
+  } finally {
+    if (!signal.aborted) loadingMore.value = false
+  }
 }
 async function loadMeta() {
   try { const { data } = await api.adminGuidedTourMeta(); Object.assign(meta, data) } catch (e) { /* degrade */ }
@@ -225,6 +264,7 @@ async function togglePublish(t) { try { await api.adminPublishGuidedTour(t.id, t
 async function remove() { const t = confirmRow.value; try { await api.adminDeleteGuidedTour(t.id); notify('Deleted', 'success'); confirmRow.value = null; load() } catch (e) { notify('Delete failed', 'error') } }
 
 onMounted(() => { load(); loadMeta() })
+onBeforeUnmount(() => clearTimeout(_t))
 </script>
 
 <style scoped>

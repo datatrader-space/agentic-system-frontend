@@ -224,6 +224,14 @@ function onTestRan() {
   testRefreshTimer = setTimeout(loadBundle, 1200)
 }
 
-watch(() => route.params.id, (id) => { agentId.value = id; refresh() })
+// Only a change of agent ON this page reloads. Leaving the page also changes route.params.id (to
+// undefined, or to another page's id) while this view is still mounted for the leave transition, which
+// used to call /agents/undefined/monitoring/ (F-M1).
+const ownRouteName = route.name
+watch(() => route.params.id, (id) => {
+  if (!id || route.name !== ownRouteName || String(id) === String(agentId.value)) return
+  agentId.value = id
+  refresh()
+})
 onMounted(refresh)
 </script>

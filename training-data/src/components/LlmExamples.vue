@@ -20,7 +20,7 @@ const tab = ref('Examples');
 // ── Examples ──
 const filters = ref({ source: '', kind: '', state: '', split: '' });
 const page = ref(1); const list = ref(null); const error = ref(''); const loading = ref(false);
-const opened = ref(null); const reason = ref(''); const deleting = ref(false); const deleteError = ref('');
+const opened = ref(null); const reason = ref(''); const deleting = ref(false); const deleteError = ref(''); const sure = ref(false);
 const LABELS = { source: SOURCE_LABEL, kind: KIND_LABEL, state: STATE_LABEL, split: SPLIT_LABEL };
 const pages = computed(() => list.value ? Math.max(1, Math.ceil(list.value.total / list.value.page_size)) : 1);
 
@@ -35,11 +35,12 @@ watch(filters, () => { page.value = 1; loadExamples(); }, { deep: true });
 watch(page, loadExamples);
 
 async function open(row) {
-  deleteError.value = ''; reason.value = '';
+  deleteError.value = ''; reason.value = ''; sure.value = false;
   try { opened.value = await llmApi.example(props.project.ref, row.id); } catch (e) { error.value = e.message; }
 }
 async function removeOpened() {
   if (!reason.value.trim()) { deleteError.value = 'Give the reason for the deletion.'; return; }
+  if (!sure.value) { sure.value = true; return; }   // a second press: it cannot be undone
   deleting.value = true; deleteError.value = '';
   try {
     const r = await llmApi.deleteExample(props.project.ref, opened.value.id, reason.value.trim());
@@ -175,7 +176,7 @@ onMounted(loadExamples);
 
     <UiDialog :open="!!opened" :title="opened ? `Example ${opened.id} · ${KIND_LABEL[opened.kind]}` : ''" @close="opened=null">
       <template v-if="opened">
-        <p class="dialog-description">{{ SOURCE_LABEL[opened.source] }}{{ opened.line ? `, line ${opened.line}` : '' }} · {{ STATE_LABEL[opened.state] }} · {{ SPLIT_LABEL[opened.split] }} · group {{ opened.group }}</p>
+        <p class="dialog-description">{{ SOURCE_LABEL[opened.source] }}{{ opened.line ? `, line ${opened.line}` : '' }} · {{ STATE_LABEL[opened.state] }} · {{ SPLIT_LABEL[opened.split] }} · {{ !opened.group || opened.group.startsWith('record:') ? 'its own group' : `group ${opened.group}` }}</p>
         <details v-for="r in [...opened.revisions].reverse()" :key="r.number" :open="r.number===opened.revision" class="llm-revision">
           <summary>Revision {{ r.number }} · {{ r.reason_label }}{{ r.by ? ` by ${r.by}` : '' }} · {{ ago(r.created_at) }}<UiBadge v-if="r.number===opened.revision" tone="green">In use</UiBadge></summary>
           <LlmConversation :content="r.content" />
@@ -184,8 +185,9 @@ onMounted(loadExamples);
           <h3><Trash2 :size="15" /> Delete on request</h3>
           <p class="field-help">The example and every revision go; it is never made again from where it came. Published dataset versions stay as they were and are listed.</p>
           <label class="field-label">Reason<input v-model="reason" class="text-input" maxlength="500" placeholder="e.g. the customer asked for it"></label>
+          <p v-if="sure" class="field-error" role="alert">This cannot be undone. Press again to delete the example and every revision of it.</p>
           <p v-if="deleteError" class="field-error" role="alert">{{ deleteError }}</p>
-          <div class="dialog-actions"><UiButton @click="opened=null">Close</UiButton><UiButton :disabled="deleting" @click="removeOpened"><ShieldCheck :size="15" /> {{ deleting ? 'Deleting…' : 'Delete this example' }}</UiButton></div>
+          <div class="dialog-actions"><UiButton @click="opened=null">Close</UiButton><UiButton :disabled="deleting" @click="removeOpened"><ShieldCheck :size="15" /> {{ deleting ? 'Deleting…' : sure ? 'Yes, delete it for good' : 'Delete this example' }}</UiButton></div>
         </template>
       </template>
     </UiDialog>

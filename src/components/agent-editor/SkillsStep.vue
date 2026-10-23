@@ -161,17 +161,19 @@ const totalPages = computed(() => Math.max(1, Math.ceil(filtered.value.length / 
 const paged = computed(() => filtered.value.slice((page.value - 1) * PAGE, page.value * PAGE))
 watch(filtered, () => { if (page.value > totalPages.value) page.value = totalPages.value })
 
+const SKILLS_MAX_PAGES = 20             // 2,000 skills at 100 a page
 async function loadSkills() {
   loading.value = true
   try {
     // The endpoint is server-paginated (20 a page by default). Walk every page, as the Skills library
     // does — one request showed only the first 20 skills, and the rest could not be assigned here.
+    // Capped: a server that keeps answering `next` (or a huge library) must not loop this step forever.
     const all = []
     let pageNo = 1
     for (;;) {
       const { data } = await api.get('/skills/', { params: { page: pageNo, page_size: 100 } })
       all.push(...pickArray(data))
-      if (!data?.next) break
+      if (!data?.next || pageNo >= SKILLS_MAX_PAGES) break
       pageNo += 1
     }
     skills.value = all

@@ -8,7 +8,8 @@
     <Transition name="confirm-fade">
       <div
         v-if="state.open"
-        class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        class="fixed inset-0 flex items-center justify-center p-4"
+        style="z-index: 10000"
         @keydown.esc.prevent="cancel"
       >
         <!-- backdrop -->
@@ -48,6 +49,7 @@
                  Cancel button would only ask the user to choose between two words for "I read it". -->
             <button
               v-if="!state.hideCancel"
+              ref="cancelBtn"
               @click="cancel"
               class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-100"
             >
@@ -75,21 +77,30 @@ import { confirmState, _settleConfirm } from '../composables/useConfirm'
 const state = confirmState
 const panel = ref(null)
 const confirmBtn = ref(null)
+const cancelBtn = ref(null)
 
 function ok() { _settleConfirm(true) }
 function cancel() { _settleConfirm(false) }
 
+// Enter confirms ONLY when the confirm button has focus (F-H8). It used to confirm from anywhere, so an
+// Enter meant for a field or the Cancel button deleted a workspace or an organisation. With focus
+// elsewhere, Enter does what it does natively (activates the focused button).
 function onKey(e) {
   if (!state.open) return
   if (e.key === 'Escape') { e.preventDefault(); cancel() }
-  else if (e.key === 'Enter') { e.preventDefault(); ok() }
+  else if (e.key === 'Enter' && confirmBtn.value && document.activeElement === confirmBtn.value) {
+    e.preventDefault()
+    ok()
+  }
 }
 
-// Focus the confirm button when the dialog opens (keyboard + a11y).
+// Focus a button when the dialog opens (keyboard + a11y). A destructive dialog starts on Cancel, so
+// a stray Enter can never be the thing that deletes.
 watch(() => state.open, async (open) => {
   if (open) {
     await nextTick()
-    if (confirmBtn.value) confirmBtn.value.focus()
+    const first = state.danger && cancelBtn.value ? cancelBtn.value : confirmBtn.value
+    if (first) first.focus()
   }
 })
 

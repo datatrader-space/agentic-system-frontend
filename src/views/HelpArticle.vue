@@ -92,6 +92,7 @@
 </template>
 
 <script setup>
+import { watchOwnRouteParam } from '@/composables/useOwnRouteParam'
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
@@ -193,7 +194,7 @@ async function sendFeedback(helpful) {
 }
 
 onMounted(load)
-watch(() => route.params.slug, load)
+watchOwnRouteParam('slug', load)   // never on the way out (F-M1)
 watch(() => route.hash, handleHash)
 </script>
 

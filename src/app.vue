@@ -44,7 +44,7 @@
            Also gated on routerReady so the initial async auth guard can't flash it
            before the shell resolves. -->
       <AppHeader
-        v-if="routerReady && !currentUser && !isAppShell && !isMarketingPage"
+        v-if="showLegacyHeader"
         :current-user="currentUser"
         :llm-health="llmHealth"
         :theme="theme"
@@ -122,8 +122,9 @@
     <!-- Global confirm dialog host (replaces native window.confirm everywhere) -->
     <ConfirmDialog />
     
-    <!-- Toast Notifications (if any) -->
-    <div class="fixed bottom-4 right-4 space-y-2">
+    <!-- Toast Notifications (if any). Above every modal and the confirm dialog (z 10000), so a message
+         about what a dialog just did is never hidden behind it. -->
+    <div class="fixed bottom-4 right-4 space-y-2" style="z-index: 10001">
       <div
         v-for="notification in notifications"
         :key="notification.id"
@@ -156,7 +157,7 @@
 import { ref, onMounted, provide, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import api from './services/api'
-import AppHeader from './components/layout/AppHeader.vue'
+import { lazyComponent } from './utils/lazyComponent'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import NavProgress from './components/app-shell/NavProgress.vue'
 import { useTheme } from './composables/useTheme'
@@ -165,6 +166,9 @@ import { identify } from './composables/useAnalytics'
 const router = useRouter()
 const route = useRoute()
 const llmHealth = ref(null)
+// The legacy top nav is for signed-out visitors only (1,900 lines): loaded when it is first shown,
+// never for a signed-in session.
+const AppHeader = lazyComponent(() => import('./components/layout/AppHeader.vue'), { showLoading: false })
 
 // True once the initial navigation (incl. the async auth guard) has resolved.
 // Until then `route` is at START_LOCATION (path '/', name undefined), which would
@@ -206,6 +210,8 @@ const marketingRoutes = new Set([
   'signup', 'forgot-password', 'reset-password', 'verify-email',
 ])
 const isMarketingPage = computed(() => marketingRoutes.has(route.name))
+const showLegacyHeader = computed(() =>
+  routerReady.value && !currentUser.value && !isAppShell.value && !isMarketingPage.value)
 
 // Public pages that need full-width dark layout
 const isPublicPage = computed(() => {
@@ -275,19 +281,27 @@ onMounted(async () => {
   if (route.path !== '/login') {
     await loadCurrentUser()
   }
+})
 
-  // Check LLM health
+// The LLM health badge lives only in the signed-out header: ask for it once, when that header is first
+// shown, instead of on every app load (signed-in users never see it).
+let llmHealthAsked = false
+watch(showLegacyHeader, async (shown) => {
+  if (!shown || llmHealthAsked) return
+  llmHealthAsked = true
   try {
     const response = await api.get('/llm/health/')
     llmHealth.value = response.data
   } catch (error) {
     console.error('Failed to check LLM health:', error)
   }
-})
+}, { immediate: true })
 
-// Watch for route changes to reload user if needed
+// Entering a signed-in page with no user loaded (e.g. right after signing in): load it. Not on every
+// navigation between signed-out pages, where the answer is always "nobody" (it refetched /auth/me
+// on each click).
 watch(() => route.path, async (newPath) => {
-  if (newPath !== '/login' && !currentUser.value) {
+  if (newPath !== '/login' && !currentUser.value && route.meta.requiresAuth) {
     await loadCurrentUser()
   }
 })
@@ -377,6 +391,11 @@ provide('logout', handleLogout)
 </script>
 
 <style>
+/* vue-toastification: above every modal and the confirm dialog (z 10000), like the stack above. */
+.Vue-Toastification__container {
+  z-index: 10001;
+}
+
 /* Global styles */
 body {
   margin: 0;

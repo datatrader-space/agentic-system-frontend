@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { mount, flushPromises } from '@vue/test-utils'
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
+import { useStudioExperience } from '../composables/useStudioExperience'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 
 const submitSpy = vi.hoisted(() => vi.fn())
@@ -12,10 +13,12 @@ vi.mock('../stores/useCanvasStore', () => ({ useCanvasStore: () => state.canvas 
 vi.mock('../services/api', () => ({ default: { get: state.get, post: state.post, getVideoStudioAgent: state.studio } }))
 vi.mock('../composables/useNotify', () => ({ notify: { error: vi.fn() } }))
 import VideoStudio from './VideoStudio.vue'
+import StudioModeSwitch from '../components/studio/StudioModeSwitch.vue'
 
 let wrapper
 const stubs = {
-  VideoComposerPanel: { props: ['draft'], template: '<div data-test="creation"><slot name="above" /><slot /><slot name="actions" /></div>',
+  HomeFeatures: true,
+  VideoComposerPanel: { name: 'VideoComposerPanel', props: { draft: String, showMode: { type: Boolean, default: true } }, components: { StudioModeSwitch }, template: '<div data-test="creation"><StudioModeSwitch v-if="showMode" /><slot name="above" /><slot /><slot name="actions" /></div>',
                         methods: { submit: submitSpy } },
   VideoJobsTray: { props: ['conversationId'], template: '<div data-test="tray" />' },
   VideoPanel: { template: '<div data-test="workspace" />' },
@@ -26,10 +29,10 @@ const stubs = {
   FullDocCostCard: true, ProviderSwitchDialog: true, RouterLink: { template: '<a><slot /></a>' },
 }
 const button = (label) => wrapper.findAll('button').find((b) => b.text() === label)
-async function render() { wrapper = mount(VideoStudio, { global: { stubs } }); await flushPromises(); return wrapper }
+async function render(user = null) { wrapper = mount(VideoStudio, { global: { stubs, provide: { studioUser: ref(user) } } }); await flushPromises(); return wrapper }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.clearAllMocks(); localStorage.clear()
   state.push.mockResolvedValue(undefined)
   state.replace.mockResolvedValue(undefined)
   state.route = reactive({ query: {} })
@@ -46,7 +49,9 @@ beforeEach(() => {
     respondHitl: vi.fn(), dismissHitl: vi.fn(), skipHitl: vi.fn(), stop: vi.fn(),
   })
   state.video = reactive({
+    studioMode: 'agent', setStudioMode: vi.fn((mode) => { state.video.studioMode = mode }),
     studioDraft: 'A product reveal', busy: false, project: null, panelTab: 'preview', refs: [],
+    sendAgentMessage: vi.fn(async ({prompt,chat}) => chat.sendMessage(prompt)),
     reset: vi.fn(), jobsFor: vi.fn(() => []), loadJobs: vi.fn().mockResolvedValue(),
     loadProject: vi.fn().mockResolvedValue(), loadVersions: vi.fn().mockResolvedValue(),
     queuedUse: [], applyQueuedUse: vi.fn().mockResolvedValue(true), libraryOpen: false,
@@ -154,17 +159,45 @@ describe('Video Studio', () => {
     expect(wrapper.find('[data-test="creation"]').exists()).toBe(false)
   })
 
-  it('a starting idea fills the prompt and picks its task without sending anything', async () => {
-    state.video.studioDraft = ''
-    state.video.setTask = vi.fn((t) => { state.video.task = t })
+  it('opens Home with Agent selected and both composer modes available', async () => {
     await render()
-    const ideas = wrapper.findAll('[data-test="studio-start"]')
-    expect(ideas.length).toBe(3)
-    await ideas[1].trigger('click')
-    expect(state.video.setTask).toHaveBeenCalledWith('story')
-    expect(wrapper.get('[data-test="studio-prompt"]').element.value).toContain('30-second ad')
+    expect(wrapper.get('h1').text()).toBe('Home')
+    expect(wrapper.findAll('[data-test="studio-prompt"]')).toHaveLength(1)
+    expect(wrapper.findAll('[data-test="studio-start"]')).toHaveLength(0)
+    expect(wrapper.findComponent({ name: 'VideoComposerPanel' }).props('showMode')).toBe(true)
+    expect(wrapper.get('[data-test="studio-mode-agent"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.get('[data-test="studio-mode-manual"]').exists()).toBe(true)
+    expect(state.video.studioMode).toBe('agent')
+    expect(state.chat.sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('keeps an existing Manual choice when Home opens', async () => {
+    state.video.studioMode = 'manual'
+    localStorage.setItem('aadml.studio.mode.existing-person', 'manual')
+    await render({id:'existing-person'})
+    expect(wrapper.get('[data-test="studio-mode-manual"]').attributes('aria-checked')).toBe('true')
+    expect(state.chat.studioMode).toBe('manual')
+    expect(state.video.sendAgentMessage).not.toHaveBeenCalled()
+    expect(state.post).not.toHaveBeenCalled()
+  })
+
+  it('switches Home modes without sending or losing the draft; Manual keeps its estimate shortcut', async () => {
+    await render()
+    await wrapper.get('[data-test="studio-mode-manual"]').trigger('click')
+    expect(state.video.setStudioMode).toHaveBeenCalledWith('manual')
+    expect(state.chat.studioMode).toBe('manual')
+    expect(wrapper.get('[data-test="studio-prompt"]').element.value).toBe('A product reveal')
+    expect(wrapper.get('[data-test="studio-send-message"]').classes()).toContain('quiet')
     expect(state.chat.sendMessage).not.toHaveBeenCalled()
     expect(state.post).not.toHaveBeenCalled()
+    const prompt = wrapper.get('[data-test="studio-prompt"]')
+    await prompt.trigger('keydown', { key: 'Enter' })
+    expect(submitSpy).not.toHaveBeenCalled()
+    await prompt.trigger('keydown', { key: 'Enter', ctrlKey: true })
+    expect(submitSpy).toHaveBeenCalledOnce()
+    await wrapper.get('[data-test="studio-mode-agent"]').trigger('click')
+    expect(state.chat.studioMode).toBe('agent')
+    expect(wrapper.get('[data-test="studio-send-message"]').classes()).not.toContain('quiet')
   })
 
   it('"Send message" sends the prompt to the agent as a plain message and clears it', async () => {
@@ -177,13 +210,14 @@ describe('Video Studio', () => {
     expect(state.video.studioDraft).toBe('')
   })
 
-  it('Ctrl+Enter in the prompt runs the composer\'s main action; Enter alone does not', async () => {
+  it('Enter sends from the Home Agent prompt; Shift+Enter keeps a newline', async () => {
     await render()
     const prompt = wrapper.get('[data-test="studio-prompt"]')
-    await prompt.trigger('keydown', { key: 'Enter' })
+    await prompt.trigger('keydown', { key:'Enter', shiftKey:true })
+    expect(state.video.sendAgentMessage).not.toHaveBeenCalled()
+    await prompt.trigger('keydown', { key:'Enter' }); await flushPromises()
+    expect(state.video.sendAgentMessage).toHaveBeenCalledWith({ prompt:'A product reveal', chat:state.chat })
     expect(submitSpy).not.toHaveBeenCalled()
-    await prompt.trigger('keydown', { key: 'Enter', ctrlKey: true })
-    expect(submitSpy).toHaveBeenCalledTimes(1)
   })
 
   it('prevents switching sessions while the assistant is working', async () => {
@@ -191,21 +225,21 @@ describe('Video Studio', () => {
     await render()
     state.chat.isBusy = true
     await wrapper.vm.$nextTick()
-    expect(button('New video').attributes('disabled')).toBeDefined()
+    expect(button('New').attributes('disabled')).toBeDefined()
   })
 
   // Owner, 2026-10-20: "nothing happening when click" on the start screen. The Library opens there too (it is
   // mounted by the page, not by the canvas, which is absent before the first message), and "New video" is shown
   // only once a chat is open, since the start screen already is a new video.
-  it('opens the Library from the start screen and shows "New video" only in a chat', async () => {
+  it('opens the Library from the start screen and shows "New" only in a chat', async () => {
     await render()
     expect(wrapper.find('[data-test="studio-create"]').exists()).toBe(true)
-    expect(button('New video')).toBeUndefined()
+    expect(button('New')).toBeUndefined()
     await wrapper.get('[data-test="studio-open-library"]').trigger('click')
     expect(wrapper.find('[data-test="library"]').exists()).toBe(true)
     state.chat.conversationId = 'saved-session'
     await flushPromises()
-    expect(button('New video')).toBeDefined()
+    expect(button('New')).toBeDefined()
     expect(wrapper.findAll('[data-test="library"]')).toHaveLength(1)
   })
 
@@ -222,7 +256,7 @@ describe('Video Studio', () => {
   it('starts on the create screen, and shows the workspace with the agent once a video session exists', async () => {
     await render()
     expect(wrapper.find('[data-test="studio-create"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('What would you like to create?')
+    expect(wrapper.text()).toContain('What do you want to make?')
     expect(wrapper.find('[data-test="workspace"]').exists()).toBe(false)
     state.chat.conversationId = 'c9'
     await flushPromises()
@@ -250,4 +284,20 @@ describe('Video Studio', () => {
     expect(button('Back to chat')).toBeUndefined()
     expect(wrapper.text()).not.toMatch(/CREATE|REFINE|EXPORT/)
   })
+})
+
+it('shares Home mode preferences with feature pages and isolates each signed-in person', async () => {
+  const person=ref({id:'round5-owner'})
+  await render(person)
+  await wrapper.get('[data-test="studio-mode-manual"]').trigger('click')
+  expect(localStorage.getItem('aadml.studio.mode.round5-owner')).toBe('manual')
+  person.value={id:'another-person'}; await flushPromises()
+  expect(state.video.studioMode).toBe('agent')
+  person.value={id:'round5-owner'}; await flushPromises()
+  expect(state.video.studioMode).toBe('manual')
+  await wrapper.get('[data-test="studio-mode-agent"]').trigger('click')
+  expect(localStorage.getItem('aadml.studio.mode.round5-owner')).toBe('agent')
+  wrapper.unmount()
+  wrapper=mount({setup(){return useStudioExperience('image')},template:'<p>{{ isAgent }}</p>'},{global:{provide:{studioUser:person}}})
+  expect(wrapper.text()).toBe('true')
 })

@@ -32,7 +32,11 @@ async function load() {
   clearTimeout(timer);
   if (page.value?.runs.some(r => ['queued', 'starting', 'running', 'finalizing'].includes(r.state))) timer = setTimeout(load, 3000);
 }
-watch(() => form.value.method, m => { if (!['dpo', 'kto'].includes(m)) form.value.parent = ''; });
+// Preference training usually goes on from a model taught by SFT: the newest one is offered first (it can be changed).
+watch(() => form.value.method, m => {
+  if (!['dpo', 'kto'].includes(m)) form.value.parent = '';
+  else if (!form.value.parent && parents.value.length) form.value.parent = parents.value[0].version;
+});
 
 async function start() {
   busy.value = true; error.value = ''; told.value = '';
@@ -42,7 +46,8 @@ async function start() {
       max_runtime_seconds: Number(form.value.runtime), parent: form.value.parent ? Number(form.value.parent) : undefined,
       overrides: trainingOverrides(form.value), idempotency_key: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`,
     });
-    told.value = `Run ${run.number} is ${run.state_label.toLowerCase()}.`;
+    told.value = `Run ${run.number} is started. Its state and progress are in the list below.`;   // not a state that goes stale
+    Object.assign(form.value, { epochs: '', max_steps: '', learning_rate: '', rank: '' });   // a change was for that run only
     await load();
   } catch (e) { error.value = e.message; }
   finally { busy.value = false; }
@@ -57,6 +62,9 @@ async function move(name) {
   finally { busy.value = false; }
 }
 const unfinished = run => ['queued', 'starting', 'running', 'finalizing'].includes(run?.state);
+// A job says its steps once it trains; before that it loads the model and the data (found 2026-10-21: "0 of 0 steps").
+const progressText = p => (!p ? '—' : p.steps ? `${p.phase === 'training' ? '' : `${p.phase}: `}${p.steps_done} of ${p.steps} steps`
+  : p.phase === 'preparing' ? 'loading the model and the data' : p.phase);
 // Green for a model, purple while it runs; an ended run without a model stays neutral (its word says which).
 const stateTone = state => (state === 'succeeded' ? 'green' : unfinished({ state }) ? 'purple' : 'neutral');
 onMounted(load);
@@ -82,7 +90,7 @@ onUnmounted(() => clearTimeout(timer));
           <label v-if="['dpo', 'kto'].includes(form.method)" class="field-label">Start from<select v-model="form.parent" class="text-input"><option value="">The base model</option><option v-for="m in parents" :key="m.version" :value="m.version">{{ m.name }} ({{ m.method.toUpperCase() }})</option></select></label>
         </div>
         <p v-if="base" class="field-help">Base model: <strong>{{ base.name }}</strong> ({{ base.size }}), {{ base.licence }} <UiBadge :tone="base.use === 'research' ? 'dark' : 'green'">{{ USE[base.use] }}</UiBadge><template v-if="!base.ready"> It is not ready on this server.</template></p>
-        <p v-if="form.config" class="field-help">{{ form.config }}: {{ configSummary(page.configurations[form.config]) }}</p>
+        <p v-if="form.config" class="field-help">{{ form.config }}: {{ configSummary({ ...page.configurations[form.config], ...trainingOverrides(form) }) }}{{ Object.keys(trainingOverrides(form)).length ? ' (changed for this run)' : '' }}</p>
         <details><summary>Change settings for this run</summary>
           <div class="llm-grid">
             <label class="field-label">Epochs<input v-model="form.epochs" class="text-input" type="number" min="1" max="20" placeholder="as configured"></label>
@@ -100,8 +108,8 @@ onUnmounted(() => clearTimeout(timer));
         <table class="llm-table"><thead><tr><th>Run</th><th>Method</th><th>Dataset</th><th>State</th><th>Progress</th><th>Loss</th><th>Model</th><th>Started</th></tr></thead><tbody>
           <tr v-for="r in page.runs" :key="r.number" class="llm-row" tabindex="0" @click="open(r)" @keydown.enter="open(r)">
             <td>{{ r.number }}</td><td>{{ r.method_label }}{{ r.parent ? ` from ${r.parent}` : '' }}</td><td>{{ r.dataset_version }}</td>
-            <td><UiBadge :tone="stateTone(r.state)">{{ r.state_label }}</UiBadge></td>
-            <td>{{ r.progress ? `${r.progress.steps_done} of ${r.progress.steps} steps` : '—' }}</td>
+            <td><UiBadge :tone="stateTone(r.state)">{{ r.state_label }}</UiBadge><small v-if="r.state === 'queued'" class="field-help"> waits its turn: this machine runs one training or evaluation job at a time</small></td>
+            <td>{{ progressText(r.progress) }}</td>
             <td>{{ r.metrics?.train_loss != null ? r.metrics.train_loss.toFixed(3) : '—' }}{{ r.metrics?.eval_loss != null ? ` / ${r.metrics.eval_loss.toFixed(3)}` : '' }}</td>
             <td>{{ r.model || '—' }}</td><td>{{ ago(r.created_at) }}</td></tr>
         </tbody></table>
@@ -116,12 +124,13 @@ onUnmounted(() => clearTimeout(timer));
         </div></div>
       <section class="panel">
         <h2>Run {{ opened.number }} · {{ opened.method_label }} <UiBadge :tone="stateTone(opened.state)">{{ opened.state_label }}</UiBadge></h2>
+        <p v-if="opened.cancel_requested && unfinished(opened)" class="field-help" role="status">Cancelling: the job is asked to stop and ends within about two minutes.</p>
         <p v-if="opened.failure" class="field-error">{{ opened.failure }}</p>
         <dl class="llm-facts">
           <dt>Dataset</dt><dd>{{ opened.dataset_version }}</dd>
           <dt>Base model</dt><dd>{{ opened.base_model }}{{ opened.parent ? `, starting from ${opened.parent}` : '' }}</dd>
           <dt>Configuration</dt><dd>{{ opened.config_name }}: {{ configSummary(opened.config_given) }}</dd>
-          <dt>Progress</dt><dd>{{ opened.progress ? `${opened.progress.phase}: ${opened.progress.steps_done} of ${opened.progress.steps} steps, ${opened.progress.training_rows} rows` : '—' }}</dd>
+          <dt>Progress</dt><dd>{{ progressText(opened.progress) }}{{ opened.progress ? `, ${opened.progress.training_rows} rows` : '' }}</dd>
           <dt>Loss</dt><dd>{{ opened.metrics?.train_loss != null ? `training ${opened.metrics.train_loss.toFixed(3)}` : '—' }}{{ opened.metrics?.eval_loss != null ? `, validation ${opened.metrics.eval_loss.toFixed(3)}` : '' }}</dd>
           <dt>Model</dt><dd>{{ opened.model || 'none yet' }}</dd>
           <dt>Code</dt><dd><code>{{ opened.code.git_sha.slice(0, 12) }}</code> · tree <code>{{ opened.code.tree_sha256.slice(0, 12) }}</code></dd>

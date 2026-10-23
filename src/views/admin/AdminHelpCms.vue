@@ -14,13 +14,14 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, defineAsyncComponent } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { lazyComponent } from '@/utils/lazyComponent'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 
-const AdminHelpContent = defineAsyncComponent(() => import('./AdminHelpContent.vue'))
-const AdminGuidedTours = defineAsyncComponent(() => import('./AdminGuidedTours.vue'))
-const AdminApiReference = defineAsyncComponent(() => import('./AdminApiReference.vue'))
+const AdminHelpContent = lazyComponent(() => import('./AdminHelpContent.vue'))
+const AdminGuidedTours = lazyComponent(() => import('./AdminGuidedTours.vue'))
+const AdminApiReference = lazyComponent(() => import('./AdminApiReference.vue'))
 
 const tabs = [
   { key: 'content', label: 'Content', icon: 'lucide:file-text', comp: AdminHelpContent },

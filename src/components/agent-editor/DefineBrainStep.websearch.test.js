@@ -22,7 +22,6 @@ const SEARCH_MODELS = [
 
 const api = vi.hoisted(() => ({
   get: vi.fn(),
-  getAgentEffectivePolicy: vi.fn(),
   getWebSearchModels: vi.fn(),
   getAgentWebIntelligence: vi.fn(),
   updateAgentWebIntelligence: vi.fn(),
@@ -34,7 +33,6 @@ import DefineBrainStep from './DefineBrainStep.vue'
 
 const stubs = {
   ModelPicker: { template: '<div class="model-picker-stub" />' },
-  ContextProfilePicker: { template: '<div />' },
   RouterLink: { template: '<a><slot/></a>' },
 }
 
@@ -59,7 +57,6 @@ beforeEach(() => {
   api.get.mockImplementation((url) => String(url).includes('providers')
     ? Promise.resolve({ data: [{ id: 1, name: 'P', provider_type: 'openai' }] })
     : Promise.resolve({ data: [{ id: 10, name: 'gpt', model_id: 'gpt', provider: 1, metadata: {} }] }))
-  api.getAgentEffectivePolicy.mockResolvedValue({ data: {} })
   api.getWebSearchModels.mockResolvedValue({ data: { models: SEARCH_MODELS } })
   api.updateAgentWebIntelligence.mockResolvedValue({ data: { config: {}, effective: {}, editable: true } })
 })

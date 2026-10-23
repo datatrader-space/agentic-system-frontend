@@ -188,8 +188,11 @@ onMounted(async () => {
 })
 onUnmounted(() => host()?.removeEventListener('scroll', onScroll))
 
+// Only while this page is still the current route: on the way out `slug` falls back to
+// 'privacy-policy' and would load it for nothing (F-M1).
+const ownRouteName = route.name
 watch(slug, async (next) => {
-  if (!next) return
+  if (!next || route.name !== ownRouteName) return
   await load(next)
   host()?.scrollTo({ top: 0 })
 })

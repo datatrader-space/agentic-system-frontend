@@ -7,12 +7,12 @@
           <!-- An icon name containing a colon is an Iconify id and must be RENDERED; printing it
                showed the literal string "logos:jira" as the service's icon. -->
           <div class="text-4xl flex items-center justify-center">
-            <Icon v-if="(service.icon || '').includes(':')" :icon="service.icon" class="w-9 h-9" />
-            <template v-else>{{ service.icon || '🌐' }}</template>
+            <Icon v-if="(head.icon || '').includes(':')" :icon="head.icon" class="w-9 h-9" />
+            <template v-else>{{ head.icon || '🌐' }}</template>
           </div>
           <div>
-            <h2>{{ service.name }}</h2>
-            <p class="text-gray-500">{{ service.slug }}</p>
+            <h2>{{ head.name }}</h2>
+            <p class="text-gray-500">{{ head.slug }}</p>
           </div>
         </div>
         <button class="close-button" @click="$emit('close')">✕</button>
@@ -362,8 +362,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { isTrustedPopupMessage } from '@/utils/popupMessages'
+import { ref, computed, onMounted } from 'vue'
+import { useOAuthPopup } from '@/composables/useOAuthPopup'
+import { usePoller } from '@/composables/usePoller'
 import api from '../../services/api'
 import { Icon } from '@iconify/vue'
 import ServiceEditModal from './ServiceEditModal.vue'
@@ -401,7 +402,6 @@ const showShareModal = ref(false)
 const repairPending = ref(0)
 const repairBusy = ref(false)
 const repairJob = ref(null)
-let repairPoll = null
 
 const refreshRepairPending = async () => {
   try {
@@ -432,36 +432,38 @@ const startRepair = async () => {
   }
 }
 
-const pollRepair = (jobId) => {
-  clearInterval(repairPoll)
-  repairPoll = setInterval(async () => {
-    try {
-      const { data } = await api.getEnrichmentJobStatus(jobId)
-      repairJob.value = {
-        done: data.done, total: data.total,
-        percent: data.percent, model: data.model,
-      }
-      if (data.state === 'done' || data.state === 'failed') {
-        clearInterval(repairPoll)
-        repairPoll = null
-        repairJob.value = null
-        if (data.state === 'failed') {
-          notify.error(data.error_detail || data.error || 'Enrichment stopped.')
-        } else {
-          notify.success(`Enriched ${data.enriched_by_llm} of ${data.total} actions.`)
-        }
-        await refreshRepairPending()
-        await loadServiceDetails()
-      }
-    } catch {
-      clearInterval(repairPoll)
-      repairPoll = null
-      repairJob.value = null
+// One poller (usePoller): paused while the tab is hidden, backs off on an error instead of giving up
+// after one failed read, never overlaps itself (so the end-of-run toast fires once), and is cancelled
+// when the modal closes.
+let repairJobId = null
+const repairPoller = usePoller(async () => {
+  const { data } = await api.getEnrichmentJobStatus(repairJobId)
+  repairJob.value = {
+    done: data.done, total: data.total,
+    percent: data.percent, model: data.model,
+  }
+  if (data.state === 'done' || data.state === 'failed') {
+    repairJob.value = null
+    if (data.state === 'failed') {
+      notify.error(data.error_detail || data.error || 'Enrichment stopped.')
+    } else {
+      notify.success(`Enriched ${data.enriched_by_llm} of ${data.total} actions.`)
     }
-  }, 2000)
-}
+    await refreshRepairPending()
+    await loadServiceDetails()
+  }
+  return data
+}, {
+  interval: 2000,
+  maxInterval: 30000,
+  stopWhen: (data) => data?.state === 'done' || data?.state === 'failed',
+})
 
-onUnmounted(() => { if (repairPoll) clearInterval(repairPoll) })
+const pollRepair = (jobId) => {
+  repairPoller.stop()
+  repairJobId = jobId
+  repairPoller.start({ immediate: false })
+}
 
 // OAuth state
 const oauthStatus = ref({ connected: false })
@@ -512,37 +514,28 @@ const checkOAuthStatus = async () => {
   }
 }
 
+// The shared popup flow (useOAuthPopup): opened inside the click, always settles (message, closed popup
+// or timeout), clears the API cache when it ends, and resets the busy flag in `finally`. The listener used
+// to be attached in onMounted AFTER a call to an undefined function, which threw first — so the result
+// message was never heard and "Connecting..." never ended (F-C2).
+const oauthPopup = useOAuthPopup()
 const startOAuth = async () => {
+  if (oauthBusy.value) return
   oauthBusy.value = true
   try {
-    const res = await api.startOAuth(props.service.id)
-    const redirectUrl = res.data.redirect_url
-    // Open popup
-    const popup = window.open(
-      redirectUrl,
-      'oauth_popup',
-      'width=600,height=700,scrollbars=yes'
+    const result = await oauthPopup.run(
+      () => api.startOAuth(props.service.id).then((res) => res.data?.redirect_url),
+      {
+        name: 'oauth_popup',
+        messageTypes: ['oauth_result'],
+        verify: async () => !!(await api.getOAuthStatus(props.service.id)).data?.connected,
+      },
     )
-    // Fallback: if popup blocked
-    if (!popup || popup.closed) {
-      notify.error('Popup blocked. Please allow popups for this site.')
-      oauthBusy.value = false
-    }
-  } catch (err) {
-    console.error('Failed to start OAuth:', err)
-    notify.error(err.response?.data?.error || 'Failed to start OAuth flow')
+    if (result.status === 'cancelled') return
+    if (!result.ok) notify.error('OAuth connection failed: ' + (result.error || 'Unknown error'))
+    await checkOAuthStatus()
+  } finally {
     oauthBusy.value = false
-  }
-}
-
-const handleOAuthMessage = (event) => {
-  if (!isTrustedPopupMessage(event)) return
-  if (event.data?.type !== 'oauth_result') return
-  oauthBusy.value = false
-  if (event.data.status === 'success') {
-    checkOAuthStatus()
-  } else {
-    notify.error('OAuth connection failed: ' + (event.data.error || 'Unknown error'))
   }
 }
 
@@ -563,15 +556,13 @@ const disconnectOAuth = async () => {
 onMounted(() => {
   loadServiceDetails()
   refreshRepairPending()
-  loadAvailableProviders()
-  window.addEventListener('message', handleOAuthMessage)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('message', handleOAuthMessage)
 })
 
 // Computed
+// The header shows what the opener passed (it may be only the connector row: id, name, icon) until the
+// full detail has loaded, so the modal can open at once and load inside (page-speed plan Phase 5 item 8).
+const head = computed(() => ({ ...props.service, ...serviceDetail.value }))
+
 const filteredActions = computed(() => {
   if (!serviceDetail.value.actions_by_group) return {}
 

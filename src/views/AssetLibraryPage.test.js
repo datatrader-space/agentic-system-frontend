@@ -31,7 +31,7 @@ afterEach(() => wrapper?.unmount())
 describe('AssetLibraryPage', () => {
   it('asks the one Library for AADML files only, 15 at a time', async () => {
     await mountPage([photo])
-    expect(api.get).toHaveBeenCalledWith('/library/', { params: expect.objectContaining({ origin: 'aadml', type: 'all', source: 'all', page: 1, limit: 15 }) })
+    expect(api.get).toHaveBeenCalledWith('/library/', expect.objectContaining({ params: expect.objectContaining({ origin: 'aadml', type: 'all', source: 'all', page: 1, limit: 15 }) }))
     expect(wrapper.find('.pager').exists()).toBe(false)              // one page only: no pager
   })
 
@@ -42,7 +42,7 @@ describe('AssetLibraryPage', () => {
     api.get.mockResolvedValue({ data: { items: [made], page: 2, has_more: false } })
     await next.trigger('click')
     await flushPromises()
-    expect(api.get).toHaveBeenLastCalledWith('/library/', { params: expect.objectContaining({ origin: 'aadml', page: 2, limit: 15 }) })
+    expect(api.get).toHaveBeenLastCalledWith('/library/', expect.objectContaining({ params: expect.objectContaining({ origin: 'aadml', page: 2, limit: 15 }) }))
     expect(wrapper.find('.page-no').text()).toBe('Page 2')
     expect(wrapper.findAll('.card')).toHaveLength(1)                 // the page is replaced, not appended
     expect(wrapper.findAll('.pager button')[1].attributes('disabled')).toBeDefined()
@@ -78,6 +78,37 @@ describe('AssetLibraryPage', () => {
     api.get.mockResolvedValue({ data: { items: [], page: 1, has_more: false } })
     await wrapper.findAll('[role="tab"]').find(b => b.text() === 'Videos').trigger('click')
     await flushPromises()
-    expect(api.get).toHaveBeenLastCalledWith('/library/', { params: expect.objectContaining({ origin: 'aadml', type: 'video' }) })
+    expect(api.get).toHaveBeenLastCalledWith('/library/', expect.objectContaining({ params: expect.objectContaining({ origin: 'aadml', type: 'video' }) }))
+  })
+})
+
+describe('AssetLibraryPage — failures and fast filter changes', () => {
+  it('shows an error with Retry, not "Nothing here yet", when the library fails to load', async () => {
+    api.get.mockRejectedValueOnce(new Error('offline'))
+    wrapper = mount(AssetLibraryPage, { global: { stubs: { 'router-link': true } } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('Your Asset Library could not be loaded')
+    expect(wrapper.text()).not.toContain('Nothing here yet')
+    api.get.mockResolvedValueOnce({ data: { items: [photo], page: 1, has_more: false } })
+    await wrapper.find('.load-error__retry').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('kitchen.jpg')
+  })
+
+  it('aborts the older request and ignores its late answer', async () => {
+    const calls = []
+    api.get.mockImplementation((url, cfg) => new Promise((resolve) => calls.push({ cfg, resolve })))
+    wrapper = mount(AssetLibraryPage, { global: { stubs: { 'router-link': true } } })
+    await flushPromises()
+    await wrapper.findAll('[role="tab"]').find(b => b.text() === 'Videos').trigger('click')
+    await flushPromises()
+    expect(calls.length).toBe(2)
+    expect(calls[0].cfg.signal.aborted).toBe(true)
+    calls[1].resolve({ data: { items: [{ ...photo, attachment_id: 'v', title: 'clip.mp4', media_type: 'video' }], page: 1, has_more: false } })
+    await flushPromises()
+    calls[0].resolve({ data: { items: [photo], page: 1, has_more: false } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('clip.mp4')
+    expect(wrapper.text()).not.toContain('kitchen.jpg')
   })
 })

@@ -399,6 +399,15 @@
     <IntegrationHubModal v-if="showHub" :connectors="connectors" :initial-view="hubView" @close="closeHub" @installed="loadConnectors" />
 
     <!-- Manage MCP server in-page (reuses MCPServerDetailModal) — no redirect to /dashboard/mcp -->
+    <div v-if="mcpOpening && !mcpDetail" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true" :aria-label="`Loading ${mcpOpening.name || 'MCP server'}`" @click.self="cancelMcpOpening">
+      <div class="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-5 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0" role="status" aria-live="polite">
+          <Icon icon="lucide:loader-2" class="w-4 h-4 animate-spin text-violet-600 shrink-0" />
+          <span class="text-[13px] font-semibold text-ink truncate">Loading {{ mcpOpening.name || 'MCP server' }}…</span>
+        </div>
+        <button @click="cancelMcpOpening" class="text-slate-400 hover:text-slate-600 text-2xl leading-none" aria-label="Close">&times;</button>
+      </div>
+    </div>
     <MCPServerDetailModal v-if="mcpDetail" :server="mcpDetail" @close="closeMcpDetail" @updated="openMcpManageRefresh" @edit="onMcpDetailEdit" />
 
     <!-- Secure entry: a secret an agent asked for, typed here and never passed through the agent (?secure_entry=<id>) -->
@@ -471,7 +480,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, inject } from 'vue'
-import { isTrustedPopupMessage } from '@/utils/popupMessages'
+import { useOAuthPopup } from '@/composables/useOAuthPopup'
+import { useRequestScope, isAbortError } from '@/composables/useRequestScope'
 import { useRoute, useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
@@ -616,13 +626,10 @@ function onServiceRegistered() {
 
 // ── Full service management (ServiceDetailModal: edit/test/share/activate/delete) ──
 const serviceManage = ref(null)
-async function openServiceManage(c) {
-  try {
-    const { data } = await api.getService(c.id)
-    serviceManage.value = data.service || data
-  } catch (e) {
-    notify.error(e?.response?.data?.error || 'Failed to load service')
-  }
+// Opens AT ONCE with what the row already has: ServiceDetailModal loads the full service itself (with its
+// own spinner, error and Retry), so fetching it here first only made the click look dead for a round trip.
+function openServiceManage(c) {
+  serviceManage.value = { id: c.id, name: c.name, slug: c.slug, icon: c.icon }
 }
 function closeServiceManage() {
   serviceManage.value = null
@@ -656,10 +663,10 @@ async function deleteDraft(d) {
     notify.error(e?.response?.data?.error || 'Failed to delete draft')
   }
 }
+// The MCP dialog reports the save itself (a success, or a warning when its connection test failed) and
+// stays open to show that test result; closing it is the dialog's own Done/close. Closing it here on
+// `saved` hid a failed test behind a green "saved" toast.
 function onMcpSaved() {
-  showMcpModal.value = false
-  editMcpServer.value = null
-  notify.success('MCP server saved')
   loadConnectors()
 }
 // Remove (delete) an MCP server connector entirely — in-page, with confirm.
@@ -684,13 +691,28 @@ async function handleRemoveMcp(c) {
 }
 
 // Open the MCP server manager IN-PAGE (no redirect to the old MCP page).
+// The MCP detail modal needs the loaded server (it refreshes tools on mount when it has none), so a
+// small loading dialog opens at once and the detail replaces it when it arrives. Closing the loading
+// dialog, or opening another one, drops the late response (stale guard).
+const mcpOpening = ref(null) // { name } while the MCP detail is loading
+const mcpOpenScope = useRequestScope()
 async function openMcpManage(c) {
+  mcpOpening.value = { name: c.name }
+  const signal = mcpOpenScope.next()
   try {
     const { data } = await api.getMCPServer(c.id)
+    if (signal.aborted) return
     mcpDetail.value = data
   } catch (e) {
+    if (signal.aborted || isAbortError(e)) return
     notify.error(e?.response?.data?.error || 'Failed to load MCP server')
+  } finally {
+    if (!signal.aborted) mcpOpening.value = null
   }
+}
+function cancelMcpOpening() {
+  mcpOpenScope.abort()
+  mcpOpening.value = null
 }
 function onMcpDetailEdit() {
   editMcpServer.value = mcpDetail.value?.server || null
@@ -773,38 +795,37 @@ const scopeAgent = computed(() => {
 // Per-service OAuth in a popup. `connectOAuth` is for the shared OAuthProvider registry and keys on
 // a provider slug; a service registered through the wizard carries its OWN client config and has no
 // slug, so it uses /api/oauth/start/<service_id>/ instead. The backend replies with the popup result
-// via postMessage, which is what `oauthResultListener` below is waiting for.
+// via postMessage (`oauth_result`), which the shared popup flow below waits for.
+// The shared popup flow (useOAuthPopup) opens the popup inside the click, always settles, clears the API
+// cache when it ends, and the busy flag is reset in `finally` -- the button can no longer stay on
+// "Connecting..." when the result message is lost.
+const oauthPopup = useOAuthPopup()
 async function startServiceOAuthPopup(c) {
+  if (actionLoading.value) return
   actionLoading.value = true
   try {
-    const { data } = await api.startOAuth(c.id)
-    const popup = window.open(data.redirect_url, 'oauth_popup',
-                              'width=600,height=700,scrollbars=yes')
-    if (!popup || popup.closed) {
-      notify.error('Popup blocked. Allow popups for this site, then try Connect again.')
-      actionLoading.value = false
-    }
-    // actionLoading stays true until the popup reports back, so the button cannot be double-fired.
-  } catch (e) {
-    const err = e?.response?.data
-    // The backend names a missing prerequisite (e.g. no scopes) rather than letting the provider
-    // reject it on a page the user then has to interpret.
-    notify.error(err?.detail || err?.error || e?.message || 'Could not start the connection')
+    const result = await oauthPopup.run(async () => {
+      try {
+        const { data } = await api.startOAuth(c.id)
+        return data?.redirect_url
+      } catch (e) {
+        const err = e?.response?.data
+        // The backend names a missing prerequisite (e.g. no scopes) rather than letting the provider
+        // reject it on a page the user then has to interpret.
+        throw new Error(err?.detail || err?.error || e?.message || 'Could not start the connection')
+      }
+    }, {
+      name: 'oauth_popup',
+      messageTypes: ['oauth_result'],
+      verify: async () => !!(await api.getOAuthStatus(c.id)).data?.connected,
+    })
+    if (result.status === 'cancelled') return
+    if (result.ok) notify.success('Connected')
+    else if (result.status === 'blocked') notify.error('Popup blocked. Allow popups for this site, then try Connect again.')
+    else notify.error('Connection failed: ' + (result.error || 'unknown error'))
+    await loadConnectors()
+  } finally {
     actionLoading.value = false
-  }
-}
-
-onUnmounted(() => window.removeEventListener('message', oauthResultListener))
-
-function oauthResultListener(event) {
-  if (!isTrustedPopupMessage(event)) return
-  if (event?.data?.type !== 'oauth_result') return
-  actionLoading.value = false
-  if (event.data.status === 'success') {
-    notify.success('Connected')
-    loadConnectors()
-  } else {
-    notify.error('Connection failed: ' + (event.data.error || 'unknown error'))
   }
 }
 
@@ -909,31 +930,47 @@ const PERM_OPTS = ['allow', 'ask', 'deny']
 const toolsLoading = ref(false)
 const toolGroups = ref({ readonly: [], write: [] })
 const savingTool = ref(null)
+// WHOSE tools are on screen. A permission is written to this owner, never to whatever is selected at
+// click time: a fast A->B click used to show A's (late) tools under B and PATCH B with A's tool names.
+const toolsOwner = ref(null) // { kind, id, scope }
+const toolsScope = useRequestScope()
 
 async function loadConnectorTools() {
-  if (!selected.value) {
-    toolGroups.value = { readonly: [], write: [] }
+  const sel = selected.value
+  const signal = toolsScope.next() // marks the previous connector's load stale
+  toolGroups.value = { readonly: [], write: [] }
+  toolsOwner.value = null
+  if (!sel) {
+    toolsLoading.value = false
     return
   }
+  const owner = { kind: sel.kind, id: sel.id, scope: scope.value }
   toolsLoading.value = true
   try {
-    const { data } = await api.getConnectorTools(selected.value.kind, selected.value.id, scope.value)
+    const { data } = await api.getConnectorTools(owner.kind, owner.id, owner.scope, { signal })
+    if (signal.aborted) return
     toolGroups.value = { readonly: data.readonly || [], write: data.write || [] }
+    toolsOwner.value = owner
   } catch (e) {
+    if (signal.aborted || isAbortError(e)) return
     toolGroups.value = { readonly: [], write: [] }
     notify.error(e?.response?.data?.error || 'Failed to load tools')
   } finally {
-    toolsLoading.value = false
+    if (!signal.aborted) toolsLoading.value = false
   }
 }
 
 async function setPermission(tool, perm) {
   if (tool.locked || tool.permission === perm) return
+  const owner = toolsOwner.value
+  const sel = selected.value
+  // The tools on screen must belong to the selected connector, or the write would land on the wrong one.
+  if (!owner || !sel || owner.kind !== sel.kind || owner.id !== sel.id || owner.scope !== scope.value) return
   savingTool.value = tool.name
   const prev = tool.permission
   tool.permission = perm // optimistic
   try {
-    await api.updateConnectorPermissions(selected.value.kind, selected.value.id, scope.value, {
+    await api.updateConnectorPermissions(owner.kind, owner.id, owner.scope, {
       [tool.name]: perm,
     })
   } catch (e) {
@@ -1011,7 +1048,7 @@ async function loadConnectors() {
 
 async function loadAgents() {
   try {
-    const { data } = await api.getAgents()
+    const { data } = await api.getAgentPicker()
     agents.value = data?.results || data || []
   } catch {
     agents.value = []
@@ -1059,7 +1096,7 @@ async function loadConnectorsBundle() {
 }
 
 // Keep setup dialogs above the compact settings shell, with its focus trap paused underneath.
-const overlayOpen = computed(() => !!(credModalConnector.value || showMcpModal.value || showHub.value || mcpDetail.value || secureEntryId.value || serviceManage.value || showServiceReg.value || showDrafts.value || manageWs.value || showCreateWs.value))
+const overlayOpen = computed(() => !!(credModalConnector.value || showMcpModal.value || showHub.value || mcpDetail.value || mcpOpening.value || secureEntryId.value || serviceManage.value || showServiceReg.value || showDrafts.value || manageWs.value || showCreateWs.value))
 watch(overlayOpen, open => { if (props.compact) overlayActive(open) })
 onUnmounted(() => { if (props.compact) overlayActive(false) })
 function overlayKey(event) {
@@ -1073,13 +1110,12 @@ function overlayKey(event) {
   else if (secureEntryId.value) closeSecureEntry()
   else if (showMcpModal.value) { showMcpModal.value = false; editMcpServer.value = null }
   else if (mcpDetail.value) closeMcpDetail()
+  else if (mcpOpening.value) cancelMcpOpening()
   else if (showHub.value) closeHub()
   else if (credModalConnector.value) closeCredModal()
 }
 
 onMounted(() => {
-  window.addEventListener('message', oauthResultListener)
-
   // Fail closed: without proof of platform admin, admin-only controls stay hidden.
   api.getCurrentUser()
     .then(({ data }) => { isPlatformAdmin.value = !!(data?.user?.is_platform_admin ?? data?.is_platform_admin) })

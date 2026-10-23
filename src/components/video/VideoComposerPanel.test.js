@@ -389,6 +389,24 @@ describe('VideoComposerPanel agent mode', () => {
     expect(w.get('[data-test="video-add-note"]').text()).toContain('picks the models and settings')
   })
 
+  it('adds an image through the Agent plus menu without sending or requesting a paid run', async () => {
+    const video = useVideoStore()
+    video.studioMode = 'agent'
+    const request = vi.spyOn(video,'request'), requestImage = vi.spyOn(video,'requestImage')
+    const w = await mounted('')
+    await w.get('[data-test="video-add-media"]').trigger('click')
+    expect(w.get('[role="menu"]').text()).toContain('Upload from this device')
+    const file = new File(['synthetic'], 'reference.png', {type:'image/png'})
+    const input = w.get('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {value:[file], configurable:true})
+    await input.trigger('change')
+    expect(video.refs[0].file).toBe(file)
+    expect(w.get('[data-test="video-ref"]').text()).toContain('reference.png')
+    expect(chatMock.sendMessage).not.toHaveBeenCalled()
+    expect(request).not.toHaveBeenCalled(); expect(requestImage).not.toHaveBeenCalled()
+    w.unmount()
+  })
+
   it('switching to Manual brings back every setting', async () => {
     const video = useVideoStore()
     video.studioMode = 'agent'

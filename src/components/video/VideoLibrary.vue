@@ -8,7 +8,7 @@
       <section ref="panelEl" class="lib" :role="isPage ? 'region' : 'dialog'" :aria-modal="isPage ? undefined : 'true'"
                aria-labelledby="lib-title" tabindex="-1" data-test="video-library" @keydown.esc="!isPage && close()">
         <header class="lib-head">
-          <component :is="isPage ? 'h1' : 'h2'" id="lib-title">{{ isPage ? (initialTab === 'ingredients' ? 'Ingredients' : 'Library') : 'Library' }}</component>
+          <component :is="isPage ? 'h1' : 'h2'" id="lib-title">{{ isPage ? (initialTab === 'ingredients' ? 'Elements' : 'Library') : 'Library' }}</component>
           <p v-if="isPage" class="lib-lead">{{ initialTab === 'ingredients'
             ? 'Characters, products, places and styles you named, ready for any video.'
             : 'Every image, video, sound and document you uploaded or made in Video Studio.' }}</p>
@@ -27,7 +27,7 @@
         <div v-show="tab === 'files'" class="lib-body" role="tabpanel" aria-label="Files">
           <div class="lib-filters">
             <div class="lib-types" role="group" aria-label="Type">
-              <button v-for="t in types" :key="t.value" type="button" class="lib-chip" :class="{ on: lib.type === t.value }"
+              <button v-for="t in visibleTypes" :key="t.value" type="button" class="lib-chip" :class="{ on: lib.type === t.value }"
                       :aria-pressed="lib.type === t.value ? 'true' : 'false'" @click="setType(t.value)">{{ t.label }}</button>
             </div>
             <div class="lib-types" role="group" aria-label="Made or uploaded">
@@ -41,11 +41,12 @@
             <label class="lib-field lib-search"><span class="lib-sr">Search the Library</span>
               <input type="search" :value="lib.q" placeholder="Search by name…" data-test="lib-search" @input="onSearch($event.target.value)" /></label>
           </div>
+          <p v-if="lib.loading" class="lib-empty" role="status">Loading files...</p>
           <p v-if="lib.error" class="lib-error" role="alert">{{ lib.error }}</p>
-          <p v-else-if="!lib.loading && !lib.items.length" class="lib-empty">
+          <p v-else-if="!lib.loading && !visibleItems.length" class="lib-empty">
             {{ lib.q ? 'Nothing matches that search.' : 'Files and documents you upload or make in Video Studio appear here.' }}</p>
           <ul class="lib-grid" aria-label="Files">
-            <li v-for="it in lib.items" :key="it.attachment_id" class="lib-card" :class="{ picked: picked.has(it.attachment_id) }"
+            <li v-for="it in visibleItems" :key="it.attachment_id" class="lib-card" :class="{ picked: picked.has(it.attachment_id) }"
                 :data-test="'lib-item'">
               <!-- Click to see it whole, or play it (owner, 2026-10-20). -->
               <button v-if="it.media_type !== 'document'" type="button" class="lib-thumb-btn" :aria-label="'Preview ' + it.title"
@@ -53,6 +54,7 @@
                 <!-- A small picture from the server (not the whole file); the file itself when there is none. -->
                 <img v-if="it.thumbnail_url && !thumbFailed.has(it.attachment_id)" :src="it.thumbnail_url" alt="" class="lib-thumb"
                      loading="lazy" data-test="lib-thumbnail" @error="noThumbnail(it)" />
+                <span v-else-if="isPicker" class="lib-thumb lib-audio" aria-hidden="true">{{ it.media_type === 'video' ? 'Video' : 'Image' }}</span>
                 <video v-else-if="it.media_type === 'video'" :src="it.url" muted preload="metadata" class="lib-thumb" aria-hidden="true"></video>
                 <span v-else-if="it.media_type === 'audio'" class="lib-thumb lib-audio" aria-hidden="true">Audio</span>
                 <img v-else :src="it.url" alt="" class="lib-thumb" loading="lazy" />
@@ -82,7 +84,7 @@
               </div>
               <div v-else class="lib-actions">
                 <button type="button" class="lib-btn primary" data-test="lib-use" @click="startUse(it)">Use</button>
-                <label v-if="it.media_type !== 'audio'" class="lib-pick">
+                <label v-if="!isPicker && it.media_type !== 'audio'" class="lib-pick">
                   <input type="checkbox" :checked="picked.has(it.attachment_id)" :aria-label="'Select ' + it.title" @change="togglePick(it)" />
                   Select</label>
               </div>
@@ -93,22 +95,24 @@
             {{ lib.loading ? 'Loading…' : 'Load more' }}</button>
 
           <form v-if="picked.size" class="lib-save" data-test="lib-save-ingredient" @submit.prevent="saveIngredient">
-            <p class="lib-save-title">Save {{ picked.size }} file{{ picked.size === 1 ? '' : 's' }} as an ingredient</p>
+            <p class="lib-save-title">Save {{ picked.size }} file{{ picked.size === 1 ? '' : 's' }} as an Element</p>
             <label class="lib-field"><span>Name</span><input v-model="draft.name" maxlength="80" required data-test="lib-ing-name" /></label>
             <div class="lib-field"><span>Kind</span>
               <VideoChoice v-model="draft.kind" :options="kinds" label="Kind" test-id="lib-ing-kind" /></div>
             <label class="lib-field"><span>Description (optional)</span><textarea v-model="draft.description" rows="2" maxlength="1000"></textarea></label>
             <div class="lib-actions">
-              <button type="submit" class="lib-btn primary" :disabled="!draft.name.trim() || saving">{{ saving ? 'Saving…' : 'Save ingredient' }}</button>
+              <button type="submit" class="lib-btn primary" :disabled="!draft.name.trim() || saving">{{ saving ? 'Saving…' : 'Save Element' }}</button>
               <button type="button" class="lib-btn" @click="picked = new Set()">Clear selection</button>
             </div>
           </form>
         </div>
 
         <!-- INGREDIENTS -->
-        <div v-show="tab === 'ingredients'" class="lib-body" role="tabpanel" aria-label="Ingredients">
-          <div v-if="!video.ingredients.length" class="lib-empty-block">
-            <p class="lib-empty">An ingredient is a named character, product, place or style you can reuse in any video. Select
+        <div v-show="tab === 'ingredients'" class="lib-body" role="tabpanel" aria-label="Elements">
+          <p v-if="video.ingredientsLoading" class="lib-empty" role="status">Loading Elements...</p>
+          <p v-else-if="video.ingredientsError" class="lib-error" role="alert">{{ video.ingredientsError }} <button type="button" class="lib-btn" @click="video.loadIngredients()">Try again</button></p>
+          <div v-else-if="!video.ingredients.length" class="lib-empty-block">
+            <p class="lib-empty">An Element is a named character, product, place or style you can reuse in any video. Select
               files in the Library and save them as one, or ask the agent to.</p>
             <router-link v-if="isPage" to="/video-studio/library" class="lib-btn primary">Open the Library</router-link>
             <button v-else type="button" class="lib-btn" @click="tab = 'files'">Show my files</button>
@@ -117,7 +121,9 @@
             <li v-for="ing in video.ingredients" :key="ing.ingredient_id" class="lib-ing-card" data-test="lib-ingredient">
               <div class="lib-ing-thumbs" aria-hidden="true">
                 <template v-for="f in ing.files.slice(0, 3)" :key="f.attachment_id">
-                  <video v-if="f.media_type === 'video'" :src="f.url" muted preload="metadata" class="lib-mini"></video>
+                  <img v-if="f.thumbnail_url" :src="f.thumbnail_url" alt="" class="lib-mini" loading="lazy" />
+                  <span v-else-if="isPicker" class="lib-mini">{{ f.media_type === 'video' ? 'Video' : 'Image' }}</span>
+                  <video v-else-if="f.media_type === 'video'" :src="f.url" muted preload="metadata" class="lib-mini"></video>
                   <img v-else :src="f.url" alt="" class="lib-mini" loading="lazy" />
                 </template>
               </div>
@@ -152,6 +158,7 @@
 </template>
 
 <script setup>
+import { studioChatName } from '../../services/studioMessagePresentation'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useVideoStore } from '../../stores/useVideoStore'
@@ -164,7 +171,10 @@ import MediaViewer from './MediaViewer.vue'
 const props = defineProps({
   mode: { type: String, default: 'drawer' },
   initialTab: { type: String, default: 'files' },
+  allowedKinds: { type: Array, default: () => [] },
 })
+const emit = defineEmits(['pick', 'pick-element', 'close'])
+const isPicker = computed(() => props.mode === 'picker')
 const isPage = computed(() => props.mode === 'page')
 const router = useRouter()
 const video = useVideoStore()
@@ -172,10 +182,12 @@ const chat = useChatStore()
 const lib = computed(() => video.library)
 const panelEl = ref(null)
 const tab = ref(props.initialTab === 'ingredients' ? 'ingredients' : 'files')
-const tabs = [{ value: 'files', label: 'Files' }, { value: 'ingredients', label: 'Ingredients' }]
+const tabs = [{ value: 'files', label: 'Files' }, { value: 'ingredients', label: 'Elements' }]
 const sources = [{ value: 'all', label: 'All sources' }, { value: 'generated', label: 'Made with AI' }, { value: 'uploaded', label: 'Uploaded' }]
 const types = [{ value: 'all', label: 'All' }, { value: 'image', label: 'Images' }, { value: 'video', label: 'Videos' },
                { value: 'audio', label: 'Audio' }, { value: 'document', label: 'Documents' }]
+const visibleItems = computed(() => lib.value.items.filter(item => !isPicker.value || !props.allowedKinds.length || props.allowedKinds.includes(item.media_type)))
+const visibleTypes = computed(() => types.filter(type => type.value === 'all' || !isPicker.value || !props.allowedKinds.length || props.allowedKinds.includes(type.value)))
 const kinds = [{ value: 'character', label: 'Character' }, { value: 'product', label: 'Product' },
                { value: 'location', label: 'Location' }, { value: 'style', label: 'Style' }]
 // What a file can be used as. The composer then shows whether the chosen model takes it.
@@ -196,7 +208,7 @@ const edit = reactive({ name: '', description: '' })
 const deletingId = ref('')
 let searchTimer = null
 
-function close() { video.libraryOpen = false }
+function close() { if (isPicker.value) emit('close'); else video.libraryOpen = false }
 function day(iso) { return iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '' }
 function size(n) {
   const b = Number(n) || 0
@@ -213,7 +225,7 @@ function openViewer(it) { viewIndex.value = viewable.value.findIndex((i) => i.at
 function leave() { viewIndex.value = -1; if (!isPage.value) close() }
 // The chat's name (the server names it by what the person asked for); a Studio chat opens in the Studio, any other
 // in the main chat.
-function fromChat(it) { return it.conversation_name || 'its chat' }
+function fromChat(it) { return studioChatName(it.conversation_name, 'its chat') }
 function chatLink(it) {
   return it.conversation_in_studio ? { path: '/video-studio', query: { conversation: String(it.conversation_id) } }
     : `/dashboard/chat/${it.conversation_id}`
@@ -231,7 +243,7 @@ function onSearch(q) {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => video.loadLibrary(), 300)
 }
-function startUse(it) { usingId.value = it.attachment_id; useRole.value = rolesFor(it)[0].value }
+function startUse(it) { if (isPicker.value) { emit('pick', it); return }; usingId.value = it.attachment_id; useRole.value = rolesFor(it)[0].value }
 async function confirmUse(it) {
   if (isPage.value) {
     video.queueUse({ kind: 'file', item: it, role: useRole.value })
@@ -256,13 +268,14 @@ async function saveIngredient() {
       picked.value = new Set()
       Object.assign(draft, { name: '', kind: 'product', description: '' })
       // A page has no tabs (the side navigation picks Library or Ingredients), so it goes to the Ingredients page.
-      if (isPage.value) { router.push('/video-studio/ingredients'); return }
+      if (isPage.value) { router.push('/video-studio/elements'); return }
       tab.value = 'ingredients'
       video.loadLibrary()
     }
   } finally { saving.value = false }
 }
 async function useIngredient(ing) {
+  if (isPicker.value) { emit('pick-element', ing); return }
   if (isPage.value) {
     video.queueUse({ kind: 'ingredient', ingredient: ing })
     router.push({ name: 'video-studio' })

@@ -1,88 +1,72 @@
 ﻿<template>
-  <div class="wfb-root">
-    <!-- Top bar -->
-    <div class="wfb-bar">
-      <div class="wf-brand" aria-hidden="true"><span></span></div>
+  <div ref="builderRoot" class="wfb-root" :class="{ 'is-loading': loading, 'has-load-error': !!loadError }">
+    <header class="wfb-bar">
       <div class="bar-left">
-        <button class="lnk" @click="goBack">Workflows</button>
-        <span class="sep">/</span>
-        <input v-if="renaming" ref="nameInputEl" v-model="nameDraft" class="name-in"
-          @keydown.enter="commitRename" @keydown.esc="cancelRename" @blur="commitRename" />
-        <button v-else class="name-display" @click="startRename" title="Click to rename">
-          {{ name || 'Customer intake automation' }}<span class="name-edit">✎</span>
-        </button>
-        <span class="pill draft">Draft</span>
+        <button type="button" class="lnk" @click="goBack" aria-label="Back to workflows"><Icon icon="lucide:arrow-left" /><span>Workflows</span></button>
+        <span class="sep" aria-hidden="true">/</span>
+        <input v-if="renaming" ref="nameInputEl" v-model="nameDraft" class="name-in" aria-label="Workflow name" maxlength="200"
+          @keydown.enter.prevent="commitRename" @keydown.esc.stop="cancelRename" @blur="commitRename" />
+        <button v-else class="name-display" :disabled="loading || !!loadError" @click="startRename" title="Rename workflow">{{ name || 'Untitled workflow' }}<Icon icon="lucide:pencil" /></button>
+        <span v-if="!loading && !loadError" class="wf-status" :class="wfStatus">{{ wfStatus }}</span>
+        <span class="save-state" role="status">{{ loading ? 'Loading...' : loadError ? 'Unavailable' : busy ? 'Working...' : dirty ? 'Unsaved changes' : 'Saved' }}</span>
       </div>
       <div class="bar-right">
-        <button class="gbtn secondary-action" :class="{ on: logOpen }" @click="toggleLog()">Log</button>
-        <button class="gbtn secondary-action" @click="openVersions">Versions</button>
-        <button class="gbtn secondary-action" @click="openRuns">Runs</button>
-        <button class="gbtn" :disabled="busy" @click="validateGraph"><Icon icon="lucide:shield-check" />Validate</button>
-        <button v-if="!running" class="gbtn" :disabled="busy" @click="runGraph(true)" title="Test run"><Icon icon="lucide:flask-conical" />Test</button>
-        <button v-if="!running" class="gbtn run" :disabled="busy" @click="runGraph(false)"><Icon icon="lucide:play" />Run</button>
-        <button v-else class="gbtn stop" @click="stopRun"><Icon icon="lucide:square" />Stop</button>
-        <button v-if="dirty" class="gbtn reset-action" :disabled="busy" @click="resetChanges" title="Discard unsaved changes">Reset</button>
-        <button class="gbtn" :disabled="busy" @click="save"><Icon icon="lucide:save" />{{ busy ? 'Saving...' : 'Save' }}</button>
-        <button class="gbtn save" :disabled="busy" @click="publish"><Icon icon="lucide:rocket" />Publish</button>
-        <!-- Pause/Resume is on the CANVAS, not only the runs page: the person who publishes a
-             misfiring schedule is looking at the thing they just published. -->
-        <button v-if="wfStatus === 'published'" class="gbtn" :disabled="busy" @click="setLifecycle('paused')" title="Stop new runs starting; runs in flight are left alone"><Icon icon="lucide:pause" />Pause</button>
-        <button v-else-if="wfStatus === 'paused'" class="gbtn run" :disabled="busy" @click="setLifecycle('published')" title="Allow runs to start again"><Icon icon="lucide:play-circle" />Resume</button>
-        <span class="wf-status" :class="wfStatus" :title="`Lifecycle status: ${wfStatus}`">{{ wfStatus }}</span>
+        <button class="gbtn" :disabled="actionsDisabled || !dirty" @click="save" title="Save (Ctrl/Cmd+S)"><Icon icon="lucide:save" />Save</button>
+        <button class="gbtn" :disabled="actionsDisabled || running" @click="runGraph(true)" title="Test without external side effects"><Icon icon="lucide:flask-conical" />Test</button>
+        <button v-if="!running" class="gbtn run" :disabled="actionsDisabled" @click="runGraph(false)"><Icon icon="lucide:play" />Run</button>
+        <button v-else class="gbtn stop" :disabled="stopping || starting || !activeRunId" @click="stopRun"><Icon icon="lucide:square" />{{ stopping ? 'Stopping...' : 'Stop' }}</button>
+        <button class="gbtn publish-action" :disabled="actionsDisabled || running" @click="publish"><Icon icon="lucide:upload" />Publish</button>
+        <button v-if="wfStatus === 'published'" class="gbtn lifecycle-action" :disabled="actionsDisabled" @click="setLifecycle('paused')">Pause</button>
+        <button v-else-if="wfStatus === 'paused'" class="gbtn lifecycle-action" :disabled="actionsDisabled" @click="setLifecycle('published')">Resume</button>
         <div class="wf-menu">
-          <button class="gbtn more-btn" @click="menuOpen = !menuOpen" title="More">...</button>
+          <button class="gbtn more-btn" @click="menuOpen = !menuOpen" aria-label="More workflow actions" :aria-expanded="menuOpen" aria-controls="workflow-actions"><Icon icon="lucide:ellipsis" /></button>
           <div v-if="menuOpen" class="wf-menu-back" @click="menuOpen = false"></div>
-          <div v-if="menuOpen" class="wf-menu-pop" @click="menuOpen = false">
-            <button @click="duplicateWorkflow">⧉ Duplicate</button>
-            <button class="danger" @click="deleteWorkflow">🗑 Delete workflow</button>
-            <template v-if="isDev">
-              <div class="wf-menu-sep">Examples (dev)</div>
-              <button @click="loadOverviewDemo"><Icon icon="lucide:layout-dashboard" /> Overview demo</button>
-              <button @click="loadConditionDemo"><Icon icon="lucide:split" /> Branching demo</button>
-              <button @click="loadRunDemo"><Icon icon="lucide:activity" /> Run debug demo</button>
-            </template>
+          <div v-if="menuOpen" id="workflow-actions" class="wf-menu-pop" @click="menuOpen = false">
+            <button :disabled="actionsDisabled" @click="validateGraph"><Icon icon="lucide:shield-check" />Validate workflow</button>
+            <button @click="openVersions"><Icon icon="lucide:history" />Version history</button>
+            <button :disabled="!dirty || actionsDisabled" @click="resetChanges"><Icon icon="lucide:undo-2" />Discard changes</button>
+            <button :disabled="actionsDisabled" @click="duplicateWorkflow"><Icon icon="lucide:copy" />Duplicate workflow</button>
+            <button class="danger" :disabled="actionsDisabled || running" @click="deleteWorkflow"><Icon icon="lucide:archive" />Archive workflow</button>
           </div>
         </div>
       </div>
-    </div>
-
-    <div class="wfb-title-strip">
-      <div>
-        <h1>Workflow Builder</h1>
-        <p>Design and automate multi-step agent workflows.</p>
+    </header>
+    <div class="wfb-workspace-tools" aria-label="Editor controls">
+      <div class="editor-panel-tools">
+        <button class="gbtn" :aria-pressed="!paletteCollapsed" @click="togglePalette"><Icon icon="lucide:panel-left" />Nodes</button>
+        <button class="gbtn" :aria-pressed="!inspectorCollapsed" @click="toggleInspector"><Icon icon="lucide:panel-right" />Inspector</button>
+        <button class="gbtn" :aria-pressed="logOpen" @click="toggleLog"><Icon icon="lucide:terminal" />Log<span v-if="logErrorCount" class="error-count">{{ logErrorCount }}</span></button>
       </div>
-      <button class="title-help" @click="openPalette">Browse nodes</button>
+      <span class="canvas-meta">{{ nodeCount }} nodes / {{ getEdges.length }} connections</span>
+      <button class="gbtn" @click="openRuns"><Icon icon="lucide:list-tree" />Runs</button>
+      <button class="gbtn icon-button" aria-label="Workflow help and keyboard shortcuts" @click="showHelp = true"><Icon icon="lucide:circle-help" /></button>
     </div>
-
-    <div class="wfb-body">
+    <div v-if="loadError" class="wfb-load-error" role="alert">{{ loadError }}<button class="gbtn" @click="load">Try again</button></div>
+    <div class="wfb-body" :inert="loading || !!loadError"><div v-if="loading || loadError" class="workbench-blocker" :aria-busy="loading"><span v-if="loading">Loading workflow...</span></div>
       <!-- Left palette (resizable, searchable, category-grouped) -->
-      <aside v-show="!paletteCollapsed" class="wfb-palette" :style="{ width: paletteW + 'px' }">
+      <aside v-show="!paletteCollapsed" aria-label="Node library" class="wfb-palette" :style="{ width: paletteW + 'px' }">
         <button class="add-node-btn" @click="openPalette()">＋ Add node <kbd>⌘K</kbd></button>
-        <input v-model="sidebarSearch" class="pal-search" placeholder="Search nodes…" />
+        <input v-model="sidebarSearch" class="pal-search" aria-label="Filter node library" placeholder="Search nodes…" />
         <div class="pal-scroll">
           <p v-if="!sidebarGroups.length" class="pal-empty">No nodes match “{{ sidebarSearch }}”.</p>
           <div v-for="g in sidebarGroups" :key="g.key" class="pal-cat">
             <div class="pal-cat-h">{{ g.label }}</div>
-            <div v-for="p in g.items" :key="p.type" class="pal-card" :class="'fam-' + p.type.split('.')[0]"
+            <button type="button" v-for="p in g.items" :key="p.type" class="pal-card" :class="'fam-' + p.type.split('.')[0]"
               draggable="true" @dragstart="onDragStart($event, p.type)" @click="addQuick(p.type)" :title="'Drag to canvas or click to add — ' + p.sub">
               <span class="pal-card-ic"><Icon :icon="wfIcon(p.type)" /></span>
               <span class="pal-card-txt"><span class="pal-card-l">{{ p.label }}</span><span class="pal-card-s">{{ p.sub }}</span></span>
-            </div>
+            </button>
           </div>
           <button class="pal-more" @click="openPalette()">Browse tools &amp; MCP →</button>
         </div>
-        <div class="pal-footer" aria-label="Workflow builder shortcuts">
-          <button title="Docs">□</button>
-          <button title="Help">?</button>
-          <button title="Settings">⚙</button>
-        </div>
+        <div class="pal-footer"><button @click="showHelp = true"><Icon icon="lucide:keyboard" />Shortcuts</button><button @click="resetLayout" title="Reset panel sizes"><Icon icon="lucide:panels-top-left" />Reset layout</button></div>
       </aside>
       <div v-show="!paletteCollapsed" class="wfb-divider v" @pointerdown="startResize('palette', $event)"></div>
-      <button class="wfb-tab tab-left" :title="paletteCollapsed ? 'Show palette' : 'Hide palette'" @click="togglePalette">{{ paletteCollapsed ? '»' : '«' }}</button>
+      <button class="wfb-tab tab-left" :aria-label="paletteCollapsed ? 'Show node library' : 'Hide node library'" :title="paletteCollapsed ? 'Show palette' : 'Hide palette'" @click="togglePalette">{{ paletteCollapsed ? '»' : '«' }}</button>
 
       <!-- Canvas -->
       <div class="canvas-wrap" @drop="onDrop" @dragover.prevent @dragenter.prevent>
-        <VueFlow :node-types="nodeTypes" :default-viewport="{ zoom: 1 }" fit-view-on-init
+        <VueFlow :delete-key-code="null" @node-drag-stop="markDirty" :node-types="nodeTypes" :default-viewport="{ zoom: 1 }"
           @node-click="onNodeClick" @pane-click="selected = null; selectedEdge = null">
           <Background pattern-color="#cbd5e1" :gap="18" />
           <Controls />
@@ -106,21 +90,8 @@
           </div>
         </div>
 
-        <div v-if="!loading && nodeCount && !guideHidden" class="wfb-guide">
-          <button class="guide-x" aria-label="Dismiss guide" @click="guideHidden = true">x</button>
-          <h2>How to build your first workflow</h2>
-          <p>Follow these steps to get started.</p>
-          <div class="guide-steps">
-            <span><b>1</b><strong>Add a trigger</strong><em>Drag a trigger node to start your workflow.</em></span>
-            <span><b>2</b><strong>Add steps</strong><em>Add actions, agents, or logic to define what happens next.</em></span>
-            <span><b>3</b><strong>Connect nodes</strong><em>Drag from the right handle to the left handle of the next node.</em></span>
-            <span><b>4</b><strong>Test &amp; run</strong><em>Test your workflow, then run it when ready.</em></span>
-          </div>
-          <button class="guide-docs" @click="openPalette">Learn more in docs -></button>
-        </div>
-
         <!-- empty canvas hero -->
-        <div v-if="!loading && !nodeCount" class="canvas-empty">
+        <div v-if="!loading && !loadError && !nodeCount" class="canvas-empty">
           <div class="ce-card">
             <div class="ce-ic">🧩</div>
             <h3 class="ce-title">Build your first workflow</h3>
@@ -143,8 +114,8 @@
             <span><Icon icon="lucide:activity" class="log-head-ic" />Run log</span>
             <span class="log-summary" :class="{ running }">{{ runSummary }}</span>
             <div class="flex-1"></div>
-            <button class="log-btn" :class="{ on: logErrorsOnly }" :disabled="!logErrorCount"
-              @click="logErrorsOnly = !logErrorsOnly" :title="logErrorsOnly ? 'Show all' : 'Errors only'">⚠ {{ logErrorCount }}</button>
+            <button class="log-btn" :class="{ on: logErrorsOnly }" :disabled="!logErrorCount && !logErrorsOnly"
+              @click="logErrorsOnly = !logErrorsOnly" :aria-label="logErrorsOnly ? 'Show all logs' : 'Errors only'" :title="logErrorsOnly ? 'Show all' : 'Errors only'">⚠ {{ logErrorCount }}</button>
             <button class="log-btn" :disabled="!logEntries.length" @click="copyLog">Copy</button>
             <button class="log-btn" :disabled="!logEntries.length" @click="resetLog()">Clear</button>
             <button class="log-btn" @click="toggleLog()">Hide</button>
@@ -194,7 +165,7 @@
 
       <!-- inspector divider + collapse tab -->
       <div v-show="!inspectorCollapsed" class="wfb-divider v" @pointerdown="startResize('inspector', $event)"></div>
-      <button class="wfb-tab tab-right" :title="inspectorCollapsed ? 'Show inspector' : 'Hide inspector'" @click="toggleInspector">{{ inspectorCollapsed ? '«' : '»' }}</button>
+      <button class="wfb-tab tab-right" :aria-label="inspectorCollapsed ? 'Show inspector' : 'Hide inspector'" :title="inspectorCollapsed ? 'Show inspector' : 'Hide inspector'" @click="toggleInspector">{{ inspectorCollapsed ? '«' : '»' }}</button>
 
       <!-- Inspector -->
       <aside class="inspector wfb-inspector" v-if="selected && !inspectorCollapsed" :style="{ width: inspectorW + 'px' }">
@@ -207,8 +178,8 @@
             </span>
           </div>
           <div class="ins-h-actions">
-            <span class="ins-enabled">Enabled</span>
-            <button class="del" @click="deleteSelected" title="Delete node"><Icon icon="lucide:trash-2" /></button>
+            <button class="del close-inspector" aria-label="Close inspector" @click="toggleInspector"><Icon icon="lucide:x" /></button>
+            <button class="del" @click="deleteSelected" title="Delete node" aria-label="Delete node"><Icon icon="lucide:trash-2" /></button>
           </div>
         </div>
         <!-- shared tool-name autocomplete (used by foreach inner-tool; SchemaForm makes its own per field) -->
@@ -232,7 +203,7 @@
               <div v-for="(input, i) in selected.data.inputs" :key="i" class="kv-row">
                 <input v-model="input.key" class="ins-in mono" placeholder="key" @input="markDirty" />
                 <input v-model="input.default" class="ins-in" placeholder="default value" @input="markDirty" />
-                <button class="kv-del" @click="removeInput(i)">x</button>
+                <button class="kv-del" aria-label="Remove input" @click="removeInput(i)">x</button>
               </div>
             </div>
             <div v-else class="manual-empty">
@@ -274,7 +245,7 @@
                 <option>string</option><option>number</option><option>boolean</option><option>object</option><option>array</option>
               </select>
               <label class="req-chk" title="Required"><input type="checkbox" v-model="f.required" @change="markDirty" />req</label>
-              <button class="kv-del" @click="removeSchemaField(i)">×</button>
+              <button class="kv-del" aria-label="Remove schema field" @click="removeSchemaField(i)">×</button>
             </div>
             <button class="kv-add" @click="addSchemaField">+ Add field</button>
             <p class="ins-hint">The model is forced to return JSON; fields become pickable as <code>nodes.&lt;id&gt;.output.&lt;field&gt;</code>.</p>
@@ -352,7 +323,7 @@
                   <span>Value</span>
                   <input v-model="row.value" class="ins-in" @input="markDirty" />
                 </label>
-                <button class="condition-del" title="Remove condition" @click="removeCondition(i)">
+                <button class="condition-del" title="Remove condition" aria-label="Remove condition" @click="removeCondition(i)">
                   <Icon icon="lucide:trash-2" />
                 </button>
               </div>
@@ -368,18 +339,18 @@
             <div class="condition-section">
               <strong>Fallback (False path)</strong>
               <span>What happens when conditions are not met.</span>
-              <div class="fallback-box">Route to path B (False)<b>B</b></div>
+              <div class="fallback-box">Connect the False handle to the next step for unmatched items.</div>
             </div>
 
             <div class="condition-section">
               <strong>Summary</strong>
-              <span>Leads will go to the True path when the following is true:</span>
+              <span>The True path is used when the following condition matches:</span>
               <code>{{ conditionSummary(selected.data) }}</code>
             </div>
 
             <details class="advanced-row">
               <summary>Advanced options</summary>
-              <p>Case sensitive string comparison. <a href="#">Learn more</a></p>
+              <p>Case sensitive string comparison. </p>
             </details>
           </div>
         </template>
@@ -480,7 +451,7 @@
 
         <!-- shared reliability / advanced settings (failable nodes) -->
         <template v-if="hasReliability(selected.type)">
-          <div class="adv-h" @click="advOpen = !advOpen">{{ advOpen ? '▾' : '▸' }} Advanced · reliability</div>
+          <button type="button" class="adv-h" :aria-expanded="advOpen" @click="advOpen = !advOpen">{{ advOpen ? '▾' : '▸' }} Advanced · reliability</button>
           <div v-if="advOpen" class="adv-body">
             <label class="ins-l">Retries</label>
             <input v-model.number="selected.data.retries" type="number" min="0" max="5" class="ins-in" placeholder="0" @input="markDirty" />
@@ -502,7 +473,7 @@
           <textarea v-model="selected.data.notes" rows="2" class="ins-in" placeholder="Optional note shown on the node" @input="markDirty"></textarea>
         </template>
 
-        <div v-if="selected.data.__error" class="ins-err">⚠ {{ selected.data.__error }}</div>
+        <div v-if="selected.data.__error" class="ins-err" role="alert">⚠ {{ selected.data.__error }}</div>
 
         <!-- Node Output panel (Phase C) — last run's input/output/error -->
         <template v-if="selectedNodeRun">
@@ -525,7 +496,7 @@
       <aside class="inspector wfb-inspector" v-else-if="selectedEdge && !inspectorCollapsed" :style="{ width: inspectorW + 'px' }">
         <div class="ins-h ins-sticky">
           <span>connection</span>
-          <button class="del" @click="deleteEdge" title="Delete connection">🗑</button>
+          <button class="del" @click="deleteEdge" title="Delete connection" aria-label="Delete connection">🗑</button>
         </div>
         <label class="ins-l">Edge label</label>
         <input v-model="edgeLabel" class="ins-in" placeholder="e.g. on success" @input="onEdgeLabel" />
@@ -542,9 +513,18 @@
       </aside>
     </div>
 
+    <div v-if="showHelp" class="modal-scrim" @click.self="showHelp = false">
+      <section class="run-form help-dialog" role="dialog" aria-modal="true" aria-label="Workflow help" tabindex="-1">
+        <div class="rf-h">Workflow help<button class="x" aria-label="Close workflow help" @click="showHelp = false"><Icon icon="lucide:x" /></button></div>
+        <div class="rf-body"><p>Add a trigger, connect your steps, then select a node to configure it. Validate before you test.</p><p>Test uses a dry run. Run can perform real actions. Publish makes the saved version available to triggers; Pause stops new triggered runs.</p>
+          <dl><dt>Ctrl / Cmd + K</dt><dd>Add a node</dd><dt>Ctrl / Cmd + S</dt><dd>Save changes</dd><dt>Ctrl / Cmd + C / V</dt><dd>Copy / paste selected nodes</dd><dt>Delete / Backspace</dt><dd>Remove a selected node or connection</dd><dt>Escape</dt><dd>Close the active panel or dialog</dd></dl>
+        </div><div class="rf-foot"><button class="gbtn" @click="showHelp = false">Done</button></div>
+      </section>
+    </div>
+
     <!-- Run history drawer -->
     <div v-if="showRuns" class="drawer-scrim" @click.self="showRuns = false">
-      <div class="drawer">
+      <div class="drawer" role="dialog" aria-modal="true" :aria-label="showRuns ? 'Run history' : 'Version history'" tabindex="-1">
         <div class="drawer-h">
           <b>Run history</b>
           <button @click="showRuns = false" class="x">×</button>
@@ -555,7 +535,7 @@
           <div class="met"><span class="met-v">{{ fmtCost(metrics.total_cost) }}</span><span class="met-l">total cost</span></div>
           <div class="met"><span class="met-v">{{ metrics.total_runs }}</span><span class="met-l">runs</span></div>
         </div>
-        <div v-if="!runs.length" class="drawer-empty">No runs yet. Press ▶ Run.</div>
+        <div v-if="historyLoading" class="drawer-empty" role="status">Loading runs?</div><div v-else-if="historyError" class="drawer-empty" role="alert">{{ historyError }}<button class="gbtn" @click="openRuns">Try again</button></div><div v-else-if="!runs.length" class="drawer-empty">No runs yet. Press ▶ Run.</div>
         <div v-else class="drawer-list">
           <button v-for="r in runs" :key="r.id" class="run-row" @click="openRun(r.id)">
             <span class="w-2 h-2 rounded-full" :class="dotClass(r.status)"></span>
@@ -580,6 +560,8 @@
             <span class="rd-st">{{ nr.status }}</span>
             <span v-if="nr.duration_ms != null" class="rd-dur">{{ fmtDuration(nr.duration_ms) }}</span>
             <div v-if="nr.error" class="rd-err">{{ nr.error }}</div>
+            <StudioJobList v-if="nr.output?.awaiting_media_job && nr.output.job_id" :ids="[nr.output.job_id]" @settled="resumeMediaRun" />
+            <a v-if="nr.output?.attachment_id && nr.output.url" :href="nr.output.url" target="_blank" rel="noopener noreferrer">Open media result</a>
             <div v-else-if="nr.output && (nr.output.text || nr.output.reason)" class="rd-out">{{ nr.output.text || nr.output.reason }}</div>
           </div>
         </div>
@@ -588,7 +570,7 @@
 
     <!-- Run-with-inputs modal (manual trigger inputs) -->
     <div v-if="showRunForm" class="modal-scrim" @click.self="showRunForm = false">
-      <div class="run-form">
+      <div class="run-form" role="dialog" aria-modal="true" aria-label="Run with inputs" tabindex="-1">
         <div class="rf-h">Run with inputs<button class="x" @click="showRunForm = false">×</button></div>
         <div class="rf-body">
           <div v-for="k in runFormFields" :key="k" class="rf-row">
@@ -598,20 +580,20 @@
         </div>
         <div class="rf-foot">
           <button class="gbtn" @click="showRunForm = false">Cancel</button>
-          <button class="gbtn run" @click="startRun({ ...runForm })">{{ pendingDry ? '🧪 Test' : '▶ Run' }}</button>
+          <button class="gbtn run" :disabled="starting || busy" @click="startRun({ ...runForm })">{{ pendingDry ? '🧪 Test' : '▶ Run' }}</button>
         </div>
       </div>
     </div>
 
     <!-- Version history drawer -->
     <div v-if="showVersions" class="drawer-scrim" @click.self="showVersions = false">
-      <div class="drawer">
+      <div class="drawer" role="dialog" aria-modal="true" :aria-label="showRuns ? 'Run history' : 'Version history'" tabindex="-1">
         <div class="drawer-h">
           <b>Version history</b>
           <button @click="showVersions = false" class="x">×</button>
         </div>
         <p class="ver-hint">Published versions are snapshotted here. Restore rolls the canvas back to that snapshot.</p>
-        <div v-if="!versions.length" class="drawer-empty">No saved versions yet. Publish to snapshot one.</div>
+        <div v-if="versionsLoading" class="drawer-empty" role="status">Loading versions?</div><div v-else-if="versionsError" class="drawer-empty" role="alert">{{ versionsError }}<button class="gbtn" @click="openVersions">Try again</button></div><div v-else-if="!versions.length" class="drawer-empty">No saved versions yet. Publish to snapshot one.</div>
         <div v-else class="drawer-list ver-list">
           <div v-for="v in versions" :key="v.id" class="ver-row">
             <div class="ver-info">
@@ -619,7 +601,7 @@
               <span class="ver-lbl">{{ v.label || 'Published' }}</span>
               <span class="ver-time">{{ fmt(v.created_at) }}</span>
             </div>
-            <button class="ver-restore" @click="restoreVersion(v)">Restore</button>
+            <button class="ver-restore" :disabled="busy" @click="restoreVersion(v)">Restore</button>
           </div>
         </div>
       </div>
@@ -627,7 +609,7 @@
 
     <!-- Command-palette: add node -->
     <div v-if="showPalette" class="modal-scrim pal-scrim" @click.self="showPalette = false">
-      <div class="cmd-pal" role="dialog" aria-modal="true" aria-label="Add a node">
+      <div class="cmd-pal" role="dialog" aria-modal="true" aria-label="Add a node" tabindex="-1">
         <!-- step 2: choose an agent context for a deterministic MCP tool -->
         <template v-if="mcpPick">
           <div class="cmd-search cmd-back"><button class="cmd-backbtn" @click="mcpPick = null">←</button> Choose agent context</div>
@@ -659,16 +641,16 @@
             <input ref="palSearchEl" v-model="paletteSearch" class="cmd-search" type="search" aria-label="Search nodes" placeholder="Search nodes..." @keydown.esc="showPalette = false" />
             <kbd>Ctrl K</kbd>
           </div>
-          <div class="cmd-tabs" role="tablist" aria-label="Node categories">
+          <div class="cmd-tabs" role="group" aria-label="Node categories">
             <button v-for="tab in paletteTabs" :key="tab.key" type="button" :class="{ active: activePaletteTab === tab.key }" @click="activePaletteTab = tab.key">{{ tab.label }}</button>
           </div>
           <div class="cmd-body">
             <p v-if="paletteLoading" class="cmd-empty">Loading catalog…</p>
-            <p v-else-if="!visiblePaletteGroups.length" class="cmd-empty">No matches for "{{ paletteSearch }}".</p>
+            <p v-else-if="!visiblePaletteGroups.length" class="cmd-empty">{{ paletteSearch ? `No matches for ${paletteSearch}.` : 'No nodes available in this category.' }}</p>
             <div v-else-if="featuredPaletteItems.length" class="cmd-featured">
               <div class="cmd-section-head">
                 <span>Featured</span>
-                <button type="button" @click="activePaletteTab = 'all'">View all</button>
+                <button type="button" @click="showFeatured = false">View all</button>
               </div>
               <div class="cmd-feature-grid">
                 <button v-for="it in featuredPaletteItems" :key="'featured:' + it.key" class="cmd-feature-card" @click="addFromPalette(it)">
@@ -679,10 +661,10 @@
               </div>
             </div>
             <div v-for="grp in visiblePaletteGroups" :key="grp.key" class="cmd-grp">
-              <div class="cmd-grp-h" :class="{ 'cmd-grp-toggle': grp.collapsible }" @click="grp.collapsible && toggleGroup(grp)">
+              <component :is="grp.collapsible ? 'button' : 'div'" class="cmd-grp-h" :aria-expanded="grp.collapsible ? isGroupOpen(grp) : undefined" :class="{ 'cmd-grp-toggle': grp.collapsible }" @click="grp.collapsible && toggleGroup(grp)">
                 <span v-if="grp.collapsible" class="cmd-caret">{{ isGroupOpen(grp) ? '▾' : '▸' }}</span>
                 {{ grp.label }}<span class="cmd-grp-n">{{ grp.items.length }}</span>
-              </div>
+              </component>
               <template v-if="isGroupOpen(grp)">
                 <button v-for="it in grp.items" :key="it.key" class="cmd-item" @click="addFromPalette(it)">
                   <span class="cmd-ic" :class="'fam-' + (it.family || 'action')"><Icon :icon="itemIcon(it)" /></span>
@@ -702,7 +684,7 @@
 
     <!-- Data Picker: output-tree variable selector — click OR drag a field into the input -->
     <div v-if="showDataPicker" class="modal-scrim" @click.self="showDataPicker = false">
-      <div class="cmd-pal">
+      <div class="cmd-pal" role="dialog" aria-modal="true" aria-label="Insert variable" tabindex="-1">
         <div class="cmd-search cmd-back">Insert variable<button class="cmd-backbtn" style="margin-left:auto" @click="showDataPicker = false">×</button></div>
         <div class="cmd-body">
           <p v-if="!pickerSources.length" class="cmd-empty">No upstream data yet. Connect a previous node, or run / test to capture sample values.</p>
@@ -718,7 +700,7 @@
 
 <script setup>
 import { ref, computed, watch, nextTick, provide, onMounted, onBeforeUnmount, markRaw } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { Icon } from '@iconify/vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
@@ -728,12 +710,18 @@ import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
 import WfNode from '../components/workflows/WfNode.vue'
 import SchemaForm from '../components/workflows/SchemaForm.vue'
+import StudioJobList from '../components/studio/StudioJobList.vue'
+import { hydrateMediaNode, serializeMediaNode } from '../services/mediaWorkflowNode'
 import OutputTree from '../components/workflows/OutputTree.vue'
 import { WF_TYPES, wfDef, wfFields, wfPaletteItems, wfDefaultData, wfOutputSample } from '../config/wfNodeDefinitions'
-import { loadLayout, saveLayout, LAYOUT_BOUNDS } from '../utils/wfLayoutPrefs'
+import { loadLayout, saveLayout, LAYOUT_BOUNDS, LAYOUT_DEFAULTS } from '../utils/wfLayoutPrefs'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import { usePoller } from '@/composables/usePoller'
+import { WorkflowInputError, workflowJson } from '../utils/workflowInput'
+import { freeWorkflowPosition } from '../utils/workflowNodePlacement'
+import { RUN_STOP_STATUSES, runStopKind, fetchAllAgents } from '../utils/workflowRunPolling'
 
 const route = useRoute()
 const router = useRouter()
@@ -741,8 +729,16 @@ const graphId = route.params.id
 
 const {
   addNodes, addEdges, onConnect, onNodeClick: vfOnNodeClick, onEdgeClick: vfOnEdgeClick, screenToFlowCoordinate,
-  getNodes, getEdges, setNodes, setEdges, removeNodes, removeEdges, toObject, setViewport, vueFlowRef,
+  getNodes, getEdges, setNodes, setEdges, removeNodes, removeEdges, toObject, setViewport, vueFlowRef, fitView, onNodesInitialized,
 } = useVueFlow()
+
+let initialFitPending = true, savedViewport = null
+onNodesInitialized(() => {
+  if (!initialFitPending) return
+  initialFitPending = false
+  if (savedViewport && window.innerWidth >= 1000) setViewport(savedViewport)
+  else fitView({ padding: 0.2, maxZoom: 1 })
+})
 
 // Node types + palette + defaults now come from the central registry (wfNodeDefinitions.js).
 const nodeTypes = Object.fromEntries(WF_TYPES.map(t => [t, markRaw(WfNode)]))
@@ -758,12 +754,13 @@ const showSharedNotes = (type) => !customInspectorTypes.has(type)
 const showSharedActions = (type) => type !== 'trigger.webhook'
 
 const WF_ICON_MAP = {
+  'llm.call': 'lucide:sparkles',
   'trigger.webhook': 'lucide:webhook',
   'trigger.schedule': 'lucide:clock-3',
   'trigger.channel': 'lucide:message-square',
   'trigger.manual': 'lucide:square-play',
   'agent.run': 'lucide:bot',
-  'action.channel': 'logos:slack-icon',
+  'action.channel': 'lucide:send',
   'action.http': 'lucide:globe-2',
   'action.tool': 'lucide:wrench',
   'action.script': 'lucide:scan-line',
@@ -775,6 +772,7 @@ const WF_ICON_MAP = {
   'logic.delay': 'lucide:timer',
 }
 const FAMILY_ICON_MAP = {
+  media: 'lucide:film',
   trigger: 'lucide:webhook',
   agent: 'lucide:bot',
   action: 'lucide:wrench',
@@ -808,6 +806,10 @@ const logIcon = (level) => ({
 
 const name = ref('')
 const loading = ref(true)
+const loadError = ref(''), starting = ref(false), stopping = ref(false)
+const builderRoot = ref(null), showHelp = ref(false)
+const historyLoading = ref(false), historyError = ref(''), versionsLoading = ref(false), versionsError = ref('')
+const actionsDisabled = computed(() => loading.value || !!loadError.value || busy.value || starting.value)
 const busy = ref(false)
 const running = ref(false)
 const dirty = ref(false)
@@ -817,7 +819,6 @@ const nameDraft = ref('')
 const nameInputEl = ref(null)
 const selected = ref(null)
 const agents = ref([])
-const guideHidden = ref(false)
 const showRuns = ref(false)
 const runs = ref([])
 const runDetail = ref(null)
@@ -835,14 +836,14 @@ const scripts = ref([])        // for the action.script picker ([{id, name, file
 const showRunForm = ref(false)
 const runForm = ref({})
 const runFormFields = ref([])
-const pendingDry = ref(false)
+const pendingDry = ref(false), pendingUntil = ref(null)
 const selectedEdge = ref(null)
 let clipboard = []
 const showVersions = ref(false)
 const versions = ref([])
 const metrics = ref(null)
-let pollTimer = null
 let runSocket = null
+let unmounted = false
 
 // node types that support retries/timeout/on_error
 const RELIABILITY_TYPES = ['agent.run', 'action.channel', 'action.tool', 'action.http', 'action.script',
@@ -914,15 +915,18 @@ const _lp = loadLayout()
 const paletteW = ref(_lp.paletteW)
 const inspectorW = ref(_lp.inspectorW)
 const logH = ref(_lp.logH)
-const paletteCollapsed = ref(_lp.paletteCollapsed)
-const inspectorCollapsed = ref(_lp.inspectorCollapsed)
+const paletteCollapsed = ref(_lp.paletteCollapsed || window.innerWidth < 1000)
+const inspectorCollapsed = ref(_lp.inspectorCollapsed || window.innerWidth < 1200)
 function persistLayout() {
   saveLayout({ paletteW: paletteW.value, inspectorW: inspectorW.value, logH: logH.value,
     paletteCollapsed: paletteCollapsed.value, inspectorCollapsed: inspectorCollapsed.value, logOpen: logOpen.value })
 }
-function togglePalette() { paletteCollapsed.value = !paletteCollapsed.value; persistLayout() }
-function toggleInspector() { inspectorCollapsed.value = !inspectorCollapsed.value; persistLayout() }
-// Drag-to-resize: pointer capture on a divider updates the bound size, clamped, then persists on release.
+function togglePalette() { paletteCollapsed.value = !paletteCollapsed.value; if (window.innerWidth < 1000 && !paletteCollapsed.value) inspectorCollapsed.value = true; persistLayout() }
+function toggleInspector() { inspectorCollapsed.value = !inspectorCollapsed.value; if (window.innerWidth < 1000 && !inspectorCollapsed.value) paletteCollapsed.value = true; persistLayout() }
+function resetLayout() {
+  paletteW.value = LAYOUT_DEFAULTS.paletteW; inspectorW.value = LAYOUT_DEFAULTS.inspectorW; logH.value = LAYOUT_DEFAULTS.logH
+  paletteCollapsed.value = window.innerWidth < 1000; inspectorCollapsed.value = window.innerWidth < 1200; logOpen.value = false; persistLayout()
+}
 let _resize = null
 function startResize(which, e) {
   const map = { palette: paletteW, inspector: inspectorW, log: logH }
@@ -948,10 +952,11 @@ function endResize() {
 }
 
 // ── F3: user-visible run/validation log (so users don't need the server terminal) ──
-const logOpen = ref(false)
+watch(selected, node => { if (node) { inspectorCollapsed.value = false; if (window.innerWidth < 1000) paletteCollapsed.value = true } })
+const logOpen = ref(_lp.logOpen)
 const logEntries = ref([])
 let _loggedKeys = new Set()
-function resetLog() { logEntries.value = []; _loggedKeys = new Set() }
+function resetLog() { logEntries.value = []; logErrorsOnly.value = false; _loggedKeys = new Set() }
 function addLog(level, text) {
   logEntries.value.push({ t: new Date().toLocaleTimeString(), level, text })
   if (logEntries.value.length > 300) logEntries.value.splice(0, logEntries.value.length - 300)
@@ -972,12 +977,12 @@ const logErrorCount = computed(() => logEntries.value.filter(e => e.level === 'e
 watch(() => logEntries.value.length, () => {
   nextTick(() => { const el = logBodyEl.value; if (el) el.scrollTop = el.scrollHeight })   // pin to latest
 })
-function copyLog() {
+async function copyLog() {
   const text = logEntries.value.map(e => `[${e.t}] ${e.level}: ${e.text}`).join('\n')
-  try { navigator.clipboard.writeText(text); notify.success('Logs copied') } catch { notify.error('Copy failed') }
+  try { await navigator.clipboard.writeText(text); notify.success('Logs copied') } catch { notify.error('Copy failed') }
 }
-function copy(text) {
-  try { navigator.clipboard.writeText(text || ''); notify.success('Copied') } catch { notify.error('Copy failed') }
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text || ''); notify.success('Copied') } catch { notify.error('Copy failed') }
 }
 
 const palette = wfPaletteItems()   // from the central registry
@@ -1001,6 +1006,7 @@ const PALETTE_SORT = {
 // ── left palette sidebar: searchable, category-grouped (base nodes; tools/MCP live in the + modal) ──
 const sidebarSearch = ref('')
 const SIDEBAR_GROUPS = [
+  { key: 'media', label: 'Studio media' },
   { key: 'trigger', label: 'Triggers' }, { key: 'agent', label: 'AI / Agents' },
   { key: 'action', label: 'Actions' }, { key: 'logic', label: 'Logic' },
 ]
@@ -1009,7 +1015,7 @@ const sidebarGroups = computed(() => {
   const m = (...s) => !q || s.filter(Boolean).some(x => String(x).toLowerCase().includes(q))
   return SIDEBAR_GROUPS
     .map(g => ({ ...g, items: palette
-      .filter(p => p.type.split('.')[0] === g.key && m(p.label, p.sub, p.type))
+      .filter(p => (p.type === 'llm.call' ? 'agent' : p.type.split('.')[0]) === g.key && m(p.label, p.sub, p.type))
       .sort((a, b) => (PALETTE_SORT[a.type] || 99) - (PALETTE_SORT[b.type] || 99)) }))
     .filter(g => g.items.length)
 })
@@ -1017,93 +1023,14 @@ const sidebarGroups = computed(() => {
 // canvas empty-state quick-add (normal node creation logic, placed at canvas centre)
 const nodeCount = computed(() => getNodes.value.length)
 function addQuick(type) {
+  if (loading.value || loadError.value) return
   const id = newId()
-  addNodes([{ id, type, position: _canvasCenter(), data: defaultData(type) }])
+  addNodes([{ id, type, position: freeWorkflowPosition(getNodes.value, _canvasCenter()), data: defaultData(type) }])
   markDirty()
   selected.value = getNodes.value.find(n => n.id === id) || null
   selectedEdge.value = null
 }
 
-function starterWorkflow() {
-  const nodes = [
-    { id: 'wf_webhook', type: 'trigger.webhook', position: { x: 80, y: 350 },
-      data: { ...defaultData('trigger.webhook'), label: 'Webhook Trigger', notes: '', __status: 'success' } },
-    { id: 'wf_agent', type: 'agent.run', position: { x: 370, y: 350 },
-      data: { ...defaultData('agent.run'), label: 'Run Agent', agent_name: 'Intake Agent', __status: 'success' } },
-    { id: 'wf_channel', type: 'action.channel', position: { x: 660, y: 350 },
-      data: { ...defaultData('action.channel'), label: 'Send to Channel', kind: 'slack', slack_channel: '#customer-intake', __status: 'success' } },
-    { id: 'wf_http', type: 'action.http', position: { x: 300, y: 535 },
-      data: { ...defaultData('action.http'), label: 'HTTP Request', method: 'GET', url: 'https://api.example.com', __status: 'success' } },
-  ]
-  const edges = [
-    { id: 'e_webhook_agent', source: 'wf_webhook', target: 'wf_agent' },
-    { id: 'e_agent_channel', source: 'wf_agent', target: 'wf_channel' },
-  ]
-  return { nodes, edges, selectedId: 'wf_webhook' }
-}
-
-function conditionWorkflow() {
-  const nodes = [
-    { id: 'cond_webhook', type: 'trigger.webhook', position: { x: 20, y: 360 },
-      data: { ...defaultData('trigger.webhook'), label: 'Webhook Trigger', __status: 'success' } },
-    { id: 'cond_enrich', type: 'action.tool', position: { x: 270, y: 360 },
-      data: { ...defaultData('action.tool'), label: 'Enrich Lead Data', tool: 'Find & enrich contact', __status: 'success' } },
-    { id: 'cond_condition', type: 'logic.condition', position: { x: 545, y: 360 },
-      data: { ...defaultData('logic.condition'), label: 'If / Else Condition', expression: 'lead_score > 70 and source = demo_request',
-        description: 'Route leads based on score and source.',
-        conditions: [{ field: 'lead_score', operator: '>', value: '70' }, { field: 'source', operator: '=', value: 'demo_request' }],
-        __status: 'success' } },
-    { id: 'cond_agent', type: 'agent.run', position: { x: 830, y: 345 },
-      data: { ...defaultData('agent.run'), label: 'Run Agent', agent_name: 'Qualify lead', __status: 'success' } },
-    { id: 'cond_crm', type: 'action.tool', position: { x: 830, y: 500 },
-      data: { ...defaultData('action.tool'), label: 'Create CRM Record', tool: 'Create lead in HubSpot', __status: 'success' } },
-    { id: 'cond_slack', type: 'action.channel', position: { x: 420, y: 650 },
-      data: { ...defaultData('action.channel'), label: 'Send Slack Alert', kind: 'slack', slack_channel: 'Notify sales channel', __status: 'success' } },
-    { id: 'cond_review', type: 'action.tool', position: { x: 690, y: 650 },
-      data: { ...defaultData('action.tool'), label: 'Add to Review Queue', tool: 'Requires manual review', __status: 'success' } },
-  ]
-  const edges = [
-    { id: 'e_cw_enrich', source: 'cond_webhook', target: 'cond_enrich' },
-    { id: 'e_enrich_condition', source: 'cond_enrich', target: 'cond_condition' },
-    { id: 'e_true_agent', source: 'cond_condition', target: 'cond_agent', label: 'A True' },
-    { id: 'e_agent_crm', source: 'cond_agent', target: 'cond_crm' },
-    { id: 'e_false_slack', source: 'cond_condition', target: 'cond_slack', label: 'B False' },
-    { id: 'e_false_review', source: 'cond_condition', target: 'cond_review', label: 'B False' },
-  ]
-  return { nodes, edges, selectedId: 'cond_condition' }
-}
-
-function runDebugWorkflow() {
-  const base = starterWorkflow()
-  const nodes = [
-    base.nodes[0],
-    { ...base.nodes[1], data: { ...base.nodes[1].data, __status: 'running' } },
-    base.nodes[2],
-    { ...base.nodes[3], position: { x: 410, y: 520 }, data: { ...base.nodes[3].data, __status: 'success' } },
-    { id: 'wf_script', type: 'action.script', position: { x: 900, y: 350 },
-      data: { ...defaultData('action.script'), label: 'Run Script', script_id: null, notes: 'Enrich user data', __status: 'pending' } },
-  ]
-  const edges = [
-    ...base.edges,
-    { id: 'e_channel_script', source: 'wf_channel', target: 'wf_script' },
-    { id: 'e_agent_http', source: 'wf_agent', target: 'wf_http', style: 'dashed' },
-  ]
-  return { nodes, edges, selectedId: 'wf_agent' }
-}
-
-function applyWorkflowState(state, isRun = false) {
-  const hydrated = state.nodes.map(n => ({ ...n, data: hydrate(n.type, n.data || {}) }))
-  setNodes(hydrated)
-  setEdges(state.edges)
-  selected.value = hydrated.find(n => n.id === state.selectedId) || null
-  selectedEdge.value = null
-  running.value = isRun
-  logOpen.value = false
-  guideHidden.value = isRun
-}
-function loadOverviewDemo() { applyWorkflowState(starterWorkflow(), false) }
-function loadConditionDemo() { applyWorkflowState(conditionWorkflow(), false) }
-function loadRunDemo() { applyWorkflowState(runDebugWorkflow(), true) }
 function selectNode(id) {
   selected.value = getNodes.value.find(n => n.id === id) || null
   selectedEdge.value = null
@@ -1120,7 +1047,6 @@ const runSummary = computed(() => {
 })
 
 // example/demo canvases are dev-only helpers (not shown to end users)
-const isDev = !!import.meta.env.DEV
 
 // ── live run overlay (banner + timeline) driven by the real run detail ──
 const timelineOpen = ref(true)
@@ -1225,19 +1151,20 @@ provide('wfQuickAdd', (sourceId) => openPalette(sourceId))
 let _catalogLoaded = false
 
 const NODE_GROUPS = [
+  { key: 'media', label: 'Studio media' },
   { key: 'trigger', label: 'Triggers' },
   { key: 'agent', label: 'AI / Agents' },
   { key: 'action', label: 'Actions' },
   { key: 'logic', label: 'Logic' },
 ]
-const activePaletteTab = ref('all')
+const activePaletteTab = ref('all'), showFeatured = ref(true)
 const paletteTabs = [
   { key: 'all', label: 'All' },
   { key: 'trigger', label: 'Triggers' },
   { key: 'agent', label: 'AI / Agents' },
   { key: 'action', label: 'Actions' },
   { key: 'logic', label: 'Logic' },
-  { key: 'data', label: 'Data' },
+  { key: 'media', label: 'Media' },
   { key: 'integrations', label: 'Integrations' },
 ]
 
@@ -1250,7 +1177,7 @@ const paletteGroups = computed(() => {
   const groups = []
   // base node types, grouped by family (exclude action.mcp_tool — reached via the MCP drill-in)
   for (const g of NODE_GROUPS) {
-    const items = palette.filter(p => p.type.split('.')[0] === g.key && p.type !== 'action.mcp_tool' && match(p.label, p.sub, p.type))
+    const items = palette.filter(p => (p.type === 'llm.call' ? 'agent' : p.type.split('.')[0]) === g.key && p.type !== 'action.mcp_tool' && match(p.label, p.sub, p.type))
       .map(p => ({ key: p.type, icon: p.icon, label: p.label, sub: p.sub, family: g.key, kind: 'node', nodeType: p.type }))
     if (items.length) groups.push({ key: g.key, label: g.label, items, collapsible: false })
   }
@@ -1302,7 +1229,7 @@ const visiblePaletteGroups = computed(() => {
   return paletteGroups.value.filter(g => g.key === tab)
 })
 const featuredPaletteItems = computed(() => {
-  if (paletteSearching.value) return []
+  if (paletteSearching.value || !showFeatured.value || activePaletteTab.value !== 'all') return []
   const wanted = ['Webhook', 'Schedule', 'Run agent', 'Send to channel']
   const all = paletteGroups.value.flatMap(g => g.items)
   return wanted.map(name => all.find(it => it.label === name)).filter(Boolean)
@@ -1322,14 +1249,14 @@ async function openPalette(fromNodeId = null) {
   quickAddSource.value = typeof fromNodeId === 'string' ? fromNodeId : null   // null on the normal "+ Add node"
   showPalette.value = true
   paletteSearch.value = ''
-  activePaletteTab.value = 'all'
+  activePaletteTab.value = 'all'; showFeatured.value = true
   mcpPick.value = null
   await nextTick(); palSearchEl.value?.focus()
   if (_catalogLoaded) return
   paletteLoading.value = true
   try {
     const [tools, mcp] = await Promise.all([
-      api.get('/tools/').catch(() => ({ data: {} })),
+      fetchToolCatalog().catch(() => ({ data: {} })),
       api.getWorkflowMcpCatalog().catch(() => ({ data: { enabled: false, servers: [] } })),
     ])
     const tl = tools?.data?.tools || tools?.data?.results || tools?.data || []
@@ -1348,7 +1275,7 @@ function _canvasCenter() {
   const el = vueFlowRef?.value
   if (el && screenToFlowCoordinate) {
     const r = el.getBoundingClientRect()
-    return screenToFlowCoordinate({ x: r.left + r.width / 2, y: r.top + r.height / 2 })
+    const center = screenToFlowCoordinate({ x: r.left + r.width / 2, y: r.top + r.height / 2 }); return { x: center.x - 115, y: center.y - 55 }
   }
   return { x: 250 + Math.random() * 80, y: 160 + Math.random() * 80 }
 }
@@ -1359,7 +1286,7 @@ function _dropNode(type, data) {
   let pos = _canvasCenter()
   const src = quickAddSource.value && getNodes.value.find(n => n.id === quickAddSource.value)
   if (src) pos = { x: (src.position?.x || 0) + 280, y: (src.position?.y || 0) }
-  addNodes([{ id, type, position: pos, data }])
+  addNodes([{ id, type, position: freeWorkflowPosition(getNodes.value, pos), data }])
   if (src) addEdges([{ id: 'e_' + Date.now().toString(36), source: quickAddSource.value, target: id }])  // auto-connect
   quickAddSource.value = null
   markDirty()
@@ -1397,7 +1324,8 @@ function confirmMcpPick() {
 
 const dotClass = (s) => ({ success: 'bg-emerald-500', failed: 'bg-red-500', running: 'bg-indigo-500', skipped: 'bg-slate-300', pending: 'bg-amber-400' }[s] || 'bg-slate-300')
 const fmt = (t) => { try { return new Date(t).toLocaleString() } catch { return t } }
-const markDirty = () => { dirty.value = true }
+let editRevision = 0
+const markDirty = () => { dirty.value = true; editRevision++ }
 
 function defaultData(type) { return wfDefaultData(type) }   // from the central registry
 
@@ -1505,10 +1433,7 @@ const pickerSources = computed(() => {
   return out
 })
 
-function runUpTo(nodeId) {
-  pendingDry.value = false
-  startRun({}, nodeId)
-}
+function runUpTo(nodeId) { runGraph(true, nodeId) }
 
 // ── Node Output panel ──
 const opTab = ref('output')
@@ -1600,10 +1525,13 @@ function copySelection() {
 function pasteSelection() {
   if (!clipboard.length) return
   const idMap = {}
+  const left = Math.min(...clipboard.map(c => c.position.x)), top = Math.min(...clipboard.map(c => c.position.y))
+  const size = { width: Math.max(...clipboard.map(c => c.position.x)) - left + 250, height: Math.max(...clipboard.map(c => c.position.y)) - top + 130 }
+  const origin = freeWorkflowPosition(getNodes.value, { x: left + 48, y: top + 48 }, size)
   const fresh = clipboard.map(c => {
     const id = newId(); idMap[c._oldId] = id
-    const { __status, __error, ...data } = c.data
-    return { id, type: c.type, position: { x: c.position.x + 48, y: c.position.y + 48 }, data }
+    const { __status, __error, ...data } = JSON.parse(JSON.stringify(c.data))
+    return { id, type: c.type, position: { x: origin.x + c.position.x - left, y: origin.y + c.position.y - top }, data }
   })
   addNodes(fresh)
   // copy edges that were internal to the selection
@@ -1616,26 +1544,60 @@ function pasteSelection() {
   })))
   markDirty()
 }
+const modalOpen = computed(() => showPalette.value || showDataPicker.value || showRuns.value || showVersions.value || showRunForm.value || showHelp.value)
+let returnFocus = null
+watch(modalOpen, async open => {
+  if (open) {
+    returnFocus = document.activeElement
+    await nextTick()
+    const dialog = builderRoot.value?.querySelector('[role="dialog"]')
+    dialog?.querySelector('input,select,button:not(:disabled)')?.focus()
+  } else { returnFocus?.focus?.(); returnFocus = null }
+})
 function onKeydown(e) {
-  // Ctrl/Cmd+K opens the Add-node palette from anywhere (even while typing).
-  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); openPalette(); return }
-  if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) { e.preventDefault(); save(); return }
-  if (e.key === 'Escape') { showPalette.value = false; selected.value = null; selectedEdge.value = null; return }
+  if (e.defaultPrevented || document.querySelector('[role="alertdialog"]')) return
+  const externalDialog = document.querySelector('[aria-modal="true"]')
+  if (externalDialog && !builderRoot.value?.contains(externalDialog)) return
+  if (e.key === 'Escape') {
+    if (menuOpen.value) menuOpen.value = false
+    else if (showDataPicker.value) showDataPicker.value = false
+    else if (showPalette.value) showPalette.value = false
+    else if (showHelp.value) showHelp.value = false
+    else if (showRunForm.value) showRunForm.value = false
+    else if (showVersions.value) showVersions.value = false
+    else if (showRuns.value) showRuns.value = false
+    else { selected.value = null; selectedEdge.value = null }
+    e.preventDefault(); return
+  }
+  if (modalOpen.value) {
+    if (e.key === 'Tab') {
+      const dialog = builderRoot.value?.querySelector('[role="dialog"]')
+      const items = [...(dialog?.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],[tabindex="0"]') || [])].filter(el => !el.hidden && el.getClientRects().length)
+      const first = items[0], last = items.at(-1)
+      if (!items.length) { e.preventDefault(); dialog?.focus() }
+      else if (e.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) { e.preventDefault(); last.focus() }
+      else if (!e.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) { e.preventDefault(); first.focus() }
+    }
+    return
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); e.stopImmediatePropagation(); if (!loading.value && !loadError.value) openPalette(); return }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); e.stopImmediatePropagation(); if (!actionsDisabled.value) save(); return }
   const tag = (e.target?.tagName || '').toLowerCase()
-  if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return
+  if (['input','textarea','select','button'].includes(tag) || e.target?.isContentEditable) return
   if (e.key === 'Delete' || e.key === 'Backspace') {
-    if (selected.value) deleteSelected()
-    else if (selectedEdge.value) deleteEdge()
+    if (selected.value) { e.preventDefault(); deleteSelected() }
+    else if (selectedEdge.value) { e.preventDefault(); deleteEdge() }
     return
   }
   if (!(e.ctrlKey || e.metaKey)) return
-  if (e.key === 'c') { copySelection() }
-  else if (e.key === 'v') { pasteSelection() }
+  if (e.key === 'c') copySelection()
+  else if (e.key === 'v') pasteSelection()
 }
+function beforeUnload(e) { if (dirty.value) { e.preventDefault(); e.returnValue = '' } }
+onBeforeRouteLeave(() => !dirty.value || confirm({ title: 'Leave without saving?', message: 'Your unsaved workflow changes will be lost.', confirmText: 'Leave', danger: true }))
 
-// ── load / save ──
 async function load() {
-  loading.value = true
+  loading.value = true; loadError.value = ''
   try {
     // One /workflow-graphs/<id>/bundle/ round-trip (graph + all_graphs + agents)
     // instead of 3 parallel calls. Fall back to the separate calls if unavailable.
@@ -1655,35 +1617,32 @@ async function load() {
       ])
       g = gd; ag = agd; allG = gl?.data; scr = sl?.data
     }
+    if (unmounted) return
     name.value = g.name
     version.value = g.version || 1
     etag.value = g.etag || ''
     wfStatus.value = g.status || 'draft'
     graphTriggers.value = g.triggers || []
     agents.value = (ag?.results || ag || [])
+    // The bundle's agent slice is the FIRST page of the paginated agent list. When there are more, the
+    // agent.run picker would silently miss every agent past it, so read the full list.
+    if (ag && !Array.isArray(ag) && ag.next) {
+      try { agents.value = await fetchAllAgents(api) } catch { /* keep the first page */ }
+    }
     allGraphs.value = (allG?.results || allG || [])
     scripts.value = (scr?.results || scr || [])
     const graph = g.graph || {}
     const graphNodes = graph.nodes || []
-    const useReferenceStarter = graphNodes.length <= 1
-    const starter = useReferenceStarter ? starterWorkflow() : null
-    // A pre-populated starter is an editable scaffold, not a completed run — drop the demo success badges.
-    const rawNodes = starter
-      ? starter.nodes.map(n => { const { __status, __error, ...data } = (n.data || {}); return { ...n, data } })
-      : graphNodes
-    const hydratedNodes = rawNodes.map(n => ({ ...n, data: hydrate(n.type, n.data || {}) }))
-    setNodes(hydratedNodes)
-    setEdges(starter ? starter.edges : (graph.edges || []))
-    if (!starter && graph.viewport && setViewport) { try { setViewport(graph.viewport) } catch {} }
-    if (starter) {
-      selected.value = hydratedNodes.find(n => n.id === starter.selectedId) || hydratedNodes[0] || null
-      selectedEdge.value = null
-    }
+    savedViewport = Number.isFinite(graph.viewport?.zoom) ? graph.viewport : null
+    initialFitPending = true
+    setNodes(graphNodes.map(n => ({ ...n, data: hydrate(n.type, n.data || {}) })))
+    setEdges(graph.edges || [])
+    selected.value = null; selectedEdge.value = null
     loadToolNames()
     dirty.value = false
-    _takeSnapshot(g.name, starter ? currentGraph() : graph)   // baseline for Reset
+    _takeSnapshot(g.name, graph)   // baseline for Reset
   } catch (e) {
-    notify.error(e?.response?.data?.error || 'Failed to load workflow')
+    loadError.value = 'Could not load this workflow. Your saved workflow has not been changed.'
   } finally {
     loading.value = false
   }
@@ -1718,6 +1677,7 @@ function cancelRename() { renaming.value = false }
 
 // hydrate stored node data into the editable shape (object → JSON-text fields for the inspector)
 function hydrate(type, data) {
+  if (type === 'media.generate') return hydrateMediaNode(data)
   const d = { ...(data || {}) }
   if (type === 'action.tool') d.params_json = JSON.stringify(d.params || {}, null, 2)
   if (type === 'action.mcp_tool') d.params_json = JSON.stringify(d.params || {}, null, 2)
@@ -1740,35 +1700,27 @@ function hydrate(type, data) {
 }
 // serialize editable node data back to the backend shape (JSON-text fields → objects; drop UI meta)
 function serializeData(type, data) {
+  if (type === 'media.generate') return serializeMediaNode(data)
   const { __status, __error, params_json, json_text, output_schema_json, filters_json, ...rest } = (data || {})
   if (type === 'action.tool' || type === 'action.mcp_tool') {
-    try { rest.params = params_json ? JSON.parse(params_json) : {} } catch { rest.params = {} }
+    rest.params = workflowJson(params_json, rest.params || {}, {}, 'Parameters')
   }
   if (type === 'action.http') {
-    if (json_text && json_text.trim()) { try { rest.json = JSON.parse(json_text) } catch {} }
+    const body = workflowJson(json_text, rest.json, undefined, 'JSON body')
+    if (body === undefined) delete rest.json
+    else rest.json = body
   }
-  if (type === 'trigger.connector') {
-    const f = (filters_json || '').trim()
-    // Cleared box = no filters. UNPARSEABLE box = KEEP the filters already on the node, exactly as
-    // `llm.call` keeps its schema below: falling back to {} would turn a narrow binding into one
-    // that matches every event the provider sends, so a typo mid-edit would start spending money on
-    // deliveries the operator had deliberately excluded.
-    if (!f) rest.filters = {}
-    else { try { rest.filters = JSON.parse(f) } catch {} }
-  }
+  if (type === 'trigger.connector') rest.filters = workflowJson(filters_json, rest.filters || {}, {}, 'Resource filters')
   if (type === 'llm.call') {
-    const s = (output_schema_json || '').trim()
-    // Cleared box = no schema. Unparseable box = KEEP the schema already on the node: falling back to
-    // {} would turn a strict schema into one requiring nothing, so a typo while editing would silently
-    // stop enforcing the fields downstream nodes branch on.
-    if (!s) delete rest.output_schema
-    else { try { rest.output_schema = JSON.parse(s) } catch {} }
+    const schema = workflowJson(output_schema_json, rest.output_schema, undefined, 'Output schema')
+    if (schema === undefined) delete rest.output_schema
+    else rest.output_schema = schema
   }
   if (type === 'logic.foreach' && rest.do) {
     const inner = { type: rest.do.type, data: { ...(rest.do.data || {}) } }
     if (inner.type === 'action.tool') {
       const pj = inner.data.params_json
-      try { inner.data.params = pj ? JSON.parse(pj) : {} } catch { inner.data.params = {} }
+      inner.data.params = workflowJson(pj, inner.data.params || {}, {}, 'Inner tool parameters')
       delete inner.data.params_json
     }
     rest.do = inner
@@ -1778,14 +1730,31 @@ function serializeData(type, data) {
 function currentGraph() {
   const obj = toObject()
   return {
-    nodes: (obj.nodes || []).map(n => ({ id: n.id, type: n.type, position: n.position, data: serializeData(n.type, n.data) })),
+    nodes: (obj.nodes || []).map(n => {
+      try { return { id: n.id, type: n.type, position: n.position, data: serializeData(n.type, n.data) } }
+      catch (error) {
+        const message = error instanceof WorkflowInputError ? error.message : 'Enter valid JSON in this node.'
+        const node = getNodes.value.find(row => row.id === n.id)
+        if (node) { node.data.__error = message; selected.value = node; inspectorCollapsed.value = false }
+        throw new WorkflowInputError(message)
+      }
+    }),
     edges: (obj.edges || []).map(e => ({ id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle, targetHandle: e.targetHandle, ...(e.label ? { label: e.label } : {}) })),
     viewport: obj.viewport || {},
   }
 }
+// ONE /tools/ download per page: the field datalist (loadToolNames) and the Add-node palette both read
+// the same catalog, which used to be fetched twice.
+let _toolCatalogPromise = null
+function fetchToolCatalog() {
+  if (!_toolCatalogPromise) {
+    _toolCatalogPromise = api.get('/tools/').catch((e) => { _toolCatalogPromise = null; throw e })
+  }
+  return _toolCatalogPromise
+}
 async function loadToolNames() {
   try {
-    const { data } = await api.get('/tools/')
+    const { data } = await fetchToolCatalog()
     const list = data?.tools || data?.results || data || []
     toolNames.value = list.map(t => (typeof t === 'string' ? t : (t.name || t.tool || ''))).filter(Boolean)
   } catch { /* optional */ }
@@ -1805,6 +1774,7 @@ function _absorb(data) {
 // destroy it. It gets its own message telling the user what to do, and the returned etag is deliberately
 // NOT absorbed — adopting it would let the next click overwrite the very edit we just warned about.
 function _reportSaveError(e, fallback) {
+  if (e instanceof WorkflowInputError) { notify.error(e.message); return }
   const s = e?.response?.status
   const d = e?.response?.data || {}
   if (s === 409 || s === 428) return notify.error(d.error || 'Reload before saving — this workflow changed.')
@@ -1815,15 +1785,22 @@ function _reportSaveError(e, fallback) {
   notify.error(d.error || fallback)
 }
 
-async function save() {
+// Save, Ctrl+S, Publish and Run can all ask to save; a second request while one is in flight joins it
+// instead of sending a second PUT with the same (soon stale) etag, which the server refuses as a conflict.
+let _savePromise = null
+function save() {
+  if (loading.value || loadError.value) return Promise.resolve(false)
+  if (!_savePromise) _savePromise = _doSave().finally(() => { _savePromise = null })
+  return _savePromise
+}
+async function _doSave() {
   busy.value = true
   try {
-    const { data } = await api.saveWorkflowGraph(graphId, {
-      name: name.value, graph: currentGraph(), etag: etag.value,
-    })
+    const revision = editRevision, savedName = name.value, graph = JSON.parse(JSON.stringify(currentGraph()))
+    const { data } = await api.saveWorkflowGraph(graphId, { name: savedName, graph, etag: etag.value })
     _absorb(data)
-    dirty.value = false
-    _takeSnapshot(name.value, currentGraph())   // new Reset baseline
+    dirty.value = editRevision !== revision
+    _takeSnapshot(savedName, graph)   // new Reset baseline
     notify.success('Workflow saved')
     return true
   } catch (e) {
@@ -1839,12 +1816,13 @@ async function save() {
 // and report errors the user cannot see on screen. Publishing freezes an immutable version; that is
 // what a TRIGGERED run executes, which is why it is worth the extra round-trip.
 async function publish() {
+  if (actionsDisabled.value) return
   if (dirty.value && !(await save())) return   // save() already reported why
+  if (dirty.value) { notify.info('Save your latest changes before publishing.'); return }
   busy.value = true
   try {
     const { data } = await api.saveWorkflowGraph(graphId, { status: 'published' })
     _absorb(data)
-    dirty.value = false
     notify.success(`Published (v${version.value})`)
   } catch (e) {
     _reportSaveError(e, 'Failed to publish')
@@ -1920,8 +1898,9 @@ function manualInputs() {
   const t = getNodes.value.find(n => n.type === 'trigger.manual')
   return (t?.data?.inputs || []).filter(i => i && i.key)
 }
-function runGraph(dry = false) {
-  pendingDry.value = !!dry
+function runGraph(dry = false, until = null) {
+  if (actionsDisabled.value || running.value) return
+  pendingDry.value = !!dry; pendingUntil.value = until
   const inputs = manualInputs()
   if (inputs.length) {
     runForm.value = Object.fromEntries(inputs.map(i => [i.key, i.default ?? '']))
@@ -1931,17 +1910,21 @@ function runGraph(dry = false) {
   }
   startRun({})
 }
-async function startRun(payload, until = null) {
+async function startRun(payload, until = pendingUntil.value) {
   showRunForm.value = false
   const dry = pendingDry.value
-  if (dirty.value) await save()
+  if (starting.value || running.value || loading.value || loadError.value) return
+  starting.value = true
+  if (dirty.value && !(await save())) { starting.value = false; return }
+  if (dirty.value) { starting.value = false; notify.info('Save your latest changes before running.'); return }
   running.value = true
   timelineOpen.value = true
   resetLog(); addLog(dry ? 'warn' : 'info', until ? `▶ Test up to ${until}` : (dry ? '🧪 Test run (dry-run — no real side-effects)' : '▶ Run started')); logOpen.value = true
   getNodes.value.forEach(n => { n.data.__status = 'pending' })
   try {
     const { data } = await api.runWorkflowGraph(graphId, { payload: payload || {}, dry_run: dry, until_node: until })
-    if (!data.run_id) { running.value = false; return }
+    if (!data.run_id) { running.value = false; notify.error('The server did not return a run. Try again.'); return }
+    if (unmounted) return   // left the page while the run was starting: no socket or poller for a gone page
     activeRunId.value = data.run_id
     openRunSocket(data.run_id)   // live push
     pollRun(data.run_id)         // fallback / final reconcile
@@ -1954,42 +1937,66 @@ async function startRun(payload, until = null) {
     } else {
       notify.error(e?.response?.data?.error || 'Run failed to start')
     }
-  }
+  } finally { starting.value = false }
 }
 
-function pollRun(runId) {
-  clearInterval(pollTimer)
-  const tick = async () => {
-    try {
-      const { data } = await api.getWorkflowGraphRun(runId)
-      runDetail.value = data
-      const byNode = {}
-      for (const nr of data.node_runs || []) byNode[nr.node_id] = nr
-      getNodes.value.forEach(n => { if (byNode[n.id]) n.data.__status = byNode[n.id].status })
-      // log any node transitions the WS didn't already capture (dedupe handles overlap)
-      for (const nr of data.node_runs || []) addNodeLog(nr.node_id, nr.status, (nr.output && nr.output.text) || nr.error || (nr.output && nr.output.reason) || '')
-      if (['success', 'failed', 'cancelled'].includes(data.status)) {
-        clearInterval(pollTimer); running.value = false
+// Run status poll (fallback to the socket). usePoller gives it: one poll at a time (so the end-of-run
+// log and toast cannot fire twice), backoff after an error instead of stopping for good, a pause while
+// the tab is hidden, and cancellation on leave. It stops on every state where nothing will change
+// without a person: the final ones (success / failed / cancelled / dead) and the ones that wait on a
+// human or a long delay (waiting / paused / blocked). Approving restarts it (decide()).
+let _pollRunId = null
+let mediaResumePending = false
+function resumeMediaRun() { if (!runDetail.value?.id) return; mediaResumePending = true; pollRun(runDetail.value.id) }
+const _reportedRunEnds = new Set()
+const runPoller = usePoller(async ({ signal }) => {
+  const runId = _pollRunId
+  const { data } = await api.get(`/workflow-graph-runs/${runId}/`, { signal })
+  if (runId !== _pollRunId || unmounted) return null
+  runDetail.value = data
+  const byNode = {}
+  for (const nr of data.node_runs || []) byNode[nr.node_id] = nr
+  getNodes.value.forEach(n => { if (byNode[n.id]) n.data.__status = byNode[n.id].status })
+  // log any node transitions the WS didn't already capture (dedupe handles overlap)
+  for (const nr of data.node_runs || []) addNodeLog(nr.node_id, nr.status, (nr.output && nr.output.text) || nr.error || (nr.output && nr.output.reason) || '')
+  const kind = runStopKind(data.status)
+  if (kind) {
+    running.value = false
+    const endKey = `${runId}:${data.status}`
+    if (!_reportedRunEnds.has(endKey)) {
+      _reportedRunEnds.add(endKey)
+      if (kind === 'final') {
         addLog(data.status === 'success' ? 'success' : 'error', `■ Run #${runId}: ${data.status}`)
         notify[data.status === 'success' ? 'success' : 'error'](`Run #${runId}: ${data.status}`)
-        loadRuns()
+      } else {
+        addLog('warn', `⏸ Run #${runId}: ${data.status} — it continues after a decision or its scheduled delay`)
       }
-    } catch {
-      clearInterval(pollTimer); running.value = false
+      loadRuns()
     }
   }
-  tick()
-  pollTimer = setInterval(tick, 1200)
+  return data
+}, {
+  interval: 1200,
+  maxInterval: 15000,
+  stopWhen: data => {
+    if (!data) return false
+    if (mediaResumePending && (data.node_runs || []).some(n => n.output?.awaiting_media_job) && runStopKind(data.status) === 'held') return false
+    mediaResumePending = false
+    return RUN_STOP_STATUSES.includes(data.status)
+  },
+})
+function pollRun(runId) {
+  runPoller.stop()
+  _pollRunId = runId
+  runPoller.start()
 }
 
 async function stopRun() {
-  if (!activeRunId.value) return
-  try {
-    await api.cancelWorkflowGraphRun(activeRunId.value)
-    addLog('warn', '⏹ Stop requested — halting at the next node…')
-  } catch (e) {
-    notify.error(e?.response?.data?.error || 'Failed to stop')
-  }
+  if (!activeRunId.value || stopping.value) return
+  stopping.value = true
+  try { await api.cancelWorkflowGraphRun(activeRunId.value); addLog('warn', 'Stop requested. Waiting for the server to confirm.'); pollRun(activeRunId.value) }
+  catch { notify.error('Could not request a stop. Try again.') }
+  finally { stopping.value = false }
 }
 
 async function rerun(fromNode = null) {
@@ -2012,12 +2019,15 @@ function lastOutputFor(nodeId) {
 }
 
 async function loadRuns() {
-  try { const { data } = await api.getWorkflowGraphRuns(graphId); runs.value = data || [] } catch {}
+  historyLoading.value = true; historyError.value = ''
+  try { const { data } = await api.getWorkflowGraphRuns(graphId); if (!unmounted) runs.value = data?.results || data || [] }
+  catch { if (!unmounted) historyError.value = 'Could not load run history.' }
+  finally { if (!unmounted) historyLoading.value = false }
 }
 async function openRuns() {
   showRuns.value = true
   loadRuns()
-  try { const { data } = await api.getWorkflowGraphMetrics(graphId); metrics.value = data } catch { metrics.value = null }
+  try { const { data } = await api.getWorkflowGraphMetrics(graphId); if (!unmounted) metrics.value = data } catch { metrics.value = null }
 }
 function fmtDuration(ms) {
   if (ms == null) return '—'
@@ -2028,12 +2038,15 @@ function fmtDuration(ms) {
 function fmtCost(c) { return c ? `$${Number(c).toFixed(4)}` : '$0' }
 
 async function openVersions() {
-  showVersions.value = true
-  try { const { data } = await api.getWorkflowGraphVersions(graphId); versions.value = data || [] }
-  catch { notify.error('Failed to load versions') }
+  showVersions.value = true; versionsLoading.value = true; versionsError.value = ''
+  try { const { data } = await api.getWorkflowGraphVersions(graphId); if (!unmounted) versions.value = data?.results || data || [] }
+  catch { if (!unmounted) versionsError.value = 'Could not load version history.' }
+  finally { if (!unmounted) versionsLoading.value = false }
 }
 async function restoreVersion(v) {
+  if (busy.value) return
   if (!(await confirm({ title: 'Restore this version?', message: `Roll the canvas back to v${v.version}? Save your current canvas first if you want to keep it.`, confirmText: 'Restore' }))) return
+  busy.value = true
   try {
     const { data } = await api.restoreWorkflowGraphVersion(graphId, v.id)
     _absorb(data)
@@ -2043,13 +2056,15 @@ async function restoreVersion(v) {
     setEdges(graph.edges || [])
     if (graph.viewport && setViewport) { try { setViewport(graph.viewport) } catch {} }
     dirty.value = false
+    selected.value = null; selectedEdge.value = null
+    _takeSnapshot(name.value, graph)
     showVersions.value = false
     // Deliberately NOT "now v<n>". Restoring lands on the DRAFT canvas; triggered runs keep executing
     // the published version until you publish. Saying otherwise is the illusion this used to create.
     notify.success(`Restored v${v.version} onto the canvas — publish to make it live`)
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Failed to restore')
-  }
+  } finally { busy.value = false }
 }
 async function openRun(runId) {
   try {
@@ -2063,7 +2078,7 @@ async function openRun(runId) {
     resetLog(); addLog('info', `Viewing Run #${runId} (${data.status})`)
     for (const nr of data.node_runs || []) addNodeLog(nr.node_id, nr.status, (nr.output && nr.output.text) || nr.error || (nr.output && nr.output.reason) || '')
     logOpen.value = true
-  } catch {}
+  } catch { notify.error('Could not load this run. Try again.') }
 }
 
 function goBack() { router.push('/dashboard/workflow-builder') }
@@ -2071,2288 +2086,58 @@ function goBack() { router.push('/dashboard/workflow-builder') }
 // ── workflow-level actions (Phase 3B) ──
 const menuOpen = ref(false)
 async function duplicateWorkflow() {
+  if (actionsDisabled.value) return
+  if (dirty.value && !(await save())) return
+  if (dirty.value) { notify.info('Save your latest changes before duplicating.'); return }
   busy.value = true
   try {
-    if (dirty.value) await save()
     const { data } = await api.createWorkflowGraph({ name: `${name.value} (copy)`, graph: currentGraph() })
     notify.success('Workflow duplicated')
     router.push(`/dashboard/workflow-builder/${data.id}`)
-  } catch (e) {
-    notify.error(e?.response?.data?.error || 'Failed to duplicate')
-  } finally { busy.value = false }
+  } catch { notify.error('Could not duplicate this workflow. Try again.') }
+  finally { busy.value = false }
 }
 async function deleteWorkflow() {
-  // Archive (soft-delete): keeps run history + any workflow budget's spend; hidden from the list.
-  if (!(await confirm({ title: 'Archive workflow?', message: `Archive“${name.value}”? It will be hidden from the list, but its run history and budget spend are kept.`, confirmText: 'Archive' }))) return
+  if (actionsDisabled.value) return
+  busy.value = true
   try {
+    if (!(await confirm({ title: 'Archive workflow?', message: `Archive "${name.value}"? Run history and budget spend are kept. Unsaved edits will be discarded.`, confirmText: 'Archive', danger: true }))) return
     await api.deleteWorkflowGraph(graphId)
+    dirty.value = false
     notify.success('Workflow archived')
     router.push('/dashboard/workflow-builder')
-  } catch (e) {
-    notify.error(e?.response?.data?.error || 'Failed to archive')
-  }
+  } catch { notify.error('Could not archive this workflow. Try again.') }
+  finally { busy.value = false }
 }
 
-onMounted(async () => { await load(); loadRuns(); window.addEventListener('keydown', onKeydown) })
-onBeforeUnmount(() => { clearInterval(pollTimer); try { runSocket?.close() } catch {}; window.removeEventListener('keydown', onKeydown) })
+// The keydown listener is added BEFORE the first await: added after it, a leave during the load
+// attached it to a page that was already gone (and onBeforeUnmount had already run its removal).
+let labelsObserver = null, labelSequence = 0
+function associateLabels() {
+  for (const label of builderRoot.value?.querySelectorAll('label') || []) {
+    if (label.htmlFor || label.querySelector('input,textarea,select')) continue
+    const next = label.parentElement?.classList.contains('lbl-row') ? label.parentElement.nextElementSibling : label.nextElementSibling
+    if (next?.matches('input,textarea,select')) { next.id ||= `workflow-field-${++labelSequence}`; label.htmlFor = next.id }
+  }
+}
+onMounted(async () => {
+  window.addEventListener('keydown', onKeydown, true)
+  window.addEventListener('beforeunload', beforeUnload)
+  labelsObserver = new MutationObserver(associateLabels)
+  if (builderRoot.value) labelsObserver.observe(builderRoot.value, { childList: true, subtree: true })
+  await load()
+  if (unmounted) return
+  loadRuns()
+})
+onBeforeUnmount(() => {
+  unmounted = true
+  labelsObserver?.disconnect()
+  runPoller.stop()
+  try { runSocket?.close() } catch {}
+  window.removeEventListener('keydown', onKeydown, true)
+  window.removeEventListener('beforeunload', beforeUnload)
+  endResize()
+})
 </script>
 
-<style scoped>
-.wf-status {
-  margin-left: 6px; padding: 3px 8px; border-radius: 999px;
-  font-size: 10px; font-weight: 850; letter-spacing: .04em; text-transform: uppercase;
-  background: #eef2f7; color: #64748b; border: 1px solid #e2e8f0;
-}
-.wf-status.published { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
-.wf-status.paused    { background: #fffbeb; color: #b45309; border-color: #fde68a; }
-.wf-status.retired   { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
-
-.wfb-root { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--vm-bg, #f8fafc); }
-.wfb-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: #fff; border-bottom: 1px solid #e2e8f0; }
-.bar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.lnk { font-size: 13px; font-weight: 600; color: #475569; }
-.lnk:hover { color: #7c3aed; }
-.sep { color: #cbd5e1; }
-.name-in { font-size: 14px; font-weight: 700; color: #0f172a; border: 1px solid #a78bfa; border-radius: 8px; padding: 4px 8px; min-width: 200px; outline: none; }
-.name-display { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: #0f172a; border: 1px solid transparent; border-radius: 8px; padding: 4px 8px; max-width: 320px; }
-.name-display:hover { border-color: #e2e8f0; background: #f8fafc; }
-.name-display .name-edit { font-size: 11px; color: #cbd5e1; }
-.name-display:hover .name-edit { color: #7c3aed; }
-/* overflow menu */
-.wf-menu { position: relative; }
-.wf-menu-back { position: fixed; inset: 0; z-index: 40; }
-.wf-menu-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 41; min-width: 180px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.14); padding: 5px; }
-.wf-menu-pop button { display: block; width: 100%; text-align: left; font-size: 12.5px; font-weight: 600; color: #334155; padding: 8px 10px; border-radius: 7px; }
-.wf-menu-pop button:hover { background: #f1f5f9; }
-.wf-menu-pop button.danger { color: #b91c1c; } .wf-menu-pop button.danger:hover { background: #fef2f2; }
-.log-btn.on { background: #7f1d1d; color: #fecaca; }
-.rd-dur { font-size: 10px; color: #94a3b8; flex-shrink: 0; }
-.pill { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
-.pill.dirty { color: #b45309; background: #fef3c7; } .pill.ok { color: #059669; background: #d1fae5; }
-.pill.ver { color: #475569; background: #f1f5f9; }
-.bar-right { display: flex; align-items: center; gap: 8px; }
-.gbtn { font-size: 13px; font-weight: 600; padding: 7px 13px; border-radius: 9px; background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; cursor: pointer; }
-.gbtn:hover { background: #e2e8f0; } .gbtn:disabled { opacity: .55; cursor: default; }
-.gbtn.run { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
-.gbtn.stop { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
-.gbtn.save { background: #7c3aed; color: #fff; border-color: #7c3aed; }
-.rerun-here { margin-top: 12px; width: 100%; font-size: 12px; font-weight: 600; padding: 7px; border-radius: 8px;
-  background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; }
-.rerun-here:hover { background: #e0e7ff; }
-.rd-rerun { float: right; font-size: 10.5px; font-weight: 700; color: #4338ca; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 6px; padding: 2px 7px; }
-.gbtn.on { background: #0f172a; color: #fff; border-color: #0f172a; }
-/* run-log console (bottom of canvas) */
-.log-console { position: absolute; left: 0; right: 0; bottom: 0; height: 180px; background: #0b1220; color: #cbd5e1;
-  border-top: 1px solid #1e293b; display: flex; flex-direction: column; z-index: 5; }
-.log-h { display: flex; align-items: center; gap: 8px; padding: 5px 10px; background: #0f172a; border-bottom: 1px solid #1e293b;
-  font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; }
-.log-btn { font-size: 10.5px; font-weight: 600; color: #94a3b8; padding: 2px 7px; border-radius: 6px; }
-.log-btn:hover { background: #1e293b; color: #e2e8f0; }
-.log-body { flex: 1; overflow-y: auto; padding: 6px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
-.log-empty { color: #64748b; font-style: italic; padding: 8px 0; }
-.log-line { display: flex; gap: 8px; padding: 1px 0; white-space: pre-wrap; }
-.log-t { color: #475569; flex-shrink: 0; }
-.lv-info .log-msg { color: #cbd5e1; }
-.lv-success .log-msg { color: #34d399; }
-.lv-warn .log-msg { color: #fbbf24; }
-.lv-error .log-msg { color: #f87171; }
-/* log dock resize handle + summary + reopen pill */
-.log-resize { position: absolute; top: 0; left: 0; right: 0; height: 6px; cursor: ns-resize; }
-.log-resize:hover { background: rgba(124,58,237,.4); }
-.log-summary { font-size: 10px; font-weight: 600; text-transform: none; letter-spacing: 0; color: #64748b; }
-.log-summary.running { color: #34d399; }
-.log-reopen { position: absolute; right: 12px; bottom: 8px; z-index: 5; font-size: 11px; font-weight: 600; color: #475569;
-  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 5px 10px; box-shadow: 0 1px 4px rgba(0,0,0,.08); display: flex; gap: 6px; align-items: center; }
-.log-reopen:hover { border-color: #a78bfa; }
-.log-reopen .log-summary { color: #94a3b8; }
-
-.wfb-body { flex: 1; min-height: 0; display: flex; position: relative; }
-/* ── resizable layout: dividers + collapse tabs ── */
-.wfb-divider { flex-shrink: 0; width: 5px; cursor: col-resize; background: transparent; position: relative; }
-.wfb-divider::after { content: ''; position: absolute; left: 2px; top: 0; bottom: 0; width: 1px; background: #e2e8f0; }
-.wfb-divider:hover::after { background: #a78bfa; width: 2px; left: 1.5px; }
-.wfb-tab { position: absolute; top: 50%; transform: translateY(-50%); z-index: 6; width: 16px; height: 44px; font-size: 11px;
-  background: #fff; border: 1px solid #e2e8f0; color: #94a3b8; display: flex; align-items: center; justify-content: center; }
-.wfb-tab:hover { color: #7c3aed; border-color: #a78bfa; }
-.wfb-tab.tab-left { left: 0; border-radius: 0 8px 8px 0; border-left: none; }
-.wfb-tab.tab-right { right: 0; border-radius: 8px 0 0 8px; border-right: none; }
-/* left palette (resizable) */
-.wfb-palette { flex-shrink: 0; border-right: 1px solid #e2e8f0; background: #fff; display: flex; flex-direction: column; min-height: 0; }
-.add-node-btn { margin: 10px 10px 8px; font-size: 13px; font-weight: 700; color: #fff; background: #7c3aed; border-radius: 10px; padding: 9px; box-shadow: 0 1px 4px rgba(124,58,237,.25); display: flex; align-items: center; justify-content: center; gap: 6px; }
-.add-node-btn:hover { opacity: .94; }
-.add-node-btn kbd { font-size: 9px; background: rgba(255,255,255,.22); border-radius: 4px; padding: 0 4px; }
-.pal-search { margin: 0 10px 8px; padding: 7px 10px; font-size: 12.5px; border: 1px solid #e2e8f0; border-radius: 9px; outline: none; }
-.pal-search:focus { border-color: #a78bfa; }
-.pal-scroll { flex: 1; overflow-y: auto; padding: 0 10px 12px; }
-.pal-empty { font-size: 12px; color: #94a3b8; text-align: center; padding: 20px 0; }
-.pal-cat { margin-bottom: 8px; }
-.pal-cat-h { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #cbd5e1; padding: 6px 2px 4px; }
-.pal-card { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 6px; cursor: grab; background: #fff; }
-.pal-card:hover { border-color: #a78bfa; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
-.pal-card.fam-trigger { border-left: 3px solid #0d9488; } .pal-card.fam-agent { border-left: 3px solid #4f46e5; } .pal-card.fam-action { border-left: 3px solid #7c3aed; } .pal-card.fam-logic { border-left: 3px solid #64748b; }
-.pal-card-ic { width: 26px; height: 26px; border-radius: 7px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
-.pal-card-txt { min-width: 0; display: flex; flex-direction: column; }
-.pal-card-l { font-size: 12px; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pal-card-s { font-size: 10px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pal-more { width: 100%; margin-top: 6px; font-size: 11.5px; font-weight: 600; color: #4338ca; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 7px; }
-.pal-more:hover { background: #e0e7ff; }
-/* canvas empty hero */
-.canvas-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-.ce-card { pointer-events: auto; max-width: 420px; text-align: center; background: rgba(255,255,255,.9); backdrop-filter: blur(6px); border: 1px solid #e2e8f0; border-radius: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.08); padding: 28px 30px; }
-.ce-ic { font-size: 34px; }
-.ce-title { font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 6px; }
-.ce-sub { font-size: 12.5px; color: #64748b; margin: 8px 0 16px; line-height: 1.5; }
-.ce-btns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.ce-btn { font-size: 12px; font-weight: 600; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 9px; padding: 7px 11px; }
-.ce-btn:hover { border-color: #a78bfa; color: #7c3aed; background: #f5f3ff; }
-.ce-more { margin-top: 14px; font-size: 11.5px; font-weight: 600; color: #7c3aed; }
-.ce-more:hover { text-decoration: underline; }
-/* inspector empty state + sticky header */
-.ins-sticky { position: sticky; top: -14px; background: #fff; z-index: 2; margin: -14px -14px 10px; padding: 14px 14px 8px; border-bottom: 1px solid #f1f5f9; }
-.ins-empty-wrap { display: flex; align-items: center; justify-content: center; }
-.ins-empty { text-align: center; color: #94a3b8; padding: 24px; }
-.ins-empty-ic { font-size: 26px; opacity: .6; }
-.ins-empty-t { font-size: 13px; font-weight: 700; color: #64748b; margin-top: 8px; }
-.ins-empty-s { font-size: 11.5px; margin-top: 4px; line-height: 1.5; }
-/* command palette modal */
-.pal-scrim { align-items: flex-start; }
-.cmd-pal { width: 560px; max-width: 94vw; margin-top: 8vh; max-height: 76vh; background: #fff; border-radius: 14px; box-shadow: 0 24px 64px rgba(0,0,0,.28); display: flex; flex-direction: column; overflow: hidden; }
-.cmd-search { padding: 14px 16px; font-size: 15px; border: none; border-bottom: 1px solid #e2e8f0; outline: none; }
-.cmd-body { flex: 1; overflow-y: auto; padding: 6px 8px; }
-.cmd-empty { padding: 28px; text-align: center; color: #94a3b8; font-size: 13px; }
-.cmd-grp { margin-bottom: 6px; }
-.cmd-grp-h { display: flex; align-items: center; gap: 6px; padding: 8px 10px 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; }
-.cmd-grp-toggle { cursor: pointer; border-radius: 6px; }
-.cmd-grp-toggle:hover { color: #475569; background: #f8fafc; }
-.cmd-caret { font-size: 9px; color: #cbd5e1; }
-.cmd-grp-n { font-size: 9.5px; color: #cbd5e1; }
-.cmd-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 10px; border-radius: 9px; }
-.cmd-item:hover { background: #f5f3ff; }
-.cmd-ic { width: 28px; height: 28px; border-radius: 8px; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
-.cmd-ic.fam-trigger { background: #ccfbf1; } .cmd-ic.fam-agent { background: #e0e7ff; } .cmd-ic.fam-action { background: #ede9fe; } .cmd-ic.fam-logic { background: #f1f5f9; }
-.cmd-txt { min-width: 0; flex: 1; display: flex; flex-direction: column; }
-.cmd-l { font-size: 13px; font-weight: 600; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cmd-s { font-size: 11px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cmd-badge { flex-shrink: 0; font-size: 9px; font-weight: 800; text-transform: uppercase; color: #6d28d9; background: #ede9fe; border-radius: 5px; padding: 2px 6px; }
-.cmd-foot { padding: 8px 14px; border-top: 1px solid #e2e8f0; background: #f8fafc; font-size: 10.5px; color: #94a3b8; }
-.cmd-foot kbd { font-size: 9.5px; background: #fff; border: 1px solid #e2e8f0; border-radius: 4px; padding: 0 4px; }
-.cmd-foot-btns { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 14px; }
-.cmd-back { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: #0f172a; }
-.cmd-backbtn { font-size: 16px; color: #64748b; padding: 0 4px; }
-.cmd-ctx { padding: 14px 16px; }
-.cmd-ctx-h { font-size: 13px; color: #334155; margin-bottom: 6px; }
-.cmd-ctx-note { font-size: 11.5px; color: #94a3b8; line-height: 1.45; margin-bottom: 12px; }
-/* insert-variable affordance + label row */
-.lbl-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.insvar { font-size: 10.5px; font-weight: 700; color: #4338ca; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 6px; padding: 2px 7px; }
-.insvar:hover { background: #e0e7ff; }
-.req-chk { display: flex; align-items: center; gap: 3px; font-size: 10px; color: #64748b; flex-shrink: 0; }
-/* node output panel */
-.op-h { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 10px; border-top: 1px dashed #e2e8f0; font-size: 11px; font-weight: 700; color: #64748b; }
-.op-tabs { display: flex; gap: 4px; }
-.op-tab { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #94a3b8; padding: 2px 7px; border-radius: 6px; }
-.op-tab.on { color: #4338ca; background: #eef2ff; }
-.op-body { margin-top: 6px; max-height: 200px; overflow: auto; background: #0b1220; color: #cbd5e1; border-radius: 8px; padding: 8px 10px; font-family: ui-monospace, Menlo, monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; }
-.ins-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
-.ins-actions .rerun-here { margin-top: 0; }
-.canvas-wrap { flex: 1; min-width: 0; position: relative; }
-.canvas-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(248,250,252,.7); font-size: 13px; color: #64748b; }
-.inspector { width: 300px; flex-shrink: 0; border-left: 1px solid #e2e8f0; background: #fff; padding: 14px; overflow-y: auto; }
-.ins-h { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 700; color: #7c3aed; margin-bottom: 10px; }
-.del { color: #ef4444; display: inline-flex; align-items: center; }
-.ins-h-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.ins-enabled { font-size: 11px; font-weight: 700; color: #059669; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 999px; padding: 3px 10px; }
-.ins-l { display: block; font-size: 11px; font-weight: 600; color: #475569; margin: 10px 0 4px; }
-.ins-in { width: 100%; font-size: 13px; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; }
-.ins-in:focus { outline: none; border-color: #a78bfa; box-shadow: 0 0 0 3px rgba(167,139,250,.2); }
-.ins-note { font-size: 12px; color: #64748b; line-height: 1.5; }
-.ins-hint { font-size: 10.5px; color: #94a3b8; margin-top: 6px; line-height: 1.4; }
-.ins-in.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-.ins-err { margin-top: 10px; font-size: 11.5px; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 7px 9px; }
-.ins-status { margin-top: 10px; font-size: 11.5px; border-radius: 8px; padding: 7px 9px; }
-.ins-status.st-success { color: #047857; background: #ecfdf5; } .ins-status.st-failed { color: #b91c1c; background: #fef2f2; }
-.ins-out { margin-top: 4px; font-size: 11px; color: #334155; white-space: pre-wrap; max-height: 160px; overflow: auto; }
-.drawer-scrim { position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 50; display: flex; justify-content: flex-end; }
-.drawer { width: 380px; max-width: 90vw; height: 100%; background: #fff; box-shadow: -8px 0 24px rgba(0,0,0,.12); display: flex; flex-direction: column; }
-.drawer-h { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; }
-.drawer-h .x { font-size: 22px; color: #94a3b8; line-height: 1; }
-.drawer-empty { padding: 40px 14px; text-align: center; font-size: 13px; color: #94a3b8; }
-.drawer-list { padding: 8px; border-bottom: 1px solid #e2e8f0; max-height: 40%; overflow-y: auto; }
-.run-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 9px; border-radius: 8px; font-size: 12px; }
-.run-row:hover { background: #f1f5f9; }
-.run-id { font-weight: 700; color: #0f172a; } .run-st { color: #64748b; } .run-time { margin-left: auto; color: #94a3b8; font-size: 10.5px; }
-.run-detail { flex: 1; overflow-y: auto; padding: 10px 12px; }
-.rd-h { font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
-.rd-node { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px dashed #eef2f7; font-size: 11.5px; }
-.rd-nt { font-weight: 600; color: #334155; } .rd-id { color: #94a3b8; } .rd-st { margin-left: auto; color: #64748b; }
-.rd-err { width: 100%; color: #b91c1c; font-size: 11px; } .rd-out { width: 100%; color: #475569; font-size: 11px; white-space: pre-wrap; }
-.bg-emerald-500 { background:#10b981 } .bg-red-500 { background:#ef4444 } .bg-indigo-500 { background:#6366f1 } .bg-slate-300 { background:#cbd5e1 } .bg-amber-400 { background:#fbbf24 }
-/* manual inputs (key/value rows) */
-.kv-row { display: flex; gap: 5px; margin-bottom: 5px; }
-.kv-row .ins-in { margin: 0; }
-.kv-del { flex-shrink: 0; width: 26px; border: 1px solid #e2e8f0; border-radius: 7px; color: #94a3b8; background: #f8fafc; }
-.kv-del:hover { color: #b91c1c; border-color: #fecaca; }
-.kv-add { margin-top: 2px; font-size: 11.5px; font-weight: 600; color: #4338ca; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 7px; padding: 5px 10px; }
-.kv-add:hover { background: #e0e7ff; }
-/* approval decision box */
-.appr-box { margin-top: 12px; padding: 10px; border: 1px solid #fde68a; background: #fffbeb; border-radius: 10px; }
-.appr-q { font-size: 12px; font-weight: 700; color: #b45309; margin-bottom: 8px; }
-.appr-btns { display: flex; gap: 8px; }
-.appr-yes, .appr-no { flex: 1; font-size: 12px; font-weight: 700; padding: 7px; border-radius: 8px; border: 1px solid; }
-.appr-yes { color: #047857; background: #ecfdf5; border-color: #a7f3d0; } .appr-yes:hover { background: #d1fae5; }
-.appr-no { color: #b91c1c; background: #fef2f2; border-color: #fecaca; } .appr-no:hover { background: #fee2e2; }
-.appr-yes:disabled, .appr-no:disabled { opacity: .55; }
-/* advanced/reliability section */
-.adv-h { margin-top: 14px; padding: 7px 0; font-size: 11.5px; font-weight: 700; color: #64748b; cursor: pointer; border-top: 1px dashed #e2e8f0; user-select: none; }
-.adv-h:hover { color: #334155; }
-.adv-body { padding-top: 2px; }
-/* run-with-inputs modal */
-.modal-scrim { position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 60; display: flex; align-items: center; justify-content: center; }
-.run-form { width: 360px; max-width: 90vw; background: #fff; border-radius: 14px; box-shadow: 0 16px 48px rgba(0,0,0,.2); overflow: hidden; }
-.rf-h { display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; border-bottom: 1px solid #e2e8f0; font-size: 14px; font-weight: 700; color: #0f172a; }
-.rf-h .x { font-size: 22px; color: #94a3b8; line-height: 1; }
-.rf-body { padding: 12px 16px; max-height: 60vh; overflow-y: auto; }
-.rf-row { margin-bottom: 8px; }
-.rf-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid #e2e8f0; background: #f8fafc; }
-/* run metrics bar */
-.metrics-bar { display: flex; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
-.met { flex: 1; text-align: center; }
-.met-v { display: block; font-size: 15px; font-weight: 800; color: #0f172a; }
-.met-l { display: block; font-size: 9.5px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; }
-.run-dry { font-size: 9px; font-weight: 800; color: #b45309; background: #fef3c7; border-radius: 5px; padding: 1px 5px; text-transform: uppercase; }
-.run-dur { color: #94a3b8; font-size: 10.5px; }
-.rd-meta { font-size: 10.5px; font-weight: 600; color: #94a3b8; margin-left: 8px; }
-/* version history */
-.ver-hint { padding: 8px 14px; font-size: 11px; color: #94a3b8; }
-.ver-list { max-height: none; }
-.ver-row { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 9px; }
-.ver-row:hover { background: #f8fafc; }
-.ver-info { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
-.ver-num { font-size: 12px; font-weight: 800; color: #4338ca; background: #eef2ff; border-radius: 6px; padding: 2px 7px; }
-.ver-lbl { font-size: 12px; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ver-time { margin-left: auto; font-size: 10px; color: #94a3b8; flex-shrink: 0; }
-.ver-restore { flex-shrink: 0; font-size: 11px; font-weight: 700; color: #4338ca; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 7px; padding: 5px 11px; }
-.ver-restore:hover { background: #e0e7ff; }
-
-/* Screen 25 workflow builder refresh */
-.wfb-root {
-  background: #f6f9fd;
-  font-family: Inter, var(--vm-font-sans), system-ui, sans-serif;
-  color: #0f172a;
-}
-.wfb-bar {
-  min-height: 58px;
-  padding: 10px 24px;
-  background: #ffffff;
-  border-bottom: 1px solid #e5edf6;
-}
-.bar-left {
-  gap: 8px;
-}
-.lnk,
-.name-display,
-.name-in {
-  font-size: 13px;
-}
-.lnk {
-  color: #64748b;
-  font-weight: 700;
-  font-size: 0;
-}
-.lnk:hover {
-  color: #2563eb;
-}
-.lnk::after {
-  content: "Workflows";
-  font-size: 13px;
-}
-.name-display {
-  font-weight: 800;
-  color: #172033;
-}
-.name-edit {
-  display: none;
-}
-.pill {
-  border-radius: 999px;
-  font-size: 10px;
-  letter-spacing: 0;
-  padding: 3px 8px;
-}
-.pill.ver {
-  color: #475569;
-  background: #f1f5f9;
-}
-.pill.dirty {
-  color: #92400e;
-  background: #fff3d6;
-  font-size: 0;
-}
-.pill.ok {
-  color: #047857;
-  background: #dffbea;
-}
-.pill.dirty::after {
-  content: "Unsaved";
-  font-size: 10px;
-}
-.bar-right {
-  gap: 8px;
-}
-.bar-right > .gbtn:nth-child(-n+3) {
-  display: none;
-}
-.gbtn {
-  height: 38px;
-  padding: 0 14px;
-  border-radius: 9px;
-  background: #ffffff;
-  border: 1px solid #dbe5f0;
-  color: #1e293b;
-  font-size: 13px;
-  font-weight: 800;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
-}
-.bar-right > .gbtn:nth-child(5),
-.bar-right > .gbtn:nth-child(6),
-.wf-menu > .gbtn {
-  font-size: 0;
-}
-.bar-right > .gbtn:nth-child(5)::after {
-  content: "Test";
-  font-size: 13px;
-}
-.bar-right > .gbtn:nth-child(6)::after {
-  content: "Run";
-  font-size: 13px;
-}
-.bar-right > .gbtn.stop:nth-child(6)::after {
-  content: "Stop";
-}
-.wf-menu > .gbtn::after {
-  content: "More";
-  font-size: 13px;
-}
-.gbtn:hover {
-  background: #f8fbff;
-  border-color: #cbd8e8;
-}
-.gbtn.run {
-  color: #047857;
-  background: #ecfdf5;
-  border-color: #b7f3d5;
-}
-.gbtn.save {
-  color: #ffffff;
-  background: #2563eb;
-  border-color: #2563eb;
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.2);
-}
-.wfb-title-strip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 18px 28px 16px;
-  background: #f6f9fd;
-  border-bottom: 1px solid #e5edf6;
-}
-.wfb-title-strip h1 {
-  margin: 0;
-  font-size: 24px;
-  line-height: 1.15;
-  font-weight: 850;
-  letter-spacing: -0.01em;
-  color: #0f172a;
-}
-.wfb-title-strip p {
-  margin: 5px 0 0;
-  font-size: 13px;
-  color: #60708a;
-}
-.title-help {
-  height: 36px;
-  padding: 0 14px;
-  border: 1px solid #dbe5f0;
-  border-radius: 9px;
-  background: #ffffff;
-  color: #2563eb;
-  font-size: 13px;
-  font-weight: 800;
-}
-.wfb-body {
-  padding: 16px 24px 22px;
-  gap: 12px;
-}
-.wfb-palette,
-.inspector {
-  border: 1px solid #dbe5f0;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
-}
-.wfb-palette {
-  overflow: hidden;
-}
-.add-node-btn {
-  height: 40px;
-  margin: 14px 14px 10px;
-  border-radius: 9px;
-  background: #2563eb;
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
-}
-.add-node-btn kbd {
-  display: none;
-}
-.pal-search {
-  height: 38px;
-  margin: 0 14px 12px;
-  border-color: #dbe5f0;
-  border-radius: 9px;
-  color: #172033;
-}
-.pal-scroll {
-  padding: 0 14px 14px;
-}
-.pal-cat-h {
-  color: #7b8aa4;
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  padding: 12px 2px 7px;
-}
-.pal-card {
-  min-height: 58px;
-  border-color: #e2eaf4;
-  border-radius: 10px;
-  padding: 9px 10px;
-  box-shadow: none;
-}
-.pal-card:hover {
-  border-color: #b9c9df;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
-}
-.pal-card-ic {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: #eef4ff;
-  font-size: 0;
-}
-.pal-card-ic::before {
-  content: "";
-  width: 13px;
-  height: 13px;
-  border: 2px solid #2563eb;
-  border-radius: 4px;
-}
-.pal-card-l {
-  font-size: 13px;
-  font-weight: 800;
-}
-.pal-card-s {
-  font-size: 11px;
-  color: #64748b;
-}
-.pal-more {
-  background: #f6f9ff;
-  color: #2563eb;
-  border-color: #d7e4ff;
-}
-.wfb-divider,
-.wfb-tab {
-  display: none;
-}
-.canvas-wrap {
-  min-height: 640px;
-  border: 1px solid #dbe5f0;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #f8fbff;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.6), 0 8px 24px rgba(15, 23, 42, 0.035);
-}
-.canvas-wrap :deep(.vue-flow__background) {
-  opacity: 0.78;
-}
-.canvas-wrap :deep(.vue-flow__controls) {
-  left: 16px;
-  bottom: 16px;
-  border: 1px solid #dbe5f0;
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
-}
-.wfb-guide {
-  position: absolute;
-  top: 18px;
-  left: 50%;
-  z-index: 4;
-  width: min(520px, calc(100% - 48px));
-  transform: translateX(-50%);
-  padding: 18px 20px;
-  border: 1px solid #dbe5f0;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.09);
-}
-.guide-x {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
-  color: #94a3b8;
-}
-.guide-eyebrow {
-  font-size: 11px;
-  font-weight: 850;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #2563eb;
-}
-.wfb-guide h2 {
-  margin: 6px 0 6px;
-  font-size: 18px;
-  font-weight: 850;
-  color: #0f172a;
-}
-.wfb-guide p {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: #60708a;
-}
-.guide-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 14px;
-}
-.guide-steps span {
-  padding: 6px 9px;
-  border-radius: 999px;
-  background: #eef4ff;
-  color: #1d4ed8;
-  font-size: 11px;
-  font-weight: 800;
-}
-.inspector {
-  padding: 0;
-}
-.ins-sticky {
-  top: 0;
-  margin: 0;
-  padding: 18px;
-  border-bottom: 1px solid #e8eef7;
-}
-.ins-node-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-.ins-node-icon {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: #eef4ff;
-  color: #2563eb;
-  flex-shrink: 0;
-}
-.ins-node-title strong {
-  display: block;
-  font-size: 16px;
-  line-height: 1.2;
-  font-weight: 850;
-  color: #0f172a;
-}
-.ins-node-title small {
-  display: block;
-  margin-top: 2px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #64748b;
-}
-.del {
-  color: #ef4444;
-  font-size: 12px;
-  font-weight: 800;
-}
-.wfb-inspector > :not(.ins-sticky) {
-  margin-left: 18px;
-  margin-right: 18px;
-}
-.manual-panel {
-  padding-bottom: 18px;
-}
-.ins-l {
-  margin-top: 16px;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 800;
-}
-.ins-in {
-  border-color: #dbe5f0;
-  border-radius: 9px;
-  color: #172033;
-  font-size: 13px;
-}
-.manual-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 18px;
-}
-.manual-section-head strong {
-  display: block;
-  font-size: 14px;
-  color: #0f172a;
-}
-.manual-section-head span {
-  display: block;
-  margin-top: 2px;
-  font-size: 12px;
-  color: #64748b;
-}
-.manual-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 96px;
-  margin-top: 12px;
-  padding: 18px;
-  border: 1px dashed #cbd8e8;
-  border-radius: 12px;
-  background: #f8fbff;
-  text-align: center;
-}
-.manual-empty strong {
-  color: #0f172a;
-  font-size: 13px;
-}
-.manual-empty span,
-.manual-about p {
-  color: #64748b;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.manual-about {
-  margin-top: 18px;
-  padding: 14px;
-  border: 1px solid #e2eaf4;
-  border-radius: 12px;
-  background: #f8fbff;
-}
-.manual-about strong {
-  color: #0f172a;
-  font-size: 13px;
-}
-.manual-about p {
-  margin: 6px 0 0;
-}
-.kv-add {
-  color: #2563eb;
-  background: #eef4ff;
-  border-color: #d7e4ff;
-}
-
-@media (max-width: 1180px) {
-  .wfb-body {
-    padding: 12px;
-  }
-  .wfb-title-strip {
-    padding: 16px;
-  }
-}
-
-/* Screen 25 exact alignment pass */
-.wfb-root {
-  height: 100%;
-  min-height: 0;
-  overflow: hidden;
-  background: #f8fbff !important;
-}
-.wfb-bar {
-  min-height: 64px !important;
-  padding: 0 22px !important;
-  border-bottom-color: #dbe5f0 !important;
-}
-.bar-left {
-  gap: 12px !important;
-}
-.sep {
-  color: #d8e2ee !important;
-}
-.lnk::before {
-  content: "<";
-  margin-right: 8px;
-  color: #64748b;
-}
-.lnk::after,
-.pill.dirty::after,
-.bar-right > .gbtn::after,
-.wf-menu > .gbtn::after {
-  content: none !important;
-  display: none !important;
-}
-.wfb-root .lnk {
-  font-size: 13px !important;
-  font-weight: 750 !important;
-  color: #4f6178 !important;
-}
-.name-display {
-  padding: 0 !important;
-  font-size: 14px !important;
-  font-weight: 850 !important;
-}
-.pill.ver,
-.pill.dirty,
-.pill.ok {
-  padding: 5px 10px !important;
-  font-size: 11px !important;
-  font-weight: 850 !important;
-}
-.secondary-action {
-  display: none !important;
-}
-.bar-right {
-  gap: 10px !important;
-}
-.gbtn {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-width: 78px;
-  height: 38px !important;
-  padding: 0 16px !important;
-  border-radius: 8px !important;
-  font-size: 13px !important;
-  font-weight: 800 !important;
-  line-height: 1 !important;
-  background: #ffffff !important;
-  border-color: #d4e0ef !important;
-  color: #102033 !important;
-}
-.gbtn.secondary-action {
-  display: none !important;
-}
-.gbtn.run {
-  color: #047857 !important;
-  background: #ecfdf5 !important;
-  border-color: #abe6ce !important;
-}
-.gbtn.save {
-  color: #ffffff !important;
-  background: #2d5bf0 !important;
-  border-color: #2d5bf0 !important;
-}
-.wf-menu > .gbtn {
-  min-width: 64px;
-}
-.wfb-title-strip {
-  min-height: 76px !important;
-  padding: 16px 22px !important;
-  background: #ffffff !important;
-  border-bottom-color: #dbe5f0 !important;
-}
-.wfb-title-strip h1 {
-  font-size: 22px !important;
-  line-height: 1.15 !important;
-  font-weight: 850 !important;
-}
-.wfb-root .wfb-title-strip h1 {
-  font-size: 22px !important;
-  line-height: 1.15 !important;
-  font-weight: 850 !important;
-}
-.wfb-title-strip p {
-  margin-top: 6px !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  color: #51617a !important;
-}
-.wfb-root .wfb-title-strip p {
-  font-size: 13px !important;
-  line-height: 1.35 !important;
-}
-.title-help {
-  display: none !important;
-}
-.wfb-body {
-  flex: 1 !important;
-  gap: 0 !important;
-  padding: 0 !important;
-  background: #f8fbff !important;
-}
-.wfb-palette {
-  width: 268px !important;
-  min-width: 268px !important;
-  max-width: 268px !important;
-  border-width: 0 1px 0 0 !important;
-  border-color: #dbe5f0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-.add-node-btn {
-  height: 36px !important;
-  margin: 12px 16px 10px !important;
-  border-radius: 7px !important;
-  font-size: 13px !important;
-  font-weight: 850 !important;
-  background: #2d63ed !important;
-  box-shadow: 0 10px 20px rgba(45, 99, 237, 0.22) !important;
-}
-.pal-search {
-  height: 36px !important;
-  margin: 0 16px 10px !important;
-  padding: 0 14px !important;
-  border-radius: 7px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
-}
-.pal-scroll {
-  padding: 0 16px 16px !important;
-}
-.pal-cat {
-  margin-bottom: 10px !important;
-}
-.pal-cat-h {
-  padding: 8px 2px 6px !important;
-  font-size: 11px !important;
-  letter-spacing: 0 !important;
-  color: #7b8da9 !important;
-}
-.pal-card {
-  min-height: 45px !important;
-  margin-bottom: 6px !important;
-  padding: 7px 9px !important;
-  border: 1px solid #dce6f2 !important;
-  border-left: 1px solid #dce6f2 !important;
-  border-radius: 7px !important;
-  background: #ffffff !important;
-}
-.pal-card-ic {
-  width: 28px !important;
-  height: 28px !important;
-  border-radius: 7px !important;
-  background: #eef5ff !important;
-}
-.pal-card-l {
-  font-size: 12px !important;
-  font-weight: 850 !important;
-}
-.pal-card-s {
-  margin-top: 1px !important;
-  font-size: 10px !important;
-  font-weight: 600 !important;
-  color: #64748b !important;
-}
-.pal-more {
-  height: 34px !important;
-  border-radius: 7px !important;
-  font-size: 12px !important;
-  font-weight: 850 !important;
-}
-.canvas-wrap {
-  min-height: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  background-color: #fbfdff !important;
-  background-image: radial-gradient(#d2dceb 1px, transparent 1px) !important;
-  background-size: 24px 24px !important;
-}
-.canvas-wrap :deep(.vue-flow__background) {
-  opacity: 0 !important;
-}
-.canvas-wrap :deep(.vue-flow__controls) {
-  left: 18px !important;
-  bottom: 18px !important;
-  border-radius: 8px !important;
-}
-.wfb-guide {
-  top: 20px !important;
-  width: min(880px, calc(100% - 96px)) !important;
-  padding: 22px 24px 18px !important;
-  border-radius: 8px !important;
-  border-color: #dbe5f0 !important;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07) !important;
-}
-.guide-x {
-  top: 16px !important;
-  right: 18px !important;
-  color: #6b7f9b !important;
-  font-size: 18px !important;
-}
-.wfb-guide h2 {
-  margin: 0 0 6px !important;
-  font-size: 14px !important;
-  line-height: 1.25 !important;
-  font-weight: 850 !important;
-}
-.wfb-guide p {
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  color: #60708a !important;
-}
-.guide-steps {
-  display: grid !important;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  gap: 0 !important;
-  margin-top: 22px !important;
-}
-.guide-steps span {
-  display: grid !important;
-  grid-template-columns: 34px 1fr !important;
-  grid-template-rows: auto auto !important;
-  column-gap: 12px !important;
-  min-height: 58px !important;
-  padding: 0 22px 0 0 !important;
-  border-right: 1px solid #dfe7f2 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  color: #0f172a !important;
-  font-size: 12px !important;
-}
-.guide-steps span:last-child {
-  border-right: 0 !important;
-}
-.guide-steps b {
-  grid-row: 1 / span 2;
-  display: inline-grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  background: #edf4ff;
-  color: #2563eb;
-  font-size: 12px;
-  font-weight: 850;
-}
-.guide-steps strong {
-  font-size: 12px;
-  line-height: 1.25;
-  font-weight: 850;
-  color: #0f172a;
-}
-.guide-steps em {
-  margin-top: 3px;
-  font-style: normal;
-  font-size: 11px;
-  line-height: 1.35;
-  font-weight: 500;
-  color: #60708a;
-}
-.guide-docs {
-  margin-top: 12px;
-  color: #2563eb;
-  font-size: 12px;
-  font-weight: 850;
-}
-.wfb-inspector {
-  width: 420px !important;
-  min-width: 420px !important;
-  max-width: 420px !important;
-  border-width: 0 0 0 1px !important;
-  border-color: #dbe5f0 !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-.ins-sticky {
-  min-height: 76px !important;
-  padding: 18px 22px !important;
-  border-bottom-color: #dbe5f0 !important;
-}
-.ins-node-icon {
-  width: 38px !important;
-  height: 38px !important;
-  border-radius: 9px !important;
-  background: #dff7f3 !important;
-  color: #0f766e !important;
-}
-.ins-node-title strong {
-  font-size: 14px !important;
-  font-weight: 850 !important;
-}
-.ins-node-title small {
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  color: #60708a !important;
-}
-.del {
-  width: 30px !important;
-  height: 30px !important;
-  display: grid !important;
-  place-items: center !important;
-  font-size: 0 !important;
-  color: #718198 !important;
-}
-.del::after {
-  content: "x";
-  font-size: 18px;
-  line-height: 1;
-}
-.wfb-inspector > :not(.ins-sticky) {
-  margin-left: 22px !important;
-  margin-right: 22px !important;
-}
-.manual-panel {
-  padding-top: 12px !important;
-}
-.ins-l {
-  margin: 18px 0 8px !important;
-  font-size: 12px !important;
-  font-weight: 850 !important;
-  color: #1f2f46 !important;
-}
-.ins-in {
-  min-height: 40px !important;
-  border-radius: 8px !important;
-  border-color: #d6e1ee !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-}
-textarea.ins-in {
-  line-height: 1.45 !important;
-}
-.manual-section-head {
-  margin-top: 20px !important;
-}
-.manual-section-head strong {
-  font-size: 12px !important;
-  font-weight: 850 !important;
-}
-.manual-section-head span {
-  display: none !important;
-}
-.kv-add {
-  height: 30px !important;
-  padding: 0 12px !important;
-  border-radius: 7px !important;
-  font-size: 12px !important;
-  font-weight: 850 !important;
-}
-.manual-empty {
-  min-height: 134px !important;
-  margin-top: 12px !important;
-  border-radius: 8px !important;
-  border-color: #cfdced !important;
-  background: #ffffff !important;
-}
-.manual-empty strong {
-  font-size: 13px !important;
-  font-weight: 850 !important;
-}
-.manual-empty span {
-  max-width: 250px;
-  font-size: 12px !important;
-  font-weight: 500 !important;
-}
-.manual-about {
-  margin-top: 28px !important;
-  padding: 18px 20px !important;
-  border: 0 !important;
-  border-radius: 9px !important;
-  background: #f0f6ff !important;
-}
-.manual-about strong {
-  font-size: 13px !important;
-  font-weight: 850 !important;
-}
-.manual-about p {
-  margin-top: 12px !important;
-  font-size: 12px !important;
-  line-height: 1.8 !important;
-}
-
-@media (max-width: 1360px) {
-  .wfb-palette {
-    width: 244px !important;
-    min-width: 244px !important;
-    max-width: 244px !important;
-  }
-  .wfb-inspector {
-    width: 360px !important;
-    min-width: 360px !important;
-    max-width: 360px !important;
-  }
-  .wfb-guide {
-    width: min(760px, calc(100% - 64px)) !important;
-  }
-}
-
-/* Workflow builder 2026 multi-state design */
-.wfb-root {
-  background: #ffffff !important;
-}
-.wfb-bar {
-  min-height: 72px !important;
-  padding: 0 18px !important;
-  gap: 20px !important;
-  background: #ffffff !important;
-  border-bottom: 1px solid #dce5f2 !important;
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02) !important;
-}
-.wf-brand {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 7px;
-  background: linear-gradient(145deg, #111b3a, #070d22);
-  box-shadow: 0 10px 24px rgba(10, 18, 40, 0.18);
-  flex: 0 0 auto;
-}
-.wf-brand span,
-.wf-brand span::before,
-.wf-brand span::after {
-  display: block;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: #ffffff;
-  content: "";
-}
-.wf-brand span {
-  position: relative;
-  transform: translateY(-6px);
-}
-.wf-brand span::before {
-  position: absolute;
-  left: -8px;
-  top: 14px;
-}
-.wf-brand span::after {
-  position: absolute;
-  right: -8px;
-  top: 14px;
-}
-.bar-left {
-  flex: 1;
-  gap: 12px !important;
-}
-.wfb-root .lnk {
-  font-size: 15px !important;
-  font-weight: 760 !important;
-  color: #687895 !important;
-}
-.lnk::before {
-  display: none !important;
-}
-.sep {
-  font-size: 18px !important;
-  color: #cbd6e6 !important;
-}
-.name-display {
-  max-width: 460px !important;
-  font-size: 16px !important;
-  font-weight: 850 !important;
-  color: #0b1530 !important;
-}
-.pill.draft {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 28px;
-  padding: 0 12px !important;
-  border: 1px solid #ffd8a8;
-  background: #fff4e4;
-  color: #b45406;
-  border-radius: 10px;
-  font-size: 13px !important;
-  font-weight: 850 !important;
-}
-.pill.draft::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: #fb8c00;
-}
-.bar-right {
-  gap: 14px !important;
-}
-.reset-action,
-.secondary-action {
-  display: none !important;
-}
-.gbtn {
-  min-width: 96px !important;
-  height: 42px !important;
-  padding: 0 18px !important;
-  border-radius: 8px !important;
-  border-color: #d5dfed !important;
-  background: #ffffff !important;
-  color: #17233b !important;
-  font-size: 14px !important;
-  font-weight: 820 !important;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.03) !important;
-}
-.gbtn.run {
-  min-width: 124px !important;
-  background: #ecfff6 !important;
-  color: #058047 !important;
-  border-color: #6bd6a8 !important;
-}
-.gbtn.run::after {
-  content: "⌄" !important;
-  display: inline !important;
-  margin-left: 14px;
-  color: #058047;
-}
-.gbtn.save::after {
-  content: "⌄" !important;
-  display: inline !important;
-  margin-left: 12px;
-}
-.gbtn.save {
-  min-width: 132px !important;
-  color: #ffffff !important;
-  background: #1f5af6 !important;
-  border-color: #1f5af6 !important;
-  box-shadow: 0 10px 24px rgba(31, 90, 246, 0.22) !important;
-}
-.more-btn {
-  min-width: 58px !important;
-  width: 58px !important;
-  padding: 0 !important;
-  font-size: 20px !important;
-  letter-spacing: 2px !important;
-}
-.wfb-title-strip {
-  display: none !important;
-}
-.wfb-body {
-  height: calc(100% - 72px) !important;
-  background: #ffffff !important;
-}
-.wfb-palette {
-  width: 292px !important;
-  min-width: 292px !important;
-  max-width: 292px !important;
-  display: flex !important;
-  flex-direction: column !important;
-  border-color: #dce5f2 !important;
-}
-.add-node-btn {
-  height: 42px !important;
-  margin: 16px 18px 12px !important;
-  border-radius: 8px !important;
-  font-size: 15px !important;
-  background: #245cff !important;
-}
-.add-node-btn::after {
-  content: "⌄";
-  margin-left: auto;
-  font-size: 14px;
-}
-.pal-search {
-  height: 42px !important;
-  margin: 0 18px 16px !important;
-  padding-left: 42px !important;
-  font-size: 14px !important;
-  background: #ffffff;
-  box-shadow: inset 0 0 0 1px #dce5f2;
-}
-.wfb-palette::before {
-  content: "⌕";
-  position: absolute;
-  left: 32px;
-  top: 76px;
-  z-index: 1;
-  color: #7e8aa3;
-  font-size: 18px;
-}
-.pal-scroll {
-  flex: 1 !important;
-  padding: 0 18px 14px !important;
-}
-.pal-cat-h {
-  padding: 10px 0 8px !important;
-  text-transform: uppercase;
-  color: #60708a !important;
-  font-size: 12px !important;
-  font-weight: 850 !important;
-}
-.pal-card {
-  min-height: 56px !important;
-  padding: 9px 12px !important;
-  margin-bottom: 8px !important;
-  border-radius: 8px !important;
-  border-color: #dce5f2 !important;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.025) !important;
-}
-.pal-card:hover {
-  border-color: #2b62ff !important;
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.1) !important;
-}
-.pal-card-ic {
-  width: 34px !important;
-  height: 34px !important;
-  border-radius: 8px !important;
-  background: #eef4ff !important;
-}
-.pal-card.fam-trigger .pal-card-ic { background: #f0e9ff !important; }
-.pal-card.fam-agent .pal-card-ic { background: #e8fbff !important; }
-.pal-card.fam-action .pal-card-ic { background: #edfdf4 !important; }
-.pal-card.fam-logic .pal-card-ic { background: #fff4dd !important; }
-.pal-card-l {
-  font-size: 13px !important;
-  color: #111b34 !important;
-}
-.pal-card-s {
-  font-size: 11px !important;
-  color: #5f6f89 !important;
-}
-.pal-more {
-  height: 36px !important;
-  margin-top: 10px !important;
-  border-radius: 8px !important;
-  background: #f4f7ff !important;
-}
-.pal-footer {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0;
-  padding: 16px 18px 18px;
-  border-top: 1px solid #dce5f2;
-}
-.pal-footer button {
-  height: 28px;
-  color: #6b7d99;
-  font-size: 22px;
-  font-weight: 700;
-}
-.canvas-wrap {
-  background-color: #fbfdff !important;
-  background-image: radial-gradient(#cbd9ed 1.15px, transparent 1.15px) !important;
-  background-size: 24px 24px !important;
-}
-.wfb-guide {
-  top: 34px !important;
-  width: min(820px, calc(100% - 96px)) !important;
-  padding: 30px 34px 26px !important;
-  border-radius: 9px !important;
-  background: #ffffff !important;
-  border-color: #dce5f2 !important;
-}
-.wfb-guide h2 {
-  font-size: 20px !important;
-}
-.wfb-guide p {
-  font-size: 14px !important;
-}
-.guide-steps {
-  margin-top: 28px !important;
-}
-.guide-steps strong {
-  font-size: 13px !important;
-}
-.guide-steps em {
-  font-size: 12px !important;
-}
-.guide-docs {
-  margin-top: 22px !important;
-  font-size: 13px !important;
-}
-.log-reopen {
-  right: 22px !important;
-  bottom: 22px !important;
-}
-.wfb-inspector {
-  width: 410px !important;
-  min-width: 410px !important;
-  max-width: 410px !important;
-  background: #ffffff !important;
-}
-.ins-sticky {
-  min-height: 108px !important;
-  padding: 22px 22px 14px !important;
-}
-.ins-sticky::after {
-  content: "Configure    Settings";
-  position: absolute;
-  left: 22px;
-  right: 22px;
-  bottom: 0;
-  height: 38px;
-  border-bottom: 1px solid #dce5f2;
-  color: #2563eb;
-  white-space: pre;
-  font-size: 14px;
-  font-weight: 850;
-  line-height: 38px;
-  box-shadow: inset 0 -2px 0 #2563eb;
-}
-.ins-node-icon {
-  width: 48px !important;
-  height: 48px !important;
-  border-radius: 10px !important;
-  background: #efe7ff !important;
-  color: #7c3aed !important;
-}
-.ins-node-title strong {
-  font-size: 16px !important;
-}
-.ins-node-title small {
-  font-size: 13px !important;
-}
-.ins-node-title::after {
-  content: "Enabled";
-  margin-left: auto;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: #ddfbea;
-  color: #10a464;
-  font-size: 12px;
-  font-weight: 850;
-}
-.manual-panel,
-.wfb-inspector > :not(.ins-sticky) {
-  padding-top: 10px !important;
-}
-.ins-l {
-  font-size: 13px !important;
-}
-.ins-in {
-  min-height: 46px !important;
-  border-radius: 8px !important;
-  font-size: 14px !important;
-}
-textarea.ins-in {
-  min-height: 92px !important;
-}
-.manual-empty {
-  min-height: 126px !important;
-}
-.manual-about {
-  background: #f4f7ff !important;
-}
-.cmd-pal {
-  width: 660px !important;
-  max-width: min(660px, 92vw) !important;
-  margin-top: 86px !important;
-  border: 1px solid #dce5f2;
-  border-radius: 10px !important;
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18) !important;
-}
-.cmd-pal::before {
-  content: "Add a node\aChoose a node to add to your workflow.";
-  display: block;
-  white-space: pre;
-  padding: 24px 26px 8px;
-  color: #102033;
-  font-size: 20px;
-  line-height: 1.55;
-  font-weight: 850;
-}
-.cmd-search {
-  height: 44px !important;
-  margin: 0 26px 14px;
-  padding: 0 16px !important;
-  border: 1px solid #dce5f2 !important;
-  border-radius: 8px !important;
-  font-size: 14px !important;
-}
-.cmd-body {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  padding: 0 26px 26px !important;
-}
-.cmd-grp {
-  display: contents;
-}
-.cmd-grp-h {
-  grid-column: 1 / -1;
-  padding: 12px 0 2px !important;
-  color: #233552 !important;
-  font-size: 12px !important;
-}
-.cmd-item {
-  min-height: 68px;
-  align-items: center;
-  gap: 10px;
-  padding: 12px !important;
-  border: 1px solid #dce5f2;
-  border-radius: 8px !important;
-  background: #ffffff;
-}
-.cmd-ic {
-  width: 32px !important;
-  height: 32px !important;
-}
-.cmd-l {
-  font-size: 12px !important;
-  font-weight: 850 !important;
-}
-.cmd-s {
-  font-size: 10.5px !important;
-  color: #60708a !important;
-}
-.cmd-foot {
-  display: none !important;
-}
-.gbtn svg {
-  width: 16px;
-  height: 16px;
-  margin-right: 8px;
-  stroke-width: 2.2;
-}
-.more-btn svg,
-.gbtn.run::after,
-.gbtn.save::after {
-  margin-right: 0;
-}
-.pal-card-ic::before,
-.cmd-ic::before,
-.ins-node-icon::before {
-  content: none !important;
-  display: none !important;
-}
-.pal-card-ic,
-.cmd-ic,
-.ins-node-icon {
-  color: #2563eb;
-}
-.pal-card-ic svg,
-.cmd-ic svg,
-.ins-node-icon svg {
-  width: 18px;
-  height: 18px;
-  display: block;
-}
-.pal-card.fam-trigger .pal-card-ic,
-.cmd-ic.fam-trigger,
-.ins-node-icon {
-  color: #7c3aed;
-}
-.pal-card.fam-agent .pal-card-ic,
-.cmd-ic.fam-agent {
-  color: #4f46e5;
-}
-.pal-card.fam-action .pal-card-ic,
-.cmd-ic.fam-action {
-  color: #0f9f6e;
-}
-.pal-card.fam-logic .pal-card-ic,
-.cmd-ic.fam-logic {
-  color: #f59e0b;
-}
-.log-h > span:first-child {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-.log-head-ic {
-  width: 14px;
-  height: 14px;
-}
-.log-line {
-  align-items: flex-start;
-}
-.log-ic {
-  width: 14px;
-  height: 14px;
-  margin-top: 1px;
-  flex-shrink: 0;
-}
-.lv-info .log-ic { color: #60a5fa; }
-.lv-success .log-ic { color: #22c55e; }
-.lv-warn .log-ic { color: #f59e0b; }
-.lv-error .log-ic { color: #ef4444; }
-.log-reopen svg {
-  width: 14px;
-  height: 14px;
-  color: #2563eb;
-}
-
-@media (max-width: 1360px) {
-  .wfb-palette {
-    width: 270px !important;
-    min-width: 270px !important;
-    max-width: 270px !important;
-  }
-  .wfb-inspector {
-    width: 360px !important;
-    min-width: 360px !important;
-    max-width: 360px !important;
-  }
-  .cmd-body {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-/* Final workflow-builder screen matching fixes */
-.wfb-root,
-.wfb-body,
-.canvas-wrap {
-  min-width: 0 !important;
-  overflow: hidden !important;
-}
-.pal-card-ic::before,
-.pal-card-ic::after,
-.cmd-ic::before,
-.cmd-ic::after,
-.ins-node-icon::before,
-.ins-node-icon::after {
-  content: none !important;
-  display: none !important;
-}
-.pal-card-ic,
-.cmd-ic,
-.ins-node-icon {
-  display: grid !important;
-  place-items: center !important;
-  font-size: 0 !important;
-}
-.pal-card-ic svg,
-.cmd-ic svg,
-.ins-node-icon svg {
-  display: block !important;
-  width: 19px !important;
-  height: 19px !important;
-}
-.webhook-panel {
-  padding-top: 8px;
-}
-.webhook-panel .ins-note {
-  margin: 0 0 16px;
-  color: #51617a;
-  font-size: 13px;
-  line-height: 1.55;
-}
-.endpoint-box {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 74px;
-  padding: 14px 14px;
-  border: 1px solid #d6e1ee;
-  border-radius: 8px;
-  background: #fbfdff;
-}
-.endpoint-box code {
-  flex: 1;
-  color: #40506a;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.55;
-  white-space: normal;
-  word-break: break-word;
-}
-.endpoint-box button {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  color: #60708a;
-}
-.endpoint-box svg,
-.test-here svg {
-  width: 16px;
-  height: 16px;
-}
-.test-here {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  height: 42px;
-  margin-top: 22px;
-  border: 1px solid #bfcfff;
-  border-radius: 8px;
-  background: #eef3ff;
-  color: #2553d8;
-  font-size: 14px;
-  font-weight: 850;
-}
-.log-console {
-  border-radius: 0 !important;
-}
-.log-reopen {
-  border-radius: 10px !important;
-  background: #ffffff !important;
-}
-.run-banner {
-  position: absolute;
-  top: 28px;
-  left: 42px;
-  right: 42px;
-  z-index: 5;
-  padding: 20px 22px 18px;
-  border: 1px solid #dce5f2;
-  border-radius: 14px;
-  background: rgba(255,255,255,0.98);
-  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.09);
-}
-.run-title {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.run-title h3 {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 850;
-  color: #0f172a;
-}
-.run-title p {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: #60708a;
-}
-.run-title > button {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 38px;
-  padding: 0 16px;
-  border: 1px solid #dce5f2;
-  border-radius: 8px;
-  color: #2563eb;
-  font-size: 13px;
-  font-weight: 850;
-}
-.spin {
-  animation: wfSpin 1s linear infinite;
-}
-@keyframes wfSpin { to { transform: rotate(360deg); } }
-.run-metrics {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 0;
-  margin-top: 20px;
-}
-.run-metrics span {
-  padding: 0 22px;
-  border-left: 1px solid #e2e8f0;
-}
-.run-metrics span:first-child {
-  border-left: 0;
-  padding-left: 0;
-}
-.run-metrics small {
-  display: block;
-  color: #64748b;
-  font-size: 12px;
-  margin-bottom: 7px;
-}
-.run-metrics b {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  color: #0f172a;
-  font-size: 22px;
-  font-weight: 850;
-}
-.run-metrics svg {
-  width: 18px;
-  height: 18px;
-}
-.run-timeline {
-  position: absolute;
-  left: 74px;
-  right: 36px;
-  bottom: 44px;
-  z-index: 6;
-  max-height: 42vh;
-  display: flex;
-  flex-direction: column;
-  padding: 16px 20px 14px;
-  border: 1px solid #dce5f2;
-  border-radius: 14px;
-  background: #ffffff;
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
-}
-.timeline-body { overflow-y: auto; }
-.tl-head-ic { vertical-align: -2px; margin-right: 6px; color: #2563eb; }
-.tl-head-btn { font-size: 12px; font-weight: 700; color: #2563eb; padding: 4px 10px; border-radius: 7px; }
-.tl-head-btn:hover { background: #eff4ff; }
-.tl-reopen {
-  position: absolute; left: 74px; z-index: 6;
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11.5px; font-weight: 700; color: #2563eb;
-  background: #fff; border: 1px solid #dce5f2; border-radius: 9px;
-  padding: 6px 12px; box-shadow: 0 4px 14px rgba(15,23,42,.1);
-}
-.tl-reopen:hover { background: #f5f8ff; }
-.tl-reopen .log-summary { color: #94a3b8; font-weight: 600; }
-.timeline-head,
-.timeline-row {
-  display: grid;
-  grid-template-columns: 110px 28px 180px 1fr 110px;
-  align-items: center;
-  gap: 10px;
-}
-.timeline-head {
-  display: flex;
-  gap: 16px;
-  padding-bottom: 12px;
-  color: #0f172a;
-}
-.timeline-head span {
-  color: #94a3b8;
-  font-size: 12px;
-}
-.timeline-head button {
-  margin-left: auto;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 800;
-}
-.timeline-row {
-  width: 100%;
-  min-height: 46px;
-  padding: 0 8px;
-  border-top: 1px solid #edf2f7;
-  text-align: left;
-}
-.timeline-row.superseded { opacity: .5; }
-.tl-errcode {
-  font-size: .75em; padding: .05rem .35rem; border-radius: 4px;
-  background: #fee2e2; color: #991b1b;
-}
-.timeline-row:hover {
-  background: #f8fbff;
-}
-.timeline-row span,
-.timeline-row em {
-  color: #64748b;
-  font-size: 12px;
-  font-style: normal;
-}
-.timeline-row strong {
-  color: #0f172a;
-  font-size: 13px;
-}
-.timeline-row b {
-  justify-self: end;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 750;
-}
-.timeline-row svg.success { color: #10b981; }
-.timeline-row svg.running { color: #2563eb; animation: wfSpin 1s linear infinite; }
-.timeline-row svg.warning { color: #f59e0b; }
-.timeline-row b.running {
-  padding: 5px 12px;
-  border-radius: 999px;
-  background: #eef4ff;
-  color: #2563eb;
-}
-.timeline-row b.warning { color: #f59e0b; }
-.timeline-row svg.failed { color: #ef4444; }
-.timeline-row svg.skipped, .timeline-row svg.pending, .timeline-row svg.waiting { color: #94a3b8; }
-.timeline-row b.failed { color: #ef4444; }
-.timeline-row.active { background: #f1f5ff; box-shadow: inset 3px 0 0 #2563eb; }
-.tl-badge { padding: 3px 10px; border-radius: 999px; background: #eef4ff; color: #2563eb; font-size: 11px; font-weight: 750; justify-self: end; }
-.wf-menu-sep { margin: 6px 6px 3px; padding-top: 6px; border-top: 1px solid #eef2f7; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; }
-.condition-head {
-  margin-top: 18px;
-}
-.condition-head strong,
-.condition-section strong {
-  display: block;
-  color: #0f172a;
-  font-size: 13px;
-  font-weight: 850;
-}
-.condition-head span,
-.condition-section span {
-  display: block;
-  margin-top: 6px;
-  color: #64748b;
-  font-size: 12px;
-}
-.condition-builder {
-  margin-top: 14px;
-  padding: 12px;
-  border: 1px solid #dce5f2;
-  border-radius: 10px;
-}
-.condition-row {
-  display: grid;
-  grid-template-columns: 1fr 82px 1fr 32px;
-  gap: 8px;
-  align-items: end;
-  margin-bottom: 10px;
-}
-.condition-row label span {
-  display: block;
-  margin: 0 0 6px;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 750;
-}
-.condition-row .ins-in {
-  min-height: 36px !important;
-  font-size: 12px !important;
-}
-.condition-del {
-  display: grid;
-  place-items: center;
-  height: 36px;
-  color: #94a3b8;
-}
-.condition-del svg {
-  width: 15px;
-  height: 15px;
-}
-.condition-join {
-  width: 84px;
-  height: 36px;
-  margin-bottom: 10px;
-  border: 1px solid #dce5f2;
-  border-radius: 8px;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 750;
-}
-.condition-add {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 34px;
-  padding: 0 12px;
-  border: 1px solid #bfcfff;
-  border-radius: 8px;
-  color: #2563eb;
-  font-size: 13px;
-  font-weight: 850;
-}
-.condition-section {
-  margin-top: 20px;
-  padding-top: 18px;
-  border-top: 1px solid #edf2f7;
-}
-.fallback-box,
-.condition-section code {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 42px;
-  margin-top: 12px;
-  padding: 0 12px;
-  border: 1px solid #dce5f2;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #334155;
-  font-size: 12px;
-}
-.fallback-box b {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  background: #ffe4e9;
-  color: #e11d48;
-}
-.advanced-row {
-  margin-top: 20px;
-  color: #475569;
-  font-size: 12px;
-}
-.advanced-row summary {
-  cursor: pointer;
-  font-weight: 800;
-}
-.canvas-wrap:has(.run-banner) .wfb-guide,
-.canvas-wrap:has(.run-banner) .log-reopen,
-.canvas-wrap:has(.run-banner) .log-console {
-  display: none !important;
-}
-
-/* Add-node modal: screen workflow-builder-screens reference */
-.pal-scrim {
-  align-items: flex-start;
-  background: rgba(15, 23, 42, 0.18);
-  backdrop-filter: blur(2px);
-}
-.cmd-pal {
-  width: min(760px, calc(100vw - 40px)) !important;
-  max-height: min(82vh, 890px) !important;
-  margin-top: 88px !important;
-  border: 1px solid #e2e8f0 !important;
-  border-radius: 14px !important;
-  background: #fff !important;
-  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.18) !important;
-  overflow: hidden !important;
-}
-.cmd-pal::before {
-  display: none !important;
-}
-.cmd-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 26px 28px 12px;
-}
-.cmd-head h2 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: #0f172a;
-}
-.cmd-head p {
-  margin: 7px 0 0;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 600;
-}
-.cmd-close {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  color: #64748b;
-  font-size: 20px;
-  line-height: 1;
-}
-.cmd-close:hover {
-  background: #f8fafc;
-  color: #0f172a;
-}
-.cmd-search-wrap {
-  position: relative;
-  margin: 0 28px;
-}
-.cmd-search-wrap .cmd-search {
-  width: 100%;
-  height: 46px;
-  padding: 0 58px 0 42px !important;
-  border: 1px solid #dbe4f0 !important;
-  border-radius: 8px !important;
-  background: #fff !important;
-  color: #0f172a !important;
-  font-size: 14px !important;
-  font-weight: 600 !important;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
-}
-.cmd-search-wrap .cmd-search:focus {
-  border-color: #93b4ff !important;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.11);
-}
-.cmd-search-ic {
-  position: absolute;
-  left: 15px;
-  top: 50%;
-  width: 18px;
-  height: 18px;
-  transform: translateY(-50%);
-  color: #8a98ad;
-  pointer-events: none;
-}
-.cmd-search-wrap kbd {
-  position: absolute;
-  right: 13px;
-  top: 50%;
-  transform: translateY(-50%);
-  border: 0;
-  color: #94a3b8;
-  background: transparent;
-  font-size: 12px;
-  font-weight: 800;
-}
-.cmd-tabs {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  margin: 14px 28px 0;
-  border-bottom: 1px solid #e2e8f0;
-  overflow-x: auto;
-}
-.cmd-tabs button {
-  position: relative;
-  height: 42px;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-.cmd-tabs button.active {
-  color: #2563eb;
-}
-.cmd-tabs button.active::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 3px;
-  border-radius: 999px 999px 0 0;
-  background: #2563eb;
-}
-.cmd-body {
-  display: block !important;
-  min-height: 0;
-  padding: 18px 28px 26px !important;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-}
-.cmd-featured {
-  display: block;
-  margin-bottom: 18px;
-}
-.cmd-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  color: #0f172a;
-  font-size: 12px;
-  font-weight: 900;
-}
-.cmd-section-head button {
-  color: #2563eb;
-  font-size: 12px;
-  font-weight: 800;
-}
-.cmd-feature-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-.cmd-feature-card {
-  display: flex;
-  min-width: 0;
-  min-height: 116px;
-  padding: 15px;
-  border: 1px solid #dbe4f0;
-  border-radius: 8px;
-  background: #fff;
-  text-align: left;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
-  flex-direction: column;
-  align-items: flex-start;
-}
-.cmd-feature-card:hover,
-.cmd-item:hover {
-  border-color: #b9cdfb;
-  background: #fbfdff;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.07);
-}
-.cmd-feature-title {
-  display: block;
-  width: 100%;
-  margin-top: 10px;
-  color: #0f172a;
-  font-size: 13px;
-  font-weight: 900;
-}
-.cmd-feature-sub {
-  display: block;
-  width: 100%;
-  margin-top: 4px;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-}
-.cmd-grp {
-  display: grid !important;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin: 18px 0 0 !important;
-}
-.cmd-grp-h {
-  grid-column: 1 / -1;
-  padding: 0 0 9px !important;
-  color: #334155 !important;
-  font-size: 12px !important;
-  font-weight: 900 !important;
-  letter-spacing: 0 !important;
-  text-transform: none !important;
-}
-.cmd-grp-n {
-  margin-left: 4px;
-  color: #94a3b8;
-}
-.cmd-grp > template,
-.cmd-grp {
-  --cmd-row-gap: 10px;
-}
-.cmd-item {
-  display: inline-flex !important;
-  width: 100% !important;
-  min-width: 0;
-  min-height: 58px;
-  margin: 0 !important;
-  padding: 10px 12px !important;
-  border: 1px solid #dbe4f0;
-  border-radius: 8px !important;
-  background: #fff;
-  vertical-align: top;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
-}
-.cmd-ic {
-  width: 32px !important;
-  height: 32px !important;
-  border-radius: 8px !important;
-}
-.cmd-ic.fam-trigger {
-  background: #ede9fe !important;
-  color: #7c3aed;
-}
-.cmd-ic.fam-agent {
-  background: #eef2ff !important;
-  color: #4f46e5;
-}
-.cmd-ic.fam-action {
-  background: #dcfce7 !important;
-  color: #059669;
-}
-.cmd-ic.fam-logic {
-  background: #fff7ed !important;
-  color: #f97316;
-}
-.cmd-l {
-  color: #0f172a !important;
-  font-size: 12px !important;
-  font-weight: 900 !important;
-}
-.cmd-s {
-  color: #64748b !important;
-  font-size: 10px !important;
-  font-weight: 600 !important;
-}
-.cmd-foot {
-  display: none !important;
-}
-@media (max-width: 820px) {
-  .cmd-pal {
-    margin-top: 34px !important;
-  }
-  .cmd-feature-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .cmd-grp {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 520px) {
-  .cmd-feature-grid {
-    grid-template-columns: 1fr;
-  }
-  .cmd-grp {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
-
-
-
-
+<style scoped src="../components/workflows/workflow-builder.css"></style>

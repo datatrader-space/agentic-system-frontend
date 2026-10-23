@@ -42,3 +42,10 @@ describe('StudioRecentChats', () => {
     expect(w.find('[data-test="studio-recent-chats"]').exists()).toBe(false)
   })
 })
+
+it('cleans recent names and uses a page fallback for hidden instructions', async () => {
+  api.get.mockResolvedValueOnce({data:{count:3,results:[{id:1,name:'I am on the Image page. My chosen preset is Quiet tabletop.'},{id:2,name:'I am on the Video page. My chosen preset is A measured reveal.\n\nA bottle reveal'},{id:3,name:'I am on the Enhance page in Manual mode. Write an editable creative prompt.'}]}})
+  const w = mount(StudioRecentChats,stubs); await flush()
+  expect(w.findAll('.vrc-name').map(n=>n.text())).toEqual(['Image chat '+String.fromCharCode(183)+' Quiet tabletop','A bottle reveal','Enhance chat'])
+  w.unmount()
+})

@@ -186,22 +186,6 @@
             </p>
           </div>
 
-          <!-- Context profile — the single conversation/retrieval/tool context control (the old Auto/Manual
-               "recent chat" count was removed: history is now kept-then-compacted within the profile budget). -->
-          <div class="mem-group">
-            <p class="mem-group-title">Context profile</p>
-            <div class="rounded-xl border border-[#EAECF0] bg-[#F9FAFB] px-4 py-3">
-              <ContextProfilePicker
-                compact
-                :model-value="contextProfile"
-                :profiles="availableProfiles"
-                :preview="profilePreview"
-                :matrix="profilesMatrix"
-                @update:model-value="onProfileChange"
-              />
-            </div>
-          </div>
-
           <!-- Memory: just the three decisions a user needs. The detailed read/write/project controls live in
                Settings → Memory (linked below). -->
           <div class="mem-group">
@@ -354,35 +338,9 @@ import { RouterLink } from 'vue-router'
 import { Activity, ArrowRight, CheckCircle2, ChevronDown, Cpu, Database, ExternalLink, FileText, Info, Pencil, Plus, Settings2, ShieldCheck, X } from 'lucide-vue-next'
 import api from '../../services/api'
 import ModelPicker from '../common/ModelPicker.vue'
-import ContextProfilePicker from '../agent/ContextProfilePicker.vue'
 
 const props = defineProps({ agent: { type: Object, required: true } })
 const shell = useEditorShell()
-
-// ── Context profile (agent_policy.context_profile) + effective-policy preview/matrix ──
-// For a new agent (no id) the exact-budget table isn't available yet; the picker still shows its dropdown.
-const availableProfiles = ref([])
-const profilePreview = ref(null)
-const profilesMatrix = ref(null)
-// READ-ONLY: a missing/invalid policy reads as a fresh {} and is never written back. This is called from
-// a computed, and it used to assign `agent.agent_policy = {}` — so merely rendering the step made the
-// draft differ from the server copy. The only write is onProfileChange, on a real change.
-function _policy() {
-  const p = props.agent.agent_policy
-  return (p && typeof p === 'object' && !Array.isArray(p)) ? p : {}
-}
-const contextProfile = computed(() => _policy().context_profile || '')   // '' = Automatic
-function onProfileChange(key) { props.agent.agent_policy = { ..._policy(), context_profile: key || '' } }
-async function loadEffectivePolicy() {
-  if (!props.agent.id) { availableProfiles.value = []; profilePreview.value = null; profilesMatrix.value = null; return }
-  try {
-    const d = (await api.getAgentEffectivePolicy(props.agent.id)).data || {}
-    availableProfiles.value = d.available_profiles || []
-    profilePreview.value = d.preview || null
-    profilesMatrix.value = d.profiles_matrix || null
-  } catch (e) { /* best-effort; picker still works with its fallback list */ }
-}
-watch(() => props.agent.id, loadEffectivePolicy)
 
 const editing = reactive({ model: false, prompt: false, rules: false, memory: false, style: false })
 const toggle = (k) => { editing[k] = !editing[k] }
@@ -608,22 +566,25 @@ const currentModelLabel = computed(() => {
   return props.agent.default_model_name || ''
 })
 
-onMounted(async () => {
-  try {
-    const [mRes, pRes] = await Promise.all([api.get('/llm/models/'), api.get('/llm/providers/')])
-    models.value = Array.isArray(mRes.data) ? mRes.data : (mRes.data?.results || [])
-    providers.value = Array.isArray(pRes.data) ? pRes.data : (pRes.data?.results || [])
-    const cur = models.value.find(m => m.id === props.agent.default_model)
-    if (cur) selectedProvider.value = modelProvider(cur)
-  } catch (e) {
-    models.value = []
-    providers.value = []
-  }
-  // Account master switch — read-only here; controls live in Settings → Memory. Failure = assume on.
-  try { account.value = (await api.getMemorySettings()).data } catch (e) { account.value = null }
+// Every read this step needs starts at once (page-speed plan Phase 5 item 3). They are independent, and
+// they used to run in three rounds: the model catalog, then the memory settings, then the rest.
+onMounted(() => {
   loadAgentMemory()
-  loadEffectivePolicy()
   loadSearchModel()
+  // Account master switch — read-only here; controls live in Settings → Memory. Failure = assume on.
+  Promise.resolve().then(() => api.getMemorySettings())
+    .then((r) => { account.value = r.data }).catch(() => { account.value = null })
+  return Promise.all([api.get('/llm/models/'), api.get('/llm/providers/')])
+    .then(([mRes, pRes]) => {
+      models.value = Array.isArray(mRes.data) ? mRes.data : (mRes.data?.results || [])
+      providers.value = Array.isArray(pRes.data) ? pRes.data : (pRes.data?.results || [])
+      const cur = models.value.find(m => m.id === props.agent.default_model)
+      if (cur) selectedProvider.value = modelProvider(cur)
+    })
+    .catch(() => {
+      models.value = []
+      providers.value = []
+    })
 })
 
 const showFull = ref(false)

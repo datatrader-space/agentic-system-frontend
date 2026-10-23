@@ -40,6 +40,7 @@
 </template>
 
 <script setup>
+import { studioChatName } from '../../services/studioMessagePresentation'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const props = defineProps({
@@ -50,7 +51,7 @@ const emit = defineEmits(['close', 'leave', 'update:index'])   // leave: its cha
 const closeEl = ref(null)
 const item = computed(() => props.items[props.index] || {})
 // A Studio chat opens in the Studio; any other chat in the main chat.
-const fromChat = computed(() => item.value.conversation_name || 'its chat')
+const fromChat = computed(() => studioChatName(item.value.conversation_name, 'its chat'))
 const chatLink = computed(() => (item.value.conversation_in_studio
   ? { path: '/video-studio', query: { conversation: String(item.value.conversation_id) } }
   : `/dashboard/chat/${item.value.conversation_id}`))

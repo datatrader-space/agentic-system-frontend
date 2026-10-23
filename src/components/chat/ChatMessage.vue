@@ -79,7 +79,7 @@
         <!-- Rendered markdown content (full answer if rehydrated, else stored stub). Generated images are
              embedded as /media/... markdown in the answer text by the backend and rendered by
              enhanceChatMedia — a single, refresh-stable mechanism (no separate media list). -->
-        <div v-if="displayContent && !answerOnRail" class="bubble assistant" v-html="rendered"
+        <div v-if="displayContent && !answerOnRail" ref="bubbleEl" class="bubble assistant" v-html="rendered"
              @click="onCodeCopy"></div>
 
         <!-- Why the run ended (backend-determined stop reason + confidence) -->
@@ -237,7 +237,7 @@
 </template>
 
 <script setup>
-import { computed, ref, shallowRef, nextTick } from 'vue'
+import { computed, ref, shallowRef, nextTick, watch } from 'vue'
 import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
 // Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
 // followed (security audit, frontend finding A12).
@@ -246,7 +246,9 @@ import { marked } from 'marked'
 import BrandMark from '../common/BrandMark.vue'
 import { enhanceChatMedia } from '../../utils/chatMedia'
 import ImageLightbox from './ImageLightbox.vue'
-import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
+import { renderUntrustedMarkdown, hasMath } from '../../utils/safeMarkdown'
+import { ensureMath, mathVersion } from '../../utils/mathRenderer'
+import { highlightCodeIn } from '../../utils/codeHighlight'
 import api from '../../services/api'
 import AgentActivityTimeline from '../AgentActivityTimeline.vue'
 import { usePlanStore } from '../../stores/usePlanStore'
@@ -339,13 +341,16 @@ marked.setOptions({ breaks: true, gfm: true })
 // Wrap each fenced code block with a copy button. Pure string transform on marked's output
 // (`<pre><code …>…</code></pre>`) so it's independent of the marked renderer version. The click is
 // handled by onCodeCopy via event delegation on the bubble (v-html content isn't Vue-reactive).
+// The fence's language ("```python") is shown as a label beside the button; marked writes it as
+// `class="language-python"`, and only word characters reach the label, so it cannot carry markup.
 function addCodeCopyButtons(html) {
   if (!html || html.indexOf('<pre><code') === -1) return html
   return html
-    .replaceAll(
-      '<pre><code',
-      '<div class="code-block"><button class="code-copy" type="button" title="Copy code" aria-label="Copy code">Copy</button><pre><code',
-    )
+    .replace(/<pre><code( class="language-([\w+#.-]{1,32})")?/g, (_m, cls, lang) =>
+      '<div class="code-block"><div class="code-head">'
+      + (lang ? `<span class="code-lang">${lang}</span>` : '<span class="code-lang"></span>')
+      + '<button class="code-copy" type="button" title="Copy code" aria-label="Copy code">Copy</button>'
+      + `</div><pre><code${cls || ''}`)
     .replaceAll('</code></pre>', '</code></pre></div>')
 }
 
@@ -510,8 +515,21 @@ const displayContent = computed(() => stripThinkBlocks(fullContent.value || prop
 // strict: the backend embeds media as markdown `![](url)` (tool_media.pending_markdown), never as
 // HTML, and enhanceChatMedia unfurls bare URLs from marked's OUTPUT, so images and video still
 // render. Same rule ChatGPT and Claude apply to assistant markdown.
-const rendered = computed(() =>
-  addCodeCopyButtons(enhanceChatMedia(renderUntrustedMarkdown(displayContent.value))))
+const rendered = computed(() => {
+  // Read so the message renders again once KaTeX has loaded; until then a formula shows as its source.
+  void mathVersion.value
+  return addCodeCopyButtons(enhanceChatMedia(renderUntrustedMarkdown(displayContent.value)))
+})
+watch(displayContent, (text) => { if (hasMath(text)) ensureMath() }, { immediate: true })
+
+// Code is highlighted once the answer has finished streaming: doing it on every streamed chunk would
+// re-highlight the whole block each time. highlight.js loads on demand (utils/codeHighlight).
+const bubbleEl = ref(null)
+watch([rendered, isStreaming], async ([, streaming]) => {
+  if (streaming) return
+  await nextTick()
+  if (bubbleEl.value) highlightCodeIn(bubbleEl.value)
+}, { immediate: true, flush: 'post' })
 
 // Event-delegated copy for per-code-block buttons injected by addCodeCopyButtons.
 // Click-to-preview: clicking a rendered chat image opens a full-screen lightbox. The download button
@@ -556,7 +574,7 @@ const onCodeCopy = async (e) => {
   }
   const btn = e.target?.closest?.('.code-copy')
   if (!btn) return
-  const pre = btn.parentElement?.querySelector('pre')
+  const pre = btn.closest('.code-block')?.querySelector('pre')
   const text = pre ? (pre.innerText ?? pre.textContent ?? '') : ''
   if (!text) return
   try {
@@ -935,14 +953,26 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 }
 .bubble.assistant :deep(pre code) { background: none; padding: 0; color: inherit; }
 
-/* Per-code-block copy button (injected by addCodeCopyButtons) */
-.bubble.assistant :deep(.code-block) { position: relative; }
-.bubble.assistant :deep(.code-block > pre) { margin: 0 0 10px; }
+/* Code block: a header bar with the language and the copy button, then the code (injected by
+   addCodeCopyButtons; highlighted after streaming by utils/codeHighlight). */
+.bubble.assistant :deep(.code-block) { margin: 0 0 12px; border-radius: 10px; overflow: hidden; background: #0f172a; }
+.bubble.assistant :deep(.code-head) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 6px 14px;
+  background: #1e293b;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+.bubble.assistant :deep(.code-lang) {
+  font: 500 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #94a3b8;
+  text-transform: lowercase;
+}
+.bubble.assistant :deep(.code-block > pre) { margin: 0; border-radius: 0; }
+.bubble.assistant :deep(pre code.hljs) { background: none; padding: 0; }
 .bubble.assistant :deep(.code-copy) {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -970,17 +1000,31 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 .bubble.assistant :deep(strong) { font-weight: 600; color: var(--vm-ink, #0f172a); }
 .bubble.assistant :deep(a) { color: var(--vs-accent-ink, #4f46e5); text-decoration: underline; }
 
-/* Tables (GFM) */
+/* Tables (GFM). The wrapper scrolls sideways, so a wide table keeps readable columns on a narrow screen. */
+.bubble.assistant :deep(.md-table) {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 4px 0 12px;
+  border: 1px solid var(--vm-line-2, #e2e8f0);
+  border-radius: 10px;
+}
 .bubble.assistant :deep(table) {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  margin: 4px 0 12px;
   font-size: 0.9em;
-  border: 1px solid var(--vm-line-2, #e2e8f0);
-  border-radius: 10px;
-  overflow: hidden;
-  display: table;
+}
+.bubble.assistant :deep(.md-table th),
+.bubble.assistant :deep(.md-table td) { white-space: normal; min-width: 72px; }
+
+/* Math (KaTeX). Display formulas get their own line and scroll if wider than the bubble; a formula that has
+   not been typeset yet (KaTeX loading, or still streaming) shows its source in the code face. */
+.bubble.assistant :deep(.math-display) { margin: 8px 0 14px; overflow-x: auto; overflow-y: hidden; }
+.bubble.assistant :deep(.math-display .katex-display) { margin: 0; }
+.bubble.assistant :deep(.math-src) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85em;
+  color: var(--vm-ink-2, #475569);
 }
 .bubble.assistant :deep(thead th) {
   background: var(--vm-surface-2, #f8fafc);

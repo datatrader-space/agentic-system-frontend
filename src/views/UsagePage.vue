@@ -328,6 +328,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRequestScope } from '../composables/useRequestScope'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import PageLoader from '../components/common/PageLoader.vue'
@@ -355,8 +356,9 @@ const pageSize = ref(10)
 const agents = ref([])
 const stats = ref({})
 const usageRows = ref([])
+// Full llm_usage payload: cost_by_model / _agent / _provider / _user / totals. (A stray
+// `const confirm = useConfirm()` sat here with no import and no use: it threw on setup.)
 const usageData = ref({})
-const confirm = useConfirm()   // full llm_usage payload: cost_by_model / _agent / _provider / _user / totals
 const requestRows = ref([])
 const auditEntries = ref([])
 const serverTotal = ref(0)
@@ -579,18 +581,31 @@ function unwrapList(data, ...keys) {
   return []
 }
 
+// The agent list only fills the filter; it is loaded once, alongside the data, never in front of it
+// (one /agents/picker/ response).
+async function loadAgents() {
+  try {
+    const res = await api.getAgentPicker()
+    agents.value = unwrapList(res.data, 'agents')
+  } catch { /* the filter keeps "All agents" */ }
+}
+
+// Filters and paging can change faster than the server answers: only the newest reload is applied,
+// and the older one's requests are aborted.
+const reloadScope = useRequestScope()
+
 async function reload() {
+  const signal = reloadScope.next()
   loading.value = true
   const params = { days: days.value, agent_id: agentFilter.value || undefined, page: page.value, page_size: pageSize.value }
   try {
-    const [agentRes, statsRes, usageRes, requestsRes, auditRes] = await Promise.allSettled([
-      api.getAgents ? api.getAgents() : api.get('/agents/'),
-      api.getLlmStats(params),
-      api.getLlmUsage(params),
-      api.getLlmRequests(params),
-      api.getLlmAudit({ page: 1, page_size: 5 }),
+    const [statsRes, usageRes, requestsRes, auditRes] = await Promise.allSettled([
+      api.get('/llm/stats/', { params, signal }),
+      api.get('/llm/usage/', { params, signal }),
+      api.get('/llm/requests/', { params, signal }),
+      api.get('/llm/audit/', { params: { page: 1, page_size: 5 }, signal }),
     ])
-    if (agentRes.status === 'fulfilled') agents.value = unwrapList(agentRes.value.data, 'agents')
+    if (signal.aborted) return
     if (statsRes.status === 'fulfilled') stats.value = statsRes.value.data || {}
     if (usageRes.status === 'fulfilled') {
       usageData.value = usageRes.value.data || {}
@@ -603,8 +618,10 @@ async function reload() {
     }
     if (auditRes.status === 'fulfilled') auditEntries.value = unwrapList(auditRes.value.data, 'audit', 'entries')
   } finally {
-    hasLoaded.value = true
-    loading.value = false
+    if (!signal.aborted) {
+      hasLoaded.value = true
+      loading.value = false
+    }
   }
 }
 
@@ -647,7 +664,10 @@ watch([page, pageSize], () => {
   if (hasLoaded.value) reload()
 })
 
-onMounted(reload)
+onMounted(() => {
+  loadAgents()
+  reload()
+})
 </script>
 
 <style scoped>

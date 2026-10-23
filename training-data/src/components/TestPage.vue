@@ -32,7 +32,7 @@ async function loadState() {
 // only after the answer came back keeps a slow server from piling requests up.
 let timer = null; let alive = true;
 function follow() { clearTimeout(timer); timer = alive && state.value?.phase === 'starting' ? setTimeout(async () => { await loadState(); follow(); }, 3000) : null; }
-watch(() => state.value?.phase, follow);
+watch(() => state.value?.phase, (phase, before) => { if (before === 'starting' && phase !== 'starting') notice.value = ''; follow(); });   // "is starting" is over
 onUnmounted(() => { alive = false; clearTimeout(timer); if (photoUrl.value) URL.revokeObjectURL(photoUrl.value); });
 watch(() => props.projectRef, async () => { chosen.value = null; state.value = null; await loadModels(); }, { immediate: true });
 watch(chosen, () => { state.value = null; answer.value = null; notice.value = ''; error.value = ''; loadState(); });
@@ -54,7 +54,7 @@ async function choose(event) {
   if (photoUrl.value) URL.revokeObjectURL(photoUrl.value);
   file.value = picked; photoUrl.value = URL.createObjectURL(picked); answer.value = null;
   asking.value = true;
-  try { answer.value = await trialApi.predict(props.projectRef, chosen.value, picked); }
+  try { answer.value = await trialApi.predict(props.projectRef, chosen.value, picked); loadState(); }   // the count of photos tried includes this one
   catch (e) { photoError.value = e.message; await loadState(); } finally { asking.value = false; }
 }
 

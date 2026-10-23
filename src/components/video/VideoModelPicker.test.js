@@ -125,3 +125,17 @@ describe('VideoModelPicker for images', () => {
     w.unmount()
   })
 })
+
+
+it('shows Auto and the resolved image model on separate lines without nesting brackets', () => {
+  video.image.models = [{ model_id: 21, name: 'Nano Banana (Gemini 2.5 Flash Image)' }]
+  video.image.defaultModelId = 21
+  const w = mount(VideoModelPicker, { props: { kind: 'image', twoLine: true } })
+  expect(w.get('.vmp-pill-primary').text()).toBe('Auto')
+  const model = w.get('.vmp-pill-secondary')
+  expect(model.text()).toBe('Nano Banana (Gemini 2.5 Flash Image)')
+  expect(model.attributes('title')).toBe(model.text())
+  expect(w.get('[data-test="image-model"]').attributes('title')).toBe(model.text())
+  expect(w.text()).not.toContain('Auto (')
+  w.unmount()
+})

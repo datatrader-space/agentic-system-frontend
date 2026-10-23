@@ -24,6 +24,7 @@ async function loadBoard() {
   try { board.value = await llmApi.reviews(props.project.ref); } catch (e) { error.value = e.message; }
 }
 async function openBatch(number) {
+  told.value = '';   // a notification about another review does not stay over this one
   error.value = ''; itemIndex.value = -1;
   try { batch.value = await llmApi.review(props.project.ref, number); } catch (e) { error.value = e.message; }
 }
@@ -115,7 +116,7 @@ watch(() => props.openAssignment, async n => { if (n) { emit('opened'); await op
     <template v-else-if="!item">
       <div class="studio-actions"><UiButton @click="close"><ArrowLeft :size="16" /> Back to the board</UiButton>
         <div class="dialog-actions">
-          <UiButton v-if="isReviewer" variant="primary" :disabled="busy || batch.counts.waiting > 0" @click="move('return')"><Send :size="15" /> Return for approval</UiButton>
+          <UiButton v-if="isReviewer" variant="primary" :disabled="busy || batch.counts.waiting > 0" @click="move('return')"><Send :size="15" /> Return for approval</UiButton><small v-if="isReviewer && batch.counts.waiting > 0" class="field-help">Decide every example first: {{ batch.counts.waiting }} still waiting.</small>
           <template v-if="batch.state==='returned' && rights.includes('batch')"><UiButton :disabled="busy" @click="backDialog=true">Send back</UiButton><UiButton variant="primary" :disabled="busy" @click="move('accept')"><Check :size="15" /> Accept</UiButton></template>
         </div></div>
       <section class="panel">
@@ -152,8 +153,8 @@ watch(() => props.openAssignment, async n => { if (n) { emit('opened'); await op
         <section class="panel">
           <h2>{{ KIND_LABEL[item.kind] }}</h2>
           <p v-if="item.findings.length" class="field-help">Preparation found: {{ item.findings.map(f => findingText(f.code)).join(' · ') }}</p>
-          <LlmConversation v-if="!fixing" :content="item.current" />
-          <template v-else>
+          <LlmConversation :content="item.current" />
+          <template v-if="fixing">
             <p class="field-help">Correct the answer. The example as it was is kept as an earlier revision.</p>
             <label v-for="(text, field) in fixes" :key="field" class="field-label">{{ {answer:'Answer',chosen:'Better answer',rejected:'Worse answer',text:'Text'}[field] }}<textarea v-model="fixes[field]" class="text-input" rows="6"></textarea></label>
           </template>

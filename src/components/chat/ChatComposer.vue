@@ -434,15 +434,25 @@ const onVideoCompose = (e) => {
   draft.value = draft.value.trim() ? draft.value : text
   nextTick(() => { autoGrow(); if (inputEl.value) inputEl.value.focus() })
 }
+// Stop cancels the messages that waited behind the run; their text comes back here so nothing is lost. It is added
+// after anything already typed, never replacing it.
+const onComposerRestore = (e) => {
+  const text = (e && e.detail && e.detail.text) || ''
+  if (!text) return
+  draft.value = draft.value.trim() ? `${draft.value.trimEnd()}\n\n${text}` : text
+  nextTick(() => { autoGrow(); if (inputEl.value) inputEl.value.focus() })
+}
 onMounted(() => {
   document.addEventListener('click', onDocClick)
   document.addEventListener('keydown', onDocKey)
   window.addEventListener('video-compose', onVideoCompose)
+  window.addEventListener('composer-restore', onComposerRestore)
 })
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
   document.removeEventListener('keydown', onDocKey)
   window.removeEventListener('video-compose', onVideoCompose)
+  window.removeEventListener('composer-restore', onComposerRestore)
 })
 
 const onFiles = (e) => {

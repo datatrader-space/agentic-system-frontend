@@ -26,8 +26,14 @@ const unfinished = e => UNFINISHED.includes(e?.state);
 const stateTone = state => (state === 'succeeded' ? 'green' : UNFINISHED.includes(state) ? 'purple' : 'neutral');
 const usesJudge = computed(() => ['ai', 'both'].includes(form.value.marking));
 const usesPeople = computed(() => ['people', 'both'].includes(form.value.marking));
+// The criteria an evaluation without marks cannot decide: its verdict stays Inconclusive (found 2026-10-21).
+const undecidable = computed(() => {
+  const c = page.value?.criteria;
+  if (!c || form.value.marking !== 'none') return [];
+  return [c.min_win_rate != null && 'the win rate over the base model', c.max_safety_losses != null && 'the safety prompts'].filter(Boolean);
+});
 const MARKING_HELP = {
-  none: 'Closeness to the expected answers, validation loss, tool calls and safety prompts, measured by the job. No marks.',
+  none: 'Closeness to the expected answers, validation loss and tool calls, measured by the job. The safety prompts are answered but nobody marks them, and no answer is compared with the answer of the base model.',
   people: 'Reviewers you choose see each pair of answers blind and say which is better. No cost, and nothing leaves AADML.',
   ai: 'A bigger model marks every pair, in both orders, after its calibration passed. It costs a little, within the cap you set.',
   both: 'People and the AI judge mark the same pairs. The page shows how often they agree.',
@@ -56,7 +62,7 @@ async function start() {
       max_items: Number(form.value.items), max_new_tokens: Number(form.value.tokens), max_runtime_seconds: Number(form.value.runtime),
       idempotency_key: requestKey(),
     });
-    told.value = `Evaluation ${started.number} is ${started.state_label.toLowerCase()}.`;
+    told.value = `Evaluation ${started.number} is started. Its state is in the list below.`;
     await load();
   } catch (e) { error.value = e.message; }
   finally { busy.value = false; }
@@ -194,6 +200,7 @@ onUnmounted(() => clearTimeout(timer));
             <strong>{{ m.label }}</strong><small>{{ MARKING_HELP[m.value] }}</small>
           </label>
         </fieldset>
+        <p v-if="undecidable.length" class="field-help" role="note">The approved criteria include {{ undecidable.join(' and ') }}, which only marks decide. With automatic measures only, the verdict will be Inconclusive: choose People{{ page.judge_allowed ? ' or the AI judge' : '' }} to get one.</p>
         <p v-if="!page.judge_allowed" class="field-help">The AI judge is not offered: the project's data-use answers do not allow its conversations to be shown to an AI judge's provider. Its Owner can change that answer in the project's settings.</p>
 
         <fieldset v-if="usesPeople" class="llm-reviewers">
@@ -228,7 +235,7 @@ onUnmounted(() => clearTimeout(timer));
         <table class="llm-table"><thead><tr><th>Evaluation</th><th>Model</th><th>Marked by</th><th>State</th><th>Verdict</th><th>Win rate</th><th>Judge spend</th><th>Started</th></tr></thead><tbody>
           <tr v-for="e in page.evaluations" :key="e.number" class="llm-row" tabindex="0" @click="open(e)" @keydown.enter="open(e)">
             <td>{{ e.number }}</td><td>{{ e.model }}</td><td>{{ e.marking_label }}</td>
-            <td><UiBadge :tone="stateTone(e.state)">{{ e.state_label }}</UiBadge></td>
+            <td><UiBadge :tone="stateTone(e.state)">{{ e.state_label }}</UiBadge><small v-if="e.state === 'queued'" class="field-help"> waits its turn: this machine runs one training or evaluation job at a time</small></td>
             <td><UiBadge v-if="e.verdict" :tone="verdictTone(e.verdict)">{{ verdictLabel(e.verdict) }}</UiBadge><template v-else>—</template></td>
             <td>{{ percent((e.results?.people || e.results?.judge)?.overall?.win_rate) }}</td>
             <td>{{ e.judge ? `$${Number(e.judge_spent_usd).toFixed(2)} of $${Number(e.judge_cap_usd).toFixed(2)}` : '—' }}</td>

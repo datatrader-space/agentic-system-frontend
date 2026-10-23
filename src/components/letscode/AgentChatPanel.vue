@@ -91,6 +91,7 @@ import { Icon } from '@iconify/vue'
 import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import { usePoller } from '@/composables/usePoller'
 import ProposedChangesCard from './ProposedChangesCard.vue'
 
 const props = defineProps({
@@ -112,16 +113,15 @@ const models = ref([])
 const modelId = ref('')   // '' = Auto (server picks the user's default usable model)
 const agents = ref([])
 const agentId = ref('')   // '' = no persona override (coding loop default)
-let timer = null
 
 async function loadPickers() {
   try {
-    const { data } = await api.getLLMModels()
+    const { data } = await api.getLlmModels({ fields: 'picker' })   // ?fields=picker: every row, without the heavy metadata (not read here)
     const list = data?.results || data || []
     models.value = list.filter(m => !m.is_embedding).map(m => ({ id: m.id, label: m.name || m.model_id }))
   } catch { models.value = [] }
   try {
-    const { data } = await api.getAgents()
+    const { data } = await api.getAgentPicker()
     const list = data?.results || data || []
     agents.value = list.map(a => ({ id: a.id, name: a.name }))
   } catch { agents.value = [] }
@@ -137,20 +137,47 @@ const statusLabel = (t) => ({
 
 function scrollDown() { nextTick(() => { const e = scrollEl.value; if (e) e.scrollTop = e.scrollHeight }) }
 
-function pollTask(msg) {
-  if (timer) clearInterval(timer)
-  timer = setInterval(async () => {
-    try {
-      const { data } = await api.getCodingTask(props.systemId, props.repoId, msg.task.id)
-      msg.task = data
-      emit('activity', (data.steps || []).map(s => s.message))
-      if (!isRunning(data)) {
-        clearInterval(timer); timer = null; sending.value = false
-        emit('changed'); emit('proposal', hasDiff(data) ? data : null); scrollDown()
-      }
-    } catch { clearInterval(timer); timer = null; sending.value = false }
-  }, 1600)
+// One poller for the task being run or exported: one request at a time (the end-of-task events fire once),
+// a failed poll backs off and tries again instead of leaving the task looking stuck, paused while the tab is
+// hidden, and cancelled on unmount.
+let polled = null   // { kind: 'task' | 'export', msg }
+const taskPoller = usePoller(async () => {
+  const p = polled
+  if (!p) return { final: true }
+  const { data } = await api.getCodingTask(props.systemId, props.repoId, p.msg.task.id)
+  if (polled !== p) return { final: false }
+  p.msg.task = data
+  if (p.kind === 'task') {
+    emit('activity', (data.steps || []).map(s => s.message))
+    if (!isRunning(data)) {
+      polled = null; sending.value = false
+      emit('changed'); emit('proposal', hasDiff(data) ? data : null); scrollDown()
+      return { final: true }
+    }
+  } else if (data.status !== 'exporting') {
+    polled = null; exporting.value = false
+    if (data.pr_url) notify.success('Pull request opened'); emit('changed')
+    return { final: true }
+  }
+  return { final: false }
+}, {
+  interval: 1600, maxInterval: 20000, stopWhen: (r) => !!r?.final,
+  // A task that no longer exists will never answer: stop instead of retrying.
+  onError: (e) => {
+    if (e?.response?.status !== 404) return
+    const p = polled
+    polled = null; taskPoller.stop()
+    if (p?.kind === 'task') sending.value = false
+    else exporting.value = false
+  },
+})
+
+function startPolling(kind, msg) {
+  polled = { kind, msg }
+  taskPoller.stop()
+  taskPoller.start({ immediate: false })
 }
+function pollTask(msg) { startPolling('task', msg) }
 
 async function send(text) {
   const prompt = (text || input.value).trim()
@@ -194,17 +221,7 @@ async function onExport(m) {
     notify.error(e?.response?.data?.error || 'Export failed'); exporting.value = false
   }
 }
-function pollExport(m) {
-  if (timer) clearInterval(timer)
-  timer = setInterval(async () => {
-    try {
-      const { data } = await api.getCodingTask(props.systemId, props.repoId, m.task.id)
-      m.task = data
-      if (data.status !== 'exporting') { clearInterval(timer); timer = null; exporting.value = false
-        if (data.pr_url) notify.success('Pull request opened'); emit('changed') }
-    } catch { clearInterval(timer); timer = null; exporting.value = false }
-  }, 1600)
-}
+function pollExport(m) { startPolling('export', m) }
 function onKeep(m) { notify.success('Changes kept in your project'); m.task = { ...m.task, _kept: true }; emit('changed') }
 async function onRevertFile(m, path) {
   busy.value = true
@@ -251,7 +268,7 @@ function onClarify(m, o) {
   send(clarified)
 }
 
-onBeforeUnmount(() => { if (timer) clearInterval(timer) })
+onBeforeUnmount(() => { polled = null; taskPoller.stop() })
 </script>
 
 <style scoped>

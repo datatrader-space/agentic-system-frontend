@@ -4,6 +4,7 @@
 
 // A node is "configured" when its key fields are set (drives the idle vs configured indicator).
 const CONFIGURED = {
+  'media.generate': d => !!(d.operation && d.route_id),
   'trigger.manual': () => true,
   'trigger.schedule': (d) => !!d.cron,
   'trigger.webhook': () => true,

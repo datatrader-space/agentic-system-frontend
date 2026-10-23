@@ -1,7 +1,7 @@
 <script setup>
 /**
  * P7 — Platform LLM Policy (admin-dashboard only).
- * Edits GlobalAgentPolicy.llm_policy: platform ceilings the resolver enforces. Agent/org/profile can TIGHTEN
+ * Edits GlobalAgentPolicy.llm_policy: platform ceilings the resolver enforces. Org/workspace/agent can TIGHTEN
  * below these; the code ABSOLUTE_* emergency guards are NOT editable here (shown as read-only max hints).
  */
 import { computed } from 'vue'
@@ -55,34 +55,18 @@ function setThreshold(e) {
   emit('update:modelValue', next)
   emit('change')
 }
-// ── Prompt caching (DB-backed; segmented prefix cache) ──
+// ── Prompt caching and conversation history (DB-backed) ──
 const CACHE_BOOLS = [
   { key: 'prompt_cache_enabled', label: 'Prompt caching', dflt: true,
     desc: 'Master switch for provider prompt caching (Anthropic/Claude explicit cache; OpenAI/Gemini cache automatically). Off = never send cache markers.' },
-  { key: 'cache_segmentation_enabled', label: 'Segmented caching', dflt: true,
-    desc: 'Cache the stable tool-docs/system prefix INDEPENDENTLY of the volatile blocks, so a per-turn memory/vector/RAG change doesn’t bust the expensive tool-docs cache. Strongly recommended ON.' },
-  { key: 'cache_kb_volatile', label: 'Keep RAG out of the stable block', dflt: true,
-    desc: 'Emit per-query RAG/knowledge as its own volatile block instead of baking it into the stable prompt — required for the stable cache to actually stay stable.' },
   { key: 'openrouter_session_stickiness_enabled', label: 'OpenRouter sticky routing', dflt: true,
     desc: 'Send a stable session id per conversation so OpenRouter keeps later turns on the same provider endpoint (keeps the cache warm).' },
   { key: 'prompt_cache_diagnostics_enabled', label: 'Cache diagnostics logging', dflt: true,
     desc: 'Log per-turn cache read/write/hit-rate + prompt/tool-manifest hashes for debugging cache misses.' },
-  { key: 'cache_history_enabled', label: 'Cache conversation history (Phase 2)', dflt: false,
-    desc: 'Add cache breakpoints inside history so long chats don’t re-read history every turn. Requires moving volatile context to the tail first — leave OFF until Phase 2.' },
 ]
 function cacheBool(f) { const v = props.modelValue[f.key]; return v === undefined || v === null ? f.dflt : !!v }
 function setStr(key, e) { emit('update:modelValue', { ...props.modelValue, [key]: e.target.value }); emit('change') }
-const ragPlacement = computed(() => props.modelValue.cache_rag_placement || 'tail')
 const stableTtl = computed(() => props.modelValue.cache_stable_prefix_ttl || '5m')
-const contextStrategy = computed(() => props.modelValue.conversation_context_strategy || 'compact_within_profile')
-const platformDefaultProfile = computed(() => props.modelValue.default_context_profile || '')
-function setCheckpointTokens(e) {
-  const raw = e.target.value
-  const next = { ...props.modelValue }
-  if (raw === '' || raw === null) delete next.checkpoint_trigger_tokens
-  else next.checkpoint_trigger_tokens = Math.max(0, Math.trunc(Number(raw)))
-  emit('update:modelValue', next); emit('change')
-}
 // Generic positive-int setter (blank = use the platform default). Optional min/max clamp.
 function setPlpInt(key, e, min, max) {
   const raw = e.target.value
@@ -167,12 +151,12 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
       </label>
     </div>
 
-    <h4 class="plp-subhead">Prompt caching</h4>
+    <h4 class="plp-subhead">Prompt caching and conversation history</h4>
     <p class="plp-note">
-      Segmented prefix caching: the stable tool-docs/system prompt is cached separately from the volatile
-      per-turn context (memory, vector recall, RAG, checkpoint), so stable content keeps hitting the cache even
-      as the conversation changes. Applies to providers with explicit caching (Anthropic/Claude); others cache
-      automatically.
+      The system prompt, the tool list and the conversation history are always cached, so a later turn re-reads
+      them from the cache instead of paying for them again. Per-turn context (knowledge, memory) is placed after
+      the history, so it never breaks that cache. Anthropic/Claude use explicit cache markers; other providers
+      cache automatically.
     </p>
     <div class="plp-grid">
       <label v-for="f in CACHE_BOOLS" :key="f.key" class="plp-field plp-toggle" :data-test="`plp-${f.key}`">
@@ -192,62 +176,21 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
         </select>
       </label>
 
-      <label class="plp-field" data-test="plp-cache_rag_placement">
-        <span class="plp-lbl">RAG / retrieved-context placement</span>
-        <small class="plp-desc">Where per-turn RAG/vector/memory goes. "Tail" (after history) is required to cache history in Phase 2; "System inline" keeps it in the volatile system block (current behavior).</small>
-        <select class="plp-select" :value="ragPlacement" :disabled="disabled" @change="setStr('cache_rag_placement', $event)">
-          <option value="tail">Tail (after history)</option>
-          <option value="system_inline">System (volatile block)</option>
-        </select>
-      </label>
-
-      <label class="plp-field" data-test="plp-checkpoint_trigger_tokens">
-        <span class="plp-lbl">Compress-late threshold <span class="plp-unit">(tokens)</span></span>
-        <small class="plp-desc">Keep raw conversation history (byte-stable → cacheable) until it reaches this many tokens, then summarize old turns and freeze that summary. 0 = legacy behaviour (summarize by message count). Try 60,000–80,000 for long sessions; pairs with "Cache conversation history".</small>
-        <input type="number" min="0" :step="1000" :disabled="disabled"
-               :value="modelValue.checkpoint_trigger_tokens ?? ''" @input="setCheckpointTokens" placeholder="0 (legacy)" />
-      </label>
-
-      <label class="plp-field" data-test="plp-default_context_profile">
-        <span class="plp-lbl">Default context profile</span>
-        <small class="plp-desc">The platform-wide default context <strong>size</strong> an agent uses when it's on <strong>Automatic</strong>. Set here, it <strong>overrides each org's default</strong> — only an agent's own pinned size beats it. Precedence: agent's own profile → <strong>this</strong> → org default → per-request-type. Choose <strong>Automatic</strong> to keep per-request adaptivity (trivial turn → Short, normal → Medium, deep/multi-step task → Long).</small>
-        <select class="plp-select" :value="platformDefaultProfile" :disabled="disabled" @change="setStr('default_context_profile', $event)">
-          <option value="">Automatic (adapt per request type)</option>
-          <option value="short">Short context</option>
-          <option value="medium">Medium context</option>
-          <option value="long">Long context</option>
-        </select>
-      </label>
-
       <div class="plp-field" data-test="plp-history-strategy-note">
-        <span class="plp-lbl">History strategy</span>
-        <small class="plp-desc">Conversation history uses a single strategy: it keeps FULL raw history until ~80% of the agent PROFILE's input target, then compacts the older turns into ONE structured, cache-stable summary — preserving them (never dropping) and scaling to whichever profile the agent uses. The tuning below (compaction trigger %, summary %, chunk size, min window for caching) controls it. Legacy drop/count strategies were removed; a final token-fit at the model's hard ceiling is the only safety trim.</small>
+        <span class="plp-lbl">How conversation history works</span>
+        <small class="plp-desc">Every agent, on every turn, gets the same history budget: the model’s usable input window (its context window minus the space kept for the reply, and never more than Max input tokens above). The full history is sent word for word until it reaches the compaction trigger below. Then the older turns are summarized once, in the background after the turn, and the recent messages stay word for word. The next compaction summarizes the previous summary plus the messages since. An agent’s message limit only limits how many recent messages are kept after a summary.</small>
       </div>
 
-      <label class="plp-field" data-test="plp-long_context_min_window">
-        <span class="plp-lbl">Long-Context: min model window <span class="plp-unit">(tokens)</span></span>
-        <small class="plp-desc">Long-Context Mode engages on cache-capable models whose context window is at least this large; smaller (or non-caching) models always use legacy behaviour regardless of the strategy. Default 128,000.</small>
-        <input type="number" min="128000" :step="50000" :disabled="disabled"
-               :value="modelValue.long_context_min_window ?? ''" @input="setPlpInt('long_context_min_window', $event, 100000, 100000000)" placeholder="128,000" />
-      </label>
-
-      <label class="plp-field" data-test="plp-long_context_chunk_tokens">
-        <span class="plp-lbl">Long-Context: frozen-chunk / tail size cap <span class="plp-unit">(tokens)</span></span>
-        <small class="plp-desc">Upper bound on a frozen history chunk / the recent raw tail (and the cache-breakpoint boundary). Auto-shrinks to ≤25% of the usable window on smaller models, so a large value is safe. Default 60,000.</small>
-        <input type="number" min="1000" :step="5000" :disabled="disabled"
-               :value="modelValue.long_context_chunk_tokens ?? ''" @input="setPlpInt('long_context_chunk_tokens', $event, 1000, 10000000)" placeholder="60,000" />
-      </label>
-
       <label class="plp-field" data-test="plp-long_context_trigger_pct">
-        <span class="plp-lbl">Long-Context: compaction trigger <span class="plp-unit">(% of usable window)</span></span>
-        <small class="plp-desc">Keep full raw history until it reaches this percentage of the model’s usable window, then run one large compaction. Default 80. Range 10–95.</small>
-        <input type="number" min="10" max="95" :step="5" :disabled="disabled"
-               :value="modelValue.long_context_trigger_pct ?? ''" @input="setPlpInt('long_context_trigger_pct', $event, 10, 95)" placeholder="80" />
+        <span class="plp-lbl">Compaction trigger <span class="plp-unit">(% of the model’s usable window)</span></span>
+        <small class="plp-desc">When the history reaches this share of the model’s usable window, the older turns are summarized. Below it, the full history is sent. Default 80. Range 50–95.</small>
+        <input type="number" min="50" max="95" :step="5" :disabled="disabled"
+               :value="modelValue.long_context_trigger_pct ?? ''" @input="setPlpInt('long_context_trigger_pct', $event, 50, 95)" placeholder="80" />
       </label>
 
       <label class="plp-field" data-test="plp-long_context_summary_pct">
-        <span class="plp-lbl">Long-Context: summary budget <span class="plp-unit">(%)</span></span>
-        <small class="plp-desc">Controls the compaction summary size: the summarizer aims to keep about this percentage of the history it compacts, and the summary can never exceed this percentage of the model window (the hard cap). Higher = richer, more faithful summaries; lower = more aggressive compression. Default 15. Range 1–40.</small>
+        <span class="plp-lbl">Summary size <span class="plp-unit">(%)</span></span>
+        <small class="plp-desc">The summary aims at about this share of the history it replaces, and never more than this share of the model’s window. Higher keeps more detail; lower saves more space. Default 15. Range 1–40.</small>
         <input type="number" min="1" max="40" :step="1" :disabled="disabled"
                :value="modelValue.long_context_summary_pct ?? ''" @input="setPlpInt('long_context_summary_pct', $event, 1, 40)" placeholder="15" />
       </label>
@@ -258,7 +201,7 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
           <input type="checkbox" :checked="durableSteps" :disabled="disabled"
                  @change="setBool('durable_steps_enabled', $event)" />
         </span>
-        <small class="plp-desc">When ON, every tool call / result / error is saved as a durable step (separate from the visible chat) so the full trace is replayable and even small tool results can be reloaded after the turn ends. When OFF, only large results are kept (legacy behaviour).</small>
+        <small class="plp-desc">When ON, every tool call / result / error is saved as a durable step (separate from the visible chat) so the full trace is replayable and even small tool results can be reloaded after the turn ends. When OFF, only large results are kept.</small>
       </label>
 
       <label class="plp-field" data-test="plp-durable_step_max_bytes">

@@ -42,7 +42,8 @@ onMounted(load);
         <h2>From preparation run {{ data.preview.run }}: {{ data.preview.would_hold }} of {{ data.preview.kept }} examples</h2>
         <ul v-if="Object.keys(data.preview.left_out).length" class="llm-reasons"><li v-for="(n, why) in data.preview.left_out" :key="why">{{ n }} left out: {{ why }}</li></ul>
         <p v-else class="field-help">Every example the run kept can go in.</p>
-        <div v-if="may" class="llm-publish"><label class="field-label">Name (optional)<input v-model="title" class="text-input" maxlength="100"></label><UiButton variant="primary" :disabled="busy || !data.preview.would_hold" @click="publish"><Layers :size="15" /> {{ busy ? 'Publishing…' : 'Publish version' }}</UiButton></div>
+        <p v-if="data.preview.published_as" class="field-help">{{ data.preview.published_as }} already holds exactly these examples. To publish a new version, change the data or run preparation again.</p>
+        <div v-if="may" class="llm-publish"><label class="field-label">Name (optional)<input v-model="title" class="text-input" maxlength="100"></label><UiButton variant="primary" :disabled="busy || !data.preview.would_hold || !!data.preview.published_as" @click="publish"><Layers :size="15" /> {{ busy ? 'Publishing…' : 'Publish version' }}</UiButton></div>
       </template>
       <template v-else><h2>No preparation run yet</h2><p>Run preparation on the Dataset page; a version is published from its result.</p><UiButton @click="emit('navigate', 'dataset')">Go to preparation</UiButton></template>
     </section>
