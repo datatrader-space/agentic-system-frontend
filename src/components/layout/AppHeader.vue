@@ -66,7 +66,7 @@
           </nav>
         </div>
 
-        <!-- Right Section: Status + Auth -->
+        <!-- Right Section: Auth -->
         <div class="header-right">
           <!-- Public: Login/Signup -->
           <div v-if="!currentUser" class="auth-buttons">
@@ -82,78 +82,8 @@
           </div>
 
 
-          <!-- Authenticated: Status + User -->
+          <!-- Authenticated: Workspace + User -->
           <div v-if="currentUser" class="user-section">
-            <!-- Quick Actions -->
-            <div class="quick-actions">
-
-              <!-- Status Popover -->
-              <div class="status-popover-container" ref="statusRef">
-                <button
-                  class="action-btn status-btn"
-                  :class="{ 'status-btn-active': showStatusPopover }"
-                  title="System Status"
-                  @click.stop="toggleStatusPopover"
-                >
-                  <div class="status-indicator-wrapper">
-                    <span class="status-pulse" :class="overallStatus"></span>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-                    </svg>
-                  </div>
-                </button>
-
-                <!-- Status Dropdown -->
-                <Transition name="popover">
-                  <div v-if="showStatusPopover" class="status-popover">
-                    <div class="popover-header">
-                      <span class="popover-title">System Status</span>
-                      <span class="status-badge" :class="overallStatus">
-                        {{ overallStatusText }}
-                      </span>
-                    </div>
-                    <div class="popover-content">
-                      <div class="status-row">
-                        <div class="status-info">
-                          <svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="2" y="3" width="20" height="14" rx="2"/>
-                            <path d="M8 21h8m-4-4v4"/>
-                          </svg>
-                          <span>Local LLM</span>
-                        </div>
-                        <span class="status-chip" :class="llmHealth?.local?.available ? 'online' : 'offline'">
-                          {{ llmHealth?.local?.available ? 'Connected' : 'Offline' }}
-                        </span>
-                      </div>
-                      <div class="status-row">
-                        <div class="status-info">
-                          <svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M4 14.899A7 7 0 1115.71 8h1.79a4.5 4.5 0 012.5 8.242"/>
-                            <path d="M12 12v9m-4-4l4 4 4-4"/>
-                          </svg>
-                          <span>Cloud LLM</span>
-                        </div>
-                        <span class="status-chip" :class="llmHealth?.cloud?.available ? 'online' : 'offline'">
-                          {{ llmHealth?.cloud?.available ? 'Connected' : 'Offline' }}
-                        </span>
-                      </div>
-                      <div class="status-row">
-                        <div class="status-info">
-                          <svg class="status-icon github" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-                          </svg>
-                          <span>GitHub</span>
-                        </div>
-                        <span class="status-chip" :class="currentUser?.github_username ? 'online' : 'offline'">
-                          {{ currentUser?.github_username || 'Not Connected' }}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </Transition>
-              </div>
-            </div>
-
             <!-- Workspace Switcher -->
             <WorkspaceSwitcher class="header-workspace-switcher" />
 
@@ -197,29 +127,6 @@
                   </div>
 
                   <div class="dropdown-divider"></div>
-
-                  <!-- Mobile Status Section -->
-                  <div class="mobile-status-section">
-                    <div class="dropdown-label">System Status</div>
-                    <div class="mobile-status-list">
-                      <div class="mobile-status-item">
-                        <span class="status-dot" :class="llmHealth?.local?.available ? 'online' : 'offline'"></span>
-                        <span>Local LLM</span>
-                        <span class="status-text">{{ llmHealth?.local?.available ? 'Online' : 'Offline' }}</span>
-                      </div>
-                      <div class="mobile-status-item">
-                        <span class="status-dot" :class="llmHealth?.cloud?.available ? 'online' : 'offline'"></span>
-                        <span>Cloud LLM</span>
-                        <span class="status-text">{{ llmHealth?.cloud?.available ? 'Online' : 'Offline' }}</span>
-                      </div>
-                      <div class="mobile-status-item">
-                        <span class="status-dot" :class="currentUser?.github_username ? 'online' : 'offline'"></span>
-                        <span>GitHub</span>
-                        <span class="status-text">{{ currentUser?.github_username || 'Not linked' }}</span>
-                      </div>
-                    </div>
-                    <div class="dropdown-divider"></div>
-                  </div>
 
                   <!-- Menu Items -->
                   <div class="dropdown-menu">
@@ -355,28 +262,6 @@
                 </a>
               </div>
             </template>
-
-
-            <!-- Mobile System Status -->
-            <div class="mobile-divider"></div>
-            <div class="mobile-nav-section">
-              <div class="mobile-nav-label">System Status</div>
-              <div class="mobile-status-item">
-                <span class="status-dot" :class="llmHealth?.local?.available ? 'online' : 'offline'"></span>
-                <span>Local LLM</span>
-                <span class="status-text">{{ llmHealth?.local?.available ? 'Online' : 'Offline' }}</span>
-              </div>
-              <div class="mobile-status-item">
-                <span class="status-dot" :class="llmHealth?.cloud?.available ? 'online' : 'offline'"></span>
-                <span>Cloud LLM</span>
-                <span class="status-text">{{ llmHealth?.cloud?.available ? 'Online' : 'Offline' }}</span>
-              </div>
-              <div class="mobile-status-item" v-if="currentUser">
-                <span class="status-dot" :class="currentUser?.github_username ? 'online' : 'offline'"></span>
-                <span>GitHub</span>
-                <span class="status-text">{{ currentUser?.github_username ? 'Linked' : 'Not Linked' }}</span>
-              </div>
-            </div>
           </div>
 
           <!-- Mobile Footer -->
@@ -517,10 +402,6 @@ const props = defineProps({
     type: Object,
     default: null
   },
-  llmHealth: {
-    type: Object,
-    default: null
-  },
 })
 
 // Emits
@@ -531,10 +412,8 @@ const route = useRoute()
 
 // Refs
 const userMenuRef = ref(null)
-const statusRef = ref(null)
 const showUserMenu = ref(false)
 const showMobileMenu = ref(false)
-const showStatusPopover = ref(false)
 const isScrolled = ref(false)
 
 // Computed
@@ -553,21 +432,6 @@ const userInitials = computed(() => {
     .join('')
     .toUpperCase()
     .slice(0, 2)
-})
-
-const overallStatus = computed(() => {
-  const local = props.llmHealth?.local?.available
-  const cloud = props.llmHealth?.cloud?.available
-  if (local && cloud) return 'online'
-  if (local || cloud) return 'partial'
-  return 'offline'
-})
-
-const overallStatusText = computed(() => {
-  const status = overallStatus.value
-  if (status === 'online') return 'All Systems Operational'
-  if (status === 'partial') return 'Partial Outage'
-  return 'Systems Offline'
 })
 
 // Navigation Links
@@ -598,12 +462,6 @@ const isActiveRoute = (path, exact = false) => {
 
 const toggleUserMenu = () => {
   showUserMenu.value = !showUserMenu.value
-  showStatusPopover.value = false
-}
-
-const toggleStatusPopover = () => {
-  showStatusPopover.value = !showStatusPopover.value
-  showUserMenu.value = false
 }
 
 const toggleMobileMenu = () => {
@@ -619,10 +477,6 @@ const closeMobileMenu = () => {
 
 const closeUserMenu = () => {
   showUserMenu.value = false
-}
-
-const closeStatusPopover = () => {
-  showStatusPopover.value = false
 }
 
 const handleLogout = () => {
@@ -647,9 +501,6 @@ const handleClickOutside = (event) => {
   if (userMenuRef.value && !userMenuRef.value.contains(event.target)) {
     closeUserMenu()
   }
-  if (statusRef.value && !statusRef.value.contains(event.target)) {
-    closeStatusPopover()
-  }
 }
 
 // Keyboard handler
@@ -657,7 +508,6 @@ const handleKeydown = (event) => {
   if (event.key === 'Escape') {
     closeUserMenu()
     closeMobileMenu()
-    closeStatusPopover()
   }
 }
 
@@ -665,7 +515,6 @@ const handleKeydown = (event) => {
 watch(() => route.path, () => {
   closeMobileMenu()
   closeUserMenu()
-  closeStatusPopover()
 })
 
 // Lifecycle
@@ -1022,218 +871,6 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-/* Quick Actions */
-.quick-actions {
-  display: none;
-  align-items: center;
-  gap: 4px;
-}
-
-@media (min-width: 768px) {
-  .quick-actions { display: flex; }
-}
-
-.action-btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.action-btn:hover {
-  background: var(--bg-card-solid);
-  border-color: var(--border-strong);
-  color: var(--text-primary);
-}
-
-.action-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
-/* Theme Toggle Specific */
-.theme-toggle {
-  margin-right: 8px;
-}
-
-.theme-icon {
-  width: 20px;
-  height: 20px;
-  animation: scaleIn 0.3s ease-out;
-}
-
-.action-kbd {
-  position: absolute;
-  bottom: 4px;
-  right: 4px;
-  padding: 1px 4px;
-  font-size: 0.5rem;
-  font-weight: 600;
-  font-family: inherit;
-  color: var(--text-muted);
-  background: var(--border-light);
-  border-radius: 3px;
-}
-
-/* Status Button */
-.status-btn {
-  width: auto;
-  padding: 0 12px;
-  gap: 8px;
-}
-
-.status-indicator-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.status-pulse {
-  position: absolute;
-  left: -8px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
-.status-pulse.online {
-  background: var(--success);
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
-  animation: pulse 2s infinite;
-}
-
-.status-pulse.partial {
-  background: var(--warning);
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
-}
-
-.status-pulse.offline {
-  background: var(--text-muted);
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-/* Status Popover */
-.status-popover-container {
-  position: relative;
-}
-
-.status-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  width: 300px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xl);
-  overflow: hidden;
-}
-
-.popover-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  background: var(--border-light);
-}
-
-.popover-title {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.status-badge {
-  padding: 4px 10px;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  border-radius: 20px;
-}
-
-.status-badge.online {
-  color: var(--success);
-  background: rgba(16, 185, 129, 0.1);
-}
-
-.status-badge.partial {
-  color: var(--warning);
-  background: rgba(245, 158, 11, 0.1);
-}
-
-.status-badge.offline {
-  color: var(--danger);
-  background: rgba(239, 68, 68, 0.1);
-}
-
-.popover-content {
-  padding: 12px;
-}
-
-.status-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  transition: background var(--transition-fast);
-}
-
-.status-row:hover {
-  background: var(--border-light);
-}
-
-.status-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-}
-
-.status-icon {
-  width: 18px;
-  height: 18px;
-  color: var(--text-muted);
-}
-
-.status-icon.github {
-  width: 16px;
-  height: 16px;
-}
-
-.status-chip {
-  padding: 4px 10px;
-  font-size: 0.6875rem;
-  font-weight: 500;
-  border-radius: 6px;
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.status-chip.online {
-  color: var(--success);
-  background: rgba(16, 185, 129, 0.1);
-}
-
-.status-chip.offline {
-  color: var(--text-muted);
-  background: var(--border-light);
-}
-
 /* Header Separator */
 .header-separator {
   width: 1px;
@@ -1391,59 +1028,6 @@ onUnmounted(() => {
 .dropdown-divider {
   height: 1px;
   background: var(--border);
-}
-
-.dropdown-label,
-.mobile-nav-label {
-  padding: 12px 16px 8px;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-}
-
-.mobile-nav-label {
-  padding-left: 16px;
-  margin-top: 8px;
-}
-
-.mobile-status-section {
-  display: none;
-}
-
-@media (max-width: 767px) {
-  .mobile-status-section { display: block; }
-}
-
-.mobile-status-list {
-  padding: 0 12px 12px;
-}
-
-.mobile-status-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
-  border-radius: var(--radius-sm);
-}
-
-.mobile-status-item .status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.mobile-status-item .status-dot.online { background: var(--success); }
-.mobile-status-item .status-dot.offline { background: var(--text-muted); }
-
-.mobile-status-item .status-text {
-  margin-left: auto;
-  font-size: 0.75rem;
-  color: var(--text-muted);
 }
 
 .dropdown-menu {
@@ -1832,16 +1416,12 @@ onUnmounted(() => {
 
 /* ===== Transitions ===== */
 .dropdown-enter-active,
-.dropdown-leave-active,
-.popover-enter-active,
-.popover-leave-active {
+.dropdown-leave-active {
   transition: all var(--transition-normal);
 }
 
 .dropdown-enter-from,
-.dropdown-leave-to,
-.popover-enter-from,
-.popover-leave-to {
+.dropdown-leave-to {
   opacity: 0;
   transform: translateY(-8px) scale(0.96);
 }
@@ -1890,7 +1470,6 @@ onUnmounted(() => {
 .nav-link:focus-visible,
 .btn-ghost:focus-visible,
 .btn-primary:focus-visible,
-.action-btn:focus-visible,
 .user-menu-trigger:focus-visible,
 .mobile-toggle:focus-visible,
 .dropdown-item:focus-visible,

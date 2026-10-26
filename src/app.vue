@@ -46,7 +46,6 @@
       <AppHeader
         v-if="showLegacyHeader"
         :current-user="currentUser"
-        :llm-health="llmHealth"
         :theme="theme"
         @logout="handleLogout"
         @connect-github="connectGitHub"
@@ -165,7 +164,6 @@ import { identify } from './composables/useAnalytics'
 
 const router = useRouter()
 const route = useRoute()
-const llmHealth = ref(null)
 // The legacy top nav is for signed-out visitors only (1,900 lines): loaded when it is first shown,
 // never for a signed-in session.
 const AppHeader = lazyComponent(() => import('./components/layout/AppHeader.vue'), { showLoading: false })
@@ -282,20 +280,6 @@ onMounted(async () => {
     await loadCurrentUser()
   }
 })
-
-// The LLM health badge lives only in the signed-out header: ask for it once, when that header is first
-// shown, instead of on every app load (signed-in users never see it).
-let llmHealthAsked = false
-watch(showLegacyHeader, async (shown) => {
-  if (!shown || llmHealthAsked) return
-  llmHealthAsked = true
-  try {
-    const response = await api.get('/llm/health/')
-    llmHealth.value = response.data
-  } catch (error) {
-    console.error('Failed to check LLM health:', error)
-  }
-}, { immediate: true })
 
 // Entering a signed-in page with no user loaded (e.g. right after signing in): load it. Not on every
 // navigation between signed-out pages, where the answer is always "nobody" (it refetched /auth/me

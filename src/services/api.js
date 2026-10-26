@@ -488,7 +488,6 @@ export default {
     api.post(`/systems/${systemId}/tasks/${taskId}/reject/`, { notes }),
 
   // LLM
-  checkLLMHealth: () => api.get('/llm/health/'),
   getLlmStats: (params) => api.get('/llm/stats/', { params }),
   getLlmUsage: (params) => api.get('/llm/usage/', { params }),
   getSandboxUsage: (params) => api.get('/sandbox/usage/', { params }),

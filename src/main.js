@@ -640,7 +640,10 @@ import('virtual:icon-subset-logos').catch(() => { /* the API fallback still draw
 // so web-vitals is never part of the entry bundle or the first paint.
 const _startRum = () => {
   import('./services/rum')
-    .then(({ startRum }) => startRum(() => router.currentRoute.value.name))
+    // TTFB (and sometimes FCP) is final before the first navigation has settled, when the current route has
+    // no name yet and the report said "unknown": resolve the name from the URL itself in that case.
+    .then(({ startRum }) => startRum(() => router.currentRoute.value.name
+      || router.resolve(location.pathname + location.search).name))
     .catch(() => { /* page-speed reporting must never break the app */ })
 }
 if (typeof requestIdleCallback === 'function') requestIdleCallback(_startRum, { timeout: 5000 })
