@@ -94,7 +94,7 @@ const splitWords={train:'Training',val:'Validation',test:'Test'};
 // options' device) ──
 // On a CPU server a first run should end in minutes: 10 epochs and a size not marked slow, once (the person can change both).
 let cpuDefaults=false;const runtime=ref(3600);const runView=ref(null);const runBusy=ref(false);let runTimer=null;
-const onGpu=computed(()=>state.training?.device==='cuda');
+const onGpu=computed(()=>state.value?.training?.device==='cuda');
 const trainsOn=computed(()=>onGpu.value?'a GPU machine in the ML account':'this server’s CPU');
 const trainModel=computed(()=>(live.value?.training?.models||[]).find(m=>m.label===architecture.value));
 async function loadTrain(){if(!live.value)return;try{const t=await loadTraining(live.value);runtime.value=t.default_runtime||3600;const names=(t.versions||[]).map(v=>v.name);if(!names.includes(activeVersion.value))activeVersion.value=names[0]||'';if(!(t.models||[]).some(m=>m.label===architecture.value))architecture.value='RF-DETR';const m=(t.models||[]).find(x=>x.label===architecture.value);if(m&&!m.sizes.includes(size.value))size.value=m.sizes[0];if(t.device==='cpu'&&!cpuDefaults){cpuDefaults=true;if(epochs.value===50)epochs.value=10;const quick=m?.sizes.find(x=>!(m.slow||[]).includes(x));if(quick)size.value=quick;}}catch(e){liveError(e);}}
