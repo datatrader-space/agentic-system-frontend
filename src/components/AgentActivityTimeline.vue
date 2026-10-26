@@ -189,7 +189,7 @@ import { fmtTokens } from '../composables/tokens'
 import { renderInlineMarkdown } from '../utils/inlineMarkdown'
 import VerificationBadge from './common/VerificationBadge.vue'
 import { parseDelegationResult, isDelegationTool } from './common/verificationBadge'
-import { foldMilestones, wasFolded } from './plan/workProgress'
+import { foldMilestones, wasFolded, isSetup } from './plan/workProgress'
 
 const props = defineProps({
   statusLabel: { type: String, default: '' },
@@ -248,7 +248,10 @@ const canShowAll = computed(() => wasFolded(milestoneSteps.value, visibleSteps.v
 // The person's own messages, taken in by the run while it worked (`useAgentTimeline.addSteer`). Not work
 // the agent did, so they are not counted as steps.
 const steerSteps = computed(() => visibleSteps.value.filter((s) => s.isSteer))
-const workStepCount = computed(() => visibleSteps.value.length - steerSteps.value.length)
+// Nor is the run getting ready (`isSetup`: the `build_*` stages, preparing, planning). A turn that only
+// answered read "Done · 10 steps" over setup labels for work that did nothing (tester's "ACK", 2026-10-26);
+// the count is the work the agent did. The setup rows stay in the list, folded into "Getting ready".
+const workStepCount = computed(() => visibleSteps.value.filter((s) => !s.isSteer && !isSetup(s)).length)
 const renderedSteps = computed(() => (showAllSteps.value ? visibleSteps.value.map(
   (s) => ({ ...s, repeatCount: 1, foldedIds: [s.stepId] })) : milestoneSteps.value))
 

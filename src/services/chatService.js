@@ -115,7 +115,9 @@ export class ChatConnection {
     // Same-origin: the Vite dev server proxies /ws → the backend (see vite.config.js).
     // General agent chat (no repo) → dedicated /ws/chat/agent/ route; a real repo → repo-scoped route.
     const path = this.repoId ? `/ws/chat/repository/${this.repoId}/` : '/ws/chat/agent/'
-    const url = `${proto}://${window.location.host}${path}`
+    // This chat draws `chat_action` cards (ChatActionButtons), so the agent may offer a Connect / Assign button;
+    // a client that does not say so is given a link instead (backend `_renders_chat_actions`).
+    const url = `${proto}://${window.location.host}${path}?client_caps=chat_action`
     try {
       this.ws = new WebSocket(url)
     } catch (e) {
