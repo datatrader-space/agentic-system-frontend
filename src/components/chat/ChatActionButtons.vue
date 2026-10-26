@@ -13,53 +13,65 @@
      continues the chat. -->
 <template>
   <div v-if="actions.length" class="ca-list">
-    <div v-for="a in actions" :key="keyOf(a)" class="ca-row">
-      <!-- done -->
-      <p v-if="stateOf(a).phase === 'done'" class="ca-done" role="status">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round" /></svg>
-        {{ stateOf(a).message }}
-      </p>
+    <!-- One card per connector: its logo and name, what it is for, and the one thing to do (owner, 2026-10-26:
+         "show nicely with connector name, logo and connect button" instead of a bare button). -->
+    <section v-for="a in actions" :key="keyOf(a)" class="ca-card" :class="{ 'is-done': stateOf(a).phase === 'done' }"
+             :aria-label="`${a.service} connector`">
+      <div class="ca-main">
+        <span class="ca-logo" aria-hidden="true">
+          <Icon v-if="isIconify(a.icon)" :icon="a.icon" class="ca-logo-icon" />
+          <template v-else>{{ initialOf(a) }}</template>
+        </span>
+        <div class="ca-text">
+          <p class="ca-name">{{ a.service }}</p>
+          <p class="ca-desc">{{ captionOf(a) }}</p>
+        </div>
 
-      <!-- a key or headers are needed: the Connectors page, never the chat -->
-      <template v-else-if="a.kind === 'setup'">
-        <router-link :to="a.connectors_url || '/dashboard/connectors'" class="ca-btn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-          {{ a.label || `Set up ${a.service}` }}
+        <!-- done -->
+        <span v-if="stateOf(a).phase === 'done'" class="ca-done-pill" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          {{ a.kind === 'assign' ? 'Assigned' : 'Connected' }}
+        </span>
+
+        <!-- a key or headers are needed: the Connectors page, never the chat -->
+        <router-link v-else-if="a.kind === 'setup'" :to="a.connectors_url || '/dashboard/connectors'" class="ca-btn">
+          Set up
         </router-link>
-        <span class="ca-hint">Add it on the Connectors page, then ask again.</span>
-      </template>
 
-      <!-- the user can't change this agent: point them at the owner, no button -->
-      <p v-else-if="needsOwner(a)" class="ca-owner">
-        Ask the owner of {{ a.agent_name || 'this agent' }} to assign {{ a.service }} to it.
-        <router-link :to="a.connectors_url || '/dashboard/connectors'" class="ca-link">Open Connectors</router-link>
-      </p>
+        <!-- the user can't change this agent: no button, the owner does it (said below) -->
+        <template v-else-if="needsOwner(a)" />
 
-      <template v-else>
         <button
+          v-else
           type="button"
-          class="ca-btn"
-          :class="{ primary: a.kind === 'connect' }"
+          class="ca-btn primary"
           :disabled="busy(a)"
+          :aria-label="a.label || buttonLabel(a)"
           @click="run(a)"
         >
           <span v-if="busy(a)" class="ca-spin" aria-hidden="true"></span>
-          <svg v-else-if="a.kind === 'assign'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke-linecap="round" /></svg>
-          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke-linecap="round" stroke-linejoin="round" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke-linecap="round" stroke-linejoin="round" /></svg>
-          {{ buttonLabel(a) }}
+          {{ shortLabel(a) }}
         </button>
-        <span v-if="stateOf(a).phase === 'waiting'" class="ca-hint">
-          Finish signing in to {{ a.service }} in the window that opened.
-          <button type="button" class="ca-textbtn" @click="reopen(a)">Open it again</button>
-        </span>
-        <span v-else-if="stateOf(a).error" class="ca-err" role="alert">{{ stateOf(a).error }}</span>
-      </template>
-    </div>
+      </div>
+
+      <p v-if="stateOf(a).phase === 'done'" class="ca-foot ok ca-done" role="status">{{ stateOf(a).message }}</p>
+      <p v-else-if="a.kind === 'setup'" class="ca-foot ca-hint">Add it on the Connectors page, then ask again.</p>
+      <p v-else-if="needsOwner(a)" class="ca-foot ca-owner">
+        Ask the owner of {{ a.agent_name || 'this agent' }} to assign {{ a.service }} to it.
+        <router-link :to="a.connectors_url || '/dashboard/connectors'" class="ca-link">Open Connectors</router-link>
+      </p>
+      <p v-else-if="stateOf(a).phase === 'waiting'" class="ca-foot ca-hint">
+        Finish signing in to {{ a.service }} in the window that opened.
+        <button type="button" class="ca-textbtn" @click="reopen(a)">Open it again</button>
+      </p>
+      <p v-else-if="stateOf(a).error" class="ca-foot err ca-err" role="alert">{{ stateOf(a).error }}</p>
+    </section>
   </div>
 </template>
 
 <script setup>
 import { computed, reactive, onMounted, onUnmounted } from 'vue'
+import { Icon } from '@iconify/vue'
 import api from '../../services/api'
 import { useChatStore } from '../../stores/useChatStore'
 
@@ -124,6 +136,30 @@ function takePending(a) {
 
 // Assigning — directly, or as the auto-assign a connect promises — needs edit rights on the agent.
 const needsOwner = (a) => a.can_edit === false && (a.kind === 'assign' || !!a.auto_assign)
+
+// The connector's own icon, as the Connectors page draws it (an Iconify name like `logos:google-drive`);
+// anything else gets the first letter of its name.
+const isIconify = (icon) => typeof icon === 'string' && icon.includes(':')
+const initialOf = (a) => (a.service || '?').trim().charAt(0).toUpperCase()
+
+// The line under the name: why the card is here when that is not plain "connect", else the connector's
+// own description.
+function captionOf(a) {
+  if (a.kind === 'assign') return `Connected, but not assigned to ${a.agent_name || 'this agent'}.`
+  if (a.kind === 'setup') return 'Needs a key or settings before it can be used.'
+  if (a.reauthorize || a.reconnect) return 'Your sign-in has expired.'
+  return a.description || 'Connect your account to continue.'
+}
+
+// The card already names the connector, so the button says only what it does.
+function shortLabel(a) {
+  const s = stateOf(a)
+  if (s.phase === 'starting') return a.kind === 'assign' ? 'Assigning…' : 'Opening…'
+  if (s.phase === 'waiting') return 'Waiting…'
+  if (a.kind === 'assign') return 'Assign'
+  if (a.reauthorize || a.reconnect) return 'Sign in again'
+  return 'Connect'
+}
 
 function buttonLabel(a) {
   const s = stateOf(a)
@@ -327,22 +363,47 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.ca-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-.ca-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+/* A connector card, in the Connectors page's language: white surface, slate border, violet action. */
+.ca-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; max-width: 520px; }
+
+.ca-card {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 12px 12px 14px; border-radius: 14px;
+  background: #fff; border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.ca-card.is-done { border-color: #bbf7d0; background: #f0fdf4; }
+
+.ca-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
+.ca-logo {
+  width: 40px; height: 40px; flex: none; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #f8fafc; border: 1px solid #e2e8f0;
+  font-size: 1rem; font-weight: 700; color: #475569;
+}
+.ca-logo-icon { width: 22px; height: 22px; }
+
+.ca-text { flex: 1; min-width: 0; }
+.ca-name { margin: 0; font-size: .875rem; font-weight: 600; color: #0f172a; line-height: 1.35; }
+.ca-desc {
+  margin: 2px 0 0; font-size: .78rem; color: #475569; line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
 
 .ca-btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 7px 14px; border-radius: 10px;
+  flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 36px; padding: 0 16px; border-radius: 10px;
   border: 1px solid #c7d2fe; background: #eef2ff; color: #4338ca;
-  font-size: .82rem; font-weight: 600; line-height: 1.2; cursor: pointer; text-decoration: none;
-  transition: background .15s, border-color .15s, box-shadow .15s;
+  font-size: .82rem; font-weight: 600; line-height: 1; white-space: nowrap;
+  cursor: pointer; text-decoration: none;
+  transition: background-color .15s, border-color .15s, box-shadow .15s;
 }
 .ca-btn:hover:not(:disabled) { background: #e0e7ff; border-color: #a5b4fc; }
 .ca-btn.primary { background: var(--vm-violet-d, #4f46e5); border-color: var(--vm-violet-d, #4f46e5); color: #fff; }
-.ca-btn.primary:hover:not(:disabled) { background: #4338ca; border-color: #4338ca; }
-.ca-btn:disabled { opacity: .75; cursor: default; }
+.ca-btn.primary:hover:not(:disabled) { background: #4338ca; border-color: #4338ca; box-shadow: 0 2px 8px rgba(79, 70, 229, .25); }
+.ca-btn:disabled { opacity: .8; cursor: default; }
 .ca-btn:focus-visible { outline: 2px solid #818cf8; outline-offset: 2px; }
-.ca-btn svg { width: 15px; height: 15px; flex: none; }
 
 .ca-spin {
   width: 13px; height: 13px; border-radius: 50%; flex: none;
@@ -352,21 +413,30 @@ onUnmounted(() => {
 @keyframes ca-rot { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ca-spin { animation: none; } }
 
-.ca-hint { font-size: .78rem; color: var(--vm-text-muted, #6b7280); }
+.ca-done-pill {
+  flex: none; display: inline-flex; align-items: center; gap: 5px;
+  min-height: 30px; padding: 0 12px; border-radius: 999px;
+  background: #dcfce7; color: #047857; font-size: .78rem; font-weight: 600;
+}
+.ca-done-pill svg { width: 14px; height: 14px; }
+
+.ca-foot { margin: 0; padding-left: 52px; font-size: .78rem; color: #475569; line-height: 1.45; }
+.ca-foot.ok { color: #047857; }
+.ca-foot.err { color: #b91c1c; }
 .ca-textbtn {
   border: 0; background: none; padding: 0; margin-left: 4px;
   color: var(--vm-violet-d, #4f46e5); font: inherit; font-weight: 600; cursor: pointer;
 }
 .ca-textbtn:hover { text-decoration: underline; }
-.ca-err { font-size: .78rem; color: #b91c1c; }
-
-.ca-done {
-  display: inline-flex; align-items: center; gap: 6px; margin: 0;
-  font-size: .82rem; font-weight: 600; color: #047857;
-}
-.ca-done svg { width: 15px; height: 15px; }
-
-.ca-owner { margin: 0; font-size: .82rem; color: var(--vm-text-muted, #6b7280); }
+.ca-textbtn:focus-visible, .ca-link:focus-visible { outline: 2px solid #818cf8; outline-offset: 2px; border-radius: 4px; }
 .ca-link { margin-left: 6px; color: var(--vm-violet-d, #4f46e5); font-weight: 600; text-decoration: none; }
 .ca-link:hover { text-decoration: underline; }
+
+/* Phone width: the action moves under the text, full width and a comfortable tap target. */
+@media (max-width: 480px) {
+  .ca-main { flex-wrap: wrap; }
+  .ca-text { flex-basis: calc(100% - 52px); }
+  .ca-btn { width: 100%; min-height: 44px; }
+  .ca-foot { padding-left: 0; }
+}
 </style>

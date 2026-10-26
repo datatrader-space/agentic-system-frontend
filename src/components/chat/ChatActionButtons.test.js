@@ -63,7 +63,8 @@ describe('ChatActionButtons', () => {
       target_id: 8, label: 'Assign Jira to this agent' })]))
     await flushPromises()
     const labels = w.findAll('button.ca-btn').map((b) => b.text())
-    expect(labels).toEqual(['Connect GitHub', 'Assign Jira to this agent'])
+    // The card names the connector; the button says what it does, and the full label is its accessible name.
+    expect(labels).toEqual(['Connect', 'Assign'])
   })
 
   it('assign: one click assigns through the endpoint, shows the result and continues the conversation', async () => {
@@ -148,7 +149,8 @@ describe('ChatActionButtons', () => {
     expect(w.find('button.ca-btn').exists()).toBe(false)
     const link = w.findComponent(RouterLinkStub)
     expect(link.props('to')).toBe('/dashboard/connectors')
-    expect(link.text()).toContain('Set up Stripe')
+    expect(link.text()).toContain('Set up')
+    expect(w.find('.ca-name').text()).toBe('Stripe')
     expect(w.find('input').exists()).toBe(false)
   })
 
@@ -240,7 +242,7 @@ describe('ChatActionButtons — the chat continues after the page came back', ()
     const { w, chat } = mountIt(reply([action({ auto_assign: true })]))
     await flushPromises()
     await vi.advanceTimersByTimeAsync(0)
-    expect(w.find('button.ca-btn').text()).toContain('Waiting for GitHub')
+    expect(w.find('button.ca-btn').text()).toContain('Waiting')
     expect(w.find('.ca-hint').text()).toContain('Open it again')          // the sign-in page can be reopened
     expect(chat.sendMessage).not.toHaveBeenCalled()
 
@@ -291,7 +293,7 @@ describe('ChatActionButtons — the chat continues after the page came back', ()
     const { w, chat } = mountIt(reply([action({ auto_assign: true })]))
     await flushPromises()
     await vi.advanceTimersByTimeAsync(4000)
-    expect(w.find('button.ca-btn').text()).toBe('Connect GitHub')
+    expect(w.find('button.ca-btn').text()).toBe('Connect')
     expect(localStorage.getItem(KEY)).toBeNull()
     expect(chat.sendMessage).not.toHaveBeenCalled()
   })
