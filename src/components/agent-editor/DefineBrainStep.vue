@@ -434,12 +434,17 @@ const CAPS = [
 // The backend also refuses any other model for video ("not a video model this platform can run"), so a
 // chat model here is a choice that can only fail — and it buried 31 video models among 747 chat models.
 // The agent's current pick stays listed even if it lost the flag, so it can be seen and changed.
+//
+// NOR IS ANY PROVIDER (2026-10-27). The Provider select narrows the MAIN model's list; a capability model is
+// its own choice, often from another provider (the Training agent: main model on OpenRouter, vision model on
+// OpenAI). Filtered by the main model's provider, the vision picker could not show the agent's own vision
+// model, read "Auto", and choosing a provider cleared it, so a save from this page removed it on production.
 function modelsFor(c) {
   if (c && c.field === 'video_model') {
     const current = props.agent.video_model
-    return filteredModels.value.filter(m => m.can_generate_video || m.id === current)
+    return models.value.filter(m => m.can_generate_video || m.id === current)
   }
-  return filteredModels.value
+  return models.value
 }
 
 // ── Web search model (agent web-intelligence config, not an AgentProfile column) ──────────────────
@@ -548,10 +553,11 @@ const filteredModels = computed(() =>
 // media-only (the sync marks them supports_tools=false); offering one here would silently break the
 // agent's whole turn loop, not just its video calls.
 const chatModels = computed(() => filteredModels.value.filter(m => !(m.can_generate_video && m.supports_tools === false)))
+// Choosing a provider narrows the MAIN model only: a main model of another provider is cleared, and every
+// capability model stays as it was (each is its own choice, of any provider; see modelsFor).
 function onProviderChange() {
   const ok = new Set(filteredModels.value.map(m => m.id))
   if (props.agent.default_model && !ok.has(props.agent.default_model)) props.agent.default_model = null
-  for (const c of CAPS) if (props.agent[c.field] && !ok.has(props.agent[c.field])) props.agent[c.field] = null
 }
 
 function modelLabel(m) {

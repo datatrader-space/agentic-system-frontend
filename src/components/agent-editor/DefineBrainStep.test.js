@@ -213,3 +213,31 @@ describe('DefineBrainStep — loads in one round (Phase 5 item 3)', () => {
     for (const k of ['getMemorySettings', 'getAgentMemoryDigest', 'getAgentMemory', 'getWebSearchModels', 'getAgentWebIntelligence']) delete api[k]
   })
 })
+
+describe('DefineBrainStep — capability models are not tied to the main model\'s provider', () => {
+  // Production 2026-10-27: the Training agent's main model on OpenRouter, its vision model on OpenAI. The vision
+  // picker, filtered by the main model's provider, showed "Auto", and choosing a provider cleared the vision model,
+  // so a save from the builder removed it.
+  it('keeps every capability model when the provider changes, and clears only a main model of another provider', async () => {
+    const w = await mountExpanded({ default_model: 99, vision_model: 77, image_model: 66 })
+    expect(w._agent.vision_model).toBe(77)
+    expect(w._agent.image_model).toBe(66)
+    expect(w._agent.default_model).toBe(null)          // 99 is not a model of provider 1
+  })
+
+  it('offers every model to a capability picker, whatever provider is chosen', async () => {
+    const pickers = []
+    const w = mount(DefineBrainStep, {
+      props: { agent: { id: 1, vision_model: 10 } },
+      global: { stubs: { ...stubs, ModelPicker: { props: ['models', 'modelValue'], setup(p) { pickers.push(p); return {} }, template: '<div/>' } } },
+    })
+    await flushPromises()
+    await w.find('.model-card .edit-btn').trigger('click')
+    await nextTick()
+    await w.find('.model-card select').setValue('1')
+    await nextTick()
+    const vision = pickers.find(p => p.modelValue === 10)
+    expect(vision).toBeTruthy()
+    expect(vision.models.map(m => m.id)).toContain(10)
+  })
+})
