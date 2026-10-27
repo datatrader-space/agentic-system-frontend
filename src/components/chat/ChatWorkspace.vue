@@ -135,7 +135,7 @@
         @send="onSend" @stop="chat.stop()" @mode-change="onModeChange"
         @attach="chat.addAttachments" @remove-attach="chat.removeAttachment" />
       <!-- Opens when a provider account refuses the turn (key limit / credits / rejected key). -->
-      <ProviderSwitchDialog />
+      <ProviderSwitchDialog v-if="chat.providerSwitchOffer" />
       <!-- THE WHOLE CONVERSATION, AND IT HAS TO SAY SO. It read "Session 7993.6k · $11.35", which a person
            takes for what the reply above it cost; it is every run in this conversation added up (that one
            was a week of runs). The last reply's own cost is on its message. -->
@@ -195,7 +195,7 @@
 </template>
 
 <script setup>
-import { computed, watch, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, defineAsyncComponent, watch, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectsStore } from '../../stores/useProjectsStore'
 import { useChatStore } from '../../stores/useChatStore'
@@ -208,7 +208,8 @@ import BrowserCard from '../browser/BrowserCard.vue'
 import ChatWelcome from './ChatWelcome.vue'
 import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
-import ProviderSwitchDialog from './ProviderSwitchDialog.vue'
+// Loaded when a provider refuses a turn (it opens only then): 28 KB a chat no longer downloads up front.
+const ProviderSwitchDialog = defineAsyncComponent(() => import('./ProviderSwitchDialog.vue'))
 import TurnModeSwitch from './TurnModeSwitch.vue'
 import ChatHistoryDrawer from './ChatHistoryDrawer.vue'
 import HITLModal from '../HITLModal.vue'

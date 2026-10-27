@@ -15,11 +15,11 @@
       </VideoComposerPanel>
     </div>
     <VideoLibrary v-if="video.libraryOpen" />
-    <ProviderSwitchDialog />
+    <ProviderSwitchDialog v-if="chat.providerSwitchOffer" />
   </section>
 </template>
 <script setup>
-import { ref, watch, nextTick, useId } from 'vue'
+import { defineAsyncComponent, ref, watch, nextTick, useId } from 'vue'
 import { presentStudioMessage, prepareStudioEdit } from '../../services/studioMessagePresentation'
 import { useChatStore } from '../../stores/useChatStore'
 import { useVideoStore } from '../../stores/useVideoStore'
@@ -27,7 +27,7 @@ import ChatMessageList from '../chat/ChatMessageList.vue'
 import VideoComposerPanel from '../video/VideoComposerPanel.vue'
 import VideoJobsTray from '../video/VideoJobsTray.vue'
 import VideoLibrary from '../video/VideoLibrary.vue'
-import ProviderSwitchDialog from '../chat/ProviderSwitchDialog.vue'
+const ProviderSwitchDialog = defineAsyncComponent(() => import('../chat/ProviderSwitchDialog.vue'))   // when a provider refuses a turn
 import HITLModal from '../HITLModal.vue'
 const props = defineProps({ modelValue: { type: String, default: '' }, label: String, purpose: String, ready: Boolean, expanded: Boolean, intro: { type: String, default: 'Describe your idea or choose a preset. Use + to attach references.' } })
 const emit = defineEmits(['update:modelValue','update:expanded','approved'])

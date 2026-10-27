@@ -640,9 +640,12 @@ app.provide('notify', (message, type = 'info') => {
 app.use(router)
 app.mount('#app')
 
-// The brand logos (`logos:*`, ~55 kB gzipped) are their own chunk, registered right after the first
-// render instead of weighing on it. A logo drawn before it lands falls back to the Iconify API once.
-import('virtual:icon-subset-logos').catch(() => { /* the API fallback still draws them */ })
+// The brand logos (`logos:*`, ~55 kB gzipped, the largest file of a first load) are their own chunk, registered
+// once the browser is idle after the first render, so they do not compete with the first page's own code on a slow
+// link. A logo drawn before it lands falls back to the Iconify API once.
+const _loadLogos = () => import('virtual:icon-subset-logos').catch(() => { /* the API fallback still draws them */ })
+if (typeof requestIdleCallback === 'function') requestIdleCallback(_loadLogos, { timeout: 3000 })
+else setTimeout(_loadLogos, 1000)
 
 // Real-user page-speed numbers (services/rum.js). Loaded once the browser is idle after the first render,
 // so web-vitals is never part of the entry bundle or the first paint.
