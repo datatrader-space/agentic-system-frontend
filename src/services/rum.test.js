@@ -11,7 +11,7 @@ vi.mock('web-vitals', () => ({
   onTTFB: (cb) => { cbs.TTFB = cb },
 }))
 
-import { startRum, buildPayloads, sendPayload, RUM_ENDPOINT } from './rum'
+import { startRum, buildPayloads, sendPayload, rumDisabled, RUM_ENDPOINT, RUM_OFF_KEY } from './rum'
 
 const metric = (name, value, extra = {}) => ({ name, value, rating: 'good', id: `v1-${name}`, navigationType: 'navigate', ...extra })
 let visibility = 'visible'
@@ -66,5 +66,25 @@ describe('rum', () => {
     const beacon = vi.fn(() => true)
     expect(sendPayload({ route: 'r', metrics: [] }, { fetchImpl: null, beacon })).toBe(true)
     expect(beacon).toHaveBeenCalledWith(RUM_ENDPOINT, expect.any(Blob))
+  })
+})
+
+describe('rum: what is not counted', () => {
+  const storage = (value) => ({ getItem: (k) => (k === RUM_OFF_KEY ? value : null) })
+
+  it('leaves out an automated browser and one that turned reporting off, and counts everyone else', () => {
+    expect(rumDisabled({ nav: { webdriver: true }, storage: storage(null) })).toBe(true)
+    expect(rumDisabled({ nav: { webdriver: false }, storage: storage('1') })).toBe(true)
+    expect(rumDisabled({ nav: { webdriver: false }, storage: storage(null) })).toBe(false)
+    expect(rumDisabled({ nav: {}, storage: { getItem: () => { throw new Error('blocked') } } })).toBe(false)
+  })
+
+  it('sends nothing at all when left out', () => {
+    const send = vi.fn()
+    startRum(() => 'dashboard-home', { random: () => 0, send, disabled: () => true })
+    cbs.LCP(metric('LCP', 15000))
+    visibility = 'hidden'
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(send).not.toHaveBeenCalled()
   })
 })

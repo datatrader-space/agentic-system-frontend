@@ -18,6 +18,18 @@ import { onCLS, onFCP, onINP, onLCP, onTTFB } from 'web-vitals'
 // Share of page loads that report (1 = all). One constant so it can be lowered when traffic grows.
 export const RUM_SAMPLE_RATE = 1
 export const RUM_ENDPOINT = '/api/rum/'
+// A browser that should not be counted sets this in its own localStorage (our live-test window does).
+export const RUM_OFF_KEY = 'aadml:rum-off'
+
+/**
+ * Whether this browser's page loads are left out: an automated browser (`navigator.webdriver`) or one whose
+ * owner turned reporting off for testing. Those run in windows the screen does not draw, and reported first
+ * paints of 10 to 145 s on 2026-10-27, which a person never sees.
+ */
+export function rumDisabled({ nav = globalThis.navigator, storage = globalThis.localStorage } = {}) {
+  if (nav && nav.webdriver === true) return true
+  try { return !!storage && storage.getItem(RUM_OFF_KEY) === '1' } catch { return false }
+}
 
 function getCookie(name) {
   const parts = (typeof document !== 'undefined' && document.cookie ? document.cookie.split(';') : [])
@@ -61,8 +73,8 @@ export function sendPayload(body, { fetchImpl = globalThis.fetch, beacon = globa
  * Start collecting. `routeName()` returns the current route's name at the moment a metric is final.
  * Returns a flush() function (also run on visibilitychange→hidden and pagehide).
  */
-export function startRum(routeName, { random = Math.random, send = sendPayload } = {}) {
-  if (random() >= RUM_SAMPLE_RATE) return () => {}
+export function startRum(routeName, { random = Math.random, send = sendPayload, disabled = rumDisabled } = {}) {
+  if (disabled() || random() >= RUM_SAMPLE_RATE) return () => {}
   let buffer = []
 
   const record = (metric) => {
