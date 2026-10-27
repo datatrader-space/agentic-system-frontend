@@ -96,3 +96,19 @@ describe('return addresses', () => {
     expect(button(w, 'Return addresses').text()).toContain('(2)')
   })
 })
+
+describe('connect a connector without the chat', () => {
+  it('lists the four routes as full addresses and copies one as it is', async () => {
+    const writeText = vi.fn()
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    const w = await mountPage()
+    const rows = w.findAll('.pk-copy-row')
+    expect(rows.map(r => r.get('.pk-q-k').text()))
+      .toEqual(['List connectors', 'Get a sign-in link', 'Check one sign-in', 'Remove a sign-in'])
+    const link = rows[1].get('code').text()
+    expect(link).toContain(`POST ${window.location.origin}/api/partner/agents/<agent_id>/connections/connect/`)
+    await rows[1].get('button').trigger('click')
+    expect(writeText).toHaveBeenCalledWith(link)
+    expect(notify.success).toHaveBeenCalledWith('Copied')
+  })
+})

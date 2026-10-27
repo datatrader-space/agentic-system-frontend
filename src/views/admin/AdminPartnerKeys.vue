@@ -133,6 +133,20 @@
       </ol>
       <p class="pk-mini">Agents are owned by the partner's account. <code>workspace_name</code> places the agent
         in a named workspace (created if new); omit it to use the partner's default workspace.</p>
+
+      <h3 class="pk-sub-h">Connect a connector for one agent, without the chat</h3>
+      <p class="pk-mini">For a partner with per-agent sign-ins on. The partner asks for a sign-in link, opens it in
+        the store owner's browser, and the sign-in is saved for that agent only.</p>
+      <div class="pk-copy-rows">
+        <div v-for="row in connectRows" :key="row.label" class="pk-copy-row">
+          <span class="pk-q-k">{{ row.label }}</span>
+          <code class="pk-copy-code">{{ row.text }}</code>
+          <button class="pk-btn sm" :aria-label="`Copy: ${row.label}`" @click="copy(row.text)">Copy</button>
+        </div>
+      </div>
+      <p class="pk-mini">Send <code>return_url</code> to bring the browser back to the partner's page afterwards
+        (with <code>connect_id</code> and <code>connected=1</code> or <code>0</code>). It must match one of the key's
+        <strong>Return addresses</strong>. The integration guide has the full example.</p>
     </section>
 
     <!-- Return addresses for one key -->
@@ -175,7 +189,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { marked } from 'marked'
 import api from '../../services/api'
 import { notify } from '../../composables/useNotify'
@@ -412,6 +426,17 @@ async function download() {
   notify.success('Guide downloaded — share it with the partner')
 }
 
+// The per-agent connect routes (ADM-1082), as full addresses on this site so a copy can be sent as it is.
+const connectRows = computed(() => {
+  const base = `${window.location.origin}${baseUrl.value}<agent_id>/connections/`
+  return [
+    { label: 'List connectors', text: `GET ${base}` },
+    { label: 'Get a sign-in link', text: `POST ${base}connect/  {"target_kind": "app", "target_id": 17, "return_url": "https://…"}` },
+    { label: 'Check one sign-in', text: `GET ${base}status/?connect_id=<connect_id>` },
+    { label: 'Remove a sign-in', text: `DELETE ${base}<target_kind>/<target_id>/` },
+  ]
+})
+
 function copy(text) {
   try { navigator.clipboard.writeText(text); notify.success('Copied') } catch { /* noop */ }
 }
@@ -482,6 +507,13 @@ onMounted(load)
 .pk-steps { margin: 0 0 12px; padding-left: 20px; color: #334155; font-size: 13px; line-height: 1.9; }
 .pk-steps code { font-family: ui-monospace, monospace; font-size: 12px; background: #f1f5f9; padding: 2px 6px; border-radius: 5px; color: #0f172a; }
 .pk-mini { font-size: 12px; color: #64748b; line-height: 1.7; }
+.pk-sub-h { font-size: 13px; font-weight: 700; color: #0f172a; margin: 18px 0 4px; }
+.pk-copy-rows { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.pk-copy-row { display: grid; grid-template-columns: 140px 1fr auto; gap: 10px; align-items: center; }
+.pk-copy-row .pk-q-k { margin-bottom: 0; }
+.pk-copy-code { font-family: ui-monospace, monospace; font-size: 12px; color: #0f172a; background: #f1f5f9;
+  padding: 6px 8px; border-radius: 6px; word-break: break-all; }
+@media (max-width: 640px) { .pk-copy-row { grid-template-columns: 1fr auto; } .pk-copy-row .pk-q-k { grid-column: 1 / -1; } }
 .pk-mini code { font-family: ui-monospace, monospace; background: #f8fafc; padding: 1px 5px; border-radius: 4px; }
 
 .pk-switch { position: relative; width: 36px; height: 20px; border-radius: 999px; border: 1px solid #cbd5e1;
