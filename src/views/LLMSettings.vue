@@ -73,6 +73,8 @@
                     <span class="font-bold text-slate-400 mr-1">{{ provider.provider_type.toUpperCase() }}</span>
                     <span v-if="provider.base_url">{{ provider.base_url }}</span>
                   </p>
+                  <!-- Decision L-D1 (VIDEO_STUDIO_LAUNCH_PLAN.md): Studio renders Google's media models via OpenRouter. -->
+                  <p v-if="provider.provider_type === 'gemini'" class="mt-0.5 text-[12px] text-slate-600" data-test="gemini-studio-note">Google's video (Veo) and image models run in Video Studio through OpenRouter.</p>
                   <!-- Scheduled model sync: switch + last outcome (written server-side on every sync) -->
                   <div v-if="SYNCABLE_TYPES.includes(provider.provider_type)" class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
                     <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-600" title="Re-sync this provider's model list every day so new models appear on their own">

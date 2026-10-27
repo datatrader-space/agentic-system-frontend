@@ -101,6 +101,8 @@ export const useChatStore = defineStore('chat', {
     imageMode: false,
     // Video Studio's Agent / Manual mode (D15), sent with every message while the Studio is open ('' elsewhere).
     studioMode: '',
+    // The Video Studio page this message is sent from ({page, preset?, preset_title?, helper?}), set by the page.
+    studioContext: null,
     // DEEP RESEARCH mode (per-turn signal, sticky in the composer) + the DEPTH the user picked.
     // The depth is a COST decision, so it is the user's and not the model's: it sets how many independent
     // sub-questions one research fan-out may open and how many source pages each of those must read. Sent
@@ -1012,6 +1014,7 @@ export const useChatStore = defineStore('chat', {
           videoRequest: opts.videoRequest || undefined,
           imageRequest: opts.imageRequest || undefined,
           studioMode: this.studioMode || undefined,
+          studioContext: this.studioContext || undefined,
           researchMode: this.researchMode || undefined,
           researchDepth: this.researchMode ? this.researchDepth : undefined,
           reasoningEffort: this.reasoningEffort || undefined,
@@ -1094,6 +1097,7 @@ export const useChatStore = defineStore('chat', {
         videoRequest: opts.videoRequest || undefined,
         imageRequest: opts.imageRequest || undefined,
         studioMode: this.studioMode || undefined,
+        studioContext: this.studioContext || undefined,
         researchMode: this.researchMode || undefined,
         researchDepth: this.researchMode ? this.researchDepth : undefined,
         reasoningEffort: this.reasoningEffort || undefined,

@@ -260,6 +260,22 @@ export default {
   getCinemaControls: () => api.get('/video/cinema/controls/'),
   getStudioRecipes: page => api.get('/video/recipes/', { params: { page } }),
   runStudioRecipe: (id, data) => api.post(`/video/recipes/${encodeURIComponent(id)}/run/`, data),
+  // The video models a person may use for one task, each with its settings form and reference limits.
+  getStudioRoutes: task => api.get('/video/routes/', { params: task ? { task } : {} }),
+  // A video job (generate, change, extend...) waiting for the person's Generate on its card.
+  prepareVideoJob: data => api.post('/video/jobs/', data),
+  getMediaVoices: params => api.get('/video/media/voices/', { params }),
+  recordLikenessConsent: data => api.post('/video/consents/', data),
+  revokeLikenessConsent: attachmentId => api.delete('/video/consents/', { params: { attachment_id: attachmentId } }),
+  getStudioElements: () => api.get('/video/ingredients/'),
+  getCharacterTraits: () => api.get('/video/characters/traits/'),
+  prepareCharacterPortraits: data => api.post('/video/characters/portraits/', data),
+  prepareCharacterSheet: data => api.post('/video/characters/sheet/', data),
+  saveCharacter: data => api.post('/video/characters/', data),
+  getIdentities: () => api.get('/video/identities/'),
+  trainIdentity: data => api.post('/video/identities/', data),
+  deleteIdentity: id => api.delete(`/video/identities/${encodeURIComponent(id)}/`),
+  prepareIdentityImages: (id, data) => api.post(`/video/identities/${encodeURIComponent(id)}/generate/`, data),
   // Generic methods
   get: (url, config) => api.get(url, config),
   post: (url, data, config) => api.post(url, data, config),

@@ -21,6 +21,7 @@
     </template>
     <template v-else>
       <label class="st-field" data-field="route_id">{{ projectId ? 'Keyframe model' : 'Video model' }}<select v-model="routeId" class="st-input"><option value="">Choose model</option><option v-for="r in routes" :key="r.route_id" :value="r.route_id" :disabled="!r.ready">{{ r.name || r.model }}{{ r.ready === false ? ' — Not yet proven' : '' }}</option></select></label>
+      <p v-if="routeSummary" class="st-muted" data-test="board-reference-summary">{{ routeSummary }}</p>
       <label v-if="projectId" class="st-field">Keyframes per scene<input v-model.number="count" type="number" min="1" max="4" class="st-input" /></label>
       <template v-if="kind === 'cinema' && !projectId">
         <label class="st-field" data-field="prompt">Shot description<textarea v-model="prompt" class="st-input" /></label>
@@ -49,6 +50,8 @@ import InputSlot from './InputSlot.vue'
 import CreativeError from './CreativeError.vue'
 import { useCreativeForm } from '../../composables/useCreativeForm'
 const props = defineProps({ kind: String }), emit = defineEmits(['job']), route = useRoute()
+// What the chosen video model takes as references (the backend's per-model data), shown under the picker.
+const routeSummary = computed(() => routes.value.find(r => String(r.route_id) === String(routeId.value))?.inputs?.spec?.summary || '')
 const projects = ref([]), projectId = ref(route.query.project_id || route.query.project || ''), board = ref(null), project = ref(null), routes = ref([]), routeId = ref(''), count = ref(1), controls = ref([]), cinema = ref({}), prompt = ref('')
 const videoClips = ref([]), sounds = ref([]), overlays = ref([]), texts = ref([]), revisionId = ref(null)
 const newTitle = ref(''), newIntent = ref('')
@@ -76,7 +79,7 @@ function open() { run(async alive => { await loadProject(alive); const { data } 
 onMounted(() => run(async alive => {
   const [p,c] = await Promise.all([api.get('/video/projects/'), api.getCinemaControls()])
   if (!alive()) return
-  projects.value = p.data.projects || []; controls.value = c.data.controls || c.data || []; cinema.value = { ...unset(), ...cinema.value }
+  projects.value = p.data.projects || []; controls.value = Array.isArray(c.data?.controls) ? c.data.controls : Array.isArray(c.data) ? c.data : []; cinema.value = { ...unset(), ...cinema.value }
   await loadProject(alive)
   const { data } = await (projectId.value ? api.getMediaRoutes('image') : api.get('/video/routes/', { params: { task: 'text_to_video' } })); if (alive()) routes.value = (data.routes || []).map(r => ({ ...r, ready: r.ready !== false }))
 }))

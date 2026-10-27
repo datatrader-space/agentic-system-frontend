@@ -315,17 +315,19 @@ describe('Round 3 structured assistance', () => {
 })
 
 
-describe('Round 5 helper first-message names', () => {
-  it.each(['prompt','settings'])('starts a new Manual %s chat with the same page/preset context as Agent', async type => {
+describe('Manual helpers name the page and preset as the studio_context field', () => {
+  it.each(['prompt','settings'])('sends a %s helper request marked as a helper, with no page text', async type => {
     await render('image')
     state.chat.pendingAttachments=[]; state.chat.addExistingMedia=vi.fn()
-    state.chat.sendMessage.mockImplementation(async () => {state.chat.messages.push({role:'assistant',content:'{"prompt":null,"question":"Which product?"}'});return true})
+    let sentContext=null
+    state.chat.sendMessage.mockImplementation(async () => {sentContext={...state.chat.studioContext};state.chat.messages.push({role:'assistant',content:'{"prompt":null,"question":"Which product?"}'});return true})
     await wrapper.get(`[data-test="studio-${type === 'prompt' ? 'write-prompt' : 'suggest-settings'}"]`).trigger('click'); await flushPromises()
     const wire=state.chat.sendMessage.mock.calls[0][0]
-    const { studioPageContext,studioChatName,presentStudioMessage }=await import('../services/studioMessagePresentation')
-    expect(wire.startsWith(studioPageContext('Image',presetsFor('image')[0].title))).toBe(true)
-    expect(studioChatName(wire.split('\n')[0])).toBe('Image chat '+String.fromCharCode(183)+' '+presetsFor('image')[0].title)
-    expect(studioChatName(wire)).toBe('Image chat '+String.fromCharCode(183)+' '+presetsFor('image')[0].title)
+    const preset=presetsFor('image')[0]
+    expect(sentContext).toEqual({ page:'image', preset:preset.id, preset_title:preset.title, helper:type })
+    expect(state.chat.studioContext).toEqual({ page:'image', preset:preset.id, preset_title:preset.title })   // helper only for that message
+    expect(wire).not.toMatch(/^I am on the/)
+    const { presentStudioMessage }=await import('../services/studioMessagePresentation')
     const request={role:'user',content:wire},reply={role:'assistant',content:'{"prompt":null,"question":"Which product?"}'}
     expect(presentStudioMessage(request).content).toBe(type==='prompt'?'You asked for a prompt':'You asked for settings')
     expect(presentStudioMessage(reply,[request,reply]).content).toBe('The agent asked: Which product?')

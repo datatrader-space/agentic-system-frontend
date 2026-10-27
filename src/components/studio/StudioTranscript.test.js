@@ -100,8 +100,9 @@ it('shows the adapted helper reply through the real shared transcript list', () 
 })
 
 it('keeps new and legacy helper histories readable and their source unchanged', async () => {
-  const {studioPageContext,studioChatName}=await import('../../services/studioMessagePresentation')
-  for(const prefix of ['',studioPageContext('Image','Quiet tabletop')]) {
+  const {studioChatName}=await import('../../services/studioMessagePresentation')
+  // Messages written before the page was sent as a field carried it as this text prefix.
+  for(const prefix of ['','I am on the Image page. My chosen preset is Quiet tabletop.\n\n']) {
     const user={role:'user',content:prefix+'I am on the Image page in Manual mode. Write an editable creative prompt.\nPreset: Quiet tabletop. Inputs: None yet.'}
     const assistant={role:'assistant',content:'{"prompt":"A product photograph","question":null}'}
     expect(presentStudioMessage(user).content).toBe('You asked for a prompt')

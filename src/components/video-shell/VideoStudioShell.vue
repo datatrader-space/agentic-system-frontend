@@ -53,7 +53,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
-import { STUDIO_GROUPS, studioFeatures, studioIcons, featureLink, orderedFeatures } from '../../services/studioFeatures'
+import { STUDIO_GROUPS, studioFeatures, studioIcons, featureLink, orderedFeatures, loadStudioFeatures } from '../../services/studioFeatures'
 import BrandMark from '../common/BrandMark.vue'
 import StudioRecentChats from './StudioRecentChats.vue'
 import { useChatStore } from '../../stores/useChatStore'
@@ -80,7 +80,6 @@ function toggleGroup(group) { groupOpen.value[group] = !groupOpen.value[group] }
 watch(groupOpen, value => { try { localStorage.setItem(STORAGE, JSON.stringify(value)) } catch { /* nonessential preference */ } }, { deep: true })
 function isActive(item) {
   if (item.id === 'home') return route.path === '/video-studio' || route.path === '/video-studio/'
-  if (item.id === 'identity-training') return /^\/video-studio\/characters\/[^/]+\/train\/?$/.test(route.path)
   return route.path === item.route || route.path.startsWith(item.route + '/') && item.id !== 'characters'
 }
 watch(() => route.fullPath, () => {
@@ -113,6 +112,8 @@ onMounted(async () => {
   // drawer, approval dialogs, notifications) takes it too.
   document.body.classList.add('vs-theme')
   media?.addEventListener?.('change', mediaChanged)
+  // The navigation shows each page's status as the server reports it for this person.
+  loadStudioFeatures().catch(() => { /* the plan's status stays shown */ })
   try { const response = await api.checkAuth(); if (alive) user.value = response.data?.user || null } catch { /* the page still works */ }
 })
 onBeforeUnmount(() => { alive = false; document.body.classList.remove('vs-theme'); media?.removeEventListener?.('change', mediaChanged); if (overflowLocked) document.body.style.overflow = previousOverflow })

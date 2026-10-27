@@ -35,6 +35,18 @@ describe('StudioRecentChats', () => {
     expect(w.find('[data-test="studio-recent-more"]').exists()).toBe(false)
   })
 
+  it('opens each chat on its own page and names an unnamed one after that page', async () => {
+    api.get.mockResolvedValueOnce({ data: { count: 2, results: [
+      { id: 31, name: 'Untitled chat', page: 'edit', updated_at: '2026-10-27T10:00:00Z' },
+      { id: 32, name: 'A jingle for the shop', page: 'audio', updated_at: '2026-10-27T09:00:00Z' }] } })
+    const w = mount(StudioRecentChats, stubs)
+    await flush()
+    const links = w.findAll('[data-test="studio-recent-chat"]')
+    expect(links.map((a) => a.find('.vrc-name').text())).toEqual(['Image edit chat', 'A jingle for the shop'])
+    expect(JSON.parse(links[0].attributes('data-to'))).toEqual({ path: '/video-studio/edit', query: { conversation: '31' } })
+    expect(JSON.parse(links[1].attributes('data-to'))).toEqual({ path: '/video-studio/audio', query: { conversation: '32' } })
+  })
+
   it('shows nothing when there is no chat yet', async () => {
     api.get.mockResolvedValueOnce({ data: { count: 0, results: [] } })
     const w = mount(StudioRecentChats, stubs)

@@ -2,7 +2,7 @@
   <section :id="chatId" class="sap" :class="{ 'sap-expanded': expanded }" aria-label="Studio agent" @keydown.esc="collapse">
     <header class="sap-head"><h2>{{ label }} agent</h2><button type="button" class="sap-expand" data-test="studio-agent-expand" :aria-label="expanded ? 'Collapse chat' : 'Expand chat'" :title="expanded ? 'Collapse chat (Esc)' : 'Expand chat'" :aria-expanded="expanded ? 'true' : 'false'" :aria-controls="chatId" @click="emit('update:expanded', !expanded)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="expanded ? 'M4 10h6V4m10 10h-6v6M10 10 3 3m11 11 7 7' : 'M8 3H3v5m13 13h5v-5M3 3l7 7m11 11-7-7'" /></svg></button></header>
     <div class="sap-scroll">
-      <p v-if="!chat.messages.length" class="sap-intro">Describe your idea or choose a preset. Use + to attach references.</p>
+      <p v-if="!chat.messages.length" class="sap-intro">{{ intro }}</p>
       <div v-if="chat.messages.length" class="sap-messages"><ChatMessageList :present-message="message => presentStudioMessage(message, chat.messages)" :prepare-edit="prepareStudioEdit" /></div>
       <VideoJobsTray :conversation-id="chat.conversationId" in-studio />
       <HITLModal v-if="chat.hitlRequests.length" inline :requests="chat.hitlRequests" show-stop @respond="respond" @dismiss="chat.dismissHitl" @skip="chat.skipHitl" @stop="chat.stop" />
@@ -20,7 +20,7 @@
 </template>
 <script setup>
 import { ref, watch, nextTick, useId } from 'vue'
-import { presentStudioMessage, prepareStudioEdit, studioPageContext } from '../../services/studioMessagePresentation'
+import { presentStudioMessage, prepareStudioEdit } from '../../services/studioMessagePresentation'
 import { useChatStore } from '../../stores/useChatStore'
 import { useVideoStore } from '../../stores/useVideoStore'
 import ChatMessageList from '../chat/ChatMessageList.vue'
@@ -29,7 +29,7 @@ import VideoJobsTray from '../video/VideoJobsTray.vue'
 import VideoLibrary from '../video/VideoLibrary.vue'
 import ProviderSwitchDialog from '../chat/ProviderSwitchDialog.vue'
 import HITLModal from '../HITLModal.vue'
-const props = defineProps({ modelValue: { type: String, default: '' }, label: String, purpose: String, preset: String, ready: Boolean, expanded: Boolean })
+const props = defineProps({ modelValue: { type: String, default: '' }, label: String, purpose: String, ready: Boolean, expanded: Boolean, intro: { type: String, default: 'Describe your idea or choose a preset. Use + to attach references.' } })
 const emit = defineEmits(['update:modelValue','update:expanded','approved'])
 const chat = useChatStore(), video = useVideoStore(), sending = ref(false), input = ref(null)
 watch(() => props.modelValue, async () => {
@@ -42,14 +42,11 @@ function collapse(event) {
     event.preventDefault(); emit('update:expanded', false)
   }
 }
-// New and conversation navigation reuse this panel; the first turn must regain page context.
-let first = true
-watch(() => chat.conversationId, () => { first = true }, { flush: 'sync' })
 async function send() {
   if (!props.ready || sending.value || chat.isBusy || (!props.modelValue.trim() && !video.refs.length)) return
   sending.value = true
-  const context = first ? studioPageContext(props.label, props.preset) : ''
-  try { if (await video.sendAgentMessage({ prompt: context + props.modelValue, chat })) { first = false; emit('update:modelValue', '') } }
+  // The page and preset travel as the message's studio_context field (set by the page), never as text.
+  try { if (await video.sendAgentMessage({ prompt: props.modelValue, chat })) emit('update:modelValue', '') }
   finally { sending.value = false }
 }
 function respond(event) { chat.respondHitl(event); if (event.response_value === true || event.response_value?.approved === true) emit('approved') }

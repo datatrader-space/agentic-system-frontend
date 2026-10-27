@@ -6,7 +6,7 @@
     <h2 id="vrc-title" class="vrc-title">Recent chats</h2>
     <ul class="vrc-list">
       <li v-for="c in chats" :key="c.id">
-        <router-link :to="{ path: '/video-studio', query: { conversation: String(c.id) } }" class="vrc-item"
+        <router-link :to="{ path: pageOf(c) ? featureLink(pageOf(c)) : '/video-studio', query: { conversation: String(c.id) } }" class="vrc-item"
                      :class="{ active: isOpen(c) }" :aria-current="isOpen(c) ? 'page' : undefined" :title="label(c)"
                      data-test="studio-recent-chat">
           <span class="vrc-name">{{ label(c) }}</span>
@@ -21,7 +21,9 @@
 
 <script setup>
 import { studioChatName } from '../../services/studioMessagePresentation'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
+import { featureLink, getStudioFeature } from '../../services/studioFeatures'
+import { studioOrigin } from '../../services/studioOrigins'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
 import { useChatStore } from '../../stores/useChatStore'
@@ -35,7 +37,15 @@ const total = ref(0)
 const loading = ref(false)
 
 const hasMore = computed(() => chats.value.length < total.value)
-function label(c) { return studioChatName(c.name) }
+const user = inject('studioUser', ref(null))
+// The page a chat belongs to: the server's record (from its first message), else this browser's note of where it
+// was opened (a session with only an uploaded file has no message yet). It opens there and is named after it.
+function pageOf(c) {
+  const server = c.page ? getStudioFeature(c.page) : null
+  return server && server.status !== 'soon' ? server : studioOrigin(user.value?.id, 'conversation', c.id)
+}
+// The server answers "Untitled chat" (video_studio/services/studio_chats.UNTITLED) for a chat with nothing to name it by.
+function label(c) { const page = pageOf(c); return studioChatName(c.name === 'Untitled chat' ? '' : c.name, page && page.id !== 'home' ? `${page.label} chat` : 'Untitled chat') }
 function isOpen(c) { return String(route.query.conversation || chat.conversationId || '') === String(c.id) }
 function day(iso) {
   if (!iso) return ''

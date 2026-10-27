@@ -56,11 +56,45 @@ const ROLE_NEEDS = { subject: 'references', style: 'references', motion: 'refere
                      first_frame: 'startFrame', last_frame: 'endFrame' }
 const ROLE_WORDS = { subject: 'reference images', style: 'style references', motion: 'motion references',
                      audio: 'audio references', first_frame: 'an opening shot', last_frame: 'a closing shot' }
-/** Why a reference cannot be used by a route ('' when it can). */
+/** Why a reference cannot be used by a route ('' when it can), from what the route offers. */
 function refProblem(ref, can, task) {
   if (ref.role === 'edit_source') return task === 'edit' && !can.edit ? 'cannot edit footage' : ''
   const need = ROLE_NEEDS[ref.role]
   return need && !can[need] ? `does not take ${ROLE_WORDS[ref.role]}` : ''
+}
+const FRAME_ROLES = ['first_frame', 'last_frame']
+const refKind = (ref) => (ref.isVideo ? 'video' : /^audio\//.test(String(ref.mime || '')) ? 'audio' : 'image')
+const KIND_COUNT = { image: 'images', video: 'videos', audio: 'audio' }
+const KIND_WORDS = { image: ['reference image', 'reference images'], video: ['reference video', 'reference videos'],
+                     audio: ['reference sound', 'reference sounds'] }
+/**
+ * Why each reference cannot be used by a route ({ key: problem }), from the route's own `references` limits (the
+ * backend's per-model data: a count, 0 for none, null when the maker publishes no limit) and what it offers. A frame
+ * is always an image; with `together: false` frames and references never go in the same video.
+ */
+export function referenceProblems(refs, route, task) {
+  const can = canFor(route), spec = (route && route.references) || null, out = {}
+  const used = { images: 0, videos: 0, audio: 0 }
+  const frames = refs.some((r) => FRAME_ROLES.includes(r.role))
+  const others = refs.some((r) => r.role !== 'edit_source' && !FRAME_ROLES.includes(r.role))
+  for (const r of refs) {
+    let problem = refProblem(r, can, task)
+    const kind = refKind(r)
+    if (!problem && FRAME_ROLES.includes(r.role) && kind !== 'image') problem = 'takes only an image as an opening or closing shot'
+    if (!problem && spec && FRAME_ROLES.includes(r.role) && Array.isArray(spec.frames) && !spec.frames.includes(r.role)) problem = `does not take ${ROLE_WORDS[r.role]}`
+    if (!problem && spec && r.role !== 'edit_source' && !FRAME_ROLES.includes(r.role)) {
+      const key = KIND_COUNT[kind], limit = spec[key]
+      used[key] += 1
+      if (limit === 0) problem = `does not take ${KIND_WORDS[kind][1]}`
+      else if (limit != null && used[key] > limit) problem = `takes up to ${limit} ${KIND_WORDS[kind][limit === 1 ? 0 : 1]}`
+      else if (spec.together === false && frames) problem = 'takes start and end frames or references, not both'
+    }
+    if (problem) out[r.key] = problem
+  }
+  if (spec && spec.together === false && frames && others) {
+    for (const r of refs) if (FRAME_ROLES.includes(r.role) && !out[r.key]) out[r.key] = 'takes start and end frames or references, not both'
+  }
+  return out
 }
 
 // Image mode (VIDEO_STUDIO_AGENT_FLOW_PLAN.md D14): references are images only, up to what the model takes.
@@ -143,14 +177,30 @@ export const useVideoStore = defineStore('video', {
     // References the current model cannot use (e.g. after the agent's default model changed). They are
     // never removed behind the user's back: the chip is flagged and the request waits until it is resolved.
     unusableRefs() {
-      // In Agent mode the agent decides how each file is used and picks a model that takes it.
-      if (this.studioMode === 'agent') return []
       if (this.kind === 'image') {
         const m = this.imageModel
-        return this.refs.map((r, i) => ({ ...r, problem: imageRefProblem(r, m, i) })).filter((r) => r.problem)
+        // In Agent mode the agent picks the model: a file is unusable only when no offered model takes it.
+        const models = this.studioMode === 'agent' ? this.image.models : [m]
+        return this.refs.map((r, i) => ({ ...r, problem: models.every((x) => imageRefProblem(r, x, i)) ? imageRefProblem(r, m, i) : '' }))
+          .filter((r) => r.problem)
       }
-      const c = this.can
-      return this.refs.map((r) => ({ ...r, problem: refProblem(r, c, this.task) })).filter((r) => r.problem)
+      const mine = referenceProblems(this.refs, this.route, this.task)
+      if (this.studioMode !== 'agent') return this.refs.map((r) => ({ ...r, problem: mine[r.key] || '' })).filter((r) => r.problem)
+      const all = this.routes.filter((x) => x.state === 'active').map((x) => referenceProblems(this.refs, x, this.task))
+      return this.refs.map((r) => ({ ...r, problem: all.length && all.every((p) => p[r.key]) ? (mine[r.key] || all[0][r.key]) : '' }))
+        .filter((r) => r.problem)
+    },
+    // The references the chosen model takes (Manual), or the most any offered model takes (Agent: the agent picks).
+    // Counts: a number, 0 for none, null for no published limit. `frames`: the frame roles it takes.
+    referenceLimits() {
+      const pick = this.studioMode === 'agent' ? this.routes.filter((x) => x.state === 'active') : [this.route].filter(Boolean)
+      const specs = pick.map((x) => x.references).filter(Boolean)
+      if (!specs.length) return null
+      const most = (key) => (specs.some((s) => s[key] == null) ? null : Math.max(...specs.map((s) => Number(s[key]) || 0)))
+      return { images: most('images'), videos: most('videos'), audio: most('audio'),
+               frames: [...new Set(specs.flatMap((s) => s.frames || []))],
+               together: specs.some((s) => s.together !== false) ? (specs.some((s) => s.together == null) ? null : true) : false,
+               summary: pick.length === 1 ? (pick[0].references || {}).summary || '' : '' }
     },
     // The image model a request uses: the person's pick, else the agent's (Auto).
     imageModel(state) {
@@ -169,7 +219,7 @@ export const useVideoStore = defineStore('video', {
           const m = this.image.models.find((x) => x !== this.imageModel && !imageRefProblem(ref, x, i))
           return m ? { id: String(m.model_id), name: m.name, kind: 'image' } : null
         }
-        const r = this.routes.find((x) => x.state === 'active' && x !== this.route && !refProblem(ref, canFor(x), this.task))
+        const r = this.routes.find((x) => x.state === 'active' && x !== this.route && !referenceProblems(this.refs, x, this.task)[ref.key])
         return r ? { id: String(r.route_id), name: r.name, kind: 'video' } : null
       }
     },
@@ -232,6 +282,12 @@ export const useVideoStore = defineStore('video', {
     async sendAgentMessage({ prompt, chat }) {
       const text = (prompt || '').trim()
       if (!text && !this.refs.length) return false
+      // On the Image and Video pages the files are that request's references: one no offered model can take is
+      // refused here, as in Manual mode. Other pages' files are for their own operations and are not counted here.
+      if (['image', 'video'].includes(chat.studioContext && chat.studioContext.page) && this.unusableRefs.length) {
+        notify.warning(`${this.unusableRefs[0].name}: no model you can use takes this file here. Remove it before sending.`)
+        return false
+      }
       const before = chat.pendingAttachments.length
       for (const r of this.refs) {
         if (r.attachment_id) {
@@ -317,8 +373,8 @@ export const useVideoStore = defineStore('video', {
       const changes = this._settingChanges(o, name)
       const task = this.task === 'edit' && !c.edit
         ? { from: 'Edit footage', to: 'quick', reason: `${name} cannot edit footage` } : null
-      const unusable = this.refs.map((r) => ({ key: r.key, name: r.name, role: r.role,
-                                               problem: refProblem(r, c, task ? 'quick' : this.task) }))
+      const problems = referenceProblems(this.refs, route, task ? 'quick' : this.task)
+      const unusable = this.refs.map((r) => ({ key: r.key, name: r.name, role: r.role, problem: problems[r.key] || '' }))
         .filter((r) => r.problem).map((r) => ({ ...r, reason: `${name} ${r.problem}` }))
       return { routeId, name, changes, unusable, task }
     },

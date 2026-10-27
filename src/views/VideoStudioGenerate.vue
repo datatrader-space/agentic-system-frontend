@@ -7,7 +7,7 @@
       <BottomSheet v-if="narrow" ref="presetSheet" label="Change preset" :summary="selected?.title || 'Your own idea'" test-id="studio-preset-picker"><PresetGallery :presets="presets" :selected="selectedId" @select="choose" /></BottomSheet>
       <p v-if="loading" class="st-status" role="status">Loading your models...</p><div v-if="error" class="st-error" role="alert">{{ error }}<button type="button" class="st-button" @click="initialize">Try again</button></div>
       <StudioReferenceInputs v-if="!isAgent" :groups="inputGroups" :unassigned="unassigned" @add-files="addFiles" @pick="pick" @remove="video.removeRef($event)" />
-      <StudioAgentPanel v-show="isAgent" ref="agentPanel" v-model="agentDraft" v-model:expanded="chatExpanded" :label="feature.label" :purpose="feature.purpose" :preset="selected?.title" :ready="ready" @approved="tab = 'results'" />
+      <StudioAgentPanel v-show="isAgent" ref="agentPanel" v-model="agentDraft" v-model:expanded="chatExpanded" :label="feature.label" :purpose="feature.purpose" :ready="ready" @approved="tab = 'results'" />
       <div v-show="!isAgent" class="sg-manual">
       <div class="sg-help"><button type="button" class="st-button" data-test="studio-write-prompt" :disabled="!ready || chat.isBusy || !!helper" @click="askHelper('prompt')">Write it for me</button><button type="button" class="st-button" data-test="studio-suggest-settings" :disabled="!ready || chat.isBusy || !!helper" @click="askHelper('settings')">Suggest settings</button></div>
       <p v-if="helper" class="st-status" role="status">{{ helper === 'prompt' ? 'Writing a direction for you to edit...' : 'Preparing settings for you to review...' }}<button type="button" class="st-button" @click="chat.stop(); helper = ''">Stop</button></p>
@@ -31,7 +31,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useStudioSession } from '../composables/useStudioSession'
 import { getStudioFeature } from '../services/studioFeatures'
 import { readStudioDraft, keepStudioDraft } from '../services/studioDraftMemory'
-import { studioPageContext } from '../services/studioMessagePresentation'
 import { plainText } from '../composables/useChatHistory'
 import { composePreset, presetsFor } from '../services/studioPresets'
 import StudioPage from '../components/studio/StudioPage.vue'
@@ -57,8 +56,25 @@ const feature = computed(() => getStudioFeature(props.kind))
 const presets = computed(() => presetsFor(props.kind))
 const selectedId = ref(route.query.useIn ? '' : presets.value.some(p => p.id === route.query.preset) ? route.query.preset : presets.value[0]?.id || ''), selected = computed(() => presets.value.find(preset => preset.id === selectedId.value))
 const presetSheet = ref(null)
+// What the agent is told about this page with every message (the backend keeps known ids only).
+const pageContext = () => ({ page: props.kind, ...(selected.value ? { preset: selected.value.id, preset_title: selected.value.title } : {}) })
+watch([ready, selectedId], ([isReady]) => { if (isReady) chat.studioContext = pageContext() }, { immediate: true })
 const details = ref(''), variant = ref(0), page = ref(null), tab = ref(route.query.results ? 'results' : 'presets'), submitting = ref(false), formError = ref(''), draftMessage = ref(''), records = ref([])
-const slots = computed(() => selected.value?.slots || [...(props.kind === 'video' ? [{ id: 'opening', label: 'Opening frame', role: 'first_frame', required: false, kinds: ['image'], limit: 1 }] : []), { id: 'references', label: 'References', role: 'subject', required: false, kinds: ['image'], limit: 4 }])
+// Without a preset, the slots follow what the model takes (Agent mode: the most any offered model takes). A count
+// of 0 hides that kind; no published limit allows up to the server's bound. A preset's own slots keep their limits.
+const NO_LIMIT = 20
+function defaultSlots() {
+  if (props.kind === 'image') return [{ id: 'references', label: 'References', role: 'subject', required: false, kinds: ['image'], limit: Number(video.imageModel?.max_references) || 4 }]
+  const lim = video.referenceLimits, frames = lim ? lim.frames : ['first_frame']
+  const out = []
+  if (frames.includes('first_frame')) out.push({ id: 'opening', label: 'Opening frame', role: 'first_frame', required: false, kinds: ['image'], limit: 1 })
+  if (frames.includes('last_frame')) out.push({ id: 'closing', label: 'Closing frame', role: 'last_frame', required: false, kinds: ['image'], limit: 1 })
+  const kinds = lim ? [['image', 'images'], ['video', 'videos'], ['audio', 'audio']].filter(([, key]) => lim[key] !== 0) : [['image', 'images']]
+  if (kinds.length) out.push({ id: 'references', label: 'References', role: 'subject', required: false, kinds: kinds.map(([kind]) => kind),
+    limit: lim ? kinds.reduce((sum, [, key]) => sum + (lim[key] == null ? NO_LIMIT : Number(lim[key])), 0) : 4 })
+  return out
+}
+const slots = computed(() => selected.value?.slots || defaultSlots())
 const refsFor = slot => video.refs.filter(item => item.studioSlot === slot.id || (!item.studioSlot && item.role === slot.role))
 const inputGroups = computed(() => slots.value.map(slot => ({ ...slot, items: refsFor(slot) })))
 const unassigned = computed(() => video.refs.filter(item => !slots.value.some(slot => refsFor(slot).includes(item))))
@@ -109,11 +125,13 @@ async function askHelper(type) {
     ? 'Write an editable creative prompt. Reply only with a JSON object {"prompt": string or null, "question": string or null}. If required inputs are missing, set prompt to null and ask one short question. Otherwise give a plain-text prompt and question null. Do not generate media, call media tools, request an estimate or start any job.'
     : `Suggest settings only as a JSON object with keys model, shape, length, count, question (string or null). If inputs are insufficient, ask one short question and leave settings null. Otherwise question must be null. Use these available choices: ${JSON.stringify(choices)}. Do not generate media, call media tools, request an estimate or start any job.`
   try {
-    const sent = await video.sendAgentMessage({ prompt: studioPageContext(feature.value.label, selected.value?.title) + `I am on the ${feature.value.label} page in Manual mode. ${instruction}\nPreset: ${selected.value?.title || 'My own idea'}. Inputs: ${video.refs.map(r => r.name).join(', ') || 'None yet'}.\nMissing required inputs: ${slots.value.filter(slot => slot.required && !refsFor(slot).length).map(slot => slot.label).join(', ') || 'None'}.\nCreative brief: ${brief}`, chat })
+    chat.studioContext = { ...pageContext(), helper: type }
+    const sent = await video.sendAgentMessage({ prompt: `${instruction}\nPreset: ${selected.value?.title || 'My own idea'}. Inputs: ${video.refs.map(r => r.name).join(', ') || 'None yet'}.\nMissing required inputs: ${slots.value.filter(slot => slot.required && !refsFor(slot).length).map(slot => slot.label).join(', ') || 'None'}.\nCreative brief: ${brief}`, chat })
     if (!video.refs.length) video.refs = keptRefs
     if (!sent) { helperNote.value = 'The request was not sent. Your form is unchanged.'; helper.value = '' }
     else if (!chat.isBusy) finishHelper()
   } catch { helperNote.value = 'Could not prepare a suggestion. Your form is unchanged.'; helper.value = '' }
+  finally { chat.studioContext = pageContext() }
 }
 function finishHelper() {
   if (!helper.value) return

@@ -4,7 +4,9 @@
     <CreativeError v-if="error?.field === 'route_id'" :error="error" />
     <label class="st-field">Music brief<textarea v-model="prompt" class="st-input" required rows="5" /></label>
     <CreativeError v-if="error?.field === 'prompt'" :error="error" />
-    <label class="st-field">Duration (seconds)<input v-model.number="duration" class="st-input" type="number" min="3" max="600" required /></label>
+    <p v-if="length.fixed_seconds" class="st-muted cm-note" data-test="music-fixed-length">This model always makes {{ length.fixed_seconds }} seconds.</p>
+    <label v-else class="st-field">{{ length.by_description ? 'About how long, in seconds (optional)' : 'Duration (seconds)' }}<input v-model.number="duration" class="st-input" type="number" :min="length.min || 3" :max="length.max || 600" :required="!length.by_description" :placeholder="length.by_description ? 'The model chooses' : ''" data-test="music-duration" /></label>
+    <p v-if="length.by_description" class="st-muted cm-note">A full song with vocals and lyrics unless you choose Instrumental. The length is a request the model follows closely, not an exact cut.</p>
     <CreativeError v-if="error?.field === 'duration'" :error="error" />
     <label><input v-model="instrumental" type="checkbox" /> Instrumental</label>
     <CreativeError v-if="!['route_id','prompt','duration'].includes(error?.field)" :error="error" />
@@ -12,17 +14,25 @@
   </form>
 </template>
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import api from '../../services/api'
 import CreativeError from './CreativeError.vue'
 import { useCreativeForm } from '../../composables/useCreativeForm'
 const emit = defineEmits(['job']), routes = ref([]), routeId = ref(''), prompt = ref(''), duration = ref(30), instrumental = ref(true)
 const { busy, error, run } = useCreativeForm()
+// How the chosen model takes a length (the backend's `length`): {min, max} seconds, {fixed_seconds}, or
+// {by_description, min, max} (written into the description). A model with no rule takes 3 to 600 seconds.
+const length = computed(() => routes.value.find(route => route.route_id === routeId.value)?.length || { min: 3, max: 600 })
 onMounted(() => run(async alive => { const { data } = await api.getMediaRoutes('music'); if (alive()) routes.value = data.routes || [] }))
 function prepare() { run(async alive => {
   if (!routes.value.some(route => route.route_id === routeId.value && route.ready)) throw Error('Choose a proven model.')
-  if (!prompt.value.trim() || duration.value < 3 || duration.value > 600) throw Error('Enter a music brief and a duration from 3 to 600 seconds.')
-  const { data } = await api.prepareMediaJob({ operation: 'music', route_id: routeId.value, request: { prompt: prompt.value.trim(), duration: duration.value, instrumental: instrumental.value } })
+  const rule = length.value, seconds = duration.value === '' || duration.value == null ? null : Number(duration.value)
+  if (!prompt.value.trim()) throw Error('Enter a music brief.')
+  if (!rule.fixed_seconds && !rule.by_description && (seconds == null || seconds < rule.min || seconds > rule.max)) throw Error(`Enter a duration from ${rule.min} to ${rule.max} seconds.`)
+  if (rule.by_description && seconds != null && (seconds < rule.min || seconds > rule.max)) throw Error(`Ask for ${rule.min} to ${rule.max} seconds, or leave it empty.`)
+  const request = { prompt: prompt.value.trim(), instrumental: instrumental.value, ...(rule.fixed_seconds || seconds == null ? {} : { duration: seconds }) }
+  const { data } = await api.prepareMediaJob({ operation: 'music', route_id: routeId.value, request })
   if (alive()) emit('job', data)
 }) }
 </script>
+<style scoped>.cm-note{font-size:12px;line-height:1.55}</style>

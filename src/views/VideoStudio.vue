@@ -325,7 +325,7 @@ watch(() => chat.conversationId, async (cid) => {
 })
 watch(() => chat.isBusy, (busy, was) => { if (was && !busy) refreshSession() })
 // Every message sent while the Studio is open carries its mode (cleared when the Studio closes).
-watch(() => video.studioMode, (mode) => { chat.studioMode = mode }, { immediate: true })
+watch(() => video.studioMode, (mode) => { chat.studioMode = mode; chat.studioContext = { page: 'home' } }, { immediate: true })
 // The canvas follows what is being made: the Images tab for Image, the monitor for Video.
 watch(() => video.kind, (kind) => { if (phase.value === 'workspace') video.panelTab = kind === 'image' ? 'images' : 'preview' })
 // A file queued in the Library is added as soon as a video agent is chosen.
@@ -342,6 +342,7 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => {
   chat.studioMode = ''
+  chat.studioContext = null
   if (!chat.imageMode) chat.imageMode = previousModes.image
   if (!canvas.mode) canvas.mode = previousModes.canvas
   disposed = true; sessionPoller.stop(); window.removeEventListener('video-compose', composeEdit) })

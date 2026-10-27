@@ -10,11 +10,11 @@ let w
 beforeEach(() => { state.chat = reactive({ messages:[], hitlRequests:[], isBusy:false, error:'', respondHitl:vi.fn() }); state.video = reactive({ refs:[], sendAgentMessage:vi.fn().mockResolvedValue(true) }) })
 afterEach(() => w?.unmount())
 const stubs = { ChatMessageList:true, VideoJobsTray:true, HITLModal:true, VideoLibrary:true, ProviderSwitchDialog:true, VideoComposerPanel:{ template:'<div><slot/><slot name="actions"/></div>' } }
-it('names the page and preset on the first explicit send, never on selection alone', async () => {
+it('sends only the person\'s words: the page and preset travel as the studio_context field, never as text', async () => {
   w = mount(StudioAgentPanel, { props:{ modelValue:'Use this preset: Quiet tabletop.', label:'Image', preset:'Quiet tabletop', ready:true }, global:{stubs} })
   expect(state.video.sendAgentMessage).not.toHaveBeenCalled()
   await w.get('[data-test="studio-agent-send"]').trigger('click'); await flushPromises()
-  expect(state.video.sendAgentMessage).toHaveBeenCalledWith({ prompt:'I am on the Image page. My chosen preset is Quiet tabletop.\n\nUse this preset: Quiet tabletop.', chat:state.chat })
+  expect(state.video.sendAgentMessage).toHaveBeenCalledWith({ prompt:'Use this preset: Quiet tabletop.', chat:state.chat })
   expect(w.emitted('update:modelValue')).toEqual([['']])
 })
 it('keeps the draft after a failed send and blocks sending until the session is ready', async () => {
@@ -33,7 +33,7 @@ it('sends an attached reference without requiring text, and keeps Shift+Enter fo
   await w.get('textarea').trigger('keydown', {key:'Enter',shiftKey:true})
   expect(state.video.sendAgentMessage).not.toHaveBeenCalled()
   await w.get('textarea').trigger('keydown', {key:'Enter'}); await flushPromises()
-  expect(state.video.sendAgentMessage).toHaveBeenCalledWith({prompt:'I am on the Image page. I am using my own idea.\n\n',chat:state.chat})
+  expect(state.video.sendAgentMessage).toHaveBeenCalledWith({prompt:'',chat:state.chat})
 })
 
 it('keeps the composer outside the scrollable conversation and approval area', async () => {
@@ -83,7 +83,7 @@ it('passes the full original thread to the display adapter for helper replies', 
   expect(state.chat.messages[1].content).toContain('"question"')
 })
 
-it('includes page and preset context again after New clears the reused conversation', async () => {
+it('never adds page text, on the first message or after New clears the conversation', async () => {
   state.chat.conversationId='first-chat'
   w=mount(StudioAgentPanel,{props:{label:'Image',preset:'Quiet tabletop',modelValue:'First idea',ready:true},global:{stubs}})
   await w.get('[data-test="studio-agent-send"]').trigger('click');await flushPromises()
@@ -93,5 +93,6 @@ it('includes page and preset context again after New clears the reused conversat
   state.chat.conversationId=null;state.chat.messages=[]
   await w.setProps({modelValue:'A fresh idea',preset:'Window-light portrait'})
   await w.get('[data-test="studio-agent-send"]').trigger('click');await flushPromises()
-  expect(state.video.sendAgentMessage.mock.calls[2][0].prompt).toBe('I am on the Image page. My chosen preset is Window-light portrait.\n\nA fresh idea')
+  expect(state.video.sendAgentMessage.mock.calls[0][0].prompt).toBe('First idea')
+  expect(state.video.sendAgentMessage.mock.calls[2][0].prompt).toBe('A fresh idea')
 })

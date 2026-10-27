@@ -4,7 +4,7 @@
       <StudioModeSwitch /><StudioFirstVisit :hidden="hintHidden" @dismiss="dismissHint" />
       <p v-if="loading" class="st-status" role="status">Opening your session...</p><div v-if="error" class="st-error" role="alert">{{ error }}<button type="button" class="st-button" @click="initialize">Try again</button></div>
       <InputSlot label="Source video" required :kinds="['video']" :limit="1" :allow-upload="false" :items="source ? [source] : []" @pick="source = $event[0]" @remove="source = null" />
-      <StudioAgentPanel v-show="isAgent" v-model="agentDraft" v-model:expanded="chatExpanded" label="Enhance" :purpose="feature.purpose" :preset="tools.find(t => t.id === operation)?.label" :ready="ready" @approved="tab = 'results'" />
+      <StudioAgentPanel v-show="isAgent" v-model="agentDraft" v-model:expanded="chatExpanded" label="Enhance" :purpose="feature.purpose" :ready="ready" @approved="tab = 'results'" />
       <div v-show="!isAgent" class="se-manual">
       <div class="se-tools" role="group" aria-label="Free local tools"><button v-for="tool in tools" :key="tool.id" type="button" class="st-button" :aria-pressed="operation === tool.id" :class="{ primary: operation === tool.id }" @click="chooseTool(tool)">{{ tool.label }}</button></div>
       <div v-if="operation === 'trim'" class="se-fields"><label class="st-field">Start (seconds)<input v-model.number="start" class="st-input" type="number" min="0" step="0.1" /></label><label class="st-field">End (seconds)<input v-model.number="end" class="st-input" type="number" min="0.1" step="0.1" /></label></div>
@@ -40,6 +40,8 @@ const feature = getStudioFeature('enhance'), tab = ref('presets'), operation = r
 const queued = video.refs.find(ref => ref.role === 'edit_source' && ref.attachment_id)
 const source = ref(queued ? { ...queued, title: queued.name, media_type: 'video' } : null)
 const start = ref(0), end = ref(5), aspect = ref('9:16'), factor = ref(1), cues = ref([{ text: '', start: 0, end: 5 }]), records = new Map()
+// The chosen tool goes to the agent with every message as the page's preset (studio_context), never as text.
+watch([ready, operation], ([isReady]) => { if (isReady) chat.studioContext = { page: 'enhance', preset: operation.value, preset_title: tools.find(t => t.id === operation.value)?.label || '' } })
 const tools = [{ id: 'trim', label: 'Trim', purpose: 'Keep the part between two times.' }, { id: 'crop', label: 'Crop / reframe', purpose: 'Fit the footage to a different shape.' }, { id: 'retime', label: 'Retime', purpose: 'Change the playback speed.' }, { id: 'caption', label: 'Captions', purpose: 'Add text at the times you choose.' }]
 function chooseTool(tool) { operation.value = tool.id; if (isAgent.value) agentDraft.value = `Use this preset: ${tool.label}.` }
 watch(source, item => { if (item?.attachment_id && !video.refs.some(r => r.attachment_id === item.attachment_id)) video.addExistingRef(item, 'edit_source') })

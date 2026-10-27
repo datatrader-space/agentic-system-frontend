@@ -12,8 +12,13 @@ describe('F0 feature and route catalog', () => {
       expect(STUDIO_GROUPS).toContain(feature.group); expect(studioIcons[feature.icon]).toBeTruthy()
       expect(['live','beta','soon']).toContain(feature.status)
       expect(router.resolve(featureLink(feature)).matched.at(-1).meta.studioFeature).toBe(feature.id)
-      if (feature.status === 'soon') { expect(feature.phase).toMatch(/^P[0-6]$/); expect(router.resolve(feature.liveAlternative).matched.length).toBeGreaterThan(1) }
+      // Every page opens a working page: none falls back to a placeholder.
+      expect(studioChildRoutes.find(route => route.meta?.studioFeature === feature.id).component).toBeTypeOf('function')
     }
+  })
+  it('lists every built page as live in the plan (the server may still say a page is not ready for a person)', () => {
+    expect(studioFeatures.value.filter(feature => feature.status === 'soon').map(feature => feature.id)).toEqual([])
+    for (const id of ['audio','edit','characters','identity-training','motion','swap','effects','avatar','lipsync']) expect(studioFeatures.value.find(f => f.id === id).status).toBe('live')
   })
   it('redirects the old Ingredients address and keeps conversation and other query values', async () => {
     const routes = studioChildRoutes.map(route => ({ ...route, component: route.redirect ? undefined : { template: '<div />' } }))
@@ -29,18 +34,3 @@ describe('F0 feature and route catalog', () => {
   })
 })
 
-
-it('gives every planned card a distinct original purpose in the feature catalog', () => {
-  const purposes = []
-  for (const feature of studioFeatures.value.filter(feature => feature.status === 'soon')) {
-    expect(feature.plannedCards.length).toBeGreaterThan(0)
-    for (const card of feature.plannedCards) {
-      expect(card.title).toBeTruthy()
-      expect(card.purpose.length).toBeGreaterThan(20)
-      expect(card.purpose).not.toBe(feature.purpose)
-      purposes.push(card.purpose)
-    }
-    for (const mode of feature.modes) expect(feature.plannedCards.some(card => card.title === mode)).toBe(true)
-  }
-  expect(new Set(purposes).size).toBe(purposes.length)
-})

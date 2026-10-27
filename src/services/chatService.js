@@ -284,6 +284,9 @@ export class ChatConnection {
       // Video Studio's Agent / Manual mode for THIS message. Grants nothing: in Agent mode the agent may pick a
       // model from the person's own list, and in the Studio every paid step waits for the person's approval.
       studio_mode: opts.studioMode || undefined,
+      // The Studio page (and preset) this message is sent from: the agent is told it on every turn and the chat is
+      // named from it. Only known page ids are kept by the backend.
+      studio_context: opts.studioContext || undefined,
       // Deep Research mode + the depth the user chose (quick | standard | deep). The depth sets the
       // sub-question breadth and the sources read per sub-question, so the cost of a research run is a
       // deliberate choice rather than whatever the model happens to pick. Backend enforces both.

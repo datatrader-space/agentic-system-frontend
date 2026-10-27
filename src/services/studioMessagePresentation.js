@@ -1,13 +1,14 @@
 import { plainText } from '../composables/useChatHistory'
-// F0 adds page context to the first wire message. Keep it on the request and in history,
-// while the Studio transcript displays the person's actual words. No HTML is created here.
+// The page a message came from is sent as its studio_context field. Messages written before that carried it as a
+// text prefix; the transcript still hides that prefix and shows the person's actual words. No HTML is created here.
 const PREFIX = /^I am on the (?:Image|Video|Enhance) page\. (?:I am using my own idea\.|My chosen preset is [^\n]+\.)\n\n/
-const HELPER = /^I am on the (Image|Video|Enhance) page in Manual mode\.\s*(Write|Suggest settings)\b/
-export function studioPageContext(page, preset) {
-  return `I am on the ${page} page. ${preset ? `My chosen preset is ${preset}.` : 'I am using my own idea.'}\n\n`
-}
+// A Manual-mode helper request: the old form names the page in text; the current form starts with the instruction.
+const LEGACY_HELPER = /^I am on the (Image|Video|Enhance) page in Manual mode\.\s*(Write|Suggest settings)\b/
+const HELPER = /^()(Write an editable creative prompt|Suggest settings only)\b/
 function helperRequest(content) {
-  return typeof content === 'string' ? content.replace(PREFIX, '').match(HELPER) : null
+  if (typeof content !== 'string') return null
+  const text = content.replace(PREFIX, '')
+  return text.match(LEGACY_HELPER) || text.match(HELPER)
 }
 export function studioChatName(name, fallback = 'Untitled chat') {
   const text = typeof name === 'string' ? name.trim() : ''
@@ -27,7 +28,7 @@ function helperReply(message, helper) {
     const reply = JSON.parse(message.content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim())
     if (!reply || typeof reply !== 'object' || Array.isArray(reply) || (reply.question != null && typeof reply.question !== 'string')) return failed
     if (readable(reply.question)) return `The agent asked: ${readable(reply.question)}`
-    if (helper[2] === 'Write') return readable(reply.prompt) ? 'Prompt written and added to Creative direction' : failed
+    if (helper[2].startsWith('Write')) return readable(reply.prompt) ? 'Prompt written and added to Creative direction' : failed
     const values = []
     if (typeof reply.model === 'string' || typeof reply.model === 'number') {
       const model = readable(String(reply.model))
@@ -48,7 +49,7 @@ export function presentStudioMessage(message, messages = []) {
     if (request) return { ...message, content: helperReply(message, request) }
   }
   const helper = message.role === 'user' ? helperRequest(message.content) : null
-  if (helper) return { ...message, content: helper[2] === 'Write' ? 'You asked for a prompt' : 'You asked for settings' }
+  if (helper) return { ...message, content: helper[2].startsWith('Write') ? 'You asked for a prompt' : 'You asked for settings' }
   if (message.role !== 'user' || typeof message.content !== 'string' || !PREFIX.test(message.content)) return message
   const content = message.content.replace(PREFIX, '')
   return { ...message, content: content || (message.attachments?.length ? 'Use these references.' : 'Use this setup.') }

@@ -9,7 +9,7 @@ const existing = {
 export const studioChildRoutes = studioFeatures.value.map(feature => ({
   path: feature.route.slice('/video-studio'.length).replace(/^\//, ''),
   name: feature.id === 'home' ? 'video-studio' : `video-studio-${feature.id}`,
-  component: existing[feature.id] || (['image','video'].includes(feature.id) ? () => import('../views/VideoStudioGenerate.vue') : feature.id === 'enhance' ? () => import('../views/VideoStudioEnhance.vue') : creativePages.includes(feature.id) ? () => import('../views/VideoStudioCreative.vue') : () => import('../views/VideoStudioSoon.vue')),
+  component: existing[feature.id] || (['image','video'].includes(feature.id) ? () => import('../views/VideoStudioGenerate.vue') : feature.id === 'enhance' ? () => import('../views/VideoStudioEnhance.vue') : creativePages.includes(feature.id) ? () => import('../views/VideoStudioCreative.vue') : undefined),
   props: ['image','video'].includes(feature.id) ? { kind: feature.id } : { featureId: feature.id },
   meta: { studioFeature: feature.id, ...(['library','elements'].includes(feature.id) ? { libraryTab: feature.id === 'elements' ? 'ingredients' : 'files' } : {}) },
 }))

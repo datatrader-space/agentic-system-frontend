@@ -45,6 +45,7 @@ export function useStudioSession(kind, { needsModel = true, page = kind } = {}) 
         if (data?.id) chat.agents.push(data)
       }
       chat.studioMode = video.studioMode
+      chat.studioContext = { page }
       video.setKind(kind)
       video.task = 'quick'
       if (String(video.conversationId || '') !== String(cid || '')) { video.project = null; video.versions = [] }
@@ -64,6 +65,6 @@ export function useStudioSession(kind, { needsModel = true, page = kind } = {}) 
   watch(() => route.query.conversation, cid => { if (!loading.value && cid && String(cid) !== String(chat.conversationId || '')) initialize() })
   watch(() => [ready.value, user.value?.id, chat.conversationId], ([opened, person, cid]) => { if (opened && person && cid) rememberStudioOrigin(person, 'conversation', cid, page) })
   onMounted(initialize)
-  onBeforeUnmount(() => { disposed = true; sequence++; chat.studioMode = '' })
+  onBeforeUnmount(() => { disposed = true; sequence++; chat.studioMode = ''; chat.studioContext = null })
   return { route, chat, video, ready, loading, error, initialize }
 }

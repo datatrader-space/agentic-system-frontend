@@ -7,7 +7,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 
-vi.mock('../../services/api', () => ({ default: { checkAuth: vi.fn(() => Promise.resolve({ data: { user: { email: 'maker@example.com' } } })) } }))
+vi.mock('../../services/api', () => ({ default: { checkAuth: vi.fn(() => Promise.resolve({ data: { user: { email: 'maker@example.com' } } })), getStudioFeatures: vi.fn(() => Promise.resolve({ data: { features: [] } })) } }))
 
 import VideoStudioShell from './VideoStudioShell.vue'
 import { STUDIO_GROUPS, studioFeatures, featureLink } from '../../services/studioFeatures'
@@ -101,6 +101,6 @@ it('keeps ordered tool groups above a fixed Library, Projects, Help and Recent c
   const { w } = await mountAt('/video-studio')
   expect(w.findAll('.vs-group-toggle').map(b => b.text())).toEqual(['Create','Edit & enhance','Characters','Video tools','Avatars & shorts','Story','Marketing','Workspace'])
   expect(w.findAll('.vs-fixed-workspace > a').map(a => a.text())).toEqual(['Library','Projects','Help'])
-  expect(w.findAll('.vs-group').find(g => g.text().includes('Characters')).findAll('.vs-nav-item').map(a => a.attributes('data-test'))).toEqual(['vs-nav-elements','vs-nav-characters','vs-nav-identity-training'])
+  expect(w.findAll('.vs-group').find(g => g.text().includes('Characters')).findAll('.vs-nav-item').map(a => a.attributes('data-test'))).toEqual(['vs-nav-characters','vs-nav-identity-training','vs-nav-elements'])
   w.unmount()
 })

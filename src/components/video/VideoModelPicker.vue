@@ -37,6 +37,7 @@
               <span class="vmp-opt-name">{{ nameOf(r) }}
                 <span v-if="ownKey(r)" class="vmp-tag" title="Renders on your own provider key">Your key</span></span>
               <span class="vmp-opt-meta">{{ describe(r) }}</span>
+              <span v-if="!isImage && r.references && r.references.summary" class="vmp-opt-meta" :data-test="kind + '-model-refs-' + idOf(r)">{{ r.references.summary }}</span>
             </span>
             <span v-if="isSelected(r)" class="vmp-check" aria-hidden="true" v-html="ICON.check"></span>
           </button>
@@ -140,7 +141,8 @@ function describe(r) {
   const from = [t.has('text_to_video') && 'text', t.has('image_to_video') && 'an image'].filter(Boolean)
   const parts = [from.length ? `From ${from.join(' or ')}` : 'Edits video']
   if (t.has('first_last_frame')) parts.push('opening and closing shots')
-  if (t.has('reference_to_video')) parts.push('references')
+  // The reference limits get their own line (refLine); without that data, say only that it takes references.
+  if (t.has('reference_to_video') && !(r.references && r.references.summary)) parts.push('references')
   if (t.has('edit_uploaded') || t.has('edit_generated')) parts.push('edits video')
   const o = r.outputs || {}
   const d = (o.durations || []).map(Number).filter((n) => n > 0)

@@ -16,9 +16,10 @@
   </section>
 </template>
 <script setup>
-import { onBeforeUnmount, ref, useId } from 'vue'
+import { computed, onBeforeUnmount, ref, useId } from 'vue'
 import './studio.css'
-const props = defineProps({ chatExpanded: Boolean, title: String, purpose: String, activeTab: { type: String, default: 'presets' }, presetPicker: Boolean, newDisabled: Boolean })
+// workLabel: what the first output tab holds (presets on Image and Video, a preview or a workspace elsewhere).
+const props = defineProps({ chatExpanded: Boolean, title: String, purpose: String, activeTab: { type: String, default: 'presets' }, presetPicker: Boolean, newDisabled: Boolean, workLabel: { type: String, default: 'Presets' } })
 const emit = defineEmits(['update:activeTab','new'])
 const titleId = `studio-${useId()}`
 const form = ref(null), references = ref(null)
@@ -27,12 +28,12 @@ const narrow = ref(media?.matches ?? false)
 function mediaChanged(event) { narrow.value = event.matches }
 media?.addEventListener?.('change', mediaChanged)
 onBeforeUnmount(() => media?.removeEventListener?.('change', mediaChanged))
-const tabs = [{ key: 'presets', label: 'Presets' }, { key: 'results', label: 'My results' }]
+const tabs = computed(() => [{ key: 'presets', label: props.workLabel }, { key: 'results', label: 'My results' }])
 function moveTab(event, index) {
   if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return
   event.preventDefault()
   const next = event.key === 'Home' ? 0 : event.key === 'End' ? 1 : (index + 1) % 2
-  emit('update:activeTab', tabs[next].key)
+  emit('update:activeTab', tabs.value[next].key)
   event.currentTarget.parentElement.querySelectorAll('button')[next]?.focus()
 }
 defineExpose({ focusInputs() { const target = props.chatExpanded ? (form.value?.querySelector('textarea') || form.value) : references.value?.querySelector('[data-studio-required-empty="true"]') || form.value?.querySelector('[data-studio-required-empty="true"]') || form.value; target?.scrollIntoView?.({ block: 'center' }); target?.focus() } })
