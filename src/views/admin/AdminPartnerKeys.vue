@@ -69,9 +69,10 @@
       <div class="pk-card-h"><h2>Keys</h2></div>
       <div v-if="loading" class="pk-empty">Loading…</div>
       <div v-else-if="!keys.length" class="pk-empty">No keys yet. Issue one above.</div>
-      <table v-else class="pk-table">
+      <div v-else class="pk-table-wrap">
+      <table class="pk-table">
         <thead>
-          <tr><th>Label</th><th>Partner</th><th>Key</th><th>Status</th><th>Requests</th><th>Last used</th><th>Created</th><th></th></tr>
+          <tr><th>Label</th><th>Partner</th><th>Key</th><th>Status</th><th class="pk-nowrap">Per-agent sign-ins</th><th>Requests</th><th>Last used</th><th>Created</th><th></th></tr>
         </thead>
         <tbody>
           <tr v-for="k in keys" :key="k.id" :class="{ revoked: k.revoked }">
@@ -83,10 +84,27 @@
             <td>
               <span class="pk-pill" :class="k.revoked ? 'rev' : 'act'">{{ k.revoked ? 'Revoked' : 'Active' }}</span>
             </td>
+            <td>
+              <button
+                type="button"
+                role="switch"
+                class="pk-switch"
+                :class="{ on: k.is_partner_account }"
+                :aria-checked="k.is_partner_account ? 'true' : 'false'"
+                :aria-label="`Per-agent sign-ins for ${k.user_label || 'this partner'}`"
+                :disabled="switching === k.user_id"
+                @click="flipPartnerSwitch(k)">
+                <span class="pk-switch-knob" />
+              </button>
+              <span class="pk-switch-text">{{ k.is_partner_account ? 'On' : 'Off' }}</span>
+            </td>
             <td>{{ k.request_count?.toLocaleString?.() ?? k.request_count }}</td>
             <td>{{ fmt(k.last_used_at) }}</td>
             <td>{{ fmt(k.created_at) }}</td>
             <td class="pk-actions">
+              <button class="pk-btn sm" @click="openOrigins(k)">
+                Return addresses{{ k.allowed_return_origins?.length ? ` (${k.allowed_return_origins.length})` : '' }}
+              </button>
               <button class="pk-btn sm" @click="rotate(k)">Rotate</button>
               <button v-if="!k.revoked" class="pk-btn sm" @click="toggle(k, true)">Revoke</button>
               <button v-else class="pk-btn sm" @click="toggle(k, false)">Reactivate</button>
@@ -95,6 +113,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </section>
 
     <!-- Quick-start -->
@@ -116,6 +135,28 @@
         in a named workspace (created if new); omit it to use the partner's default workspace.</p>
     </section>
 
+    <!-- Return addresses for one key -->
+    <div v-if="originsKey" class="pk-drawer-mask pk-center" @click.self="closeOrigins" @keydown.esc="closeOrigins">
+      <section class="pk-modal" role="dialog" aria-modal="true" aria-labelledby="pk-origins-title">
+        <h3 id="pk-origins-title">Return addresses for “{{ originsKey.name || originsKey.key_hint }}”</h3>
+        <p class="pk-mini">
+          After a store signs in from a link this key asked for, the browser goes back to the partner's page.
+          Only these addresses are accepted. One per line, like <code>https://shop.example.com</code> or
+          <code>https://*.example.com</code> for every subdomain. Leave empty to accept none.
+        </p>
+        <label class="pk-q-k" for="pk-origins-input">Addresses</label>
+        <textarea id="pk-origins-input" ref="originsInput" v-model="originsText" class="pk-input pk-textarea"
+                  rows="5" spellcheck="false" placeholder="https://*.example.com" />
+        <p v-if="originsError" class="pk-error" role="alert">{{ originsError }}</p>
+        <div class="pk-modal-actions">
+          <button class="pk-btn ghost" @click="closeOrigins">Cancel</button>
+          <button class="pk-btn primary" :disabled="savingOrigins" @click="saveOrigins">
+            {{ savingOrigins ? 'Saving…' : 'Save addresses' }}
+          </button>
+        </div>
+      </section>
+    </div>
+
     <!-- Docs drawer -->
     <div v-if="docsOpen" class="pk-drawer-mask" @click.self="docsOpen = false">
       <aside class="pk-drawer">
@@ -134,7 +175,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { marked } from 'marked'
 import api from '../../services/api'
 import { notify } from '../../composables/useNotify'
@@ -276,6 +317,73 @@ async function remove(k) {
   }
 }
 
+// Own sign-ins per agent (ADM-1082). The switch belongs to the partner's account, so every key of that
+// partner shows the same state.
+const switching = ref(null)
+
+async function flipPartnerSwitch(k) {
+  const who = k.user_label || 'this partner'
+  const turnOn = !k.is_partner_account
+  const ok = await confirm(turnOn ? {
+    title: `Give each of ${who}'s agents its own sign-ins?`,
+    message: `Each agent will use only the connector sign-ins and keys saved for it. Sign-ins saved on ${who}'s `
+      + 'own account stop reaching the agents, so each store signs in again.',
+    confirmText: 'Turn on',
+  } : {
+    title: `Share sign-ins across ${who}'s agents again?`,
+    message: `Every agent will use ${who}'s own sign-ins again, as on a normal account. `
+      + 'Sign-ins saved for one agent stay with that agent.',
+    confirmText: 'Turn off',
+    danger: true,
+  })
+  if (!ok) return
+  switching.value = k.user_id
+  try {
+    await api.setPartnerAccountSwitch(k.user_id, turnOn)
+    notify.success(turnOn ? 'Per-agent sign-ins turned on' : 'Per-agent sign-ins turned off')
+    await load()
+  } catch (e) {
+    notify.error('Could not change the switch: ' + (e.response?.data?.detail || e.message))
+  } finally {
+    switching.value = null
+  }
+}
+
+// Return addresses for one key.
+const originsKey = ref(null)
+const originsText = ref('')
+const originsError = ref('')
+const savingOrigins = ref(false)
+const originsInput = ref(null)
+
+async function openOrigins(k) {
+  originsKey.value = k
+  originsText.value = (k.allowed_return_origins || []).join('\n')
+  originsError.value = ''
+  await nextTick()
+  originsInput.value?.focus()
+}
+
+function closeOrigins() {
+  originsKey.value = null
+}
+
+async function saveOrigins() {
+  const origins = originsText.value.split('\n').map((s) => s.trim()).filter(Boolean)
+  savingOrigins.value = true
+  originsError.value = ''
+  try {
+    await api.setPartnerReturnOrigins(originsKey.value.id, origins)
+    notify.success('Return addresses saved')
+    closeOrigins()
+    await load()
+  } catch (e) {
+    originsError.value = e.response?.data?.detail || e.message
+  } finally {
+    savingOrigins.value = false
+  }
+}
+
 async function ensureDocs() {
   if (docsMd) return
   docsLoading.value = true
@@ -353,6 +461,7 @@ onMounted(load)
 .pk-key { flex: 1; min-width: 280px; background: #052e16; color: #86efac; padding: 9px 12px; border-radius: 8px;
   font-family: ui-monospace, monospace; font-size: 13px; word-break: break-all; }
 
+.pk-table-wrap { overflow-x: auto; }
 .pk-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .pk-table th { text-align: left; color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase;
   letter-spacing: .03em; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
@@ -363,8 +472,8 @@ onMounted(load)
 .pk-pill { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
 .pk-pill.act { background: #dcfce7; color: #15803d; }
 .pk-pill.rev { background: #f1f5f9; color: #94a3b8; }
-.pk-actions { text-align: right; white-space: nowrap; }
-.pk-actions .pk-btn { margin-left: 6px; }
+.pk-actions { text-align: right; min-width: 230px; }
+.pk-actions .pk-btn { margin: 3px 0 3px 6px; }
 .pk-empty { color: #94a3b8; font-size: 13px; padding: 12px 4px; }
 
 .pk-quick { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -374,6 +483,27 @@ onMounted(load)
 .pk-steps code { font-family: ui-monospace, monospace; font-size: 12px; background: #f1f5f9; padding: 2px 6px; border-radius: 5px; color: #0f172a; }
 .pk-mini { font-size: 12px; color: #64748b; line-height: 1.7; }
 .pk-mini code { font-family: ui-monospace, monospace; background: #f8fafc; padding: 1px 5px; border-radius: 4px; }
+
+.pk-switch { position: relative; width: 36px; height: 20px; border-radius: 999px; border: 1px solid #cbd5e1;
+  background: #e2e8f0; cursor: pointer; vertical-align: middle; transition: background-color .15s, border-color .15s; }
+.pk-switch.on { background: #4f46e5; border-color: #4f46e5; }
+.pk-switch:disabled { opacity: .5; cursor: default; }
+.pk-switch:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(79,70,229,.25); }
+.pk-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 2px rgba(15,23,42,.2); transition: transform .15s; }
+.pk-switch.on .pk-switch-knob { transform: translateX(16px); }
+.pk-switch-text { margin-left: 8px; font-size: 12px; color: #475569; }
+.pk-table th.pk-nowrap { white-space: nowrap; }
+.pk-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(79,70,229,.25); }
+@media (prefers-reduced-motion: reduce) { .pk-switch, .pk-switch-knob { transition: none; } }
+
+.pk-drawer-mask.pk-center { justify-content: center; align-items: center; padding: 16px; }
+.pk-modal { width: min(520px, 100%); background: #fff; border-radius: 14px; padding: 22px; box-shadow: 0 16px 40px rgba(15,23,42,.2); }
+.pk-modal h3 { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+.pk-modal .pk-mini { margin-bottom: 14px; }
+.pk-textarea { font-family: ui-monospace, monospace; font-size: 13px; resize: vertical; }
+.pk-error { margin-top: 8px; font-size: 12px; color: #dc2626; }
+.pk-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
 .pk-drawer-mask { position: fixed; inset: 0; background: rgba(15,23,42,.4); z-index: 50; display: flex; justify-content: flex-end; }
 .pk-drawer { width: min(760px, 92vw); height: 100%; background: #fff; box-shadow: -8px 0 32px rgba(0,0,0,.18); display: flex; flex-direction: column; }

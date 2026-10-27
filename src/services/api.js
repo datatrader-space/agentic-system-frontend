@@ -299,6 +299,9 @@ export default {
   rotatePartnerKey: (id) => api.post(`/admin/partner-keys/${id}/rotate/`),
   deletePartnerKey: (id) => api.delete(`/admin/partner-keys/${id}/`),
   getPartnerDocs: () => api.get('/admin/partner-keys/docs/'),
+  // ADM-1082: each of a partner's agents holds its own connector sign-ins.
+  setPartnerAccountSwitch: (userId, enabled) => api.post(`/admin/partner-accounts/${userId}/switch/`, { enabled }),
+  setPartnerReturnOrigins: (id, origins) => api.post(`/admin/partner-keys/${id}/return-origins/`, { origins }),
   searchPartnerUsers: (search) => api.get('/admin/users/', { params: { search, limit: 20 } }),
 
 
