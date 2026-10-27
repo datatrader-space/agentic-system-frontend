@@ -3,7 +3,7 @@
     <template #form>
       <StudioModeSwitch /><StudioFirstVisit :hidden="hintHidden" @dismiss="dismissHint" />
       <p v-if="loading" class="st-status" role="status">Opening your session...</p><div v-if="error" class="st-error" role="alert">{{ error }}<button type="button" class="st-button" @click="initialize">Try again</button></div>
-      <InputSlot label="Source video" required :kinds="['video']" :limit="1" :allow-upload="false" :items="source ? [source] : []" @pick="source = $event[0]" @remove="source = null" />
+      <InputSlot label="Source video" required :kinds="['video']" :limit="1" :allow-upload="false" :items="source ? [source] : []" @pick="pick" @remove="source = null" />
       <StudioAgentPanel v-show="isAgent" v-model="agentDraft" v-model:expanded="chatExpanded" label="Enhance" :purpose="feature.purpose" :ready="ready" @approved="tab = 'results'" />
       <div v-show="!isAgent" class="se-manual">
       <div class="se-tools" role="group" aria-label="Free local tools"><button v-for="tool in tools" :key="tool.id" type="button" class="st-button" :aria-pressed="operation === tool.id" :class="{ primary: operation === tool.id }" @click="chooseTool(tool)">{{ tool.label }}</button></div>
@@ -29,6 +29,7 @@ import StudioModeSwitch from '../components/studio/StudioModeSwitch.vue'
 import StudioFirstVisit from '../components/studio/StudioFirstVisit.vue'
 import StudioAgentPanel from '../components/studio/StudioAgentPanel.vue'
 import { useStudioExperience } from '../composables/useStudioExperience'
+import { useSessionProject } from '../composables/useSessionProject'
 import InputSlot from '../components/studio/InputSlot.vue'
 import QuoteBar from '../components/studio/QuoteBar.vue'
 const ResultsFeed = defineAsyncComponent(() => import('../components/studio/ResultsFeed.vue'))
@@ -43,6 +44,17 @@ const start = ref(0), end = ref(5), aspect = ref('9:16'), factor = ref(1), cues 
 // The chosen tool goes to the agent with every message as the page's preset (studio_context), never as text.
 watch([ready, operation], ([isReady]) => { if (isReady) chat.studioContext = { page: 'enhance', preset: operation.value, preset_title: tools.find(t => t.id === operation.value)?.label || '' } })
 const tools = [{ id: 'trim', label: 'Trim', purpose: 'Keep the part between two times.' }, { id: 'crop', label: 'Crop / reframe', purpose: 'Fit the footage to a different shape.' }, { id: 'retime', label: 'Retime', purpose: 'Change the playback speed.' }, { id: 'caption', label: 'Captions', purpose: 'Add text at the times you choose.' }]
+const { linkFromLibrary } = useSessionProject()
+// A Library video from another chat is linked to this session's project (unpinned) before it is used, as on every
+// creative page: the server then lets this chat's edit read it (2026-10-27: "no file with that id is available here").
+async function pick(items) {
+  const chosen = (items || [])[0]
+  if (!chosen?.attachment_id) return
+  formError.value = ''
+  try { await linkFromLibrary([chosen], 'Enhance session') }
+  catch (e) { formError.value = e.response?.data?.error?.message || e.message || 'That video could not be used here.'; return }
+  source.value = chosen
+}
 function chooseTool(tool) { operation.value = tool.id; if (isAgent.value) agentDraft.value = `Use this preset: ${tool.label}.` }
 watch(source, item => { if (item?.attachment_id && !video.refs.some(r => r.attachment_id === item.attachment_id)) video.addExistingRef(item, 'edit_source') })
 const validTimes = (from,to) => Number.isFinite(Number(from)) && Number.isFinite(Number(to)) && Number(from) >= 0 && Number(to) > Number(from)
