@@ -79,9 +79,14 @@ export function useAgentTimeline() {
     return null
   })
 
-  const hasFailures = computed(
-    () => steps.value.some((s) => s.status === 'failed') || !!(summary.value && summary.value.hadFailures),
-  )
+  // The end-of-turn summary decides once it has arrived: the backend counts only failures the agent did not
+  // recover from (a ToolSearch for names that do not exist, followed by one that found the tool, is not an
+  // issue). Until then, and for a summary without the field, any failed row counts.
+  const hasFailures = computed(() => {
+    const s = summary.value
+    if (s && typeof s.hadFailures === 'boolean') return s.hadFailures
+    return steps.value.some((st) => st.status === 'failed')
+  })
 
   function reset() {
     currentStatus.value = null

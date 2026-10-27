@@ -55,6 +55,21 @@ describe('useAgentTimeline — rich streaming render model', () => {
     expect(t.hasFailures.value).toBe(true)
   })
 
+  it('the end-of-turn summary decides: a failure the agent recovered from is not an issue (conv 2960)', () => {
+    const t = useAgentTimeline()
+    t.ingest({ type: 'agent_step_failed', step_id: 'a', label: 'Looking for a tool', reason: 'no such tool' })
+    expect(t.hasFailures.value).toBe(true)                    // live, before the summary
+    t.ingest({ type: 'agent_turn_summary', final_status: 'completed', had_failures: false })
+    expect(t.hasFailures.value).toBe(false)
+    expect(t.steps.value[0].status).toBe('failed')            // the row itself stays failed
+  })
+
+  it('a summary that reports an unrecovered failure keeps the issue', () => {
+    const t = useAgentTimeline()
+    t.ingest({ type: 'agent_turn_summary', final_status: 'completed', had_failures: true })
+    expect(t.hasFailures.value).toBe(true)
+  })
+
   it('source_citation aggregates and deduplicates sources', () => {
     const t = useAgentTimeline()
     t.ingest({ type: 'source_citation', kind: 'knowledge_base', name: 'Pricing Policy', ref: 'doc/1' })
