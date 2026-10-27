@@ -44,10 +44,11 @@
 
           <label class="filter-btn date-filter">
             <Icon icon="lucide:calendar-days" />
-            <select>
-              <option>Last 7 days</option>
-              <option>Last 30 days</option>
-              <option>This month</option>
+            <select v-model="rangeFilter" @change="loadRequests">
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+              <option value="month">This month</option>
+              <option value="all">All time</option>
             </select>
             <Icon icon="lucide:chevron-down" />
           </label>
@@ -113,6 +114,7 @@
 
         <div v-else-if="activeTab === 'audit'" class="audit-list">
           <LoadError v-if="auditError" compact title="Couldn't load the audit trail" @retry="loadAudit" />
+          <p v-else-if="!auditLoaded" class="empty-cell">Loading the audit trail…</p>
           <p v-else-if="!auditRows.length" class="empty-cell">No audit events yet.</p>
           <article v-for="entry in auditRows" :key="entry.id" class="audit-row">
             <span :class="['agent-icon', entry.tone]"><Icon icon="lucide:file-clock" /></span>
@@ -216,6 +218,10 @@ const requests = ref([])
 const auditEntries = ref([])
 const agentFilter = ref('')
 const statusFilter = ref('')
+// The date range is sent as `since`. It was shown and never sent, so "Last 7 days" listed every run ever made.
+const rangeFilter = ref('7d')
+// The audit trail is read when its tab is first opened, not on every visit to the page.
+const auditLoaded = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const reqCount = ref(0)
@@ -258,9 +264,22 @@ const auditRows = computed(() => auditEntries.value.map((entry, index) => ({
   tone: ['cyan', 'violet', 'green'][index % 3],
 })))
 
-watch([agentFilter, statusFilter], () => {
+watch([agentFilter, statusFilter, rangeFilter], () => {
   currentPage.value = 1
 })
+
+watch(activeTab, (tab) => {
+  if (tab === 'audit' && !auditLoaded.value) loadAudit()
+})
+
+// The start of the chosen range, as the ISO date-time the server filters by (none for "All time").
+function sinceParam() {
+  const now = new Date()
+  if (rangeFilter.value === '7d') return new Date(now.getTime() - 7 * 86400000).toISOString()
+  if (rangeFilter.value === '30d') return new Date(now.getTime() - 30 * 86400000).toISOString()
+  if (rangeFilter.value === 'month') return new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  return null
+}
 
 watch(currentPage, () => {
   if (hasLoaded.value) loadRequests()
@@ -324,6 +343,8 @@ async function loadRequests() {
     const params = { page: currentPage.value, page_size: pageSize.value }
     if (agentFilter.value) params.agent_id = agentFilter.value
     if (statusFilter.value) params.status = statusFilter.value
+    const since = sinceParam()
+    if (since) params.since = since
     const response = await api.get('/llm/requests/', { params, signal })
     if (signal.aborted) return
     requests.value = response.data.results || []
@@ -345,6 +366,7 @@ async function loadAudit() {
     if (signal.aborted) return
     auditEntries.value = response.data.results || []
     auditError.value = false
+    auditLoaded.value = true
   } catch (error) {
     if (isAbortError(error) || signal.aborted) return
     console.error('Audit error:', error)
@@ -354,16 +376,16 @@ async function loadAudit() {
 
 async function refreshAll() {
   loading.value = true
-  await Promise.all([loadRequests(), loadAudit()])
+  await Promise.all([loadRequests(), auditLoaded.value ? loadAudit() : null])
   loading.value = false
 }
 
 async function loadDashboard() {
   loading.value = true
-  // The agent walk (every page of /agents/) runs in parallel; the runs and audit do not wait for it.
+  // The agent walk (every page of /agents/) runs in parallel; the runs do not wait for it.
   loadAgents()
   try {
-    await Promise.all([loadRequests(), loadAudit()])
+    await loadRequests()
   } finally {
     loading.value = false
     hasLoaded.value = true

@@ -41,6 +41,7 @@ describe('Activity (LLMDashboard) — no invented data', () => {
     await mountPage()
     expect(wrapper.text()).toContain('No runs yet.')
     await wrapper.findAll('.activity-tabs button')[1].trigger('click')
+    await flushPromises()
     expect(wrapper.text()).toContain('No audit events yet.')
     expect(wrapper.text()).not.toContain('Credential rotated')
   })
@@ -78,5 +79,35 @@ describe('Activity (LLMDashboard) — no invented data', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('Newest')
     expect(wrapper.text()).not.toContain('Stale')
+  })
+})
+
+describe('Activity (LLMDashboard) — what it asks for', () => {
+  const calls = (url) => api.get.mock.calls.filter(([u]) => u === url)
+
+  it('reads the audit trail only when its tab is opened, and once', async () => {
+    api.get.mockResolvedValue({ data: { results: [], count: 0 } })
+    await mountPage()
+    expect(calls('/llm/audit/')).toHaveLength(0)
+    const tabs = wrapper.findAll('.activity-tabs button')
+    await tabs[1].trigger('click')
+    await flushPromises()
+    await tabs[0].trigger('click')
+    await tabs[1].trigger('click')
+    await flushPromises()
+    expect(calls('/llm/audit/')).toHaveLength(1)
+  })
+
+  it('sends the date range it shows: the last 7 days first, nothing for all time', async () => {
+    api.get.mockResolvedValue({ data: { results: [], count: 0 } })
+    const before = Date.now()
+    await mountPage()
+    const since = new Date(calls('/llm/requests/')[0][1].params.since).getTime()
+    expect(Math.abs(before - 7 * 86400000 - since)).toBeLessThan(60000)
+    await wrapper.findAll('select')[2].setValue('all')
+    await flushPromises()
+    const last = calls('/llm/requests/').at(-1)[1].params
+    expect(last.since).toBeUndefined()
+    expect(last.page).toBe(1)
   })
 })
