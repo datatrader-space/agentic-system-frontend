@@ -10,7 +10,7 @@
     <ul v-else class="vir-grid" aria-label="Images in this session">
       <li v-for="img in video.sessionImages" :key="img.attachment_id" class="vir-card" data-test="image-result">
         <a :href="img.url" target="_blank" rel="noopener noreferrer" class="vir-frame" :aria-label="'Open ' + img.title + ' full size'">
-          <img :src="img.url" alt="" loading="lazy" />
+          <MediaThumb :item="{ ...img, media_type: img.media_type || 'image' }" :src="img.url" />
         </a>
         <form v-if="savingId === img.attachment_id" class="vir-save" @submit.prevent="save(img)">
           <label class="vir-field"><span>Name</span>
@@ -33,6 +33,7 @@
 
 <script setup>
 import { reactive, ref, watch } from 'vue'
+import MediaThumb from '../common/MediaThumb.vue'
 import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
 import { notify } from '../../composables/useNotify'

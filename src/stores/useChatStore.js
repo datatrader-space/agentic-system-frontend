@@ -1003,7 +1003,7 @@ export const useChatStore = defineStore('chat', {
         const steerClientId = `c-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
         this.messages.push({
           id: nid(), role: 'user', content, status: 'done', queued: true, clientMessageId: steerClientId,
-          attachments: atts.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url, mime: a.mime })),
+          attachments: atts.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url, mime: a.mime, attachment_id: a.attachment_id })),
         })
         this.pendingAttachments = []
         const { attachmentIds: steerIds } = await this._uploadAttachments(atts)
@@ -1043,7 +1043,7 @@ export const useChatStore = defineStore('chat', {
       // Show the user turn (with attachment previews) and the assistant placeholder up-front.
       this.messages.push({
         id: nid(), role: 'user', content, status: 'done',
-        attachments: atts.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url, mime: a.mime })),
+        attachments: atts.map((a) => ({ name: a.name, isImage: a.isImage, url: a.url, mime: a.mime, attachment_id: a.attachment_id })),
       })
       this.pendingAttachments = [] // claimed by this turn; the message bubble keeps the preview urls
       // A NEW USER TURN CLEARS THE PREVIOUS RUN'S WORK STATE. This is the right home for it rather than

@@ -43,8 +43,7 @@
         <li v-for="it in items" :key="it.attachment_id" class="card">
           <!-- A card shows a cropped thumbnail; the whole file is shown only in the preview, on click. -->
           <button type="button" class="thumb" :aria-label="`Preview ${it.title}`" @click="open(it)">
-            <img v-if="it.media_type === 'image' && path(it.url)" :src="path(it.url)" :alt="it.title" loading="lazy" decoding="async" />
-            <video v-else-if="it.media_type === 'video' && path(it.url)" :src="path(it.url)" preload="metadata" muted playsinline aria-hidden="true" />
+            <MediaThumb v-if="(it.media_type === 'image' || it.media_type === 'video') && path(it.url)" :item="it" :src="path(it.url)" :alt="it.title" />
             <span v-else class="thumb-icon"><Icon :icon="ICONS[it.media_type] || 'lucide:file'" /></span>
             <span v-if="it.media_type === 'video'" class="kind"><Icon icon="lucide:film" /> Video</span>
           </button>
@@ -109,6 +108,7 @@
 
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import MediaThumb from '../components/common/MediaThumb.vue'
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import LoadError from '../components/common/LoadError.vue'

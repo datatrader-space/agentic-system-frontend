@@ -189,8 +189,8 @@
         <div v-else class="bubble user" :class="{ collapsed: isLong && !expanded }">
           <div v-if="message.attachments && message.attachments.length" class="user-attach">
             <template v-for="(a, i) in message.attachments" :key="i">
-              <img v-if="a.isImage && a.url" :src="a.url" class="user-attach-thumb" :alt="a.name"
-                   title="Click to open preview" @click="openAttachment(a)" />
+              <MediaThumb v-if="a.isImage && a.url" :item="a" :src="a.url" class="user-attach-thumb" :alt="a.name"
+                          title="Click to open preview" @click="openAttachment(a)" />
               <a v-else-if="a.url" class="user-attach-file" :href="a.url" :download="a.name"
                  target="_blank" rel="noopener" title="Open / download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>{{ a.name }}</a>
               <span v-else class="user-attach-file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>{{ a.name }}</span>
@@ -244,6 +244,7 @@ import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
 const safeHref = (u) => (_isSafeUrl(u) ? u : undefined)
 import { marked } from 'marked'
 import BrandMark from '../common/BrandMark.vue'
+import MediaThumb from '../common/MediaThumb.vue'
 import { enhanceChatMedia } from '../../utils/chatMedia'
 import ImageLightbox from './ImageLightbox.vue'
 import { renderUntrustedMarkdown, hasMath } from '../../utils/safeMarkdown'

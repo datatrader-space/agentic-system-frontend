@@ -215,7 +215,8 @@ export function useAgentTimeline() {
       const row = steps.value.find((x) => x.toolCallId && String(x.toolCallId) === String(evt.tool_call_id))
       if (row) {
         const media = evt.media_artifacts
-          .map((a) => ({ url: a && (a.url || a.abs_url || a.file_url), type: (a && a.type) || 'image' }))
+          .map((a) => ({ url: a && (a.url || a.abs_url || a.file_url), type: (a && a.type) || 'image',
+                         attachment_id: a && a.attachment_id }))     // its id: the card shows the thumbnail
           .filter((a) => a.url)
         if (media.length) row.media = [...(row.media || []), ...media]
       }

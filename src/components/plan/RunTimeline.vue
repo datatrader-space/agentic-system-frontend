@@ -14,6 +14,7 @@
 // announcement of a node patches the node that exists instead of appending beside it. The store
 // enforces it; `:key` here must not undo it.
 import { computed, ref, shallowRef, watch } from 'vue'
+import MediaThumb from '../common/MediaThumb.vue'
 import { isSafeUrl as _isSafeUrl } from '@/utils/safeMarkdown'
 // Server and agent data can carry a `javascript:` URL; only http(s), mailto, tel and relative links are
 // followed (security audit, frontend finding A12).
@@ -738,8 +739,8 @@ function fmt(ms) {
               <div v-if="a.status === 'failed' && a.reason" class="act-note fail-note">{{ a.reason }}</div>
               <!-- What this call produced, right under it. -->
               <div v-if="a.media.length" class="act-media" :data-test="`rt-media-${a.key}`">
-                <img v-for="(x, i) in a.media" :key="i" :src="x.url" alt="" loading="lazy" class="act-thumb"
-                     @click="lightbox?.open(x.url)" />
+                <MediaThumb v-for="(x, i) in a.media" :key="i" :item="x" :src="x.url" class="act-thumb"
+                            @click="lightbox?.open(x.url)" />
               </div>
             </template>
             <!-- NO "what the step can use" list. It came from the step's capability BINDING — 286 tools for an

@@ -32,11 +32,11 @@
         <h2>{{ scene.order + 1 }}. {{ scene.title }}</h2><p>{{ scene.intent }}</p><p>{{ scene.cinema_phrase }}</p>
         <template v-if="kind === 'cinema'"><label v-for="control in controls" :key="control.control" class="st-field">{{ control.label }}<select v-model="scene.cinema[control.control]" class="st-input"><option value="">Default</option><option v-for="v in control.values" :key="v.value" :value="v.value">{{ v.phrase }}</option></select></label><button class="st-button" :disabled="busy" @click="saveCinema(scene)">Save camera choices</button></template>
         <label class="st-field">Scene description<textarea v-model="scene.intent" class="st-input" /></label><button class="st-button" :disabled="busy || !project" @click="saveScene(scene)">Save description</button>
-        <div class="creative-thumbnails"><button v-for="frame in scene.keyframes" :key="frame.attachment_id" class="st-button" :aria-pressed="scene.keyframe_attachment_id === frame.attachment_id" :disabled="busy" @click="chooseFrame(scene,frame)"><img :src="frame.url" alt="Choose keyframe" /></button></div>
+        <div class="creative-thumbnails"><button v-for="frame in scene.keyframes" :key="frame.attachment_id" class="st-button" :aria-pressed="scene.keyframe_attachment_id === frame.attachment_id" :disabled="busy" @click="chooseFrame(scene,frame)"><MediaThumb :item="{ ...frame, media_type: frame.media_type || 'image' }" :src="frame.url" alt="Choose keyframe" /></button></div>
         <p v-if="scene.keyframe_jobs_pending?.length">Keyframes pending. Review their approval cards in Results.</p>
         <button class="st-button" :disabled="busy || !routeId" @click="keyframes(scene)">Review keyframe estimate</button>
         <button class="st-button primary" v-if="scene.next_step === 'render'" :disabled="busy" @click="render(scene)">Review scene estimate</button><p>Next: {{ scene.next_step }}</p>
-        <div v-for="take in scene.takes" :key="take.take_id"><video :src="take.url" controls preload="metadata" /><button class="st-button" :aria-pressed="take.selected" :disabled="busy || take.selected" @click="chooseTake(scene,take)">Use take</button></div>
+        <div v-for="take in scene.takes" :key="take.take_id"><video :src="take.url" :poster="thumbnailFor({ ...take, media_type: 'video' }) || undefined" controls preload="none" /><button class="st-button" :aria-pressed="take.selected" :disabled="busy || take.selected" @click="chooseTake(scene,take)">Use take</button></div>
       </div>
       <button v-if="projectId" class="st-button" :disabled="busy" @click="open">Refresh storyboard</button>
     </template>
@@ -44,6 +44,8 @@
 </template>
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import MediaThumb from '../common/MediaThumb.vue'
+import { thumbnailFor } from '../../utils/mediaThumb'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
 import InputSlot from './InputSlot.vue'

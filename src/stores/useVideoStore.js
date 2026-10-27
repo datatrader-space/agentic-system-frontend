@@ -7,6 +7,7 @@
  * never invents progress.
  */
 import { defineStore } from 'pinia'
+import { thumbnailFor } from '../utils/mediaThumb'
 import api from '../services/api'
 import { notify } from '../composables/useNotify'
 
@@ -582,7 +583,9 @@ export const useVideoStore = defineStore('video', {
         const res = await api.getConversationMedia(conversationId, { source: 'generated', type: 'image' })
         this.sessionImages = (res.data.media || []).filter((m) => m.attachment_id && m.url)
           .map((m) => ({ attachment_id: m.attachment_id, url: m.url, title: m.title || m.filename || 'Image',
-                         media_type: 'image', created_at: m.created_at }))
+                         media_type: 'image', created_at: m.created_at,
+                         // The card shows this, never the whole image (MEDIA_THUMBNAILS_EVERYWHERE_PLAN.md).
+                         thumbnail_url: thumbnailFor({ ...m, media_type: 'image' }) }))
       } catch { /* keep what is shown */ }
     },
     async local(operation, params, { chat, baseAttachmentId = null, sceneId = null } = {}) {

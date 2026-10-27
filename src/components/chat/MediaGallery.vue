@@ -47,8 +47,7 @@
                    class="mg-cell" :class="{ sel: selected.has(m.attachment_id) }"
                    @click="toggle(m)">
                 <div class="mg-thumb">
-                  <img v-if="m.type === 'image' && m.url" :src="m.url" :alt="m.filename" loading="lazy" />
-                  <video v-else-if="m.type === 'video' && m.url" :src="m.url" muted preload="metadata"></video>
+                  <MediaThumb v-if="(m.type === 'image' || m.type === 'video') && m.url" :item="m" :src="m.url" :alt="m.filename" />
                   <div v-else class="mg-noimg">{{ m.filename }}</div>
                   <span class="mg-check" :class="{ on: selected.has(m.attachment_id) }">
                     <svg v-if="selected.has(m.attachment_id)" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
@@ -93,6 +92,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import MediaThumb from '../common/MediaThumb.vue'
 import api from '../../services/api'
 import { notify } from '../../composables/useNotify'
 

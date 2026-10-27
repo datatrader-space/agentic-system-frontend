@@ -47,7 +47,7 @@
           <li v-for="(s, i) in scenes" :key="s.scene_id" class="vp-scene" :class="{ on: s.scene_id === video.project.active_scene_id }">
             <button type="button" class="vp-scene-btn" :aria-current="s.scene_id === video.project.active_scene_id ? 'true' : 'false'"
                     @click="selectScene(s)">
-              <video v-if="s.selected_take" :src="s.selected_take.url" muted preload="metadata" class="vp-thumb" aria-hidden="true"></video>
+              <MediaThumb v-if="s.selected_take" :item="{ ...s.selected_take, media_type: 'video' }" :src="s.selected_take.url" class="vp-thumb" aria-hidden="true" />
               <span v-else class="vp-thumb vp-thumb-empty" aria-hidden="true">No take yet</span>
               <span class="vp-scene-title">{{ String(i + 1).padStart(2, '0') }} {{ s.title || 'Scene' }}</span>
               <span class="vp-scene-meta">{{ seconds(s.planned_ms) }}, {{ s.selected_take ? 'ready' : 'not rendered' }}
@@ -185,9 +185,8 @@
       <template v-else>
         <ul class="vp-assets">
           <li v-for="a in assets" :key="a.asset_id" class="vp-asset">
-            <video v-if="a.media_type === 'video'" :src="a.url" muted preload="metadata" class="vp-thumb"></video>
-            <span v-else-if="a.media_type === 'audio'" class="vp-thumb vp-audio" aria-label="Audio file">Audio</span>
-            <img v-else :src="a.url" alt="" class="vp-thumb" />
+            <span v-if="a.media_type === 'audio'" class="vp-thumb vp-audio" aria-label="Audio file">Audio</span>
+            <MediaThumb v-else :item="a" :src="a.url" class="vp-thumb" />
             <span class="vp-asset-role">{{ a.role }}</span>
             <button v-if="a.pinned" type="button" class="vp-mini wide" @click="video.unpin(a)">Unpin</button>
           </li>
@@ -197,9 +196,8 @@
         <p v-if="!chatMedia.length" class="vp-help">Upload images, video or audio in chat to add them here.</p>
         <ul class="vp-assets">
           <li v-for="m in chatMedia" :key="m.attachment_id" class="vp-asset">
-            <video v-if="m.media_type === 'video'" :src="m.url" muted preload="metadata" class="vp-thumb"></video>
-            <span v-else-if="m.media_type === 'audio'" class="vp-thumb vp-audio" aria-label="Audio file">Audio</span>
-            <img v-else :src="m.url" alt="" class="vp-thumb" />
+            <span v-if="m.media_type === 'audio'" class="vp-thumb vp-audio" aria-label="Audio file">Audio</span>
+            <MediaThumb v-else :item="m" :src="m.url" class="vp-thumb" />
             <label class="vp-sr" :for="'pin-' + m.attachment_id">Role</label>
             <select :id="'pin-' + m.attachment_id" v-model="pinRole[m.attachment_id]" class="vp-role">
               <option value="subject">Subject</option><option value="style">Style</option><option value="music">Music</option>
@@ -215,7 +213,7 @@
       <div v-if="!video.versions.length" class="vp-empty"><h3>No versions yet</h3><p>Every take you render or edit is kept here. Restore an earlier one without rendering again.</p></div>
       <ul class="vp-versions">
         <li v-for="v in video.versions" :key="v.attachment_id" class="vp-version" :class="{ on: v.is_active }">
-          <video :src="v.url" muted preload="metadata" class="vp-thumb"></video>
+          <MediaThumb :item="{ ...v, media_type: v.media_type || 'video' }" :src="v.url" class="vp-thumb" />
           <span class="vp-version-text"><strong>v{{ v.version }}</strong> {{ v.title }}
             <span class="vp-sub">{{ v.source_kind }}<span v-if="v.duration_ms">, {{ seconds(v.duration_ms) }}</span></span></span>
           <span v-if="v.is_active" class="vp-badge">Active</span>
@@ -233,6 +231,7 @@
 
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
+import MediaThumb from '../common/MediaThumb.vue'
 import api from '../../services/api'
 import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'

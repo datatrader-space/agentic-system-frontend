@@ -344,7 +344,8 @@ describe('useVideoStore image mode', () => {
       { attachment_id: 'i2', url: '/2.png', title: 'Two', type: 'image' }, { attachment_id: null, url: '/x.png' }] } })
     await video.loadSessionImages('c1')
     expect(api.getConversationMedia).toHaveBeenCalledWith('c1', { source: 'generated', type: 'image' })
-    expect(video.sessionImages).toEqual([{ attachment_id: 'i2', url: '/2.png', title: 'Two', media_type: 'image', created_at: undefined }])
+    expect(video.sessionImages).toEqual([{ attachment_id: 'i2', url: '/2.png', title: 'Two', media_type: 'image', created_at: undefined,
+                                           thumbnail_url: '/api/library/i2/thumbnail/' }])
   })
 })
 

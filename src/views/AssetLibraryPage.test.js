@@ -65,7 +65,8 @@ describe('AssetLibraryPage', () => {
     await mountPage([photo, made])
     const cards = wrapper.findAll('.card')
     expect(cards).toHaveLength(2)
-    expect(cards[0].find('img').attributes('src')).toBe('/media/context_files/2026/10/20/kitchen.jpg')
+    // The card shows the thumbnail; the whole file opens only in the preview (MEDIA_THUMBNAILS_EVERYWHERE_PLAN.md).
+    expect(cards[0].find('img').attributes('src')).toBe(`/api/library/${photo.attachment_id}/thumbnail/`)
     expect(cards[0].find('a[href="/dashboard/chat/41"]').exists()).toBe(true)
     expect(cards[0].find('a[aria-label="Download kitchen.jpg"]').attributes('href')).toBe('/media-dl/context_files/2026/10/20/kitchen.jpg')
     expect(cards[1].text()).toContain('Made by an agent')

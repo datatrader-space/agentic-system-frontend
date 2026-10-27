@@ -33,8 +33,7 @@
     <div class="vcp-box" :class="{ dragging }" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop.prevent="onDrop">
       <ul v-if="video.refs.length" class="vcp-chips" aria-label="Files used for this video">
         <li v-for="r in video.refs" :key="r.key" class="vcp-chip" :class="{ bad: problemOf(r) }" :data-test="problemOf(r) ? 'video-ref-unusable' : 'video-ref'">
-          <video v-if="r.isVideo && r.url" :src="r.url" class="vcp-thumb" muted preload="metadata" aria-hidden="true"></video>
-          <img v-else-if="r.url" :src="r.url" class="vcp-thumb" alt="" />
+          <MediaThumb v-if="r.url" :item="{ ...r, media_type: r.isVideo ? 'video' : (r.media_type || 'image') }" :src="r.url" class="vcp-thumb" />
           <span v-else class="vcp-thumb vcp-thumb-sound" aria-hidden="true"></span>
           <span class="vcp-chip-name" :title="r.name">{{ r.name }}</span>
           <VideoChoice v-if="!isAgent" class="vcp-role" :model-value="r.role" :options="rolesFor(r)" :label="'Use ' + r.name + ' as'"
@@ -153,6 +152,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import MediaThumb from '../common/MediaThumb.vue'
 import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
 import BottomSheet from './BottomSheet.vue'
