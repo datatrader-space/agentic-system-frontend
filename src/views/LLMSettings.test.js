@@ -7,6 +7,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 const api = vi.hoisted(() => ({
   getLlmProviders: vi.fn(),
+  getLlmProviderTypes: vi.fn(),
   getLlmModels: vi.fn(),
   getOperationModels: vi.fn(),
   getEmbeddingStatus: vi.fn(),
@@ -35,6 +36,16 @@ const page = (n) => ({
   results: Array.from({ length: 10 }, (_, i) => row(n * 100 + i, 5, `Model-${n}-${i}`)),
 })
 
+// GET /llm/provider-types/ as the server answers it (a short cut of the real list).
+const providerTypes = [
+  { type: 'openai', label: 'OpenAI', kind: 'chat', syncable: true, key_check: true, base_url_hint: '', makes: [] },
+  { type: 'openrouter', label: 'OpenRouter', kind: 'chat', syncable: true, key_check: true, base_url_hint: '', makes: [] },
+  { type: 'elevenlabs', label: 'ElevenLabs', kind: 'media', syncable: true, key_check: true, base_url_hint: '', makes: ['audio', 'text'] },
+  { type: 'fal', label: 'fal.ai', kind: 'media', syncable: true, key_check: true, base_url_hint: '', makes: ['image', 'video', 'audio'] },
+  { type: 'alibaba', label: 'Alibaba Cloud Model Studio', kind: 'media', syncable: false, key_check: true,
+    base_url_hint: 'https://{WorkspaceId}.{region}.maas.aliyuncs.com', makes: ['image', 'video'] },
+]
+
 let wrapper
 const mountPage = async () => {
   wrapper = mount(LLMSettings, {
@@ -50,6 +61,7 @@ const openTab = async (label) => {
 beforeEach(() => {
   vi.clearAllMocks()
   api.getLlmProviders.mockResolvedValue({ data: { count: 2, results: providers } })
+  api.getLlmProviderTypes.mockResolvedValue({ data: { types: providerTypes } })
   api.getLlmModels.mockImplementation((params = {}) => Promise.resolve({
     data: params.page ? page(params.page) : [row(11, params.provider, 'Chat-A'), row(12, params.provider, 'Chat-B')],
   }))
@@ -156,5 +168,49 @@ describe('LLMSettings — Internal tab when the saved picks fail to load', () =>
     expect(api.getOperationModels).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).not.toContain("Couldn't load your internal model choices")
     expect(wrapper.findAll('button').some((b) => b.text() === 'ASK_LLM')).toBe(true)
+  })
+})
+
+describe('LLMSettings: the add-provider form takes its types from the server', () => {
+  const typeSelect = () => wrapper.find('[data-test="provider-type"]')
+
+  it('offers every type the server lists, chat and media apart, with no list of its own', async () => {
+    await mountPage()
+    expect(api.getLlmProviderTypes).toHaveBeenCalledTimes(1)
+    const groups = typeSelect().findAll('optgroup')
+    expect(groups.map((g) => g.attributes('label'))).toEqual(['Chat models', 'Images, video and audio'])
+    expect(groups[0].findAll('option').map((o) => o.element.value)).toEqual(['openai', 'openrouter'])
+    expect(groups[1].findAll('option').map((o) => o.text())).toEqual(['ElevenLabs', 'fal.ai', 'Alibaba Cloud Model Studio'])
+    expect(typeSelect().text()).not.toContain('Ollama')     // not on the server's list here, so not offered
+  })
+
+  it('says what a media type makes, and that Base URL can stay empty', async () => {
+    await mountPage()
+    await typeSelect().setValue('elevenlabs')
+    expect(wrapper.find('[data-test="provider-type-makes"]').text()).toBe('Makes audio and transcripts in Video Studio. It is never used for chat.')
+    expect(wrapper.find('[data-test="provider-base-url"]').attributes('placeholder')).toBe("Leave empty to use the provider's own address")
+
+    await typeSelect().setValue('openai')
+    expect(wrapper.find('[data-test="provider-type-makes"]').exists()).toBe(false)
+  })
+
+  it("shows the server's address hint for a provider that gives each account its own address", async () => {
+    await mountPage()
+    await typeSelect().setValue('alibaba')
+    expect(wrapper.find('[data-test="provider-base-url"]').attributes('placeholder')).toBe('https://{WorkspaceId}.{region}.maas.aliyuncs.com')
+  })
+
+  it('shows Auto-sync only for the types the server says sync', async () => {
+    api.getLlmProviderTypes.mockResolvedValueOnce({ data: { types: providerTypes.filter((t) => t.type !== 'openrouter') } })
+    await mountPage()
+    expect(wrapper.text().match(/Auto-sync daily/g)).toHaveLength(1)    // OpenAI syncs; OpenRouter is not on this list
+  })
+
+  it('says the types could not load instead of offering an empty or invented list', async () => {
+    api.getLlmProviderTypes.mockRejectedValueOnce(Object.assign(new Error('500'), { response: { data: { detail: 'Server error' } } }))
+    await mountPage()
+    expect(typeSelect().attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('Server error')
+    expect(wrapper.text()).toContain('Key Set')              // the providers still show
   })
 })

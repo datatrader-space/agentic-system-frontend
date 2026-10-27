@@ -551,6 +551,8 @@ export default {
   // Models sync on provider creation and again daily server-side (opt out per provider with
   // metadata.auto_sync_models = false); this is the manual refresh.
   syncModels: (id) => api.post(`/llm/providers/${id}/sync_models/`),
+  // Every provider type the server supports: chat or media, whether its models sync, its address hint.
+  getLlmProviderTypes: () => api.get('/llm/provider-types/'),
   getLlmModels: (params = {}) => api.get('/llm/models/', { params }),
   // Per-user model selection for internal LLM ops (ask_llm / summarize / artifact_summarize)
   getOperationModels: () => api.get('/llm/operation-models/'),

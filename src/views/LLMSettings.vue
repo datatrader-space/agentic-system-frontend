@@ -156,24 +156,29 @@
             <input v-model="newProvider.name" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="e.g. Production Anthropic" required />
           </div>
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Provider Type</label>
-            <select v-model="newProvider.provider_type" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm">
-              <option value="openrouter">OpenRouter</option>
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="gemini">Gemini</option>
-              <option value="xai">xAI (Grok)</option>
-              <option value="custom">Custom</option>
-              <option value="ollama">Ollama (local)</option>
+            <label for="new-provider-type" class="block text-[13px] font-semibold text-slate-700 mb-1.5">Provider Type</label>
+            <!-- The menu is the server's list (GET /llm/provider-types/), never a copy kept here. -->
+            <select id="new-provider-type" v-model="newProvider.provider_type" :disabled="!providerTypes.length" data-test="provider-type"
+                    class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm">
+              <optgroup v-for="group in providerTypeGroups" :key="group.kind" :label="group.label">
+                <option v-for="t in group.types" :key="t.type" :value="t.type">{{ t.label }}</option>
+              </optgroup>
             </select>
+            <p v-if="providerTypesError" class="mt-1 text-[12px] text-red-600" role="alert">{{ providerTypesError }}</p>
+            <p v-else-if="selectedProviderType?.kind === 'media'" class="mt-1 text-[12px] text-slate-600" data-test="provider-type-makes">
+              Makes {{ makesText(selectedProviderType.makes) }} in Video Studio. It is never used for chat.
+            </p>
           </div>
           <div>
-            <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Base URL</label>
-            <input v-model="newProvider.base_url" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="http://localhost:11434" />
+            <label for="new-provider-base-url" class="block text-[13px] font-semibold text-slate-700 mb-1.5">Base URL</label>
+            <input id="new-provider-base-url" v-model="newProvider.base_url" data-test="provider-base-url"
+                   class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+                   :placeholder="selectedProviderType?.base_url_hint || 'Leave empty to use the provider\'s own address'" />
+            <p class="mt-1 text-[12px] text-slate-600">Only for a self-hosted server, a proxy, or a provider that gives each account its own address.</p>
           </div>
           <div>
             <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">API Key</label>
-            <input v-model="newProvider.api_key" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="sk-..." />
+            <input v-model="newProvider.api_key" autocomplete="off" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="Paste the provider's API key" />
           </div>
           <div class="md:col-span-2 flex justify-end mt-2">
             <button type="submit" class="px-5 py-2.5 bg-slate-900 text-white rounded-[10px] hover:bg-slate-800 transition-all font-semibold shadow-sm border border-transparent shadow-[0_2px_4px_rgba(0,0,0,0.1)] text-[13px] flex items-center gap-2">
@@ -963,8 +968,30 @@ const testResults = ref({})    // { [providerId]: { success, message } }
 const testingModel = ref({})   // { [modelId]: boolean }
 const modelResults = ref({})   // { [modelId]: { success, message } }
 
+// Every provider type the server supports, from GET /llm/provider-types/: the add form's menu, which types sync
+// their model list, and each type's address hint.
+const providerTypes = ref([])
+const providerTypesError = ref('')
+const loadProviderTypes = async () => {
+  providerTypesError.value = ''
+  try {
+    const { data } = await api.getLlmProviderTypes()
+    providerTypes.value = data?.types || []
+  } catch (e) {
+    providerTypesError.value = apiError(e, "Couldn't load the provider types. Reload the page to try again.")
+  }
+}
+const providerTypeGroups = computed(() => [
+  { kind: 'chat', label: 'Chat models', types: providerTypes.value.filter((t) => t.kind === 'chat') },
+  { kind: 'media', label: 'Images, video and audio', types: providerTypes.value.filter((t) => t.kind === 'media') },
+].filter((g) => g.types.length))
+const selectedProviderType = computed(() => providerTypes.value.find((t) => t.type === newProvider.value.provider_type))
+const makesText = (makes = []) => {
+  const words = makes.map((m) => ({ text: 'transcripts' }[m] || (m === 'image' ? 'images' : m)))
+  return words.length > 1 ? `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}` : (words[0] || '')
+}
 // Provider types whose model list the backend can discover (provider_model_sync.SYNCABLE_TYPES).
-const SYNCABLE_TYPES = ['ollama', 'openrouter', 'openai', 'anthropic', 'gemini', 'xai', 'custom']
+const SYNCABLE_TYPES = computed(() => providerTypes.value.filter((t) => t.syncable).map((t) => t.type))
 const syncing = ref({})          // { [providerId]: boolean }
 const savingAutoSync = ref({})   // { [providerId]: boolean }
 
@@ -1205,7 +1232,7 @@ watch(pageTab, openTab)
 onMounted(async () => {
   // Only the tab the page opens on. Every other tab loads its own data when it is first opened (openTab).
   try {
-    await loadProviders()
+    await Promise.all([loadProviders(), loadProviderTypes()])
   } catch (e) {
     notify(apiError(e, 'Failed to load providers'), 'error')
   } finally {
