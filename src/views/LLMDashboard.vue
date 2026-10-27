@@ -53,11 +53,12 @@
             <Icon icon="lucide:chevron-down" />
           </label>
 
-          <button class="export-btn">
+          <button class="export-btn" :disabled="exporting" @click="exportCsv">
             <Icon icon="lucide:download" />
-            Export
+            {{ exporting ? 'Exporting…' : 'Export' }}
           </button>
         </div>
+        <p v-if="exportNote" class="export-note" role="status">{{ exportNote }}</p>
 
         <LoadError
           v-if="activeTab !== 'audit' && requestsError"
@@ -209,6 +210,7 @@ import api from '../services/api'
 import PageLoader from '../components/common/PageLoader.vue'
 import LoadError from '../components/common/LoadError.vue'
 import { useRequestScope, isAbortError } from '../composables/useRequestScope'
+import { saveBlob } from '../utils/saveBlob'
 
 const loading = ref(false)
 const hasLoaded = ref(false)
@@ -222,6 +224,8 @@ const statusFilter = ref('')
 const rangeFilter = ref('7d')
 // The audit trail is read when its tab is first opened, not on every visit to the page.
 const auditLoaded = ref(false)
+const exporting = ref(false)
+const exportNote = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
 const reqCount = ref(0)
@@ -336,15 +340,21 @@ async function loadAgents() {
   }
 }
 
+// The list's filters as the server reads them: the same for a page of the list and for its CSV export.
+function filterParams() {
+  const params = {}
+  if (agentFilter.value) params.agent_id = agentFilter.value
+  if (statusFilter.value) params.status = statusFilter.value
+  const since = sinceParam()
+  if (since) params.since = since
+  return params
+}
+
 async function loadRequests() {
   const signal = requestsScope.next()
   requestsLoading.value = true
   try {
-    const params = { page: currentPage.value, page_size: pageSize.value }
-    if (agentFilter.value) params.agent_id = agentFilter.value
-    if (statusFilter.value) params.status = statusFilter.value
-    const since = sinceParam()
-    if (since) params.since = since
+    const params = { ...filterParams(), page: currentPage.value, page_size: pageSize.value }
     const response = await api.get('/llm/requests/', { params, signal })
     if (signal.aborted) return
     requests.value = response.data.results || []
@@ -371,6 +381,28 @@ async function loadAudit() {
     if (isAbortError(error) || signal.aborted) return
     console.error('Audit error:', error)
     auditError.value = true
+  }
+}
+
+// Export: the filtered list (every page of it, newest first) as a CSV file the browser saves.
+async function exportCsv() {
+  if (exporting.value) return
+  exporting.value = true
+  exportNote.value = ''
+  try {
+    const response = await api.get('/llm/requests/export/', { params: filterParams(), responseType: 'blob' })
+    const headers = response.headers || {}
+    const name = (String(headers['content-disposition'] || '').match(/filename="([^"]+)"/) || [])[1] || 'activity.csv'
+    saveBlob(response.data, name)
+    if (headers['x-export-truncated'] === 'true') {
+      const rows = Number(headers['x-export-rows'] || 0).toLocaleString()
+      exportNote.value = `The newest ${rows} runs were exported. Choose a shorter date range for older ones.`
+    }
+  } catch (error) {
+    console.error('Export error:', error)
+    exportNote.value = "Couldn't export the list. Try again."
+  } finally {
+    exporting.value = false
   }
 }
 
@@ -580,6 +612,18 @@ select {
 
 .export-btn {
   margin-left: auto;
+}
+
+.export-btn:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.export-note {
+  margin: -12px 0 16px;
+  font-size: 12px;
+  color: #64748b;
+  text-align: right;
 }
 
 .table-frame {

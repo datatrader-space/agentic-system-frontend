@@ -4,6 +4,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 
 const api = vi.hoisted(() => ({ get: vi.fn(), getAgentPicker: vi.fn() }))
 vi.mock('../services/api', () => ({ default: api, isAbortError: () => false }))
+const saveBlob = vi.hoisted(() => vi.fn())
+vi.mock('../utils/saveBlob', () => ({ saveBlob }))
 
 import LLMDashboard from './LLMDashboard.vue'
 
@@ -109,5 +111,47 @@ describe('Activity (LLMDashboard) — what it asks for', () => {
     const last = calls('/llm/requests/').at(-1)[1].params
     expect(last.since).toBeUndefined()
     expect(last.page).toBe(1)
+  })
+})
+
+describe('Activity (LLMDashboard) — Export', () => {
+  const exportCalls = () => api.get.mock.calls.filter(([u]) => u === '/llm/requests/export/')
+  const exportButton = () => wrapper.find('.export-btn')
+
+  it('downloads the filtered list as the CSV file the server names', async () => {
+    const blob = new Blob(['started_at,agent'], { type: 'text/csv' })
+    api.get.mockImplementation((url) => url === '/llm/requests/export/'
+      ? Promise.resolve({ data: blob, headers: { 'content-disposition': 'attachment; filename="activity-20261027-1200.csv"', 'x-export-truncated': 'false', 'x-export-rows': '3' } })
+      : Promise.resolve({ data: { results: [], count: 0 } }))
+    await mountPage()
+    await wrapper.findAll('select')[1].setValue('error')
+    await exportButton().trigger('click')
+    await flushPromises()
+    const [, cfg] = exportCalls()[0]
+    expect(cfg.responseType).toBe('blob')
+    expect(cfg.params.status).toBe('error')
+    expect(cfg.params.since).toBeTruthy()
+    expect(cfg.params.page).toBeUndefined()
+    expect(saveBlob).toHaveBeenCalledWith(blob, 'activity-20261027-1200.csv')
+    expect(wrapper.find('.export-note').exists()).toBe(false)
+  })
+
+  it('says when the export was cut, and when it failed', async () => {
+    api.get.mockImplementation((url) => url === '/llm/requests/export/'
+      ? Promise.resolve({ data: new Blob(['x']), headers: { 'x-export-truncated': 'true', 'x-export-rows': '100000' } })
+      : Promise.resolve({ data: { results: [], count: 0 } }))
+    await mountPage()
+    await exportButton().trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.export-note').text()).toContain('newest 100,000 runs')
+    expect(saveBlob).toHaveBeenCalledWith(expect.any(Blob), 'activity.csv')
+
+    api.get.mockImplementation((url) => url === '/llm/requests/export/'
+      ? Promise.reject(new Error('500'))
+      : Promise.resolve({ data: { results: [], count: 0 } }))
+    await exportButton().trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.export-note').text()).toContain("Couldn't export")
+    expect(exportButton().attributes('disabled')).toBeUndefined()
   })
 })
