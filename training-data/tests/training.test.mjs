@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { inParts, folderOf, dataUseAnswers, toCard, ago, TYPE_KIND } from '../src/api/training.js';
+import { inParts, folderOf, dataUseAnswers, dataUseForm, toCard, ago, TYPE_KIND } from '../src/api/training.js';
 
 test('an upload goes in parts of at most 20 files, in order', () => {
   const files = Array.from({ length: 45 }, (_, i) => i);
@@ -18,9 +18,15 @@ test('a file chosen in a folder is grouped by its folder; a file chosen alone by
 
 test('the data policy step becomes the five data-use answers', () => {
   assert.deepEqual(dataUseAnswers({ training: 'Only this project’s own models', retention: '90 days', access: 'People I invite to the project', aws: true, local: false, deletion: true }),
-    { training: 'project', viewers: 'invited', retention: 90, allow_aws: true, allow_own_machine: false, deletion_rule_confirmed: true });
+    { training: 'project', viewers: 'invited', retention: 90, allow_aws: true, allow_own_machine: false, allow_ai_provider: false,
+      deletion_rule_confirmed: true });
   const strict = dataUseAnswers({ training: 'No', retention: 'Until I delete it', access: 'Only me', deletion: false });
   assert.deepEqual([strict.training, strict.viewers, strict.retention, strict.deletion_rule_confirmed], ['no', 'me', 'forever', false]);
+  // Photos go to an outside AI provider only when the Owner ticked it (2026-10-27): left out, it is No.
+  assert.equal(strict.allow_ai_provider, false);
+  assert.equal(dataUseAnswers({ training: 'No', retention: '30 days', access: 'Only me', ai: true, deletion: true }).allow_ai_provider, true);
+  assert.equal(dataUseForm({ allow_ai_provider: true }).ai, true);
+  assert.equal(dataUseForm({}).ai, false);
 });
 
 test('every project type the New project screen offers has a kind, except face recognition', () => {

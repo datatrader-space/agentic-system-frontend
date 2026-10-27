@@ -1,7 +1,7 @@
 // The Agent page's chat (src/api/assistantChat.js): what the page shows, built from the frames AADML's chat sends.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addUserMessage, applyEvent, emptyChat, fromHistory, stepLabel } from '../src/api/assistantChat.js';
+import { addUserMessage, applyEvent, emptyChat, fromHistory, stepLabel, titleFrom } from '../src/api/assistantChat.js';
 
 const play = (state, ...frames) => frames.reduce((s, f) => applyEvent(s, f), state);
 
@@ -75,5 +75,29 @@ test('a tool is named in words whatever its spelling', () => {
   assert.equal(stepLabel('toolsearch'), 'Looking up a tool');
   assert.equal(stepLabel('ToolSearch'), 'Looking up a tool');
   assert.equal(stepLabel('ask_user'), 'Asking you');
+  assert.equal(stepLabel('ANALYZE_MEDIA'), 'Reading the photo');
   assert.equal(stepLabel('TRAINING_CHAT_STATUS'), 'Reading a chat project');
+});
+
+test('a new conversation is named after the first line of its first message, cut at a word', () => {
+  assert.equal(titleFrom('  Which project is ready?\nMore detail here'), 'Which project is ready?');
+  const long = 'Train a vision model on my photo project. Tell me which project is ready, the configuration you would use';
+  const title = titleFrom(long);
+  assert.ok(title.endsWith('…') && title.length <= 61, title);
+  assert.equal(title, 'Train a vision model on my photo project. Tell me which…');
+  assert.equal(titleFrom('x'.repeat(80)), `${'x'.repeat(60)}…`);
+});
+
+test('photos go with the message they were sent with, and come back with it from the history', () => {
+  const state = addUserMessage(emptyChat(9), 'Detect walls', [{ url: 'blob:local-1', name: 'room.jpg' }]);
+  assert.deepEqual(state.messages[0].images, [{ url: 'blob:local-1', name: 'room.jpg' }]);
+  assert.deepEqual(addUserMessage(emptyChat(9), 'No photo').messages[0].images, []);
+  const [user, answer] = fromHistory([
+    { id: 1, role: 'user', content: 'Detect walls', attachments: [
+      { isImage: true, url: '/media/chat/room.jpg', name: 'room.jpg' },
+      { isImage: false, url: '/media/chat/notes.pdf', name: 'notes.pdf' },
+      { isImage: true, url: '', name: 'lost.jpg' }] },
+    { id: 2, role: 'assistant', content: 'Three walls.' }]);
+  assert.deepEqual(user.images, [{ url: '/media/chat/room.jpg', name: 'room.jpg' }]);
+  assert.deepEqual(answer.images, []);
 });

@@ -138,7 +138,7 @@ onUnmounted(() => { clearInterval(unreadTimer); window.removeEventListener('hash
   </UiDialog>
   <JoinByLink v-if="joining" :token="joining" @close="leaveJoin" @joined="joined" />
   <ProjectCreate v-if="dialog" :submit="submitProject" @cancel="dialog = false" @done="finishCreate" />
-  <div v-else :class="['workspace', {'with-project': selected,'nav-collapsed':navCollapsed}]">
+  <div v-else :class="['workspace', {'with-project': selected,'with-agent': page==='agent' && !selected,'nav-collapsed':navCollapsed}]">
     <button v-if="drawer" class="nav-backdrop" aria-label="Close navigation" @click="drawer = false"></button>
     <aside @mouseleave="projectFlyout = false" :inert="mobile && !drawer" :class="['sidebar', { 'sidebar--open': drawer }]">
       <WorkspaceSwitcher :session="session" />
@@ -152,7 +152,7 @@ onUnmounted(() => { clearInterval(unreadTimer); window.removeEventListener('hash
     <div class="main-shell">
       <header class="topbar"><div class="breadcrumb"><button class="icon-button mobile-menu" aria-label="Open navigation" @click="drawer = true"><Menu :size="21" /></button><span>Workspace</span><span class="breadcrumb-slash">/</span><strong>{{ title }}</strong></div><div class="topbar-right"><a class="dashboard-back" href="/dashboard/"><ArrowLeft :size="16" aria-hidden="true" />Back to dashboard</a><span class="avatar" :title="session.user.name">{{ session.user.initials.slice(0,1) }}</span></div></header>
       <main id="main" tabindex="-1">
-        <div class="page-heading"><div><div class="eyebrow">TRAINING DATA</div><h1>{{ title }}</h1><p>{{ page === 'projects' ? 'Great models start with well-organized data.' : page === 'members' ? 'Invite your team and manage project access.' : selected?.name || (page === 'models' ? 'Manage, deploy, and monitor models in your workspace.' : PAGE_LINES[page] || 'Your training-data workspace.') }}</p></div><UiButton v-if="page === 'projects'" variant="primary" @click="dialog = true"><Plus :size="17" /> New project</UiButton></div>
+        <div v-if="page !== 'agent'" class="page-heading"><div><div class="eyebrow">TRAINING DATA</div><h1>{{ title }}</h1><p>{{ page === 'projects' ? 'Great models start with well-organized data.' : page === 'members' ? 'Invite your team and manage project access.' : selected?.name || (page === 'models' ? 'Manage, deploy, and monitor models in your workspace.' : PAGE_LINES[page] || 'Your training-data workspace.') }}</p></div><UiButton v-if="page === 'projects'" variant="primary" @click="dialog = true"><Plus :size="17" /> New project</UiButton></div>
         <div v-if="notice" class="notice" role="status"><Check :size="18" /><span>{{ notice }}</span><button class="icon-button" aria-label="Dismiss notification" @click="notice = ''"><X :size="17" /></button></div>
         <LlmUpload v-if="page === 'upload' && selected?.family === 'llm'" :key="selected.ref" :project="selected" @navigate="navigate" />
         <ProjectUpload v-else-if="page === 'upload'" :key="selected?.id || 'default'" :project="selected" @continue="receiveBatch" @navigate="navigate" />

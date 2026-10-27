@@ -84,7 +84,8 @@ export function dataUseForm(values) {
   const training = { no: 'No', project: 'Only this project’s own models', shared: 'Also AADML’s shared models' }[values.training] || 'Only this project’s own models';
   const access = { me: 'Only me', invited: 'People I invite to the project', vendor: 'Also an outside labeling vendor' }[values.viewers] || 'People I invite to the project';
   const retention = values.retention === 'forever' || values.retention == null ? 'Until I delete it' : `${values.retention} days`;
-  return { training, access, retention, aws: !!values.allow_aws, local: !!values.allow_own_machine, deletion: !!values.deletion_rule_confirmed };
+  return { training, access, retention, aws: !!values.allow_aws, local: !!values.allow_own_machine, ai: !!values.allow_ai_provider,
+           deletion: !!values.deletion_rule_confirmed };
 }
 
 export function dataUseAnswers(form) {
@@ -93,7 +94,7 @@ export function dataUseAnswers(form) {
   const days = /^(\d+) days$/.exec(form.retention || '');
   return {
     training, viewers, retention: days ? Number(days[1]) : 'forever',
-    allow_aws: !!form.aws, allow_own_machine: !!form.local, deletion_rule_confirmed: !!form.deletion,
+    allow_aws: !!form.aws, allow_own_machine: !!form.local, allow_ai_provider: !!form.ai, deletion_rule_confirmed: !!form.deletion,
   };
 }
 

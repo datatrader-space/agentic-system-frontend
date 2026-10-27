@@ -36,12 +36,13 @@ const STEP_LABELS = {
 };
 // Tool names reach the page in more than one spelling (ToolSearch, toolsearch, ASK_USER): compared without case or _.
 const squash = name => String(name || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
-const LABELS = Object.fromEntries(Object.entries({ ...STEP_LABELS, ASK_USER: 'Asking you' }).map(([k, v]) => [squash(k), v]));
+const LABELS = Object.fromEntries(Object.entries({ ...STEP_LABELS, ASK_USER: 'Asking you', ANALYZE_MEDIA: 'Reading the photo' }).map(([k, v]) => [squash(k), v]));
 export const stepLabel = tool => LABELS[squash(tool)] || (tool ? `Using ${String(tool).toLowerCase().replace(/_/g, ' ')}` : 'Working');
 
 // The person's own message, shown at once (before the server has it).
-export function addUserMessage(state, text) {
-  state.messages.push({ id: localId('u'), role: 'user', text, steps: [], streaming: false });
+// images: the photos sent with it, each { url, name } (a local preview while it is sent, the stored copy after).
+export function addUserMessage(state, text, images = []) {
+  state.messages.push({ id: localId('u'), role: 'user', text, images, steps: [], streaming: false });
   state.running = true;
   state.error = '';
   return state;
@@ -144,15 +145,38 @@ function endTurn(state) {
 // The stored messages of an earlier conversation, as the page shows them.
 export function fromHistory(rows) {
   return (rows || []).filter(r => r && (r.role === 'user' || r.role === 'assistant') && String(r.content || '').trim())
-    .map(r => ({ id: `h-${r.id}`, role: r.role, text: String(r.content), steps: [], streaming: false }));
+    .map(r => ({ id: `h-${r.id}`, role: r.role, text: String(r.content), steps: [], streaming: false,
+                 images: (r.attachments || []).filter(a => a && a.isImage && a.url).map(a => ({ url: a.url, name: a.name || '' })) }));
 }
 
 const listOf = body => (Array.isArray(body) ? body : body?.results || []);
+
+// A new conversation is named after the person's first message, as AADML's chat lets a person rename one: the first
+// line, cut at a word near 60 characters.
+export function titleFrom(text) {
+  const line = String(text || '').trim().split(/\r?\n/)[0].replace(/\s+/g, ' ');
+  if (line.length <= 60) return line;
+  const cut = line.slice(0, 60);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > 30 ? cut.slice(0, space) : cut).replace(/[\s,.;:!?-]+$/, '')}…`;
+}
 
 export const assistantChat = {
   start: agentId => apiFetch(`/agents/${encodeURIComponent(agentId)}/chat/`, { method: 'POST', body: {} }),
   conversations: agentId => apiFetch(`/conversations/?agent_profile_id=${encodeURIComponent(agentId)}`).then(listOf),
   messages: id => apiFetch(`/conversations/${encodeURIComponent(id)}/messages/`).then(listOf),
+  rename: (id, title) => apiFetch(`/conversations/${encodeURIComponent(id)}/`, { method: 'PATCH', body: { title } }),
+  // A photo for the next message, stored in the person's own conversation as AADML's chat stores one; the message
+  // then names it by its attachment id, so the server binds exactly these photos to it.
+  upload(id, file) {
+    const form = new FormData();
+    form.append('file', file);
+    return apiFetch(`/conversations/${encodeURIComponent(id)}/files/`, { method: 'POST', body: form, timeoutMs: 120000 })
+      .then(body => {
+        if (!body?.attachment_id) throw new Error(`${file.name} could not be attached. Try again.`);
+        return body.attachment_id;
+      });
+  },
   // The socket: AADML's ChatConnection, signed in by the session cookie; the server acts with the person's own role.
   connect(conversationId, handlers) {
     const connection = new ChatConnection(conversationId, handlers);
