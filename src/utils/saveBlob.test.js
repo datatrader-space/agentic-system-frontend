@@ -34,7 +34,7 @@ describe('saveBlob', () => {
 
   it('no download button revokes synchronously any more', () => {
     for (const f of ['../components/FileViewer.vue', '../views/BudgetsPage.vue', '../views/KnowledgeRag.vue',
-      '../views/WorkflowsList.vue', '../views/TrainingDataPage.vue', '../views/admin/AdminPartnerKeys.vue']) {
+      '../views/WorkflowsList.vue', '../views/TrainingDataPage.vue', '../views/admin/AdminPartnerGuide.vue']) {
       const src = readFileSync(new URL(f, import.meta.url), 'utf-8')
       expect(src, f).toContain('saveBlob(')
       expect(src, f).not.toMatch(/a\.click\(\)[\s\S]{0,80}URL\.revokeObjectURL\(url\)/)
