@@ -21,7 +21,9 @@ export default defineConfig({
     // Only used when this server is opened directly; through :5173 the AADML proxy answers /api.
     // changeOrigin false: Django checks CSRF against the Host the browser sent.
     // /media and /media-dl: the Library's files, served by Django with the same session cookie (nginx in production).
-    proxy: { '/api': { target: backend, changeOrigin: false }, '/media': { target: backend, changeOrigin: false }, '/media-dl': { target: backend, changeOrigin: false } },
+    // /ws: the Agent page's chat (AADML's chat socket), so the page also works when this server is opened directly.
+    proxy: { '/api': { target: backend, changeOrigin: false }, '/media': { target: backend, changeOrigin: false }, '/media-dl': { target: backend, changeOrigin: false },
+             '/ws': { target: backend.replace(/^http/, 'ws'), ws: true, changeOrigin: false } },
   },
   // Built into the AADML output, after the AADML build (`npm run build`), at the path nginx serves.
   build: { outDir: fileURLToPath(new URL('../dist/dashboard/training-data', import.meta.url)), emptyOutDir: true },
