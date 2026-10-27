@@ -16,7 +16,7 @@ export const trainApi = {
   act: (ref, number, action) => apiFetch(`${base(ref)}/runs/${enc(number)}/${action}/`, { method: 'POST', body: {} }),
 };
 
-// The Train form's choices as the backend names them: "RF-DETR" -> "rf-detr", "SegFormer-B0" -> "segformer-b0".
+// The Train form's choices as the backend names them: "RF-DETR" -> "rf-detr", "Aadml-Vision-seg-A0" -> "segformer-b0".
 export function modelValue(models, label) {
   return (models || []).find(m => m.label === label)?.value || '';
 }
