@@ -1,17 +1,22 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { reactive } from 'vue'
 import Music from './CreativeMusic.vue'
 import api from '../../services/api'
 vi.mock('../../services/api', () => ({ default:{ getMediaRoutes:vi.fn(), prepareMediaJob:vi.fn() } }))
+const chat = vi.hoisted(() => ({ value: null }))
+const video = vi.hoisted(() => ({ value: null }))
+vi.mock('../../stores/useChatStore', () => ({ useChatStore: () => chat.value }))
+vi.mock('../../stores/useVideoStore', () => ({ useVideoStore: () => video.value }))
 describe('Music proposals', () => {
-  beforeEach(() => { vi.clearAllMocks(); api.getMediaRoutes.mockResolvedValue({data:{routes:[{route_id:'proven',name:'Music',ready:true},{route_id:'unproven',name:'Unproven',ready:false}]}}) })
+  beforeEach(() => { vi.clearAllMocks(); chat.value = reactive({ conversationId: 'c1', studioContext: { page: 'music' }, ensureConversation: vi.fn(async () => 'c1') }); video.value = reactive({ project: null }); api.getMediaRoutes.mockResolvedValue({data:{routes:[{route_id:'proven',name:'Music',ready:true},{route_id:'unproven',name:'Unproven',ready:false}]}}) })
   async function form() { const w=mount(Music); await flushPromises(); await w.get('select').setValue('proven'); await w.get('textarea').setValue('Gentle piano'); return w }
   it('prepares exactly one proposal and leaves Generate to its approval card',async () => {
     const job={job_id:'job',state:'awaiting_authorization'}; api.prepareMediaJob.mockResolvedValue({data:job}); const w=await form()
     expect(w.find('option[value="unproven"]').attributes('disabled')).toBeDefined()
     await w.get('form').trigger('submit'); await flushPromises()
-    expect(api.prepareMediaJob).toHaveBeenCalledExactlyOnceWith({operation:'music',route_id:'proven',request:{prompt:'Gentle piano',duration:30,instrumental:true}})
+    expect(api.prepareMediaJob).toHaveBeenCalledExactlyOnceWith({operation:'music',route_id:'proven',request:{prompt:'Gentle piano',duration:30,instrumental:true},conversation_id:'c1',studio_context:{page:'music'}})
     expect(w.emitted('job')).toEqual([[job]]); w.unmount()
   })
   it('shows a provider refusal beside its prompt',async () => {
@@ -28,7 +33,7 @@ describe('Music proposals', () => {
     expect(w.find('[data-test="music-duration"]').exists()).toBe(false)
     expect(w.get('[data-test="music-fixed-length"]').text()).toContain('30 seconds')
     await w.get('form').trigger('submit'); await flushPromises()
-    expect(api.prepareMediaJob.mock.calls[0][0]).toEqual({operation:'music',route_id:'clip',request:{prompt:'A bright ukulele loop',instrumental:true}})
+    expect(api.prepareMediaJob.mock.calls[0][0]).toEqual({operation:'music',route_id:'clip',request:{prompt:'A bright ukulele loop',instrumental:true},conversation_id:'c1',studio_context:{page:'music'}})
     await w.get('select').setValue('pro')
     await w.get('[data-test="music-duration"]').setValue('')
     await w.get('form').trigger('submit'); await flushPromises()

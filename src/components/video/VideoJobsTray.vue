@@ -34,11 +34,13 @@ const seen = {}
 watch(() => visible.value.map((j) => `${j.job_id}:${j.state}`).join('|'), () => {
   for (const j of video.jobsFor(props.conversationId)) {
     if (seen[j.job_id] && seen[j.job_id] !== j.state) {
-      announcement.value = j.state === 'ready' ? 'Your video is ready.' : `Video: ${j.phase || j.state}.`
+      // Said by what the job makes: a song or a speech take is never announced as a video.
+      const kind = { image: 'image', audio: 'audio', text: 'transcript', training: 'identity training' }[j.modality] || 'video'
+      announcement.value = j.state === 'ready' ? `Your ${kind} is ready.` : `${kind[0].toUpperCase()}${kind.slice(1)}: ${j.phase || j.state}.`
     }
     seen[j.job_id] = j.state
   }
-})
+}, { immediate: true })      // the states shown at first are recorded, so the first change after them is announced too
 </script>
 
 <style scoped>

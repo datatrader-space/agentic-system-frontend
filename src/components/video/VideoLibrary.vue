@@ -54,7 +54,7 @@
                 <!-- A small picture from the server (not the whole file); the file itself when there is none. -->
                 <img v-if="it.thumbnail_url && !thumbFailed.has(it.attachment_id)" :src="it.thumbnail_url" alt="" class="lib-thumb"
                      loading="lazy" data-test="lib-thumbnail" @error="noThumbnail(it)" />
-                <span v-else-if="isPicker" class="lib-thumb lib-audio" aria-hidden="true">{{ it.media_type === 'video' ? 'Video' : 'Image' }}</span>
+                <span v-else-if="isPicker" class="lib-thumb lib-audio" aria-hidden="true">{{ fileKind(it.media_type) }}</span>
                 <video v-else-if="it.media_type === 'video'" :src="it.url" muted preload="metadata" class="lib-thumb" aria-hidden="true"></video>
                 <span v-else-if="it.media_type === 'audio'" class="lib-thumb lib-audio" aria-hidden="true">Audio</span>
                 <img v-else :src="it.url" alt="" class="lib-thumb" loading="lazy" />
@@ -122,7 +122,7 @@
               <div class="lib-ing-thumbs" aria-hidden="true">
                 <template v-for="f in ing.files.slice(0, 3)" :key="f.attachment_id">
                   <img v-if="f.thumbnail_url" :src="f.thumbnail_url" alt="" class="lib-mini" loading="lazy" />
-                  <span v-else-if="isPicker" class="lib-mini">{{ f.media_type === 'video' ? 'Video' : 'Image' }}</span>
+                  <span v-else-if="isPicker" class="lib-mini">{{ fileKind(f.media_type) }}</span>
                   <video v-else-if="f.media_type === 'video'" :src="f.url" muted preload="metadata" class="lib-mini"></video>
                   <img v-else :src="f.url" alt="" class="lib-mini" loading="lazy" />
                 </template>
@@ -217,6 +217,8 @@ function size(n) {
 // The preview: every loaded image, video and sound, in the order shown; a document opens in its own tab instead.
 // Thumbnails that could not be loaded: those cards show the file itself.
 const thumbFailed = ref(new Set())
+// What a file is, for the picker's placeholder when it has no small picture (an audio file is never "Image").
+function fileKind(type) { return { video: 'Video', image: 'Image', audio: 'Audio', document: 'Document' }[type] || 'File' }
 function noThumbnail(it) { thumbFailed.value = new Set([...thumbFailed.value, it.attachment_id]) }
 const viewIndex = ref(-1)
 const viewable = computed(() => lib.value.items.filter((i) => i.media_type !== 'document'))

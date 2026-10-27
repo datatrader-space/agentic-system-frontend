@@ -31,6 +31,14 @@ describe('VideoJobsTray', () => {
     expect(w.find('[data-test="video-jobs-tray"]').exists()).toBe(false)     // the result is in the chat
   })
 
+  it('announces a music job as audio, never as a video', async () => {
+    video._put(job('m', 'awaiting_authorization', '2026-10-27T12:00:00Z', { operation: 'music', modality: 'audio' }))
+    const w = mount(VideoJobsTray, { props: { conversationId: 'c1' } })
+    video._put(job('m', 'running', '2026-10-27T12:00:00Z', { operation: 'music', modality: 'audio', phase: 'rendering' }))
+    await w.vm.$nextTick()
+    expect(w.find('[role="status"]').text()).toBe('Audio: rendering.')
+  })
+
   it('a failure after the newest job still shows', async () => {
     video._put(job('a', 'ready', '2026-10-20T12:00:00Z'))
     video._put(job('b', 'failed', '2026-10-20T12:30:00Z'))

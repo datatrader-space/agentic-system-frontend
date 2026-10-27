@@ -45,6 +45,16 @@ describe('VideoLibrary', () => {
     w.unmount()
   })
 
+  it('the picker names an audio file "Audio", never "Image"', async () => {
+    api.get.mockImplementation((url) => Promise.resolve({ data: url === '/video/library/'
+      ? { items: [{ attachment_id: 'aud-1', source: 'generated', media_type: 'audio', title: 'a door creaking', url: '/d.mp3',
+                    created_at: '2026-10-27T10:00:00Z', ingredients: [] }], page: 1, has_more: false } : { ingredients: [] } }))
+    const w = mount(VideoLibrary, { attachTo: document.body })
+    await flush()
+    expect(document.querySelector('[data-test="lib-item"] .lib-thumb').textContent).toBe('Audio')
+    w.unmount()
+  })
+
   it('lists files from every chat and uses one with a role', async () => {
     const w = mount(VideoLibrary, { attachTo: document.body })
     await flush()

@@ -18,21 +18,25 @@ import { computed, onMounted, ref } from 'vue'
 import api from '../../services/api'
 import CreativeError from './CreativeError.vue'
 import { useCreativeForm } from '../../composables/useCreativeForm'
+import { useMediaJob } from '../../composables/useMediaJob'
 const emit = defineEmits(['job']), routes = ref([]), routeId = ref(''), prompt = ref(''), duration = ref(30), instrumental = ref(true)
-const { busy, error, run } = useCreativeForm()
+// The job goes through the page's Studio session like every creative page: it belongs to this chat, so My results
+// still shows it after a reload (it was sent with no chat and vanished on refresh, 2026-10-27).
+const { busy, error: jobError, submit } = useMediaJob(job => emit('job', job))
+const loading = useCreativeForm()
+const error = computed(() => jobError.value || loading.error.value)
 // How the chosen model takes a length (the backend's `length`): {min, max} seconds, {fixed_seconds}, or
 // {by_description, min, max} (written into the description). A model with no rule takes 3 to 600 seconds.
 const length = computed(() => routes.value.find(route => route.route_id === routeId.value)?.length || { min: 3, max: 600 })
-onMounted(() => run(async alive => { const { data } = await api.getMediaRoutes('music'); if (alive()) routes.value = data.routes || [] }))
-function prepare() { run(async alive => {
+onMounted(() => loading.run(async alive => { const { data } = await api.getMediaRoutes('music'); if (alive()) routes.value = data.routes || [] }))
+function prepare() { submit(session => {
   if (!routes.value.some(route => route.route_id === routeId.value && route.ready)) throw Error('Choose a proven model.')
   const rule = length.value, seconds = duration.value === '' || duration.value == null ? null : Number(duration.value)
   if (!prompt.value.trim()) throw Error('Enter a music brief.')
   if (!rule.fixed_seconds && !rule.by_description && (seconds == null || seconds < rule.min || seconds > rule.max)) throw Error(`Enter a duration from ${rule.min} to ${rule.max} seconds.`)
   if (rule.by_description && seconds != null && (seconds < rule.min || seconds > rule.max)) throw Error(`Ask for ${rule.min} to ${rule.max} seconds, or leave it empty.`)
   const request = { prompt: prompt.value.trim(), instrumental: instrumental.value, ...(rule.fixed_seconds || seconds == null ? {} : { duration: seconds }) }
-  const { data } = await api.prepareMediaJob({ operation: 'music', route_id: routeId.value, request })
-  if (alive()) emit('job', data)
+  return api.prepareMediaJob({ operation: 'music', route_id: routeId.value, request, ...session })
 }) }
 </script>
 <style scoped>.cm-note{font-size:12px;line-height:1.55}</style>

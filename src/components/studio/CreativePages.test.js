@@ -49,6 +49,15 @@ describe('Voice & audio', () => {
     expect(api.prepareMediaJob).toHaveBeenCalledExactlyOnceWith({ operation: 'speech', route_id: '7', request: { prompt: script, voice_id: 'v1' }, references: [], conversation_id: 'c1' })
     expect(w.emitted('job')).toEqual([[job]]); neverStarted(); w.unmount()
   })
+  it('sends the page with the job, so the chat is named after the page (Manual sends no chat message)', async () => {
+    chat.value.studioContext = { page: 'audio' }
+    const w = mountIt(CreativeAudio); await flushPromises()
+    await w.get('[data-test="audio-script"]').setValue('Hello')
+    await w.get('input[type="radio"][value="v1"]').setValue(true)
+    await w.get('form').trigger('submit'); await flushPromises()
+    expect(api.prepareMediaJob.mock.calls[0][0].studio_context).toEqual({ page: 'audio' })
+    w.unmount()
+  })
   it('asks for consent on a voice change, records it, and sends the same request again', async () => {
     api.prepareMediaJob.mockRejectedValueOnce(consentRefusal(['a1'])).mockResolvedValueOnce({ data: job })
     const w = mountIt(CreativeAudio); await flushPromises()

@@ -18,7 +18,8 @@ export function useMediaJob(onJob) {
       const cid = await chat.ensureConversation()
       if (!cid) throw new Error('Could not start this Studio session. Try again.')
       try {
-        const { data } = await post(session(cid))
+        // The page goes with the job (a Manual page sends no chat message), so the chat is named after the page.
+        const { data } = await post({ ...session(cid), ...(chat.studioContext ? { studio_context: chat.studioContext } : {}) })
         if (alive()) onJob(data)
         return data
       } catch (e) {

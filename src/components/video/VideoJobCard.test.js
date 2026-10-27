@@ -37,6 +37,18 @@ describe('VideoJobCard', () => {
     expect(api.post).toHaveBeenCalledWith('/video/jobs/j1/start/', { accept: true })
   })
 
+  it('a media job is titled by what it makes and shows the model by the name the picker used', () => {
+    const speech = { ...base, operation: 'speech', modality: 'audio', model: 'eleven_flash_v2', model_name: 'Eleven Flash v2',
+                     state: 'ready', effective_config: { prompt: 'Welcome' }, references: [], actual_cost_usd: '0.002320' }
+    const w = mount(VideoJobCard, { props: { job: speech } })
+    expect(w.find('.vjc-op').text()).toBe('Speech')
+    expect(w.find('.vjc-model').text()).toBe('Eleven Flash v2')
+    // An operation the card does not name yet takes the kind of thing it makes, never "Video" for a sound.
+    const later = mount(VideoJobCard, { props: { job: { ...speech, operation: 'something_new', model_name: undefined } } })
+    expect(later.find('.vjc-op').text()).toBe('Audio')
+    expect(later.find('.vjc-model').text()).toBe('eleven_flash_v2')
+  })
+
   it('an unknown price says so and names the hold', () => {
     const job = { ...base, state: 'awaiting_authorization',
                   quote: { estimate_usd: '0', max_usd: '2.000000', pricing_status: 'unknown', adjustments: [] } }

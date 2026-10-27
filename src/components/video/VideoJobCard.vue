@@ -4,7 +4,7 @@
   <article class="vjc" :class="'is-' + job.state" :data-test="'video-job-' + job.state">
     <header class="vjc-head">
       <span class="vjc-op">{{ opLabel }}</span>
-      <span class="vjc-model" v-if="job.model">{{ job.model }}</span>
+      <span class="vjc-model" v-if="job.model_name || job.model">{{ job.model_name || job.model }}</span>
       <span class="vjc-state" :class="stateClass">{{ stateLabel }}</span>
     </header>
 
@@ -92,11 +92,17 @@ const pending = ref(false)
 
 const OPS = { generate: 'New clip', change: 'Video change', extend: 'Continue clip', trim: 'Trim', split: 'Split',
               join: 'Join', retime: 'Speed', crop: 'Reframe', overlay: 'Overlay', caption: 'Captions',
-              audio: 'Sound', frame: 'Save frame', export: 'Export' }
+              audio: 'Sound', frame: 'Save frame', export: 'Export',
+              // Media jobs (media_ops.OPERATIONS) share this card.
+              speech: 'Speech', sound: 'Sound effect', sfx: 'Sound effect', music: 'Music', voice_change: 'Voice change',
+              transcribe: 'Transcript', image: 'Image', edit_image: 'Image edit', upscale: 'Upscale', lipsync: 'Lip-sync',
+              motion: 'Motion transfer', avatar: 'Talking avatar', train: 'Identity training' }
+// An operation this list does not name yet is titled by what the job makes, never as a video by default.
+const KINDS = { video: 'Video', image: 'Image', audio: 'Audio', text: 'Transcript', training: 'Identity training' }
 const STATES = { awaiting_authorization: 'Estimate', queued: 'Queued', submitting: 'Sending', running: 'Rendering',
                  ingesting: 'Saving', ready: 'Ready', failed: 'Failed', cancelled: 'Cancelled',
                  submission_uncertain: 'Checking', provider_status_unknown: 'Checking' }
-const opLabel = computed(() => OPS[props.job.operation] || 'Video')
+const opLabel = computed(() => OPS[props.job.operation] || KINDS[props.job.modality] || 'Video')
 const stateLabel = computed(() => STATES[props.job.state] || props.job.state)
 const terminal = computed(() => ['ready', 'failed', 'cancelled'].includes(props.job.state))
 const paid = computed(() => ['generate', 'change', 'extend'].includes(props.job.operation))
