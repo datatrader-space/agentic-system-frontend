@@ -245,12 +245,19 @@ describe('Video Studio', () => {
 
   it('does not redirect back after leaving while the studio is loading', async () => {
     let finish
-    state.chat.loadAgents.mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+    const card = await state.studio()
+    state.studio.mockImplementationOnce(() => new Promise((resolve) => { finish = () => resolve(card) }))
     wrapper = mount(VideoStudio, { global: { stubs } })
     wrapper.unmount(); wrapper = null
     finish()
     await flushPromises()
     expect(state.replace).not.toHaveBeenCalled()
+  })
+
+  it('opens with the Studio agent only, never walking the whole agent library', async () => {
+    await render()
+    expect(state.studio).toHaveBeenCalled()
+    expect(state.chat.loadAgents).not.toHaveBeenCalled()
   })
 
   it('starts on the create screen, and shows the workspace with the agent once a video session exists', async () => {

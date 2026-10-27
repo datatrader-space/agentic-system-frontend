@@ -80,6 +80,12 @@ describe('Image and Video pages: per-run approval boundary', () => {
     expect(video.requestImage).toHaveBeenCalledTimes(calls); expect(api.post).not.toHaveBeenCalled()
   })
 
+  it('opens with the Studio agent only, never walking the whole agent library', async () => {
+    await render('image')
+    expect(api.getVideoStudioAgent).toHaveBeenCalled()
+    expect(state.chat.loadAgents).not.toHaveBeenCalled()
+  })
+
   it('reopens a bookmarked session without creating another conversation', async () => {
     state.route.query = { conversation: 'saved-owned-chat' }
     await render('video')

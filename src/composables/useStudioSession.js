@@ -21,7 +21,9 @@ export function useStudioSession(kind, { needsModel = true, page = kind } = {}) 
       return
     }
     try {
-      const [, response] = await Promise.all([chat.loadAgents(), api.getVideoStudioAgent()])
+      // The Studio's own agent only; a session's agent is fetched by id below. Not the whole agent library
+      // (3 requests of 100 agents, about a second each on production), which nothing here reads.
+      const response = await api.getVideoStudioAgent()
       if (disposed || seq !== sequence) return
       const card = response.data
       if (!card?.id) throw new Error('Video Studio is not available right now.')

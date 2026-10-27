@@ -209,7 +209,9 @@ async function initialize() {
     chat.imageMode = false
     canvas.mode = false
     video.reset()
-    const [, card] = await Promise.all([chat.loadAgents(), loadStudioAgent()])
+    // Only the Studio's own agent (and, below, a session's agent by id). The whole agent library was walked here
+    // too: 3 requests of 100 agents, about a second each on production, and nothing in the Studio reads it.
+    const card = await loadStudioAgent()
     if (disposed) return
     if (cid) {
       // An existing video session reopens with the agent it was made with.
