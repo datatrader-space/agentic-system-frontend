@@ -485,7 +485,7 @@ router.beforeEach(async (to, from, next) => {
 
   // Start downloading the page's code NOW, alongside the auth check below. The router asks for a lazy route
   // component only after every beforeEach guard has finished, so on a first load the page's code waited for
-  // /auth/me: two round trips in a row, each long for a person far from the server. The router then reuses
+  // /auth/check: two round trips in a row, each long for a person far from the server. The router then reuses
   // the module the browser already has.
   prefetchRoute(router, to)
 
