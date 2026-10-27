@@ -25,6 +25,14 @@ describe('ResultsFeed', () => {
     expect(wrapper.get('[data-test="estimate"]').text()).toBe('awaiting_authorization')
     expect(state.video.start).not.toHaveBeenCalled(); expect(state.chat.respondHitl).not.toHaveBeenCalled()
   })
+  it("shows one Stop: the feed's own while the agent works, the card's otherwise", async () => {
+    state.chat.hitlRequests = [{ request_id: 'one-stop', summary: 'Approve a synthetic image?', response_type: 'binary', interaction_type: 'approval', urgency: 'medium', payload: { kind: 'tool_approval' } }]
+    state.chat.isBusy = true
+    wrapper = mount(ResultsFeed, { props: { kind: 'image', conversationId: 'c1' }, global: { stubs: { ...stubs, HITLModal: false } } }); await flushPromises()
+    const stops = wrapper.findAll('button').filter(button => /^Stop/.test(button.text())).map(button => button.text())
+    expect(stops).toEqual(['Stop'])
+    state.chat.isBusy = false
+  })
   it('removes a stopped approval card when its request is cleared', async () => {
     state.chat.hitlRequests = [{ request_id: 'stop-1', summary: 'Approve a synthetic image?', response_type: 'binary', interaction_type: 'approval', urgency: 'medium', payload: { kind: 'tool_approval' } }]
     state.chat.stop.mockImplementation(() => { state.chat.hitlRequests = [] })

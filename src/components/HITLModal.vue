@@ -8,12 +8,14 @@
             <div class="header-left">
               <span class="icon">{{ getIcon(currentRequest.interaction_type) }}</span>
               <div>
-                <h3>{{ getTitle(currentRequest.interaction_type) }}</h3>
-                <span class="subtitle">Agent Request</span>
+                <!-- In the Studio (inline) a paid step is a step to approve, in the Studio's words, not an "Agent Request". -->
+                <h3>{{ inline && isToolApproval ? 'Approve this step' : getTitle(currentRequest.interaction_type) }}</h3>
+                <span v-if="!inline" class="subtitle">Agent Request</span>
               </div>
             </div>
             <div class="header-right">
-              <span class="urgency-badge" :class="`urgency-${currentRequest.urgency}`">
+              <span v-if="inline" class="urgency-badge studio-wait" data-test="hitl-waiting">Waiting for you</span>
+              <span v-else class="urgency-badge" :class="`urgency-${currentRequest.urgency}`">
                 {{ currentRequest.urgency }}
               </span>
               <button v-if="currentRequest.response_type === 'none' || currentRequest.interaction_type === 'credential_setup' || isExpired" @click="dismiss" class="close-btn" aria-label="Close">&times;</button>
@@ -22,7 +24,9 @@
 
           <!-- Body -->
           <div class="modal-body">
-            <p class="summary">{{ approvalTitle }}</p>
+            <!-- The Studio card says why in a sentence ("it makes 1 image with ..."); the tool's own name is only the
+                 fallback when there is no reason to show. -->
+            <p v-if="!(inline && heldBecause)" class="summary">{{ approvalTitle }}</p>
             <!-- WHY IT IS ASKING, when that is more than "this call changes something": the agent's own
                  rule, or a browser signed in to an account. Without it a card for a harmless tool reads
                  as a fault (seen live 2026-10-09, conversation 2667: "Approve ECHO?" and nothing else). -->
@@ -83,7 +87,7 @@
                 </button>
                 <button @click="respond(false)" class="btn btn-reject">
                   <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-                  Reject
+                  {{ inline ? 'Decline' : 'Reject' }}
                 </button>
               </div>
               <!-- Approve this tool for the rest of the session (don't ask again) -->
@@ -96,7 +100,7 @@
               <!-- Redirect: run something different instead of the proposed call -->
               <div v-if="currentRequest.payload?.kind === 'tool_approval'" class="instruction-row">
                 <input v-model="instruction" type="text" class="instruction-input"
-                       placeholder="Or tell the agent what to do instead — e.g. only run 'docker ps'"
+                       :placeholder="inline ? 'Or tell the agent what to do instead' : `Or tell the agent what to do instead — e.g. only run 'docker ps'`"
                        @keydown.enter="sendInstruction" />
                 <button class="btn btn-instruct" :disabled="!instruction.trim()" @click="sendInstruction">
                   Run this instead
@@ -315,7 +319,10 @@
           <!-- Footer -->
           <div class="modal-footer">
             <div class="footer-left">
-              <span v-if="currentRequest.timeout_at" class="timeout-indicator" :class="{'timeout-warning': isNearTimeout}">
+              <span v-if="currentRequest.timeout_at && inline" class="timeout-indicator" :class="{'timeout-warning': isNearTimeout}" data-test="hitl-time-left">
+                {{ isExpired ? 'This request has expired' : `Answer within ${timeRemaining}` }}
+              </span>
+              <span v-else-if="currentRequest.timeout_at" class="timeout-indicator" :class="{'timeout-warning': isNearTimeout}">
                 ⏱ {{ timeRemaining }}
               </span>
               <span v-if="pendingRequests.length > 1" class="queue-indicator">
