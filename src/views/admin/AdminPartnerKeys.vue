@@ -7,7 +7,7 @@
            inside that partner's own account and workspace. The key <strong>is</strong> the partner's
            identity — every agent it creates is owned by them.</p>
       </div>
-      <button class="pk-btn" @click="openDocs">📖 Integration guide</button>
+      <router-link class="pk-btn" :to="{ name: 'admin-partner-guide' }">Integration guide</router-link>
     </header>
 
     <!-- Issue a key -->
@@ -120,7 +120,7 @@
     <section class="pk-card">
       <div class="pk-card-h">
         <h2>Quick start (for the partner)</h2>
-        <button class="pk-btn" @click="download">⬇ Download guide (.md)</button>
+        <router-link class="pk-btn" :to="{ name: 'admin-partner-guide' }">Open the full guide</router-link>
       </div>
       <div class="pk-quick">
         <div><span class="pk-q-k">Base URL</span><code>{{ baseUrl }}</code></div>
@@ -146,7 +146,7 @@
       </div>
       <p class="pk-mini">Send <code>return_url</code> to bring the browser back to the partner's page afterwards
         (with <code>connect_id</code> and <code>connected=1</code> or <code>0</code>). It must match one of the key's
-        <strong>Return addresses</strong>. The integration guide has the full example.</p>
+        <strong>Return addresses</strong>. <router-link :to="{ name: 'admin-partner-guide', hash: '#signing-in-from-your-own-page-without-the-chat' }">See the full example</router-link>.</p>
     </section>
 
     <!-- Return addresses for one key -->
@@ -171,30 +171,14 @@
       </section>
     </div>
 
-    <!-- Docs drawer -->
-    <div v-if="docsOpen" class="pk-drawer-mask" @click.self="docsOpen = false">
-      <aside class="pk-drawer">
-        <header class="pk-drawer-h">
-          <h3>Partner Agent API — Integration Guide</h3>
-          <div class="pk-drawer-actions">
-            <button class="pk-btn" @click="download">⬇ Download</button>
-            <button class="pk-btn ghost" @click="docsOpen = false">✕ Close</button>
-          </div>
-        </header>
-        <div v-if="docsLoading" class="pk-empty">Loading documentation…</div>
-        <div v-else class="pk-md" v-html="docsHtml"></div>
-      </aside>
-    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
-import { marked } from 'marked'
 import api from '../../services/api'
 import { notify } from '../../composables/useNotify'
 import { confirm } from '../../composables/useConfirm'
-import { saveBlob } from '../../utils/saveBlob'
 
 const keys = ref([])
 const baseUrl = ref('/api/partner/agents/')
@@ -210,11 +194,6 @@ const selectedUser = ref(null)
 const showResults = ref(false)
 let searchTimer = null
 
-// Docs
-const docsOpen = ref(false)
-const docsLoading = ref(false)
-const docsHtml = ref('')
-let docsMd = ''
 
 function fmt(ts) {
   if (!ts) return '—'
@@ -398,34 +377,6 @@ async function saveOrigins() {
   }
 }
 
-async function ensureDocs() {
-  if (docsMd) return
-  docsLoading.value = true
-  try {
-    const { data } = await api.getPartnerDocs()
-    docsMd = data.content_md || ''
-    docsHtml.value = marked.parse(docsMd)
-  } catch (e) {
-    docsHtml.value = '<p>Failed to load documentation.</p>'
-    notify.error('Failed to load docs: ' + (e.response?.data?.detail || e.message))
-  } finally {
-    docsLoading.value = false
-  }
-}
-
-async function openDocs() {
-  docsOpen.value = true
-  await ensureDocs()
-}
-
-async function download() {
-  await ensureDocs()
-  if (!docsMd) return
-  const blob = new Blob([docsMd], { type: 'text/markdown;charset=utf-8' })
-  saveBlob(blob, 'PARTNER_AGENT_API.md')
-  notify.success('Guide downloaded — share it with the partner')
-}
-
 // The per-agent connect routes (ADM-1082), as full addresses on this site so a copy can be sent as it is.
 const connectRows = computed(() => {
   const base = `${window.location.origin}${baseUrl.value}<agent_id>/connections/`
@@ -470,7 +421,8 @@ onMounted(load)
 .pk-selected { margin-top: 12px; font-size: 13px; color: #334155; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 .pk-btn { border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 9px; padding: 8px 14px;
-  font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; white-space: nowrap; }
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; white-space: nowrap;
+  display: inline-block; text-decoration: none; }
 .pk-btn:hover { border-color: #94a3b8; }
 .pk-btn.primary { background: #4f46e5; border-color: #4f46e5; color: #fff; }
 .pk-btn.primary:hover { background: #4338ca; }
@@ -538,18 +490,4 @@ onMounted(load)
 .pk-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
 .pk-drawer-mask { position: fixed; inset: 0; background: rgba(15,23,42,.4); z-index: 50; display: flex; justify-content: flex-end; }
-.pk-drawer { width: min(760px, 92vw); height: 100%; background: #fff; box-shadow: -8px 0 32px rgba(0,0,0,.18); display: flex; flex-direction: column; }
-.pk-drawer-h { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px; border-bottom: 1px solid #e2e8f0; }
-.pk-drawer-h h3 { font-size: 15px; font-weight: 700; color: #0f172a; }
-.pk-drawer-actions { display: flex; gap: 8px; }
-.pk-md { padding: 22px 26px; overflow-y: auto; font-size: 14px; color: #334155; line-height: 1.6; }
-.pk-md :deep(h1) { font-size: 22px; font-weight: 800; margin: 8px 0 12px; color: #0f172a; }
-.pk-md :deep(h2) { font-size: 17px; font-weight: 700; margin: 24px 0 10px; color: #0f172a; }
-.pk-md :deep(h3) { font-size: 14px; font-weight: 700; margin: 18px 0 8px; color: #1e293b; }
-.pk-md :deep(table) { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
-.pk-md :deep(th), .pk-md :deep(td) { border: 1px solid #e2e8f0; padding: 6px 10px; text-align: left; }
-.pk-md :deep(code) { font-family: ui-monospace, monospace; font-size: 12.5px; background: #f1f5f9; padding: 1px 5px; border-radius: 4px; }
-.pk-md :deep(pre) { background: #0f172a; color: #e2e8f0; padding: 14px 16px; border-radius: 10px; overflow-x: auto; }
-.pk-md :deep(pre code) { background: none; color: inherit; padding: 0; }
-.pk-md :deep(a) { color: #4f46e5; }
 </style>

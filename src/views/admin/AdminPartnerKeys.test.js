@@ -20,7 +20,9 @@ const KEY = { id: 3, name: 'Kurumera', key_hint: '…ab12', revoked: false, requ
 
 const mountPage = async (key = KEY) => {
   api.getPartnerKeys.mockResolvedValue({ data: { keys: [key], base_url: '/api/partner/agents/' } })
-  const w = mount(AdminPartnerKeys)
+  const w = mount(AdminPartnerKeys, {
+    global: { stubs: { RouterLink: { props: ['to'], template: '<a class="rl"><slot/></a>' } } },
+  })
   await flushPromises()
   return w
 }
@@ -110,5 +112,14 @@ describe('connect a connector without the chat', () => {
     await rows[1].get('button').trigger('click')
     expect(writeText).toHaveBeenCalledWith(link)
     expect(notify.success).toHaveBeenCalledWith('Copied')
+  })
+})
+
+describe('the guide', () => {
+  it('is its own page now, not a drawer', async () => {
+    const w = await mountPage()
+    expect(w.findAll('a.rl').map(a => a.text())).toEqual(
+      expect.arrayContaining(['Integration guide', 'Open the full guide', 'See the full example']))
+    expect(w.find('.pk-drawer').exists()).toBe(false)
   })
 })
