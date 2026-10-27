@@ -35,7 +35,7 @@
       <div class="p-5 sm:p-6 pb-4 sm:pb-5 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between gap-4">
         <div>
           <h2 class="text-base font-bold text-slate-900">Configured Providers</h2>
-          <p class="text-[13px] text-slate-500 mt-0.5">Manage Ollama, Anthropic, OpenAI, OpenRouter, Gemini, or custom endpoints.</p>
+          <p class="text-[13px] text-slate-500 mt-0.5">Your chat model providers, and the providers Video Studio uses for images, video and audio.</p>
         </div>
         <button @click="showAddProvider = !showAddProvider" type="button" data-tour="add-provider"
                 class="px-3.5 py-2 text-[13px] font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-colors whitespace-nowrap flex items-center gap-1.5">

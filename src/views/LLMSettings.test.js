@@ -182,6 +182,8 @@ describe('LLMSettings: the add-provider form takes its types from the server', (
     expect(groups[0].findAll('option').map((o) => o.element.value)).toEqual(['openai', 'openrouter'])
     expect(groups[1].findAll('option').map((o) => o.text())).toEqual(['ElevenLabs', 'fal.ai', 'Alibaba Cloud Model Studio'])
     expect(typeSelect().text()).not.toContain('Ollama')     // not on the server's list here, so not offered
+    // The section's line names no list of providers either: that list lives on the server.
+    expect(wrapper.text()).toContain('Your chat model providers, and the providers Video Studio uses for images, video and audio.')
   })
 
   it('says what a media type makes, and that Base URL can stay empty', async () => {
