@@ -685,6 +685,12 @@ samp {
 .chat-media-wrap:hover .chat-media-dl { opacity: 1; }
 .chat-media-dl:hover { background: rgba(0, 0, 0, 0.78); }
 
+/* A song, voice-over or sound effect: the player, with its download button beside it (always shown: over the
+   bar it would hide the controls, and a touch screen has no hover). */
+.chat-media-wrap--audio { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; width: min(100%, 24rem); }
+.chat-media-aud { flex: 1; min-width: 0; height: 2.75rem; }
+.chat-media-wrap--audio .chat-media-dl { position: static; flex-shrink: 0; opacity: 1; width: 2.75rem; height: 2.75rem; }
+
 /* Two or more images in a row (ADM-486): a grid of equal tiles instead of a column of full-width
    pictures. 2 columns; 3 on a wide screen when the reply has 3 or more. Built by groupImageRuns in
    utils/chatMedia.js, so a chat bubble and the Work rail get the same layout. */

@@ -7,11 +7,15 @@
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|bmp|svg|avif)(\?[^"'\s]*)?$/i
 const VID_RE = /\.(mp4|webm|ogg|mov|m4v)(\?[^"'\s]*)?$/i
+// A generated song, voice-over or sound effect (Video Studio posts its link) plays where it is posted.
+const AUD_RE = /\.(mp3|wav|m4a|aac|flac|opus|oga)(\?[^"'\s]*)?$/i
 
 const isImageUrl = (u) =>
   IMG_RE.test(u) || /\/media\/[^"'\s]*\.(png|jpe?g|gif|webp|bmp|svg|avif)/i.test(u)
 const isVideoUrl = (u) =>
   VID_RE.test(u) || /\/media\/[^"'\s]*\.(mp4|webm|ogg|mov|m4v)/i.test(u)
+const isAudioUrl = (u) =>
+  AUD_RE.test(u) || /\/media\/[^"'\s]*\.(mp3|wav|m4a|aac|flac|opus|oga)/i.test(u)
 
 // Map a media URL to the forced-download endpoint (server sets Content-Disposition: attachment, so it
 // downloads even cross-origin where the <a download> attribute is ignored). ONLY for our own backend's
@@ -45,6 +49,11 @@ export function enhanceChatMedia(html) {
     }
     if (isVideoUrl(clean)) {
       return wrapWithDownload(`<video src="${href}" class="chat-media-vid" controls preload="metadata"></video>`, href)
+    }
+    if (isAudioUrl(clean)) {
+      // The download button sits beside the player, not over it: over an audio bar it would hide the controls.
+      return `<span class="chat-media-wrap chat-media-wrap--audio"><audio src="${href}" class="chat-media-aud" controls preload="metadata"></audio>` +
+        `<a class="chat-media-dl" href="${downloadHref(href)}" download title="Download">${DL_ICON}</a></span>`
     }
     return m
   })

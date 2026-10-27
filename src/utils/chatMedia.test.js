@@ -86,6 +86,17 @@ describe('what is not a run of images', () => {
     expect(count(html, '<video')).toBe(2)
   })
 
+  it('a song or voice-over link plays where it is posted, with its download beside the player', () => {
+    // 2026-10-27: Video Studio's "Your music is ready." showed only the .mp3 link in the agent's chat.
+    const html = enhanceChatMedia('<p>Your music is ready.</p><p><a href="https://aadml.com/media/media_artifacts/a_raw_0.mp3">https://aadml.com/media/media_artifacts/a_raw_0.mp3</a></p>')
+    expect(count(html, '<audio')).toBe(1)
+    expect(html).toContain('class="chat-media-aud" controls preload="metadata"')
+    expect(html).toContain('chat-media-wrap--audio')
+    expect(count(html, 'class="chat-media-dl"')).toBe(1)
+    expect(html).not.toContain('chat-media-grid')
+    expect(enhanceChatMedia('<p><a href="/media/x/take.wav">take</a></p>')).toContain('<audio src="/media/x/take.wav"')
+  })
+
   it('markup with no media comes back unchanged', () => {
     expect(groupImageRuns('<p>hello</p>')).toBe('<p>hello</p>')
     expect(enhanceChatMedia('')).toBe('')
