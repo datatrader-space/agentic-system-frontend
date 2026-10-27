@@ -49,6 +49,17 @@ describe('VideoJobCard', () => {
     expect(later.find('.vjc-model').text()).toBe('eleven_flash_v2')
   })
 
+  it('a finished picture is described by what was asked for, not as a saved frame', () => {
+    // 2026-10-27: a Characters portrait was announced to screen readers as "Saved frame".
+    const portrait = { ...base, operation: 'image', modality: 'image', state: 'ready', references: [],
+                       effective_config: { prompt: 'photorealistic portrait of an adult person' },
+                       output: { attachment_id: 'a1', url: '/media/p.png' } }
+    const w = mount(VideoJobCard, { props: { job: portrait } })
+    expect(w.find('img').attributes('alt')).toBe('photorealistic portrait of an adult person')
+    const frame = mount(VideoJobCard, { props: { job: { ...portrait, operation: 'frame', modality: undefined } } })
+    expect(frame.find('img').attributes('alt')).toBe('Saved frame')
+  })
+
   it('an unknown price says so and names the hold', () => {
     const job = { ...base, state: 'awaiting_authorization',
                   quote: { estimate_usd: '0', max_usd: '2.000000', pricing_status: 'unknown', adjustments: [] } }

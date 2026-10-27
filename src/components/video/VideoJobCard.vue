@@ -62,7 +62,7 @@
     <template v-else-if="job.state === 'ready' && job.output">
       <video v-if="isVideo" class="vjc-video" :src="job.output.url" controls preload="metadata" playsinline></video>
       <audio v-else-if="job.modality === 'audio'" :src="job.output.url" controls preload="metadata" />
-      <img v-else-if="!job.modality || job.modality === 'image'" class="vjc-video" :src="job.output.url" alt="Saved frame" />
+      <img v-else-if="!job.modality || job.modality === 'image'" class="vjc-video" :src="job.output.url" :alt="job.operation === 'frame' ? 'Saved frame' : (job.effective_config && job.effective_config.prompt) || 'The result'" />
       <a v-else :href="job.output.url" target="_blank" rel="noopener noreferrer">Open {{ job.modality }} result</a>
       <div class="vjc-actions">
         <button v-if="isVideo" type="button" class="vjc-btn primary" @click="openPanel">{{ inStudio ? 'View result' : 'Open in Video Studio' }}</button>
