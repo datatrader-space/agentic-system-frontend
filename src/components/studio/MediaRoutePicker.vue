@@ -4,8 +4,8 @@
       <select class="st-input" :value="modelValue" required :disabled="loading || !ready.length" data-test="media-route" @change="emit('update:modelValue', $event.target.value)">
         <option v-if="loading" value="">Loading models…</option>
         <option v-else-if="!ready.length" value="">No model is proven for this yet</option>
-        <option v-for="route in ready" :key="route.route_id" :value="String(route.route_id)">{{ route.name }} · {{ route.connection || route.provider }}</option>
-        <optgroup v-if="unproven.length" label="Not yet proven"><option v-for="route in unproven" :key="route.route_id" :value="String(route.route_id)" disabled>{{ route.name }} · {{ route.connection || route.provider }}</option></optgroup>
+        <option v-for="route in ready" :key="route.route_id" :value="String(route.route_id)">{{ routeOptionLabel(route) }}</option>
+        <optgroup v-if="unproven.length" label="Not yet proven"><option v-for="route in unproven" :key="route.route_id" :value="String(route.route_id)" disabled>{{ routeOptionLabel(route) }}</option></optgroup>
       </select>
     </label>
     <p v-if="failure" class="st-error" role="alert">{{ failure }} <button type="button" class="st-button" @click="load">Try again</button></p>
@@ -15,6 +15,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import api from '../../services/api'
+import { routeOptionLabel } from '../../utils/studioPrice'
 // The models a person may use for one media operation; only proven ones can be chosen (the others are shown greyed).
 // `model`: offer only that model (e.g. the one that takes trained identities).
 const props = defineProps({ modelValue: { type: String, default: '' }, operation: { type: String, required: true }, label: { type: String, default: 'Model' }, model: { type: String, default: '' } })

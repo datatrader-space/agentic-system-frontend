@@ -10,6 +10,7 @@
     <CreativeError v-if="error?.field === 'duration'" :error="error" />
     <label><input v-model="instrumental" type="checkbox" /> Instrumental</label>
     <CreativeError v-if="!['route_id','prompt','duration'].includes(error?.field)" :error="error" />
+    <LivePrice v-bind="livePrice" empty="Choose the model and describe the music to see the price." />
     <button class="st-button primary" :disabled="busy || !routeId">Review music estimate</button>
   </form>
 </template>
@@ -17,6 +18,8 @@
 import { computed, onMounted, ref } from 'vue'
 import api from '../../services/api'
 import CreativeError from './CreativeError.vue'
+import LivePrice from './LivePrice.vue'
+import { useLivePrice } from '../../composables/useLivePrice'
 import { useCreativeForm } from '../../composables/useCreativeForm'
 import { useMediaJob } from '../../composables/useMediaJob'
 const emit = defineEmits(['job']), routes = ref([]), routeId = ref(''), prompt = ref(''), duration = ref(30), instrumental = ref(true)
@@ -29,6 +32,13 @@ const error = computed(() => jobError.value || loading.error.value)
 // {by_description, min, max} (written into the description). A model with no rule takes 3 to 600 seconds.
 const length = computed(() => routes.value.find(route => route.route_id === routeId.value)?.length || { min: 3, max: 600 })
 onMounted(() => loading.run(async alive => { const { data } = await api.getMediaRoutes('music'); if (alive()) routes.value = data.routes || [] }))
+// The price as the model, the words and the length change (UX pass, 2026-10-28); the checks stay on Review.
+const quote = useLivePrice(() => {
+  if (!routeId.value || !prompt.value.trim()) return null
+  const rule = length.value, seconds = duration.value === '' || duration.value == null ? null : Number(duration.value)
+  return { kind: 'media', operation: 'music', route_id: routeId.value, request: { prompt: prompt.value.trim(), instrumental: instrumental.value, ...(rule.fixed_seconds || seconds == null ? {} : { duration: seconds }) } }
+})
+const livePrice = computed(() => ({ price: quote.price.value, loading: quote.loading.value, problem: quote.problem.value }))
 function prepare() { submit(session => {
   if (!routes.value.some(route => route.route_id === routeId.value && route.ready)) throw Error('Choose a proven model.')
   const rule = length.value, seconds = duration.value === '' || duration.value == null ? null : Number(duration.value)

@@ -28,7 +28,7 @@
       <template v-if="kind === 'cinema' && !projectId">
         <label class="st-field" data-field="prompt">Shot description<textarea v-model="prompt" class="st-input" /></label>
         <label v-for="control in controls" :key="control.control" class="st-field">{{ control.label }}<select v-model="cinema[control.control]" class="st-input"><option value="">Default</option><option v-for="v in control.values" :key="v.value" :value="v.value">{{ v.phrase }}</option></select></label>
-        <p>{{ cinemaPhrase }}</p><button class="st-button" :disabled="busy || !routeId || !prompt.trim()" @click="prepareShot">Review shot estimate</button>
+        <p>{{ cinemaPhrase }}</p><LivePrice v-bind="shotPrice" empty="Choose the model and describe the shot to see the price." /><button class="st-button" :disabled="busy || !routeId || !prompt.trim()" @click="prepareShot">Review shot estimate</button>
       </template>
       <div v-for="scene in board?.scenes || []" :key="scene.scene_id" class="creative-card">
         <h2>{{ scene.order + 1 }}. {{ scene.title }}</h2><p>{{ scene.intent }}</p><p>{{ scene.cinema_phrase }}</p>
@@ -50,6 +50,9 @@ import MediaThumb from '../common/MediaThumb.vue'
 import { thumbnailFor } from '../../utils/mediaThumb'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
+import { routeOptionLabel } from '../../utils/studioPrice'
+import { useLivePrice } from '../../composables/useLivePrice'
+import LivePrice from './LivePrice.vue'
 import InputSlot from './InputSlot.vue'
 import CreativeError from './CreativeError.vue'
 import { useCreativeForm } from '../../composables/useCreativeForm'
@@ -72,7 +75,7 @@ const lengths = computed(() => renderRoute.value?.schema?.properties?.duration?.
 const resolutions = computed(() => renderRoute.value?.schema?.properties?.resolution?.enum || [])
 watch(renderRoute, r => { const d = r?.schema?.properties?.duration; duration.value = d ? (d.default ?? d.enum?.[0] ?? null) : null; resolution.value = resolutions.value[0] || '' })
 const renderParams = () => Object.fromEntries(Object.entries({ duration: duration.value, resolution: resolution.value }).filter(([, v]) => v !== null && v !== ''))
-const routeLabel = r => [r.name || r.model, r.connection].filter(Boolean).join(' · ')
+const routeLabel = routeOptionLabel
 // A keyframe or a scene video the page asked for: when it is ready, the storyboard is read again to show it.
 const store = useVideoStore(), waiting = ref([])
 watch(() => waiting.value.map(id => store.jobs[id]?.state), states => {
@@ -136,6 +139,9 @@ function keyframes(s) { sceneAction(s,'keyframes',{ route_id: routeId.value, n: 
 function saveCinema(s) { sceneAction(s,'cinema',{ cinema: chosenCinema(s.cinema), revision: board.value.revision },'put') }
 function render(s) { run(async alive => { const { data } = await api.post('/video/jobs/',{ project_id: projectId.value, scene_id: s.scene_id, operation: 'generate', route_id: videoRouteId.value, prompt: s.intent, params: renderParams() }); if (alive()) track(data) }) }
 function saveScene(s) { if (!project.value) return; run(async alive => { const scenes = (project.value.scenes || []).map(row => row.scene_id === s.scene_id ? { ...row, intent: s.intent } : row); const { data } = await patchScenes(scenes, alive); if (alive()) { project.value = data; await loadProject(alive) } }) }
+const { price: shotPriceValue, loading: shotPriceLoading, problem: shotPriceProblem } = useLivePrice(() => props.kind === 'cinema' && !projectId.value && routeId.value && prompt.value.trim()
+  ? { kind: 'video', route_id: routeId.value, prompt: prompt.value.trim(), cinema: chosenCinema(cinema.value), params: renderParams() } : null)
+const shotPrice = computed(() => ({ price: shotPriceValue.value, loading: shotPriceLoading.value, problem: shotPriceProblem.value }))
 function prepareShot() { run(async alive => { const { data } = await api.post('/video/jobs/',{ operation: 'generate', route_id: routeId.value, prompt: prompt.value, cinema: chosenCinema(cinema.value), params: renderParams() }); if (alive()) emit('job',data) }) }
 function addClips(kind,items) { for (const item of items) { const id = item.attachment_id; if (kind === 'video') videoClips.value.push({ attachment_id: id, in_ms: 0, transition: { kind: 'cut', ms: 500 } }); if (kind === 'audio' && sounds.value.length < 8) sounds.value.push({ attachment_id: id, start_ms: 0, gain_db: 0, duck: false, mute_original: false }); if (kind === 'overlay' && overlays.value.length < 8) overlays.value.push({ attachment_id: id, position: 'top-right', scale: 0.18 }) } }
 function move(i,delta) { const clips = videoClips.value; [clips[i],clips[i+delta]] = [clips[i+delta],clips[i]] }

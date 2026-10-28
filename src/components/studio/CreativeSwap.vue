@@ -5,7 +5,7 @@
     </div>
     <p class="st-muted cw-note">{{ current.purpose }}</p>
     <div class="st-field" data-field="route_id">
-      <label class="st-field">Model<select v-model="routeId" class="st-input" required :disabled="loading || !routes.length" data-test="swap-route"><option v-if="loading" value="">Loading models…</option><option v-else-if="!routes.length" value="">No model you can use edits footage yet</option><option v-for="r in routes" :key="r.route_id" :value="String(r.route_id)">{{ r.name }} · {{ r.connection }}</option></select></label>
+      <label class="st-field">Model<select v-model="routeId" class="st-input" required :disabled="loading || !routes.length" data-test="swap-route"><option v-if="loading" value="">Loading models…</option><option v-else-if="!routes.length" value="">No model you can use edits footage yet</option><option v-for="r in routes" :key="r.route_id" :value="String(r.route_id)">{{ routeOptionLabel(r) }}</option></select></label>
       <p v-if="route?.inputs?.spec?.summary" class="st-muted cw-note" data-test="swap-reference-summary">{{ route.inputs.spec.summary }}</p>
       <p v-if="failure" class="st-error" role="alert">{{ failure }}</p>
     </div>
@@ -22,6 +22,7 @@
 <script setup>
 import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
 import api from '../../services/api'
+import { routeOptionLabel } from '../../utils/studioPrice'
 import CreativeError from './CreativeError.vue'
 import MediaMonitor from './MediaMonitor.vue'
 import MediaSlot from './MediaSlot.vue'

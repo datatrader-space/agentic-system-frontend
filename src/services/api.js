@@ -262,6 +262,8 @@ export default {
   runStudioRecipe: (id, data) => api.post(`/video/recipes/${encodeURIComponent(id)}/run/`, data),
   // The video models a person may use for one task, each with its settings form and reference limits.
   getStudioRoutes: task => api.get('/video/routes/', { params: task ? { task } : {} }),
+  // The price of a draft as its settings change: nothing is made, held or saved (kind: video | image | media).
+  getStudioQuote: body => api.post('/video/quote/', body),
   // A video job (generate, change, extend...) waiting for the person's Generate on its card.
   prepareVideoJob: data => api.post('/video/jobs/', data),
   getMediaVoices: params => api.get('/video/media/voices/', { params }),

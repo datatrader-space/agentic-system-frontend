@@ -14,6 +14,7 @@
     </div>
     <label class="st-field" data-field="aspect_ratio">Shape<select v-model="aspectRatio" class="st-input"><option value="">Keep the image's shape</option><option v-for="shape in shapes" :key="shape">{{ shape }}</option></select></label>
     <CreativeError :error="error" />
+    <LivePrice v-bind="livePrice" :empty="missing || 'Fill in the details to see the price.'" />
     <button class="st-button primary" :disabled="busy || !!missing" data-test="edit-prepare">{{ busy ? 'Preparing…' : 'Review estimate' }}</button>
     <p v-if="missing && !busy" class="st-muted ie-note" role="status">{{ missing }}</p>
     <Teleport v-if="monitor" defer :to="`#${monitor}`">
@@ -29,6 +30,9 @@ import api from '../../services/api'
 import CreativeError from './CreativeError.vue'
 import MaskCanvas from './MaskCanvas.vue'
 import MediaRoutePicker from './MediaRoutePicker.vue'
+import LivePrice from './LivePrice.vue'
+import { useLivePrice } from '../../composables/useLivePrice'
+import { useChatStore } from '../../stores/useChatStore'
 import MediaSlot from './MediaSlot.vue'
 import { useMediaJob } from '../../composables/useMediaJob'
 import { useStudioUpload } from '../../composables/useStudioUpload'
@@ -43,6 +47,12 @@ watch(source, () => { painted.value = false })
 const takesMask = computed(() => routes.value.find(route => String(route.route_id) === String(routeId.value))?.takes_mask !== false)
 watch(takesMask, yes => { if (!yes) painted.value = false })
 const missing = computed(() => !routeId.value ? 'Choose a model that is proven for image edits.' : !source.value.length ? 'Add the image to edit.' : !prompt.value.trim() ? 'Say what to change.' : '')
+// The price as the model, image and words change (UX pass, 2026-10-28); a painted area does not change it.
+const chat = useChatStore()
+const quote = useLivePrice(() => missing.value ? null : { kind: 'media', operation: 'edit_image', route_id: routeId.value,
+  request: { prompt: prompt.value.trim(), ...(aspectRatio.value ? { aspect_ratio: aspectRatio.value } : {}) },
+  references: [{ attachment_id: source.value[0].attachment_id, role: 'edit_source' }], ...(chat.conversationId ? { conversation_id: chat.conversationId } : {}) })
+const livePrice = computed(() => ({ price: quote.price.value, loading: quote.loading.value, problem: quote.problem.value }))
 function prepare() {
   if (missing.value) return
   submit(async s => {

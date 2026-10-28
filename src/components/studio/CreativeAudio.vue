@@ -22,6 +22,7 @@
     </template>
     <ConsentStep v-if="consent" :request="consent" @agreed="consent.retry()" @cancel="cancelConsent" />
     <CreativeError :error="error" />
+    <LivePrice v-bind="livePrice" :empty="missing || 'Fill in the details to see the price.'" />
     <button class="st-button primary" :disabled="busy || !!consent || !!missing" data-test="audio-prepare">{{ busy ? 'Preparing…' : 'Review estimate' }}</button>
     <p v-if="missing && !busy" class="st-muted ca-count" role="status">{{ missing }}</p>
     <Teleport v-if="monitor" defer :to="`#${monitor}`"><MediaMonitor :items="kind === 'voice_change' ? recording.map(f => ({ ...f, role: 'Recording' })) : []" :empty="current.monitor" /></Teleport>
@@ -33,6 +34,9 @@ import api from '../../services/api'
 import CreativeError from './CreativeError.vue'
 import ConsentStep from './ConsentStep.vue'
 import MediaRoutePicker from './MediaRoutePicker.vue'
+import LivePrice from './LivePrice.vue'
+import { useLivePrice } from '../../composables/useLivePrice'
+import { useChatStore } from '../../stores/useChatStore'
 import MediaMonitor from './MediaMonitor.vue'
 import MediaSlot from './MediaSlot.vue'
 import VoicePicker from './VoicePicker.vue'
@@ -60,15 +64,22 @@ const missing = computed(() => {
   if (kind.value === 'sound') return !sound.value.trim() ? 'Describe the sound.' : duration.value != null && duration.value !== '' && (duration.value < 0.5 || duration.value > 30) ? 'A sound effect is 0.5 to 30 seconds.' : ''
   return !recording.value.length ? 'Add the recording.' : !voiceId.value ? 'Choose the new voice.' : ''
 })
-function prepare() {
-  if (missing.value) return
+// What Review estimate sends, and what the price line quotes as it changes (UX pass, 2026-10-28).
+const draft = computed(() => {
   const op = kind.value
   const request = op === 'speech' ? { prompt: script.value, voice_id: voiceId.value, ...(language.value ? { language: language.value } : {}) }
     : op === 'sound' ? { prompt: sound.value.trim(), ...(duration.value ? { duration: Number(duration.value) } : {}) }
     : { voice_id: voiceId.value, remove_background_noise: removeNoise.value }
   const references = op === 'voice_change' ? recording.value.map(file => ({ attachment_id: file.attachment_id, role: 'audio' })) : []
+  return { operation: op, route_id: routeId.value, request, references }
+})
+const chat = useChatStore()
+const quote = useLivePrice(() => missing.value ? null : { kind: 'media', ...draft.value, ...(chat.conversationId ? { conversation_id: chat.conversationId } : {}) })
+const livePrice = computed(() => ({ price: quote.price.value, loading: quote.loading.value, problem: quote.problem.value }))
+function prepare() {
+  if (missing.value) return
   const names = Object.fromEntries(recording.value.map(file => [file.attachment_id, file.name]))
-  submit(s => api.prepareMediaJob({ operation: op, route_id: routeId.value, request, references, ...s }), names)
+  submit(s => api.prepareMediaJob({ ...draft.value, ...s }), names)
 }
 </script>
 <style scoped>

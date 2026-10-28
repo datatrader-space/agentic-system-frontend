@@ -6,7 +6,7 @@
       <template v-if="recipe">
         <MediaRoutePicker v-if="mediaRecipe" v-model="recipeRoute" :operation="recipe.operation" />
         <template v-else>
-          <label class="st-field" data-field="route_id">Model<select v-model="videoRouteId" class="st-input" data-test="recipe-video-route" :disabled="videoLoading || !videoRoutes.length"><option v-if="videoLoading" value="">Loading models…</option><option v-else-if="!videoRoutes.length" value="">No model you can use does this yet</option><option v-for="r in videoRoutes" :key="r.route_id" :value="String(r.route_id)">{{ [r.name, r.connection].filter(Boolean).join(' · ') }}</option></select></label>
+          <label class="st-field" data-field="route_id">Model<select v-model="videoRouteId" class="st-input" data-test="recipe-video-route" :disabled="videoLoading || !videoRoutes.length"><option v-if="videoLoading" value="">Loading models…</option><option v-else-if="!videoRoutes.length" value="">No model you can use does this yet</option><option v-for="r in videoRoutes" :key="r.route_id" :value="String(r.route_id)">{{ routeOptionLabel(r) }}</option></select></label>
           <label v-if="resolutions.length" class="st-field">Resolution<select v-model="resolution" class="st-input" data-test="recipe-resolution"><option v-for="r in resolutions" :key="r" :value="r">{{ r }}</option></select></label>
         </template>
         <InputSlot v-for="slot in recipe.slots" :key="slot.name" :label="words(slot.name)" :data-field="`slots.${slot.name}`" :required="slot.required" :kinds="[slot.media_type]" :allow-upload="false" :items="slots[slot.name] ? [slots[slot.name]] : []" @pick="slots[slot.name] = $event[0]" @remove="delete slots[slot.name]" />
@@ -42,6 +42,7 @@
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../services/api'
+import { routeOptionLabel } from '../../utils/studioPrice'
 import InputSlot from './InputSlot.vue'
 import MediaRoutePicker from './MediaRoutePicker.vue'
 import MediaMonitor from './MediaMonitor.vue'
