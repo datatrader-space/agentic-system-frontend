@@ -180,6 +180,20 @@ describe('Storyboard and Cinema make a video on the model, length and size chose
     expect(w.findAll('[data-test="board-route"] option').map(o => o.text())).toContain('Nano Banana · sajid openrouter')
     w.unmount()
   })
+  it('a project chosen while the page is still loading is opened, and the late answer does not undo it', async () => {
+    // Live 2026-10-28: the choice was dropped while the first model list was loading; the keyframe list then held
+    // video models and the scene video list was empty.
+    delete routeQuery.project_id
+    let lateAnswer
+    const base = api.get.getMockImplementation()
+    api.get.mockImplementation((path, opts) => opts?.params?.task === 'text_to_video' ? new Promise(resolve => { lateAnswer = resolve }) : base(path, opts))
+    const w = mountBoard('storyboard'); await flushPromises()
+    await w.get('select').setValue('p'); await flushPromises()
+    lateAnswer({ data: { routes: [{ ...video, route_id: 1, name: 'Late text-to-video' }] } }); await flushPromises()
+    expect(w.findAll('[data-test="board-route"] option').map(o => o.text())).toEqual(['Choose model', 'Nano Banana · sajid openrouter', 'Nano Banana · waqar openrouter'])
+    expect(w.findAll('[data-test="board-video-route"] option').map(o => o.text())).toEqual(['Choose model', 'Kling 3.0 Pro · sajid openrouter'])
+    w.unmount()
+  })
   it('a standalone Cinema shot is quoted at the length and size chosen', async () => {
     delete routeQuery.project_id
     api.post.mockResolvedValue({ data: { job_id: 'shot' } })

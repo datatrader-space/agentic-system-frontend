@@ -40,12 +40,12 @@
         <button class="st-button primary" v-if="scene.next_step === 'render'" :disabled="busy || !videoRouteId" @click="render(scene)">Review scene estimate</button><p v-if="scene.next_step === 'render' && !videoRouteId" class="st-muted">Choose the scene video model first.</p><p>Next: {{ scene.next_step }}</p>
         <div v-for="take in scene.takes" :key="take.take_id"><video :src="take.url" :poster="thumbnailFor({ ...take, media_type: 'video' }) || undefined" controls preload="none" /><button class="st-button" :aria-pressed="take.selected" :disabled="busy || take.selected" @click="chooseTake(scene,take)">Use take</button></div>
       </div>
-      <button v-if="projectId" class="st-button" :disabled="busy" @click="open">Refresh storyboard</button>
+      <button v-if="projectId" class="st-button" :disabled="busy" @click="refreshBoard">Refresh storyboard</button>
     </template>
   </div>
 </template>
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import MediaThumb from '../common/MediaThumb.vue'
 import { thumbnailFor } from '../../utils/mediaThumb'
 import { useRoute } from 'vue-router'
@@ -78,7 +78,7 @@ const store = useVideoStore(), waiting = ref([])
 watch(() => waiting.value.map(id => store.jobs[id]?.state), states => {
   if (!states.some(s => ['ready', 'failed', 'cancelled'].includes(s))) return
   waiting.value = waiting.value.filter((id, i) => !['ready', 'failed', 'cancelled'].includes(states[i]))
-  run(async alive => loadProject(alive))
+  refreshBoard()
 })
 function track(job) { if (job?.job_id) waiting.value = [...waiting.value, job.job_id]; emit('job', job) }
 async function loadRoutes(alive) {
@@ -106,13 +106,26 @@ async function loadProject(alive) {
   texts.value = tracks.filter(t => t.kind === 'text'); revisionId.value = p.data.timeline?.revision_id || null
   captionCues.value = texts.value.flatMap(t => t.cues || [])
 }
-function open() { run(async alive => { await loadProject(alive); await loadRoutes(alive) }) }
+// Opening a project (choosing, creating, or the page's first load) reads its storyboard and its model lists. It is not
+// one of `run`'s exclusive actions, which drop a call made while another runs: a project chosen while the page was
+// still loading was never opened (live 2026-10-28). The newest opening wins; an older one writes nothing.
+let opening = 0, boardReads = 0, gone = false
+onBeforeUnmount(() => { gone = true })
+const failed = e => { error.value = e.response?.data?.error || { message: e.message || 'The project could not be opened. Try again.' } }
+async function open() {
+  const mine = ++opening, alive = () => !gone && mine === opening
+  try { await loadProject(alive); await loadRoutes(alive) } catch (e) { if (alive()) failed(e) }
+}
+// The storyboard again, keeping the models chosen (a finished keyframe or take, Refresh storyboard).
+async function refreshBoard() {
+  const mine = ++boardReads, alive = () => !gone && mine === boardReads
+  try { await loadProject(alive) } catch (e) { if (alive()) failed(e) }
+}
 onMounted(() => run(async alive => {
   const [p,c] = await Promise.all([api.get('/video/projects/'), api.getCinemaControls()])
   if (!alive()) return
   projects.value = p.data.projects || []; controls.value = Array.isArray(c.data?.controls) ? c.data.controls : Array.isArray(c.data) ? c.data : []; cinema.value = { ...unset(), ...cinema.value }
-  await loadProject(alive)
-  await loadRoutes(alive)
+  await open()
 }))
 function sceneAction(scene, suffix, data, method = 'post') { return run(async alive => {
   try { const result = await api[method](`/video/projects/${projectId.value}/scenes/${scene.scene_id}/${suffix}/`, data); if (alive()) { if (result.data.job_id) track(result.data); else board.value = result.data } }
@@ -148,8 +161,8 @@ async function patchScenes(scenes, alive) {
   try { return await api.patch(`/video/projects/${projectId.value}/`, { revision: board.value.revision, scenes }) }
   catch (e) { if (e.response?.status === 409) { await loadProject(alive); throw Error('Someone changed this project. Review the current storyboard before trying again.') } throw e }
 }
-// The model lists change with a project (keyframe pictures, scene videos): read again, as choosing one does.
-function createProject() { run(async alive => { const {data} = await api.post('/video/projects/',{ title:newTitle.value }); if (alive()) { projects.value.push(data); projectId.value = data.project_id; await loadProject(alive); await loadRoutes(alive) } }) }
+// The model lists change with a project (keyframe pictures, scene videos): opened, as choosing one is.
+function createProject() { run(async alive => { const {data} = await api.post('/video/projects/',{ title:newTitle.value }); if (alive()) { projects.value.push(data); projectId.value = data.project_id; await open() } }) }
 function addScene() { if (!project.value) return; run(async alive => { await patchScenes([...(project.value.scenes || []), { title:`Scene ${(project.value.scenes || []).length+1}`, intent:newIntent.value, planned_ms:5000 }], alive); if (alive()) { newIntent.value = ''; await loadProject(alive) } }) }
 function chooseTake(scene,take) { run(async alive => { await api.post('/video/selection/',{ project_id:projectId.value, scene_id:scene.scene_id, attachment_id:take.attachment_id, expected_revision:board.value.revision }); if (alive()) await loadProject(alive) }) }
 </script>
