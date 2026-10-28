@@ -8,6 +8,8 @@ const api = vi.hoisted(() => ({
   billingAdminSpendSummary: vi.fn(),
   billingAdminCharges: vi.fn(),
   billingAdminChargesCsv: vi.fn(),
+  billingAdminSettings: vi.fn(),
+  billingAdminSaveSettings: vi.fn(),
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 vi.mock('../../composables/useNotify', () => ({ notify: { error: vi.fn(), success: vi.fn() } }))
@@ -23,11 +25,17 @@ const charge = { id: 31, created_at: '2026-10-27T10:00:00Z', kind: 'charge', usa
   conversation_id: 12, billing_run_id: 'r1', prompt_tokens: 100, completion_tokens: 50, source_type: 'llm_request_log',
   source_id: '99', llm_request_log_id: 99, reason: '', actor_id: null, idempotency_key: 'llm:99' }
 
+const settings = () => ({ markup: '1.25', min_topup_usd: '5', max_topup_usd: '500', preset_amounts: [10, 25],
+  starting_credit_usd: '1', low_balance_usd: '2', training_photo_call_usd: '0.002',
+  training_chat_input_per_1m_usd: '0.15', training_chat_output_per_1m_usd: null })
+
 let w
 beforeEach(() => {
   vi.clearAllMocks()
   api.billingAdminSpendSummary.mockResolvedValue({ data: summary })
   api.billingAdminCharges.mockResolvedValue({ data: { charges: [charge], next_before: null } })
+  api.billingAdminSettings.mockResolvedValue({ data: { settings: settings() } })
+  api.billingAdminSaveSettings.mockResolvedValue({ data: { settings: settings() } })
 })
 afterEach(() => w?.unmount())
 
@@ -52,5 +60,54 @@ describe('Admin billing: every cent traced', () => {
     expect(trace).toContain('request log #99')
     expect(trace).toContain('cost $0.4 × markup 1.25 = -0.5')
     expect(trace).toContain('Helper')
+  })
+})
+
+describe('Admin billing settings: Training API prices', () => {
+  async function openSettings() {
+    w = mount(AdminBilling, { attachTo: document.body }); await flushPromises()
+    await w.find('#tab-settings').trigger('click'); await flushPromises()
+  }
+
+  it('shows the three prices as loaded, each with its label and help', async () => {
+    await openSettings()
+    expect(w.find('fieldset legend').text()).toBe('Training API prices')
+    const photo = w.find('#f-training_photo_call_usd')
+    expect(photo.element.value).toBe('0.002')
+    expect(w.find('#f-training_chat_input_per_1m_usd').element.value).toBe('0.15')
+    expect(w.find('#f-training_chat_output_per_1m_usd').element.value).toBe('')    // null: not set
+    expect(w.find('label[for="f-training_photo_call_usd"]').text()).toContain('Cost of one photo call')
+    expect(photo.attributes('aria-describedby')).toBe('h-training_photo_call_usd')
+    expect(w.find('#h-training_photo_call_usd').text()).toContain('Empty: photo calls are refused.')
+    expect(w.find('#h-training_chat_output_per_1m_usd').text()).toContain('Empty: chat calls are refused.')
+  })
+
+  it('an emptied price is sent as null, never 0; a set one as its number string', async () => {
+    await openSettings()
+    await w.find('#f-training_photo_call_usd').setValue('   ')
+    await w.find('#f-training_chat_output_per_1m_usd').setValue('0.6')
+    await w.find('form.grid-form').trigger('submit'); await flushPromises()
+    const sent = api.billingAdminSaveSettings.mock.calls[0][0]
+    expect(sent.training_photo_call_usd).toBeNull()
+    expect(sent.training_chat_input_per_1m_usd).toBe('0.15')
+    expect(sent.training_chat_output_per_1m_usd).toBe('0.6')
+    expect(sent.markup).toBe('1.25')                       // the other settings still go with it
+  })
+
+  it('a 400 field error is shown next to that field and tied to it', async () => {
+    api.billingAdminSaveSettings.mockRejectedValue({ response: { status: 400,
+      data: { error: 'invalid', fields: { training_chat_input_per_1m_usd: 'At most 1000.' } } } })
+    await openSettings()
+    await w.find('#f-training_chat_input_per_1m_usd').setValue('5000')
+    await w.find('form.grid-form').trigger('submit'); await flushPromises()
+    const err = w.find('#e-training_chat_input_per_1m_usd')
+    expect(err.exists()).toBe(true)
+    expect(err.text()).toBe('At most 1000.')
+    expect(err.attributes('role')).toBe('alert')
+    expect(err.element.closest('label').getAttribute('for')).toBe('f-training_chat_input_per_1m_usd')
+    const input = w.find('#f-training_chat_input_per_1m_usd')
+    expect(input.attributes('aria-invalid')).toBe('true')
+    expect(input.attributes('aria-describedby')).toBe('h-training_chat_input_per_1m_usd e-training_chat_input_per_1m_usd')
+    expect(w.find('#e-training_photo_call_usd').exists()).toBe(false)
   })
 })

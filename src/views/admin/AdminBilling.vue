@@ -134,6 +134,20 @@
           <input v-model="form.low_balance_usd" inputmode="decimal" />
           <em v-if="errors.low_balance_usd" role="alert">{{ errors.low_balance_usd }}</em>
         </label>
+        <fieldset class="group" aria-describedby="h-training">
+          <legend>Training API prices</legend>
+          <p id="h-training" class="muted">Optional. What the shared Cloud API for trained models costs the platform, in dollars.</p>
+          <div class="group-grid">
+            <label v-for="f in TRAINING_PRICE_FIELDS" :key="f.key" class="field" :for="`f-${f.key}`">
+              <span>{{ f.label }} ($)</span>
+              <input :id="`f-${f.key}`" v-model="form[f.key]" inputmode="decimal" placeholder="Not set"
+                     :aria-invalid="errors[f.key] ? 'true' : undefined"
+                     :aria-describedby="errors[f.key] ? `h-${f.key} e-${f.key}` : `h-${f.key}`" />
+              <small :id="`h-${f.key}`">{{ f.help }}</small>
+              <em v-if="errors[f.key]" :id="`e-${f.key}`" role="alert">{{ errors[f.key] }}</em>
+            </label>
+          </div>
+        </fieldset>
         <div class="actions">
           <button class="btn primary" type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Save settings' }}</button>
           <span class="muted">Every change is recorded with your name.</span>
@@ -403,6 +417,17 @@ async function exportCsv() {
   } catch (e) { notify.error(apiError(e, 'Could not export')) } finally { exporting.value = false }
 }
 
+// Prices of the shared Cloud API for trained models. Optional: an empty field saves as null, and then those calls
+// are refused (never free).
+const CHAT_HELP = 'People pay this × the markup. Empty: chat calls are refused.'
+const TRAINING_PRICE_FIELDS = [
+  { key: 'training_photo_call_usd', label: 'Cost of one photo call',
+    help: 'What one call to a model on the shared Cloud API costs the platform. People pay this × the markup. Empty: photo calls are refused.' },
+  { key: 'training_chat_input_per_1m_usd', label: 'Chat cost per 1M input tokens', help: CHAT_HELP },
+  { key: 'training_chat_output_per_1m_usd', label: 'Chat cost per 1M output tokens', help: CHAT_HELP },
+]
+function optionalPrice(v) { const s = v == null ? '' : String(v).trim(); return s === '' ? null : s }
+
 const form = ref(null)
 const errors = ref({})
 const saving = ref(false)
@@ -433,6 +458,7 @@ async function loadSettings() {
     const s = data.settings
     form.value = { markup: s.markup, min_topup_usd: s.min_topup_usd, max_topup_usd: s.max_topup_usd,
       presets: (s.preset_amounts || []).join(', '), starting_credit_usd: s.starting_credit_usd, low_balance_usd: s.low_balance_usd }
+    for (const f of TRAINING_PRICE_FIELDS) form.value[f.key] = s[f.key] ?? ''
   } catch (e) { notify.error(apiError(e, 'Could not load billing settings')) }
 }
 async function saveSettings() {
@@ -442,7 +468,8 @@ async function saveSettings() {
   try {
     await api.billingAdminSaveSettings({ markup: form.value.markup, min_topup_usd: form.value.min_topup_usd,
       max_topup_usd: form.value.max_topup_usd, preset_amounts: presets,
-      starting_credit_usd: form.value.starting_credit_usd, low_balance_usd: form.value.low_balance_usd })
+      starting_credit_usd: form.value.starting_credit_usd, low_balance_usd: form.value.low_balance_usd,
+      ...Object.fromEntries(TRAINING_PRICE_FIELDS.map(f => [f.key, optionalPrice(form.value[f.key])])) })
     notify.success('Billing settings saved')
     await loadSettings()
   } catch (e) {
@@ -537,6 +564,12 @@ onMounted(loadTab)
 .field small { color: var(--vm-ink-soft); font-size: .78rem; line-height: 1.4; }
 .field em { color: var(--vm-danger); font-style: normal; font-size: .8rem; }
 .field.grow { flex: 1; }
+.group { grid-column: 1 / -1; margin: 0; padding: 14px 16px 16px; border: 1px solid var(--vm-border); border-radius: 12px; min-width: 0; }
+.group legend { padding: 0 6px; font-size: .9rem; font-weight: 700; color: var(--vm-ink); }
+.group > p { margin: 0 0 12px; line-height: 1.4; }
+.group-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px 20px; }
+.group .field input { min-height: 44px; }
+.field input[aria-invalid="true"] { border-color: var(--vm-danger); }
 .actions { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 8px 16px; border-radius: 10px;
