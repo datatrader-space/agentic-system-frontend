@@ -552,7 +552,7 @@ async function onAnswerClick(e) {
   const img = e.target?.closest?.('img.chat-media-img')
   if (img && img.getAttribute('src')) {
     e.preventDefault()
-    lightbox.value?.open(img.getAttribute('src'))
+    lightbox.value?.open(img.dataset.full || img.getAttribute('src'))     // the file itself, not its small picture
     return
   }
   const payload = fileLinkPayload(e.target?.closest?.('a[href*="/api/workspace/files/"], a[href*="/api/documents/"]'))

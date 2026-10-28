@@ -20,7 +20,7 @@ export async function loadDataset(store, { q = '', status = 'All', filters = FIL
   const body = await apiFetch(`${base(store.ref)}/photos/${query({ q, status, page, ...filters })}`);
   if (asked !== store.datasetAsked) return store.dataset;
   store.images = [...store.images.filter(i => i.batchId !== 'dataset'), ...body.photos.map(p => ({
-    id: p.id, batchId: 'dataset', name: p.name, url: p.image, width: p.width, height: p.height, state: p.status,
+    id: p.id, batchId: 'dataset', name: p.name, url: p.image, thumb: p.thumbnail || '', width: p.width, height: p.height, state: p.status,
     labels: p.labels, label: p.label, golden: p.golden, split: p.split, group: p.group, origin: p.origin,
     tags: p.tags || [], shapes: [], noObjects: false, labelled: p.label_state === 'done',
   }))];

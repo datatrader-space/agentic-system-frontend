@@ -98,7 +98,7 @@ function keepImages(store, batchId, rows) {
 // The waiting photos of one Unassigned card.
 export async function loadSource(store, batch) {
   const body = await json(`${base(store.ref)}/sources/${enc(batch.source)}/photos/`);
-  keepImages(store, batch.id, body.photos.map(p => ({ id: p.id, batchId: batch.id, name: p.name, url: p.image, width: p.width, height: p.height,
+  keepImages(store, batch.id, body.photos.map(p => ({ id: p.id, batchId: batch.id, name: p.name, url: p.image, thumb: p.thumbnail || '', width: p.width, height: p.height,
     state: 'Unlabeled', tags: p.tags || [], shapes: [], noObjects: false, labelled: false })));
 }
 
@@ -109,7 +109,7 @@ export async function loadAssignment(store, batch) {
     may: body.may, returnNote: body.return_note, sentBack: body.sent_back || '', waiting: body.waiting_for_approval, percent: body.percent,
     timeline: body.timeline.map(e => ({ text: `${e.by ? `${e.by}: ` : ''}${e.detail || e.kind}`, time: new Date(e.at).toLocaleString() })),
   });
-  keepImages(store, batch.id, body.photos.map(p => ({ id: p.id, batchId: batch.id, name: p.name, url: p.image, width: p.width, height: p.height,
+  keepImages(store, batch.id, body.photos.map(p => ({ id: p.id, batchId: batch.id, name: p.name, url: p.image, thumb: p.thumbnail || '', width: p.width, height: p.height,
     state: photoState(p.state, p.label_state), label: p.label, labelled: p.state === 'labelled', fix: p.fix, tags: p.tags || [], shapes: [], noObjects: false })));
   return batch;
 }
@@ -124,7 +124,7 @@ export function applyStep(batch, row) {
 // The labels waiting for approval.
 export async function loadReview(store) {
   const body = await json(`${base(store.ref)}/review/`);
-  keepImages(store, 'review', body.photos.map(p => ({ id: p.id, batchId: 'review', name: p.name, url: p.image, width: p.width, height: p.height,
+  keepImages(store, 'review', body.photos.map(p => ({ id: p.id, batchId: 'review', name: p.name, url: p.image, thumb: p.thumbnail || '', width: p.width, height: p.height,
     state: 'In review', label: p.label, author: p.author, labelled: true, tags: p.tags || [], shapes: [], noObjects: false })));
 }
 

@@ -131,7 +131,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
         <div class="auto-row"><span><ImageIcon :size="16"/> {{ picked.length }} of {{ media.length }} selected</span><UiButton @click="choosing=!choosing">{{ choosing ? 'Done' : 'Change' }}</UiButton></div>
         <div class="auto-thumbs">
           <button v-for="image in (choosing ? media : pickedImages)" :key="image.id" :class="{picked:picked.includes(image.id)}" :aria-pressed="picked.includes(image.id)" :title="image.name" @click="choosing&&toggle(image)">
-            <img :src="image.url" :alt="image.name"><Check v-if="choosing&&picked.includes(image.id)" :size="14"/>
+            <img :src="image.thumb||image.url" :alt="image.name" @error="image.thumb=''"><Check v-if="choosing&&picked.includes(image.id)" :size="14"/>
           </button>
         </div>
       </div>

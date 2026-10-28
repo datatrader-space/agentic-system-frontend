@@ -108,7 +108,8 @@ function openProject() { const ref = outcome.value?.ref; adding.value = false; i
           <button type="button" class="asset-pick" :disabled="!usable(item)" :aria-pressed="picked.has(item.attachment_id)"
                   :aria-label="usable(item) ? `${picked.has(item.attachment_id) ? 'Unselect' : 'Select'} ${item.title}` : `${item.title}: a sound or a document cannot go into a project`" @click="toggle(item)">
             <span class="thumb">
-              <img v-if="item.media_type==='image' && mediaPath(item.url)" :src="mediaPath(item.url)" :alt="item.title" loading="lazy" decoding="async">
+              <img v-if="usable(item) && item.thumbnail_url" :src="item.thumbnail_url" :alt="item.title" loading="lazy" decoding="async" @error="item.thumbnail_url=''">
+              <img v-else-if="item.media_type==='image' && mediaPath(item.url)" :src="mediaPath(item.url)" :alt="item.title" loading="lazy" decoding="async">
               <video v-else-if="item.media_type==='video' && mediaPath(item.url)" :src="mediaPath(item.url)" preload="metadata" muted playsinline aria-hidden="true"></video>
               <span v-else class="thumb-icon"><Film v-if="item.media_type==='video'" :size="28"/><Music v-else-if="item.media_type==='audio'" :size="28"/><FileText v-else :size="28"/></span>
               <span v-if="item.media_type==='video'" class="kind"><Film :size="12"/> Video</span>

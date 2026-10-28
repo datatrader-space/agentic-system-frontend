@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { toUnits, toPixels, fromBackend, toBackend, photoState } from '../src/api/annotate.js';
+import { toUnits, toPixels, fromBackend, toBackend, photoState, loadSource } from '../src/api/annotate.js';
 
 test('a label survives the round trip to the editor and back, to the tenth of a pixel', () => {
   const W = 4032, H = 3024;
@@ -34,4 +34,20 @@ test('where a photo stands, in the screens\' words', () => {
   assert.equal(photoState('to_label', 'draft'), 'Unlabeled');
   assert.equal(photoState('labelled', 'done'), 'In review');
   assert.equal(photoState('labelled', 'accepted'), 'Accepted');
+});
+
+test('a photo card shows the small picture; its click and the editor keep the photo itself', async () => {
+  const real = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ photos: [
+    { id: 'p1', name: 'a.jpg', image: '/training-data/leads/photos/p1/file/', thumbnail: '/api/training-data/app/projects/leads/photos/p1/thumbnail/', width: 800, height: 600 },
+    { id: 'p2', name: 'b.jpg', image: '/training-data/leads/photos/p2/file/', width: 800, height: 600 },
+  ] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  try {
+    const store = { ref: 'leads', images: [] };
+    await loadSource(store, { id: 'u1', source: 'app' });
+    assert.deepEqual(store.images.map(i => [i.url, i.thumb]), [
+      ['/training-data/leads/photos/p1/file/', '/api/training-data/app/projects/leads/photos/p1/thumbnail/'],
+      ['/training-data/leads/photos/p2/file/', ''],                  // none: the card shows the photo itself
+    ]);
+  } finally { globalThis.fetch = real; }
 });

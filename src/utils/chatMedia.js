@@ -24,6 +24,31 @@ const isAudioUrl = (u) =>
 const downloadHref = (src) =>
   src.startsWith('/media/') ? src.replace('/media/', '/media-dl/') : src
 
+// An image or video of this site's own /media/ shows the server's small picture of it (the person's own file:
+// /api/library/thumbnail/, agentic-docs/MEDIA_THUMBNAILS_EVERYWHERE_PLAN.md step 5); `data-full` keeps the file, which
+// a click opens and which is shown when there is no small picture. A picture from another site, a GIF (it would stop
+// moving) and an SVG are shown as they are.
+const here = () => (typeof location !== 'undefined' && location.origin) || 'http://local.invalid'
+export function answerThumb(src) {
+  let u
+  try { u = new URL(String(src || '').replace(/&amp;/g, '&'), here()) } catch { return '' }
+  if (u.origin !== new URL(here()).origin || !u.pathname.startsWith('/media/') || /\.(gif|svg)$/i.test(u.pathname)) return ''
+  return `/api/library/thumbnail/?src=${encodeURIComponent(u.pathname)}`
+}
+const smallImg = (src) => {
+  const thumb = answerThumb(src)
+  return thumb ? `src="${thumb}" data-full="${src}"` : `src="${src}"`
+}
+// A small picture that does not load (a file outside the person's Library: 404) becomes the file itself. Load errors
+// do not bubble, so one listener on the page catches them on their way down (capture), for every chat at once.
+if (typeof document !== 'undefined') {
+  document.addEventListener('error', (e) => {
+    const img = e.target
+    const full = img && img.tagName === 'IMG' && img.dataset && img.dataset.full
+    if (full && img.getAttribute('src') !== full) img.setAttribute('src', full)
+  }, true)
+}
+
 const DL_ICON =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>'
 
@@ -45,10 +70,11 @@ export function enhanceChatMedia(html) {
   html = html.replace(/<a\b[^>]*\bhref="([^"]+)"[^>]*>(.*?)<\/a>/gis, (m, href) => {
     const clean = href.split('#')[0]
     if (isImageUrl(clean)) {
-      return wrapWithDownload(`<img src="${href}" class="chat-media-img" alt="image" loading="lazy" />`, href)
+      return wrapWithDownload(`<img ${smallImg(href)} class="chat-media-img" alt="image" loading="lazy" />`, href)
     }
     if (isVideoUrl(clean)) {
-      return wrapWithDownload(`<video src="${href}" class="chat-media-vid" controls preload="metadata"></video>`, href)
+      const poster = answerThumb(href)
+      return wrapWithDownload(`<video src="${href}"${poster ? ` poster="${poster}"` : ''} class="chat-media-vid" controls preload="metadata"></video>`, href)
     }
     if (isAudioUrl(clean)) {
       // The download button sits beside the player, not over it: over an audio bar it would hide the controls.
@@ -65,9 +91,10 @@ export function enhanceChatMedia(html) {
     // for the wrapper's class, which a tag never contains, so every unfurled bare link got a second
     // wrapper and a second download button stacked on the first.
     if (whole.slice(0, offset).endsWith(WRAP_OPEN)) return m
+    const own = /\bdata-full=/.test(pre + post) ? `src="${src}"` : smallImg(src)
     const tag = /\bclass=/.test(pre + post)
-      ? `<img${pre}src="${src}"${post}>`
-      : `<img class="chat-media-img" ${pre}src="${src}"${post}>`
+      ? `<img${pre}${own}${post}>`
+      : `<img class="chat-media-img" ${pre}${own}${post}>`
     return (isImageUrl(src.split('#')[0]) || /\/media\//.test(src)) ? wrapWithDownload(tag, src) : tag
   })
 
