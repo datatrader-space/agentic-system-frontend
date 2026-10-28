@@ -107,6 +107,15 @@ describe('VideoJobCard', () => {
     expect(w.find('[data-test="video-generate"]').exists()).toBe(true)
   })
 
+  it('a price under ten cents keeps a third digit only when it has one', () => {
+    const at = usd => mount(VideoJobCard, { props: { job: { ...base, state: 'ready', actual_cost_usd: usd, output: { attachment_id: 'o', url: '/o.mp4' } } } }).text()
+    expect(at('0.090000')).toContain('Cost $0.09')
+    expect(at('0.090000')).not.toContain('$0.090')
+    expect(at('0.038731')).toContain('Cost $0.039')
+    expect(at('0.002000')).toContain('Cost $0.002')
+    expect(at('0.560000')).toContain('Cost $0.56')
+  })
+
   it('a failure shows the reason', () => {
     const w = mount(VideoJobCard, { props: { job: { ...base, state: 'failed', error: { message: 'Monthly limit reached.' } } } })
     expect(w.find('[role="alert"]').text()).toContain('Monthly limit reached.')

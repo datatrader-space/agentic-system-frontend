@@ -130,9 +130,10 @@ function fieldLabel(f) {
   return { duration: 'Length', resolution: 'Resolution', aspect_ratio: 'Shape', sound: 'Sound',
            continuation: 'Continue' }[f] || f
 }
+// Cents, with a third digit only when it says something: $0.039, but $0.09, not "$0.090" (live 2026-10-28).
 function money(v) {
   const n = Number(v || 0)
-  return n >= 1 ? n.toFixed(2) : n.toFixed(n >= 0.1 ? 2 : 3)
+  return n >= 0.1 ? n.toFixed(2) : n.toFixed(3).replace(/0$/, '')
 }
 async function go() {
   if (pending.value) return

@@ -78,7 +78,7 @@ describe('Enhance free local tools', () => {
   })
   it('Extend lists models that continue a clip or start from its last frame, and prepares one extend', async () => {
     api.getStudioRoutes.mockImplementation(task => Promise.resolve({ data: { routes: task === 'native_extend'
-      ? [{ route_id: 68, name: 'FLUX 3 Video', connection: 'sajid openrouter' }]
+      ? [{ route_id: 68, name: 'FLUX 3 Video', connection: 'sajid openrouter', schema: { properties: { resolution: { enum: ['720p', '1080p'] } } } }]
       : [{ route_id: 68, name: 'FLUX 3 Video', connection: 'sajid openrouter' }, { route_id: 89, name: 'Kling 3.0 Pro', connection: 'sajid openrouter' }] } }))
     api.prepareVideoJob.mockResolvedValue({ data: { job_id: 'ex-1', operation: 'extend' } })
     await render()
@@ -86,7 +86,9 @@ describe('Enhance free local tools', () => {
     await click('Extend')
     expect(wrapper.findAll('[data-test="enhance-extend-route"] option').map(o => o.text())).toEqual(['FLUX 3 Video · sajid openrouter', 'Kling 3.0 Pro · sajid openrouter'])
     await click('Review estimate')
-    expect(api.prepareVideoJob).toHaveBeenCalledExactlyOnceWith({ operation: 'extend', route_id: '68', base_attachment_id: 70, prompt: 'Continue the action naturally from its last moment.', params: { duration: 5 }, references: [], conversation_id: 'c1' })
+    // The size is sent, the smallest first (live 2026-10-28: none was sent and it was quoted at 1080p, $0.71).
+    expect(wrapper.get('[data-test="enhance-extend-resolution"]').element.value).toBe('720p')
+    expect(api.prepareVideoJob).toHaveBeenCalledExactlyOnceWith({ operation: 'extend', route_id: '68', base_attachment_id: 70, prompt: 'Continue the action naturally from its last moment.', params: { duration: 5, resolution: '720p' }, references: [], conversation_id: 'c1' })
     expect(state.put).toHaveBeenCalledWith(expect.objectContaining({ job_id: 'ex-1' }))
   })
   it('refuses invalid trim times without starting an edit', async () => {

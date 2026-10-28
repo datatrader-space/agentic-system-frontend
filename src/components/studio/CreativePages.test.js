@@ -270,6 +270,22 @@ describe('Characters and identity training', () => {
 })
 
 describe('Effects recipes', () => {
+  it('a video edit recipe runs on a model the person chooses, at the size chosen, the smallest first', async () => {
+    // Live 2026-10-28: Ad remix had no model choice; the Studio default (Kling 3.0 Pro) cannot edit an upload.
+    api.getStudioRecipes.mockResolvedValue({ data: { recipes: [{ id: 'remix-style', title: 'New look', operation: 'change', task: 'edit_uploaded', ready: true, slots: [{ name: 'video', role: 'edit_source', media_type: 'video', required: true }], options: { style: ['a retro film look'] } }] } })
+    const edit = { route_id: 76, name: 'FLUX Video Edit', connection: 'sajid openrouter', schema: { properties: { resolution: { enum: ['720p', '1080p'] } } } }
+    api.getStudioRoutes.mockImplementation(task => Promise.resolve({ data: { routes: task === 'edit_generated' ? [edit, { route_id: 70, name: 'Seedance 2.0 Mini', connection: 'sajid openrouter' }] : [edit] } }))
+    api.runStudioRecipe.mockResolvedValue({ data: job })
+    const w = mountIt(CreativeMarketing, { kind: 'ad-remix' }); await flushPromises()
+    await w.get('select').setValue('remix-style'); await w.get('select').trigger('change'); await flushPromises()
+    expect(api.getStudioRoutes).toHaveBeenCalledWith('edit_uploaded'); expect(api.getStudioRoutes).toHaveBeenCalledWith('edit_generated')
+    expect(w.findAll('[data-test="recipe-video-route"] option').map(o => o.text())).toEqual(['FLUX Video Edit · sajid openrouter', 'Seedance 2.0 Mini · sajid openrouter'])
+    expect(w.get('[data-test="recipe-resolution"]').element.value).toBe('720p')
+    w.findAllComponents({ name: 'InputSlot' }).find(s => s.props('label') === 'Your video').vm.$emit('pick', [{ attachment_id: 'ad' }]); await flushPromises()
+    await w.findAll('button').find(b => b.text() === 'Review recipe estimate').trigger('click'); await flushPromises()
+    expect(api.runStudioRecipe).toHaveBeenCalledExactlyOnceWith('remix-style', { route_id: '76', params: { resolution: '720p' }, slots: { video: 'ad' }, options: { style: 'a retro film look' } })
+    w.unmount()
+  })
   it('an image recipe runs on the chosen proven image model', async () => {
     api.getStudioRecipes.mockResolvedValue({ data: { recipes: [{ id: 'relight', title: 'Relight', operation: 'edit_image', ready: true, slots: [{ name: 'image', role: 'edit_source', media_type: 'image', required: true }], options: { light: ['golden hour'] } }] } })
     api.runStudioRecipe.mockResolvedValue({ data: job })

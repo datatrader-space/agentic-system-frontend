@@ -5,10 +5,14 @@
       <label class="st-field" data-field="recipe_id">Recipe<select v-model="recipeId" class="st-input" @change="resetRecipe"><option value="">Choose recipe</option><option v-for="r in recipes" :key="r.id" :value="r.id" :disabled="!r.ready">{{ r.title }}{{ r.ready ? '' : ' — Not yet proven' }}</option></select></label>
       <template v-if="recipe">
         <MediaRoutePicker v-if="mediaRecipe" v-model="recipeRoute" :operation="recipe.operation" />
+        <template v-else>
+          <label class="st-field" data-field="route_id">Model<select v-model="videoRouteId" class="st-input" data-test="recipe-video-route" :disabled="videoLoading || !videoRoutes.length"><option v-if="videoLoading" value="">Loading models…</option><option v-else-if="!videoRoutes.length" value="">No model you can use does this yet</option><option v-for="r in videoRoutes" :key="r.route_id" :value="String(r.route_id)">{{ [r.name, r.connection].filter(Boolean).join(' · ') }}</option></select></label>
+          <label v-if="resolutions.length" class="st-field">Resolution<select v-model="resolution" class="st-input" data-test="recipe-resolution"><option v-for="r in resolutions" :key="r" :value="r">{{ r }}</option></select></label>
+        </template>
         <InputSlot v-for="slot in recipe.slots" :key="slot.name" :label="words(slot.name)" :data-field="`slots.${slot.name}`" :required="slot.required" :kinds="[slot.media_type]" :allow-upload="false" :items="slots[slot.name] ? [slots[slot.name]] : []" @pick="slots[slot.name] = $event[0]" @remove="delete slots[slot.name]" />
         <p v-if="kind === 'ad-remix'" class="st-muted">Choose your own ad video.</p>
         <label v-for="(values,name) in recipe.options" :key="name" class="st-field">{{ words(name) }}<select v-model="options[name]" class="st-input"><option v-for="value in values" :key="value">{{ value }}</option></select></label>
-        <button class="st-button primary" :disabled="busy || !recipe.ready || (mediaRecipe && !recipeRoute)" @click="prepareRecipe">Review recipe estimate</button>
+        <button class="st-button primary" :disabled="busy || !recipe.ready || (mediaRecipe ? !recipeRoute : !videoRouteId)" @click="prepareRecipe">Review recipe estimate</button>
       </template>
       <Teleport v-if="monitor" defer :to="`#${monitor}`"><MediaMonitor :items="monitorItems" :empty="recipe ? 'Add the files this recipe needs to see them here.' : 'Choose a recipe, then add the files it needs.'" /></Teleport>
     </template>
@@ -35,7 +39,7 @@
   </div>
 </template>
 <script setup>
-import { computed, inject, onMounted, ref } from 'vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../services/api'
 import InputSlot from './InputSlot.vue'
@@ -59,8 +63,31 @@ onMounted(() => run(async alive => {
   if (!alive()) return
   brands.value = b.data.brands || []; adOptions.value = o.data; platform.value = o.data.platforms?.[0]?.id || ''; products.value = (p.data.ingredients || []).filter(item => item.kind === 'product')
 }))
-function resetRecipe() { slots.value = {}; options.value = Object.fromEntries(Object.entries(recipe.value?.options || {}).map(([k,v]) => [k,v[0]])) }
-function prepareRecipe() { run(async alive => { if (recipe.value.slots.some(s => s.required && !slots.value[s.name])) throw Error('Fill every required media slot.'); const { data } = await api.runStudioRecipe(recipeId.value,{ ...(mediaRecipe.value ? { route_id:recipeRoute.value } : {}), slots:Object.fromEntries(Object.entries(slots.value).map(([k,v]) => [k,v.attachment_id])), options:options.value }); if (alive()) emit('job',data) }) }
+function resetRecipe() { slots.value = {}; options.value = Object.fromEntries(Object.entries(recipe.value?.options || {}).map(([k,v]) => [k,v[0]])); loadVideoRoutes() }
+// A video recipe runs on a video model the person chooses, at the size they choose, the smallest first (live 2026-10-28:
+// with no choice it went to the Studio's default model, Kling 3.0 Pro, which cannot edit an upload, at its top size).
+// An edit lists the models proven for either kind of clip: the server picks the task from the clip itself.
+const videoRoutes = ref([]), videoRouteId = ref(''), videoLoading = ref(false), resolution = ref('')
+const videoRoute = computed(() => videoRoutes.value.find(r => String(r.route_id) === videoRouteId.value))
+const resolutions = computed(() => videoRoute.value?.schema?.properties?.resolution?.enum || [])
+watch(videoRoute, () => { resolution.value = resolutions.value[0] || '' })
+let videoSeq = 0
+async function loadVideoRoutes() {
+  const mine = ++videoSeq
+  videoRoutes.value = []; videoRouteId.value = ''
+  if (!recipe.value || mediaRecipe.value) return
+  const tasks = String(recipe.value.task || '').startsWith('edit_') ? ['edit_uploaded', 'edit_generated'] : [recipe.value.task]
+  videoLoading.value = true
+  try {
+    const answers = await Promise.all(tasks.map(task => api.getStudioRoutes(task)))
+    if (mine !== videoSeq) return
+    const seen = new Set()
+    videoRoutes.value = answers.flatMap(({ data }) => data.routes || []).filter(r => !seen.has(r.route_id) && seen.add(r.route_id))
+    videoRouteId.value = videoRoutes.value[0] ? String(videoRoutes.value[0].route_id) : ''
+  } catch { if (mine === videoSeq) error.value = { message: 'Could not load the models.' } }
+  finally { if (mine === videoSeq) videoLoading.value = false }
+}
+function prepareRecipe() { run(async alive => { if (recipe.value.slots.some(s => s.required && !slots.value[s.name])) throw Error('Fill every required media slot.'); const { data } = await api.runStudioRecipe(recipeId.value,{ ...(mediaRecipe.value ? { route_id:recipeRoute.value } : { route_id:videoRouteId.value, ...(resolution.value ? { params:{ resolution:resolution.value } } : {}) }), slots:Object.fromEntries(Object.entries(slots.value).map(([k,v]) => [k,v.attachment_id])), options:options.value }); if (alive()) emit('job',data) }) }
 function readBrand() { run(async alive => { const {data} = await api.post('/video/brands/read/',{ url:website.value }); if (alive()) { draft.value = data; colors.value = (data.colors || []).join(', ') } }) }
 function addBrandImages(items) {
   if (!draft.value) return
