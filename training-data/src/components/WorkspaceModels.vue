@@ -3,12 +3,12 @@
 // models with trying one as it is published, and how often each project's deployed model was called. Every rule is
 // the backend's (app_api.py workspace/models/, published/<key>/…, workspace/deployments/).
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { Boxes, Box, WandSparkles, ChartNoAxesCombined, Plus, Upload, Search, Play, Square, X, Check, Code, Copy } from 'lucide-vue-next';
+import { Boxes, Box, WandSparkles, ChartNoAxesCombined, Plus, Upload, Search, Play, Square, X, Check, Code, Copy, Clock, KeyRound } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import PredictionResult from './PredictionResult.vue';
-import { catalogue, useSnippet } from '../api/models.js';
+import { catalogue, useSnippet, USE_LANGUAGES, SDK_INSTALL } from '../api/models.js';
 import { PHOTO_TYPES, percent } from '../api/trial.js';
 import { workspaceApi, publishedApi, projectLink, trySteps, modelName, timeAgo } from '../api/workspace.js';
 
@@ -31,6 +31,10 @@ const models = computed(() => (data.value?.models || []).filter(m => (!project.v
   && `${m.name} ${m.version} ${m.project.name} ${m.trains}`.toLowerCase().includes(words.value.trim().toLowerCase())));
 const kinds = computed(() => [...new Set(catalogue(data.value?.catalogue).map(row => row.kind))]);
 const shown = computed(() => catalogue(data.value?.catalogue, words.value, kindFilter.value, familyFilter.value));
+// Ready now first and in full; coming soon apart and compact: what can be used today is what the page is for.
+const readyRows = computed(() => shown.value.filter(row => !row.coming));
+const comingRows = computed(() => shown.value.filter(row => row.coming));
+const familyName = row => ((row.family || 'vision') === 'llm' ? 'Chat' : 'Photo');
 const day = iso => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 watch(active, () => { words.value = ''; kindFilter.value = ''; familyFilter.value = ''; project.value = ''; if (active.value === 'Usage' && !usage.value) loadUsage(); });
 
@@ -81,14 +85,20 @@ function publishedBadge(row) {
 
 // ── "Use model": how an app calls a ready-to-use model ─────────────────────────────────────────────
 // Calls open when per-call charging is connected (platform_api.py): until then the dialog shows the code and says so.
-const using = ref(null); const language = ref('Python'); const copied = ref(''); const useError = ref('');
+const using = ref(null); const language = ref(USE_LANGUAGES[0]); const copied = ref(''); const useError = ref('');
 const useUrl = computed(() => (using.value?.use ? `${location.origin}${using.value.use.path}` : ''));
-const useCode = computed(() => (useUrl.value ? useSnippet(language.value, useUrl.value) : ''));
+const useCode = computed(() => (useUrl.value ? useSnippet(language.value, useUrl.value, using.value.use.model) : ''));
+const COPIED_WORDS = { install: 'the install command', code: 'the code', model: 'the model key' };
+let copiedTimer = null;
 function openUse(row) { using.value = row; copied.value = ''; useError.value = ''; }
+// "Copied" shows on the button that was used and is read out once; it goes back to "Copy" after 2 seconds.
 async function copyUse(text, what) {
-  try { await navigator.clipboard.writeText(text); copied.value = what; useError.value = ''; }
-  catch { useError.value = 'The browser did not allow copying. Select the text and copy it.'; }
+  try {
+    await navigator.clipboard.writeText(text); copied.value = what; useError.value = '';
+    clearTimeout(copiedTimer); copiedTimer = setTimeout(() => { copied.value = ''; }, 2000);
+  } catch { useError.value = 'Copying was blocked by the browser. Select the text and copy it with Ctrl+C.'; }
 }
+onUnmounted(() => clearTimeout(copiedTimer));
 
 // ── usage of the deployed models ─────────────────────────────────────────────────────────────────
 const usage = ref(null); const usageError = ref('');
@@ -182,26 +192,37 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
         <select v-model="kindFilter" class="compact-select" aria-label="Model task"><option value="">All tasks</option><option v-for="k in kinds" :key="k" :value="k">{{ k }}</option></select>
       </div>
       <p v-if="!data" class="models-loading">Loading models…</p>
-      <div v-else class="model-catalog">
-        <article v-for="row in shown" :key="row.name" class="panel catalog-card">
-          <div class="catalog-head"><Box :size="22"/><UiBadge>{{ row.kind }}</UiBadge><UiBadge v-if="row.coming" tone="purple">Coming soon</UiBadge><UiBadge v-if="publishedBadge(row)" :tone="publishedBadge(row)[0]">{{ publishedBadge(row)[1] }}</UiBadge></div>
-          <h3>{{ row.name }}</h3>
-          <p class="model-meta">{{ row.publisher }}<template v-if="row.licence">. {{ row.licence }}</template></p>
-          <p>{{ row.description }}</p>
-          <p v-if="row.coming&&!row.soon" class="model-meta">{{ row.why_not }}</p>
-          <div class="catalog-tags">
-            <UiBadge v-if="row.trainable" tone="green">Can be trained here</UiBadge>
-            <UiBadge v-if="row.tried_as_published" tone="green">Can be tried as published</UiBadge>
-            <UiBadge v-if="row.research_only">Research or evaluation use only</UiBadge>
+      <template v-else>
+        <section v-if="readyRows.length" class="catalog-section" aria-labelledby="ready-now">
+          <h2 id="ready-now">Ready now <span class="count">{{ readyRows.length }}</span></h2>
+          <div class="model-catalog">
+            <article v-for="row in readyRows" :key="row.name" class="panel catalog-card">
+              <div class="catalog-head"><Box :size="22" aria-hidden="true"/><UiBadge>{{ familyName(row) }}</UiBadge><UiBadge>{{ row.kind }}</UiBadge><UiBadge v-if="publishedBadge(row)" :tone="publishedBadge(row)[0]">{{ publishedBadge(row)[1] }}</UiBadge></div>
+              <h3>{{ row.name }}</h3>
+              <p class="model-meta">{{ row.publisher }}</p>
+              <p>{{ row.description }}</p>
+              <p class="licence-line"><span>Licence</span>{{ row.licence }}</p>
+              <div v-if="row.research_only" class="catalog-tags"><UiBadge>Research or evaluation use only</UiBadge></div>
+              <p v-if="row.not_tried" class="model-meta">{{ row.not_tried }}</p>
+              <div class="catalog-buttons">
+                <UiButton v-if="row.use" variant="primary" @click="openUse(row)"><Code :size="15" aria-hidden="true"/> Use model</UiButton>
+                <UiButton :disabled="!data.may.try||!!row.not_tried" :title="!data.may.try ? 'Your role in this workspace reads only: it starts nothing.' : ''" @click="startTrying(row)"><Play :size="15" aria-hidden="true"/> Try it</UiButton>
+              </div>
+            </article>
           </div>
-          <p v-if="row.tried_as_published&&row.not_tried" class="model-meta">{{ row.not_tried }}</p>
-          <div v-if="row.tried_as_published" class="catalog-buttons">
-            <UiButton v-if="row.use" variant="primary" @click="openUse(row)"><Code :size="14"/> Use model</UiButton>
-            <UiButton :disabled="!data.may.try||!!row.not_tried" :title="!data.may.try ? 'Your role in this workspace reads only: it starts nothing.' : ''" @click="startTrying(row)"><Play :size="14"/> Try it</UiButton>
-          </div>
-          <UiButton v-else disabled>Coming soon</UiButton>
-        </article>
-      </div>
+        </section>
+        <section v-if="comingRows.length" class="catalog-section" aria-labelledby="coming-soon">
+          <h2 id="coming-soon">Coming soon <span class="count">{{ comingRows.length }}</span></h2>
+          <p class="section-note">Listed so you can plan around them. They can't be used or tried yet.</p>
+          <ul class="coming-grid">
+            <li v-for="row in comingRows" :key="row.name" class="coming-card">
+              <div class="coming-head"><strong>{{ row.name }}</strong><UiBadge>{{ familyName(row) }}</UiBadge></div>
+              <p class="coming-what">{{ row.description }}</p>
+              <p class="coming-meta">{{ row.publisher }}<br>{{ row.licence }}</p>
+            </li>
+          </ul>
+        </section>
+      </template>
       <p v-if="data&&!shown.length" class="muted">No models match your selection.</p>
       <p v-if="data&&!data.may.try" class="muted">Your role in this workspace reads only, so it starts no model here.</p>
     </template>
@@ -231,20 +252,45 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
         </table>
       </div>
     </template>
-    <UiDialog :open="!!using" :title="using ? `Use ${using.name}` : ''" @close="using=null">
+    <UiDialog class="use-dialog" :open="!!using" :title="using ? `Use ${using.name}` : ''" @close="using=null">
       <template v-if="using">
-        <p class="dialog-description">Call {{ using.name }} from your own app with an app key. Make the key on a project's Deploy page (Connected apps).</p>
-        <p v-if="!using.use.open" class="use-closed" role="status">{{ using.use.not_open }}</p>
-        <div class="studio-tabs lang-tabs" role="tablist" aria-label="Language"><button v-for="l in ['Python','JavaScript','cURL']" :key="l" type="button" role="tab" :aria-selected="language===l" :class="{active:language===l}" @click="language=l">{{ l }}</button></div>
-        <div class="use-code"><UiButton class="copy" @click="copyUse(useCode,'code')"><Copy :size="15"/> {{ copied==='code' ? 'Copied' : 'Copy' }}</UiButton>
-          <pre class="code-block">{{ useCode }}</pre></div>
+        <p class="dialog-description">Call {{ using.name }} from your own code. Each call is one photo, answered with what the model found.</p>
+        <p v-if="!using.use.open" class="use-closed" role="status"><Clock :size="18" aria-hidden="true"/><span>{{ using.use.not_open }}</span></p>
+        <ol class="use-steps">
+          <li>
+            <h3><span class="use-step-no" aria-hidden="true">1</span>Choose your language</h3>
+            <div class="segmented" role="radiogroup" aria-label="Language">
+              <button v-for="l in USE_LANGUAGES" :key="l" type="button" role="radio" :aria-checked="language===l" :class="{on:language===l}" @click="language=l">{{ l }}</button>
+            </div>
+          </li>
+          <li>
+            <h3><span class="use-step-no" aria-hidden="true">2</span>Install</h3>
+            <div v-if="language==='Python SDK'" class="command-row">
+              <code>{{ SDK_INSTALL }}</code>
+              <button type="button" class="copy-chip" :aria-label="copied==='install' ? 'Install command copied' : 'Copy the install command'" @click="copyUse(SDK_INSTALL,'install')"><Check v-if="copied==='install'" :size="15" aria-hidden="true"/><Copy v-else :size="15" aria-hidden="true"/>{{ copied==='install' ? 'Copied' : 'Copy' }}</button>
+            </div>
+            <p v-else class="step-note">Nothing to install: {{ language==='JavaScript' ? 'browsers and Node.js 18 or newer have fetch built in.' : 'curl comes with macOS, Linux and Windows 10 or newer.' }}</p>
+          </li>
+          <li>
+            <h3><span class="use-step-no" aria-hidden="true">3</span>Copy and run the code</h3>
+            <div class="use-code">
+              <button type="button" class="copy-chip on-dark" :aria-label="copied==='code' ? 'Code copied' : 'Copy the code'" @click="copyUse(useCode,'code')"><Check v-if="copied==='code'" :size="15" aria-hidden="true"/><Copy v-else :size="15" aria-hidden="true"/>{{ copied==='code' ? 'Copied' : 'Copy' }}</button>
+              <pre class="code-block" tabindex="0" :aria-label="`Code to call ${using.name} with ${language}`"><code>{{ useCode }}</code></pre>
+            </div>
+          </li>
+        </ol>
         <dl class="use-facts">
-          <div><dt>Model</dt><dd><code>{{ using.use.model }}</code></dd></div>
-          <div><dt>Address</dt><dd><code>{{ useUrl }}</code></dd></div>
+          <div><dt>Model key</dt><dd><code>{{ using.use.model }}</code><button type="button" class="copy-icon" :aria-label="copied==='model' ? 'Model key copied' : 'Copy the model key'" @click="copyUse(using.use.model,'model')"><Check v-if="copied==='model'" :size="14" aria-hidden="true"/><Copy v-else :size="14" aria-hidden="true"/></button></dd></div>
+          <div><dt>App key</dt><dd><KeyRound :size="14" aria-hidden="true"/>Make one on a project's Deploy page, under Connected apps.</dd></div>
           <div><dt>Licence</dt><dd>{{ using.licence }}</dd></div>
         </dl>
+        <p class="sr-only" aria-live="polite">{{ copied ? `Copied ${COPIED_WORDS[copied]}.` : '' }}</p>
         <p v-if="useError" class="field-error" role="alert">{{ useError }}</p>
-        <div class="dialog-actions"><UiButton @click="using=null">Close</UiButton><UiButton variant="primary" :disabled="!using.use.open" :title="using.use.open ? '' : using.use.not_open">Test API</UiButton></div>
+        <div class="use-actions">
+          <p v-if="!using.use.open" id="test-api-why" class="use-why">Test API opens with calls.</p>
+          <UiButton @click="using=null">Close</UiButton>
+          <UiButton variant="primary" :disabled="!using.use.open" :aria-describedby="using.use.open ? undefined : 'test-api-why'">Test API</UiButton>
+        </div>
       </template>
     </UiDialog>
   </div>
@@ -252,15 +298,59 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
 
 <style scoped>
 .models-workspace{color:#152237}
-.catalog-buttons{display:flex;flex-wrap:wrap;gap:8px}
-.use-closed{margin:0 0 12px;padding:10px 12px;border-radius:10px;background:#fff7e6;color:#7a4b00;font-size:14px}
-.use-code{position:relative;margin-top:10px}
-.use-code .copy{position:absolute;top:8px;right:8px}
-.use-code .code-block{max-height:260px;overflow:auto;padding-top:44px}
-.use-facts{display:grid;gap:6px;margin:12px 0;font-size:14px}
-.use-facts div{display:grid;grid-template-columns:80px 1fr;gap:8px}
-.use-facts dt{color:#5f6d82}
-.use-facts dd{margin:0;overflow-wrap:anywhere}
+.catalog-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:auto;padding-top:16px}
+.catalog-buttons > :only-child{grid-column:1 / -1}
+.catalog-section{margin-top:28px}
+.catalog-section > h2{display:flex;align-items:center;gap:10px;font-size:16px;margin:0}
+.section-note{margin:6px 0 0;font-size:13px;color:#5f6d82}
+.licence-line{display:flex;flex-direction:column;gap:2px;padding-top:6px;font-size:13px;color:#33415a}
+.licence-line span{font-size:12px;color:#6b778c}
+.coming-grid{list-style:none;padding:0;margin:16px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.coming-card{padding:14px 16px;border:1px dashed #cfd5e1;border-radius:10px;background:#fafbfc}
+.coming-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.coming-head strong{font-size:14px;color:#22304a}
+.coming-what{margin:6px 0 8px;font-size:13px;color:#4d5a70}
+.coming-meta{margin:0;font-size:12px;color:#6b778c;line-height:1.5}
+.use-dialog{width:min(680px,calc(100% - 32px))}
+.use-closed{display:flex;gap:10px;align-items:flex-start;margin:16px 0 4px;padding:12px 14px;border-radius:10px;background:#fff7e6;border:1px solid #f5dfb0;color:#6f4500;font-size:13px;line-height:1.55}
+.use-closed svg{margin-top:1px;color:#b26b00}
+.use-steps{list-style:none;padding:0;margin:20px 0 0;display:grid;gap:20px}
+.use-steps h3{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:14px;color:#1d2a42}
+.use-step-no{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#1d2a42;color:#fff;font-size:12px;font-weight:600}
+.use-steps li > :not(h3){margin-left:34px}
+.segmented{display:inline-flex;padding:3px;border-radius:9px;background:#f1f3f7;gap:2px;flex-wrap:wrap}
+.segmented button{min-height:36px;padding:7px 14px;border:0;border-radius:7px;background:transparent;color:#4d5a70;font-size:13px;font-weight:550;transition:background-color .15s,color .15s}
+.segmented button.on{background:#fff;color:var(--aadml-primary);box-shadow:0 1px 3px #1d2a4224}
+.segmented button:hover:not(.on){color:#1d2a42}
+.command-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 8px 8px 14px;border:1px solid #dfe3eb;border-radius:9px;background:#f8f9fb}
+.command-row code{font-size:13px;color:#1d2a42;overflow-wrap:anywhere}
+.step-note{margin:0;font-size:13px;color:#5f6d82}
+.copy-chip{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:6px 12px;border:1px solid #dfe3eb;border-radius:7px;background:#fff;color:#33415a;font-size:12px;font-weight:550;transition:background-color .15s,border-color .15s}
+.copy-chip:hover{border-color:var(--aadml-focus);background:var(--aadml-tint)}
+.copy-chip.on-dark{position:absolute;top:10px;right:10px;background:#2c3a50;border-color:#3e4d65;color:#e3e8f1}
+.copy-chip.on-dark:hover{background:#38475f;border-color:#53637d}
+.use-code{position:relative}
+.use-code .code-block{margin:0;min-height:0;max-height:300px;overflow:auto;padding:52px 22px 20px;white-space:pre;font-size:12.5px;line-height:1.7}
+.use-code .code-block:focus-visible{outline:3px solid var(--aadml-outline);outline-offset:2px}
+.use-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:22px 0 0}
+.use-facts > div{padding:12px 14px;border:1px solid #e3e6ed;border-radius:9px;min-width:0}
+.use-facts dt{font-size:12px;color:#6b778c;margin-bottom:6px}
+.use-facts dd{margin:0;display:flex;align-items:flex-start;gap:6px;font-size:13px;color:#22304a;overflow-wrap:anywhere;line-height:1.45}
+.use-facts dd svg{margin-top:2px;color:#6b778c}
+.use-facts code{font-size:13px}
+.copy-icon{display:inline-grid;place-items:center;min-width:28px;min-height:28px;margin:-4px -4px -4px auto;border:0;border-radius:6px;background:transparent;color:#6b778c}
+.copy-icon:hover{background:var(--aadml-tint);color:var(--aadml-primary)}
+.use-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:24px;flex-wrap:wrap}
+.use-why{margin:0 auto 0 0;font-size:12px;color:#6b778c}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media (prefers-reduced-motion: reduce){.segmented button,.copy-chip{transition:none}}
+@media (max-width:640px){
+  .use-facts{grid-template-columns:1fr}
+  .use-steps li > :not(h3){margin-left:0}
+  .catalog-buttons{grid-template-columns:1fr}
+  .segmented{display:flex}
+  .segmented button{flex:1}
+}
 .models-tabs{display:flex;gap:16px;border-bottom:1px solid #e1e4ec;margin-bottom:22px}
 .models-tabs button{display:flex;align-items:center;gap:8px;background:none;border:0;border-bottom:2px solid transparent;padding:14px 16px;color:#5f6d82;font-size:14px}
 .models-tabs button[aria-pressed=true]{color:var(--aadml-primary);border-bottom-color:var(--aadml-primary)}

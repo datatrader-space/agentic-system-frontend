@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { catalogue, measureText, meets, msText, useSnippet } from '../src/api/models.js';
+import { catalogue, measureText, meets, msText, useSnippet, USE_LANGUAGES, SDK_INSTALL } from '../src/api/models.js';
 
 test('a share reads as a percentage and a corner error as a share of the diagonal', () => {
   assert.equal(measureText('wall_recall', 0.9234), '92.3%');
@@ -30,13 +30,15 @@ test('the catalogue is the backend rows, filtered by words, task and family', ()
   assert.equal(catalogue(rows, '', '', 'vision').length, 2);
 });
 
-test('the Use model code names the address and never fills in the key', () => {
+test('the Use model code calls the SDK in Python and the address otherwise, never with a key', () => {
   const url = 'https://aadml.com/api/training-data/v1/models/fmw-geometry/predict';
-  for (const language of ['Python', 'JavaScript', 'cURL']) {
-    const code = useSnippet(language, url);
-    assert.ok(code.includes(url), language);
-    assert.ok(code.includes('<your app key>'), language);
-  }
+  assert.deepEqual(USE_LANGUAGES, ['Python SDK', 'JavaScript', 'cURL']);
+  const python = useSnippet('Python SDK', url, 'fmw-geometry');
+  assert.ok(python.includes('from aadml_training import Client') && python.includes('client.run("fmw-geometry", "room.jpg")'));
+  assert.ok(!python.includes('requests'));
+  for (const language of ['JavaScript', 'cURL']) assert.ok(useSnippet(language, url, 'fmw-geometry').includes(url), language);
+  for (const language of USE_LANGUAGES) assert.ok(useSnippet(language, url, 'fmw-geometry').includes('<your app key>'), language);
+  assert.equal(SDK_INSTALL, 'pip install aadml-training');
 });
 
 test('a duration reads in milliseconds below a second', () => {

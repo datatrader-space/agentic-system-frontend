@@ -28,19 +28,18 @@ export function catalogue(rows, words = '', kind = '', family = '') {
     && (!wanted || `${row.name} ${row.publisher} ${row.description}`.toLowerCase().includes(wanted)));
 }
 
-// How an app calls one of AADML's ready-to-use models ("Use model"), in three languages. The key is never filled in.
-export function useSnippet(language, url) {
-  if (language === 'Python') {
-    return `import requests
+// How an app calls one of AADML's ready-to-use models ("Use model"). Python uses AADML's SDK (aadml-training on
+// pypi.org); JavaScript and cURL call the address. The key is never filled in.
+export const USE_LANGUAGES = ['Python SDK', 'JavaScript', 'cURL'];
+export const SDK_INSTALL = 'pip install aadml-training';
+export function useSnippet(language, url, model) {
+  if (language === 'Python SDK') {
+    return `from aadml_training import Client
 
-answer = requests.post(
-    "${url}",
-    headers={"Authorization": "Bearer <your app key>"},
-    files={"file": open("room.jpg", "rb")},
-    timeout=60,
-)
-answer.raise_for_status()
-print(answer.json())`;
+client = Client(api_key="<your app key>")      # or set AADML_API_KEY
+
+result = client.run("${model}", "room.jpg")
+print(result)`;
   }
   if (language === 'JavaScript') {
     return `const form = new FormData();

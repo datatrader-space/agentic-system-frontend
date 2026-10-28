@@ -18,6 +18,9 @@ let timer = null;
 
 const version = computed(() => page.value?.versions.find(v => v.number === Number(form.value.version)));
 const base = computed(() => page.value?.base_models.find(m => m.key === version.value?.base_model));
+// Ready first, then not ready here, then coming soon: what a run can start from today leads the list.
+const baseModels = computed(() => [...(page.value?.base_models || [])]
+  .sort((a, b) => (a.coming - b.coming) || (b.ready - a.ready)));
 const parents = computed(() => (page.value?.models || []).filter(m => m.base_model === version.value?.base_model && ['sft', 'cpt'].includes(m.method)));
 const USE = { paid: 'Commercial use allowed', terms: 'Commercial use with its licence’s conditions', research: 'Research and testing only: a model trained from it is never released' };
 
@@ -117,15 +120,19 @@ onUnmounted(() => clearTimeout(timer));
 
       <section v-if="page?.base_models?.length" class="panel" aria-labelledby="llm-base-models">
         <h2 id="llm-base-models">Base models</h2>
-        <p class="field-help">A run starts from the base model its dataset version was prepared for. Each one names its licence; only models whose licence allows commercial use are offered.</p>
-        <div class="base-grid">
-          <article v-for="m in page.base_models" :key="m.key" class="base-card">
-            <header><strong>{{ m.name }}</strong><UiBadge v-if="m.coming" tone="purple">Coming soon</UiBadge><UiBadge v-else-if="m.ready" tone="green">Ready</UiBadge><UiBadge v-else>Not ready on this server</UiBadge></header>
-            <p class="field-help">{{ m.publisher }} · {{ m.size }} · {{ m.licence }}</p>
-            <p>{{ m.description }}</p>
-            <UiBadge :tone="m.use === 'research' ? 'dark' : 'green'">{{ USE[m.use] }}</UiBadge>
-          </article>
-        </div>
+        <p class="field-help">A run starts from the base model its dataset version was prepared for, chosen on the Examples page. Only models whose licence allows commercial use are offered.</p>
+        <table class="base-table">
+          <caption class="sr-only">Base models a chat model is trained from, with their size, licence and whether they can be used here</caption>
+          <thead><tr><th scope="col">Model</th><th scope="col">Size</th><th scope="col">Licence</th><th scope="col">Here</th></tr></thead>
+          <tbody>
+            <tr v-for="m in baseModels" :key="m.key" :class="{ later: m.coming }">
+              <th scope="row" data-label="Model"><strong>{{ m.name }}</strong><span>{{ m.publisher }}</span><small>{{ m.description }}</small></th>
+              <td data-label="Size">{{ m.size }}</td>
+              <td data-label="Licence">{{ m.licence }}<small>{{ USE[m.use] }}</small></td>
+              <td data-label="Here"><UiBadge v-if="m.coming" tone="purple">Coming soon</UiBadge><UiBadge v-else-if="m.ready" tone="green">Ready</UiBadge><UiBadge v-else>Not ready yet</UiBadge></td>
+            </tr>
+          </tbody>
+        </table>
       </section>
     </template>
 
@@ -160,8 +167,20 @@ onUnmounted(() => clearTimeout(timer));
 .llm-train{display:grid;gap:16px}
 .llm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:12px 0}
 .llm-log{max-height:360px;overflow:auto;font-size:11px}
-.base-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:12px}
-.base-card{display:grid;gap:6px;align-content:start;padding:14px;border:1px solid var(--border);border-radius:12px}
-.base-card header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
-.base-card p{margin:0}
+.base-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}
+.base-table th,.base-table td{padding:12px 14px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+.base-table thead th{font-size:12px;font-weight:500;color:#6b778c;background:#f7f8fb}
+.base-table tbody th{font-weight:400}
+.base-table tbody th strong{display:block;font-size:14px;color:#1d2a42}
+.base-table tbody th span{display:block;font-size:12px;color:#6b778c}
+.base-table small{display:block;margin-top:4px;font-size:12px;color:#5f6d82;line-height:1.5}
+.base-table tr.later strong{color:#4d5a70}
+.base-table tr.later td,.base-table tr.later th{background:#fafbfc}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media (max-width:640px){
+  .base-table thead{display:none}
+  .base-table tr{display:block;padding:12px 0;border-bottom:1px solid var(--border)}
+  .base-table th,.base-table td{display:block;border:0;padding:4px 0}
+  .base-table td::before{content:attr(data-label);display:block;font-size:11px;color:#6b778c}
+}
 </style>

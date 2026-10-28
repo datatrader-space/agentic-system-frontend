@@ -19,17 +19,16 @@ export const deployApi = {
 export function snippet(language, url, environment) {
   const address = url.replace('{environment}', environment);
   if (language === 'Python') {
-    return `import json, requests
+    // AADML's SDK (aadml-training on pypi.org): the project's number and the environment come from the address.
+    const project = (address.match(/\/projects\/(\d+)\//) || [])[1] || '<project number>';
+    return `# pip install aadml-training
+from aadml_training import Client
 
-answer = requests.post(
-    "${address}",
-    headers={"Authorization": "Bearer <the app's key>"},
-    files={"file": open("room.jpg", "rb")},
-    data={"payload": json.dumps({"capture_id": "…", "request_id": "…"})},  # optional
-    timeout=60,
-)
-answer.raise_for_status()
-print(answer.json()["walls"])`;
+client = Client(api_key="<the app's key>")      # or set AADML_API_KEY
+
+result = client.predict(project_id=${project}, image="room.jpg", environment="${environment}",
+                        request_id="…", capture_id="…")          # the two ids are optional
+print(result["walls"])`;
   }
   if (language === 'JavaScript') {
     return `const form = new FormData();
