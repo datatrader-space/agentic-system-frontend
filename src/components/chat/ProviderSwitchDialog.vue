@@ -4,8 +4,8 @@
 
   One click moves every model the user runs on that provider (all their agents, internal operations, shared-agent
   picks and pinned chats) to the same or closest model on the chosen provider, then re-sends the failed message.
-  Cancel leaves everything as it is. The preview (ProviderSwitchPicker) is the same one the AI Provider page's
-  manual switch uses — this popup is just the entrance the chat takes when a provider refuses.
+  Cancel leaves everything as it is. ProviderSwitchPicker shows the preview: the platform providers the person
+  may switch to.
 -->
 <template>
   <Teleport to="body">
@@ -32,9 +32,8 @@
 
           <ProviderSwitchPicker v-if="offer" v-model="selectedId" :from-provider="offer.from_provider" class="mt-5">
             <template #empty>
-              You have no other working provider. Add one on the
-              <router-link to="/dashboard/settings/providers" class="text-indigo-600 underline" @click="cancel">AI Provider page</router-link>,
-              or raise the limit on your {{ fromLabel }} key.
+              No other AI provider is available right now. The platform's administrators have been told;
+              please try again in a little while.
             </template>
           </ProviderSwitchPicker>
           <div v-if="applyError" class="mt-3 text-sm text-red-600" role="alert">{{ applyError }}</div>

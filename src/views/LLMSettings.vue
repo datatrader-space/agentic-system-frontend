@@ -1,13 +1,13 @@
 <template>
-  <div class="space-y-8">
+  <div class="space-y-8 px-4 py-6 sm:px-8 max-w-7xl mx-auto">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900">AI Providers</h1>
+        <h1 class="text-3xl font-bold text-gray-900">Platform APIs</h1>
         <p class="mt-2 text-gray-600">
-          Manage third-party AI APIs and local providers. Add models to make them available in chat.
+          The platform's AI providers and web search engines. People never add keys of their own: they pick from these
+          models, and every call is charged to their balance. Only platform administrators see this page.
         </p>
       </div>
-      <OwnerFilter v-model="ownerFilter" @update:modelValue="reloadAll" />
     </div>
 
     <!-- Page tabs — one view at a time instead of four stacked sections -->
@@ -28,7 +28,6 @@
     <template v-else>
     <!-- Which provider everything runs on, why, and a manual switch to another one (same backend switch the
          chat offers when a provider caps out — here it can be asked for at any time, in either direction). -->
-    <ProviderSwitchCard v-show="pageTab === 'providers'" ref="switchCard" @switched="onProviderSwitched" />
 
     <!-- Configured Providers -->
     <div v-show="pageTab === 'providers'" class="bg-white rounded-[16px] shadow-sm border border-slate-200/60 overflow-hidden">
@@ -69,6 +68,17 @@
                       <span v-if="provider.has_api_key" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-100"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>Key Set</span>
                       <span v-else class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-600 border border-amber-100"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>No Key</span>
                   </div>
+                  <label class="mt-1 mb-1 flex items-center gap-2 text-[12px] text-slate-600" data-test="provider-available-to">
+                    <span class="font-semibold">Available to</span>
+                    <select :value="provider.partner_account || ''" class="bg-white border border-slate-200 rounded-[6px] px-2 py-1 text-[12px]"
+                            :aria-label="`Who can use ${provider.name}`" @change="setAvailableTo(provider, $event.target.value)">
+                      <option value="">Everyone (platform)</option>
+                      <option v-for="pa in partnerAccounts" :key="pa.id" :value="pa.id">Only partner: {{ pa.label }}</option>
+                      <option v-if="provider.partner_account && !partnerAccounts.some(pa => pa.id === provider.partner_account)" :value="provider.partner_account">
+                        Only partner: {{ provider.partner_account_name || provider.partner_account }} (partner switch off)
+                      </option>
+                    </select>
+                  </label>
                   <p class="text-[12px] font-mono text-slate-500 truncate max-w-[200px] sm:max-w-md">
                     <span class="font-bold text-slate-400 mr-1">{{ provider.provider_type.toUpperCase() }}</span>
                     <span v-if="provider.base_url">{{ provider.base_url }}</span>
@@ -175,6 +185,15 @@
                    class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
                    :placeholder="selectedProviderType?.base_url_hint || 'Leave empty to use the provider\'s own address'" />
             <p class="mt-1 text-[12px] text-slate-600">Only for a self-hosted server, a proxy, or a provider that gives each account its own address.</p>
+          </div>
+          <div>
+            <label for="new-provider-available-to" class="block text-[13px] font-semibold text-slate-700 mb-1.5">Available to</label>
+            <select id="new-provider-available-to" v-model="newProvider.partner_account" data-test="new-provider-available-to"
+                    class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm">
+              <option :value="null">Everyone (a general platform API)</option>
+              <option v-for="pa in partnerAccounts" :key="pa.id" :value="pa.id">Only partner: {{ pa.label }}</option>
+            </select>
+            <p class="mt-1 text-[12px] text-slate-600">A partner with its own keys uses only those. Its usage is still charged to its balance.</p>
           </div>
           <div>
             <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">API Key</label>
@@ -511,6 +530,49 @@
       </div>
     </div>
 
+    <!-- Web search engines: the platform's keys; each search is charged to the person's balance -->
+    <div v-show="pageTab === 'search'" class="bg-white rounded-[16px] shadow-sm border border-slate-200/60 overflow-hidden" data-test="search-engines">
+      <div class="p-5 sm:p-6 pb-4 sm:pb-5 border-b border-slate-100 bg-slate-50/30">
+        <h2 class="text-base font-bold text-slate-900">Web search engines</h2>
+        <p class="text-[13px] text-slate-600 mt-0.5">The platform's own keys. Each search is charged to the person's balance at
+          this price × the markup. An engine with no price is never used, so it can never run free. Model-based search
+          runs on the AI providers above and is charged by its tokens.</p>
+      </div>
+      <div class="divide-y divide-slate-100">
+        <form v-for="e in searchEngines" :key="e.engine" class="p-5 sm:p-6 grid gap-4 md:grid-cols-[180px_1fr_160px_auto] items-end"
+              @submit.prevent="saveSearchEngine(e)">
+          <div>
+            <p class="font-semibold text-slate-900 text-[14px]">{{ e.label }}</p>
+            <p class="text-[12px]" :class="e.usable ? 'text-emerald-700' : 'text-slate-500'">{{ e.usable ? 'In use' : (e.has_api_key ? 'Not in use' : 'No key') }}</p>
+          </div>
+          <div class="grid gap-2">
+            <label class="text-[12px] font-semibold text-slate-700" :for="`se-key-${e.engine}`">API key</label>
+            <input :id="`se-key-${e.engine}`" v-model="e.newKey" autocomplete="off" type="password"
+                   class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px]"
+                   :placeholder="e.has_api_key ? 'Saved (enter a new key to replace it)' : 'Paste the engine\'s API key'" />
+            <template v-if="'cx' in (e.config || {})">
+              <label class="text-[12px] font-semibold text-slate-700" :for="`se-cx-${e.engine}`">Search engine id (cx)</label>
+              <input :id="`se-cx-${e.engine}`" v-model="e.config.cx" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px]" />
+            </template>
+          </div>
+          <div class="grid gap-2">
+            <label class="text-[12px] font-semibold text-slate-700" :for="`se-price-${e.engine}`">Cost per search ($)</label>
+            <input :id="`se-price-${e.engine}`" v-model="e.price_per_search_usd" inputmode="decimal" placeholder="0.008"
+                   class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px]" />
+          </div>
+          <div class="flex items-center gap-3">
+            <label class="inline-flex items-center gap-2 text-[13px] text-slate-700">
+              <input v-model="e.is_active" type="checkbox" class="h-4 w-4" /> On
+            </label>
+            <button type="submit" :disabled="e.saving" class="px-4 py-2 bg-slate-900 text-white rounded-[10px] text-[13px] font-semibold disabled:opacity-50">
+              {{ e.saving ? 'Saving…' : 'Save' }}
+            </button>
+          </div>
+        </form>
+        <p v-if="!searchEngines.length" class="p-6 text-[13px] text-slate-600">Loading…</p>
+      </div>
+    </div>
+
     <!-- Recent Requests -->
     <div v-show="pageTab === 'activity'" class="bg-white rounded-[16px] shadow-sm border border-slate-200/60 overflow-hidden mb-8">
       <div class="p-5 sm:p-6 pb-4 sm:pb-5 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
@@ -568,24 +630,10 @@ import api, { clearApiCache } from '../services/api'
 import { usePoller } from '../composables/usePoller'
 import OwnerFilter from '../components/common/OwnerFilter.vue'
 import PageLoader from '../components/common/PageLoader.vue'
-import ProviderSwitchCard from '../components/providers/ProviderSwitchCard.vue'
 import LoadError from '../components/common/LoadError.vue'
 import { confirm } from '@/composables/useConfirm'
 
 const notify = inject('notify', () => {})
-
-const switchCard = ref(null)
-
-// A manual provider switch rewrites the caller's operation-model picks too, so the page's own copies are
-// stale the moment it lands — re-read them instead of showing the pre-switch models until a reload.
-const onProviderSwitched = async (result) => {
-  const n = (result?.changes || []).length
-  notify(`Switched ${n} model${n === 1 ? '' : 's'} to ${result?.to_provider?.name || 'the new provider'}`, 'success')
-  for (const w of (result?.warnings || [])) notify(w, 'info')
-  await Promise.all([loadProviders().catch(() => {}), refreshModels().catch(() => {})])
-  // An unopened tab reads the post-switch picks when it is first opened, so only an open one is re-read.
-  if (tabLoaded.value.internal) await loadOperationModels().catch(() => {})   // shown as the tab's error state
-}
 
 // Page-level initial-load state → drives the full-page spinner on first paint.
 const loading = ref(true)
@@ -612,8 +660,30 @@ const pageTabs = [
   { key: 'providers', label: 'Providers' },
   { key: 'models', label: 'Models' },
   { key: 'internal', label: 'Internal & Embedding' },
+  { key: 'search', label: 'Web search' },
   { key: 'activity', label: 'Activity' },
 ]
+
+// The platform's web search engines (keys never come back from the server; `newKey` is only what is typed now).
+const searchEngines = ref([])
+const loadSearchEngines = async () => {
+  const { data } = await api.getPlatformSearchEngines()
+  searchEngines.value = (data.engines || []).map(e => ({ ...e, config: { ...(e.config || {}) }, newKey: '', saving: false }))
+}
+const saveSearchEngine = async (e) => {
+  e.saving = true
+  try {
+    const body = { price_per_search_usd: e.price_per_search_usd === '' ? null : e.price_per_search_usd,
+      is_active: !!e.is_active, config: e.config }
+    if (e.newKey && e.newKey.trim()) body.api_key = e.newKey.trim()
+    const { data } = await api.updatePlatformSearchEngine(e.engine, body)
+    Object.assign(e, { ...data.engine, config: { ...(data.engine.config || {}) }, newKey: '', saving: false })
+    notify(`${e.label} saved`, 'success')
+  } catch (err) {
+    e.saving = false
+    notify(apiError(err, 'Could not save the search engine'), 'error')
+  }
+}
 const pageTab = ref('providers')
 const showAddProvider = ref(false)   // add-forms are collapsed by default to save vertical space
 const showAddModel = ref(false)
@@ -630,6 +700,7 @@ const openTab = async (key) => {
     if (key === 'models') await loadModelsPage()
     else if (key === 'internal') await Promise.all([loadOperationModels(), loadEmbeddingHealth()])
     else if (key === 'activity') await loadRecentRequests()
+    else if (key === 'search') await loadSearchEngines()
   } catch (e) {
     tabLoaded.value[key] = false     // so opening the tab again retries
     notify(apiError(e, 'Failed to load this tab'), 'error')
@@ -948,15 +1019,42 @@ const reindexEmbeddings = async () => {
   }
 }
 onBeforeUnmount(_clearReindexTimer)
-const ownerFilter = ref('')
 
 const newProvider = ref({
   name: '',
   provider_type: 'openrouter',   // cloud default — not local Ollama (avoids accidental ollama providers)
   base_url: '',
   api_key: '',
-  is_active: true
+  is_active: true,
+  partner_account: null,         // null = a general platform API; a partner account's id = only that partner's
 })
+
+// Partner accounts (the partner switch on) a provider can be dedicated to, from the Partner Agent API keys page.
+const partnerAccounts = ref([])
+const loadPartnerAccounts = async () => {
+  try {
+    const { data } = await api.getPartnerKeys()
+    const rows = Array.isArray(data) ? data : (data?.keys || data?.results || [])
+    const seen = new Map()
+    for (const k of rows) {
+      if (k.is_partner_account && k.user_id != null && !seen.has(k.user_id)) seen.set(k.user_id, { id: k.user_id, label: k.user_label || `user ${k.user_id}` })
+    }
+    partnerAccounts.value = [...seen.values()]
+  } catch (e) {
+    partnerAccounts.value = []
+  }
+}
+const setAvailableTo = async (provider, value) => {
+  const partner = value ? Number(value) : null
+  try {
+    await api.updateLlmProvider(provider.id, { ...provider, partner_account: partner })
+    notify(partner ? 'Now only that partner can use this provider' : 'Now a platform API for everyone', 'success')
+    await loadProviders()
+  } catch (e) {
+    notify(apiError(e, 'Could not change who can use this provider'), 'error')
+    await loadProviders()
+  }
+}
 
 const newModel = ref({
   provider: '',
@@ -1031,9 +1129,7 @@ const timeAgo = (iso) => {
 }
 
 const loadProviders = async () => {
-  const params = {}
-  if (ownerFilter.value) params.owner = ownerFilter.value
-  const response = await api.getLlmProviders(params)
+  const response = await api.getLlmProviders()
   providers.value = response.data.results || response.data
   if (providers.value.some(syncRunning)) syncPoller.start({ immediate: false })
 }
@@ -1101,8 +1197,8 @@ const startSync = async (provider, { announce = true } = {}) => {
 }
 
 const loadModelsPage = async () => {
-  const params = { slim: 1, page: modelPage.value, page_size: MODELS_PER_PAGE }
-  if (ownerFilter.value) params.owner = ownerFilter.value
+  // Every platform model, whoever it is for (admin view), not only the ones this administrator may pick.
+  const params = { slim: 1, page: modelPage.value, page_size: MODELS_PER_PAGE, scope: 'platform' }
   if (modelFilter.value) params.provider = modelFilter.value
   modelsLoading.value = true
   try {
@@ -1116,12 +1212,6 @@ const loadModelsPage = async () => {
   } finally {
     modelsLoading.value = false
   }
-}
-
-// Owner filter changed: everything on screen is for the wrong owner.
-const reloadAll = async () => {
-  if (modelPage.value !== 1) modelPage.value = 1     // the page watcher re-reads the models
-  await Promise.all([loadProviders(), refreshModels()])
 }
 
 // Activity: the last 15 requests — asked for as 15 requests, not as a whole usage report.
@@ -1189,7 +1279,8 @@ const createProvider = async () => {
       provider_type: 'openrouter',
       base_url: '',
       api_key: '',
-      is_active: true
+      is_active: true,
+      partner_account: null,
     }
     await Promise.all([loadProviders(), refreshModels()])
     showAddProvider.value = false
@@ -1299,7 +1390,7 @@ watch(pageTab, openTab)
 onMounted(async () => {
   // Only the tab the page opens on. Every other tab loads its own data when it is first opened (openTab).
   try {
-    await Promise.all([loadProviders(), loadProviderTypes()])
+    await Promise.all([loadProviders(), loadProviderTypes(), loadPartnerAccounts()])
   } catch (e) {
     notify(apiError(e, 'Failed to load providers'), 'error')
   } finally {

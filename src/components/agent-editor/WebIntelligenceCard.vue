@@ -80,11 +80,8 @@
               </optgroup>
             </select>
             <p v-if="!groupedModels.length" class="mt-1 text-[11.5px] text-[#667085]">
-              No verified web-search models yet.
-              <RouterLink to="/dashboard/llm-settings" :target="shell.linkTarget.value" class="font-semibold text-[#2563EB]">
-                Connect an AI provider
-              </RouterLink>
-              to enable model-based search.
+              No verified web-search models yet. Model-based search appears here once a platform administrator
+              adds a model that can search.
             </p>
             <p v-else class="mt-1 text-[11.5px] leading-snug text-[#667085]">
               Only models verified to actually run a web search appear here. This is separate from the

@@ -6,7 +6,7 @@ const props = defineProps({
   email: { type: String, default: '' },
   name: { type: String, default: 'Account' },
   initials: { type: String, default: '?' },
-  plan: { type: String, default: 'Free Plan' },
+  plan: { type: String, default: '' },
   collapsed: Boolean,
 })
 const emit = defineEmits(['logout', 'navigate', 'tour'])

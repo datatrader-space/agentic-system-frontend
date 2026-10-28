@@ -6,7 +6,7 @@
       <p v-if="failure" class="st-error" role="alert">{{ failure }} <button type="button" class="st-button" @click="load">Try again</button></p>
       <div v-if="availability && !availability.ready" class="sc-blocked" role="status" data-test="studio-not-ready">
         <p>{{ availability.reason }}</p>
-        <RouterLink v-if="providerNeeded" class="st-link" to="/dashboard/settings/providers">Settings → AI providers</RouterLink>
+        <p v-if="providerNeeded" class="st-muted">The platform's models for this are added by a platform administrator.</p>
       </div>
       <p v-if="session.error.value" class="st-error" role="alert">{{ session.error.value }} <button type="button" class="st-button" @click="session.initialize">Try again</button></p>
       <StudioAgentPanel v-show="isAgent" v-model="agentDraft" v-model:expanded="chatExpanded" :label="feature.label" :purpose="feature.purpose" :ready="session.ready.value" intro="Tell the agent what you want to make. Use + to attach files." @approved="tab = 'results'" />

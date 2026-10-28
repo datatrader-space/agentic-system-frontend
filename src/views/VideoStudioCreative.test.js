@@ -31,7 +31,9 @@ describe('Creative suite readiness', () => {
     api.getStudioFeatures.mockResolvedValue(notReady(id))
     const w = mountPage(id); await flushPromises()
     expect(w.text()).toContain('No proven model is configured.')
-    expect(w.get('[data-test="studio-not-ready"] a').attributes('href')).toBe('/dashboard/settings/providers')
+    // Models are the platform's: nobody is sent to add a key (backend PAYMENTS_TOPUP_PLAN.md §7).
+    expect(w.find('[data-test="studio-not-ready"] a').exists()).toBe(false)
+    expect(w.text()).toContain('added by a platform administrator')
     expect(api.post).not.toHaveBeenCalled(); w.unmount()
   })
   it('keeps local-tools refusals free of irrelevant provider links',async () => {

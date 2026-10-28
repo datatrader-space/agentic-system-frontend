@@ -9,19 +9,19 @@
 
       <!-- No agents yet: prominent, unmissable call to action. The composer below is disabled
            so the user understands chatting isn't available until an agent exists.
-           Setup has an order: an agent needs a model, a model needs a configured AI provider —
-           so if no models exist yet we point to providers FIRST, otherwise to agent creation. -->
+           An agent needs a model. Models are the platform's (a platform administrator adds them), so with no
+           model yet we say so instead of asking the person to add a key. -->
       <div v-if="chat.needsAgent" class="no-agent-card">
         <div class="nac-icon">
           <svg v-if="needsProvider" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
           <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 1 5 5v1a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5z"/><path d="M4 22a8 8 0 0 1 16 0"/></svg>
         </div>
         <template v-if="needsProvider">
-          <h2 class="nac-title">Connect an AI provider to get started</h2>
-          <p class="nac-sub">Your agents run on AI models. First connect a provider (OpenAI, Anthropic, OpenRouter…) and activate a model — then you can create an agent and chat.</p>
+          <h2 class="nac-title">No AI model is available yet</h2>
+          <p class="nac-sub">Agents run on the platform's AI models, which a platform administrator adds. You can create an agent now; it can chat as soon as a model is available.</p>
           <div class="nac-actions">
-            <button type="button" class="nac-cta" @click="goProviders">Set up AI provider</button>
-            <router-link to="/dashboard/agents" class="nac-ghost">Skip to agents</router-link>
+            <button type="button" class="nac-cta" @click="goCreateAgent">Create an agent</button>
+            <router-link to="/dashboard/billing" class="nac-ghost">Open Billing</router-link>
           </div>
         </template>
         <template v-else>
@@ -267,7 +267,6 @@ const chat = useChatStore()
 const router = useRouter()
 
 const goCreateAgent = () => router.push('/dashboard/agents/new')
-const goProviders = () => router.push('/dashboard/settings/providers')
 
 // Setup order: an agent needs an active model, a model needs a configured provider. Only
 // checked when the user has no agents (the empty-state branch) so we point them to the
@@ -539,7 +538,7 @@ const submit = () => {
   // No agent yet → route to the genuine next setup step instead of sending into the void:
   // a provider (if no models exist) or agent creation.
   if (chat.needsAgent) {
-    needsProvider.value ? goProviders() : goCreateAgent()
+    goCreateAgent()
     return
   }
   const text = draft.value.trim()

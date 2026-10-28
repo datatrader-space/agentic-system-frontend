@@ -332,6 +332,7 @@
 </template>
 
 <script setup>
+import { providersFromModels } from '../../utils/providersFromModels'
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useEditorShell } from '../../composables/editorShell'
 import { RouterLink } from 'vue-router'
@@ -410,10 +411,12 @@ const currentModel = ref(null)     // the agent's main model, looked up by id fo
 let catalog = null
 function loadCatalog() {
   if (!catalog) {
-    catalog = Promise.all([api.get('/llm/models/'), api.get('/llm/providers/')])
-      .then(([mRes, pRes]) => {
+    // People have no providers of their own any more (the Platform APIs are admin-only), so the providers are
+    // the ones the usable models run on.
+    catalog = api.get('/llm/models/')
+      .then((mRes) => {
         models.value = Array.isArray(mRes.data) ? mRes.data : (mRes.data?.results || [])
-        providers.value = Array.isArray(pRes.data) ? pRes.data : (pRes.data?.results || [])
+        providers.value = providersFromModels(models.value)
         const cur = models.value.find(m => m.id === props.agent.default_model)
         if (cur && selectedProvider.value == null) selectedProvider.value = modelProvider(cur)
       })

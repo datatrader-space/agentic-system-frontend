@@ -9,7 +9,7 @@
       </select>
     </label>
     <p v-if="failure" class="st-error" role="alert">{{ failure }} <button type="button" class="st-button" @click="load">Try again</button></p>
-    <p v-else-if="!loading && !ready.length" class="st-muted mrp-note" role="status">No model you can use has passed a test run for this yet. Connect a provider in <RouterLink to="/dashboard/settings/providers" class="st-link">Settings → AI providers</RouterLink> or try again later.</p>
+    <p v-else-if="!loading && !ready.length" class="st-muted mrp-note" role="status">No model has passed a test run for this yet. A platform administrator adds them. <RouterLink to="/dashboard/billing" class="st-link">Billing</RouterLink> shows what you have to spend.</p>
   </div>
 </template>
 <script setup>

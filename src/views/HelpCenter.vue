@@ -312,7 +312,7 @@ function onEnter() { executeSearch() }
 const done = ref({})
 const HUB_STEPS = [
   { key: 'workspace', label: 'Create your workspace' },
-  { key: 'provider', label: 'Connect a model provider' },
+  { key: 'billing', label: 'Top up your balance' },
   { key: 'agent', label: 'Create your first agent' },
   { key: 'workflow', label: 'Build your first workflow' },
   { key: 'first_run', label: 'Run and review your first result' },
@@ -428,7 +428,7 @@ const guides = [
 // `key` maps each step to its onboarding-status flag (GET /onboarding/status/ → done{}),
 // so completed steps are hidden. Keys match HUB_STEPS.
 const recommended = [
-  { key: 'provider', title: 'Connect a model provider', copy: 'Add OpenAI, Anthropic, or another provider to power your agents.', action: 'Add provider', icon: 'lucide:shield-check', route: '/dashboard/llm-settings' },
+  { key: 'billing', title: 'Top up your balance', copy: 'Your balance pays for AI models, media, search and training. Every account starts with $1.', action: 'Open Billing', icon: 'lucide:credit-card', route: '/dashboard/billing' },
   { key: 'agent', title: 'Create your first agent', copy: 'Build an agent and give it instructions to get started.', action: 'Create agent', icon: 'lucide:rocket', route: '/dashboard/agents/new' },
   { key: 'workflow', title: 'Build your first workflow', copy: 'Automate a process using steps, tools, and conditions.', action: 'Create workflow', icon: 'lucide:scan-line', route: '/dashboard/workflow-builder' },
   { key: 'first_run', title: 'Run your first agent', copy: 'Test your agent and view results in the Activity log.', action: 'Run now', icon: 'lucide:circle-play', route: '/dashboard/chat/new' },

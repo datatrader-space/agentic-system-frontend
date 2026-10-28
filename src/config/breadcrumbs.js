@@ -38,7 +38,6 @@ export default {
   'dashboard-budgets': { label: 'Budgets', parent: 'dashboard-home' },
   'dashboard-activity': { label: 'Activity', parent: 'dashboard-home' },
   'dashboard-billing': { label: 'Billing', parent: 'dashboard-home' },
-  'dashboard-llm-settings': { label: 'LLM settings', parent: 'dashboard-home' },
   'dashboard-settings': { label: 'Settings', parent: 'dashboard-home' },
 
   'dashboard-organization': { label: 'Organization', parent: 'dashboard-home' },

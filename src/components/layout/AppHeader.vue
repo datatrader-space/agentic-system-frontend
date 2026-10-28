@@ -105,7 +105,7 @@
                 </div>
                 <div class="user-info">
                   <span class="user-name">{{ currentUser?.username }}</span>
-                  <span class="user-role">{{ currentUser?.github_username ? 'Pro User' : 'Free Plan' }}</span>
+                  <span class="user-role">{{ currentUser?.email || '' }}</span>
                 </div>
                 <svg class="dropdown-chevron" :class="{ 'rotated': showUserMenu }" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -270,7 +270,7 @@
               <div class="mobile-avatar">{{ userInitials }}</div>
               <div class="mobile-user-info">
                 <span class="mobile-user-name">{{ currentUser?.username }}</span>
-                <span class="mobile-user-email">{{ currentUser?.email || 'Free Plan' }}</span>
+                <span class="mobile-user-email">{{ currentUser?.email || '' }}</span>
               </div>
             </div>
             <button @click="handleLogout" class="mobile-logout">
@@ -445,7 +445,7 @@ const publicLinks = [
 
 const authLinks = [
   { to: '/dashboard', label: 'Dashboard', exact: true, iconComponent: DashboardIcon },
-  { to: '/ai-settings', label: 'AI Providers', exact: true, iconComponent: AIIcon },
+  { to: '/dashboard/billing', label: 'Billing', exact: true, iconComponent: AIIcon },
   { to: '/ai-dashboard', label: 'AI Dashboard', exact: true, iconComponent: BenchmarkIcon },
   { to: '/agents', label: 'Agent Library', exact: true, iconComponent: AgentLibraryIcon },
   { to: '/services', label: 'Services', exact: true, iconComponent: ServicesIcon },

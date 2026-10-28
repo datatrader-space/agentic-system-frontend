@@ -44,7 +44,6 @@ const Login = () => import('./views/Login.vue')
 const ForgotPassword = () => import('./views/ForgotPassword.vue')
 const ResetPassword = () => import('./views/ResetPassword.vue')
 const VerifyEmail = () => import('./views/VerifyEmail.vue')
-const LLMSettings = () => import('./views/LLMSettings.vue')
 const LLMDashboard = () => import('./views/LLMDashboard.vue')
 const LLMContextDashboard = () => import('./views/LLMContextDashboard.vue')
 const ConnectorsPage = () => import('./views/ConnectorsPage.vue')
@@ -328,7 +327,6 @@ const router = createRouter({
         { path: 'guided-tours', name: 'dashboard-guided-tours', redirect: '/dashboard/help-center/guided-tours' },
         { path: 'get-started', name: 'dashboard-get-started', redirect: '/dashboard/help-center/get-started' },
         { path: 'llm-context', name: 'dashboard-llm-context', redirect: '/admin-dashboard/llm-context' },
-        { path: 'llm-settings', name: 'dashboard-llm-settings', component: LLMSettings },
         // Phase 5: previously top-level authed pages, re-housed inside the single shell.
         { path: 'systems/:id', name: 'dashboard-system-detail', component: SystemDetail },
         { path: 'systems/:systemId/repositories/:repoId', name: 'dashboard-repository-detail', component: RepositoryPage },
@@ -375,6 +373,11 @@ const router = createRouter({
         { path: 'sandbox-network', name: 'admin-sandbox-network', component: () => import('./views/admin/AdminSandboxNetwork.vue') },
         { path: 'knowledge', name: 'admin-knowledge', component: AdminKnowledge },
         { path: 'model-pricing', name: 'admin-model-pricing', component: ModelPricingPage },
+        // The platform's AI APIs (backend PAYMENTS_TOPUP_PLAN.md §7): the only place AI keys are set. Super admin only;
+        // people never add keys of their own.
+        { path: 'platform-apis', name: 'admin-platform-apis', component: () => import('./views/LLMSettings.vue') },
+        // The prepaid wallet: markup and top-up limits, people's balances, pricing coverage, revenue.
+        { path: 'billing', name: 'admin-billing', component: () => import('./views/admin/AdminBilling.vue') },
         { path: 'llm-context', name: 'admin-llm-context', component: LLMContextDashboard },
         { path: 'conversation-steps', name: 'admin-conversation-steps', component: () => import('./views/admin/AdminConversationSteps.vue') },
         { path: 'training-data', name: 'admin-training-data', component: () => import('./views/TrainingDataPage.vue') },
@@ -425,7 +428,6 @@ const router = createRouter({
     //    Names are kept so name-based navigation keeps working; bookmarks/deep links too.
     { path: '/systems/:id', name: 'system-detail', redirect: to => `/dashboard/systems/${to.params.id}` },
     { path: '/systems/:systemId/repositories/:repoId', name: 'repository-detail', redirect: to => `/dashboard/systems/${to.params.systemId}/repositories/${to.params.repoId}` },
-    { path: '/ai-settings', name: 'ai-settings', redirect: '/dashboard/llm-settings' },
     { path: '/ai-dashboard', name: 'ai-dashboard', redirect: '/dashboard/activity' },
     { path: '/tools', name: 'tools', redirect: '/dashboard' },
     { path: '/services', name: 'services', redirect: '/dashboard/services' },

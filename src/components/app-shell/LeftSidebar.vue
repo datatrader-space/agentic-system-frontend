@@ -48,7 +48,7 @@
         :email="currentUser?.email || ''"
         :name="currentUser?.username || 'Account'"
         :initials="initials"
-        :plan="currentUser?.github_username ? 'Pro Plan' : 'Free Plan'"
+        :plan="balanceLabel"
         :collapsed="collapsed"
         @navigate="openProfilePage"
         @logout="logout"
@@ -65,6 +65,7 @@
 
 <script setup>
 import { computed, inject, onMounted, ref } from 'vue'
+import api from '../../services/api'
 import { useRoute, useRouter } from 'vue-router'
 import { House, Bot, BookOpen, Files, Workflow, Database, Clapperboard, CalendarClock, Activity, ShieldCheck, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
 import BrandMark from '../common/BrandMark.vue'
@@ -77,6 +78,7 @@ import NotificationBell from './NotificationBell.vue'
 import WorkspaceSwitcher from '../layout/WorkspaceSwitcher.vue'
 import SidebarProfileMenu from './SidebarProfileMenu.vue'
 import { useOnboarding } from '../../composables/useOnboarding'
+import { balanceText } from '../../utils/money'
 
 const props = defineProps({
   // When true (inside the mobile drawer) the sidebar is always expanded and
@@ -90,6 +92,16 @@ const route = useRoute()
 const router = useRouter()
 
 const currentUser = inject('currentUser', ref(null))
+
+// The person's prepaid balance under their name (there are no plans: backend PAYMENTS_TOPUP_PLAN.md). Read once
+// when the sidebar mounts; the Billing page shows it live. Empty until it arrives, and when it cannot be read.
+const balanceLabel = ref('')
+onMounted(async () => {
+  try {
+    const { data } = await api.billingWallet()
+    balanceLabel.value = data?.wallet?.exempt ? 'Platform staff' : `Balance ${balanceText(data?.wallet?.balance_exact_usd)}`
+  } catch (e) { balanceLabel.value = '' }
+})
 const logout = inject('logout', () => {})
 const openSettings = inject('openSettings', null)
 

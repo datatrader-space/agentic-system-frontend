@@ -110,7 +110,6 @@ export function useNavigationHistory() {
                 'dashboard': 'Dashboard',
                 'agent-library': 'Agents',
                 'agent-playground': 'Agent',
-                'ai-settings': 'AI Settings',
                 'ai-dashboard': 'AI Dashboard',
                 'service-list': 'Services',
                 'mcp-servers': 'MCP',

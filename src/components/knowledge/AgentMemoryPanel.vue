@@ -277,6 +277,7 @@
 </template>
 
 <script setup>
+import { providersFromModels } from '../../utils/providersFromModels'
 import { ref, computed, watch, onMounted } from 'vue';
 import api from '../../services/api';
 import { confirm } from '@/composables/useConfirm';
@@ -421,17 +422,14 @@ const fetchKnowledge = async () => {
   }
 };
 
-const fetchProviders = async () => {
-  try {
-    const res = await api.getLlmProviders();
-    llmProviders.value = res.data.results || res.data;
-  } catch (e) { console.error('Failed to fetch providers:', e); }
-};
+// The providers to pick from are the platform APIs of the models this person may use (provider rows are admin-only).
+const fetchProviders = async () => { llmProviders.value = providersFromModels(llmModels.value) };
 
 const fetchModels = async () => {
   try {
     const res = await api.getLlmModels({ fields: 'picker' });   // ?fields=picker: every row, without the heavy metadata (not read here)
     llmModels.value = res.data.results || res.data;
+    llmProviders.value = providersFromModels(llmModels.value);
   } catch (e) { console.error('Failed to fetch models:', e); }
 };
 

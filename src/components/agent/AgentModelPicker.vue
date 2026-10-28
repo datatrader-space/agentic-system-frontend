@@ -23,12 +23,10 @@
       <div v-if="loading" class="amp-state">Loading your models…</div>
 
       <div v-else-if="!providers.length" class="amp-state">
-        <p><strong>No AI provider connected.</strong></p>
-        <p v-if="source === 'platform'">
-          You're currently on the platform's default model. Connect your own provider to choose your model.
-        </p>
-        <router-link class="amp-cta" to="/dashboard/settings/providers" @click="close">
-          Set up an AI provider →
+        <p><strong>No AI model is available yet.</strong></p>
+        <p>The platform's AI models are added by a platform administrator. Usage is charged to your balance.</p>
+        <router-link class="amp-cta" to="/dashboard/billing" @click="close">
+          Open Billing →
         </router-link>
       </div>
 

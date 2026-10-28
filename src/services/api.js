@@ -295,6 +295,9 @@ export default {
 
   // Partner Agent API — admin key management + integration guide (staff-only)
   getPartnerKeys: () => api.get('/admin/partner-keys/'),
+  // The platform's web search engines (Platform APIs page, platform administrators only).
+  getPlatformSearchEngines: () => api.get('/admin/platform-search-engines/', { noCache: true }),
+  updatePlatformSearchEngine: (engine, data) => api.put(`/admin/platform-search-engines/${engine}/`, data),
   createPartnerKey: (userId, name) => api.post('/admin/partner-keys/', { user_id: userId, name }),
   revokePartnerKey: (id) => api.post(`/admin/partner-keys/${id}/revoke/`),
   togglePartnerKey: (id, revoked) => api.post(`/admin/partner-keys/${id}/toggle/`, { revoked }),
@@ -721,13 +724,9 @@ export default {
   getAgentModelOptions: (id, params) => api.get(`/agents/${id}/model-options/`, { params, noCache: true }),
   // What the chat Effort control may offer: agent config reasoning on/off + the efforts the caller's model accepts.
   getAgentReasoningOptions: (id) => api.get(`/agents/${id}/reasoning-options/`, { noCache: true }),
-  // Switch every model on one provider to another. ONE backend path, two entrances: the chat's popup after a
-  // provider account fault (it names the provider that refused), and the AI Provider page's manual switch
-  // (no `from` — the server uses the provider the caller's models are actually on).
+  // Switch every model on one platform provider to another: the chat's popup after a provider account fault (it
+  // names the provider that refused).
   getProviderSwitchOptions: (fromProvider) => api.get('/llm/providers/switch-options/', { params: fromProvider ? { from: fromProvider } : {}, noCache: true }),
-  // Where the caller's models run, WHY they run there (auto-switched vs chosen), and every provider they own
-  // marked available or not — the manual switch's read side.
-  getProviderSwitchState: () => api.get('/llm/providers/switch-state/', { noCache: true }),
   switchProvider: (fromProvider, toProviderId, origin = 'manual', reason = '') =>
     api.post('/llm/providers/switch/', { from: fromProvider || '', to_provider_id: toProviderId, origin, reason }),
   selectAgentModel: (id, modelId) => api.post(`/agents/${id}/select-model/`, { model_id: modelId }),
@@ -797,11 +796,26 @@ export default {
   twofaDisable: (password, code) => api.post('/auth/2fa/disable', { password, code }),
   twofaVerify: (ephemeral_token, code) => api.post('/auth/2fa/verify', { ephemeral_token, code }),
 
-  // Billing (Track C — Stripe). Plans is public; the rest are org-scoped + auth.
-  billingPlans: () => api.get('/billing/plans/'),
-  billingSubscription: () => api.get('/billing/subscription/', { noCache: true }),
-  billingCheckout: (tier, interval) => api.post('/billing/checkout/', { tier, interval }),
-  billingPortal: () => api.post('/billing/portal/'),
+  // Billing: the prepaid top-up wallet (backend agentic-docs/PAYMENTS_TOPUP_PLAN.md). Always the caller's OWN
+  // wallet; money is added only by Stripe's signed webhook, never by the return from Checkout.
+  billingWallet: () => api.get('/billing/wallet/', { noCache: true }),
+  billingEntries: (params = {}) => api.get('/billing/wallet/entries/', { params, noCache: true }),
+  billingTopUp: (amountUsd) => api.post('/billing/topups/', { amount_usd: amountUsd }),
+  billingTopUpStatus: (id) => api.get(`/billing/topups/${id}/`, { noCache: true }),
+  // Platform administrators only.
+  billingAdminSettings: () => api.get('/billing/admin/settings/', { noCache: true }),
+  billingAdminSaveSettings: (data) => api.put('/billing/admin/settings/', data),
+  billingAdminWallets: (params = {}) => api.get('/billing/admin/wallets/', { params, noCache: true }),
+  billingAdminWallet: (userId, params = {}) => api.get(`/billing/admin/wallets/${userId}/`, { params, noCache: true }),
+  billingAdminAdjust: (userId, amountUsd, reason) =>
+    api.post(`/billing/admin/wallets/${userId}/adjust/`, { amount_usd: amountUsd, reason }),
+  billingAdminReleaseHold: (reservationId) => api.post(`/billing/admin/reservations/${reservationId}/release/`),
+  billingAdminPricingCoverage: () => api.get('/billing/admin/pricing-coverage/', { noCache: true }),
+  billingAdminRevenue: (days = 30) => api.get('/billing/admin/revenue/', { params: { days }, noCache: true }),
+  // Every cent traced: filtered charges across all people, totals grouped by who/what/where, and a CSV export.
+  billingAdminCharges: (params = {}) => api.get('/billing/admin/charges/', { params, noCache: true }),
+  billingAdminSpendSummary: (params = {}) => api.get('/billing/admin/spend-summary/', { params, noCache: true }),
+  billingAdminChargesCsv: (params = {}) => api.get('/billing/admin/charges.csv', { params, responseType: 'blob', noCache: true }),
 
   // Web analytics — admin reports (Track D)
   analyticsOverview: (days = 30) => api.get('/analytics/admin/overview/', { params: { days } }),

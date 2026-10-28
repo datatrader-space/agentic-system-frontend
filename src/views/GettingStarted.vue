@@ -181,8 +181,7 @@ const firstName = ref('there')
 // Step metadata — title/copy/icon/route per onboarding key. State (completed/
 // progress/idle) is derived from the live /onboarding/status/ payload, never hardcoded.
 const STEP_META = [
-  { key: 'provider', number: 1, title: 'Connect a model provider', copy: 'Connect OpenAI, Anthropic, Google, or another provider to power your agents.', icon: 'lucide:plug', route: '/dashboard/llm-settings' },
-  { key: 'agent', number: 2, title: 'Create your first agent', copy: "Define your agent's purpose, instructions, and tools.", icon: 'lucide:bot', route: '/dashboard/agents/new' },
+  { key: 'agent', number: 1, title: 'Create your first agent', copy: "Define your agent's purpose, instructions, and tools.", icon: 'lucide:bot', route: '/dashboard/agents/new' },
   { key: 'connector', number: 3, title: 'Add a connector', copy: 'Connect your tools and data sources so your agent can take action.', icon: 'lucide:link-2', route: '/dashboard/connectors' },
   { key: 'first_run', number: 4, title: 'Run your first task', copy: 'Test your agent with a simple task and see results in the Activity log.', icon: 'lucide:clipboard', route: '/dashboard/chat/new' },
   { key: 'workflow', number: 5, title: 'Build a workflow', copy: 'Automate multi-step processes with triggers, conditions, and actions.', icon: 'lucide:workflow', route: '/dashboard/workflow-builder' },
@@ -275,7 +274,7 @@ onMounted(async () => {
 })
 
 const guides = [
-  { title: 'Connect your first provider', copy: 'Add and verify your model provider.', time: '3 min', icon: 'lucide:badge-check', tone: 'blue' },
+  { title: 'Top up your balance', copy: 'Add money and see what each run costs.', time: '2 min', icon: 'lucide:credit-card', tone: 'blue' },
   { title: 'Create and test an agent', copy: 'Build, configure, and try your agent.', time: '5 min', icon: 'lucide:bot', tone: 'blue' },
   { title: 'Add your first connector', copy: 'Connect tools and data sources.', time: '4 min', icon: 'lucide:link-2', tone: 'blue' },
   { title: 'Build a simple workflow', copy: 'Automate a task from start to finish.', time: '6 min', icon: 'lucide:workflow', tone: 'blue' },

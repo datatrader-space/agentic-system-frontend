@@ -9,13 +9,13 @@
             This is your workspace for building AI agents that chat, run tools, automate workflows, and write code.
           </p>
           <ol class="wm-steps">
-            <li><span class="wm-num">1</span> Connect an <strong>AI provider</strong> &amp; activate models</li>
-            <li><span class="wm-num">2</span> Create an <strong>agent</strong> that uses a model</li>
+            <li><span class="wm-num">1</span> Your <strong>balance</strong> pays for what you use ($1 to start)</li>
+            <li><span class="wm-num">2</span> Create an <strong>agent</strong> and pick its model</li>
             <li><span class="wm-num">3</span> Start <strong>chatting</strong> with your agent</li>
           </ol>
           <div class="wm-actions">
             <button type="button" class="wm-primary" @click="$emit('tour')">Take a quick tour</button>
-            <button type="button" class="wm-secondary" @click="$emit('create')">Set up AI provider</button>
+            <button type="button" class="wm-secondary" @click="$emit('create')">Create an agent</button>
           </div>
           <button type="button" class="wm-later" @click="$emit('later')">Maybe later</button>
         </div>

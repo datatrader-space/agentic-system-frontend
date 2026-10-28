@@ -44,7 +44,8 @@ describe('compact settings modal', () => {
   it('includes all existing sections, mounts only the selected panel, and searches sections without losing the active panel', async () => {
     render()
     await flushPromises()
-    expect(document.querySelectorAll('nav[aria-label="Settings sections"] button')).toHaveLength(13)
+    // 12: "AI Providers" left personal settings when people stopped keeping their own AI keys (2026-10-27).
+    expect(document.querySelectorAll('nav[aria-label="Settings sections"] button')).toHaveLength(12)
     expect(document.querySelectorAll('[data-panel]')).toHaveLength(1)
     expect(document.querySelector('[data-panel="general"]')).toBeTruthy()
     section('Security').click()

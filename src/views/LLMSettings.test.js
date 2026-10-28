@@ -53,7 +53,7 @@ const providerTypes = [
 let wrapper
 const mountPage = async () => {
   wrapper = mount(LLMSettings, {
-    global: { stubs: { OwnerFilter: true, ProviderSwitchCard: true, PageLoader: true } },
+    global: { stubs: { OwnerFilter: true, PageLoader: true } },
   })
   await flushPromises()
 }
@@ -104,13 +104,13 @@ describe('LLMSettings loads each tab on demand', () => {
     await mountPage()
     await openTab('Models')
     expect(api.getLlmModels).toHaveBeenCalledTimes(1)
-    expect(api.getLlmModels).toHaveBeenLastCalledWith({ slim: 1, page: 1, page_size: 10 })
+    expect(api.getLlmModels).toHaveBeenLastCalledWith({ slim: 1, page: 1, page_size: 10, scope: 'platform' })
     expect(wrapper.text()).toContain('Model-1-0')
     expect(wrapper.text()).toContain('Showing 1–10 of 523')
 
     await wrapper.findAll('button').find((b) => b.text() === 'Next').trigger('click')
     await flushPromises()
-    expect(api.getLlmModels).toHaveBeenLastCalledWith({ slim: 1, page: 2, page_size: 10 })
+    expect(api.getLlmModels).toHaveBeenLastCalledWith({ slim: 1, page: 2, page_size: 10, scope: 'platform' })
     expect(wrapper.text()).toContain('Model-2-0')
     expect(wrapper.text()).toContain('Showing 11–20 of 523')
   })
@@ -121,7 +121,7 @@ describe('LLMSettings loads each tab on demand', () => {
     const filter = wrapper.findAll('select').find((s) => s.text().includes('All Providers'))
     await filter.setValue(7)
     await flushPromises()
-    expect(api.getLlmModels).toHaveBeenLastCalledWith({ slim: 1, page: 1, page_size: 10, provider: 7 })
+    expect(api.getLlmModels).toHaveBeenLastCalledWith({ slim: 1, page: 1, page_size: 10, scope: 'platform', provider: 7 })
   })
 
   it('loads the picks and only the providers they sit on when Internal & Embedding is opened', async () => {

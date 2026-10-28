@@ -2645,6 +2645,10 @@ export const useChatStore = defineStore('chat', {
           // `retryable: false` means the server knows retrying cannot succeed (a model the account
           // cannot reach, rejected credentials). Carried onto the message so the bubble can withhold
           // the Retry button rather than inviting a re-run that fails identically.
+          // A refusal by the person's prepaid balance (`wallet_empty`, `model_price_missing`): the bubble offers
+          // "Top up" instead of Retry (backend PAYMENTS_TOPUP_PLAN.md §6.5). Read before _errAssistant releases it.
+          const _errBubble = this._cur()
+          if (_errBubble && msg.code) _errBubble.errorCode = msg.code
           this._errAssistant(em, msg.retryable !== false, true)
           if (msg.provider_switch && msg.provider_switch.from_provider) {
             this.providerSwitchOffer = { ...msg.provider_switch, message: em }

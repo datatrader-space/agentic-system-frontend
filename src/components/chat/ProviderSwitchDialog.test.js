@@ -82,13 +82,14 @@ describe('ProviderSwitchDialog', () => {
     expect(chat.providerSwitchOffer).toBe(null)
   })
 
-  it('no other working provider says where to add one', async () => {
+  it('no other provider says so, and sends nobody to add a key', async () => {
     api.getProviderSwitchOptions.mockResolvedValue({ data: { targets: [] } })
     const chat = useChatStore()
     chat.providerSwitchOffer = { from_provider: 'openrouter', reason: 'key_limit' }
     const w = mountDialog()
     await flushPromises()
-    expect(w.find('[data-test="provider-switch-none"]').text()).toContain('no other working provider')
+    expect(w.find('[data-test="provider-switch-none"]').text()).toContain('No other AI provider is available')
+    expect(w.find('[data-test="provider-switch-none"] a').exists()).toBe(false)
     expect(w.find('[data-test="provider-switch-apply"]').attributes('disabled')).toBeDefined()
   })
 })

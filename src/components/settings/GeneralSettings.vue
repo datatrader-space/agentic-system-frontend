@@ -74,7 +74,7 @@
       <div class="row">
         <div>
           <div class="row-label">Product tour</div>
-          <div class="row-hint">Walks through setup: connect an AI provider, create an agent, then chat.</div>
+          <div class="row-hint">Walks through setup: your balance, create an agent, then chat.</div>
         </div>
         <button class="tour-btn" @click="replayTour">Replay tour</button>
       </div>

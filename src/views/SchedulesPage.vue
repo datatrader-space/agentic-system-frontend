@@ -116,7 +116,7 @@
                 <span>Time of day</span>
                 <div class="field-control">
                   <Icon icon="lucide:clock-3" />
-                  <input v-model="form.time" type="time" :disabled="form.frequency === 'Hourly'" value="08:00" />
+                  <input v-model="form.time" type="time" :disabled="form.frequency === 'Hourly'" />
                 </div>
               </label>
               <label>

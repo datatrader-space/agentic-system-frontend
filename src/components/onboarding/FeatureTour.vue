@@ -44,35 +44,23 @@ const firstName = computed(() => {
 // `route` navigate there first so the highlighted chrome is on screen.
 //
 // ORDER MATTERS — it mirrors the real setup dependency chain:
-//   1. Connect an AI provider + activate models   (an agent can't run without a model)
+//   1. See your balance                            (everything paid runs on it; every account starts with $1)
 //   2. Create an agent                             (needs an active model)
 //   3. Chat with the agent                         (needs an agent)
 // …then the power features (Connectors / Workflows / Let's Code / Activity).
 const steps = [
   {
     title: 'Welcome aboard 👋',
-    description: "Let's set you up in 3 steps — connect an AI provider, create an agent, then start chatting. I'll show you exactly where to click. Skip anytime; replay later from the sidebar.",
+    description: "Let's set you up in 3 steps — check your balance, create an agent, then start chatting. I'll show you exactly where to click. Skip anytime; replay later from the sidebar.",
   },
   {
-    target: '[data-tour="add-provider"]', route: '/dashboard/settings/providers',
-    title: 'Step 1 — Connect an AI provider',
-    description: 'Agents run on AI models, and models come from a provider. So this is the very first thing to do.',
+    target: '[data-tour="balance"]', route: '/dashboard/billing',
+    title: 'Step 1 — Your balance',
+    description: 'Everything AADML does that costs money (AI models, images, video, search, sandboxes, training) is paid from this balance. Every account starts with $1.',
     howto: [
-      'Click <strong>Add Provider</strong> here',
-      'Pick a provider — OpenAI, Anthropic, OpenRouter, Gemini or Ollama',
-      'Paste your <strong>API key</strong> and save',
-      'Click <strong>Sync Models</strong> to pull that provider\'s models',
-      'Open the <strong>Models</strong> tab and toggle a model to <strong>Active</strong>',
-    ],
-  },
-  {
-    target: '[data-tour="tab-internal"]', route: '/dashboard/settings/providers',
-    title: 'Optional — internal & embedding models',
-    description: "Besides an agent's chat model, the app runs small internal tasks (summarizing, routing) and builds knowledge embeddings. These default to each agent's own model, so you can safely skip this — open it later only if you want to fine-tune.",
-    howto: [
-      'Click the <strong>Internal &amp; Embedding</strong> tab',
-      'For each task (ASK_LLM, summarization, turn router…) leave <strong>Agent default</strong>, or choose a specific provider + model and <strong>Save</strong>',
-      'Set the <strong>Embedding model</strong> for knowledge / RAG — the built-in local model is free &amp; private; switching to a provider model improves retrieval but needs re-indexing',
+      'See what you have left at the top',
+      'Top up with a preset or any amount; you pay on Stripe\'s secure page',
+      'The history shows every top-up with its receipt and every charge with what it was for',
     ],
   },
   {
@@ -160,8 +148,8 @@ const steps = [
   },
   {
     title: "You're all set! 🎉",
-    description: "Time for Step 1 — connect an AI provider. Then create an agent and start chatting. You can replay this tour anytime from the sidebar or Settings.",
-    finishLabel: 'Connect a provider',
+    description: "Time to create your first agent and start chatting. You can replay this tour anytime from the sidebar or Settings.",
+    finishLabel: 'Create an agent',
   },
 ]
 
@@ -202,11 +190,11 @@ const onStartFromWelcome = () => {
   if (s?.route && route.path !== s.route) router.push(s.route)
 }
 
-// "Set up AI provider" — the genuine first step (an agent needs a model, a model needs a provider).
+// "Create an agent" — the first thing a person does (models are the platform's; usage is paid from the balance).
 const onCreateAgent = () => {
   welcomeOpen.value = false
   ob.endTour(true)
-  router.push('/dashboard/settings/providers')
+  router.push('/dashboard/agents')
 }
 
 const onLater = () => {
@@ -219,6 +207,6 @@ const onSkip = () => ob.endTour(true)
 
 const onFinish = () => {
   ob.endTour(true)
-  router.push('/dashboard/settings/providers')
+  router.push('/dashboard/agents')
 }
 </script>
