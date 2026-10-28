@@ -275,7 +275,8 @@ describe('Effects recipes', () => {
     api.runStudioRecipe.mockResolvedValue({ data: job })
     const w = mountIt(CreativeMarketing, { kind: 'effects' }); await flushPromises()
     await w.get('select').setValue('relight'); await flushPromises()
-    w.findAllComponents({ name: 'InputSlot' }).find(s => s.props('label') === 'image').vm.$emit('pick', [{ attachment_id: 'photo' }]); await flushPromises()
+    expect(w.findAll('label').map(l => l.text())).toContain('Lightgolden hour')            // "light" said as "Light"
+    w.findAllComponents({ name: 'InputSlot' }).find(s => s.props('label') === 'Photo').vm.$emit('pick', [{ attachment_id: 'photo' }]); await flushPromises()
     await w.findAll('button').find(b => b.text() === 'Review recipe estimate').trigger('click'); await flushPromises()
     expect(api.runStudioRecipe).toHaveBeenCalledExactlyOnceWith('relight', { route_id: '7', slots: { image: 'photo' }, options: { light: 'golden hour' } })
     w.unmount()

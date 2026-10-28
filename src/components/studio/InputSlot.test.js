@@ -27,4 +27,11 @@ describe('InputSlot', () => {
     expect(w.emitted('pick')[0][0][0].attachment_id).toBe(7)
     w.unmount()
   })
+  it('says "an image" and "an audio" file, not "a image" (live 2026-10-28)', () => {
+    const w = mount(InputSlot, { props: { label: 'Overlay', kinds: ['image'], limit: 1, allowUpload: false } })
+    expect(w.text()).toContain('Choose an image from your Library')
+    const v = mount(InputSlot, { props: { label: 'Clip', kinds: ['video', 'audio'], limit: 1, allowUpload: false } })
+    expect(v.text()).toContain('Choose a video or an audio file from your Library')
+    w.unmount(); v.unmount()
+  })
 })

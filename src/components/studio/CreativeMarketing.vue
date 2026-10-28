@@ -5,9 +5,9 @@
       <label class="st-field" data-field="recipe_id">Recipe<select v-model="recipeId" class="st-input" @change="resetRecipe"><option value="">Choose recipe</option><option v-for="r in recipes" :key="r.id" :value="r.id" :disabled="!r.ready">{{ r.title }}{{ r.ready ? '' : ' — Not yet proven' }}</option></select></label>
       <template v-if="recipe">
         <MediaRoutePicker v-if="mediaRecipe" v-model="recipeRoute" :operation="recipe.operation" />
-        <InputSlot v-for="slot in recipe.slots" :key="slot.name" :label="slot.name" :data-field="`slots.${slot.name}`" :required="slot.required" :kinds="[slot.media_type]" :allow-upload="false" :items="slots[slot.name] ? [slots[slot.name]] : []" @pick="slots[slot.name] = $event[0]" @remove="delete slots[slot.name]" />
+        <InputSlot v-for="slot in recipe.slots" :key="slot.name" :label="words(slot.name)" :data-field="`slots.${slot.name}`" :required="slot.required" :kinds="[slot.media_type]" :allow-upload="false" :items="slots[slot.name] ? [slots[slot.name]] : []" @pick="slots[slot.name] = $event[0]" @remove="delete slots[slot.name]" />
         <p v-if="kind === 'ad-remix'" class="st-muted">Choose your own ad video.</p>
-        <label v-for="(values,name) in recipe.options" :key="name" class="st-field">{{ name }}<select v-model="options[name]" class="st-input"><option v-for="value in values" :key="value">{{ value }}</option></select></label>
+        <label v-for="(values,name) in recipe.options" :key="name" class="st-field">{{ words(name) }}<select v-model="options[name]" class="st-input"><option v-for="value in values" :key="value">{{ value }}</option></select></label>
         <button class="st-button primary" :disabled="busy || !recipe.ready || (mediaRecipe && !recipeRoute)" @click="prepareRecipe">Review recipe estimate</button>
       </template>
       <Teleport v-if="monitor" defer :to="`#${monitor}`"><MediaMonitor :items="monitorItems" :empty="recipe ? 'Add the files this recipe needs to see them here.' : 'Choose a recipe, then add the files it needs.'" /></Teleport>
@@ -17,19 +17,20 @@
       <label class="st-field" data-field="url">Brand website<input v-model="website" class="st-input" type="url" /></label><button class="st-button" :disabled="busy || !website" @click="readBrand">Read website</button>
       <p v-if="draft" class="st-muted">Review this draft before saving it.</p>
       <template v-if="draft">
-        <label v-for="field in ['name','description','website','tagline','voice','audience']" :key="field" class="st-field">{{ field }}<textarea v-model="draft[field]" class="st-input" rows="2" /></label>
+        <label v-for="field in ['name','description','website','tagline','voice','audience']" :key="field" class="st-field">{{ words(field) }}<textarea v-model="draft[field]" class="st-input" rows="2" /></label>
         <label class="st-field">Colors (comma separated)<input v-model="colors" class="st-input" /></label>
         <InputSlot label="Brand images (logo first)" required :kinds="['image']" :limit="8" :allow-upload="false" :items="draft.images || []" @pick="addBrandImages" @remove="draft.images.splice(draft.images.indexOf($event),1)" />
         <div v-for="(image,i) in draft.images || []" :key="image.attachment_id" class="creative-card"><span>{{ image.source_url }}</span><button class="st-button" :disabled="i === 0" @click="draft.images.unshift(...draft.images.splice(i,1))">Use as logo (first)</button><button class="st-button" @click="draft.images.splice(i,1)">Remove image</button></div>
         <button class="st-button" :disabled="busy || !draft.name || !draft.images?.length" @click="saveBrand">Save reviewed brand</button>
+        <p v-if="!draft.name || !draft.images?.length" class="st-muted" role="status" data-test="brand-save-needs">{{ !draft.name ? 'Give the brand a name' : 'Add at least one brand image, the logo first' }} to save it.</p>
       </template>
       <button v-if="!draft" class="st-button" @click="draft = { name:'', description:'', website:'', tagline:'', voice:'', audience:'', images:[] }">New brand</button>
       <label class="st-field" data-field="platform">Platform<select v-model="platform" class="st-input"><option v-for="p in adOptions.platforms" :key="p.id" :value="p.id">{{ p.label }} · {{ p.aspect_ratio }} · up to {{ p.max_seconds }} seconds</option></select></label>
-      <label class="st-field" data-field="goal">Goal<select v-model="goal" class="st-input"><option v-for="g in adOptions.goals" :key="g">{{ g }}</option></select></label>
+      <label class="st-field" data-field="goal">Goal<select v-model="goal" class="st-input"><option v-for="g in adOptions.goals" :key="g" :value="g">{{ words(g) }}</option></select></label>
       <label class="st-field" data-field="product_id">Product Element (optional)<select v-model="productId" class="st-input"><option value="">No product</option><option v-for="p in products" :key="p.ingredient_id" :value="p.ingredient_id">{{ p.name }}</option></select></label>
       <label class="st-field" data-field="notes">Notes<textarea v-model="notes" class="st-input" /></label><label class="st-field" data-field="n">Concept count<input v-model.number="count" type="number" min="1" :max="adOptions.max_concepts || 4" class="st-input" /></label>
       <button class="st-button primary" :disabled="busy || !brandId || !platform" @click="concepts">Develop concepts</button>
-      <div v-for="(concept,i) in drafts" :key="i" class="creative-card"><label v-for="field in ['title','hook','angle','cta']" :key="field" class="st-field">{{ field }}<textarea v-model="concept[field]" class="st-input" /></label><div v-for="(s,j) in concept.scenes" :key="j"><label v-for="field in ['visual','voiceover','on_screen_text','planned_ms']" :key="field" class="st-field">{{ field }}<input v-model="s[field]" class="st-input" :type="field === 'planned_ms' ? 'number' : 'text'" /></label></div><button class="st-button" :disabled="busy" @click="makeProject(concept)">Use concept in Storyboard</button></div>
+      <div v-for="(concept,i) in drafts" :key="i" class="creative-card"><label v-for="field in ['title','hook','angle','cta']" :key="field" class="st-field">{{ words(field) }}<textarea v-model="concept[field]" class="st-input" /></label><div v-for="(s,j) in concept.scenes" :key="j"><label v-for="field in ['visual','voiceover','on_screen_text','planned_ms']" :key="field" class="st-field">{{ words(field) }}<input v-model="s[field]" class="st-input" :type="field === 'planned_ms' ? 'number' : 'text'" /></label></div><button class="st-button" :disabled="busy" @click="makeProject(concept)">Use concept in Storyboard</button></div>
     </template>
   </div>
 </template>
@@ -43,6 +44,9 @@ import MediaMonitor from './MediaMonitor.vue'
 import CreativeError from './CreativeError.vue'
 import { useCreativeForm } from '../../composables/useCreativeForm'
 const props = defineProps({ kind:String }), emit = defineEmits(['job']), router = useRouter(), { busy,error,run } = useCreativeForm()
+// The server's field and slot names ("on_screen_text", "light") said in words on the page.
+const WORDS = { voice: 'How the brand speaks', audience: 'Who it is for', hook: 'Hook (the first two seconds)', angle: 'Why it works', cta: 'Call to action', visual: 'What the camera sees', on_screen_text: 'On-screen text', planned_ms: 'Length (milliseconds)', image: 'Photo', video: 'Your video' }
+const words = key => WORDS[key] || String(key || '').replace(/[_-]+/g, ' ').replace(/^./, c => c.toUpperCase())
 const recipes = ref([]), recipeId = ref(''), slots = ref({}), options = ref({}), recipe = computed(() => recipes.value.find(r => r.id === recipeId.value))
 // An image recipe runs on a media model the person chooses; a video recipe uses the Studio's video model.
 const monitor = inject('studioMonitor', '')

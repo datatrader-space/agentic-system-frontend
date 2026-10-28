@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia } from 'pinia'
+import { createPinia, setActivePinia } from 'pinia'
+import { useVideoStore } from '../../stores/useVideoStore'
 import Board from './CreativeBoard.vue'
 import Marketing from './CreativeMarketing.vue'
 import Narrative from './CreativeNarrative.vue'
 import InputSlot from './InputSlot.vue'
 import api from '../../services/api'
-vi.mock('vue-router',()=>({useRoute:()=>({query:{project_id:'p'}}),useRouter:()=>({push:vi.fn()})}))
+const routeQuery = vi.hoisted(() => ({ project_id: 'p' }))
+vi.mock('vue-router',()=>({useRoute:()=>({query:routeQuery}),useRouter:()=>({push:vi.fn()})}))
 vi.mock('../../services/api',()=>({default:{get:vi.fn(),post:vi.fn(),patch:vi.fn(),put:vi.fn(),getStoryboard:vi.fn(),getCinemaControls:vi.fn(),getMediaRoutes:vi.fn(),getStudioRecipes:vi.fn(),runStudioRecipe:vi.fn()}}))
 vi.mock('../../composables/useNotify',()=>({notify:{error:vi.fn(),success:vi.fn(),warning:vi.fn()}}))
 const setup = (component,kind) => mount(component,{props:{kind},global:{plugins:[createPinia()],stubs:{InputSlot:true,RouterLink:true}}})
@@ -104,13 +106,18 @@ describe('Creative flow boundaries',()=>{
   it('saves a new brand with a Library image as its first logo attachment', async () => {
     api.post.mockResolvedValue({ data: { brand_id: 'saved', name: 'New brand' } })
     const w = setup(Marketing, 'ads'); await flushPromises(); await click(w, 'New brand')
-    await w.findAll('label').find(label => label.text() === 'name').get('textarea').setValue('New brand')
+    // The fields are named in words, and a disabled Save says what it still needs (live 2026-10-28: raw "name",
+    // "voice", and a Save that stayed disabled without a word).
+    expect(w.findAll('label').map(label => label.text())).toEqual(expect.arrayContaining(['Name', 'How the brand speaks', 'Who it is for']))
+    await w.findAll('label').find(label => label.text() === 'Name').get('textarea').setValue('New brand')
     const save = w.findAll('button').find(button => button.text() === 'Save reviewed brand')
     expect(save.attributes('disabled')).toBeDefined()
+    expect(w.get('[data-test="brand-save-needs"]').text()).toBe('Add at least one brand image, the logo first to save it.')
     const images = w.findComponent(InputSlot)
     expect(images.props()).toMatchObject({ kinds: ['image'], limit: 8, allowUpload: false })
     images.vm.$emit('pick', [{ attachment_id: 'logo' }]); await flushPromises()
     expect(save.attributes('disabled')).toBeUndefined()
+    expect(w.find('[data-test="brand-save-needs"]').exists()).toBe(false)
     await click(w, 'Save reviewed brand')
     expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/brands/', { name: 'New brand', description: '', traits: { colors: [], website: '', tagline: '', voice: '', audience: '' }, attachment_ids: ['logo'] })
     w.unmount()
@@ -120,5 +127,68 @@ describe('Creative flow boundaries',()=>{
     api.get.mockImplementation(path => path === '/video/explainers/p/' ? Promise.resolve({ data: { scenes: [{ scene_id: 's', order: 0, narration: 'Hello' }] } }) : get(path))
     const w = setup(Narrative, 'explainer'); await flushPromises()
     expect(w.get('h2').text()).toBe('Scene 1'); w.unmount()
+  })
+})
+
+// Live 2026-10-28: Storyboard listed video models as keyframe models after Create project, sent its scene video with
+// no model ("Choose a video model first"), showed a finished keyframe only after Refresh; Cinema had no length or size.
+describe('Storyboard and Cinema make a video on the model, length and size chosen', () => {
+  const video = { route_id: 89, name: 'Kling 3.0 Pro', connection: 'sajid openrouter', schema: { properties: { duration: { enum: [5, 10], default: 5 }, resolution: { enum: ['480p', '720p'] } } } }
+  let pinia
+  const mountBoard = kind => { pinia = createPinia(); setActivePinia(pinia); return mount(Board, { props: { kind }, global: { plugins: [pinia], stubs: { InputSlot: true, RouterLink: true } } }) }
+  beforeEach(() => {
+    vi.clearAllMocks(); routeQuery.project_id = 'p'
+    api.getCinemaControls.mockResolvedValue({ data: { controls: [] } })
+    api.getMediaRoutes.mockResolvedValue({ data: { routes: [{ route_id: 290, name: 'Nano Banana', connection: 'sajid openrouter', ready: true }, { route_id: 360, name: 'Nano Banana', connection: 'waqar openrouter', ready: true }] } })
+    api.getStoryboard.mockResolvedValue({ data: { revision: 4, scenes: [{ scene_id: 's', order: 0, title: 'Scene', intent: 'A bottle', cinema: {}, keyframes: [], takes: [], next_step: 'render' }] } })
+    api.get.mockImplementation(async (path, opts) => ({ data: path === '/video/projects/' ? { projects: [{ project_id: 'p', title: 'Project' }] } : path === '/video/projects/p/' ? { project_id: 'p', revision: 4, scenes: [] } : path === '/video/routes/' ? { routes: opts?.params?.task === 'image_to_video' || opts?.params?.task === 'text_to_video' ? [video] : [] } : {} }))
+  })
+  afterEach(() => { routeQuery.project_id = 'p' })
+  it('a scene video is made on the scene video model, at the chosen length and the cheapest size by default', async () => {
+    api.post.mockResolvedValue({ data: { job_id: 'take', state: 'awaiting_authorization' } })
+    const w = mountBoard('storyboard'); await flushPromises()
+    expect(w.findAll('[data-test="board-route"] option').map(o => o.text())).toEqual(['Choose model', 'Nano Banana · sajid openrouter', 'Nano Banana · waqar openrouter'])
+    expect(api.get).toHaveBeenCalledWith('/video/routes/', { params: { task: 'image_to_video' } })
+    const scene = w.findAll('button').find(b => b.text() === 'Review scene estimate')
+    expect(scene.attributes('disabled')).toBeDefined(); expect(w.text()).toContain('Choose the scene video model first.')
+    await w.get('[data-test="board-video-route"]').setValue('89'); await flushPromises()
+    expect(w.get('[data-test="board-resolution"]').element.value).toBe('480p')
+    await w.get('[data-test="board-duration"]').setValue('10')
+    await click(w, 'Review scene estimate')
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/jobs/', { project_id: 'p', scene_id: 's', operation: 'generate', route_id: 89, prompt: 'A bottle', params: { duration: 10, resolution: '480p' } })
+    w.unmount()
+  })
+  it('a finished keyframe or take is shown without a refresh', async () => {
+    api.post.mockResolvedValue({ data: { job_id: 'k1', state: 'awaiting_authorization' } })
+    const w = mountBoard('storyboard'); await flushPromises()
+    await w.get('[data-test="board-route"]').setValue('290')
+    await click(w, 'Review keyframe estimate')
+    const reads = api.getStoryboard.mock.calls.length
+    useVideoStore(pinia)._put({ job_id: 'k1', state: 'running' }); await flushPromises()
+    expect(api.getStoryboard.mock.calls.length).toBe(reads)
+    useVideoStore(pinia)._put({ job_id: 'k1', state: 'ready' }); await flushPromises()
+    expect(api.getStoryboard.mock.calls.length).toBe(reads + 1)
+    w.unmount()
+  })
+  it('a new project reads the keyframe models at once', async () => {
+    delete routeQuery.project_id
+    api.post.mockResolvedValue({ data: { project_id: 'p', title: 'New' } })
+    const w = mountBoard('storyboard'); await flushPromises()
+    expect(api.getMediaRoutes).not.toHaveBeenCalled()
+    await w.get('input').setValue('New'); await click(w, 'Create project')
+    expect(api.getMediaRoutes).toHaveBeenCalledWith('image')
+    expect(w.findAll('[data-test="board-route"] option').map(o => o.text())).toContain('Nano Banana · sajid openrouter')
+    w.unmount()
+  })
+  it('a standalone Cinema shot is quoted at the length and size chosen', async () => {
+    delete routeQuery.project_id
+    api.post.mockResolvedValue({ data: { job_id: 'shot' } })
+    const w = mountBoard('cinema'); await flushPromises()
+    await w.get('[data-test="board-route"]').setValue('89'); await flushPromises()
+    await w.get('textarea').setValue('A bottle of oil')
+    expect(w.get('[data-test="board-resolution"]').element.value).toBe('480p')
+    await click(w, 'Review shot estimate')
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/jobs/', { operation: 'generate', route_id: 89, prompt: 'A bottle of oil', cinema: {}, params: { duration: 5, resolution: '480p' } })
+    w.unmount()
   })
 })

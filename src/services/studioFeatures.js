@@ -19,7 +19,7 @@ export const studioFeatures = shallowRef([
   entry('motion', 'Video tools', 'Motion transfer', 'motion', 'live', 'P2', 'Guide a character with movement from a reference clip.', 'motion'),
   entry('swap', 'Video tools', 'Swap & restyle', 'swap', 'live', 'P2', 'Replace a subject or give existing footage a new visual direction.', 'swap'),
   entry('effects', 'Video tools', 'Effects', 'effects', 'live', 'P2', 'Add a visual treatment using a preset and its required media.', 'effects'),
-  entry('enhance', 'Edit & enhance', 'Enhance', 'enhance', 'beta', 'F0', 'Trim, reframe, retime or caption a Library video with free local tools.', 'enhance'),
+  entry('enhance', 'Edit & enhance', 'Enhance', 'enhance', 'beta', 'F0', 'Trim, reframe, retime or caption a Library video for free, or upscale or extend it.', 'enhance'),
   entry('storyboard', 'Story', 'Storyboard', 'storyboard', 'live', 'P3', 'Plan keyframes, choose takes and build scenes in order.', 'story'),
   entry('cinema', 'Story', 'Cinema', 'cinema', 'live', 'P3', 'Shape a sequence with camera, lighting and scene choices.', 'video'),
   entry('editor', 'Story', 'Editor', 'editor', 'live', 'P3', 'Arrange video, sound and captions on a multitrack timeline.', 'edit'),

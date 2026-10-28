@@ -3,7 +3,7 @@
     <div class="islot-heading"><h2 :id="labelId">{{ label }}</h2><span v-if="!required" class="st-pill">Optional</span></div>
     <div class="islot-drop" @dragover.prevent @drop.prevent="acceptFiles($event.dataTransfer?.files)">
       <svg class="st-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 16V3M7 8l5-5 5 5M4 15v6h16v-6" /></svg>
-      <p>{{ allowUpload ? `Drop ${kinds.join(' or ')} files here` : `Choose a ${kinds.join(' or ')} from your Library` }}</p><p class="islot-limit">{{ kinds.join(' / ') }} &middot; up to {{ limit }}</p>
+      <p>{{ allowUpload ? `Drop ${kinds.join(' or ')} files here` : `Choose ${kinds.map(k => ({ image: 'an image', video: 'a video', audio: 'an audio file' })[k] || `a ${k}`).join(' or ')} from your Library` }}</p><p class="islot-limit">{{ kinds.join(' / ') }} &middot; up to {{ limit }}</p>
       <div class="islot-actions"><button v-if="allowUpload" type="button" class="st-button" :disabled="items.length >= limit" @click="fileInput.click()">Upload</button><button type="button" class="st-button" :disabled="items.length >= limit" @click="openPicker('files', $event)">From Library</button><button type="button" class="st-button" :disabled="items.length >= limit" @click="openPicker('ingredients', $event)">From Elements</button></div>
       <input ref="fileInput" class="st-sr" type="file" :accept="kinds.map(kind => kind + '/*').join(',')" :multiple="limit > 1" :aria-label="`Upload ${label}`" @change="acceptFiles($event.target.files); $event.target.value = ''" />
     </div>
