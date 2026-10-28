@@ -90,7 +90,7 @@
                     </span>
                     <div>
                       <div class="text-[13.5px] font-semibold text-[#0F172A]">Service Setup</div>
-                      <div class="mt-0.5 text-[12px] text-[#64748B]">Let the agent prompt users to connect services and register providers.</div>
+                      <div class="mt-0.5 text-[12px] text-[#64748B]">Let the agent register new sign-in providers (admins only).</div>
                     </div>
                   </div>
                   <button
@@ -107,7 +107,7 @@
                   <div class="flex items-start gap-2 text-[12px] text-[#475569]">
                     <span class="mt-0.5 text-amber-500">ℹ</span>
                     <div>
-                      <p class="mb-1">The agent can use <strong>SETUP_SERVICE_AUTH</strong> to prompt the user to connect a service (everyone), and <strong>REGISTER_OAUTH_PROVIDER</strong> to register new OAuth providers (admin only).</p>
+                      <p class="mb-1">For an admin, the agent can use <strong>REGISTER_OAUTH_PROVIDER</strong> to add a new OAuth provider. Asking someone to connect an account is the <strong>Connect accounts in chat</strong> switch below.</p>
                       <p class="text-[#94A3B8]">The agent never sees the actual credentials. New providers are created disabled until client credentials are added.</p>
                     </div>
                   </div>
