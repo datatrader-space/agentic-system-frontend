@@ -11,7 +11,7 @@ vi.mock('web-vitals', () => ({
   onTTFB: (cb) => { cbs.TTFB = cb },
 }))
 
-import { startRum, buildPayloads, sendPayload, rumDisabled, RUM_ENDPOINT, RUM_OFF_KEY } from './rum'
+import { startRum, buildPayloads, sendPayload, rumDisabled, believable, RUM_ENDPOINT, RUM_OFF_KEY } from './rum'
 
 const metric = (name, value, extra = {}) => ({ name, value, rating: 'good', id: `v1-${name}`, navigationType: 'navigate', ...extra })
 let visibility = 'visible'
@@ -86,5 +86,24 @@ describe('rum: what is not counted', () => {
     visibility = 'hidden'
     document.dispatchEvent(new Event('visibilitychange'))
     expect(send).not.toHaveBeenCalled()
+  })
+
+  it('leaves out a value no person could have waited (a window the screen does not draw) and keeps the rest', () => {
+    expect(believable(metric('FCP', 60000))).toBe(true)
+    expect(believable(metric('FCP', 205210))).toBe(false)
+    expect(believable(metric('LCP', 116764))).toBe(false)
+    expect(believable(metric('INP', 589320))).toBe(false)
+    expect(believable(metric('INP', 30000))).toBe(true)
+    expect(believable(metric('TTFB', 90000))).toBe(true)       // no ceiling: a slow server is real
+    expect(believable(metric('CLS', 3))).toBe(true)
+    const send = vi.fn()
+    startRum(() => 'video-studio-effects', { random: () => 0, send })
+    cbs.FCP(metric('FCP', 205210))
+    cbs.INP(metric('INP', 128100))
+    cbs.TTFB(metric('TTFB', 430))
+    visibility = 'hidden'
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(send.mock.calls[0][0].metrics.map((m) => m.name)).toEqual(['TTFB'])
   })
 })

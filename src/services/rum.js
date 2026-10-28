@@ -31,6 +31,19 @@ export function rumDisabled({ nav = globalThis.navigator, storage = globalThis.l
   try { return !!storage && storage.getItem(RUM_OFF_KEY) === '1' } catch { return false }
 }
 
+/**
+ * The most a person can be taken to have waited, per metric, in ms. A larger value comes from a window the screen does
+ * not draw (a test browser that is not automated): on 2026-10-28 such windows reported first paints of 90 to 205 s and
+ * an interaction of 589 s, which would hide every real number. Such a value is not sent.
+ */
+export const RUM_CEILING_MS = { FCP: 60000, LCP: 60000, INP: 30000 }
+
+/** Whether a metric's value is one a person could have seen. Exported for tests. */
+export function believable(metric) {
+  const ceiling = RUM_CEILING_MS[metric && metric.name]
+  return !(ceiling && Number(metric.value) > ceiling)
+}
+
 function getCookie(name) {
   const parts = (typeof document !== 'undefined' && document.cookie ? document.cookie.split(';') : [])
   for (const part of parts) {
@@ -78,6 +91,7 @@ export function startRum(routeName, { random = Math.random, send = sendPayload, 
   let buffer = []
 
   const record = (metric) => {
+    if (!believable(metric)) return
     let route = 'unknown'
     try { route = String(routeName() || 'unknown') } catch { /* keep unknown */ }
     buffer.push({
