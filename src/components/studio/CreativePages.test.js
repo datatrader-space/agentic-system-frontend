@@ -99,7 +99,7 @@ describe('Files from the Library', () => {
     w.findAllComponents({ name: 'InputSlot' }).find(s => s.props('label') === 'Image to edit').vm.$emit('pick', [{ attachment_id: 'lib1', title: 'shoe.png', media_type: 'image', url: 'https://x/shoe.png' }])
     await flushPromises()
     expect(api.get).toHaveBeenCalledWith('/video/projects/', { params: { conversation_id: 'c1' } })
-    expect(api.post).toHaveBeenCalledWith('/video/projects/', { conversation_id: 'c1', title: 'Image to edit session' })
+    expect(api.post).toHaveBeenCalledWith('/video/projects/', { conversation_id: 'c1', title: 'Image to edit session', brief: { session: true } })
     expect(api.post).toHaveBeenCalledWith('/video/projects/p1/assets/', { attachment_id: 'lib1', role: 'subject', source: 'library', pinned: false })
     await w.get('[data-test="edit-prompt"]').setValue('Make it blue')
     await w.get('form').trigger('submit'); await flushPromises()

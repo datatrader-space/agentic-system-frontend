@@ -194,6 +194,21 @@ describe('Storyboard and Cinema make a video on the model, length and size chose
     expect(w.findAll('[data-test="board-video-route"] option').map(o => o.text())).toEqual(['Choose model', 'Kling 3.0 Pro · sajid openrouter'])
     w.unmount()
   })
+  it('opens the project the agent made in this chat once its turn ends', async () => {
+    // Live 2026-10-28: the agent created the storyboard and the Workspace still said "Choose project".
+    delete routeQuery.project_id
+    const w = mountBoard('storyboard'); await flushPromises()
+    const { useChatStore } = await import('../../stores/useChatStore')
+    const chat = useChatStore(pinia)
+    chat.conversationId = 'c9'
+    const base = api.get.getMockImplementation()
+    api.get.mockImplementation((path, opts) => path === '/video/projects/' && opts?.params?.conversation_id === 'c9'
+      ? Promise.resolve({ data: { project: { project_id: 'p', title: 'Agent ad' } } }) : base(path, opts))
+    chat.isStreaming = true; await flushPromises(); chat.isStreaming = false; await flushPromises()
+    expect(w.get('select').element.value).toBe('p')
+    expect(api.getStoryboard).toHaveBeenCalledWith('p')
+    w.unmount()
+  })
   it('a standalone Cinema shot is quoted at the length and size chosen', async () => {
     delete routeQuery.project_id
     api.post.mockResolvedValue({ data: { job_id: 'shot' } })

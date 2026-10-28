@@ -13,7 +13,8 @@ export function useSessionProject() {
     if (!cid) throw new Error('Could not start this Studio session.')
     const { data } = await api.get('/video/projects/', { params: { conversation_id: cid } })
     if (data?.project?.project_id) { video.project = data.project; return data.project }
-    const created = await api.post('/video/projects/', { conversation_id: cid, title: String(title || 'Studio session').slice(0, 120) })
+    // brief.session: a page's own holder, kept out of the Project menus until it has scenes (live 2026-10-28).
+    const created = await api.post('/video/projects/', { conversation_id: cid, title: String(title || 'Studio session').slice(0, 120), brief: { session: true } })
     video.project = created.data
     return created.data
   }

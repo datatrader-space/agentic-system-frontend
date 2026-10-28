@@ -38,7 +38,7 @@
         </template>
       </template>
     </template>
-    <template #results><StudioJobList :ids="jobIds" /><p v-if="!jobIds.length" class="st-empty"><strong>No results yet</strong>Each estimate you ask for appears here with its approval card. Nothing is spent until you choose Generate.</p></template>
+    <template #results><StudioJobList :ids="jobIds" /><AgentMadeMedia :conversation-id="chat.conversationId" :exclude="jobOutputs" @count="agentMade = $event" /><p v-if="!jobIds.length && !agentMade" class="st-empty"><strong>No results yet</strong>Each estimate you ask for appears here with its approval card. Nothing is spent until you choose Generate.</p></template>
     <template #quote><p class="sc-note st-muted">{{ isAgent ? 'Tell the agent what to make. Review any price on its approval card.' : 'Each estimate waits in My results for your Generate. Decline spends nothing.' }}</p></template>
   </StudioPage>
 </template>
@@ -49,6 +49,7 @@ import { useStudioSession } from '../composables/useStudioSession'
 import { useStudioExperience } from '../composables/useStudioExperience'
 import StudioPage from '../components/studio/StudioPage.vue'
 import StudioJobList from '../components/studio/StudioJobList.vue'
+import AgentMadeMedia from '../components/studio/AgentMadeMedia.vue'
 import StudioModeSwitch from '../components/studio/StudioModeSwitch.vue'
 import StudioAgentPanel from '../components/studio/StudioAgentPanel.vue'
 import CreativeMusic from '../components/studio/CreativeMusic.vue'
@@ -76,6 +77,9 @@ provide('studioMonitor', MONITOR_PAGES.includes(props.featureId) ? monitorId : '
 const providerNeeded = computed(() => ['no_proven_model','no_image_model','no_video_model'].includes(availability.value?.code))
 // Results: the estimates asked for here, and every job of this Studio session (the agent's included).
 const jobIds = computed(() => [...new Set([...ids.value, ...video.jobsFor(chat.conversationId).map(job => job.job_id)])])
+const agentMade = ref(0)
+// Every file a job card already shows (its result and a picture job's other pictures), kept out of the agent's list.
+const jobOutputs = computed(() => jobIds.value.flatMap(id => { const j = video.jobs[id]; return [j?.output?.attachment_id, ...(j?.extra_outputs || []).map(x => x?.attachment_id)] }).filter(Boolean))
 watch(isAgent, agent => { if (!agent) chatExpanded.value = false })
 let sequence = 0
 async function load() {

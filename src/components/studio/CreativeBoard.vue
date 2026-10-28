@@ -57,6 +57,7 @@ import InputSlot from './InputSlot.vue'
 import CreativeError from './CreativeError.vue'
 import { useCreativeForm } from '../../composables/useCreativeForm'
 import { useVideoStore } from '../../stores/useVideoStore'
+import { useChatStore } from '../../stores/useChatStore'
 const props = defineProps({ kind: String }), emit = defineEmits(['job']), route = useRoute()
 // What the chosen video model takes as references (the backend's per-model data), shown under the picker.
 const routeSummary = computed(() => routes.value.find(r => String(r.route_id) === String(routeId.value))?.inputs?.spec?.summary || '')
@@ -82,6 +83,20 @@ watch(() => waiting.value.map(id => store.jobs[id]?.state), states => {
   if (!states.some(s => ['ready', 'failed', 'cancelled'].includes(s))) return
   waiting.value = waiting.value.filter((id, i) => !['ready', 'failed', 'cancelled'].includes(states[i]))
   refreshBoard()
+})
+// A project the agent made or opened in this chat (UPDATE_VIDEO_PROJECT) is opened here once its turn ends, so the
+// Workspace shows it (live 2026-10-28: the agent made one and the menu still said "Choose project").
+const chat = useChatStore()
+watch(() => chat.isBusy, async (busy, was) => {
+  if (!was || busy || projectId.value || !chat.conversationId) return
+  try {
+    const { data } = await api.get('/video/projects/', { params: { conversation_id: chat.conversationId } })
+    const p = data?.project
+    if (!p?.project_id || projectId.value) return
+    if (!projects.value.some(row => row.project_id === p.project_id)) projects.value.push({ project_id: p.project_id, title: p.title })
+    projectId.value = p.project_id
+    await open()
+  } catch { /* the menu still lists it */ }
 })
 function track(job) { if (job?.job_id) waiting.value = [...waiting.value, job.job_id]; emit('job', job) }
 async function loadRoutes(alive) {
