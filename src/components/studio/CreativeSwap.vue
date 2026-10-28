@@ -26,7 +26,8 @@ import CreativeError from './CreativeError.vue'
 import MediaMonitor from './MediaMonitor.vue'
 import MediaSlot from './MediaSlot.vue'
 import { useMediaJob } from '../../composables/useMediaJob'
-// A change to the person's own footage, on the Video page's models that edit uploaded video (task edit_uploaded).
+// A change to the person's own footage, on the Video page's models that edit video. The server chooses the task from
+// the clip: edit_uploaded for an upload, edit_generated for a Studio result. A model proven for either is listed.
 const emit = defineEmits(['job'])
 const monitor = inject('studioMonitor', '')
 const modes = [{ id: 'swap', label: 'Swap object', purpose: 'Replace something in your video with what is in a photo; the movement is kept.' }, { id: 'restyle', label: 'Restyle', purpose: 'Give your video a new look; the movement and timing are kept.' }]
@@ -38,7 +39,13 @@ const subjectLimit = computed(() => { const n = route.value?.inputs?.spec?.image
 const { busy, error, submit } = useMediaJob(job => emit('job', job))
 let disposed = false
 onMounted(async () => {
-  try { const { data } = await api.getStudioRoutes('edit_uploaded'); if (disposed) return; routes.value = data.routes || []; routeId.value = routes.value[0] ? String(routes.value[0].route_id) : '' }
+  try {
+    const answers = await Promise.all(['edit_uploaded', 'edit_generated'].map(task => api.getStudioRoutes(task)))
+    if (disposed) return
+    const seen = new Set()
+    routes.value = answers.flatMap(({ data }) => data.routes || []).filter(r => !seen.has(r.route_id) && seen.add(r.route_id))
+    routeId.value = routes.value[0] ? String(routes.value[0].route_id) : ''
+  }
   catch { if (!disposed) failure.value = 'Could not load the models.' }
   finally { if (!disposed) loading.value = false }
 })

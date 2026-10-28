@@ -223,12 +223,22 @@ describe('Swap & restyle', () => {
     api.prepareVideoJob.mockResolvedValue({ data: job })
     const w = mountIt(CreativeSwap); await flushPromises()
     expect(api.getStudioRoutes).toHaveBeenCalledWith('edit_uploaded')
+    expect(api.getStudioRoutes).toHaveBeenCalledWith('edit_generated')
+    expect(w.findAll('[data-test="swap-route"] option')).toHaveLength(1)     // the same model from both answers, once
     expect(w.get('[data-test="swap-reference-summary"]').text()).toBe('Edits your video; up to 1 reference image')
     setSlot(w, 'Your video', [file('ad', 'video')]); setSlot(w, 'What to put in', [file('bottle', 'image')]); await flushPromises()
     await w.get('[data-test="swap-prompt"]').setValue('Replace the red bottle with this one')
     await w.get('form').trigger('submit'); await flushPromises()
     expect(api.prepareVideoJob).toHaveBeenCalledExactlyOnceWith({ operation: 'change', route_id: '31', base_attachment_id: 'ad', prompt: 'Replace the red bottle with this one', references: [{ attachment_id: 'bottle', role: 'subject' }], conversation_id: 'c1' })
     neverStarted(); w.unmount()
+  })
+  it('lists a model proven only on Studio results, since a Library clip made here is one', async () => {
+    // Live 2026-10-28: Seedance 2.0 Mini edits Studio results only, and the page asked for uploads alone: "No model".
+    api.getStudioRoutes.mockImplementation(task => Promise.resolve({ data: { routes: task === 'edit_generated'
+      ? [{ route_id: 70, name: 'Seedance 2.0 Mini', connection: 'sajid openrouter', inputs: { spec: {} } }] : [] } }))
+    const w = mountIt(CreativeSwap); await flushPromises()
+    expect(w.findAll('[data-test="swap-route"] option').map(o => o.text())).toEqual(['Seedance 2.0 Mini · sajid openrouter'])
+    w.unmount()
   })
 })
 

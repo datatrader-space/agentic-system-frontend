@@ -21,7 +21,8 @@ export function useStudioUpload() {
       const kind = String(file.type || '').split('/')[0]
       return { attachment_id: data.attachment_id, name: file.name, media_type: kind, url, thumbnail_url: kind === 'image' ? url : '' }
     } catch (e) {
-      error.value = `${file.name}: ${e.response?.data?.error?.message || e.message || 'the upload failed'}.`
+      // One closing full stop: most messages end with their own ("Could not start this Studio session..").
+      error.value = `${file.name}: ${String(e.response?.data?.error?.message || e.message || 'the upload failed').replace(/\.+$/, '')}.`
       return null
     } finally { uploading.value-- }
   }

@@ -30,7 +30,9 @@ const chat = useChatStore(), video = useVideoStore()
 const loading = ref(false), error = ref(''), viewIndex = ref(-1)
 function respond(event) { chat.respondHitl(event); if (event.response_value === true || event.response_value?.approved === true) emit('approved') }
 const localOps = ['trim','crop','retime','caption']
-const jobs = computed(() => !props.conversationId ? [] : video.jobsFor(props.conversationId).filter(job => props.kind === 'enhance' ? localOps.includes(job.operation) : !localOps.includes(job.operation)))
+// Enhance also upscales and extends (paid, on their cards); the other pages show every job but the local edits.
+const enhanceOps = [...localOps, 'upscale', 'extend']
+const jobs = computed(() => !props.conversationId ? [] : video.jobsFor(props.conversationId).filter(job => props.kind === 'enhance' ? enhanceOps.includes(job.operation) : !localOps.includes(job.operation)))
 const pending = computed(() => props.kind === 'image' ? [] : jobs.value.filter(job => job.state !== 'ready').slice().reverse())
 const items = computed(() => props.kind === 'image' ? [...video.sessionImages].sort((a,b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0)) : jobs.value.filter(job => job.state === 'ready' && job.output?.attachment_id && job.output?.url).slice().reverse().map(job => ({ ...job.output, title: job.effective_config?.prompt || 'Edited video', media_type: 'video', job, created_at: job.created_at })))
 const user = inject('studioUser', ref(null))
