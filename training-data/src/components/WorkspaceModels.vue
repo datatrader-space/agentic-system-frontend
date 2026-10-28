@@ -138,7 +138,7 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
       </template>
     </template>
 
-    <template v-else-if="active==='Open source models'">
+    <template v-else-if="active==='Ready-to-use models'">
       <section v-if="trying" id="try-published" class="panel try-panel" aria-live="polite">
         <header class="try-head"><div><h2>Try {{ trying.name }} as it is published</h2><p>No training here first: the published model answers your photo. It marks walls, windows and doors.</p></div>
           <button class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>

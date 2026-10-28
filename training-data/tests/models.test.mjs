@@ -44,3 +44,11 @@ test('a duration reads in milliseconds below a second', () => {
   assert.equal(msText(2350), '2.4 s');
   assert.equal(msText(null), '—');
 });
+
+test('every tab of the workspace Models page has its own section (2026-10-28: a renamed tab fell through to Usage)', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const page = await readFile(new URL('../src/components/WorkspaceModels.vue', import.meta.url), 'utf8');
+  const names = [...page.match(/const tabs = \[([^\]]*)\]/)[1].matchAll(/name: '([^']+)'/g)].map(m => m[1]);
+  assert.ok(names.length >= 3);
+  for (const name of names.slice(0, -1)) assert.ok(page.includes(`active==='${name}'`), name);   // the last tab is the v-else
+});
