@@ -114,6 +114,19 @@ onUnmounted(() => clearTimeout(timer));
             <td>{{ r.model || '—' }}</td><td>{{ ago(r.created_at) }}</td></tr>
         </tbody></table>
       </section>
+
+      <section v-if="page?.base_models?.length" class="panel" aria-labelledby="llm-base-models">
+        <h2 id="llm-base-models">Base models</h2>
+        <p class="field-help">A run starts from the base model its dataset version was prepared for. Each one names its licence; only models whose licence allows commercial use are offered.</p>
+        <div class="base-grid">
+          <article v-for="m in page.base_models" :key="m.key" class="base-card">
+            <header><strong>{{ m.name }}</strong><UiBadge v-if="m.coming" tone="purple">Coming soon</UiBadge><UiBadge v-else-if="m.ready" tone="green">Ready</UiBadge><UiBadge v-else>Not ready on this server</UiBadge></header>
+            <p class="field-help">{{ m.publisher }} · {{ m.size }} · {{ m.licence }}</p>
+            <p>{{ m.description }}</p>
+            <UiBadge :tone="m.use === 'research' ? 'dark' : 'green'">{{ USE[m.use] }}</UiBadge>
+          </article>
+        </div>
+      </section>
     </template>
 
     <template v-else>
@@ -147,4 +160,8 @@ onUnmounted(() => clearTimeout(timer));
 .llm-train{display:grid;gap:16px}
 .llm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:12px 0}
 .llm-log{max-height:360px;overflow:auto;font-size:11px}
+.base-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:12px}
+.base-card{display:grid;gap:6px;align-content:start;padding:14px;border:1px solid var(--border);border-radius:12px}
+.base-card header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.base-card p{margin:0}
 </style>

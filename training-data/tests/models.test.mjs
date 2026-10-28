@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { catalogue, measureText, meets, msText, COMING_SOON } from '../src/api/models.js';
+import { catalogue, measureText, meets, msText, useSnippet } from '../src/api/models.js';
 
 test('a share reads as a percentage and a corner error as a share of the diagonal', () => {
   assert.equal(measureText('wall_recall', 0.9234), '92.3%');
@@ -19,23 +19,24 @@ test('a measure meets its threshold in its own direction, and says nothing witho
   assert.equal(meets({ ...recall, threshold: null }, 0.95), null);
 });
 
-test('the catalogue lists the backend rows first, then the coming-soon ones it does not already have', () => {
-  const rows = [{ name: 'SegFormer-B0', publisher: 'NVIDIA', kind: 'Semantic segmentation', description: 'Every pixel.', trainable: true },
-                { name: 'SAM 3', publisher: 'Meta AI', kind: 'Instance segmentation', description: 'From the backend.', coming: true }];
-  const all = catalogue(rows);
-  assert.equal(all[0].name, 'SegFormer-B0');
-  assert.equal(all.filter(row => row.name === 'SAM 3').length, 1);            // the backend's row wins, no duplicate
-  assert.equal(all.length, rows.length + COMING_SOON.length - 1);
-  assert.ok(all.slice(2).every(row => row.coming));
-  assert.deepEqual(catalogue(rows, 'nvidia').map(row => row.name), ['SegFormer-B0']);
-  assert.ok(catalogue(rows, '', 'OCR').every(row => row.kind === 'OCR'));
+test('the catalogue is the backend rows, filtered by words, task and family', () => {
+  const rows = [{ name: 'Aadml-Vision-seg-A0', publisher: 'AADML', kind: 'Semantic segmentation', description: 'Every pixel.', family: 'vision' },
+                { name: 'SAM 3', publisher: 'Meta AI', kind: 'Instance segmentation', description: 'Masks.', coming: true, family: 'vision' },
+                { name: 'Qwen3-8B', publisher: 'Alibaba', kind: 'Chat', description: 'Answers.', coming: true, family: 'llm' }];
+  assert.equal(catalogue(rows).length, 3);
+  assert.deepEqual(catalogue(rows, 'aadml').map(row => row.name), ['Aadml-Vision-seg-A0']);
+  assert.deepEqual(catalogue(rows, '', 'Instance segmentation').map(row => row.name), ['SAM 3']);
+  assert.deepEqual(catalogue(rows, '', '', 'llm').map(row => row.name), ['Qwen3-8B']);
+  assert.equal(catalogue(rows, '', '', 'vision').length, 2);
 });
 
-test('every coming-soon model names a licence that allows commercial use (ADM-1092)', () => {
-  assert.ok(COMING_SOON.every(row => row.licence), 'each one says its licence');
-  const names = COMING_SOON.map(row => row.name);
-  for (const left of ['YOLO-World', 'Qwen VL']) assert.ok(!names.includes(left), left);
-  assert.ok(COMING_SOON.every(row => !/research|non-commercial|CC-BY-NC|GPL/i.test(row.licence)));
+test('the Use model code names the address and never fills in the key', () => {
+  const url = 'https://aadml.com/api/training-data/v1/models/fmw-geometry/predict';
+  for (const language of ['Python', 'JavaScript', 'cURL']) {
+    const code = useSnippet(language, url);
+    assert.ok(code.includes(url), language);
+    assert.ok(code.includes('<your app key>'), language);
+  }
 });
 
 test('a duration reads in milliseconds below a second', () => {

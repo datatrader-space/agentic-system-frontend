@@ -3,19 +3,22 @@
 // models with trying one as it is published, and how often each project's deployed model was called. Every rule is
 // the backend's (app_api.py workspace/models/, published/<key>/…, workspace/deployments/).
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { Boxes, Box, WandSparkles, ChartNoAxesCombined, Plus, Upload, Search, Play, Square, X, Check } from 'lucide-vue-next';
+import { Boxes, Box, WandSparkles, ChartNoAxesCombined, Plus, Upload, Search, Play, Square, X, Check, Code, Copy } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
+import UiDialog from './UiDialog.vue';
 import PredictionResult from './PredictionResult.vue';
-import { catalogue } from '../api/models.js';
+import { catalogue, useSnippet } from '../api/models.js';
 import { PHOTO_TYPES, percent } from '../api/trial.js';
 import { workspaceApi, publishedApi, projectLink, trySteps, modelName, timeAgo } from '../api/workspace.js';
 
 const emit = defineEmits(['create', 'navigate']);
-const tabs = [{ name: 'My models', icon: Boxes }, { name: 'Open source models', icon: WandSparkles }, { name: 'Usage', icon: ChartNoAxesCombined }];
+// "Ready-to-use models" are AADML's own: used as they are, never trained here (a base model a run trains from is in
+// its project's Train tab; the owner, 2026-10-28).
+const tabs = [{ name: 'My models', icon: Boxes }, { name: 'Ready-to-use models', icon: WandSparkles }, { name: 'Usage', icon: ChartNoAxesCombined }];
 const active = ref('My models');
 const data = ref(null); const error = ref('');
-const words = ref(''); const project = ref(''); const kindFilter = ref('');
+const words = ref(''); const project = ref(''); const kindFilter = ref(''); const familyFilter = ref('');
 
 async function load() {
   try { data.value = await workspaceApi.models(); error.value = ''; }
@@ -27,9 +30,9 @@ const projects = computed(() => [...new Map((data.value?.models || []).map(m => 
 const models = computed(() => (data.value?.models || []).filter(m => (!project.value || m.project.ref === project.value)
   && `${m.name} ${m.version} ${m.project.name} ${m.trains}`.toLowerCase().includes(words.value.trim().toLowerCase())));
 const kinds = computed(() => [...new Set(catalogue(data.value?.catalogue).map(row => row.kind))]);
-const shown = computed(() => catalogue(data.value?.catalogue, words.value, kindFilter.value));
+const shown = computed(() => catalogue(data.value?.catalogue, words.value, kindFilter.value, familyFilter.value));
 const day = iso => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-watch(active, () => { words.value = ''; kindFilter.value = ''; project.value = ''; if (active.value === 'Usage' && !usage.value) loadUsage(); });
+watch(active, () => { words.value = ''; kindFilter.value = ''; familyFilter.value = ''; project.value = ''; if (active.value === 'Usage' && !usage.value) loadUsage(); });
 
 // ── trying a published model ─────────────────────────────────────────────────────────────────────
 const trying = ref(null); const state = ref(null); const busy = ref(false); const said = ref(''); const tryError = ref('');
@@ -74,6 +77,17 @@ const ready = computed(() => state.value?.phase === 'ready');
 function publishedBadge(row) {
   const now = row.published?.state;
   return now === 'ready' ? ['green', 'Ready to try'] : now === 'preparing' ? ['purple', 'Being made ready'] : now === 'failed' ? ['amber', 'Making it ready failed'] : null;
+}
+
+// ── "Use model": how an app calls a ready-to-use model ─────────────────────────────────────────────
+// Calls open when per-call charging is connected (platform_api.py): until then the dialog shows the code and says so.
+const using = ref(null); const language = ref('Python'); const copied = ref(''); const useError = ref('');
+const useUrl = computed(() => (using.value?.use ? `${location.origin}${using.value.use.path}` : ''));
+const useCode = computed(() => (useUrl.value ? useSnippet(language.value, useUrl.value) : ''));
+function openUse(row) { using.value = row; copied.value = ''; useError.value = ''; }
+async function copyUse(text, what) {
+  try { await navigator.clipboard.writeText(text); copied.value = what; useError.value = ''; }
+  catch { useError.value = 'The browser did not allow copying. Select the text and copy it.'; }
 }
 
 // ── usage of the deployed models ─────────────────────────────────────────────────────────────────
@@ -164,6 +178,7 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
       </section>
       <div class="studio-actions">
         <div class="search-field"><Search :size="16"/><input v-model="words" aria-label="Search models" placeholder="Search models…"></div>
+        <select v-model="familyFilter" class="compact-select" aria-label="Kind of model"><option value="">Photo and chat</option><option value="vision">Photo models</option><option value="llm">Chat models</option></select>
         <select v-model="kindFilter" class="compact-select" aria-label="Model task"><option value="">All tasks</option><option v-for="k in kinds" :key="k" :value="k">{{ k }}</option></select>
       </div>
       <p v-if="!data" class="models-loading">Loading models…</p>
@@ -180,8 +195,10 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
             <UiBadge v-if="row.research_only">Research or evaluation use only</UiBadge>
           </div>
           <p v-if="row.tried_as_published&&row.not_tried" class="model-meta">{{ row.not_tried }}</p>
-          <UiButton v-if="row.tried_as_published" :disabled="!data.may.try||!!row.not_tried" :title="!data.may.try ? 'Your role in this workspace reads only: it starts nothing.' : ''" @click="startTrying(row)"><Play :size="14"/> Try it</UiButton>
-          <UiButton v-else-if="row.trainable" @click="emit('navigate','projects')">Train it in a project</UiButton>
+          <div v-if="row.tried_as_published" class="catalog-buttons">
+            <UiButton v-if="row.use" variant="primary" @click="openUse(row)"><Code :size="14"/> Use model</UiButton>
+            <UiButton :disabled="!data.may.try||!!row.not_tried" :title="!data.may.try ? 'Your role in this workspace reads only: it starts nothing.' : ''" @click="startTrying(row)"><Play :size="14"/> Try it</UiButton>
+          </div>
           <UiButton v-else disabled>Coming soon</UiButton>
         </article>
       </div>
@@ -214,11 +231,36 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
         </table>
       </div>
     </template>
+    <UiDialog :open="!!using" :title="using ? `Use ${using.name}` : ''" @close="using=null">
+      <template v-if="using">
+        <p class="dialog-description">Call {{ using.name }} from your own app with an app key. Make the key on a project's Deploy page (Connected apps).</p>
+        <p v-if="!using.use.open" class="use-closed" role="status">{{ using.use.not_open }}</p>
+        <div class="studio-tabs lang-tabs" role="tablist" aria-label="Language"><button v-for="l in ['Python','JavaScript','cURL']" :key="l" type="button" role="tab" :aria-selected="language===l" :class="{active:language===l}" @click="language=l">{{ l }}</button></div>
+        <div class="use-code"><UiButton class="copy" @click="copyUse(useCode,'code')"><Copy :size="15"/> {{ copied==='code' ? 'Copied' : 'Copy' }}</UiButton>
+          <pre class="code-block">{{ useCode }}</pre></div>
+        <dl class="use-facts">
+          <div><dt>Model</dt><dd><code>{{ using.use.model }}</code></dd></div>
+          <div><dt>Address</dt><dd><code>{{ useUrl }}</code></dd></div>
+          <div><dt>Licence</dt><dd>{{ using.licence }}</dd></div>
+        </dl>
+        <p v-if="useError" class="field-error" role="alert">{{ useError }}</p>
+        <div class="dialog-actions"><UiButton @click="using=null">Close</UiButton><UiButton variant="primary" :disabled="!using.use.open" :title="using.use.open ? '' : using.use.not_open">Test API</UiButton></div>
+      </template>
+    </UiDialog>
   </div>
 </template>
 
 <style scoped>
 .models-workspace{color:#152237}
+.catalog-buttons{display:flex;flex-wrap:wrap;gap:8px}
+.use-closed{margin:0 0 12px;padding:10px 12px;border-radius:10px;background:#fff7e6;color:#7a4b00;font-size:14px}
+.use-code{position:relative;margin-top:10px}
+.use-code .copy{position:absolute;top:8px;right:8px}
+.use-code .code-block{max-height:260px;overflow:auto;padding-top:44px}
+.use-facts{display:grid;gap:6px;margin:12px 0;font-size:14px}
+.use-facts div{display:grid;grid-template-columns:80px 1fr;gap:8px}
+.use-facts dt{color:#5f6d82}
+.use-facts dd{margin:0;overflow-wrap:anywhere}
 .models-tabs{display:flex;gap:16px;border-bottom:1px solid #e1e4ec;margin-bottom:22px}
 .models-tabs button{display:flex;align-items:center;gap:8px;background:none;border:0;border-bottom:2px solid transparent;padding:14px 16px;color:#5f6d82;font-size:14px}
 .models-tabs button[aria-pressed=true]{color:var(--aadml-primary);border-bottom-color:var(--aadml-primary)}
