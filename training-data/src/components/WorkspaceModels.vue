@@ -217,7 +217,7 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
           <ul class="coming-grid">
             <li v-for="row in comingRows" :key="row.name" class="coming-card">
               <div class="coming-head"><strong>{{ row.name }}</strong><UiBadge>{{ familyName(row) }}</UiBadge></div>
-              <p class="coming-what">{{ row.description }}</p>
+              <p class="coming-what" :title="row.description">{{ row.description }}</p>
               <p class="coming-meta">{{ row.publisher }}<br>{{ row.licence }}</p>
             </li>
           </ul>
@@ -305,16 +305,17 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
 .section-note{margin:6px 0 0;font-size:13px;color:#5f6d82}
 .licence-line{display:flex;flex-direction:column;gap:2px;padding-top:6px;font-size:13px;color:#33415a}
 .licence-line span{font-size:12px;color:#6b778c}
-.coming-grid{list-style:none;padding:0;margin:16px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.coming-grid{list-style:none;padding:0;margin:16px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;align-items:start}
 .coming-card{padding:14px 16px;border:1px dashed #cfd5e1;border-radius:10px;background:#fafbfc}
 .coming-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .coming-head strong{font-size:14px;color:#22304a}
-.coming-what{margin:6px 0 8px;font-size:13px;color:#4d5a70}
+.coming-what{margin:6px 0 8px;font-size:13px;color:#4d5a70;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .coming-meta{margin:0;font-size:12px;color:#6b778c;line-height:1.5}
 .use-dialog{width:min(680px,calc(100% - 32px))}
 .use-closed{display:flex;gap:10px;align-items:flex-start;margin:16px 0 4px;padding:12px 14px;border-radius:10px;background:#fff7e6;border:1px solid #f5dfb0;color:#6f4500;font-size:13px;line-height:1.55}
 .use-closed svg{margin-top:1px;color:#b26b00}
-.use-steps{list-style:none;padding:0;margin:20px 0 0;display:grid;gap:20px}
+.use-steps{list-style:none;padding:0;margin:20px 0 0;display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
+.use-steps li{min-width:0}
 .use-steps h3{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:14px;color:#1d2a42}
 .use-step-no{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#1d2a42;color:#fff;font-size:12px;font-weight:600}
 .use-steps li > :not(h3){margin-left:34px}
@@ -329,7 +330,7 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
 .copy-chip:hover{border-color:var(--aadml-focus);background:var(--aadml-tint)}
 .copy-chip.on-dark{position:absolute;top:10px;right:10px;background:#2c3a50;border-color:#3e4d65;color:#e3e8f1}
 .copy-chip.on-dark:hover{background:#38475f;border-color:#53637d}
-.use-code{position:relative}
+.use-code{position:relative;min-width:0}
 .use-code .code-block{margin:0;min-height:0;max-height:300px;overflow:auto;padding:52px 22px 20px;white-space:pre;font-size:12.5px;line-height:1.7}
 .use-code .code-block:focus-visible{outline:3px solid var(--aadml-outline);outline-offset:2px}
 .use-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:22px 0 0}
@@ -348,8 +349,10 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
   .use-facts{grid-template-columns:1fr}
   .use-steps li > :not(h3){margin-left:0}
   .catalog-buttons{grid-template-columns:1fr}
-  .segmented{display:flex}
-  .segmented button{flex:1}
+  .segmented{display:flex;flex-wrap:nowrap}
+  .segmented button{flex:1 1 0;min-width:0;padding:7px 6px}
+  .command-row{flex-wrap:wrap}
+  .use-code .code-block{font-size:12px;padding:52px 16px 16px}
 }
 .models-tabs{display:flex;gap:16px;border-bottom:1px solid #e1e4ec;margin-bottom:22px}
 .models-tabs button{display:flex;align-items:center;gap:8px;background:none;border:0;border-bottom:2px solid transparent;padding:14px 16px;color:#5f6d82;font-size:14px}
