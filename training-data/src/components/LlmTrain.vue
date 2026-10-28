@@ -170,7 +170,7 @@ onUnmounted(() => clearTimeout(timer));
 .base-table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}
 .base-table th,.base-table td{padding:12px 14px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
 .base-table thead th{font-size:12px;font-weight:500;color:#6b778c;background:#f7f8fb}
-.base-table tbody th{font-weight:400}
+.base-table tbody th,.base-table tbody td{font-weight:400;background:#fff}
 .base-table tbody th strong{display:block;font-size:14px;color:#1d2a42}
 .base-table tbody th span{display:block;font-size:12px;color:#6b778c}
 .base-table small{display:block;margin-top:4px;font-size:12px;color:#5f6d82;line-height:1.5}
