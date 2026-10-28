@@ -31,6 +31,13 @@ test('the catalogue lists the backend rows first, then the coming-soon ones it d
   assert.ok(catalogue(rows, '', 'OCR').every(row => row.kind === 'OCR'));
 });
 
+test('every coming-soon model names a licence that allows commercial use (ADM-1092)', () => {
+  assert.ok(COMING_SOON.every(row => row.licence), 'each one says its licence');
+  const names = COMING_SOON.map(row => row.name);
+  for (const left of ['YOLO-World', 'Qwen VL']) assert.ok(!names.includes(left), left);
+  assert.ok(COMING_SOON.every(row => !/research|non-commercial|CC-BY-NC|GPL/i.test(row.licence)));
+});
+
 test('a duration reads in milliseconds below a second', () => {
   assert.equal(msText(84.4), '84 ms');
   assert.equal(msText(2350), '2.4 s');
