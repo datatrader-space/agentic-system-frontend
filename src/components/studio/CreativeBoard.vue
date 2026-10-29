@@ -104,8 +104,12 @@ async function loadRoutes(alive) {
     ? [api.getMediaRoutes('image'), api.get('/video/routes/', { params: { task: 'image_to_video' } })]
     : [api.get('/video/routes/', { params: { task: 'text_to_video' } })])
   if (!alive()) return
-  routes.value = (pictures.data.routes || []).map(r => ({ ...r, ready: r.ready !== false })); routeId.value = ''
-  videoRoutes.value = videos ? videos.data.routes || [] : []; videoRouteId.value = ''
+  // The cheapest proven model is chosen (the lists come cheapest first); "Choose model" left the page waiting on a
+  // choice most people make the same way (UX pass, live 2026-10-29).
+  routes.value = (pictures.data.routes || []).map(r => ({ ...r, ready: r.ready !== false }))
+  routeId.value = routes.value.find(r => r.ready)?.route_id ?? ''
+  videoRoutes.value = videos ? videos.data.routes || [] : []
+  videoRouteId.value = videoRoutes.value.find(r => r.ready !== false)?.route_id ?? ''
 }
 const unset = () => Object.fromEntries(controls.value.map(c => [c.control, '']))
 const chosenCinema = value => Object.fromEntries(Object.entries(value || {}).filter(([,v]) => v))

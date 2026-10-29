@@ -42,7 +42,9 @@ describe('Creative flow boundaries',()=>{
     api.getMediaRoutes.mockResolvedValue({data:{routes:[{route_id:'r',name:'Speech',ready:true}]}})
     api.get.mockImplementation(async path=>({data:path.includes('voices')?{voices:[{voice_id:'v',name:'Voice'}]}:{scenes:[]}}))
     api.post.mockResolvedValue({data:{jobs:[{job_id:'one',state:'awaiting_authorization'},{job_id:'two',state:'awaiting_authorization'}]}})
-    const w=setup(Narrative,'explainer'); await flushPromises(); await w.get('select').setValue('r'); await flushPromises(); const voice=w.findAll('select').find(s=>s.text().includes('Choose voice')); await voice.setValue('v'); await click(w,'Review narration estimates')
+    const w=setup(Narrative,'explainer'); await flushPromises()
+    // The model is chosen for the person while the page's first load runs, and its voices still come (live 2026-10-29).
+    expect(w.get('[data-test="media-route"]').element.value).toBe('r'); const voice=w.findAll('select').find(s=>s.text().includes('Choose voice')); await voice.setValue('v'); await click(w,'Review narration estimates')
     expect(w.emitted('job').map(row=>row[0].job_id)).toEqual(['one','two']); expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/explainers/p/narrate/',{route_id:'r',voice_id:'v'}); w.unmount()
   })
   it('offers and sends exactly the seven supported overlay positions', async () => {
@@ -149,9 +151,10 @@ describe('Storyboard and Cinema make a video on the model, length and size chose
     const w = mountBoard('storyboard'); await flushPromises()
     expect(w.findAll('[data-test="board-route"] option').map(o => o.text())).toEqual(['Choose model', 'Nano Banana · sajid openrouter', 'Nano Banana · waqar openrouter'])
     expect(api.get).toHaveBeenCalledWith('/video/routes/', { params: { task: 'image_to_video' } })
-    const scene = w.findAll('button').find(b => b.text() === 'Review scene estimate')
-    expect(scene.attributes('disabled')).toBeDefined(); expect(w.text()).toContain('Choose the scene video model first.')
-    await w.get('[data-test="board-video-route"]').setValue('89'); await flushPromises()
+    // The cheapest proven model is chosen in both menus (UX pass, live 2026-10-29).
+    expect(w.get('[data-test="board-route"]').element.value).toBe('290')
+    expect(w.get('[data-test="board-video-route"]').element.value).toBe('89')
+    expect(w.text()).not.toContain('Choose the scene video model first.')
     expect(w.get('[data-test="board-resolution"]').element.value).toBe('480p')
     await w.get('[data-test="board-duration"]').setValue('10')
     await click(w, 'Review scene estimate')

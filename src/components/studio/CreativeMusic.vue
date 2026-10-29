@@ -1,6 +1,6 @@
 <template>
   <form class="creative-form" @submit.prevent="prepare">
-    <label class="st-field">Model<select v-model="routeId" class="st-input" required><option value="">Choose model</option><option v-for="route in routes" :key="route.route_id" :value="route.route_id" :disabled="!route.ready">{{ route.name }} · {{ route.connection || route.provider }}{{ route.ready ? '' : ' — Not yet proven' }}</option></select></label>
+    <MediaRoutePicker v-model="routeId" operation="music" @routes="routes = $event" />
     <CreativeError v-if="error?.field === 'route_id'" :error="error" />
     <label class="st-field">Music brief<textarea v-model="prompt" class="st-input" required rows="5" /></label>
     <CreativeError v-if="error?.field === 'prompt'" :error="error" />
@@ -15,23 +15,22 @@
   </form>
 </template>
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import api from '../../services/api'
 import CreativeError from './CreativeError.vue'
+import MediaRoutePicker from './MediaRoutePicker.vue'
 import LivePrice from './LivePrice.vue'
 import { useLivePrice } from '../../composables/useLivePrice'
-import { useCreativeForm } from '../../composables/useCreativeForm'
 import { useMediaJob } from '../../composables/useMediaJob'
 const emit = defineEmits(['job']), routes = ref([]), routeId = ref(''), prompt = ref(''), duration = ref(30), instrumental = ref(true)
 // The job goes through the page's Studio session like every creative page: it belongs to this chat, so My results
 // still shows it after a reload (it was sent with no chat and vanished on refresh, 2026-10-27).
-const { busy, error: jobError, submit } = useMediaJob(job => emit('job', job))
-const loading = useCreativeForm()
-const error = computed(() => jobError.value || loading.error.value)
+const { busy, error, submit } = useMediaJob(job => emit('job', job))
 // How the chosen model takes a length (the backend's `length`): {min, max} seconds, {fixed_seconds}, or
 // {by_description, min, max} (written into the description). A model with no rule takes 3 to 600 seconds.
-const length = computed(() => routes.value.find(route => route.route_id === routeId.value)?.length || { min: 3, max: 600 })
-onMounted(() => loading.run(async alive => { const { data } = await api.getMediaRoutes('music'); if (alive()) routes.value = data.routes || [] }))
+// The menu is the shared one (UX pass, live 2026-10-29: this page's own menu had no price and no model chosen): each
+// line names the connection and the price, and the cheapest proven model is chosen.
+const length = computed(() => routes.value.find(route => String(route.route_id) === routeId.value)?.length || { min: 3, max: 600 })
 // The price as the model, the words and the length change (UX pass, 2026-10-28); the checks stay on Review.
 const quote = useLivePrice(() => {
   if (!routeId.value || !prompt.value.trim()) return null
@@ -40,7 +39,7 @@ const quote = useLivePrice(() => {
 })
 const livePrice = computed(() => ({ price: quote.price.value, loading: quote.loading.value, problem: quote.problem.value }))
 function prepare() { submit(session => {
-  if (!routes.value.some(route => route.route_id === routeId.value && route.ready)) throw Error('Choose a proven model.')
+  if (!routes.value.some(route => String(route.route_id) === routeId.value && route.ready)) throw Error('Choose a proven model.')
   const rule = length.value, seconds = duration.value === '' || duration.value == null ? null : Number(duration.value)
   if (!prompt.value.trim()) throw Error('Enter a music brief.')
   if (!rule.fixed_seconds && !rule.by_description && (seconds == null || seconds < rule.min || seconds > rule.max)) throw Error(`Enter a duration from ${rule.min} to ${rule.max} seconds.`)

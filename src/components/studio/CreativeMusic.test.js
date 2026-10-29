@@ -43,6 +43,17 @@ describe('Music proposals', () => {
     expect(api.prepareMediaJob.mock.calls[2][0].request).toEqual({prompt:'A bright ukulele loop',instrumental:true,duration:120})
     w.unmount()
   })
+  it('names each model with its connection and price and chooses the first proven one (live 2026-10-29)', async () => {
+    api.getMediaRoutes.mockResolvedValue({data:{routes:[
+      {route_id:187,name:'Lyria 3 Clip',connection:'sajid openrouter',price_label:'$0.04 a piece',ready:true},
+      {route_id:211,name:'Music v1',connection:'Eleven Lab',price_label:'$0.15 a minute',ready:false}]}})
+    api.prepareMediaJob.mockResolvedValue({data:{job_id:'j'}})
+    const w=mount(Music); await flushPromises()
+    expect(w.get('select').element.value).toBe('187')
+    expect(w.findAll('option').map(o=>o.text())).toEqual(['Lyria 3 Clip · sajid openrouter · $0.04 a piece','Music v1 · Eleven Lab · $0.15 a minute'])
+    await w.get('textarea').setValue('A bright ukulele loop'); await w.get('form').trigger('submit'); await flushPromises()
+    expect(api.prepareMediaJob.mock.calls[0][0].route_id).toBe('187'); w.unmount()
+  })
   it('blocks duplicate proposals while the first is pending',async () => {
     let resolve; api.prepareMediaJob.mockReturnValue(new Promise(r=>{resolve=r})); const w=await form(); await w.get('form').trigger('submit'); await w.get('form').trigger('submit'); expect(api.prepareMediaJob).toHaveBeenCalledTimes(1); resolve({data:{job_id:'j'}}); await flushPromises(); w.unmount()
   })
