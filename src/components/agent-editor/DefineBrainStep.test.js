@@ -160,6 +160,36 @@ describe('DefineBrainStep — the Video generation picker lists video models onl
   })
 })
 
+describe('DefineBrainStep — the Video input picker lists models that take video', () => {
+  // Watching a video (owner, 2026-10-29), apart from Video generation. Whether a model takes video is OpenRouter's
+  // own answer from the model sync; a model that does not would only fail when handed a video.
+  const inputCap = { field: 'video_input_model', label: 'Video input', capability: 'supports_video_input' }
+  const WITH_WATCHERS = [
+    ...MANY,
+    { id: 30, name: 'Gemini 2.5 Flash', model_id: 'google/gemini-2.5-flash', provider: 1, supports_vision: true, supports_video_input: true, metadata: {} },
+    { id: 20, name: 'Kling v3.0 Pro', model_id: 'kwaivgi/kling-v3.0-pro', provider: 1, can_generate_video: true, metadata: {} },
+  ]
+  async function mountWatchers(agent = {}) {
+    const api = (await import('../../services/api')).default
+    api.get.mockImplementation((url) => Promise.resolve({
+      data: String(url).includes('providers') ? [{ id: 1, name: 'P', provider_type: 'openrouter' }] : WITH_WATCHERS,
+    }))
+    return mountExpanded(agent)
+  }
+
+  it('is offered beside Image input, apart from Video generation', async () => {
+    const w = await mountWatchers()
+    const fields = w.findAll('[data-test^="cap-"]').map(n => n.attributes('data-test'))
+    expect(fields.indexOf('cap-video_input_model')).toBe(fields.indexOf('cap-vision_model') + 1)
+    expect(w.find('[data-test="cap-video_input_model"]').text()).toContain('Video input')
+  })
+
+  it('offers only models that take video, and keeps the current pick so it can be changed', async () => {
+    expect((await mountWatchers()).vm.modelsFor(inputCap).map(m => m.id)).toEqual([30])
+    expect((await mountWatchers({ video_input_model: 13 })).vm.modelsFor(inputCap).map(m => m.id).sort()).toEqual([13, 30])
+  })
+})
+
 describe('DefineBrainStep — the capability warning replaces the filter', () => {
   const visionCap = { field: 'vision_model', label: 'Image input (vision)', capability: 'supports_vision' }
 

@@ -444,6 +444,8 @@ async function loadCurrentModel() {
 const CAPS = [
   { field: 'image_model', label: 'Image generation', capability: 'can_generate_images' },
   { field: 'vision_model', label: 'Image input (vision)', capability: 'supports_vision', hint: 'Also powers image OCR / scanned-document vision for document ingestion.' },
+  // Watching a video is its own slot (owner, 2026-10-29): Video generation below MAKES video.
+  { field: 'video_input_model', label: 'Video input', capability: 'supports_video_input', hint: 'Watches a video with its sound: what happens, what is said, and when. Used to analyse videos and to check generated ones. Without it, a video is read as still frames.' },
   // Audio TRANSCRIPTION (speech-to-text) — distinct from Audio generation (text-to-speech) below.
   { field: 'audio_transcription_model', label: 'Audio transcription', capability: 'can_transcribe_audio', hint: 'Used to convert uploaded audio/video speech into text for document indexing. Not the same as Audio generation.' },
   { field: 'audio_model', label: 'Audio generation', capability: 'can_generate_audio', hint: 'Text-to-speech output. Not used for transcribing uploaded audio.' },
@@ -477,10 +479,16 @@ const CAPS = [
 // its own choice, often from another provider (the Training agent: main model on OpenRouter, vision model on
 // OpenAI). Filtered by the main model's provider, the vision picker could not show the agent's own vision
 // model, read "Auto", and choosing a provider cleared it, so a save from this page removed it on production.
+// VIDEO INPUT likewise (2026-10-29): whether a model takes video is OpenRouter's own answer, set on every sync, and
+// a model that does not would only fail when handed a video.
 function modelsFor(c) {
   if (c && c.field === 'video_model') {
     const current = props.agent.video_model
     return models.value.filter(m => m.can_generate_video || m.id === current)
+  }
+  if (c && c.field === 'video_input_model') {
+    const current = props.agent.video_input_model
+    return models.value.filter(m => m.supports_video_input || m.id === current)
   }
   return models.value
 }
