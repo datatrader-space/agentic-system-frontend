@@ -36,5 +36,7 @@ else loadSession().then(session => {
   const root = document.getElementById('training-data-app');
   root.setAttribute('role', 'alert');
   root.style.cssText = 'font:14px/1.6 Inter,system-ui,sans-serif;color:#334155;padding:48px 24px;text-align:center';
-  root.textContent = `${error?.message || 'Could not reach AADML.'} Reload the page to try again.`;
+  // The message may end by saying to try again already (api/client.js); the page says it once.
+  const said = String(error?.message || 'Could not reach AADML.').replace(/\s*(Check your connection and )?try again\.?$/i, '.').replace(/\.\.$/, '.');
+  root.textContent = `${said} Reload the page to try again.`;
 });

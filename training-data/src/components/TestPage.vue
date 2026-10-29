@@ -88,7 +88,7 @@ const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '
             <UiButton :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop test server</UiButton>
           </template>
           <template v-else-if="state.phase==='starting'">
-            <p class="starting"><span class="spinner" aria-hidden="true"></span><strong>Starting the test server…</strong> It loads the model on this server; this can take a minute.</p>
+            <p class="starting"><span class="spinner" aria-hidden="true"></span><strong>Starting the test server…</strong> The model is placed on AADML's shared test server; this takes a few seconds.</p>
             <UiButton :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop</UiButton>
           </template>
           <template v-else>

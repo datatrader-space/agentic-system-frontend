@@ -1,30 +1,40 @@
 <script setup>
-// The workspace's Deployments page, laid out as Roboflow's (owner, 2026-10-21): tabs for every way of deploying, of
-// which the Cloud API is AADML's today and the others say Coming soon; the Overview with the successful calls of the
+// The workspace's Deployments page, laid out as Roboflow's (owner, 2026-10-21): tabs for every way of deploying (the
+// Cloud API, Dedicated, Batch, Edge on your machines, Cloud Streaming, Cost Benchmark); the Overview with the successful calls of the
 // workspace's models over a chosen range, the ways to deploy, "Improve model", and the projects deployed and not yet
 // deployed. Deploying, stopping and going back are done on a project's own Deployments page.
 // Backend: app_api.py workspace/deployments/?range= (and workspace/models/ for "Improve model").
-import { computed, ref, watch } from 'vue';
+// The Dedicated Deployments tab (TRAINING_PHASE3_SERVING_PLAN.md 7.9): a project's approved model, or an open model the
+// workspace added from Hugging Face as it is (TRAINING_OPEN_MODELS_PLAN.md section 4), on a machine of its own.
+// Backend: app_api.py workspace/dedicated/ (list, start) and workspace/dedicated/<id>/stop/.
+import { computed, onUnmounted, ref, watch } from 'vue';
 import {
-  ArrowRight, BookOpen, Check, ChartColumn, ChartLine, Cloud, Cpu, KeyRound, Layers, Network, Plus, RefreshCw,
-  Rocket, Server, Sparkles, Video, Zap,
+  ArrowRight, BookOpen, Check, ChartColumn, ChartLine, Clock, Cloud, Code, Copy, Cpu, KeyRound, Layers, LoaderCircle,
+  Network, Plus, RefreshCw, Rocket, Server, Sparkles, Square, Video, Zap,
 } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
+import StreamingTab from './StreamingTab.vue';
+import CostTab from './CostTab.vue';
+import BatchTab from './BatchTab.vue';
+import EdgeTab from './EdgeTab.vue';
 import {
   workspaceApi, projectLink, environmentState, modelName, timeAgo, RUN_RANGES, API_REFERENCE, runsChart, runsDay,
+  DEDICATED_NAME_RULE, dedicatedNameProblem, machineCost, dedicatedCostSummary, dedicatedModels, missingApproval,
+  dedicatedState, anyStarting, DEDICATED_HOST, DEDICATED_SOURCES, deployableOpenModels, dedicatedMachinesFor, machineKind,
+  openModelLine, missingOpenModel, dedicatedSource, useLanguages, useInstall, usesInstall, useSnippet,
 } from '../api/workspace.js';
 
 const emit = defineEmits(['navigate', 'create']);
 
 const TABS = [
   { id: 'overview', name: 'Overview', icon: ChartLine },
-  { id: 'dedicated', name: 'Dedicated Deployments', icon: Server, soon: 'A model on servers of its own, kept for your apps only and sized for steady traffic.' },
-  { id: 'batch', name: 'Batch Processing', icon: Layers, soon: 'Run a model over a whole folder of photos or videos at once, from this page, the command line or code, and download what it found.' },
-  { id: 'edge', name: 'Edge Devices', icon: Cpu, soon: 'Run a model on your own hardware, such as a camera box or a laptop, so photos never leave your site.' },
-  { id: 'streaming', name: 'Cloud Streaming', icon: Video, soon: 'Point a model at a live video stream and receive its answers while the video plays.' },
-  { id: 'cost', name: 'Cost Benchmark', icon: ChartColumn, soon: 'Compare what a model costs per thousand calls on each way of deploying it.' },
+  { id: 'dedicated', name: 'Dedicated Deployments', icon: Server },
+  { id: 'batch', name: 'Batch Processing', icon: Layers },
+  { id: 'edge', name: 'Edge Devices', icon: Cpu },
+  { id: 'streaming', name: 'Cloud Streaming', icon: Video },
+  { id: 'cost', name: 'Cost Benchmark', icon: ChartColumn },
 ];
 const tab = ref('overview');
 const current = computed(() => TABS.find(t => t.id === tab.value));
@@ -85,6 +95,152 @@ const keysOpen = ref(false);
 const day = iso => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '');
 function openTab(id) { tab.value = id; }
 function showDeployed() { listTab.value = 'deployed'; document.getElementById('ws-deploy-lists')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+
+// ── Dedicated deployments ──────────────────────────────────────────────────────────────────────────
+// The list is read when the tab opens, and again every 5 seconds while one of them is starting and the tab is open.
+const ded = ref(null); const dedError = ref(''); const dedLoading = ref(false);
+const dedSaid = ref(''); const announce = ref('');
+const deployments = computed(() => ded.value?.deployments || []);
+const options = computed(() => ded.value?.options || { projects: [], machines: [], kinds: [], open_models: [], open_machines: [] });
+const dedOpen = computed(() => ded.value?.open !== false);
+const dedMay = computed(() => ded.value?.may || {});
+let pollTimer = null; let gone = false;
+function stopPolling() { clearTimeout(pollTimer); pollTimer = null; }
+function schedulePoll() {
+  stopPolling();
+  if (!gone && tab.value === 'dedicated' && anyStarting(deployments.value)) pollTimer = setTimeout(loadDedicated, 5000);
+}
+// A deployment whose state changed since the last read is read out once.
+function noteChanges(before, after) {
+  const was = new Map((before || []).map(d => [d.id, d.state]));
+  const changed = (after || []).filter(d => was.has(d.id) && was.get(d.id) !== d.state);
+  if (changed.length) announce.value = changed.map(d => `${d.name} is ${dedicatedState(d)[1].toLowerCase()}.`).join(' ');
+}
+function takePage(body) {
+  if (!body) return;
+  noteChanges(ded.value?.deployments, body.deployments);
+  ded.value = body;
+}
+async function loadDedicated() {
+  if (dedLoading.value) return;
+  dedLoading.value = true;
+  try { takePage(await workspaceApi.dedicated()); dedError.value = ''; }
+  catch (e) { dedError.value = e.message; }
+  finally { dedLoading.value = false; schedulePoll(); }
+}
+watch(tab, now => { if (now === 'dedicated') loadDedicated(); else stopPolling(); });
+const kindLabel = kind => options.value.kinds.find(k => k.value === kind)?.label || (kind === 'production' ? 'Production' : 'Development');
+const machineOf = type => [...(options.value.machines || []), ...(options.value.open_machines || [])].find(m => m.instance_type === type);
+const environmentLabel = env => (env === 'production' ? 'Production' : 'Staging');
+const lastCall = d => (d.last_used_at ? timeAgo(d.last_used_at) : 'No calls yet');
+
+// "New deployment": the form, checked here as the backend checks it; a refusal names its field.
+const creating = ref(false); const starting = ref(false);
+const form = ref({ source: 'model', name: '', project: '', model: '', open_model: '', instance_type: '', kind: 'development' });
+const fieldErrors = ref({}); const formError = ref(''); const nameTouched = ref(false);
+const chosenProject = computed(() => options.value.projects.find(p => p.ref === form.value.project) || null);
+const eligible = computed(() => dedicatedModels(chosenProject.value, form.value.kind));
+const mayOpen = computed(() => dedMay.value.start_open_model === true);
+const sources = computed(() => DEDICATED_SOURCES.filter(source => source.value === 'model' || mayOpen.value));
+const openModels = computed(() => options.value.open_models || []);
+const offeredOpen = computed(() => deployableOpenModels(openModels.value));
+const chosenOpen = computed(() => offeredOpen.value.find(m => String(m.id) === String(form.value.open_model)) || null);
+const machinesShown = computed(() => dedicatedMachinesFor(options.value, form.value.source, chosenOpen.value));
+const chosenMachine = computed(() => machinesShown.value.find(m => m.instance_type === form.value.instance_type) || null);
+const chosenKind = computed(() => options.value.kinds.find(k => k.value === form.value.kind) || null);
+const costLine = computed(() => dedicatedCostSummary(chosenMachine.value, form.value.kind, chosenKind.value?.idle_minutes || 60));
+const mayStart = computed(() => dedMay.value[`start_${form.value.kind}`] === true);
+const startWhy = computed(() => {
+  if (!mayStart.value) return dedMay.value[`reason_${form.value.kind}`] || 'You may not start this type of deployment.';
+  if (form.value.source === 'open_model') {
+    if (!chosenOpen.value) return missingOpenModel(openModels.value) || 'Choose an open model.';
+    if (!machinesShown.value.length) return 'No machine that holds this model can be chosen right now.';
+    return '';
+  }
+  if (!eligible.value.length) return 'Choose a project with an approved model.';
+  if (!machinesShown.value.length) return 'No machine can be chosen right now.';
+  return '';
+});
+// A changed source or open model keeps the machine only while it is still offered for it.
+watch([() => form.value.source, () => form.value.open_model, machinesShown], () => {
+  if (!machinesShown.value.some(m => m.instance_type === form.value.instance_type)) form.value.instance_type = machinesShown.value[0]?.instance_type || '';
+});
+// A changed project or type keeps the model only while it is still allowed.
+watch([() => form.value.project, () => form.value.kind], () => {
+  if (!eligible.value.some(m => String(m.number) === String(form.value.model))) form.value.model = eligible.value[0] ? String(eligible.value[0].number) : '';
+});
+function checkName() {
+  nameTouched.value = true;
+  const problem = dedicatedNameProblem(form.value.name);
+  fieldErrors.value = { ...fieldErrors.value, name: problem };
+  return !problem;
+}
+function openCreate() {
+  const first = options.value.projects.find(p => dedicatedModels(p, 'development').length) || options.value.projects[0];
+  form.value = {
+    source: 'model', name: '', project: first?.ref || '', model: '', open_model: offeredOpen.value[0] ? String(offeredOpen.value[0].id) : '',
+    instance_type: options.value.machines[0]?.instance_type || '',
+    kind: dedMay.value.start_development === false && dedMay.value.start_production ? 'production' : 'development',
+  };
+  const models = dedicatedModels(first, form.value.kind);
+  form.value.model = models[0] ? String(models[0].number) : '';
+  fieldErrors.value = {}; formError.value = ''; nameTouched.value = false; dedSaid.value = '';
+  creating.value = true;
+}
+async function startDeployment() {
+  formError.value = '';
+  if (!checkName() || startWhy.value || starting.value) return;
+  starting.value = true;
+  try {
+    const body = await workspaceApi.startDedicated({ ...form.value, model: Number(form.value.model), open_model: Number(form.value.open_model) });
+    takePage(body);
+    dedSaid.value = body?.said || `${form.value.name} is starting.`;
+    announce.value = dedSaid.value;
+    creating.value = false;
+    schedulePoll();
+  } catch (e) {
+    if (e.field && ['name', 'project', 'model', 'open_model', 'instance_type', 'kind', 'source'].includes(e.field)) fieldErrors.value = { ...fieldErrors.value, [e.field]: e.message };
+    else formError.value = e.message;
+    // A start whose answer never came may have been made: the list is read again.
+    if (e.code === 'timeout' || e.code === 'network') loadDedicated();
+  } finally { starting.value = false; }
+}
+
+// "Stop": always confirmed in a dialog first.
+const stopping = ref(null); const stopBusy = ref(false); const stopError = ref('');
+function askStop(d) { stopping.value = d; stopError.value = ''; }
+async function confirmStop() {
+  if (!stopping.value || stopBusy.value) return;
+  stopBusy.value = true;
+  const name = stopping.value.name;
+  try {
+    takePage(await workspaceApi.stopDedicated(stopping.value.id));
+    dedSaid.value = `${name} is stopped.`; announce.value = dedSaid.value;
+    stopping.value = null;
+  } catch (e) {
+    stopError.value = e.message;
+    if (e.code === 'timeout' || e.code === 'network') loadDedicated();
+  } finally { stopBusy.value = false; schedulePoll(); }
+}
+
+// "Use": how an app calls a live deployment, with copy chips that say "Copied" for 2 seconds.
+// A photo deployment is called with AADML's SDK; an open chat model with OpenAI's own client (its address is the base URL).
+const using = ref(null); const language = ref(''); const copied = ref(''); const copyError = ref('');
+const languages = computed(() => useLanguages(using.value));
+const installLine = computed(() => useInstall(using.value));
+const useUrl = computed(() => (using.value ? `${DEDICATED_HOST}${using.value.path}` : ''));
+const useCode = computed(() => (useUrl.value ? useSnippet(using.value, language.value, useUrl.value) : ''));
+const COPIED_WORDS = { install: 'the install command', code: 'the code', address: 'the address' };
+let copiedTimer = null;
+const CHAT_ABOUT = "It takes OpenAI's chat format, so OpenAI's own client works with it: set the client's base URL to the address below.";
+function openUse(d) { using.value = d; language.value = useLanguages(d)[0]; copied.value = ''; copyError.value = ''; }
+async function copyText(text, what) {
+  try {
+    await navigator.clipboard.writeText(text); copied.value = what; copyError.value = '';
+    clearTimeout(copiedTimer); copiedTimer = setTimeout(() => { copied.value = ''; }, 2000);
+  } catch { copyError.value = 'Copying was blocked by the browser. Select the text and copy it with Ctrl+C.'; }
+}
+onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
 </script>
 
 <template>
@@ -102,6 +258,66 @@ function showDeployed() { listTab.value = 'deployed'; document.getElementById('w
         <p>{{ current.soon }} It is not available in AADML yet. Today a model answers through the Cloud API: its project's Deployments page puts it live in staging or production.</p>
         <UiButton @click="tab='overview'">Back to Overview</UiButton></div>
     </section>
+
+    <section v-else-if="tab==='dedicated'" class="dedicated" role="tabpanel" aria-labelledby="ded-heading" :aria-busy="dedLoading">
+      <div class="ded-head">
+        <div>
+          <h2 id="ded-heading">Dedicated deployments</h2>
+          <p>An approved model of a project, or an open model your workspace added, on a machine of its own, kept for your apps only.</p>
+        </div>
+        <UiButton variant="primary" :disabled="!ded" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New deployment</UiButton>
+      </div>
+
+      <p v-if="ded && !dedOpen" class="ded-closed" role="status"><Clock :size="18" aria-hidden="true"/><span>{{ ded.not_open }}</span></p>
+      <div v-if="dedSaid" class="notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ dedSaid }}</span></div>
+      <div v-if="dedError" class="ded-error" role="alert">
+        <span>{{ dedError }}</span>
+        <UiButton :disabled="dedLoading" @click="loadDedicated"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
+      </div>
+
+      <p v-if="!ded && !dedError" class="muted">Loading deployments…</p>
+      <div v-else-if="ded && !deployments.length" class="list-empty">
+        <span class="empty-icon"><Server :size="22" aria-hidden="true"/></span>
+        <h3>No dedicated deployment yet</h3>
+        <p>Start one to give an approved model a machine of its own, with an address your apps call.</p>
+        <div class="empty-actions"><UiButton variant="primary" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New deployment</UiButton></div>
+      </div>
+      <div v-else-if="ded" class="table-wrap">
+        <table class="ws-table ded-table">
+          <thead><tr><th>Name</th><th>Source</th><th>Type</th><th>Machine</th><th>State</th><th>Last call</th><th><span class="sr-only">Actions</span></th></tr></thead>
+          <tbody>
+            <tr v-for="d in deployments" :key="d.id">
+              <td data-label="Name"><strong class="ded-name">{{ d.name }}</strong></td>
+              <td data-label="Source"><span class="source-chip" :class="d.source">{{ dedicatedSource(d).label }}</span>
+                <span class="ded-source-title">{{ dedicatedSource(d).title }}</span><small>{{ dedicatedSource(d).detail }}</small></td>
+              <td data-label="Type"><span class="kind-chip" :class="d.kind">{{ d.kind_label || kindLabel(d.kind) }}</span>
+                <small v-if="d.kind==='development' && d.idle_minutes">Stops after {{ d.idle_minutes }} minutes without a call</small></td>
+              <td data-label="Machine"><code>{{ d.instance_type }}</code><small v-if="machineOf(d.instance_type)">{{ machineKind(machineOf(d.instance_type)) }}</small></td>
+              <td data-label="State">
+                <UiBadge :tone="dedicatedState(d)[0]"><LoaderCircle v-if="d.state==='starting'" class="spin" :size="12" aria-hidden="true"/>{{ dedicatedState(d)[1] }}</UiBadge>
+                <small v-if="d.state==='failed' && d.failure_reason" class="failed-why">{{ d.failure_reason }}</small>
+                <small v-else-if="d.state==='live' && d.live_at">Went live {{ timeAgo(d.live_at) }}</small>
+                <small v-else-if="d.state==='stopped' && d.stopped_at">Stopped {{ timeAgo(d.stopped_at) }}</small>
+              </td>
+              <td data-label="Last call">{{ lastCall(d) }}</td>
+              <td class="row-actions"><div class="ded-acts">
+                <UiButton v-if="d.state==='live'" class="small" :aria-label="`Use ${d.name}`" @click="openUse(d)"><Code :size="14" aria-hidden="true"/> Use</UiButton>
+                <UiButton v-if="d.state==='live' || d.state==='starting'" class="small" :aria-label="`Stop ${d.name}`" @click="askStop(d)"><Square :size="13" aria-hidden="true"/> Stop</UiButton>
+              </div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="sr-only" aria-live="polite">{{ announce }}</p>
+    </section>
+
+    <StreamingTab v-else-if="tab==='streaming'"/>
+
+    <CostTab v-else-if="tab==='cost'"/>
+
+    <BatchTab v-else-if="tab==='batch'"/>
+
+    <EdgeTab v-else-if="tab==='edge'" @navigate="id => emit('navigate', id)"/>
 
     <div v-else role="tabpanel">
       <p v-if="error" class="field-error" role="alert">{{ error }}</p>
@@ -158,12 +374,12 @@ function showDeployed() { listTab.value = 'deployed'; document.getElementById('w
         </button>
         <button type="button" class="way" @click="openTab('dedicated')">
           <span class="way-icon"><Server :size="18"/></span>
-          <span><strong>Dedicated Deployments <UiBadge tone="purple">Coming soon</UiBadge></strong><small>Private cloud servers for your workloads.</small></span>
+          <span><strong>Dedicated Deployments</strong><small>A model on a machine of its own, kept for your apps only.</small></span>
           <ArrowRight :size="16" class="way-go"/>
         </button>
         <button type="button" class="way" @click="openTab('batch')">
           <span class="way-icon"><Layers :size="18"/></span>
-          <span><strong>Batch Processing <UiBadge tone="purple">Coming soon</UiBadge></strong><small>Process large volumes of photos and videos via the app, the command line or code.</small></span>
+          <span><strong>Batch Processing</strong><small>Run a model over many photos of a project at once and download what it found.</small></span>
           <ArrowRight :size="16" class="way-go"/>
         </button>
       </section>
@@ -243,6 +459,149 @@ function showDeployed() { listTab.value = 'deployed'; document.getElementById('w
       <p v-if="!rows.length" class="muted">No project yet.</p>
       <ul class="key-list"><li v-for="row in rows" :key="row.project.ref"><span>{{ row.project.name }}</span><a class="text-link" :href="projectLink(row.project.ref,'connect')" @click="keysOpen=false">Its keys</a></li></ul>
       <div class="dialog-actions"><UiButton @click="keysOpen=false">Close</UiButton></div>
+    </UiDialog>
+
+    <UiDialog class="ded-dialog" :open="creating" title="New deployment" @close="creating=false">
+      <form class="ded-form" novalidate @submit.prevent="startDeployment">
+        <p class="dialog-description">Choose a model and a machine for it. Nothing starts until you press Start deployment.</p>
+
+        <fieldset v-if="sources.length > 1" class="ded-field">
+          <legend>Source</legend>
+          <div class="ded-cards two">
+            <label v-for="src in sources" :key="src.value" class="ded-card" :class="{chosen: form.source===src.value}">
+              <input v-model="form.source" type="radio" name="ded-source" :value="src.value">
+              <span><strong>{{ src.label }}</strong><small>{{ src.about }}</small></span>
+            </label>
+          </div>
+          <p v-if="fieldErrors.source" class="field-error" role="alert">{{ fieldErrors.source }}</p>
+        </fieldset>
+        <p v-if="!dedOpen" class="ded-closed" role="status"><Clock :size="18" aria-hidden="true"/><span>{{ ded.not_open }}</span></p>
+
+        <div class="ded-field">
+          <label for="ded-name">Name</label>
+          <input id="ded-name" v-model.trim="form.name" class="text-input" autocomplete="off" spellcheck="false" maxlength="30"
+                 :aria-invalid="!!fieldErrors.name" aria-describedby="ded-name-help ded-name-error"
+                 @blur="checkName" @input="nameTouched && checkName()">
+          <p id="ded-name-help" class="ded-help">{{ DEDICATED_NAME_RULE }} It is part of the address your apps call.</p>
+          <p id="ded-name-error" class="field-error" aria-live="polite">{{ fieldErrors.name }}</p>
+        </div>
+
+        <fieldset class="ded-field">
+          <legend>Type</legend>
+          <div class="ded-cards two">
+            <label v-for="k in options.kinds" :key="k.value" class="ded-card" :class="{chosen: form.kind===k.value}">
+              <input v-model="form.kind" type="radio" name="ded-kind" :value="k.value">
+              <span><strong>{{ k.label }}</strong>
+                <small>{{ k.about || (k.value==='development' ? `Stops after ${k.idle_minutes || 60} minutes without a call.` : 'Stays on until you stop it.') }}</small></span>
+            </label>
+          </div>
+          <p v-if="fieldErrors.kind" class="field-error" role="alert">{{ fieldErrors.kind }}</p>
+        </fieldset>
+
+        <div v-if="form.source==='open_model'" class="ded-field">
+          <label for="ded-open-model">Open model</label>
+          <select id="ded-open-model" v-model="form.open_model" class="text-input" :disabled="!offeredOpen.length" :aria-invalid="!!fieldErrors.open_model" aria-describedby="ded-open-help ded-open-error">
+            <option v-if="!offeredOpen.length" value="">No open model can be deployed</option>
+            <option v-for="m in offeredOpen" :key="m.id" :value="String(m.id)">{{ m.name }} ({{ m.kind === 'chat' ? 'chat' : 'photos' }})</option>
+          </select>
+          <p id="ded-open-help" class="ded-help">{{ chosenOpen ? `${openModelLine(chosenOpen)}. It runs as published, with no internet access.` : missingOpenModel(openModels) }}</p>
+          <p id="ded-open-error" class="field-error" aria-live="polite">{{ fieldErrors.open_model }}</p>
+        </div>
+
+        <div v-else class="ded-row">
+          <div class="ded-field">
+            <label for="ded-project">Project</label>
+            <select id="ded-project" v-model="form.project" class="text-input" :aria-invalid="!!fieldErrors.project" aria-describedby="ded-project-error">
+              <option v-if="!options.projects.length" value="">No project yet</option>
+              <option v-for="p in options.projects" :key="p.ref" :value="p.ref">{{ p.name }}</option>
+            </select>
+            <p id="ded-project-error" class="field-error" aria-live="polite">{{ fieldErrors.project }}</p>
+          </div>
+          <div class="ded-field">
+            <label for="ded-model">Model</label>
+            <select id="ded-model" v-model="form.model" class="text-input" :disabled="!eligible.length" :aria-invalid="!!fieldErrors.model" aria-describedby="ded-model-help ded-model-error">
+              <option v-if="!eligible.length" value="">No approved model</option>
+              <option v-for="m in eligible" :key="m.number" :value="String(m.number)">{{ modelName(m) }}</option>
+            </select>
+            <p id="ded-model-help" class="ded-help">{{ eligible.length ? `Only models approved for ${form.kind==='production' ? 'production' : 'staging'} are listed.` : missingApproval(chosenProject, form.kind) }}</p>
+            <p id="ded-model-error" class="field-error" aria-live="polite">{{ fieldErrors.model }}</p>
+          </div>
+        </div>
+
+        <fieldset class="ded-field">
+          <legend>Machine</legend>
+          <div class="ded-cards">
+            <label v-for="m in machinesShown" :key="m.instance_type" class="ded-card" :class="{chosen: form.instance_type===m.instance_type}">
+              <input v-model="form.instance_type" type="radio" name="ded-machine" :value="m.instance_type">
+              <span><strong><Zap v-if="m.gpu" :size="14" aria-hidden="true"/><Cpu v-else :size="14" aria-hidden="true"/> {{ m.instance_type }}</strong>
+                <small>{{ machineKind(m) }}</small><small>{{ machineCost(m) }}</small></span>
+            </label>
+          </div>
+          <p v-if="form.source==='open_model' && machinesShown.length" class="ded-help">Only machines with room for this model are listed.</p>
+          <p v-if="!machinesShown.length" class="ded-help">No machine can be chosen right now.</p>
+          <p v-if="fieldErrors.instance_type" class="field-error" role="alert">{{ fieldErrors.instance_type }}</p>
+        </fieldset>
+
+        <p v-if="costLine" class="ded-cost" aria-live="polite">{{ costLine }}</p>
+        <p v-if="formError" class="field-error" role="alert">{{ formError }}</p>
+        <div class="ded-actions">
+          <p v-if="startWhy" id="ded-start-why" class="ded-why">{{ startWhy }}</p>
+          <UiButton @click="creating=false">Cancel</UiButton>
+          <UiButton type="submit" variant="primary" :disabled="!!startWhy || starting" :aria-describedby="startWhy ? 'ded-start-why' : undefined">
+            <LoaderCircle v-if="starting" class="spin" :size="15" aria-hidden="true"/> {{ starting ? 'Starting…' : 'Start deployment' }}
+          </UiButton>
+        </div>
+      </form>
+    </UiDialog>
+
+    <UiDialog :open="!!stopping" :title="stopping ? `Stop ${stopping.name}?` : ''" @close="stopping=null">
+      <template v-if="stopping">
+        <p class="dialog-description">Its machine is shut down and calls to its address are refused. Apps that call it stop getting answers.</p>
+        <p v-if="stopError" class="field-error" role="alert">{{ stopError }}</p>
+        <div class="dialog-actions">
+          <UiButton @click="stopping=null">Keep it running</UiButton>
+          <UiButton variant="primary" class="danger" :disabled="stopBusy" @click="confirmStop"><Square :size="13" aria-hidden="true"/> {{ stopBusy ? 'Stopping…' : 'Stop deployment' }}</UiButton>
+        </div>
+      </template>
+    </UiDialog>
+
+    <UiDialog class="ded-dialog" :open="!!using" :title="using ? `Use ${using.name}` : ''" @close="using=null">
+      <template v-if="using">
+        <p class="dialog-description">Call {{ using.name }} from your own code. {{ using.call==='chat' ? CHAT_ABOUT : 'Each call is one photo, answered with what the model found.' }}</p>
+        <p v-if="!dedOpen" class="ded-closed" role="status"><Clock :size="18" aria-hidden="true"/><span>{{ ded.not_open }}</span></p>
+        <ol class="use-steps">
+          <li>
+            <h3><span class="use-step-no" aria-hidden="true">1</span>Choose your language</h3>
+            <div class="segmented" role="radiogroup" aria-label="Language">
+              <button v-for="l in languages" :key="l" type="button" role="radio" :aria-checked="language===l" :class="{on:language===l}" @click="language=l">{{ l }}</button>
+            </div>
+          </li>
+          <li>
+            <h3><span class="use-step-no" aria-hidden="true">2</span>Install</h3>
+            <div v-if="usesInstall(using, language)" class="command-row">
+              <code>{{ installLine }}</code>
+              <button type="button" class="copy-chip" :aria-label="copied==='install' ? 'Install command copied' : 'Copy the install command'" @click="copyText(installLine,'install')"><Check v-if="copied==='install'" :size="15" aria-hidden="true"/><Copy v-else :size="15" aria-hidden="true"/>{{ copied==='install' ? 'Copied' : 'Copy' }}</button>
+            </div>
+            <p v-else class="step-note">Nothing to install: {{ language==='JavaScript' ? 'browsers and Node.js 18 or newer have fetch built in.' : 'curl comes with macOS, Linux and Windows 10 or newer.' }}</p>
+          </li>
+          <li>
+            <h3><span class="use-step-no" aria-hidden="true">3</span>Copy and run the code</h3>
+            <div class="use-code">
+              <button type="button" class="copy-chip on-dark" :aria-label="copied==='code' ? 'Code copied' : 'Copy the code'" @click="copyText(useCode,'code')"><Check v-if="copied==='code'" :size="15" aria-hidden="true"/><Copy v-else :size="15" aria-hidden="true"/>{{ copied==='code' ? 'Copied' : 'Copy' }}</button>
+              <pre class="code-block" tabindex="0" :aria-label="`Code to call ${using.name} with ${language}`"><code>{{ useCode }}</code></pre>
+            </div>
+          </li>
+        </ol>
+        <dl class="use-facts">
+          <div><dt>{{ using.call==='chat' ? 'Address (the base URL is everything before /chat/completions)' : 'Address' }}</dt><dd><code>{{ useUrl }}</code><button type="button" class="copy-icon" :aria-label="copied==='address' ? 'Address copied' : 'Copy the address'" @click="copyText(useUrl,'address')"><Check v-if="copied==='address'" :size="14" aria-hidden="true"/><Copy v-else :size="14" aria-hidden="true"/></button></dd></div>
+          <div><dt>App key</dt><dd><KeyRound :size="14" aria-hidden="true"/>
+            <span v-if="using.project">A key of an app allowed to call {{ using.project.name }} in {{ environmentLabel(using.environment).toLowerCase() }}. <a class="text-link" :href="projectLink(using.project.ref,'connect')" @click="using=null">Make or find one</a></span>
+            <span v-else>A key of an app of this workspace that may call one of its projects in {{ environmentLabel(using.environment).toLowerCase() }}. Keys are made on a project's Connect app page.</span></dd></div>
+        </dl>
+        <p class="sr-only" aria-live="polite">{{ copied ? `Copied ${COPIED_WORDS[copied]}.` : '' }}</p>
+        <p v-if="copyError" class="field-error" role="alert">{{ copyError }}</p>
+        <div class="dialog-actions"><UiButton @click="using=null">Close</UiButton></div>
+      </template>
     </UiDialog>
   </div>
 </template>
@@ -335,7 +694,96 @@ function showDeployed() { listTab.value = 'deployed'; document.getElementById('w
 .key-list{list-style:none;padding:0;margin:8px 0 0}
 .key-list li{display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid #eef0f4}
 .key-list .text-link{margin:0}
+/* dedicated deployments */
+.ded-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+.ded-head h2{margin:0 0 4px}
+.ded-head p{margin:0;max-width:620px;color:#4c5d74}
+.ded-closed{display:flex;gap:10px;align-items:flex-start;margin:0 0 16px;padding:12px 14px;border-radius:10px;background:#fff7e6;border:1px solid #f5dfb0;color:#6f4500!important;font-size:13px;line-height:1.55}
+.ded-closed svg{flex-shrink:0;margin-top:1px;color:#b26b00}
+.ded-error{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:10px 14px;border:1px solid #efc5ce;border-radius:10px;background:#fff5f6;color:#ad3449;font-size:13px}
+.ded-table .ded-name{color:#162139;overflow-wrap:anywhere}
+.ded-table td{min-width:0}
+.kind-chip{display:inline-flex;align-items:center;padding:4px 8px;border:1px solid #d9e0ea;border-radius:5px;font-size:11px;font-weight:550;color:#33415a;background:#fff;white-space:nowrap}
+.kind-chip.production{border-color:var(--aadml-outline);color:var(--aadml-primary)}
+.badge--red{color:#a12c3c;background:#fdecee}
+.badge .spin{margin-right:2px}
+.spin{animation:ded-spin 1.1s linear infinite}
+@keyframes ded-spin{to{transform:rotate(360deg)}}
+.failed-why{color:#a12c3c!important}
+.ded-acts{display:inline-flex;gap:6px;flex-wrap:wrap}
+.ded-acts .button.small{min-height:44px}
+.ded-dialog{width:min(680px,calc(100% - 32px))}
+.ded-form{margin:0}
+.ded-field{display:block;margin:18px 0 0;min-width:0;border:0;padding:0}
+.ded-field > label,.ded-field > legend{display:block;font-size:13px;font-weight:600;color:#1d2a42;margin:0 0 8px}
+.ded-field .text-input{display:block;width:100%;min-height:44px;margin:0;padding:10px 12px;font-size:14px}
+.ded-field .text-input:focus-visible,.ded-card:focus-within{outline:2px solid var(--aadml-focus);outline-offset:2px}
+.ded-field .text-input[aria-invalid="true"]{border-color:#c0394c}
+.ded-help{margin:6px 0 0!important;font-size:12px!important;line-height:1.5!important;color:#5f6d82!important}
+.ded-field .field-error{margin:6px 0 0}
+.ded-field .field-error:empty{margin:0}
+.ded-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+.ded-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.ded-card{display:flex;align-items:flex-start;gap:10px;min-height:44px;padding:12px 14px;border:1px solid #dce0e8;border-radius:9px;background:#fff;cursor:pointer;transition:border-color .15s,background-color .15s}
+.ded-card:hover{border-color:var(--aadml-focus)}
+.ded-card.chosen{border-color:var(--aadml-focus);background:var(--aadml-tint)}
+.ded-card input{margin-top:3px;width:16px;height:16px}
+.ded-card span{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ded-card strong{display:inline-flex;align-items:center;gap:6px;font-size:14px;color:#162139}
+.ded-card small{font-size:12px;line-height:1.5;color:#4c5d74}
+.ded-cost{margin:20px 0 0!important;padding:10px 14px;border-radius:9px;background:#f4f6fa;color:#22304a!important;font-size:13px}
+.ded-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:20px;flex-wrap:wrap}
+.ded-actions .button{min-height:44px}
+.ded-why{margin:0 auto 0 0!important;flex:1 1 220px;font-size:12px!important;line-height:1.5!important;color:#6f4500!important}
+.button--primary.danger{background:#b42318;border-color:#b42318}
+.button--primary.danger:hover:not(:disabled){background:#912018;border-color:#912018}
+.source-chip{display:inline-flex;align-items:center;padding:3px 7px;margin-bottom:5px;border-radius:5px;font-size:11px;font-weight:550;color:#33415a;background:#f1f4f8}
+.source-chip.open_model{color:var(--aadml-primary);background:var(--aadml-tint)}
+.ded-source-title{display:block;color:#162139;overflow-wrap:anywhere}
+/* "Use", as the Models page's "Use model" */
+.use-steps{list-style:none;padding:0;margin:20px 0 0;display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
+.use-steps li{min-width:0}
+.use-steps h3{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:14px;color:#1d2a42}
+.use-step-no{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#1d2a42;color:#fff;font-size:12px;font-weight:600}
+.use-steps li > :not(h3){margin-left:34px}
+.segmented{display:inline-flex;padding:3px;border-radius:9px;background:#f1f3f7;gap:2px;flex-wrap:wrap}
+.segmented button{min-height:44px;padding:7px 14px;border:0;border-radius:7px;background:transparent;color:#4d5a70;font:inherit;font-size:13px;font-weight:550;cursor:pointer;transition:background-color .15s,color .15s}
+.segmented button.on{background:#fff;color:var(--aadml-primary);box-shadow:0 1px 3px #1d2a4224}
+.segmented button:hover:not(.on){color:#1d2a42}
+.segmented button:focus-visible,.copy-chip:focus-visible,.copy-icon:focus-visible{outline:2px solid var(--aadml-focus);outline-offset:2px}
+.command-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 8px 8px 14px;border:1px solid #dfe3eb;border-radius:9px;background:#f8f9fb}
+.command-row code{font-size:13px;color:#1d2a42;overflow-wrap:anywhere}
+.step-note{margin:0!important;font-size:13px;color:#5f6d82!important}
+.copy-chip{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:6px 12px;border:1px solid #dfe3eb;border-radius:7px;background:#fff;color:#33415a;font:inherit;font-size:12px;font-weight:550;cursor:pointer;transition:background-color .15s,border-color .15s}
+.copy-chip:hover{border-color:var(--aadml-focus);background:var(--aadml-tint)}
+.copy-chip.on-dark{position:absolute;top:8px;right:8px;background:#2c3a50;border-color:#3e4d65;color:#e3e8f1}
+.copy-chip.on-dark:hover{background:#38475f;border-color:#53637d}
+.use-code{position:relative;min-width:0}
+.use-code .code-block{margin:0;min-height:0;max-height:300px;overflow:auto;padding:60px 22px 20px;white-space:pre;font-size:12.5px;line-height:1.7}
+.use-code .code-block:focus-visible{outline:3px solid var(--aadml-outline);outline-offset:2px}
+.use-facts{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:10px;margin:22px 0 0}
+.use-facts > div{padding:12px 14px;border:1px solid #e3e6ed;border-radius:9px;min-width:0}
+.use-facts dt{font-size:12px;color:#6b778c;margin-bottom:6px}
+.use-facts dd{margin:0;display:flex;align-items:flex-start;gap:6px;font-size:13px;color:#22304a;overflow-wrap:anywhere;line-height:1.45}
+.use-facts dd svg{flex-shrink:0;margin-top:2px;color:#6b778c}
+.use-facts code{font-size:12px;min-width:0}
+.use-facts .text-link{margin:0}
+.copy-icon{display:inline-grid;place-items:center;flex-shrink:0;min-width:44px;min-height:44px;margin:-12px -10px -12px auto;border:0;border-radius:6px;background:transparent;color:#6b778c;cursor:pointer}
+.copy-icon:hover{background:var(--aadml-tint);color:var(--aadml-primary)}
 @media(max-width:900px){.ways{grid-template-columns:1fr}}
+@media(max-width:640px){
+  .ded-head .button{width:100%}
+  .ded-row{grid-template-columns:1fr}
+  .ded-cards{grid-template-columns:1fr}
+  .use-facts{grid-template-columns:1fr}
+  .use-steps li > :not(h3){margin-left:0}
+  .segmented{display:flex;flex-wrap:nowrap}
+  .segmented button{flex:1 1 0;min-width:0;padding:7px 6px}
+  .command-row{flex-wrap:wrap}
+  .use-code .code-block{font-size:12px;padding:60px 16px 16px}
+  .ded-actions .button{flex:1 1 auto}
+  .ded-why{flex-basis:100%}
+}
 @media(max-width:650px){
   .runs{padding:14px}
   .digits{font-size:28px}
@@ -348,5 +796,5 @@ function showDeployed() { listTab.value = 'deployed'; document.getElementById('w
   .ws-table td[data-label]::before{content:attr(data-label);display:block;font-size:11px;color:#5f6d82;margin-bottom:4px}
   .row-actions{text-align:left}
 }
-@media(prefers-reduced-motion:reduce){.runs,.way,.deploy-tabs button{transition:none}}
+@media(prefers-reduced-motion:reduce){.runs,.way,.deploy-tabs button,.ded-card,.segmented button,.copy-chip{transition:none}.spin{animation:none}}
 </style>

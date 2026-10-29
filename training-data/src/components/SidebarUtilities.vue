@@ -1,7 +1,7 @@
 <script setup>
 // The sidebar's Activity panel (this person's newest Training notifications) and Workspace Settings menu.
 import { onMounted, onUnmounted, ref } from 'vue';
-import { Bell, Settings, CreditCard, Coins, ClipboardList, Users, KeyRound, Database, Trash2, ListChecks } from 'lucide-vue-next';
+import { Bell, Settings, CreditCard, Coins, ClipboardList, Users, KeyRound, Database, Trash2, ListChecks, Server } from 'lucide-vue-next';
 import { listNotifications, readNotification, readAllNotifications } from '../api/notifications.js';
 import { openLink, timeAgo } from '../api/workspace.js';
 const emit = defineEmits(['select', 'unread']);
@@ -9,7 +9,7 @@ const root = ref(null);
 const opened = ref('');
 const settings = [
   ['Plan & Billing', CreditCard], ['Credit Usage', Coins], ['Audit Logs', ClipboardList],
-  ['Team Members', Users], ['API Keys', KeyRound], ['Datasources', Database], ['Trash', Trash2],
+  ['Team Members', Users], ['API Keys', KeyRound], ['Datasources', Database], ['Your Machines', Server], ['Trash', Trash2],
 ];
 // The newest few notifications; the Notifications page has them all.
 const SHOWN = 6;

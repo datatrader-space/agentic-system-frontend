@@ -3,11 +3,12 @@
 // models with trying one as it is published, and how often each project's deployed model was called. Every rule is
 // the backend's (app_api.py workspace/models/, published/<key>/…, workspace/deployments/).
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { Boxes, Box, WandSparkles, ChartNoAxesCombined, Plus, Upload, Search, Play, Square, X, Check, Code, Copy, Clock, KeyRound } from 'lucide-vue-next';
+import { Boxes, Box, WandSparkles, ChartNoAxesCombined, Plus, Upload, Search, Play, Square, X, Check, Code, Copy, Clock, KeyRound, Globe } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import PredictionResult from './PredictionResult.vue';
+import OpenModels from './OpenModels.vue';
 import { catalogue, useSnippet, USE_LANGUAGES, SDK_INSTALL } from '../api/models.js';
 import { PHOTO_TYPES, percent } from '../api/trial.js';
 import { workspaceApi, publishedApi, projectLink, trySteps, modelName, timeAgo } from '../api/workspace.js';
@@ -15,7 +16,7 @@ import { workspaceApi, publishedApi, projectLink, trySteps, modelName, timeAgo }
 const emit = defineEmits(['create', 'navigate']);
 // "Ready-to-use models" are AADML's own: used as they are, never trained here (a base model a run trains from is in
 // its project's Train tab; the owner, 2026-10-28).
-const tabs = [{ name: 'My models', icon: Boxes }, { name: 'Ready-to-use models', icon: WandSparkles }, { name: 'Usage', icon: ChartNoAxesCombined }];
+const tabs = [{ name: 'My models', icon: Boxes }, { name: 'Ready-to-use models', icon: WandSparkles }, { name: 'Open models', icon: Globe }, { name: 'Usage', icon: ChartNoAxesCombined }];
 const active = ref('My models');
 const data = ref(null); const error = ref('');
 const words = ref(''); const project = ref(''); const kindFilter = ref(''); const familyFilter = ref('');
@@ -226,6 +227,8 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
       <p v-if="data&&!shown.length" class="muted">No models match your selection.</p>
       <p v-if="data&&!data.may.try" class="muted">Your role in this workspace reads only, so it starts no model here.</p>
     </template>
+
+    <OpenModels v-else-if="active==='Open models'"/>
 
     <template v-else>
       <p class="muted intro">Calls to each project's deployed model in the last 7 days. A project's own Models page has the full usage by app, environment and model version.</p>
