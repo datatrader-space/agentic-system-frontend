@@ -44,7 +44,7 @@
               </div>
               <div class="border-t border-[#F2F4F7] pt-3">
                 <p class="text-xs font-semibold text-[#344054]">Capability models <span class="font-normal text-[#98A2B3]">- optional</span></p>
-                <p class="mb-2.5 text-[11px] leading-snug text-[#667085]">Use a specialized model for tasks the main model can't do. Leave on Auto to use the main model.</p>
+                <p class="mb-2.5 text-[11px] leading-snug text-[#667085]">Use a specialized model for tasks the main model can't do. Leave a slot empty to use the platform default.</p>
                 <div class="space-y-3">
                   <div v-for="c in CAPS" :key="c.field" :data-test="`cap-${c.field}`">
                     <div class="mb-1 flex items-center justify-between">
