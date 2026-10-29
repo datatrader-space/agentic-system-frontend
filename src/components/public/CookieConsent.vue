@@ -16,10 +16,21 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { consentState, setConsent, trackPageview } from '../../composables/useAnalytics'
 
-const visible = ref(consentState() === null)
+// The banner appears once the web font is in: shown earlier, its text re-wrapped when Inter replaced the
+// fallback and the banner grew (a 0.09-0.14 layout shift on /features). A new element appearing is not a shift.
+const FONT_WAIT_MS = 3000
+const visible = ref(false)
+
+onMounted(() => {
+  if (consentState() !== null) return
+  const show = () => { if (consentState() === null) visible.value = true }
+  const fonts = typeof document !== 'undefined' && document.fonts && document.fonts.ready
+  if (!fonts) return show()
+  Promise.race([fonts, new Promise((resolve) => setTimeout(resolve, FONT_WAIT_MS))]).then(show, show)
+})
 
 function accept() {
   setConsent(true)
