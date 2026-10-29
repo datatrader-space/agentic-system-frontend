@@ -119,7 +119,7 @@
 
 <script setup>
 import { useStudioExperience } from '../composables/useStudioExperience'
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../services/api'
 import { useChatStore } from '../stores/useChatStore'
@@ -127,8 +127,9 @@ import { useVideoStore } from '../stores/useVideoStore'
 import { useCanvasStore } from '../stores/useCanvasStore'
 import { notify } from '../composables/useNotify'
 import { usePoller } from '../composables/usePoller'
+import { lazyComponent } from '../utils/lazyComponent'
 import VideoComposerPanel from '../components/video/VideoComposerPanel.vue'
-const HomeFeatures = defineAsyncComponent(() => import('../components/studio/HomeFeatures.vue'))
+const HomeFeatures = lazyComponent(() => import('../components/studio/HomeFeatures.vue'))
 import VideoJobsTray from '../components/video/VideoJobsTray.vue'
 import VideoPanel from '../components/video/VideoPanel.vue'
 import VideoLibrary from '../components/video/VideoLibrary.vue'

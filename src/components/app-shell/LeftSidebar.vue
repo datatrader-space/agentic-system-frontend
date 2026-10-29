@@ -64,11 +64,11 @@
 </template>
 
 <script setup>
-import { computed, inject, ref } from 'vue'
+import { computed, inject, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { House, Bot, BookOpen, Files, Workflow, Database, Clapperboard, CalendarClock, Activity, ShieldCheck, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
 import BrandMark from '../common/BrandMark.vue'
-import { prefetchFromEvent } from '../../utils/prefetchRoute'
+import { prefetchFromEvent, prefetchRoutesWhenIdle } from '../../utils/prefetchRoute'
 import { useLayoutStore } from '../../stores/useLayoutStore'
 import { useChatStore } from '../../stores/useChatStore'
 import SidebarNavItem from './SidebarNavItem.vue'
@@ -140,6 +140,8 @@ const visibleNav = computed(() => primaryNav.filter((item) => {
 }))
 
 const onNavIntent = (e) => prefetchFromEvent(router, e)
+// The same routes, fetched ahead while the browser is idle (the page Training Data opens is not this app's).
+onMounted(() => prefetchRoutesWhenIdle(router, visibleNav.value.filter((item) => !item.external).map((item) => item.to)))
 
 const toggleNavGroup = () => {
   return

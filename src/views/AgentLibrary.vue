@@ -401,32 +401,14 @@ const duplicateAgent = async (agent) => {
     if (duplicatingId.value) return;
     duplicatingId.value = agent.id;
     try {
-        // Fetch the full agent, strip identity, post a copy
-        const res = await api.get(`/agents/${agent.id}/`);
-        const full = res.data || {};
-        const copy = {
-            name: `${full.name || 'Agent'} (copy)`,
-            description: full.description || '',
-            system_prompt_template: full.system_prompt_template || '',
-            prompt_mode: full.prompt_mode || 'append',
-            default_model: full.default_model || null,
-            temperature: full.temperature,
-            max_history_messages: full.max_history_messages,
-            knowledge_scope: full.knowledge_scope,
-            code_mode_enabled: full.code_mode_enabled,
-            code_mode_services: full.code_mode_services || [],
-            connect_service_enabled: full.connect_service_enabled !== false,
-            builder_mode_enabled: full.builder_mode_enabled,
-            agent_run_mode: full.agent_run_mode || 'manual',
-            tool_ids: (full.tools || []).map(t => t.id),
-        };
-        const created = await api.post('/agents/', copy);
+        // One call: the server makes the copy (a draft named "<name> (2)") with the same rule MCP uses.
+        const created = await api.duplicateAgent(agent.id);
         // Straight to the copy's editor. Waiting for the whole list to reload first only delayed leaving
         // this page; when the copy has no id to open, the list is refreshed so it shows.
         if (created?.data?.id) router.push(`/dashboard/agents/${created.data.id}/editor`);
         else fetchAgents();
     } catch (e) {
-        notify.error('Failed to duplicate agent: ' + (e.response?.data?.error || e.message));
+        notify.error('Failed to duplicate agent: ' + (e.response?.data?.detail || e.response?.data?.error || e.message));
     } finally {
         duplicatingId.value = null;
         openMenuId.value = null;

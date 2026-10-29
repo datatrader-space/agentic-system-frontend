@@ -28,7 +28,7 @@ async function mountExpanded(agent = {}) {
   const w = mount(DefineBrainStep, { props: { agent: a }, global: { stubs } })
   await flushPromises()
   await w.find('.model-card .edit-btn').trigger('click')
-  await nextTick()
+  await flushPromises()                              // the catalog is read when the editor opens
   await w.find('.model-card select').setValue('1')  // selectedProvider
   await nextTick()
   w._agent = a
@@ -192,7 +192,7 @@ describe('DefineBrainStep — the capability warning replaces the filter', () =>
 })
 
 describe('DefineBrainStep — loads in one round (Phase 5 item 3)', () => {
-  it('starts every independent read before the model catalog has answered', async () => {
+  it("starts every independent read before the agent's model has answered", async () => {
     const api = (await import('../../services/api')).default
     let releaseModels
     api.get.mockImplementationOnce(() => new Promise((r) => { releaseModels = r }))
@@ -201,14 +201,14 @@ describe('DefineBrainStep — loads in one round (Phase 5 item 3)', () => {
     api.getAgentMemory = vi.fn(() => Promise.resolve({ data: { memories: [] } }))
     api.getWebSearchModels = vi.fn(() => Promise.resolve({ data: { models: [] } }))
     api.getAgentWebIntelligence = vi.fn(() => Promise.resolve({ data: { config: {}, editable: true } }))
-    mount(DefineBrainStep, { props: { agent: { id: 1 } }, global: { stubs } })
+    mount(DefineBrainStep, { props: { agent: { id: 1, default_model: 10 } }, global: { stubs } })
     await flushPromises()
-    // The models request is still pending, and everything else has already been asked for.
+    // The model request is still pending, and everything else has already been asked for.
     expect(releaseModels).toBeTypeOf('function')
     expect(api.getMemorySettings).toHaveBeenCalledTimes(1)
     expect(api.getAgentMemoryDigest).toHaveBeenCalledTimes(1)
     expect(api.getWebSearchModels).toHaveBeenCalledTimes(1)
-    releaseModels({ data: [] })
+    releaseModels({ data: { id: 10, name: 'gpt', model_id: 'gpt', provider: 1 } })
     await flushPromises()
     for (const k of ['getMemorySettings', 'getAgentMemoryDigest', 'getAgentMemory', 'getWebSearchModels', 'getAgentWebIntelligence']) delete api[k]
   })
@@ -233,11 +233,45 @@ describe('DefineBrainStep — capability models are not tied to the main model\'
     })
     await flushPromises()
     await w.find('.model-card .edit-btn').trigger('click')
-    await nextTick()
+    await flushPromises()
     await w.find('.model-card select').setValue('1')
     await nextTick()
     const vision = pickers.find(p => p.modelValue === 10)
     expect(vision).toBeTruthy()
     expect(vision.models.map(m => m.id)).toContain(10)
+  })
+})
+
+describe('DefineBrainStep — the card reads one model, the editor the catalog (ADM-1069)', () => {
+  async function mountCard(agent) {
+    const api = (await import('../../services/api')).default
+    api.get.mockClear()
+    api.get.mockImplementation((url) => Promise.resolve({ data: String(url) === '/llm/models/10/'
+      ? { id: 10, name: 'gpt', model_id: 'gpt', provider: 1, provider_name: 'OpenAI' }
+      : String(url).includes('providers') ? [{ id: 1, name: 'P', provider_type: 'openai' }] : MANY }))
+    const w = mount(DefineBrainStep, { props: { agent: { id: 1, ...agent } }, global: { stubs } })
+    await flushPromises()
+    return { w, urls: () => api.get.mock.calls.map(([u]) => u) }
+  }
+
+  it("names the agent's model from a lookup of that model alone, never the whole catalog", async () => {
+    const { w, urls } = await mountCard({ default_model: 10 })
+    expect(urls()).toEqual(['/llm/models/10/'])
+    expect(w.find('.model-card').text()).toContain('OpenAI - gpt')
+  })
+
+  it('asks for nothing when the agent has no model yet', async () => {
+    const { w, urls } = await mountCard({})
+    expect(urls()).toEqual([])
+    expect(w.find('.model-card').text()).toContain('No model selected.')
+  })
+
+  it('reads the catalog and providers when the editor opens, once however often it opens', async () => {
+    const { w, urls } = await mountCard({ default_model: 10 })
+    for (let i = 0; i < 3; i++) { await w.find('.model-card .edit-btn').trigger('click'); await flushPromises() }
+    expect(urls().filter(u => u === '/llm/models/')).toHaveLength(1)
+    expect(urls().filter(u => u === '/llm/providers/')).toHaveLength(1)
+    expect(w.vm.modelsFor().length).toBe(MANY.length)
+    expect(w.find('.model-card select').element.value).toBe('1')   // the current model's provider
   })
 })

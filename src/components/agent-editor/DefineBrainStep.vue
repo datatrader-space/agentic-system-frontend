@@ -343,7 +343,10 @@ const props = defineProps({ agent: { type: Object, required: true } })
 const shell = useEditorShell()
 
 const editing = reactive({ model: false, prompt: false, rules: false, memory: false, style: false })
-const toggle = (k) => { editing[k] = !editing[k] }
+const toggle = (k) => {
+  editing[k] = !editing[k]
+  if (k === 'model' && editing.model) loadCatalog()
+}
 
 // ── Memory & Context ────────────────────────────────────────────────────────────
 // Per-agent fields live on the agent (PATCHed by the editor's save()). The ACCOUNT master switch lives on
@@ -400,6 +403,38 @@ async function loadAgentMemory() {
 const models = ref([])
 const providers = ref([])
 const selectedProvider = ref(null)
+const currentModel = ref(null)     // the agent's main model, looked up by id for the card's label
+
+// The whole model catalog (thousands of rows) is read only when the model editor opens, once: the card
+// itself names one model, and `loadCurrentModel` asks for just that one (page-speed plan, ADM-1069).
+let catalog = null
+function loadCatalog() {
+  if (!catalog) {
+    catalog = Promise.all([api.get('/llm/models/'), api.get('/llm/providers/')])
+      .then(([mRes, pRes]) => {
+        models.value = Array.isArray(mRes.data) ? mRes.data : (mRes.data?.results || [])
+        providers.value = Array.isArray(pRes.data) ? pRes.data : (pRes.data?.results || [])
+        const cur = models.value.find(m => m.id === props.agent.default_model)
+        if (cur && selectedProvider.value == null) selectedProvider.value = modelProvider(cur)
+      })
+      .catch(() => {
+        models.value = []
+        providers.value = []
+        catalog = null                 // opening the editor again tries again
+      })
+  }
+  return catalog
+}
+async function loadCurrentModel() {
+  const id = props.agent.default_model
+  if (!id) return
+  try {
+    const { data } = await api.get(`/llm/models/${encodeURIComponent(id)}/`)
+    if (props.agent.default_model === id) currentModel.value = data
+  } catch (e) {
+    currentModel.value = null          // the label falls back to the agent's default_model_name
+  }
+}
 
 // `capability` names the LLMModel flag that model DECLARES for that role. It is used to WARN, never to
 // hide — see `modelsFor`.
@@ -567,30 +602,20 @@ function modelLabel(m) {
 }
 const currentModelLabel = computed(() => {
   const id = props.agent.default_model
-  const hit = models.value.find(m => m.id === id)
+  const hit = models.value.find(m => m.id === id) || (currentModel.value?.id === id ? currentModel.value : null)
   if (hit) return modelLabel(hit)
   return props.agent.default_model_name || ''
 })
 
 // Every read this step needs starts at once (page-speed plan Phase 5 item 3). They are independent, and
-// they used to run in three rounds: the model catalog, then the memory settings, then the rest.
+// they used to run in three rounds: the model, then the memory settings, then the rest.
 onMounted(() => {
   loadAgentMemory()
   loadSearchModel()
   // Account master switch — read-only here; controls live in Settings → Memory. Failure = assume on.
   Promise.resolve().then(() => api.getMemorySettings())
     .then((r) => { account.value = r.data }).catch(() => { account.value = null })
-  return Promise.all([api.get('/llm/models/'), api.get('/llm/providers/')])
-    .then(([mRes, pRes]) => {
-      models.value = Array.isArray(mRes.data) ? mRes.data : (mRes.data?.results || [])
-      providers.value = Array.isArray(pRes.data) ? pRes.data : (pRes.data?.results || [])
-      const cur = models.value.find(m => m.id === props.agent.default_model)
-      if (cur) selectedProvider.value = modelProvider(cur)
-    })
-    .catch(() => {
-      models.value = []
-      providers.value = []
-    })
+  return loadCurrentModel()
 })
 
 const showFull = ref(false)

@@ -157,7 +157,7 @@
           <span class="grid h-14 w-14 place-items-center rounded-full bg-[#EAF0FF] text-[#2563EB]"><Lock :size="26" :stroke-width="2" /></span>
           <b class="text-[15px] font-bold text-[#0F172A]">Publish to test your agent</b>
           <p class="max-w-[34ch] text-[12.5px] leading-5 text-[#64748B]">The live Quick Test unlocks once you publish your changes.</p>
-          <button class="wide-btn mt-2" @click="publish">{{ publishing ? 'Publishing…' : 'Publish to test' }}</button>
+          <button class="wide-btn mt-2 disabled:cursor-not-allowed disabled:opacity-60" :disabled="publishing" :aria-busy="publishing" @click="publish">{{ publishing ? 'Publishing…' : 'Publish to test' }}</button>
         </div>
 
         <!-- Real streaming emulator (same component the legacy builder uses) -->

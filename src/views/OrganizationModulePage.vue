@@ -11,7 +11,7 @@
           Overview
         </RouterLink>
         <button class="ghost" @click="exportActivity"><Icon icon="lucide:download" /> Export</button>
-        <button class="primary" @click="onAction"><Icon :icon="active.actionIcon" /> {{ active.action }}</button>
+        <button v-if="actionRoute" class="primary" @click="onAction"><Icon :icon="active.actionIcon" /> {{ active.action }}</button>
       </div>
     </header>
 
@@ -71,33 +71,11 @@
       </article>
     </section>
 
-    <section v-else-if="active.key === 'cloud-resources'" class="content-grid">
-      <nav class="sub-tabs" aria-label="Cloud resources views">
-        <button class="active">By Service</button>
-        <button>By Region</button>
-        <button>By Workspace</button>
-        <button>By Provider</button>
-      </nav>
-      <article class="panel chart-card">
-        <h2>Resources by Service</h2>
-        <div class="donut-row">
-          <div class="donut"><strong>Total<br />215</strong></div>
-          <ul>
-            <li v-for="item in resourceTypes" :key="item.name"><i :class="item.tone" />{{ item.name }} <b>{{ item.value }}</b></li>
-          </ul>
-        </div>
-      </article>
-      <article class="panel">
-        <h2>Top Regions</h2>
-        <div v-for="region in regions" :key="region.name" class="bar-row">
-          <span>{{ region.name }}</span>
-          <div><i :style="{ width: region.percent }" /></div>
-          <b>{{ region.value }}</b>
-        </div>
-      </article>
-      <article class="panel wide">
-        <header class="panel-head"><h2>Recent Resources</h2><button>View all</button></header>
-        <DataTable :columns="active.columns" :rows="active.rows" />
+    <section v-else-if="active.empty" class="placeholder-wrap">
+      <article class="placeholder-card">
+        <Icon :icon="active.icon" />
+        <h2>No data yet</h2>
+        <p>{{ active.empty }}</p>
       </article>
     </section>
 
@@ -191,17 +169,6 @@
           <select><option>All Users</option></select>
         </div>
         <DataTable :columns="active.columns" :rows="active.rows" />
-        <footer v-if="active.key === 'sandboxes'" class="table-footer">
-          <span>1-8 of 32</span>
-          <div class="table-pager">
-            <button><Icon icon="lucide:chevron-left" /></button>
-            <button class="active">1</button>
-            <button>2</button>
-            <button>3</button>
-            <button>4</button>
-            <button><Icon icon="lucide:chevron-right" /></button>
-          </div>
-        </footer>
         <div v-if="active.key === 'activity' && activityTotal > 0" class="pager">
           <span>Page {{ activityPage }} of {{ activityTotalPages }} · {{ activityTotal }} events</span>
           <div class="pager-btns">
@@ -212,12 +179,6 @@
               Next <Icon icon="lucide:chevron-right" />
             </button>
           </div>
-        </div>
-      </article>
-      <article v-if="active.key === 'sandboxes'" class="panel sandbox-usage-card">
-        <h2>Usage by Hour (Today)</h2>
-        <div class="sandbox-chart">
-          <span>Active Sandboxes</span>
         </div>
       </article>
       <article v-if="active.secondary" class="panel">
@@ -319,6 +280,8 @@ const route = useRoute()
 const router = useRouter()
 const orgStore = useOrganizationStore()
 
+// Modules connected to a backend fill their metrics and tables from it (loadModule).
+// The others have no backend yet: they show `empty`, never made-up numbers.
 const modules = [
   {
     key: 'workspaces',
@@ -328,23 +291,6 @@ const modules = [
     icon: 'lucide:building-2',
     action: 'New Workspace',
     actionIcon: 'lucide:plus',
-    metrics: [
-      { label: 'Total Workspaces', value: '14', change: '+ 12 active', tone: 'good' },
-      { label: 'Active', value: '12', change: '+ 88%', tone: 'good' },
-      { label: 'Paused', value: '1', change: '+ 7%', tone: 'bad' },
-      { label: 'Archived', value: '1', change: '+ 7%', tone: 'bad' },
-    ],
-    columns: ['Workspace', 'Owner', 'Members', 'Status', 'Cloud Spend (MTD)', 'Created'],
-    rows: [
-      ['Platform Team', 'Ali Tahir', '8', 'Active', '$29,450', 'May 12, 2025'],
-      ['Data Science', 'Rida Khan', '6', 'Active', '$18,230', 'May 11, 2025'],
-      ['Research Ops', 'Maryam Rehan', '5', 'Active', '$12,140', 'May 10, 2025'],
-      ['Marketing', 'Sana Ahmed', '4', 'Active', '$8,000', 'May 9, 2025'],
-      ['Content Ops', 'Bilal Qureshi', '3', 'Active', '$4,000', 'May 8, 2025'],
-      ['Dev Platform', 'Usman Ali', '3', 'Paused', '$2,120', 'May 6, 2025'],
-      ['QA Automation', 'Areeba Fatima', '2', 'Active', '$1,840', 'May 5, 2025'],
-      ['Finance Analytics', 'Fahad Noor', '2', 'Archived', '$0', 'Apr 29, 2025'],
-    ],
   },
   {
     key: 'cloud-resources',
@@ -354,20 +300,7 @@ const modules = [
     icon: 'lucide:cloud',
     action: 'Request Resources',
     actionIcon: 'lucide:plus',
-    metrics: [
-      { label: 'Total Resources', value: '215', change: '', tone: '' },
-      { label: 'Active Resources', value: '178', change: '+ 83%', tone: 'good' },
-      { label: 'Monthly Spend (MTD)', value: '$24,680', change: '+ 12% vs last month', tone: 'good' },
-      { label: 'Inactive Resources', value: '37', change: '+ 17%', tone: 'bad' },
-    ],
-    columns: ['Resource', 'Type', 'Workspace', 'Provider', 'Status', 'Cost (MTD)'],
-    rows: [
-      ['vm-platform-01', 'Compute', 'Platform Team', 'AWS', 'Active', '$1,245'],
-      ['ds-main-prod', 'Database', 'Data Science', 'GCP', 'Active', '$980'],
-      ['s3-data-lake', 'Storage', 'Data Science', 'AWS', 'Active', '$520'],
-      ['vnet-main', 'Networking', 'Platform Team', 'Azure', 'Active', '$310'],
-      ['lb-api-gateway', 'Load Balancer', 'Dev Platform', 'AWS', 'Active', '$210'],
-    ],
+    empty: 'Cloud resources your workspaces provision will be listed here, with their type, region and monthly cost.',
   },
   {
     key: 'sandboxes',
@@ -377,26 +310,7 @@ const modules = [
     icon: 'lucide:box',
     action: 'New Sandbox',
     actionIcon: 'lucide:plus',
-    metrics: [
-      { label: 'Total Sandboxes', value: '32', change: '', tone: '' },
-      { label: 'Running', value: '20', change: '+ 4.5%', tone: 'good' },
-      { label: 'Stopped', value: '9', change: '- 30%', tone: 'good' },
-      { label: 'Idle > 24h', value: '3', change: '+ 9%', tone: 'bad' },
-      { label: 'Cost (MTD)', value: '$6,124', change: '+ 16% vs last month', tone: 'good' },
-    ],
-    columns: ['Sandbox', 'Workspace', 'Owner', 'Status', 'Uptime', 'Cost (MTD)', 'Created'],
-    rows: [
-      ['dev-sandbox-01', 'Platform Team', 'Ali Tahir', 'Running', '24h', '$48.62', 'May 20'],
-      ['ds-sandbox-03', 'Data Science', 'Rida Khan', 'Running', '18h', '$24.10', 'May 19'],
-      ['research-db-02', 'Research Ops', 'Maryam Rehan', 'Stopped', '-', '$0.00', 'May 18'],
-      ['content-bot-01', 'Content Ops', 'Bilal Qureshi', 'Running', '6h 12m', '$12.44', 'May 11'],
-      ['mlops-sb-04', 'Marketing', 'Sana Ahmed', 'Stopped', '-', '$0.00', 'May 7'],
-    ],
-    secondary: {
-      title: 'Top Users (MTD)',
-      columns: ['User', 'Cost'],
-      rows: [['Ali Tahir', '$1,245'], ['Rida Khan', '$1,120'], ['Maryam Rehan', '$990'], ['Bilal Qureshi', '$760']],
-    },
+    empty: 'Sandboxes started in your organization will be listed here, with their owner, status, uptime and cost.',
   },
   {
     key: 'budgets-finance',
@@ -406,12 +320,6 @@ const modules = [
     icon: 'lucide:wallet',
     action: 'Manage Budgets',
     actionIcon: 'lucide:settings',
-    metrics: [
-      { label: 'Total Budget (MTD)', value: '$120,000', change: '', tone: '' },
-      { label: 'Spent (MTD)', value: '$74,820', change: '+ 62%', tone: 'good' },
-      { label: 'Remaining', value: '$45,180', change: '+ 38%', tone: 'good' },
-      { label: 'Forecast (EOM)', value: '$118,200', change: '+ 98% of budget', tone: 'good' },
-    ],
   },
   {
     key: 'procurement',
@@ -421,26 +329,7 @@ const modules = [
     icon: 'lucide:shopping-cart',
     action: 'New Request',
     actionIcon: 'lucide:plus',
-    metrics: [
-      { label: 'Total Requests', value: '18', change: '', tone: '' },
-      { label: 'Pending', value: '7', change: '', tone: 'warn' },
-      { label: 'Approved', value: '8', change: '', tone: 'good' },
-      { label: 'Rejected', value: '2', change: '', tone: 'bad' },
-      { label: 'In Progress', value: '1', change: '', tone: 'warn' },
-    ],
-    columns: ['Request', 'Type', 'Requester', 'Status', 'Est. Cost (MTD)', 'Created'],
-    rows: [
-      ['AWS m5.xlarge (2)', 'Compute', 'Ali Tahir', 'Pending', '$1,240', 'May 20'],
-      ['S3 Storage 1TB', 'Storage', 'Rida Khan', 'Approved', '$500', 'May 19'],
-      ['GCP n4-standard-4', 'Compute', 'Maryam Rehan', 'Pending', '$640', 'May 19'],
-      ['RDS PostgreSQL', 'Database', 'Bilal Qureshi', 'Approved', '$450', 'May 18'],
-      ['Load Balancer', 'Networking', 'Usman Ali', 'In Progress', '$150', 'May 17'],
-    ],
-    secondary: {
-      title: 'Approval SLA',
-      columns: ['Metric', 'Value'],
-      rows: [['Avg. approval time', '1d 4h'], ['Pending > 3 days', '3'], ['Auto-approved', '4']],
-    },
+    empty: 'Requests for cloud resources will be listed here, with who asked, the estimated cost and whether they were approved.',
   },
   {
     key: 'usage-insights',
@@ -450,12 +339,6 @@ const modules = [
     icon: 'lucide:chart-line',
     action: 'Create Report',
     actionIcon: 'lucide:file-plus',
-    metrics: [
-      { label: 'Total Usage (CPU hours)', value: '128,450', change: '+ 18% vs prev 30 days', tone: 'good' },
-      { label: 'Storage (GB)', value: '42,890', change: '+ 12%', tone: 'good' },
-      { label: 'Database (Hours)', value: '2,340', change: '+ 9%', tone: 'bad' },
-      { label: 'Network (GB)', value: '18,760', change: '+ 22%', tone: 'good' },
-    ],
   },
   {
     key: 'policies-controls',
@@ -465,26 +348,7 @@ const modules = [
     icon: 'lucide:shield-check',
     action: 'New Policy',
     actionIcon: 'lucide:plus',
-    metrics: [
-      { label: 'Total Policies', value: '24', change: '', tone: '' },
-      { label: 'Active', value: '20', change: '+ 83%', tone: 'good' },
-      { label: 'Violations', value: '3', change: '+ 9%', tone: 'bad' },
-      { label: 'Exceptions', value: '1', change: '', tone: '' },
-      { label: 'Last Scan', value: '5m ago', change: '', tone: '' },
-    ],
-    columns: ['Policy', 'Category', 'Status', 'Violations', 'Last Updated'],
-    rows: [
-      ['Max Sandbox Runtime (24h)', 'Guardrails', 'Active', '1', 'May 20, 2025'],
-      ['Allowed Regions', 'Security', 'Active', '0', 'May 19, 2025'],
-      ['Cost Budget Alert (80%)', 'Finance', 'Active', '1', 'May 19, 2025'],
-      ['Public IP Restriction', 'Security', 'Active', '0', 'May 18, 2025'],
-      ['Idle Resource Cleanup (7d)', 'Optimization', 'Active', '1', 'May 18, 2025'],
-    ],
-    secondary: {
-      title: 'Recent Violations',
-      columns: ['Violation', 'Workspace', 'Status'],
-      rows: [['Sandbox runtime exceeded', 'Platform Team', 'Open'], ['Cost budget 80% threshold reached', 'Marketing', 'Acknowledged']],
-    },
+    empty: 'Policies set for your organization will be listed here, with any violations of them.',
   },
   {
     key: 'activity',
@@ -494,48 +358,12 @@ const modules = [
     icon: 'lucide:activity',
     action: 'Export',
     actionIcon: 'lucide:download',
-    metrics: [
-      { label: 'Events', value: '1,842', change: '+ 16%', tone: 'good' },
-      { label: 'Users', value: '48', change: '+ 9%', tone: 'good' },
-      { label: 'Actions', value: '3,721', change: '+ 16%', tone: 'good' },
-      { label: 'Errors', value: '12', change: '- 40%', tone: 'bad' },
-      { label: 'Audits', value: '186', change: '+ 21%', tone: 'good' },
-    ],
-    columns: ['Time', 'User', 'Event', 'Workspace', 'Type'],
-    rows: [
-      ['May 20, 2025, 2:14 PM', 'Ali Tahir', 'Created sandbox dev-sb-01', 'Platform Team', 'Create'],
-      ['May 20, 2025, 1:52 PM', 'Rida Khan', 'Requested cloud resources', 'Data Science', 'Request'],
-      ['May 20, 2025, 12:31 PM', 'Maryam Rehan', 'Approved access to Agents', 'Research Ops', 'Approval'],
-      ['May 20, 2025, 10:08 AM', 'System', 'Budget alert triggered (80%)', 'Platform Team', 'Alert'],
-      ['May 20, 2025, 9:45 AM', 'Bilal Qureshi', 'Launched Daytona sandbox', 'Content Ops', 'Create'],
-    ],
-    secondary: {
-      title: 'Top Users (7 days)',
-      columns: ['User', 'Events'],
-      rows: [['Ali Tahir', '542'], ['Rida Khan', '438'], ['Maryam Rehan', '386'], ['Bilal Qureshi', '298'], ['Sana Ahmed', '221']],
-    },
   },
 ]
 
 const activeStatic = computed(() => modules.find((module) => module.key === route.params.module) || modules[0])
 
 const orgName = computed(() => orgStore.org?.name || 'Organization')
-
-// Static display data for the Cloud Resources module (no backend yet — kept as the
-// original designed UI). Replace with live data once a cloud-inventory API exists.
-const resourceTypes = [
-  { name: 'Compute', value: '42 (20%)', tone: 'blue-dot' },
-  { name: 'Storage', value: '128 (60%)', tone: 'green-dot' },
-  { name: 'Database', value: '18 (8%)', tone: 'orange-dot' },
-  { name: 'Networking', value: '9 (4%)', tone: 'red-dot' },
-  { name: 'Load Balancers', value: '9 (4%)', tone: 'violet-dot' },
-]
-const regions = [
-  { name: 'US-East', value: '96 (45%)', percent: '96%' },
-  { name: 'US-West', value: '48 (22%)', percent: '48%' },
-  { name: 'EU-West', value: '32 (15%)', percent: '32%' },
-  { name: 'AP-South', value: '24 (11%)', percent: '24%' },
-]
 
 // ── Live data ───────────────────────────────────────────────────────────────
 const DOT = ['blue-dot', 'green-dot', 'orange-dot', 'violet-dot', 'red-dot', 'slate-dot']
@@ -730,23 +558,17 @@ const trend = computed(() => {
   }
 })
 
-// Modules connected to a backend. The rest keep their original designed UI (static).
+// Modules connected to a backend.
 const LIVE_KEYS = ['workspaces', 'activity', 'budgets-finance', 'usage-insights']
 
-// The view the template renders. For live modules we DON'T fall back to the static
-// mock while loading — that caused a flash of fake data on refresh; we show empty
-// (real-but-not-loaded-yet) instead. Static modules keep their designed mock UI.
-const active = computed(() => {
-  const base = activeStatic.value
-  const isLive = LIVE_KEYS.includes(base.key)
-  return {
-    ...base,
-    metrics: liveMetrics.value || (isLive ? [] : base.metrics),
-    columns: liveColumns.value || (isLive ? [] : base.columns),
-    rows: liveRows.value || (isLive ? [] : base.rows),
-    secondary: liveSecondary.value !== null ? liveSecondary.value : (isLive ? null : base.secondary),
-  }
-})
+// The view the template renders: what the backend returned, empty until it has.
+const active = computed(() => ({
+  ...activeStatic.value,
+  metrics: liveMetrics.value || [],
+  columns: liveColumns.value || [],
+  rows: liveRows.value || [],
+  secondary: liveSecondary.value,
+}))
 
 setBreadcrumbLabel(() => active.value?.title || active.value?.name)
 
@@ -771,7 +593,7 @@ function fmtTime(iso) {
 async function loadModule() {
   resetLive()
   const key = activeStatic.value.key
-  if (!LIVE_KEYS.includes(key)) return   // static-design modules: nothing to fetch
+  if (!LIVE_KEYS.includes(key)) return   // no backend yet: nothing to fetch
   const slug = await orgStore.resolveOrgSlug()
   if (!slug) return
   loading.value = true
@@ -857,7 +679,7 @@ async function loadModule() {
       }
     }
   } catch (e) {
-    /* keep static fallback on error */
+    /* the module stays empty on error */
   } finally {
     loading.value = false
   }
@@ -882,10 +704,11 @@ function exportActivity() {
   })
 }
 
-// Primary header action. Budgets routes to the real budgets page; other modules
-// keep the original (non-wired) button for now.
+// Primary header action: shown only where it leads somewhere (a button that does nothing reads as broken).
+const ACTION_ROUTES = { 'budgets-finance': '/dashboard/budgets' }
+const actionRoute = computed(() => ACTION_ROUTES[activeStatic.value.key] || '')
 function onAction() {
-  if (activeStatic.value.key === 'budgets-finance') router.push('/dashboard/budgets')
+  if (actionRoute.value) router.push(actionRoute.value)
 }
 </script>
 
@@ -1635,10 +1458,6 @@ select {
   gap: 14px !important;
 }
 
-.content-grid:not(.single):not(.finance) {
-  grid-template-columns: minmax(0, .92fr) minmax(280px, .58fr) !important;
-}
-
 .content-grid.finance {
   grid-template-columns: minmax(0, 1.44fr) minmax(280px, .78fr) minmax(280px, .78fr) !important;
 }
@@ -1826,8 +1645,7 @@ select {
   }
 
   .content-grid,
-  .content-grid.finance,
-  .content-grid:not(.single):not(.finance) {
+  .content-grid.finance {
     grid-template-columns: 1fr !important;
   }
 
@@ -1859,22 +1677,7 @@ select {
   }
 }
 
-/* Cloud Resources screen-39 variant */
-.org-module-page--cloud-resources .metric-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  gap: 14px !important;
-}
-
-.org-module-page--cloud-resources .metric-card {
-  min-height: 100px !important;
-  padding: 18px 18px !important;
-}
-
-.org-module-page--cloud-resources .metric-card strong {
-  margin-top: 16px !important;
-  font-size: 23px !important;
-}
-
+/* Sub-tabs (Budgets & Finance) */
 .sub-tabs {
   grid-column: 1 / -1;
   height: 40px;
@@ -1902,268 +1705,10 @@ select {
   border-bottom-color: #3156e9;
 }
 
-.org-module-page--cloud-resources .content-grid {
-  grid-template-columns: minmax(0, 1.72fr) minmax(260px, .74fr) !important;
-  gap: 14px !important;
-}
-
-.org-module-page--cloud-resources .chart-card,
-.org-module-page--cloud-resources .content-grid > .panel:nth-of-type(2) {
-  min-height: 260px;
-}
-
-.org-module-page--cloud-resources .panel.wide {
-  grid-column: 1 / -1 !important;
-}
-
-.org-module-page--cloud-resources .donut-row {
-  grid-template-columns: 180px minmax(0, 1fr) !important;
-  gap: 28px !important;
-  margin-top: 22px !important;
-}
-
-.org-module-page--cloud-resources .donut {
-  width: 168px !important;
-  height: 168px !important;
-}
-
-.org-module-page--cloud-resources .donut::before {
-  inset: 34px !important;
-}
-
-.org-module-page--cloud-resources .donut strong {
-  font-size: 18px !important;
-}
-
-.org-module-page--cloud-resources .donut-row ul {
-  gap: 15px !important;
-}
-
-.org-module-page--cloud-resources .donut-row li {
-  grid-template-columns: 10px minmax(88px, 1fr) auto !important;
-  font-size: 11px !important;
-  font-weight: 800 !important;
-}
-
-.org-module-page--cloud-resources .bar-row {
-  grid-template-columns: minmax(82px, 1fr) auto !important;
-  margin-top: 22px !important;
-  font-size: 12px !important;
-}
-
-.org-module-page--cloud-resources .bar-row div {
-  display: none;
-}
-
-.org-module-page--cloud-resources .bar-row b {
-  font-weight: 850;
-}
-
-.org-module-page--cloud-resources :deep(.data-table) {
-  border: 0;
-  border-radius: 0;
-}
-
-.org-module-page--cloud-resources :deep(.data-table table) {
-  table-layout: fixed;
-  min-width: 0 !important;
-}
-
-.org-module-page--cloud-resources :deep(.data-table th),
-.org-module-page--cloud-resources :deep(.data-table td) {
-  height: 46px !important;
-  padding: 0 12px !important;
-}
-
-.org-module-page--cloud-resources :deep(.data-table th:nth-child(1)),
-.org-module-page--cloud-resources :deep(.data-table td:nth-child(1)) {
-  width: 22%;
-}
-
-.org-module-page--cloud-resources :deep(.data-table th:nth-child(2)),
-.org-module-page--cloud-resources :deep(.data-table td:nth-child(2)),
-.org-module-page--cloud-resources :deep(.data-table th:nth-child(3)),
-.org-module-page--cloud-resources :deep(.data-table td:nth-child(3)),
-.org-module-page--cloud-resources :deep(.data-table th:nth-child(4)),
-.org-module-page--cloud-resources :deep(.data-table td:nth-child(4)) {
-  width: 17%;
-}
-
-.org-module-page--cloud-resources :deep(.data-table th:nth-child(5)),
-.org-module-page--cloud-resources :deep(.data-table td:nth-child(5)) {
-  width: 13%;
-}
-
-.org-module-page--cloud-resources :deep(.data-table th:nth-child(6)),
-.org-module-page--cloud-resources :deep(.data-table td:nth-child(6)) {
-  width: 14%;
-}
-
 @media (max-width: 1200px) {
-  .org-module-page--cloud-resources .content-grid {
-    grid-template-columns: 1fr !important;
-  }
-
   .sub-tabs {
     overflow-x: auto;
     gap: 28px;
-  }
-}
-
-/* Sandboxes screen-39 variant */
-.org-module-page--sandboxes .metric-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-  gap: 14px !important;
-}
-
-.org-module-page--sandboxes .metric-card {
-  min-height: 98px !important;
-  padding: 18px !important;
-}
-
-.org-module-page--sandboxes .metric-card strong {
-  margin-top: 16px !important;
-  font-size: 23px !important;
-}
-
-.org-module-page--sandboxes .content-grid.single {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1.75fr) minmax(260px, .55fr) !important;
-  gap: 14px !important;
-}
-
-.org-module-page--sandboxes .content-grid.single > .panel:first-child {
-  grid-column: 1 / -1;
-}
-
-.org-module-page--sandboxes .content-grid.single > .panel:nth-of-type(2) {
-  grid-column: 1 / 2;
-}
-
-.org-module-page--sandboxes .table-tools {
-  grid-template-columns: minmax(220px, 1fr) repeat(4, max-content) !important;
-}
-
-.org-module-page--sandboxes .table-tools::before {
-  content: "";
-}
-
-.org-module-page--sandboxes :deep(.data-table) {
-  border: 0;
-  border-radius: 0;
-}
-
-.org-module-page--sandboxes :deep(.data-table table) {
-  table-layout: fixed;
-  min-width: 0 !important;
-}
-
-.org-module-page--sandboxes :deep(.data-table th),
-.org-module-page--sandboxes :deep(.data-table td) {
-  height: 44px !important;
-  padding: 0 10px !important;
-}
-
-.org-module-page--sandboxes :deep(.data-table th:nth-child(1)),
-.org-module-page--sandboxes :deep(.data-table td:nth-child(1)) {
-  width: 18%;
-}
-
-.org-module-page--sandboxes :deep(.data-table th:nth-child(2)),
-.org-module-page--sandboxes :deep(.data-table td:nth-child(2)),
-.org-module-page--sandboxes :deep(.data-table th:nth-child(3)),
-.org-module-page--sandboxes :deep(.data-table td:nth-child(3)) {
-  width: 15%;
-}
-
-.org-module-page--sandboxes :deep(.data-table th:nth-child(4)),
-.org-module-page--sandboxes :deep(.data-table td:nth-child(4)) {
-  width: 12%;
-}
-
-.org-module-page--sandboxes :deep(.data-table th:nth-child(5)),
-.org-module-page--sandboxes :deep(.data-table td:nth-child(5)),
-.org-module-page--sandboxes :deep(.data-table th:nth-child(6)),
-.org-module-page--sandboxes :deep(.data-table td:nth-child(6)),
-.org-module-page--sandboxes :deep(.data-table th:nth-child(7)),
-.org-module-page--sandboxes :deep(.data-table td:nth-child(7)) {
-  width: 11%;
-}
-
-.table-footer {
-  height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 12px;
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 750;
-}
-
-.table-pager {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.table-pager button {
-  min-width: 28px;
-  height: 28px;
-  border: 1px solid #d9e3f0;
-  border-radius: 7px;
-  background: #fff;
-  color: #31425f;
-  display: inline-grid;
-  place-items: center;
-  font-size: 11px;
-  font-weight: 850;
-}
-
-.table-pager button.active {
-  color: #fff;
-  border-color: #3156e9;
-  background: #3156e9;
-}
-
-.org-module-page--sandboxes .sandbox-usage-card {
-  min-height: 230px;
-}
-
-.sandbox-chart {
-  height: 160px;
-  margin-top: 14px;
-  border-radius: 8px;
-  position: relative;
-  background:
-    linear-gradient(180deg, rgba(49, 86, 233, .1), rgba(49, 86, 233, 0)),
-    url("data:image/svg+xml,%3Csvg width='420' height='150' viewBox='0 0 420 150' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 116 C30 120 44 100 70 106 C98 112 104 52 135 48 C168 44 165 92 196 84 C226 76 226 44 250 67 C274 91 283 62 306 70 C332 79 344 66 362 64 C386 62 392 25 420 22' fill='none' stroke='%233156e9' stroke-width='3'/%3E%3Ccircle cx='0' cy='116' r='3' fill='%23fff' stroke='%233156e9' stroke-width='2'/%3E%3Ccircle cx='135' cy='48' r='3' fill='%23fff' stroke='%233156e9' stroke-width='2'/%3E%3Ccircle cx='250' cy='67' r='3' fill='%23fff' stroke='%233156e9' stroke-width='2'/%3E%3Ccircle cx='420' cy='22' r='3' fill='%23fff' stroke='%233156e9' stroke-width='2'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
-}
-
-.sandbox-chart span {
-  position: absolute;
-  top: 4px;
-  left: 0;
-  color: #64748b;
-  font-size: 10px;
-  font-weight: 750;
-}
-
-.org-module-page--sandboxes .content-grid.single > .panel:last-child :deep(.data-table) {
-  border: 0;
-}
-
-.org-module-page--sandboxes .content-grid.single > .panel:last-child :deep(.data-table table) {
-  min-width: 0 !important;
-}
-
-@media (max-width: 1200px) {
-  .org-module-page--sandboxes .content-grid.single {
-    grid-template-columns: 1fr !important;
-  }
-
-  .org-module-page--sandboxes .content-grid.single > .panel:nth-of-type(2) {
-    grid-column: auto;
   }
 }
 

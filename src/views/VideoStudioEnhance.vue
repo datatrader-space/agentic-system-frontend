@@ -23,7 +23,7 @@
   </StudioPage>
 </template>
 <script setup>
-import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import api from '../services/api'
 import { routeOptionLabel } from '../utils/studioPrice'
 import { useLivePrice } from '../composables/useLivePrice'
@@ -41,7 +41,8 @@ import QuoteBar from '../components/studio/QuoteBar.vue'
 import MediaRoutePicker from '../components/studio/MediaRoutePicker.vue'
 import { useMediaJob } from '../composables/useMediaJob'
 import { useVideoStore } from '../stores/useVideoStore'
-const ResultsFeed = defineAsyncComponent(() => import('../components/studio/ResultsFeed.vue'))
+import { lazyComponent } from '../utils/lazyComponent'
+const ResultsFeed = lazyComponent(() => import('../components/studio/ResultsFeed.vue'))
 const { route, chat, video, ready, loading, error, initialize } = useStudioSession('video', { needsModel: false, page: 'enhance' })
 const { isAgent, hintHidden, dismissHint } = useStudioExperience('enhance', route?.query?.useIn ? route.query.mode : null)
 const agentDraft = ref(''), chatExpanded = ref(false)

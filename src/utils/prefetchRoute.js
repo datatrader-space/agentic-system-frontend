@@ -30,3 +30,36 @@ export function prefetchFromEvent(router, event) {
   if (!href || !href.startsWith('/') || href.startsWith('//')) return
   prefetchRoute(router, href)
 }
+
+// The sidebar's main routes, fetched while the browser has nothing else to do, so even a first click
+// that was never hovered (touch, a fast pointer) renders at once (ADM-1069). Once per browser session,
+// one route per idle period, and never when the person asked to save data or the connection is 2G:
+// there the bytes cost more than the wait.
+const IDLE_KEY = 'aadml.idleRoutePrefetch'
+let idleStarted = false
+
+const slowConnection = () => {
+  const c = typeof navigator !== 'undefined' ? navigator.connection : null
+  return !!(c && (c.saveData || ['slow-2g', '2g'].includes(c.effectiveType)))
+}
+
+const whenIdle = (cb) => (typeof window.requestIdleCallback === 'function'
+  ? window.requestIdleCallback(cb, { timeout: 10000 })
+  : setTimeout(cb, 2000))
+
+export function prefetchRoutesWhenIdle(router, paths) {
+  if (idleStarted || typeof window === 'undefined' || slowConnection()) return
+  idleStarted = true
+  try {
+    if (window.sessionStorage.getItem(IDLE_KEY)) return
+    window.sessionStorage.setItem(IDLE_KEY, '1')
+  } catch { /* no storage: once per page load */ }
+  const queue = [...paths]
+  const next = () => {
+    const path = queue.shift()
+    if (!path) return
+    prefetchRoute(router, path)
+    whenIdle(next)
+  }
+  whenIdle(next)
+}

@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 // Agent Library: only the latest filter/page load may write the grid (page-speed plan Phase 5 item 2),
-// and Duplicate opens the copy without waiting for the whole list to reload first (Phase 5 item 8).
+// and Duplicate is ONE call to POST /agents/<id>/duplicate/ that opens the copy without waiting for the whole
+// list to reload first (Phase 5 item 8).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
 const api = vi.hoisted(() => {
   const a = { get: vi.fn(), post: vi.fn(), getAgents: vi.fn(), unpauseAgent: vi.fn() }
+  a.duplicateAgent = (id) => a.post(`/agents/${id}/duplicate/`, {})
   // The page calls the service helpers; they are thin wrappers over `get`, as in services/api.js.
   a.getAgentsPage = (params = {}, config = {}) => a.get('/agents/', { ...config, params })
   a.getAgentStats = (params = {}, config = {}) => a.get('/agents/stats/', { ...config, params })
@@ -67,9 +69,9 @@ describe('AgentLibrary — stale responses', () => {
 })
 
 describe('AgentLibrary — Duplicate', () => {
-  it('opens the copy straight away, without reloading the list first, and only once per click', async () => {
+  it('is one call to the duplicate route, opens the copy straight away, and only once per click', async () => {
     api.get.mockImplementation((url) => Promise.resolve(
-      url === '/agents/' ? page(['Lead Intake']) : url === '/agents/stats/' ? { data: {} } : { data: { id: 1, name: 'Lead Intake', tools: [{ id: 3 }] } }))
+      url === '/agents/' ? page(['Lead Intake']) : url === '/agents/stats/' ? { data: {} } : { data: {} }))
     let release
     api.post.mockImplementation(() => new Promise((r) => { release = r }))
     const w = mount(AgentLibrary, { global: { stubs } })
@@ -86,11 +88,29 @@ describe('AgentLibrary — Duplicate', () => {
     await dup().trigger('click')
     await flushPromises()
     expect(api.post).toHaveBeenCalledTimes(1)
+    expect(api.post).toHaveBeenCalledWith('/agents/1/duplicate/', {})
+    // The agent is no longer read first to build a copy in the browser.
+    expect(api.get.mock.calls.filter(c => c[0] === '/agents/1/')).toHaveLength(0)
     expect(dup().text()).toContain('Duplicating')
 
     release({ data: { id: 42 } })
     await flushPromises()
     expect(router.push).toHaveBeenCalledWith('/dashboard/agents/42/editor')
     expect(listLoads()).toBe(1)                             // no full reload before leaving
+  })
+
+  it('a refused copy says why, frees the button and opens nothing', async () => {
+    api.get.mockImplementation((url) => Promise.resolve(
+      url === '/agents/' ? page(['Lead Intake']) : { data: {} }))
+    api.post.mockRejectedValue({ response: { status: 404, data: { detail: 'Not found.' } } })
+    const w = mount(AgentLibrary, { global: { stubs } })
+    await flushPromises()
+    w.vm.toggleMenu(1)
+    await flushPromises()
+    await w.findAll('button').find(b => /Duplicat/.test(b.text())).trigger('click')
+    await flushPromises()
+    expect(notify.error).toHaveBeenCalledWith('Failed to duplicate agent: Not found.')
+    expect(router.push).not.toHaveBeenCalled()
+    expect(w.vm.duplicatingId).toBe(null)
   })
 })

@@ -957,6 +957,8 @@ export default {
   unpublishAgent: (id) => api.post(`/agents/${id}/unpublish/`),
   pauseAgent: (id, reason) => api.post(`/agents/${id}/pause/`, { reason }),
   unpauseAgent: (id) => api.post(`/agents/${id}/unpause/`, {}),
+  // One call: the server copies the agent into a new DRAFT owned by the caller and returns it (201).
+  duplicateAgent: (id) => api.post(`/agents/${id}/duplicate/`, {}),
   // ── Admin: SYSTEM-wide Guardrails & Approvals floor (GlobalAgentPolicy). GET any authed user; PATCH staff-only. ──
   // ── Sandbox network policy (staff). What a sandbox may reach on the internet. ──
   getSandboxNetworkPolicies: (params = {}) => api.get('/admin/sandbox/network-policies/', { params }),

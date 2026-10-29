@@ -42,7 +42,7 @@ async function mountExpanded({ config = {}, editable = true, agent = {} } = {}) 
   const w = mount(DefineBrainStep, { props: { agent: a }, global: { stubs } })
   await flushPromises()
   await w.find('.model-card .edit-btn').trigger('click')
-  await nextTick()
+  await flushPromises()                               // the catalog is read when the editor opens
   await w.find('.model-card select').setValue('1')   // choose a provider so the capability rows render
   await nextTick()
   await flushPromises()

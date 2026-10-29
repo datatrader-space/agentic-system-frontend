@@ -8,7 +8,8 @@
       </nav>
     </div>
     <div class="cms-panel">
-      <component :is="current" :key="active" />
+      <!-- KeepAlive: going back to a tab shows it as it was (filters, open item), without reading it again. -->
+      <KeepAlive><component :is="current" :key="active" /></KeepAlive>
     </div>
   </div>
 </template>

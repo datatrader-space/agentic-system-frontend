@@ -13,8 +13,9 @@
   </div>
 </template>
 <script setup>
-import { defineAsyncComponent, nextTick, ref, useId } from 'vue'
-const VideoLibrary = defineAsyncComponent(() => import('../video/VideoLibrary.vue'))
+import { nextTick, ref, useId } from 'vue'
+import { lazyComponent } from '../../utils/lazyComponent'
+const VideoLibrary = lazyComponent(() => import('../video/VideoLibrary.vue'), { showLoading: false })
 const props = defineProps({ label: { type: String, required: true }, allowUpload: { type: Boolean, default: true }, required: Boolean, kinds: { type: Array, default: () => ['image'] }, limit: { type: Number, default: 1 }, items: { type: Array, default: () => [] } })
 const emit = defineEmits(['add-files','pick','remove'])
 const labelId = `slot-${useId()}`, fileInput = ref(null), picker = ref(''), error = ref('')

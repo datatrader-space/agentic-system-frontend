@@ -16,6 +16,7 @@ import { notify } from '../composables/useNotify'
 import { isEnded, stateLabel } from '../utils/browserLive'
 
 export const POLL_MS = 3000
+const tabHidden = () => typeof document !== 'undefined' && document.hidden
 
 export const useBrowserStore = defineStore('browser', {
   state: () => ({
@@ -192,12 +193,19 @@ export const useBrowserStore = defineStore('browser', {
       this._following = false
       this._stopTimer()
     },
+    // A hidden tab asks nothing, and asks once as soon as it is shown again (as usePoller does: that
+    // composable binds itself to the calling component, which a store's action must not).
     _startTimer() {
       if (this._timer) return
-      this._timer = setInterval(() => this.refresh(), POLL_MS)
+      this._timer = setInterval(() => { if (!tabHidden()) this.refresh() }, POLL_MS)
+      if (typeof document !== 'undefined') document.addEventListener('visibilitychange', this._onVisibility)
     },
     _stopTimer() {
       if (this._timer) { clearInterval(this._timer); this._timer = null }
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', this._onVisibility)
+    },
+    _onVisibility() {
+      if (this._timer && !tabHidden()) this.refresh()
     },
 
     show() {

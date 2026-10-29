@@ -195,7 +195,7 @@
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, watch, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, watch, onMounted, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectsStore } from '../../stores/useProjectsStore'
 import { useChatStore } from '../../stores/useChatStore'
@@ -208,8 +208,9 @@ import BrowserCard from '../browser/BrowserCard.vue'
 import ChatWelcome from './ChatWelcome.vue'
 import ChatMessageList from './ChatMessageList.vue'
 import ChatComposer from './ChatComposer.vue'
+import { lazyComponent } from '../../utils/lazyComponent'
 // Loaded when a provider refuses a turn (it opens only then): 28 KB a chat no longer downloads up front.
-const ProviderSwitchDialog = defineAsyncComponent(() => import('./ProviderSwitchDialog.vue'))
+const ProviderSwitchDialog = lazyComponent(() => import('./ProviderSwitchDialog.vue'), { showLoading: false })
 import TurnModeSwitch from './TurnModeSwitch.vue'
 import ChatHistoryDrawer from './ChatHistoryDrawer.vue'
 import HITLModal from '../HITLModal.vue'

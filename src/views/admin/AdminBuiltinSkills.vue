@@ -28,6 +28,11 @@
         <p class="hint">Imported bundles arrive <strong>untrusted</strong> — bundled scripts stay locked until
           you mark the skill trusted.</p>
       </div>
+      <!-- Editing: the form is filled from the skill's detail (the list carries no body). -->
+      <div v-else-if="editing && editLoading" class="state">Loading the skill…</div>
+      <div v-else-if="editing && editError" class="state err" role="alert">
+        {{ editError }} <button class="link" @click="openEdit(editing)">Retry</button>
+      </div>
       <div v-else class="grid">
         <input v-model="draft.name" placeholder="Skill name" />
         <input v-model="draft.description" placeholder="One-line summary (what the skill is for)" />
@@ -118,6 +123,11 @@ const confirmRow = ref(null)
 const showForm = ref(false)
 const saving = ref(false)
 const editing = ref(null)          // null = creating
+// The list carries no `body` (it is the whole playbook), so editing reads the skill's detail first. Until it
+// arrives, or when it failed, the form cannot save: a PATCH must never write an empty body over the real one.
+const editLoading = ref(false)
+const editError = ref('')
+let editSeq = 0                    // only the latest Edit click may fill the form
 const mode = ref('fields')         // fields | paste | import
 const draft = ref({ name: '', description: '', body: '' })
 const skillMd = ref('')
@@ -149,7 +159,7 @@ function warnLint(s) {
 const shortDate = (d) => d ? new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
 
 const canSave = computed(() => {
-  if (editing.value) return !!draft.value.name.trim()
+  if (editing.value) return !editLoading.value && !editError.value && !!draft.value.name.trim()
   if (mode.value === 'paste') return !!skillMd.value.trim()
   if (mode.value === 'import') return !!(importUrl.value.trim() || zipEl.value?.files?.length)
   return !!draft.value.name.trim()
@@ -179,7 +189,10 @@ async function load() {
 }
 
 function openCreate() {
+  editSeq += 1
   editing.value = null
+  editLoading.value = false
+  editError.value = ''
   mode.value = 'fields'
   draft.value = { name: '', description: '', body: '' }
   skillMd.value = ''
@@ -187,18 +200,35 @@ function openCreate() {
   showForm.value = true
 }
 
-function openEdit(s) {
+async function openEdit(s) {
+  const seq = ++editSeq
   editing.value = s
-  draft.value = { name: s.name || '', description: s.description || '', body: s.body || '' }
+  draft.value = { name: '', description: '', body: '' }
+  editError.value = ''
+  editLoading.value = true
   showForm.value = true
+  try {
+    const { data } = await api.get(`/skills/${s.id}/`)
+    if (seq !== editSeq) return
+    draft.value = { name: data.name || '', description: data.description || '', body: data.body || '' }
+  } catch (e) {
+    if (seq !== editSeq) return
+    editError.value = e?.response?.data?.detail || 'Could not load the skill to edit.'
+  } finally {
+    if (seq === editSeq) editLoading.value = false
+  }
 }
 
 function closeForm() {
+  editSeq += 1
   showForm.value = false
   editing.value = null
+  editLoading.value = false
+  editError.value = ''
 }
 
 async function save() {
+  if (editing.value && (editLoading.value || editError.value)) return
   saving.value = true
   try {
     if (editing.value) {

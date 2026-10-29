@@ -41,3 +41,28 @@ describe('How often a job is read', () => {
     w.unmount()
   })
 })
+
+describe('A hidden tab', () => {
+  afterEach(() => { vi.useRealTimers(); vi.clearAllMocks(); delete document.hidden })
+  it('reads no job while hidden, and reads at once when shown again', async () => {
+    vi.useFakeTimers()
+    let hidden = false
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden })
+    const pinia = createPinia(), video = useVideoStore(pinia)
+    video._put({ job_id: 'r', state: 'running' })
+    api.getStudioJob.mockResolvedValue({ data: { job_id: 'r', state: 'running' } })
+    const w = mount(Jobs, { props: { ids: ['r'] }, global: { plugins: [pinia], stubs: { VideoJobCard: true } } })
+    await flushPromises()
+    api.getStudioJob.mockClear()
+    hidden = true
+    await vi.advanceTimersByTimeAsync(40000)
+    expect(api.getStudioJob).not.toHaveBeenCalled()
+    hidden = false
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushPromises()
+    expect(api.getStudioJob).toHaveBeenCalledTimes(1)
+    w.unmount()
+    await vi.advanceTimersByTimeAsync(20000)
+    expect(api.getStudioJob).toHaveBeenCalledTimes(1)                                              // stops with the list
+  })
+})

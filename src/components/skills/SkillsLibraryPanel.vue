@@ -45,6 +45,13 @@
         <p class="text-[12px] text-[#98A2B3]">Imported bundles are <strong>untrusted</strong> — bundled scripts can’t run
           until you mark the skill trusted.</p>
       </div>
+      <!-- Editing: the form is filled from the skill's detail (the list carries no body). -->
+      <p v-else-if="editingId && editLoading" class="py-6 text-center text-[13px] text-[#98A2B3]">Loading the skill…</p>
+      <div v-else-if="editingId && editError" role="alert"
+           class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12.5px] font-medium text-red-700">
+        {{ editError }}
+        <button type="button" @click="startEdit({ id: editingId })" class="ml-1 font-semibold underline">Retry</button>
+      </div>
       <div v-else class="grid gap-3">
         <input v-model="draft.name" placeholder="Skill name"
                class="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[13px] focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
@@ -266,6 +273,11 @@ const importUrl = ref('')
 const zipEl = ref(null)
 const draft = ref({ name: '', description: '', body: '' })
 const editingId = ref(null)   // null = creating; an id = editing that skill
+// The list carries no `body` (it is the whole playbook), so editing reads the skill's detail first. Until it
+// arrives, or when it failed, the form cannot save: a PATCH must never write an empty body over the real one.
+const editLoading = ref(false)
+const editError = ref('')
+let editSeq = 0               // only the latest Edit click may fill the form
 const isStaff = ref(false)    // staff-only "Manage in Admin →" link; curation lives on the admin page
 
 // Marketplace state (9.6): one search + one category filter across BOTH sections. Filtering is
@@ -315,7 +327,7 @@ const categories = computed(() => categoriesOf(filterSkills(skills.value, query.
 const scriptCount = (s) => (s.files || []).filter(f => f.is_script).length
 
 const canCreate = computed(() => {
-  if (editingId.value) return !!draft.value.name.trim()
+  if (editingId.value) return !editLoading.value && !editError.value && !!draft.value.name.trim()
   if (createMode.value === 'paste') return !!skillMd.value.trim()
   if (createMode.value === 'import') return !!(importUrl.value.trim() || zipEl.value?.files?.length)
   return !!draft.value.name.trim()
@@ -369,7 +381,10 @@ watch([query, category, semantic], () => { builtinPage.value = 1 })
 watch(builtinPageCount, (n) => { if (builtinPage.value > n) builtinPage.value = n })
 
 function newSkill() {
+  editSeq += 1
   editingId.value = null
+  editLoading.value = false
+  editError.value = ''
   createMode.value = 'fields'
   draft.value = { name: '', description: '', body: '' }
   skillMd.value = ''
@@ -377,15 +392,31 @@ function newSkill() {
   showCreate.value = true
 }
 
-function startEdit(s) {
+async function startEdit(s) {
+  const seq = ++editSeq
   editingId.value = s.id
   createMode.value = 'fields'
-  draft.value = { name: s.name || '', description: s.description || '', body: s.body || '' }
+  draft.value = { name: '', description: '', body: '' }
+  editError.value = ''
+  editLoading.value = true
   showCreate.value = true
+  try {
+    const { data } = await api.get(`/skills/${s.id}/`)
+    if (seq !== editSeq) return
+    draft.value = { name: data.name || '', description: data.description || '', body: data.body || '' }
+  } catch (e) {
+    if (seq !== editSeq) return
+    editError.value = e?.response?.data?.detail || 'Could not load the skill to edit.'
+  } finally {
+    if (seq === editSeq) editLoading.value = false
+  }
 }
 
 function resetForm() {
+  editSeq += 1
   editingId.value = null
+  editLoading.value = false
+  editError.value = ''
   draft.value = { name: '', description: '', body: '' }
   skillMd.value = ''
   importUrl.value = ''
@@ -409,6 +440,7 @@ async function installBundle() {
 }
 
 async function save() {
+  if (editingId.value && (editLoading.value || editError.value)) return
   creating.value = true
   try {
     if (editingId.value) {

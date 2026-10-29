@@ -26,7 +26,7 @@
   </StudioPage>
 </template>
 <script setup>
-import { computed, defineAsyncComponent, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStudioSession } from '../composables/useStudioSession'
 import { getStudioFeature } from '../services/studioFeatures'
@@ -35,9 +35,10 @@ import { plainText } from '../composables/useChatHistory'
 import { composePreset, presetsFor } from '../services/studioPresets'
 import StudioPage from '../components/studio/StudioPage.vue'
 import StudioReferenceInputs from '../components/studio/StudioReferenceInputs.vue'
-const PresetGallery = defineAsyncComponent(() => import('../components/studio/PresetGallery.vue'))
+import { lazyComponent } from '../utils/lazyComponent'
+const PresetGallery = lazyComponent(() => import('../components/studio/PresetGallery.vue'))
 import QuoteBar from '../components/studio/QuoteBar.vue'
-const ResultsFeed = defineAsyncComponent(() => import('../components/studio/ResultsFeed.vue'))
+const ResultsFeed = lazyComponent(() => import('../components/studio/ResultsFeed.vue'))
 import StudioSettings from '../components/studio/StudioSettings.vue'
 import BottomSheet from '../components/video/BottomSheet.vue'
 import StudioModeSwitch from '../components/studio/StudioModeSwitch.vue'
