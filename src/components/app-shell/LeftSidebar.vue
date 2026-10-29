@@ -67,7 +67,7 @@
 import { computed, inject, onMounted, ref } from 'vue'
 import api from '../../services/api'
 import { useRoute, useRouter } from 'vue-router'
-import { House, CodeXml, Bot, BookOpen, Files, Workflow, Database, Clapperboard, CalendarClock, Activity, ShieldCheck, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
+import { House, Bot, BookOpen, Files, Workflow, Database, Clapperboard, CalendarClock, Activity, ShieldCheck, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
 import BrandMark from '../common/BrandMark.vue'
 import { prefetchFromEvent, prefetchRoutesWhenIdle } from '../../utils/prefetchRoute'
 import { useLayoutStore } from '../../stores/useLayoutStore'
@@ -119,7 +119,8 @@ const initials = computed(() => {
 const sectionLabels = { '/dashboard': 'Workspace', '/dashboard/workflow-builder': 'Create', '/dashboard/schedules': 'Manage' }
 const primaryNav = [
   { to: '/dashboard', exact: true, label: 'Home', 'data-tour': 'home', iconComponent: House },
-  { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", 'data-tour': 'lets-code', iconComponent: CodeXml },
+  // Hidden for now (route/page still works directly): Let's Code. To show it again, also import CodeXml from lucide-vue-next.
+  // { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", 'data-tour': 'lets-code', iconComponent: CodeXml },
   { to: '/dashboard/agents', match: '/dashboard/agents', label: 'Agents', 'data-tour': 'agents', iconComponent: Bot },
   { to: '/dashboard/knowledge', match: '/dashboard/knowledge', label: 'Knowledge & RAG', 'data-tour': 'knowledge', iconComponent: BookOpen },
   // The AADML Asset Library: the files of the person's chats only (Video Studio and Training Data keep their own).
