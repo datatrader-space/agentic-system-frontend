@@ -111,7 +111,7 @@ describe('prerender', () => {
     expect(() => pageHtml('<head></head><div id="app"></div>', { html: '', meta: null })).toThrow(/charset/)
   })
 
-  it('links the stylesheets of the modules the page rendered, once, and not the shell's own', () => {
+  it("links the stylesheets of the modules the page rendered, once, and not the shell's own", () => {
     const manifest = {
       'src/views/Pricing.vue': ['/assets/Pricing-a.js', '/assets/Pricing-b.css'],
       'src/components/public/PublicLayout.vue': ['/assets/PublicLayout-c.js', '/assets/PublicLayout-d.css'],
@@ -126,8 +126,9 @@ describe('prerender', () => {
 
     const out = pageHtml(SHELL, { html: '<h1>x</h1>', meta: null, stylesheets: sheets })
     expect(out.indexOf('href="/assets/index-b.css"')).toBeLessThan(out.indexOf('href="/assets/Pricing-b.css"'))
-    expect(out).toContain('<link rel="stylesheet" crossorigin href="/assets/PublicLayout-d.css">
-</head>')
+    const link = out.indexOf('<link rel="stylesheet" crossorigin href="/assets/PublicLayout-d.css">')
+    expect(link).toBeGreaterThan(-1)
+    expect(link).toBeLessThan(out.indexOf('</head>'))
     expect(out.match(/Pricing-b\.css/g)).toHaveLength(1)
   })
 
