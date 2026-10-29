@@ -266,11 +266,13 @@ describe('DefineBrainStep — the card reads one model, the editor the catalog (
     expect(w.find('.model-card').text()).toContain('No model selected.')
   })
 
-  it('reads the catalog and providers when the editor opens, once however often it opens', async () => {
+  it('reads the catalog when the editor opens, once however often it opens', async () => {
     const { w, urls } = await mountCard({ default_model: 10 })
     for (let i = 0; i < 3; i++) { await w.find('.model-card .edit-btn').trigger('click'); await flushPromises() }
     expect(urls().filter(u => u === '/llm/models/')).toHaveLength(1)
-    expect(urls().filter(u => u === '/llm/providers/')).toHaveLength(1)
+    // People have no providers of their own any more (Platform APIs are admin-only): the providers come from the
+    // models, so the provider list is never asked for.
+    expect(urls().filter(u => u === '/llm/providers/')).toHaveLength(0)
     expect(w.vm.modelsFor().length).toBe(MANY.length)
     expect(w.find('.model-card select').element.value).toBe('1')   // the current model's provider
   })
