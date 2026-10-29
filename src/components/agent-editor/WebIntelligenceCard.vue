@@ -11,8 +11,8 @@
         <div>
           <h3 class="text-base font-semibold text-[#0F172A]">Web Intelligence</h3>
           <p class="text-[13px] text-[#64748B]">
-            How this agent searches the web. Search engines are used by default; you can also pick a
-            dedicated web-search model.
+            How this agent searches the web. A search engine connected on the platform runs every search;
+            when none is connected, the web search model below does.
           </p>
         </div>
       </div>
@@ -55,24 +55,16 @@
       </div>
 
       <div v-if="cfg.enabled" class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <!-- ── Left: mode + model ── -->
+        <!-- ── Left: model + engine ── -->
         <div class="space-y-4">
-          <div>
-            <label class="field-label">Search mode</label>
-            <select v-model="cfg.mode" class="field" :disabled="!editable">
-              <option v-for="m in MODES" :key="m.value" :value="m.value">{{ m.label }}</option>
-            </select>
-            <p class="mt-1 text-[11.5px] leading-snug text-[#667085]">{{ modeHint }}</p>
-          </div>
-
           <div>
             <div class="mb-1 flex items-center justify-between">
               <label class="field-label mb-0">Web search model</label>
               <button v-if="hasModel && editable" type="button" class="text-[11px] font-semibold text-[#2563EB]"
-                      @click="clearModel">Reset to search engines</button>
+                      @click="clearModel">Clear</button>
             </div>
             <select v-model="modelKey" class="field" :disabled="!editable || !groupedModels.length">
-              <option value="">Search engines only (no model cost)</option>
+              <option value="">None</option>
               <optgroup v-for="g in groupedModels" :key="g.provider" :label="g.label">
                 <option v-for="m in g.models" :key="m.key" :value="m.key" :disabled="!m.available">
                   {{ m.display_name }} — {{ m.search_mode_label }}{{ m.available ? '' : ' (no credentials)' }}
@@ -84,9 +76,8 @@
               adds a model that can search.
             </p>
             <p v-else class="mt-1 text-[11.5px] leading-snug text-[#667085]">
-              Only models verified to actually run a web search appear here. This is separate from the
-              agent's main model — use a fast, cheap model for search and keep your reasoning model
-              for the answer.
+              Used when no platform search engine is connected. Only models verified to run a web search
+              appear here; this is separate from the agent's main model.
             </p>
 
             <div v-if="selectedModel" class="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-[#F9FAFB] px-3 py-2">
@@ -116,8 +107,8 @@
               <option value="google">Google Custom Search</option>
             </select>
             <p class="mt-1 text-[11.5px] leading-snug text-[#667085]">
-              Engine keys come from this agent's Credentials step. Image, news, places, video and
-              shopping searches always need Serper.
+              Engines are connected by an administrator on the Platform APIs page. If the chosen engine
+              fails, the search reports the error; it never switches to another engine or the model.
             </p>
           </div>
         </div>
@@ -135,22 +126,20 @@
                     @click="editable && (cfg[t.field] = !cfg[t.field])"><span class="knob" /></button>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div v-for="n in NUMBERS" :key="n.field">
               <label class="field-label">{{ n.label }}</label>
               <input v-model.number="cfg[n.field]" type="number" :min="n.min" :max="n.max" class="field" :disabled="!editable" />
               <p class="mt-1 text-[11px] leading-snug text-[#98A2B3]">{{ n.hint }}</p>
             </div>
-          </div>
-
-          <div>
-            <label class="field-label">Max search cost per turn (USD)</label>
-            <input v-model="costLimit" type="number" min="0" step="0.01" class="field"
-                   :disabled="!editable" placeholder="No limit" />
-            <p class="mt-1 text-[11px] leading-snug text-[#98A2B3]">
-              Applies to model-based search only (tokens + per-search charges). Blank = no extra limit
-              beyond your run budget.
-            </p>
+            <div>
+              <label class="field-label">Max search cost per turn (USD)</label>
+              <input v-model="costLimit" type="number" min="0" step="0.01" class="field"
+                     :disabled="!editable" placeholder="No limit" />
+              <p class="mt-1 text-[11px] leading-snug text-[#98A2B3]">
+                Model-based search only. Blank = no limit beyond the run budget.
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -169,22 +158,7 @@ import { notify } from '@/composables/useNotify'
 const props = defineProps({ agent: { type: Object, required: true } })
 const shell = useEditorShell()
 
-const MODES = [
-  { value: 'auto', label: 'Auto — recommended',
-    hint: 'Picks the best path per request: structured lists and image/news/shopping searches go to a search engine; current-events lookups and research use your search model when one is set.' },
-  { value: 'engines_only', label: 'Search engines only',
-    hint: 'Always use search engines (Serper, Tavily, Brave, Google). No model tokens are spent on search.' },
-  { value: 'native_preferred', label: 'Prefer the search model',
-    hint: 'Use the selected web-search model first; fall back to a search engine if it is unavailable (when fallback is on).' },
-  { value: 'native_only', label: 'Search model only',
-    hint: 'Only the selected model. If it is unavailable the search fails with a clear error instead of silently switching providers.' },
-  { value: 'hybrid_verify', label: 'Hybrid — cross-check sources',
-    hint: 'Runs the search model AND a search engine, then merges and de-duplicates. Best confidence, highest cost.' },
-]
-
 const TOGGLES = [
-  { field: 'allow_engine_fallback', label: 'Search engine fallback',
-    hint: 'If the search model fails or is unavailable, fall back to a search engine. Ignored in "Search model only" mode.' },
   { field: 'citations_required', label: 'Require citations',
     hint: 'Warn when results come back without source citations, so ungrounded answers are visible.' },
   { field: 'semantic_cache', label: 'Reuse similar searches',
@@ -193,9 +167,6 @@ const TOGGLES = [
 
 const NUMBERS = [
   { field: 'max_results', label: 'Max results', min: 1, max: 20, hint: 'Per search, up to 20.' },
-  { field: 'max_search_calls_per_turn', label: 'Searches per turn', min: 1, max: 50, hint: 'All searches.' },
-  { field: 'max_native_search_calls_per_turn', label: 'Model searches per turn', min: 1, max: 50,
-    hint: 'Of those, how many may use the model.' },
 ]
 
 const loading = ref(true)
@@ -207,16 +178,13 @@ const models = ref([])
 const saved = ref('{}')
 
 const cfg = reactive({
-  enabled: true, mode: 'auto', engine_provider: 'auto',
-  allow_engine_fallback: true, citations_required: true, semantic_cache: true,
-  max_results: 10, max_search_calls_per_turn: 5, max_native_search_calls_per_turn: 3,
+  enabled: true, engine_provider: 'auto', citations_required: true, semantic_cache: true, max_results: 10,
 })
 // Kept out of `cfg` so an empty input round-trips as null (no limit) rather than 0.
 const costLimit = ref('')
 // "provider::model_id" — a single select value across provider groups.
 const modelKey = ref('')
 
-const modeHint = computed(() => MODES.find(m => m.value === cfg.mode)?.hint || '')
 const hasModel = computed(() => !!modelKey.value)
 
 const groupedModels = computed(() => {

@@ -356,7 +356,7 @@ describe('WebIntelligenceCard', () => {
     })
     api.getAgentWebIntelligence.mockResolvedValue({ data: {
       editable: true, config: {},
-      effective: { enabled: true, mode: 'auto', search_model: { provider: 'openai', model_id: 'gpt-5.1' } },
+      effective: { enabled: true, search_model: { provider: 'openai', model_id: 'gpt-5.1' } },
     } })
     api.getWebSearchModels.mockResolvedValueOnce({ data: { models: [model(true)] } })
       .mockResolvedValueOnce({ data: { models: [model(false)] } })
@@ -364,8 +364,8 @@ describe('WebIntelligenceCard', () => {
 
     const w = mount(WebIntelligenceCard, { props: { agent: reactive({ id: 1 }) }, global: { stubs } })
     await flushPromises()
-    const mode = w.findAll('select')[0]
-    await mode.setValue('engines_only')                   // an edit the user has not saved
+    const maxResults = w.find('input[type="number"]')
+    await maxResults.setValue(7)                          // an edit the user has not saved
     expect(w.text()).toContain('Unsaved changes')
 
     await button(w, 'Test this model').trigger('click')
@@ -373,7 +373,7 @@ describe('WebIntelligenceCard', () => {
 
     expect(api.getAgentWebIntelligence).toHaveBeenCalledTimes(1)   // the form was NOT reloaded
     expect(api.getWebSearchModels).toHaveBeenCalledTimes(2)        // only the list was
-    expect(mode.element.value).toBe('engines_only')
+    expect(maxResults.element.value).toBe('7')
     expect(w.text()).toContain('Unsaved changes')
     expect(w.text()).toContain('Failed — no key')
     expect(w.text()).toContain('(no credentials)')                 // the model's new availability shows
@@ -382,7 +382,7 @@ describe('WebIntelligenceCard', () => {
   it('sends a model id that itself contains "::" whole', async () => {
     api.getAgentWebIntelligence.mockResolvedValue({ data: {
       editable: true, config: {},
-      effective: { enabled: true, mode: 'auto', search_model: { provider: 'openrouter', model_id: 'vendor::model::v2' } },
+      effective: { enabled: true, search_model: { provider: 'openrouter', model_id: 'vendor::model::v2' } },
     } })
     api.getWebSearchModels.mockResolvedValue({ data: { models: [{
       provider: 'openrouter', provider_label: 'OpenRouter', model_id: 'vendor::model::v2', display_name: 'x',
@@ -391,11 +391,29 @@ describe('WebIntelligenceCard', () => {
     api.updateAgentWebIntelligence.mockResolvedValue({ data: { config: {} } })
     const w = mount(WebIntelligenceCard, { props: { agent: reactive({ id: 1 }) }, global: { stubs } })
     await flushPromises()
-    await w.findAll('select')[0].setValue('engines_only')
+    await w.find('input[type="number"]').setValue(7)
     await button(w, 'Save web settings').trigger('click')
     await flushPromises()
     expect(api.updateAgentWebIntelligence.mock.calls[0][1].search_model)
       .toEqual({ provider: 'openrouter', model_id: 'vendor::model::v2' })
+  })
+
+  it('offers no search mode, fallback switch or per-turn search counts (ADM-1112)', async () => {
+    api.getAgentWebIntelligence.mockResolvedValue({ data: { editable: true, config: {}, effective: { enabled: true } } })
+    api.getWebSearchModels.mockResolvedValue({ data: { models: [] } })
+    api.updateAgentWebIntelligence.mockResolvedValue({ data: { config: {} } })
+    const w = mount(WebIntelligenceCard, { props: { agent: reactive({ id: 1 }) }, global: { stubs } })
+    await flushPromises()
+    for (const gone of ['Search mode', 'Search engine fallback', 'Searches per turn', 'Model searches per turn']) {
+      expect(w.text()).not.toContain(gone)
+    }
+    await w.find('input[type="number"]').setValue(7)
+    await button(w, 'Save web settings').trigger('click')
+    await flushPromises()
+    const sent = api.updateAgentWebIntelligence.mock.calls[0][1]
+    for (const gone of ['mode', 'allow_engine_fallback', 'max_search_calls_per_turn', 'max_native_search_calls_per_turn']) {
+      expect(sent).not.toHaveProperty(gone)
+    }
   })
 })
 
