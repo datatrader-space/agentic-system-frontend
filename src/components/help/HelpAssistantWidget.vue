@@ -67,6 +67,8 @@ import { renderUntrustedMarkdown } from '../../utils/safeMarkdown'
 import api from '../../services/api'
 import { useGuidedTour } from '../../composables/useGuidedTour'
 import { applyAssistantWsEvent } from '../../utils/assistantStream'
+import { reconnectingSocket } from '../../utils/reconnectingSocket'
+import { chatAuthProtocols } from '../../utils/wsAuth'
 
 // Render the (possibly still-streaming) markdown answer to HTML. Same engine + markdown
 // as New Chat; the widget just parses it instead of showing raw text.
@@ -99,7 +101,6 @@ const inputEl = ref(null)
 // done event, we permanently fall back to the request/response /chat path for the session.
 const transport = ref(null)      // {mode, ws_url, token, expires_in} | null
 const wsBroken = ref(false)      // sticky: a WS failure → use HTTP for the rest of the session
-let socket = null
 let streamCtx = null             // { turn, resolve, reject } for the in-flight WS answer
 let lastTurn = null              // last assistant turn (so a late suggested_actions event can attach)
 let engineConvId = null          // generic-engine path: conversation id for multi-turn
@@ -131,54 +132,37 @@ function canStream() {
     transport.value && transport.value.mode === 'websocket' && transport.value.token
 }
 
+// The grounded WS. Once open it reconnects by itself after a drop between answers (with a fresh token each
+// time), so the next question does not wait for a new socket. Closed with the panel and on unmount.
+// A close mid-answer, dropped or ours, rejects the in-flight turn so send() can fall back.
+function endStreamOnClose() { if (streamCtx) { const r = streamCtx.reject; streamCtx = null; r(new Error('ws-closed')) } }
+const socket = reconnectingSocket({ onMessage: (e) => handleWsEvent(e.data), onClose: endStreamOnClose })
+
 function closeSocket() {
   clearIdle()
-  if (socket) { try { socket.close() } catch (e) { /* noop */ } }
-  socket = null
+  socket.close()
+  endStreamOnClose()
 }
 
-function wsUrl() {
-  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  const path = transport.value?.ws_url || '/ws/chat/agent/'
-  return `${scheme}://${window.location.host}${path}?token=${encodeURIComponent(transport.value.token)}`
-}
-
-// Open (or reuse) the grounded WS. Refreshes the short-lived token before a new socket
-// so a 5-min-expired token doesn't cause a needless failure. Resolves once OPEN.
-async function ensureSocket() {
-  if (socket && socket.readyState === WebSocket.OPEN) return socket
-  closeSocket()
-  // Re-fetch a fresh transport token (the previous one may have expired).
+// Every (re)connect re-fetches a fresh short-lived token (the previous one may have expired). The token goes
+// in a subprotocol, never the URL (security S5): a URL is kept in access logs and the browser history.
+async function socketTarget() {
   let fresh = null
   try { const { data } = await api.getAssistantConfig(); if (data?.available) fresh = data.transport } catch (e) { /* try built-in */ }
   if (!fresh) { const { data } = await api.getBuiltinHelpAssistant(); fresh = data?.transport }
-  if (fresh?.mode === 'websocket' && fresh.token) transport.value = fresh
-  else throw new Error('no-transport')
-  // Closed while the token was fetched: open nothing.
-  if (unmounted) throw new Error('unmounted')
+  if (!(fresh?.mode === 'websocket' && fresh.token)) return null
+  transport.value = fresh
+  const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  const path = fresh.ws_url || '/ws/chat/agent/'
+  return { url: `${scheme}://${window.location.host}${path}`, protocols: chatAuthProtocols(fresh.token) }
+}
 
-  return await new Promise((resolve, reject) => {
-    let settled = false
-    const sock = new WebSocket(wsUrl())
-    // A socket that never opens must not hold the turn: give up and let send() fall back to HTTP.
-    const openTimer = setTimeout(() => {
-      if (!settled) { settled = true; try { sock.close() } catch (e) { /* noop */ } reject(new Error('ws-open-timeout')) }
-    }, 15000)
-    sock.onopen = () => {
-      clearTimeout(openTimer)
-      if (settled) return
-      if (unmounted) { settled = true; try { sock.close() } catch (e) { /* noop */ } reject(new Error('unmounted')); return }
-      settled = true; socket = sock; resolve(sock)
-    }
-    sock.onmessage = (e) => handleWsEvent(e.data)
-    sock.onerror = () => { if (!settled) { clearTimeout(openTimer); settled = true; reject(new Error('ws-error')) } }
-    sock.onclose = () => {
-      if (!settled) { clearTimeout(openTimer); settled = true; reject(new Error('ws-closed')) }
-      // A close mid-answer rejects the in-flight turn so send() can fall back.
-      if (streamCtx) { const r = streamCtx.reject; streamCtx = null; r(new Error('ws-closed')) }
-      if (socket === sock) socket = null
-    }
-  })
+// Open (or reuse) the grounded WS. Resolves once OPEN; a socket that fails or does not open within 15 s must
+// not hold the turn: it rejects and send() falls back to HTTP.
+async function ensureSocket() {
+  if (socket.isOpen) return socket.socket
+  if (!socket.active) socket.connect(socketTarget)
+  return await socket.whenOpen(15000)
 }
 
 function handleWsEvent(raw) {

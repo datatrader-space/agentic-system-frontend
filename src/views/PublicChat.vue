@@ -87,6 +87,7 @@ import AgentActivityTimeline from '../components/AgentActivityTimeline.vue'
 import ProvenanceFooter from '../components/chat/ProvenanceFooter.vue'
 import { useAgentTimeline } from '../composables/useAgentTimeline'
 import { enhanceChatMedia } from '../utils/chatMedia'
+import { chatAuthProtocols } from '../utils/wsAuth'
 
 const route = useRoute()
 const embed = computed(() => String(route.path || '').startsWith('/embed'))
@@ -156,15 +157,16 @@ async function scrollToBottom() { await nextTick(); if (scroller.value) scroller
 
 function wsUrl() {
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  // Public widget = general agent chat (no repo); the ?token= decides the 'public' tier (route-agnostic).
-  return `${scheme}://${window.location.host}/ws/chat/agent/?token=${encodeURIComponent(wsToken.value)}`
+  // Public widget = general agent chat (no repo); the token decides the 'public' tier (route-agnostic). It goes
+  // in a subprotocol, never the URL (security S5): a URL is kept in access logs and the browser history.
+  return `${scheme}://${window.location.host}/ws/chat/agent/`
 }
 function connect() {
   if (!wsToken.value) return
   intentionalClose = false
   if (ws.value) { try { ws.value.close() } catch (e) { /* noop */ } }
   try {
-    const sock = new WebSocket(wsUrl())
+    const sock = new WebSocket(wsUrl(), chatAuthProtocols(wsToken.value))
     ws.value = sock
     sock.onopen = () => {
       reconnectAttempts = 0                            // healthy — clear backoff

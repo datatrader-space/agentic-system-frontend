@@ -465,6 +465,7 @@ import api from '../../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { usePoller } from '@/composables/usePoller'
+import { reconnectingSocket } from '@/utils/reconnectingSocket'
 import { ago } from '../dashboard/time'
 import { useEditorShell } from '../../composables/editorShell'
 import AddWebsiteSourceModal from '../knowledge/AddWebsiteSourceModal.vue'
@@ -866,7 +867,15 @@ async function toggleAttach(r) {
 }
 
 // ── Live indexing WebSocket (files + web sources), unified per agent ──
-const kbWs = ref(null)
+// Reconnects after a drop (the status poll stays the fallback meanwhile) and stops with the component.
+const kbWs = reconnectingSocket({
+  onMessage: (e) => {
+    let evt; try { evt = JSON.parse(e.data) } catch { return }
+    if (evt.type === 'index_progress') handleIndexProgress(evt)
+    else if (typeof evt.type === 'string' && evt.type.startsWith('web_source.')) upsertWebSource(evt)
+  },
+})
+let kbWsAgentId = null
 function kbWsUrl(id) {
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws'
   return `${scheme}://${window.location.host}/ws/knowledge-index/${id}/`
@@ -874,19 +883,9 @@ function kbWsUrl(id) {
 function connectKbWs() {
   const id = agentId.value
   if (!id) return
-  if (kbWs.value && kbWs.value.readyState === WebSocket.OPEN) return
-  if (kbWs.value) { try { kbWs.value.close() } catch (e) { /* noop */ } kbWs.value = null }
-  try {
-    const sock = new WebSocket(kbWsUrl(id))
-    kbWs.value = sock
-    sock.onmessage = (e) => {
-      let evt; try { evt = JSON.parse(e.data) } catch { return }
-      if (evt.type === 'index_progress') handleIndexProgress(evt)
-      else if (typeof evt.type === 'string' && evt.type.startsWith('web_source.')) upsertWebSource(evt)
-    }
-    sock.onclose = () => { if (kbWs.value === sock) kbWs.value = null }
-    sock.onerror = () => { /* noop — status poll is the fallback */ }
-  } catch (err) { /* noop */ }
+  if (kbWsAgentId === id && kbWs.isOpen) return
+  kbWsAgentId = id
+  kbWs.connect(() => kbWsUrl(id))
 }
 function handleIndexProgress(evt) {
   setProgress(evt.document_id, evt.stage, evt.percent, evt.message, evt.total)
@@ -1165,7 +1164,7 @@ watch(agentId, (id, prev) => {
 })
 // When the agent object hydrates late, derive the attached shared-source ids so toggles show as ON.
 watch(() => props.agent.knowledge_sources, () => ensureKsIds())
-onBeforeUnmount(() => { stopFilePollers(); if (kbWs.value) { try { kbWs.value.close() } catch (e) { /* noop */ } kbWs.value = null } })
+onBeforeUnmount(() => { stopFilePollers(); kbWs.close() })
 </script>
 
 <style scoped>

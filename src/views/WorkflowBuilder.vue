@@ -719,6 +719,7 @@ import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { usePoller } from '@/composables/usePoller'
+import { reconnectingSocket } from '@/utils/reconnectingSocket'
 import { WorkflowInputError, workflowJson } from '../utils/workflowInput'
 import { freeWorkflowPosition } from '../utils/workflowNodePlacement'
 import { RUN_STOP_STATUSES, runStopKind, fetchAllAgents } from '../utils/workflowRunPolling'
@@ -842,7 +843,7 @@ let clipboard = []
 const showVersions = ref(false)
 const versions = ref([])
 const metrics = ref(null)
-let runSocket = null
+const runSocket = reconnectingSocket({ onMessage: (ev) => onRunSocketMessage(ev) })
 let unmounted = false
 
 // node types that support retries/timeout/on_error
@@ -1846,26 +1847,23 @@ async function setLifecycle(next) {
   }
 }
 
-// Live run status over WebSocket (push); polling (below) remains a fallback for both.
+// Live run status over WebSocket (push); polling (below) remains a fallback for both. A dropped socket
+// reconnects until the run finishes (pushed here, or seen by the poller) or the page is left.
 function openRunSocket(runId) {
-  try { runSocket?.close() } catch {}
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws'
+  runSocket.connect(() => `${proto}://${location.host}/ws/workflow-graph-run/${runId}/`)
+}
+function onRunSocketMessage(ev) {
   try {
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws'
-    runSocket = new WebSocket(`${proto}://${location.host}/ws/workflow-graph-run/${runId}/`)
-    runSocket.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(ev.data); const d = msg.data || {}
-        if (d.node_id) {
-          const n = getNodes.value.find(x => x.id === d.node_id)
-          if (n) n.data.__status = d.status || (msg.event === 'node_started' ? 'running' : n.data.__status)
-          if (msg.event === 'node_started') addNodeLog(d.node_id, 'running')
-          if (msg.event === 'node_finished') addNodeLog(d.node_id, d.status, (d.output && d.output.text) || d.error || (d.output && d.output.reason) || '')
-        }
-        if (msg.event === 'run_finished') { running.value = false; addLog(d.status === 'success' ? 'success' : 'error', `■ Run ${d.status || 'finished'}`); try { runSocket.close() } catch {}; loadRuns() }
-      } catch {}
+    const msg = JSON.parse(ev.data); const d = msg.data || {}
+    if (d.node_id) {
+      const n = getNodes.value.find(x => x.id === d.node_id)
+      if (n) n.data.__status = d.status || (msg.event === 'node_started' ? 'running' : n.data.__status)
+      if (msg.event === 'node_started') addNodeLog(d.node_id, 'running')
+      if (msg.event === 'node_finished') addNodeLog(d.node_id, d.status, (d.output && d.output.text) || d.error || (d.output && d.output.reason) || '')
     }
-    runSocket.onerror = () => { try { runSocket.close() } catch {} }
-  } catch { /* WS optional — polling covers it */ }
+    if (msg.event === 'run_finished') { running.value = false; addLog(d.status === 'success' ? 'success' : 'error', `■ Run ${d.status || 'finished'}`); runSocket.close(); loadRuns() }
+  } catch {}
 }
 
 async function validateGraph() {
@@ -1962,6 +1960,7 @@ const runPoller = usePoller(async ({ signal }) => {
   const kind = runStopKind(data.status)
   if (kind) {
     running.value = false
+    if (kind === 'final' && runId === activeRunId.value) runSocket.close()   // a finished run pushes nothing more
     const endKey = `${runId}:${data.status}`
     if (!_reportedRunEnds.has(endKey)) {
       _reportedRunEnds.add(endKey)
@@ -2133,7 +2132,7 @@ onBeforeUnmount(() => {
   unmounted = true
   labelsObserver?.disconnect()
   runPoller.stop()
-  try { runSocket?.close() } catch {}
+  runSocket.close()
   window.removeEventListener('keydown', onKeydown, true)
   window.removeEventListener('beforeunload', beforeUnload)
   endResize()

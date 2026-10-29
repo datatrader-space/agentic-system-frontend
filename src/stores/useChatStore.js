@@ -69,6 +69,10 @@ function pickArray(d) {
 // ones on demand, so a user with hundreds of chats doesn't pay for all of them to open a chat.
 const HISTORY_PAGE_SIZE = 25
 
+// One window of a conversation's messages: the size the server opens a conversation with
+// (ChatConversationSerializer.DEFAULT_MESSAGE_WINDOW) and pages older messages by.
+const MESSAGE_WINDOW = 50
+
 // DRF PageNumberPagination reports the full total in `count`. An unpaginated (bare-array) response
 // has no total — fall back to what we hold, which reads as "nothing more to load".
 function countOf(d, loaded) {
@@ -769,7 +773,7 @@ export const useChatStore = defineStore('chat', {
       if (!oldest) return
       this.loadingOlder = true
       try {
-        const res = await api.getConversationMessages(id, { before: oldest.serverId, limit: 50 })
+        const res = await api.getConversationMessages(id, { before: oldest.serverId, limit: MESSAGE_WINDOW })
         if (String(this.conversationId) !== String(id)) return   // switched conversation mid-flight
         const data = res.data || {}
         const older = pickArray(data.results).map((m) => this._mapServerMessage(m, id))
@@ -1554,7 +1558,7 @@ export const useChatStore = defineStore('chat', {
       const switched = () => String(this.conversationId) !== String(cid)
       for (let i = 0; i < 36; i++) {
         if (switched()) return
-        const landed = await this._refreshHistory()
+        const landed = await this._refreshHistory({ probe: true })
         if (switched()) return
         if (landed) { this.isStreaming = false; this._taskRunActive = false; this._assistantId = null; return }
         if (!this.isStreaming) return
@@ -1579,17 +1583,28 @@ export const useChatStore = defineStore('chat', {
     // backend saves the user message at turn start, so a mid-flight turn ends in a 'user' row until done.
     // (The old assistant-COUNT delta was broken: the optimistic streaming bubble is already counted, so a
     // completed turn never increased the count → recovery gave up and the answer only showed on refresh.)
-    async _refreshHistory() {
+    //
+    // It reads the windowed messages endpoint, not the whole conversation: nothing here uses the
+    // conversation's own fields. `probe` (the recovery loop, every 2.5 s) reads only the newest message
+    // until the answer has landed, and the latest window only then.
+    async _refreshHistory({ probe = false } = {}) {
       const cid = this.conversationId
+      const landedIn = (rows) => {
+        const last = rows[rows.length - 1]
+        return !!last && last.role === 'assistant' && (last.content || '').trim().length > 0
+      }
       try {
-        const res = await api.getConversation(cid)
+        if (probe) {
+          const peek = await api.getConversationMessages(cid, { limit: 1 })
+          if (String(this.conversationId) !== String(cid)) return false
+          if (!landedIn(pickArray(peek.data))) return false
+        }
+        const res = await api.getConversationMessages(cid, { limit: MESSAGE_WINDOW })
         // Another chat was opened while this read was in flight: never write its rows into that one.
         if (String(this.conversationId) !== String(cid)) return false
-        const rows = pickArray((res.data || {}).messages)
-        if (!rows.length) return false
-        const last = rows[rows.length - 1]
-        const landed = last && last.role === 'assistant' && (last.content || '').trim().length > 0
-        if (!landed) return false
+        const data = res.data || {}
+        const rows = pickArray(data)
+        if (!landedIn(rows)) return false
         // KEEP EACH MESSAGE'S IDENTITY ACROSS A REFRESH. Every row used to get a fresh id, so Vue
         // unmounted and remounted the whole thread — the Work rail vanished and came back (prod conv
         // 1578, 33.6s → 34.3s) and any open disclosure closed. The k-th assistant row is the k-th
@@ -1670,6 +1685,8 @@ export const useChatStore = defineStore('chat', {
           conversationId: String(this.conversationId),
         }))
         this.messages = this._foldSteers(this.messages)   // a STEER shows inside its run (see _foldSteers)
+        // The thread is now the latest window again, so older pages are "more" whenever the server has them.
+        this.messagesHasMore = !!data.has_more
         this._hydratePlanAnchors(this.conversationId)
         return true
       } catch {
@@ -1707,10 +1724,11 @@ export const useChatStore = defineStore('chat', {
     // assistant order — message order is stable) and hydrate the newly-anchored runs.
     async _reloadHistoryForAnchors(cid) {
       try {
-        const res = await api.getConversation(cid)
+        // Only the messages' plan anchors are needed: the latest window, not the whole conversation.
+        const res = await api.getConversationMessages(cid, { limit: MESSAGE_WINDOW })
         if (String(cid) !== String(this.conversationId)) return
-        const assistantRows = pickArray((res.data || {}).messages).filter((m) => m.role === 'assistant')
-        // Aligned from the NEWEST end: the conversation read returns only the latest page of messages,
+        const assistantRows = pickArray(res.data).filter((m) => m.role === 'assistant')
+        // Aligned from the NEWEST end: the read returns only the latest page of messages,
         // while the screen may also hold older pages the person loaded, so matching from the start
         // put one message's plan onto another.
         const onScreen = this.messages.filter((m) => m.role === 'assistant')
@@ -1862,14 +1880,8 @@ export const useChatStore = defineStore('chat', {
         _tl.finalize()
         if (_tl.hasActivity()) m.timeline = _tl.snapshot()   // pin the activity timeline onto this message
         if (m.status === 'streaming') m.status = 'done'
-        // Run finished — notify the browser/OS if the user stepped away (suppressed when actively viewing
-        // this chat). Clicking the notification focuses the tab and lands on this agent chat.
-        try {
-          notifyRunFinished({
-            agentName: (this.currentAgent && this.currentAgent.name) || '',
-            snippet: m.content, conversationId: this.conversationId,
-          })
-        } catch { /* best-effort — never block the turn */ }
+        // No browser notification here: this end cannot tell an answered turn from a stopped or empty one.
+        // The server's `run_finished`, which reaches this socket too, says how the turn ended and notifies.
       }
       this.isStreaming = false
       this._taskRunActive = false
@@ -2099,6 +2111,7 @@ export const useChatStore = defineStore('chat', {
       if (m && msg && msg.message_id != null && STREAM_ID_TYPES.has(t)) {
         if (m._serverMid == null) m._serverMid = msg.message_id
         else if (m._serverMid !== msg.message_id) return
+        if (m._serverTurn == null && msg.turn_id) m._serverTurn = msg.turn_id   // read by `run_finished`
       }
       // Feed the live activity timeline (Thinking → tools → Generating → Done). Rich events already
       // returned above; this also folds in reasoning + token metering (no-op for other event types).
@@ -2145,6 +2158,7 @@ export const useChatStore = defineStore('chat', {
           this._turnAliveAt = Date.now()   // the server has just said this turn is running
           const rm = this._cur()
           if (rm) { rm.reconnecting = false; rm.prepStatus = resumeStatusLine(msg.progress, msg.status) }
+          if (rm && msg.turn_id) rm._serverTurn = msg.turn_id   // its `run_finished` names this turn
           // A turn owned by ANOTHER worker (the usual shape for a signal / schedule / webhook run) never
           // streams a token to this socket, so the line just set would sit frozen until the run ends.
           // Poll the snapshot so it keeps moving; a same-worker turn cancels this on its first live event.
@@ -2196,25 +2210,33 @@ export const useChatStore = defineStore('chat', {
           break
         }
         case 'run_finished': {
-          // Cross-tab / cross-worker completion push (over the user_<id> group). Fire the browser
-          // notification (deduped with the in-chat completion by the OS tag; suppressed when actively
-          // viewing this chat). And if this is THIS conversation and we're still mid-resume — e.g. a
-          // cross-worker reconnect where tokens streamed on the owner worker, not here — pull the finished
-          // answer from history and clear the streaming state.
-          try {
-            notifyRunFinished({
-              agentName: msg.agent_name, snippet: msg.snippet, conversationId: msg.conversation_id,
-            })
-          } catch { /* best-effort */ }
-          if (String(msg.conversation_id || '') === String(this.conversationId || '')
-              && (this.isStreaming || this._recovering)) {
-            this._refreshHistory().then((landed) => {
-              if (landed) {
-                this.isStreaming = false; this._assistantId = null
-                this._recovering = false; this._taskRunActive = false
-              }
-            })
+          // A turn ENDED: sent once per turn to every socket of this user (any tab, any worker, this
+          // turn's own socket too), with `status` = completed | stopped | error | empty. An older backend
+          // sent no status, and sent this only for an answered turn, so a missing status is `completed`.
+          const status = msg.status || 'completed'
+          // The browser notification (suppressed when actively viewing that chat) says a run FINISHED, so
+          // only an answered turn gets one: the person ended a stopped turn, and a failed or empty one has
+          // no answer to announce.
+          if (status === 'completed') {
+            try {
+              notifyRunFinished({
+                agentName: msg.agent_name, snippet: msg.snippet, conversationId: msg.conversation_id,
+              })
+            } catch { /* best-effort */ }
           }
+          // THIS conversation, still showing the turn as running (a cross-worker resume whose tokens
+          // streamed elsewhere, or a frame of the turn's end that never reached this socket): settle it
+          // now, whatever the status, instead of waiting until history has an answer.
+          if (String(msg.conversation_id || '') !== String(this.conversationId || '')
+              || !(this.isStreaming || this._recovering)) break
+          const fm = this._cur()
+          // The end of a different turn of this chat than the one on screen is not this turn's end.
+          if (msg.turn_id && fm && fm._serverTurn && String(fm._serverTurn) !== String(msg.turn_id)) break
+          this._recovering = false
+          if (status === 'error') { this._errAssistant('', true, true); break }
+          const blank = !!fm && !(fm.content || '').trim()
+          this._endAssistant()                       // a blank bubble fetches the saved answer itself
+          if (!blank) this._refreshHistory()         // the saved answer replaces what streamed here
           break
         }
         case 'assistant_message_chunk':

@@ -3,11 +3,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-const h = vi.hoisted(() => ({ pending: new Map() }))
+const h = vi.hoisted(() => ({ pending: new Map(), pendingMessages: new Map() }))
 
 vi.mock('../services/api', () => ({
   default: {
     getConversation: vi.fn((id) => new Promise((resolve, reject) => { h.pending.set(String(id), { resolve, reject }) })),
+    getConversationMessages: vi.fn((id) => new Promise((resolve, reject) => { h.pendingMessages.set(String(id), { resolve, reject }) })),
     getAgents: vi.fn(() => Promise.resolve({ data: [] })),
     getAgent: vi.fn(() => Promise.resolve({ data: {} })),
     getAgentCard: vi.fn(() => Promise.resolve({ data: {} })),
@@ -112,11 +113,13 @@ describe('reconnect recovery stops on a chat switch (F-C3)', () => {
     chat.isStreaming = true
     const run = chat._recover()
     await flush()
-    expect(api.getConversation).toHaveBeenCalledWith('3')
+    // It reads the newest message only (the windowed messages endpoint), not the whole conversation.
+    expect(api.getConversationMessages).toHaveBeenCalledWith('3', { limit: 1 })
     chat.conversationId = '4'                     // the person opened another chat
-    h.pending.get('3').resolve({ data: { messages: [] } })
+    h.pendingMessages.get('3').resolve({ data: { results: [], has_more: false } })
     await run
-    expect(api.getConversation).toHaveBeenCalledTimes(1)   // no further reads for chat 3
+    expect(api.getConversationMessages).toHaveBeenCalledTimes(1)   // no further reads for chat 3
+    expect(api.getConversation).not.toHaveBeenCalled()
   })
 })
 

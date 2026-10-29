@@ -578,3 +578,39 @@ describe('KnowledgeToolsStep — file status poller (Phase 5 item 1)', () => {
     expect(api.getAgentFileStatus).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('KnowledgeToolsStep — live indexing socket (Phase 3)', () => {
+  const kbStubs = { ...stubs, WebIntelligenceCard: true, ToolIcon: true, AddWebsiteSourceModal: true, WebSourcePagesModal: true, IntegrationHubModal: true }
+  let sockets
+  beforeEach(() => {
+    api.listWebSources = vi.fn().mockResolvedValue({ data: [] })
+    api.getLlmUsage = vi.fn().mockResolvedValue({ data: {} })
+    api.getAgentKnowledgeAttachments = vi.fn().mockResolvedValue({ data: { attached: [] } })
+    api.listKnowledgeSources = vi.fn().mockResolvedValue({ data: { sources: [] } })
+    api.listKnowledge = vi.fn().mockResolvedValue({ data: { resources: [] } })
+    api.getConnectors = vi.fn().mockResolvedValue({ data: { connectors: [] } })
+    sockets = []
+    vi.stubGlobal('WebSocket', class {
+      static OPEN = 1
+      constructor(url) { this.url = url; this.readyState = 0; sockets.push(this) }
+      close() { this.readyState = 3 }
+    })
+  })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('reconnects after a drop, and not after the step unmounts', async () => {
+    vi.useFakeTimers()
+    const w = mount(KnowledgeToolsStep, { props: { agent: reactive({ id: 7 }) }, global: { stubs: kbStubs } })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(sockets).toHaveLength(1)
+    expect(sockets[0].url).toContain('/ws/knowledge-index/7/')
+    sockets[0].readyState = 1; sockets[0].onopen()
+    sockets[0].readyState = 3; sockets[0].onclose({ code: 1006 })
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(sockets).toHaveLength(2)
+    w.unmount()
+    sockets[1].onclose?.({ code: 1006 })
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(sockets).toHaveLength(2)
+  })
+})

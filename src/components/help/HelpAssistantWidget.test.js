@@ -3,6 +3,8 @@
 //  - an answer that goes silent on an open socket ends (watchdog), so the typing dots and the disabled Send
 //    cannot last forever;
 //  - a socket is never opened after the widget is gone.
+// Security S5: the token travels in a subprotocol, never in the URL. Phase 3: a socket dropped between
+// answers reconnects by itself, with a fresh token.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
@@ -19,10 +21,12 @@ vi.mock('../../composables/useGuidedTour', () => ({ useGuidedTour: () => ({ laun
 class FakeSocket {
   static instances = []
   static OPEN = 1
-  constructor(url) { this.url = url; this.readyState = 0; this.sent = []; FakeSocket.instances.push(this) }
+  constructor(url, protocols) { this.url = url; this.protocols = protocols; this.readyState = 0; this.sent = []; FakeSocket.instances.push(this) }
   send(d) { this.sent.push(d) }
   close() { this.readyState = 3 }
   open() { this.readyState = 1; this.onopen && this.onopen() }
+  drop() { this.readyState = 3; this.onclose && this.onclose({ code: 1006 }) }
+  emit(ev) { this.onmessage && this.onmessage({ data: JSON.stringify(ev) }) }
 }
 
 import HelpAssistantWidget from './HelpAssistantWidget.vue'
@@ -92,5 +96,59 @@ describe('HelpAssistantWidget', () => {
     releaseToken?.({ data: { available: true, transport } })
     await flushPromises()
     expect(FakeSocket.instances).toHaveLength(0)
+  })
+
+  it('sends the token as a subprotocol, never in the URL', async () => {
+    const w = await openAndAsk()
+    expect(FakeSocket.instances).toHaveLength(1)
+    const sock = FakeSocket.instances[0]
+    expect(sock.url).toBe(`ws://${window.location.host}/ws/chat/agent/`)
+    expect(sock.url).not.toContain('token')
+    expect(sock.protocols).toEqual(['aadml.chat', 'aadml.auth.' + btoa('t').replace(/=+$/, '')])
+    w.unmount()
+  })
+
+  it('a socket dropped between answers reconnects by itself with a fresh token', async () => {
+    const w = await openAndAsk()
+    const first = FakeSocket.instances[0]
+    first.open()
+    await flushPromises()
+    first.emit({ type: 'assistant_message_complete', full_message: 'Over the socket' })
+    await flushPromises()
+    expect(w.text()).toContain('Over the socket')
+    expect(w.find('.typing').exists()).toBe(false)
+
+    api.getAssistantConfig.mockResolvedValue({ data: { available: true, transport: { ...transport, token: 'fresh' } } })
+    const fetchesBefore = api.getAssistantConfig.mock.calls.length
+    first.drop()
+    await vi.advanceTimersByTimeAsync(1000)
+    await flushPromises()
+    expect(FakeSocket.instances).toHaveLength(2)
+    expect(api.getAssistantConfig.mock.calls.length).toBe(fetchesBefore + 1)
+    expect(FakeSocket.instances[1].protocols[1]).toBe('aadml.auth.' + btoa('fresh').replace(/=+$/, ''))
+
+    // The next question goes over the reconnected socket, not HTTP.
+    FakeSocket.instances[1].open()
+    w.vm.ask('And billing?')
+    await flushPromises()
+    expect(FakeSocket.instances).toHaveLength(2)
+    expect(JSON.parse(FakeSocket.instances[1].sent[0]).message).toBe('And billing?')
+    expect(api.chatHelpAssistant).not.toHaveBeenCalled()
+    w.unmount()
+  })
+
+  it('closing the panel stops the reconnects', async () => {
+    const w = await openAndAsk()
+    const first = FakeSocket.instances[0]
+    first.open()
+    await flushPromises()
+    first.emit({ type: 'assistant_message_complete', full_message: 'Done' })
+    await flushPromises()
+    await w.setProps({ open: false })
+    await flushPromises()
+    first.drop()
+    await vi.advanceTimersByTimeAsync(120000)
+    expect(FakeSocket.instances).toHaveLength(1)
+    w.unmount()
   })
 })

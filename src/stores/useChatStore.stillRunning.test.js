@@ -12,9 +12,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-const getConversation = vi.fn()
+const getConversationMessages = vi.fn()
 vi.mock('../services/api', () => ({
-  default: { getConversation: (...a) => getConversation(...a), get: vi.fn(), post: vi.fn() },
+  default: { getConversationMessages: (...a) => getConversationMessages(...a), get: vi.fn(), post: vi.fn() },
 }))
 
 import { useChatStore } from './useChatStore'
@@ -31,8 +31,8 @@ describe('recovery does not settle a turn that is still running', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.useFakeTimers()
-    getConversation.mockReset()
-    getConversation.mockResolvedValue({ data: { messages: [USER_ROW] } })   // no answer saved yet
+    getConversationMessages.mockReset()
+    getConversationMessages.mockResolvedValue({ data: { results: [USER_ROW], has_more: false } })   // no answer saved yet
   })
   afterEach(() => vi.useRealTimers())
 
@@ -52,10 +52,10 @@ describe('recovery does not settle a turn that is still running', () => {
     await vi.advanceTimersByTimeAsync(5000)
     await done
     expect(s.isStreaming).toBe(true)
-    const reads = getConversation.mock.calls.length
+    const reads = getConversationMessages.mock.calls.length
     await vi.advanceTimersByTimeAsync(110000)          // long past the old 90-second give-up
     expect(s.isStreaming).toBe(true)
-    expect(getConversation.mock.calls.length).toBe(reads)   // and it has stopped reading history
+    expect(getConversationMessages.mock.calls.length).toBe(reads)   // and it has stopped reading history
   })
 
   it('a ten-minute wait with a status line every 15 seconds stays busy to the end', async () => {
@@ -106,7 +106,7 @@ describe('recovery does not settle a turn that is still running', () => {
 
   it('still settles on the saved answer when the turn did finish while away', async () => {
     const s = running()
-    getConversation.mockResolvedValue({ data: { messages: [USER_ROW, ANSWER_ROW] } })
+    getConversationMessages.mockResolvedValue({ data: { results: [USER_ROW, ANSWER_ROW], has_more: false } })
     await s._recoverAfterReconnect()
     expect(s.isStreaming).toBe(false)
     expect(s.messages[s.messages.length - 1].content).toBe('The page title is Tide.')
@@ -128,7 +128,7 @@ describe('recovery does not settle a turn that is still running', () => {
     s._recoverAfterReconnect()
     s._recoverAfterReconnect()
     await vi.advanceTimersByTimeAsync(2600)
-    expect(getConversation.mock.calls.length).toBe(2)   // one loop: a read at 0s and one at 2.5s
+    expect(getConversationMessages.mock.calls.length).toBe(2)   // one loop: a read at 0s and one at 2.5s
   })
 
   it('a frame from a turn that already ended does not count', async () => {

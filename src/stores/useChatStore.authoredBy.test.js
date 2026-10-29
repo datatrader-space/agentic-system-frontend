@@ -9,7 +9,7 @@ import api from '../services/api'
 // correctly on open and then resurrect the machine prompts as user bubbles after a dropped socket, which
 // is exactly the kind of fix that looks shipped and is not. (Production conv 1561, 2026-09-16.)
 vi.mock('../services/api', () => ({
-  default: { getConversation: vi.fn() },
+  default: { getConversationMessages: vi.fn() },
 }))
 
 beforeEach(() => {
@@ -38,13 +38,14 @@ describe('useChatStore — authoredBy', () => {
     it('carries the marker too, so a dropped socket cannot resurrect the bubbles', async () => {
       const chat = useChatStore()
       chat.conversationId = 1561
-      api.getConversation.mockResolvedValue({
+      api.getConversationMessages.mockResolvedValue({
         data: {
-          messages: [
+          results: [
             row('user', 'Detect the walls', null),
             row('user', 'Continue the task… DO THE NEXT PIECE OF WORK', { authored_by: 'system' }),
             row('assistant', 'attempt 2', {}),
           ],
+          has_more: false,
         },
       })
 

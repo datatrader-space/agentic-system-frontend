@@ -13,6 +13,7 @@
 //                     chat_response|assistant|assistant_message {content|message}
 //                     tool_call {tool, params} / tool_result {tool_name, result, success}
 //                     agent_session_complete | stop_acknowledged | error {error|message}
+import { reconnectDelay, RECONNECT_BASE_MS, RECONNECT_CAP_MS } from '../utils/reconnectingSocket.js'
 
 // Heartbeat / reconnect tuning. A backend reload kills the socket WITHOUT always delivering a
 // close frame (half-open) — so we ping and treat silence as death, then reconnect automatically.
@@ -25,18 +26,10 @@ const STALE_MS = 35000       // no message (incl. pong) for this long => socket 
 // NEVER give up (page-speed plan F-H4). It used to stop after 10 failures with "Lost connection — please
 // refresh", which after a long outage left a chat that only a refresh could revive. Backoff is capped
 // exponential with FULL jitter (random 0..base), so thousands of tabs reconnecting after a redeploy spread
-// out instead of arriving in waves.
-export const RECONNECT_BASE_MS = 1000
-export const RECONNECT_CAP_MS = 30000
-const RECONNECT_MIN_MS = 250
+// out instead of arriving in waves. The backoff is shared with every other live socket (utils/reconnectingSocket).
+export { reconnectDelay, RECONNECT_BASE_MS, RECONNECT_CAP_MS }
 // After this many failed attempts in a row the UI offers "Reconnect now" (onConnectionState('lost')).
 export const RECONNECT_LOST_AFTER = 3
-
-/** Delay before reconnect attempt `attempt` (0-based): random in [250ms, min(cap, base*2^attempt)]. */
-export function reconnectDelay(attempt, random = Math.random) {
-  const ceiling = Math.min(RECONNECT_BASE_MS * 2 ** attempt, RECONNECT_CAP_MS)
-  return Math.max(RECONNECT_MIN_MS, Math.round(random() * ceiling))
-}
 
 /** The browser's IANA time zone ("Asia/Karachi"), or undefined when the browser does not say. */
 export function browserTimeZone() {

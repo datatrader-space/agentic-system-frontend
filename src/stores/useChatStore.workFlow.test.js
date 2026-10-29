@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-vi.mock('../services/api', () => ({ default: { getConversation: vi.fn() } }))
+vi.mock('../services/api', () => ({ default: { getConversationMessages: vi.fn() } }))
 
 import api from '../services/api'
 import { useChatStore } from './useChatStore'
@@ -57,7 +57,7 @@ describe('Work run flow', () => {
       { id: 'm3', role: 'assistant', content: 'attempt two', runId: 'run_x', workIteration: { segment: 2, max: 3 },
         timeline: { steps: [{ stepId: 's', label: 'Reading a web page' }] } },
     ]
-    api.getConversation.mockResolvedValue({ data: { messages: [
+    api.getConversationMessages.mockResolvedValue({ data: { has_more: false, results: [
       { id: 11, role: 'user', content: 'do it' },
       { id: 12, role: 'assistant', content: 'attempt one', model_info: {} },
       { id: 13, role: 'user', content: 'DO THE NEXT PIECE OF WORK', model_info: { authored_by: 'system' } },
@@ -83,7 +83,7 @@ describe('Work run flow', () => {
       { id: 'm1', role: 'user', content: 'latest question' },
       { id: 'm2', role: 'assistant', content: 'partial', runId: 'run_x' },
     ]
-    api.getConversation.mockResolvedValue({ data: { messages: [
+    api.getConversationMessages.mockResolvedValue({ data: { has_more: false, results: [
       { id: 1, role: 'user', content: 'older question' },
       { id: 2, role: 'assistant', content: 'older answer', model_info: {} },
       { id: 3, role: 'user', content: 'latest question' },

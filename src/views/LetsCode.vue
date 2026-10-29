@@ -152,6 +152,7 @@ import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
 import { connectOAuth } from '@/composables/useOAuthConnect'
 import { usePoller } from '@/composables/usePoller'
+import { reconnectingSocket } from '@/utils/reconnectingSocket'
 import CodeBrowser from '../components/CodeBrowser.vue'
 import RepositoryChat from '../components/RepositoryChat.vue'
 import AgentChatPanel from '../components/letscode/AgentChatPanel.vue'
@@ -218,8 +219,6 @@ const repos = ref([])
 const repoQuery = ref('')
 const cloningUrl = ref('')
 const proposalDecorations = ref({})
-
-let ws = null
 
 const crsReady = computed(() => active.value && (active.value.crs_status === 'ready' || active.value.phase === 'ready'))
 const filteredRepos = computed(() => {
@@ -289,28 +288,29 @@ function openProject(p) {
   loadBranches()
 }
 
-// Live pipeline progress over WebSocket (polling below is the fallback).
+// Live pipeline progress over WebSocket (polling below is the fallback). Reconnects after a drop; one
+// socket, for the open project only.
+const ws = reconnectingSocket({
+  onMessage: (ev) => {
+    try {
+      const msg = JSON.parse(ev.data)
+      if (msg.event === 'status' && active.value) {
+        const wasReady = active.value.clone_ready
+        active.value = { ...active.value, ...msg.data }
+        if (Array.isArray(msg.data.log)) pipelineLog.value = msg.data.log
+        if (msg.data.clone_ready && !wasReady) browserKey.value++
+      }
+    } catch { /* ignore malformed frames */ }
+  },
+})
 function connectWs() {
-  closeWs()
-  if (!active.value) return
-  try {
-    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = import.meta.env.VITE_WS_HOST || window.location.host
-    ws = new WebSocket(`${proto}//${host}/ws/lets-code/${active.value.repo_id}/`)
-    ws.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(ev.data)
-        if (msg.event === 'status' && active.value) {
-          const wasReady = active.value.clone_ready
-          active.value = { ...active.value, ...msg.data }
-          if (Array.isArray(msg.data.log)) pipelineLog.value = msg.data.log
-          if (msg.data.clone_ready && !wasReady) browserKey.value++
-        }
-      } catch { /* ignore malformed frames */ }
-    }
-  } catch { /* WS optional — polling covers it */ }
+  if (!active.value) { ws.close(); return }
+  const repoId = active.value.repo_id
+  const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const host = import.meta.env.VITE_WS_HOST || window.location.host
+  ws.connect(() => `${proto}//${host}/ws/lets-code/${repoId}/`)
 }
-function closeWs() { if (ws) { try { ws.close() } catch {} ws = null } }
+function closeWs() { ws.close() }
 
 async function loadBranches() {
   branches.value = []
