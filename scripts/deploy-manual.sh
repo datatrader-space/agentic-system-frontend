@@ -106,7 +106,27 @@ wait_healthy() {
   return 1
 }
 
+# Keep the outgoing release's assets for one deploy, as deploy.sh does (F-C1, ADM-1073; the reasons are
+# there). Keep the two in step.
+PREV_DIR="$APP_DIR/prev-release"
+keep_prev_assets() {
+  local stage="${PREV_DIR}.new" src
+  docker inspect "$CONTAINER" >/dev/null 2>&1 || return 0
+  rm -rf "$stage" || return 1
+  for src in assets dashboard/training-data/assets; do
+    mkdir -p "$stage/$(dirname "$src")" || return 1
+    if ! docker cp "$CONTAINER:/usr/share/nginx/html/$src" "$stage/$src" >/dev/null 2>&1; then
+      [[ "$src" != assets ]] || return 1
+    fi
+  done
+  find "$PREV_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || return 1
+  mv "$stage"/* "$PREV_DIR"/ || return 1
+  rm -rf "$stage"
+}
+
 cd "$APP_DIR"
+mkdir -p "$PREV_DIR"
+keep_prev_assets || echo "** could not keep the previous release's assets; tabs open on it may 404 on lazy pages" >&2
 echo "==> swapping container ${PREV_TAG:-none} -> ${TAG}"
 write_tag "$TAG"
 docker compose --env-file "$ENV_FILE" up -d --no-build --remove-orphans

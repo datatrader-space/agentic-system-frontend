@@ -1,0 +1,8 @@
+{
+  "name": "aadml-frontend-lighthouse-ci",
+  "private": true,
+  "description": "Lighthouse CI for the web-perf job in .github/workflows/build.yml. Its own manifest, so the app's lockfile, npm ci and image build never carry it. Config: lighthouserc.json at the repo root.",
+  "devDependencies": {
+    "@lhci/cli": "0.15.1"
+  }
+}

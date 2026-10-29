@@ -189,6 +189,18 @@ APP_PORT=8002
 The box needs the AWS CLI and `docker compose` v2. It authenticates to ECR through
 the instance role — no AWS credentials on disk.
 
+`prev-release/` (made by `deploy.sh`) holds the **previous release's hashed assets**
+(`assets/` and `dashboard/training-data/assets/`), copied out of the outgoing container
+on every deploy and mounted read-only into the new one. nginx falls back to it for
+`/assets/…` files this release does not have, so a tab opened before a deploy keeps
+loading its lazy pages. One release back only: each deploy replaces its contents.
+
+**CI does not update these files on the host.** A change to `deploy.sh` or
+`docker-compose.yml` in this repo reaches the box only when it is copied to
+`/opt/aadml-frontend/` (LF line endings, `deploy.sh` executable). Copying them in either
+order is safe: an image without the fallback ignores the mount, and a compose file
+without the mount gives the old 404.
+
 ---
 
 ## Rebuilding this from scratch

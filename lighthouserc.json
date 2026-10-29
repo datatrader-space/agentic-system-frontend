@@ -1,0 +1,31 @@
+{
+  "ci": {
+    "collect": {
+      "staticDistDir": "./dist",
+      "isSinglePageApplication": true,
+      "url": [
+        "http://localhost/",
+        "http://localhost/login",
+        "http://localhost/signup",
+        "http://localhost/features",
+        "http://localhost/pricing"
+      ],
+      "numberOfRuns": 3,
+      "settings": {
+        "onlyCategories": ["performance"],
+        "skipAudits": ["uses-text-compression"]
+      }
+    },
+    "assert": {
+      "assertions": {
+        "largest-contentful-paint": ["warn", { "maxNumericValue": 2500, "aggregationMethod": "median-run" }],
+        "cumulative-layout-shift": ["warn", { "maxNumericValue": 0.1, "aggregationMethod": "median-run" }],
+        "total-blocking-time": ["warn", { "maxNumericValue": 200, "aggregationMethod": "median-run" }]
+      }
+    },
+    "upload": {
+      "target": "filesystem",
+      "outputDir": ".lighthouseci"
+    }
+  }
+}

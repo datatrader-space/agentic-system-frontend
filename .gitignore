@@ -139,3 +139,7 @@ node_modules/
 # Local browser test artifacts
 test-results/
 playwright-report/
+
+# Lighthouse CI output (lighthouserc.json); the previous release's assets kept by deploy.sh
+.lighthouseci/
+prev-release/

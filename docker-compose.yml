@@ -20,6 +20,11 @@ services:
       - "${APP_PORT:-8002}:80"
     environment:
       - BACKEND_URL=${BACKEND_URL:-172.31.6.43:8000}
+    volumes:
+      # The previous release's hashed assets (F-C1, ADM-1073): deploy.sh copies them out of the outgoing
+      # container, and nginx.conf (@prev_release_assets) serves them when this release lacks the file, so a
+      # tab opened before the deploy keeps working. Read-only; deploy.sh creates the folder.
+      - ./prev-release:/usr/share/nginx/prev-release:ro
     healthcheck:
       # 127.0.0.1, not localhost: inside the container localhost resolves to ::1
       # first, and nginx `listen 80` binds IPv4 only — busybox wget then gets

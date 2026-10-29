@@ -15,8 +15,14 @@ APP_DIR="${APP_DIR:-/opt/aadml-frontend}"
 ENV_FILE="${APP_DIR}/.deploy.env"
 CONTAINER="${CONTAINER_NAME:-aadml-frontend}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-90}"
+# The previous release's assets, mounted read-only by docker-compose.yml (F-C1, ADM-1073).
+PREV_DIR="${APP_DIR}/prev-release"
 
 cd "$APP_DIR"
+
+# Made here, as this user, so Docker never creates it as root for the bind mount (deploy.sh could then
+# not replace what is in it).
+mkdir -p "$PREV_DIR"
 
 [[ -f "$ENV_FILE" ]] || { echo "!! missing $ENV_FILE — see DEPLOY.md" >&2; exit 1; }
 
@@ -67,6 +73,33 @@ wait_healthy() {
   return 1
 }
 
+# KEEP THE OUTGOING RELEASE'S ASSETS FOR ONE DEPLOY (F-C1, ADM-1073). A tab still open on the old
+# index.html asks for old hashed chunks as soon as it opens a lazy page; the new image does not have them.
+# Copied out of the running container BEFORE it is replaced, into $PREV_DIR, which the new container
+# mounts and nginx falls back to. One release only: the folder's contents are replaced, never added to.
+# The folder itself is kept (emptied, then refilled), not renamed: a container that `up -d` does not
+# recreate (same tag again) keeps the mount it has, and a renamed folder would leave it on a deleted one.
+# Best effort: a failure is reported and the deploy goes on, as it did before this existed.
+keep_prev_assets() {
+  local stage="${PREV_DIR}.new" src
+  if ! docker inspect "$CONTAINER" >/dev/null 2>&1; then
+    echo "==> no ${CONTAINER} container: no previous assets to keep"
+    return 0
+  fi
+  rm -rf "$stage" || return 1
+  for src in assets dashboard/training-data/assets; do
+    mkdir -p "$stage/$(dirname "$src")" || return 1
+    # A release without the Training Data page has no second folder; only assets/ is required.
+    if ! docker cp "$CONTAINER:/usr/share/nginx/html/$src" "$stage/$src" >/dev/null 2>&1; then
+      [[ "$src" != assets ]] || return 1
+    fi
+  done
+  find "$PREV_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || return 1
+  mv "$stage"/* "$PREV_DIR"/ || return 1
+  rm -rf "$stage"
+  echo "==> kept the outgoing release's assets in ${PREV_DIR} ($(du -sh "$PREV_DIR" | cut -f1))"
+}
+
 echo "==> deploying ${ECR_REPOSITORY:-aadml-frontend}:${NEW_TAG} (current: ${PREV_TAG:-none})"
 
 aws ecr get-login-password --region "$AWS_REGION" \
@@ -75,6 +108,7 @@ aws ecr get-login-password --region "$AWS_REGION" \
 write_tag "$NEW_TAG"
 
 docker compose --env-file "$ENV_FILE" pull frontend
+keep_prev_assets || echo "** could not keep the previous release's assets; tabs open on it may 404 on lazy pages" >&2
 docker compose --env-file "$ENV_FILE" up -d --no-build --remove-orphans
 
 if wait_healthy; then

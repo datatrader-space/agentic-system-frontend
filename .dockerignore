@@ -23,6 +23,7 @@ dist
 AADML_Agentic_UIUX
 old_design
 tests
+ci
 scripts
 # Needed at build time: vite.config.js loads the icon-subset plugin from here.
 !scripts/vite-icon-subset.js

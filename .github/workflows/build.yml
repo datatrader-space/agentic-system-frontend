@@ -1,7 +1,8 @@
 name: Build and push image
 
-# Runs on every push to main: tests, builds the production image, pushes it to ECR.
-# On SUCCESS its final job calls deploy.yml (`needs: build` + `uses:`), so a push to main ships.
+# Runs on every push to main: tests, builds the production image, pushes it to ECR; in parallel,
+# checks the first-load JS budget and Lighthouse (`web-perf`).
+# On SUCCESS of both its final job calls deploy.yml (`needs: [build, web-perf]` + `uses:`), so a push to main ships.
 # The suite gates that: a red test run or a failed build fails here, the `deploy` job never
 # starts, and the server is never touched.
 
@@ -148,12 +149,106 @@ jobs:
             echo "To roll back: Actions → *Deploy to EC2* → Run workflow → enter an older tag."
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # PAGE SPEED GUARDRAILS (page-speed plan Phase 6, ADM-1079; bundle report Phase 0, ADM-1072).
+  # Its own job, in PARALLEL with `build`, so the image is not held up; `deploy` needs both, so a page
+  # that got heavier or slower never ships. It builds the app on the runner (the image builds its own
+  # copy inside Docker, without the report, so stats.html never reaches production: dist is in
+  # .dockerignore and ANALYZE is unset there).
+  # No AWS, no secrets: read-only permissions.
+  web-perf:
+    name: Bundle budget and Lighthouse
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # The image's nginx.conf (a template; BACKEND_URL filled at start) with the previous-release mount it
+      # falls back to: a syntax error fails here, and deploy needs this job.
+      - name: Check the nginx configuration
+        run: |
+          mkdir -p "$RUNNER_TEMP/prev-release"
+          docker run --rm -e BACKEND_URL=127.0.0.1:8000 \
+            -v "$PWD/nginx.conf:/etc/nginx/templates/default.conf.template:ro" \
+            -v "$RUNNER_TEMP/prev-release:/usr/share/nginx/prev-release:ro" \
+            nginx:alpine nginx -t
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            ci/lighthouse/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Lighthouse CI has its own pinned manifest (ci/lighthouse), so the app's lockfile and image build
+      # do not carry its ~330 packages. No install scripts: none of them needs one.
+      - name: Install Lighthouse CI
+        run: npm ci --prefix ci/lighthouse --ignore-scripts
+
+      # The main app only (the Training Data page is not on any page measured below). ANALYZE=1 adds
+      # rollup-plugin-visualizer (vite.config.js), which writes dist/stats.html.
+      - name: Build with the bundle report
+        env:
+          ANALYZE: "1"
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npx vite build
+
+      # Fails over 200 kB gzip of first-load JS: the script index.html loads plus its modulepreloads.
+      - name: First-load JS budget
+        run: |
+          status=0
+          node scripts/check-bundle-size.mjs --json dist/bundle-size.json > bundle-size.txt 2>&1 || status=$?
+          cat bundle-size.txt
+          { echo "### First-load JS"; echo '```'; cat bundle-size.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      # Uploaded even when the budget failed: that is when the treemap is needed.
+      - name: Upload the bundle report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-report-${{ github.sha }}
+          path: |
+            dist/stats.html
+            dist/bundle-size.json
+          retention-days: 14
+          if-no-files-found: warn
+
+      # Five pages that render signed out, served from dist by LHCI's own static server (SPA fallback,
+      # gzip), no backend: their API calls get index.html instead of JSON, and each page falls back to its
+      # built-in content (Pricing its static plans, Login no social buttons). Median of
+      # three runs. Thresholds and pages: lighthouserc.json. Reports stay in GitHub (filesystem target),
+      # never on LHCI's public storage.
+      # WARN FIRST: LCP <= 2.5 s, CLS <= 0.1, TBT <= 200 ms (lab proxy for INP) are `warn` in lighthouserc.json,
+      # because the first measurement already missed (CLS 0.138 on /features). While they are warnings, a
+      # Lighthouse crash must not hold back a deploy either, hence continue-on-error. Once this job's numbers
+      # pass with margin, make them `error` and remove continue-on-error: then a slower page stops the deploy.
+      - name: Lighthouse
+        continue-on-error: true
+        run: ci/lighthouse/node_modules/.bin/lhci autorun
+
+      - name: Upload the Lighthouse reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-${{ github.sha }}
+          path: .lighthouseci/
+          retention-days: 14
+          if-no-files-found: warn
+
   # Ship it. A called workflow, not a `workflow_run` chain: `needs` makes the ordering explicit
   # and puts the deploy in THIS run, so a push to main visibly builds and deploys in one place.
-  # It cannot start unless `build` succeeded, so a red suite or a failed push to ECR stops here.
+  # It cannot start unless `build` succeeded, so a red suite or a failed push to ECR stops here,
+  # and unless `web-perf` passed, so a page over its size or speed budget stops here too.
   deploy:
     name: Deploy
-    needs: build
+    needs: [build, web-perf]
     uses: ./.github/workflows/deploy.yml
     with:
       image_tag: ${{ needs.build.outputs.tag }}
