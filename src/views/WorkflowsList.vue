@@ -71,6 +71,15 @@
           </div>
         </button>
       </div>
+
+      <!-- The list is paged (30 a page): offer the rest instead of silently stopping at the first page. -->
+      <div v-if="!loading && graphs.length" class="mt-3 flex items-center justify-between text-[12px] text-ink-faint">
+        <span>Showing {{ graphs.length }}<template v-if="total"> of {{ total }}</template></span>
+        <button v-if="hasMore" type="button" :disabled="loadingMore" @click="loadMore"
+                class="rounded-full border border-[#dfe7f2] bg-white px-3 py-1.5 text-[12px] font-semibold text-ink-soft hover:bg-[#f8fbff] disabled:opacity-60">
+          {{ loadingMore ? 'Loading…' : 'Load more' }}
+        </button>
+      </div>
     </div>
 
     <!-- Templates picker -->
@@ -116,6 +125,10 @@ import { saveBlob } from '../utils/saveBlob'
 const router = useRouter()
 const graphs = ref([])
 const loading = ref(true)
+const PAGE_SIZE = 30
+const total = ref(0)
+const hasMore = ref(false)
+const loadingMore = ref(false)
 const creating = ref(false)
 const showTemplates = ref(false)
 const templates = ref([])
@@ -125,15 +138,36 @@ const dotClass = (s) => ({ success: 'bg-emerald-500', failed: 'bg-red-500', runn
 const statusClass = (s) => ({ published: 'bg-emerald-50 text-emerald-700', paused: 'bg-amber-50 text-amber-700',
                              retired: 'bg-rose-50 text-rose-700' }[s] || 'bg-slate-100 text-slate-500')
 
+const pickRows = (data) => (Array.isArray(data) ? data : (data?.results || []))
+
 async function load() {
   loading.value = true
   try {
-    const { data } = await api.getWorkflowGraphs()
-    graphs.value = Array.isArray(data) ? data : (data.results || [])
+    const { data } = await api.getWorkflowGraphs({ limit: PAGE_SIZE, offset: 0 })
+    graphs.value = pickRows(data)
+    total.value = Number(data?.count) || 0
+    hasMore.value = !!data?.next
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Failed to load workflows')
   } finally {
     loading.value = false
+  }
+}
+
+// The next page starts after the rows on screen, so a workflow archived here does not make one get skipped.
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value) return
+  loadingMore.value = true
+  try {
+    const { data } = await api.getWorkflowGraphs({ limit: PAGE_SIZE, offset: graphs.value.length })
+    const seen = new Set(graphs.value.map((g) => g.id))
+    graphs.value = graphs.value.concat(pickRows(data).filter((g) => !seen.has(g.id)))
+    total.value = Number(data?.count) || total.value
+    hasMore.value = !!data?.next
+  } catch (e) {
+    notify.error(e?.response?.data?.error || 'Could not load more workflows')
+  } finally {
+    loadingMore.value = false
   }
 }
 
@@ -248,6 +282,7 @@ async function remove(g) {
   try {
     await api.deleteWorkflowGraph(g.id)
     graphs.value = graphs.value.filter(x => x.id !== g.id)
+    if (total.value) total.value -= 1
     notify.success('Workflow archived')
   } catch (e) {
     notify.error(e?.response?.data?.error || 'Failed to archive')

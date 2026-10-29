@@ -260,7 +260,13 @@
             </tr>
           </tbody>
         </table>
-        <p class="showing">Showing {{ filteredSchedules.length }} of {{ schedules.length }} schedules</p>
+        <!-- Paged on the server: offer the rest instead of silently stopping at the first page. -->
+        <div class="showing showing-row">
+          <p>Showing {{ filteredSchedules.length }} of {{ scheduleTotal || schedules.length }} schedules</p>
+          <button v-if="hasMoreSchedules && !loadError" type="button" class="ghost load-more" :disabled="loadingMore" @click="loadMoreSchedules">
+            {{ loadingMore ? 'Loading…' : 'Load more' }}
+          </button>
+        </div>
       </section>
     </section>
 
@@ -389,6 +395,10 @@ const agents = ref([])
 const models = ref([])
 const rawSchedules = ref([])
 const loading = ref(true)
+const SCHEDULES_PAGE = 50
+const scheduleTotal = ref(0)
+const hasMoreSchedules = ref(false)
+const loadingMore = ref(false)
 // A failed load is shown as an error with Retry, never as "No schedules yet".
 const loadError = ref('')
 // Schedules with a "Run now" in flight: a second click must not dispatch a second run.
@@ -647,18 +657,41 @@ function buildPayload(extra = {}) {
 }
 
 // ---- CRUD -----------------------------------------------------------------
+// Standalone page manages agent schedules (created here / by automation tools): the server is asked for
+// those only (`source=agent_tool`), and the filter stays for an answer that is not narrowed.
+const agentScheduleRows = (data) => (data?.results || data || [])
+  .filter((r) => r.source === 'agent_tool' || String(r.id).startsWith('as_'))
+const schedulePage = (offset) => api.listSchedules({ source: 'agent_tool', limit: SCHEDULES_PAGE, offset })
+
 async function loadSchedules() {
   loading.value = true
   loadError.value = ''
   try {
-    const { data } = await api.listSchedules()
-    const rows = data?.results || data || []
-    // Standalone page manages agent schedules (created here / by automation tools).
-    rawSchedules.value = rows.filter((r) => r.source === 'agent_tool' || String(r.id).startsWith('as_'))
+    const { data } = await schedulePage(0)
+    rawSchedules.value = agentScheduleRows(data)
+    scheduleTotal.value = Number(data?.count) || 0
+    hasMoreSchedules.value = !!data?.next
   } catch (e) {
     loadError.value = e?.response?.data?.error || 'Check your connection and try again.'
   } finally {
     loading.value = false
+  }
+}
+
+// The next page starts after the rows on screen, so a schedule deleted here does not make one get skipped.
+async function loadMoreSchedules() {
+  if (loadingMore.value || !hasMoreSchedules.value) return
+  loadingMore.value = true
+  try {
+    const { data } = await schedulePage(rawSchedules.value.length)
+    const seen = new Set(rawSchedules.value.map((r) => r.id))
+    rawSchedules.value = rawSchedules.value.concat(agentScheduleRows(data).filter((r) => !seen.has(r.id)))
+    scheduleTotal.value = Number(data?.count) || scheduleTotal.value
+    hasMoreSchedules.value = !!data?.next
+  } catch (e) {
+    notify.error('Could not load more schedules.')
+  } finally {
+    loadingMore.value = false
   }
 }
 
@@ -1314,6 +1347,8 @@ td b {
 .empty-row strong { display: block; color: #334155; font-size: 12.5px; margin-top: 8px; }
 .empty-row small { display: block; color: #94a3b8; font-size: 11px; margin-top: 4px; }
 .showing { padding: 12px 18px; }
+.showing-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.showing-row .load-more { padding: 6px 12px; }
 .schedule-rail {
   width: 100%;
   display: grid;

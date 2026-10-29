@@ -554,8 +554,10 @@ export default {
   testLlmProvider: (id, model) => api.post(`/llm/providers/${id}/test/`, model ? { model } : {}),
   // Generic re-sync for ANY provider type (openai/anthropic/gemini/xai/openrouter/ollama/custom).
   // Models sync on provider creation and again daily server-side (opt out per provider with
-  // metadata.auto_sync_models = false); this is the manual refresh.
+  // metadata.auto_sync_models = false); this is the manual refresh. The sync runs in the background:
+  // the POST answers 202 with `model_sync.status === 'syncing'`, and getModelSync is polled until it ends.
   syncModels: (id) => api.post(`/llm/providers/${id}/sync_models/`),
+  getModelSync: (id, config = {}) => api.get(`/llm/providers/${id}/sync_models/`, { ...config, noCache: true }),
   // Every provider type the server supports: chat or media, whether its models sync, its address hint.
   getLlmProviderTypes: () => api.get('/llm/provider-types/'),
   getLlmModels: (params = {}) => api.get('/llm/models/', { params }),
@@ -878,7 +880,8 @@ export default {
   getChatProjects: () => api.get('/chat-projects/'),
   getChatProject: (id) => api.get(`/chat-projects/${id}/`),
   // A project's files: every chat in the project can search them. Removed with deleteGenericFile(fileId).
-  getChatProjectFiles: (id) => api.get(`/chat-projects/${id}/files/`),
+  // With `{ limit, offset }` the answer is one page ({count, next, previous, results}); without, every file.
+  getChatProjectFiles: (id, params, config = {}) => api.get(`/chat-projects/${id}/files/`, { ...config, params }),
   uploadChatProjectFile: (id, file) => {
     const formData = new FormData()
     formData.append('file', file)
@@ -985,7 +988,6 @@ export default {
   rollbackAgent: (id) => api.post(`/agents/${id}/rollback/`),
   // ── Tools Library (Screen 24) ──
   getTools: (params) => api.get('/tools/', { params }),
-  getToolCatalog: (params) => api.get('/tools/catalog/', { params }),
   getToolDetail: (name) => api.get(`/tools/${name}/`),
   updateTool: (name, data) => api.post(`/tools/${name}/update/`, data),
   getToolAgents: (name) => api.get(`/tools/${name}/agents/`),
@@ -1083,7 +1085,9 @@ export default {
   runWorkflow: (id) => api.post(`/workflows/${id}/run/`),
 
   // Workflow Builder — node-canvas graphs (NEW, separate system: /api/workflow-graphs/).
-  getWorkflowGraphs: () => api.get('/workflow-graphs/'),
+  // With `{ limit, offset }` one page ({count, next, previous, results}); without, every workflow (the
+  // Workflow Builder's sub-workflow picker needs them all).
+  getWorkflowGraphs: (params, config = {}) => api.get('/workflow-graphs/', { ...config, params }),
 
   // Schedules (used by the Budgets page to scope a budget to a schedule).
   getSchedules: () => api.get('/schedules/'),

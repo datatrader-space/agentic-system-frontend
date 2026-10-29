@@ -110,6 +110,20 @@ describe('ProjectPage', () => {
     expect(api.deleteGenericFile).toHaveBeenCalledWith(5)
     expect(w.findAll('[data-test="project-file"]')).toHaveLength(0)
   })
+  it('asks for the files a page at a time and Show more appends the page after the rows on screen', async () => {
+    api.getChatProjectFiles
+      .mockResolvedValueOnce({ data: { count: 2, next: 'n', results: [{ id: 6, name: 'menu.md', status: 'ready' }] } })
+      .mockResolvedValueOnce({ data: { count: 2, next: null, results: [{ id: 5, name: 'rates.pdf', status: 'ready' }] } })
+    const w = await mountP()
+    expect(api.getChatProjectFiles).toHaveBeenLastCalledWith('7', { limit: 20, offset: 0 })
+    await w.find('[data-test="project-more-files"]').trigger('click')
+    await flushPromises()
+    expect(api.getChatProjectFiles).toHaveBeenLastCalledWith('7', { limit: 20, offset: 1 })
+    expect(w.findAll('[data-test="project-file"]').map((r) => r.text())).toEqual([
+      expect.stringContaining('menu.md'), expect.stringContaining('rates.pdf')])
+    expect(w.find('[data-test="project-more-files"]').exists()).toBe(false)
+  })
+
   it('polls a file that is still being read, stops when it is searchable, and never after leaving', async () => {
     vi.useFakeTimers()
     try {

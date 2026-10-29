@@ -39,7 +39,7 @@
       <section class="pp-card" aria-labelledby="pp-files">
         <div class="pp-card-head">
           <h2 id="pp-files">Files</h2>
-          <span class="pp-count">{{ files.length }}</span>
+          <span class="pp-count">{{ fileTotal || files.length }}</span>
           <label class="pp-upload" :class="{ busy: uploading }">
             <input type="file" class="pp-file-input" data-test="project-file-input" :disabled="uploading"
                    multiple @change="onPick" />
@@ -59,6 +59,8 @@
             </span>
           </li>
         </ul>
+        <button v-if="filesHaveMore" type="button" class="pp-more" data-test="project-more-files"
+                :disabled="loadingMoreFiles" @click="loadMoreFiles">{{ loadingMoreFiles ? 'Loading…' : 'Show more' }}</button>
       </section>
 
       <section class="pp-card" aria-labelledby="pp-chats">
@@ -109,6 +111,11 @@ const nameInput = ref(null)
 const chats = ref([])
 const total = ref(0)
 const files = ref([])
+const fileTotal = ref(0)
+const filesHaveMore = ref(false)
+const loadingMoreFiles = ref(false)
+// The server's largest page (agent/pagination.py LimitWhenAskedPagination.max_limit).
+const MAX_FILES_PAGE = 100
 const uploading = ref(false)
 const confirmingId = ref(null)
 const STATUS_LABEL = { ready: 'Searchable', processing: 'Reading…', failed: 'Could not read', not_searchable: 'Not searchable' }
@@ -145,30 +152,59 @@ async function loadChats(limit) {
   } catch (_e) { /* keep the list */ }
 }
 
+// The files come a page at a time, newest first; Show more asks for the page after the rows on screen.
+const takePage = (data) => {
+  fileTotal.value = (data && typeof data.count === 'number') ? data.count : 0
+  filesHaveMore.value = !!(data && data.next)
+}
+
 // While a file is still being read, look again every few seconds so its status turns to Searchable.
-// The poller is bound to the project it was started for, stops once nothing is processing, and is
-// cancelled on leave (it used to re-arm after the page was left and then poll the NEXT route's id).
-const isProcessing = () => files.value.some((f) => f.status === 'processing')
+// The poller is bound to the project it was started for, stops once nothing it re-read is processing,
+// and is cancelled on leave (it used to re-arm after the page was left and then poll the NEXT route's id).
+// It re-reads the rows on screen (the newest, where an upload lands), up to the server's largest page.
+const isProcessing = (list = files.value) => list.some((f) => f.status === 'processing')
 let polledProjectId = null
 const filesPoller = usePoller(async () => {
   const id = polledProjectId
-  const { data } = await api.getChatProjectFiles(id)
+  const limit = Math.min(MAX_FILES_PAGE, Math.max(PAGE, files.value.length))
+  const { data } = await api.getChatProjectFiles(id, { limit, offset: 0 })
   if (id !== polledProjectId || String(route.params.id) !== String(id)) return { stale: true }
-  files.value = rows(data)
-  return { stale: false }
-}, { interval: 4000, stopWhen: (r) => r?.stale || !isProcessing() })
+  const head = rows(data)
+  const seen = new Set(head.map((f) => f.id))
+  files.value = head.concat(files.value.slice(head.length).filter((f) => !seen.has(f.id)))
+  takePage(data)
+  return { stale: false, processing: isProcessing(head) }
+}, { interval: 4000, stopWhen: (r) => r?.stale || !r?.processing })
 
 async function loadFiles() {
   const id = route.params.id
   try {
-    const { data } = await api.getChatProjectFiles(id)
+    const { data } = await api.getChatProjectFiles(id, { limit: PAGE, offset: 0 })
     if (String(route.params.id) !== String(id)) return
     files.value = rows(data)
+    takePage(data)
   } catch (_e) { /* keep the list */ }
   if (isProcessing()) {
     filesPoller.stop()
     polledProjectId = id
     filesPoller.start({ immediate: false })
+  }
+}
+
+async function loadMoreFiles() {
+  if (loadingMoreFiles.value || !filesHaveMore.value) return
+  const id = route.params.id
+  loadingMoreFiles.value = true
+  try {
+    const { data } = await api.getChatProjectFiles(id, { limit: PAGE, offset: files.value.length })
+    if (String(route.params.id) !== String(id)) return
+    const seen = new Set(files.value.map((f) => f.id))
+    files.value = files.value.concat(rows(data).filter((f) => !seen.has(f.id)))
+    takePage(data)
+  } catch (_e) {
+    notify.error('Could not load more files.')
+  } finally {
+    loadingMoreFiles.value = false
   }
 }
 
@@ -191,6 +227,7 @@ async function removeFile(f) {
   try {
     await api.deleteGenericFile(f.id)
     files.value = files.value.filter((x) => x.id !== f.id)
+    if (fileTotal.value) fileTotal.value -= 1
   } catch (_e) {
     notify.error('Could not remove the file.')
   }

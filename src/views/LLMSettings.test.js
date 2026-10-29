@@ -14,8 +14,12 @@ const api = vi.hoisted(() => ({
   getLlmRequests: vi.fn(),
   getLlmStats: vi.fn(),
   updateLlmModel: vi.fn(),
+  createLlmProvider: vi.fn(),
+  syncModels: vi.fn(),
+  getModelSync: vi.fn(),
 }))
-vi.mock('../services/api', () => ({ default: api }))
+const clearApiCache = vi.hoisted(() => vi.fn())
+vi.mock('../services/api', () => ({ default: api, clearApiCache }))
 vi.mock('@/composables/useConfirm', () => ({ confirm: vi.fn() }))
 
 import LLMSettings from './LLMSettings.vue'
@@ -214,5 +218,112 @@ describe('LLMSettings: the add-provider form takes its types from the server', (
     expect(typeSelect().attributes('disabled')).toBeDefined()
     expect(wrapper.text()).toContain('Server error')
     expect(wrapper.text()).toContain('Key Set')              // the providers still show
+  })
+})
+
+// The model sync runs on the server in the background (ADM-1076): adding a provider or pressing Sync Models
+// answers at once, the page says "Syncing models…", and polls that provider's sync state until it ends.
+describe('LLMSettings: the model sync runs in the background and the page polls it', () => {
+  const syncing = { status: 'syncing', trigger: 'manual', last_attempt_at: '2026-10-28T10:00:00Z' }
+  const done = { status: 'ok', trigger: 'manual', created: 2, updated: 1, last_attempt_at: '2026-10-28T10:00:05Z',
+                 last_success_at: '2026-10-28T10:00:05Z' }
+  let notify
+  const mountWithNotify = async () => {
+    notify = vi.fn()
+    wrapper = mount(LLMSettings, {
+      global: { stubs: { OwnerFilter: true, ProviderSwitchCard: true, PageLoader: true }, provide: { notify } },
+    })
+    await flushPromises()
+  }
+
+  it('Sync Models shows Syncing models…, polls until the sync is done, then stops', async () => {
+    vi.useFakeTimers()
+    try {
+      api.syncModels.mockResolvedValue({ status: 202, data: { success: true, model_sync: syncing } })
+      api.getModelSync
+        .mockResolvedValueOnce({ data: { model_sync: syncing } })
+        .mockResolvedValueOnce({ data: { model_sync: done } })
+      await mountWithNotify()
+      const syncButton = () => wrapper.findAll('button').filter((b) => /Sync Models|Syncing…/.test(b.text()))[0]
+      await syncButton().trigger('click')
+      await flushPromises()
+      expect(api.syncModels).toHaveBeenCalledWith(5)
+      expect(wrapper.find('[data-test="model-sync-running"]').text()).toBe('Syncing models…')
+      expect(syncButton().attributes('disabled')).toBeDefined()
+
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(api.getModelSync).toHaveBeenCalledTimes(1)
+      expect(wrapper.find('[data-test="model-sync-running"]').exists()).toBe(true)
+      const providerLoads = api.getLlmProviders.mock.calls.length
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(api.getModelSync).toHaveBeenCalledTimes(2)
+      expect(clearApiCache).toHaveBeenCalled()                         // the cached model lists predate the sync
+      expect(api.getLlmProviders.mock.calls.length).toBe(providerLoads + 1)
+      expect(notify).toHaveBeenCalledWith('Synced 3 models from OpenAI (2 new, 1 updated)', 'success')
+      expect(wrapper.find('[data-test="model-sync-running"]').exists()).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(30000)
+      expect(api.getModelSync).toHaveBeenCalledTimes(2)                // done: polling stopped
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('says how a failed sync ended', async () => {
+    vi.useFakeTimers()
+    try {
+      api.syncModels.mockResolvedValue({ status: 202, data: { success: true, model_sync: syncing } })
+      api.getModelSync.mockResolvedValueOnce({ data: { model_sync: { ...syncing, status: 'error', error: '401 Unauthorized' } } })
+      await mountWithNotify()
+      await wrapper.findAll('button').find((b) => b.text() === 'Sync Models').trigger('click')
+      await flushPromises()
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(notify).toHaveBeenCalledWith('Model sync failed for OpenAI: 401 Unauthorized', 'error')
+      await vi.advanceTimersByTimeAsync(30000)
+      expect(api.getModelSync).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('adding a provider saves it at once and watches its first sync', async () => {
+    vi.useFakeTimers()
+    try {
+      const added = { id: 9, name: 'Mine', provider_type: 'openai', base_url: '', has_api_key: true, model_count: 0,
+                      is_active: true, metadata: { model_sync: { ...syncing, trigger: 'create' } } }
+      api.createLlmProvider.mockResolvedValue({ status: 201, data: added })
+      await mountWithNotify()
+      api.getLlmProviders.mockResolvedValue({ data: { count: 3, results: [...providers, added] } })
+      api.getModelSync.mockResolvedValueOnce({ data: { model_sync: { ...done, trigger: 'create' } } })
+      const form = wrapper.findAll('form').find((f) => f.find('[data-test="provider-type"]').exists())
+      await form.trigger('submit')
+      await flushPromises()
+      expect(api.createLlmProvider).toHaveBeenCalledTimes(1)
+      expect(notify).toHaveBeenCalledWith('Provider added — syncing its models…', 'success')
+      expect(wrapper.find('[data-test="model-sync-running"]').exists()).toBe(true)
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(api.getModelSync).toHaveBeenCalledWith(9, expect.anything())
+      expect(notify).toHaveBeenCalledWith('Synced 3 models from Mine (2 new, 1 updated)', 'success')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a sync still running when the page opens is watched without a notification', async () => {
+    vi.useFakeTimers()
+    try {
+      api.getLlmProviders.mockResolvedValue({ data: { count: 2, results: [
+        { ...providers[0], metadata: { model_sync: { ...syncing, trigger: 'auto' } } }, providers[1]] } })
+      api.getModelSync.mockResolvedValueOnce({ data: { model_sync: { ...done, trigger: 'auto' } } })
+      await mountWithNotify()
+      expect(wrapper.find('[data-test="model-sync-running"]').exists()).toBe(true)
+      api.getLlmProviders.mockResolvedValue({ data: { count: 2, results: providers } })
+      await vi.advanceTimersByTimeAsync(3000)
+      expect(api.getModelSync).toHaveBeenCalledTimes(1)
+      expect(notify).not.toHaveBeenCalledWith(expect.stringContaining('Synced'), expect.anything())
+      expect(wrapper.find('[data-test="model-sync-running"]').exists()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

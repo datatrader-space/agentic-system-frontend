@@ -84,7 +84,7 @@
                       Auto-sync daily
                     </label>
                     <span class="text-slate-300">·</span>
-                    <span v-if="syncing[provider.id]" class="text-slate-500">Syncing…</span>
+                    <span v-if="isSyncing(provider)" class="text-slate-500" data-test="model-sync-running">Syncing models…</span>
                     <span v-else-if="!provider.metadata?.model_sync" class="text-slate-400">Not synced yet</span>
                     <span v-else-if="provider.metadata.model_sync.status === 'error'" class="text-red-600 break-words max-w-[200px] sm:max-w-md"
                           :title="provider.metadata.model_sync.error">
@@ -128,10 +128,10 @@
               <button
                 v-if="SYNCABLE_TYPES.includes(provider.provider_type)"
                 @click="syncModels(provider)"
-                :disabled="syncing[provider.id]"
+                :disabled="isSyncing(provider)"
                 class="px-3 py-1.5 text-[12px] font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm whitespace-nowrap disabled:opacity-50"
               >
-                {{ syncing[provider.id] ? 'Syncing…' : 'Sync Models' }}
+                {{ isSyncing(provider) ? 'Syncing…' : 'Sync Models' }}
               </button>
 
               <!-- Delete Button -->
@@ -564,7 +564,8 @@
 
 <script setup>
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import api from '../services/api'
+import api, { clearApiCache } from '../services/api'
+import { usePoller } from '../composables/usePoller'
 import OwnerFilter from '../components/common/OwnerFilter.vue'
 import PageLoader from '../components/common/PageLoader.vue'
 import ProviderSwitchCard from '../components/providers/ProviderSwitchCard.vue'
@@ -728,7 +729,10 @@ const syncEmbeddingModels = async () => {
   if (!embProvider.value || syncingEmb.value) return
   syncingEmb.value = true
   try {
-    await api.syncModels(embProvider.value)
+    const provider = providers.value.find((p) => p.id === embProvider.value)
+    const started = await startSync(provider || { id: embProvider.value }, { announce: false })
+    const state = started?.status === 'syncing' ? await waitForSync(embProvider.value) : started
+    if (state?.status === 'error') throw new Error(state.error || 'the sync failed')
     await Promise.all([refreshModels(), loadProviders().catch(() => {})])
     // `notify` here is the INJECTED function form notify(msg, type) — NOT the imported object with
     // .success()/.error() methods. Calling notify.success(...) throws "is not a function".
@@ -992,7 +996,7 @@ const makesText = (makes = []) => {
 }
 // Provider types whose model list the backend can discover (provider_model_sync.SYNCABLE_TYPES).
 const SYNCABLE_TYPES = computed(() => providerTypes.value.filter((t) => t.syncable).map((t) => t.type))
-const syncing = ref({})          // { [providerId]: boolean }
+const syncing = ref({})          // { [providerId]: boolean } while the Sync request itself is in flight
 const savingAutoSync = ref({})   // { [providerId]: boolean }
 
 // Absent means ON — the backend re-syncs every provider daily unless it was switched off.
@@ -1031,6 +1035,69 @@ const loadProviders = async () => {
   if (ownerFilter.value) params.owner = ownerFilter.value
   const response = await api.getLlmProviders(params)
   providers.value = response.data.results || response.data
+  if (providers.value.some(syncRunning)) syncPoller.start({ immediate: false })
+}
+
+// ── Model sync: it runs on the server in the background ──
+// Adding a provider and pressing Sync Models both answer at once with `model_sync.status === 'syncing'`;
+// the page then asks for that provider's sync state every few seconds until it is ok, skipped or error.
+const syncRunning = (provider) => provider?.metadata?.model_sync?.status === 'syncing'
+const isSyncing = (provider) => !!syncing.value[provider.id] || syncRunning(provider)
+const syncsStartedHere = new Set()   // only a sync started on this page says how it ended
+const syncWaiters = {}               // { [providerId]: [resolve] } — the embedding picker waits for its sync
+
+const setSyncState = (provider, state) => {
+  if (state) provider.metadata = { ...(provider.metadata || {}), model_sync: state }
+}
+
+const syncFinished = async (provider) => {
+  const state = provider.metadata.model_sync
+  if (syncsStartedHere.delete(provider.id)) {
+    if (state.status === 'ok') {
+      notify(`Synced ${(state.created || 0) + (state.updated || 0)} models from ${provider.name} (${state.created || 0} new, ${state.updated || 0} updated)`, 'success')
+    } else if (state.status === 'skipped') {
+      notify(`Sync skipped: ${state.error}`, 'info')
+    } else {
+      notify(`Model sync failed for ${provider.name}: ${state.error || 'upstream error'}`, 'error')
+    }
+  }
+  for (const resolve of syncWaiters[provider.id] || []) resolve(state)
+  delete syncWaiters[provider.id]
+}
+
+const syncPoller = usePoller(async ({ signal }) => {
+  const finished = []
+  for (const provider of providers.value.filter(syncRunning)) {
+    const { data } = await api.getModelSync(provider.id, { signal })
+    setSyncState(provider, data?.model_sync)
+    if (!syncRunning(provider)) finished.push(provider)
+  }
+  if (finished.length) {
+    // The sync wrote models server-side; the cached model and provider lists are from before it.
+    clearApiCache()
+    await Promise.all(finished.map(syncFinished))
+    await Promise.all([refreshModels().catch(() => {}), loadProviders().catch(() => {})])
+  }
+  return providers.value.some(syncRunning)
+}, { interval: 3000, stopWhen: (stillRunning) => !stillRunning })
+
+const waitForSync = (providerId) => new Promise((resolve) => {
+  (syncWaiters[providerId] = syncWaiters[providerId] || []).push(resolve)
+})
+
+// POST the sync and start watching it. Throws when the server refused to start it. `announce: false` when
+// the caller says itself how it ended (the embedding picker).
+const startSync = async (provider, { announce = true } = {}) => {
+  syncing.value[provider.id] = true
+  try {
+    const { data } = await api.syncModels(provider.id)
+    setSyncState(provider, data?.model_sync)
+    if (announce) syncsStartedHere.add(provider.id)
+    syncPoller.start({ immediate: false })
+    return data?.model_sync
+  } finally {
+    syncing.value[provider.id] = false
+  }
 }
 
 const loadModelsPage = async () => {
@@ -1109,9 +1176,14 @@ const testModel = async (model) => {
 
 const createProvider = async () => {
   try {
-    await api.createLlmProvider(newProvider.value)
-    // Models auto-sync server-side on create — reload both so they show up immediately.
-    notify('Provider added — models synced automatically', 'success')
+    const { data } = await api.createLlmProvider(newProvider.value)
+    // The provider is saved; its models sync in the background, and the list says when that is done.
+    if (syncRunning(data)) {
+      syncsStartedHere.add(data.id)
+      notify('Provider added — syncing its models…', 'success')
+    } else {
+      notify('Provider added', 'success')
+    }
     newProvider.value = {
       name: '',
       provider_type: 'openrouter',
@@ -1179,17 +1251,12 @@ const removeModel = async (model) => {
 
 // Generic manual re-sync — works for every syncable provider type via one backend endpoint.
 const syncModels = async (provider) => {
-  if (syncing.value[provider.id]) return
-  syncing.value[provider.id] = true
+  if (isSyncing(provider)) return
   try {
-    const response = await api.syncModels(provider.id)
-    notify(response.data.message || 'Models synced', 'success')
-    await refreshModels()
+    await startSync(provider)
   } catch (error) {
     notify('Failed to sync: ' + apiError(error, 'upstream error'), 'error')
-  } finally {
-    syncing.value[provider.id] = false
-    // The backend records every attempt (success or failure) on the provider — refresh to show it.
+    // The backend records every attempt on the provider — refresh to show it.
     await loadProviders().catch(() => {})
   }
 }
