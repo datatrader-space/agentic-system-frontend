@@ -67,7 +67,7 @@
 import { computed, inject, onMounted, ref } from 'vue'
 import api from '../../services/api'
 import { useRoute, useRouter } from 'vue-router'
-import { House, Bot, BookOpen, Files, Workflow, Database, Clapperboard, CalendarClock, Activity, ShieldCheck, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
+import { House, CodeXml, Bot, BookOpen, Files, Workflow, Database, Clapperboard, CalendarClock, Activity, ShieldCheck, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
 import BrandMark from '../common/BrandMark.vue'
 import { prefetchFromEvent, prefetchRoutesWhenIdle } from '../../utils/prefetchRoute'
 import { useLayoutStore } from '../../stores/useLayoutStore'
@@ -119,12 +119,8 @@ const initials = computed(() => {
 const sectionLabels = { '/dashboard': 'Workspace', '/dashboard/workflow-builder': 'Create', '/dashboard/schedules': 'Manage' }
 const primaryNav = [
   { to: '/dashboard', exact: true, label: 'Home', 'data-tour': 'home', iconComponent: House },
-  // Hidden for now (route/page still works directly): Let's Code.
-  // { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", 'data-tour': 'lets-code', icon: ['M16 18l6-6-6-6', 'M8 6l-6 6 6 6'] },
+  { to: '/dashboard/lets-code', match: '/dashboard/lets-code', label: "Let's Code", 'data-tour': 'lets-code', iconComponent: CodeXml },
   { to: '/dashboard/agents', match: '/dashboard/agents', label: 'Agents', 'data-tour': 'agents', iconComponent: Bot },
-  // Hidden from the sidebar — the route stays live (/dashboard/super-agent), and DelegationsPage +
-  // the admin shell still link to it. A naked New Chat already opens the Platform Super Agent.
-  // { to: '/dashboard/super-agent', match: '/dashboard/super-agent', label: 'Super Agent', 'data-tour': 'super-agent', icon: ['M12 2l2.5 6.5L21 9l-5 4 1.5 7L12 16l-5.5 4L8 13 3 9l6.5-.5z'] },
   { to: '/dashboard/knowledge', match: '/dashboard/knowledge', label: 'Knowledge & RAG', 'data-tour': 'knowledge', iconComponent: BookOpen },
   // The AADML Asset Library: the files of the person's chats only (Video Studio and Training Data keep their own).
   { to: '/dashboard/assets', match: '/dashboard/assets', label: 'Asset Library', 'data-tour': 'assets', iconComponent: Files },
