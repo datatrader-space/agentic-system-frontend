@@ -225,12 +225,10 @@ jobs:
       # built-in content (Pricing its static plans, Login no social buttons). Median of
       # three runs. Thresholds and pages: lighthouserc.json. Reports stay in GitHub (filesystem target),
       # never on LHCI's public storage.
-      # WARN FIRST: LCP <= 2.5 s, CLS <= 0.1, TBT <= 200 ms (lab proxy for INP) are `warn` in lighthouserc.json,
-      # because the first measurement already missed (CLS 0.138 on /features). While they are warnings, a
-      # Lighthouse crash must not hold back a deploy either, hence continue-on-error. Once this job's numbers
-      # pass with margin, make them `error` and remove continue-on-error: then a slower page stops the deploy.
+      # CLS <= 0.1 is an `error` (every page passed once the cookie banner waited for the font, 2026-10-29): a
+      # layout shift stops the deploy. LCP <= 2.5 s and TBT <= 200 ms (lab proxy for INP) stay `warn`: on this
+      # runner's simulated phone LCP is 2.8-3.5 s on every page, and TBT has no recorded margin yet.
       - name: Lighthouse
-        continue-on-error: true
         run: ci/lighthouse/node_modules/.bin/lhci autorun
 
       - name: Upload the Lighthouse reports
@@ -241,6 +239,7 @@ jobs:
           path: .lighthouseci/
           retention-days: 14
           if-no-files-found: warn
+          include-hidden-files: true      # .lighthouseci is a dot folder
 
   # Ship it. A called workflow, not a `workflow_run` chain: `needs` makes the ordering explicit
   # and puts the deploy in THIS run, so a push to main visibly builds and deploys in one place.
