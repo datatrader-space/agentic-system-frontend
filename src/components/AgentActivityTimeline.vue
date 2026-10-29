@@ -361,8 +361,10 @@ const sourceItems = computed(() => {
   for (const s of props.sources || []) {
     const name = (s.name || '').trim()
     if (!name || seen.has(name)) continue
-    seen.add(name)
     const url = /^https?:\/\//i.test(s.ref || '') ? s.ref : ''
+    // The backend names a whole category after its kind ({kind: 'web', name: 'Web'}): not a source.
+    if (!url && name.toLowerCase() === String(s.kind || '').trim().toLowerCase()) continue
+    seen.add(name)
     items.push({ name, url })
   }
   return items

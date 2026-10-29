@@ -98,6 +98,7 @@ describe('AgentActivityTimeline', () => {
   it('lists each source on its own line, linked, without a bare kind like "Web"', () => {
     const w = mount(AgentActivityTimeline, { props: { steps: [builderStep], isComplete: true, sources: [
       { kind: 'web', name: '', ref: '' },
+      { kind: 'web', name: 'Web', ref: '' },          // what production sends (conv 3028)
       { kind: 'web', name: 'Solar prices rise 3.2%', ref: 'https://www.pv-magazine.com/a' },
       { kind: 'web', name: 'Solar prices rise 3.2%', ref: 'https://www.pv-magazine.com/a#x' },
       { kind: 'kb', name: 'Q3 notes', ref: 'doc:12' },
