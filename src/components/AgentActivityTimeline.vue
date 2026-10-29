@@ -141,9 +141,15 @@
     </div>
 
     <!-- Sources footer. -->
-    <div v-if="sources && sources.length" class="agent-sources">
+    <div v-if="sourceItems.length" class="agent-sources">
       <span class="agent-sources-label">Sources used:</span>
-      <span class="agent-sources-list">{{ sourceNames }}</span>
+      <ul class="agent-sources-list">
+        <li v-for="(s, i) in sourceItems" :key="`src-${i}`" class="agent-source">
+          <a v-if="s.url" :href="s.url" target="_blank" rel="noopener noreferrer" :title="s.url"
+             class="agent-source-link">{{ s.name }}</a>
+          <span v-else>{{ s.name }}</span>
+        </li>
+      </ul>
     </div>
 
     <!-- Builder/debug details (emulator only; gated by `debug`). The main timeline above stays clean —
@@ -346,14 +352,20 @@ const tokensText = computed(() =>
   props.tokens != null && props.tokens > 0 ? `${fmtTokens(props.tokens)} tokens` : '',
 )
 
-// Deduplicate display names (a single source may be cited with multiple refs).
-const sourceNames = computed(() => {
-  const seen = []
+// One item per source, linked when its ref is a web address. Deduplicated by name (a source may be cited with
+// several refs). A bare kind with no name (e.g. "web") is a category, not a source: it was shown as "Web,"
+// ahead of the real titles in one run-on line (live, conv 3028, 2026-10-28).
+const sourceItems = computed(() => {
+  const items = []
+  const seen = new Set()
   for (const s of props.sources || []) {
-    const name = s.name || s.kind
-    if (name && !seen.includes(name)) seen.push(name)
+    const name = (s.name || '').trim()
+    if (!name || seen.has(name)) continue
+    seen.add(name)
+    const url = /^https?:\/\//i.test(s.ref || '') ? s.ref : ''
+    items.push({ name, url })
   }
-  return seen.join(', ')
+  return items
 })
 
 function fmtDuration(ms) {
@@ -558,13 +570,19 @@ function fmtDuration(ms) {
 
 /* Sources footer */
 .agent-sources {
-  @apply mt-1.5 flex flex-wrap items-center gap-1;
+  @apply mt-1.5;
 }
 .agent-sources-label {
   @apply text-gray-400;
 }
 .agent-sources-list {
-  @apply text-gray-600 font-medium;
+  @apply mt-1 flex flex-col gap-0.5 text-gray-600;
+}
+.agent-source {
+  @apply truncate;
+}
+.agent-source-link {
+  @apply text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-blue-700 hover:decoration-blue-400;
 }
 
 /* Builder/debug details (emulator only) */

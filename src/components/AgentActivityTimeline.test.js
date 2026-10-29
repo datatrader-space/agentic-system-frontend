@@ -95,6 +95,20 @@ describe('AgentActivityTimeline', () => {
     expect(w.text()).toBe('')
   })
 
+  it('lists each source on its own line, linked, without a bare kind like "Web"', () => {
+    const w = mount(AgentActivityTimeline, { props: { steps: [builderStep], isComplete: true, sources: [
+      { kind: 'web', name: '', ref: '' },
+      { kind: 'web', name: 'Solar prices rise 3.2%', ref: 'https://www.pv-magazine.com/a' },
+      { kind: 'web', name: 'Solar prices rise 3.2%', ref: 'https://www.pv-magazine.com/a#x' },
+      { kind: 'kb', name: 'Q3 notes', ref: 'doc:12' },
+    ] } })
+    const items = w.findAll('.agent-source')
+    expect(items.map((i) => i.text())).toEqual(['Solar prices rise 3.2%', 'Q3 notes'])
+    expect(items[0].find('a').attributes('href')).toBe('https://www.pv-magazine.com/a')
+    expect(items[1].find('a').exists()).toBe(false)
+    expect(w.text()).not.toContain('Web,')
+  })
+
   it('does not render an empty "Sources used" footer when there are no sources', () => {
     const w = mount(AgentActivityTimeline, { props: { steps: [builderStep], isComplete: true } })
     expect(w.text()).not.toContain('Sources used')
