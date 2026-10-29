@@ -3,13 +3,13 @@
 //
 //   node scripts/check-bundle-size.mjs [--dist dist] [--budget-kb 200] [--json dist-report/bundle-size.json]
 //
-// "Entry JS" is what dist/index.html makes the browser fetch before any lazy route runs: the
+// "Entry JS" is what the app's shell makes the browser fetch before any lazy route runs: the
 // <script type="module" src> plus every <link rel="modulepreload">. Vite writes one modulepreload per
 // chunk in the entry's static import graph, so their sum is the first-load JS. It is measured gzipped
 // (zlib level 9; nginx serves level 5, so production bytes are a little larger), in kB of 1000 bytes,
 // the unit `vite build` prints. Over the budget the script exits 1, which fails the CI build.
 // CSS is reported (the entry's stylesheets and all CSS in the build) but not budgeted.
-import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'node:fs'
 import { gzipSync } from 'node:zlib'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -60,8 +60,15 @@ const walk = (dir) => readdirSync(dir).flatMap((name) => {
 
 const kb = (bytes) => Math.round(bytes / 10) / 100
 
+// The shell: dist/app.html once scripts/prerender.mjs has run (index.html is then the prerendered home page, whose
+// extra stylesheets belong to that page), else dist/index.html as Vite wrote it. Both load the same entry JS.
+export function shellFile(distDir) {
+  return existsSync(path.join(distDir, 'app.html')) ? 'app.html' : 'index.html'
+}
+
 export function measure(distDir, { budgetKb = DEFAULT_BUDGET_KB, base = '/' } = {}) {
-  const html = readFileSync(path.join(distDir, 'index.html'), 'utf8')
+  const shell = shellFile(distDir)
+  const html = readFileSync(path.join(distDir, shell), 'utf8')
   const entry = parseEntryAssets(html, base)
   const row = (kind) => (file) => ({ file, kind, ...sizeOf(path.join(distDir, file)) })
   // A chunk named twice (script AND modulepreload) is downloaded once, so it is counted once.
@@ -77,6 +84,7 @@ export function measure(distDir, { budgetKb = DEFAULT_BUDGET_KB, base = '/' } = 
   const entryJsGzip = sum(entryJs, 'gzip')
   return {
     unit: 'kB = 1000 bytes; gzip = zlib level 9',
+    shell,
     budget_kb_gzip: budgetKb,
     entry_js: { files: entryJs, raw_kb: kb(sum(entryJs, 'raw')), gzip_kb: kb(entryJsGzip) },
     entry_css: { files: entryCss, raw_kb: kb(sum(entryCss, 'raw')), gzip_kb: kb(sum(entryCss, 'gzip')) },
@@ -101,7 +109,7 @@ function main() {
   const opts = args(process.argv.slice(2))
   const report = measure(opts.dist, { budgetKb: opts.budgetKb })
   const line = (r) => `  ${String(kb(r.gzip)).padStart(8)} kB gz  ${String(kb(r.raw)).padStart(9)} kB  ${r.kind.padEnd(13)} ${r.file}`
-  console.log('Entry JS (index.html script + modulepreloads):')
+  console.log(`Entry JS (${report.shell} script + modulepreloads):`)
   report.entry_js.files.forEach((r) => console.log(line(r)))
   console.log(`  total ${report.entry_js.gzip_kb} kB gzip (${report.entry_js.raw_kb} kB raw); budget ${opts.budgetKb} kB gzip`)
   console.log(`Entry CSS: ${report.entry_css.gzip_kb} kB gzip (${report.entry_css.raw_kb} kB raw), ${report.entry_css.files.length} file(s)`)
@@ -111,7 +119,7 @@ function main() {
     writeFileSync(opts.json, JSON.stringify(report, null, 2) + '\n')
   }
   if (report.entry_js.files.length === 0) {
-    console.error('!! no entry script found in index.html: the parser and the build disagree')
+    console.error(`!! no entry script found in ${report.shell}: the parser and the build disagree`)
     process.exit(1)
   }
   if (report.over_budget) {

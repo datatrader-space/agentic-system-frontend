@@ -63,6 +63,13 @@ export function useTheme() {
  * Initialize theme from localStorage or system preference
  */
 function initializeTheme() {
+  // Prerender (src/entry-prerender.js): no storage and no document. The page's boot script sets data-theme the
+  // same way before the first paint (scripts/prerender.mjs).
+  if (import.meta.env.SSR) {
+    currentTheme.value = 'light'
+    return
+  }
+
   // Try to get saved theme from localStorage
   const savedTheme = localStorage.getItem('app-theme')
   

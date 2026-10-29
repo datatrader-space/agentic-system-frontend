@@ -192,12 +192,13 @@ jobs:
         run: npm ci --prefix ci/lighthouse --ignore-scripts
 
       # The main app only (the Training Data page is not on any page measured below). ANALYZE=1 adds
-      # rollup-plugin-visualizer (vite.config.js), which writes dist/stats.html.
+      # rollup-plugin-visualizer (vite.config.js), which writes dist/stats.html. Then the five public pages'
+      # HTML, as the image build writes it (`npm run build`, scripts/prerender.mjs).
       - name: Build with the bundle report
         env:
           ANALYZE: "1"
           NODE_OPTIONS: --max-old-space-size=4096
-        run: npx vite build
+        run: npx vite build && node scripts/prerender.mjs
 
       # Fails over 200 kB gzip of first-load JS: the script index.html loads plus its modulepreloads.
       - name: First-load JS budget

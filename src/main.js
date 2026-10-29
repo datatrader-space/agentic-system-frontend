@@ -16,6 +16,8 @@ import 'virtual:icon-subset'
 import { startNavProgress, doneNavProgress } from './components/app-shell/NavProgress.vue'
 import { prefetchRoute } from './utils/prefetchRoute'
 import { installChunkReload } from './services/chunkReload'
+import { prerenderedRoutes, redirectsSignedIn, SIGNED_IN_HINT_KEY, takeOverPrerendered } from './prerenderedPages'
+import reveal, { keepOnScreenShown } from './directives/reveal'
 
 // Brand logo for the Kurumera connector — registered as a local Iconify icon so `icon="kurumera:logo"`
 // renders it everywhere (catalog cards, detail header) exactly like any other `logos:*` mark, with no
@@ -40,7 +42,6 @@ axios.defaults.withCredentials = true
 const LetsCode = () => import('./views/LetsCode.vue')
 const SystemDetail = () => import('./views/SystemDetail.vue')
 const RepositoryPage = () => import('./views/RepositoryPage.vue')
-const Login = () => import('./views/Login.vue')
 const ForgotPassword = () => import('./views/ForgotPassword.vue')
 const ResetPassword = () => import('./views/ResetPassword.vue')
 const VerifyEmail = () => import('./views/VerifyEmail.vue')
@@ -73,12 +74,9 @@ const SuperAgentView = () => import('./views/SuperAgentView.vue')
 const DelegationsPage = () => import('./views/DelegationsPage.vue')
 const AgentEditor = () => import('./views/AgentEditor.vue')
 const AgentMonitor = () => import('./views/AgentMonitor.vue')
-const LandingPage = () => import('./views/LandingPage.vue')
-const Features = () => import('./views/Features.vue')
 const HowItWorks = () => import('./views/HowItWorks.vue')
 const Blog = () => import('./views/Blog.vue')
 const BlogPost = () => import('./views/BlogPost.vue')
-const Pricing = () => import('./views/Pricing.vue')
 const About = () => import('./views/About.vue')
 const Contact = () => import('./views/Contact.vue')
 // One registration wizard. `ServiceRegistrationV2` was a SECOND, divergent implementation:
@@ -122,12 +120,8 @@ const SettingsLayout = () => import('./components/settings/SettingsLayout.vue')
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    {
-      path: '/',
-      name: 'landing',
-      component: LandingPage,
-      meta: { requiresAuth: false, public: true }
-    },
+    // /, /features, /pricing, /login and /signup: their HTML is also written at build time (prerenderedPages.js).
+    ...prerenderedRoutes,
     // Public shareable webchat (no login): full page + embed (runs in the widget iframe).
     // Shared conversation snapshot (ChatGPT-style link). Public + read-only; "Continue this chat"
     // forks it into the viewer's own account and bounces them through login if needed.
@@ -135,12 +129,6 @@ const router = createRouter({
       meta: { requiresAuth: false, public: true } },
     { path: '/a/:token', name: 'public-chat', component: PublicChat, meta: { requiresAuth: false, public: true } },
     { path: '/embed/:token', name: 'public-chat-embed', component: PublicChat, meta: { requiresAuth: false, public: true } },
-    {
-      path: '/features',
-      name: 'features',
-      component: Features,
-      meta: { requiresAuth: false, public: true }
-    },
     {
       path: '/how-it-works',
       name: 'how-it-works',
@@ -157,12 +145,6 @@ const router = createRouter({
       path: '/blog/:slug',
       name: 'blog-post',
       component: BlogPost,
-      meta: { requiresAuth: false, public: true }
-    },
-    {
-      path: '/pricing',
-      name: 'pricing',
-      component: Pricing,
       meta: { requiresAuth: false, public: true }
     },
     {
@@ -208,18 +190,6 @@ const router = createRouter({
     // /docs/:slug param route, so this redirect wins wherever it is declared.
     { path: '/docs/privacy', redirect: '/privacy' },
     { path: '/admin', name: 'admin', redirect: '/admin-dashboard/overview' },
-    {
-      path: '/login',
-      name: 'login',
-      component: Login,
-      meta: { requiresGuest: true, public: true }
-    },
-    {
-      path: '/signup',
-      name: 'signup',
-      component: Login,
-      meta: { requiresGuest: true, public: true }
-    },
     {
       path: '/forgot-password',
       name: 'forgot-password',
@@ -470,6 +440,10 @@ function _snapshotFrom(response) {
     authenticated: !!response?.data?.authenticated,
     isStaff: !!response?.data?.user?.is_staff,
   }
+  try {
+    if (_auth.authenticated) localStorage.setItem(SIGNED_IN_HINT_KEY, '1')
+    else localStorage.removeItem(SIGNED_IN_HINT_KEY)
+  } catch { /* storage off: prerendered pages simply show */ }
   return _auth
 }
 
@@ -496,7 +470,7 @@ router.beforeEach(async (to, from, next) => {
   if (!to.meta.requiresAuth) {
     // Already-authenticated users shouldn't see the marketing landing page or the
     // login page — send them straight into the app.
-    if (to.name === 'landing' || to.meta.requiresGuest) {
+    if (redirectsSignedIn(to)) {
       if (_auth) {
         if (_auth.authenticated) return next('/dashboard')
         return next()
@@ -602,7 +576,6 @@ const app = createApp(App)
 app.use(createPinia())
 
 // v-reveal — scroll-reveal directive (Vibrant Light Mesh power-up)
-import reveal from './directives/reveal'
 app.directive('reveal', reveal)
 
 // Global toast notifications (replaces native browser alert popups everywhere)
@@ -640,7 +613,24 @@ app.provide('notify', (message, type = 'info') => {
 })
 
 app.use(router)
-app.mount('#app')
+
+// A prerendered page (scripts/prerender.mjs) is already on screen. The app takes it over once the route has
+// resolved, auth check and page code included, so the page's own render replaces the identical markup in one step:
+// mounting at once would clear it to an empty page until then. Elements already on screen stay shown instead of
+// starting their scroll-reveal from hidden, and what the visitor typed meanwhile is kept.
+const appRoot = document.getElementById('app')
+if (appRoot.hasAttribute('data-prerendered')) {
+  router.isReady().catch(() => { /* a failed first navigation still gets the app */ }).then(() => {
+    try {
+      keepOnScreenShown(() => takeOverPrerendered(appRoot, () => app.mount(appRoot)))
+    } finally {
+      // Also when the mount throws: a page hidden for a signed-in visitor must not stay hidden.
+      appRoot.removeAttribute('data-prerendered')
+    }
+  })
+} else {
+  app.mount(appRoot)
+}
 
 // The brand logos (`logos:*`, ~55 kB gzipped, the largest file of a first load) are their own chunk, registered
 // once the browser is idle after the first render, so they do not compete with the first page's own code on a slow

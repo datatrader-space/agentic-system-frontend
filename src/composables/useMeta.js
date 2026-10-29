@@ -9,7 +9,7 @@
  *   useMeta({ title: 'Features — AADML', description: 'Discover...' })
  *   useMeta({ title: computed(() => page.value?.title), jsonLd: () => ({...}) })
  */
-import { onMounted, onUnmounted, watchEffect, unref } from 'vue'
+import { onMounted, onUnmounted, watchEffect, unref, useSSRContext } from 'vue'
 
 const defaultTitle = 'AADML — AI Agent Platform'
 const defaultDescription = 'Build, deploy, and manage AI agents with tools, schedules, and learning capabilities.'
@@ -20,6 +20,19 @@ function resolve(v) {
 }
 
 export function useMeta(options = {}) {
+  // Prerender (src/entry-prerender.js): there is no document; scripts/prerender.mjs writes these into the page.
+  if (import.meta.env.SSR) {
+    const context = useSSRContext()
+    if (context) {
+      context.meta = {
+        title: resolve(options.title) || defaultTitle,
+        description: resolve(options.description) || defaultDescription,
+        jsonLd: resolve(options.jsonLd) || null,
+      }
+    }
+    return
+  }
+
   const apply = () => {
     const title = resolve(options.title) || defaultTitle
     const description = resolve(options.description) || defaultDescription

@@ -4,12 +4,13 @@ import { configDefaults } from 'vitest/config'
 import { fileURLToPath, URL } from 'node:url'
 import iconSubset from './scripts/vite-icon-subset.js'
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, isSsrBuild }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   // Bundle size report (page-speed plan Phase 0 item 6): `ANALYZE=1 npx vite build` writes
-  // dist/stats.html. Off by default, so a normal build is unchanged; loaded only when asked for.
-  const analyze = process.env.ANALYZE === '1'
+  // dist/stats.html. Off by default, so a normal build is unchanged; loaded only when asked for. Never for the
+  // prerender's server build (scripts/prerender.mjs), which would overwrite the app's report with its own.
+  const analyze = process.env.ANALYZE === '1' && !isSsrBuild
   const analyzePlugins = analyze
     ? [import('rollup-plugin-visualizer').then(({ visualizer }) =>
         visualizer({ filename: 'dist/stats.html', gzipSize: true, brotliSize: true, template: 'treemap' }))]
@@ -30,6 +31,9 @@ export default defineConfig(({ mode }) => {
       // Bump the warning ceiling: our vendor chunks (Monaco, pdf.js, vue-flow)
       // are legitimately large and split out below, so 500 kB was pure noise.
       chunkSizeWarningLimit: 1500,
+      // dist/.vite/ssr-manifest.json: which built files hold each source module. scripts/prerender.mjs reads it to
+      // link a prerendered page's own stylesheets (they live in its lazy route chunk), then deletes it.
+      ssrManifest: !isSsrBuild,
       rollupOptions: {
         // Silence one benign, known warning: useChatStore is intentionally
         // dynamically imported in useCanvasStore.publish() to break a static

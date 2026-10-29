@@ -52,5 +52,23 @@ describe('bundle size budget', () => {
     expect(ok.total_css.count).toBe(2)
 
     expect(measure(dist, { budgetKb: 1 }).over_budget).toBe(true)
+    expect(ok.shell).toBe('index.html')
+  })
+
+  it('measures the shell (app.html) once the public pages are prerendered, not the home page', () => {
+    const dist = mkdtempSync(path.join(tmpdir(), 'bundle-'))
+    mkdirSync(path.join(dist, 'assets'))
+    const entry = '<script type="module" src="/assets/a.js"></script><link rel="stylesheet" href="/assets/a.css">'
+    writeFileSync(path.join(dist, 'app.html'), entry)
+    // The prerendered home page also links its own page stylesheet.
+    writeFileSync(path.join(dist, 'index.html'), `${entry}<link rel="stylesheet" href="/assets/Landing.css">`)
+    writeFileSync(path.join(dist, 'assets', 'a.js'), 'export const a = 1\n')
+    writeFileSync(path.join(dist, 'assets', 'a.css'), 'body{margin:0}')
+    writeFileSync(path.join(dist, 'assets', 'Landing.css'), '.hero{color:red}')
+
+    const report = measure(dist, { budgetKb: 200 })
+    expect(report.shell).toBe('app.html')
+    expect(report.entry_js.files.map((f) => f.file)).toEqual(['assets/a.js'])
+    expect(report.entry_css.files.map((f) => f.file)).toEqual(['assets/a.css'])
   })
 })
