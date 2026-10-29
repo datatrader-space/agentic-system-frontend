@@ -37,9 +37,10 @@
                 <ModelPicker
                   :model-value="agent.default_model"
                   :models="chatModels"
-                  placeholder="Search and select a model..."
+                  :placeholder="defaultLabel('default_model', 'Search and select a model...')"
                   @update:model-value="agent.default_model = $event"
                 />
+                <button v-if="agent.default_model && platformDefaults.default_model" type="button" class="mt-1 text-[11px] font-semibold text-[#2563EB]" data-test="main-use-default" @click="agent.default_model = null">Use platform default</button>
               </div>
               <div class="border-t border-[#F2F4F7] pt-3">
                 <p class="text-xs font-semibold text-[#344054]">Capability models <span class="font-normal text-[#98A2B3]">- optional</span></p>
@@ -48,13 +49,13 @@
                   <div v-for="c in CAPS" :key="c.field" :data-test="`cap-${c.field}`">
                     <div class="mb-1 flex items-center justify-between">
                       <label class="text-[11.5px] font-medium text-[#475569]">{{ c.label }}</label>
-                      <button v-if="agent[c.field]" type="button" class="text-[11px] font-semibold text-[#2563EB]" @click="agent[c.field] = null">Reset to Auto</button>
+                      <button v-if="agent[c.field]" type="button" class="text-[11px] font-semibold text-[#2563EB]" @click="agent[c.field] = null">{{ platformDefaults[c.field] ? 'Use platform default' : 'Reset to Auto' }}</button>
                     </div>
                     <p v-if="c.hint" class="mb-1 text-[10.5px] leading-snug text-[#98A2B3]">{{ c.hint }}</p>
                     <ModelPicker
                       :model-value="agent[c.field]"
                       :models="modelsFor(c)"
-                      placeholder="Auto (use main model)"
+                      :placeholder="defaultLabel(c.field, 'Auto (use main model)')"
                       @update:model-value="agent[c.field] = $event"
                     />
                     <p v-if="capabilityWarning(c)" class="mt-1 text-[10.5px] leading-snug text-[#B54708]">
@@ -132,7 +133,7 @@
           <div v-else class="space-y-1.5">
             <div class="flex items-center gap-2 rounded-lg bg-[#F9FAFB] px-3 py-2.5 text-[13px] text-[#344054]">
               <Cpu :size="15" :stroke-width="2" class="text-[#667085]" />
-              {{ currentModelLabel || 'No model selected.' }}
+              {{ currentModelLabel || (platformDefaults.default_model ? `Platform default: ${platformDefaults.default_model.name}` : 'No model selected.') }}
             </div>
             <p v-if="capCount" class="text-[11.5px] text-[#667085]">+ {{ capCount }} capability override{{ capCount === 1 ? '' : 's' }}</p>
             <p v-if="agent.stream_reasoning" class="text-[11.5px] text-[#667085]">Reasoning streaming on</p>
@@ -405,6 +406,18 @@ const models = ref([])
 const providers = ref([])
 const selectedProvider = ref(null)
 const currentModel = ref(null)     // the agent's main model, looked up by id for the card's label
+// The platform's default model per slot, as this person runs it (PLATFORM_MODEL_DEFAULTS_PLAN.md): a slot left
+// empty runs on it, so the picker names it instead of a bare "Auto".
+const platformDefaults = ref({})
+function loadPlatformDefaults() {
+  return api.get('/platform-model-defaults/')
+    .then((r) => { platformDefaults.value = r.data?.defaults || {} })
+    .catch(() => { platformDefaults.value = {} })
+}
+function defaultLabel(slot, fallback) {
+  const m = platformDefaults.value[slot]
+  return m ? `Platform default: ${m.name}` : fallback
+}
 
 // The whole model catalog (thousands of rows) is read only when the model editor opens, once: the card
 // itself names one model, and `loadCurrentModel` asks for just that one (page-speed plan, ADM-1069).
@@ -623,6 +636,7 @@ const currentModelLabel = computed(() => {
 onMounted(() => {
   loadAgentMemory()
   loadSearchModel()
+  loadPlatformDefaults()
   // Account master switch — read-only here; controls live in Settings → Memory. Failure = assume on.
   Promise.resolve().then(() => api.getMemorySettings())
     .then((r) => { account.value = r.data }).catch(() => { account.value = null })

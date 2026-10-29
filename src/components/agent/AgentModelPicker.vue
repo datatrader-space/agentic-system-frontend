@@ -173,8 +173,8 @@
             </div>
 
             <button v-if="source === 'override'" type="button" class="amp-reset" :disabled="saving" @click="pick(null)">
-              <span>Use admin default</span>
-              <span v-if="adminDefault.model_name">{{ adminDefault.model_name }}</span>
+              <span>Use platform default</span>
+              <span v-if="platformDefault.model_name">{{ platformDefault.model_name }}</span>
             </button>
           </div>
         </div>
@@ -212,7 +212,7 @@ const error = ref('')
 const providers = ref([])
 const current = ref(null)
 const source = ref(null)
-const adminDefault = ref({})
+const platformDefault = ref({})
 // A provider's models, fetched when the person opens that provider (`?provider=`), kept for the session. The page
 // load used to fetch every provider's every model (1,111 rows, 194 KB for one account) to show one label.
 const modelsByProvider = ref({})
@@ -236,9 +236,7 @@ const pillLabel = computed(() => {
 
 const sourceLabel = computed(() => ({
   override: 'Your pick',
-  admin_default: 'Admin default',
-  chat_model: 'Your chat model',
-  platform: 'Platform default',
+  platform_default: 'Platform default',
 }[source.value] || ''))
 
 const currentProvider = computed(() => {
@@ -306,7 +304,7 @@ function applyPayload(data) {
   modelsByProvider.value = cache
   current.value = data.current || null
   source.value = data.source || null
-  adminDefault.value = data.admin_default || {}
+  platformDefault.value = data.platform_default || {}
 }
 
 async function load() {

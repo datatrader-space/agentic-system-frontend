@@ -18,7 +18,7 @@ vi.mock('vue-router', () => ({ RouterLink: { template: '<a><slot/></a>' } }))
 import DefineBrainStep from './DefineBrainStep.vue'
 
 const stubs = {
-  ModelPicker: { template: '<div class="model-picker-stub" />' },
+  ModelPicker: { props: ['placeholder'], template: '<div class="model-picker-stub">{{ placeholder }}</div>' },
   RouterLink: { template: '<a><slot/></a>' },
 }
 
@@ -34,6 +34,34 @@ async function mountExpanded(agent = {}) {
   w._agent = a
   return w
 }
+
+describe('DefineBrainStep — a slot left empty names the platform default it runs on', () => {
+  // PLATFORM_MODEL_DEFAULTS_PLAN.md (owner, 2026-10-29): agents inherit the platform default per slot.
+  async function mountWithDefaults(agent = {}) {
+    const api = (await import('../../services/api')).default
+    api.get.mockImplementation((url) => Promise.resolve({
+      data: String(url).includes('platform-model-defaults')
+        ? { defaults: { default_model: { id: 1, name: 'GPT-6 Luna' }, vision_model: { id: 2, name: 'GPT-4o mini' }, audio_model: null } }
+        : [{ id: 10, name: 'gpt', model_id: 'gpt', provider: 1, metadata: {} }],
+    }))
+    return mountExpanded(agent)
+  }
+
+  it('names the default on the card, the main picker and each empty slot', async () => {
+    const w = await mountWithDefaults()
+    expect(w.find('.model-card').text()).toContain('Platform default: GPT-6 Luna')
+    expect(w.find('[data-test="cap-vision_model"]').text()).toContain('Platform default: GPT-4o mini')
+    expect(w.find('[data-test="cap-audio_model"]').text()).toContain('Auto (use main model)')   // no default set
+  })
+
+  it('a chosen slot goes back to the platform default', async () => {
+    const w = await mountWithDefaults({ vision_model: 10 })
+    const back = w.find('[data-test="cap-vision_model"] button')
+    expect(back.text()).toBe('Use platform default')
+    await back.trigger('click')
+    expect(w._agent.vision_model).toBe(null)
+  })
+})
 
 describe('DefineBrainStep — advanced document-ingestion capability rows', () => {
   it('shows an Audio transcription row (speech-to-text) with ingestion helper text', async () => {
@@ -284,15 +312,17 @@ describe('DefineBrainStep — the card reads one model, the editor the catalog (
     return { w, urls: () => api.get.mock.calls.map(([u]) => u) }
   }
 
+  // Besides the agent's own model, the card reads only the platform defaults (seven names): what an empty slot runs
+  // on (PLATFORM_MODEL_DEFAULTS_PLAN.md). Never the whole catalog.
   it("names the agent's model from a lookup of that model alone, never the whole catalog", async () => {
     const { w, urls } = await mountCard({ default_model: 10 })
-    expect(urls()).toEqual(['/llm/models/10/'])
+    expect(urls().sort()).toEqual(['/llm/models/10/', '/platform-model-defaults/'])
     expect(w.find('.model-card').text()).toContain('OpenAI - gpt')
   })
 
-  it('asks for nothing when the agent has no model yet', async () => {
+  it('asks only for the platform defaults when the agent has no model yet', async () => {
     const { w, urls } = await mountCard({})
-    expect(urls()).toEqual([])
+    expect(urls()).toEqual(['/platform-model-defaults/'])
     expect(w.find('.model-card').text()).toContain('No model selected.')
   })
 

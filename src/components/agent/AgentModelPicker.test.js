@@ -7,7 +7,7 @@ import AgentModelPicker from './AgentModelPicker.vue'
 const payload = {
   current: { id: 12, name: 'Sonnet 4.5', model_id: 'claude-sonnet-4-5', provider_type: 'anthropic' },
   source: 'override',
-  admin_default: { provider_type: 'openai', model_name: 'GPT-5' },
+  platform_default: { model_name: 'GPT-5', model_id: 'gpt-5' },
   providers: [
     {
       id: 1,
@@ -72,6 +72,19 @@ describe('AgentModelPicker', () => {
     expect(menu.text()).toContain('Anthropic · Your pick')
     expect(menu.text()).toContain('Providers')
     expect(wrapper.find('[data-test="model-picker-provider-flyout"]').exists()).toBe(false)
+  })
+
+  it('a pick can go back to the platform default, named (PLATFORM_MODEL_DEFAULTS_PLAN.md)', async () => {
+    const wrapper = mountPicker()
+    await flushPromises()
+    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
+    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
+    await wrapper.findAll('.amp-provider').find(b => b.text().includes('Anthropic'))?.trigger('click')
+    await flushPromises()
+    const reset = wrapper.find('.amp-reset')
+    expect(reset.exists()).toBe(true)
+    expect(reset.text()).toContain('Use platform default')
+    expect(reset.text()).toContain('GPT-5')
   })
 
   it('opens a provider card before showing any models', async () => {

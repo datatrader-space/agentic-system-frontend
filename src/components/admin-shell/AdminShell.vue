@@ -106,6 +106,7 @@ const nav = [
   { to: '/admin-dashboard/sandbox-network', label: 'Sandbox Network', icon: ['M12 2a10 10 0 100 20 10 10 0 000-20z', 'M2 12h20', 'M12 2a15 15 0 010 20a15 15 0 010-20z'] },
   { to: '/admin-dashboard/knowledge', label: 'Knowledge & Crawl', icon: ['M2 12a10 10 0 1 0 20 0 10 10 0 1 0-20 0', 'M2 12h20', 'M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20'] },
   { to: '/admin-dashboard/platform-apis', label: 'Platform APIs', icon: ['M12 2 2 7l10 5 10-5z', 'M2 17l10 5 10-5', 'M2 12l10 5 10-5'] },
+  { to: '/admin-dashboard/model-defaults', label: 'Default Models', icon: ['M4 6h16', 'M4 12h16', 'M4 18h10', 'M18 16l2 2 3-3'] },
   { to: '/admin-dashboard/billing', label: 'Billing & Wallets', icon: ['M2 7h20v12H2z', 'M2 11h20', 'M6 15h4'] },
   { to: '/admin-dashboard/model-pricing', label: 'Model Pricing', icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'] },
   { to: '/admin-dashboard/llm-context', label: 'LLM Context', icon: ['M4 7V4h16v3', 'M9 20h6', 'M12 4v16', 'M4 12h16'] },

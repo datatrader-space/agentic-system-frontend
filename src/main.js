@@ -346,6 +346,8 @@ const router = createRouter({
         // The platform's AI APIs (backend PAYMENTS_TOPUP_PLAN.md §7): the only place AI keys are set. Super admin only;
         // people never add keys of their own.
         { path: 'platform-apis', name: 'admin-platform-apis', component: () => import('./views/LLMSettings.vue') },
+        // The model every agent runs on for each job unless its owner picks another (PLATFORM_MODEL_DEFAULTS_PLAN.md).
+        { path: 'model-defaults', name: 'admin-model-defaults', component: () => import('./views/admin/AdminModelDefaults.vue') },
         // The prepaid wallet: markup and top-up limits, people's balances, pricing coverage, revenue.
         { path: 'billing', name: 'admin-billing', component: () => import('./views/admin/AdminBilling.vue') },
         { path: 'llm-context', name: 'admin-llm-context', component: LLMContextDashboard },
