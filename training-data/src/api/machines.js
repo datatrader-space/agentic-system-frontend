@@ -94,3 +94,40 @@ export function jobState(job) {
 }
 
 export const isActive = job => ['queued', 'running', 'uploaded'].includes(job?.state);
+
+// What a machine needs, in words, on both the Your machines page and the Edge Devices tab. Each line is a fact of the
+// backend or the images: the agent speaks Docker Engine API 1.43 (Docker 24); the images are built for linux/amd64; a
+// model runs with 4 GB of memory and 2 processors (machines.payload); training is offered on 8 GB and 30 GB free disk
+// (machines.FIT_MEMORY_GB, FIT_DISK_GB); the GPU is given to a job through NVIDIA's container runtime.
+export const MACHINE_NEEDS = [
+  { id: 'docker', title: 'Linux with Docker 24 or newer', text: 'Docker Engine running, so that docker run works in a terminal on the machine.' },
+  { id: 'cpu', title: 'A 64-bit Intel or AMD processor (x86-64)', text: 'ARM machines, such as a Raspberry Pi or an Apple silicon Mac, cannot run the images yet.' },
+  { id: 'memory', title: '4 GB of free memory to run a model', text: 'To train on the machine as well: 8 GB of memory and 30 GB of free disk.' },
+  { id: 'gpu', title: 'An NVIDIA GPU for training, if you have one', text: 'Optional. It needs the NVIDIA driver and the NVIDIA Container Toolkit. Running a model needs no GPU.' },
+];
+
+// The checks a person runs on the machine when something is wrong. The GPU check pulls from public.ecr.aws, a host the
+// machine already reaches, not Docker Hub. Each one only reads, except ``clean``, which removes
+// the agent, its volume (and the machine key in it) and the job containers it started. The agent's container is
+// aadml-machine, or aadml-machine-<digest> once it has updated itself (ml/machine_agent/agent.py update), so it is found
+// by that part of its name; the job containers carry the label aadml.job (ml/machine_agent/jobs.py).
+export const MACHINE_COMMANDS = {
+  docker: 'docker info --format "{{.ServerVersion}} {{.Architecture}}"',
+  logs: 'docker logs --tail 50 $(docker ps -aq --filter name=aadml-machine | head -n 1)',
+  gpu: 'docker run --rm --gpus all public.ecr.aws/ubuntu/ubuntu:24.04 nvidia-smi',
+  clean: 'docker rm -f $(docker ps -aq --filter name=aadml-machine) $(docker ps -aq --filter label=aadml.job); docker volume rm aadml-machine',
+};
+
+// The command that checks the machine reaches one host over HTTPS: it prints the HTTP status only (any number means
+// the host was reached; 000 means it was not).
+export const reachCommand = host => (/^[A-Za-z0-9.-]{1,253}$/.test(String(host || '')) ? `curl -sS -o /dev/null -w "%{http_code}\\n" https://${host}/` : '');
+
+// The machines in one line for the Edge tab's first step: [tone, words].
+export function machinesLine(machines) {
+  const list = (Array.isArray(machines) ? machines : []).filter(m => m && m.state !== 'removed');
+  const online = list.filter(m => m.state === 'online');
+  if (!list.length) return ['waiting', 'No machine yet.'];
+  if (online.length === list.length) return ['done', list.length === 1 ? `${online[0].name} is online.` : `${online.length} machines are online.`];
+  if (online.length) return ['done', `${online.length} of ${list.length} machines are online.`];
+  return ['attention', list.length === 1 ? `${list[0].name} is offline.` : `${list.length} machines, all offline.`];
+}
