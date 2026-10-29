@@ -84,20 +84,26 @@ watch(() => waiting.value.map(id => store.jobs[id]?.state), states => {
   waiting.value = waiting.value.filter((id, i) => !['ready', 'failed', 'cancelled'].includes(states[i]))
   refreshBoard()
 })
-// A project the agent made or opened in this chat (UPDATE_VIDEO_PROJECT) is opened here once its turn ends, so the
-// Workspace shows it (live 2026-10-28: the agent made one and the menu still said "Choose project").
+// The project this chat has open is opened here when none is chosen: the one the agent made or opened
+// (UPDATE_VIDEO_PROJECT) once its turn ends (live 2026-10-28: the menu still said "Choose project"), and the chat's
+// project when the page is loaded again (live 2026-10-29: a reload lost it). A page's empty session project is not one
+// of the person's projects (the menus leave it out), so it is not opened either.
 const chat = useChatStore()
-watch(() => chat.isBusy, async (busy, was) => {
-  if (!was || busy || projectId.value || !chat.conversationId) return
+async function adoptChatProject() {
+  const cid = chat.conversationId
+  if (projectId.value || !cid) return false
   try {
-    const { data } = await api.get('/video/projects/', { params: { conversation_id: chat.conversationId } })
+    const { data } = await api.get('/video/projects/', { params: { conversation_id: cid } })
     const p = data?.project
-    if (!p?.project_id || projectId.value) return
+    if (!p?.project_id || projectId.value || cid !== chat.conversationId) return false
+    if (p.brief?.session && !(p.scenes || []).length) return false
     if (!projects.value.some(row => row.project_id === p.project_id)) projects.value.push({ project_id: p.project_id, title: p.title })
     projectId.value = p.project_id
-    await open()
-  } catch { /* the menu still lists it */ }
-})
+    return true
+  } catch { return false }   // the menu still lists it
+}
+watch(() => chat.isBusy, async (busy, was) => { if (was && !busy && await adoptChatProject()) await open() })
+watch(() => chat.conversationId, async () => { if (await adoptChatProject()) await open() })
 function track(job) { if (job?.job_id) waiting.value = [...waiting.value, job.job_id]; emit('job', job) }
 async function loadRoutes(alive) {
   const [pictures, videos] = await Promise.all(projectId.value
@@ -147,6 +153,7 @@ onMounted(() => run(async alive => {
   const [p,c] = await Promise.all([api.get('/video/projects/'), api.getCinemaControls()])
   if (!alive()) return
   projects.value = p.data.projects || []; controls.value = Array.isArray(c.data?.controls) ? c.data.controls : Array.isArray(c.data) ? c.data : []; cinema.value = { ...unset(), ...cinema.value }
+  await adoptChatProject()
   await open()
 }))
 function sceneAction(scene, suffix, data, method = 'post') { return run(async alive => {

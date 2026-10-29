@@ -212,6 +212,27 @@ describe('Storyboard and Cinema make a video on the model, length and size chose
     expect(api.getStoryboard).toHaveBeenCalledWith('p')
     w.unmount()
   })
+  it('reopens the chat\'s project when the page is loaded again, but not a page\'s empty session project', async () => {
+    // Live 2026-10-29: after a reload the menu said "Choose project" although the chat had one open.
+    delete routeQuery.project_id
+    pinia = createPinia(); setActivePinia(pinia)
+    const { useChatStore } = await import('../../stores/useChatStore')
+    useChatStore(pinia).conversationId = 'c9'
+    const base = api.get.getMockImplementation()
+    let open = { project_id: 'p', title: 'Agent ad', scenes: [{ scene_id: 's' }] }
+    api.get.mockImplementation((path, opts) => path === '/video/projects/' && opts?.params?.conversation_id === 'c9'
+      ? Promise.resolve({ data: { project: open } }) : base(path, opts))
+    const mountHere = () => mount(Board, { props: { kind: 'storyboard' }, global: { plugins: [pinia], stubs: { InputSlot: true, RouterLink: true } } })
+    let w = mountHere(); await flushPromises()
+    expect(w.get('select').element.value).toBe('p')
+    expect(api.getStoryboard).toHaveBeenCalledWith('p')
+    w.unmount(); api.getStoryboard.mockClear()
+    open = { project_id: 'sess', title: 'Enhance session', brief: { session: true }, scenes: [] }
+    w = mountHere(); await flushPromises()
+    expect(w.get('select').element.value).toBe('')
+    expect(api.getStoryboard).not.toHaveBeenCalled()
+    w.unmount()
+  })
   it('a standalone Cinema shot is quoted at the length and size chosen', async () => {
     delete routeQuery.project_id
     api.post.mockResolvedValue({ data: { job_id: 'shot' } })
