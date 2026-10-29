@@ -56,20 +56,25 @@ export function usdText(value, whole = false) {
   return `$${v.toFixed(2)}`;
 }
 
+// What the person is charged for a machine: its hosting price x the platform markup (`charged_*`, dedicated.machines),
+// or the hosting price where the backend gives no charged one.
+const hourly = machine => machine.charged_usd_per_hour ?? machine.usd_per_hour;
+const monthly = machine => machine.charged_usd_per_month ?? machine.usd_per_month;
+
 // What a machine costs, as its radio card says it.
 export function machineCost(machine) {
   if (!machine) return '';
-  return `${usdText(machine.usd_per_hour)} an hour, about ${usdText(machine.usd_per_month, true)} a month`;
+  return `${usdText(hourly(machine))} an hour, about ${usdText(monthly(machine), true)} a month`;
 }
 
-// The line above "Start deployment": what the choice costs and when it stops.
+// The line above "Start deployment": what the choice costs, when it stops, and that it is billed from the balance.
 export function dedicatedCostSummary(machine, kind, idleMinutes = 60) {
   if (!machine) return '';
-  const hour = usdText(machine.usd_per_hour);
+  const hour = usdText(hourly(machine));
   if (kind === 'development') {
-    return `${machine.instance_type} costs ${hour} an hour while it is on. It stops itself after ${idleMinutes} minutes without a call.`;
+    return `${machine.instance_type} costs ${hour} an hour while it is on, billed by the second from your balance. It stops itself after ${idleMinutes} minutes without a call.`;
   }
-  return `${machine.instance_type} costs ${hour} an hour, about ${usdText(machine.usd_per_month, true)} a month, until you stop it.`;
+  return `${machine.instance_type} costs ${hour} an hour, about ${usdText(monthly(machine), true)} a month, billed by the second from your balance until you stop it.`;
 }
 
 // The models of a project that may run as a deployment of this kind: those with the approval the kind needs.

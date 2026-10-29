@@ -3,13 +3,13 @@
 // models with trying one as it is published, and how often each project's deployed model was called. Every rule is
 // the backend's (app_api.py workspace/models/, published/<key>/…, workspace/deployments/).
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { Boxes, Box, WandSparkles, ChartNoAxesCombined, Plus, Upload, Search, Play, Square, X, Check, Code, Copy, Clock, KeyRound, Globe } from 'lucide-vue-next';
+import { Boxes, Box, WandSparkles, ChartNoAxesCombined, Plus, Upload, Search, Play, Square, X, Check, Code, Copy, Clock, KeyRound, Globe, Wallet } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import PredictionResult from './PredictionResult.vue';
 import OpenModels from './OpenModels.vue';
-import { catalogue, useSnippet, USE_LANGUAGES, SDK_INSTALL } from '../api/models.js';
+import { callCostText, catalogue, useSnippet, USE_LANGUAGES, SDK_INSTALL } from '../api/models.js';
 import { PHOTO_TYPES, percent } from '../api/trial.js';
 import { workspaceApi, publishedApi, projectLink, trySteps, modelName, timeAgo } from '../api/workspace.js';
 
@@ -85,7 +85,7 @@ function publishedBadge(row) {
 }
 
 // ── "Use model": how an app calls a ready-to-use model ─────────────────────────────────────────────
-// Calls open when per-call charging is connected (platform_api.py): until then the dialog shows the code and says so.
+// Every call the model answers is charged per call to the app's maker (platform_api.py): the dialog says what a call costs.
 const using = ref(null); const language = ref(USE_LANGUAGES[0]); const copied = ref(''); const useError = ref('');
 const useUrl = computed(() => (using.value?.use ? `${location.origin}${using.value.use.path}` : ''));
 const useCode = computed(() => (useUrl.value ? useSnippet(language.value, useUrl.value, using.value.use.model) : ''));
@@ -258,7 +258,8 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
     <UiDialog class="use-dialog" :open="!!using" :title="using ? `Use ${using.name}` : ''" @close="using=null">
       <template v-if="using">
         <p class="dialog-description">Call {{ using.name }} from your own code. Each call is one photo, answered with what the model found.</p>
-        <p v-if="!using.use.open" class="use-closed" role="status"><Clock :size="18" aria-hidden="true"/><span>{{ using.use.not_open }}</span></p>
+        <p v-if="using.use.cost_note" class="use-cost"><Wallet :size="16" aria-hidden="true"/><span>{{ callCostText(using.use) }}</span></p>
+        <p v-if="using.use.serving_note" class="use-cost"><Clock :size="16" aria-hidden="true"/><span>{{ using.use.serving_note }}</span></p>
         <ol class="use-steps">
           <li>
             <h3><span class="use-step-no" aria-hidden="true">1</span>Choose your language</h3>
@@ -290,9 +291,8 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
         <p class="sr-only" aria-live="polite">{{ copied ? `Copied ${COPIED_WORDS[copied]}.` : '' }}</p>
         <p v-if="useError" class="field-error" role="alert">{{ useError }}</p>
         <div class="use-actions">
-          <p v-if="!using.use.open" id="test-api-why" class="use-why">Test API opens with calls.</p>
           <UiButton @click="using=null">Close</UiButton>
-          <UiButton variant="primary" :disabled="!using.use.open" :aria-describedby="using.use.open ? undefined : 'test-api-why'">Test API</UiButton>
+          <UiButton variant="primary" disabled title="Coming soon">Test API · Coming soon</UiButton>
         </div>
       </template>
     </UiDialog>
@@ -315,8 +315,8 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
 .coming-what{margin:6px 0 8px;font-size:13px;color:#4d5a70;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .coming-meta{margin:0;font-size:12px;color:#6b778c;line-height:1.5}
 .use-dialog{width:min(680px,calc(100% - 32px))}
-.use-closed{display:flex;gap:10px;align-items:flex-start;margin:16px 0 4px;padding:12px 14px;border-radius:10px;background:#fff7e6;border:1px solid #f5dfb0;color:#6f4500;font-size:13px;line-height:1.55}
-.use-closed svg{margin-top:1px;color:#b26b00}
+.use-cost{display:flex;gap:8px;align-items:flex-start;margin:12px 0 4px;font-size:13px;line-height:1.55;color:#33415a}
+.use-cost svg{flex-shrink:0;margin-top:2px;color:#5f6d82}
 .use-steps{list-style:none;padding:0;margin:20px 0 0;display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
 .use-steps li{min-width:0}
 .use-steps h3{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:14px;color:#1d2a42}
@@ -345,7 +345,6 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
 .copy-icon{display:inline-grid;place-items:center;min-width:28px;min-height:28px;margin:-4px -4px -4px auto;border:0;border-radius:6px;background:transparent;color:#6b778c}
 .copy-icon:hover{background:var(--aadml-tint);color:var(--aadml-primary)}
 .use-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:24px;flex-wrap:wrap}
-.use-why{margin:0 auto 0 0;font-size:12px;color:#6b778c}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media (prefers-reduced-motion: reduce){.segmented button,.copy-chip{transition:none}}
 @media (max-width:640px){

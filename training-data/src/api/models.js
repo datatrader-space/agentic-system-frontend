@@ -58,6 +58,16 @@ console.log(await answer.json());`;
   -F "file=@room.jpg"`;
 }
 
+// What one call to a ready-to-use model costs, as the "Use model" dialog says it: its price with the markup
+// (platform_api.use_row's usd_per_call), to four decimals as it is under a cent, and who pays. No price: no amount.
+export function callCostText(use) {
+  const price = Number(use?.usd_per_call);
+  if (use?.usd_per_call === null || use?.usd_per_call === undefined || use?.usd_per_call === '' || Number.isNaN(price)) {
+    return use?.cost_note || '';
+  }
+  return `$${price.toFixed(4)} a call. ${use.cost_note || ''}`.trim();
+}
+
 // A measure's value as the page shows it: a share as a percentage, an error as a share of the photo's diagonal.
 export function measureText(key, value) {
   if (value === null || value === undefined) return '—';

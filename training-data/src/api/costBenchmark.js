@@ -99,7 +99,7 @@ export const wayName = option => (option.way === 'shared' ? 'Shared Cloud API' :
 
 // The "at your traffic" cell.
 export function trafficText(option, callsPerDay) {
-  if (option.way === 'shared') return '';
+  if (option.way === 'shared' && !option.price_set) return '';
   if (!callsPerDay) return 'Enter your calls a day';
   if (option.fits === false) return `More than one machine answers in a day (${count(option.photos_per_day)})`;
   return usd(option.usd_per_1000_at_traffic);
@@ -124,7 +124,7 @@ export function barRows(options, metric, callsPerDay) {
     const value = raw === null || raw === undefined || raw === '' ? null : Number(raw);
     let why = '';
     if (value === null) {
-      if (option.way === 'shared') why = option.price_note || 'Price set when per-call charging opens';
+      if (option.way === 'shared' && !option.price_set) why = option.price_note || 'No price per call is set yet';
       else if (spec.id === 'traffic' && !callsPerDay) why = 'Enter your calls a day';
       else if (spec.id === 'traffic' && option.fits === false) why = 'More than one machine would be needed';
       else why = 'No model time known for this machine';

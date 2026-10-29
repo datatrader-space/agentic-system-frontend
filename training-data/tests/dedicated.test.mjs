@@ -27,12 +27,16 @@ test('prices read in dollars: an hour to three decimals at most, a month in whol
   const machine = { instance_type: 'ml.c5.large', usd_per_hour: 0.119, usd_per_month: 85.68, cpus: 2 };
   assert.equal(machineCost(machine), '$0.119 an hour, about $86 a month');
   assert.equal(machineCost(null), '');
+  // What the person is charged (the hosting price x the markup) is what is shown, when the backend gives it.
+  const charged = { ...machine, charged_usd_per_hour: '0.1428', charged_usd_per_month: '102.82' };
+  assert.equal(machineCost(charged), '$0.143 an hour, about $103 a month');
 });
 
-test('the cost line says when each type stops', () => {
-  const machine = { instance_type: 'ml.c5.xlarge', usd_per_hour: 0.238, usd_per_month: 171.36, cpus: 4 };
-  assert.equal(dedicatedCostSummary(machine, 'development', 60), 'ml.c5.xlarge costs $0.238 an hour while it is on. It stops itself after 60 minutes without a call.');
-  assert.equal(dedicatedCostSummary(machine, 'production'), 'ml.c5.xlarge costs $0.238 an hour, about $171 a month, until you stop it.');
+test('the cost line says when each type stops and that it is billed from the balance', () => {
+  const machine = { instance_type: 'ml.c5.xlarge', usd_per_hour: '0.204000', usd_per_month: '146.88',
+                    charged_usd_per_hour: '0.2448', charged_usd_per_month: '176.26', cpus: 4 };
+  assert.equal(dedicatedCostSummary(machine, 'development', 60), 'ml.c5.xlarge costs $0.245 an hour while it is on, billed by the second from your balance. It stops itself after 60 minutes without a call.');
+  assert.equal(dedicatedCostSummary(machine, 'production'), 'ml.c5.xlarge costs $0.245 an hour, about $176 a month, billed by the second from your balance until you stop it.');
   assert.equal(dedicatedCostSummary(null, 'production'), '');
 });
 

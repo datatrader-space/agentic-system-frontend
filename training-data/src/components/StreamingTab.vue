@@ -2,10 +2,10 @@
 // The Deployments page's Cloud Streaming tab: a project's photo model answers the frames of a video, an uploaded file
 // or a stream address, sampled 1 or 2 a second; the answers show live and are kept in a results file.
 // Backend: streaming_api.py workspace/streams/ (list, start), workspace/streams/<id>/ (one), …/stop/, …/results/.
-// It opens when per-call charging is connected; until then the backend lets platform staff only start one, capped.
+// Every frame the model answers is charged as one photo call, from the balance of the person who started the stream.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
-  Check, Clock, Download, FileVideo, LoaderCircle, Plus, Radio, RefreshCw, Square, Upload, Video, X,
+  Check, Download, FileVideo, LoaderCircle, Plus, Radio, RefreshCw, Square, Upload, Video, Wallet, X,
 } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
@@ -21,7 +21,6 @@ const page = ref(null); const error = ref(''); const loading = ref(false);
 const said = ref(''); const announce = ref('');
 const streams = computed(() => page.value?.streams || []);
 const options = computed(() => page.value?.options || { projects: [], fps: [1, 2], default_fps: 1, cap: null, upload: {} });
-const isOpen = computed(() => page.value?.open !== false);
 const may = computed(() => page.value?.may || {});
 let gone = false; let listTimer = null; let viewTimer = null;
 
@@ -187,7 +186,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
       <UiButton variant="primary" :disabled="!page" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New stream</UiButton>
     </div>
 
-    <p v-if="page && !isOpen" class="st-closed" role="status"><Clock :size="18" aria-hidden="true"/><span>{{ page.not_open }}</span></p>
+    <p v-if="page && page.cost_note" class="st-billing"><Wallet :size="16" aria-hidden="true"/><span>{{ page.cost_note }}</span></p>
     <div v-if="said" class="notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ said }}</span></div>
     <div v-if="error" class="st-error" role="alert">
       <span>{{ error }}</span>
@@ -279,7 +278,7 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
     <UiDialog class="st-dialog" :open="creating" title="New stream" @close="creating=false">
       <form class="st-form" novalidate @submit.prevent="startStream">
         <p class="dialog-description">Choose a model and a video for it. Nothing starts until you press Start stream.</p>
-        <p v-if="!isOpen" class="st-closed" role="status"><Clock :size="18" aria-hidden="true"/><span>{{ page.not_open }}</span></p>
+        <p v-if="page && page.cost_note" class="st-billing"><Wallet :size="16" aria-hidden="true"/><span>{{ page.cost_note }}</span></p>
 
         <div class="st-row">
           <div class="st-field">
@@ -370,8 +369,8 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
 .st-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:16px}
 .st-head h2{margin:0 0 4px}
 .st-head p{margin:0;max-width:620px;color:#4c5d74}
-.st-closed{display:flex;gap:10px;align-items:flex-start;margin:0 0 16px;padding:12px 14px;border-radius:10px;background:#fff7e6;border:1px solid #f5dfb0;color:#6f4500!important;font-size:13px;line-height:1.55}
-.st-closed svg{flex-shrink:0;margin-top:1px;color:#b26b00}
+.st-billing{display:flex;gap:8px;align-items:flex-start;margin:0 0 16px;font-size:13px;line-height:1.55;color:#33415a!important}
+.st-billing svg{flex-shrink:0;margin-top:2px;color:#5f6d82}
 .st-error{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:10px 14px;border:1px solid #efc5ce;border-radius:10px;background:#fff5f6;color:#ad3449;font-size:13px}
 .badge--red{color:#a12c3c;background:#fdecee}
 .badge .spin{margin-right:2px}

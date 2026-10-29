@@ -9,8 +9,8 @@
 // Backend: app_api.py workspace/dedicated/ (list, start) and workspace/dedicated/<id>/stop/.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
-  ArrowRight, BookOpen, Check, ChartColumn, ChartLine, Clock, Cloud, Code, Copy, Cpu, KeyRound, Layers, LoaderCircle,
-  Network, Plus, RefreshCw, Rocket, Server, Sparkles, Square, Video, Zap,
+  ArrowRight, BookOpen, Check, ChartColumn, ChartLine, Cloud, Code, Copy, Cpu, KeyRound, Layers, LoaderCircle,
+  Network, Plus, RefreshCw, Rocket, Server, Sparkles, Square, Video, Wallet, Zap,
 } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
@@ -102,7 +102,6 @@ const ded = ref(null); const dedError = ref(''); const dedLoading = ref(false);
 const dedSaid = ref(''); const announce = ref('');
 const deployments = computed(() => ded.value?.deployments || []);
 const options = computed(() => ded.value?.options || { projects: [], machines: [], kinds: [], open_models: [], open_machines: [] });
-const dedOpen = computed(() => ded.value?.open !== false);
 const dedMay = computed(() => ded.value?.may || {});
 let pollTimer = null; let gone = false;
 function stopPolling() { clearTimeout(pollTimer); pollTimer = null; }
@@ -268,7 +267,7 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
         <UiButton variant="primary" :disabled="!ded" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New deployment</UiButton>
       </div>
 
-      <p v-if="ded && !dedOpen" class="ded-closed" role="status"><Clock :size="18" aria-hidden="true"/><span>{{ ded.not_open }}</span></p>
+      <p v-if="ded && ded.cost_note" class="ded-billing"><Wallet :size="16" aria-hidden="true"/><span>{{ ded.cost_note }}</span></p>
       <div v-if="dedSaid" class="notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ dedSaid }}</span></div>
       <div v-if="dedError" class="ded-error" role="alert">
         <span>{{ dedError }}</span>
@@ -475,8 +474,6 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
           </div>
           <p v-if="fieldErrors.source" class="field-error" role="alert">{{ fieldErrors.source }}</p>
         </fieldset>
-        <p v-if="!dedOpen" class="ded-closed" role="status"><Clock :size="18" aria-hidden="true"/><span>{{ ded.not_open }}</span></p>
-
         <div class="ded-field">
           <label for="ded-name">Name</label>
           <input id="ded-name" v-model.trim="form.name" class="text-input" autocomplete="off" spellcheck="false" maxlength="30"
@@ -568,7 +565,7 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
     <UiDialog class="ded-dialog" :open="!!using" :title="using ? `Use ${using.name}` : ''" @close="using=null">
       <template v-if="using">
         <p class="dialog-description">Call {{ using.name }} from your own code. {{ using.call==='chat' ? CHAT_ABOUT : 'Each call is one photo, answered with what the model found.' }}</p>
-        <p v-if="!dedOpen" class="ded-closed" role="status"><Clock :size="18" aria-hidden="true"/><span>{{ ded.not_open }}</span></p>
+        <p v-if="ded.cost_note" class="ded-billing"><Wallet :size="16" aria-hidden="true"/><span>Calls are not charged one by one: the deployment's machine is. {{ ded.cost_note }}</span></p>
         <ol class="use-steps">
           <li>
             <h3><span class="use-step-no" aria-hidden="true">1</span>Choose your language</h3>
@@ -698,8 +695,8 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
 .ded-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:16px}
 .ded-head h2{margin:0 0 4px}
 .ded-head p{margin:0;max-width:620px;color:#4c5d74}
-.ded-closed{display:flex;gap:10px;align-items:flex-start;margin:0 0 16px;padding:12px 14px;border-radius:10px;background:#fff7e6;border:1px solid #f5dfb0;color:#6f4500!important;font-size:13px;line-height:1.55}
-.ded-closed svg{flex-shrink:0;margin-top:1px;color:#b26b00}
+.ded-billing{display:flex;gap:8px;align-items:flex-start;margin:0 0 16px;font-size:13px;line-height:1.55;color:#33415a!important}
+.ded-billing svg{flex-shrink:0;margin-top:2px;color:#5f6d82}
 .ded-error{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:10px 14px;border:1px solid #efc5ce;border-radius:10px;background:#fff5f6;color:#ad3449;font-size:13px}
 .ded-table .ded-name{color:#162139;overflow-wrap:anywhere}
 .ded-table td{min-width:0}

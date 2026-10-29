@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { catalogue, measureText, meets, msText, useSnippet, USE_LANGUAGES, SDK_INSTALL } from '../src/api/models.js';
+import { callCostText, catalogue, measureText, meets, msText, useSnippet, USE_LANGUAGES, SDK_INSTALL } from '../src/api/models.js';
 
 test('a share reads as a percentage and a corner error as a share of the diagonal', () => {
   assert.equal(measureText('wall_recall', 0.9234), '92.3%');
@@ -39,6 +39,23 @@ test('the Use model code calls the SDK in Python and the address otherwise, neve
   for (const language of ['JavaScript', 'cURL']) assert.ok(useSnippet(language, url, 'fmw-geometry').includes(url), language);
   for (const language of USE_LANGUAGES) assert.ok(useSnippet(language, url, 'fmw-geometry').includes('<your app key>'), language);
   assert.equal(SDK_INSTALL, 'pip install aadml-training');
+});
+
+test('the Use model dialog says what a call costs, and no amount while no price is set', () => {
+  const note = 'Each call the model answers is charged as one photo call, from the balance of the person who made the app.';
+  assert.equal(callCostText({ usd_per_call: '0.00120000', cost_note: note }), `$0.0012 a call. ${note}`);
+  assert.equal(callCostText({ usd_per_call: null, cost_note: note }), note);
+  assert.equal(callCostText(null), '');
+});
+
+test('no page still says a paid feature waits for charging (2026-10-29: Dedicated, Use model and Cloud Streaming are open)', async () => {
+  const { readFile } = await import('node:fs/promises');
+  for (const name of ['WorkspaceModels.vue', 'WorkspaceDeployments.vue', 'StreamingTab.vue']) {
+    const page = await readFile(new URL(`../src/components/${name}`, import.meta.url), 'utf8');
+    assert.ok(!page.includes('not_open'), name);
+    assert.ok(!/charging is connected|opens with calls/.test(page), name);
+    assert.ok(page.includes('cost_note'), name);
+  }
 });
 
 test('a duration reads in milliseconds below a second', () => {

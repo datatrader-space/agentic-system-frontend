@@ -2,7 +2,8 @@
 // The Cost Benchmark tab of the workspace's Deployments page (TRAINING_PHASE3_SERVING_PLAN.md 7.3, 7.4, 7.8, 7.9):
 // pick one of the workspace's photo models and see what 1,000 calls would cost on each way of deploying it, with every
 // assumption in words. Backend: training_models_data/cost_benchmark_api.py (workspace/cost-benchmark/). Every figure
-// is the backend's; the Shared Cloud API has no price until per-call charging opens, and none is shown for it.
+// is the backend's: what the person is charged (the Shared Cloud API per answered call, a Dedicated machine by the
+// second, both with AADML's markup). While no price per call is set, none is shown for the Shared Cloud API.
 import { computed, onMounted, ref, watch } from 'vue';
 import { ChartColumn, Info, LoaderCircle, RefreshCw } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
@@ -122,7 +123,14 @@ const modelLabel = computed(() => (body.value ? `${body.value.model.name} ${body
                   <code v-if="o.instance_type">{{ o.instance_type }}</code><template v-else>Shared pool</template>
                   <small>{{ modelTimeText(o.model_time) }}</small>
                 </span></td>
-                <template v-if="o.way === 'shared'">
+                <template v-if="o.way === 'shared' && o.price_set">
+                  <td data-label="Price an hour"><span>{{ usd(o.usd_per_call) }} a call<small>Nothing while it is not called.</small></span></td>
+                  <td data-label="Photos an hour">Shared</td>
+                  <td data-label="Per 1,000 calls at full use">{{ usd(o.usd_per_1000_full_use) }}</td>
+                  <td data-label="Per 1,000 calls at your traffic" :class="{ 'cost-muted-cell': !body.calls_per_day }">{{ trafficText(o, body.calls_per_day) }}</td>
+                  <td data-label="A month"><span>{{ o.usd_per_month ? usd(o.usd_per_month) : 'Enter your calls a day' }}<small v-if="o.usd_per_day">{{ usd(o.usd_per_day) }} a day</small></span></td>
+                </template>
+                <template v-else-if="o.way === 'shared'">
                   <td colspan="5" class="cost-unpriced" data-label="Price">
                     <UiBadge tone="purple">Not priced yet</UiBadge> {{ o.price_note }}
                     <small>Charged per call, so nothing is paid while it is not called.</small>
