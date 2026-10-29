@@ -26,7 +26,7 @@ const stubs = {
   ChatMessageList: { template: '<div data-test="messages" />' },
   HITLModal: { name: 'HITLModal', props: ['requests'], template: '<div data-test="hitl" />' },
   VideoLibrary: { template: '<div data-test="library" />' },
-  FullDocCostCard: true, ProviderSwitchDialog: true, RouterLink: { template: '<a><slot /></a>' },
+  FullDocCostCard: true, RouterLink: { template: '<a><slot /></a>' },
 }
 const button = (label) => wrapper.findAll('button').find((b) => b.text() === label)
 async function render(user = null) { wrapper = mount(VideoStudio, { global: { stubs, provide: { studioUser: ref(user) } } }); await flushPromises(); return wrapper }

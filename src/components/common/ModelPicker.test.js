@@ -48,3 +48,47 @@ describe('ModelPicker search finds a model by the words of its name', () => {
     expect((await searchFor('  ')).length).toBe(MODELS.length)
   })
 })
+
+describe('ModelPicker is one accessible, keyboard-driven list that names no provider (owner, 2026-10-29)', () => {
+  const ROUTED = [
+    { id: 1, name: 'OpenAI: GPT-6 Luna', model_id: 'openai/gpt-6-luna', metadata: {} },
+    { id: 2, name: 'Flux LoRA', model_id: 'fal-ai/flux-lora', metadata: {} },
+    { id: 3, name: 'Claude Opus', model_id: 'anthropic/claude-opus', metadata: {} },
+  ]
+
+  it('groups by the model maker, and a model id that starts with a route groups under Other', async () => {
+    const w = mount(ModelPicker, { props: { models: ROUTED, ariaLabel: 'Main model' }, attachTo: document.body })
+    await w.get('[data-test="model-picker-trigger"]').trigger('click')
+    const labels = w.vm.groups.map((g) => g.label)
+    expect(labels).toContain('Other')
+    expect(labels.join(' ')).not.toMatch(/fal/i)
+    w.unmount()
+  })
+
+  it('names the field and the pick, opens a listbox, and walks it with the arrow keys and Enter', async () => {
+    const w = mount(ModelPicker, { props: { models: ROUTED, modelValue: 1, ariaLabel: 'Main model' }, attachTo: document.body })
+    const trigger = w.get('[data-test="model-picker-trigger"]')
+    expect(trigger.attributes('aria-label')).toBe('Main model: OpenAI: GPT-6 Luna')
+    expect(trigger.attributes('aria-haspopup')).toBe('listbox')
+    await trigger.trigger('click')
+    await nextTick()
+    expect(trigger.attributes('aria-expanded')).toBe('true')
+    expect(w.find('[role="listbox"]').exists()).toBe(true)
+    const search = w.get('[data-test="model-picker-search"]')
+    await search.trigger('keydown', { key: 'ArrowDown' })
+    expect(search.attributes('aria-activedescendant')).toBeTruthy()
+    await search.trigger('keydown', { key: 'Enter' })
+    expect(w.emitted('update:modelValue')).toBeTruthy()
+    expect(w.find('[role="listbox"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('Escape closes the list', async () => {
+    const w = mount(ModelPicker, { props: { models: ROUTED }, attachTo: document.body })
+    await w.get('[data-test="model-picker-trigger"]').trigger('click')
+    await w.get('[data-test="model-picker-search"]').trigger('keydown', { key: 'Escape' })
+    expect(w.find('[role="listbox"]').exists()).toBe(false)
+    expect(w.emitted('update:modelValue')).toBeFalsy()
+    w.unmount()
+  })
+})

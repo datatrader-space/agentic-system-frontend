@@ -1,6 +1,7 @@
 <!--
-  Compact chat model picker for shared/system-owned agents. Navigation is intentionally progressive:
-  summary card -> provider card -> that provider's text/chat models.
+  Compact chat model picker for shared/system-owned agents: summary card -> one searchable list of every chat model
+  the person may use. There is no provider step and no provider is named anywhere (owner, 2026-10-29): people choose
+  a model, never the provider AADML runs it on.
 -->
 <template>
   <div v-if="agentId" class="amp">
@@ -22,7 +23,7 @@
     <div v-if="open" class="amp-menu" role="menu" data-test="model-picker-menu" @click.stop>
       <div v-if="loading" class="amp-state">Loading your models…</div>
 
-      <div v-else-if="!providers.length" class="amp-state">
+      <div v-else-if="!modelCount && !current" class="amp-state">
         <p><strong>No AI model is available yet.</strong></p>
         <p>The platform's AI models are added by a platform administrator. Usage is charged to your balance.</p>
         <router-link class="amp-cta" to="/dashboard/billing" @click="close">
@@ -44,14 +45,14 @@
         <button
           type="button"
           class="amp-more"
-          :class="{ active: showProviders }"
-          aria-haspopup="menu"
-          :aria-expanded="showProviders ? 'true' : 'false'"
-          data-test="model-picker-providers"
-          @click="toggleProviders"
+          :class="{ active: showModels }"
+          aria-haspopup="listbox"
+          :aria-expanded="showModels ? 'true' : 'false'"
+          data-test="model-picker-models"
+          @click="toggleModels"
         >
-          <span>Providers</span>
-          <span class="amp-more-value">{{ currentProviderName }}</span>
+          <span>Model</span>
+          <span class="amp-more-value">{{ modelCount }} available</span>
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m8 5 5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
 
@@ -86,97 +87,67 @@
         <div v-if="error" class="amp-error" role="alert">{{ error }}</div>
 
         <div
-          v-if="showProviders"
-          class="amp-provider-flyout"
-          role="menu"
-          aria-label="AI providers"
-          data-test="model-picker-provider-flyout"
+          v-if="showModels"
+          class="amp-model-flyout"
+          role="dialog"
+          aria-label="Chat models"
+          data-test="model-picker-model-flyout"
         >
-          <div class="amp-card-title">Providers</div>
-          <div class="amp-provider-scroll">
+          <button type="button" class="amp-card-title amp-model-back" @click="closeModelCard">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m12 5-5 5 5 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Models</span>
+          </button>
+
+          <div class="amp-model-search">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4" stroke-linecap="round"/></svg>
+            <input
+              ref="modelSearchEl"
+              v-model="modelQuery"
+              type="search"
+              placeholder="Search models…"
+              aria-label="Search models"
+              autocomplete="off"
+              data-test="model-search"
+              @keydown.enter.prevent="pickFirstFilteredModel"
+              @keydown.esc.stop="onSearchEscape"
+            />
+            <button v-if="modelQuery" type="button" class="amp-search-clear" aria-label="Clear model search" @click="clearModelSearch">×</button>
+          </div>
+
+          <div class="amp-model-scroll" role="listbox" aria-label="Chat models">
             <button
-              v-for="p in providers"
-              :key="p.id"
+              v-for="m in filteredModels"
+              :key="m.id"
               type="button"
-              class="amp-provider"
-              :class="{ active: activeProviderId === p.id }"
-              role="menuitem"
-              @click="selectProvider(p)"
+              class="amp-model"
+              :class="{ active: current && current.id === m.id }"
+              :disabled="saving"
+              role="option"
+              :aria-selected="current?.id === m.id ? 'true' : 'false'"
+              :data-test="'model-option-' + m.id"
+              @click="pick(m)"
             >
-              <span class="amp-provider-mark" :data-provider="p.provider_type" :data-provider-icon="providerIcon(p)">
-                <Icon :icon="providerIcon(p)" class="amp-provider-logo" aria-hidden="true" />
+              <span class="amp-model-text">
+                <span class="amp-model-name">{{ m.name }}</span>
+                <span v-if="modelMeta(m)" class="amp-model-meta">{{ modelMeta(m) }}</span>
               </span>
-              <span class="amp-provider-copy">
-                <span class="amp-provider-name">{{ p.name }}</span>
-                <span class="amp-provider-meta">{{ modelCount(p) }} chat model{{ modelCount(p) === 1 ? '' : 's' }}</span>
-              </span>
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m8 5 5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <svg v-if="current && current.id === m.id" class="amp-check" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 10 4 4 8-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
+            <div v-if="loadingModels && !filteredModels.length" class="amp-model-empty" data-test="model-loading">
+              Loading models…
+            </div>
+            <div v-else-if="!filteredModels.length" class="amp-model-empty" data-test="model-search-empty">
+              No matching models
+            </div>
+            <div v-if="hiddenModelCount > 0" class="amp-model-more" data-test="model-more">
+              Showing {{ filteredModels.length }} of {{ matchingModels.length }}. Type to narrow the list.
+            </div>
           </div>
 
-          <div
-            v-if="showModels && activeProvider"
-            class="amp-model-flyout"
-            role="dialog"
-            :aria-label="`${activeProvider.name} chat models`"
-            data-test="model-picker-model-flyout"
-          >
-            <button type="button" class="amp-card-title amp-model-back" @click="closeModelCard">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m12 5-5 5 5 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span>{{ activeProvider.name }}</span>
-            </button>
-
-            <div class="amp-model-search">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4" stroke-linecap="round"/></svg>
-              <input
-                ref="modelSearchEl"
-                v-model="modelQuery"
-                type="search"
-                placeholder="Search models…"
-                aria-label="Search models"
-                autocomplete="off"
-                data-test="model-search"
-                @keydown.enter.prevent="pickFirstFilteredModel"
-                @keydown.esc.stop="onSearchEscape"
-              />
-              <button v-if="modelQuery" type="button" class="amp-search-clear" aria-label="Clear model search" @click="clearModelSearch">×</button>
-            </div>
-
-            <div class="amp-model-scroll" role="listbox">
-              <button
-                v-for="m in filteredModels"
-                :key="m.id"
-                type="button"
-                class="amp-model"
-                :class="{ active: current && current.id === m.id }"
-                :disabled="saving"
-                role="option"
-                :aria-selected="current?.id === m.id ? 'true' : 'false'"
-                :title="m.model_id"
-                @click="pick(m)"
-              >
-                <span class="amp-model-text">
-                  <span class="amp-model-name">{{ m.name }}</span>
-                  <span v-if="modelMeta(m)" class="amp-model-meta">{{ modelMeta(m) }}</span>
-                </span>
-                <svg v-if="current && current.id === m.id" class="amp-check" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 10 4 4 8-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <div v-if="loadingModels && !filteredModels.length" class="amp-model-empty" data-test="model-loading">
-                Loading models…
-              </div>
-              <div v-else-if="!filteredModels.length" class="amp-model-empty" data-test="model-search-empty">
-                No matching models
-              </div>
-              <div v-if="hiddenModelCount > 0" class="amp-model-more" data-test="model-more">
-                Showing {{ filteredModels.length }} of {{ matchingModels.length }}. Type to narrow the list.
-              </div>
-            </div>
-
-            <button v-if="source === 'override'" type="button" class="amp-reset" :disabled="saving" @click="pick(null)">
-              <span>Use admin default</span>
-              <span v-if="adminDefault.model_name">{{ adminDefault.model_name }}</span>
-            </button>
-          </div>
+          <button v-if="source === 'override'" type="button" class="amp-reset" :disabled="saving" @click="pick(null)">
+            <span>Use admin default</span>
+            <span v-if="adminDefault.model_name">{{ adminDefault.model_name }}</span>
+          </button>
         </div>
       </template>
     </div>
@@ -190,7 +161,6 @@ import EffortSlider from '../chat/EffortSlider.vue'
 import { useAgentRunMode } from '../../composables/useAgentRunMode'
 import { useReasoningOptions } from '../../composables/useReasoningOptions'
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { Icon } from '@iconify/vue'
 import api from '../../services/api'
 
 const props = defineProps({
@@ -201,23 +171,22 @@ const emit = defineEmits(['changed'])
 const open = ref(false)
 // What Effort may offer: depends on the model THIS user runs the shared agent on, so it reloads after a pick.
 const { options: reasoningOptions, reload: reloadReasoning } = useReasoningOptions(() => props.agentId)
-const showProviders = ref(false)
 const showModels = ref(false)
-const activeProviderId = ref(null)
 const modelQuery = ref('')
 const modelSearchEl = ref(null)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
-const providers = ref([])
+const modelCount = ref(0)
 const current = ref(null)
 const source = ref(null)
 const adminDefault = ref({})
-// A provider's models, fetched when the person opens that provider (`?provider=`), kept for the session. The page
-// load used to fetch every provider's every model (1,111 rows, 194 KB for one account) to show one label.
-const modelsByProvider = ref({})
+// Every chat model the person may use, one list across every platform provider, each model once (`?models=1`),
+// fetched when they open the list and kept for the session. The page load reads only the count and the current pick:
+// fetching every model to show one label was 1,111 rows and 194 KB for one account.
+const models = ref(null)
 const loadingModels = ref(false)
-// Rows drawn at once. One OpenRouter key lists 533 chat models; drawing all of them on a click froze the tab.
+// Rows drawn at once. One key can list 533 chat models; drawing all of them on a click froze the tab.
 // Search still filters the whole list.
 const RENDER_LIMIT = 60
 
@@ -231,7 +200,7 @@ const pickMode = (opt) => applyMode(opt)
 const pillLabel = computed(() => {
   if (loading.value && !current.value) return 'Model…'
   if (current.value) return current.value.name
-  return providers.value.length ? 'Choose model' : 'No model'
+  return modelCount.value ? 'Choose model' : 'No model'
 })
 
 const sourceLabel = computed(() => ({
@@ -241,35 +210,14 @@ const sourceLabel = computed(() => ({
   platform: 'Platform default',
 }[source.value] || ''))
 
-const currentProvider = computed(() => {
-  if (!current.value) return null
-  const pid = current.value.provider_id
-  if (pid != null) return providers.value.find((p) => p.id === pid) || null
-  // An older payload names no provider: find the one whose (cached) models hold the current pick.
-  return providers.value.find((p) =>
-    (modelsByProvider.value[p.id] || []).some((m) => m.id === current.value.id)) || null
-})
-
-const currentProviderName = computed(() =>
-  currentProvider.value?.name || current.value?.provider_type || 'Not chosen')
-
-const currentMeta = computed(() => {
-  const bits = [currentProviderName.value, sourceLabel.value].filter(Boolean)
-  return bits.join(' · ') || 'Select the model used for this chat'
-})
-
-const activeProvider = computed(() =>
-  providers.value.find((p) => p.id === activeProviderId.value) || null)
-
-function modelCount(provider) {
-  return provider?.model_count ?? (provider?.models?.length || 0)
-}
+// Who chose the model ("Your pick", "Admin default"), never the provider it runs on.
+const currentMeta = computed(() => sourceLabel.value || 'Select the model used for this chat')
 
 const matchingModels = computed(() => {
-  const models = modelsByProvider.value[activeProviderId.value] || []
+  const list = models.value || []
   const query = modelQuery.value.trim().toLowerCase()
-  if (!query) return models
-  return models.filter((model) =>
+  if (!query) return list
+  return list.filter((model) =>
     [model.name, model.model_id].some((value) => String(value || '').toLowerCase().includes(query)))
 })
 const filteredModels = computed(() => matchingModels.value.slice(0, RENDER_LIMIT))
@@ -297,13 +245,8 @@ function modelMeta(m) {
 }
 
 function applyPayload(data) {
-  providers.value = data.providers || []
-  // A payload that still carries a provider's models (an older backend, or a `?provider=` answer) fills the cache.
-  const cache = { ...modelsByProvider.value }
-  for (const p of providers.value) {
-    if (Array.isArray(p.models)) cache[p.id] = p.models
-  }
-  modelsByProvider.value = cache
+  modelCount.value = Number(data.model_count || 0)
+  if (Array.isArray(data.models)) models.value = data.models
   current.value = data.current || null
   source.value = data.source || null
   adminDefault.value = data.admin_default || {}
@@ -342,35 +285,29 @@ async function pick(model) {
 function toggle() {
   open.value = !open.value
   if (!open.value) closeLayers()
-  if (open.value && !providers.value.length && !loading.value) load()
+  if (open.value && !current.value && !modelCount.value && !loading.value) load()
 }
 
-function toggleProviders() {
-  showProviders.value = !showProviders.value
-  if (!showProviders.value) closeLayers()
-}
-
-async function loadProviderModels(provider) {
-  if (modelsByProvider.value[provider.id]) return
+async function loadModels() {
+  if (models.value) return
   loadingModels.value = true
   try {
-    const { data } = await api.getAgentModelOptions(props.agentId, { provider: provider.id })
-    const card = (data.providers || []).find((p) => p.id === provider.id)
-    modelsByProvider.value = { ...modelsByProvider.value, [provider.id]: card?.models || [] }
+    const { data } = await api.getAgentModelOptions(props.agentId, { models: 1 })
+    models.value = Array.isArray(data.models) ? data.models : []
   } catch {
-    error.value = 'Could not load this provider’s models.'
+    error.value = 'Could not load the models.'
   } finally {
     loadingModels.value = false
   }
 }
 
-async function selectProvider(provider) {
-  activeProviderId.value = provider.id
+async function toggleModels() {
+  if (showModels.value) { closeModelCard(); return }
   modelQuery.value = ''
   showModels.value = true
   await nextTick()
   modelSearchEl.value?.focus()
-  await loadProviderModels(provider)
+  await loadModels()
 }
 
 function clearModelSearch() {
@@ -393,25 +330,8 @@ function pickFirstFilteredModel() {
   if (first && !saving.value) pick(first)
 }
 
-const PROVIDER_ICONS = Object.freeze({
-  openai: 'logos:openai-icon',
-  anthropic: 'logos:anthropic-icon',
-  gemini: 'logos:google-gemini',
-  google: 'logos:google-gemini',
-  openrouter: 'simple-icons:openrouter',
-  ollama: 'simple-icons:ollama',
-  xai: 'simple-icons:xai',
-  custom: 'lucide:server-cog',
-})
-
-function providerIcon(provider) {
-  return PROVIDER_ICONS[(provider.provider_type || '').toLowerCase()] || 'lucide:cpu'
-}
-
 function closeLayers() {
-  showProviders.value = false
   showModels.value = false
-  activeProviderId.value = null
   modelQuery.value = ''
 }
 
@@ -432,8 +352,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
 
 watch(() => props.agentId, () => {
   close()
-  providers.value = []
-  modelsByProvider.value = {}
+  modelCount.value = 0
+  models.value = null
   current.value = null
   source.value = null
   load()
@@ -463,11 +383,11 @@ watch(() => props.agentId, () => {
 .amp-current-desc { overflow: hidden; color: #828282; font-size: 11.5px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
 .amp-current-check { width: 17px; height: 17px; flex: 0 0 auto; color: #2563eb; }
 .amp-divider { height: 1px; margin: 0 9px; background: #e5e5e5; }
-.amp-more { display: grid; width: 100%; min-height: 36px; grid-template-columns: 1fr auto 16px; align-items: center; gap: 6px;
+.amp-more { display: grid; width: 100%; min-height: 44px; grid-template-columns: 1fr auto 16px; align-items: center; gap: 6px;
   padding: 7px 8px 7px 10px; border: 0; border-radius: 9px; background: transparent; color: #292929; font-size: 12.5px;
   text-align: left; cursor: pointer; transition: background .12s ease; }
 .amp-more:hover, .amp-more.active, .amp-more:focus-visible { background: #f1f1f1; }
-.amp-more:focus-visible, .amp-provider:focus-visible, .amp-model:focus-visible, .amp-reset:focus-visible, .amp-model-back:focus-visible {
+.amp-more:focus-visible, .amp-model:focus-visible, .amp-reset:focus-visible, .amp-model-back:focus-visible {
   outline: 2px solid rgba(37, 99, 235, .42); outline-offset: -2px; }
 .amp-more-value { overflow: hidden; max-width: 116px; color: #858585; font-size: 11.5px; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 .amp-more svg { width: 16px; height: 16px; color: #878787; }
@@ -475,28 +395,13 @@ watch(() => props.agentId, () => {
 .amp-state p { margin: 0 0 8px; }
 .amp-cta { display: inline-block; color: #2563eb; font-size: 12px; font-weight: 600; text-decoration: none; }
 .amp-cta:hover { text-decoration: underline; }
-.amp-provider-flyout, .amp-model-flyout { position: absolute; left: calc(100% + 8px); bottom: -5px; z-index: 1; width: 218px;
+.amp-model-flyout { position: absolute; left: calc(100% + 8px); bottom: -5px; z-index: 1; width: 218px;
   max-width: calc(100vw - 24px); padding: 5px; background: rgba(255, 255, 255, .98); border: 1px solid rgba(0, 0, 0, .14);
   border-radius: 14px; box-shadow: 0 14px 38px rgba(0, 0, 0, .14), 0 2px 8px rgba(0, 0, 0, .06); backdrop-filter: blur(16px); }
-.amp-model-flyout { bottom: -5px; width: 224px; }
+.amp-model-flyout { bottom: -5px; width: 280px; }
 .amp-card-title { display: flex; min-height: 31px; align-items: center; padding: 6px 9px; color: #929292;
   font-size: 10px; font-weight: 650; letter-spacing: .035em; text-transform: uppercase; }
-.amp-provider-scroll, .amp-model-scroll { max-height: min(390px, calc(100vh - 32px)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-.amp-provider { display: grid; width: 100%; min-height: 48px; grid-template-columns: 28px 1fr 16px; align-items: center; gap: 9px;
-  padding: 7px 8px; border: 0; border-radius: 9px; background: transparent; color: #303030; text-align: left; cursor: pointer;
-  transition: background .12s ease; }
-.amp-provider:hover, .amp-provider.active { background: #f1f1f1; }
-.amp-provider > svg { width: 16px; height: 16px; color: #878787; }
-.amp-provider-mark { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid #e5e5e5; border-radius: 8px;
-  background: #fff; color: #303030; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); }
-.amp-provider-logo { width: 17px; height: 17px; }
-.amp-provider-mark[data-provider="openrouter"] .amp-provider-logo,
-.amp-provider-mark[data-provider="ollama"] .amp-provider-logo,
-.amp-provider-mark[data-provider="xai"] .amp-provider-logo,
-.amp-provider-mark[data-provider="custom"] .amp-provider-logo { color: #222; }
-.amp-provider-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.amp-provider-name { overflow: hidden; font-size: 12.5px; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
-.amp-provider-meta { color: #909090; font-size: 10.5px; }
+.amp-model-scroll { max-height: min(390px, calc(100vh - 32px)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .amp-model-back { width: 100%; gap: 5px; border: 0; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; }
 .amp-model-back:hover { background: #f1f1f1; color: #555; }
 .amp-model-back svg { width: 14px; height: 14px; }
@@ -512,7 +417,7 @@ watch(() => props.agentId, () => {
 .amp-search-clear:hover { background: #ececec; color: #333; }
 .amp-model-empty { padding: 26px 12px; color: #8b8b8b; font-size: 12px; text-align: center; }
 .amp-model-more { padding: 8px 12px 10px; color: #8b8b8b; font-size: 11.5px; text-align: center; }
-.amp-model { position: relative; display: flex; width: 100%; min-height: 34px; align-items: center; gap: 8px; padding: 7px 30px 7px 9px;
+.amp-model { position: relative; display: flex; width: 100%; min-height: 44px; align-items: center; gap: 8px; padding: 7px 30px 7px 9px;
   border: 0; border-radius: 8px; background: transparent; color: #303030; text-align: left; cursor: pointer; transition: background .12s ease; }
 .amp-model:hover, .amp-model.active { background: #f1f1f1; }
 .amp-model:disabled { opacity: .55; cursor: wait; }
@@ -533,13 +438,12 @@ watch(() => props.agentId, () => {
 
 @media (max-width: 640px) {
   .amp-menu { max-width: min(272px, calc(100vw - 20px)); }
-  .amp-provider-flyout { left: 0; bottom: calc(100% + 8px); width: min(272px, calc(100vw - 20px)); }
   .amp-model-flyout { left: 0; bottom: 0; z-index: 2; width: 100%; }
-  .amp-provider-scroll, .amp-model-scroll { max-height: min(310px, calc(100vh - 190px)); }
+  .amp-model-scroll { max-height: min(310px, calc(100vh - 190px)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .amp-btn, .amp-caret, .amp-more, .amp-provider, .amp-model { transition: none; }
+  .amp-btn, .amp-caret, .amp-more, .amp-model { transition: none; }
 }
 .amp-mode { padding: 4px 0 2px; }
 .amp-mode-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 3px 10px 5px; }

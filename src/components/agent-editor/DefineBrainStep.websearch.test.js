@@ -43,7 +43,6 @@ async function mountExpanded({ config = {}, editable = true, agent = {} } = {}) 
   await flushPromises()
   await w.find('.model-card .edit-btn').trigger('click')
   await flushPromises()                               // the catalog is read when the editor opens
-  await w.find('.model-card select').setValue('1')   // choose a provider so the capability rows render
   await nextTick()
   await flushPromises()
   return w
@@ -54,9 +53,7 @@ const select = (w) => row(w).find('select')
 
 beforeEach(() => {
   vi.clearAllMocks()
-  api.get.mockImplementation((url) => String(url).includes('providers')
-    ? Promise.resolve({ data: [{ id: 1, name: 'P', provider_type: 'openai' }] })
-    : Promise.resolve({ data: [{ id: 10, name: 'gpt', model_id: 'gpt', provider: 1, metadata: {} }] }))
+  api.get.mockImplementation(() => Promise.resolve({ data: [{ id: 10, name: 'gpt', model_id: 'gpt', metadata: {} }] }))
   api.getWebSearchModels.mockResolvedValue({ data: { models: SEARCH_MODELS } })
   api.updateAgentWebIntelligence.mockResolvedValue({ data: { config: {}, effective: {}, editable: true } })
 })
@@ -72,10 +69,13 @@ describe('DefineBrainStep — web search model', () => {
     expect(values).toContain('openai::gpt-5.1')
   })
 
-  it('groups by provider and puts providers with a usable model first', async () => {
+  it('is one list with no provider groups or names, usable models first', async () => {
     const w = await mountExpanded()
-    const labels = select(w).findAll('optgroup').map((g) => g.attributes('label'))
-    expect(labels[labels.length - 1]).toBe('Anthropic')           // no credentials → sinks
+    expect(select(w).findAll('optgroup')).toHaveLength(0)
+    const text = select(w).text()
+    for (const name of ['OpenRouter', 'OpenAI', 'Anthropic']) expect(text).not.toContain(name)
+    const values = select(w).findAll('option').map((o) => o.element.value)
+    expect(values[values.length - 1]).toBe('anthropic::claude-sonnet-4-6')   // cannot run → sinks
   })
 
   it('marks a model that is listed but cannot run', async () => {
@@ -133,8 +133,6 @@ describe('DefineBrainStep — web search model', () => {
     const w = mount(DefineBrainStep, { props: { agent: { id: null } }, global: { stubs } })
     await flushPromises()
     await w.find('.model-card .edit-btn').trigger('click')
-    await nextTick()
-    await w.find('.model-card select').setValue('1')
     await nextTick()
     expect(row(w).exists()).toBe(false)
     expect(api.getAgentWebIntelligence).not.toHaveBeenCalled()

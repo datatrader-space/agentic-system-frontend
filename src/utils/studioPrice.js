@@ -7,5 +7,5 @@ export function usd(value) {
 
 // One line per model in a menu: its name, the connection it runs on, and its price when known.
 export function routeOptionLabel(route) {
-  return [route?.name || route?.model, route?.connection || route?.provider, route?.price_label].filter(Boolean).join(' · ')
+  return [route?.name || route?.model, route?.connection || 'AADML', route?.price_label].filter(Boolean).join(' · ')
 }

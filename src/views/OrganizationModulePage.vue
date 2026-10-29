@@ -124,13 +124,14 @@
         </div>
         <RouterLink class="link" to="/dashboard/budgets">View all budgets <Icon icon="lucide:arrow-right" /></RouterLink>
       </article>
-      <article class="panel">
+      <!-- By provider: a platform administrator's view only (people never see which provider AADML uses, owner
+           2026-10-29; the budgets API sends no breakdown to them), so the panel is absent when there is none. -->
+      <article v-if="serviceCosts.length" class="panel">
         <h2>Cost by Service (MTD)</h2>
         <div class="donut-row compact">
           <div class="donut"><strong>{{ donutTotal }}</strong></div>
           <ul>
             <li v-for="item in serviceCosts" :key="item.name"><i :class="item.tone" />{{ item.name }} <b>{{ item.value }}</b></li>
-            <li v-if="!serviceCosts.length" class="muted-note">No provider spend yet.</li>
           </ul>
         </div>
       </article>
@@ -673,7 +674,7 @@ async function loadModule() {
       } else {
         liveMetrics.value = [
           { label: 'Spend (this month)', value: usd(m.current_spend), change: '', tone: '' },
-          { label: 'Providers', value: String(provEntries.length), change: '', tone: 'good' },
+          ...(provEntries.length ? [{ label: 'Providers', value: String(provEntries.length), change: '', tone: 'good' }] : []),
           { label: 'Agents tracked', value: String(Object.keys(byAgent).length), change: '', tone: 'good' },
         ]
       }

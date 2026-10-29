@@ -262,7 +262,7 @@ const failureRows = computed(() => allRuns.value.filter((run) => run.statusTone 
 
 const auditRows = computed(() => auditEntries.value.map((entry, index) => ({
   id: entry.id || `audit-${index}`,
-  title: entry.action || entry.provider || 'Audit event',
+  title: entry.action || 'Audit event',
   copy: entry.model || entry.conversation_id || 'Activity event recorded',
   time: formatDate(entry.created_at),
   tone: ['cyan', 'violet', 'green'][index % 3],

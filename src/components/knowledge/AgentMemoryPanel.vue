@@ -59,19 +59,22 @@
           <span class="text-xs text-gray-500">sessions</span>
         </div>
 
-        <!-- Dream Model Selector -->
-        <div class="flex items-center gap-1.5 ml-auto">
-          <span class="text-xs text-gray-500">Model:</span>
-          <select v-model="selectedDreamProvider" @change="onProviderChange"
-            class="text-xs border border-gray-200 rounded px-2 py-1 bg-white min-w-[80px]">
-            <option :value="null">All</option>
-            <option v-for="p in llmProviders" :key="p.id" :value="p.id">{{ p.name }}</option>
-          </select>
-          <select :value="config.dream_model" @change="updateDreamModel($event.target.value)"
-            class="text-xs border border-gray-200 rounded px-2 py-1 bg-white min-w-[140px] max-w-[220px]">
-            <option :value="null">Use agent default</option>
-            <option v-for="m in filteredModels" :key="m.id" :value="m.id">{{ m.name }}</option>
-          </select>
+        <!-- Dream model: one searchable list of every model the person may use, no provider choice
+             (owner, 2026-10-29). Empty = the agent's own model. -->
+        <div class="flex w-full items-center gap-2 sm:ml-auto sm:w-auto" data-test="dream-model">
+          <span class="shrink-0 text-xs text-gray-600">Model:</span>
+          <div class="min-w-0 flex-1 sm:w-[260px] sm:flex-none">
+            <ModelPicker
+              :model-value="config.dream_model"
+              :models="llmModels"
+              aria-label="Dream model"
+              placeholder="Use agent default"
+              @update:model-value="updateDreamModel($event)"
+            />
+          </div>
+          <button v-if="config.dream_model" type="button"
+            class="min-h-[44px] shrink-0 px-2 text-xs font-semibold text-violet-700 hover:underline"
+            @click="updateDreamModel(null)">Use agent default</button>
         </div>
       </div>
 
@@ -81,9 +84,6 @@
           :class="config.dream_model_info.is_explicit ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-600'">
           {{ config.dream_model_info.is_explicit ? '🎯' : '🔄' }}
           {{ config.dream_model_info.name }}
-        </span>
-        <span v-if="config.dream_model_info.provider_type" class="text-gray-400">
-          via {{ config.dream_model_info.provider_name || config.dream_model_info.provider_type }}
         </span>
       </div>
     </div>
@@ -277,7 +277,8 @@
 </template>
 
 <script setup>
-import { providersFromModels } from '../../utils/providersFromModels'
+import { uniqueModels } from '../../utils/uniqueModels'
+import ModelPicker from '../common/ModelPicker.vue'
 import { ref, computed, watch, onMounted } from 'vue';
 import api from '../../services/api';
 import { confirm } from '@/composables/useConfirm';
@@ -320,9 +321,7 @@ const showStatus = (msg, type = 'info', durationMs = 4000) => {
 };
 
 // LLM model selection
-const llmProviders = ref([]);
 const llmModels = ref([]);
-const selectedDreamProvider = ref(null);
 
 // New card form
 const newCard = ref({
@@ -335,11 +334,6 @@ const newCard = ref({
 });
 
 // Computed
-const filteredModels = computed(() => {
-  if (!selectedDreamProvider.value) return llmModels.value;
-  return llmModels.value.filter(m => m.provider === selectedDreamProvider.value);
-});
-
 const sortedCards = computed(() => {
   const list = [...cards.value];
   if (sortBy.value === 'time') {
@@ -409,11 +403,6 @@ const fetchKnowledge = async () => {
     config.value = { ...config.value, ...res.data.config };
     stats.value = res.data.stats || stats.value;
 
-    // Set provider filter based on current dream model
-    if (config.value.dream_model_info) {
-      const dm = llmModels.value.find(m => m.id === config.value.dream_model);
-      if (dm) selectedDreamProvider.value = dm.provider;
-    }
   } catch (e) {
     console.error('Failed to fetch knowledge:', e);
     showStatus('Failed to load knowledge', 'error');
@@ -422,14 +411,11 @@ const fetchKnowledge = async () => {
   }
 };
 
-// The providers to pick from are the platform APIs of the models this person may use (provider rows are admin-only).
-const fetchProviders = async () => { llmProviders.value = providersFromModels(llmModels.value) };
-
 const fetchModels = async () => {
   try {
     const res = await api.getLlmModels({ fields: 'picker' });   // ?fields=picker: every row, without the heavy metadata (not read here)
-    llmModels.value = res.data.results || res.data;
-    llmProviders.value = providersFromModels(llmModels.value);
+    // Every model across every platform provider, each once; the current dream model's row is the one kept.
+    llmModels.value = uniqueModels(res.data.results || res.data, [config.value.dream_model]);
   } catch (e) { console.error('Failed to fetch models:', e); }
 };
 
@@ -456,8 +442,6 @@ const updateDreamModel = async (val) => {
     showStatus('Failed to set dream model', 'error');
   }
 };
-
-const onProviderChange = () => {};
 
 const triggerDream = async () => {
   dreaming.value = true;
@@ -579,7 +563,7 @@ watch(() => props.agentProfile?.id, (id) => {
 }, { immediate: true });
 
 onMounted(async () => {
-  await Promise.all([fetchProviders(), fetchModels()]);
+  await fetchModels();
   if (props.agentProfile?.id) fetchKnowledge();
 });
 </script>

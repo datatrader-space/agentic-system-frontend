@@ -35,7 +35,7 @@
                   :data-test="kind + '-model-' + idOf(r)" @click="usable(r) && pick(String(idOf(r)))">
             <span class="vmp-opt-main">
               <span class="vmp-opt-name">{{ nameOf(r) }}
-                <span v-if="ownKey(r)" class="vmp-tag" title="Renders on your own provider key">Your key</span></span>
+                <span v-if="ownKey(r)" class="vmp-tag" title="Renders on your own key">Your key</span></span>
               <span class="vmp-opt-meta">{{ describe(r) }}</span>
               <span v-if="!isImage && r.references && r.references.summary" class="vmp-opt-meta" :data-test="kind + '-model-refs-' + idOf(r)">{{ r.references.summary }}</span>
             </span>

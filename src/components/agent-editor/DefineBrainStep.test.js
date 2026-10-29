@@ -5,12 +5,7 @@ import { nextTick } from 'vue'
 
 vi.mock('../../services/api', () => ({
   default: {
-    get: vi.fn((url) => {
-      if (String(url).includes('providers')) {
-        return Promise.resolve({ data: [{ id: 1, name: 'P', provider_type: 'openai' }] })
-      }
-      return Promise.resolve({ data: [{ id: 10, name: 'gpt', model_id: 'gpt', provider: 1, metadata: {} }] })
-    }),
+    get: vi.fn(() => Promise.resolve({ data: [{ id: 10, name: 'gpt', model_id: 'gpt', metadata: {} }] })),
   },
 }))
 vi.mock('vue-router', () => ({ RouterLink: { template: '<a><slot/></a>' } }))
@@ -22,14 +17,13 @@ const stubs = {
   RouterLink: { template: '<a><slot/></a>' },
 }
 
-// Expand the AI Model card (Edit) and select a provider so the capability rows render.
+// Expand the AI Model card (Edit): the model pickers and the capability rows render at once (no provider step).
 async function mountExpanded(agent = {}) {
   const a = { id: 1, ...agent }
   const w = mount(DefineBrainStep, { props: { agent: a }, global: { stubs } })
   await flushPromises()
   await w.find('.model-card .edit-btn').trigger('click')
   await flushPromises()                              // the catalog is read when the editor opens
-  await w.find('.model-card select').setValue('1')  // selectedProvider
   await nextTick()
   w._agent = a
   return w
@@ -93,20 +87,15 @@ describe('DefineBrainStep — advanced document-ingestion capability rows', () =
 // So nothing is hidden, and the risk is carried by a WARNING the user can overrule.
 
 const MANY = [
-  { id: 10, name: 'gpt-4.1', model_id: 'gpt-4.1', provider: 1, metadata: {} },
-  { id: 11, name: 'gpt-4o', model_id: 'gpt-4o', provider: 1, supports_vision: true, metadata: {} },
-  { id: 12, name: 'dall-e-3', model_id: 'dall-e-3', provider: 1, can_generate_images: true, metadata: {} },
-  { id: 13, name: 'plain-chat', model_id: 'plain-chat', provider: 1, metadata: {} },
+  { id: 10, name: 'gpt-4.1', model_id: 'gpt-4.1', metadata: {} },
+  { id: 11, name: 'gpt-4o', model_id: 'gpt-4o', supports_vision: true, metadata: {} },
+  { id: 12, name: 'dall-e-3', model_id: 'dall-e-3', can_generate_images: true, metadata: {} },
+  { id: 13, name: 'plain-chat', model_id: 'plain-chat', metadata: {} },
 ]
 
 async function mountWithModels(agent = {}) {
   const api = (await import('../../services/api')).default
-  api.get.mockImplementation((url) => {
-    if (String(url).includes('providers')) {
-      return Promise.resolve({ data: [{ id: 1, name: 'P', provider_type: 'openai' }] })
-    }
-    return Promise.resolve({ data: MANY })
-  })
+  api.get.mockImplementation(() => Promise.resolve({ data: MANY }))
   return mountExpanded(agent)
 }
 
@@ -133,14 +122,12 @@ describe('DefineBrainStep — the Video generation picker lists video models onl
   const videoCap = { field: 'video_model', label: 'Video generation', capability: 'can_generate_video' }
   const WITH_VIDEO = [
     ...MANY,
-    { id: 20, name: 'Kling v3.0 Pro', model_id: 'kwaivgi/kling-v3.0-pro', provider: 1, can_generate_video: true, metadata: {} },
-    { id: 21, name: 'Veo 3.1', model_id: 'google/veo-3.1', provider: 1, can_generate_video: true, metadata: {} },
+    { id: 20, name: 'Kling v3.0 Pro', model_id: 'kwaivgi/kling-v3.0-pro', can_generate_video: true, metadata: {} },
+    { id: 21, name: 'Veo 3.1', model_id: 'google/veo-3.1', can_generate_video: true, metadata: {} },
   ]
   async function mountVideo(agent = {}) {
     const api = (await import('../../services/api')).default
-    api.get.mockImplementation((url) => Promise.resolve({
-      data: String(url).includes('providers') ? [{ id: 1, name: 'P', provider_type: 'openrouter' }] : WITH_VIDEO,
-    }))
+    api.get.mockImplementation(() => Promise.resolve({ data: WITH_VIDEO }))
     return mountExpanded(agent)
   }
 
@@ -166,14 +153,12 @@ describe('DefineBrainStep — the Video input picker lists models that take vide
   const inputCap = { field: 'video_input_model', label: 'Video input', capability: 'supports_video_input' }
   const WITH_WATCHERS = [
     ...MANY,
-    { id: 30, name: 'Gemini 2.5 Flash', model_id: 'google/gemini-2.5-flash', provider: 1, supports_vision: true, supports_video_input: true, metadata: {} },
-    { id: 20, name: 'Kling v3.0 Pro', model_id: 'kwaivgi/kling-v3.0-pro', provider: 1, can_generate_video: true, metadata: {} },
+    { id: 30, name: 'Gemini 2.5 Flash', model_id: 'google/gemini-2.5-flash', supports_vision: true, supports_video_input: true, metadata: {} },
+    { id: 20, name: 'Kling v3.0 Pro', model_id: 'kwaivgi/kling-v3.0-pro', can_generate_video: true, metadata: {} },
   ]
   async function mountWatchers(agent = {}) {
     const api = (await import('../../services/api')).default
-    api.get.mockImplementation((url) => Promise.resolve({
-      data: String(url).includes('providers') ? [{ id: 1, name: 'P', provider_type: 'openrouter' }] : WITH_WATCHERS,
-    }))
+    api.get.mockImplementation(() => Promise.resolve({ data: WITH_WATCHERS }))
     return mountExpanded(agent)
   }
 
@@ -244,31 +229,60 @@ describe('DefineBrainStep — loads in one round (Phase 5 item 3)', () => {
   })
 })
 
-describe('DefineBrainStep — capability models are not tied to the main model\'s provider', () => {
-  // Production 2026-10-27: the Training agent's main model on OpenRouter, its vision model on OpenAI. The vision
-  // picker, filtered by the main model's provider, showed "Auto", and choosing a provider cleared the vision model,
-  // so a save from the builder removed it.
-  it('keeps every capability model when the provider changes, and clears only a main model of another provider', async () => {
-    const w = await mountExpanded({ default_model: 99, vision_model: 77, image_model: 66 })
-    expect(w._agent.vision_model).toBe(77)
-    expect(w._agent.image_model).toBe(66)
-    expect(w._agent.default_model).toBe(null)          // 99 is not a model of provider 1
-  })
-
-  it('offers every model to a capability picker, whatever provider is chosen', async () => {
+describe('DefineBrainStep — one model list per field, no provider choice (owner, 2026-10-29)', () => {
+  // People never see which provider AADML runs a model on, and never choose one: the editor is one searchable list
+  // per field, of every model the person may use across every platform provider, each model once.
+  const ACROSS = [
+    { id: 40, name: 'OpenAI: GPT-6 Luna', model_id: 'openai/gpt-6-luna', metadata: {} },
+    { id: 41, name: 'Anthropic: Claude Opus', model_id: 'anthropic/claude-opus', supports_vision: true, metadata: {} },
+    { id: 42, name: 'OpenAI: GPT-6 Luna', model_id: 'openai/gpt-6-luna', metadata: {} },     // the same model, 2nd connection
+  ]
+  async function mountPickers(agent = {}) {
+    const api = (await import('../../services/api')).default
+    api.get.mockImplementation(() => Promise.resolve({ data: ACROSS }))
     const pickers = []
+    const a = { id: 1, ...agent }
     const w = mount(DefineBrainStep, {
-      props: { agent: { id: 1, vision_model: 10 } },
-      global: { stubs: { ...stubs, ModelPicker: { props: ['models', 'modelValue'], setup(p) { pickers.push(p); return {} }, template: '<div/>' } } },
+      props: { agent: a },
+      global: { stubs: { ...stubs, ModelPicker: { props: ['models', 'modelValue', 'ariaLabel'], setup(p) { pickers.push(p); return {} }, template: '<div class="model-picker-stub"/>' } } },
     })
     await flushPromises()
     await w.find('.model-card .edit-btn').trigger('click')
     await flushPromises()
-    await w.find('.model-card select').setValue('1')
-    await nextTick()
-    const vision = pickers.find(p => p.modelValue === 10)
-    expect(vision).toBeTruthy()
-    expect(vision.models.map(m => m.id)).toContain(10)
+    return { w, pickers, a }
+  }
+
+  it('shows no provider select and no "select a provider" step', async () => {
+    const { w } = await mountPickers()
+    const card = w.find('[data-test="model-editor"]')
+    expect(card.exists()).toBe(true)
+    expect(card.text()).not.toMatch(/provider/i)
+    expect(card.findAll('label').map(l => l.text())).not.toContain('Provider')
+    expect(card.text()).not.toContain('Select a provider')
+    // The only <select>s left are behaviour settings (YouTube transcripts) and the web search model.
+    for (const sel of card.findAll('select')) {
+      expect(sel.findAll('option').map(o => o.text()).join(' ')).not.toMatch(/openai|anthropic|openrouter/i)
+    }
+  })
+
+  it('gives the main model and every capability model one list across every provider, each model once', async () => {
+    const { pickers } = await mountPickers()
+    const main = pickers.find(p => p.ariaLabel === 'Main model')
+    expect(main).toBeTruthy()
+    expect(main.models.map(m => m.id)).toEqual([40, 41])
+    const vision = pickers.find(p => p.ariaLabel === 'Image input (vision)')
+    expect(vision.models.map(m => m.id)).toEqual([40, 41])
+  })
+
+  it("keeps the row the agent already uses when a model is on two connections", async () => {
+    const { pickers } = await mountPickers({ default_model: 42 })
+    const main = pickers.find(p => p.ariaLabel === 'Main model')
+    expect(main.models.map(m => m.id)).toEqual([42, 41])
+  })
+
+  it('never clears a model the agent uses (there is no provider to change)', async () => {
+    const { a } = await mountPickers({ default_model: 99, vision_model: 77, image_model: 66 })
+    expect([a.default_model, a.vision_model, a.image_model]).toEqual([99, 77, 66])
   })
 })
 
@@ -277,8 +291,8 @@ describe('DefineBrainStep — the card reads one model, the editor the catalog (
     const api = (await import('../../services/api')).default
     api.get.mockClear()
     api.get.mockImplementation((url) => Promise.resolve({ data: String(url) === '/llm/models/10/'
-      ? { id: 10, name: 'gpt', model_id: 'gpt', provider: 1, provider_name: 'OpenAI' }
-      : String(url).includes('providers') ? [{ id: 1, name: 'P', provider_type: 'openai' }] : MANY }))
+      ? { id: 10, name: 'gpt', model_id: 'gpt' }
+      : MANY }))
     const w = mount(DefineBrainStep, { props: { agent: { id: 1, ...agent } }, global: { stubs } })
     await flushPromises()
     return { w, urls: () => api.get.mock.calls.map(([u]) => u) }
@@ -287,7 +301,8 @@ describe('DefineBrainStep — the card reads one model, the editor the catalog (
   it("names the agent's model from a lookup of that model alone, never the whole catalog", async () => {
     const { w, urls } = await mountCard({ default_model: 10 })
     expect(urls()).toEqual(['/llm/models/10/'])
-    expect(w.find('.model-card').text()).toContain('OpenAI - gpt')
+    expect(w.find('.model-card').text()).toContain('gpt')
+    expect(w.find('.model-card').text()).not.toContain(' - gpt')        // no provider prefix
   })
 
   it('asks for nothing when the agent has no model yet', async () => {
@@ -300,10 +315,8 @@ describe('DefineBrainStep — the card reads one model, the editor the catalog (
     const { w, urls } = await mountCard({ default_model: 10 })
     for (let i = 0; i < 3; i++) { await w.find('.model-card .edit-btn').trigger('click'); await flushPromises() }
     expect(urls().filter(u => u === '/llm/models/')).toHaveLength(1)
-    // People have no providers of their own any more (Platform APIs are admin-only): the providers come from the
-    // models, so the provider list is never asked for.
-    expect(urls().filter(u => u === '/llm/providers/')).toHaveLength(0)
+    // No provider list is ever asked for: people never choose a provider.
+    expect(urls().filter(u => String(u).includes('/llm/providers'))).toHaveLength(0)
     expect(w.vm.modelsFor().length).toBe(MANY.length)
-    expect(w.find('.model-card select').element.value).toBe('1')   // the current model's provider
   })
 })

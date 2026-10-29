@@ -22,24 +22,20 @@
             <button class="edit-btn" @click="toggle('model')"><Pencil :size="13" :stroke-width="2" /> {{ editing.model ? 'Done' : 'Edit' }}</button>
           </header>
 
-          <div v-if="editing.model" class="space-y-3">
-            <div>
-              <label class="field-label">Provider</label>
-              <select v-model="selectedProvider" class="field" @change="onProviderChange">
-                <option :value="null">Select a provider...</option>
-                <option v-for="p in providers" :key="p.id" :value="p.id">{{ p.name || p.provider_type }}</option>
-              </select>
-            </div>
-
-            <template v-if="selectedProvider != null">
+          <!-- One model list per field, every model the person may use (owner, 2026-10-29): there is no provider
+               to choose, and none is shown. -->
+          <div v-if="editing.model" class="space-y-3" data-test="model-editor">
               <div>
                 <label class="field-label">Main model</label>
                 <ModelPicker
                   :model-value="agent.default_model"
                   :models="chatModels"
+                  aria-label="Main model"
                   placeholder="Search and select a model..."
                   @update:model-value="agent.default_model = $event"
                 />
+                <p v-if="catalogLoading" class="mt-1 text-[11px] text-[#667085]" role="status">Loading models…</p>
+                <p v-else-if="catalogError" class="mt-1 text-[11px] text-[#B42318]" role="alert">{{ catalogError }}</p>
               </div>
               <div class="border-t border-[#F2F4F7] pt-3">
                 <p class="text-xs font-semibold text-[#344054]">Capability models <span class="font-normal text-[#98A2B3]">- optional</span></p>
@@ -54,6 +50,7 @@
                     <ModelPicker
                       :model-value="agent[c.field]"
                       :models="modelsFor(c)"
+                      :aria-label="c.label"
                       placeholder="Auto (use main model)"
                       @update:model-value="agent[c.field] = $event"
                     />
@@ -64,7 +61,7 @@
 
                   <!-- YouTube transcript provider — a behaviour setting, not a model picker -->
                   <div data-test="cap-youtube_transcript_provider">
-                    <label class="mb-1 block text-[11.5px] font-medium text-[#475569]">YouTube transcript provider</label>
+                    <label class="mb-1 block text-[11.5px] font-medium text-[#475569]">YouTube transcripts</label>
                     <p class="mb-1 text-[10.5px] leading-snug text-[#98A2B3]">How uploaded YouTube URLs are indexed. Captions first; audio fallback downloads audio and transcribes with your Audio transcription model (heavier, opt-in).</p>
                     <select
                       :value="agent.youtube_transcript_provider || 'auto'"
@@ -94,15 +91,14 @@
                     <select
                       :value="searchModelValue"
                       :disabled="searchModelsLoading || searchModelSaving || !searchModelEditable"
+                      aria-label="Web search model"
                       @change="setSearchModel($event.target.value)"
-                      class="w-full rounded-lg border border-[#E2E8F0] px-2.5 py-2 text-[12.5px] disabled:opacity-60"
+                      class="w-full min-h-[44px] rounded-lg border border-[#E2E8F0] px-2.5 py-2 text-[12.5px] disabled:opacity-60"
                     >
                       <option value="">{{ searchModelsLoading ? 'Loading models…' : 'Auto (platform default)' }}</option>
-                      <optgroup v-for="g in searchModelGroups" :key="g.label" :label="g.label">
-                        <option v-for="m in g.models" :key="g.label + '::' + m.model_id" :value="m.provider + '::' + m.model_id">
-                          {{ m.display_name || m.model_id }}{{ m.available ? '' : ' — unavailable' }}
-                        </option>
-                      </optgroup>
+                      <option v-for="m in searchModelOptions" :key="m.provider + '::' + m.model_id" :value="m.provider + '::' + m.model_id">
+                        {{ m.display_name || m.model_id }}{{ m.available ? '' : ' — unavailable' }}
+                      </option>
                     </select>
                     <p v-if="searchModelError" class="mt-1 text-[10.5px] leading-snug text-[#B54708]">{{ searchModelError }}</p>
                     <p v-else-if="!searchModelEditable" class="mt-1 text-[10.5px] leading-snug text-[#98A2B3]">This agent is shared — only its owner or an administrator can change this.</p>
@@ -113,8 +109,6 @@
                   </div>
                 </div>
               </div>
-            </template>
-            <p v-else class="rounded-lg bg-[#F9FAFB] px-3 py-2.5 text-[12.5px] text-[#667085]">Select a provider to choose a model.</p>
 
             <!-- Reasoning (per-agent): stream the model's extended thinking into the activity timeline -->
             <div class="border-t border-[#F2F4F7] pt-3">
@@ -332,7 +326,7 @@
 </template>
 
 <script setup>
-import { providersFromModels } from '../../utils/providersFromModels'
+import { uniqueModels } from '../../utils/uniqueModels'
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { useEditorShell } from '../../composables/editorShell'
 import { RouterLink } from 'vue-router'
@@ -402,29 +396,31 @@ async function loadAgentMemory() {
 }
 
 const models = ref([])
-const providers = ref([])
-const selectedProvider = ref(null)
+const catalogLoading = ref(false)
+const catalogError = ref('')
 const currentModel = ref(null)     // the agent's main model, looked up by id for the card's label
 
 // The whole model catalog (thousands of rows) is read only when the model editor opens, once: the card
 // itself names one model, and `loadCurrentModel` asks for just that one (page-speed plan, ADM-1069).
+// Every model the person may use, across every platform provider, as one list with each model once: there is
+// no provider choice and none is shown (owner, 2026-10-29). A model the agent already uses is the row kept
+// when its id is on two connections, so it still shows as chosen.
 let catalog = null
 function loadCatalog() {
   if (!catalog) {
-    // People have no providers of their own any more (the Platform APIs are admin-only), so the providers are
-    // the ones the usable models run on.
+    catalogLoading.value = true
+    catalogError.value = ''
     catalog = api.get('/llm/models/')
       .then((mRes) => {
-        models.value = Array.isArray(mRes.data) ? mRes.data : (mRes.data?.results || [])
-        providers.value = providersFromModels(models.value)
-        const cur = models.value.find(m => m.id === props.agent.default_model)
-        if (cur && selectedProvider.value == null) selectedProvider.value = modelProvider(cur)
+        const rows = Array.isArray(mRes.data) ? mRes.data : (mRes.data?.results || [])
+        models.value = uniqueModels(rows, [props.agent.default_model, ...CAPS.map((c) => props.agent[c.field])])
       })
       .catch(() => {
         models.value = []
-        providers.value = []
+        catalogError.value = 'Could not load the models. Close and open the editor to try again.'
         catalog = null                 // opening the editor again tries again
       })
+      .finally(() => { catalogLoading.value = false })
   }
   return catalog
 }
@@ -475,10 +471,8 @@ const CAPS = [
 // chat model here is a choice that can only fail — and it buried 31 video models among 747 chat models.
 // The agent's current pick stays listed even if it lost the flag, so it can be seen and changed.
 //
-// NOR IS ANY PROVIDER (2026-10-27). The Provider select narrows the MAIN model's list; a capability model is
-// its own choice, often from another provider (the Training agent: main model on OpenRouter, vision model on
-// OpenAI). Filtered by the main model's provider, the vision picker could not show the agent's own vision
-// model, read "Auto", and choosing a provider cleared it, so a save from this page removed it on production.
+// NO PROVIDER EITHER (2026-10-29): every picker is one list across every platform provider, and the Provider
+// select that used to narrow the main model's list is gone. People never see or choose a provider.
 // VIDEO INPUT likewise (2026-10-29): whether a model takes video is OpenRouter's own answer, set on every sync, and
 // a model that does not would only fail when handed a video.
 function modelsFor(c) {
@@ -506,18 +500,11 @@ const searchModelError = ref('')
 // that always fails is worse than showing it disabled with the reason.
 const searchModelEditable = ref(true)
 
-const searchModelGroups = computed(() => {
-  const by = new Map()
-  for (const m of searchModels.value) {
-    const label = m.provider_label || m.provider || 'Other'
-    if (!by.has(label)) by.set(label, [])
-    by.get(label).push(m)
-  }
-  // Available providers first, then alphabetical, so a provider with no credentials sinks.
-  return [...by.entries()]
-    .map(([label, ms]) => ({ label, models: ms, anyAvailable: ms.some(x => x.available) }))
-    .sort((a, b) => (Number(b.anyAvailable) - Number(a.anyAvailable)) || a.label.localeCompare(b.label))
-})
+// One list, no provider groups: available models first, then by name. `provider` is only the route the value
+// carries back to the server (a neutral alias for a person), never shown.
+const searchModelOptions = computed(() => [...searchModels.value].sort((a, b) =>
+  (Number(!!b.available) - Number(!!a.available))
+  || String(a.display_name || a.model_id).localeCompare(String(b.display_name || b.model_id))))
 
 // "<provider>::<model_id>" → [provider, model_id], cut at the FIRST "::" only. A plain split('::')
 // truncated a model id that itself contains "::".
@@ -591,25 +578,14 @@ const capCount = computed(() =>
   CAPS.filter(c => props.agent[c.field]).length
   + ((props.agent.youtube_transcript_provider && props.agent.youtube_transcript_provider !== 'auto') ? 1 : 0))
 
-const modelProvider = (m) => m.provider ?? m.provider_id ?? (m.provider && m.provider.id) ?? null
-const filteredModels = computed(() =>
-  selectedProvider.value == null ? models.value : models.value.filter(m => modelProvider(m) === selectedProvider.value)
-)
 // The MAIN model drives the conversation, so it must be able to chat and call tools. Video models are
 // media-only (the sync marks them supports_tools=false); offering one here would silently break the
 // agent's whole turn loop, not just its video calls.
-const chatModels = computed(() => filteredModels.value.filter(m => !(m.can_generate_video && m.supports_tools === false)))
-// Choosing a provider narrows the MAIN model only: a main model of another provider is cleared, and every
-// capability model stays as it was (each is its own choice, of any provider; see modelsFor).
-function onProviderChange() {
-  const ok = new Set(filteredModels.value.map(m => m.id))
-  if (props.agent.default_model && !ok.has(props.agent.default_model)) props.agent.default_model = null
-}
+const chatModels = computed(() => models.value.filter(m => !(m.can_generate_video && m.supports_tools === false)))
 
+// The model's own name (which may name its maker), never the provider it runs on.
 function modelLabel(m) {
-  const name = m.display_name || m.model_id || m.name || `Model ${m.id}`
-  const provider = m.provider_name || (m.provider && m.provider.name) || m.provider_type || ''
-  return provider ? `${provider} - ${name}` : name
+  return m.name || m.display_name || m.model_id || `Model ${m.id}`
 }
 const currentModelLabel = computed(() => {
   const id = props.agent.default_model

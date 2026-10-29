@@ -1,7 +1,7 @@
 <template>
   <select class="ins-in" aria-label="Media model" :value="modelValue" :disabled="loading || !routes.length" @change="$emit('update:modelValue', $event.target.value)">
     <option value="">{{ loading ? 'Loading models…' : routes.length ? 'Choose model' : 'No proven model available' }}</option>
-    <option v-for="route in routes" :key="route.route_id" :value="route.route_id">{{ route.name || route.model }} · {{ route.connection || route.provider || 'AADML' }}</option>
+    <option v-for="route in routes" :key="route.route_id" :value="route.route_id">{{ route.name || route.model }} · {{ route.connection || 'AADML' }}</option>
   </select>
   <p v-if="error" class="ins-hint" role="alert">{{ error }} <button type="button" @click="load">Try again</button></p>
 </template>
