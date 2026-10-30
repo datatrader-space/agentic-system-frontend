@@ -2,7 +2,7 @@
   <div class="mp-page">
     <div class="mp-header">
       <h1 class="gradient-text">Model Pricing</h1>
-      <p class="subtitle">Set cost per 1M tokens for every provider model. Used to cost LLM requests.</p>
+      <p class="subtitle">Provider prices in their published units. Retired models are excluded.</p>
     </div>
 
     <!-- Access guard (backend also enforces IsAdminUser; route guard blocks direct URL) -->
@@ -59,6 +59,7 @@
           <select v-model="statusFilter">
             <option value="all">All statuses</option>
             <option value="exact">Priced</option>
+            <option value="rate_card">Published rate card</option>
             <option value="missing">Missing</option>
             <option value="local_free">Local / free</option>
           </select>
@@ -79,7 +80,8 @@
 
       <!-- Legend -->
       <div class="mp-legend">
-        <span class="lg"><i class="dot ok"></i> Priced (exact DB pricing)</span>
+        <span class="lg"><i class="dot ok"></i> Priced (tokens, images or usage units)</span>
+        <span class="lg">Published rate card — price depends on settings or billing units</span>
         <span class="lg"><i class="dot miss"></i> Missing — needs a price</span>
         <span class="lg"><i class="dot local"></i> Local / free (Ollama)</span>
         <span class="lg"><i class="dot used"></i> Used recently but unpriced</span>
@@ -105,6 +107,7 @@
                 <th>Cached in / 1M</th>
                 <th>Reasoning / 1M</th>
                 <th title="USD per image for image-generation models">Per image</th>
+                <th>Media / unit rates</th>
                 <th>Cur</th>
                 <th>Notes</th>
                 <th></th>
@@ -133,10 +136,25 @@
                 <td><input class="num" type="number" step="any" min="0" placeholder="—"
                            title="USD per generated image (image models)"
                            v-model="edits[m.id].image" /></td>
+                <td class="unit-rates">
+                  <template v-if="m.pricing?.published_rates?.length">
+                    <details v-if="m.pricing.published_rates.length > 1">
+                      <summary>{{ m.pricing.published_rates.length }} published rates</summary>
+                      <p v-for="(rate, index) in m.pricing.published_rates" :key="index">
+                        {{ rate.label }}: ${{ rate.amount }} / {{ unitLabel(rate.unit) }}
+                        <span v-if="rate.condition" class="muted"> — {{ rate.condition }}</span>
+                      </p>
+                    </details>
+                    <span v-else>${{ m.pricing.published_rates[0].amount }} / {{ unitLabel(m.pricing.published_rates[0].unit) }}</span>
+                    <p v-if="m.pricing_status === 'rate_card'" class="muted">Availability also depends on billing checks.</p>
+                  </template>
+                  <span v-else class="muted">—</span>
+                </td>
                 <td><input class="cur" type="text" maxlength="8" v-model="edits[m.id].currency" /></td>
                 <td><input class="notes" type="text" placeholder="optional" v-model="edits[m.id].notes" /></td>
                 <td>
-                  <button class="btn-save" :disabled="savingId === m.id || !dirty(m)" @click="saveRow(m)">
+                  <button class="btn-save" :disabled="savingId === m.id || !dirty(m) || isUnitOrCard(m)" @click="saveRow(m)"
+                          :title="isUnitOrCard(m) ? 'This price is managed from its provider rate card.' : ''">
                     {{ savingId === m.id ? 'Saving…' : 'Save' }}
                   </button>
                 </td>
@@ -158,7 +176,8 @@
         </div>
       </div>
       <p class="mp-foot">
-        Prices are in cost per 1,000,000 tokens. Saving creates a new active pricing version —
+        Token columns are USD per 1,000,000 tokens; media rates show their own units. Published rate cards
+        do not mean every setting is available to run. Saving creates a new active pricing version —
         historical request logs keep their original frozen cost. Local models stay free unless you price them.
       </p>
     </div>
@@ -267,7 +286,7 @@ const summary = computed(() => {
   return {
     total: all.length,
     missing: all.filter((m) => m.pricing_status === 'missing').length,
-    priced: all.filter((m) => m.pricing_status === 'exact').length,
+    priced: all.filter((m) => ['exact', 'rate_card'].includes(m.pricing_status)).length,
     usedRecentlyMissing: all.filter((m) => m.used_recently && m.pricing_status === 'missing').length,
   }
 })
@@ -291,7 +310,18 @@ function prevPage() { if (page.value > 1) page.value-- }
 function nextPage() { if (page.value < totalPages.value) page.value++ }
 
 function statusLabel(s) {
-  return { exact: 'Priced', missing: 'Missing', local_free: 'Local · free' }[s] || s
+  return { exact: 'Priced', rate_card: 'Published rate card', missing: 'Missing', local_free: 'Local · free' }[s] || s
+}
+
+function unitLabel(unit) {
+  return { '1k_characters': '1,000 characters', token: 'token', million_tokens: '1M tokens', '1m_tokens': '1M tokens',
+    second: 'second', minute: 'minute', image: 'image', generation: 'generation',
+    megapixel: 'megapixel', megapixel_second: 'megapixel-second', video_token: 'video token',
+    '16_frames': '16 frames', step: 'training step', unit: 'provider unit' }[unit] || unit
+}
+
+function isUnitOrCard(m) {
+  return Boolean(m.pricing?.cost_unit || m.pricing_status === 'rate_card')
 }
 
 function rowClass(m) {
@@ -318,6 +348,7 @@ function dirty(m) {
 }
 
 async function saveRow(m) {
+  if (isUnitOrCard(m)) return
   const e = edits[m.id]
   const hasImage = !(e.image === '' || e.image === null || e.image === undefined)
   const hasTokens = !(e.input === '' || e.output === '' || e.input === null || e.output === null)
@@ -492,6 +523,8 @@ async function saveRow(m) {
 
 .badge { padding: 0.15rem 0.5rem; border-radius: 6px; font-size: 0.7rem; font-weight: 700; }
 .st-exact { background: rgba(16, 185, 129, .14); color: #059669; }
+.st-rate_card { background: rgba(59, 130, 246, .12); color: #1d4ed8; }
+.unit-rates { min-width: 180px; max-width: 360px; font-size: 12px; }
 .st-missing { background: rgba(245, 158, 11, .16); color: #b45309; }
 .st-local_free { background: rgba(14, 165, 233, .14); color: #0369a1; }
 .st-used { background: rgba(239, 68, 68, .14); color: #dc2626; }
