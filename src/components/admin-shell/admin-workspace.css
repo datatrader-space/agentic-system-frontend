@@ -250,9 +250,26 @@ body:has(.admin-shell[data-admin-theme="dark"]) > :where(.fixed.inset-0) :where(
   .admin-shell .admin-page :where(.pg-body) { display:block; }
   .admin-shell .admin-page :where(.pg-toc) { position:static; width:100%; margin-bottom:16px; }
   .admin-shell .admin-page.ab .usage-kpis,.admin-shell .admin-page.ab .coverage-kpis { grid-template-columns:1fr; }
+  .admin-shell .admin-page.ab .usage-kpis .kpi { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+  .admin-shell .admin-page.ab .usage-kpis .kpi strong { width:100%; text-align:left; font-size:clamp(18px,5.5vw,22px); }
   .admin-shell .admin-page.ab .secondary-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .admin-shell .admin-page.ab .secondary-kpis .kpi { border-bottom-width:1px; }
   .admin-loading-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .admin-route-loading { padding:20px 14px; }
 }
 @media(prefers-reduced-motion:reduce) { .admin-shell *,.admin-shell *::before,.admin-shell *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition:none !important; scroll-behavior:auto !important; } }
+
+/* Exact financial amounts need more room than counts; never force them into a narrow metric column. */
+.admin-shell .admin-main .admin-page.ab .revenue-kpis { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.admin-shell .admin-main .admin-page.ab .secondary-kpis { grid-template-columns:repeat(5,minmax(0,1fr)); }
+@media(max-width:1649px) { .admin-shell .admin-main .admin-page.ab .secondary-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:1399px) {
+  .admin-shell .admin-main .admin-page.ab .revenue-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .admin-shell .admin-main .admin-page.ab .secondary-kpis strong { font-size:18px; }
+}
+@media(max-width:899px) { .admin-shell .admin-main .admin-page.ab .secondary-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:767px) { .admin-shell .admin-main .admin-page.ab .usage-kpis { grid-template-columns:1fr; } }
+@media(max-width:599px) {
+  .admin-shell .admin-main .admin-page.ab :is(.revenue-kpis,.secondary-kpis) { grid-template-columns:1fr; }
+  .admin-shell .admin-main .admin-page.ab .revenue-kpis strong { font-size:clamp(18px,5.5vw,22px); }
+}
