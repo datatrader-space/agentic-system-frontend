@@ -1,8 +1,8 @@
 <template>
   <div class="admin-panel admin-page">
     <div class="admin-header admin-page-header">
-      <h1 class="gradient-text admin-page-title">Admin Dashboard</h1>
-      <p class="subtitle admin-muted">Platform overview, user analytics, and security monitoring</p>
+      <h1 class="gradient-text admin-page-title">Platform &amp; Users</h1>
+      <p class="subtitle admin-muted">Review users, access signals, and website activity.</p>
     </div>
 
     <div v-if="!isStaff" class="access-denied">
@@ -79,8 +79,14 @@
 
       <!-- Recent Users -->
       <div class="panel full-width admin-surface">
-        <h2 class="admin-section-title">Users <span class="badge-count">{{ userTotal }}</span></h2>
+        <h2 class="admin-section-title">Users <span v-if="!userLoading && !userError" class="badge-count">{{ userTotal }}</span></h2>
+        <div class="admin-toolbar users-toolbar">
+          <label><span>Search users</span><input v-model="userSearch" type="search" placeholder="Name or email…" @input="searchUsers" /></label>
+          <label><span>Sort</span><select v-model="userSort" @change="resetUsers"><option value="-date">Newest first</option><option value="date">Oldest first</option><option value="name">Name A–Z</option><option value="-name">Name Z–A</option><option value="cost">Highest cost</option></select></label>
+          <label><span>Rows per page</span><select v-model.number="userPageSize" @change="resetUsers"><option :value="20">20</option><option :value="50">50</option><option :value="100">100</option></select></label>
+        </div>
         <div v-if="userLoading" class="panel-loading">Loading...</div>
+        <div v-else-if="userError" class="admin-data-error" role="alert"><span>{{ userError }}</span><button type="button" class="btn" @click="loadUsers">Retry users</button></div>
         <div v-else class="users-table-wrap admin-table-scroll">
           <table class="users-table admin-table">
             <thead>
@@ -94,6 +100,7 @@
               </tr>
             </thead>
             <tbody>
+              <tr v-if="!users.length"><td colspan="6" class="admin-muted">No user records match these filters.</td></tr>
               <tr v-for="u in users" :key="u.id">
                 <td><strong>{{ u.username }}</strong></td>
                 <td>{{ u.email }}</td>
@@ -105,18 +112,22 @@
             </tbody>
           </table>
         </div>
+        <div v-if="!userLoading && !userError && userTotal" class="admin-pagination">
+          <span>{{ (userPage - 1) * userPageSize + 1 }}–{{ Math.min(userPage * userPageSize, userTotal) }} of {{ userTotal }} users</span>
+          <div class="user-page-actions"><button type="button" class="btn" :disabled="userPage <= 1" aria-label="Previous user page" @click="userPage--; loadUsers()">Previous</button><span>Page {{ userPage }} of {{ userPages }}</span><button type="button" class="btn" :disabled="userPage >= userPages" aria-label="Next user page" @click="userPage++; loadUsers()">Next</button></div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useMeta } from '../composables/useMeta'
 import api from '../services/api'
 import AnalyticsPanel from '../components/admin/AnalyticsPanel.vue'
 
-useMeta({ title: 'Admin — AADML' })
+useMeta({ title: 'Platform & Users — AADML' })
 
 const isStaff = ref(false)
 const stats = ref([])
@@ -128,13 +139,20 @@ const securityLoading = ref(false)
 const users = ref([])
 const userTotal = ref(0)
 const userLoading = ref(false)
+const userError = ref('')
+const userSearch = ref(''), userSort = ref('-date'), userPage = ref(1), userPageSize = ref(20)
+const userPages = computed(() => Math.max(1, Math.ceil(userTotal.value / userPageSize.value)))
+let userSearchTimer, userRequest = 0, userDisposed = false
+function resetUsers() { clearTimeout(userSearchTimer); userPage.value = 1; loadUsers() }
+function searchUsers() { clearTimeout(userSearchTimer); userSearchTimer = setTimeout(resetUsers, 300) }
+onBeforeUnmount(() => { userDisposed = true; clearTimeout(userSearchTimer); userRequest++ })
 
 onMounted(async () => {
   // Check if user is staff
   try {
     const { data } = await api.get('/auth/check')
     isStaff.value = data.user?.is_staff || false
-    if (!isStaff.value) return
+    if (!isStaff.value || userDisposed) return
   } catch { return }
 
   // Load all panels in parallel
@@ -150,7 +168,7 @@ async function loadCosts() {
       { icon: '💰', value: `$${data.totals?.cost_usd?.toFixed(2) || '0'}`, label: 'Total Cost' },
       { icon: '📊', value: data.totals?.request_count?.toLocaleString() || '0', label: 'LLM Requests' },
       { icon: '⚡', value: `${data.totals?.avg_latency_ms || 0}ms`, label: 'Avg Latency' },
-      { icon: '👥', value: data.top_users?.length || 0, label: 'Active Users' },
+      { icon: '👥', value: data.top_users?.length || 0, label: 'Users in cost report' },
     ]
   } catch (e) { console.warn('Admin costs:', e.message) }
   costLoading.value = false
@@ -166,13 +184,19 @@ async function loadSecurity() {
 }
 
 async function loadUsers() {
+  if (userDisposed) return
+  const request = ++userRequest
   userLoading.value = true
+  userError.value = ''
   try {
-    const { data } = await api.get('/admin/users/', { params: { sort: '-date', limit: 20 } })
+    const params = { sort: userSort.value, limit: userPageSize.value, offset: (userPage.value - 1) * userPageSize.value }
+    if (userSearch.value.trim()) params.search = userSearch.value.trim()
+    const { data } = await api.get('/admin/users/', { params, noCache: true })
+    if (request !== userRequest) return
     users.value = data.users || []
     userTotal.value = data.total || 0
-  } catch (e) { console.warn('Admin users:', e.message) }
-  userLoading.value = false
+  } catch { if (request === userRequest) userError.value = 'Could not load users. The user service is unavailable. Try again in a moment.' }
+  finally { if (request === userRequest) userLoading.value = false }
 }
 
 function formatDate(d) {
