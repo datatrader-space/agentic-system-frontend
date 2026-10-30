@@ -3,13 +3,19 @@
 // The person's whole part is the one command shown here; training and running models on a machine are chosen on the
 // Train tab and the Deployments page's Edge Devices tab. Backend: training_models_data/machines_api.py.
 import { computed, onUnmounted, ref } from 'vue';
-import { Check, Copy, Cpu, LoaderCircle, Plus, RefreshCw, Server, ShieldCheck, Trash2, Wrench } from 'lucide-vue-next';
+import { Check, Copy, Plus, Server, Trash2, Wrench } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
+import MachineConnection from './MachineConnection.vue';
 import MachineNeeds from './MachineNeeds.vue';
-import { machinesApi, machineState, capabilityLine, lastSeen, expiryLine, secondsLeft, commandFor, projectsLine, MACHINE_COMMANDS, reachCommand } from '../api/machines.js';
+import { machinesApi, machineState, capabilityLine, lastSeen, projectsLine, MACHINE_COMMANDS, reachCommand } from '../api/machines.js';
 
+const props = defineProps({ embedded: Boolean });
+const emit = defineEmits(['changed']);
+const connecting = ref(false);
+function takeMachines(answer) { data.value = answer; error.value = ''; emit('changed', answer); }
+function connected() { connecting.value = false; load(); }
 const data = ref(null); const error = ref(''); const loading = ref(false);
 const said = ref('');
 function announce(text) { said.value = ''; requestAnimationFrame(() => { said.value = text; }); }
@@ -18,47 +24,18 @@ let gone = false; let pollTimer = null;
 async function load() {
   if (loading.value) return;
   loading.value = true;
-  const before = new Map((data.value?.machines || []).map(m => [m.id, m.state]));
   try {
-    data.value = await machinesApi.list(); error.value = '';
-    // While the command is shown, a machine that was not there before is the one that just joined: the code is used up.
-    const joined = added.value ? data.value.machines.filter(m => !before.has(m.id)) : [];
-    if (joined.length) { announce(`${joined.map(m => m.name).join(', ')} joined and is online.`); added.value = null; }
+    const answer = await machinesApi.list();
+    if (!gone) takeMachines(answer);
   } catch (e) { error.value = e.message; }
-  finally { loading.value = false; if (!gone) { clearTimeout(pollTimer); pollTimer = setTimeout(load, added.value ? 5000 : 30000); } }
+  finally { loading.value = false; if (!gone) { clearTimeout(pollTimer); pollTimer = setTimeout(load, 30000); } }
 }
 load();
 const machines = computed(() => data.value?.machines || []);
 const now = ref(Date.now());
 const clock = setInterval(() => { now.value = Date.now(); }, 5000);
 
-// ── adding a machine: one code, one command, shown once ────────────────────────────────────────────────────
-const added = ref(null); const adding = ref(false); const addError = ref('');
-const gpu = ref(true);
-const command = computed(() => commandFor(added.value, gpu.value));
-const expired = computed(() => !!added.value && !secondsLeft(added.value.expires_at, now.value));
-async function addMachine() {
-  if (adding.value) return;
-  adding.value = true; addError.value = '';
-  try {
-    added.value = await machinesApi.add();
-    now.value = Date.now();
-    announce(`The command to add a machine is ready. It works for ${added.value.minutes || 10} minutes, once.`);
-    clearTimeout(pollTimer); pollTimer = setTimeout(load, 5000);
-  } catch (e) { addError.value = e.message; }
-  finally { adding.value = false; }
-}
-function closeAdd() { added.value = null; copied.value = false; }
-
-const copied = ref(false); const copyError = ref(''); let copiedTimer = null;
-async function copyCommand() {
-  try {
-    await navigator.clipboard.writeText(command.value);
-    copied.value = true; copyError.value = '';
-    announce('Copied the command.');
-    clearTimeout(copiedTimer); copiedTimer = setTimeout(() => { copied.value = false; }, 2000);
-  } catch { copyError.value = 'Copying was blocked by the browser. Select the command and copy it with Ctrl+C.'; }
-}
+const copyError = ref('');
 // The commands of "If something is wrong" and "Removing a machine", each with its own chip.
 const copiedCheck = ref(''); let checkTimer = null;
 async function copyCheck(text, what) {
@@ -69,7 +46,7 @@ async function copyCheck(text, what) {
     clearTimeout(checkTimer); checkTimer = setTimeout(() => { copiedCheck.value = ''; }, 2000);
   } catch { copyError.value = 'Copying was blocked by the browser. Select the command and copy it with Ctrl+C.'; }
 }
-const hosts = computed(() => data.value?.firewall_hosts || added.value?.firewall_hosts || []);
+const hosts = computed(() => data.value?.firewall_hosts || []);
 const reachChecks = computed(() => hosts.value.map(h => ({ host: h.host, command: reachCommand(h.host) })).filter(c => c.command));
 const offlineMinutes = computed(() => data.value?.offline_minutes || 3);
 
@@ -88,64 +65,26 @@ async function confirmRemove() {
   finally { removeBusy.value = false; }
 }
 
-onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTimer); clearTimeout(checkTimer); clearInterval(clock); });
+onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(checkTimer); clearInterval(clock); });
 </script>
 
 <template>
-  <section class="studio machines" aria-labelledby="machines-heading" :aria-busy="loading">
+  <section :class="['studio machines', {'machines--embedded':props.embedded}]" aria-labelledby="machines-heading" :aria-busy="loading">
     <p class="visually-hidden" aria-live="polite">{{ said }}</p>
     <header class="machines-head">
       <div>
-        <h2 id="machines-heading">Machines in this workspace</h2>
-        <p>Your own computers, which AADML trains and runs models on. You start one container on the machine; choosing its work, watching it and stopping it are done in AADML: here, on a project's Train tab, and on the Deployments page's Edge Devices tab.</p>
+        <h2 id="machines-heading">{{ props.embedded ? 'Your edge machines' : 'Machines in this workspace' }}</h2>
+        <p v-if="!props.embedded">Your own computers, which AADML trains and runs models on. You start one container on the machine; choosing its work, watching it and stopping it are done in AADML: here, on a project's Train tab, and on the Deployments page's Edge Devices tab.</p>
       </div>
-      <UiButton v-if="data?.may_manage && data?.available && !added" variant="primary" :disabled="adding" @click="addMachine">
-        <LoaderCircle v-if="adding" :size="16" class="spin" aria-hidden="true"/><Plus v-else :size="16" aria-hidden="true"/>
-        {{ adding ? 'Making the command…' : 'Add a machine' }}
-      </UiButton>
+      <UiButton v-if="data?.may_manage && data?.available && !connecting" variant="primary" @click="connecting = true"><Plus :size="16" aria-hidden="true"/> Connect a machine</UiButton>
     </header>
 
     <p v-if="error" class="field-error" role="alert">{{ error }} <button type="button" class="link-button" @click="load">Try again</button></p>
-    <p v-if="addError" class="field-error" role="alert">{{ addError }}</p>
     <p v-if="data && !data.available" class="machines-note">{{ data.unavailable_note }}</p>
     <p v-else-if="data && !data.may_manage" class="machines-note">An Admin of the workspace adds and removes machines.</p>
 
-    <section v-if="added" class="panel machine-add" aria-labelledby="add-heading">
-      <h3 id="add-heading">Add a machine</h3>
-      <p>Run this command once on the machine, in a terminal where Docker works. The machine joins this workspace and appears below as online.</p>
-      <label class="gpu-choice"><input v-model="gpu" type="checkbox"> The machine has an NVIDIA GPU</label>
-      <div class="command">
-        <pre :id="'machine-command'" tabindex="0" aria-label="The command to run on the machine"><code>{{ command || 'The command cannot be shown. Make a new one.' }}</code></pre>
-        <UiButton :disabled="!command || expired" :aria-describedby="'machine-command'" @click="copyCommand">
-          <Check v-if="copied" :size="16" aria-hidden="true"/><Copy v-else :size="16" aria-hidden="true"/>{{ copied ? 'Copied' : 'Copy' }}
-        </UiButton>
-      </div>
-      <p v-if="copyError" class="field-error" role="alert">{{ copyError }}</p>
-      <p :class="['expiry', { 'expiry--ended': expired }]">{{ expiryLine(added.expires_at, now) }}</p>
-      <h4 class="after-heading">After you run it</h4>
-      <ol class="after-steps">
-        <li>The container starts and trades the code for the machine's own key, which stays in its Docker volume. The code then stops working.</li>
-        <li>The machine appears below within a minute, named after its host name, as Online, with its processors, memory, free disk and GPUs.</li>
-        <li>It keeps itself up to date and restarts with Docker. Choose its work on a project's Train tab, or run a model on it from the Deployments page's Edge Devices tab.</li>
-      </ol>
-      <p v-if="!expired" class="after-wait" role="status"><LoaderCircle :size="14" class="spin" aria-hidden="true"/> Waiting for the machine to join. This page checks every 5 seconds.</p>
-      <div class="machine-add-facts">
-        <div>
-          <h4><ShieldCheck :size="16" aria-hidden="true"/> What the machine reaches</h4>
-          <p>It opens no port. Allow outbound HTTPS (port 443) to:</p>
-          <ul><li v-for="h in added.firewall_hosts" :key="h.host"><code>{{ h.host }}</code> <span>{{ h.why }}</span></li></ul>
-        </div>
-        <div>
-          <h4><Cpu :size="16" aria-hidden="true"/> What it runs</h4>
-          <p>The command gives AADML's agent your Docker socket, so it can start each job in a sealed container of its own: no network while it runs, no extra rights, a read-only system, and limits on memory, processors and time. A job never gets the socket.</p>
-        </div>
-      </div>
-      <div class="studio-actions">
-        <UiButton v-if="expired" variant="primary" :disabled="adding" @click="addMachine"><RefreshCw :size="16" aria-hidden="true"/> Make a new command</UiButton>
-        <UiButton @click="closeAdd">Done</UiButton>
-      </div>
-    </section>
-
+    <MachineConnection v-if="connecting" continue-label="Back to machines" @cancel="connecting=false" @connected="connected" @updated="takeMachines"/>
+    <template v-else>
     <div v-if="loading && !data" class="preview-loading" aria-label="Loading your machines"><div></div><div></div></div>
     <div v-else-if="data && !machines.length" class="empty-state machines-empty">
       <Server :size="28" aria-hidden="true"/>
@@ -168,12 +107,12 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
       </li>
     </ul>
 
-    <section class="panel machines-help" aria-labelledby="needs-heading">
-      <h3 id="needs-heading">What a machine needs</h3>
+    <details class="panel machines-help machine-requirements">
+      <summary>Machine requirements</summary>
       <MachineNeeds :hosts="hosts.length ? hosts : null"/>
-    </section>
+    </details>
 
-    <div class="machines-help-grid">
+    <details class="machine-maintenance"><summary>Help &amp; maintenance</summary><div class="machines-help-grid">
       <section class="panel machines-help" aria-labelledby="remove-heading">
         <h3 id="remove-heading"><Trash2 :size="16" aria-hidden="true"/> Removing a machine</h3>
         <p>Remove it here first: its key stops working at once, training it has not finished fails, and the models it runs stop. Then clear it from the machine: the agent, its volume and the containers it started.</p>
@@ -205,9 +144,12 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
           <summary>It says Updating its agent</summary>
           <p>The machine is moving to the agent version AADML names. It does so by itself within a few minutes, and keeps its key and its work.</p>
         </details>
-        <p v-if="copyError && !added" class="field-error" role="alert">{{ copyError }}</p>
+        <p v-if="copyError" class="field-error" role="alert">{{ copyError }}</p>
       </section>
     </div>
+
+    </details>
+    </template>
 
     <UiDialog :open="!!removing" :title="removing ? `Remove ${removing.name}?` : ''" @close="removing = null">
       <p class="dialog-description">Its key stops working at once. Training it has not finished fails, and models it serves stop. To use the machine again, add it with a new command.</p>
@@ -221,29 +163,12 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
 </template>
 
 <style scoped>
-.machines{max-width:960px}
+.machines{max-width:1120px}.machines--embedded{max-width:none}.machines--embedded .machines-head h2{font-size:15px}.machines--embedded .machines-head{align-items:center;margin-bottom:20px}.machines-head p{font-size:13px;color:#718097;line-height:1.8}.machines .machines-empty{border:1px dashed #d6dfec;background:#fff;border-radius:12px;padding:30px 22px;min-height:200px;gap:12px;text-align:center}.machines .machines-empty h2{font-size:16px;color:#34445c}.machines .machines-empty p{font-size:12px;color:#8190a6;line-height:1.8;max-width:55ch}.machines--embedded .machines-empty{min-height:160px}.machine-requirements summary,.machine-maintenance>summary{min-height:44px;align-content:center;font-size:13px;font-weight:550;color:#52627b;cursor:pointer}.machine-requirements[open] summary{margin-bottom:18px}.machine-maintenance{margin-top:16px;border:1px solid #e3e8ef;border-radius:11px;padding:7px 18px;background:#fff}.machine-maintenance[open]{padding-bottom:18px}.machines-help{border-color:#e3e8ef}.machines--embedded .machine-row{padding:16px}.machines--embedded .machine-row p{font-size:12px;color:#7b889e}.machines--embedded .machine-meta{font-size:11px}
 .machines-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:18px}
 .machines-head h2{margin:0 0 6px}
 .machines-head p{max-width:62ch}
 .machines-note{background:var(--aadml-tint);border:1px solid var(--aadml-soft);border-radius:8px;padding:12px 14px;color:#41506a;margin:0 0 18px}
 .link-button{background:none;border:0;color:var(--aadml-primary);font-weight:600;padding:0 4px;text-decoration:underline}
-.machine-add{margin-bottom:22px;border-color:var(--aadml-outline)}
-.machine-add h3{margin-bottom:6px}
-.gpu-choice{display:inline-flex;align-items:center;gap:10px;margin:14px 0 10px;min-height:44px;cursor:pointer;font-weight:550}
-.gpu-choice input{width:18px;height:18px;accent-color:var(--aadml-primary)}
-.command{display:flex;gap:10px;align-items:stretch}
-.command pre{flex:1;min-width:0;margin:0;background:#202b3c;color:#e6ebf3;border-radius:10px;padding:16px 18px;font-size:12px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
-.command pre:focus-visible{outline:3px solid var(--aadml-outline);outline-offset:2px}
-.command .button{align-self:flex-start;min-height:44px}
-.expiry{margin-top:10px;color:#27765a;font-weight:550}
-.expiry--ended{color:#b52f40}
-.machine-add-facts{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:18px;padding-top:18px;border-top:1px solid #e9ecf2}
-.machine-add-facts h4{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13px;color:#162139}
-.machine-add-facts h4 svg{color:var(--aadml-primary)}
-.machine-add-facts ul{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:8px}
-.machine-add-facts li{display:flex;flex-direction:column;gap:2px}
-.machine-add-facts code{font-size:12px;color:#162139;overflow-wrap:anywhere}
-.machine-add-facts li span{font-size:12px;color:#5f6d82}
 .machines-empty{display:flex;flex-direction:column;align-items:center}
 .machine-list{list-style:none;margin:0;padding:0;display:grid;gap:12px}
 .machine-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px}
@@ -252,9 +177,6 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
 .machine-title strong{font-size:14px;overflow-wrap:anywhere}
 .machine-row p{margin:4px 0 0}
 .machine-meta{font-size:12px}
-.after-heading{font-size:13px;margin:18px 0 8px;color:#0f172a}
-.after-steps{margin:0;padding-left:20px;display:grid;gap:6px;font-size:12.5px;line-height:1.55;color:#475569}
-.after-wait{display:flex;align-items:center;gap:8px;margin-top:12px!important;font-size:12px;color:#1e3a8a!important}
 .machines-help{margin-top:22px;padding:22px 24px}
 .machines-help h3{display:flex;align-items:center;gap:8px;font-size:15px;margin:0 0 14px;color:#0f172a}
 .machines-help h3 svg{color:var(--aadml-primary)}
@@ -275,9 +197,7 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
 .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media(max-width:640px){
   .machines-head,.machine-row{flex-direction:column;align-items:stretch}
-  .command{flex-direction:column}
-  .command .button,.machine-row .button,.machines-head .button{width:100%;min-height:44px}
-  .machine-add-facts{grid-template-columns:1fr}
+  .machine-row .button,.machines-head .button{width:100%;min-height:44px}
   .check-row{flex-wrap:wrap}
   .machines-help{padding:18px}
 }

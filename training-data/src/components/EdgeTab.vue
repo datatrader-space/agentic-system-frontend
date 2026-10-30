@@ -10,6 +10,8 @@ import { Activity, ArrowRight, Check, ChevronDown, Cloud, Copy, Cpu, EyeOff, Key
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
+import MachineConnection from './MachineConnection.vue';
+import MachinesPanel from './MachinesPanel.vue';
 import MachineNeeds from './MachineNeeds.vue';
 import {
   edgeApi, choiceKey, modelLabel, sortedChoices, whyNot, ENVIRONMENT_LABELS, machinesFor, portProblem, answerAt,
@@ -58,6 +60,19 @@ const steps = computed(() => stepStates({ available: available.value, machines: 
 const STATE_WORDS = { done: 'Complete', current: 'Next step', attention: 'Needs attention', waiting: 'Pending' };
 const hosts = computed(() => machinesInfo.value?.firewall_hosts || null);
 const mayManage = computed(() => !!machinesInfo.value?.may_manage);
+const connectingMachine = ref(false); const managingMachines = ref(false);
+async function syncMachines(answer) { machinesInfo.value = answer; await load(); }
+async function machineConnected(machine) {
+  await load();
+  // The backend's eligible-machine list remains the authority for project access.
+  if (!chosen.value || machines.value.some(m => String(m.id) === String(machine.id))) machineId.value = machine.id;
+  connectingMachine.value = false;
+  await goToStep(1);
+  document.getElementById('edge-step-2')?.focus({ preventScroll: true });
+  announce(`${machine.name} is online. Continue choosing your model and deployment settings.`);
+}
+async function closeMachines() { connectingMachine.value = false; managingMachines.value = false; await load(); }
+
 
 // ── step 2, the form: a model, where it is released to, the machine, its port ────────────────────────────────────
 const picked = ref(''); const environment = ref(''); const machineId = ref(''); const port = ref(DEFAULT_PORT);
@@ -65,7 +80,7 @@ const chosen = computed(() => choices.value.find(row => choiceKey(row) === picke
 const environments = computed(() => chosen.value?.environments || []);
 const machines = computed(() => (chosen.value ? machinesFor(data.value?.machines, chosen.value.project.id) : []));
 watch(chosen, row => {
-  environment.value = row?.environments?.includes('production') ? 'production' : row?.environments?.[0] || '';
+  if (!row?.environments?.includes(environment.value)) environment.value = row?.environments?.includes('production') ? 'production' : row?.environments?.[0] || '';
   if (!machines.value.some(m => String(m.id) === String(machineId.value))) machineId.value = machines.value[0]?.id ?? '';
 });
 const portError = computed(() => portProblem(port.value));
@@ -175,7 +190,7 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
         <span class="edge-icon" aria-hidden="true"><Cpu :size="23"/></span>
         <div><span class="edge-eyebrow">YOUR INFRASTRUCTURE. YOUR CONTROL.</span><h2 id="edge-heading">Edge Devices</h2><p>Deploy approved models to your machines. Run inference on your own network.</p></div>
       </div>
-      <UiButton variant="primary" @click="emit('navigate', 'machines')"><Plus :size="16" aria-hidden="true"/> Add machine</UiButton>
+      <UiButton variant="primary" @click="connectingMachine = true"><Plus :size="16" aria-hidden="true"/> Add machine</UiButton>
     </header>
 
     <div class="edge-privacy"><ShieldCheck :size="17" aria-hidden="true"/><p>{{ data?.photos || 'The photos you send it stay on your network: they never reach AADML.' }}</p><span>Local inference</span></div>
@@ -201,13 +216,13 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
           <ul v-if="allMachines.length" class="edge-machines" aria-label="Machines of this workspace">
             <li v-for="m in allMachines" :key="m.id"><div class="machine-row"><span class="machine-symbol"><Server :size="18" aria-hidden="true"/></span><strong>{{ m.name }}</strong><UiBadge :tone="machineState(m)[0]">{{ machineState(m)[1] }}</UiBadge></div><p>{{ capabilityLine(m.capabilities) }}</p></li>
           </ul>
-          <div v-else class="machine-empty"><span class="empty-symbol"><Server :size="28" aria-hidden="true"/></span><h4>{{ data ? 'Connect your first machine' : 'Machines unavailable' }}</h4><p>{{ data ? 'Bring your own Linux machine. Connect it once with a Docker command, then manage deployments here.' : 'Try refreshing to load your workspace machines.' }}</p><UiButton @click="emit('navigate', 'machines')"><Plus :size="15" aria-hidden="true"/> Connect a machine</UiButton></div>
+          <div v-else class="machine-empty"><span class="empty-symbol"><Server :size="28" aria-hidden="true"/></span><h4>{{ data ? 'Connect your first machine' : 'Machines unavailable' }}</h4><p>{{ data ? 'Bring your own Linux machine. Connect it once with a Docker command, then manage deployments here.' : 'Try refreshing to load your workspace machines.' }}</p><UiButton @click="connectingMachine = true"><Plus :size="15" aria-hidden="true"/> Connect a machine</UiButton></div>
           <p class="machine-state" :class="`is-${steps[0].state}`">{{ steps[0].line }}</p>
-          <div class="machine-footer"><UiButton @click="emit('navigate', 'machines')">Manage machines <ArrowRight :size="14" aria-hidden="true"/></UiButton><details class="requirements"><summary>Machine requirements <ChevronDown :size="14" aria-hidden="true"/></summary><MachineNeeds :hosts="hosts"/></details><p v-if="machinesInfo && !mayManage" class="step-hint">A workspace Admin connects new machines.</p></div>
+          <div class="machine-footer"><UiButton @click="managingMachines = true">Manage machines <ArrowRight :size="14" aria-hidden="true"/></UiButton><details class="requirements"><summary>Machine requirements <ChevronDown :size="14" aria-hidden="true"/></summary><MachineNeeds :hosts="hosts"/></details><p v-if="machinesInfo && !mayManage" class="step-hint">A workspace Admin connects new machines.</p></div>
         </section>
 
         <section id="edge-section-2" class="edge-card deploy-card" aria-labelledby="edge-step-2">
-          <div class="card-heading"><span class="card-icon"><Play :size="18" aria-hidden="true"/></span><div><h3 id="edge-step-2">Deploy a model</h3><p>Choose what to run and where to run it</p></div></div>
+          <div class="card-heading"><span class="card-icon"><Play :size="18" aria-hidden="true"/></span><div><h3 id="edge-step-2" tabindex="-1">Deploy a model</h3><p>Choose what to run and where to run it</p></div></div>
           <form v-if="available" class="edge-form" aria-labelledby="edge-step-2" @submit.prevent="start">
             <div class="form-grid">
               <label class="field-label">Model
@@ -267,7 +282,7 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
                     <strong>{{ job.model?.name }} {{ job.model?.version }}</strong>
                     <UiBadge :tone="jobState(job)[0]">{{ jobState(job)[1] }}</UiBadge>
                   </div>
-                  <p class="job-project">{{ job.project.name }}<template v-if="isActive(job) && startedLine(job, now)"> � {{ startedLine(job, now) }}</template></p>
+                  <p class="job-project">{{ job.project.name }}<template v-if="isActive(job) && startedLine(job, now)"> · {{ startedLine(job, now) }}</template></p>
                   <dl class="job-details"><div><dt>Machine</dt><dd>{{ job.machine.name }}</dd></div><div><dt>Environment</dt><dd>{{ ENVIRONMENT_LABELS[job.environment] || job.environment }}</dd></div><div><dt>Port</dt><dd><code>{{ job.port }}</code></dd></div></dl>
                   <p v-if="health(job)" class="edge-health">{{ health(job) }}</p>
                   <p v-if="job.failure" class="field-error">{{ job.failure }}</p>
@@ -371,6 +386,13 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
 
     <p class="edge-foot"><ShieldCheck :size="15" aria-hidden="true"/> Every model started or stopped on a machine is recorded in the workspace's Audit log.</p>
 
+    <UiDialog class="edge-machine-dialog" :open="connectingMachine" title="Connect a machine" @close="closeMachines">
+      <MachineConnection v-if="connectingMachine" @cancel="closeMachines" @updated="syncMachines" @connected="machineConnected"/>
+    </UiDialog>
+    <UiDialog class="edge-machine-dialog" :open="managingMachines" title="Manage edge machines" @close="closeMachines">
+      <MachinesPanel v-if="managingMachines" embedded @changed="syncMachines"/>
+      <div class="dialog-actions"><UiButton @click="closeMachines">Back to Edge Devices</UiButton></div>
+    </UiDialog>
     <UiDialog :open="!!stopping" :title="stopping ? `Stop ${stopping.model?.name} ${stopping.model?.version}?` : ''" @close="stopping = null">
       <p class="dialog-description">It stops answering on {{ stopping?.machine.name }} at the machine's next check, and its container and files are removed there. You can run it again from this tab.</p>
       <p v-if="stopError" class="field-error" role="alert">{{ stopError }}</p>
@@ -383,6 +405,7 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
 </template>
 
 <style scoped>
+.edge-machine-dialog{width:min(780px,calc(100% - 32px));max-height:calc(100dvh - 40px);overflow-y:auto}.edge-machine-dialog :deep(header){position:sticky;top:0;background:#fff;z-index:2;padding:4px 0 12px}.edge #edge-step-2:focus{outline:none}.edge #edge-step-2:focus-visible{outline:2px solid var(--aadml-outline);outline-offset:4px}
 .edge{max-width:1240px;--edge-border:#e3e8ef;color:#17243b}
 .edge-head{display:flex;justify-content:space-between;align-items:center;gap:20px;margin:8px 0 24px}.edge-heading-group{display:flex;align-items:center;gap:15px}.edge-icon{display:grid;place-items:center;width:52px;height:52px;border:1px solid var(--aadml-outline);border-radius:14px;background:var(--aadml-tint);color:var(--aadml-primary)}.edge-eyebrow{display:block;font-size:10px;font-weight:650;letter-spacing:1.5px;color:#68768c;margin-bottom:5px}.edge-head h2{font-size:25px;letter-spacing:-.7px}.edge-head p{font-size:13px;color:#64748b;margin-top:5px}.edge-privacy{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#f0f9f5;border:1px solid #d8ece1;border-radius:9px;color:#287452;margin-bottom:22px}.edge-privacy p{font-size:12px;color:#34654e;flex:1}.edge-privacy>span{font-size:10px;font-weight:600;white-space:nowrap;letter-spacing:.2px}.edge-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0 0 22px}.edge-metrics>div{padding:19px 22px;background:white;border:1px solid var(--edge-border);border-radius:12px;box-shadow:0 2px 3px #182e4e03}.edge-metrics dt{display:flex;gap:9px;align-items:center;color:#617088;font-size:12px;font-weight:500}.edge-metrics dt svg{color:#8491a4}.edge-metrics dd{display:flex;align-items:baseline;gap:12px;margin:10px 0 0;font-size:29px;font-weight:650;letter-spacing:-1px;line-height:1.2}.edge-metrics dd span{font-size:11px;color:#64748b;font-weight:400;letter-spacing:0}.edge-progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin:0 0 24px;padding:15px 20px;background:#f4f6f9;border:1px solid #e8ecf1;border-radius:10px}.progress-item{display:flex;align-items:center;gap:10px;min-width:0;border-radius:4px}.progress-item strong{display:block;font-size:12px;font-weight:600}.progress-item small{display:block;font-size:10px;color:#64748b;margin-top:3px;text-transform:capitalize}.progress-arrow{margin-left:auto;color:#a0aabb}.step-mark{display:grid;place-items:center;width:28px;height:28px;flex-shrink:0;border:1px solid #d5dce6;border-radius:50%;font-size:11px;background:white;color:#738097}.is-done .step-mark{background:#e5f4eb;border-color:#c9e7d5;color:#24704c}.is-current .step-mark{background:var(--aadml-primary);border-color:var(--aadml-primary);color:white}.is-attention .step-mark{color:#9a5c0a;background:#fff6df;border-color:#eddbac}.edge-workspace{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.3fr);align-items:start;gap:22px}.edge-card{background:#fff;border:1px solid var(--edge-border);border-radius:13px;overflow:hidden;box-shadow:0 2px 4px #182e4e03;scroll-margin-top:24px}.card-heading{display:flex;align-items:center;gap:11px;padding:20px 22px;border-bottom:1px solid #edf0f4}.card-heading h3{font-size:14px;letter-spacing:-.15px}.card-heading p{font-size:11px;color:#778398;margin-top:3px}.card-heading>.badge{margin-left:auto}.card-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:#f3f6fb;color:var(--aadml-primary);flex-shrink:0}.edge-machines{list-style:none;margin:0;padding:8px 20px}.edge-machines li{padding:15px 0;border-bottom:1px solid #edf0f4}.edge-machines li:last-child{border:0}.machine-row{display:flex;align-items:center;gap:10px}.machine-row strong{font-size:12px;overflow-wrap:anywhere;min-width:0;flex:1}.machine-symbol{color:#7a8ba4}.edge-machines li p{font-size:11px;color:#748095;margin:7px 0 0 28px;overflow-wrap:anywhere}.machine-empty{text-align:center;padding:28px 24px 18px}.empty-symbol{display:inline-grid;place-items:center;width:52px;height:52px;border-radius:14px;border:1px dashed #d7dfec;background:#f8fafc;color:#8697af}.machine-empty h4{font-size:13px;margin:14px 0 7px}.machine-empty p{font-size:12px;color:#718096;max-width:32ch;margin:0 auto 17px}.machine-state{font-size:11px;padding:0 22px 16px;color:#65748a;overflow-wrap:anywhere}.machine-footer{border-top:1px solid #edf0f4;padding:16px 22px}.machine-footer>.button{width:100%}.requirements{margin-top:12px}.requirements summary{display:flex;align-items:center;justify-content:space-between;min-height:35px;font-size:11px;color:#64748b;cursor:pointer}.requirements[open] summary{margin-bottom:12px}.requirements :deep(.needs){grid-template-columns:1fr;gap:14px}.edge-form{padding:22px}.edge-form .form-grid{margin:0;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:20px 16px}.edge-form .field-label{margin:0;font-size:12px;color:#34445c}.edge-form .text-input{min-height:43px;border-radius:8px;font-size:12px;background:#fff;border-color:#dbe2ec;margin-top:7px;width:100%;min-width:0}.field-help{display:block;font-size:10px;color:#7b8798;font-weight:400;margin-top:6px;overflow-wrap:anywhere}.deploy-notice{display:flex;gap:9px;align-items:flex-start;padding:12px;background:#f7f9fc;border:1px solid #e9edf4;border-radius:8px;margin-top:20px;color:#7788a2}.deploy-notice p{font-size:11px;line-height:1.6;color:#65748a}.edge-form .studio-actions{margin:18px 0 0;justify-content:flex-end}.edge-form .studio-actions .button{min-height:42px}.edge-licence,.step-hint{font-size:12px;color:#65748a;margin-top:10px}.edge-why{font-size:12px;color:#64748b;margin-top:14px}.edge-why summary{cursor:pointer;min-height:34px;color:var(--aadml-primary);overflow-wrap:anywhere}.edge-why li{margin:7px 0}.deployment-unavailable{text-align:center;padding:35px 24px;color:#7b89a0}.deployment-unavailable h4{font-size:14px;margin:12px 0 8px}.deployment-unavailable p{font-size:12px}.edge-jobs{margin:28px 0 24px}.section-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:15px}.section-heading h3{font-size:15px}.section-heading p{font-size:12px;color:#7c8799;margin-top:4px}.edge-empty{display:flex;gap:18px;align-items:center;padding:25px;border:1px dashed #d8e0ec;border-radius:12px;background:#fafbfd}.edge-empty h4{font-size:13px;margin:0 0 5px}.edge-empty p{font-size:12px;color:#7b8799}.edge-job-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}.edge .edge-job{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:19px 22px;border-radius:11px}.edge-job-main{min-width:0}.edge-job-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px}.edge-job p{font-size:12px;margin:6px 0 0;color:#64748b;overflow-wrap:anywhere}.edge-job .edge-health{font-size:11px}.edge-job-actions{display:flex;gap:8px;flex-wrap:wrap}.connection-guide{margin:0 0 20px}.connection-guide>summary{display:flex;align-items:center;gap:12px;padding:19px 22px;cursor:pointer;list-style:none}.connection-guide>summary::-webkit-details-marker{display:none}.connection-guide summary strong{font-size:13px;display:block}.connection-guide summary small{display:block;font-size:11px;color:#7c889b;margin-top:4px}.guide-chevron{margin-left:auto;color:#8491a6}.connection-guide[open] .guide-chevron{transform:rotate(180deg)}.guide-content{padding:24px;border-top:1px solid #edf0f4}.guide-content>h3{font-size:15px;margin-bottom:8px}.step-lead{font-size:12px;color:#64748b;margin:0 0 20px}.link-button{border:0;background:transparent;color:var(--aadml-primary);text-decoration:underline;min-height:32px}.edge-error{padding:14px 18px;background:#fff4f2;border:1px solid #f4d1cc;border-radius:9px;margin-bottom:16px;color:#a03829;font-size:12px}.edge :is(a,summary):focus-visible{outline:3px solid var(--aadml-outline);outline-offset:3px}.requirements[open] summary svg{transform:rotate(180deg)}
 @media(max-width:1050px){.edge-workspace{grid-template-columns:1fr 1.2fr}.edge-form .form-grid{grid-template-columns:1fr}.edge-metrics>div{padding:16px}.edge-metrics dd{gap:8px}}
