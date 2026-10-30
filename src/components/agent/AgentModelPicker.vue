@@ -158,6 +158,7 @@
 
 <script setup>
 import EffortSlider from '../chat/EffortSlider.vue'
+import { uniqueModels } from '../../utils/uniqueModels'
 import { useAgentRunMode } from '../../composables/useAgentRunMode'
 import { useReasoningOptions } from '../../composables/useReasoningOptions'
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
@@ -243,7 +244,9 @@ function modelMeta(m) {
 }
 
 function applyPayload(data) {
-  modelCount.value = Number(data.model_count || 0)
+  // Frontend and backend releases can arrive separately. Older servers return
+  // authorized connection counts; keep their names out of the model picker.
+  modelCount.value = Number(data.model_count ?? (data.providers || []).reduce((n, p) => n + Number(p.model_count ?? p.models?.length ?? 0), 0))
   if (Array.isArray(data.models)) models.value = data.models
   current.value = data.current || null
   source.value = data.source || null
@@ -291,7 +294,17 @@ async function loadModels() {
   loadingModels.value = true
   try {
     const { data } = await api.getAgentModelOptions(props.agentId, { models: 1 })
-    models.value = Array.isArray(data.models) ? data.models : []
+    let rows = data.models
+    if (!Array.isArray(rows) && Array.isArray(data.providers)) {
+      const cards = await Promise.all(data.providers.map(async (p) => {
+        if (Array.isArray(p.models)) return p
+        const response = await api.getAgentModelOptions(props.agentId, { provider: p.id })
+        return { models: (response.data.providers || []).flatMap((c) => c.models || []) }
+      }))
+      rows = cards.flatMap((p) => p.models || [])
+    }
+    models.value = uniqueModels(Array.isArray(rows) ? rows : [], [current.value?.id])
+    modelCount.value = models.value.length
   } catch {
     error.value = 'Could not load the models.'
   } finally {

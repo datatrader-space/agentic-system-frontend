@@ -205,3 +205,34 @@ describe('AgentModelPicker — reasoning options follow the picked model', () =>
     expect(api.getAgentReasoningOptions.mock.calls.length).toBeGreaterThan(before)
   })
 })
+
+describe('AgentModelPicker — frontend and backend can be released separately', () => {
+  const legacy = { current: payload.current, source: 'override', platform_default: payload.platform_default,
+    providers: [{ id: 1, name: 'Anthropic', model_count: 2 }, { id: 2, name: 'OpenAI', model_count: 2 }] }
+  function olderServer(denySecond = false) {
+    api.getAgentModelOptions.mockImplementation((_id, params) => {
+      if (!params?.provider) return Promise.resolve({ data: legacy })
+      if (denySecond && params.provider === 2) return Promise.reject({ response: { status: 403 } })
+      return Promise.resolve({ data: { providers: [{ models: params.provider === 1
+        ? [MODELS[0], MODELS[1]] : [{ ...MODELS[0], id: 99 }, MODELS[2]] }] } })
+    })
+  }
+  it('reads authorized legacy lists without exposing connections or duplicating the chosen model', async () => {
+    olderServer()
+    const w = mountPicker()
+    await flushPromises()
+    await openModels(w)
+    expect(names(w)).toEqual(['Sonnet 4.5', 'Opus 4.1', 'GPT-5'])
+    expect(w.get('[aria-selected="true"]').attributes('data-test')).toBe('model-option-12')
+    expect(w.text()).not.toMatch(/Anthropic|OpenAI|provider/i)
+    expect(api.getAgentModelOptions).toHaveBeenCalledWith(7, { provider: 2 })
+  })
+  it('shows an error instead of a partial list when a legacy list is denied', async () => {
+    olderServer(true)
+    const w = mountPicker()
+    await flushPromises()
+    await openModels(w)
+    expect(w.findAll('.amp-model')).toHaveLength(0)
+    expect(w.get('[role="alert"]').text()).toBe('Could not load the models.')
+  })
+})
