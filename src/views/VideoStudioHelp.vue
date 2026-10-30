@@ -93,7 +93,7 @@
                 <ul v-if="g.models.length" class="chips">
                   <li v-for="m in (open[g.id] ? g.models : g.models.slice(0, 6))" :key="m.route_id" class="chip">
                     <span>{{ label(m) }}<span v-if="g.note" class="chip-note">, {{ g.note(m) }}</span></span>
-                    <span v-if="ownKey(m)" class="chip-tag" title="Renders on your own provider key">Your key</span>
+                    <span v-if="ownKey(m)" class="chip-tag" title="Renders on your own key">Your key</span>
                   </li>
                   <li v-if="g.models.length > 6">
                     <button type="button" class="chip more" :aria-expanded="open[g.id] ? 'true' : 'false'" :data-test="'help-more-' + g.id"
@@ -105,7 +105,7 @@
               </dd>
             </div>
           </dl>
-          <p class="note">Models marked <strong>Your key</strong> render on your own provider account; the others render on
+          <p v-if="mixed" class="note">Models marked <strong>Your key</strong> render on your own account; the others render on
             AADML's.</p>
         </section>
 
@@ -354,7 +354,7 @@ const trouble = [
   { q: 'The estimate expired', a: 'Estimates last 15 minutes. Press Get a new estimate on the card to see the current price.' },
   { q: 'The render failed', a: 'Nothing was charged: the hold is released. Try again, or pick another model for it.' },
   { q: 'The render did not start: over the limit', a: 'Your organization\'s spending limit would be passed. Nothing was spent. Ask your organization admin to raise it, or wait for the next period.' },
-  { q: 'No model does what I need', a: 'Change the task or the settings, or connect your own OpenRouter account in Settings: its models are then offered too, marked Your key.' },
+  { q: 'No model does what I need', a: 'Change the task or the settings, or pick another model: every model the platform offers for the task is in the list.' },
   { q: 'Words in the video are misspelled', a: 'Video models draw letters badly. Remove the words from the prompt and add them as a caption instead.' },
 ]
 

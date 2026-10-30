@@ -74,8 +74,10 @@ export const useBudgetStore = defineStore('budgets', {
       return [
         { title: 'Spend by agent', copy: 'Top agents by spend', tone: 'agent',
           items: toItems(s.byAgent, (id) => agentNameById[id] || `Agent ${id}`) },
-        { title: 'Spend by provider', copy: 'Cost by model provider', tone: 'provider',
-          items: toItems(s.byProvider, (name) => name.charAt(0).toUpperCase() + name.slice(1)) },
+        // By provider: a platform administrator's view only (people never see which provider AADML uses, owner
+        // 2026-10-29), so the card is left out when the API sent no breakdown.
+        ...(Object.keys(s.byProvider || {}).length ? [{ title: 'Spend by provider', copy: 'Cost by model provider', tone: 'provider',
+          items: toItems(s.byProvider, (name) => name.charAt(0).toUpperCase() + name.slice(1)) }] : []),
       ]
     },
   },

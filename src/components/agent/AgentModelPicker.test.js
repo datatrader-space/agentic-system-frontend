@@ -4,33 +4,23 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import AgentModelPicker from './AgentModelPicker.vue'
 
+// What the page load receives: the current pick and how many models there are, never a provider.
+const MODELS = [
+  {
+    id: 12, name: 'Sonnet 4.5', model_id: 'claude-sonnet-4-5',
+    // Per-TOKEN decimals, exactly as the backend stores them in LLMModel.metadata.
+    context_window: 200000, pricing_input: '0.000003', pricing_output: '0.000015',
+  },
+  { id: 13, name: 'Opus 4.1', model_id: 'claude-opus-4-1', context_window: 200000 },
+  { id: 21, name: 'GPT-5', model_id: 'gpt-5', context_window: 0, pricing_input: '0', pricing_output: '0' },
+]
 const payload = {
-  current: { id: 12, name: 'Sonnet 4.5', model_id: 'claude-sonnet-4-5', provider_type: 'anthropic' },
+  current: { id: 12, name: 'Sonnet 4.5', model_id: 'claude-sonnet-4-5', yours: true },
   source: 'override',
   platform_default: { model_name: 'GPT-5', model_id: 'gpt-5' },
-  providers: [
-    {
-      id: 1,
-      name: 'Anthropic',
-      provider_type: 'anthropic',
-      models: [
-        {
-          id: 12, name: 'Sonnet 4.5', model_id: 'claude-sonnet-4-5',
-          // Per-TOKEN decimals, exactly as the backend stores them in LLMModel.metadata.
-          context_window: 200000, pricing_input: '0.000003', pricing_output: '0.000015',
-        },
-        { id: 13, name: 'Opus 4.1', model_id: 'claude-opus-4-1', context_window: 200000 },
-      ],
-    },
-    {
-      id: 2,
-      name: 'OpenAI',
-      provider_type: 'openai',
-      models: [{ id: 21, name: 'GPT-5', model_id: 'gpt-5',
-                 context_window: 0, pricing_input: '0', pricing_output: '0' }],
-    },
-  ],
+  model_count: 3,
 }
+const withModels = (models = MODELS) => ({ ...payload, model_count: models.length, models })
 
 const api = vi.hoisted(() => ({
   getAgentModelOptions: vi.fn(),
@@ -55,13 +45,33 @@ beforeEach(() => {
   // pinia this file only passed when some earlier test file in the same worker happened to create
   // one — so it failed whenever it ran first or in isolation.
   setActivePinia(createPinia())
-  api.getAgentModelOptions.mockReset().mockResolvedValue({ data: payload })
+  api.getAgentModelOptions.mockReset().mockImplementation((_id, params) =>
+    Promise.resolve({ data: params?.models ? withModels() : payload }))
   api.selectAgentModel.mockReset().mockResolvedValue({ data: payload })
   api.getAgentReasoningOptions.mockReset().mockResolvedValue({ data: { enabled: true, supported: true, levels: ['low', 'medium', 'high'] } })
 })
 
+async function openModels(wrapper) {
+  await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
+  await wrapper.get('[data-test="model-picker-models"]').trigger('click')
+  await flushPromises()
+  return wrapper.get('[data-test="model-picker-model-flyout"]')
+}
+const names = (wrapper) => wrapper.findAll('.amp-model .amp-model-name').map((el) => el.text())
+
 describe('AgentModelPicker', () => {
-  it('shows a compact summary before opening the model flyout', async () => {
+  it('a model override returns to the named platform default', async () => {
+    const wrapper = mountPicker()
+    await flushPromises()
+    await openModels(wrapper)
+    const reset = wrapper.get('.amp-reset')
+    expect(reset.text()).toContain('Use platform default')
+    expect(reset.text()).toContain('GPT-5')
+    await reset.trigger('click')
+    expect(api.selectAgentModel).toHaveBeenCalledWith(7, null)
+  })
+
+  it('shows a compact summary that names no provider', async () => {
     const wrapper = mountPicker()
     await flushPromises()
 
@@ -69,79 +79,31 @@ describe('AgentModelPicker', () => {
     await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
 
     const menu = wrapper.get('[data-test="model-picker-menu"]')
-    expect(menu.text()).toContain('Anthropic · Your pick')
-    expect(menu.text()).toContain('Providers')
-    expect(wrapper.find('[data-test="model-picker-provider-flyout"]').exists()).toBe(false)
-  })
-
-  it('a pick can go back to the platform default, named (PLATFORM_MODEL_DEFAULTS_PLAN.md)', async () => {
-    const wrapper = mountPicker()
-    await flushPromises()
-    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
-    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
-    await wrapper.findAll('.amp-provider').find(b => b.text().includes('Anthropic'))?.trigger('click')
-    await flushPromises()
-    const reset = wrapper.find('.amp-reset')
-    expect(reset.exists()).toBe(true)
-    expect(reset.text()).toContain('Use platform default')
-    expect(reset.text()).toContain('GPT-5')
-  })
-
-  it('opens a provider card before showing any models', async () => {
-    const wrapper = mountPicker()
-    await flushPromises()
-    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
-    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
-
-    const providers = wrapper.get('[data-test="model-picker-provider-flyout"]')
-    expect(providers.text()).toContain('Anthropic')
-    expect(providers.text()).toContain('2 chat models')
-    expect(providers.text()).toContain('OpenAI')
+    expect(menu.text()).toContain('Your pick')
+    expect(menu.text()).toContain('3 available')
+    expect(menu.text()).not.toMatch(/provider|anthropic|openai|openrouter/i)
     expect(wrapper.find('[data-test="model-picker-model-flyout"]').exists()).toBe(false)
   })
 
-  it('uses real brand icons for known providers', async () => {
+  it('opens ONE list of every model, with no provider step', async () => {
     const wrapper = mountPicker()
     await flushPromises()
-    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
-    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
-
-    const icons = wrapper.findAll('.amp-provider-mark').map((icon) => icon.attributes('data-provider-icon'))
-    expect(icons).toEqual(['logos:anthropic-icon', 'logos:openai-icon'])
+    const list = await openModels(wrapper)
+    expect(names(wrapper)).toEqual(['Sonnet 4.5', 'Opus 4.1', 'GPT-5'])
+    expect(list.find('[aria-selected="true"]').text()).toContain('Sonnet 4.5')
+    expect(wrapper.find('.amp-provider').exists()).toBe(false)
+    expect(wrapper.text()).not.toMatch(/provider/i)
   })
 
-  it('opens only the selected provider models in a third card', async () => {
+  it('searches by model name and model id', async () => {
     const wrapper = mountPicker()
     await flushPromises()
-    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
-    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
-    const anthropic = wrapper.findAll('.amp-provider').find((item) => item.text().includes('Anthropic'))
-    await anthropic.trigger('click')
-
-    const models = wrapper.get('[data-test="model-picker-model-flyout"]')
-    expect(models.text()).toContain('Sonnet 4.5')
-    expect(models.text()).toContain('Opus 4.1')
-    expect(models.findAll('.amp-model').some((item) => item.text().includes('GPT-5'))).toBe(false)
-    expect(models.find('[aria-selected="true"]').text()).toContain('Sonnet 4.5')
-  })
-
-  it('searches the selected provider by model name and model id', async () => {
-    const wrapper = mountPicker()
-    await flushPromises()
-    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
-    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
-    await wrapper.findAll('.amp-provider')[0].trigger('click')
-
-    // Rows now carry a context/price meta line under the name, so match on the NAME element —
-    // the assertion is about which models survive the filter, not about row chrome.
-    const names = () => wrapper.findAll('.amp-model .amp-model-name').map((el) => el.text())
+    await openModels(wrapper)
     const search = wrapper.get('[data-test="model-search"]')
     await search.setValue('opus')
-    expect(names()).toEqual(['Opus 4.1'])
-
+    expect(names(wrapper)).toEqual(['Opus 4.1'])
     await search.setValue('claude-sonnet-4-5')
-    expect(names()).toEqual(['Sonnet 4.5'])
-
+    expect(names(wrapper)).toEqual(['Sonnet 4.5'])
     await search.setValue('not-a-real-model')
     expect(wrapper.findAll('.amp-model')).toHaveLength(0)
     expect(wrapper.get('[data-test="model-search-empty"]').text()).toBe('No matching models')
@@ -150,124 +112,84 @@ describe('AgentModelPicker', () => {
   it('selects the first search result with Enter', async () => {
     const wrapper = mountPicker()
     await flushPromises()
-    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
-    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
-    await wrapper.findAll('.amp-provider')[0].trigger('click')
-
+    await openModels(wrapper)
     const search = wrapper.get('[data-test="model-search"]')
     await search.setValue('opus')
     await search.trigger('keydown', { key: 'Enter' })
     await flushPromises()
-
     expect(api.selectAgentModel).toHaveBeenCalledWith(7, 13)
   })
 
-  it('selects a model and closes both cards', async () => {
+  it('selects a model and closes the menu', async () => {
     const wrapper = mountPicker()
     await flushPromises()
-    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
-    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
-    const anthropic = wrapper.findAll('.amp-provider').find((item) => item.text().includes('Anthropic'))
-    await anthropic.trigger('click')
-
-    const opus = wrapper.findAll('.amp-model').find((item) => item.text().includes('Opus 4.1'))
-    await opus.trigger('click')
+    await openModels(wrapper)
+    await wrapper.get('[data-test="model-option-13"]').trigger('click')
     await flushPromises()
-
     expect(api.selectAgentModel).toHaveBeenCalledWith(7, 13)
     expect(wrapper.find('[data-test="model-picker-menu"]').exists()).toBe(false)
     expect(wrapper.emitted('changed')).toBeTruthy()
   })
 
-  it('shows each model’s context window and per-1M price', async () => {
+  it('shows each model context window and per-1M price', async () => {
     const wrapper = mountPicker()
     await flushPromises()
-    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
-    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
-    await wrapper.findAll('.amp-provider')[0].trigger('click')
-
+    await openModels(wrapper)
     const rows = wrapper.findAll('.amp-model')
-    // Per-token decimals are rendered per 1M, same formatting as the agent editor's picker.
     expect(rows[0].text()).toContain('200K ctx')
     expect(rows[0].text()).toContain('$3.00/$15.00 per 1M')
-    // Context known but no pricing → context only, no dangling separator.
     expect(rows[1].text()).toContain('200K ctx')
     expect(rows[1].text()).not.toContain('per 1M')
     expect(rows[1].text()).not.toContain('·')
+    expect(rows[2].text()).toContain('Free')
+    expect(rows[2].text()).not.toContain('ctx')
   })
 
-  it('labels a zero-cost model Free and omits an unknown context window', async () => {
+  it('closes the menu and the list with Escape', async () => {
     const wrapper = mountPicker()
     await flushPromises()
-    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
-    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
-    await wrapper.findAll('.amp-provider')[1].trigger('click')
-
-    const row = wrapper.findAll('.amp-model')[0]
-    expect(row.text()).toContain('Free')
-    expect(row.text()).not.toContain('ctx')
-  })
-
-  it('closes the menu and flyout with Escape', async () => {
-    const wrapper = mountPicker()
-    await flushPromises()
-    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
-    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
-    await wrapper.findAll('.amp-provider')[0].trigger('click')
-
+    await openModels(wrapper)
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await wrapper.vm.$nextTick()
-
     expect(wrapper.find('[data-test="model-picker-menu"]').exists()).toBe(false)
     expect(wrapper.get('[data-test="model-picker-trigger"]').attributes('aria-expanded')).toBe('false')
   })
 })
 
 describe('AgentModelPicker — models load on demand and a long list never freezes the page', () => {
-  const summary = {
-    ...payload,
-    // What the page load receives now: each provider's model COUNT, no models.
-    providers: [{ id: 9, name: 'OpenRouter', provider_type: 'openrouter', model_count: 533 }],
-  }
   const many = Array.from({ length: 533 }, (_, i) => ({ id: 1000 + i, name: `Model ${i}`, model_id: `vendor/model-${i}` }))
+  const answer = () => api.getAgentModelOptions.mockReset().mockImplementation((_id, params) =>
+    Promise.resolve({ data: params?.models ? withModels(many) : { ...payload, model_count: 533 } }))
 
-  it('loads a provider’s models only when it is opened, once', async () => {
-    api.getAgentModelOptions.mockReset().mockImplementation((_id, params) => Promise.resolve({
-      data: params?.provider ? { ...summary, providers: [{ ...summary.providers[0], models: many }] } : summary,
-    }))
+  it('loads the models only when the list is opened, once', async () => {
+    answer()
     const wrapper = mountPicker()
     await flushPromises()
     expect(api.getAgentModelOptions).toHaveBeenCalledTimes(1)
     expect(api.getAgentModelOptions.mock.calls[0][1]).toBeUndefined()
 
     await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
-    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
-    expect(wrapper.get('.amp-provider').text()).toContain('533 chat models')
-    await wrapper.get('.amp-provider').trigger('click')
+    expect(wrapper.get('[data-test="model-picker-models"]').text()).toContain('533 available')
+    await wrapper.get('[data-test="model-picker-models"]').trigger('click')
     await flushPromises()
-    expect(api.getAgentModelOptions).toHaveBeenLastCalledWith(7, { provider: 9 })
+    expect(api.getAgentModelOptions).toHaveBeenLastCalledWith(7, { models: 1 })
 
     await wrapper.get('[data-test="model-picker-model-flyout"] .amp-model-back').trigger('click')
-    await wrapper.get('.amp-provider').trigger('click')
+    await wrapper.get('[data-test="model-picker-models"]').trigger('click')
     await flushPromises()
     expect(api.getAgentModelOptions).toHaveBeenCalledTimes(2)
   })
 
   it('draws at most 60 rows and says how to reach the rest; search covers all of them', async () => {
-    api.getAgentModelOptions.mockReset().mockResolvedValue({
-      data: { ...payload, providers: [{ id: 9, name: 'OpenRouter', provider_type: 'openrouter', models: many }] },
-    })
+    answer()
     const wrapper = mountPicker()
     await flushPromises()
-    await wrapper.get('[data-test="model-picker-trigger"]').trigger('click')
-    await wrapper.get('[data-test="model-picker-providers"]').trigger('click')
-    await wrapper.get('.amp-provider').trigger('click')
-    await flushPromises()
+    await openModels(wrapper)
     expect(wrapper.findAll('.amp-model')).toHaveLength(60)
     expect(wrapper.get('[data-test="model-more"]').text()).toContain('Showing 60 of 533')
 
     await wrapper.get('[data-test="model-search"]').setValue('model-532')
-    expect(wrapper.findAll('.amp-model .amp-model-name').map((el) => el.text())).toEqual(['Model 532'])
+    expect(names(wrapper)).toEqual(['Model 532'])
     expect(wrapper.find('[data-test="model-more"]').exists()).toBe(false)
   })
 })

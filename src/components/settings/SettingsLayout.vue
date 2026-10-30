@@ -3,7 +3,7 @@
     <header v-if="!isUsage" class="settings-header">
       <div>
         <h1 class="settings-h1">Settings</h1>
-        <p class="settings-sub">Manage providers, tools, workspaces, and platform preferences.</p>
+        <p class="settings-sub">Manage tools, workspaces, and platform preferences.</p>
       </div>
 
       <div class="settings-menu-wrap">

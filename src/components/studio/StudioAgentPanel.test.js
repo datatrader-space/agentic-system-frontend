@@ -9,7 +9,7 @@ import StudioAgentPanel from './StudioAgentPanel.vue'
 let w
 beforeEach(() => { state.chat = reactive({ messages:[], hitlRequests:[], isBusy:false, error:'', respondHitl:vi.fn() }); state.video = reactive({ refs:[], sendAgentMessage:vi.fn().mockResolvedValue(true) }) })
 afterEach(() => w?.unmount())
-const stubs = { ChatMessageList:true, VideoJobsTray:true, HITLModal:true, VideoLibrary:true, ProviderSwitchDialog:true, VideoComposerPanel:{ template:'<div><slot/><slot name="actions"/></div>' } }
+const stubs = { ChatMessageList:true, VideoJobsTray:true, HITLModal:true, VideoLibrary:true, VideoComposerPanel:{ template:'<div><slot/><slot name="actions"/></div>' } }
 it('sends only the person\'s words: the page and preset travel as the studio_context field, never as text', async () => {
   w = mount(StudioAgentPanel, { props:{ modelValue:'Use this preset: Quiet tabletop.', label:'Image', preset:'Quiet tabletop', ready:true }, global:{stubs} })
   expect(state.video.sendAgentMessage).not.toHaveBeenCalled()
@@ -95,13 +95,4 @@ it('never adds page text, on the first message or after New clears the conversat
   await w.get('[data-test="studio-agent-send"]').trigger('click');await flushPromises()
   expect(state.video.sendAgentMessage.mock.calls[0][0].prompt).toBe('First idea')
   expect(state.video.sendAgentMessage.mock.calls[2][0].prompt).toBe('A fresh idea')
-})
-
-it('loads the provider-switch popup only when a provider refuses a turn, and then shows it', async () => {
-  const { ProviderSwitchDialog: _ignored, ...withDialog } = stubs
-  w = mount(StudioAgentPanel, { props:{modelValue:'',label:'Image',ready:true}, global:{ stubs:{ ...withDialog, ProviderSwitchPicker:true } }, attachTo:document.body })
-  await flushPromises()
-  expect(document.body.querySelector('[data-test="provider-switch"]')).toBe(null)
-  state.chat.providerSwitchOffer = { from_provider:'openrouter', reason:'key_limit' }
-  await vi.waitFor(() => expect(document.body.querySelector('[data-test="provider-switch"]')).not.toBe(null), { timeout: 3000 })
 })

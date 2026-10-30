@@ -231,7 +231,7 @@ describe('LLMSettings: the model sync runs in the background and the page polls 
   const mountWithNotify = async () => {
     notify = vi.fn()
     wrapper = mount(LLMSettings, {
-      global: { stubs: { OwnerFilter: true, ProviderSwitchCard: true, PageLoader: true }, provide: { notify } },
+      global: { stubs: { OwnerFilter: true, PageLoader: true }, provide: { notify } },
     })
     await flushPromises()
   }

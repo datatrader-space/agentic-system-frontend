@@ -66,7 +66,7 @@
     <section class="border-y border-line bg-surface/60">
       <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <p class="text-center text-xs font-semibold uppercase tracking-[0.2em] text-ink-faint">
-          Works with every major model provider
+          Models from every major lab
         </p>
         <div class="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
           <span v-for="p in providers" :key="p" class="text-base font-semibold text-ink-faint transition-colors hover:text-ink">{{ p }}</span>
@@ -163,7 +163,8 @@ useMeta({
   },
 })
 
-const providers = ['OpenAI', 'Anthropic', 'Google', 'OpenRouter', 'xAI', 'Ollama']
+// Model makers, never the providers AADML reaches them through (owner, 2026-10-29).
+const providers = ['OpenAI', 'Anthropic', 'Google', 'xAI', 'Meta', 'Mistral']
 
 const features = [
   { icon: 'lucide:code-2', title: 'Let’s Code Aadml IDE', desc: 'Clone a repo in the browser. The agent reads, edits, and proposes reviewable diffs you accept hunk-by-hunk — then exports a GitHub PR. No silent writes.' },
@@ -182,7 +183,7 @@ const steps = [
 
 const stats = [
   { value: '1,800+', label: 'Tools' },
-  { value: '6', label: 'Model providers' },
+  { value: '6', label: 'Model makers' },
   { value: '100+', label: 'Models' },
   { value: '24/7', label: 'Autonomous' },
 ]

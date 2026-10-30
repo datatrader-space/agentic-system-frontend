@@ -156,15 +156,6 @@
 
         <div class="log-filters" v-if="logTab === 'requests'">
           <label>
-            <select v-model="providerFilter">
-              <option value="">All Providers</option>
-              <option>OpenAI</option>
-              <option>Anthropic</option>
-              <option>OpenRouter</option>
-            </select>
-            <Icon icon="lucide:chevron-down" />
-          </label>
-          <label>
             <select v-model="modelFilter">
               <option value="">All Models</option>
               <option>GPT-4o</option>
@@ -194,7 +185,6 @@
               <tr>
                 <th>Time</th>
                 <th>Agent</th>
-                <th>Provider</th>
                 <th>Model</th>
                 <th>Request Type</th>
                 <th>Input</th>
@@ -214,7 +204,6 @@
                   <span class="agent-dot">{{ row.agentInitial }}</span>
                   {{ row.agent }}
                 </td>
-                <td>{{ row.provider }}</td>
                 <td>{{ row.model }}</td>
                 <td>{{ row.type }}</td>
                 <td>{{ row.input }}</td>
@@ -267,11 +256,10 @@
 
               <h4 class="cost-h">By model</h4>
               <table class="cost-table">
-                <thead><tr><th>Model</th><th>Provider</th><th>Calls</th><th>Tokens</th><th>Cached</th><th>Cost</th></tr></thead>
+                <thead><tr><th>Model</th><th>Calls</th><th>Tokens</th><th>Cached</th><th>Cost</th></tr></thead>
                 <tbody>
-                  <tr v-for="r in costData.by_model" :key="r.provider + '/' + r.model">
+                  <tr v-for="(r, i) in costData.by_model" :key="i + '/' + r.model">
                     <td>{{ r.model }}</td>
-                    <td>{{ r.provider }}</td>
                     <td>{{ r.calls }}</td>
                     <td>{{ fmtTokens(r.tokens) }}</td>
                     <td>{{ fmtTokens(r.cached) }}</td>
@@ -338,7 +326,6 @@ const loading = ref(false)
 const hasLoaded = ref(false)
 const days = ref(7)
 const agentFilter = ref('')
-const providerFilter = ref('')
 const modelFilter = ref('')
 const statusFilter = ref('')
 const search = ref('')
@@ -356,7 +343,7 @@ const pageSize = ref(10)
 const agents = ref([])
 const stats = ref({})
 const usageRows = ref([])
-// Full llm_usage payload: cost_by_model / _agent / _provider / _user / totals. (A stray
+// Full llm_usage payload: cost_by_model / _agent / _user / totals. (A stray
 // `const confirm = useConfirm()` sat here with no import and no use: it threw on setup.)
 const usageData = ref({})
 const requestRows = ref([])
@@ -374,7 +361,7 @@ const normalizedStats = computed(() => ({ ...(stats.value || {}) }))
 
 // Prefer the real llm_usage payload (cost_by_* + totals) for headline metrics; fall back to llm_stats.
 const totalCost = computed(() => pickNumber(usageData.value.total_cost, normalizedStats.value.total_cost, normalizedStats.value.cost) || 0)
-const totalRequestsMetric = computed(() => pickNumber(normalizedStats.value.total_requests, normalizedStats.value.requests) || sum(usageData.value.cost_by_provider || [], 'requests') || 0)
+const totalRequestsMetric = computed(() => pickNumber(normalizedStats.value.total_requests, normalizedStats.value.requests) || sum(usageData.value.cost_by_model || [], 'requests') || 0)
 const avgLatency = computed(() => pickNumber(normalizedStats.value.avg_latency_seconds, normalizedStats.value.avg_latency, normalizedStats.value.avg_latency_ms / 1000) || 0)
 const topModel = computed(() => (usageData.value.cost_by_model || [])[0]?.model_name || '—')
 const topModelShare = computed(() => {
@@ -420,7 +407,7 @@ const modelRows = computed(() => {
   const rows = usageData.value.cost_by_model || []
   const total = rows.reduce((s, r) => s + Number(r.cost || 0), 0) || 1
   return rows.slice(0, 6).map((r, i) => ({
-    name: r.model_name || r.provider_type || 'unknown',
+    name: r.model_name || 'unknown',
     cost: Number(r.cost || 0),
     share: Math.round((Number(r.cost || 0) / total) * 100),
     color: MODEL_COLORS[i % MODEL_COLORS.length],
@@ -448,16 +435,8 @@ const agentCostRows = computed(() => {
   return rows.slice(0, 8).map((row) => ({ ...row, width: Math.round((row.cost / max) * 100) }))
 })
 
-// Cost by Provider + Cost by User — real breakdowns (rendered if the template has panels for them).
-const providerCostRows = computed(() => {
-  const rows = (usageData.value.cost_by_provider || []).map((r) => ({
-    name: r.provider_type || 'unknown', cost: Number(r.cost || 0),
-    requests: r.requests || 0,
-  }))
-  const max = Math.max(...rows.map((row) => row.cost), 1)
-  return rows.map((row) => ({ ...row, width: Math.round((row.cost / max) * 100) }))
-})
-
+// Cost by User — a real breakdown. There is no cost by provider: people never see which provider AADML runs a
+// model on (owner, 2026-10-29), and the usage API no longer sends one to them.
 const userCostRows = computed(() => {
   const rows = (usageData.value.cost_by_user || []).map((r) => ({
     name: r.user_email || 'Unknown', cost: Number(r.cost || 0), requests: r.requests || 0,
@@ -483,11 +462,10 @@ const tableRequests = computed(() => {
   const source = requestRows.value.length ? requestRows.value : fallbackRequests
   return source.map(normalizeRequest).filter((row) => {
     const q = search.value.trim().toLowerCase()
-    const matchesSearch = !q || [row.agent, row.provider, row.model, row.type].some((v) => String(v).toLowerCase().includes(q))
-    const matchesProvider = !providerFilter.value || row.provider === providerFilter.value
+    const matchesSearch = !q || [row.agent, row.model, row.type].some((v) => String(v).toLowerCase().includes(q))
     const matchesModel = !modelFilter.value || row.model === modelFilter.value
     const matchesStatus = !statusFilter.value || row.statusTone === statusFilter.value || row.status.toLowerCase() === statusFilter.value
-    return matchesSearch && matchesProvider && matchesModel && matchesStatus
+    return matchesSearch && matchesModel && matchesStatus
   })
 })
 
@@ -558,7 +536,6 @@ function normalizeRequest(row, index) {
     time: formatTime(row.created_at || row.timestamp || row.time),
     agent: agentName,
     agentInitial: agentName.charAt(0).toUpperCase(),
-    provider: row.provider || row.provider_name || 'unknown',
     model: row.model || row.model_name || 'unknown',
     type: row.request_type || row.operation || row.type || 'completion',
     input: formatNumber(row.input_tokens || row.prompt_tokens || row.input || 0),

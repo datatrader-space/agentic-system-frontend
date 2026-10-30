@@ -1,6 +1,9 @@
 // Phase 6 (ADM-1079): the public pages' HTML is written at build time into the shell's #app.
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { describe, it, expect } from 'vitest'
-import { bootScript, escapeHtml, outputFile, pageHtml, pageStylesheets } from './prerender.mjs'
+import { bootScript, criticalCss, escapeHtml, outputFile, pageHtml, pageStylesheets } from './prerender.mjs'
 
 const SHELL = `<!DOCTYPE html>
 <html lang="en">
@@ -130,6 +133,32 @@ describe('prerender', () => {
     expect(link).toBeGreaterThan(-1)
     expect(link).toBeLessThan(out.indexOf('</head>'))
     expect(out.match(/Pricing-b\.css/g)).toHaveLength(1)
+  })
+
+  it('inlines the CSS the page uses, loads the stylesheet without blocking, and leaves the CSS file as it was', async () => {
+    const dist = mkdtempSync(path.join(tmpdir(), 'prerender-css-'))
+    try {
+      const css = '[data-theme=light]{--ink:#111}[data-theme=dark]{--ink:#eee}.hero{color:red}.unused-rule{color:blue}'
+      mkdirSync(path.join(dist, 'assets'))
+      writeFileSync(path.join(dist, 'assets', 'index-b.css'), css)
+      const page = pageHtml(SHELL, { html: '<h1 class="hero">x</h1>', meta: null })
+      const out = await (await criticalCss(dist)).process(page)
+
+      const head = out.slice(0, out.indexOf('</head>'))
+      expect(head).toMatch(/<style>[^<]*\.hero\{color:red\}/)
+      expect(head).not.toContain('unused-rule')
+      // Set by the boot script in the browser only, so kept although nothing in the built page matches them.
+      expect(head).toContain('[data-theme=light]{--ink:#111}')
+      expect(head).toContain('[data-theme=dark]{--ink:#eee}')
+      // The whole sheet still arrives, without blocking the first paint, and without script through <noscript>.
+      expect(out).toMatch(/<link rel="stylesheet"[^>]*href="\/assets\/index-b\.css"[^>]*media="print"/)
+      expect(out).toMatch(/<noscript><link rel="stylesheet"[^>]*href="\/assets\/index-b\.css"/)
+      expect(out.indexOf('<script>(function')).toBeLessThan(out.indexOf('<style>'))
+      expect(out).toContain('<div id="app" data-prerendered><h1 class="hero">x</h1></div>')
+      expect(readFileSync(path.join(dist, 'assets', 'index-b.css'), 'utf8')).toBe(css)
+    } finally {
+      rmSync(dist, { recursive: true, force: true })
+    }
   })
 
   it('escapes &, <, > and double quotes', () => {

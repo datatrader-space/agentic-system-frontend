@@ -18,7 +18,7 @@
               :key="model.id"
               :value="model.id"
             >
-              {{ model.provider_name }} • {{ model.name }}
+              {{ model.name }}
             </option>
           </select>
           <!-- Connection Status -->
@@ -171,6 +171,7 @@
 </template>
 
 <script setup>
+import { uniqueModels } from '../utils/uniqueModels'
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import api from '../services/api'
 import { resumeStatusLine } from '../utils/resumeStatus'
@@ -466,7 +467,9 @@ const scrollToBottom = async () => {
 // `<img src=x onerror=…>` in an answer ran as script. Same renderer as every other chat surface.
 const formatMessage = (content) => renderUntrustedMarkdown(content)
 
-const activeModels = computed(() => models.value.filter((model) => model.is_active))
+// One list across every platform provider, each model once, named by the model alone: people never see which
+// provider AADML runs a model on (owner, 2026-10-29).
+const activeModels = computed(() => uniqueModels(models.value.filter((model) => model.is_active), [selectedModelId.value]))
 
 // Lifecycle
 onMounted(async () => {

@@ -113,7 +113,6 @@
     <VideoLibrary v-if="video.libraryOpen" />
     <HITLModal :requests="chat.hitlRequests" :show-stop="true" @respond="chat.respondHitl" @dismiss="chat.dismissHitl" @skip="chat.skipHitl" @stop="chat.stop" />
     <FullDocCostCard />
-    <ProviderSwitchDialog />
   </section>
 </template>
 
@@ -136,7 +135,6 @@ import VideoLibrary from '../components/video/VideoLibrary.vue'
 import ChatMessageList from '../components/chat/ChatMessageList.vue'
 import HITLModal from '../components/HITLModal.vue'
 import FullDocCostCard from '../components/chat/FullDocCostCard.vue'
-import ProviderSwitchDialog from '../components/chat/ProviderSwitchDialog.vue'
 
 const route = useRoute()
 const router = useRouter()

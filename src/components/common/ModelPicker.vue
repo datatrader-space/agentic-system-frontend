@@ -2,9 +2,15 @@
   <div ref="rootEl" class="relative font-[Inter,system-ui,sans-serif]">
     <!-- Trigger -->
     <button
+      ref="triggerEl"
       type="button"
       @click="toggleOpen"
-      class="w-full flex items-center justify-between gap-2 px-3 py-2.5 border border-[#D0D5DD] rounded-[10px] bg-white text-left transition focus:outline-none"
+      aria-haspopup="listbox"
+      :aria-expanded="open ? 'true' : 'false'"
+      :aria-controls="open ? listId : undefined"
+      :aria-label="ariaLabel ? `${ariaLabel}: ${selectedModel ? selectedModel.name : placeholder}` : undefined"
+      data-test="model-picker-trigger"
+      class="w-full min-h-[44px] flex items-center justify-between gap-2 px-3 py-2.5 border border-[#D0D5DD] rounded-[10px] bg-white text-left cursor-pointer transition focus:outline-none focus-visible:border-[#2563EB] focus-visible:ring-[3px] focus-visible:ring-blue-100"
       :class="open ? 'border-[#2563EB] ring-[3px] ring-blue-100' : 'hover:border-[#9aa6b8]'"
     >
       <span v-if="selectedModel" class="flex items-center gap-2 min-w-0">
@@ -30,10 +36,21 @@
           <input
             ref="searchEl"
             v-model="search"
-            type="text"
+            type="search"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded="true"
+            :aria-controls="listId"
+            :aria-activedescendant="activeOptionId"
+            :aria-label="`Search ${totalCount} models`"
             :placeholder="`Search ${totalCount} models…`"
-            class="w-full pl-8 pr-3 py-2 text-[13px] text-[#0F172A] placeholder-[#98A2B3] border border-[#E5E7EB] rounded-lg focus:border-[#2563EB] focus:ring-[3px] focus:ring-blue-100 focus:outline-none"
-            @keydown.esc="close"
+            autocomplete="off"
+            data-test="model-picker-search"
+            class="w-full min-h-[40px] pl-8 pr-3 py-2 text-[13px] text-[#0F172A] placeholder-[#98A2B3] border border-[#E5E7EB] rounded-lg focus:border-[#2563EB] focus:ring-[3px] focus:ring-blue-100 focus:outline-none"
+            @keydown.esc.prevent.stop="close(true)"
+            @keydown.down.prevent="move(1)"
+            @keydown.up.prevent="move(-1)"
+            @keydown.enter.prevent="pickActive"
           />
         </div>
 
@@ -57,20 +74,26 @@
       </div>
 
       <!-- Results -->
-      <div class="overflow-y-auto flex-1 py-1">
+      <div :id="listId" class="overflow-y-auto flex-1 py-1" role="listbox" :aria-label="ariaLabel || 'Models'">
         <template v-if="groups.length">
-          <div v-for="group in groups" :key="group.vendor">
-            <div class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#98A2B3] bg-[#F9FAFB] sticky top-0">
+          <div v-for="group in groups" :key="group.vendor" role="group" :aria-label="group.label">
+            <div class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#667085] bg-[#F9FAFB] sticky top-0" aria-hidden="true">
               {{ group.label }} <span class="text-[#CDD5E0]">({{ group.models.length }})</span>
             </div>
             <button
               v-for="m in group.models"
+              :id="optionId(m)"
               :key="m.id"
               type="button"
+              role="option"
+              tabindex="-1"
+              :aria-selected="m.id === modelValue ? 'true' : 'false'"
+              :data-test="`model-option-${m.id}`"
               @click="select(m)"
+              @mouseenter="activeId = m.id"
               :class="[
-                'w-full text-left px-3 py-2 transition flex flex-col gap-0.5',
-                m.id === modelValue ? 'bg-[#EAF0FF]' : 'hover:bg-[#F9FAFB]'
+                'w-full min-h-[44px] text-left px-3 py-2 cursor-pointer transition flex flex-col justify-center gap-0.5',
+                m.id === modelValue ? 'bg-[#EAF0FF]' : (m.id === activeId ? 'bg-[#F2F4F7]' : 'hover:bg-[#F9FAFB]')
               ]"
             >
               <div class="flex items-center justify-between gap-2">
@@ -108,6 +131,8 @@ const props = defineProps({
   modelValue: { type: [Number, String], default: null },
   models: { type: Array, default: () => [] },
   placeholder: { type: String, default: 'Select a model…' },
+  // The field's name, read out with the chosen model ("Main model: GPT-5"), and the list's name.
+  ariaLabel: { type: String, default: '' },
   // When true, embedding-only models are excluded (chat/default-model use-case).
   excludeEmbedding: { type: Boolean, default: true },
 });
@@ -118,6 +143,11 @@ const search = ref('');
 const activeFilters = ref(new Set());
 const rootEl = ref(null);
 const searchEl = ref(null);
+const triggerEl = ref(null);
+// The option the arrow keys are on (aria-activedescendant); Enter picks it.
+const activeId = ref(null);
+const listId = `model-picker-${Math.random().toString(36).slice(2, 9)}`;
+const optionId = (m) => `${listId}-opt-${m.id}`;
 
 const filterChips = [
   { key: 'image_input', label: 'Vision', icon: '🖼️' },
@@ -136,10 +166,13 @@ const VENDOR_LABELS = {
   microsoft: 'Microsoft', nvidia: 'NVIDIA', amazon: 'Amazon', ai21: 'AI21',
   'nousresearch': 'Nous', 'cognitivecomputations': 'Cognitive', 'liquid': 'Liquid',
 };
+// A model id that starts with the ROUTE it runs through, not its maker ("fal-ai/flux-lora"), groups under
+// "Other": people never see which provider AADML runs a model on (owner, 2026-10-29).
+const ROUTE_PREFIXES = new Set(['fal-ai', 'fal', 'openrouter', 'elevenlabs']);
 const vendorKey = (m) => {
   const id = m.model_id || '';
-  const raw = id.includes('/') ? id.split('/')[0] : (m.metadata?.vendor || 'other');
-  return raw.toLowerCase();
+  const raw = (id.includes('/') ? id.split('/')[0] : (m.metadata?.vendor || 'other')).toLowerCase();
+  return ROUTE_PREFIXES.has(raw) ? 'other' : raw;
 };
 const vendorLabel = (m) => {
   const k = vendorKey(m);
@@ -239,15 +272,40 @@ const toggleFilter = (key) => {
 
 const select = (m) => {
   emit('update:modelValue', m.id);
-  close();
+  close(true);
 };
 
-const toggleOpen = () => (open.value ? close() : openMenu());
+// The options in the order they are shown (grouped), which is the order the arrow keys walk.
+const ordered = computed(() => groups.value.flatMap((g) => g.models));
+const activeOptionId = computed(() => {
+  const m = ordered.value.find((x) => x.id === activeId.value);
+  return m ? optionId(m) : undefined;
+});
+const move = (step) => {
+  const list = ordered.value;
+  if (!list.length) return;
+  const i = list.findIndex((x) => x.id === activeId.value);
+  const next = list[(i < 0 ? (step > 0 ? 0 : list.length - 1) : (i + step + list.length) % list.length)];
+  activeId.value = next.id;
+  nextTick(() => document.getElementById(optionId(next))?.scrollIntoView?.({ block: 'nearest' }));
+};
+const pickActive = () => {
+  const m = ordered.value.find((x) => x.id === activeId.value) || (search.value.trim() ? ordered.value[0] : null);
+  if (m) select(m);
+};
+
+const toggleOpen = () => (open.value ? close(true) : openMenu());
 const openMenu = () => {
   open.value = true;
+  activeId.value = props.modelValue ?? null;
   nextTick(() => searchEl.value?.focus());
 };
-const close = () => { open.value = false; };
+// `refocus`: give the focus back to the trigger (a keyboard close or a pick), so the person is not dropped to <body>.
+const close = (refocus = false) => {
+  const wasOpen = open.value;
+  open.value = false;
+  if (refocus === true && wasOpen) nextTick(() => triggerEl.value?.focus());
+};
 
 const onDocClick = (e) => {
   if (open.value && rootEl.value && !rootEl.value.contains(e.target)) close();
@@ -255,4 +313,5 @@ const onDocClick = (e) => {
 onMounted(() => document.addEventListener('mousedown', onDocClick));
 onBeforeUnmount(() => document.removeEventListener('mousedown', onDocClick));
 watch(open, (v) => { if (!v) search.value = ''; });
+watch(search, () => { activeId.value = null; });
 </script>

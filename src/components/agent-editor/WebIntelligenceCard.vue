@@ -63,15 +63,15 @@
               <button v-if="hasModel && editable" type="button" class="text-[11px] font-semibold text-[#2563EB]"
                       @click="clearModel">Clear</button>
             </div>
-            <select v-model="modelKey" class="field" :disabled="!editable || !groupedModels.length">
+            <!-- One list, no provider groups or names (owner, 2026-10-29). -->
+            <select v-model="modelKey" class="field min-h-[44px]" aria-label="Web search model"
+                    :disabled="!editable || !modelOptions.length">
               <option value="">None</option>
-              <optgroup v-for="g in groupedModels" :key="g.provider" :label="g.label">
-                <option v-for="m in g.models" :key="m.key" :value="m.key" :disabled="!m.available">
-                  {{ m.display_name }} — {{ m.search_mode_label }}{{ m.available ? '' : ' (no credentials)' }}
-                </option>
-              </optgroup>
+              <option v-for="m in modelOptions" :key="m.key" :value="m.key" :disabled="!m.available">
+                {{ m.display_name }} — {{ m.search_mode_label }}{{ m.available ? '' : ' (not available)' }}
+              </option>
             </select>
-            <p v-if="!groupedModels.length" class="mt-1 text-[11.5px] text-[#667085]">
+            <p v-if="!modelOptions.length" class="mt-1 text-[11.5px] text-[#667085]">
               No verified web-search models yet. Model-based search appears here once a platform administrator
               adds a model that can search.
             </p>
@@ -85,8 +85,8 @@
                 {{ selectedModel.search_mode_label }}
               </span>
               <span v-if="selectedModel.citations" class="chip chip-green">Citations</span>
-              <span class="text-[11px] text-[#98A2B3]">{{ selectedModel.mechanism }}</span>
-              <button type="button" class="ml-auto text-[11.5px] font-semibold text-[#2563EB] disabled:opacity-50"
+              <!-- The live test runs a paid search on a platform key: a platform administrator's alone. -->
+              <button v-if="canChooseEngine" type="button" class="ml-auto min-h-[44px] text-[11.5px] font-semibold text-[#2563EB] disabled:opacity-50"
                       :disabled="probing" @click="probe">
                 {{ probing ? 'Testing…' : 'Test this model' }}
               </button>
@@ -97,9 +97,10 @@
             </p>
           </div>
 
-          <div>
-            <label class="field-label">Preferred search engine</label>
-            <select v-model="cfg.engine_provider" class="field" :disabled="!editable">
+          <!-- The search engine is a provider AADML uses: only a platform administrator sees or chooses it. -->
+          <div v-if="canChooseEngine">
+            <label class="field-label" for="wi-engine">Preferred search engine</label>
+            <select id="wi-engine" v-model="cfg.engine_provider" class="field min-h-[44px]" :disabled="!editable">
               <option value="auto">Auto (best available)</option>
               <option value="serper">Serper</option>
               <option value="tavily">Tavily</option>
@@ -171,6 +172,8 @@ const NUMBERS = [
 
 const loading = ref(true)
 const editable = ref(true)      // false for shared/system agents the viewer doesn't own
+// A platform administrator's view: the search engine and the live model test (the API says which).
+const canChooseEngine = ref(false)
 const saving = ref(false)
 const probing = ref(false)
 const probeResult = ref(null)
@@ -187,17 +190,13 @@ const modelKey = ref('')
 
 const hasModel = computed(() => !!modelKey.value)
 
-const groupedModels = computed(() => {
-  const groups = new Map()
-  for (const m of models.value) {
-    const key = `${m.provider}::${m.model_id}`
-    if (!groups.has(m.provider)) groups.set(m.provider, { provider: m.provider, label: m.provider_label, models: [] })
-    groups.get(m.provider).models.push({ ...m, key })
-  }
-  return [...groups.values()]
-})
-const selectedModel = computed(() =>
-  groupedModels.value.flatMap(g => g.models).find(m => m.key === modelKey.value) || null)
+// One list, usable models first. `provider` is only the route the value carries back to the server (a neutral
+// alias for a person), never shown.
+const modelOptions = computed(() => models.value
+  .map((m) => ({ ...m, key: `${m.provider}::${m.model_id}` }))
+  .sort((a, b) => (Number(!!b.available) - Number(!!a.available))
+    || String(a.display_name || a.model_id).localeCompare(String(b.display_name || b.model_id))))
+const selectedModel = computed(() => modelOptions.value.find(m => m.key === modelKey.value) || null)
 
 function snapshot() { return JSON.stringify({ ...payload() }) }
 const dirty = computed(() => snapshot() !== saved.value)
@@ -226,6 +225,7 @@ async function load() {
     ])
     models.value = modelsRes.data?.models || []
     editable.value = cfgRes.data?.editable !== false
+    canChooseEngine.value = cfgRes.data?.can_choose_engine === true
     // Render the EFFECTIVE config (stored values merged with backend defaults) so the form always
     // shows what the agent actually does today, not a half-empty stored blob.
     const eff = cfgRes.data?.effective || {}
@@ -273,7 +273,7 @@ async function probe() {
       try { models.value = (await api.getWebSearchModels()).data?.models || models.value } catch (err) { /* keep the list we have */ }
     }
   } catch (e) {
-    probeResult.value = { status: 'failed', detail: 'Could not reach the provider' }
+    probeResult.value = { status: 'failed', detail: 'Could not run the test' }
   } finally {
     probing.value = false
   }

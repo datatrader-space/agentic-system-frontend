@@ -354,8 +354,9 @@ describe('WebIntelligenceCard', () => {
       provider: 'openai', provider_label: 'OpenAI', model_id: 'gpt-5.1', display_name: 'gpt-5.1',
       search_mode: 'native', search_mode_label: 'Native', mechanism: 'm', available,
     })
+    // The live test is a platform administrator's (it runs a paid search on a platform key): the API says so.
     api.getAgentWebIntelligence.mockResolvedValue({ data: {
-      editable: true, config: {},
+      editable: true, config: {}, can_choose_engine: true,
       effective: { enabled: true, search_model: { provider: 'openai', model_id: 'gpt-5.1' } },
     } })
     api.getWebSearchModels.mockResolvedValueOnce({ data: { models: [model(true)] } })
@@ -376,7 +377,24 @@ describe('WebIntelligenceCard', () => {
     expect(maxResults.element.value).toBe('7')
     expect(w.text()).toContain('Unsaved changes')
     expect(w.text()).toContain('Failed — no key')
-    expect(w.text()).toContain('(no credentials)')                 // the model's new availability shows
+    expect(w.text()).toContain('(not available)')                  // the model's new availability shows
+  })
+
+  it('a person sees no search engine, no live test and no provider in the model list', async () => {
+    api.getAgentWebIntelligence.mockResolvedValue({ data: {
+      editable: true, config: {}, can_choose_engine: false,
+      effective: { enabled: true, search_model: { provider: 'route-abc123', model_id: 'gpt-5.1' } },
+    } })
+    api.getWebSearchModels.mockResolvedValueOnce({ data: { models: [
+      { provider: 'route-abc123', model_id: 'gpt-5.1', display_name: 'gpt-5.1', search_mode: 'native',
+        search_mode_label: 'Native', available: true },
+    ] } })
+    const w = mount(WebIntelligenceCard, { props: { agent: reactive({ id: 1 }) }, global: { stubs } })
+    await flushPromises()
+    expect(w.text()).not.toContain('Preferred search engine')
+    expect(w.text()).not.toContain('Test this model')
+    expect(w.findAll('optgroup')).toHaveLength(0)
+    expect(w.text()).not.toMatch(/openai|openrouter|serper|tavily/i)
   })
 
   it('sends a model id that itself contains "::" whole', async () => {

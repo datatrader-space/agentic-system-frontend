@@ -21,6 +21,18 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 export const SHELL_FILE = 'app.html'
 const APP_ROOT = '<div id="app"></div>'
 
+// The CSS a prerendered page's markup uses, inlined, and its stylesheets loaded without blocking the first paint:
+// on CI's simulated phone the ~25 kB of render-blocking CSS was all that stood before the heading (LCP 3.1-3.5 s with
+// the HTML already in the response). The CSS files are left as they are (pruneSource: false): the app shares them.
+// Fonts are not inlined. The rest still arrives through each <link>, with a <noscript> fallback.
+// The theme's colour variables sit under [data-theme=light] / [data-theme=dark], which the boot script sets only in
+// the browser: matched against the built page they would be dropped and the first paint would have no colours.
+export async function criticalCss(dist) {
+  const { default: Beasties } = await import('beasties')
+  return new Beasties({ path: dist, publicPath: '/', preload: 'media', pruneSource: false, inlineFonts: false,
+                        reduceInlineStyles: false, allowRules: [/\[data-theme=/], logLevel: 'warn' })
+}
+
 export function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -136,18 +148,20 @@ async function main() {
   })
   try {
     const entry = await import(pathToFileURL(path.join(ssrDir, 'entry-prerender.js')).href)
+    const inliner = await criticalCss(dist)
     for (const route of entry.prerenderedRoutes) {
       const { html, meta, modules } = await entry.render(route.path)
       const file = path.join(dist, outputFile(route.path))
       mkdirSync(path.dirname(file), { recursive: true })
-      writeFileSync(file, pageHtml(template, {
+      const page = await inliner.process(pageHtml(template, {
         html,
         meta,
         hideWhenSignedIn: entry.redirectsSignedIn(route),
         hintKey: entry.SIGNED_IN_HINT_KEY,
         stylesheets: pageStylesheets(manifest, modules, template),
       }))
-      console.log(`prerendered ${route.path.padEnd(10)} -> dist/${outputFile(route.path)} (${(html.length / 1000).toFixed(1)} kB)`)
+      writeFileSync(file, page)
+      console.log(`prerendered ${route.path.padEnd(10)} -> dist/${outputFile(route.path)} (${(html.length / 1000).toFixed(1)} kB markup, ${(page.length / 1000).toFixed(1)} kB page)`)
     }
   } finally {
     rmSync(ssrDir, { recursive: true, force: true })

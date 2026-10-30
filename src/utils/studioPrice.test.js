@@ -7,6 +7,7 @@ describe('studioPrice', () => {
   })
   it('names a model, its connection and its price on one line', () => {
     expect(routeOptionLabel({ name: 'FLUX Video Edit', connection: 'sajid openrouter', price_label: '$0.09 for 3 s' })).toBe('FLUX Video Edit · sajid openrouter · $0.09 for 3 s')
-    expect(routeOptionLabel({ model: 'acme/x', provider: 'fal' })).toBe('acme/x · fal')
+    // A route with no connection label reads as the platform, never its provider (owner, 2026-10-29).
+    expect(routeOptionLabel({ model: 'acme/x', provider: 'fal' })).toBe('acme/x · AADML')
   })
 })
