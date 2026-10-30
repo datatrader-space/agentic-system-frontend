@@ -997,6 +997,7 @@ export default {
   rollbackAgent: (id) => api.post(`/agents/${id}/rollback/`),
   // ── Tools Library (Screen 24) ──
   getTools: (params) => api.get('/tools/', { params }),
+  getToolCatalog: (params) => api.get('/tools/catalog/', { params }),
   getToolDetail: (name) => api.get(`/tools/${name}/`),
   updateTool: (name, data) => api.post(`/tools/${name}/update/`, data),
   getToolAgents: (name) => api.get(`/tools/${name}/agents/`),
