@@ -1,8 +1,8 @@
 <template>
-  <div class="autonomy-page font-[Inter,system-ui,sans-serif]">
+  <div class="autonomy-page font-[Inter,system-ui,sans-serif] admin-subview">
     <div class="autonomy-head">
       <div>
-        <h2 class="text-[21px] font-bold tracking-tight text-[#0F172A]">Configure Autonomy &amp; Safety</h2>
+        <h2 class="text-[21px] font-bold tracking-tight text-[#0F172A] admin-section-title">Configure Autonomy &amp; Safety</h2>
         <p class="mt-1 text-[13.5px] text-[#475569]">Set how your agent works, when it acts, and the boundaries it must follow.</p>
       </div>
       <!-- The documentation page is /dashboard/help-center/docs and reads ?area= (a product area) and ?q=.
@@ -16,13 +16,13 @@
     <section class="execution-panel">
       <div class="execution-layout">
         <div class="execution-copy">
-          <h3 class="text-[16px] font-semibold text-[#0F172A]">Execution Mode &amp; Controls</h3>
+          <h3 class="text-[16px] font-semibold text-[#0F172A] admin-section-title">Execution Mode &amp; Controls</h3>
           <p class="mt-2 text-[13px] leading-5 text-[#64748B]">Choose how your agent makes decisions, then fine-tune the advanced capabilities it can use.</p>
         </div>
 
         <div class="execution-options">
           <!-- Run mode — the single canonical agent_run_mode (four options) -->
-            <div class="mode-grid">
+            <div class="mode-grid admin-responsive-grid">
             <button
               v-for="mode in runModes"
               :key="mode.key"
@@ -193,7 +193,7 @@
             <ShieldCheck :size="21" :stroke-width="2" />
           </span>
           <div>
-            <h3 class="text-[15px] font-semibold text-[#0F172A]">Tool Permissions &amp; Approvals</h3>
+            <h3 class="text-[15px] font-semibold text-[#0F172A] admin-section-title">Tool Permissions &amp; Approvals</h3>
             <p class="mt-1 text-[12.5px] leading-5 text-[#64748B]">Decide when this agent needs human approval for the tools you selected.</p>
           </div>
         </div>
@@ -233,7 +233,7 @@
               <span class="block truncate text-[10px] text-[#98A2B3]">{{ row.name }}</span>
             </span>
             <span v-if="row.locked" class="perm-locked"><Lock :size="11" :stroke-width="2.4" /> Blocked</span>
-            <select v-else class="control !w-[132px] !py-1" :value="row.agent" @change="setAgentToolPerm(row.key, $event.target.value)">
+            <select aria-label="Select an option" v-else class="control !w-[132px] !py-1" :value="row.agent" @change="setAgentToolPerm(row.key, $event.target.value)">
               <option value="">{{ row.org === 'ask' ? 'Inherit · Ask' : 'Inherit · Allow' }}</option>
               <option value="ask">Ask approval</option>
               <option value="deny">Block</option>
@@ -266,7 +266,7 @@
             <ShieldCheck :size="21" :stroke-width="2" />
           </span>
           <div>
-            <h3 class="text-[15px] font-semibold text-[#0F172A]">Guardrails</h3>
+            <h3 class="text-[15px] font-semibold text-[#0F172A] admin-section-title">Guardrails</h3>
             <p class="mt-1 text-[12.5px] leading-5 text-[#64748B]">Boundaries the agent must always follow.</p>
           </div>
         </div>
@@ -291,7 +291,7 @@
             <CircleDollarSign :size="21" :stroke-width="2" />
           </span>
           <div>
-            <h3 class="text-[15px] font-semibold text-[#0F172A]">Spending Limits</h3>
+            <h3 class="text-[15px] font-semibold text-[#0F172A] admin-section-title">Spending Limits</h3>
             <p class="mt-1 text-[12.5px] leading-5 text-[#64748B]">Cap how much this agent can spend. Enforced by Budgets.</p>
           </div>
         </div>
@@ -319,7 +319,7 @@
             <ListChecks :size="21" :stroke-width="2" />
           </span>
           <div>
-            <h3 class="text-[15px] font-semibold text-[#0F172A]">Planning</h3>
+            <h3 class="text-[15px] font-semibold text-[#0F172A] admin-section-title">Planning</h3>
             <p class="mt-1 text-[12.5px] leading-5 text-[#64748B]">Whether the agent drafts a plan before running a complex task.</p>
           </div>
         </div>
@@ -357,7 +357,7 @@
             <Sparkles :size="21" :stroke-width="2" />
           </span>
           <div>
-            <h3 class="text-[15px] font-semibold text-[#0F172A]">Autonomy Summary</h3>
+            <h3 class="text-[15px] font-semibold text-[#0F172A] admin-section-title">Autonomy Summary</h3>
             <p class="mt-1 text-[12.5px] leading-5 text-[#64748B]">A plain-language summary of how your agent will operate.</p>
           </div>
         </div>
@@ -381,10 +381,10 @@
     <!-- Action usage — effective limits + real activity (TurnTelemetry) -->
     <Teleport to="body">
       <div v-if="usageModalOpen" class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-5 py-8 backdrop-blur-sm" @click.self="usageModalOpen = false">
-        <section class="flex max-h-[86vh] w-full max-w-[620px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <section role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-autonomysafetystep-13" class="flex max-h-[86vh] w-full max-w-[620px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl admin-dialog">
           <header class="flex items-center justify-between gap-4 border-b border-[#F1F5F9] px-6 py-4">
             <div>
-              <h3 class="text-[17px] font-bold text-[#0F172A]">Action usage</h3>
+              <h3 id="admin-dialog-autonomysafetystep-13" class="text-[17px] font-bold text-[#0F172A] admin-section-title">Action usage</h3>
               <p class="text-[12.5px] text-[#64748B]">Recent activity for this agent.</p>
             </div>
             <button class="rules-close" aria-label="Close" @click="usageModalOpen = false"><X :size="20" :stroke-width="1.8" /></button>
@@ -394,15 +394,15 @@
             <div v-else-if="!usage" class="py-10 text-center text-[13px] text-[#98A2B3]">No usage recorded yet. Run the agent to see activity.</div>
             <template v-else>
               <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <div class="stat">
+                <div class="stat admin-metric">
                   <p class="stat-k">Runs today</p>
                   <p class="stat-v">{{ usage.today.runs }}</p>
                 </div>
-                <div class="stat">
+                <div class="stat admin-metric">
                   <p class="stat-k">Avg actions / run</p>
                   <p class="stat-v">{{ usage.today.avg_actions }}</p>
                 </div>
-                <div class="stat">
+                <div class="stat admin-metric">
                   <p class="stat-k">Peak actions</p>
                   <p class="stat-v">{{ usage.today.max_actions }}</p>
                 </div>
@@ -411,9 +411,9 @@
               <div class="mt-5 flex items-center justify-between">
                 <p class="policy-sec !mb-0">Recent runs <span class="font-normal normal-case text-[#98A2B3]">({{ usage.recent_total }})</span></p>
                 <div v-if="usageTotalPages > 1" class="flex items-center gap-1.5">
-                  <button class="pg-btn" :disabled="usagePage <= 1 || usageLoading" @click="loadUsage(usagePage - 1)"><ChevronRight :size="13" class="rotate-180" /></button>
+                  <button aria-label="Refresh" class="pg-btn" :disabled="usagePage <= 1 || usageLoading" @click="loadUsage(usagePage - 1)"><ChevronRight :size="13" class="rotate-180" /></button>
                   <span class="text-[11px] text-[#64748B]">{{ usagePage }}/{{ usageTotalPages }}</span>
-                  <button class="pg-btn" :disabled="usagePage >= usageTotalPages || usageLoading" @click="loadUsage(usagePage + 1)"><ChevronRight :size="13" /></button>
+                  <button aria-label="Refresh" class="pg-btn" :disabled="usagePage >= usageTotalPages || usageLoading" @click="loadUsage(usagePage + 1)"><ChevronRight :size="13" /></button>
                 </div>
               </div>
               <ul class="mt-2 divide-y divide-[#F2F4F7]">
@@ -437,10 +437,10 @@
     <!-- View all approval rules — the agent's complete effective policy, paginated -->
     <Teleport to="body">
       <div v-if="rulesModalOpen" class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-5 py-8 backdrop-blur-sm" @click.self="rulesModalOpen = false">
-        <section class="flex max-h-[86vh] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <section role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-autonomysafetystep-14" class="flex max-h-[86vh] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl admin-dialog">
           <header class="flex items-center justify-between gap-4 border-b border-[#F1F5F9] px-6 py-4">
             <div>
-              <h3 class="text-[17px] font-bold text-[#0F172A]">Approval &amp; guardrail rules</h3>
+              <h3 id="admin-dialog-autonomysafetystep-14" class="text-[17px] font-bold text-[#0F172A] admin-section-title">Approval &amp; guardrail rules</h3>
               <p class="text-[12.5px] text-[#64748B]">This agent's own rules — {{ allRules.length }} rule(s).</p>
             </div>
             <button class="rules-close" aria-label="Close" @click="rulesModalOpen = false"><X :size="20" :stroke-width="1.8" /></button>
@@ -861,9 +861,9 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
 
 .legacy-safety-card {
   min-height: 148px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--admin-line, #e5e7eb);
   border-radius: 12px;
-  background: #fff;
+  background: var(--admin-surface, #fff);
   padding: 16px 18px;
   box-shadow: 0 1px 3px rgba(16, 24, 40, .05);
 }
@@ -895,14 +895,14 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
 
 .legacy-card-head h3 {
   margin: 0;
-  color: #0f172a;
+  color: var(--admin-ink, #0f172a);
   font-size: 13.5px;
   font-weight: 850;
 }
 
 .legacy-card-head p {
   margin: 3px 0 0;
-  color: #64748b;
+  color: var(--admin-muted, #64748b);
   font-size: 11.5px;
   line-height: 1.35;
 }
@@ -921,7 +921,7 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
 }
 
 .legacy-form label > span {
-  color: #475569;
+  color: var(--admin-muted, #475569);
   font-size: 11px;
   font-weight: 750;
 }
@@ -929,11 +929,11 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
 .legacy-select {
   height: 32px;
   width: 100%;
-  border: 1px solid #d8e2f0;
+  border: 1px solid var(--admin-line, #d8e2f0);
   border-radius: 8px;
-  background: #fff;
+  background: var(--admin-surface, #fff);
   padding: 0 10px;
-  color: #334155;
+  color: var(--admin-ink, #334155);
   font-size: 11.5px;
   font-weight: 700;
   outline: none;
@@ -956,7 +956,7 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
   display: flex;
   align-items: center;
   gap: 7px;
-  color: #334155;
+  color: var(--admin-ink, #334155);
   font-size: 11.5px;
   font-weight: 600;
 }
@@ -985,48 +985,48 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
   font-weight: 850;
 }
 
-.guide-btn { display: inline-flex; align-items: center; gap: 8px; height: 42px; border: 1px solid #D9E0EA; border-radius: 10px; background: #fff; padding: 0 16px; font-size: 13px; font-weight: 700; color: #344054; box-shadow: 0 1px 2px rgba(16,24,40,.03); }
-.rules-close { display: grid; height: 36px; width: 36px; place-items: center; border: 0; border-radius: 10px; color: #475569; background: #fff; }
-.rules-close:hover { background: #F1F5F9; color: #0F172A; }
-.rules-pg { display: grid; place-items: center; height: 28px; width: 28px; border: 1px solid #E5E7EB; border-radius: 8px; color: #475569; background: #fff; }
+.guide-btn { display: inline-flex; align-items: center; gap: 8px; height: 42px; border: 1px solid var(--admin-line, #D9E0EA); border-radius: 10px; background: var(--admin-surface, #fff); padding: 0 16px; font-size: 13px; font-weight: 700; color: var(--admin-ink, #344054); box-shadow: 0 1px 2px rgba(16,24,40,.03); }
+.rules-close { display: grid; height: 36px; width: 36px; place-items: center; border: 0; border-radius: 10px; color: var(--admin-muted, #475569); background: var(--admin-surface, #fff); }
+.rules-close:hover { background: var(--admin-soft, #F1F5F9); color: var(--admin-ink, #0F172A); }
+.rules-pg { display: grid; place-items: center; height: 28px; width: 28px; border: 1px solid var(--admin-line, #E5E7EB); border-radius: 8px; color: var(--admin-muted, #475569); background: var(--admin-surface, #fff); }
 .rules-pg:hover:not(:disabled) { border-color: #2563EB; color: #2563EB; }
 .rules-pg:disabled { opacity: .4; cursor: not-allowed; }
-.rules-secondary { height: 38px; border: 1px solid #D9E0EA; border-radius: 9px; background: #fff; padding: 0 20px; font-size: 13px; font-weight: 700; color: #344054; }
-.rules-secondary:hover { border-color: #CBD5E1; color: #0F172A; }
-.policy-sec { font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #94A3B8; margin-bottom: 10px; }
+.rules-secondary { height: 38px; border: 1px solid var(--admin-line, #D9E0EA); border-radius: 9px; background: var(--admin-surface, #fff); padding: 0 20px; font-size: 13px; font-weight: 700; color: var(--admin-ink, #344054); }
+.rules-secondary:hover { border-color: #CBD5E1; color: var(--admin-ink, #0F172A); }
+.policy-sec { font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--admin-muted, #94A3B8); margin-bottom: 10px; }
 .chip-x { display: inline-flex; align-items: center; gap: 5px; height: 24px; border: 0; border-radius: 6px; background: #FEF2F2; color: #DC2626; padding: 0 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
 .chip-x:hover { background: #FEE2E2; }
-.mini-add { display: grid; place-items: center; height: 30px; width: 32px; flex-shrink: 0; border: 1px solid #E5E7EB; border-radius: 8px; background: #fff; color: #2563EB; cursor: pointer; }
+.mini-add { display: grid; place-items: center; height: 30px; width: 32px; flex-shrink: 0; border: 1px solid var(--admin-line, #E5E7EB); border-radius: 8px; background: var(--admin-surface, #fff); color: #2563EB; cursor: pointer; }
 .mini-add:hover { border-color: #2563EB; }
 .prev-chip { border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 700; }
 .perm-locked { display: inline-flex; align-items: center; gap: 5px; border-radius: 6px; background: #FEF2F2; color: #DC2626; padding: 3px 9px; font-size: 11px; font-weight: 700; }
-.stat { border: 1px solid #EEF2F7; border-radius: 10px; background: #FAFBFF; padding: 10px 12px; }
-.stat-k { font-size: 10.5px; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: .03em; }
-.stat-v { margin-top: 3px; font-size: 18px; font-weight: 800; color: #0F172A; }
+.stat { border: 1px solid var(--admin-line, #EEF2F7); border-radius: 10px; background: #FAFBFF; padding: 10px 12px; }
+.stat-k { font-size: 10.5px; font-weight: 700; color: var(--admin-muted, #94A3B8); text-transform: uppercase; letter-spacing: .03em; }
+.stat-v { margin-top: 3px; font-size: 18px; font-weight: 800; color: var(--admin-ink, #0F172A); }
 .src { display: inline-block; margin-top: 4px; border-radius: 999px; padding: 1px 7px; font-size: 10px; font-weight: 700; }
 .src-a { background: #EDE9FE; color: #6D28D9; }
-.src-d { background: #F1F5F9; color: #64748B; }
-.pg-btn { display: grid; place-items: center; height: 24px; width: 24px; border: 1px solid #E5E7EB; border-radius: 7px; color: #475569; background: #fff; }
+.src-d { background: var(--admin-soft, #F1F5F9); color: var(--admin-muted, #64748B); }
+.pg-btn { display: grid; place-items: center; height: 24px; width: 24px; border: 1px solid var(--admin-line, #E5E7EB); border-radius: 7px; color: var(--admin-muted, #475569); background: var(--admin-surface, #fff); }
 .pg-btn:hover:not(:disabled) { border-color: #2563EB; color: #2563EB; }
 .pg-btn:disabled { opacity: .4; cursor: not-allowed; }
 .money-input { position: relative; display: inline-block; }
-.money-input > span { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 12.5px; font-weight: 700; color: #98A2B3; pointer-events: none; }
+.money-input > span { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 12.5px; font-weight: 700; color: var(--admin-muted, #98A2B3); pointer-events: none; }
 .save-limit { height: 32px; border: 0; border-radius: 8px; background: #2563EB; color: #fff; padding: 0 16px; font-size: 12px; font-weight: 700; cursor: pointer; }
 .save-limit:hover:not(:disabled) { background: #1D4ED8; }
 .save-limit:disabled { opacity: .5; cursor: not-allowed; }
-.mode-card { min-height: 132px; border: 1px solid #E5E7EB; border-radius: 12px; background: #fff; padding: 16px; text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s; }
+.mode-card { min-height: 132px; border: 1px solid var(--admin-line, #E5E7EB); border-radius: 12px; background: var(--admin-surface, #fff); padding: 16px; text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s; }
 .mode-card:hover { border-color: #BFD0FF; box-shadow: 0 8px 20px rgba(16,24,40,.06); }
 .mode-card-active { border-color: #2563EB; background: #F5F8FF; box-shadow: 0 0 0 1px #2563EB, 0 10px 24px rgba(37,99,235,.08); }
-.radio-dot { display: grid; place-items: center; height: 20px; width: 20px; flex-shrink: 0; border-radius: 999px; border: 1.5px solid #CBD5E1; background: #fff; color: #fff; transition: background .15s, border-color .15s; }
+.radio-dot { display: grid; place-items: center; height: 20px; width: 20px; flex-shrink: 0; border-radius: 999px; border: 1.5px solid #CBD5E1; background: var(--admin-surface, #fff); color: #fff; transition: background .15s, border-color .15s; }
 .radio-dot-active { border-color: #2563EB; background: #2563EB; }
-.config-card { border: 1px solid #E5E7EB; border-radius: 12px; background: #fff; padding: 18px; box-shadow: 0 1px 3px rgba(16,24,40,.06); }
-.field-row { display: grid; grid-template-columns: minmax(120px, .78fr) minmax(0, 1.22fr); align-items: center; gap: 16px; font-size: 13px; font-weight: 500; color: #475569; }
-.control { height: 38px; width: 100%; border: 1px solid #D0D5DD; border-radius: 8px; background: #fff; padding: 0 12px; font-size: 13px; font-weight: 600; color: #344054; outline: none; box-shadow: 0 1px 2px rgba(16,24,40,.03); }
+.config-card { border: 1px solid var(--admin-line, #E5E7EB); border-radius: 12px; background: var(--admin-surface, #fff); padding: 18px; box-shadow: 0 1px 3px rgba(16,24,40,.06); }
+.field-row { display: grid; grid-template-columns: minmax(120px, .78fr) minmax(0, 1.22fr); align-items: center; gap: 16px; font-size: 13px; font-weight: 500; color: var(--admin-muted, #475569); }
+.control { height: 38px; width: 100%; border: 1px solid var(--admin-line, #D0D5DD); border-radius: 8px; background: var(--admin-surface, #fff); padding: 0 12px; font-size: 13px; font-weight: 600; color: var(--admin-ink, #344054); outline: none; box-shadow: 0 1px 2px rgba(16,24,40,.03); }
 .control:focus { border-color: #2563EB; box-shadow: 0 0 0 3px #EAF0FF; }
-.check-row { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500; color: #475569; }
+.check-row { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 500; color: var(--admin-muted, #475569); }
 .check-row input { height: 16px; width: 16px; accent-color: #12B76A; }
 .link-btn { display: inline-flex; align-items: center; gap: 5px; color: #2563EB; font-size: 13px; font-weight: 700; }
-.test-btn { display: inline-flex; align-items: center; gap: 7px; height: 40px; border: 1px solid #D9E0EA; border-radius: 10px; background: #fff; padding: 0 16px; color: #2563EB; font-size: 13px; font-weight: 700; }
+.test-btn { display: inline-flex; align-items: center; gap: 7px; height: 40px; border: 1px solid var(--admin-line, #D9E0EA); border-radius: 10px; background: var(--admin-surface, #fff); padding: 0 16px; color: #2563EB; font-size: 13px; font-weight: 700; }
 
 /* Compact autonomy workspace */
 .autonomy-page {
@@ -1035,7 +1035,7 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
   margin: 0 auto;
   padding: 0 20px 28px;
   box-sizing: border-box;
-  color: #0f172a;
+  color: var(--admin-ink, #0f172a);
 }
 .autonomy-head {
   display: flex;
@@ -1048,7 +1048,7 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
 .config-card {
   border: 1px solid #e2e7ef;
   border-radius: 12px;
-  background: #fff;
+  background: var(--admin-surface, #fff);
   box-shadow: 0 1px 2px rgba(16,24,40,.045);
 }
 .execution-panel { padding: 16px; }
@@ -1125,7 +1125,7 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
   border-radius: 10px;
   background: #f2f6ff;
   padding: 13px 15px;
-  color: #344054;
+  color: var(--admin-ink, #344054);
   font-size: 12px;
   line-height: 1.5;
 }

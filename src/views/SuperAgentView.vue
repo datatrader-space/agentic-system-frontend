@@ -1,7 +1,7 @@
 <template>
   <!-- Platform Super Agent — read-only capabilities view (Phase 11.5 / primitive #4). Shows what the
        user's super agent coordinates: its team (all their agents) + its skills. -->
-  <div class="mx-auto w-full max-w-[1100px] px-6 py-8 font-[Inter,system-ui,sans-serif]">
+  <div class="mx-auto w-full max-w-[1100px] px-6 py-8 font-[Inter,system-ui,sans-serif] admin-page">
     <div v-if="loading" class="py-20 text-center text-[13px] text-[#98A2B3]">Loading your Super Agent…</div>
 
     <div v-else-if="error" class="rounded-xl border border-red-200 bg-red-50/60 p-6 text-center">
@@ -17,8 +17,8 @@
           <span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-indigo-600 text-white">
             <Sparkles :size="24" :stroke-width="2" />
           </span>
-          <div>
-            <h1 class="text-[24px] font-bold tracking-tight text-[#0F172A]">{{ agent.name }}</h1>
+          <div class="admin-page-header">
+            <h1 class="text-[24px] font-bold tracking-tight text-[#0F172A] admin-page-title">{{ agent.name }}</h1>
             <p class="mt-1 max-w-[640px] text-[13.5px] text-[#64748B]">{{ agent.description }}</p>
           </div>
         </div>
@@ -43,7 +43,7 @@
         <section class="rounded-2xl border border-[#E5E7EB] bg-white p-5">
           <div class="mb-3 flex items-center gap-2">
             <Users :size="17" :stroke-width="2" class="text-indigo-600" />
-            <h2 class="text-[13px] font-bold uppercase tracking-wide text-[#334155]">Team</h2>
+            <h2 class="text-[13px] font-bold uppercase tracking-wide text-[#334155] admin-section-title">Team</h2>
             <span class="ml-auto text-[12px] font-semibold text-[#667085]">{{ team.length }} agents</span>
           </div>
           <p class="mb-3 text-[12px] text-[#94A3B8]">
@@ -73,7 +73,7 @@
         <section class="rounded-2xl border border-[#E5E7EB] bg-white p-5">
           <div class="mb-3 flex items-center gap-2">
             <BookOpen :size="17" :stroke-width="2" class="text-indigo-600" />
-            <h2 class="text-[13px] font-bold uppercase tracking-wide text-[#334155]">Skills</h2>
+            <h2 class="text-[13px] font-bold uppercase tracking-wide text-[#334155] admin-section-title">Skills</h2>
             <span class="ml-auto text-[12px] font-semibold text-[#667085]">{{ skills.length }}</span>
           </div>
           <ul v-if="skills.length" class="divide-y divide-[#F2F4F7]">
@@ -92,7 +92,7 @@
       <section v-if="recent.length" class="mt-4 rounded-2xl border border-[#E5E7EB] bg-white p-5">
         <div class="mb-3 flex items-center gap-2">
           <Activity :size="17" :stroke-width="2" class="text-indigo-600" />
-          <h2 class="text-[13px] font-bold uppercase tracking-wide text-[#334155]">Recent delegations</h2>
+          <h2 class="text-[13px] font-bold uppercase tracking-wide text-[#334155] admin-section-title">Recent delegations</h2>
           <router-link to="/dashboard/delegations" class="ml-auto text-[12px] font-semibold text-indigo-600 hover:text-indigo-700">View all →</router-link>
         </div>
         <ul class="divide-y divide-[#F2F4F7]">
@@ -114,7 +114,7 @@
       <section v-if="catalog.length" class="mt-4 rounded-2xl border border-[#E5E7EB] bg-white p-5">
         <div class="mb-3 flex items-center gap-2">
           <Boxes :size="17" :stroke-width="2" class="text-indigo-600" />
-          <h2 class="text-[13px] font-bold uppercase tracking-wide text-[#334155]">Platform tools by category</h2>
+          <h2 class="text-[13px] font-bold uppercase tracking-wide text-[#334155] admin-section-title">Platform tools by category</h2>
           <span class="ml-auto text-[12px] font-semibold text-[#667085]">{{ catalog.length }} categories</span>
         </div>
         <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">

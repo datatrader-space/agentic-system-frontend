@@ -2,7 +2,7 @@
      `of` is how many exist when the API sent only the latest of them, so a list never looks complete when it
      is not. Hidden when everything fits on one page of the smallest size. -->
 <template>
-  <nav v-if="total > PAGE_SIZES[0]" class="pager" :aria-label="`${label} pages`">
+  <nav v-if="total > PAGE_SIZES[0]" class="pager admin-subview admin-pagination" :aria-label="`${label} pages`">
     <span class="pager-range">
       {{ from }}–{{ to }} of {{ total }}<template v-if="of && of > total"> · latest {{ total }} of {{ of }}</template>
     </span>
@@ -59,12 +59,12 @@ const shownPages = computed(() => {
 </script>
 
 <style scoped>
-.pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 16px; border-top: 1px solid var(--soft-line, #edf2f7); color: var(--muted, #64748b); font-size: 12px; }
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 16px; border-top: 1px solid var(--soft-line, var(--admin-line, #edf2f7)); color: var(--muted, var(--admin-muted, #64748b)); font-size: 12px; }
 .pager-range { font-variant-numeric: tabular-nums; }
 .pager-size { display: inline-flex; align-items: center; gap: 6px; }
-.pager-size select { height: 30px; padding: 0 6px; border: 1px solid #d8e1ec; border-radius: 7px; background: #fff; color: var(--ink, #0f172a); font: inherit; font-size: 12px; cursor: pointer; }
+.pager-size select { height: 30px; padding: 0 6px; border: 1px solid var(--admin-line, #d8e1ec); border-radius: 7px; background: var(--admin-surface, #fff); color: var(--ink, var(--admin-ink, #0f172a)); font: inherit; font-size: 12px; cursor: pointer; }
 .pager-buttons { display: inline-flex; gap: 4px; margin-left: auto; }
-.pager-buttons button { min-width: 30px; height: 30px; padding: 0 8px; border: 1px solid #d8e1ec; border-radius: 7px; background: #fff; color: #334155; font: inherit; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; }
+.pager-buttons button { min-width: 30px; height: 30px; padding: 0 8px; border: 1px solid var(--admin-line, #d8e1ec); border-radius: 7px; background: var(--admin-surface, #fff); color: var(--admin-ink, #334155); font: inherit; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; }
 .pager-buttons button:hover:not(:disabled) { border-color: #a5b4fc; color: #4338ca; }
 .pager-buttons button.active { border-color: var(--primary, #4f46e5); background: var(--primary, #4f46e5); color: #fff; }
 .pager-buttons button.gap { border-color: transparent; background: transparent; cursor: default; }

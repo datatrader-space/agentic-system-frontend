@@ -1,11 +1,11 @@
 <!-- Every active agent's scorecard: its trend and the numbers behind it. A row opens that agent's detail. -->
 <template>
-  <section class="panel" aria-labelledby="agents-title">
+  <section class="panel admin-subview admin-surface" aria-labelledby="agents-title">
     <div class="panel-header">
       <div class="panel-title-group">
         <span class="section-icon blue"><Icon icon="lucide:bot" /></span>
         <div>
-          <h2 id="agents-title">Agents</h2>
+          <h2 class="admin-section-title" id="agents-title">Agents</h2>
           <p>
             <strong>{{ agents.length }} of {{ total }} agents</strong> were active in the last {{ days }} days: they
             finished a run, made a mistake or were warned. Agents that did nothing in this window are not listed;
@@ -25,8 +25,8 @@
       <span>A trend needs {{ minRuns }} finished runs in the window.</span>
     </div>
 
-    <div v-else class="table-wrap">
-      <table class="data-table card-table">
+    <div v-else class="table-wrap admin-table-scroll">
+      <table class="data-table card-table admin-table">
         <thead>
           <tr>
             <th>Agent</th>
@@ -55,7 +55,7 @@
                 <span class="agent-avatar"><Icon icon="lucide:bot" /></span>
                 <div>
                   <strong>{{ card.agent.name }}</strong>
-                  <span class="sub">{{ card.agent.builtin ? 'Shared built-in agent' : card.agent.owner }}</span>
+                  <span class="sub admin-muted">{{ card.agent.builtin ? 'Shared built-in agent' : card.agent.owner }}</span>
                 </div>
               </div>
             </td>
@@ -70,25 +70,25 @@
             <td data-label="Runs" class="numeric strong">{{ formatNumber(card.current.runs) }}</td>
             <td data-label="Success" class="numeric">
               {{ percent(card.current.success_rate) }}
-              <span class="sub" :class="deltaClass(change(card.current.success_rate, card.previous.success_rate).tone)">
+              <span class="sub admin-muted" :class="deltaClass(change(card.current.success_rate, card.previous.success_rate).tone)">
                 {{ change(card.current.success_rate, card.previous.success_rate).text }}
               </span>
             </td>
             <td data-label="Own mistakes" class="numeric">
               {{ formatNumber(card.current.own_mistakes) }}
-              <span class="sub">{{ card.current.environment_failures ? `+${formatNumber(card.current.environment_failures)} environment` : 'none from the environment' }}</span>
+              <span class="sub admin-muted">{{ card.current.environment_failures ? `+${formatNumber(card.current.environment_failures)} environment` : 'none from the environment' }}</span>
             </td>
             <td data-label="Repeated" class="numeric">
               {{ card.current.warnings_scored ? `${card.current.repeated} of ${card.current.warnings_scored}` : '—' }}
-              <span class="sub">{{ card.current.warnings ? `${card.current.warnings} warned` : 'no warnings' }}</span>
+              <span class="sub admin-muted">{{ card.current.warnings ? `${card.current.warnings} warned` : 'no warnings' }}</span>
             </td>
             <td data-label="Practices" class="numeric">
               {{ formatNumber(card.practices.active) }} active
-              <span class="sub">{{ formatNumber(card.practices.candidate) }} learning · {{ formatNumber(card.practices.retired) }} retired</span>
+              <span class="sub admin-muted">{{ formatNumber(card.practices.candidate) }} learning · {{ formatNumber(card.practices.retired) }} retired</span>
             </td>
             <td data-label="Memory" class="numeric">
               +{{ formatNumber(card.current.memories_saved) }}
-              <span class="sub">{{ formatNumber(card.current.memories_corrected) }} corrected</span>
+              <span class="sub admin-muted">{{ formatNumber(card.current.memories_corrected) }} corrected</span>
             </td>
             <td data-label="Daily success"><SuccessSparkline :values="card.spark" /></td>
           </tr>

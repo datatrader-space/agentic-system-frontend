@@ -10,6 +10,11 @@ const api = vi.hoisted(() => ({
   billingAdminChargesCsv: vi.fn(),
   billingAdminSettings: vi.fn(),
   billingAdminSaveSettings: vi.fn(),
+  billingAdminWallets: vi.fn(),
+  billingAdminWallet: vi.fn(),
+  billingAdminAdjust: vi.fn(),
+  billingAdminPricingCoverage: vi.fn(),
+  billingAdminRevenue: vi.fn(),
 }))
 vi.mock('../../services/api', () => ({ default: api }))
 vi.mock('../../composables/useNotify', () => ({ notify: { error: vi.fn(), success: vi.fn() } }))
@@ -36,10 +41,112 @@ beforeEach(() => {
   api.billingAdminCharges.mockResolvedValue({ data: { charges: [charge], next_before: null } })
   api.billingAdminSettings.mockResolvedValue({ data: { settings: settings() } })
   api.billingAdminSaveSettings.mockResolvedValue({ data: { settings: settings() } })
+  api.billingAdminWallets.mockResolvedValue({ data: { wallets: [{ wallet_id: 1, user_id: 7, username: 'ben', email: 'ben@example.test', balance_usd: '0.00000017', held_usd: '2', exempt: false }], next_before: null } })
+  api.billingAdminWallet.mockResolvedValue({ data: { user: { id: 7, username: 'ben', email: 'ben@example.test' }, wallet: { balance_usd: '0.00000017' }, entries: [charge], holds: [], next_before: null } })
+  api.billingAdminPricingCoverage.mockResolvedValue({ data: { total: 3, missing: 1, models: [
+    { provider_id: 1, model_id: 'paid', name: 'Paid model', status: 'priced', price: { per_item_usd: '0.01' } },
+    { provider_id: 1, model_id: 'missing', name: 'Unpriced model', status: 'missing' },
+    { provider_id: 2, model_id: 'local', name: 'Local model', status: 'local_free' },
+  ] } })
+  api.billingAdminRevenue.mockResolvedValue({ data: { charged_usd: '0.00000017', provider_cost_usd: '0.00000014', by_usage_kind: { llm: { cost_usd: '0.00000014', charged_usd: '0.00000017' } } } })
 })
 afterEach(() => w?.unmount())
 
 describe('Admin billing: every cent traced', () => {
+  it('drops a late usage response after a newer filter request has completed', async () => {
+    let resolveOld
+    api.billingAdminSpendSummary.mockReturnValueOnce(new Promise(resolve => { resolveOld = resolve }))
+    w = mount(AdminBilling); await flushPromises()
+    api.billingAdminSpendSummary.mockResolvedValueOnce({ data: { ...summary, total_charged_usd: '9' } })
+    await w.find('input[placeholder="Anyone"]').setValue('new person')
+    await w.find('form.usage-filters').trigger('submit'); await flushPromises()
+    expect(w.find('.usage-kpis').text()).toContain('$9.00')
+    resolveOld({ data: summary }); await flushPromises()
+    expect(w.find('.usage-kpis').text()).toContain('$9.00')
+    expect(w.find('.usage-kpis').text()).not.toContain('$0.70')
+  })
+
+  it('offers an inline retry for failed usage without showing a false empty state', async () => {
+    api.billingAdminCharges.mockRejectedValueOnce(new Error('unavailable'))
+    w = mount(AdminBilling); await flushPromises()
+    expect(w.get('.billing-load-error').text()).toContain('Could not load usage')
+    expect(w.find('[aria-label="Loading usage totals"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('No entries.')
+    await w.get('.billing-load-error button').trigger('click'); await flushPromises()
+    expect(w.find('.billing-load-error').exists()).toBe(false)
+    expect(w.find('.usage-kpis').text()).toContain('$0.70')
+  })
+
+  it('blocks duplicate adjustments and respects leaving the wallet while a save completes', async () => {
+    let finish
+    api.billingAdminAdjust.mockReturnValueOnce(new Promise(resolve => { finish = resolve }))
+    w = mount(AdminBilling); await flushPromises()
+    await w.find('#tab-wallets').trigger('click'); await flushPromises()
+    await w.find('button[aria-label="Open wallet for ben"]').trigger('click'); await flushPromises()
+    await w.findAll('.adjust input')[0].setValue('5')
+    await w.findAll('.adjust input')[1].setValue('Customer service credit')
+    await w.find('.adjust').trigger('submit')
+    await w.find('.adjust').trigger('submit')
+    expect(api.billingAdminAdjust).toHaveBeenCalledExactlyOnceWith(7, '5', 'Customer service credit')
+    await w.find('.back').trigger('click')
+    finish({ data: {} }); await flushPromises()
+    expect(w.find('.wallet-toolbar').exists()).toBe(true)
+    expect(w.find('.who').exists()).toBe(false)
+  })
+  it('keeps advanced filters in the query and clears them together', async () => {
+    w = mount(AdminBilling); await flushPromises()
+    await w.find('input[placeholder="e.g. openrouter"]').setValue('openrouter')
+    await w.find('input[placeholder="exact model id"]').setValue('model-a')
+    await w.find('form.usage-filters').trigger('submit'); await flushPromises()
+    expect(api.billingAdminCharges).toHaveBeenLastCalledWith({ kind: 'charge', provider: 'openrouter', model: 'model-a' })
+    await w.findAll('button').find(b => b.text() === 'Clear').trigger('click'); await flushPromises()
+    expect(api.billingAdminCharges).toHaveBeenLastCalledWith({ kind: 'charge' })
+  })
+
+  it('supports keyboard navigation and activates the corresponding panel', async () => {
+    w = mount(AdminBilling, { attachTo: document.body }); await flushPromises()
+    await w.find('#tab-usage').trigger('keydown', { key: 'End' }); await flushPromises()
+    expect(w.find('#tab-revenue').attributes('aria-selected')).toBe('true')
+    expect(document.activeElement.id).toBe('tab-revenue')
+    expect(w.find('#panel-revenue').exists()).toBe(true)
+    await w.find('#tab-revenue').trigger('keydown', { key: 'ArrowRight' }); await flushPromises()
+    expect(w.find('#tab-usage').attributes('tabindex')).toBe('0')
+    expect(w.find('#tab-settings').attributes('tabindex')).toBe('-1')
+  })
+
+  it('opens wallet details without changing a balance and returns to the list', async () => {
+    w = mount(AdminBilling); await flushPromises()
+    await w.find('#tab-wallets').trigger('click'); await flushPromises()
+    await w.find('button[aria-label="Open wallet for ben"]').trigger('click'); await flushPromises()
+    expect(w.find('.big').text()).toBe('$0.00000017')
+    expect(w.find('.adjust button[type="submit"]').attributes('disabled')).toBeDefined()
+    expect(api.billingAdminAdjust).not.toHaveBeenCalled()
+    await w.find('.back').trigger('click')
+    expect(w.find('.wallet-toolbar').exists()).toBe(true)
+  })
+
+  it('separates missing prices from priced and free local models', async () => {
+    w = mount(AdminBilling); await flushPromises()
+    await w.find('#tab-pricing').trigger('click'); await flushPromises()
+    expect(w.findAll('.coverage-kpis strong').map(e => e.text())).toEqual(['3', '1', '1'])
+    expect(w.find('#panel-pricing tbody').text()).toContain('Unpriced model')
+    expect(w.find('#panel-pricing tbody').text()).not.toContain('Local model')
+    await w.findAll('#panel-pricing .chip')[1].trigger('click')
+    expect(w.find('#panel-pricing tbody').text()).toContain('Free (local)')
+  })
+
+  it('preserves sub-cent revenue and scales comparison bars without invalid widths', async () => {
+    w = mount(AdminBilling); await flushPromises()
+    await w.find('#tab-revenue').trigger('click'); await flushPromises()
+    expect(w.find('.revenue-kpis').text()).toContain('$0.00000017')
+    expect(w.find('.revenue-kpis').text()).toContain('$0.00000003')
+    expect(w.find('.chart-bar.charged').attributes('style')).toContain('width: 100%')
+    api.billingAdminRevenue.mockResolvedValue({ data: { by_usage_kind: {} } })
+    await w.find('.days select').setValue(7); await flushPromises()
+    expect(api.billingAdminRevenue).toHaveBeenLastCalledWith(7)
+    expect(w.find('.usage-chart').exists()).toBe(false)
+    expect(w.text()).toContain('No usage in this period.')
+  })
   it('opens on Usage & charges with totals, groups and every entry', async () => {
     w = mount(AdminBilling); await flushPromises()
     expect(api.billingAdminSpendSummary).toHaveBeenCalledWith({ kind: 'charge', group_by: 'user' })

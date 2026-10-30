@@ -1,14 +1,14 @@
 <template>
-  <div class="cd">
-    <header class="cd-head">
+  <div class="cd admin-page">
+    <header class="cd-head admin-page-header">
       <div>
-        <h1>Cost per Organization</h1>
+        <h1 class="admin-page-title">Cost per Organization</h1>
         <p>Daily LLM spend attributed per organization ($/turn) — a turn is one user message. Attribution
           follows the requesting user (falling back to the conversation owner), so a user in several orgs
           counts toward each; the platform totals row is computed from the raw log and never double-counts.</p>
       </div>
-      <div class="cd-controls">
-        <div class="seg">
+      <div class="cd-controls admin-toolbar">
+        <div class="seg admin-tabs">
           <button v-for="d in [7, 30, 90]" :key="d" :class="{ on: days === d }" @click="setDays(d)">{{ d }}d</button>
         </div>
         <button class="btn primary" :disabled="loading" @click="load">
@@ -18,35 +18,35 @@
     </header>
 
     <!-- Platform headline -->
-    <div v-if="data" class="kpis">
-      <div class="kpi">
-        <span class="kpi-label">Platform spend</span>
-        <span class="kpi-val">{{ usd(pt.cost_usd) }}</span>
-        <span class="kpi-note">last {{ data.period_days }} days</span>
+    <div v-if="data" class="kpis admin-metrics">
+      <div class="kpi admin-metric">
+        <span class="kpi-label admin-muted">Platform spend</span>
+        <span class="kpi-val admin-value">{{ usd(pt.cost_usd) }}</span>
+        <span class="kpi-note admin-muted">last {{ data.period_days }} days</span>
       </div>
-      <div class="kpi">
-        <span class="kpi-label">Turns</span>
-        <span class="kpi-val">{{ num(pt.turns) }}</span>
-        <span class="kpi-note">user messages</span>
+      <div class="kpi admin-metric">
+        <span class="kpi-label admin-muted">Turns</span>
+        <span class="kpi-val admin-value">{{ num(pt.turns) }}</span>
+        <span class="kpi-note admin-muted">user messages</span>
       </div>
-      <div class="kpi">
-        <span class="kpi-label">Cost / turn</span>
-        <span class="kpi-val">{{ pt.cost_per_turn != null ? usd(pt.cost_per_turn) : '—' }}</span>
-        <span class="kpi-note">platform average</span>
+      <div class="kpi admin-metric">
+        <span class="kpi-label admin-muted">Cost / turn</span>
+        <span class="kpi-val admin-value">{{ pt.cost_per_turn != null ? usd(pt.cost_per_turn) : '—' }}</span>
+        <span class="kpi-note admin-muted">platform average</span>
       </div>
-      <div class="kpi">
-        <span class="kpi-label">Tokens</span>
-        <span class="kpi-val">{{ compact(pt.tokens) }}</span>
-        <span class="kpi-note">{{ num(pt.calls) }} LLM calls</span>
+      <div class="kpi admin-metric">
+        <span class="kpi-label admin-muted">Tokens</span>
+        <span class="kpi-val admin-value">{{ compact(pt.tokens) }}</span>
+        <span class="kpi-note admin-muted">{{ num(pt.calls) }} LLM calls</span>
       </div>
     </div>
 
-    <section class="card">
+    <section class="card admin-surface">
       <div v-if="loading && !data" class="state">Loading…</div>
       <div v-else-if="error" class="state err">Couldn’t load. <button class="link" @click="load">Retry</button></div>
       <div v-else-if="data && !data.orgs.length" class="state">No LLM spend recorded in the last {{ data.period_days }} days.</div>
-      <div v-else-if="data" class="tbl-wrap">
-        <table class="tbl">
+      <div v-else-if="data" class="tbl-wrap admin-table-scroll">
+        <table class="tbl admin-table">
           <thead>
             <tr>
               <th>Organization</th><th>Members</th><th>Daily spend</th>
@@ -58,9 +58,9 @@
               <td>
                 <strong>{{ o.org_name }}</strong>
                 <span v-if="o.is_personal" class="tag">personal</span>
-                <div class="sub">{{ o.org_slug }}</div>
+                <div class="sub admin-muted">{{ o.org_slug }}</div>
               </td>
-              <td class="muted">{{ o.members }}</td>
+              <td class="muted admin-muted">{{ o.members }}</td>
               <td>
                 <div class="bars" role="img" :aria-label="`Daily spend for ${o.org_name}`">
                   <div v-for="d in data.dates" :key="d" class="bar-slot"
@@ -72,16 +72,16 @@
               <td class="r">{{ num(o.totals.turns) }}</td>
               <td class="r strong">{{ usd(o.totals.cost_usd) }}</td>
               <td class="r">{{ o.totals.cost_per_turn != null ? usd(o.totals.cost_per_turn) : '—' }}</td>
-              <td class="r muted">{{ compact(o.totals.tokens) }}</td>
+              <td class="r muted admin-muted">{{ compact(o.totals.tokens) }}</td>
             </tr>
           </tbody>
           <tfoot>
             <tr v-if="hasUnattributed">
-              <td colspan="3"><em class="muted">Unattributed (no user on the log row)</em></td>
+              <td colspan="3"><em class="muted admin-muted">Unattributed (no user on the log row)</em></td>
               <td class="r">{{ num(data.unattributed.turns) }}</td>
               <td class="r">{{ usd(data.unattributed.cost_usd) }}</td>
               <td class="r">—</td>
-              <td class="r muted">{{ compact(data.unattributed.tokens) }}</td>
+              <td class="r muted admin-muted">{{ compact(data.unattributed.tokens) }}</td>
             </tr>
             <tr class="totals">
               <td colspan="3"><strong>Platform totals</strong></td>
@@ -162,10 +162,10 @@ onMounted(load)
 .cd { padding: 28px 32px 60px; }
 .cd-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
 .cd-head h1 { margin: 0; font-size: 22px; font-weight: 800; }
-.cd-head p { margin: 6px 0 0; color: #64748b; font-size: 13px; max-width: 680px; line-height: 1.5; }
+.cd-head p { margin: 6px 0 0; color: var(--admin-muted, #64748b); font-size: 13px; max-width: 680px; line-height: 1.5; }
 .cd-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.seg { display: inline-flex; border: 1px solid #d8e2f0; border-radius: 9px; overflow: hidden; background: #fff; }
-.seg button { border: 0; background: transparent; padding: 0 13px; height: 36px; font-size: 12.5px; font-weight: 700; color: #64748b; cursor: pointer; }
+.seg { display: inline-flex; border: 1px solid var(--admin-line, #d8e2f0); border-radius: 9px; overflow: hidden; background: var(--admin-surface, #fff); }
+.seg button { border: 0; background: transparent; padding: 0 13px; height: 36px; font-size: 12.5px; font-weight: 700; color: var(--admin-muted, #64748b); cursor: pointer; }
 .seg button + button { border-left: 1px solid #e5ebf3; }
 .seg button.on { background: #4f46e5; color: #fff; }
 .btn { display: inline-flex; align-items: center; gap: 7px; height: 38px; border-radius: 9px; padding: 0 15px; font-size: 13px; font-weight: 700; border: 1px solid transparent; cursor: pointer; }
@@ -174,26 +174,26 @@ onMounted(load)
 .spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
 
 .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 18px; }
-.kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 15px 17px; display: flex; flex-direction: column; }
-.kpi-label { font-size: 11.5px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .03em; }
-.kpi-val { font-size: 26px; font-weight: 800; color: #0f172a; margin-top: 7px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-.kpi-note { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+.kpi { background: var(--admin-surface, #fff); border: 1px solid var(--admin-line, #e2e8f0); border-radius: 14px; padding: 15px 17px; display: flex; flex-direction: column; }
+.kpi-label { font-size: 11.5px; font-weight: 700; color: var(--admin-muted, #64748b); text-transform: uppercase; letter-spacing: .03em; }
+.kpi-val { font-size: 26px; font-weight: 800; color: var(--admin-ink, #0f172a); margin-top: 7px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.kpi-note { font-size: 12px; color: var(--admin-muted, #94a3b8); margin-top: 4px; }
 
-.card { background: #fff; border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); overflow: hidden; }
-.state { padding: 44px; text-align: center; color: #64748b; } .state.err { color: #b45309; }
+.card { background: var(--admin-surface, #fff); border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); overflow: hidden; }
+.state { padding: 44px; text-align: center; color: var(--admin-muted, #64748b); } .state.err { color: #b45309; }
 .link { border: 0; background: transparent; color: #4f46e5; font-weight: 700; cursor: pointer; }
 .tbl-wrap { overflow-x: auto; }
 .tbl { width: 100%; border-collapse: collapse; }
-.tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #64748b; padding: 12px 16px; border-bottom: 1px solid #eef2f7; background: #f8fafc; white-space: nowrap; }
+.tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--admin-muted, #64748b); padding: 12px 16px; border-bottom: 1px solid var(--admin-line, #eef2f7); background: var(--admin-soft, #f8fafc); white-space: nowrap; }
 .tbl th.r, .tbl td.r { text-align: right; }
 .tbl td { padding: 13px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
-.tbl tbody tr:last-child td { border-bottom: 1px solid #eef2f7; }
+.tbl tbody tr:last-child td { border-bottom: 1px solid var(--admin-line, #eef2f7); }
 .tbl td.strong { font-weight: 700; font-variant-numeric: tabular-nums; }
-.tbl tfoot td { border-bottom: 0; background: #f8fafc; }
+.tbl tfoot td { border-bottom: 0; background: var(--admin-soft, #f8fafc); }
 .tbl tfoot tr.totals td { border-top: 1px solid #e5ebf3; }
-.sub { color: #94a3b8; font-size: 11.5px; margin-top: 3px; }
-.muted { color: #94a3b8; }
-.tag { margin-left: 8px; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 850; text-transform: uppercase; letter-spacing: .03em; background: #f1f5f9; color: #64748b; }
+.sub { color: var(--admin-muted, #94a3b8); font-size: 11.5px; margin-top: 3px; }
+.muted { color: var(--admin-muted, #94a3b8); }
+.tag { margin-left: 8px; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 850; text-transform: uppercase; letter-spacing: .03em; background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #64748b); }
 
 /* per-day mini bars — single sequential hue (spend magnitude), 2px gaps, rounded data-ends */
 .bars { display: flex; align-items: flex-end; gap: 2px; height: 38px; min-width: 140px; max-width: 340px; }

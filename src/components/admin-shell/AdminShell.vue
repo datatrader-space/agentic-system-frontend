@@ -1,230 +1,82 @@
 <template>
-  <div class="admin-shell" @keydown.esc="menuOpen = false">
-    <!-- Below 900px the sidebar is a drawer: the menu button opens it, and picking a page, tapping outside or
-         Escape closes it. Wider than that it is always there. -->
-    <div v-if="menuOpen" class="admin-backdrop" aria-hidden="true" @click="menuOpen = false"></div>
-    <!-- Sidebar -->
-    <aside id="admin-sidebar" class="admin-sidebar" :class="{ open: menuOpen }" aria-label="Admin navigation">
-      <div class="admin-brand">
-        <span class="admin-logo">⚙</span>
-        <div>
-          <div class="admin-title">Admin</div>
-          <div class="admin-sub">Platform control</div>
-        </div>
-      </div>
-
-      <nav class="admin-nav">
-        <router-link v-for="item in nav" :key="item.to" :to="item.to" class="admin-nav-item"
-                     :class="{ active: isActive(item) }">
-          <svg viewBox="0 0 24 24" class="admin-nav-ico" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path v-for="(d, i) in item.icon" :key="i" :d="d" />
-          </svg>
-          <span>{{ item.label }}</span>
-        </router-link>
+  <div class="admin-shell" :class="{ 'is-collapsed': collapsed }" :data-admin-theme="theme" @keydown="onKeydown">
+    <a class="admin-skip" href="#admin-main">Skip to page content</a>
+    <button v-if="menuOpen" class="admin-backdrop" aria-label="Close navigation" tabindex="-1" @click="closeMenu"></button>
+    <aside id="admin-sidebar" ref="sidebar" class="admin-sidebar" :class="{ open: menuOpen }" aria-label="Admin navigation" :inert="mobile && !menuOpen ? true : undefined">
+      <div class="admin-brand"><span class="admin-logo"><ShieldCheck :size="21" aria-hidden="true" /></span><div class="admin-brand-copy"><strong>AADML <span>Admin</span></strong><small>Platform workspace</small></div><button class="admin-mobile-close admin-icon-button" type="button" aria-label="Close navigation" @click="closeMenu"><X :size="18" /></button></div>
+      <button v-if="collapsed && !mobile" class="admin-rail-search" type="button" aria-label="Expand navigation and search" @click="expandSearch"><Search :size="17" /></button>
+      <label v-else class="admin-nav-search"><Search :size="15" aria-hidden="true" /><span class="admin-sr-only">Find an admin page</span><input ref="searchInput" v-model="query" type="search" placeholder="Find a page…" /><button v-if="query" class="admin-search-clear" type="button" aria-label="Clear navigation search" @click="query = ''"><X :size="13" /></button></label>
+      <nav class="admin-nav" aria-label="Admin pages">
+        <section v-for="group in visibleGroups" :key="group.key" class="admin-nav-group">
+          <button class="admin-group-heading" type="button" :aria-expanded="!closedGroups.includes(group.key) || !!query" :aria-controls="`admin-group-${group.key}`" @click="toggleGroup(group.key)"><span>{{ group.label }}</span><ChevronDown :size="12" :class="{ closed: closedGroups.includes(group.key) && !query }" aria-hidden="true" /></button>
+          <div v-show="!closedGroups.includes(group.key) || query || (collapsed && !mobile)" :id="`admin-group-${group.key}`" class="admin-group-items">
+            <RouterLink v-for="item in group.items" :key="item.to" :to="item.to" class="admin-nav-item" :class="{ active: current.key === item.key }" :title="collapsed ? item.label : undefined" :aria-label="item.label" :aria-current="current.key === item.key ? 'page' : undefined">
+              <svg viewBox="0 0 24 24" class="admin-nav-ico" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path v-for="(d, i) in item.icon" :key="i" :d="d" /></svg><span class="admin-nav-label">{{ item.label }}</span>
+            </RouterLink>
+          </div>
+        </section>
+        <div v-if="!visibleGroups.length" class="admin-nav-empty">No pages match “{{ query }}”.<button type="button" @click="query = ''">Clear search</button></div>
       </nav>
-
-      <div class="admin-nav-divider"></div>
-      <a :href="djangoAdminUrl" target="_blank" rel="noopener" class="admin-nav-item">
-        <svg viewBox="0 0 24 24" class="admin-nav-ico" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 3h7v7" /><path d="M10 14 21 3" /><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" />
-        </svg>
-        <span>Django Admin (raw DB)</span>
-      </a>
-
-      <div class="admin-foot">
-        <router-link to="/dashboard/chat/new" class="admin-back">← Back to app</router-link>
-        <div v-if="user" class="admin-user">{{ user.email || user.username }}</div>
-      </div>
+      <div class="admin-sidebar-footer"><a :href="djangoAdminUrl" target="_blank" rel="noopener" class="admin-nav-item" title="Django Admin (raw DB)" aria-label="Django Admin (raw DB)"><ArrowUpRight :size="17" aria-hidden="true" /><span class="admin-nav-label">Database admin</span></a><RouterLink to="/dashboard/chat/new" class="admin-nav-item" title="Back to app" aria-label="Back to app"><ArrowLeft :size="17" aria-hidden="true" /><span class="admin-nav-label">Back to app</span></RouterLink><div class="admin-user"><span class="admin-user-avatar" aria-hidden="true">{{ (user?.email || user?.username || 'A').slice(0,1).toUpperCase() }}</span><div class="admin-user-copy"><strong>{{ user?.email || user?.username || 'Admin workspace' }}</strong><small>Platform administration</small></div></div></div>
     </aside>
-
-    <!-- Main -->
-    <main class="admin-main">
-      <div class="admin-topbar">
-        <button type="button" class="admin-menu-btn" aria-controls="admin-sidebar" :aria-expanded="String(menuOpen)"
-                @click="menuOpen = !menuOpen">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-          <span>Menu</span>
-        </button>
-        <span class="admin-topbar-title">Admin</span>
-      </div>
-      <AppBreadcrumbs />
-      <router-view v-slot="{ Component }">
-        <Suspense>
-          <!-- Keyed on the PATH: a query change (Help-CMS ?tab=, editor ?step=) must not rebuild the page and
-               refetch everything; pages that read the query watch it. -->
-          <component :is="Component" :key="route.path" />
-          <template #fallback>
-            <div class="admin-route-loading">
-              <div class="admin-skeleton__toolbar">
-                <span class="vm-skel admin-skeleton__search"></span>
-                <span class="vm-skel admin-skeleton__filter"></span>
-                <span class="vm-skel admin-skeleton__filter short"></span>
-              </div>
-              <div class="admin-skeleton__grid">
-                <article v-for="item in 6" :key="item" class="admin-skeleton__card">
-                  <div class="admin-skeleton__top">
-                    <span class="vm-skel admin-skeleton__avatar"></span>
-                    <span class="vm-skel admin-skeleton__pill"></span>
-                  </div>
-                  <span class="vm-skel admin-skeleton__line title"></span>
-                  <span class="vm-skel admin-skeleton__line"></span>
-                  <span class="vm-skel admin-skeleton__line wide"></span>
-                  <span class="vm-skel admin-skeleton__line mid"></span>
-                  <div class="admin-skeleton__foot">
-                    <span class="vm-skel"></span>
-                    <span class="vm-skel"></span>
-                  </div>
-                </article>
-              </div>
-            </div>
-          </template>
-        </Suspense>
-      </router-view>
-    </main>
+    <div class="admin-workspace">
+      <header class="admin-topbar">
+        <button ref="menuButton" type="button" class="admin-icon-button admin-nav-toggle" :aria-label="mobile ? (menuOpen ? 'Close navigation' : 'Open navigation') : (collapsed ? 'Expand sidebar' : 'Collapse sidebar')" aria-controls="admin-sidebar" :aria-expanded="mobile ? menuOpen : !collapsed" @click="toggleMenu"><Menu v-if="mobile" :size="19" /><PanelLeftOpen v-else-if="collapsed" :size="19" /><PanelLeftClose v-else :size="19" /></button>
+        <nav class="admin-location" aria-label="Breadcrumb"><RouterLink to="/admin-dashboard/overview">Admin</RouterLink><span aria-hidden="true">/</span><span class="admin-location-group">{{ currentGroup?.label }}</span><span class="admin-location-group" aria-hidden="true">/</span><strong aria-current="page">{{ current.label }}</strong></nav>
+        <div class="admin-topbar-actions"><span class="admin-workspace-badge">Platform control</span><button type="button" class="admin-icon-button" :aria-label="theme === 'light' ? 'Use dark theme' : 'Use light theme'" @click="toggleTheme"><Moon v-if="theme === 'light'" :size="17" /><Sun v-else :size="17" /></button></div>
+      </header>
+      <main id="admin-main" ref="main" class="admin-main" tabindex="-1">
+        <RouterView v-slot="{ Component }"><Suspense><component :is="Component" :key="route.path" /><template #fallback><div class="admin-route-loading" role="status" aria-label="Loading admin page"><div class="admin-loading-heading"></div><div class="admin-loading-grid"><div v-for="n in 4" :key="n"></div></div><div class="admin-loading-content"></div><span class="admin-sr-only">Loading page…</span></div></template></Suspense></RouterView>
+      </main>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
+import { ShieldCheck, Search, X, ChevronDown, Menu, PanelLeftOpen, PanelLeftClose, Moon, Sun, ArrowLeft, ArrowUpRight } from 'lucide-vue-next'
 import api from '../../services/api'
-import AppBreadcrumbs from '../common/AppBreadcrumbs.vue'
+import { adminItems, adminGroups, adminDescriptions, adminSection } from './adminNavigation'
+import { useAdminDialogs } from './useAdminDialogs'
+import './admin-workspace.css'
+
+useAdminDialogs()
 
 const route = useRoute()
-const user = ref(null)
-const menuOpen = ref(false)
-
-watch(() => route.fullPath, () => { menuOpen.value = false })
-
-const nav = [
-  { to: '/admin-dashboard/overview', label: 'Overview', icon: ['M3 13h8V3H3zM13 21h8V3h-8zM3 21h8v-6H3z'] },
-  { to: '/admin-dashboard/operations', label: 'Operations', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
-  { to: '/admin-dashboard/platform', label: 'Platform & Users', icon: ['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', 'M9 7a4 4 0 1 0 0 .01', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'] },
-  { to: '/admin-dashboard/guardrails', label: 'System Guardrails', icon: ['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'] },
-  { to: '/admin-dashboard/sandbox-network', label: 'Sandbox Network', icon: ['M12 2a10 10 0 100 20 10 10 0 000-20z', 'M2 12h20', 'M12 2a15 15 0 010 20a15 15 0 010-20z'] },
-  { to: '/admin-dashboard/knowledge', label: 'Knowledge & Crawl', icon: ['M2 12a10 10 0 1 0 20 0 10 10 0 1 0-20 0', 'M2 12h20', 'M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20'] },
-  { to: '/admin-dashboard/platform-apis', label: 'Platform APIs', icon: ['M12 2 2 7l10 5 10-5z', 'M2 17l10 5 10-5', 'M2 12l10 5 10-5'] },
-  { to: '/admin-dashboard/model-defaults', label: 'Default Models', icon: ['M4 6h16', 'M4 12h16', 'M4 18h10', 'M18 16l2 2 3-3'] },
-  { to: '/admin-dashboard/billing', label: 'Billing & Wallets', icon: ['M2 7h20v12H2z', 'M2 11h20', 'M6 15h4'] },
-  { to: '/admin-dashboard/model-pricing', label: 'Model Pricing', icon: ['M12 1v22', 'M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'] },
-  { to: '/admin-dashboard/llm-context', label: 'LLM Context', icon: ['M4 7V4h16v3', 'M9 20h6', 'M12 4v16', 'M4 12h16'] },
-  { to: '/admin-dashboard/conversation-steps', label: 'Conversation Steps', icon: ['M8 6h13', 'M8 12h13', 'M8 18h13', 'M3 6h.01', 'M3 12h.01', 'M3 18h.01'] },
-  { to: '/admin-dashboard/training-data', label: 'Training Data', icon: ['M4 6c0-1.66 3.58-3 8-3s8 1.34 8 3-3.58 3-8 3-8-1.34-8-3z', 'M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6', 'M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6'] },
-  { to: '/admin-dashboard/crawler-export', label: 'Crawler Export API', icon: ['M21 2H3v16h5v4l4-4h5l4-4z', 'M8 9h8', 'M8 13h6'] },
-  { to: '/admin-dashboard/partner-keys', label: 'Partner Agent API', icon: ['M15 7a2 2 0 0 1 2 2m4-2a6 6 0 0 1-7.7 5.7l-4 4a2 2 0 0 1-1.4.6H8v2H6v2H2v-4l6.3-6.3A6 6 0 1 1 21 7z'] },
-  { to: '/admin-dashboard/help-center', match: '/admin-dashboard/help-center', label: 'Help Center', icon: ['M4 4h16v16H4z', 'M8 8h8', 'M8 12h8', 'M8 16h5'] },
-  { to: '/admin-dashboard/help-analytics', label: 'Help Analytics', icon: ['M3 3v18h18', 'M7 16l4-4 3 3 5-6'] },
-  { to: '/admin-dashboard/builtin-agents', label: 'Built-in Agents', icon: ['M12 8V4H8', 'M4 12a8 8 0 0 1 8-8', 'M2 14h2', 'M20 14h2', 'M15 13v2', 'M9 13v2', 'M6 10h12v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z'] },
-  { to: '/admin-dashboard/issues', label: 'Issues', icon: ['M12 9v4', 'M12 17h.01', 'M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'] },
-  { to: '/admin-dashboard/builtin-skills', label: 'Built-in Skills', icon: ['M12 3 2 8l10 5 10-5z', 'M4 10v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6', 'M8 12v5', 'M16 12v5'] },
-  { to: '/admin-dashboard/super-agent', label: 'Super Agent', icon: ['M12 2l2.4 5.4 5.6.6-4.2 3.9 1.2 5.6L12 14.9 7 17.5l1.2-5.6L4 8l5.6-.6L12 2z'] },
-  { to: '/admin-dashboard/trace-waterfall', label: 'Trace Waterfall', icon: ['M3 3v18h18', 'M7 8h6', 'M7 12h10', 'M7 16h4'] },
-  { to: '/admin-dashboard/eval-snapshot', label: 'Eval Snapshot', icon: ['M3 3v18h18', 'M7 16l4-4 3 3 5-6'] },
-  { to: '/admin-dashboard/learning', label: 'Learning Monitor', icon: ['M12 3 2 8l10 5 10-5z', 'M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5', 'M22 8v6'] },
-  { to: '/admin-dashboard/cost', label: 'Cost per Org', icon: ['M3 3v18h18', 'M7 16v-5', 'M12 16V8', 'M17 16v-3'] },
-  { to: '/admin-dashboard/speed-cache', label: 'Speed & Cache', icon: ['M13 2 3 14h9l-1 8 10-12h-9l1-8z'] },
-  { to: '/admin-dashboard/registry-governance', label: 'Registry Governance', icon: ['M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z', 'M9 12l2 2 4-4'] },
-  { to: '/admin-dashboard/capability-graph', label: 'Capability Graph', icon: ['M21 5a3 3 0 1 1-6 0 3 3 0 0 1 6 0', 'M9 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0', 'M21 19a3 3 0 1 1-6 0 3 3 0 0 1 6 0', 'M8.59 13.51l6.83 3.98', 'M15.41 6.51l-6.82 3.98'] },
-  { to: '/admin-dashboard/runtime-metrics', label: 'Runtime Metrics', icon: ['M22 12h-4l-3 9L9 3l-3 9H2'] },
-]
-
-// Django admin lives on the backend (:8000 in dev; same origin in prod).
-const djangoAdminUrl = computed(() => {
-  const { protocol, hostname, port } = window.location
-  if (port === '5173') return `${protocol}//${hostname}:8000/admin/`
-  return '/admin/'
-})
-
-function isActive(item) {
-  return route.path === item.to || route.path.startsWith(item.to + '/')
+const user = ref(null), query = ref(''), menuOpen = ref(false), closedGroups = ref([])
+function preference(key, fallback) { try { return localStorage.getItem(key) || fallback } catch { return fallback } }
+function persist(key, value) { try { localStorage.setItem(key, value) } catch { /* preferences are optional */ } }
+const collapsed = ref(preference('aadml-admin-sidebar', 'expanded') === 'collapsed')
+const theme = ref(preference('aadml-admin-theme', 'light') === 'dark' ? 'dark' : 'light')
+const mobile = ref(false), sidebar = ref(null), menuButton = ref(null), searchInput = ref(null), main = ref(null)
+let media
+const current = computed(() => adminSection(route.path || '/admin-dashboard/overview'))
+const currentGroup = computed(() => adminGroups.find(g => g.paths.includes(current.value.key)))
+const visibleGroups = computed(() => adminGroups.map(group => ({ ...group, items: group.paths.map(key => adminItems.find(i => i.key === key)).filter(item => item && (!query.value.trim() || `${item.label} ${adminDescriptions[item.key]} ${group.label}`.toLowerCase().includes(query.value.trim().toLowerCase()))) })).filter(g => g.items.length))
+const djangoAdminUrl = computed(() => { const { protocol, hostname, port } = window.location; return port === '5173' ? `${protocol}//${hostname}:8000/admin/` : '/admin/' })
+function toggleTheme() { theme.value = theme.value === 'light' ? 'dark' : 'light'; persist('aadml-admin-theme', theme.value) }
+async function toggleMenu() { if (!mobile.value) { collapsed.value = !collapsed.value; persist('aadml-admin-sidebar', collapsed.value ? 'collapsed' : 'expanded'); return } menuOpen.value = !menuOpen.value; if (menuOpen.value) { await nextTick(); sidebar.value?.querySelector('input')?.focus() } else menuButton.value?.focus() }
+function closeMenu() { if (!menuOpen.value) return; menuOpen.value = false; menuButton.value?.focus() }
+async function expandSearch() { collapsed.value = false; persist('aadml-admin-sidebar', 'expanded'); await nextTick(); searchInput.value?.focus() }
+function toggleGroup(key) { closedGroups.value = closedGroups.value.includes(key) ? closedGroups.value.filter(k => k !== key) : [...closedGroups.value, key] }
+function onMediaChange(event) { mobile.value = event.matches; if (!event.matches) menuOpen.value = false }
+function onKeydown(event) {
+  if (event.key === 'Escape' && menuOpen.value) { event.preventDefault(); closeMenu(); return }
+  if (mobile.value && menuOpen.value && event.key === 'Tab') {
+    const targets = [...sidebar.value.querySelectorAll('a[href], button:not([disabled]), input:not([disabled])')].filter(el => el.getClientRects().length)
+    const first = targets[0], last = targets[targets.length - 1]
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+  }
+  const group = event.target.closest?.('.admin-tabs')
+  if (!group || !event.target.closest('button') || !['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key) || event.defaultPrevented) return
+  const buttons = [...group.querySelectorAll('button:not([disabled])')], index = buttons.indexOf(event.target.closest('button'))
+  if (index < 0) return
+  const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length
+  event.preventDefault(); buttons[next]?.focus(); buttons[next]?.click()
 }
-
-onMounted(async () => {
-  try { user.value = (await api.getCurrentUser?.()).data?.user || (await api.checkAuth()).data?.user } catch { /* noop */ }
-})
+watch(() => route.path, async () => { closeMenu(); const group = currentGroup.value?.key; closedGroups.value = closedGroups.value.filter(k => k !== group); await nextTick(); main.value?.scrollTo?.({ top: 0 }) })
+onMounted(async () => { media = window.matchMedia?.('(max-width: 899px)'); if (media) { onMediaChange(media); media.addEventListener('change', onMediaChange) } try { const response = await api.getCurrentUser?.(); user.value = response?.data?.user || (await api.checkAuth()).data?.user } catch { /* identity remains protected by the existing route and server guards */ } })
+onBeforeUnmount(() => media?.removeEventListener('change', onMediaChange))
 </script>
-
-<style scoped>
-.admin-shell { display: flex; height: 100vh; overflow: hidden; background: #0f172a; color: #e2e8f0; }
-.admin-sidebar {
-  width: 248px; flex-shrink: 0; background: #111827; border-right: 1px solid #1f2937;
-  display: flex; flex-direction: column; padding: 18px 12px; height: 100vh; overflow-y: auto;
-}
-.admin-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; }
-.admin-logo { font-size: 22px; }
-.admin-title { font-weight: 700; font-size: 15px; color: #fff; }
-.admin-sub { font-size: 11px; color: #64748b; }
-.admin-nav { display: flex; flex-direction: column; gap: 2px; }
-.admin-nav-item {
-  display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px;
-  color: #94a3b8; font-size: 13.5px; font-weight: 500; text-decoration: none; transition: all .15s;
-}
-.admin-nav-item:hover { background: #1e293b; color: #e2e8f0; }
-.admin-nav-item.active { background: #4f46e5; color: #fff; }
-.admin-nav-ico { width: 18px; height: 18px; flex-shrink: 0; }
-.admin-nav-divider { height: 1px; background: #1f2937; margin: 12px 8px; }
-.admin-foot { margin-top: auto; padding: 12px 8px 4px; border-top: 1px solid #1f2937; }
-.admin-back { color: #818cf8; font-size: 12.5px; text-decoration: none; font-weight: 600; }
-.admin-back:hover { color: #a5b4fc; }
-.admin-user { font-size: 11px; color: #64748b; margin-top: 8px; word-break: break-all; }
-.admin-main { flex: 1; min-width: 0; height: 100vh; overflow-y: auto; overflow-x: hidden; background: #f8fafc; color: #0f172a; }
-.admin-route-loading {
-  width: 100%;
-  min-height: 320px;
-  padding: 32px;
-}
-.admin-skeleton__toolbar { display: flex; gap: 10px; margin-bottom: 18px; }
-.admin-skeleton__search { width: min(420px, 52%); height: 40px; border-radius: 9px; }
-.admin-skeleton__filter { width: 140px; height: 40px; border-radius: 9px; }
-.admin-skeleton__filter.short { width: 110px; }
-.admin-skeleton__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-.admin-skeleton__card {
-  min-height: 238px;
-  border: 1px solid #dfe7f2;
-  border-radius: 10px;
-  background: #fff;
-  padding: 22px;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, .035);
-}
-.admin-skeleton__top { display: flex; align-items: flex-start; justify-content: space-between; }
-.admin-skeleton__avatar { width: 54px; height: 54px; border-radius: 16px; }
-.admin-skeleton__pill { width: 54px; height: 22px; border-radius: 999px; }
-.admin-skeleton__line { display: block; width: 78%; height: 13px; margin-top: 12px; }
-.admin-skeleton__line.title { width: 56%; height: 18px; margin-top: 18px; }
-.admin-skeleton__line.wide { width: 100%; }
-.admin-skeleton__line.mid { width: 88%; margin-top: 8px; }
-.admin-skeleton__foot { display: flex; gap: 9px; margin-top: 20px; }
-.admin-skeleton__foot span { flex: 1; height: 38px; }
-.admin-topbar { display: none; }
-@media (max-width: 900px) {
-  .admin-sidebar {
-    position: fixed; inset: 0 auto 0 0; z-index: 60; width: min(280px, 86vw);
-    transform: translateX(-100%); transition: transform .2s ease; box-shadow: 0 20px 40px rgba(0, 0, 0, .35);
-  }
-  .admin-sidebar.open { transform: translateX(0); }
-  .admin-backdrop { position: fixed; inset: 0; z-index: 55; background: rgba(15, 23, 42, .45); }
-  .admin-topbar {
-    position: sticky; top: 0; z-index: 40; display: flex; align-items: center; gap: 12px;
-    padding: 10px 16px; border-bottom: 1px solid #e2e8f0; background: #fff;
-  }
-  .admin-menu-btn {
-    display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid #d8e1ec;
-    border-radius: 9px; background: #fff; color: #0f172a; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
-  }
-  .admin-menu-btn svg { width: 18px; height: 18px; }
-  .admin-menu-btn:focus-visible { outline: 3px solid rgba(99, 102, 241, .35); outline-offset: 2px; }
-  .admin-topbar-title { color: #0f172a; font-size: 14px; font-weight: 800; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .admin-sidebar { transition: none; }
-}
-@media (max-width: 680px) {
-  .admin-route-loading { padding: 22px 16px; }
-  .admin-skeleton__toolbar { flex-direction: column; }
-  .admin-skeleton__search,
-  .admin-skeleton__filter,
-  .admin-skeleton__filter.short { width: 100%; }
-}
-</style>

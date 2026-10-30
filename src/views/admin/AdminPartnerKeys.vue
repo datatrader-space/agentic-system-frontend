@@ -1,8 +1,8 @@
 <template>
-  <div class="pk">
-    <header class="pk-head">
+  <div class="pk admin-page">
+    <header class="pk-head admin-page-header">
       <div>
-        <h1>Partner Agent API</h1>
+        <h1 class="admin-page-title">Partner Agent API</h1>
         <p>Issue a bearer key to a partner so their app can create &amp; manage AI agents on-demand,
            inside that partner's own account and workspace. The key <strong>is</strong> the partner's
            identity — every agent it creates is owned by them.</p>
@@ -11,16 +11,16 @@
     </header>
 
     <!-- Issue a key -->
-    <section class="pk-card">
+    <section class="pk-card admin-surface">
       <div class="pk-card-h">
-        <h2>Issue a key</h2>
+        <h2 class="admin-section-title">Issue a key</h2>
         <span class="pk-sub">Pick the partner user, then generate. The full key is shown only once.</span>
       </div>
 
       <div class="pk-gen">
         <!-- Partner picker -->
         <div class="pk-picker">
-          <input
+          <input aria-label="Search partner by name or email…"
             v-model="userQuery"
             class="pk-input"
             type="text"
@@ -39,7 +39,7 @@
           </div>
         </div>
 
-        <input v-model="newName" class="pk-input pk-name" type="text" maxlength="120"
+        <input aria-label="Label (e.g. “Acme integration”)" v-model="newName" class="pk-input pk-name" type="text" maxlength="120"
                placeholder="Label (e.g. “Acme integration”)" />
 
         <button class="pk-btn primary" :disabled="generating || !selectedUser" @click="generate">
@@ -65,12 +65,12 @@
     </section>
 
     <!-- Existing keys -->
-    <section class="pk-card">
-      <div class="pk-card-h"><h2>Keys</h2></div>
+    <section class="pk-card admin-surface">
+      <div class="pk-card-h"><h2 class="admin-section-title">Keys</h2></div>
       <div v-if="loading" class="pk-empty">Loading…</div>
       <div v-else-if="!keys.length" class="pk-empty">No keys yet. Issue one above.</div>
-      <div v-else class="pk-table-wrap">
-      <table class="pk-table">
+      <div v-else class="pk-table-wrap admin-table-scroll">
+      <table class="pk-table admin-table">
         <thead>
           <tr><th>Label</th><th>Partner</th><th>Key</th><th>Status</th><th class="pk-nowrap">Per-agent sign-ins</th><th>Requests</th><th>Last used</th><th>Created</th><th></th></tr>
         </thead>
@@ -117,9 +117,9 @@
     </section>
 
     <!-- Quick-start -->
-    <section class="pk-card">
+    <section class="pk-card admin-surface">
       <div class="pk-card-h">
-        <h2>Quick start (for the partner)</h2>
+        <h2 class="admin-section-title">Quick start (for the partner)</h2>
         <router-link class="pk-btn" :to="{ name: 'admin-partner-guide' }">Open the full guide</router-link>
       </div>
       <div class="pk-quick">
@@ -134,7 +134,7 @@
       <p class="pk-mini">Agents are owned by the partner's account. <code>workspace_name</code> places the agent
         in a named workspace (created if new); omit it to use the partner's default workspace.</p>
 
-      <h3 class="pk-sub-h">Connect a connector for one agent, without the chat</h3>
+      <h3 class="pk-sub-h admin-section-title">Connect a connector for one agent, without the chat</h3>
       <p class="pk-mini">For a partner with per-agent sign-ins on. The partner asks for a sign-in link, opens it in
         the store owner's browser, and the sign-in is saved for that agent only.</p>
       <div class="pk-copy-rows">
@@ -150,9 +150,9 @@
     </section>
 
     <!-- Return addresses for one key -->
-    <div v-if="originsKey" class="pk-drawer-mask pk-center" @click.self="closeOrigins" @keydown.esc="closeOrigins">
-      <section class="pk-modal" role="dialog" aria-modal="true" aria-labelledby="pk-origins-title">
-        <h3 id="pk-origins-title">Return addresses for “{{ originsKey.name || originsKey.key_hint }}”</h3>
+    <div v-if="originsKey" class="pk-drawer-mask pk-center admin-overlay" @click.self="closeOrigins" @keydown.esc="closeOrigins">
+      <section tabindex="-1" class="pk-modal admin-dialog" role="dialog" aria-modal="true" aria-labelledby="pk-origins-title">
+        <h3 class="admin-section-title" id="pk-origins-title">Return addresses for “{{ originsKey.name || originsKey.key_hint }}”</h3>
         <p class="pk-mini">
           After a store signs in from a link this key asked for, the browser goes back to the partner's page.
           Only these addresses are accepted. One per line, like <code>https://shop.example.com</code> or
@@ -398,29 +398,29 @@ onMounted(load)
 <style scoped>
 .pk { padding: 32px 36px; max-width: 1100px; }
 .pk-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-.pk-head h1 { font-size: 24px; font-weight: 800; color: #0f172a; }
-.pk-head p { color: #64748b; margin-top: 6px; font-size: 14px; max-width: 680px; line-height: 1.5; }
+.pk-head h1 { font-size: 24px; font-weight: 800; color: var(--admin-ink, #0f172a); }
+.pk-head p { color: var(--admin-muted, #64748b); margin-top: 6px; font-size: 14px; max-width: 680px; line-height: 1.5; }
 
-.pk-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; margin-top: 20px; }
+.pk-card { background: var(--admin-surface, #fff); border: 1px solid var(--admin-line, #e2e8f0); border-radius: 14px; padding: 20px; margin-top: 20px; }
 .pk-card-h { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
-.pk-card-h h2 { font-size: 15px; font-weight: 700; color: #0f172a; }
-.pk-sub { font-size: 12px; color: #94a3b8; }
+.pk-card-h h2 { font-size: 15px; font-weight: 700; color: var(--admin-ink, #0f172a); }
+.pk-sub { font-size: 12px; color: var(--admin-muted, #94a3b8); }
 
 .pk-gen { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start; }
 .pk-picker { position: relative; flex: 1; min-width: 260px; }
-.pk-input { width: 100%; border: 1px solid #cbd5e1; border-radius: 9px; padding: 9px 12px; font-size: 14px; color: #0f172a; }
+.pk-input { width: 100%; border: 1px solid #cbd5e1; border-radius: 9px; padding: 9px 12px; font-size: 14px; color: var(--admin-ink, #0f172a); }
 .pk-input:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
 .pk-name { flex: 1; min-width: 200px; }
-.pk-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; background: #fff;
-  border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 8px 24px rgba(15,23,42,.12); max-height: 260px; overflow-y: auto; }
+.pk-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; background: var(--admin-surface, #fff);
+  border: 1px solid var(--admin-line, #e2e8f0); border-radius: 10px; box-shadow: 0 8px 24px rgba(15,23,42,.12); max-height: 260px; overflow-y: auto; }
 .pk-result { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; padding: 9px 12px;
   border: none; background: none; cursor: pointer; border-bottom: 1px solid #f1f5f9; }
-.pk-result:hover { background: #f8fafc; }
-.pk-result-name { font-size: 13px; font-weight: 600; color: #0f172a; }
-.pk-result-mail { font-size: 12px; color: #94a3b8; }
-.pk-selected { margin-top: 12px; font-size: 13px; color: #334155; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pk-result:hover { background: var(--admin-soft, #f8fafc); }
+.pk-result-name { font-size: 13px; font-weight: 600; color: var(--admin-ink, #0f172a); }
+.pk-result-mail { font-size: 12px; color: var(--admin-muted, #94a3b8); }
+.pk-selected { margin-top: 12px; font-size: 13px; color: var(--admin-ink, #334155); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
-.pk-btn { border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 9px; padding: 8px 14px;
+.pk-btn { border: 1px solid #cbd5e1; background: var(--admin-surface, #fff); color: var(--admin-ink, #334155); border-radius: 9px; padding: 8px 14px;
   font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; white-space: nowrap;
   display: inline-block; text-decoration: none; }
 .pk-btn:hover { border-color: #94a3b8; }
@@ -429,7 +429,7 @@ onMounted(load)
 .pk-btn.primary:disabled { opacity: .5; cursor: default; }
 .pk-btn.danger { color: #dc2626; border-color: #fecaca; }
 .pk-btn.danger:hover { background: #fef2f2; }
-.pk-btn.ghost { border-color: transparent; color: #64748b; }
+.pk-btn.ghost { border-color: transparent; color: var(--admin-muted, #64748b); }
 .pk-btn.sm { padding: 5px 10px; font-size: 12px; }
 
 .pk-fresh { margin-top: 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 11px; padding: 14px; }
@@ -440,50 +440,50 @@ onMounted(load)
 
 .pk-table-wrap { overflow-x: auto; }
 .pk-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.pk-table th { text-align: left; color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase;
-  letter-spacing: .03em; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
-.pk-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+.pk-table th { text-align: left; color: var(--admin-muted, #64748b); font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .03em; padding: 8px 10px; border-bottom: 1px solid var(--admin-line, #e2e8f0); }
+.pk-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; color: var(--admin-ink, #334155); }
 .pk-table tr.revoked { opacity: .55; }
-.pk-partner { font-size: 13px; color: #334155; }
-.pk-hint { font-family: ui-monospace, monospace; color: #475569; }
+.pk-partner { font-size: 13px; color: var(--admin-ink, #334155); }
+.pk-hint { font-family: ui-monospace, monospace; color: var(--admin-muted, #475569); }
 .pk-pill { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
 .pk-pill.act { background: #dcfce7; color: #15803d; }
-.pk-pill.rev { background: #f1f5f9; color: #94a3b8; }
+.pk-pill.rev { background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #94a3b8); }
 .pk-actions { text-align: right; min-width: 230px; }
 .pk-actions .pk-btn { margin: 3px 0 3px 6px; }
-.pk-empty { color: #94a3b8; font-size: 13px; padding: 12px 4px; }
+.pk-empty { color: var(--admin-muted, #94a3b8); font-size: 13px; padding: 12px 4px; }
 
 .pk-quick { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 14px; }
-.pk-q-k { display: block; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
-.pk-quick code { font-family: ui-monospace, monospace; font-size: 13px; color: #0f172a; background: #f1f5f9; padding: 3px 8px; border-radius: 6px; }
-.pk-steps { margin: 0 0 12px; padding-left: 20px; color: #334155; font-size: 13px; line-height: 1.9; }
-.pk-steps code { font-family: ui-monospace, monospace; font-size: 12px; background: #f1f5f9; padding: 2px 6px; border-radius: 5px; color: #0f172a; }
-.pk-mini { font-size: 12px; color: #64748b; line-height: 1.7; }
-.pk-sub-h { font-size: 13px; font-weight: 700; color: #0f172a; margin: 18px 0 4px; }
+.pk-q-k { display: block; font-size: 11px; color: var(--admin-muted, #94a3b8); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
+.pk-quick code { font-family: ui-monospace, monospace; font-size: 13px; color: var(--admin-ink, #0f172a); background: var(--admin-soft, #f1f5f9); padding: 3px 8px; border-radius: 6px; }
+.pk-steps { margin: 0 0 12px; padding-left: 20px; color: var(--admin-ink, #334155); font-size: 13px; line-height: 1.9; }
+.pk-steps code { font-family: ui-monospace, monospace; font-size: 12px; background: var(--admin-soft, #f1f5f9); padding: 2px 6px; border-radius: 5px; color: var(--admin-ink, #0f172a); }
+.pk-mini { font-size: 12px; color: var(--admin-muted, #64748b); line-height: 1.7; }
+.pk-sub-h { font-size: 13px; font-weight: 700; color: var(--admin-ink, #0f172a); margin: 18px 0 4px; }
 .pk-copy-rows { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
 .pk-copy-row { display: grid; grid-template-columns: 140px 1fr auto; gap: 10px; align-items: center; }
 .pk-copy-row .pk-q-k { margin-bottom: 0; }
-.pk-copy-code { font-family: ui-monospace, monospace; font-size: 12px; color: #0f172a; background: #f1f5f9;
+.pk-copy-code { font-family: ui-monospace, monospace; font-size: 12px; color: var(--admin-ink, #0f172a); background: var(--admin-soft, #f1f5f9);
   padding: 6px 8px; border-radius: 6px; word-break: break-all; }
 @media (max-width: 640px) { .pk-copy-row { grid-template-columns: 1fr auto; } .pk-copy-row .pk-q-k { grid-column: 1 / -1; } }
-.pk-mini code { font-family: ui-monospace, monospace; background: #f8fafc; padding: 1px 5px; border-radius: 4px; }
+.pk-mini code { font-family: ui-monospace, monospace; background: var(--admin-soft, #f8fafc); padding: 1px 5px; border-radius: 4px; }
 
 .pk-switch { position: relative; width: 36px; height: 20px; border-radius: 999px; border: 1px solid #cbd5e1;
   background: #e2e8f0; cursor: pointer; vertical-align: middle; transition: background-color .15s, border-color .15s; }
 .pk-switch.on { background: #4f46e5; border-color: #4f46e5; }
 .pk-switch:disabled { opacity: .5; cursor: default; }
 .pk-switch:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(79,70,229,.25); }
-.pk-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff;
+.pk-switch-knob { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--admin-surface, #fff);
   box-shadow: 0 1px 2px rgba(15,23,42,.2); transition: transform .15s; }
 .pk-switch.on .pk-switch-knob { transform: translateX(16px); }
-.pk-switch-text { margin-left: 8px; font-size: 12px; color: #475569; }
+.pk-switch-text { margin-left: 8px; font-size: 12px; color: var(--admin-muted, #475569); }
 .pk-table th.pk-nowrap { white-space: nowrap; }
 .pk-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(79,70,229,.25); }
 @media (prefers-reduced-motion: reduce) { .pk-switch, .pk-switch-knob { transition: none; } }
 
 .pk-drawer-mask.pk-center { justify-content: center; align-items: center; padding: 16px; }
-.pk-modal { width: min(520px, 100%); background: #fff; border-radius: 14px; padding: 22px; box-shadow: 0 16px 40px rgba(15,23,42,.2); }
-.pk-modal h3 { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+.pk-modal { width: min(520px, 100%); background: var(--admin-surface, #fff); border-radius: 14px; padding: 22px; box-shadow: 0 16px 40px rgba(15,23,42,.2); }
+.pk-modal h3 { font-size: 15px; font-weight: 700; color: var(--admin-ink, #0f172a); margin-bottom: 8px; }
 .pk-modal .pk-mini { margin-bottom: 14px; }
 .pk-textarea { font-family: ui-monospace, monospace; font-size: 13px; resize: vertical; }
 .pk-error { margin-top: 8px; font-size: 12px; color: #dc2626; }

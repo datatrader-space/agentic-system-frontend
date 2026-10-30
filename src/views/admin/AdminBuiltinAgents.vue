@@ -1,8 +1,8 @@
 <template>
-  <div class="ba">
-    <header class="ba-head">
+  <div class="ba admin-page">
+    <header class="ba-head admin-page-header">
       <div>
-        <h1>Built-in Agents</h1>
+        <h1 class="admin-page-title">Built-in Agents</h1>
         <p>System-owned agents every user can run (scope-gated) — including the <strong>Platform Super
           Agent</strong>, the default chat agent. They never appear in users' agent lists, and each user runs
           them on <strong>their own AI provider</strong> (your Default model is the preferred spec).
@@ -11,11 +11,11 @@
       <button class="btn primary" @click="openCreate"><Icon icon="lucide:plus" /> New built-in agent</button>
     </header>
 
-    <section class="card">
+    <section class="card admin-surface">
       <div v-if="loading" class="state">Loading…</div>
       <div v-else-if="error" class="state err">Couldn’t load. <button class="link" @click="load">Retry</button></div>
       <div v-else-if="!rows.length" class="state">No built-in agents yet. <button class="link" @click="openCreate">Create one</button>.</div>
-      <table v-else class="tbl">
+      <div class="admin-table-scroll" v-else><table  class="tbl admin-table">
         <thead><tr><th>Name</th><th>Scope</th><th>Model (preferred)</th><th>Status</th><th>Updated</th><th class="r">Actions</th></tr></thead>
         <tbody>
           <tr v-for="a in rows" :key="a.id">
@@ -23,12 +23,12 @@
               <strong>{{ a.name }}</strong>
               <span v-if="a.is_platform_super_agent" class="super-badge"><Icon icon="lucide:crown" /> Super Agent</span>
               <span v-if="a.id === assistantId" class="asst-badge"><Icon icon="lucide:sparkles" /> AI Assistant</span>
-              <div class="sub">{{ a.description }}</div>
+              <div class="sub admin-muted">{{ a.description }}</div>
             </td>
             <td><span :class="['scope', a.builtin_visibility]">{{ a.builtin_visibility }}</span></td>
-            <td class="muted">{{ a.default_model_name || 'user’s best model' }}</td>
+            <td class="muted admin-muted">{{ a.default_model_name || 'user’s best model' }}</td>
             <td><span :class="['status', a.builtin_enabled ? 'on' : 'off']">{{ a.builtin_enabled ? 'Enabled' : 'Disabled' }}</span></td>
-            <td class="muted">{{ shortDate(a.updated_at) }}</td>
+            <td class="muted admin-muted">{{ shortDate(a.updated_at) }}</td>
             <td class="actions">
               <button v-if="a.is_platform_super_agent" class="ic" title="Open the Super Agent overview"
                       @click="router.push('/admin-dashboard/super-agent')"><Icon icon="lucide:layout-dashboard" /></button>
@@ -44,13 +44,13 @@
             </td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
     </section>
 
     <!-- Delete confirm -->
-    <div v-if="confirmRow" class="backdrop center" @click.self="confirmRow = null">
-      <div class="modal">
-        <h2>Delete “{{ confirmRow.name }}”?</h2>
+    <div @keydown.esc.stop.prevent="confirmRow = null" v-if="confirmRow" class="backdrop center admin-overlay" @click.self="confirmRow = null">
+      <div role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-adminbuiltinagents-3" class="modal admin-dialog">
+        <h2 id="admin-dialog-adminbuiltinagents-3" class="admin-section-title">Delete “{{ confirmRow.name }}”?</h2>
         <p>This built-in agent will be removed for everyone in its scope.</p>
         <div class="m-actions"><button class="btn ghost" @click="confirmRow = null">Cancel</button><button class="btn danger" @click="remove">Delete</button></div>
       </div>
@@ -153,26 +153,26 @@ onMounted(() => { load(); loadAssistant() })
 .ba { padding: 28px 32px 60px; }
 .ba-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
 .ba-head h1 { margin: 0; font-size: 22px; font-weight: 800; }
-.ba-head p { margin: 6px 0 0; color: #64748b; font-size: 13px; max-width: 680px; line-height: 1.5; }
+.ba-head p { margin: 6px 0 0; color: var(--admin-muted, #64748b); font-size: 13px; max-width: 680px; line-height: 1.5; }
 .btn { display: inline-flex; align-items: center; gap: 7px; height: 38px; border-radius: 9px; padding: 0 15px; font-size: 13px; font-weight: 700; border: 1px solid transparent; cursor: pointer; }
-.btn.primary { background: #4f46e5; color: #fff; } .btn.ghost { background: #fff; border-color: #d8e2f0; color: #334155; } .btn.danger { background: #dc2626; color: #fff; }
+.btn.primary { background: #4f46e5; color: #fff; } .btn.ghost { background: var(--admin-surface, #fff); border-color: var(--admin-line, #d8e2f0); color: var(--admin-ink, #334155); } .btn.danger { background: #dc2626; color: #fff; }
 .btn:disabled { opacity: .6; } .btn svg { width: 15px; height: 15px; }
-.card { background: #fff; border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); overflow: hidden; }
-.state { padding: 44px; text-align: center; color: #64748b; } .state.err { color: #b45309; }
+.card { background: var(--admin-surface, #fff); border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); overflow: hidden; }
+.state { padding: 44px; text-align: center; color: var(--admin-muted, #64748b); } .state.err { color: #b45309; }
 .link { border: 0; background: transparent; color: #4f46e5; font-weight: 700; cursor: pointer; }
 .tbl { width: 100%; border-collapse: collapse; }
-.tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #64748b; padding: 12px 16px; border-bottom: 1px solid #eef2f7; background: #f8fafc; }
+.tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--admin-muted, #64748b); padding: 12px 16px; border-bottom: 1px solid var(--admin-line, #eef2f7); background: var(--admin-soft, #f8fafc); }
 .tbl th.r { text-align: right; }
 .tbl td { padding: 13px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
 .tbl tr:last-child td { border-bottom: 0; }
-.sub { color: #94a3b8; font-size: 11.5px; margin-top: 3px; }
-.muted { color: #94a3b8; }
+.sub { color: var(--admin-muted, #94a3b8); font-size: 11.5px; margin-top: 3px; }
+.muted { color: var(--admin-muted, #94a3b8); }
 .scope { border-radius: 6px; padding: 3px 9px; font-size: 10.5px; font-weight: 850; text-transform: capitalize; }
-.scope.user { background: #dff8ef; color: #059669; } .scope.admin { background: #eef4ff; color: #2563eb; } .scope.system { background: #f1f5f9; color: #64748b; }
-.status { border-radius: 6px; padding: 3px 9px; font-size: 10.5px; font-weight: 850; } .status.on { background: #dcfce7; color: #16a34a; } .status.off { background: #f1f5f9; color: #64748b; }
+.scope.user { background: #dff8ef; color: #059669; } .scope.admin { background: #eef4ff; color: #2563eb; } .scope.system { background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #64748b); }
+.status { border-radius: 6px; padding: 3px 9px; font-size: 10.5px; font-weight: 850; } .status.on { background: #dcfce7; color: #16a34a; } .status.off { background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #64748b); }
 .actions { text-align: right; white-space: nowrap; }
-.ic { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 0; background: transparent; border-radius: 8px; color: #64748b; cursor: pointer; }
-.ic:hover { background: #eef2f7; color: #0f172a; } .ic.danger:hover { background: #fee2e2; color: #dc2626; } .ic svg { width: 16px; height: 16px; }
+.ic { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 0; background: transparent; border-radius: 8px; color: var(--admin-muted, #64748b); cursor: pointer; }
+.ic:hover { background: #eef2f7; color: var(--admin-ink, #0f172a); } .ic.danger:hover { background: #fee2e2; color: #dc2626; } .ic svg { width: 16px; height: 16px; }
 .ic.active { color: #7c3aed; } .ic:disabled { opacity: .4; cursor: default; } .ic:disabled:hover { background: transparent; }
 .asst-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 850; text-transform: uppercase; letter-spacing: .03em; background: #f5f3ff; color: #7c3aed; }
 .asst-badge svg { width: 12px; height: 12px; }
@@ -181,7 +181,7 @@ onMounted(() => { load(); loadAssistant() })
 .spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
 .backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: flex; justify-content: flex-end; z-index: 60; }
 .backdrop.center { align-items: center; justify-content: center; padding: 20px; }
-.modal { background: #fff; border-radius: 14px; padding: 24px; width: 420px; max-width: 92vw; } .modal h2 { margin: 0 0 8px; font-size: 17px; } .modal p { color: #64748b; font-size: 13px; }
+.modal { background: var(--admin-surface, #fff); border-radius: 14px; padding: 24px; width: 420px; max-width: 92vw; } .modal h2 { margin: 0 0 8px; font-size: 17px; } .modal p { color: var(--admin-muted, #64748b); font-size: 13px; }
 .m-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 @media (max-width: 680px) { .ba { padding: 20px 16px; } }
 </style>

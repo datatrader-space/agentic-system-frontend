@@ -1,8 +1,8 @@
 <template>
-  <div class="md">
-    <header class="md-hero">
+  <div class="md admin-page">
+    <header class="md-hero admin-page-header">
       <div class="md-eyebrow">Platform policy</div>
-      <h1>Default models</h1>
+      <h1 class="admin-page-title">Default models</h1>
       <p>
         Every agent runs on these unless its owner picks another model for that job. Changing one here moves every
         agent still on the default, built-in agents included.
@@ -13,8 +13,8 @@
       <div v-for="n in 7" :key="n" class="md-skeleton"></div>
     </div>
 
-    <section v-else class="md-card" aria-labelledby="md-title">
-      <h2 id="md-title">Model for each job</h2>
+    <section v-else class="md-card admin-surface" aria-labelledby="md-title">
+      <h2 class="admin-section-title" id="md-title">Model for each job</h2>
       <p class="md-sub">Only models on the platform's own connections that can do the job are listed.</p>
 
       <div v-for="row in slots" :key="row.slot" class="md-row" :data-test="`default-${row.slot}`">
@@ -135,16 +135,16 @@ onMounted(load)
 .md { padding: 24px; max-width: 980px; margin: 0 auto; }
 .md-hero { margin-bottom: 20px; }
 .md-eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #6b7280; }
-.md-hero h1 { margin: 4px 0 6px; font-size: 26px; color: #111827; }
+.md-hero h1 { margin: 4px 0 6px; font-size: 26px; color: var(--admin-ink, #111827); }
 .md-hero p { margin: 0; color: #4b5563; max-width: 68ch; line-height: 1.55; }
 
-.md-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; }
-.md-card h2 { margin: 0 0 4px; font-size: 16px; color: #111827; }
+.md-card { background: var(--admin-surface, #fff); border: 1px solid var(--admin-line, #e5e7eb); border-radius: 12px; padding: 20px; }
+.md-card h2 { margin: 0 0 4px; font-size: 16px; color: var(--admin-ink, #111827); }
 .md-sub { margin: 0 0 8px; color: #6b7280; font-size: 13px; }
 
 .md-row { display: grid; grid-template-columns: minmax(180px, 260px) 1fr; gap: 16px; padding: 14px 0; border-top: 1px solid #f3f4f6; }
 .md-what { display: flex; flex-direction: column; gap: 3px; }
-.md-label { font-size: 14px; font-weight: 600; color: #111827; }
+.md-label { font-size: 14px; font-weight: 600; color: var(--admin-ink, #111827); }
 .md-hint { font-size: 12.5px; color: #4b5563; line-height: 1.5; }
 .md-pick { min-width: 0; }
 .md-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; min-height: 20px; }

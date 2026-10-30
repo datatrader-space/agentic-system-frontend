@@ -1,15 +1,15 @@
 <template>
-  <main class="approvals-page">
-    <section class="approvals-main">
-      <header class="page-head">
+  <main class="approvals-page admin-page">
+    <section class="approvals-main admin-responsive-grid">
+      <header class="page-head admin-page-header">
         <div class="title-block">
           <span class="title-icon"><Icon icon="lucide:shield-check" /></span>
           <div>
-            <h1>Guardrails</h1>
+            <h1 class="admin-page-title">Guardrails</h1>
             <p>Control how your agents operate with policies, permissions, and safety limits.</p>
           </div>
         </div>
-        <div class="head-actions">
+        <div class="head-actions admin-toolbar">
           <button class="ghost" @click="openAudit"><Icon icon="lucide:file-clock" /> View audit log</button>
           <button class="primary" :disabled="!canEdit || saving || !loaded" @click="saveGuardrails">
             <Icon icon="lucide:save" /> {{ saving ? 'Saving…' : 'Save guardrails' }}
@@ -36,12 +36,12 @@
         </div>
       </section>
 
-      <section class="policy-grid">
-        <article class="policy-card approval-card">
+      <section class="policy-grid admin-responsive-grid">
+        <article class="policy-card approval-card admin-surface">
           <header class="card-head">
             <span>1</span>
             <div>
-              <h2>Approval Policies</h2>
+              <h2 class="admin-section-title">Approval Policies</h2>
               <p>Require approval for sensitive or high-impact actions.</p>
             </div>
           </header>
@@ -62,11 +62,11 @@
           </label>
         </article>
 
-        <article class="policy-card risky-card">
+        <article class="policy-card risky-card admin-surface">
           <header class="card-head">
             <span>2</span>
             <div>
-              <h2>Risky Actions</h2>
+              <h2 class="admin-section-title">Risky Actions</h2>
               <p>Block or warn on potentially risky behavior.</p>
             </div>
           </header>
@@ -87,11 +87,11 @@
           </label>
         </article>
 
-        <article class="policy-card permissions-card">
+        <article class="policy-card permissions-card admin-surface">
           <header class="card-head">
             <span>3</span>
             <div>
-              <h2>Tool Permissions &amp; Approvals</h2>
+              <h2 class="admin-section-title">Tool Permissions &amp; Approvals</h2>
               <p>Decide when this agent needs human approval for the tools you selected.</p>
             </div>
           </header>
@@ -117,7 +117,7 @@
 
           <div class="pertool-head">
             <span class="box-label">Per-tool approval</span>
-            <div v-if="toolTotalPages > 1" class="pertool-pager">
+            <div v-if="toolTotalPages > 1" class="pertool-pager admin-pagination">
               <button class="pg-btn" :disabled="toolPage <= 1" @click="toolPage--"><Icon icon="lucide:chevron-left" /></button>
               <span>{{ toolPage }}/{{ toolTotalPages }}</span>
               <button class="pg-btn" :disabled="toolPage >= toolTotalPages" @click="toolPage++"><Icon icon="lucide:chevron-right" /></button>
@@ -130,7 +130,7 @@
                 <span class="pt-label">{{ row.label }}</span>
                 <span class="pt-key">{{ row.name }}</span>
               </span>
-              <select class="pt-select" :value="row.agent" :disabled="!canEdit"
+              <select aria-label="Select an option" class="pt-select" :value="row.agent" :disabled="!canEdit"
                       @change="setToolPerm(row.key, $event.target.value)">
                 <option value="">Inherit · Allow</option>
                 <option value="ask">Ask approval</option>
@@ -141,19 +141,19 @@
               No tools selected yet — pick tools in the Knowledge &amp; Tools step first.
             </li>
           </ul>
-          <p class="hint">Manage connectors from the <strong>Connectors</strong> page <Icon icon="lucide:external-link" /></p>
+          <p class="hint admin-muted">Manage connectors from the <strong>Connectors</strong> page <Icon icon="lucide:external-link" /></p>
 
         </article>
 
-        <article class="policy-card action-mode-card">
+        <article class="policy-card action-mode-card admin-surface">
           <header class="card-head">
             <span>4</span>
             <div>
-              <h2>Read-only vs Action Mode</h2>
+              <h2 class="admin-section-title">Read-only vs Action Mode</h2>
               <p>Choose the default mode for this agent.</p>
             </div>
           </header>
-          <div class="mode-grid">
+          <div class="mode-grid admin-responsive-grid">
             <label :class="['mode-card', { selected: pol.read_only }]">
               <input type="radio" :checked="pol.read_only" :disabled="!canEdit" @change="pol.read_only = true; mark()" />
               <strong>Read-only mode</strong>
@@ -180,11 +180,11 @@
           </label>
         </article>
 
-        <article class="policy-card checkpoints-card">
+        <article class="policy-card checkpoints-card admin-surface">
           <header class="card-head">
             <span>5</span>
             <div>
-              <h2>Human-in-the-loop Checkpoints</h2>
+              <h2 class="admin-section-title">Human-in-the-loop Checkpoints</h2>
               <p>Add checkpoints for important decisions.</p>
             </div>
           </header>
@@ -202,26 +202,26 @@
           </label>
         </article>
 
-        <article class="policy-card behavioral-card">
+        <article class="policy-card behavioral-card admin-surface">
           <header class="card-head">
             <span>6</span>
             <div>
-              <h2>Behavioral Rules &amp; Restrictions</h2>
+              <h2 class="admin-section-title">Behavioral Rules &amp; Restrictions</h2>
               <p>Custom rules injected into every reply, blocked tools, and external-write control.</p>
             </div>
           </header>
 
-          <div class="permission-box">
+          <div class="permission-box admin-surface">
             <span class="box-label">Behavioral rules — injected into every reply</span>
             <ul class="rule-list">
               <li v-for="(g, i) in pol.guardrails" :key="i" class="rule-item">
                 <span>{{ g }}</span>
-                <button type="button" :disabled="!canEdit" @click="removeGuardrail(i)"><Icon icon="lucide:x" /></button>
+                <button aria-label="Remove item" type="button" :disabled="!canEdit" @click="removeGuardrail(i)"><Icon icon="lucide:x" /></button>
               </li>
               <li v-if="!pol.guardrails.length" class="empty-tag">No agent-specific rules.</li>
             </ul>
             <div class="tool-add-row">
-              <input
+              <input aria-label="E.g. Never share pricing"
                 v-model="newGuardrail"
                 :disabled="!canEdit"
                 placeholder="e.g. Never share pricing"
@@ -231,7 +231,7 @@
             </div>
           </div>
 
-          <div class="permission-box">
+          <div class="permission-box admin-surface">
             <span class="box-label">Blocked tools</span>
             <div class="tag-cloud">
               <button v-for="t in pol.forbidden_tools" :key="t" class="perm-chip deny" type="button" :disabled="!canEdit" @click="removeForbidden(t)">
@@ -240,7 +240,7 @@
               <span v-if="!pol.forbidden_tools.length" class="empty-tag">None</span>
             </div>
             <div class="tool-add-row">
-              <input
+              <input aria-label="TOOL_NAME"
                 v-model="newForbidden"
                 :disabled="!canEdit"
                 placeholder="TOOL_NAME"
@@ -263,7 +263,7 @@
         <header class="card-head">
           <span>7</span>
           <div>
-            <h2>Escalation Rules</h2>
+            <h2 class="admin-section-title">Escalation Rules</h2>
             <p>Define what happens when guardrails are triggered.</p>
           </div>
         </header>
@@ -275,14 +275,14 @@
             <span />
           </div>
           <div v-for="(rule, i) in pol.escalation_rules" :key="i" class="escalation-row">
-            <select v-model="rule.trigger" :disabled="!canEdit" @change="mark">
+            <select aria-label="Trigger" v-model="rule.trigger" :disabled="!canEdit" @change="mark">
               <option v-for="t in escalationTriggers" :key="t" :value="t">{{ t }}</option>
             </select>
-            <select v-model="rule.action" :disabled="!canEdit" @change="mark">
+            <select aria-label="Action" v-model="rule.action" :disabled="!canEdit" @change="mark">
               <option v-for="a in escalationActions" :key="a" :value="a">{{ a }}</option>
             </select>
             <div class="email-pill">{{ pol.default_reviewer || 'Default reviewer' }}</div>
-            <button :disabled="!canEdit" @click="removeEscalation(i)"><Icon icon="lucide:trash-2" /></button>
+            <button aria-label="Remove item" :disabled="!canEdit" @click="removeEscalation(i)"><Icon icon="lucide:trash-2" /></button>
           </div>
           <div v-if="!pol.escalation_rules.length" class="escalation-row empty-row">
             <span class="empty-tag">No escalation rules yet — add one to define what happens when a guardrail trips.</span>
@@ -293,17 +293,17 @@
     </section>
 
     <aside class="guardrail-rail">
-      <section class="rail-card about">
+      <section class="rail-card about admin-surface">
         <span class="rail-icon"><Icon icon="lucide:shield-check" /></span>
-        <h2>About Guardrails</h2>
+        <h2 class="admin-section-title">About Guardrails</h2>
         <p>Guardrails help you safely scale agent autonomy by setting clear boundaries and escalation paths. You can always review and adjust these settings.</p>
       </section>
 
-      <section class="rail-card presets">
-        <h2>Recommended Presets</h2>
+      <section class="rail-card presets admin-surface">
+        <h2 class="admin-section-title">Recommended Presets</h2>
         <p>Start with a preset, then customize as needed.</p>
         <article v-for="preset in presets" :key="preset.title">
-          <h3>{{ preset.title }}</h3>
+          <h3 class="admin-section-title">{{ preset.title }}</h3>
           <p>{{ preset.copy }}</p>
           <ul>
             <li v-for="line in preset.lines" :key="line"><Icon icon="lucide:check" /> {{ line }}</li>
@@ -315,19 +315,19 @@
     </aside>
 
     <!-- Audit / usage modal (header "View audit log") -->
-    <div v-if="showAudit" class="audit-overlay" @click.self="showAudit = false">
-      <div class="audit-modal">
+    <div @keydown.esc.stop.prevent="showAudit = false" v-if="showAudit" class="audit-overlay admin-overlay" @click.self="showAudit = false">
+      <div role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-agentapprovalspage-11" class="audit-modal admin-dialog">
         <header class="audit-head">
           <div>
-            <h2>Action usage &amp; audit</h2>
+            <h2 id="admin-dialog-agentapprovalspage-11" class="admin-section-title">Action usage &amp; audit</h2>
             <p>Recent runs and the effective action limits for this agent.</p>
           </div>
           <button class="icon-btn" @click="showAudit = false"><Icon icon="lucide:x" /></button>
         </header>
 
         <div v-if="audit.data" class="audit-stats">
-          <div class="stat"><span>Runs today</span><strong>{{ audit.data.today?.runs ?? 0 }}</strong></div>
-          <div class="stat"><span>Avg actions / run</span><strong>{{ audit.data.today?.avg_actions ?? 0 }}</strong></div>
+          <div class="stat admin-metric"><span>Runs today</span><strong>{{ audit.data.today?.runs ?? 0 }}</strong></div>
+          <div class="stat admin-metric"><span>Avg actions / run</span><strong>{{ audit.data.today?.avg_actions ?? 0 }}</strong></div>
         </div>
 
         <div class="audit-list">
@@ -631,8 +631,8 @@ const presets = [
   gap: 18px;
   min-height: 100%;
   padding: 26px 28px;
-  background: #f8fbff;
-  color: #0f172a;
+  background: var(--admin-soft, #f8fbff);
+  color: var(--admin-ink, #0f172a);
 }
 .approvals-main { max-width: 1240px; width: 100%; justify-self: center; }
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 22px; }
@@ -649,11 +649,11 @@ button, input, select { font: inherit; }
 .ghost, .primary {
   height: 40px; border-radius: 8px; padding: 0 16px; display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 850;
 }
-.ghost { border: 1px solid #d9e3f0; background: #fff; color: #334155; }
+.ghost { border: 1px solid #d9e3f0; background: var(--admin-surface, #fff); color: var(--admin-ink, #334155); }
 .primary { border: 0; background: #4a47ea; color: #fff; box-shadow: 0 12px 24px rgba(74,71,234,.18); }
 .primary:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
 .notice, .policy-card, .escalation-card, .rail-card {
-  border: 1px solid #dfe7f2; border-radius: 11px; background: #fff; box-shadow: 0 8px 22px rgba(15,23,42,.03);
+  border: 1px solid #dfe7f2; border-radius: 11px; background: var(--admin-surface, #fff); box-shadow: 0 8px 22px rgba(15,23,42,.03);
 }
 .notice { display: flex; gap: 14px; align-items: center; padding: 18px 20px; margin-bottom: 14px; }
 .notice strong { display: block; font-size: 13px; margin-bottom: 5px; }
@@ -676,55 +676,55 @@ button, input, select { font: inherit; }
 .card-head h2 { font-size: 15px; font-weight: 850; margin-bottom: 6px; }
 .setting-list { display: grid; gap: 16px; }
 .setting-row, .field-row, .connector-field, .reviewer-field, .domain-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 14px; color: #334155; font-size: 12px; font-weight: 750;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; color: var(--admin-ink, #334155); font-size: 12px; font-weight: 750;
 }
 .field-row { margin-top: 22px; }
 .toggle {
   width: 32px; height: 18px; border-radius: 999px; border: 0; padding: 2px; background: #d7dee8; flex: 0 0 auto;
 }
-.toggle i { display: block; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(15,23,42,.2); }
+.toggle i { display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--admin-surface, #fff); box-shadow: 0 1px 2px rgba(15,23,42,.2); }
 .toggle.on { background: #3156e9; }
 .toggle.on i { margin-left: auto; }
 select, input {
-  height: 34px; border: 1px solid #d7e1ee; border-radius: 7px; background: #fff; color: #0f172a; padding: 0 12px; font-size: 12px; font-weight: 700;
+  height: 34px; border: 1px solid #d7e1ee; border-radius: 7px; background: var(--admin-surface, #fff); color: var(--admin-ink, #0f172a); padding: 0 12px; font-size: 12px; font-weight: 700;
 }
 .field-row select { width: 112px; }
 .permission-box {
   border: 1px solid #d7e1ee; border-radius: 8px; padding: 10px; min-height: 112px; margin-bottom: 14px;
 }
 .box-label, .connector-field > span, .reviewer-field > span, .domain-row > span {
-  display: block; color: #64748b; font-size: 11px; font-weight: 850; margin-bottom: 8px;
+  display: block; color: var(--admin-muted, #64748b); font-size: 11px; font-weight: 850; margin-bottom: 8px;
 }
 .tag-cloud { display: flex; flex-wrap: wrap; gap: 7px; }
 .tag-cloud button {
-  height: 26px; border: 0; border-radius: 6px; background: #f1f5f9; color: #334155; padding: 0 9px; display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 750;
+  height: 26px; border: 0; border-radius: 6px; background: var(--admin-soft, #f1f5f9); color: var(--admin-ink, #334155); padding: 0 9px; display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 750;
 }
 .tag-cloud svg { width: 12px; height: 12px; }
 .perm-chip.ask { background: #fef3e2; color: #b45309; }
 .perm-chip.deny { background: #fef2f2; color: #dc2626; }
 .perm-chip.allow { background: #ecfdf3; color: #067647; }
 .perm-chip:disabled { opacity: .65; cursor: default; }
-.empty-tag { color: #98a2b3; font-size: 11.5px; font-weight: 650; }
+.empty-tag { color: var(--admin-muted, #98a2b3); font-size: 11.5px; font-weight: 650; }
 /* Per-tool approval (Card 3) */
 .pertool-head { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
-.pertool-pager { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #64748b; }
-.pg-btn { width: 22px; height: 22px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: #475569; }
+.pertool-pager { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--admin-muted, #64748b); }
+.pg-btn { width: 22px; height: 22px; border: 1px solid var(--admin-line, #e2e8f0); border-radius: 6px; background: var(--admin-surface, #fff); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: var(--admin-muted, #475569); }
 .pg-btn:disabled { opacity: .4; cursor: default; }
 .pg-btn svg { width: 13px; height: 13px; }
 .pertool-list { list-style: none; margin: 8px 0 0; padding: 0; min-height: 132px; }
 .pertool-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid #f2f4f7; }
 .pertool-row:first-child { border-top: 0; }
-.pertool-ico { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: #f1f5f9; color: #64748b; flex: 0 0 auto; }
+.pertool-ico { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #64748b); flex: 0 0 auto; }
 .pertool-ico svg { width: 14px; height: 14px; }
 .pertool-name { flex: 1; min-width: 0; }
-.pt-label { display: block; font-size: 12px; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pt-key { display: block; font-size: 10px; color: #98a2b3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pt-select { width: 138px; height: 30px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 8px; font-size: 12px; background: #fff; }
-.pertool-empty { padding: 22px 6px; text-align: center; color: #98a2b3; font-size: 12px; }
+.pt-label { display: block; font-size: 12px; font-weight: 700; color: var(--admin-ink, #0f172a); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pt-key { display: block; font-size: 10px; color: var(--admin-muted, #98a2b3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pt-select { width: 138px; height: 30px; border: 1px solid var(--admin-line, #e2e8f0); border-radius: 8px; padding: 0 8px; font-size: 12px; background: var(--admin-surface, #fff); }
+.pertool-empty { padding: 22px 6px; text-align: center; color: var(--admin-muted, #98a2b3); font-size: 12px; }
 .rule-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.rule-item { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: #334155; }
+.rule-item { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--admin-ink, #334155); }
 .rule-item span { flex: 1; }
-.rule-item button { border: 0; background: transparent; color: #98a2b3; cursor: pointer; padding: 2px; }
+.rule-item button { border: 0; background: transparent; color: var(--admin-muted, #98a2b3); cursor: pointer; padding: 2px; }
 .rule-item button:hover { color: #dc2626; }
 .rule-item svg { width: 12px; height: 12px; }
 .external-write-row { margin-top: 14px; border-top: 1px solid #f2f4f7; padding-top: 12px; }
@@ -742,15 +742,15 @@ select, input {
 .hint strong { color: #3156e9; }
 .mode-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .mode-card {
-  min-height: 104px; border: 1px solid #d7e1ee; border-radius: 8px; padding: 14px; display: grid; align-content: start; gap: 8px; color: #334155;
+  min-height: 104px; border: 1px solid #d7e1ee; border-radius: 8px; padding: 14px; display: grid; align-content: start; gap: 8px; color: var(--admin-ink, #334155);
 }
 .mode-card.selected { border-color: #3156e9; background: #f7faff; }
 .mode-card input { width: 15px; height: 15px; padding: 0; accent-color: #3156e9; }
 .mode-card strong { font-size: 12px; }
-.mode-card p { color: #64748b; font-size: 11px; line-height: 1.45; padding-left: 28px; }
+.mode-card p { color: var(--admin-muted, #64748b); font-size: 11px; line-height: 1.45; padding-left: 28px; }
 .mode-select select { width: 238px; }
 .checkbox-row {
-  display: flex; gap: 8px; align-items: center; margin-top: 14px; color: #334155; font-size: 12px; font-weight: 750;
+  display: flex; gap: 8px; align-items: center; margin-top: 14px; color: var(--admin-ink, #334155); font-size: 12px; font-weight: 750;
 }
 .checkbox-row input { width: 14px; height: 14px; accent-color: #3156e9; padding: 0; }
 .limit-list { display: grid; gap: 10px; }
@@ -763,13 +763,13 @@ select, input {
 .table-head, .escalation-row {
   display: grid; grid-template-columns: 1fr 1.05fr 1fr 34px; gap: 10px; align-items: center;
 }
-.table-head { color: #64748b; font-size: 11px; font-weight: 850; }
+.table-head { color: var(--admin-muted, #64748b); font-size: 11px; font-weight: 850; }
 .escalation-row select, .email-pill { width: 100%; }
 .email-pill {
-  min-height: 34px; border: 1px solid #d7e1ee; border-radius: 7px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #334155; font-size: 12px; font-weight: 750; background: #fff;
+  min-height: 34px; border: 1px solid #d7e1ee; border-radius: 7px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--admin-ink, #334155); font-size: 12px; font-weight: 750; background: var(--admin-surface, #fff);
 }
 .escalation-row button {
-  width: 34px; height: 34px; border: 0; background: transparent; color: #64748b;
+  width: 34px; height: 34px; border: 0; background: transparent; color: var(--admin-muted, #64748b);
 }
 .guardrail-rail { display: grid; gap: 14px; align-content: start; }
 .rail-card { padding: 20px; }
@@ -808,8 +808,8 @@ select, input {
 
 /* Reviewer input matches the other field controls */
 .reviewer-field input[type="email"] {
-  width: 100%; height: 34px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px;
-  font-size: 12.5px; color: #1f2a37; background: #fff;
+  width: 100%; height: 34px; border: 1px solid var(--admin-line, #e2e8f0); border-radius: 8px; padding: 0 10px;
+  font-size: 12.5px; color: #1f2a37; background: var(--admin-surface, #fff);
 }
 
 /* Audit / usage modal */
@@ -818,22 +818,22 @@ select, input {
   display: flex; align-items: center; justify-content: center; z-index: 60; padding: 20px;
 }
 .audit-modal {
-  width: min(720px, 100%); max-height: 84vh; overflow: auto; background: #fff; border-radius: 16px;
+  width: min(720px, 100%); max-height: 84vh; overflow: auto; background: var(--admin-surface, #fff); border-radius: 16px;
   box-shadow: 0 24px 60px rgba(15, 23, 42, .28); padding: 20px 22px;
 }
 .audit-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.audit-head h2 { margin: 0; font-size: 17px; color: #0f172a; }
-.audit-head p { margin: 3px 0 0; font-size: 12.5px; color: #64748b; }
-.icon-btn { border: 0; background: #f1f5f9; width: 30px; height: 30px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.audit-head h2 { margin: 0; font-size: 17px; color: var(--admin-ink, #0f172a); }
+.audit-head p { margin: 3px 0 0; font-size: 12.5px; color: var(--admin-muted, #64748b); }
+.icon-btn { border: 0; background: var(--admin-soft, #f1f5f9); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .audit-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; }
-.audit-stats .stat { background: #f8fafc; border: 1px solid #eef2f6; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
-.audit-stats .stat span { font-size: 11px; color: #64748b; font-weight: 650; }
-.audit-stats .stat strong { font-size: 18px; color: #0f172a; }
-.audit-list { border: 1px solid #eef2f6; border-radius: 10px; overflow: hidden; }
-.audit-row { display: grid; grid-template-columns: 1.6fr .7fr 1.3fr .7fr; gap: 8px; padding: 9px 12px; font-size: 12px; color: #334155; border-top: 1px solid #f1f5f9; }
-.audit-row-head { background: #f8fafc; font-weight: 750; color: #64748b; border-top: 0; text-transform: uppercase; font-size: 10.5px; letter-spacing: .03em; }
-.audit-empty { padding: 18px; text-align: center; color: #98a2b3; font-size: 12.5px; }
-.audit-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; font-size: 12px; color: #64748b; }
+.audit-stats .stat { background: var(--admin-soft, #f8fafc); border: 1px solid var(--admin-line, #eef2f6); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.audit-stats .stat span { font-size: 11px; color: var(--admin-muted, #64748b); font-weight: 650; }
+.audit-stats .stat strong { font-size: 18px; color: var(--admin-ink, #0f172a); }
+.audit-list { border: 1px solid var(--admin-line, #eef2f6); border-radius: 10px; overflow: hidden; }
+.audit-row { display: grid; grid-template-columns: 1.6fr .7fr 1.3fr .7fr; gap: 8px; padding: 9px 12px; font-size: 12px; color: var(--admin-ink, #334155); border-top: 1px solid #f1f5f9; }
+.audit-row-head { background: var(--admin-soft, #f8fafc); font-weight: 750; color: var(--admin-muted, #64748b); border-top: 0; text-transform: uppercase; font-size: 10.5px; letter-spacing: .03em; }
+.audit-empty { padding: 18px; text-align: center; color: var(--admin-muted, #98a2b3); font-size: 12.5px; }
+.audit-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; font-size: 12px; color: var(--admin-muted, #64748b); }
 @media (max-width: 640px) {
   .audit-stats { grid-template-columns: repeat(2, 1fr); }
   .audit-row { grid-template-columns: 1fr 1fr; }

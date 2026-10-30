@@ -1,15 +1,15 @@
 <template>
   <!-- Editor Step 3 — Knowledge & Tools (Screen 15). Knowledge source column cards + tool
        category cards. Backed by existing endpoints; tool toggles save via the top-bar Save. -->
-  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif]">
+  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif] admin-subview">
     <div class="mb-4">
-      <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A]">Add Knowledge &amp; Tools</h2>
+      <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A] admin-section-title">Add Knowledge &amp; Tools</h2>
       <p class="mt-0.5 text-[13.5px] text-[#64748B]">Give your agent the knowledge sources and tools it needs to be effective.</p>
     </div>
 
     <!-- ============ Knowledge Sources ============ -->
     <section class="mb-4 rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-      <h3 class="text-base font-semibold text-[#0F172A]">Knowledge &amp; Connectors</h3>
+      <h3 class="text-base font-semibold text-[#0F172A] admin-section-title">Knowledge &amp; Connectors</h3>
       <p class="mb-4 text-[13px] text-[#64748B]">Attach knowledge bases and connectors your agent can use to answer questions and take action.</p>
 
       <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -23,7 +23,7 @@
         <div class="mb-3 flex items-center justify-between gap-3 flex-wrap">
           <div class="relative flex-1 min-w-[200px] max-w-md">
             <Search :size="15" :stroke-width="2" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#98A2B3]" />
-            <input v-model="kbFilter" placeholder="Search your knowledge bases…"
+            <input aria-label="Search your knowledge bases…" v-model="kbFilter" placeholder="Search your knowledge bases…"
                    class="w-full rounded-lg border border-[#E5E7EB] bg-white py-2 pl-8 pr-3 text-[13px] focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
           </div>
           <div class="flex items-center gap-3">
@@ -150,7 +150,7 @@
     <section class="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <h3 class="text-base font-semibold text-[#0F172A]">Agent Tools &amp; Capabilities</h3>
+          <h3 class="text-base font-semibold text-[#0F172A] admin-section-title">Agent Tools &amp; Capabilities</h3>
           <p class="text-[13px] text-[#64748B]">Enable tools and capabilities to allow your agent to take action and get work done.</p>
         </div>
         <button class="btn-outline" @click="shell.openUserPage('/dashboard/tools', go)">Manage Tools</button>
@@ -197,10 +197,10 @@
 
     <Teleport to="body">
       <div v-if="toolsModalOpen" class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-5 py-8 backdrop-blur-sm" @click.self="closeToolsModal">
-        <section class="flex max-h-[88vh] w-full max-w-[1040px] flex-col overflow-hidden rounded-[18px] border border-white/70 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.34)]">
+        <section role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-knowledgetoolsstep-15" class="flex max-h-[88vh] w-full max-w-[1040px] flex-col overflow-hidden rounded-[18px] border border-white/70 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.34)] admin-dialog">
           <header class="flex items-start justify-between gap-5 px-8 pb-4 pt-7">
             <div>
-              <h3 class="text-[25px] font-bold tracking-tight text-[#111827]">Add tools to this agent</h3>
+              <h3 id="admin-dialog-knowledgetoolsstep-15" class="text-[25px] font-bold tracking-tight text-[#111827] admin-section-title">Add tools to this agent</h3>
               <p class="mt-1.5 text-[15px] text-[#53627A]">Choose the capabilities this agent can use during conversations.</p>
             </div>
             <button class="modal-close border-0" aria-label="Close tools dialog" @click="closeToolsModal"><X :size="23" :stroke-width="1.8" /></button>
@@ -209,7 +209,7 @@
           <div class="px-8 pb-4">
             <div class="relative">
               <Search :size="20" :stroke-width="2" class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#667085]" />
-              <input v-model="toolSearch" class="modal-search h-12 rounded-[9px] pl-12 text-[15px]" placeholder="Search tools, functions, capabilities..." />
+              <input aria-label="Search tools, functions, capabilities..." v-model="toolSearch" class="modal-search h-12 rounded-[9px] pl-12 text-[15px]" placeholder="Search tools, functions, capabilities..." />
             </div>
             <div class="mt-4 flex flex-wrap items-center gap-2">
               <button
@@ -303,10 +303,10 @@
     <!-- View all files — full list with live index status, chunks, cost, retry & delete -->
     <Teleport to="body">
       <div v-if="filesModalOpen" class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-5 py-8 backdrop-blur-sm" @click.self="filesModalOpen = false">
-        <section class="flex max-h-[86vh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <section role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-knowledgetoolsstep-16" class="flex max-h-[86vh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl admin-dialog">
           <header class="flex items-center justify-between gap-4 border-b border-[#F1F5F9] px-6 py-4">
             <div>
-              <h3 class="text-[17px] font-bold text-[#0F172A]">Uploaded Files</h3>
+              <h3 id="admin-dialog-knowledgetoolsstep-16" class="text-[17px] font-bold text-[#0F172A] admin-section-title">Uploaded Files</h3>
               <p class="text-[12.5px] text-[#64748B]">{{ files.length }} file(s) · KB cost so far: <span class="font-semibold text-indigo-600">{{ fmtCost(kbCost) }}</span></p>
             </div>
             <button class="modal-close border-0" aria-label="Close" @click="filesModalOpen = false"><X :size="20" :stroke-width="1.8" /></button>
@@ -327,7 +327,7 @@
                 </div>
               </div>
               <button v-if="fileIndex(f).stage === 'failed'" class="modal-action" @click="retryIndex(f)"><RefreshCw :size="13" :stroke-width="2" /> Retry</button>
-              <button class="icon-x" @click="removeFile(f)"><X :size="14" :stroke-width="2" /></button>
+              <button aria-label="Remove item" class="icon-x" @click="removeFile(f)"><X :size="14" :stroke-width="2" /></button>
             </div>
           </div>
           <footer class="flex items-center justify-end gap-3 border-t border-[#F1F5F9] px-6 py-4">
@@ -341,10 +341,10 @@
     <!-- View all URLs — full list of website sources with status, chunks, cost, re-index / cancel / remove -->
     <Teleport to="body">
       <div v-if="urlsModalOpen" class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-5 py-8 backdrop-blur-sm" @click.self="urlsModalOpen = false">
-        <section class="flex max-h-[86vh] w-full max-w-[760px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <section role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-knowledgetoolsstep-17" class="flex max-h-[86vh] w-full max-w-[760px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl admin-dialog">
           <header class="flex items-center justify-between gap-4 border-b border-[#F1F5F9] px-6 py-4">
             <div>
-              <h3 class="text-[17px] font-bold text-[#0F172A]">Website Sources</h3>
+              <h3 id="admin-dialog-knowledgetoolsstep-17" class="text-[17px] font-bold text-[#0F172A] admin-section-title">Website Sources</h3>
               <p class="text-[12.5px] text-[#64748B]">{{ webSources.length }} source(s) · KB cost so far: <span class="font-semibold text-indigo-600">{{ fmtCost(kbCost) }}</span></p>
             </div>
             <button class="modal-close border-0" aria-label="Close" @click="urlsModalOpen = false"><X :size="20" :stroke-width="1.8" /></button>
@@ -362,7 +362,7 @@
               </button>
               <button v-if="WS_INDEXING.has(w.status)" class="modal-action" @click="cancelUrl(w)"><Ban :size="13" :stroke-width="2" /> Cancel</button>
               <button v-else class="modal-action" @click="reindexUrl(w)"><RefreshCw :size="13" :stroke-width="2" /> Re-index</button>
-              <button class="icon-x" @click="removeUrl(w)"><X :size="14" :stroke-width="2" /></button>
+              <button aria-label="Remove item" class="icon-x" @click="removeUrl(w)"><X :size="14" :stroke-width="2" /></button>
             </div>
           </div>
           <footer class="flex items-center justify-end gap-3 border-t border-[#F1F5F9] px-6 py-4">
@@ -376,10 +376,10 @@
     <!-- View all sources — attached (shared) knowledge bases, with detach -->
     <Teleport to="body">
       <div v-if="sourcesModalOpen" class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/45 px-5 py-8 backdrop-blur-sm" @click.self="sourcesModalOpen = false">
-        <section class="flex max-h-[86vh] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <section role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-knowledgetoolsstep-18" class="flex max-h-[86vh] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl admin-dialog">
           <header class="flex items-center justify-between gap-4 border-b border-[#F1F5F9] px-6 py-4">
             <div>
-              <h3 class="text-[17px] font-bold text-[#0F172A]">Attached Knowledge Bases</h3>
+              <h3 id="admin-dialog-knowledgetoolsstep-18" class="text-[17px] font-bold text-[#0F172A] admin-section-title">Attached Knowledge Bases</h3>
               <p class="text-[12.5px] text-[#64748B]">Shared bases + reused from your other agents — {{ allAttachedSources.length }} attached.</p>
             </div>
             <button class="modal-close border-0" aria-label="Close" @click="sourcesModalOpen = false"><X :size="20" :stroke-width="1.8" /></button>
@@ -407,10 +407,10 @@
     <!-- Add Source picker — attach an existing KB (file/website) from the user's other agents -->
     <Teleport to="body">
       <div v-if="sourcePickerOpen" class="fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/45 px-5 py-8 backdrop-blur-sm" @click.self="sourcePickerOpen = false">
-        <section class="flex max-h-[86vh] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <section role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-knowledgetoolsstep-19" class="flex max-h-[86vh] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl admin-dialog">
           <header class="flex items-center justify-between gap-4 border-b border-[#F1F5F9] px-6 py-4">
             <div>
-              <h3 class="text-[17px] font-bold text-[#0F172A]">Attach a Knowledge Base</h3>
+              <h3 id="admin-dialog-knowledgetoolsstep-19" class="text-[17px] font-bold text-[#0F172A] admin-section-title">Attach a Knowledge Base</h3>
               <p class="text-[12.5px] text-[#64748B]">Attach a shared knowledge base (e.g. Help Center) or reuse a file/website already indexed on another of your agents — no re-upload, no re-crawl.</p>
             </div>
             <button class="modal-close border-0" aria-label="Close" @click="sourcePickerOpen = false"><X :size="20" :stroke-width="1.8" /></button>
@@ -1168,43 +1168,43 @@ onBeforeUnmount(() => { stopFilePollers(); kbWs.close() })
 </script>
 
 <style scoped>
-.field { border: 1px solid #D0D5DD; border-radius: 9px; padding: 8px 11px; font-size: 12.5px; color: #0F172A; background: #fff; outline: none; transition: box-shadow .15s, border-color .15s; }
+.field { border: 1px solid var(--admin-line, #D0D5DD); border-radius: 9px; padding: 8px 11px; font-size: 12.5px; color: var(--admin-ink, #0F172A); background: var(--admin-surface, #fff); outline: none; transition: box-shadow .15s, border-color .15s; }
 .field:focus { border-color: #2563EB; box-shadow: 0 0 0 3px #EAF0FF; }
 .badge { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
-.btn-outline { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #E5E7EB; background: #fff; border-radius: 10px; padding: 8px 13px; font-size: 13px; font-weight: 600; color: #344054; cursor: pointer; }
-.btn-outline:hover { border-color: #cdd5e0; color: #0F172A; }
+.btn-outline { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--admin-line, #E5E7EB); background: var(--admin-surface, #fff); border-radius: 10px; padding: 8px 13px; font-size: 13px; font-weight: 600; color: var(--admin-ink, #344054); cursor: pointer; }
+.btn-outline:hover { border-color: #cdd5e0; color: var(--admin-ink, #0F172A); }
 .view-link { display: inline-flex; align-items: center; gap: 3px; background: none; border: none; cursor: pointer; color: #2563EB; font-size: 12.5px; font-weight: 600; padding: 0; }
 .view-link:hover { color: #1D4ED8; }
-.add-btn { display: inline-flex; align-items: center; gap: 5px; border: 1px solid #E5E7EB; background: #fff; border-radius: 9px; padding: 6px 11px; font-size: 12px; font-weight: 600; color: #344054; cursor: pointer; }
+.add-btn { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--admin-line, #E5E7EB); background: var(--admin-surface, #fff); border-radius: 9px; padding: 6px 11px; font-size: 12px; font-weight: 600; color: var(--admin-ink, #344054); cursor: pointer; }
 .add-btn:hover { border-color: #2563EB; color: #2563EB; }
 .add-btn-sm { display: grid; place-items: center; height: 34px; width: 36px; border: none; border-radius: 9px; background: #2563EB; color: #fff; cursor: pointer; flex-shrink: 0; }
 .add-btn-sm:hover:not(:disabled) { background: #1D4ED8; }
 .add-btn-sm:disabled { opacity: .5; cursor: not-allowed; }
-.icon-x { display: grid; place-items: center; height: 22px; width: 22px; border-radius: 6px; color: #98A2B3; cursor: pointer; flex-shrink: 0; }
+.icon-x { display: grid; place-items: center; height: 22px; width: 22px; border-radius: 6px; color: var(--admin-muted, #98A2B3); cursor: pointer; flex-shrink: 0; }
 .icon-x:hover { background: #FEECEB; color: #F04438; }
-.modal-close { display: grid; height: 36px; width: 36px; place-items: center; border: 1px solid #E5E7EB; border-radius: 10px; color: #475569; background: #fff; }
-.modal-close:hover { border-color: #CBD5E1; color: #0F172A; }
-.modal-search { height: 38px; width: 100%; border: 1px solid #D9E0EA; border-radius: 10px; background: #fff; padding: 0 12px 0 38px; font-size: 13px; color: #0F172A; outline: none; box-shadow: 0 1px 2px rgba(16,24,40,.03); }
+.modal-close { display: grid; height: 36px; width: 36px; place-items: center; border: 1px solid var(--admin-line, #E5E7EB); border-radius: 10px; color: var(--admin-muted, #475569); background: var(--admin-surface, #fff); }
+.modal-close:hover { border-color: #CBD5E1; color: var(--admin-ink, #0F172A); }
+.modal-search { height: 38px; width: 100%; border: 1px solid var(--admin-line, #D9E0EA); border-radius: 10px; background: var(--admin-surface, #fff); padding: 0 12px 0 38px; font-size: 13px; color: var(--admin-ink, #0F172A); outline: none; box-shadow: 0 1px 2px rgba(16,24,40,.03); }
 .modal-search:focus { border-color: #2563EB; box-shadow: 0 0 0 3px #EAF0FF; }
 .modal-filter-chip { display: inline-flex; height: 38px; align-items: center; gap: 8px; border: 1px solid; border-radius: 7px; padding: 0 18px; font-size: 14px; font-weight: 650; transition: border-color .15s, background .15s, color .15s, box-shadow .15s; }
 .modal-filter-chip:hover { border-color: #C7D2FE; box-shadow: 0 1px 2px rgba(15,23,42,.05); }
 .modal-category-row { display: flex; width: 100%; align-items: center; gap: 12px; border: 0; border-radius: 8px; padding: 10px 12px; font-size: 15px; font-weight: 650; transition: background .15s, color .15s, box-shadow .15s; }
-.tool-row { display: flex; align-items: center; gap: 18px; border-bottom: 1px solid #E5E7EB; padding: 20px 22px; background: #fff; }
+.tool-row { display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--admin-line, #E5E7EB); padding: 20px 22px; background: var(--admin-surface, #fff); }
 .tool-row:last-child { border-bottom: 0; }
 .tool-row:hover { background: #FCFCFF; }
 .tool-add-btn { display: inline-flex; min-width: 96px; height: 38px; flex-shrink: 0; align-items: center; justify-content: center; gap: 8px; border: 1px solid; border-radius: 8px; padding: 0 16px; font-size: 14px; font-weight: 750; transition: background .15s, border-color .15s, color .15s; }
-.modal-action { height: 34px; border: 1px solid #D9E0EA; border-radius: 9px; background: #fff; padding: 0 12px; font-size: 12.5px; font-weight: 700; color: #344054; }
+.modal-action { height: 34px; border: 1px solid var(--admin-line, #D9E0EA); border-radius: 9px; background: var(--admin-surface, #fff); padding: 0 12px; font-size: 12.5px; font-weight: 700; color: var(--admin-ink, #344054); }
 .modal-action:hover { border-color: #2563EB; color: #2563EB; }
 .modal-primary { height: 38px; border: none; border-radius: 10px; background: #2563EB; padding: 0 18px; font-size: 13px; font-weight: 700; color: #fff; box-shadow: 0 1px 2px rgba(37,99,235,.25); }
 .modal-primary:hover { background: #1D4ED8; }
-.modal-secondary { height: 38px; border: 1px solid #D9E0EA; border-radius: 9px; background: #fff; padding: 0 20px; font-size: 13px; font-weight: 700; color: #344054; }
-.modal-secondary:hover { border-color: #CBD5E1; color: #0F172A; }
+.modal-secondary { height: 38px; border: 1px solid var(--admin-line, #D9E0EA); border-radius: 9px; background: var(--admin-surface, #fff); padding: 0 20px; font-size: 13px; font-weight: 700; color: var(--admin-ink, #344054); }
+.modal-secondary:hover { border-color: #CBD5E1; color: var(--admin-ink, #0F172A); }
 .modal-toggle { position: relative; height: 22px; width: 42px; flex-shrink: 0; border-radius: 999px; transition: background .15s; }
-.modal-toggle-dot { display: block; height: 18px; width: 18px; border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.22); transition: transform .15s; }
-.tool-chip { border-radius: 999px; background: #F1F5F9; padding: 3px 8px; font-size: 11px; font-weight: 700; color: #475569; }
+.modal-toggle-dot { display: block; height: 18px; width: 18px; border-radius: 999px; background: var(--admin-surface, #fff); box-shadow: 0 1px 2px rgba(16,24,40,.22); transition: transform .15s; }
+.tool-chip { border-radius: 999px; background: var(--admin-soft, #F1F5F9); padding: 3px 8px; font-size: 11px; font-weight: 700; color: var(--admin-muted, #475569); }
 .selected-tool-chip { display: inline-flex; height: 34px; max-width: 170px; align-items: center; gap: 8px; border: 1px solid #DCD9FF; border-radius: 7px; background: #F2F0FF; padding: 0 11px; font-size: 12px; font-weight: 700; color: #4338CA; }
 .selected-tool-chip button { display: grid; place-items: center; flex-shrink: 0; }
-.pg-btn { display: grid; place-items: center; height: 28px; width: 28px; border: 1px solid #E5E7EB; border-radius: 8px; color: #475569; background: #fff; }
+.pg-btn { display: grid; place-items: center; height: 28px; width: 28px; border: 1px solid var(--admin-line, #E5E7EB); border-radius: 8px; color: var(--admin-muted, #475569); background: var(--admin-surface, #fff); }
 .pg-btn:hover:not(:disabled) { border-color: #2563EB; color: #2563EB; }
 .pg-btn:disabled { opacity: .4; cursor: not-allowed; }
 .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

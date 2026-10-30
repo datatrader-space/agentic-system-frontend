@@ -1,6 +1,6 @@
 <!-- A day-by-day success-rate line small enough for a table row. A day with no finished run is a gap, not 0%. -->
 <template>
-  <svg class="spark" viewBox="0 0 100 30" preserveAspectRatio="none" role="img" :aria-label="label">
+  <svg class="spark admin-subview" viewBox="0 0 100 30" preserveAspectRatio="none" role="img" :aria-label="label">
     <line x1="0" y1="29" x2="100" y2="29" class="base" />
     <polyline v-for="(segment, i) in segments" :key="i" :points="segment" class="line" />
     <circle v-if="last" :cx="last.x" :cy="last.y" r="2.2" class="dot" />

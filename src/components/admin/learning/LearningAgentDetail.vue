@@ -1,11 +1,11 @@
 <!-- One agent: its trend with the reasons, the same charts for it alone, the tools that keep failing for it,
      its recent mistakes (with the arguments it passed and what fixed them), and its learned practices. -->
 <template>
-  <div class="agent-detail">
+  <div class="agent-detail admin-subview">
     <div class="detail-head">
       <button type="button" class="button tertiary" @click="$emit('back')"><Icon icon="lucide:arrow-left" /> All agents</button>
       <div class="detail-title">
-        <h2>{{ card?.agent.name || name || 'Agent' }}</h2>
+        <h2 class="admin-section-title">{{ card?.agent.name || name || 'Agent' }}</h2>
         <span v-if="card" class="trend" :class="trendMeta(card.trend.status).tone">
           <Icon :icon="trendMeta(card.trend.status).icon" />{{ trendMeta(card.trend.status).label }}
         </span>
@@ -13,11 +13,11 @@
       <p v-if="card" class="reasons">{{ card.trend.reasons.join(' · ') }}</p>
     </div>
 
-    <div v-if="loading && !report" class="state-card" role="status">
+    <div v-if="loading && !report" class="state-card admin-surface" role="status">
       <span class="loader" aria-hidden="true"></span><strong>Loading this agent</strong>
     </div>
 
-    <div v-else-if="report && !card" class="state-card">
+    <div v-else-if="report && !card" class="state-card admin-surface">
       <Icon icon="lucide:moon" /><strong>Nothing from this agent in the window</strong>
       <span>It finished no run, made no mistake and saved no memory. Try a longer window.</span>
     </div>
@@ -26,11 +26,11 @@
       <LearningOverview :report="report" agent-scoped />
 
       <div class="chart-grid">
-        <section class="panel" aria-labelledby="ad-tools">
+        <section class="panel admin-surface" aria-labelledby="ad-tools">
           <div class="panel-header">
             <div class="panel-title-group">
               <span class="section-icon red"><Icon icon="lucide:wrench" /></span>
-              <div><h3 id="ad-tools">Tools that failed</h3><p>Its own mistakes with each tool, and the environment's failures.</p></div>
+              <div><h3 class="admin-section-title" id="ad-tools">Tools that failed</h3><p>Its own mistakes with each tool, and the environment's failures.</p></div>
             </div>
           </div>
           <div class="panel-body">
@@ -39,12 +39,12 @@
           </div>
         </section>
 
-        <section class="panel" aria-labelledby="ad-practices">
+        <section class="panel admin-surface" aria-labelledby="ad-practices">
           <div class="panel-header">
             <div class="panel-title-group">
               <span class="section-icon violet"><Icon icon="lucide:sparkles" /></span>
               <div>
-                <h3 id="ad-practices">Learned practices</h3>
+                <h3 class="admin-section-title" id="ad-practices">Learned practices</h3>
                 <p>{{ counts.active || 0 }} active · {{ counts.candidate || 0 }} still earning trust · {{ counts.retired || 0 }} retired</p>
               </div>
             </div>
@@ -68,11 +68,11 @@
         </section>
       </div>
 
-      <section class="panel" aria-labelledby="ad-mistakes">
+      <section class="panel admin-surface" aria-labelledby="ad-mistakes">
         <div class="panel-header">
           <div class="panel-title-group">
             <span class="section-icon red"><Icon icon="lucide:circle-x" /></span>
-            <div><h3 id="ad-mistakes">Recent mistakes</h3><p>Its own failed calls, newest first — these are what the next similar run is warned about.</p></div>
+            <div><h3 class="admin-section-title" id="ad-mistakes">Recent mistakes</h3><p>Its own failed calls, newest first — these are what the next similar run is warned about.</p></div>
           </div>
         </div>
         <div v-if="!mistakes.length" class="empty-state compact"><Icon icon="lucide:circle-check" /><strong>No mistakes of its own in this window</strong></div>

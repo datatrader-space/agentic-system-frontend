@@ -1,33 +1,33 @@
 <template>
-  <div class="admin-panel">
-    <div class="admin-header">
-      <h1 class="gradient-text">Admin Dashboard</h1>
-      <p class="subtitle">Platform overview, user analytics, and security monitoring</p>
+  <div class="admin-panel admin-page">
+    <div class="admin-header admin-page-header">
+      <h1 class="gradient-text admin-page-title">Admin Dashboard</h1>
+      <p class="subtitle admin-muted">Platform overview, user analytics, and security monitoring</p>
     </div>
 
     <div v-if="!isStaff" class="access-denied">
-      <div class="denied-card">
+      <div class="denied-card admin-surface">
         <span class="denied-icon">🔒</span>
-        <h2>Access Restricted</h2>
+        <h2 class="admin-section-title">Access Restricted</h2>
         <p>This page is only available to administrators.</p>
       </div>
     </div>
 
     <div v-else class="admin-grid">
       <!-- Quick Stats -->
-      <div class="stats-row">
-        <div class="stat-card" v-for="stat in stats" :key="stat.label">
+      <div class="stats-row admin-metrics">
+        <div class="stat-card admin-metric" v-for="stat in stats" :key="stat.label">
           <div class="stat-icon">{{ stat.icon }}</div>
-          <div class="stat-value">{{ stat.value }}</div>
-          <div class="stat-label">{{ stat.label }}</div>
+          <div class="stat-value admin-value">{{ stat.value }}</div>
+          <div class="stat-label admin-muted">{{ stat.label }}</div>
         </div>
       </div>
 
       <!-- Cost Analytics -->
-      <div class="panel">
-        <h2>Cost Analytics <span class="badge-period">Last {{ costDays }} days</span></h2>
+      <div class="panel admin-surface">
+        <h2 class="admin-section-title">Cost Analytics <span class="badge-period">Last {{ costDays }} days</span></h2>
         <div v-if="costLoading" class="panel-loading">Loading...</div>
-        <div v-else-if="costs" class="cost-grid">
+        <div v-else-if="costs" class="cost-grid admin-metrics">
           <div class="cost-item">
             <span class="cost-label">Total Cost</span>
             <span class="cost-value">${{ costs.totals?.cost_usd?.toFixed(2) || '0.00' }}</span>
@@ -41,7 +41,7 @@
             <span class="cost-value">{{ costs.totals?.avg_latency_ms || 0 }}ms</span>
           </div>
           <div class="cost-breakdown" v-if="costs.by_source?.length">
-            <h3>By Source</h3>
+            <h3 class="admin-section-title">By Source</h3>
             <div class="breakdown-row" v-for="s in costs.by_source" :key="s.source">
               <span class="breakdown-label">{{ s.source || 'unknown' }}</span>
               <span class="breakdown-value">${{ s.cost_usd?.toFixed(2) }} ({{ s.count }})</span>
@@ -51,17 +51,17 @@
       </div>
 
       <!-- Security Overview -->
-      <div class="panel">
-        <h2>Security <span class="badge-period">Last 7 days</span></h2>
+      <div class="panel admin-surface">
+        <h2 class="admin-section-title">Security <span class="badge-period">Last 7 days</span></h2>
         <div v-if="securityLoading" class="panel-loading">Loading...</div>
-        <div v-else-if="security" class="security-grid">
-          <div class="stat-mini">
-            <span class="stat-mini-value success">{{ security.login_stats?.successful || 0 }}</span>
-            <span class="stat-mini-label">Successful Logins</span>
+        <div v-else-if="security" class="security-grid admin-metrics">
+          <div class="stat-mini admin-metric">
+            <span class="stat-mini-value success admin-value">{{ security.login_stats?.successful || 0 }}</span>
+            <span class="stat-mini-label admin-muted">Successful Logins</span>
           </div>
-          <div class="stat-mini">
-            <span class="stat-mini-value danger">{{ security.login_stats?.failed || 0 }}</span>
-            <span class="stat-mini-label">Failed Logins</span>
+          <div class="stat-mini admin-metric">
+            <span class="stat-mini-value danger admin-value">{{ security.login_stats?.failed || 0 }}</span>
+            <span class="stat-mini-label admin-muted">Failed Logins</span>
           </div>
           <div v-if="security.suspicious_ips?.length" class="alert-box">
             <strong>⚠️ Suspicious IPs</strong>
@@ -73,16 +73,16 @@
       </div>
 
       <!-- Website Traffic & Visitor Analytics (Track D) -->
-      <div class="panel full-width">
+      <div class="panel full-width admin-surface">
         <AnalyticsPanel />
       </div>
 
       <!-- Recent Users -->
-      <div class="panel full-width">
-        <h2>Users <span class="badge-count">{{ userTotal }}</span></h2>
+      <div class="panel full-width admin-surface">
+        <h2 class="admin-section-title">Users <span class="badge-count">{{ userTotal }}</span></h2>
         <div v-if="userLoading" class="panel-loading">Loading...</div>
-        <div v-else class="users-table-wrap">
-          <table class="users-table">
+        <div v-else class="users-table-wrap admin-table-scroll">
+          <table class="users-table admin-table">
             <thead>
               <tr>
                 <th>Username</th>

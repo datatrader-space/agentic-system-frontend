@@ -1,12 +1,12 @@
 <template>
-  <div class="kb">
-    <header class="kb-head">
-      <h1>RAG Knowledge</h1>
+  <div class="kb admin-page">
+    <header class="kb-head admin-page-header">
+      <h1 class="admin-page-title">RAG Knowledge</h1>
       <p>Monitor retrieval quality, test searches, fix answers, and tune sources — across all agents.</p>
     </header>
 
-    <nav class="kb-tabs">
-      <button v-for="t in tabs" :key="t.id" :class="['kb-tab', { active: tab === t.id }]" @click="tab = t.id">
+    <nav class="kb-tabs admin-tabs" aria-label="Knowledge sections" role="tablist">
+      <button v-for="t in tabs" :key="t.id" :class="['kb-tab', { active: tab === t.id }]" role="tab" :aria-selected="tab === t.id" :tabindex="tab === t.id ? 0 : -1" @click="tab = t.id">
         {{ t.label }}
       </button>
     </nav>
@@ -14,43 +14,43 @@
     <!-- ───────────── Monitoring ───────────── -->
     <section v-if="tab === 'monitoring'" class="kb-panel">
       <div class="kb-row">
-        <div class="seg">
+        <div class="seg admin-tabs">
           <button v-for="d in [7, 30, 90]" :key="d" :class="{ active: days === d }" @click="setDays(d)">{{ d }}d</button>
         </div>
-        <select v-model="monScope" class="sel" @change="loadMonitoring">
+        <select aria-label="Monitoring agent" v-model="monScope" class="sel" @change="loadMonitoring">
           <option value="">All agents</option>
           <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
         </select>
         <button class="btn" :disabled="loadingMon" @click="loadMonitoring">↻ Refresh</button>
       </div>
 
-      <div class="stats">
-        <div class="stat"><div class="v">{{ ov.totals?.queries ?? '—' }}</div><div class="l">KB queries</div></div>
-        <div class="stat"><div class="v">{{ pct(ov.rates?.unanswered) }}</div><div class="l">Unanswered</div></div>
-        <div class="stat"><div class="v">{{ pct(ov.rates?.low_confidence) }}</div><div class="l">Low confidence</div></div>
-        <div class="stat"><div class="v">{{ ov.totals?.conflicts ?? '—' }}</div><div class="l">Conflicts</div></div>
-        <div class="stat"><div class="v">{{ pct(ov.rates?.stale) }}</div><div class="l">Stale top source</div></div>
-        <div class="stat"><div class="v">{{ ov.totals?.avg_top_score ?? '—' }}</div><div class="l">Avg top score</div></div>
+      <div class="stats admin-metrics">
+        <div class="stat admin-metric"><div class="v">{{ ov.totals?.queries ?? '—' }}</div><div class="l">KB queries</div></div>
+        <div class="stat admin-metric"><div class="v">{{ pct(ov.rates?.unanswered) }}</div><div class="l">Unanswered</div></div>
+        <div class="stat admin-metric"><div class="v">{{ pct(ov.rates?.low_confidence) }}</div><div class="l">Low confidence</div></div>
+        <div class="stat admin-metric"><div class="v">{{ ov.totals?.conflicts ?? '—' }}</div><div class="l">Conflicts</div></div>
+        <div class="stat admin-metric"><div class="v">{{ pct(ov.rates?.stale) }}</div><div class="l">Stale top source</div></div>
+        <div class="stat admin-metric"><div class="v">{{ ov.totals?.avg_top_score ?? '—' }}</div><div class="l">Avg top score</div></div>
       </div>
 
-      <div class="card">
-        <h3>Query volume <span class="muted">({{ days }}d)</span></h3>
+      <div class="card admin-surface">
+        <h3 class="admin-section-title">Query volume <span class="muted admin-muted">({{ days }}d)</span></h3>
         <div v-if="ov.timeseries?.length" class="chart">
           <div v-for="(p, i) in ov.timeseries" :key="i" class="bar-wrap" :title="`${p.date}: ${p.queries} queries, ${p.unanswered} unanswered`">
             <div class="bar" :style="{ height: barH(p.queries) }"></div>
             <div class="bar miss" :style="{ height: barH(p.unanswered) }"></div>
           </div>
         </div>
-        <p v-else class="muted">No KB queries logged yet in this window.</p>
+        <p v-else class="muted admin-muted">No KB queries logged yet in this window.</p>
       </div>
 
-      <div class="card">
+      <div class="card admin-surface">
         <div class="kb-row">
-          <h3>Retrieval quality (eval)</h3>
+          <h3 class="admin-section-title">Retrieval quality (eval)</h3>
           <button class="btn primary" :disabled="evalRunning" @click="runEval">{{ evalRunning ? 'Running…' : 'Run eval' }}</button>
         </div>
-        <p class="muted small">Self-retrieval recall on sampled chunks — proves the lift from hybrid search + reranking.</p>
-        <table v-if="evalRes.modes" class="tbl">
+        <p class="muted small admin-muted">Self-retrieval recall on sampled chunks — proves the lift from hybrid search + reranking.</p>
+        <div class="admin-table-scroll" v-if="evalRes.modes"><table  class="tbl admin-table">
           <thead><tr><th>mode</th><th>recall@{{ evalRes.k }}</th><th>recall@1</th><th>MRR</th></tr></thead>
           <tbody>
             <tr v-for="m in ['vector_only', 'hybrid', 'hybrid_rerank']" :key="m" :class="{ best: m === 'hybrid_rerank' }">
@@ -58,32 +58,32 @@
               <td>{{ evalRes.modes[m].recall_1.toFixed(3) }}</td><td>{{ evalRes.modes[m].mrr.toFixed(3) }}</td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
         <p v-if="evalRes.modes" class="verdict" :class="evalRes.verdict === 'OK' ? 'ok' : 'bad'">
           hybrid_rerank vs vector_only: {{ evalRes.delta_vs_vector >= 0 ? '+' : '' }}{{ evalRes.delta_vs_vector }} → {{ evalRes.verdict }}
-          <span class="muted">({{ evalRes.cases }} cases, agent {{ evalRes.agent_name }})</span>
+          <span class="muted admin-muted">({{ evalRes.cases }} cases, agent {{ evalRes.agent_name }})</span>
         </p>
       </div>
 
-      <div class="two">
-        <div class="card">
-          <h3>Top questions</h3>
-          <table class="tbl"><tbody>
+      <div class="two admin-responsive-grid">
+        <div class="card admin-surface">
+          <h3 class="admin-section-title">Top questions</h3>
+          <div class="admin-table-scroll" ><table class="tbl admin-table"><tbody>
             <tr v-for="(q, i) in topQ" :key="i"><td class="q">{{ q.query }}</td><td class="n">{{ q.count }}</td></tr>
-            <tr v-if="!topQ.length"><td class="muted">No data yet.</td></tr>
-          </tbody></table>
+            <tr v-if="!topQ.length"><td class="muted admin-muted">No data yet.</td></tr>
+          </tbody></table></div>
         </div>
-        <div class="card">
-          <h3>Unanswered / low-confidence</h3>
-          <table class="tbl"><tbody>
+        <div class="card admin-surface">
+          <h3 class="admin-section-title">Unanswered / low-confidence</h3>
+          <div class="admin-table-scroll" ><table class="tbl admin-table"><tbody>
             <tr v-for="(q, i) in unansweredQ" :key="i"><td class="q">{{ q.query }}</td><td class="n">{{ q.count }}</td></tr>
-            <tr v-if="!unansweredQ.length"><td class="muted">Nothing unanswered. 🎉</td></tr>
-          </tbody></table>
+            <tr v-if="!unansweredQ.length"><td class="muted admin-muted">Nothing unanswered. 🎉</td></tr>
+          </tbody></table></div>
         </div>
       </div>
 
-      <div class="card" v-if="conflicts.length">
-        <h3>⚠ Conflicting sources <span class="muted small">(queries where sources disagreed)</span></h3>
+      <div class="card admin-surface" v-if="conflicts.length">
+        <h3 class="admin-section-title">⚠ Conflicting sources <span class="muted small admin-muted">(queries where sources disagreed)</span></h3>
         <div v-for="(c, i) in conflicts" :key="i" class="conf-row">
           <div class="conf-q">{{ c.query }}</div>
           <div v-for="(d, j) in c.detail" :key="j" class="conf-detail">
@@ -97,7 +97,7 @@
     <!-- ───────────── Index Health ───────────── -->
     <section v-if="tab === 'health'" class="kb-panel">
       <div class="kb-row">
-        <select v-model="healthScope" class="sel" @change="loadHealth">
+        <select aria-label="Index health agent" v-model="healthScope" class="sel" @change="loadHealth">
           <option value="">All agents</option>
           <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
         </select>
@@ -107,23 +107,23 @@
         </button>
       </div>
 
-      <div class="card ctx-card">
+      <div class="card ctx-card admin-surface">
         <div class="ctx-head">
           <div class="ctx-text">
-            <h3>Contextual retrieval <span class="muted small">— LLM-written chunk context</span></h3>
-            <p class="muted small">
+            <h3 class="admin-section-title">Contextual retrieval <span class="muted small admin-muted">— LLM-written chunk context</span></h3>
+            <p class="muted small admin-muted">
               When <b>ON</b>, an LLM writes a 1–2 sentence context for every chunk before it is embedded and
               searched — e.g. turning a bare <i>“Then select Apply.”</i> into <i>“the final confirmation step
               of the change-wallpaper procedure.”</i> This makes otherwise-ambiguous chunks far easier to
               find, so <b>retrieval recall improves</b> on procedures, tables, and short snippets.
             </p>
-            <p class="muted small">
+            <p class="muted small admin-muted">
               <b>Cost:</b> one LLM call <b>per chunk</b> at index / re-embed time — it uses the
               <b>RAG Contextual LLM</b> model (Settings → Internal &amp; Embedding), which defaults to the
               agent’s main model, so point it at a cheap/fast model for large KBs.
               When <b>OFF</b> (default), a free deterministic <code>Document | Section</code> prefix is used.
             </p>
-            <p class="muted small">
+            <p class="muted small admin-muted">
               <b>Applies to new uploads and any KB you re-embed</b> — existing chunks keep their current
               context until re-embedded (use the re-embed action above, or <code>manage.py rag_contextualize</code>).
             </p>
@@ -133,30 +133,30 @@
                     :disabled="savingSettings" @click="toggleContextualLlm(!ragSettings.contextual_llm_enabled)">
               {{ savingSettings ? 'Saving…' : (ragSettings.contextual_llm_enabled ? 'ON · LLM context' : 'OFF · structural (free)') }}
             </button>
-            <p v-if="ragSettings.updated_by" class="muted small">last changed by {{ ragSettings.updated_by }}</p>
+            <p v-if="ragSettings.updated_by" class="muted small admin-muted">last changed by {{ ragSettings.updated_by }}</p>
           </div>
         </div>
       </div>
 
-      <div class="stats">
-        <div class="stat"><div class="v">{{ health.web_sources?.total ?? '—' }}</div><div class="l">Web sources</div></div>
-        <div class="stat"><div class="v">{{ health.files?.total ?? '—' }}</div><div class="l">Files</div></div>
-        <div class="stat"><div class="v">{{ health.chunks?.total ?? '—' }}</div><div class="l">Chunks</div></div>
-        <div class="stat"><div class="v">{{ health.chunks?.archived ?? '—' }}</div><div class="l">Archived</div></div>
-        <div class="stat" :class="{ warn: health.stale_embedder?.stale }">
+      <div class="stats admin-metrics">
+        <div class="stat admin-metric"><div class="v">{{ health.web_sources?.total ?? '—' }}</div><div class="l">Web sources</div></div>
+        <div class="stat admin-metric"><div class="v">{{ health.files?.total ?? '—' }}</div><div class="l">Files</div></div>
+        <div class="stat admin-metric"><div class="v">{{ health.chunks?.total ?? '—' }}</div><div class="l">Chunks</div></div>
+        <div class="stat admin-metric"><div class="v">{{ health.chunks?.archived ?? '—' }}</div><div class="l">Archived</div></div>
+        <div class="stat admin-metric" :class="{ warn: health.stale_embedder?.stale }">
           <div class="v">{{ healthScope ? (health.stale_embedder?.stale ?? '—') : 'n/a' }}</div><div class="l">Stale embedder</div></div>
-        <div class="stat" :class="{ warn: needsReviewCount }"><div class="v">{{ needsReviewCount }}</div><div class="l">Needs review</div></div>
+        <div class="stat admin-metric" :class="{ warn: needsReviewCount }"><div class="v">{{ needsReviewCount }}</div><div class="l">Needs review</div></div>
       </div>
 
-      <div class="card">
-        <h3>Chunks by source type</h3>
+      <div class="card admin-surface">
+        <h3 class="admin-section-title">Chunks by source type</h3>
         <div class="kv" v-for="(n, t) in (health.chunks?.by_type || {})" :key="t"><span>{{ t || 'unknown' }}</span><b>{{ n }}</b></div>
-        <p v-if="!Object.keys(health.chunks?.by_type || {}).length" class="muted">No chunks.</p>
+        <p v-if="!Object.keys(health.chunks?.by_type || {}).length" class="muted admin-muted">No chunks.</p>
       </div>
 
-      <div class="card">
-        <h3>Sources — trust &amp; access <span class="muted small">(trust 0–2; restrict to specific users)</span></h3>
-        <table class="tbl">
+      <div class="card admin-surface">
+        <h3 class="admin-section-title">Sources — trust &amp; access <span class="muted small admin-muted">(trust 0–2; restrict to specific users)</span></h3>
+        <div class="admin-table-scroll" ><table class="tbl admin-table">
           <thead><tr><th>source</th><th>kind</th><th>chunks</th><th>embed</th><th>trust</th><th>review</th><th>restricted</th><th>allowed users (emails)</th></tr></thead>
           <tbody>
             <tr v-for="s in (health.sources_list || [])" :key="s.kind + s.id">
@@ -166,35 +166,35 @@
                         :disabled="embedding.has(s.id)" @click="embedSource(s)">
                   {{ embedding.has(s.id) ? 'Embedding…' : 'Embed' }}
                 </button>
-                <span v-else-if="s.kind === 'web'" class="muted small">✓ embedded</span>
-                <span v-else class="muted small">—</span>
+                <span v-else-if="s.kind === 'web'" class="muted small admin-muted">✓ embedded</span>
+                <span v-else class="muted small admin-muted">—</span>
               </td>
-              <td><input class="num" type="number" step="0.1" min="0" max="2" :value="s.trust_score"
+              <td><input aria-label="Input value" class="num" type="number" step="0.1" min="0" max="2" :value="s.trust_score"
                          @change="setTrust(s, $event.target.value)" /></td>
-              <td><input type="checkbox" :checked="s.needs_review" @change="setReview(s, $event.target.checked)" /></td>
-              <td><input type="checkbox" :checked="s.restricted" @change="setRestricted(s, $event.target.checked)" /></td>
+              <td><input aria-label="Input value" type="checkbox" :checked="s.needs_review" @change="setReview(s, $event.target.checked)" /></td>
+              <td><input aria-label="Input value" type="checkbox" :checked="s.restricted" @change="setRestricted(s, $event.target.checked)" /></td>
               <td>
-                <input v-if="s.restricted" class="inp grow" :value="(s.allowed || []).join(', ')"
+                <input aria-label="Email1@x.com, email2@x.com (blank = owner+staff only)" v-if="s.restricted" class="inp grow" :value="(s.allowed || []).join(', ')"
                        placeholder="email1@x.com, email2@x.com (blank = owner+staff only)"
                        @change="setAllowed(s, $event.target.value)" />
-                <span v-else class="muted small">everyone (default)</span>
+                <span v-else class="muted small admin-muted">everyone (default)</span>
               </td>
             </tr>
-            <tr v-if="!(health.sources_list || []).length"><td class="muted" colspan="8">No sources for this scope.</td></tr>
+            <tr v-if="!(health.sources_list || []).length"><td class="muted admin-muted" colspan="8">No sources for this scope.</td></tr>
           </tbody>
-        </table>
+        </table></div>
       </div>
     </section>
 
     <!-- ───────────── Search Test ───────────── -->
     <section v-if="tab === 'search'" class="kb-panel">
       <div class="kb-row">
-        <select v-model="agentId" class="sel"><option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option></select>
-        <input v-model="stQuery" class="inp grow" placeholder="Type a question to inspect retrieval…" @keyup.enter="runSearch" />
+        <select aria-label="Agent" v-model="agentId" class="sel"><option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option></select>
+        <input aria-label="Type a question to inspect retrieval…" v-model="stQuery" class="inp grow" placeholder="Type a question to inspect retrieval…" @keyup.enter="runSearch" />
         <button class="btn primary" :disabled="stRunning || !agentId || !stQuery" @click="runSearch">Search</button>
       </div>
 
-      <div v-if="st" class="card">
+      <div v-if="st" class="card admin-surface">
         <div class="badges">
           <span class="badge" :class="'c-' + (st.confidence?.level || 'none')">confidence: {{ st.confidence?.level }} ({{ st.confidence?.score }})</span>
           <span class="badge">{{ st.count }} hits</span>
@@ -211,24 +211,24 @@
           <p class="hit-snip">{{ h.snippet }}</p>
           <button class="btn tiny" @click="prefillCorrection(h.title)">Mark wrong → add correction</button>
         </div>
-        <p v-if="!st.hits?.length" class="muted">No chunks retrieved for that query.</p>
+        <p v-if="!st.hits?.length" class="muted admin-muted">No chunks retrieved for that query.</p>
       </div>
     </section>
 
     <!-- ───────────── Corrections ───────────── -->
     <section v-if="tab === 'corrections'" class="kb-panel">
       <div class="kb-row">
-        <select v-model="agentId" class="sel"><option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option></select>
+        <select aria-label="Agent" v-model="agentId" class="sel"><option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option></select>
         <button class="btn" @click="loadCorrections">↻ Refresh</button>
       </div>
-      <div class="card">
-        <h3>Add verified answer</h3>
-        <input v-model="newCorr.question" class="inp full" placeholder="Question (e.g. what is your return policy)" />
-        <textarea v-model="newCorr.correct_answer" class="inp full" rows="3" placeholder="Correct answer the agent should give"></textarea>
+      <div class="card admin-surface">
+        <h3 class="admin-section-title">Add verified answer</h3>
+        <input aria-label="Question (e.g. what is your return policy)" v-model="newCorr.question" class="inp full" placeholder="Question (e.g. what is your return policy)" />
+        <textarea aria-label="Correct answer the agent should give" v-model="newCorr.correct_answer" class="inp full" rows="3" placeholder="Correct answer the agent should give"></textarea>
         <button class="btn primary" :disabled="!agentId || !newCorr.question" @click="addCorrection">Save correction</button>
       </div>
-      <div class="card">
-        <h3>Active corrections</h3>
+      <div class="card admin-surface">
+        <h3 class="admin-section-title">Active corrections</h3>
         <div v-for="c in corrections" :key="c.id" class="corr">
           <div class="corr-q">Q: {{ c.question }}</div>
           <div class="corr-a">A: {{ c.correct_answer }}</div>
@@ -238,32 +238,32 @@
             <button class="btn tiny danger" @click="delCorr(c)">Delete</button>
           </div>
         </div>
-        <p v-if="!corrections.length" class="muted">No corrections for this agent.</p>
+        <p v-if="!corrections.length" class="muted admin-muted">No corrections for this agent.</p>
       </div>
     </section>
 
     <!-- ───────────── Sources & Aliases ───────────── -->
     <section v-if="tab === 'sources'" class="kb-panel">
       <div class="kb-row">
-        <select v-model="agentId" class="sel"><option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option></select>
+        <select aria-label="Agent" v-model="agentId" class="sel"><option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option></select>
         <button class="btn" @click="loadAliases">↻ Refresh</button>
       </div>
-      <div class="card">
-        <h3>Synonyms / aliases</h3>
-        <p class="muted small">Expands queries so synonyms match (e.g. <em>Castor Oil → Arandi Oil</em>).</p>
+      <div class="card admin-surface">
+        <h3 class="admin-section-title">Synonyms / aliases</h3>
+        <p class="muted small admin-muted">Expands queries so synonyms match (e.g. <em>Castor Oil → Arandi Oil</em>).</p>
         <div class="kb-row">
-          <input v-model="newAlias.term" class="inp" placeholder="term (castor oil)" />
-          <input v-model="newAlias.aliasesStr" class="inp grow" placeholder="comma-separated synonyms (arandi oil, ricinus communis)" />
+          <input aria-label="Term (castor oil)" v-model="newAlias.term" class="inp" placeholder="term (castor oil)" />
+          <input aria-label="Comma-separated synonyms (arandi oil, ricinus communis)" v-model="newAlias.aliasesStr" class="inp grow" placeholder="comma-separated synonyms (arandi oil, ricinus communis)" />
           <button class="btn primary" :disabled="!agentId || !newAlias.term" @click="addAlias">Add</button>
         </div>
         <div v-for="a in aliases" :key="a.id" class="alias">
           <strong>{{ a.term }}</strong> → {{ (a.aliases || []).join(', ') }}
           <button class="btn tiny danger" @click="delAlias(a)">×</button>
         </div>
-        <p v-if="!aliases.length" class="muted">No custom aliases (built-in seed map still applies).</p>
+        <p v-if="!aliases.length" class="muted admin-muted">No custom aliases (built-in seed map still applies).</p>
       </div>
-      <div class="card">
-        <h3>Knowledge tables (Django admin)</h3>
+      <div class="card admin-surface">
+        <h3 class="admin-section-title">Knowledge tables (Django admin)</h3>
         <div class="kb-grid">
           <a v-for="t in tables" :key="t.title" :href="t.url" target="_blank" rel="noopener" class="kb-card">
             <span class="kb-ico">{{ t.icon }}</span><div class="kb-title">{{ t.title }}</div>
@@ -510,32 +510,32 @@ onMounted(async () => {
 
 <style scoped>
 .kb { padding: 28px 32px; max-width: 1200px; }
-.kb-head h1 { font-size: 24px; font-weight: 800; color: #0f172a; }
-.kb-head p { color: #64748b; margin-top: 4px; font-size: 14px; }
-.kb-tabs { display: flex; gap: 6px; margin: 20px 0; border-bottom: 1px solid #e2e8f0; }
-.kb-tab { background: none; border: none; padding: 10px 16px; font-size: 14px; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; }
+.kb-head h1 { font-size: 24px; font-weight: 800; color: var(--admin-ink, #0f172a); }
+.kb-head p { color: var(--admin-muted, #64748b); margin-top: 4px; font-size: 14px; }
+.kb-tabs { display: flex; gap: 6px; margin: 20px 0; border-bottom: 1px solid var(--admin-line, #e2e8f0); }
+.kb-tab { background: none; border: none; padding: 10px 16px; font-size: 14px; font-weight: 600; color: var(--admin-muted, #64748b); cursor: pointer; border-bottom: 2px solid transparent; }
 .kb-tab.active { color: #4f46e5; border-bottom-color: #4f46e5; }
 .kb-panel { display: flex; flex-direction: column; gap: 16px; }
 .kb-row { display: flex; align-items: center; gap: 10px; }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; }
-.stat .v { font-size: 1.6rem; font-weight: 800; color: #0f172a; }
-.stat .l { font-size: 0.8rem; color: #64748b; margin-top: 2px; }
-.card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px; }
-.card h3 { font-size: 15px; font-weight: 700; color: #0f172a; margin: 0 0 8px; }
+.stat { background: var(--admin-surface, #fff); border: 1px solid var(--admin-line, #e2e8f0); border-radius: 12px; padding: 16px; }
+.stat .v { font-size: 1.6rem; font-weight: 800; color: var(--admin-ink, #0f172a); }
+.stat .l { font-size: 0.8rem; color: var(--admin-muted, #64748b); margin-top: 2px; }
+.card { background: var(--admin-surface, #fff); border: 1px solid var(--admin-line, #e2e8f0); border-radius: 14px; padding: 18px; }
+.card h3 { font-size: 15px; font-weight: 700; color: var(--admin-ink, #0f172a); margin: 0 0 8px; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .chart { display: flex; align-items: flex-end; gap: 3px; height: 120px; padding-top: 8px; }
 .bar-wrap { flex: 1; display: flex; gap: 1px; align-items: flex-end; height: 100%; }
 .bar { flex: 1; background: linear-gradient(180deg, #6366f1, #4f46e5); border-radius: 2px 2px 0 0; min-height: 2px; }
 .bar.miss { background: #f59e0b; flex: 0.5; }
 .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-.tbl th { text-align: left; color: #64748b; font-weight: 600; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+.tbl th { text-align: left; color: var(--admin-muted, #64748b); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--admin-line, #e2e8f0); }
 .tbl td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; }
 .tbl tr.best { background: #eef2ff; font-weight: 700; }
-.tbl td.q { color: #334155; } .tbl td.n { text-align: right; font-weight: 700; color: #4f46e5; }
+.tbl td.q { color: var(--admin-ink, #334155); } .tbl td.n { text-align: right; font-weight: 700; color: #4f46e5; }
 .verdict { margin-top: 8px; font-size: 13px; font-weight: 700; }
 .verdict.ok { color: #059669; } .verdict.bad { color: #dc2626; }
-.seg button, .btn { border: 1px solid #cbd5e1; background: #fff; border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 600; color: #475569; cursor: pointer; }
+.seg button, .btn { border: 1px solid #cbd5e1; background: var(--admin-surface, #fff); border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 600; color: var(--admin-muted, #475569); cursor: pointer; }
 .seg { display: inline-flex; gap: 4px; } .seg button.active { background: rgba(79,70,229,.1); color: #4f46e5; border-color: #c7d2fe; }
 .btn.primary { background: #4f46e5; color: #fff; border-color: #4f46e5; }
 .ctx-card .ctx-head { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; }
@@ -544,37 +544,37 @@ onMounted(async () => {
 .ctx-card .ctx-text p { margin: 8px 0 0; line-height: 1.55; }
 .ctx-card .ctx-toggle { flex: none; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
 .ctx-card .ctx-toggle .btn { white-space: nowrap; }
-.ctx-card code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+.ctx-card code { background: var(--admin-soft, #f1f5f9); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
 @media (max-width: 640px) { .ctx-card .ctx-head { flex-direction: column; } .ctx-card .ctx-toggle { align-items: flex-start; } }
 .btn.tiny { padding: 3px 8px; font-size: 11px; } .btn.danger { color: #dc2626; border-color: #fecaca; }
 .btn:disabled { opacity: .5; cursor: default; }
 .sel, .inp { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; font-size: 13px; }
 .inp.grow, .grow { flex: 1; } .inp.full { width: 100%; margin-bottom: 8px; }
 .badges { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-.badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #f1f5f9; color: #475569; }
+.badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #475569); }
 .badge.warn { background: rgba(245,158,11,.16); color: #b45309; }
 .badge.c-high { background: rgba(16,185,129,.14); color: #059669; }
 .badge.c-medium { background: rgba(245,158,11,.16); color: #b45309; }
 .badge.c-low, .badge.c-none { background: rgba(239,68,68,.14); color: #dc2626; }
 .hit { border-top: 1px solid #f1f5f9; padding: 10px 0; }
 .hit-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.hit-n { font-weight: 800; color: #4f46e5; } .hit-title { font-weight: 700; color: #0f172a; }
-.hit-meta { font-size: 12px; color: #94a3b8; } .hit-url { font-size: 12px; color: #6366f1; display: block; margin: 2px 0; word-break: break-all; }
-.hit-snip { font-size: 13px; color: #475569; margin: 4px 0; line-height: 1.5; }
+.hit-n { font-weight: 800; color: #4f46e5; } .hit-title { font-weight: 700; color: var(--admin-ink, #0f172a); }
+.hit-meta { font-size: 12px; color: var(--admin-muted, #94a3b8); } .hit-url { font-size: 12px; color: #6366f1; display: block; margin: 2px 0; word-break: break-all; }
+.hit-snip { font-size: 13px; color: var(--admin-muted, #475569); margin: 4px 0; line-height: 1.5; }
 .corr { border-top: 1px solid #f1f5f9; padding: 10px 0; }
-.corr-q { font-weight: 600; color: #0f172a; font-size: 13px; } .corr-a { color: #475569; font-size: 13px; margin: 2px 0; }
+.corr-q { font-weight: 600; color: var(--admin-ink, #0f172a); font-size: 13px; } .corr-a { color: var(--admin-muted, #475569); font-size: 13px; margin: 2px 0; }
 .corr-act { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-.alias { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #334155; padding: 6px 0; border-top: 1px solid #f1f5f9; }
+.alias { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--admin-ink, #334155); padding: 6px 0; border-top: 1px solid #f1f5f9; }
 .kb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-.kb-card { display: block; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; text-decoration: none; }
+.kb-card { display: block; background: var(--admin-soft, #f8fafc); border: 1px solid var(--admin-line, #e2e8f0); border-radius: 10px; padding: 12px; text-decoration: none; }
 .kb-card:hover { border-color: #4f46e5; } .kb-ico { font-size: 20px; }
-.kb-title { font-weight: 700; color: #0f172a; font-size: 13px; margin-top: 6px; } .kb-desc { color: #64748b; font-size: 12px; margin-top: 2px; }
-.muted { color: #94a3b8; } .small { font-size: 12px; }
+.kb-title { font-weight: 700; color: var(--admin-ink, #0f172a); font-size: 13px; margin-top: 6px; } .kb-desc { color: var(--admin-muted, #64748b); font-size: 12px; margin-top: 2px; }
+.muted { color: var(--admin-muted, #94a3b8); } .small { font-size: 12px; }
 .stat.warn { border-color: #fecaca; background: #fef2f2; } .stat.warn .v { color: #dc2626; }
-.kv { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #f1f5f9; color: #475569; }
+.kv { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; border-bottom: 1px solid #f1f5f9; color: var(--admin-muted, #475569); }
 .num { width: 64px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px 6px; font-size: 12px; }
 .conf-row { border-top: 1px solid #f1f5f9; padding: 8px 0; }
-.conf-q { font-weight: 600; color: #0f172a; font-size: 13px; }
+.conf-q { font-weight: 600; color: var(--admin-ink, #0f172a); font-size: 13px; }
 .conf-detail { font-size: 13px; color: #b45309; margin-top: 2px; }
-.conf-val em { color: #94a3b8; font-style: normal; font-size: 12px; }
+.conf-val em { color: var(--admin-muted, #94a3b8); font-style: normal; font-size: 12px; }
 </style>

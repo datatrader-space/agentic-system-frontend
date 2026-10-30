@@ -1,7 +1,7 @@
 <template>
-  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif]">
+  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif] admin-subview">
     <div class="mb-4">
-      <h2 class="text-[22px] font-bold tracking-tight text-[#0F172A]">Attach Credentials from Vault</h2>
+      <h2 class="text-[22px] font-bold tracking-tight text-[#0F172A] admin-section-title">Attach Credentials from Vault</h2>
       <p class="mt-1 text-[13.5px] text-[#64748B]">Attach secure, reusable credentials from your vault. Credentials are encrypted and can be shared across agents and workspaces.</p>
     </div>
 
@@ -13,7 +13,7 @@
               <LockKeyhole :size="30" :stroke-width="2" />
             </span>
             <div class="min-w-0 flex-1">
-              <h3 class="text-[17px] font-semibold text-[#0F172A]">Credentials are Global, Secure &amp; Reusable</h3>
+              <h3 class="text-[17px] font-semibold text-[#0F172A] admin-section-title">Credentials are Global, Secure &amp; Reusable</h3>
               <div class="mt-4 grid grid-cols-1 gap-3 text-[13px] text-[#475569] md:grid-cols-2">
                 <p v-for="item in securityPoints" :key="item" class="flex items-center gap-2">
                   <Check :size="16" :stroke-width="2.5" class="text-[#2563EB]" /> {{ item }}
@@ -30,7 +30,7 @@
                 <span class="grid h-7 w-7 place-items-center rounded-lg bg-[#F8FAFC] text-[#667085] ring-1 ring-[#E5E7EB]">
                   <ShieldCheck :size="15" :stroke-width="2" />
                 </span>
-                <h3 class="text-[15px] font-semibold text-[#0F172A]">Credential Vault</h3>
+                <h3 class="text-[15px] font-semibold text-[#0F172A] admin-section-title">Credential Vault</h3>
               </div>
               <p class="mt-1.5 text-[11.5px] font-medium text-[#64748B]">
                 Select credentials to attach to this agent. Need a new credential?
@@ -39,14 +39,14 @@
                 </button>
               </p>
             </div>
-            <div class="flex shrink-0 items-center gap-3">
-              <select v-model="typeFilter" class="control w-[132px]">
+            <div class="flex shrink-0 items-center gap-3 credential-toolbar">
+              <select aria-label="Type Filter" v-model="typeFilter" class="control w-[132px]">
                 <option value="all">All Types</option>
                 <option v-for="type in typeOptions" :key="type" :value="type">{{ type }}</option>
               </select>
               <div class="relative">
                 <Search :size="14" class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#667085]" />
-                <input v-model="search" class="control w-[270px] pr-9" placeholder="Search credentials..." />
+                <input aria-label="Search" v-model="search" class="control w-[270px] pr-9" placeholder="Search credentials..." />
               </div>
             </div>
           </header>
@@ -56,7 +56,7 @@
           </div>
 
           <div v-else class="overflow-hidden rounded-xl border border-[#E5E7EB]">
-            <table class="w-full min-w-[860px] text-left">
+            <div class="admin-table-scroll" ><table class="w-full min-w-[860px] text-left admin-table">
               <thead class="bg-[#F8FAFC] text-[12px] font-semibold text-[#475569]">
                 <tr>
                   <th class="px-4 py-3">Credential</th>
@@ -113,7 +113,7 @@
                   <td colspan="6" class="px-4 py-10 text-center text-[13px] text-[#64748B]">No credentials found.</td>
                 </tr>
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <footer class="mt-4 flex flex-wrap items-center justify-between gap-3 text-[13px] text-[#64748B]">
@@ -130,7 +130,7 @@
       <aside class="rounded-xl border border-[#E5E7EB] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <div class="mb-4 flex items-center gap-3">
           <span class="grid h-10 w-10 place-items-center rounded-xl bg-violet-50 text-violet-600"><ShieldCheck :size="20" /></span>
-          <h3 class="text-[16px] font-semibold text-[#0F172A]">Understanding Permissions</h3>
+          <h3 class="text-[16px] font-semibold text-[#0F172A] admin-section-title">Understanding Permissions</h3>
         </div>
         <p class="mb-5 text-[13px] leading-6 text-[#64748B]">Control how agents and users can interact with each credential.</p>
         <div class="space-y-5">
@@ -282,15 +282,15 @@ onMounted(loadCredentials)
 </script>
 
 <style scoped>
-.control { height: 36px; border: 1px solid #D9E0EA; border-radius: 8px; background: #fff; padding: 0 12px; font-size: 12px; font-weight: 500; color: #344054; outline: none; box-shadow: 0 1px 2px rgba(16,24,40,.03); }
+.control { height: 36px; border: 1px solid var(--admin-line, #D9E0EA); border-radius: 8px; background: var(--admin-surface, #fff); padding: 0 12px; font-size: 12px; font-weight: 500; color: var(--admin-ink, #344054); outline: none; box-shadow: 0 1px 2px rgba(16,24,40,.03); }
 .control:focus { border-color: #2563EB; box-shadow: 0 0 0 3px #EAF0FF; }
-.attach-btn { border: 1px solid #9DB7F8; color: #155EEF; background: #fff; border-radius: 9px; padding: 7px 14px; font-size: 12.5px; font-weight: 650; }
+.attach-btn { border: 1px solid #9DB7F8; color: #155EEF; background: var(--admin-surface, #fff); border-radius: 9px; padding: 7px 14px; font-size: 12.5px; font-weight: 650; }
 .attach-btn:hover:not(:disabled) { background: #EFF4FF; border-color: #2563EB; }
 .attach-btn:disabled { opacity: .6; cursor: not-allowed; }
-.detach-btn { border: 1px solid #FDA29B; color: #B42318; background: #fff; border-radius: 9px; padding: 7px 12px; font-size: 12.5px; font-weight: 650; }
+.detach-btn { border: 1px solid #FDA29B; color: #B42318; background: var(--admin-surface, #fff); border-radius: 9px; padding: 7px 12px; font-size: 12.5px; font-weight: 650; }
 .detach-btn:hover:not(:disabled) { background: #FEF3F2; border-color: #F04438; }
 .detach-btn:disabled { opacity: .6; cursor: not-allowed; }
 .page-btn, .page-num { display: grid; height: 32px; min-width: 32px; place-items: center; border-radius: 8px; font-size: 12.5px; font-weight: 650; }
 .page-btn:disabled { opacity: .4; }
-.page-btn:hover:not(:disabled), .page-num:hover { background: #F1F5F9; }
+.page-btn:hover:not(:disabled), .page-num:hover { background: var(--admin-soft, #F1F5F9); }
 </style>

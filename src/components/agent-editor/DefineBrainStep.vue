@@ -1,8 +1,8 @@
 <template>
-  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif]">
+  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif] admin-subview">
     <div class="mb-4 flex items-start justify-between gap-4">
       <div>
-        <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A]">Agent Brain</h2>
+        <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A] admin-section-title">Agent Brain</h2>
         <p class="mt-0.5 text-[13.5px] text-[#64748B]">Define how your agent thinks, responds, and remembers.</p>
       </div>
       <button class="btn-outline"><ExternalLink :size="15" :stroke-width="2" /> Open in Brain</button>
@@ -15,7 +15,7 @@
             <div class="flex items-start gap-3">
               <span class="icon-box bg-violet-50 text-violet-600"><Cpu :size="18" :stroke-width="2" /></span>
               <div>
-                <h3 class="card-title">AI Model</h3>
+                <h3 class="card-title admin-section-title">AI Model</h3>
                 <p class="card-sub">Choose the model that powers this agent.</p>
               </div>
             </div>
@@ -64,7 +64,7 @@
                   <div data-test="cap-youtube_transcript_provider">
                     <label class="mb-1 block text-[11.5px] font-medium text-[#475569]">YouTube transcripts</label>
                     <p class="mb-1 text-[10.5px] leading-snug text-[#98A2B3]">How uploaded YouTube URLs are indexed. Captions first; audio fallback downloads audio and transcribes with your Audio transcription model (heavier, opt-in).</p>
-                    <select
+                    <select aria-label="Select an option"
                       :value="agent.youtube_transcript_provider || 'auto'"
                       @change="agent.youtube_transcript_provider = $event.target.value"
                       class="w-full rounded-lg border border-[#E2E8F0] px-2.5 py-2 text-[12.5px]"
@@ -139,7 +139,7 @@
             <div class="flex items-start gap-3">
               <span class="icon-box bg-blue-50 text-blue-600"><ShieldCheck :size="18" :stroke-width="2" /></span>
               <div>
-                <h3 class="card-title">Behavioral Rules</h3>
+                <h3 class="card-title admin-section-title">Behavioral Rules</h3>
                 <p class="card-sub">Set the guidelines and guardrails for agent behavior.</p>
               </div>
             </div>
@@ -154,8 +154,8 @@
           </ul>
           <div v-else class="space-y-2">
             <div v-for="(r, i) in rules" :key="i" class="flex items-center gap-2">
-              <input v-model="rules[i]" class="field flex-1" placeholder="Add a behavior rule" />
-              <button class="icon-x" @click="removeRule(i)"><X :size="15" :stroke-width="2" /></button>
+              <input aria-label="Add a behavior rule" v-model="rules[i]" class="field flex-1" placeholder="Add a behavior rule" />
+              <button aria-label="Remove item" class="icon-x" @click="removeRule(i)"><X :size="15" :stroke-width="2" /></button>
             </div>
             <button class="add-btn" @click="rules.push('')"><Plus :size="14" :stroke-width="2" /> Add rule</button>
           </div>
@@ -166,7 +166,7 @@
             <div class="flex items-start gap-3">
               <span class="icon-box bg-amber-50 text-amber-600"><Database :size="18" :stroke-width="2" /></span>
               <div>
-                <h3 class="card-title">Memory &amp; Context</h3>
+                <h3 class="card-title admin-section-title">Memory &amp; Context</h3>
                 <p class="card-sub">What this agent sees each turn and what it's allowed to remember.</p>
               </div>
             </div>
@@ -279,13 +279,13 @@
             <div class="flex items-start gap-3">
               <span class="icon-box bg-emerald-50 text-emerald-600"><FileText :size="18" :stroke-width="2" /></span>
               <div>
-                <h3 class="card-title">System Prompt</h3>
+                <h3 class="card-title admin-section-title">System Prompt</h3>
                 <p class="card-sub">Provide the agent with instructions and context for how to behave.</p>
               </div>
             </div>
             <button class="edit-btn" @click="toggle('prompt')"><Pencil :size="13" :stroke-width="2" /> {{ editing.prompt ? 'Done' : 'Edit' }}</button>
           </header>
-          <textarea v-if="editing.prompt" v-model="agent.system_prompt_template" rows="12" placeholder="You are a helpful AI assistant..." class="field min-h-[260px]" />
+          <textarea aria-label="You are a helpful AI assistant..." v-if="editing.prompt" v-model="agent.system_prompt_template" rows="12" placeholder="You are a helpful AI assistant..." class="field min-h-[260px]" />
           <div v-else class="content-box min-h-[260px]">
             <p class="whitespace-pre-wrap text-[13px] leading-6 text-[#344054]">{{ promptPreview }}</p>
             <button v-if="isLongPrompt" class="mt-4 text-[12.5px] font-semibold text-[#2563EB]" @click="showFull = !showFull">
@@ -299,7 +299,7 @@
             <div class="flex items-start gap-3">
               <span class="icon-box bg-blue-50 text-blue-600"><Activity :size="18" :stroke-width="2" /></span>
               <div>
-                <h3 class="card-title">Response Style</h3>
+                <h3 class="card-title admin-section-title">Response Style</h3>
                 <p class="card-sub">Set the tone, language, and style of agent responses.</p>
               </div>
             </div>
@@ -317,7 +317,7 @@
           </div>
           <div class="mt-4 flex flex-wrap items-center gap-2 text-[13px]">
             <span class="font-semibold text-[#344054]">Tone:</span>
-            <input v-if="editing.style" v-model="tone" class="field min-w-[260px] flex-1" placeholder="e.g., Professional and approachable" />
+            <input aria-label="E.g., Professional and approachable" v-if="editing.style" v-model="tone" class="field min-w-[260px] flex-1" placeholder="e.g., Professional and approachable" />
             <span v-else class="text-[#475569]">{{ tone || 'Professional and approachable' }}</span>
           </div>
         </section>
@@ -652,7 +652,7 @@ watch(tone, syncStyle)
 </script>
 
 <style scoped>
-.brain-card { border: 1px solid #E5E7EB; background: #fff; border-radius: 12px; padding: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
+.brain-card { border: 1px solid var(--admin-line, #E5E7EB); background: var(--admin-surface, #fff); border-radius: 12px; padding: 18px; box-shadow: 0 1px 2px rgba(16,24,40,.04); }
 .brain-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.06fr) minmax(390px, .94fr);
@@ -686,22 +686,22 @@ watch(tone, syncStyle)
 }
 .card-head { margin-bottom: 13px; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .icon-box { display: grid; height: 36px; width: 36px; flex-shrink: 0; place-items: center; border-radius: 10px; }
-.card-title { font-size: 14.5px; font-weight: 650; color: #0F172A; }
-.card-sub { font-size: 12px; color: #667085; }
-.content-box { border: 1px solid #EAECF0; border-radius: 12px; background: #F9FAFB; padding: 14px; }
-.field-label { margin-bottom: 4px; display: block; font-size: 12px; font-weight: 650; color: #344054; }
-.field { width: 100%; border: 1px solid #D0D5DD; border-radius: 10px; padding: 9px 12px; font-size: 13px; color: #0F172A; background: #fff; outline: none; transition: box-shadow .15s, border-color .15s; }
+.card-title { font-size: 14.5px; font-weight: 650; color: var(--admin-ink, #0F172A); }
+.card-sub { font-size: 12px; color: var(--admin-muted, #667085); }
+.content-box { border: 1px solid #EAECF0; border-radius: 12px; background: var(--admin-soft, #F9FAFB); padding: 14px; }
+.field-label { margin-bottom: 4px; display: block; font-size: 12px; font-weight: 650; color: var(--admin-ink, #344054); }
+.field { width: 100%; border: 1px solid var(--admin-line, #D0D5DD); border-radius: 10px; padding: 9px 12px; font-size: 13px; color: var(--admin-ink, #0F172A); background: var(--admin-surface, #fff); outline: none; transition: box-shadow .15s, border-color .15s; }
 .field:focus { border-color: #2563EB; box-shadow: 0 0 0 3px #EAF0FF; }
-.edit-btn { display: inline-flex; align-items: center; gap: 5px; border: 1px solid #E5E7EB; background: #fff; border-radius: 9px; padding: 5px 11px; font-size: 12.5px; font-weight: 600; color: #344054; cursor: pointer; white-space: nowrap; }
+.edit-btn { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--admin-line, #E5E7EB); background: var(--admin-surface, #fff); border-radius: 9px; padding: 5px 11px; font-size: 12.5px; font-weight: 600; color: var(--admin-ink, #344054); cursor: pointer; white-space: nowrap; }
 .edit-btn:hover { border-color: #2563EB; color: #2563EB; }
-.btn-outline { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #E5E7EB; background: #fff; border-radius: 10px; padding: 8px 13px; font-size: 13px; font-weight: 600; color: #344054; cursor: pointer; }
-.btn-outline:hover { border-color: #cdd5e0; color: #0F172A; }
-.icon-x { display: grid; place-items: center; height: 30px; width: 30px; border-radius: 8px; border: 1px solid #E5E7EB; background: #fff; color: #667085; cursor: pointer; }
+.btn-outline { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--admin-line, #E5E7EB); background: var(--admin-surface, #fff); border-radius: 10px; padding: 8px 13px; font-size: 13px; font-weight: 600; color: var(--admin-ink, #344054); cursor: pointer; }
+.btn-outline:hover { border-color: #cdd5e0; color: var(--admin-ink, #0F172A); }
+.icon-x { display: grid; place-items: center; height: 30px; width: 30px; border-radius: 8px; border: 1px solid var(--admin-line, #E5E7EB); background: var(--admin-surface, #fff); color: var(--admin-muted, #667085); cursor: pointer; }
 .icon-x:hover { border-color: #F04438; color: #F04438; }
 .add-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: #2563EB; background: none; border: none; cursor: pointer; padding: 4px 0; }
 .mem-group { margin-bottom: 14px; }
 .mem-group:last-child { margin-bottom: 0; }
-.mem-group-title { margin-bottom: 7px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #98A2B3; }
+.mem-group-title { margin-bottom: 7px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--admin-muted, #98A2B3); }
 .mem-collapse-trigger {
   width: 100%;
   display: flex;
@@ -710,32 +710,32 @@ watch(tone, syncStyle)
   gap: 12px;
   border: 1px solid #EAECF0;
   border-radius: 12px;
-  background: #F9FAFB;
+  background: var(--admin-soft, #F9FAFB);
   padding: 11px 13px;
   text-align: left;
   transition: border-color .15s, background .15s;
 }
-.mem-collapse-trigger:hover { border-color: #CBD5E1; background: #fff; }
+.mem-collapse-trigger:hover { border-color: #CBD5E1; background: var(--admin-surface, #fff); }
 .mem-collapse-trigger small {
   display: block;
   margin-top: 3px;
-  color: #64748B;
+  color: var(--admin-muted, #64748B);
   font-size: 12px;
   font-weight: 600;
 }
-.mem-chevron { flex: 0 0 auto; color: #64748B; transition: transform .15s; }
+.mem-chevron { flex: 0 0 auto; color: var(--admin-muted, #64748B); transition: transform .15s; }
 .mem-chevron.open { transform: rotate(180deg); color: #2563EB; }
 .mem-collapse-body { margin-top: 10px; }
 .mem-switch { position: relative; height: 22px; width: 38px; flex-shrink: 0; border-radius: 999px; border: none; cursor: pointer; transition: background .15s; padding: 0; }
 .mem-switch.on { background: #2563EB; }
 .mem-switch.off { background: #D0D5DD; }
-.mem-switch .knob { position: absolute; top: 2px; left: 2px; height: 18px; width: 18px; border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.2); transition: transform .15s; }
+.mem-switch .knob { position: absolute; top: 2px; left: 2px; height: 18px; width: 18px; border-radius: 999px; background: var(--admin-surface, #fff); box-shadow: 0 1px 2px rgba(16,24,40,.2); transition: transform .15s; }
 .mem-switch.on .knob { transform: translateX(16px); }
 .mem-switch.is-disabled { opacity: .45; cursor: not-allowed; }
 .seg-pill { display: inline-flex; flex-shrink: 0; padding: 3px; background: #F2F4F7; border-radius: 9px; }
-.seg-pill-btn { padding: 5px 14px; font-size: 12.5px; font-weight: 600; color: #667085; background: transparent; border: none; border-radius: 7px; cursor: pointer; transition: .15s; }
-.seg-pill-btn.active { background: #fff; color: #2563EB; box-shadow: 0 1px 2px rgba(16,24,40,.1); }
-.mem-pg-btn { padding: 4px 11px; font-size: 11.5px; font-weight: 600; color: #344054; background: #fff; border: 1px solid #E5E7EB; border-radius: 7px; cursor: pointer; }
+.seg-pill-btn { padding: 5px 14px; font-size: 12.5px; font-weight: 600; color: var(--admin-muted, #667085); background: transparent; border: none; border-radius: 7px; cursor: pointer; transition: .15s; }
+.seg-pill-btn.active { background: var(--admin-surface, #fff); color: #2563EB; box-shadow: 0 1px 2px rgba(16,24,40,.1); }
+.mem-pg-btn { padding: 4px 11px; font-size: 11.5px; font-weight: 600; color: var(--admin-ink, #344054); background: var(--admin-surface, #fff); border: 1px solid var(--admin-line, #E5E7EB); border-radius: 7px; cursor: pointer; }
 .mem-pg-btn:hover:not(:disabled) { border-color: #2563EB; color: #2563EB; }
 .mem-pg-btn:disabled { opacity: .45; cursor: not-allowed; }
 .dg-spin { width: 13px; height: 13px; border: 2px solid #c7d2fe; border-top-color: #4f46e5; border-radius: 50%; animation: dg-rot 0.7s linear infinite; display: inline-block; }

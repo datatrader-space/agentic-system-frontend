@@ -1,13 +1,13 @@
 <template>
-  <div class="h-full overflow-y-auto bg-[#F8FAFC] p-4 sm:p-6">
+  <div class="h-full overflow-y-auto bg-[#F8FAFC] p-4 sm:p-6 admin-page">
     <div class="mx-auto max-w-7xl space-y-5">
       <!-- header -->
       <div class="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div class="admin-page-header">
           <button class="text-[13px] font-semibold text-[#2563EB] hover:text-[#1D4ED8]" @click="goBack">
             ← Agents
           </button>
-          <h1 class="mt-1 text-[22px] font-bold tracking-tight text-[#0F172A]">
+          <h1 class="mt-1 text-[22px] font-bold tracking-tight text-[#0F172A] admin-page-title">
             {{ agentName }}
             <span class="text-[15px] font-medium text-[#94A3B8]">· Test, Publish &amp; Monitor</span>
           </h1>

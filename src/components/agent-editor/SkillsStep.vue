@@ -1,10 +1,10 @@
 <template>
   <!-- Editor Step — Skills (Phase 9). Assign installable playbooks (know-how) to this agent by writing
        skill_ids, and create a new skill inline. Mirrors the attach-card pattern: id-list + immediate PATCH. -->
-  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif]">
+  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif] admin-subview">
     <div class="mb-4 flex items-start justify-between gap-3 flex-wrap">
       <div>
-        <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A]">Skills</h2>
+        <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A] admin-section-title">Skills</h2>
         <p class="mt-0.5 text-[13.5px] text-[#64748B]">
           Give this agent reusable playbooks — expert instructions it loads on demand for a specific kind of
           task. It sees each skill's name here and pulls the full instructions when relevant.
@@ -25,7 +25,7 @@
                 :class="pasteMode ? 'rounded-md bg-indigo-600 text-white px-3 py-1' : 'text-[#667085] px-3 py-1'">Paste SKILL.md</button>
       </div>
       <div v-if="pasteMode" class="grid gap-3">
-        <textarea v-model="skillMd" rows="8" placeholder="Paste a full SKILL.md (--- YAML frontmatter --- then the playbook body)"
+        <textarea aria-label="Paste a full SKILL.md (--- YAML frontmatter --- then the playbook body)" v-model="skillMd" rows="8" placeholder="Paste a full SKILL.md (--- YAML frontmatter --- then the playbook body)"
                   class="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[13px] font-mono focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"></textarea>
         <div class="flex items-center gap-2">
           <button type="button" @click="createSkill" :disabled="creating || !skillMd.trim()"
@@ -37,11 +37,11 @@
         </div>
       </div>
       <div v-else class="grid gap-3">
-        <input v-model="draft.name" placeholder="Skill name (e.g. SEO Blog Post)"
+        <input aria-label="Skill name (e.g. SEO Blog Post)" v-model="draft.name" placeholder="Skill name (e.g. SEO Blog Post)"
                class="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[13px] focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
-        <input v-model="draft.description" placeholder="One-line summary (the agent sees this to decide relevance)"
+        <input aria-label="One-line summary (the agent sees this to decide relevance)" v-model="draft.description" placeholder="One-line summary (the agent sees this to decide relevance)"
                class="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[13px] focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
-        <textarea v-model="draft.body" rows="5" placeholder="Full instructions (the playbook body, Markdown)"
+        <textarea aria-label="Full instructions (the playbook body, Markdown)" v-model="draft.body" rows="5" placeholder="Full instructions (the playbook body, Markdown)"
                   class="rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-[13px] font-mono focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"></textarea>
         <div class="flex items-center gap-2">
           <button type="button" @click="createSkill" :disabled="creating || !draft.name.trim()"
@@ -58,7 +58,7 @@
       <div class="mb-3 flex items-center justify-between gap-3 flex-wrap">
         <div class="relative flex-1 min-w-[200px] max-w-md">
           <Search :size="15" :stroke-width="2" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#98A2B3]" />
-          <input v-model="filter" placeholder="Search your skills…"
+          <input aria-label="Search your skills…" v-model="filter" placeholder="Search your skills…"
                  class="w-full rounded-lg border border-[#E5E7EB] bg-white py-2 pl-8 pr-3 text-[13px] focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
         </div>
         <span class="text-[12px] font-semibold text-[#667085]">{{ selectedIds.length }} assigned</span>

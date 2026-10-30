@@ -1,8 +1,8 @@
 <template>
-  <div class="cx">
-    <header class="cx-head">
+  <div class="cx admin-page">
+    <header class="cx-head admin-page-header">
       <div>
-        <h1>Crawler Export API</h1>
+        <h1 class="admin-page-title">Crawler Export API</h1>
         <p>Issue bearer tokens that let a third party pull your crawled website data — one requested
            website at a time, only sources cleared for sharing.</p>
       </div>
@@ -19,13 +19,13 @@
     </div>
 
     <!-- Generate -->
-    <section class="cx-card">
+    <section class="cx-card admin-surface">
       <div class="cx-card-h">
-        <h2>Generate a token</h2>
+        <h2 class="admin-section-title">Generate a token</h2>
         <span class="cx-sub">Each token is shown in full only once — copy it immediately.</span>
       </div>
       <div class="cx-gen">
-        <input v-model="newName" class="cx-input" type="text" maxlength="120"
+        <input aria-label="Label (e.g. “Partner X integration”)" v-model="newName" class="cx-input" type="text" maxlength="120"
                placeholder="Label (e.g. “Partner X integration”)" @keyup.enter="generate" />
         <button class="cx-btn primary" :disabled="generating" @click="generate">
           {{ generating ? 'Generating…' : 'Generate token' }}
@@ -44,11 +44,11 @@
     </section>
 
     <!-- Existing keys -->
-    <section class="cx-card">
-      <div class="cx-card-h"><h2>Tokens</h2></div>
+    <section class="cx-card admin-surface">
+      <div class="cx-card-h"><h2 class="admin-section-title">Tokens</h2></div>
       <div v-if="loading" class="cx-empty">Loading…</div>
       <div v-else-if="!keys.length" class="cx-empty">No tokens yet. Generate one above.</div>
-      <table v-else class="cx-table">
+      <div class="admin-table-scroll" v-else><table  class="cx-table admin-table">
         <thead>
           <tr><th>Label</th><th>Token</th><th>Status</th><th>Requests</th><th>Last used</th><th>Created</th><th></th></tr>
         </thead>
@@ -67,13 +67,13 @@
             </td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
     </section>
 
     <!-- Integration / usage guide -->
-    <section class="cx-card">
+    <section class="cx-card admin-surface">
       <div class="cx-card-h">
-        <h2>Integration &amp; usage guide</h2>
+        <h2 class="admin-section-title">Integration &amp; usage guide</h2>
         <button class="cx-btn" @click="openDocs">📖 Open full documentation</button>
       </div>
       <div class="cx-quick">
@@ -91,10 +91,10 @@
     </section>
 
     <!-- Docs drawer -->
-    <div v-if="docsOpen" class="cx-drawer-mask" @click.self="docsOpen = false">
-      <aside class="cx-drawer">
+    <div @keydown.esc.stop.prevent="docsOpen = false" v-if="docsOpen" class="cx-drawer-mask admin-overlay" @click.self="docsOpen = false">
+      <aside role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-crawlerexportapi-10" class="cx-drawer admin-dialog">
         <header class="cx-drawer-h">
-          <h3>Crawl Export API — Integration Guide</h3>
+          <h3 id="admin-dialog-crawlerexportapi-10" class="admin-section-title">Crawl Export API — Integration Guide</h3>
           <button class="cx-btn ghost" @click="docsOpen = false">✕ Close</button>
         </header>
         <div v-if="docsLoading" class="cx-empty">Loading documentation…</div>
@@ -213,14 +213,14 @@ onMounted(load)
 <style scoped>
 .cx { padding: 32px 36px; max-width: 1100px; }
 .cx-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-.cx-head h1 { font-size: 24px; font-weight: 800; color: #0f172a; }
-.cx-head p { color: #64748b; margin-top: 6px; font-size: 14px; max-width: 680px; }
+.cx-head h1 { font-size: 24px; font-weight: 800; color: var(--admin-ink, #0f172a); }
+.cx-head p { color: var(--admin-muted, #64748b); margin-top: 6px; font-size: 14px; max-width: 680px; }
 .cx-toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700;
   padding: 7px 14px; border-radius: 999px; white-space: nowrap; cursor: pointer; border: 1px solid transparent;
   transition: all .15s; }
 .cx-toggle:disabled { opacity: .6; cursor: default; }
 .cx-toggle.on { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
-.cx-toggle.off { background: #f1f5f9; color: #64748b; border-color: #e2e8f0; }
+.cx-toggle.off { background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #64748b); border-color: var(--admin-line, #e2e8f0); }
 .cx-toggle-dot { width: 9px; height: 9px; border-radius: 999px; background: currentColor; }
 .cx-toggle.on:hover { background: #bbf7d0; }
 .cx-toggle.off:hover { background: #e2e8f0; }
@@ -229,17 +229,17 @@ onMounted(load)
   padding: 14px 16px; font-size: 13px; margin-top: 20px; line-height: 1.5; }
 .cx-note code { background: #fef3c7; padding: 1px 6px; border-radius: 5px; }
 
-.cx-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; margin-top: 20px; }
+.cx-card { background: var(--admin-surface, #fff); border: 1px solid var(--admin-line, #e2e8f0); border-radius: 14px; padding: 20px; margin-top: 20px; }
 .cx-card-h { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
-.cx-card-h h2 { font-size: 15px; font-weight: 700; color: #0f172a; }
-.cx-sub { font-size: 12px; color: #94a3b8; }
+.cx-card-h h2 { font-size: 15px; font-weight: 700; color: var(--admin-ink, #0f172a); }
+.cx-sub { font-size: 12px; color: var(--admin-muted, #94a3b8); }
 
 .cx-gen { display: flex; gap: 10px; flex-wrap: wrap; }
 .cx-input { flex: 1; min-width: 240px; border: 1px solid #cbd5e1; border-radius: 9px; padding: 9px 12px;
-  font-size: 14px; color: #0f172a; }
+  font-size: 14px; color: var(--admin-ink, #0f172a); }
 .cx-input:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
 
-.cx-btn { border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 9px;
+.cx-btn { border: 1px solid #cbd5e1; background: var(--admin-surface, #fff); color: var(--admin-ink, #334155); border-radius: 9px;
   padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
 .cx-btn:hover { border-color: #94a3b8; }
 .cx-btn.primary { background: #4f46e5; border-color: #4f46e5; color: #fff; }
@@ -247,7 +247,7 @@ onMounted(load)
 .cx-btn.primary:disabled { opacity: .6; cursor: default; }
 .cx-btn.danger { color: #dc2626; border-color: #fecaca; }
 .cx-btn.danger:hover { background: #fef2f2; }
-.cx-btn.ghost { border-color: transparent; color: #64748b; }
+.cx-btn.ghost { border-color: transparent; color: var(--admin-muted, #64748b); }
 .cx-btn.sm { padding: 5px 10px; font-size: 12px; }
 
 .cx-fresh { margin-top: 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 11px; padding: 14px; }
@@ -257,37 +257,37 @@ onMounted(load)
   font-family: ui-monospace, monospace; font-size: 13px; word-break: break-all; }
 
 .cx-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.cx-table th { text-align: left; color: #64748b; font-weight: 600; font-size: 11px; text-transform: uppercase;
-  letter-spacing: .03em; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
-.cx-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+.cx-table th { text-align: left; color: var(--admin-muted, #64748b); font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .03em; padding: 8px 10px; border-bottom: 1px solid var(--admin-line, #e2e8f0); }
+.cx-table td { padding: 10px; border-bottom: 1px solid #f1f5f9; color: var(--admin-ink, #334155); }
 .cx-table tr.revoked { opacity: .55; }
-.cx-hint { font-family: ui-monospace, monospace; color: #475569; }
+.cx-hint { font-family: ui-monospace, monospace; color: var(--admin-muted, #475569); }
 .cx-pill { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
 .cx-pill.act { background: #dcfce7; color: #15803d; }
-.cx-pill.rev { background: #f1f5f9; color: #94a3b8; }
+.cx-pill.rev { background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #94a3b8); }
 .cx-actions { text-align: right; }
-.cx-empty { color: #94a3b8; font-size: 13px; padding: 12px 4px; }
+.cx-empty { color: var(--admin-muted, #94a3b8); font-size: 13px; padding: 12px 4px; }
 
 .cx-quick { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 14px; }
-.cx-q-k { display: block; font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
-.cx-quick code { font-family: ui-monospace, monospace; font-size: 13px; color: #0f172a; background: #f1f5f9; padding: 3px 8px; border-radius: 6px; }
-.cx-steps { margin: 0 0 12px; padding-left: 20px; color: #334155; font-size: 13px; line-height: 1.9; }
-.cx-steps code { font-family: ui-monospace, monospace; font-size: 12px; background: #f1f5f9; padding: 2px 6px; border-radius: 5px; color: #0f172a; }
-.cx-mini { font-size: 12px; color: #64748b; line-height: 1.7; }
-.cx-mini code { font-family: ui-monospace, monospace; background: #f8fafc; padding: 1px 5px; border-radius: 4px; }
+.cx-q-k { display: block; font-size: 11px; color: var(--admin-muted, #94a3b8); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 4px; }
+.cx-quick code { font-family: ui-monospace, monospace; font-size: 13px; color: var(--admin-ink, #0f172a); background: var(--admin-soft, #f1f5f9); padding: 3px 8px; border-radius: 6px; }
+.cx-steps { margin: 0 0 12px; padding-left: 20px; color: var(--admin-ink, #334155); font-size: 13px; line-height: 1.9; }
+.cx-steps code { font-family: ui-monospace, monospace; font-size: 12px; background: var(--admin-soft, #f1f5f9); padding: 2px 6px; border-radius: 5px; color: var(--admin-ink, #0f172a); }
+.cx-mini { font-size: 12px; color: var(--admin-muted, #64748b); line-height: 1.7; }
+.cx-mini code { font-family: ui-monospace, monospace; background: var(--admin-soft, #f8fafc); padding: 1px 5px; border-radius: 4px; }
 
 .cx-drawer-mask { position: fixed; inset: 0; background: rgba(15,23,42,.4); z-index: 50; display: flex; justify-content: flex-end; }
-.cx-drawer { width: min(760px, 92vw); height: 100%; background: #fff; box-shadow: -8px 0 32px rgba(0,0,0,.18);
+.cx-drawer { width: min(760px, 92vw); height: 100%; background: var(--admin-surface, #fff); box-shadow: -8px 0 32px rgba(0,0,0,.18);
   display: flex; flex-direction: column; }
-.cx-drawer-h { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px; border-bottom: 1px solid #e2e8f0; }
-.cx-drawer-h h3 { font-size: 15px; font-weight: 700; color: #0f172a; }
-.cx-md { padding: 22px 26px; overflow-y: auto; font-size: 14px; color: #334155; line-height: 1.6; }
-.cx-md :deep(h1) { font-size: 22px; font-weight: 800; margin: 8px 0 12px; color: #0f172a; }
-.cx-md :deep(h2) { font-size: 17px; font-weight: 700; margin: 24px 0 10px; color: #0f172a; }
-.cx-md :deep(h3) { font-size: 14px; font-weight: 700; margin: 18px 0 8px; color: #1e293b; }
+.cx-drawer-h { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px; border-bottom: 1px solid var(--admin-line, #e2e8f0); }
+.cx-drawer-h h3 { font-size: 15px; font-weight: 700; color: var(--admin-ink, #0f172a); }
+.cx-md { padding: 22px 26px; overflow-y: auto; font-size: 14px; color: var(--admin-ink, #334155); line-height: 1.6; }
+.cx-md :deep(h1) { font-size: 22px; font-weight: 800; margin: 8px 0 12px; color: var(--admin-ink, #0f172a); }
+.cx-md :deep(h2) { font-size: 17px; font-weight: 700; margin: 24px 0 10px; color: var(--admin-ink, #0f172a); }
+.cx-md :deep(h3) { font-size: 14px; font-weight: 700; margin: 18px 0 8px; color: var(--admin-ink, #1e293b); }
 .cx-md :deep(table) { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
-.cx-md :deep(th), .cx-md :deep(td) { border: 1px solid #e2e8f0; padding: 6px 10px; text-align: left; }
-.cx-md :deep(code) { font-family: ui-monospace, monospace; font-size: 12.5px; background: #f1f5f9; padding: 1px 5px; border-radius: 4px; }
+.cx-md :deep(th), .cx-md :deep(td) { border: 1px solid var(--admin-line, #e2e8f0); padding: 6px 10px; text-align: left; }
+.cx-md :deep(code) { font-family: ui-monospace, monospace; font-size: 12.5px; background: var(--admin-soft, #f1f5f9); padding: 1px 5px; border-radius: 4px; }
 .cx-md :deep(pre) { background: #0f172a; color: #e2e8f0; padding: 14px 16px; border-radius: 10px; overflow-x: auto; }
 .cx-md :deep(pre code) { background: none; color: inherit; padding: 0; }
 .cx-md :deep(a) { color: #4f46e5; }

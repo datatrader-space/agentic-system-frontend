@@ -1,7 +1,7 @@
 <template>
-  <div class="flex flex-col rounded-2xl border border-[#E5E7EB] bg-white p-[18px] shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
+  <div class="flex flex-col rounded-2xl border border-[#E5E7EB] bg-white p-[18px] shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)] admin-subview">
     <div class="mb-1 flex items-center justify-between">
-      <h2 class="text-base font-semibold text-[#0F172A]">Recent Runs</h2>
+      <h2 class="text-base font-semibold text-[#0F172A] admin-section-title">Recent Runs</h2>
       <span class="text-[12px] text-[#64748B]">{{ runs.length }}</span>
     </div>
 

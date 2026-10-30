@@ -1,92 +1,62 @@
 <template>
-  <div class="ov">
-    <header class="ov-head">
-      <h1>Admin Dashboard</h1>
-      <p>Platform overview, analytics, knowledge data, and configuration — all admin tools in one place.</p>
-    </header>
-
-    <!-- Stat cards -->
-    <div class="ov-stats">
-      <div class="ov-stat" v-for="s in stats" :key="s.label">
-        <div class="ov-stat-ico">{{ s.icon }}</div>
-        <div>
-          <div class="ov-stat-val">{{ s.value }}</div>
-          <div class="ov-stat-label">{{ s.label }}</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Section cards -->
-    <h2 class="ov-h2">Sections</h2>
-    <div class="ov-grid">
-      <component :is="card.external ? 'a' : 'router-link'" v-for="card in sections" :key="card.title"
-                 v-bind="card.external ? { href: card.to, target: '_blank', rel: 'noopener' } : { to: card.to }"
-                 class="ov-card">
-        <div class="ov-card-ico">{{ card.icon }}</div>
-        <div class="ov-card-title">{{ card.title }} <span v-if="card.external" class="ov-ext">↗</span></div>
-        <div class="ov-card-desc">{{ card.desc }}</div>
-      </component>
-    </div>
+  <div class="ov admin-page">
+    <header class="admin-page-header"><div><div class="ov-eyebrow">PLATFORM WORKSPACE</div><h1 class="admin-page-title">Admin overview</h1><p>Platform activity and every administration tool, organized around your work.</p></div><button class="btn" type="button" :disabled="loading" @click="load"><RefreshCw :size="14" aria-hidden="true" />{{ loading ? 'Refreshing…' : 'Refresh summary' }}</button></header>
+    <div v-if="error" class="ov-alert" role="alert"><AlertCircle :size="17" aria-hidden="true" /><span>{{ data ? 'Summary refresh failed. Previously loaded figures are still shown.' : 'The platform summary could not be loaded.' }}</span><button type="button" @click="load" :disabled="loading">Try again</button></div>
+    <div class="admin-metrics ov-metrics" :aria-busy="loading"><article v-for="metric in metrics" :key="metric.label" class="admin-metric"><div class="ov-metric-label"><component :is="metric.icon" :size="16" aria-hidden="true" />{{ metric.label }}</div><strong class="admin-value">{{ metric.value }}</strong><small>{{ metric.note }}</small></article></div>
+    <div class="ov-summary-foot"><span>Cost report · Last 30 days</span><span v-if="updatedAt">Updated {{ updatedAt }}</span></div>
+    <div class="ov-directory-head"><div><h2 class="admin-section-title">Administration tools</h2><p>One workspace for platform administration.</p></div><label class="ov-search"><Search :size="15" aria-hidden="true" /><span class="admin-sr-only">Search administration tools</span><input v-model="query" type="search" placeholder="Find a tool or page…" /></label></div>
+    <div v-if="!groups.length" class="admin-surface ov-empty">No tools match “{{ query }}”. <button class="btn" type="button" @click="query = ''">Clear search</button></div>
+    <div class="ov-directory"><section v-for="group in groups" :key="group.key" class="ov-tool-group admin-surface"><header><span class="ov-group-mark"><component :is="groupIcons[group.key]" :size="17" aria-hidden="true" /></span><h3 class="admin-section-title">{{ group.label }}</h3><span class="ov-count">{{ group.items.length }}</span></header><RouterLink v-for="item in group.items" :key="item.key" :to="item.to" class="ov-tool"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path v-for="(d,i) in item.icon" :key="i" :d="d" /></svg><span><strong>{{ item.label }}</strong><small>{{ adminDescriptions[item.key] }}</small></span><ChevronRight :size="14" aria-hidden="true" /></RouterLink></section></div>
   </div>
 </template>
-
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { RefreshCw, AlertCircle, Search, ChevronRight, CircleDollarSign, Activity, Timer, Users, LayoutDashboard, Sparkles, Database, Wallet, HeartPulse } from 'lucide-vue-next'
 import api from '../../services/api'
-
-const stats = ref([
-  { icon: '💰', value: '—', label: 'Total Cost (30d)' },
-  { icon: '📊', value: '—', label: 'LLM Requests' },
-  { icon: '⚡', value: '—', label: 'Avg Latency' },
-  { icon: '👥', value: '—', label: 'Active Users' },
+import { adminItems, adminGroups, adminDescriptions } from '../../components/admin-shell/adminNavigation'
+const data = ref(null), loading = ref(false), error = ref(false), updatedAt = ref(''), query = ref('')
+const groupIcons = { workspace: LayoutDashboard, intelligence: Sparkles, data: Database, finance: Wallet, operations: HeartPulse }
+const groups = computed(() => adminGroups.map(group => ({ ...group, items: group.paths.map(key => adminItems.find(i => i.key === key)).filter(item => item && (!query.value.trim() || `${item.label} ${adminDescriptions[item.key]} ${group.label}`.toLowerCase().includes(query.value.trim().toLowerCase()))) })).filter(g => g.items.length))
+const display = (value, format) => value == null || !Number.isFinite(Number(value)) ? '—' : format(Number(value))
+const metrics = computed(() => [
+  { label: 'Provider cost', icon: CircleDollarSign, value: display(data.value?.totals?.cost_usd, n => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 8 })}`), note: 'Recorded in the platform cost report' },
+  { label: 'LLM requests', icon: Activity, value: display(data.value?.totals?.request_count, n => n.toLocaleString()), note: 'Requests in this reporting period' },
+  { label: 'Average latency', icon: Timer, value: display(data.value?.totals?.avg_latency_ms, n => `${n.toLocaleString()} ms`), note: 'Reported request latency' },
+  { label: 'Users in report', icon: Users, value: data.value?.top_users ? data.value.top_users.length.toLocaleString() : '—', note: 'Users returned by the cost report' },
 ])
-
-const djangoBase = (() => {
-  const { protocol, hostname, port } = window.location
-  return port === '5173' ? `${protocol}//${hostname}:8000` : ''
-})()
-
-const sections = [
-  { title: 'Platform & Users', to: '/admin-dashboard/platform', icon: '📈',
-    desc: 'Cost analytics, login/security stats, web traffic, and the user table.' },
-  { title: 'Knowledge & Crawl', to: '/admin-dashboard/knowledge', icon: '🌐',
-    desc: 'Crawled websites, pages, chunks, embeddings, and crawl-run history.' },
-  { title: 'Model Pricing', to: '/admin-dashboard/model-pricing', icon: '💲',
-    desc: 'Per-model token pricing used for cost metering.' },
-  { title: 'LLM Context', to: '/admin-dashboard/llm-context', icon: '🧠',
-    desc: 'Inspect how prompts/context are assembled per turn.' },
-  { title: 'Django Admin', to: `${djangoBase}/admin/`, icon: '🗄', external: true,
-    desc: 'Raw database tables (users, orgs, web sources, chunks, runs).' },
-]
-
-onMounted(async () => {
-  try {
-    const { data } = await api.get('/admin/costs/', { params: { days: 30 } })
-    stats.value = [
-      { icon: '💰', value: `$${(data.totals?.cost_usd ?? 0).toFixed(2)}`, label: 'Total Cost (30d)' },
-      { icon: '📊', value: (data.totals?.request_count ?? 0).toLocaleString(), label: 'LLM Requests' },
-      { icon: '⚡', value: `${data.totals?.avg_latency_ms ?? 0}ms`, label: 'Avg Latency' },
-      { icon: '👥', value: data.top_users?.length ?? 0, label: 'Active Users' },
-    ]
-  } catch { /* stats stay as placeholders */ }
-})
+async function load() { if (loading.value) return; loading.value = true; error.value = false; try { data.value = (await api.get('/admin/costs/', { params: { days: 30 }, noCache: true })).data; updatedAt.value = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) } catch { error.value = true } finally { loading.value = false } }
+onMounted(load)
 </script>
-
 <style scoped>
-.ov { padding: 32px 36px; max-width: 1100px; }
-.ov-head h1 { font-size: 24px; font-weight: 800; color: #0f172a; }
-.ov-head p { color: #64748b; margin-top: 6px; font-size: 14px; }
-.ov-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin: 24px 0 8px; }
-.ov-stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px; display: flex; align-items: center; gap: 14px; }
-.ov-stat-ico { font-size: 26px; }
-.ov-stat-val { font-size: 22px; font-weight: 800; color: #0f172a; }
-.ov-stat-label { font-size: 12px; color: #64748b; margin-top: 2px; }
-.ov-h2 { font-size: 14px; font-weight: 700; color: #334155; margin: 28px 0 12px; text-transform: uppercase; letter-spacing: .03em; }
-.ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-.ov-card { display: block; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 20px; text-decoration: none; transition: all .15s; }
-.ov-card:hover { border-color: #4f46e5; box-shadow: 0 4px 16px rgba(79,70,229,.1); transform: translateY(-1px); }
-.ov-card-ico { font-size: 26px; }
-.ov-card-title { font-weight: 700; color: #0f172a; margin-top: 10px; font-size: 15px; }
-.ov-ext { color: #94a3b8; font-size: 12px; }
-.ov-card-desc { color: #64748b; font-size: 13px; margin-top: 4px; line-height: 1.45; }
+.ov-eyebrow { font-size:10px; font-weight:700; letter-spacing:.1em; color:var(--admin-muted,#667085); margin-bottom:5px; }
+.ov-metrics { margin-bottom:0; }
+.ov-metrics article { display:flex; flex-direction:column; gap:10px; }
+.ov-metric-label { display:flex; align-items:center; gap:9px; font-size:11px; color:var(--admin-muted,#667085); }
+.ov-metric-label svg { color:var(--admin-accent,#4f46e5); }
+.ov-metrics small { font-size:10px; color:var(--admin-muted,#667085); }
+.ov-summary-foot { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; color:var(--admin-muted,#667085); font-size:10px; margin:10px 0 28px; }
+.ov-directory-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; margin-bottom:16px; }
+.ov-directory-head h2 { margin:0; }
+.ov-directory-head p { font-size:11px; color:var(--admin-muted,#667085); margin-top:4px; }
+.ov-search { width:280px; display:flex; align-items:center; gap:9px; padding:0 10px; color:var(--admin-muted,#667085); border:1px solid var(--admin-line,#e3e7ee); background:var(--admin-surface,#fff); border-radius:7px; }
+.ov-search input { width:100%; border:0 !important; background:transparent; height:35px; outline:0; }
+.ov-search:focus-within { outline:2px solid var(--admin-accent,#4f46e5); outline-offset:2px; }
+.ov-directory { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:start; gap:16px; }
+.ov-tool-group { overflow:hidden; }
+.ov-tool-group>header { display:flex; align-items:center; gap:10px; padding:16px; border-bottom:1px solid var(--admin-line,#e3e7ee); }
+.ov-tool-group h3 { margin:0; }
+.ov-group-mark { width:30px; height:30px; display:grid; place-items:center; border-radius:8px; color:var(--admin-accent,#4f46e5); background:var(--admin-accent-soft,#eeedff); }
+.ov-count { margin-left:auto; padding:2px 6px; background:var(--admin-soft,#f4f6fa); color:var(--admin-muted,#667085); border-radius:4px; font-size:10px; }
+.ov-tool { display:flex; align-items:center; gap:11px; padding:13px 16px; color:var(--admin-muted,#667085); text-decoration:none; border-bottom:1px solid var(--admin-line,#e3e7ee); }
+.ov-tool:last-child { border-bottom:0; }
+.ov-tool:hover { background:var(--admin-soft,#f4f6fa); }
+.ov-tool>svg { width:16px; height:16px; flex:none; }
+.ov-tool>span { min-width:0; flex:1; }
+.ov-tool strong { display:block; font-size:12px; font-weight:600; color:var(--admin-ink,#172033); }
+.ov-tool small { display:block; margin-top:3px; font-size:10px; line-height:1.6; color:var(--admin-muted,#667085); }
+.ov-alert { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:12px 14px; color:var(--admin-danger,#b42318); border:1px solid #fecdca; background:#fff4f2; border-radius:8px; margin-bottom:18px; font-size:12px; }
+.ov-alert button { margin-left:auto; text-decoration:underline; color:inherit; }
+.ov-empty { padding:28px; text-align:center; }
+@media(max-width:1200px) { .ov-directory { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:599px) { .ov-directory { grid-template-columns:1fr; } .ov-search { width:100%; } .ov-summary-foot { margin-bottom:22px; } }
 </style>

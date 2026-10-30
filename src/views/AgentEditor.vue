@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-full flex-col bg-[#F8FAFC] font-[Inter,system-ui,sans-serif]">
+  <div class="flex h-full flex-col bg-[#F8FAFC] font-[Inter,system-ui,sans-serif] admin-page admin-agent-editor">
     <div v-if="loading" class="flex h-full items-center justify-center text-sm text-[#667085]">Loading agent…</div>
 
     <!-- A failed load is NOT a new agent: no form, no steps, no Save (which used to create a duplicate) and
@@ -15,7 +15,7 @@
 
     <template v-else>
       <!-- Editor header -->
-      <header class="border-b border-[#E5E7EB] bg-white px-6 pt-3 pb-4">
+      <header class="border-b border-[#E5E7EB] bg-white px-6 pt-3 pb-4 admin-page-header">
         <div class="mb-2 flex items-center gap-1.5 text-[12.5px] text-[#667085]">
           <button class="font-medium text-[#475569] hover:text-[#2563EB]"
                   @click="go(shellBase === '/admin-dashboard' ? '/admin-dashboard/builtin-agents' : '/dashboard/agents')">Agents</button>
@@ -26,7 +26,7 @@
 
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="flex items-center gap-2.5">
-            <h1 class="truncate text-[24px] font-bold tracking-tight text-[#0F172A]">{{ agent.name || 'New Agent' }}</h1>
+            <h1 class="truncate text-[24px] font-bold tracking-tight text-[#0F172A] admin-page-title">{{ agent.name || 'New Agent' }}</h1>
             <span v-if="agent.publish_status === 'published'" class="inline-flex items-center gap-1.5 rounded-full bg-[#E6F7EE] px-2.5 py-0.5 text-[11.5px] font-semibold text-[#027A48]">
               <span class="h-1.5 w-1.5 rounded-full bg-[#12B76A]" /> Published
             </span>
@@ -66,9 +66,9 @@
       </div>
 
       <!-- Stepper (dashed connectors) -->
-      <nav class="flex items-center gap-2 overflow-x-auto border-b border-[#E5E7EB] bg-white px-6 py-4">
+      <nav ref="stepNav" class="flex items-center gap-2 overflow-x-auto border-b border-[#E5E7EB] bg-white px-6 py-4 admin-editor-steps" aria-label="Agent setup steps">
         <template v-for="(s, i) in steps" :key="s.key">
-          <button class="flex shrink-0 items-center gap-2.5 text-left" @click="openStep(s.key)">
+          <button class="flex shrink-0 items-center gap-2.5 text-left" :aria-current="s.key === step ? 'step' : undefined" @click="openStep(s.key)">
             <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-bold transition"
                   :class="s.key === step ? 'bg-[#2563EB] text-white' : (stepDone(i) ? 'bg-[#E6F7EE] text-[#12B76A]' : 'bg-white text-[#667085] ring-1 ring-[#E5E7EB]')">{{ s.n }}</span>
             <span class="leading-tight">
@@ -232,6 +232,11 @@ const stepCacheToken = ref(0)
 // One scrolling body for every step now that steps are kept alive: start each step at the top, as the
 // remount used to.
 const stepBody = ref(null)
+const stepNav = ref(null)
+watch([step, agent], async () => {
+  await nextTick()
+  stepNav.value?.querySelector('[aria-current="step"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+}, { flush: 'post' })
 watch(step, () => nextTick(() => { if (stepBody.value) stepBody.value.scrollTop = 0 }))
 // New mode needs a name to create the draft. Asked by every path that would POST — Continue AND the
 // header Save, which used to send the empty name and report only "Failed to save".
@@ -535,12 +540,12 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.btn-secondary { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #E5E7EB; background: #fff; border-radius: 10px; padding: 8px 14px; font-size: 13px; font-weight: 600; color: #344054; cursor: pointer; transition: border-color .15s, color .15s; }
-.btn-secondary:hover:not(:disabled) { border-color: #cdd5e0; color: #0F172A; }
+.btn-secondary { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--admin-line, #E5E7EB); background: var(--admin-surface, #fff); border-radius: 10px; padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--admin-ink, #344054); cursor: pointer; transition: border-color .15s, color .15s; }
+.btn-secondary:hover:not(:disabled) { border-color: #cdd5e0; color: var(--admin-ink, #0F172A); }
 .btn-secondary:disabled { opacity: .5; cursor: not-allowed; }
 .btn-primary { display: inline-flex; align-items: center; gap: 7px; border: none; background: #2563EB; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; color: #fff; cursor: pointer; box-shadow: 0 1px 2px rgba(37,99,235,.25); transition: background .15s; }
 .btn-primary:hover:not(:disabled) { background: #1D4ED8; }
 .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
-.btn-icon { display: grid; place-items: center; height: 36px; width: 36px; border: 1px solid #E5E7EB; background: #fff; border-radius: 10px; color: #475569; cursor: pointer; }
-.btn-icon:hover { border-color: #cdd5e0; color: #0F172A; }
+.btn-icon { display: grid; place-items: center; height: 36px; width: 36px; border: 1px solid var(--admin-line, #E5E7EB); background: var(--admin-surface, #fff); border-radius: 10px; color: var(--admin-muted, #475569); cursor: pointer; }
+.btn-icon:hover { border-color: #cdd5e0; color: var(--admin-ink, #0F172A); }
 </style>

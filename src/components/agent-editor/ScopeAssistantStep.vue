@@ -1,9 +1,9 @@
 <template>
   <!-- Staff-only step: grounding policy + convert to a system built-in + assign as the AI Assistant.
        Only rendered for is_staff users (AgentEditor gates it). Backend re-checks staff on every field. -->
-  <div class="mx-auto w-full max-w-[900px] px-6 pb-8 font-[Inter,system-ui,sans-serif]">
+  <div class="mx-auto w-full max-w-[900px] px-6 pb-8 font-[Inter,system-ui,sans-serif] admin-subview">
     <div class="mb-4">
-      <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A]">Scope &amp; Assistant</h2>
+      <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A] admin-section-title">Scope &amp; Assistant</h2>
       <p class="mt-0.5 text-[13.5px] text-[#64748B]">Staff-only controls: how strictly the agent must ground its answers, whether it becomes a system built-in, and whether it powers the product AI Assistant widget.</p>
     </div>
 
@@ -14,7 +14,7 @@
     <template v-else>
       <!-- Grounding policy -->
       <section class="mb-4 rounded-xl border border-[#E5E7EB] bg-white p-4">
-        <h3 class="text-base font-semibold text-[#0F172A]">Answer grounding</h3>
+        <h3 class="text-base font-semibold text-[#0F172A] admin-section-title">Answer grounding</h3>
         <p class="mb-3 text-[13px] text-[#64748B]">Controls the answer verifier's strictness.</p>
         <label v-for="o in POLICIES" :key="o.value" class="mb-2 flex cursor-pointer items-start gap-3 rounded-xl border p-3"
                :class="agent.answer_policy === o.value || (!agent.answer_policy && o.value === 'open') ? 'border-[#2563EB] bg-[#F5F8FF]' : 'border-[#E5E7EB]'">
@@ -26,7 +26,7 @@
 
       <!-- Scope -->
       <section class="mb-4 rounded-xl border border-[#E5E7EB] bg-white p-4">
-        <h3 class="text-base font-semibold text-[#0F172A]">Scope</h3>
+        <h3 class="text-base font-semibold text-[#0F172A] admin-section-title">Scope</h3>
         <p class="mb-3 text-[13px] text-[#64748B]">Who this agent belongs to. Anything other than <strong>Personal</strong> makes it a system-owned built-in (run-only, never shown in users' agent lists).</p>
         <label v-for="o in SCOPES" :key="o.value" class="mb-2 flex cursor-pointer items-start gap-3 rounded-xl border p-3"
                :class="scope === o.value ? 'border-[#2563EB] bg-[#F5F8FF]' : 'border-[#E5E7EB]'">
@@ -54,7 +54,7 @@
 
       <!-- AI Assistant slot -->
       <section class="mb-4 rounded-xl border border-[#E5E7EB] bg-white p-4">
-        <h3 class="text-base font-semibold text-[#0F172A]">AI Assistant</h3>
+        <h3 class="text-base font-semibold text-[#0F172A] admin-section-title">AI Assistant</h3>
         <p class="mb-3 text-[13px] text-[#64748B]">
           <span v-if="agent.is_assistant" class="font-semibold text-[#7C3AED]">This agent currently powers the AI Assistant widget.</span>
           <span v-else>Assign this agent to the product-wide AI Assistant widget.</span>
@@ -154,10 +154,10 @@ async function apply() {
 </script>
 
 <style scoped>
-.field { width: 100%; border: 1px solid #D0D5DD; border-radius: 9px; padding: 9px 11px; font-size: 13px; color: #0F172A; background: #fff; outline: none; }
+.field { width: 100%; border: 1px solid var(--admin-line, #D0D5DD); border-radius: 9px; padding: 9px 11px; font-size: 13px; color: var(--admin-ink, #0F172A); background: var(--admin-surface, #fff); outline: none; }
 .field:focus { border-color: #2563EB; box-shadow: 0 0 0 3px #EAF0FF; }
 .btn-primary { display: inline-flex; align-items: center; gap: 7px; border: 0; border-radius: 10px; background: #2563EB; padding: 9px 16px; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; }
 .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
-.btn-outline { border: 1px solid #E5E7EB; border-radius: 10px; background: #fff; padding: 9px 14px; font-size: 13px; font-weight: 600; color: #344054; cursor: pointer; }
+.btn-outline { border: 1px solid var(--admin-line, #E5E7EB); border-radius: 10px; background: var(--admin-surface, #fff); padding: 9px 14px; font-size: 13px; font-weight: 600; color: var(--admin-ink, #344054); cursor: pointer; }
 .btn-outline:disabled { opacity: .5; }
 </style>

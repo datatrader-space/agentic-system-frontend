@@ -1,8 +1,8 @@
 <template>
-  <div class="cg">
-    <header class="cg-head">
+  <div class="cg admin-page">
+    <header class="cg-head admin-page-header">
       <div>
-        <h1>Capability Graph</h1>
+        <h1 class="admin-page-title">Capability Graph</h1>
         <p>The platform's canonical capability vocabulary — one node per capability, aliases folding legacy
           names onto it, and typed edges making relationships queryable. Lifecycle is governed
           (draft → review → active → deprecated → retired); the <strong>backend enforces legality</strong> —
@@ -11,7 +11,7 @@
     </header>
 
     <!-- Governance strip: the graph's health vs the runtime's real tool surface -->
-    <section class="gov card">
+    <section class="gov card admin-surface">
       <div v-if="!gov" class="gov-loading">Loading governance…</div>
       <template v-else>
         <span class="gov-chip" :class="gov.unresolved_tool_names.count ? 'warn' : 'ok'"
@@ -34,14 +34,14 @@
       </template>
     </section>
 
-    <div class="cols">
+    <div class="cols admin-responsive-grid">
       <!-- Left: searchable node list -->
-      <section class="card list-col">
-        <div class="toolbar">
+      <section class="card list-col admin-surface">
+        <div class="toolbar admin-toolbar">
           <Icon icon="lucide:search" class="tb-ico" />
-          <input v-model="q" class="search" placeholder="Search slug, name or tool…" />
+          <input aria-label="Search" v-model="q" class="search" placeholder="Search slug, name or tool…" />
         </div>
-        <div class="tabs">
+        <div class="tabs admin-tabs">
           <button v-for="t in tabs" :key="t" class="tab" :class="{ on: tab === t }" @click="tab = t">
             {{ t }} <em>{{ counts[t] || 0 }}</em>
           </button>
@@ -54,13 +54,13 @@
                   @click="select(n)">
             <span class="row-main">
               <strong>{{ n.slug }}</strong>
-              <span class="sub">{{ n.name }}</span>
+              <span class="sub admin-muted">{{ n.name }}</span>
             </span>
             <span class="lc" :class="n.lifecycle">{{ n.lifecycle }}</span>
           </button>
         </div>
         <!-- Server-side paging: one page of 50 per request instead of walking the whole graph on mount. -->
-        <div v-if="!loading && !error && totalPages > 1" class="pager">
+        <div v-if="!loading && !error && totalPages > 1" class="pager admin-pagination">
           <button class="pg-btn" :disabled="page <= 1" aria-label="Previous page" @click="goPage(page - 1)">
             <Icon icon="lucide:chevron-left" />
           </button>
@@ -72,7 +72,7 @@
       </section>
 
       <!-- Right: selected node detail -->
-      <section class="card detail-col">
+      <section class="card detail-col admin-surface">
         <div v-if="!selected" class="state">
           <Icon icon="lucide:mouse-pointer-click" class="state-ico" />
           Select a capability to curate its lifecycle, aliases and edges.
@@ -80,7 +80,7 @@
         <template v-else>
           <div class="d-head">
             <div>
-              <h2>{{ selected.name }}</h2>
+              <h2 class="admin-section-title">{{ selected.name }}</h2>
               <code class="slug">{{ selected.slug }}</code>
             </div>
             <span class="lc big" :class="selected.lifecycle">{{ selected.lifecycle }}</span>
@@ -95,26 +95,26 @@
               <Icon icon="lucide:shapes" /> abstract
             </span>
             <span v-if="selected.category" class="meta-chip"><Icon icon="lucide:folder" /> {{ selected.category }}</span>
-            <span class="meta-chip muted"><Icon icon="lucide:clock" /> updated {{ shortDate(selected.updated_at) }}</span>
+            <span class="meta-chip muted admin-muted"><Icon icon="lucide:clock" /> updated {{ shortDate(selected.updated_at) }}</span>
           </div>
 
           <!-- Lifecycle: the backend is the source of legality — every other state is offered, an
                illegal hop returns its exact reason and we surface it verbatim. -->
           <div class="d-block">
-            <h3>Lifecycle</h3>
+            <h3 class="admin-section-title">Lifecycle</h3>
             <div class="tr-row">
               <button v-for="s in otherLifecycles" :key="s" class="btn ghost sm" :disabled="transitioning"
                       @click="transitionTo(s)">
                 <Icon icon="lucide:arrow-right" /> {{ s }}
               </button>
             </div>
-            <p class="hint">Moves POST <code>transition</code> — illegal transitions are rejected by the backend
+            <p class="hint admin-muted">Moves POST <code>transition</code> — illegal transitions are rejected by the backend
               and the reason shown here.</p>
           </div>
 
           <!-- Aliases -->
           <div class="d-block">
-            <h3>Aliases <em>{{ selected.aliases.length }}</em></h3>
+            <h3 class="admin-section-title">Aliases <em>{{ selected.aliases.length }}</em></h3>
             <div class="chips">
               <span v-for="a in selected.aliases" :key="a.id" class="chip">
                 {{ a.alias }}
@@ -123,7 +123,7 @@
               <span v-if="!selected.aliases.length" class="none">No aliases — legacy names resolve here once added.</span>
             </div>
             <div class="add-row">
-              <input v-model="newAlias" placeholder="Add alias (legacy tool id, old slug…)"
+              <input aria-label="Add alias (legacy tool id, old slug…)" v-model="newAlias" placeholder="Add alias (legacy tool id, old slug…)"
                      @keyup.enter="addAlias" />
               <button class="btn primary sm" :disabled="!newAlias.trim()" @click="addAlias">
                 <Icon icon="lucide:plus" /> Add
@@ -133,7 +133,7 @@
 
           <!-- Outgoing edges -->
           <div class="d-block">
-            <h3>Outgoing edges <em>{{ selected.edges_out.length }}</em></h3>
+            <h3 class="admin-section-title">Outgoing edges <em>{{ selected.edges_out.length }}</em></h3>
             <div class="edges">
               <div v-for="e in selected.edges_out" :key="e.id" class="edge">
                 <span class="rel">{{ e.relation }}</span>
@@ -144,11 +144,11 @@
               <span v-if="!selected.edges_out.length" class="none">No outgoing edges.</span>
             </div>
             <div class="add-row">
-              <select v-model="edgeRelation">
+              <select aria-label="Edge Relation" v-model="edgeRelation">
                 <option v-for="r in RELATIONS" :key="r" :value="r">{{ r }}</option>
               </select>
               <div class="dst-pick">
-                <input v-model="edgeQuery" placeholder="Search destination node…"
+                <input aria-label="Search destination node…" v-model="edgeQuery" placeholder="Search destination node…"
                        @input="edgeDst = null; onEdgeQueryInput()" />
                 <div v-if="edgeQuery && !edgeDst && dstMatches.length" class="dst-menu">
                   <button v-for="m in dstMatches" :key="m.id" @click="pickDst(m)">
@@ -412,26 +412,26 @@ onMounted(loadAll)
 .cg { padding: 28px 32px 60px; }
 .cg-head { margin-bottom: 16px; }
 .cg-head h1 { margin: 0; font-size: 22px; font-weight: 800; }
-.cg-head p { margin: 6px 0 0; color: #64748b; font-size: 13px; max-width: 760px; line-height: 1.5; }
+.cg-head p { margin: 6px 0 0; color: var(--admin-muted, #64748b); font-size: 13px; max-width: 760px; line-height: 1.5; }
 
-.card { background: #fff; border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+.card { background: var(--admin-surface, #fff); border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
 
 /* Governance strip */
 .gov { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 16px; margin-bottom: 16px; }
-.gov-loading { color: #94a3b8; font-size: 12.5px; }
+.gov-loading { color: var(--admin-muted, #94a3b8); font-size: 12.5px; }
 .gov-chip { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; padding: 5px 10px; font-size: 12px; font-weight: 800; }
 .gov-chip svg { width: 14px; height: 14px; }
 .gov-chip.ok { background: #dcfce7; color: #16a34a; }
 .gov-chip.warn { background: #fef3c7; color: #b45309; }
 .gov-sep { width: 1px; height: 20px; background: #e5ebf3; }
-.gov-count { display: inline-flex; align-items: center; gap: 5px; color: #64748b; font-size: 11.5px; font-weight: 700; text-transform: capitalize; }
+.gov-count { display: inline-flex; align-items: center; gap: 5px; color: var(--admin-muted, #64748b); font-size: 11.5px; font-weight: 700; text-transform: capitalize; }
 .lc-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .gov-spacer { flex: 1; }
 
 /* Buttons (AdminBuiltinAgents tokens) */
 .btn { display: inline-flex; align-items: center; gap: 7px; height: 38px; border-radius: 9px; padding: 0 15px; font-size: 13px; font-weight: 700; border: 1px solid transparent; cursor: pointer; }
 .btn.primary { background: #4f46e5; color: #fff; }
-.btn.ghost { background: #fff; border-color: #d8e2f0; color: #334155; }
+.btn.ghost { background: var(--admin-surface, #fff); border-color: var(--admin-line, #d8e2f0); color: var(--admin-ink, #334155); }
 .btn.sm { height: 32px; padding: 0 11px; font-size: 12px; }
 .btn:disabled { opacity: .6; cursor: default; }
 .btn svg { width: 15px; height: 15px; }
@@ -443,34 +443,34 @@ onMounted(loadAll)
 
 /* Left list */
 .list-col { overflow: hidden; }
-.toolbar { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid #eef2f7; }
-.tb-ico { width: 15px; height: 15px; color: #94a3b8; flex-shrink: 0; }
-.search { flex: 1; border: 0; outline: none; font-size: 13px; color: #0f172a; background: transparent; }
-.tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 12px; border-bottom: 1px solid #eef2f7; background: #f8fafc; }
-.tab { border: 0; background: transparent; border-radius: 7px; padding: 4px 9px; font-size: 11px; font-weight: 800; color: #64748b; cursor: pointer; text-transform: capitalize; }
+.toolbar { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--admin-line, #eef2f7); }
+.tb-ico { width: 15px; height: 15px; color: var(--admin-muted, #94a3b8); flex-shrink: 0; }
+.search { flex: 1; border: 0; outline: none; font-size: 13px; color: var(--admin-ink, #0f172a); background: transparent; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--admin-line, #eef2f7); background: var(--admin-soft, #f8fafc); }
+.tab { border: 0; background: transparent; border-radius: 7px; padding: 4px 9px; font-size: 11px; font-weight: 800; color: var(--admin-muted, #64748b); cursor: pointer; text-transform: capitalize; }
 .tab em { font-style: normal; opacity: .65; margin-left: 2px; }
 .tab.on { background: #4f46e5; color: #fff; }
 .rows { max-height: 62vh; overflow-y: auto; }
 /* Pager for the server-paged node list. */
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 10px;
   padding: 9px 12px; border-top: 1px solid #f1f5f9; }
-.pg-info { color: #64748b; font-size: 11.5px; font-variant-numeric: tabular-nums; }
-.pg-btn { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid #e2e8f0;
-  border-radius: 8px; background: #fff; color: #475569; cursor: pointer; }
-.pg-btn:hover:not(:disabled) { background: #f8fafc; color: #1e293b; }
+.pg-info { color: var(--admin-muted, #64748b); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.pg-btn { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid var(--admin-line, #e2e8f0);
+  border-radius: 8px; background: var(--admin-surface, #fff); color: var(--admin-muted, #475569); cursor: pointer; }
+.pg-btn:hover:not(:disabled) { background: var(--admin-soft, #f8fafc); color: var(--admin-ink, #1e293b); }
 .pg-btn:disabled { opacity: .45; cursor: default; }
 .pg-btn svg { width: 15px; height: 15px; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent; padding: 11px 14px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
-.row:hover { background: #f8fafc; }
+.row:hover { background: var(--admin-soft, #f8fafc); }
 .row.sel { background: #eef2ff; }
 .row-main { min-width: 0; }
-.row-main strong { display: block; font-size: 12.5px; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row .sub { display: block; color: #94a3b8; font-size: 11px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-main strong { display: block; font-size: 12.5px; color: var(--admin-ink, #0f172a); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .sub { display: block; color: var(--admin-muted, #94a3b8); font-size: 11px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Lifecycle chips — one palette for chips, dots and badges */
 .lc { border-radius: 6px; padding: 3px 8px; font-size: 10px; font-weight: 850; text-transform: uppercase; letter-spacing: .03em; flex-shrink: 0; }
 .lc.big { font-size: 11px; padding: 4px 10px; }
-.lc.draft, .lc-dot.draft { background: #f1f5f9; color: #64748b; }
+.lc.draft, .lc-dot.draft { background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #64748b); }
 .lc.review, .lc-dot.review { background: #fef3c7; color: #b45309; }
 .lc.active, .lc-dot.active { background: #dcfce7; color: #16a34a; }
 .lc.deprecated, .lc-dot.deprecated { background: #ffedd5; color: #c2410c; }
@@ -480,51 +480,51 @@ onMounted(loadAll)
 
 /* Right detail */
 .detail-col { padding: 20px 22px; min-height: 320px; }
-.state { padding: 44px 20px; text-align: center; color: #64748b; font-size: 13px; }
+.state { padding: 44px 20px; text-align: center; color: var(--admin-muted, #64748b); font-size: 13px; }
 .state.err { color: #b45309; }
-.state-ico { display: block; width: 22px; height: 22px; margin: 0 auto 8px; color: #94a3b8; }
+.state-ico { display: block; width: 22px; height: 22px; margin: 0 auto 8px; color: var(--admin-muted, #94a3b8); }
 .d-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .d-head h2 { margin: 0; font-size: 18px; font-weight: 800; }
-.slug { font-size: 11.5px; color: #64748b; background: #f1f5f9; border-radius: 6px; padding: 2px 7px; }
-.d-desc { margin: 10px 0 0; color: #475569; font-size: 13px; line-height: 1.55; }
+.slug { font-size: 11.5px; color: var(--admin-muted, #64748b); background: var(--admin-soft, #f1f5f9); border-radius: 6px; padding: 2px 7px; }
+.d-desc { margin: 10px 0 0; color: var(--admin-muted, #475569); font-size: 13px; line-height: 1.55; }
 .d-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.meta-chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid #e5ebf3; border-radius: 7px; padding: 4px 9px; font-size: 11.5px; font-weight: 700; color: #475569; background: #f8fafc; }
+.meta-chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid #e5ebf3; border-radius: 7px; padding: 4px 9px; font-size: 11.5px; font-weight: 700; color: var(--admin-muted, #475569); background: var(--admin-soft, #f8fafc); }
 .meta-chip svg { width: 13px; height: 13px; }
 .meta-chip.abstract { color: #7c3aed; background: #f5f3ff; border-color: #ede9fe; }
-.meta-chip.muted { color: #94a3b8; font-weight: 600; }
+.meta-chip.muted { color: var(--admin-muted, #94a3b8); font-weight: 600; }
 
 .d-block { margin-top: 22px; padding-top: 16px; border-top: 1px solid #f1f5f9; }
-.d-block h3 { margin: 0 0 10px; font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
-.d-block h3 em { font-style: normal; font-weight: 700; color: #94a3b8; margin-left: 4px; }
+.d-block h3 { margin: 0 0 10px; font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; color: var(--admin-muted, #64748b); }
+.d-block h3 em { font-style: normal; font-weight: 700; color: var(--admin-muted, #94a3b8); margin-left: 4px; }
 .tr-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.hint { margin: 9px 0 0; color: #94a3b8; font-size: 11.5px; }
-.hint code { background: #f1f5f9; border-radius: 4px; padding: 1px 4px; }
+.hint { margin: 9px 0 0; color: var(--admin-muted, #94a3b8); font-size: 11.5px; }
+.hint code { background: var(--admin-soft, #f1f5f9); border-radius: 4px; padding: 1px 4px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 7px; }
 .chip { display: inline-flex; align-items: center; gap: 5px; background: #eef2ff; color: #4338ca; border-radius: 7px; padding: 4px 6px 4px 10px; font-size: 12px; font-weight: 700; }
 .chip-x { display: inline-grid; place-items: center; width: 18px; height: 18px; border: 0; border-radius: 5px; background: transparent; color: inherit; cursor: pointer; opacity: .6; }
 .chip-x:hover { opacity: 1; background: rgba(15,23,42,.08); }
 .chip-x svg { width: 11px; height: 11px; }
-.none { color: #94a3b8; font-size: 12px; }
+.none { color: var(--admin-muted, #94a3b8); font-size: 12px; }
 
 .add-row { display: flex; align-items: center; gap: 8px; margin-top: 11px; flex-wrap: wrap; }
-.add-row input, .add-row select { height: 34px; border: 1px solid #d8e2f0; border-radius: 8px; padding: 0 10px; font-size: 12.5px; color: #0f172a; background: #fff; }
+.add-row input, .add-row select { height: 34px; border: 1px solid var(--admin-line, #d8e2f0); border-radius: 8px; padding: 0 10px; font-size: 12.5px; color: var(--admin-ink, #0f172a); background: var(--admin-surface, #fff); }
 .add-row input:focus, .add-row select:focus { outline: none; border-color: #4f46e5; }
 .add-row input { min-width: 220px; flex: 1; }
 
 .edges { display: grid; gap: 6px; }
-.edge { display: flex; align-items: center; gap: 8px; border: 1px solid #eef2f7; border-radius: 8px; padding: 6px 10px; font-size: 12.5px; }
-.edge .rel { font-weight: 800; color: #0f172a; background: #f1f5f9; border-radius: 5px; padding: 2px 7px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; }
-.edge-arrow { width: 13px; height: 13px; color: #94a3b8; }
-.edge .chip-x { margin-left: auto; color: #64748b; }
+.edge { display: flex; align-items: center; gap: 8px; border: 1px solid var(--admin-line, #eef2f7); border-radius: 8px; padding: 6px 10px; font-size: 12.5px; }
+.edge .rel { font-weight: 800; color: var(--admin-ink, #0f172a); background: var(--admin-soft, #f1f5f9); border-radius: 5px; padding: 2px 7px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .03em; }
+.edge-arrow { width: 13px; height: 13px; color: var(--admin-muted, #94a3b8); }
+.edge .chip-x { margin-left: auto; color: var(--admin-muted, #64748b); }
 
 .dst-pick { position: relative; flex: 1; min-width: 220px; }
 .dst-pick input { width: 100%; }
-.dst-menu { position: absolute; top: 38px; left: 0; right: 0; z-index: 20; background: #fff; border: 1px solid #e5ebf3; border-radius: 10px; box-shadow: 0 8px 24px rgba(15,23,42,.12); overflow: hidden; }
+.dst-menu { position: absolute; top: 38px; left: 0; right: 0; z-index: 20; background: var(--admin-surface, #fff); border: 1px solid #e5ebf3; border-radius: 10px; box-shadow: 0 8px 24px rgba(15,23,42,.12); overflow: hidden; }
 .dst-menu button { display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left; border: 0; background: transparent; padding: 8px 12px; font-size: 12.5px; cursor: pointer; }
-.dst-menu button:hover { background: #f8fafc; }
-.dst-menu strong { color: #0f172a; }
-.dst-menu span { color: #94a3b8; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dst-menu button:hover { background: var(--admin-soft, #f8fafc); }
+.dst-menu strong { color: var(--admin-ink, #0f172a); }
+.dst-menu span { color: var(--admin-muted, #94a3b8); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 960px) { .cols { grid-template-columns: 1fr; } .rows { max-height: 40vh; } }
 @media (max-width: 680px) { .cg { padding: 20px 16px; } }

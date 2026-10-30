@@ -1,8 +1,8 @@
 <template>
-  <div class="ap">
+  <div class="ap admin-subview">
     <div class="ap-head">
-      <h2>Website Traffic <span class="badge">Last {{ days }} days</span></h2>
-      <div class="range">
+      <h2 class="admin-section-title">Website Traffic <span class="badge">Last {{ days }} days</span></h2>
+      <div class="range admin-tabs">
         <button v-for="d in [7, 30, 90]" :key="d" :class="{ active: days === d }" @click="setDays(d)">{{ d }}d</button>
       </div>
     </div>
@@ -12,15 +12,15 @@
     <template v-else>
       <!-- Overview cards -->
       <div class="cards">
-        <div class="card"><div class="v">{{ num(ov.visitors) }}</div><div class="l">Visitors</div></div>
-        <div class="card"><div class="v">{{ num(ov.pageviews) }}</div><div class="l">Pageviews</div></div>
-        <div class="card"><div class="v">{{ ov.pages_per_visit || 0 }}</div><div class="l">Pages / visit</div></div>
-        <div class="card"><div class="v">{{ num(ov.new_visitors) }}</div><div class="l">New visitors</div></div>
+        <div class="card admin-surface"><div class="v">{{ num(ov.visitors) }}</div><div class="l">Visitors</div></div>
+        <div class="card admin-surface"><div class="v">{{ num(ov.pageviews) }}</div><div class="l">Pageviews</div></div>
+        <div class="card admin-surface"><div class="v">{{ ov.pages_per_visit || 0 }}</div><div class="l">Pages / visit</div></div>
+        <div class="card admin-surface"><div class="v">{{ num(ov.new_visitors) }}</div><div class="l">New visitors</div></div>
       </div>
 
       <!-- Timeseries (CSS bars) -->
       <div class="block">
-        <h3>Pageviews per day</h3>
+        <h3 class="admin-section-title">Pageviews per day</h3>
         <div class="chart">
           <div v-for="(p, i) in ov.timeseries" :key="i" class="bar-wrap" :title="`${p.date}: ${p.pageviews} views`">
             <div class="bar" :style="{ height: barH(p.pageviews) + '%' }"></div>
@@ -31,19 +31,19 @@
       <div class="two-col">
         <!-- Top pages -->
         <div class="block">
-          <h3>Top pages</h3>
-          <table class="tbl">
+          <h3 class="admin-section-title">Top pages</h3>
+          <div class="admin-table-scroll" ><table class="tbl admin-table">
             <thead><tr><th>Path</th><th>Views</th><th>Uniques</th></tr></thead>
             <tbody>
               <tr v-for="p in pages" :key="p.path"><td class="path">{{ p.path }}</td><td>{{ p.views }}</td><td>{{ p.uniques }}</td></tr>
               <tr v-if="!pages.length"><td colspan="3" class="empty">No data yet</td></tr>
             </tbody>
-          </table>
+          </table></div>
         </div>
 
         <!-- Sources -->
         <div class="block">
-          <h3>Top sources</h3>
+          <h3 class="admin-section-title">Top sources</h3>
           <div class="rows">
             <div v-for="s in sources.referrers" :key="s.source" class="kv"><span>{{ s.source }}</span><span class="n">{{ s.count }}</span></div>
             <div v-if="!sources.referrers?.length" class="empty">No data yet</div>
@@ -54,16 +54,16 @@
       <div class="two-col">
         <!-- Tech -->
         <div class="block">
-          <h3>Devices &amp; browsers</h3>
+          <h3 class="admin-section-title">Devices &amp; browsers</h3>
           <div class="rows">
             <div v-for="d in tech.devices" :key="'d'+d.device" class="kv"><span>{{ d.device }}</span><span class="n">{{ d.count }}</span></div>
-            <div v-for="b in tech.browsers" :key="'b'+b.browser" class="kv sub"><span>{{ b.browser }}</span><span class="n">{{ b.count }}</span></div>
+            <div v-for="b in tech.browsers" :key="'b'+b.browser" class="kv sub admin-muted"><span>{{ b.browser }}</span><span class="n">{{ b.count }}</span></div>
           </div>
         </div>
 
         <!-- Funnel -->
         <div class="block">
-          <h3>Signup &amp; upgrade funnel</h3>
+          <h3 class="admin-section-title">Signup &amp; upgrade funnel</h3>
           <div class="funnel">
             <div v-for="f in funnel" :key="f.step" class="fstep">
               <div class="fbar" :style="{ width: funnelW(f.count) + '%' }"></div>
@@ -75,8 +75,8 @@
 
       <!-- Visitors -->
       <div class="block">
-        <h3>Recent visitors</h3>
-        <table class="tbl">
+        <h3 class="admin-section-title">Recent visitors</h3>
+        <div class="admin-table-scroll" ><table class="tbl admin-table">
           <thead><tr><th>Visitor</th><th>User</th><th>Source</th><th>Device</th><th>Pages</th><th>Last seen</th></tr></thead>
           <tbody>
             <tr v-for="v in visitors" :key="v.visitor_id" class="vrow" @click="openVisitor(v.visitor_id)">
@@ -89,15 +89,15 @@
             </tr>
             <tr v-if="!visitors.length"><td colspan="6" class="empty">No visitors yet</td></tr>
           </tbody>
-        </table>
+        </table></div>
       </div>
     </template>
 
     <!-- Visitor detail drawer -->
     <div v-if="detail" class="drawer-overlay" @click.self="detail = null">
-      <div class="drawer">
+      <div role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-analyticspanel-12" class="drawer admin-dialog">
         <div class="drawer-head">
-          <h3>Visitor {{ detail.visitor.visitor_id.slice(0, 12) }}…</h3>
+          <h3 id="admin-dialog-analyticspanel-12" class="admin-section-title">Visitor {{ detail.visitor.visitor_id.slice(0, 12) }}…</h3>
           <button class="x" @click="detail = null">✕</button>
         </div>
         <div class="meta">
@@ -217,7 +217,7 @@ function hostOf(url) { try { return url ? new URL(url).hostname : '' } catch { r
 .fcount { position: relative; margin-left: auto; padding-right: 12px; font-weight: 700; font-size: .85rem; }
 
 .drawer-overlay { position: fixed; inset: 0; z-index: 1100; background: rgba(15,23,42,.4); display: flex; justify-content: flex-end; }
-.drawer { width: 100%; max-width: 460px; height: 100%; background: var(--bg-elevated, #fff); padding: 1.4rem; overflow-y: auto; box-shadow: -10px 0 40px rgba(0,0,0,.2); }
+.drawer { width: 100%; max-width: 460px; height: 100%; background: var(--bg-elevated, var(--admin-surface, #fff)); padding: 1.4rem; overflow-y: auto; box-shadow: -10px 0 40px rgba(0,0,0,.2); }
 .drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .drawer-head h3 { font-size: 1rem; font-weight: 700; }
 .x { border: none; background: none; font-size: 1.1rem; cursor: pointer; color: var(--text-muted); }

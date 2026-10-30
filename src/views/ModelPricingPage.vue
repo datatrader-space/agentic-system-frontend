@@ -1,46 +1,46 @@
 <template>
-  <div class="mp-page">
-    <div class="mp-header">
-      <h1 class="gradient-text">Model Pricing</h1>
-      <p class="subtitle">Provider prices in their published units. Retired models are excluded.</p>
+  <div class="mp-page admin-page">
+    <div class="mp-header admin-page-header">
+      <h1 class="gradient-text admin-page-title">Model Pricing</h1>
+      <p class="subtitle admin-muted">Provider prices in their published units. Retired models are excluded.</p>
     </div>
 
     <!-- Access guard (backend also enforces IsAdminUser; route guard blocks direct URL) -->
     <div v-if="!isStaff" class="access-denied">
-      <div class="denied-card">
+      <div class="denied-card admin-surface">
         <span class="denied-icon">🔒</span>
-        <h2>Not authorized</h2>
+        <h2 class="admin-section-title">Not authorized</h2>
         <p>The Model Pricing page is only available to administrators.</p>
       </div>
     </div>
 
     <div v-else class="mp-body">
       <!-- Summary cards -->
-      <div class="stats-row">
-        <div class="stat-card">
-          <div class="stat-value">{{ summary.total }}</div>
-          <div class="stat-label">Total models</div>
+      <div class="stats-row admin-metrics">
+        <div class="stat-card admin-metric">
+          <div class="stat-value admin-value">{{ summary.total }}</div>
+          <div class="stat-label admin-muted">Total models</div>
         </div>
-        <div class="stat-card" :class="{ warn: summary.missing > 0 }">
-          <div class="stat-value">{{ summary.missing }}</div>
-          <div class="stat-label">Missing pricing</div>
+        <div class="stat-card admin-metric" :class="{ warn: summary.missing > 0 }">
+          <div class="stat-value admin-value">{{ summary.missing }}</div>
+          <div class="stat-label admin-muted">Missing pricing</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-value">{{ summary.priced }}</div>
-          <div class="stat-label">Priced models</div>
+        <div class="stat-card admin-metric">
+          <div class="stat-value admin-value">{{ summary.priced }}</div>
+          <div class="stat-label admin-muted">Priced models</div>
         </div>
-        <div class="stat-card" :class="{ danger: summary.usedRecentlyMissing > 0 }">
-          <div class="stat-value">{{ summary.usedRecentlyMissing }}</div>
-          <div class="stat-label">Used recently · unpriced</div>
+        <div class="stat-card admin-metric" :class="{ danger: summary.usedRecentlyMissing > 0 }">
+          <div class="stat-value admin-value">{{ summary.usedRecentlyMissing }}</div>
+          <div class="stat-label admin-muted">Used recently · unpriced</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-value">{{ summary.dynamic }}</div>
-          <div class="stat-label">Variable pricing</div>
+        <div class="stat-card admin-metric">
+          <div class="stat-value admin-value">{{ summary.dynamic }}</div>
+          <div class="stat-label admin-muted">Variable pricing</div>
         </div>
       </div>
 
       <!-- Filters -->
-      <div class="mp-filters">
+      <div class="mp-filters admin-toolbar">
         <label class="f-group f-search">
           <span>Search model</span>
           <input type="search" v-model="search" list="mp-model-options"
@@ -94,13 +94,13 @@
       </div>
 
       <!-- Table -->
-      <div class="panel">
+      <div class="panel admin-surface">
         <PageLoader v-if="loading" label="Loading models…" />
         <div v-else-if="!filtered.length" class="panel-loading">
           No models match these filters. Models are added to the catalog when a provider is synced.
         </div>
-        <div v-else class="table-wrap">
-          <table class="mp-table">
+        <div v-else class="table-wrap admin-table-scroll">
+          <table class="mp-table admin-table">
             <thead>
               <tr>
                 <th>Provider</th>
@@ -129,17 +129,17 @@
                 </td>
                 <td class="center">
                   <span v-if="m.used_recently" class="badge st-used" title="Seen in recent request logs">recent</span>
-                  <span v-else class="muted">—</span>
+                  <span v-else class="muted admin-muted">—</span>
                 </td>
-                <td><input class="num" type="number" step="any" min="0" placeholder="—"
+                <td><input aria-label="—" class="num" type="number" step="any" min="0" placeholder="—"
                            v-model="edits[m.id].input" :disabled="m.is_local && !edits[m.id].input" /></td>
-                <td><input class="num" type="number" step="any" min="0" placeholder="—"
+                <td><input aria-label="—" class="num" type="number" step="any" min="0" placeholder="—"
                            v-model="edits[m.id].output" /></td>
-                <td><input class="num" type="number" step="any" min="0" placeholder="—"
+                <td><input aria-label="—" class="num" type="number" step="any" min="0" placeholder="—"
                            v-model="edits[m.id].cached" /></td>
-                <td><input class="num" type="number" step="any" min="0" placeholder="—"
+                <td><input aria-label="—" class="num" type="number" step="any" min="0" placeholder="—"
                            v-model="edits[m.id].reasoning" /></td>
-                <td><input class="num" type="number" step="any" min="0" placeholder="—"
+                <td><input aria-label="—" class="num" type="number" step="any" min="0" placeholder="—"
                            title="USD per generated image (image models)"
                            v-model="edits[m.id].image" /></td>
                 <td class="unit-rates">
@@ -150,18 +150,18 @@
                       <summary>{{ m.pricing.published_rates.length }} published rates</summary>
                       <p v-for="(rate, index) in m.pricing.published_rates" :key="index">
                         {{ rate.label }}: ${{ rate.amount }} / {{ unitLabel(rate.unit) }}
-                        <span v-if="rate.condition" class="muted"> — {{ rate.condition }}</span>
+                        <span v-if="rate.condition" class="muted admin-muted"> — {{ rate.condition }}</span>
                       </p>
                     </details>
                     <span v-else>${{ m.pricing.published_rates[0].amount }} / {{ unitLabel(m.pricing.published_rates[0].unit) }}
-                      <span v-if="m.pricing.published_rates[0].condition" class="muted"> — {{ m.pricing.published_rates[0].condition }}</span>
+                      <span v-if="m.pricing.published_rates[0].condition" class="muted admin-muted"> — {{ m.pricing.published_rates[0].condition }}</span>
                     </span>
-                    <p v-if="m.pricing_status === 'rate_card'" class="muted">Availability also depends on billing checks.</p>
+                    <p v-if="m.pricing_status === 'rate_card'" class="muted admin-muted">Availability also depends on billing checks.</p>
                   </template>
-                  <span v-else-if="!m.pricing?.pricing_formula" class="muted">—</span>
+                  <span v-else-if="!m.pricing?.pricing_formula" class="muted admin-muted">—</span>
                 </td>
-                <td><input class="cur" type="text" maxlength="8" v-model="edits[m.id].currency" /></td>
-                <td><input class="notes" type="text" placeholder="optional" v-model="edits[m.id].notes" /></td>
+                <td><input aria-label="Currency" class="cur" type="text" maxlength="8" v-model="edits[m.id].currency" /></td>
+                <td><input aria-label="Optional" class="notes" type="text" placeholder="optional" v-model="edits[m.id].notes" /></td>
                 <td>
                   <button class="btn-save" :disabled="savingId === m.id || !dirty(m) || isUnitOrCard(m)" @click="saveRow(m)"
                           :title="isUnitOrCard(m) ? 'This price is managed from its provider rate card.' : ''">
@@ -174,7 +174,7 @@
         </div>
 
         <!-- Pagination — 50 models per page -->
-        <div v-if="!loading && filtered.length" class="mp-pager">
+        <div v-if="!loading && filtered.length" class="mp-pager admin-pagination">
           <span class="pager-info">
             Showing {{ pageStart }}–{{ pageEnd }} of {{ filtered.length }} models
           </span>

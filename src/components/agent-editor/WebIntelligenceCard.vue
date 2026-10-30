@@ -2,14 +2,14 @@
   <!-- Web Intelligence — how this agent searches the web (WEB_SEARCH broker).
        Saves through its OWN validated endpoint (not the editor's generic Save), because the backend
        must verify the selected search model is capability-verified AND has provider credentials. -->
-  <section class="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+  <section class="rounded-xl border border-[#E5E7EB] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] admin-subview">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div class="flex items-start gap-3">
         <span class="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-sky-50 text-sky-600">
           <Globe :size="18" :stroke-width="2" />
         </span>
         <div>
-          <h3 class="text-base font-semibold text-[#0F172A]">Web Intelligence</h3>
+          <h3 class="text-base font-semibold text-[#0F172A] admin-section-title">Web Intelligence</h3>
           <p class="text-[13px] text-[#64748B]">
             How this agent searches the web. A search engine connected on the platform runs every search;
             when none is connected, the web search model below does.
@@ -49,7 +49,7 @@
             When off, the WEB_SEARCH tool refuses to run for this agent.
           </p>
         </div>
-        <button type="button" role="switch" :aria-checked="String(!!cfg.enabled)"
+        <button aria-label="Edit item" type="button" role="switch" :aria-checked="String(!!cfg.enabled)"
                 class="wi-switch shrink-0" :class="cfg.enabled ? 'on' : 'off'"
                 @click="editable && (cfg.enabled = !cfg.enabled)"><span class="knob" /></button>
       </div>
@@ -122,7 +122,7 @@
               <p class="text-[12.5px] font-semibold text-[#0F172A]">{{ t.label }}</p>
               <p class="mt-0.5 text-[11.5px] leading-snug text-[#667085]">{{ t.hint }}</p>
             </div>
-            <button type="button" role="switch" :aria-checked="String(!!cfg[t.field])"
+            <button aria-label="Edit item" type="button" role="switch" :aria-checked="String(!!cfg[t.field])"
                     class="wi-switch shrink-0" :class="cfg[t.field] ? 'on' : 'off'"
                     @click="editable && (cfg[t.field] = !cfg[t.field])"><span class="knob" /></button>
           </div>
@@ -130,12 +130,12 @@
           <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div v-for="n in NUMBERS" :key="n.field">
               <label class="field-label">{{ n.label }}</label>
-              <input v-model.number="cfg[n.field]" type="number" :min="n.min" :max="n.max" class="field" :disabled="!editable" />
+              <input aria-label="Cfg" v-model.number="cfg[n.field]" type="number" :min="n.min" :max="n.max" class="field" :disabled="!editable" />
               <p class="mt-1 text-[11px] leading-snug text-[#98A2B3]">{{ n.hint }}</p>
             </div>
             <div>
               <label class="field-label">Max search cost per turn (USD)</label>
-              <input v-model="costLimit" type="number" min="0" step="0.01" class="field"
+              <input aria-label="No limit" v-model="costLimit" type="number" min="0" step="0.01" class="field"
                      :disabled="!editable" placeholder="No limit" />
               <p class="mt-1 text-[11px] leading-snug text-[#98A2B3]">
                 Model-based search only. Blank = no limit beyond the run budget.
@@ -284,17 +284,17 @@ onMounted(load)
 </script>
 
 <style scoped>
-.field-label { margin-bottom: 4px; display: block; font-size: 12px; font-weight: 650; color: #344054; }
-.field { width: 100%; border: 1px solid #D0D5DD; border-radius: 10px; padding: 9px 12px; font-size: 13px; color: #0F172A; background: #fff; outline: none; transition: box-shadow .15s, border-color .15s; }
+.field-label { margin-bottom: 4px; display: block; font-size: 12px; font-weight: 650; color: var(--admin-ink, #344054); }
+.field { width: 100%; border: 1px solid var(--admin-line, #D0D5DD); border-radius: 10px; padding: 9px 12px; font-size: 13px; color: var(--admin-ink, #0F172A); background: var(--admin-surface, #fff); outline: none; transition: box-shadow .15s, border-color .15s; }
 .field:focus { border-color: #2563EB; box-shadow: 0 0 0 3px #EAF0FF; }
-.field:disabled { background: #F9FAFB; color: #98A2B3; }
-.btn-outline { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #E5E7EB; background: #fff; border-radius: 10px; padding: 8px 13px; font-size: 13px; font-weight: 600; color: #344054; cursor: pointer; }
+.field:disabled { background: var(--admin-soft, #F9FAFB); color: var(--admin-muted, #98A2B3); }
+.btn-outline { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--admin-line, #E5E7EB); background: var(--admin-surface, #fff); border-radius: 10px; padding: 8px 13px; font-size: 13px; font-weight: 600; color: var(--admin-ink, #344054); cursor: pointer; }
 .btn-outline:hover:not(:disabled) { border-color: #2563EB; color: #2563EB; }
 .btn-outline:disabled { opacity: .5; cursor: not-allowed; }
 .wi-switch { position: relative; height: 22px; width: 38px; flex-shrink: 0; border-radius: 999px; border: none; cursor: pointer; transition: background .15s; padding: 0; }
 .wi-switch.on { background: #2563EB; }
 .wi-switch.off { background: #D0D5DD; }
-.wi-switch .knob { position: absolute; top: 2px; left: 2px; height: 18px; width: 18px; border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.2); transition: transform .15s; }
+.wi-switch .knob { position: absolute; top: 2px; left: 2px; height: 18px; width: 18px; border-radius: 999px; background: var(--admin-surface, #fff); box-shadow: 0 1px 2px rgba(16,24,40,.2); transition: transform .15s; }
 .wi-switch.on .knob { transform: translateX(16px); }
 .chip { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 650; }
 .chip-blue { background: #EAF0FF; color: #2563EB; }

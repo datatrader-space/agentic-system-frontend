@@ -1,8 +1,8 @@
 <template>
-  <div class="cms">
+  <div class="cms admin-page">
     <div class="cms-tabbar">
-      <nav class="cms-tabs" aria-label="Help Center management">
-        <button v-for="t in tabs" :key="t.key" :class="{ active: active === t.key }" @click="setTab(t.key)">
+      <nav class="cms-tabs admin-tabs" aria-label="Help Center management" role="tablist">
+        <button v-for="t in tabs" :key="t.key" :class="{ active: active === t.key }" role="tab" :aria-selected="active === t.key" :tabindex="active === t.key ? 0 : -1" @click="setTab(t.key)">
           <Icon :icon="t.icon" /> {{ t.label }}
         </button>
       </nav>
@@ -46,15 +46,15 @@ watch(() => route.query.tab, (v) => { if (v && KEYS.includes(v) && v !== active.
 
 <style scoped>
 .cms { display: flex; flex-direction: column; min-height: 100%; }
-.cms-tabbar { padding: 20px 32px 0; border-bottom: 1px solid #eef2f7; background: #fff; position: sticky; top: 0; z-index: 5; }
+.cms-tabbar { padding: 20px 32px 0; border-bottom: 1px solid var(--admin-line, #eef2f7); background: var(--admin-surface, #fff); position: sticky; top: 0; z-index: 5; }
 .cms-tabs { display: flex; gap: 4px; }
 .cms-tabs button {
   display: inline-flex; align-items: center; gap: 8px;
   border: 0; border-bottom: 2px solid transparent; background: transparent;
   padding: 10px 16px 12px; margin-bottom: -1px;
-  color: #64748b; font-size: 13.5px; font-weight: 750; cursor: pointer;
+  color: var(--admin-muted, #64748b); font-size: 13.5px; font-weight: 750; cursor: pointer;
 }
-.cms-tabs button:hover { color: #334155; }
+.cms-tabs button:hover { color: var(--admin-ink, #334155); }
 .cms-tabs button.active { color: #4f46e5; border-bottom-color: #4f46e5; }
 .cms-tabs button svg { width: 16px; height: 16px; }
 .cms-panel { flex: 1; min-height: 0; }

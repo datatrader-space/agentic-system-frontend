@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-full flex-col rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)]">
+  <div class="flex h-full flex-col rounded-2xl border border-[#E5E7EB] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04),0_1px_3px_rgba(16,24,40,0.06)] admin-subview">
     <!-- header -->
     <div class="flex items-center justify-between gap-2 border-b border-[#F2F4F7] px-4 py-3">
       <div class="flex items-center gap-2">
@@ -7,7 +7,7 @@
           <FlaskConical :size="17" :stroke-width="2.1" />
         </span>
         <div>
-          <h2 class="text-[14px] font-semibold leading-tight text-[#0F172A]">Quick Test</h2>
+          <h2 class="text-[14px] font-semibold leading-tight text-[#0F172A] admin-section-title">Quick Test</h2>
           <p class="text-[11px] leading-tight text-[#64748B]">
             <span class="inline-flex items-center gap-1">
               <span class="h-1.5 w-1.5 rounded-full" :class="connected ? 'bg-emerald-500' : 'bg-slate-300'" />
@@ -65,7 +65,7 @@
     <!-- composer -->
     <div class="border-t border-[#F2F4F7] p-3">
       <div class="flex items-end gap-2">
-        <textarea
+        <textarea aria-label="Message the agent…"
           v-model="draft"
           rows="1"
           placeholder="Message the agent…"
@@ -270,7 +270,7 @@ onBeforeUnmount(() => { try { conn?.close() } catch (e) { /* noop */ } })
   margin: 0 0 8px;
   padding-left: 10px;
   border-left: 3px solid #cbd5e1;
-  color: #475569;
+  color: var(--admin-muted, #475569);
 }
 
 /* Tables (GFM) — scroll horizontally rather than overflow the panel */
@@ -280,26 +280,26 @@ onBeforeUnmount(() => { try { conn?.close() } catch (e) { /* noop */ } })
   border-spacing: 0;
   margin: 4px 0 10px;
   font-size: 0.92em;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--admin-line, #e2e8f0);
   border-radius: 10px;
   overflow: hidden;
   display: table;
 }
 .qt-md :deep(thead th) {
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--admin-soft, #f8fafc);
+  color: var(--admin-ink, #0f172a);
   font-weight: 600;
   text-align: left;
 }
 .qt-md :deep(th),
 .qt-md :deep(td) {
   padding: 6px 10px;
-  border-bottom: 1px solid #e2e8f0;
-  border-right: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--admin-line, #e2e8f0);
+  border-right: 1px solid var(--admin-line, #e2e8f0);
   vertical-align: top;
 }
 .qt-md :deep(th:last-child),
 .qt-md :deep(td:last-child) { border-right: none; }
 .qt-md :deep(tbody tr:last-child td) { border-bottom: none; }
-.qt-md :deep(tbody tr:nth-child(even)) { background: #fafbfc; }
+.qt-md :deep(tbody tr:nth-child(even)) { background: var(--admin-soft, #fafbfc); }
 </style>

@@ -1,9 +1,9 @@
 <template>
-  <div class="ar">
+  <div class="ar admin-page">
     <!-- Header -->
-    <header class="ar-head">
+    <header class="ar-head admin-page-header">
       <div class="ar-head-text">
-        <h1>API Reference</h1>
+        <h1 class="admin-page-title">API Reference</h1>
         <p>Curate the developer-facing API docs. Only <strong>enabled</strong> entries with
           <strong>public</strong> or <strong>partner</strong> visibility appear in the public Help Center.</p>
       </div>
@@ -17,28 +17,28 @@
     </header>
 
     <!-- Filters -->
-    <section class="ar-filters card">
+    <section class="ar-filters card admin-surface admin-toolbar">
       <div class="search">
         <Icon icon="lucide:search" />
-        <input v-model="filters.q" placeholder="Search by path or summary…" @input="onSearchInput" />
+        <input aria-label="Search" v-model="filters.q" placeholder="Search by path or summary…" @input="onSearchInput" />
         <button v-if="filters.q" class="clear-x" @click="filters.q = ''; resetAndLoad()"><Icon icon="lucide:x" /></button>
       </div>
-      <select v-model="filters.method" @change="resetAndLoad"><option value="">Any method</option><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select>
-      <select v-model="filters.group" @change="resetAndLoad">
+      <select aria-label="Method" v-model="filters.method" @change="resetAndLoad"><option value="">Any method</option><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select>
+      <select aria-label="Group" v-model="filters.group" @change="resetAndLoad">
         <option value="">All groups</option>
         <option v-for="g in groupOptions" :key="g" :value="g">{{ g }}</option>
       </select>
-      <select v-model="filters.visibility" @change="resetAndLoad"><option value="">All visibility</option><option value="public">Public</option><option value="partner">Partner</option><option value="internal">Internal</option><option value="hidden">Hidden</option></select>
-      <select v-model="filters.stability" @change="resetAndLoad"><option value="">All stability</option><option value="stable">Stable</option><option value="beta">Beta</option><option value="deprecated">Deprecated</option></select>
-      <select v-model="filters.enabled" @change="resetAndLoad"><option value="">Any status</option><option value="true">Published</option><option value="false">Draft</option></select>
+      <select aria-label="Visibility" v-model="filters.visibility" @change="resetAndLoad"><option value="">All visibility</option><option value="public">Public</option><option value="partner">Partner</option><option value="internal">Internal</option><option value="hidden">Hidden</option></select>
+      <select aria-label="Stability" v-model="filters.stability" @change="resetAndLoad"><option value="">All stability</option><option value="stable">Stable</option><option value="beta">Beta</option><option value="deprecated">Deprecated</option></select>
+      <select aria-label="Enabled" v-model="filters.enabled" @change="resetAndLoad"><option value="">Any status</option><option value="true">Published</option><option value="false">Draft</option></select>
       <button v-if="hasFilters" class="btn link-btn" @click="clearFilters"><Icon icon="lucide:filter-x" /> Clear</button>
       <span class="count">{{ count }} endpoint{{ count === 1 ? '' : 's' }} found</span>
     </section>
 
     <!-- Table card -->
-    <section class="card table-card">
-      <div class="table-scroll">
-        <table class="ar-table">
+    <section class="card table-card admin-surface">
+      <div class="table-scroll admin-table-scroll">
+        <table class="ar-table admin-table">
           <thead>
             <tr>
               <th class="c-method">Method</th>
@@ -65,13 +65,13 @@
               <td><span :class="['badge method', r.method.toLowerCase()]">{{ r.method }}</span></td>
               <td class="c-ep">
                 <code class="path" :title="r.path">{{ r.path }}</code>
-                <div class="sub" :title="r.docs_summary">{{ r.docs_summary || '—' }}</div>
+                <div class="sub admin-muted" :title="r.docs_summary">{{ r.docs_summary || '—' }}</div>
               </td>
-              <td class="muted">{{ r.docs_group }}</td>
+              <td class="muted admin-muted">{{ r.docs_group }}</td>
               <td><span :class="['badge vis', r.docs_visibility]">{{ r.docs_visibility }}</span></td>
               <td><span :class="['badge stab', r.docs_stability]">{{ r.docs_stability }}</span></td>
               <td><span :class="['badge status', r.docs_enabled ? 'on' : 'off']"><i /> {{ r.docs_enabled ? 'Published' : 'Draft' }}</span></td>
-              <td class="muted nowrap">{{ shortDate(r.updated_at) }}</td>
+              <td class="muted nowrap admin-muted">{{ shortDate(r.updated_at) }}</td>
               <td class="c-actions">
                 <div class="actions">
                   <button class="icon-btn" title="Edit" @click="openEdit(r)"><Icon icon="lucide:pencil" /></button>
@@ -105,7 +105,7 @@
       </div>
 
       <!-- Pagination footer -->
-      <footer v-if="!loading && rows.length" class="ar-pager">
+      <footer v-if="!loading && rows.length" class="ar-pager admin-pagination">
         <span class="showing">Showing <strong>{{ rangeStart }}–{{ rangeEnd }}</strong> of <strong>{{ count }}</strong></span>
         <div class="pager-right">
           <label class="page-size">
@@ -125,19 +125,19 @@
 
     <!-- Editor drawer -->
     <transition name="drawer">
-      <div v-if="editorOpen" class="backdrop" @click.self="closeEditor">
-        <aside class="drawer">
+      <div @keydown.esc.stop.prevent="closeEditor" v-if="editorOpen" class="backdrop admin-overlay" @click.self="closeEditor">
+        <aside role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-adminapireference-0" class="drawer admin-dialog">
           <header class="drawer-head">
             <div>
-              <h2>{{ form.id ? 'Edit endpoint' : 'New endpoint' }}</h2>
+              <h2 id="admin-dialog-adminapireference-0" class="admin-section-title">{{ form.id ? 'Edit endpoint' : 'New endpoint' }}</h2>
               <small v-if="form.id">{{ form.method }} {{ form.path }}</small>
             </div>
-            <button class="icon-btn" @click="closeEditor"><Icon icon="lucide:x" /></button>
+            <button aria-label="Close dialog" class="icon-btn" @click="closeEditor"><Icon icon="lucide:x" /></button>
           </header>
 
           <div class="drawer-body">
             <section class="form-section">
-              <h3>Endpoint</h3>
+              <h3 class="admin-section-title">Endpoint</h3>
               <div class="grid2">
                 <label class="field"><span>Method <em>*</em></span>
                   <select v-model="form.method"><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select>
@@ -149,7 +149,7 @@
             </section>
 
             <section class="form-section">
-              <h3>Publishing</h3>
+              <h3 class="admin-section-title">Publishing</h3>
               <div class="toggles">
                 <label class="switch"><input type="checkbox" v-model="form.docs_enabled" /><span>Enabled (published)</span></label>
                 <label class="switch"><input type="checkbox" v-model="form.docs_auth_required" /><span>Requires authentication</span></label>
@@ -166,7 +166,7 @@
             </section>
 
             <section class="form-section">
-              <h3>Documentation</h3>
+              <h3 class="admin-section-title">Documentation</h3>
               <label class="field"><span>Summary</span><input v-model="form.docs_summary" placeholder="List agents" /></label>
               <label class="field"><span>Description</span><textarea v-model="form.docs_description" rows="3" placeholder="What this endpoint does…"></textarea></label>
               <label class="field">
@@ -180,7 +180,7 @@
             </section>
 
             <section class="form-section">
-              <h3>Preview &amp; AI</h3>
+              <h3 class="admin-section-title">Preview &amp; AI</h3>
               <div class="ai-row">
                 <button class="btn ghost" @click="preview(form)"><Icon icon="lucide:eye" /> Preview</button>
                 <button class="btn ai" @click="generateDraft" :disabled="!form.id || drafting">
@@ -188,8 +188,8 @@
                   {{ drafting ? 'Drafting…' : 'Generate AI draft' }}
                 </button>
               </div>
-              <small v-if="!form.id" class="hint">Save the entry first to enable AI drafting.</small>
-              <small class="hint">AI drafts text only — it never publishes or changes visibility.</small>
+              <small v-if="!form.id" class="hint admin-muted">Save the entry first to enable AI drafting.</small>
+              <small class="hint admin-muted">AI drafts text only — it never publishes or changes visibility.</small>
             </section>
 
             <div v-if="formError" class="form-error"><Icon icon="lucide:alert-circle" /> {{ formError }}</div>
@@ -207,9 +207,9 @@
     </transition>
 
     <!-- Preview modal -->
-    <div v-if="previewData" class="modal-backdrop" @click.self="previewData = null">
-      <div class="modal">
-        <header class="modal-head"><h2>Public preview</h2><button class="icon-btn" @click="previewData = null"><Icon icon="lucide:x" /></button></header>
+    <div @keydown.esc.stop.prevent="previewData = null" v-if="previewData" class="modal-backdrop admin-overlay" @click.self="previewData = null">
+      <div role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-adminapireference-1" class="modal admin-dialog">
+        <header class="modal-head"><h2 id="admin-dialog-adminapireference-1" class="admin-section-title">Public preview</h2><button class="icon-btn" @click="previewData = null"><Icon icon="lucide:x" /></button></header>
         <div class="preview-body">
           <div class="pv-row">
             <span :class="['badge method', previewData.method.toLowerCase()]">{{ previewData.method }}</span>
@@ -220,7 +220,7 @@
             <span :class="['badge vis', previewData.visibility]">{{ previewData.visibility }}</span>
             <span class="badge auth">{{ previewData.auth_required ? '🔒 Requires auth' : '🌐 Public' }}</span>
           </div>
-          <h3 class="pv-summary">{{ previewData.summary }}</h3>
+          <h3 class="pv-summary admin-section-title">{{ previewData.summary }}</h3>
           <p v-if="previewData.description" class="pv-desc">{{ previewData.description }}</p>
           <div v-if="previewData.parameters?.length" class="pv-block">
             <h4>Parameters</h4>
@@ -234,10 +234,10 @@
     </div>
 
     <!-- Delete confirm -->
-    <div v-if="confirmRow" class="modal-backdrop" @click.self="confirmRow = null">
-      <div class="modal small">
+    <div @keydown.esc.stop.prevent="confirmRow = null" v-if="confirmRow" class="modal-backdrop admin-overlay" @click.self="confirmRow = null">
+      <div role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-adminapireference-2" class="modal small admin-dialog">
         <div class="danger-ico"><Icon icon="lucide:trash-2" /></div>
-        <h2>Delete this entry?</h2>
+        <h2 id="admin-dialog-adminapireference-2" class="admin-section-title">Delete this entry?</h2>
         <p><code>{{ confirmRow.method }} {{ confirmRow.path }}</code> will be removed from the API reference. This cannot be undone.</p>
         <div class="confirm-actions">
           <button class="btn ghost" @click="confirmRow = null">Cancel</button>
@@ -413,16 +413,16 @@ onMounted(() => { load(); loadGroups() })
 .ar { min-height: 100%; padding: 26px 30px 60px; }
 .ar-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
 .ar-head-text h1 { margin: 0; font-size: 22px; font-weight: 800; }
-.ar-head-text p { margin: 6px 0 0; color: #64748b; font-size: 13px; max-width: 640px; line-height: 1.5; }
+.ar-head-text p { margin: 6px 0 0; color: var(--admin-muted, #64748b); font-size: 13px; max-width: 640px; line-height: 1.5; }
 .ar-head-actions { display: flex; gap: 10px; flex-shrink: 0; }
-.card { background: #fff; border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+.card { background: var(--admin-surface, #fff); border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
 /* Buttons */
 .btn { display: inline-flex; align-items: center; gap: 7px; height: 38px; border-radius: 9px; padding: 0 15px; font-size: 13px; font-weight: 700; border: 1px solid transparent; cursor: pointer; white-space: nowrap; }
 .btn svg { width: 15px; height: 15px; }
 .btn.primary { background: #4f46e5; color: #fff; }
 .btn.primary:hover { background: #4338ca; }
-.btn.ghost { background: #fff; border-color: #d8e2f0; color: #334155; }
-.btn.ghost:hover { background: #f8fafc; }
+.btn.ghost { background: var(--admin-surface, #fff); border-color: var(--admin-line, #d8e2f0); color: var(--admin-ink, #334155); }
+.btn.ghost:hover { background: var(--admin-soft, #f8fafc); }
 .btn.danger { background: #dc2626; color: #fff; }
 .btn.ai { background: #f5f3ff; color: #7c3aed; border-color: #ddd6fe; }
 .btn.link-btn { background: transparent; color: #4f46e5; height: 34px; padding: 0 8px; }
@@ -431,120 +431,120 @@ onMounted(() => { load(); loadGroups() })
 @keyframes spin { to { transform: rotate(360deg); } }
 /* Filters */
 .ar-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; margin-bottom: 16px; }
-.ar-filters select { height: 38px; border: 1px solid #d8e2f0; border-radius: 9px; padding: 0 10px; font-size: 13px; background: #fff; color: #334155; }
+.ar-filters select { height: 38px; border: 1px solid var(--admin-line, #d8e2f0); border-radius: 9px; padding: 0 10px; font-size: 13px; background: var(--admin-surface, #fff); color: var(--admin-ink, #334155); }
 .search { position: relative; display: flex; align-items: center; flex: 1; min-width: 240px; }
-.search > svg { position: absolute; left: 12px; width: 16px; height: 16px; color: #94a3b8; }
-.search input { width: 100%; height: 38px; border: 1px solid #d8e2f0; border-radius: 9px; padding: 0 34px; font-size: 13px; }
-.clear-x { position: absolute; right: 8px; border: 0; background: transparent; color: #94a3b8; cursor: pointer; display: grid; place-items: center; }
+.search > svg { position: absolute; left: 12px; width: 16px; height: 16px; color: var(--admin-muted, #94a3b8); }
+.search input { width: 100%; height: 38px; border: 1px solid var(--admin-line, #d8e2f0); border-radius: 9px; padding: 0 34px; font-size: 13px; }
+.clear-x { position: absolute; right: 8px; border: 0; background: transparent; color: var(--admin-muted, #94a3b8); cursor: pointer; display: grid; place-items: center; }
 .clear-x svg { width: 15px; height: 15px; }
-.count { margin-left: auto; color: #64748b; font-size: 12.5px; font-weight: 600; }
+.count { margin-left: auto; color: var(--admin-muted, #64748b); font-size: 12.5px; font-weight: 600; }
 /* Table */
 .table-card { overflow: hidden; }
 .table-scroll { overflow-x: auto; }
 .ar-table { width: 100%; border-collapse: collapse; min-width: 920px; }
-.ar-table thead th { position: sticky; top: 0; z-index: 1; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #64748b; padding: 12px 16px; background: #f8fafc; border-bottom: 1px solid #eef2f7; white-space: nowrap; }
+.ar-table thead th { position: sticky; top: 0; z-index: 1; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--admin-muted, #64748b); padding: 12px 16px; background: var(--admin-soft, #f8fafc); border-bottom: 1px solid var(--admin-line, #eef2f7); white-space: nowrap; }
 .ar-table td { padding: 13px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
-.data-row:hover { background: #f8fbff; }
+.data-row:hover { background: var(--admin-soft, #f8fbff); }
 .data-row:last-child td { border-bottom: 0; }
 .c-method { width: 84px; } .c-actions { width: 150px; text-align: right; }
 .c-ep { max-width: 360px; }
-.path { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; font-weight: 600; color: #0f172a; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sub { color: #94a3b8; font-size: 11.5px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.muted { color: #64748b; } .nowrap { white-space: nowrap; }
+.path { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; font-weight: 600; color: var(--admin-ink, #0f172a); display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sub { color: var(--admin-muted, #94a3b8); font-size: 11.5px; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.muted { color: var(--admin-muted, #64748b); } .nowrap { white-space: nowrap; }
 .badge { display: inline-flex; align-items: center; gap: 5px; border-radius: 6px; padding: 3px 8px; font-size: 10.5px; font-weight: 800; text-transform: capitalize; }
 .badge.method { min-width: 48px; justify-content: center; }
 .method.get { background: #dcfce7; color: #16a34a; } .method.post { background: #eaf1ff; color: #2563eb; }
 .method.put, .method.patch { background: #fff5d9; color: #b7791f; } .method.delete { background: #fee2e2; color: #dc2626; }
 .vis.public { background: #dff8ef; color: #059669; } .vis.partner { background: #eef4ff; color: #2563eb; }
-.vis.internal { background: #fff7e6; color: #d97706; } .vis.hidden { background: #f1f5f9; color: #64748b; }
+.vis.internal { background: #fff7e6; color: #d97706; } .vis.hidden { background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #64748b); }
 .stab.stable { background: #dff8ef; color: #059669; } .stab.beta { background: #eef4ff; color: #2563eb; } .stab.deprecated { background: #fff1f3; color: #e11d48; }
 .status { } .status i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
 .status.on { background: #dcfce7; color: #16a34a; } .status.on i { background: #16a34a; }
-.status.off { background: #f1f5f9; color: #64748b; } .status.off i { background: #94a3b8; }
+.status.off { background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #64748b); } .status.off i { background: #94a3b8; }
 .actions { display: inline-flex; gap: 2px; }
-.icon-btn { display: grid; place-items: center; width: 32px; height: 32px; border: 0; background: transparent; border-radius: 8px; color: #64748b; cursor: pointer; }
-.icon-btn:hover { background: #eef2f7; color: #0f172a; }
+.icon-btn { display: grid; place-items: center; width: 32px; height: 32px; border: 0; background: transparent; border-radius: 8px; color: var(--admin-muted, #64748b); cursor: pointer; }
+.icon-btn:hover { background: #eef2f7; color: var(--admin-ink, #0f172a); }
 .icon-btn.danger:hover { background: #fee2e2; color: #dc2626; }
 .icon-btn:disabled { opacity: .4; cursor: default; }
 .icon-btn svg { width: 16px; height: 16px; }
 /* Skeleton */
 .skeleton-row td { padding: 14px 16px; }
-.skel { display: block; height: 14px; border-radius: 6px; background: linear-gradient(90deg, #eef2f7, #f8fafc, #eef2f7); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+.skel { display: block; height: 14px; border-radius: 6px; background: linear-gradient(90deg, #eef2f7, var(--admin-soft, #f8fafc), #eef2f7); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 /* States */
-.state { display: grid; place-items: center; gap: 12px; padding: 56px 20px; text-align: center; color: #64748b; }
+.state { display: grid; place-items: center; gap: 12px; padding: 56px 20px; text-align: center; color: var(--admin-muted, #64748b); }
 .state svg { width: 34px; height: 34px; color: #cbd5e1; }
 .state p { margin: 0; font-size: 14px; }
 .state-actions { display: flex; gap: 10px; }
 .state.error svg { color: #f59e0b; }
 /* Pager */
-.ar-pager { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 16px; border-top: 1px solid #eef2f7; flex-wrap: wrap; }
-.showing { color: #64748b; font-size: 12.5px; }
+.ar-pager { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 16px; border-top: 1px solid var(--admin-line, #eef2f7); flex-wrap: wrap; }
+.showing { color: var(--admin-muted, #64748b); font-size: 12.5px; }
 .pager-right { display: flex; align-items: center; gap: 18px; }
-.page-size { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 12.5px; }
-.page-size select { height: 32px; border: 1px solid #d8e2f0; border-radius: 8px; padding: 0 8px; font-size: 12.5px; }
+.page-size { display: flex; align-items: center; gap: 8px; color: var(--admin-muted, #64748b); font-size: 12.5px; }
+.page-size select { height: 32px; border: 1px solid var(--admin-line, #d8e2f0); border-radius: 8px; padding: 0 8px; font-size: 12.5px; }
 .pager-nav { display: flex; align-items: center; gap: 8px; }
-.page-of { color: #334155; font-size: 12.5px; font-weight: 600; }
+.page-of { color: var(--admin-ink, #334155); font-size: 12.5px; font-weight: 600; }
 /* Drawer */
 .backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: flex; justify-content: flex-end; z-index: 60; }
-.drawer { width: 720px; max-width: 100%; height: 100vh; background: #fff; display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(15,23,42,.18); }
-.drawer-head { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid #eef2f7; }
+.drawer { width: 720px; max-width: 100%; height: 100vh; background: var(--admin-surface, #fff); display: flex; flex-direction: column; box-shadow: -12px 0 40px rgba(15,23,42,.18); }
+.drawer-head { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--admin-line, #eef2f7); }
 .drawer-head h2 { margin: 0; font-size: 17px; font-weight: 800; }
-.drawer-head small { color: #94a3b8; font-size: 12px; font-family: ui-monospace, Menlo, monospace; }
+.drawer-head small { color: var(--admin-muted, #94a3b8); font-size: 12px; font-family: ui-monospace, Menlo, monospace; }
 .drawer-body { flex: 1; overflow-y: auto; padding: 8px 22px 22px; }
 .form-section { padding: 16px 0; border-bottom: 1px solid #f1f5f9; }
 .form-section:last-of-type { border-bottom: 0; }
-.form-section h3 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #94a3b8; font-weight: 800; }
+.form-section h3 { margin: 0 0 12px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--admin-muted, #94a3b8); font-weight: 800; }
 .field { display: block; margin-bottom: 12px; }
-.field > span { display: block; font-size: 12.5px; font-weight: 700; color: #334155; margin-bottom: 6px; }
+.field > span { display: block; font-size: 12.5px; font-weight: 700; color: var(--admin-ink, #334155); margin-bottom: 6px; }
 .field em { color: #dc2626; font-style: normal; }
-.field input, .field select, .field textarea { width: 100%; border: 1px solid #d8e2f0; border-radius: 9px; padding: 9px 11px; font-size: 13px; font-family: inherit; color: #0f172a; }
+.field input, .field select, .field textarea { width: 100%; border: 1px solid var(--admin-line, #d8e2f0); border-radius: 9px; padding: 9px 11px; font-size: 13px; font-family: inherit; color: var(--admin-ink, #0f172a); }
 .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.12); }
 .field textarea.mono { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; }
 textarea.invalid { border-color: #dc2626; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .toggles { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 12px; }
-.switch { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #334155; font-weight: 600; cursor: pointer; }
+.switch { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--admin-ink, #334155); font-weight: 600; cursor: pointer; }
 .switch input { width: 16px; height: 16px; }
 .examples-label { display: flex; align-items: center; justify-content: space-between; }
 .json-bad { display: inline-flex; align-items: center; gap: 4px; color: #dc2626; font-size: 11.5px; }
 .json-ok { display: inline-flex; align-items: center; gap: 4px; color: #16a34a; font-size: 11.5px; font-weight: 600; }
 .json-bad svg, .json-ok svg { width: 13px; height: 13px; }
 .ai-row { display: flex; gap: 10px; }
-.hint { display: block; color: #94a3b8; font-size: 11.5px; margin-top: 8px; }
+.hint { display: block; color: var(--admin-muted, #94a3b8); font-size: 11.5px; margin-top: 8px; }
 .form-error { display: flex; align-items: center; gap: 8px; background: #fef2f2; color: #dc2626; border-radius: 9px; padding: 11px 12px; font-size: 12.5px; margin-top: 14px; }
 .form-error svg { width: 16px; height: 16px; }
-.drawer-foot { flex-shrink: 0; display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; border-top: 1px solid #eef2f7; background: #fff; position: sticky; bottom: 0; }
+.drawer-foot { flex-shrink: 0; display: flex; justify-content: flex-end; gap: 10px; padding: 14px 22px; border-top: 1px solid var(--admin-line, #eef2f7); background: var(--admin-surface, #fff); position: sticky; bottom: 0; }
 .drawer-enter-active, .drawer-leave-active { transition: opacity .2s ease; }
 .drawer-enter-active .drawer, .drawer-leave-active .drawer { transition: transform .22s ease; }
 .drawer-enter-from, .drawer-leave-to { opacity: 0; }
 .drawer-enter-from .drawer, .drawer-leave-to .drawer { transform: translateX(100%); }
 /* Modals */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: flex; align-items: center; justify-content: center; z-index: 70; padding: 20px; }
-.modal { background: #fff; border-radius: 16px; width: 600px; max-width: 100%; max-height: 86vh; overflow: auto; }
+.modal { background: var(--admin-surface, #fff); border-radius: 16px; width: 600px; max-width: 100%; max-height: 86vh; overflow: auto; }
 .modal.small { width: 440px; padding: 26px; text-align: center; }
-.modal-head { position: sticky; top: 0; background: #fff; display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid #eef2f7; }
+.modal-head { position: sticky; top: 0; background: var(--admin-surface, #fff); display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--admin-line, #eef2f7); }
 .modal-head h2 { margin: 0; font-size: 16px; font-weight: 800; }
 .danger-ico { display: grid; place-items: center; width: 48px; height: 48px; margin: 0 auto 14px; border-radius: 50%; background: #fee2e2; color: #dc2626; }
 .danger-ico svg { width: 22px; height: 22px; }
 .modal.small h2 { margin: 0 0 8px; font-size: 17px; }
-.modal.small p { color: #64748b; font-size: 13px; line-height: 1.5; }
-.modal.small code { background: #f1f5f9; padding: 1px 6px; border-radius: 5px; }
+.modal.small p { color: var(--admin-muted, #64748b); font-size: 13px; line-height: 1.5; }
+.modal.small code { background: var(--admin-soft, #f1f5f9); padding: 1px 6px; border-radius: 5px; }
 .confirm-actions { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
 .preview-body { padding: 20px 22px; }
 .pv-row { display: flex; align-items: center; gap: 10px; }
 .pv-badges { display: flex; gap: 8px; margin-top: 12px; }
 .pv-summary { margin: 16px 0 0; font-size: 17px; font-weight: 800; }
-.pv-desc { color: #475569; font-size: 13px; line-height: 1.6; margin: 8px 0 0; }
+.pv-desc { color: var(--admin-muted, #475569); font-size: 13px; line-height: 1.6; margin: 8px 0 0; }
 .pv-block { margin-top: 18px; }
-.pv-block h4 { margin: 0 0 7px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
+.pv-block h4 { margin: 0 0 7px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--admin-muted, #64748b); }
 .pv-block ul { margin: 0; padding-left: 16px; font-size: 13px; display: grid; gap: 5px; }
-.pv-block code { background: #f1f5f9; padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+.pv-block code { background: var(--admin-soft, #f1f5f9); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
 .pv-block pre { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 14px 16px; font-size: 12px; overflow: auto; margin: 0; }
-.badge.auth { background: #f1f5f9; color: #475569; }
+.badge.auth { background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #475569); }
 .req { color: #dc2626; font-size: 10.5px; font-weight: 800; }
-.pd { color: #64748b; }
-.code { display: inline-block; margin-right: 6px; background: #f1f5f9; border-radius: 6px; padding: 3px 9px; font-size: 11.5px; font-weight: 800; }
+.pd { color: var(--admin-muted, #64748b); }
+.code { display: inline-block; margin-right: 6px; background: var(--admin-soft, #f1f5f9); border-radius: 6px; padding: 3px 9px; font-size: 11.5px; font-weight: 800; }
 /* Responsive */
 @media (max-width: 860px) {
   .ar { padding: 20px 16px 50px; }

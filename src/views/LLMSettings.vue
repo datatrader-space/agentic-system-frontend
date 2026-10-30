@@ -1,8 +1,8 @@
 <template>
-  <div class="space-y-8 px-4 py-6 sm:px-8 max-w-7xl mx-auto">
+  <div class="space-y-8 px-4 py-6 sm:px-8 max-w-7xl mx-auto admin-page">
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-3xl font-bold text-gray-900">Platform APIs</h1>
+      <div class="admin-page-header">
+        <h1 class="text-3xl font-bold text-gray-900 admin-page-title">Platform APIs</h1>
         <p class="mt-2 text-gray-600">
           The platform's AI providers and web search engines. People never add keys of their own: they pick from these
           models, and every call is charged to their balance. Only platform administrators see this page.
@@ -11,8 +11,8 @@
     </div>
 
     <!-- Page tabs — one view at a time instead of four stacked sections -->
-    <div class="flex gap-1 bg-slate-100 p-1 rounded-xl w-full sm:w-fit overflow-x-auto">
-      <button v-for="t in pageTabs" :key="t.key" @click="pageTab = t.key" type="button"
+    <div class="flex gap-1 bg-slate-100 p-1 rounded-xl w-full sm:w-fit overflow-x-auto admin-tabs" role="tablist" aria-label="Platform API sections">
+      <button v-for="t in pageTabs" :key="t.key" @click="pageTab = t.key" type="button" role="tab" :aria-selected="pageTab === t.key" :tabindex="pageTab === t.key ? 0 : -1"
               :data-tour="'tab-' + t.key"
               class="px-4 py-2 text-[13px] font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-2"
               :class="pageTab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'">
@@ -33,7 +33,7 @@
     <div v-show="pageTab === 'providers'" class="bg-white rounded-[16px] shadow-sm border border-slate-200/60 overflow-hidden">
       <div class="p-5 sm:p-6 pb-4 sm:pb-5 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between gap-4">
         <div>
-          <h2 class="text-base font-bold text-slate-900">Configured Providers</h2>
+          <h2 class="text-base font-bold text-slate-900 admin-section-title">Configured Providers</h2>
           <p class="text-[13px] text-slate-500 mt-0.5">Your chat model providers, and the providers Video Studio uses for images, video and audio.</p>
         </div>
         <button @click="showAddProvider = !showAddProvider" type="button" data-tour="add-provider"
@@ -159,11 +159,11 @@
       
       <!-- Add New Provider Form (collapsible) -->
       <div v-show="showAddProvider" class="border-t border-slate-100 bg-slate-50/50 p-5 sm:p-6">
-        <h3 class="text-sm font-bold text-slate-900 mb-4">Add New Provider</h3>
+        <h3 class="text-sm font-bold text-slate-900 mb-4 admin-section-title">Add New Provider</h3>
         <form @submit.prevent="createProvider" class="grid gap-4 md:grid-cols-2">
           <div>
             <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Name</label>
-            <input v-model="newProvider.name" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="e.g. Production Anthropic" required />
+            <input aria-label="E.g. Production Anthropic" v-model="newProvider.name" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="e.g. Production Anthropic" required />
           </div>
           <div>
             <label for="new-provider-type" class="block text-[13px] font-semibold text-slate-700 mb-1.5">Provider Type</label>
@@ -197,7 +197,7 @@
           </div>
           <div>
             <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">API Key</label>
-            <input v-model="newProvider.api_key" autocomplete="off" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="Paste the provider's API key" />
+            <input aria-label="Paste the provider's API key" v-model="newProvider.api_key" autocomplete="off" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="Paste the provider's API key" />
           </div>
           <div class="md:col-span-2 flex justify-end mt-2">
             <button type="submit" class="px-5 py-2.5 bg-slate-900 text-white rounded-[10px] hover:bg-slate-800 transition-all font-semibold shadow-sm border border-transparent shadow-[0_2px_4px_rgba(0,0,0,0.1)] text-[13px] flex items-center gap-2">
@@ -212,7 +212,7 @@
     <!-- Models for internal operations — per-user choice (falls back to the agent's default model) -->
     <div v-show="pageTab === 'internal'" class="bg-white rounded-[16px] shadow-sm border border-slate-200/60 overflow-hidden">
       <div class="p-5 sm:p-6 pb-4 sm:pb-5 border-b border-slate-100 bg-slate-50/30">
-        <h2 class="text-base font-bold text-slate-900">Models for internal operations</h2>
+        <h2 class="text-base font-bold text-slate-900 admin-section-title">Models for internal operations</h2>
         <p class="text-[13px] text-slate-500 mt-0.5">Pick which model runs each internal task. Leave as <strong>Agent default</strong> to use the agent's own model.</p>
       </div>
       <!-- A failed read of the saved picks is an error with Retry. It used to render every operation as
@@ -238,7 +238,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
               <div>
                 <label class="block text-[12px] font-semibold text-slate-600 mb-1.5">Provider</label>
-                <select v-model="opProvider[op.key]" @change="onOpProviderChange(op.key)"
+                <select aria-label="Op Provider" v-model="opProvider[op.key]" @change="onOpProviderChange(op.key)"
                         class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm font-medium text-slate-700 cursor-pointer">
                   <option :value="null">Agent default</option>
                   <option v-for="p in providers" :key="p.id" :value="p.id">{{ p.name }}</option>
@@ -246,7 +246,7 @@
               </div>
               <div>
                 <label class="block text-[12px] font-semibold text-slate-600 mb-1.5">Model</label>
-                <select v-model="opModels[op.key]" :disabled="!opProvider[op.key]"
+                <select aria-label="Op Models" v-model="opModels[op.key]" :disabled="!opProvider[op.key]"
                         class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm font-medium text-slate-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50">
                   <option :value="null">{{ opProvider[op.key] ? 'Select a model…' : 'Agent default' }}</option>
                   <option v-for="m in modelsForProvider(opProvider[op.key], false)" :key="m.id" :value="m.id">{{ m.name }}</option>
@@ -274,7 +274,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
           <div>
             <label class="block text-[12px] font-semibold text-slate-600 mb-1.5">Provider</label>
-            <select v-model="embProvider" @change="onEmbProviderChange"
+            <select aria-label="Emb Provider" v-model="embProvider" @change="onEmbProviderChange"
                     class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm font-medium text-slate-700 cursor-pointer">
               <option :value="null">Default — text-embedding-3-small (OpenAI/OpenRouter)</option>
               <option v-for="p in providers" :key="p.id" :value="p.id">{{ p.name }}</option>
@@ -282,7 +282,7 @@
           </div>
           <div>
             <label class="block text-[12px] font-semibold text-slate-600 mb-1.5">Model</label>
-            <select v-model="opModels.embedding_model_id" :disabled="!embProvider"
+            <select aria-label="Embedding model id" v-model="opModels.embedding_model_id" :disabled="!embProvider"
                     class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm font-medium text-slate-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-50">
               <option :value="null">{{ embProvider ? 'Select a model…' : 'Default — text-embedding-3-small' }}</option>
               <option v-for="m in embModels" :key="m.id" :value="m.id">{{ m.name }}</option>
@@ -399,11 +399,11 @@
     <div v-show="pageTab === 'models'" class="bg-white rounded-[16px] shadow-sm border border-slate-200/60 overflow-hidden">
       <div class="p-5 sm:p-6 pb-4 sm:pb-5 border-b border-slate-100 bg-slate-50/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 class="text-base font-bold text-slate-900">Configured Models</h2>
+          <h2 class="text-base font-bold text-slate-900 admin-section-title">Configured Models</h2>
           <p class="text-[13px] text-slate-500 mt-0.5">Assign models to providers for chat selection.</p>
         </div>
         <div class="flex items-center gap-2 w-full sm:w-auto">
-          <select v-model="modelFilter" class="flex-1 sm:flex-none bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm font-medium text-slate-700 cursor-pointer">
+          <select aria-label="Provider filter" v-model="modelFilter" class="flex-1 sm:flex-none bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm font-medium text-slate-700 cursor-pointer">
             <option value="">All Providers</option>
             <option v-for="provider in providers" :key="provider.id" :value="provider.id">
               {{ provider.name }}
@@ -497,11 +497,11 @@
 
       <!-- Add New Model Form (collapsible) -->
       <div v-show="showAddModel" class="border-t border-slate-100 bg-slate-50/50 p-5 sm:p-6">
-        <h3 class="text-sm font-bold text-slate-900 mb-4">Add New Model</h3>
+        <h3 class="text-sm font-bold text-slate-900 mb-4 admin-section-title">Add New Model</h3>
         <form @submit.prevent="createModel" class="grid gap-4 md:grid-cols-2">
           <div>
             <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Provider</label>
-            <select v-model="newModel.provider" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm cursor-pointer" required>
+            <select aria-label="Provider" v-model="newModel.provider" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm cursor-pointer" required>
               <option value="" disabled>Select provider</option>
               <option v-for="provider in providers" :key="provider.id" :value="provider.id">
                 {{ provider.name }}
@@ -510,15 +510,15 @@
           </div>
           <div>
             <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Model Name</label>
-            <input v-model="newModel.name" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="e.g. GPT-4o" required />
+            <input aria-label="E.g. GPT-4o" v-model="newModel.name" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="e.g. GPT-4o" required />
           </div>
           <div>
             <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Model ID</label>
-            <input v-model="newModel.model_id" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm font-mono text-sm" placeholder="gpt-4o" required />
+            <input aria-label="Gpt-4o" v-model="newModel.model_id" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm font-mono text-sm" placeholder="gpt-4o" required />
           </div>
           <div>
             <label class="block text-[13px] font-semibold text-slate-700 mb-1.5">Context Window</label>
-            <input v-model.number="newModel.context_window" type="number" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="128000" />
+            <input aria-label="128000" v-model.number="newModel.context_window" type="number" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm" placeholder="128000" />
           </div>
           <div class="md:col-span-2 flex justify-end mt-2">
             <button type="submit" class="px-5 py-2.5 bg-slate-900 text-white rounded-[10px] hover:bg-slate-800 transition-all font-semibold shadow-sm border border-transparent shadow-[0_2px_4px_rgba(0,0,0,0.1)] text-[13px] flex items-center gap-2">
@@ -533,7 +533,7 @@
     <!-- Web search engines: the platform's keys; each search is charged to the person's balance -->
     <div v-show="pageTab === 'search'" class="bg-white rounded-[16px] shadow-sm border border-slate-200/60 overflow-hidden" data-test="search-engines">
       <div class="p-5 sm:p-6 pb-4 sm:pb-5 border-b border-slate-100 bg-slate-50/30">
-        <h2 class="text-base font-bold text-slate-900">Web search engines</h2>
+        <h2 class="text-base font-bold text-slate-900 admin-section-title">Web search engines</h2>
         <p class="text-[13px] text-slate-600 mt-0.5">The platform's own keys. Each search is charged to the person's balance at
           this price × the markup. An engine with no price is never used, so it can never run free. Model-based search
           runs on the AI providers above and is charged by its tokens.</p>
@@ -547,17 +547,17 @@
           </div>
           <div class="grid gap-2">
             <label class="text-[12px] font-semibold text-slate-700" :for="`se-key-${e.engine}`">API key</label>
-            <input :id="`se-key-${e.engine}`" v-model="e.newKey" autocomplete="off" type="password"
+            <input aria-label="New Key" :id="`se-key-${e.engine}`" v-model="e.newKey" autocomplete="off" type="password"
                    class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px]"
                    :placeholder="e.has_api_key ? 'Saved (enter a new key to replace it)' : 'Paste the engine\'s API key'" />
             <template v-if="'cx' in (e.config || {})">
               <label class="text-[12px] font-semibold text-slate-700" :for="`se-cx-${e.engine}`">Search engine id (cx)</label>
-              <input :id="`se-cx-${e.engine}`" v-model="e.config.cx" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px]" />
+              <input aria-label="Cx" :id="`se-cx-${e.engine}`" v-model="e.config.cx" class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px]" />
             </template>
           </div>
           <div class="grid gap-2">
             <label class="text-[12px] font-semibold text-slate-700" :for="`se-price-${e.engine}`">Cost per search ($)</label>
-            <input :id="`se-price-${e.engine}`" v-model="e.price_per_search_usd" inputmode="decimal" placeholder="0.008"
+            <input aria-label="0.008" :id="`se-price-${e.engine}`" v-model="e.price_per_search_usd" inputmode="decimal" placeholder="0.008"
                    class="w-full bg-white border border-slate-200 rounded-[8px] px-3 py-2 text-[14px]" />
           </div>
           <div class="flex items-center gap-3">
@@ -577,7 +577,7 @@
     <div v-show="pageTab === 'activity'" class="bg-white rounded-[16px] shadow-sm border border-slate-200/60 overflow-hidden mb-8">
       <div class="p-5 sm:p-6 pb-4 sm:pb-5 border-b border-slate-100 bg-slate-50/30 flex items-center justify-between">
         <div>
-          <h2 class="text-base font-bold text-slate-900">Recent LLM Requests</h2>
+          <h2 class="text-base font-bold text-slate-900 admin-section-title">Recent LLM Requests</h2>
           <p class="text-[13px] text-slate-500 mt-0.5">Last 15 requests grouped by provider and model.</p>
         </div>
         <div v-if="activityLoading" class="text-[13px] font-medium text-slate-400 flex items-center gap-2">

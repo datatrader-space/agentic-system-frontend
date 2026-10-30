@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-auto grid w-full max-w-[1840px] grid-cols-1 gap-3 px-6 pb-8 font-[Inter,system-ui,sans-serif] xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_390px]">
+  <div class="mx-auto grid w-full max-w-[1840px] grid-cols-1 gap-3 px-6 pb-8 font-[Inter,system-ui,sans-serif] xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_390px] admin-subview">
     <main class="min-w-0 space-y-4">
       <!-- Monitoring failed to load: say so, with Retry. Never stand-in numbers that look like real ones. -->
       <LoadError v-if="monitorError" compact title="Couldn't load this agent's activity" :message="monitorError"
@@ -21,11 +21,11 @@
       </div>
 
       <div class="grid gap-4 xl:grid-cols-2">
-        <section class="panel">
+        <section class="panel admin-surface">
           <div class="mb-4 flex items-center justify-between gap-3">
             <div>
               <div class="flex items-center gap-3">
-                <h3 class="text-[18px] font-bold text-[#0F172A]">Last Run</h3>
+                <h3 class="text-[18px] font-bold text-[#0F172A] admin-section-title">Last Run</h3>
                 <span v-if="lastRun" class="status-pill" :class="runFailed(lastRun) ? 'bg-[#FEE4E2] text-[#B42318]' : 'bg-[#E6F7EE] text-[#027A48]'">
                   <component :is="runFailed(lastRun) ? XCircle : CheckCircle2" :size="13" /> {{ runStatusLabel(lastRun) }}
                 </span>
@@ -53,9 +53,9 @@
           <button class="wide-btn mt-4" @click="go(shell.agentPage(agent.id, 'monitor'))">View Full Test Details</button>
         </section>
 
-        <section class="panel">
+        <section class="panel admin-surface">
           <div class="mb-4 flex items-center justify-between gap-3">
-            <h3 class="text-[18px] font-bold text-[#0F172A]">Publish Controls</h3>
+            <h3 class="text-[18px] font-bold text-[#0F172A] admin-section-title">Publish Controls</h3>
             <span class="status-pill bg-[#DFF8EC] text-[#027A48]"><Rocket :size="13" /> {{ publishStatus }}</span>
           </div>
 
@@ -89,9 +89,9 @@
       </div>
 
       <div class="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,.65fr)]">
-        <section class="panel">
+        <section class="panel admin-surface">
           <div class="mb-4 flex items-center justify-between">
-            <h3 class="text-[17px] font-bold text-[#0F172A]">Activity Summary <span class="font-medium text-[#667085]">(24 hours)</span></h3>
+            <h3 class="text-[17px] font-bold text-[#0F172A] admin-section-title">Activity Summary <span class="font-medium text-[#667085]">(24 hours)</span></h3>
             <button class="mini-btn" @click="go(shell.agentPage(agent.id, 'monitor'))">View Analytics</button>
           </div>
           <div class="grid gap-3 sm:grid-cols-4">
@@ -123,9 +123,9 @@
           </div>
         </section>
 
-        <section class="panel">
+        <section class="panel admin-surface">
           <div class="mb-4 flex items-center justify-between">
-            <h3 class="text-[17px] font-bold text-[#0F172A]">Recent Runs</h3>
+            <h3 class="text-[17px] font-bold text-[#0F172A] admin-section-title">Recent Runs</h3>
             <button class="mini-btn" @click="go(shell.agentPage(agent.id, 'monitor'))">View All</button>
           </div>
           <div class="space-y-3">
@@ -146,9 +146,9 @@
     </main>
 
     <aside class="space-y-4">
-      <section class="panel flex min-h-[620px] flex-col overflow-hidden p-0">
+      <section class="panel flex min-h-[620px] flex-col overflow-hidden p-0 admin-surface">
         <div class="flex items-center justify-between border-b border-[#EEF2F6] px-4 py-3">
-          <h3 class="flex items-center gap-2 text-[15px] font-bold text-[#0F172A]"><Activity :size="17" class="text-[#2563EB]" /> Quick Test</h3>
+          <h3 class="flex items-center gap-2 text-[15px] font-bold text-[#0F172A] admin-section-title"><Activity :size="17" class="text-[#2563EB]" /> Quick Test</h3>
           <button v-if="published" class="text-[12px] font-semibold text-[#344054] hover:text-[#2563EB]" @click="go(shell.agentPage(agent.id, 'monitor'))">Expand</button>
         </div>
 
@@ -168,7 +168,7 @@
         <div class="flex items-start gap-4">
           <span class="grid h-10 w-10 place-items-center rounded-xl bg-white text-[#475569]"><Bell :size="19" /></span>
           <div>
-            <h3 class="text-[14px] font-bold text-[#0F172A]">Monitoring &amp; Alerts</h3>
+            <h3 class="text-[14px] font-bold text-[#0F172A] admin-section-title">Monitoring &amp; Alerts</h3>
             <p class="mt-2 text-[12.5px] leading-5 text-[#64748B]">{{ monitoringSummary }}</p>
           </div>
         </div>
@@ -390,16 +390,16 @@ onMounted(loadMonitoring)
 </script>
 
 <style scoped>
-.metric-card, .panel { border: 1px solid #E5E7EB; border-radius: 12px; background: #fff; box-shadow: 0 1px 3px rgba(16,24,40,.06); }
+.metric-card, .panel { border: 1px solid var(--admin-line, #E5E7EB); border-radius: 12px; background: var(--admin-surface, #fff); box-shadow: 0 1px 3px rgba(16,24,40,.06); }
 .metric-card { padding: 18px; min-height: 118px; }
 .panel { padding: 18px; }
-.mini-btn { display: inline-flex; height: 30px; min-width: 108px; align-items: center; justify-content: center; white-space: nowrap; border: 1px solid #E5E7EB; border-radius: 7px; background: #fff; padding: 0 14px; font-size: 11.5px; font-weight: 700; line-height: 1; color: #475569; }
-.wide-btn { display: inline-flex; height: 36px; align-items: center; justify-content: center; white-space: nowrap; border: 1px solid #E5E7EB; border-radius: 8px; background: #fff; padding: 0 14px; font-size: 12.5px; font-weight: 700; color: #344054; }
-.icon-btn { display: grid; height: 38px; width: 42px; place-items: center; border: 1px solid #E5E7EB; border-radius: 8px; background: #fff; color: #475569; }
+.mini-btn { display: inline-flex; height: 30px; min-width: 108px; align-items: center; justify-content: center; white-space: nowrap; border: 1px solid var(--admin-line, #E5E7EB); border-radius: 7px; background: var(--admin-surface, #fff); padding: 0 14px; font-size: 11.5px; font-weight: 700; line-height: 1; color: var(--admin-muted, #475569); }
+.wide-btn { display: inline-flex; height: 36px; align-items: center; justify-content: center; white-space: nowrap; border: 1px solid var(--admin-line, #E5E7EB); border-radius: 8px; background: var(--admin-surface, #fff); padding: 0 14px; font-size: 12.5px; font-weight: 700; color: var(--admin-ink, #344054); }
+.icon-btn { display: grid; height: 38px; width: 42px; place-items: center; border: 1px solid var(--admin-line, #E5E7EB); border-radius: 8px; background: var(--admin-surface, #fff); color: var(--admin-muted, #475569); }
 .status-pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 800; }
-.publish-row { display: grid; grid-template-columns: 142px minmax(0, 1fr); align-items: center; min-height: 34px; border-bottom: 1px solid #EEF2F6; font-size: 12.5px; color: #64748B; }
-.publish-row strong { font-weight: 700; color: #475569; }
-.control { height: 34px; width: 100%; border: 1px solid #D9E0EA; border-radius: 8px; background: #fff; padding: 0 12px; font-size: 12.5px; font-weight: 600; color: #344054; outline: none; }
+.publish-row { display: grid; grid-template-columns: 142px minmax(0, 1fr); align-items: center; min-height: 34px; border-bottom: 1px solid var(--admin-line, #EEF2F6); font-size: 12.5px; color: var(--admin-muted, #64748B); }
+.publish-row strong { font-weight: 700; color: var(--admin-muted, #475569); }
+.control { height: 34px; width: 100%; border: 1px solid var(--admin-line, #D9E0EA); border-radius: 8px; background: var(--admin-surface, #fff); padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--admin-ink, #344054); outline: none; }
 .send-btn { display: grid; height: 40px; width: 40px; place-items: center; border-radius: 10px; background: #4F46E5; color: #fff; }
 .dot { height: 7px; width: 7px; border-radius: 999px; }
 button { transition: border-color .15s, background .15s, color .15s; }

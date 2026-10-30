@@ -1,13 +1,13 @@
 <template>
-  <div class="rtm">
-    <header class="rtm-head">
+  <div class="rtm admin-page">
+    <header class="rtm-head admin-page-header">
       <div>
-        <h1>Runtime Metrics</h1>
+        <h1 class="admin-page-title">Runtime Metrics</h1>
         <p>Live backpressure, circuit-breaker, and thread-pool saturation for the worker process that
           answers this request — the same span-based machinery (Phase F) that already sheds load and
           fails fast in production, read out instead of only acting on it.</p>
       </div>
-      <div class="rtm-controls">
+      <div class="rtm-controls admin-toolbar">
         <label class="auto" :class="{ on: autoRefresh }">
           <input type="checkbox" v-model="autoRefresh" @change="onAutoToggle" />
           <span class="auto-dot"></span> Auto-refresh (5s)
@@ -28,27 +28,27 @@
       </span>
     </div>
 
-    <div v-if="loading && !data" class="state card">Loading…</div>
-    <div v-else-if="error" class="state err card">Couldn’t load. <button class="link" @click="load">Retry</button></div>
+    <div v-if="loading && !data" class="state card admin-surface">Loading…</div>
+    <div v-else-if="error" class="state err card admin-surface">Couldn’t load. <button class="link" @click="load">Retry</button></div>
 
     <template v-else-if="data">
       <!-- KPI tiles -->
-      <div class="kpis">
-        <div v-for="t in kpis" :key="t.label" class="kpi" :class="'tone-' + t.tone">
-          <span class="kpi-label">{{ t.label }}</span>
-          <span class="kpi-val">{{ t.value }}</span>
-          <span class="kpi-note">{{ t.note }}</span>
+      <div class="kpis admin-metrics">
+        <div v-for="t in kpis" :key="t.label" class="kpi admin-metric" :class="'tone-' + t.tone">
+          <span class="kpi-label admin-muted">{{ t.label }}</span>
+          <span class="kpi-val admin-value">{{ t.value }}</span>
+          <span class="kpi-note admin-muted">{{ t.note }}</span>
         </div>
       </div>
 
       <!-- Thread pools -->
-      <section class="card">
+      <section class="card admin-surface">
         <div class="card-head">
-          <h2>Thread pools</h2>
+          <h2 class="admin-section-title">Thread pools</h2>
           <span class="count">{{ poolRows.length }}</span>
         </div>
-        <div class="tbl-wrap">
-          <table class="tbl">
+        <div class="tbl-wrap admin-table-scroll">
+          <table class="tbl admin-table">
             <thead>
               <tr><th>Pool</th><th class="r">Active / Max</th><th class="r">Idle</th><th class="r">Queued</th><th>Saturation</th></tr>
             </thead>
@@ -57,7 +57,7 @@
                 <td><strong>{{ p.label }}</strong></td>
                 <template v-if="p.started">
                   <td class="r tabular">{{ n(p.active) }} / {{ p.max ?? '—' }}</td>
-                  <td class="r tabular muted">{{ n(p.idle) }}</td>
+                  <td class="r tabular muted admin-muted">{{ n(p.idle) }}</td>
                   <td class="r tabular" :class="{ warn: (p.queued || 0) > 0 }">{{ n(p.queued) }}</td>
                   <td class="bar-cell">
                     <div class="bar-track">
@@ -67,7 +67,7 @@
                   </td>
                 </template>
                 <template v-else>
-                  <td class="r muted" colspan="3">not created in this process yet</td>
+                  <td class="r muted admin-muted" colspan="3">not created in this process yet</td>
                   <td class="bar-cell"><span class="bar-pct tier-unknown">n/a</span></td>
                 </template>
               </tr>
@@ -77,15 +77,15 @@
       </section>
 
       <!-- Backpressure nodes -->
-      <section class="card">
+      <section class="card admin-surface">
         <div class="card-head">
-          <h2>Backpressure nodes</h2>
+          <h2 class="admin-section-title">Backpressure nodes</h2>
           <span class="count">{{ bpRows.length }}</span>
         </div>
         <div v-if="!bpRows.length" class="state">No backpressure node has been touched in this process yet
           — nodes are created lazily on first use, so this is expected right after a restart.</div>
-        <div v-else class="tbl-wrap">
-          <table class="tbl">
+        <div v-else class="tbl-wrap admin-table-scroll">
+          <table class="tbl admin-table">
             <thead>
               <tr><th>Node</th><th class="r">Active / Max</th><th class="r">Admitted</th><th class="r">Rejected (lifetime)</th><th>Saturation</th></tr>
             </thead>
@@ -93,7 +93,7 @@
               <tr v-for="b in bpRows" :key="b.name">
                 <td><strong>{{ b.name }}</strong></td>
                 <td class="r tabular">{{ n(b.active) }} / {{ b.max ?? '—' }}</td>
-                <td class="r tabular muted">{{ n(b.admitted) }}</td>
+                <td class="r tabular muted admin-muted">{{ n(b.admitted) }}</td>
                 <td class="r tabular" :class="{ warn: b.rejected > 0 }">{{ n(b.rejected) }}</td>
                 <td class="bar-cell">
                   <div class="bar-track">
@@ -110,15 +110,15 @@
       </section>
 
       <!-- Circuit breakers -->
-      <section class="card">
+      <section class="card admin-surface">
         <div class="card-head">
-          <h2>Circuit breakers</h2>
+          <h2 class="admin-section-title">Circuit breakers</h2>
           <span class="count">{{ breakerRows.length }}</span>
         </div>
         <div v-if="!breakerRows.length" class="state ok">No circuit breaker has tripped or been probed in
           this process yet — breakers are created lazily on first failure.</div>
-        <div v-else class="tbl-wrap">
-          <table class="tbl">
+        <div v-else class="tbl-wrap admin-table-scroll">
+          <table class="tbl admin-table">
             <thead>
               <tr><th>Dependency</th><th>State</th><th class="r">Opened (lifetime)</th><th class="r">Rejected while open</th></tr>
             </thead>
@@ -126,7 +126,7 @@
               <tr v-for="b in breakerRows" :key="b.name">
                 <td><strong>{{ b.name }}</strong></td>
                 <td><span class="pill" :class="'tier-' + b.tier">{{ stateLabel(b.state) }}</span></td>
-                <td class="r tabular muted">{{ n(b.opened) }}</td>
+                <td class="r tabular muted admin-muted">{{ n(b.opened) }}</td>
                 <td class="r tabular" :class="{ warn: b.rejected > 0 }">{{ n(b.rejected) }}</td>
               </tr>
             </tbody>
@@ -276,11 +276,11 @@ onBeforeUnmount(() => poller.stop())
 .rtm { padding: 28px 32px 60px; }
 .rtm-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 16px; }
 .rtm-head h1 { margin: 0; font-size: 22px; font-weight: 800; }
-.rtm-head p { margin: 6px 0 0; color: #64748b; font-size: 13px; max-width: 700px; line-height: 1.5; }
+.rtm-head p { margin: 6px 0 0; color: var(--admin-muted, #64748b); font-size: 13px; max-width: 700px; line-height: 1.5; }
 .rtm-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
 .auto { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 13px; border-radius: 9px;
-  border: 1px solid #d8e2f0; background: #fff; font-size: 12.5px; font-weight: 700; color: #64748b; cursor: pointer; user-select: none; }
+  border: 1px solid var(--admin-line, #d8e2f0); background: var(--admin-surface, #fff); font-size: 12.5px; font-weight: 700; color: var(--admin-muted, #64748b); cursor: pointer; user-select: none; }
 .auto input { position: absolute; opacity: 0; width: 0; height: 0; }
 .auto-dot { width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; flex-shrink: 0; }
 .auto.on { border-color: #c7d2fe; background: #eef2ff; color: #4338ca; }
@@ -291,41 +291,41 @@ onBeforeUnmount(() => poller.stop())
 .btn:disabled { opacity: .6; } .btn svg { width: 15px; height: 15px; }
 .spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
 
-.scope-note { display: flex; align-items: flex-start; gap: 10px; background: #f8fafc; border: 1px solid #e5ebf3;
-  border-radius: 12px; padding: 12px 15px; font-size: 12.5px; color: #475569; line-height: 1.5; margin-bottom: 18px; }
-.scope-note svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; color: #64748b; }
+.scope-note { display: flex; align-items: flex-start; gap: 10px; background: var(--admin-soft, #f8fafc); border: 1px solid #e5ebf3;
+  border-radius: 12px; padding: 12px 15px; font-size: 12.5px; color: var(--admin-muted, #475569); line-height: 1.5; margin-bottom: 18px; }
+.scope-note svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; color: var(--admin-muted, #64748b); }
 .scope-note code { background: #eef2f7; border-radius: 4px; padding: 1px 5px; font-size: 11.5px; }
 
 .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; margin-bottom: 18px; }
-.kpi { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 15px 17px; display: flex; flex-direction: column; }
-.kpi-label { font-size: 11.5px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .03em; }
-.kpi-val { font-size: 24px; font-weight: 800; color: #0f172a; margin-top: 7px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-.kpi-note { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+.kpi { background: var(--admin-surface, #fff); border: 1px solid var(--admin-line, #e2e8f0); border-radius: 14px; padding: 15px 17px; display: flex; flex-direction: column; }
+.kpi-label { font-size: 11.5px; font-weight: 700; color: var(--admin-muted, #64748b); text-transform: uppercase; letter-spacing: .03em; }
+.kpi-val { font-size: 24px; font-weight: 800; color: var(--admin-ink, #0f172a); margin-top: 7px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.kpi-note { font-size: 12px; color: var(--admin-muted, #94a3b8); margin-top: 4px; }
 .kpi.tone-amber { border-color: #fde68a; background: #fffdf5; }
 .kpi.tone-amber .kpi-val { color: #b45309; }
 .kpi.tone-red { border-color: #fecaca; background: #fff5f5; }
 .kpi.tone-red .kpi-val { color: #dc2626; }
 .kpi.tone-green .kpi-val { color: #15803d; }
 
-.card { background: #fff; border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); overflow: hidden; margin-bottom: 18px; }
-.card-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #eef2f7; }
-.card-head h2 { margin: 0; font-size: 13px; font-weight: 700; color: #334155; text-transform: uppercase; letter-spacing: .04em; }
-.count { font-size: 12px; font-weight: 700; color: #64748b; background: #f1f5f9; border-radius: 999px; padding: 3px 10px; font-variant-numeric: tabular-nums; }
-.state { padding: 30px; text-align: center; color: #64748b; font-size: 13px; }
+.card { background: var(--admin-surface, #fff); border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); overflow: hidden; margin-bottom: 18px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--admin-line, #eef2f7); }
+.card-head h2 { margin: 0; font-size: 13px; font-weight: 700; color: var(--admin-ink, #334155); text-transform: uppercase; letter-spacing: .04em; }
+.count { font-size: 12px; font-weight: 700; color: var(--admin-muted, #64748b); background: var(--admin-soft, #f1f5f9); border-radius: 999px; padding: 3px 10px; font-variant-numeric: tabular-nums; }
+.state { padding: 30px; text-align: center; color: var(--admin-muted, #64748b); font-size: 13px; }
 .state.ok { color: #15803d; }
 .state.err { color: #b45309; }
 .link { border: 0; background: transparent; color: #4f46e5; font-weight: 700; cursor: pointer; }
 
 .tbl-wrap { overflow-x: auto; }
 .tbl { width: 100%; border-collapse: collapse; }
-.tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #64748b; padding: 12px 16px; border-bottom: 1px solid #eef2f7; background: #f8fafc; white-space: nowrap; }
+.tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--admin-muted, #64748b); padding: 12px 16px; border-bottom: 1px solid var(--admin-line, #eef2f7); background: var(--admin-soft, #f8fafc); white-space: nowrap; }
 .tbl th.r, .tbl td.r { text-align: right; }
 .tbl td { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
 .tbl tr:last-child td { border-bottom: 0; }
 .tbl td.tabular { font-variant-numeric: tabular-nums; }
 .tbl td.warn { color: #b45309; font-weight: 700; }
-.muted { color: #94a3b8; }
-.more { padding: 10px 16px; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; }
+.muted { color: var(--admin-muted, #94a3b8); }
+.more { padding: 10px 16px; font-size: 12px; color: var(--admin-muted, #94a3b8); border-top: 1px solid #f1f5f9; }
 
 .bar-cell { display: flex; align-items: center; gap: 10px; min-width: 160px; }
 .bar-track { flex: 1; height: 8px; border-radius: 999px; background: #eef2f7; overflow: hidden; }
@@ -345,12 +345,12 @@ onBeforeUnmount(() => poller.stop())
 .tier-red { color: #dc2626; }
 .bar-fill.tier-red, .pill.tier-red { background: #dc2626; }
 .pill.tier-red { color: #fff; }
-.tier-unknown { color: #94a3b8; }
+.tier-unknown { color: var(--admin-muted, #94a3b8); }
 .bar-fill.tier-unknown, .pill.tier-unknown { background: #cbd5e1; }
-.pill.tier-unknown { color: #475569; }
-.tone-unknown .kpi-val { color: #64748b; }
+.pill.tier-unknown { color: var(--admin-muted, #475569); }
+.tone-unknown .kpi-val { color: var(--admin-muted, #64748b); }
 
-.rtm-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; padding: 4px 2px; }
+.rtm-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--admin-muted, #94a3b8); padding: 4px 2px; }
 .rtm-foot .dot { color: #cbd5e1; }
 
 @media (max-width: 680px) {

@@ -1,18 +1,18 @@
 <!-- What went into memory: facts saved, corrections (before → after), and the topics injected into context. -->
 <template>
-  <section class="panel" aria-labelledby="memory-title">
+  <section class="panel admin-subview admin-surface" aria-labelledby="memory-title">
     <div class="panel-header">
       <div class="panel-title-group">
         <span class="section-icon green"><Icon icon="lucide:database-zap" /></span>
         <div>
-          <h2 id="memory-title">Memory</h2>
+          <h2 class="admin-section-title" id="memory-title">Memory</h2>
           <p>Every fact saved, every correction, and the topics agents are given. Filtered by the agent and conversation above.</p>
         </div>
       </div>
       <span class="source-label">{{ memory.source }}</span>
     </div>
 
-    <div class="subtabs" role="group" aria-label="Memory views">
+    <div class="subtabs admin-tabs" role="group" aria-label="Memory views">
       <button v-for="v in views" :key="v.key" type="button" class="subtab" :class="{ active: view === v.key }"
               :aria-pressed="view === v.key" @click="view = v.key">
         {{ v.label }} <span class="count">{{ formatNumber(v.n) }}</span>
@@ -48,7 +48,7 @@
           <div class="feed-content">
             <div class="feed-meta">
               <strong>{{ c.topic.title }}</strong>
-              <span class="muted">{{ c.topic.scope }}</span>
+              <span class="muted admin-muted">{{ c.topic.scope }}</span>
               <span class="feed-attribution">{{ attribution(c) }} · {{ shortTime(c.retired_at) }}</span>
             </div>
             <div class="change-row old"><span>Before</span><p>{{ c.was }}</p></div>
@@ -62,8 +62,8 @@
 
     <template v-else>
       <div v-if="!topics.length" class="empty-state"><Icon icon="lucide:library-big" /><strong>No topics</strong></div>
-      <div v-else class="table-wrap">
-        <table class="data-table card-table">
+      <div v-else class="table-wrap admin-table-scroll">
+        <table class="data-table card-table admin-table">
           <thead><tr><th>Topic</th><th>Scope</th><th>Summary given to the agent</th><th class="numeric">Facts</th><th class="numeric">Updated</th></tr></thead>
           <tbody>
             <tr v-for="t in topicsPage.visible" :key="t.id">
@@ -71,7 +71,7 @@
               <td data-label="Scope"><span class="status-badge neutral">{{ t.scope }}</span></td>
               <td data-label="Summary" class="summary-cell">{{ t.summary || 'No summary yet.' }}</td>
               <td data-label="Facts" class="numeric strong">{{ formatNumber(t.facts) }}</td>
-              <td data-label="Updated" class="numeric muted nowrap">{{ shortTime(t.updated_at) }}</td>
+              <td data-label="Updated" class="numeric muted nowrap admin-muted">{{ shortTime(t.updated_at) }}</td>
             </tr>
           </tbody>
         </table>

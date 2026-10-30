@@ -1,15 +1,15 @@
 <template>
-  <div class="min-h-screen p-6 sm:p-8 font-sans">
+  <div class="min-h-screen p-6 sm:p-8 font-sans admin-page">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-      <div>
-        <h1 class="font-display text-3xl font-extrabold tracking-tight text-ink">LLM Context System</h1>
+      <div class="admin-page-header">
+        <h1 class="font-display text-3xl font-extrabold tracking-tight text-ink admin-page-title">LLM Context System</h1>
         <p class="text-[14px] text-ink-soft mt-1 font-medium">
           Phase 2 store counts, retention footprint, and embedding cost (admin only)
         </p>
       </div>
       <div class="flex items-center gap-3">
-        <select
+        <select aria-label="Reporting period"
           v-model.number="days"
           @change="load"
           class="bg-white text-slate-700 rounded-[10px] px-3 py-2 text-[14px] font-medium border border-slate-200 focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all outline-none shadow-sm cursor-pointer"
@@ -71,14 +71,14 @@
 
       <!-- LLM cost by source -->
       <div class="bg-white border border-slate-200/60 shadow-sm rounded-[16px] p-6">
-        <h3 class="text-[16px] font-extrabold text-slate-900 mb-6 flex items-center gap-2">
+        <h3 class="text-[16px] font-extrabold text-slate-900 mb-6 flex items-center gap-2 admin-section-title">
           <span class="w-1.5 h-6 bg-indigo-500 rounded-full"></span>
           LLM Cost by Source <span class="text-[13px] font-medium text-slate-400">· last {{ days }} days</span>
         </h3>
         <div v-if="!costBySource.length" class="text-slate-400 text-[14px] font-medium py-4 text-center border border-dashed border-slate-200 rounded-lg">
           No LLM requests in this window
         </div>
-        <table v-else class="w-full text-[14px]">
+        <div class="admin-table-scroll" v-else><table  class="w-full text-[14px] admin-table">
           <thead>
             <tr class="text-left text-[12px] font-bold uppercase tracking-wide text-slate-400 border-b border-slate-100">
               <th class="py-2">Source</th>
@@ -93,7 +93,7 @@
               <td class="py-2.5 text-right font-bold text-slate-900">${{ row.cost.toFixed(4) }}</td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
       </div>
 
       <p class="text-[12px] text-slate-400 mt-6 font-medium">

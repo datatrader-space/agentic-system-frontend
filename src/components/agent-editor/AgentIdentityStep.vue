@@ -1,11 +1,11 @@
 <template>
-  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif]">
+  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif] admin-subview">
     <header v-if="isNew" class="mb-6 text-center">
-      <h2 class="text-[28px] font-bold tracking-tight text-[#0F172A]">Let's build your agent</h2>
+      <h2 class="text-[28px] font-bold tracking-tight text-[#0F172A] admin-section-title">Let's build your agent</h2>
       <p class="mt-2 text-[15px] text-[#64748B]">Choose a starting point and confirm the basics for this agent.</p>
     </header>
     <header v-else class="mx-auto mb-5 max-w-[1120px]">
-      <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A]">Agent Identity</h2>
+      <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A] admin-section-title">Agent Identity</h2>
       <p class="mt-0.5 text-[13.5px] text-[#64748B]">Your agent's name, purpose, and where it lives.</p>
     </header>
 
@@ -51,24 +51,24 @@
     </section>
 
     <section class="mx-auto max-w-[1120px] rounded-xl border border-[#E5E7EB] bg-white p-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-      <h3 class="mb-4 text-base font-semibold text-[#0F172A]">Agent basics</h3>
+      <h3 class="mb-4 text-base font-semibold text-[#0F172A] admin-section-title">Agent basics</h3>
 
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label class="mb-1.5 block text-[13px] font-semibold text-[#344054]">Agent name</label>
-          <input v-model="agent.name" type="text" placeholder="e.g., My Lead Intake Agent" class="field" />
+          <input aria-label="E.g., My Lead Intake Agent" v-model="agent.name" type="text" placeholder="e.g., My Lead Intake Agent" class="field" />
           <p class="mt-1.5 text-xs text-[#667085]">Choose a clear, descriptive name for your agent.</p>
         </div>
         <div>
           <label class="mb-1.5 block text-[13px] font-semibold text-[#344054]">Purpose</label>
-          <input v-model="agent.description" type="text" placeholder="e.g., Qualify leads and route to the right team" class="field" />
+          <input aria-label="E.g., Qualify leads and route to the right team" v-model="agent.description" type="text" placeholder="e.g., Qualify leads and route to the right team" class="field" />
           <p class="mt-1.5 text-xs text-[#667085]">What will this agent do?</p>
         </div>
       </div>
 
       <div class="mt-4">
         <label class="mb-1.5 block text-[13px] font-semibold text-[#344054]">Workspace</label>
-        <select v-model="selectedWorkspace" class="field">
+        <select aria-label="Selected Workspace" v-model="selectedWorkspace" class="field">
           <option :value="null">Select a workspace</option>
           <option v-for="w in workspaces" :key="w.id" :value="w.id">{{ w.org_name ? `${w.org_name} · ${w.name}` : w.name }}</option>
         </select>
@@ -193,6 +193,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.field { width: 100%; border: 1px solid #D0D5DD; border-radius: 10px; padding: 10px 12px; font-size: 13.5px; color: #0F172A; background: #fff; outline: none; transition: box-shadow .15s, border-color .15s; }
+.field { width: 100%; border: 1px solid var(--admin-line, #D0D5DD); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; color: var(--admin-ink, #0F172A); background: var(--admin-surface, #fff); outline: none; transition: box-shadow .15s, border-color .15s; }
 .field:focus { border-color: #2563EB; box-shadow: 0 0 0 3px #EAF0FF; }
 </style>

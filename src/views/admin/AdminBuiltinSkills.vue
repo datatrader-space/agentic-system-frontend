@@ -1,8 +1,8 @@
 <template>
-  <div class="bs">
-    <header class="bs-head">
+  <div class="bs admin-page">
+    <header class="bs-head admin-page-header">
       <div>
-        <h1>Built-in Skills</h1>
+        <h1 class="admin-page-title">Built-in Skills</h1>
         <p>Curated playbooks every user can assign to their agents — read-only outside this page, and
           <strong>auto-assigned to the Platform Super Agent</strong> so it can load any of them on demand.
           User-authored skills are separate: private to their owner, never listed here.</p>
@@ -11,21 +11,21 @@
     </header>
 
     <!-- Create / edit -->
-    <section v-if="showForm" class="card form">
-      <h2>{{ editing ? `Edit “${editing.name}”` : 'New built-in skill' }}</h2>
-      <div v-if="!editing" class="tabs">
+    <section v-if="showForm" class="card form admin-surface">
+      <h2 class="admin-section-title">{{ editing ? `Edit “${editing.name}”` : 'New built-in skill' }}</h2>
+      <div v-if="!editing" class="tabs admin-tabs">
         <button :class="{ on: mode === 'fields' }" @click="mode = 'fields'">Fields</button>
         <button :class="{ on: mode === 'paste' }" @click="mode = 'paste'">Paste SKILL.md</button>
         <button :class="{ on: mode === 'import' }" @click="mode = 'import'">Import bundle</button>
       </div>
       <div v-if="mode === 'paste' && !editing" class="grid">
-        <textarea v-model="skillMd" rows="8"
+        <textarea aria-label="Paste a full SKILL.md (--- YAML frontmatter --- then the body)" v-model="skillMd" rows="8"
                   placeholder="Paste a full SKILL.md (--- YAML frontmatter --- then the body)"></textarea>
       </div>
       <div v-else-if="mode === 'import' && !editing" class="grid">
-        <input v-model="importUrl" placeholder="https://github.com/owner/repo (public repo with SKILL.md at root)" />
-        <input ref="zipEl" type="file" accept=".zip" />
-        <p class="hint">Imported bundles arrive <strong>untrusted</strong> — bundled scripts stay locked until
+        <input aria-label="Https://github.com/owner/repo (public repo with SKILL.md at root)" v-model="importUrl" placeholder="https://github.com/owner/repo (public repo with SKILL.md at root)" />
+        <input aria-label="Choose a file" ref="zipEl" type="file" accept=".zip" />
+        <p class="hint admin-muted">Imported bundles arrive <strong>untrusted</strong> — bundled scripts stay locked until
           you mark the skill trusted.</p>
       </div>
       <!-- Editing: the form is filled from the skill's detail (the list carries no body). -->
@@ -34,9 +34,9 @@
         {{ editError }} <button class="link" @click="openEdit(editing)">Retry</button>
       </div>
       <div v-else class="grid">
-        <input v-model="draft.name" placeholder="Skill name" />
-        <input v-model="draft.description" placeholder="One-line summary (what the skill is for)" />
-        <textarea v-model="draft.body" rows="6" placeholder="Full instructions (Markdown)"></textarea>
+        <input aria-label="Skill name" v-model="draft.name" placeholder="Skill name" />
+        <input aria-label="One-line summary (what the skill is for)" v-model="draft.description" placeholder="One-line summary (what the skill is for)" />
+        <textarea aria-label="Full instructions (Markdown)" v-model="draft.body" rows="6" placeholder="Full instructions (Markdown)"></textarea>
       </div>
       <div class="f-actions">
         <button class="btn primary" :disabled="saving || !canSave" @click="save">
@@ -46,32 +46,32 @@
       </div>
     </section>
 
-    <section class="card">
-      <div class="toolbar">
-        <input v-model="query" class="search" placeholder="Search built-in skills…" />
+    <section class="card admin-surface">
+      <div class="toolbar admin-toolbar">
+        <input aria-label="Search" v-model="query" class="search" placeholder="Search built-in skills…" />
         <span class="count">{{ filtered.length }} of {{ rows.length }}</span>
       </div>
       <div v-if="loading" class="state">Loading…</div>
       <div v-else-if="error" class="state err">Couldn’t load. <button class="link" @click="load">Retry</button></div>
       <div v-else-if="!rows.length" class="state">No built-in skills yet. <button class="link" @click="openCreate">Create one</button>.</div>
-      <table v-else class="tbl">
+      <div class="admin-table-scroll" v-else><table  class="tbl admin-table">
         <thead><tr><th>Skill</th><th>Category</th><th>Bundle</th><th>Trust</th><th>Updated</th><th class="r">Actions</th></tr></thead>
         <tbody>
           <tr v-for="s in paged" :key="s.id">
             <td>
               <strong>{{ s.name }}</strong>
-              <div class="sub">{{ s.description || '—' }}</div>
+              <div class="sub admin-muted">{{ s.description || '—' }}</div>
               <div v-if="(s.lint || []).length" class="lint" :title="lintText(s)">
                 <Icon icon="lucide:triangle-alert" /> {{ s.lint.length }} authoring tip{{ s.lint.length === 1 ? '' : 's' }}
               </div>
             </td>
             <td><span class="cat">{{ s.category || 'general' }}</span></td>
-            <td class="muted">
+            <td class="muted admin-muted">
               {{ (s.files || []).length }} file{{ (s.files || []).length === 1 ? '' : 's' }}<template
                 v-if="scriptCount(s)"> · {{ scriptCount(s) }} script{{ scriptCount(s) === 1 ? '' : 's' }}</template>
             </td>
             <td><span :class="['trust', s.trust_status === 'trusted' ? 'on' : 'off']">{{ s.trust_status }}</span></td>
-            <td class="muted">{{ shortDate(s.updated_at) }}</td>
+            <td class="muted admin-muted">{{ shortDate(s.updated_at) }}</td>
             <td class="actions">
               <button class="ic" title="Edit" @click="openEdit(s)"><Icon icon="lucide:pencil" /></button>
               <button class="ic" :title="s.trust_status === 'trusted' ? 'Untrust (locks bundled scripts)' : 'Trust (unlocks bundled scripts)'"
@@ -82,8 +82,8 @@
             </td>
           </tr>
         </tbody>
-      </table>
-      <div v-if="pageCount > 1" class="pager">
+      </table></div>
+      <div v-if="pageCount > 1" class="pager admin-pagination">
         <button class="btn ghost" :disabled="page === 1" @click="page--">‹ Prev</button>
         <span class="count">page {{ page }} / {{ pageCount }}</span>
         <button class="btn ghost" :disabled="page === pageCount" @click="page++">Next ›</button>
@@ -91,9 +91,9 @@
     </section>
 
     <!-- Delete confirm -->
-    <div v-if="confirmRow" class="backdrop center" @click.self="confirmRow = null">
-      <div class="modal">
-        <h2>Delete “{{ confirmRow.name }}”?</h2>
+    <div @keydown.esc.stop.prevent="confirmRow = null" v-if="confirmRow" class="backdrop center admin-overlay" @click.self="confirmRow = null">
+      <div role="dialog" aria-modal="true" tabindex="-1" aria-labelledby="admin-dialog-adminbuiltinskills-4" class="modal admin-dialog">
+        <h2 id="admin-dialog-adminbuiltinskills-4" class="admin-section-title">Delete “{{ confirmRow.name }}”?</h2>
         <p>The skill disappears for every user and agent it was assigned to (including the Super Agent).
           This cannot be undone.</p>
         <div class="m-actions">
@@ -297,46 +297,46 @@ onMounted(load)
 .bs { padding: 28px 32px 60px; }
 .bs-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
 .bs-head h1 { margin: 0; font-size: 22px; font-weight: 800; }
-.bs-head p { margin: 6px 0 0; color: #64748b; font-size: 13px; max-width: 680px; line-height: 1.5; }
+.bs-head p { margin: 6px 0 0; color: var(--admin-muted, #64748b); font-size: 13px; max-width: 680px; line-height: 1.5; }
 .btn { display: inline-flex; align-items: center; gap: 7px; height: 38px; border-radius: 9px; padding: 0 15px; font-size: 13px; font-weight: 700; border: 1px solid transparent; cursor: pointer; }
-.btn.primary { background: #4f46e5; color: #fff; } .btn.ghost { background: #fff; border-color: #d8e2f0; color: #334155; } .btn.danger { background: #dc2626; color: #fff; }
+.btn.primary { background: #4f46e5; color: #fff; } .btn.ghost { background: var(--admin-surface, #fff); border-color: var(--admin-line, #d8e2f0); color: var(--admin-ink, #334155); } .btn.danger { background: #dc2626; color: #fff; }
 .btn:disabled { opacity: .6; } .btn svg { width: 15px; height: 15px; }
-.card { background: #fff; border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); overflow: hidden; }
+.card { background: var(--admin-surface, #fff); border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,.04); overflow: hidden; }
 .card.form { padding: 20px; margin-bottom: 18px; }
 .card.form h2 { margin: 0 0 12px; font-size: 15px; }
 .tabs { display: inline-flex; gap: 2px; border: 1px solid #e5ebf3; border-radius: 9px; padding: 2px; margin-bottom: 12px; }
-.tabs button { border: 0; background: transparent; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 700; color: #64748b; cursor: pointer; }
+.tabs button { border: 0; background: transparent; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 700; color: var(--admin-muted, #64748b); cursor: pointer; }
 .tabs button.on { background: #4f46e5; color: #fff; }
 .grid { display: grid; gap: 10px; }
 .grid input[type="text"], .grid input:not([type]), .grid textarea {
   border: 1px solid #e5ebf3; border-radius: 9px; padding: 9px 12px; font-size: 13px; font-family: inherit; }
 .grid textarea { font-family: ui-monospace, monospace; }
-.hint { margin: 0; color: #94a3b8; font-size: 12px; }
+.hint { margin: 0; color: var(--admin-muted, #94a3b8); font-size: 12px; }
 .f-actions { display: flex; gap: 10px; margin-top: 14px; }
-.toolbar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #eef2f7; background: #f8fafc; }
+.toolbar { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--admin-line, #eef2f7); background: var(--admin-soft, #f8fafc); }
 .search { flex: 1; max-width: 340px; border: 1px solid #e5ebf3; border-radius: 9px; padding: 8px 12px; font-size: 13px; }
-.count { color: #94a3b8; font-size: 12px; font-weight: 600; }
-.state { padding: 44px; text-align: center; color: #64748b; } .state.err { color: #b45309; }
+.count { color: var(--admin-muted, #94a3b8); font-size: 12px; font-weight: 600; }
+.state { padding: 44px; text-align: center; color: var(--admin-muted, #64748b); } .state.err { color: #b45309; }
 .link { border: 0; background: transparent; color: #4f46e5; font-weight: 700; cursor: pointer; }
 .tbl { width: 100%; border-collapse: collapse; }
-.tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #64748b; padding: 12px 16px; border-bottom: 1px solid #eef2f7; background: #f8fafc; }
+.tbl th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--admin-muted, #64748b); padding: 12px 16px; border-bottom: 1px solid var(--admin-line, #eef2f7); background: var(--admin-soft, #f8fafc); }
 .tbl th.r { text-align: right; }
 .tbl td { padding: 13px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
 .tbl tr:last-child td { border-bottom: 0; }
-.sub { color: #94a3b8; font-size: 11.5px; margin-top: 3px; max-width: 480px; }
+.sub { color: var(--admin-muted, #94a3b8); font-size: 11.5px; margin-top: 3px; max-width: 480px; }
 .lint { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 11px; font-weight: 700; color: #b45309; cursor: help; }
 .lint svg { width: 12px; height: 12px; }
-.muted { color: #94a3b8; }
-.cat { border-radius: 6px; padding: 3px 9px; font-size: 10.5px; font-weight: 850; text-transform: capitalize; background: #f1f5f9; color: #64748b; }
+.muted { color: var(--admin-muted, #94a3b8); }
+.cat { border-radius: 6px; padding: 3px 9px; font-size: 10.5px; font-weight: 850; text-transform: capitalize; background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #64748b); }
 .trust { border-radius: 6px; padding: 3px 9px; font-size: 10.5px; font-weight: 850; }
 .trust.on { background: #dcfce7; color: #16a34a; } .trust.off { background: #fef3c7; color: #b45309; }
 .actions { text-align: right; white-space: nowrap; }
-.ic { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 0; background: transparent; border-radius: 8px; color: #64748b; cursor: pointer; }
-.ic:hover { background: #eef2f7; color: #0f172a; } .ic.danger:hover { background: #fee2e2; color: #dc2626; } .ic svg { width: 16px; height: 16px; }
+.ic { display: inline-grid; place-items: center; width: 32px; height: 32px; border: 0; background: transparent; border-radius: 8px; color: var(--admin-muted, #64748b); cursor: pointer; }
+.ic:hover { background: #eef2f7; color: var(--admin-ink, #0f172a); } .ic.danger:hover { background: #fee2e2; color: #dc2626; } .ic svg { width: 16px; height: 16px; }
 .pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px; }
 .backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: flex; z-index: 60; }
 .backdrop.center { align-items: center; justify-content: center; padding: 20px; }
-.modal { background: #fff; border-radius: 14px; padding: 24px; width: 420px; max-width: 92vw; } .modal h2 { margin: 0 0 8px; font-size: 17px; } .modal p { color: #64748b; font-size: 13px; }
+.modal { background: var(--admin-surface, #fff); border-radius: 14px; padding: 24px; width: 420px; max-width: 92vw; } .modal h2 { margin: 0 0 8px; font-size: 17px; } .modal p { color: var(--admin-muted, #64748b); font-size: 13px; }
 .m-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 @media (max-width: 680px) { .bs { padding: 20px 16px; } }
 </style>

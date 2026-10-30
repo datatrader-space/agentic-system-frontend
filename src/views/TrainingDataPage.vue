@@ -1,8 +1,8 @@
 <template>
-  <main class="training-page">
-    <header class="page-head">
+  <main class="training-page admin-page">
+    <header class="page-head admin-page-header">
       <div>
-        <h1>Training Data</h1>
+        <h1 class="admin-page-title">Training Data</h1>
         <p>Control whether your agent runs are captured to improve the models, and pull your own corpus.</p>
       </div>
       <span class="status-chip" :class="consent.allow_training ? 'on' : 'off'">
@@ -12,10 +12,10 @@
     </header>
 
     <!-- ── Consent ─────────────────────────────────────────────────────── -->
-    <section class="panel">
+    <section class="panel admin-surface">
       <header class="section-head">
         <div>
-          <h2>Capture consent</h2>
+          <h2 class="admin-section-title">Capture consent</h2>
           <p>Capture is <strong>on by default</strong>. Turn it off any time to exclude your runs from training.
              Secrets are always scrubbed at capture; personal data is redacted on export.</p>
         </div>
@@ -33,12 +33,12 @@
         </label>
 
         <label v-for="k in kinds" :key="k.key"
-               class="toggle-row sub" :class="{ dim: !consent.allow_training }">
+               class="toggle-row sub admin-muted" :class="{ dim: !consent.allow_training }">
           <span class="tr-text"><b>{{ k.label }}</b><em>{{ k.hint }}</em></span>
           <input type="checkbox" class="switch" v-model="consent[k.key]" :disabled="!consent.allow_training" />
         </label>
 
-        <label class="toggle-row sub" :class="{ dim: !consent.allow_training }">
+        <label class="toggle-row sub admin-muted" :class="{ dim: !consent.allow_training }">
           <span class="tr-text">
             <b>Redact personal data on export</b>
             <em>Replace emails / phone numbers / tokens with placeholders when the corpus leaves the system.</em>
@@ -51,22 +51,22 @@
         <button class="primary" :disabled="savingConsent || loadingConsent" @click="saveConsent">
           <Icon icon="lucide:save" /> {{ savingConsent ? 'Saving…' : 'Save preferences' }}
         </button>
-        <span v-if="!consent.explicit && !loadingConsent" class="muted">
+        <span v-if="!consent.explicit && !loadingConsent" class="muted admin-muted">
           You're on the default (capture on). Saving records your explicit choice.
         </span>
       </footer>
     </section>
 
     <!-- ── Corpus ──────────────────────────────────────────────────────── -->
-    <section class="panel">
+    <section class="panel admin-surface">
       <header class="section-head">
         <div>
-          <h2>Your training corpus</h2>
+          <h2 class="admin-section-title">Your training corpus</h2>
           <p>Preview and download the samples captured from your own runs, in the format you need.</p>
         </div>
       </header>
 
-      <div class="corpus-controls">
+      <div class="corpus-controls admin-toolbar">
         <div class="pills">
           <button v-for="f in FORMATS" :key="f.key"
                   :class="['pill', { active: fmt === f.key }]" :title="f.hint" @click="fmt = f.key">
@@ -97,7 +97,7 @@
       <div v-else-if="corpus" class="state-banner empty">No samples captured for this format yet.</div>
       <div v-else class="state-banner empty">Pick a format and hit <b>Preview</b>.</div>
 
-      <p v-if="rows.length > PREVIEW_N" class="muted small">
+      <p v-if="rows.length > PREVIEW_N" class="muted small admin-muted">
         Showing first {{ PREVIEW_N }} of {{ rows.length }} — download for the full set.
       </p>
     </section>
@@ -208,7 +208,7 @@ onMounted(loadConsent)
 .status-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
   font-size: .82rem; font-weight: 600; white-space: nowrap; }
 .status-chip.on { background: rgba(34,197,94,.14); color: #16a34a; }
-.status-chip.off { background: rgba(148,163,184,.18); color: #64748b; }
+.status-chip.off { background: rgba(148,163,184,.18); color: var(--admin-muted, #64748b); }
 
 .panel { border: 1px solid rgba(148,163,184,.22); border-radius: 14px; background: rgba(148,163,184,.05);
   padding: 20px; display: flex; flex-direction: column; gap: 16px; }
@@ -230,7 +230,7 @@ onMounted(loadConsent)
 .switch { appearance: none; -webkit-appearance: none; width: 42px; height: 24px; border-radius: 999px;
   background: rgba(148,163,184,.4); position: relative; cursor: pointer; transition: background .16s; flex: none; }
 .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
-  border-radius: 50%; background: #fff; transition: transform .16s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  border-radius: 50%; background: var(--admin-surface, #fff); transition: transform .16s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
 .switch:checked { background: var(--accent, #6366f1); }
 .switch:checked::after { transform: translateX(18px); }
 .switch:disabled { cursor: not-allowed; }

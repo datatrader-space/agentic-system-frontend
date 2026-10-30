@@ -1,19 +1,19 @@
 <!-- The learning pipeline itself: is every finished run reviewed, what is stuck, what failed, what it costs,
      and the recovery sweep that retries runs which never entered it. -->
 <template>
-  <div class="pipeline">
-    <div class="kpis">
-      <div class="kpi"><span class="kpi-label">Runs reviewed</span><strong class="kpi-value">{{ formatNumber(reviewed) }}</strong><span class="kpi-note">of {{ formatNumber(runs.total) }} learning passes</span></div>
-      <div class="kpi"><span class="kpi-label">Waiting for a model</span><strong class="kpi-value" :class="{ warn: pending }">{{ formatNumber(pending) }}</strong><span class="kpi-note">{{ pending ? 'No summarize model was available; the sweep retries them' : 'Nothing waiting' }}</span></div>
-      <div class="kpi"><span class="kpi-label">Errors</span><strong class="kpi-value" :class="{ bad: errors }">{{ formatNumber(errors) }}</strong><span class="kpi-note">learning passes that failed</span></div>
-      <div class="kpi"><span class="kpi-label">Learning spend</span><strong class="kpi-value">{{ formatMoney(cost.total_cost_usd) }}</strong><span class="kpi-note">{{ formatNumber(cost.calls) }} model calls · {{ formatNumber((cost.prompt_tokens || 0) + (cost.completion_tokens || 0)) }} tokens</span></div>
+  <div class="pipeline admin-subview">
+    <div class="kpis admin-metrics">
+      <div class="kpi admin-metric"><span class="kpi-label admin-muted">Runs reviewed</span><strong class="kpi-value admin-value">{{ formatNumber(reviewed) }}</strong><span class="kpi-note admin-muted">of {{ formatNumber(runs.total) }} learning passes</span></div>
+      <div class="kpi admin-metric"><span class="kpi-label admin-muted">Waiting for a model</span><strong class="kpi-value admin-value" :class="{ warn: pending }">{{ formatNumber(pending) }}</strong><span class="kpi-note admin-muted">{{ pending ? 'No summarize model was available; the sweep retries them' : 'Nothing waiting' }}</span></div>
+      <div class="kpi admin-metric"><span class="kpi-label admin-muted">Errors</span><strong class="kpi-value admin-value" :class="{ bad: errors }">{{ formatNumber(errors) }}</strong><span class="kpi-note admin-muted">learning passes that failed</span></div>
+      <div class="kpi admin-metric"><span class="kpi-label admin-muted">Learning spend</span><strong class="kpi-value admin-value">{{ formatMoney(cost.total_cost_usd) }}</strong><span class="kpi-note admin-muted">{{ formatNumber(cost.calls) }} model calls · {{ formatNumber((cost.prompt_tokens || 0) + (cost.completion_tokens || 0)) }} tokens</span></div>
     </div>
 
-    <section class="panel" aria-labelledby="sweep-title">
+    <section class="panel admin-surface" aria-labelledby="sweep-title">
       <div class="panel-header">
         <div class="panel-title-group">
           <span class="section-icon violet"><Icon icon="lucide:timer-reset" /></span>
-          <div><h2 id="sweep-title">Recovery sweep</h2><p>Retries finished runs that did not enter the learning pipeline.</p></div>
+          <div><h2 class="admin-section-title" id="sweep-title">Recovery sweep</h2><p>Retries finished runs that did not enter the learning pipeline.</p></div>
         </div>
         <span class="status-badge" :class="sched.enabled ? 'success' : 'neutral'"><span class="status-dot"></span>{{ sched.enabled ? 'Active' : 'Paused' }}</span>
       </div>
@@ -47,15 +47,15 @@
       </template>
     </section>
 
-    <section class="panel" aria-labelledby="passes-title">
+    <section class="panel admin-surface" aria-labelledby="passes-title">
       <div class="panel-header">
         <div class="panel-title-group">
           <span class="section-icon blue"><Icon icon="lucide:scan-search" /></span>
-          <div><h2 id="passes-title">Learning passes</h2><p>One per finished run: whether a model reviewed it and how much it saved.</p></div>
+          <div><h2 class="admin-section-title" id="passes-title">Learning passes</h2><p>One per finished run: whether a model reviewed it and how much it saved.</p></div>
         </div>
         <span class="source-label">{{ runs.source }}</span>
       </div>
-      <div class="subtabs" role="group" aria-label="Pipeline views">
+      <div class="subtabs admin-tabs" role="group" aria-label="Pipeline views">
         <button v-for="v in views" :key="v.key" type="button" class="subtab" :class="{ active: view === v.key }"
                 :aria-pressed="view === v.key" @click="view = v.key">
           {{ v.label }} <span class="count">{{ formatNumber(v.n) }}</span>
@@ -64,8 +64,8 @@
 
       <template v-if="view === 'recent'">
         <div v-if="!recent.length" class="empty-state"><Icon icon="lucide:inbox" /><strong>No learning passes</strong><span>No runs were recorded in this window.</span></div>
-        <div v-else class="table-wrap">
-          <table class="data-table card-table">
+        <div v-else class="table-wrap admin-table-scroll">
+          <table class="data-table card-table admin-table">
             <thead><tr><th>Agent</th><th>Conversation</th><th>Status</th><th class="numeric">Saved</th><th class="numeric">When</th></tr></thead>
             <tbody>
               <tr v-for="run in recentPage.visible" :key="run.id">
@@ -77,10 +77,10 @@
                 </td>
                 <td data-label="Status">
                   <span :class="['status-badge', statusChip(run.status)]"><span class="status-dot"></span>{{ statusLabel(run.status) }}</span>
-                  <span v-if="run.skip_reason" class="sub">{{ skipLabel(run.skip_reason) }}</span>
+                  <span v-if="run.skip_reason" class="sub admin-muted">{{ skipLabel(run.skip_reason) }}</span>
                 </td>
                 <td data-label="Saved" class="numeric strong">{{ formatNumber(run.actions) }}</td>
-                <td data-label="When" class="numeric muted nowrap">{{ shortTime(run.at) }}</td>
+                <td data-label="When" class="numeric muted nowrap admin-muted">{{ shortTime(run.at) }}</td>
               </tr>
             </tbody>
           </table>
@@ -91,8 +91,8 @@
 
       <template v-else-if="view === 'agents'">
         <div v-if="!byAgent.length" class="empty-state compact"><Icon icon="lucide:bot" /><strong>No agents</strong></div>
-        <div v-else class="table-wrap">
-          <table class="data-table card-table">
+        <div v-else class="table-wrap admin-table-scroll">
+          <table class="data-table card-table admin-table">
             <thead><tr><th>Agent</th><th class="numeric">Passes</th><th class="numeric">Reviewed</th><th class="numeric">Saved</th><th class="numeric">Skipped</th><th class="numeric">Waiting</th><th class="numeric">Errors</th></tr></thead>
             <tbody>
               <tr v-for="row in agentsPage.visible" :key="row.agent.id ?? 'none'">
@@ -100,7 +100,7 @@
                 <td data-label="Passes" class="numeric">{{ formatNumber(row.runs) }}</td>
                 <td data-label="Reviewed" class="numeric positive">{{ formatNumber(row.reviewed) }}</td>
                 <td data-label="Saved" class="numeric strong">{{ formatNumber(row.saved) }}</td>
-                <td data-label="Skipped" class="numeric muted">{{ formatNumber(row.skipped) }}</td>
+                <td data-label="Skipped" class="numeric muted admin-muted">{{ formatNumber(row.skipped) }}</td>
                 <td data-label="Waiting" class="numeric" :class="{ caution: row.pending_review }">{{ formatNumber(row.pending_review) }}</td>
                 <td data-label="Errors" class="numeric" :class="{ negative: row.errors }">{{ formatNumber(row.errors) }}</td>
               </tr>
@@ -119,7 +119,7 @@
             <div class="feed-content">
               <div class="feed-meta">
                 <strong>{{ failure.agent?.name || 'No agent' }}</strong>
-                <span class="muted">Conversation #{{ failure.conversation?.id ?? '—' }} · {{ shortTime(failure.at) }}</span>
+                <span class="muted admin-muted">Conversation #{{ failure.conversation?.id ?? '—' }} · {{ shortTime(failure.at) }}</span>
               </div>
               <pre class="error-message">{{ failure.error }}</pre>
             </div>
@@ -250,10 +250,10 @@ async function runNow () {
 .schedule-body { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; padding: 16px; }
 .interval-field { width: 180px; min-width: 0; }
 .presets { display: flex; gap: 6px; flex-wrap: wrap; }
-.switch-control { display: inline-flex; align-items: center; gap: 9px; min-height: 38px; color: #334155; font-size: 12.5px; font-weight: 750; cursor: pointer; }
+.switch-control { display: inline-flex; align-items: center; gap: 9px; min-height: 38px; color: var(--admin-ink, #334155); font-size: 12.5px; font-weight: 750; cursor: pointer; }
 .switch-control input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .switch { position: relative; width: 34px; height: 20px; border-radius: 999px; background: #cbd5e1; transition: background .16s; }
-.switch::after { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(15, 23, 42, .25); content: ''; transition: transform .16s; }
+.switch::after { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--admin-surface, #fff); box-shadow: 0 1px 3px rgba(15, 23, 42, .25); content: ''; transition: transform .16s; }
 .switch-control input:checked + .switch { background: var(--primary); }
 .switch-control input:checked + .switch::after { transform: translateX(14px); }
 .switch-control input:focus-visible + .switch { outline: 3px solid rgba(99, 102, 241, .3); }

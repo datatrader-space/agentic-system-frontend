@@ -1,16 +1,16 @@
 <template>
-  <div class="min-h-screen p-6 sm:p-8 font-sans">
+  <div class="min-h-screen p-6 sm:p-8 font-sans admin-page">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-      <div>
-        <h1 class="font-display text-3xl font-extrabold tracking-tight text-ink">Conversation Steps</h1>
+      <div class="admin-page-header">
+        <h1 class="font-display text-3xl font-extrabold tracking-tight text-ink admin-page-title">Conversation Steps</h1>
         <p class="text-[14px] text-ink-soft mt-1 font-medium">
           Durable tool-step timeline (internal ReAct trace) — admin/debug only. Raw output is hidden until
           you explicitly load a step; tool arguments are redacted at capture.
         </p>
       </div>
       <form class="flex items-center gap-2" @submit.prevent="load">
-        <input
+        <input aria-label="Conversation"
           v-model.number="conversationId" type="number" min="1" placeholder="Conversation ID"
           class="bg-white text-slate-700 rounded-[10px] px-3 py-2 text-[14px] font-medium border border-slate-200 focus:ring-1 focus:ring-slate-900 focus:border-slate-900 outline-none shadow-sm w-44" />
         <button type="submit"
@@ -38,8 +38,8 @@
       </div>
 
       <div v-else class="bg-white border border-slate-200/60 shadow-[0_2px_12px_rgba(0,0,0,0.06)] rounded-[16px] overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full text-[13px]">
+        <div class="overflow-x-auto admin-table-scroll">
+          <table class="w-full text-[13px] admin-table">
             <thead>
               <tr class="text-left text-slate-500 uppercase text-[11px] font-bold tracking-wide border-b border-slate-100 bg-slate-50/60">
                 <th class="px-4 py-3">Turn / Seq</th>
@@ -79,9 +79,9 @@
                 <tr v-if="rawOpen[s.id]" :key="s.id + '-raw'" class="bg-slate-900">
                   <td colspan="10" class="px-4 py-3">
                     <div class="flex items-center gap-2 mb-2">
-                      <input v-model="rawReason" @keyup.enter="loadRaw(s)" placeholder="Why you are opening it (recorded)"
+                      <input aria-label="Why you are opening it (recorded)" v-model="rawReason" @keyup.enter="loadRaw(s)" placeholder="Why you are opening it (recorded)"
                         class="bg-slate-800 text-slate-200 placeholder-slate-500 rounded-[8px] px-2.5 py-1 text-[12px] border border-slate-700 outline-none w-72" />
-                      <input v-model="rawQuery[s.id]" @keyup.enter="loadRaw(s)" placeholder="grep within output (optional)"
+                      <input aria-label="Grep within output (optional)" v-model="rawQuery[s.id]" @keyup.enter="loadRaw(s)" placeholder="grep within output (optional)"
                         class="bg-slate-800 text-slate-200 placeholder-slate-500 rounded-[8px] px-2.5 py-1 text-[12px] border border-slate-700 outline-none w-64" />
                       <button @click="loadRaw(s)" class="text-[12px] font-semibold px-3 py-1 rounded-[8px] bg-indigo-600 hover:bg-indigo-500 text-white">Apply</button>
                       <span v-if="rawErr[s.id]" class="text-rose-400 text-[12px] font-medium">{{ rawErr[s.id] }}</span>
@@ -104,7 +104,7 @@
         </div>
         <div class="flex items-center gap-2">
           <label class="text-slate-400 font-medium">Per page</label>
-          <select v-model.number="pageSize"
+          <select aria-label="Rows per page" v-model.number="pageSize"
             class="bg-white text-slate-700 border border-slate-200 rounded-[8px] px-2 py-1 text-[13px] font-medium outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900">
             <option :value="25">25</option>
             <option :value="50">50</option>

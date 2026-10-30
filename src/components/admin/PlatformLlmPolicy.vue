@@ -85,7 +85,7 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
 </script>
 
 <template>
-  <div class="plp">
+  <div class="plp admin-subview">
     <p class="plp-note">
       These are the <strong>platform defaults</strong>. Leave a field <strong>blank</strong> to use the absolute
       default shown below it. A value you set here <strong>overrides</strong> that default and is not capped — org,
@@ -229,17 +229,17 @@ const fmt = (n) => (n === null || n === undefined ? '' : Number(n).toLocaleStrin
 
 <style scoped>
 .plp { display: flex; flex-direction: column; gap: 14px; }
-.plp-note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-muted, #64748b); }
-.plp-subhead { margin: 6px 0 0; font-size: 14px; font-weight: 700; color: var(--text, #0f172a); }
+.plp-note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-muted, var(--admin-muted, #64748b)); }
+.plp-subhead { margin: 6px 0 0; font-size: 14px; font-weight: 700; color: var(--text, var(--admin-ink, #0f172a)); }
 .plp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-.plp-field { display: flex; flex-direction: column; gap: 5px; padding: 12px; border: 1px solid var(--border, #eef2f7); border-radius: 10px; background: var(--surface, #fbfcfe); }
+.plp-field { display: flex; flex-direction: column; gap: 5px; padding: 12px; border: 1px solid var(--border, var(--admin-line, #eef2f7)); border-radius: 10px; background: var(--surface, var(--admin-soft, #fbfcfe)); }
 .plp-lbl { font-size: 13px; font-weight: 600; }
-.plp-unit { font-weight: 400; color: var(--text-muted, #94a3b8); font-size: 11px; }
-.plp-desc { font-size: 11.5px; line-height: 1.5; color: var(--text-muted, #64748b); }
-.plp-field input[type="number"] { margin-top: 2px; padding: 8px 10px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; font-size: 14px; }
-.plp-select { margin-top: 2px; padding: 8px 10px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; font-size: 14px; background: #fff; }
+.plp-unit { font-weight: 400; color: var(--text-muted, var(--admin-muted, #94a3b8)); font-size: 11px; }
+.plp-desc { font-size: 11.5px; line-height: 1.5; color: var(--text-muted, var(--admin-muted, #64748b)); }
+.plp-field input[type="number"] { margin-top: 2px; padding: 8px 10px; border: 1px solid var(--border, var(--admin-line, #e2e8f0)); border-radius: 8px; font-size: 14px; }
+.plp-select { margin-top: 2px; padding: 8px 10px; border: 1px solid var(--border, var(--admin-line, #e2e8f0)); border-radius: 8px; font-size: 14px; background: var(--admin-surface, #fff); }
 .plp-field input:disabled { opacity: .6; }
-.plp-hint { font-size: 11px; color: var(--text-muted, #94a3b8); }
+.plp-hint { font-size: 11px; color: var(--text-muted, var(--admin-muted, #94a3b8)); }
 .plp-err { font-size: 11px; color: #dc2626; font-weight: 600; }
 .plp-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 @media (max-width: 640px) { .plp-grid { grid-template-columns: 1fr; } }

@@ -1,9 +1,9 @@
 <template>
-  <div class="sn">
-    <header class="sn-hero">
+  <div class="sn admin-page">
+    <header class="sn-hero admin-page-header">
       <div class="sn-hero-copy">
         <div class="sn-eyebrow">Platform policy</div>
-        <h1>Sandbox Network</h1>
+        <h1 class="admin-page-title">Sandbox Network</h1>
         <p>
           Decide what agent sandboxes may reach on the internet. Changes take effect on the next
           sandbox — no deploy, no engineer.
@@ -18,13 +18,13 @@
     <template v-else>
       <!-- What is in force right now, including profiles nobody has configured. This is the
            question an admin actually arrives with, so it is answered first. -->
-      <section class="sn-card">
-        <h2>In force right now</h2>
+      <section class="sn-card admin-surface">
+        <h2 class="admin-section-title">In force right now</h2>
         <p class="sn-sub">
           Every sandbox profile and the policy it would be created with today.
         </p>
 
-        <table class="sn-table">
+        <div class="admin-table-scroll" ><table class="sn-table admin-table">
           <thead>
             <tr>
               <th>Profile</th>
@@ -55,7 +55,7 @@
               </td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
 
         <p v-if="anyRunning" class="sn-note">
           Sandboxes already running keep the policy they started with. Only new ones pick up a change.
@@ -63,10 +63,10 @@
       </section>
 
       <!-- Editor -->
-      <section class="sn-card">
-        <h2>{{ editing.id ? 'Edit policy' : 'Add a policy' }}</h2>
+      <section class="sn-card admin-surface">
+        <h2 class="admin-section-title">{{ editing.id ? 'Edit policy' : 'Add a policy' }}</h2>
 
-        <div class="sn-grid">
+        <div class="sn-grid admin-responsive-grid">
           <label class="sn-field">
             <span>Applies to</span>
             <select v-model="editing.profile_id">
@@ -102,7 +102,7 @@
           </label>
         </div>
 
-        <div class="sn-grid">
+        <div class="sn-grid admin-responsive-grid">
           <label class="sn-field" v-if="editing.mode === 'allowlist'">
             <span>Approved domains</span>
             <textarea
@@ -145,9 +145,9 @@
       </section>
 
       <!-- Configured rows -->
-      <section class="sn-card" v-if="policies.length">
-        <h2>Configured policies</h2>
-        <table class="sn-table">
+      <section class="sn-card admin-surface" v-if="policies.length">
+        <h2 class="admin-section-title">Configured policies</h2>
+        <div class="admin-table-scroll" ><table class="sn-table admin-table">
           <thead>
             <tr>
               <th>Scope</th><th>Profile</th><th>Mode</th><th>Domains</th><th>Updated</th><th></th>
@@ -174,13 +174,13 @@
               </td>
             </tr>
           </tbody>
-        </table>
+        </table></div>
       </section>
 
       <!-- What this does and does not buy. Stated on the page rather than in a design doc, because
            the person setting the policy is the person who needs to know its limits. -->
-      <section class="sn-card sn-caveats">
-        <h2>What this does and does not do</h2>
+      <section class="sn-card sn-caveats admin-surface">
+        <h2 class="admin-section-title">What this does and does not do</h2>
         <ul>
           <li v-for="c in caveats" :key="c">{{ c }}</li>
         </ul>
@@ -329,12 +329,12 @@ onMounted(load)
 .sn-hero h1 { margin: 4px 0 6px; font-size: 26px; }
 .sn-hero p { margin: 0; color: #4b5563; max-width: 68ch; }
 
-.sn-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin-bottom: 18px; }
+.sn-card { background: var(--admin-surface, #fff); border: 1px solid var(--admin-line, #e5e7eb); border-radius: 12px; padding: 20px; margin-bottom: 18px; }
 .sn-card h2 { margin: 0 0 4px; font-size: 16px; }
 .sn-sub { margin: 0 0 14px; color: #6b7280; font-size: 13px; }
 
 .sn-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.sn-table th { text-align: left; color: #6b7280; font-weight: 600; padding: 8px 10px; border-bottom: 1px solid #e5e7eb; }
+.sn-table th { text-align: left; color: #6b7280; font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--admin-line, #e5e7eb); }
 .sn-table td { padding: 10px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
 .sn-table tr.off { opacity: .5; }
 .sn-table .right { text-align: right; white-space: nowrap; }
@@ -364,7 +364,7 @@ onMounted(load)
 .sn-field small { color: #6b7280; font-size: 12px; }
 
 .sn-modes { display: grid; gap: 10px; margin: 8px 0 18px; }
-.sn-mode { display: flex; gap: 10px; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; cursor: pointer; }
+.sn-mode { display: flex; gap: 10px; border: 1px solid var(--admin-line, #e5e7eb); border-radius: 10px; padding: 12px; cursor: pointer; }
 .sn-mode.active { border-color: #2563eb; background: #eff6ff; }
 .sn-mode p { margin: 4px 0; font-size: 13px; color: #4b5563; }
 .sn-protects { font-size: 12px; color: #6b7280; }

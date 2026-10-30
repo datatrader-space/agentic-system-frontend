@@ -1,6 +1,6 @@
 <!-- Runs per day by how they ended, with the success rate over them. A person's stop is not in either. -->
 <template>
-  <div class="chart-box" role="img" :aria-label="summary">
+  <div class="chart-box admin-subview" role="img" :aria-label="summary">
     <Bar :data="chartData" :options="options" />
   </div>
 </template>

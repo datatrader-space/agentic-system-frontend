@@ -1,9 +1,9 @@
 <template>
-  <div class="ops">
+  <div class="ops admin-page">
     <!-- Header -->
-    <header class="ops-head">
+    <header class="ops-head admin-page-header">
       <div>
-        <h1>Operations</h1>
+        <h1 class="admin-page-title">Operations</h1>
         <p>Platform health &amp; subsystem status — task outbox, capability broker, artifacts, ingestion, scripts, delegation.</p>
       </div>
       <div class="ops-actions">
@@ -43,33 +43,33 @@
 
     <!-- Loading skeleton -->
     <div v-else-if="loading && !metrics" class="ops-sections">
-      <div v-for="i in 3" :key="i" class="ops-section">
+      <div v-for="i in 3" :key="i" class="ops-section admin-surface">
         <div class="ops-skel-title"></div>
-        <div class="ops-tiles">
-          <div v-for="j in 4" :key="j" class="ops-tile ops-skel"></div>
+        <div class="ops-tiles admin-metrics">
+          <div v-for="j in 4" :key="j" class="ops-tile ops-skel admin-metric"></div>
         </div>
       </div>
     </div>
 
     <!-- Sections -->
     <div v-else-if="metrics" class="ops-sections">
-      <section v-for="sec in sections" :key="sec.key" class="ops-section">
+      <section v-for="sec in sections" :key="sec.key" class="ops-section admin-surface">
         <div class="ops-section-head">
           <span class="ops-section-ico" v-html="sec.icon"></span>
-          <h2>{{ sec.title }}</h2>
+          <h2 class="admin-section-title">{{ sec.title }}</h2>
           <span v-if="sec.unavailable" class="ops-unavail">unavailable</span>
         </div>
 
-        <div v-if="!sec.unavailable" class="ops-tiles">
-          <div v-for="t in sec.tiles" :key="t.label" class="ops-tile" :class="t.tone">
+        <div v-if="!sec.unavailable" class="ops-tiles admin-metrics">
+          <div v-for="t in sec.tiles" :key="t.label" class="ops-tile admin-metric" :class="t.tone">
             <div class="ops-tile-top">
-              <span class="ops-tile-label">{{ t.label }}</span>
+              <span class="ops-tile-label admin-muted">{{ t.label }}</span>
               <span v-if="t.tone && t.tone !== 'neutral'" class="ops-pill" :class="t.tone">
                 <span class="ops-pill-dot"></span>{{ t.status }}
               </span>
             </div>
-            <div class="ops-tile-val" :class="{ badge: t.badge }">{{ t.value }}</div>
-            <div v-if="t.note" class="ops-tile-note">{{ t.note }}</div>
+            <div class="ops-tile-val admin-value" :class="{ badge: t.badge }">{{ t.value }}</div>
+            <div v-if="t.note" class="ops-tile-note admin-muted">{{ t.note }}</div>
           </div>
         </div>
 
@@ -269,8 +269,8 @@ const health = computed(() => {
 
 /* header */
 .ops-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
-.ops-head h1 { font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -.01em; }
-.ops-head p { color: #64748b; margin-top: 6px; font-size: 14px; max-width: 640px; }
+.ops-head h1 { font-size: 24px; font-weight: 800; color: var(--admin-ink, #0f172a); letter-spacing: -.01em; }
+.ops-head p { color: var(--admin-muted, #64748b); margin-top: 6px; font-size: 14px; max-width: 640px; }
 .ops-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .ops-refresh {
   display: inline-flex; align-items: center; gap: 7px; background: #4f46e5; color: #fff;
@@ -283,9 +283,9 @@ const health = computed(() => {
 .ops-refresh svg.spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .ops-auto {
-  display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: #64748b; font-weight: 600;
-  cursor: pointer; user-select: none; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 10px;
-  background: #fff;
+  display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--admin-muted, #64748b); font-weight: 600;
+  cursor: pointer; user-select: none; padding: 8px 12px; border: 1px solid var(--admin-line, #e2e8f0); border-radius: 10px;
+  background: var(--admin-surface, #fff);
 }
 .ops-auto input { display: none; }
 .ops-auto-dot { width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; transition: background .15s; }
@@ -306,34 +306,34 @@ const health = computed(() => {
 .ops-banner.critical .ops-banner-dot { background: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.15); }
 .ops-banner-msg { flex: 1; }
 .ops-banner-meta { display: flex; align-items: center; gap: 10px; font-weight: 500; }
-.ops-chip { background: rgba(15,23,42,.06); color: #475569; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; }
-.ops-updated { color: #94a3b8; font-size: 12px; font-weight: 500; }
+.ops-chip { background: rgba(15,23,42,.06); color: var(--admin-muted, #475569); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; }
+.ops-updated { color: var(--admin-muted, #94a3b8); font-size: 12px; font-weight: 500; }
 
 /* error */
-.ops-error { margin-top: 22px; background: #fff; border: 1px solid #fecaca; border-radius: 14px; padding: 22px; }
+.ops-error { margin-top: 22px; background: var(--admin-surface, #fff); border: 1px solid #fecaca; border-radius: 14px; padding: 22px; }
 .ops-error-title { font-weight: 700; color: #b91c1c; font-size: 15px; }
-.ops-error-msg { color: #64748b; font-size: 13.5px; margin: 6px 0 14px; }
+.ops-error-msg { color: var(--admin-muted, #64748b); font-size: 13.5px; margin: 6px 0 14px; }
 
 /* sections */
 .ops-sections { display: flex; flex-direction: column; gap: 26px; margin-top: 22px; }
 .ops-section-head { display: flex; align-items: center; gap: 9px; margin-bottom: 13px; }
 .ops-section-ico { color: #4f46e5; display: inline-flex; }
 .ops-section-ico :deep(svg) { width: 17px; height: 17px; }
-.ops-section-head h2 { font-size: 13px; font-weight: 700; color: #334155; text-transform: uppercase; letter-spacing: .04em; }
-.ops-unavail { font-size: 11px; color: #94a3b8; background: #f1f5f9; border-radius: 6px; padding: 2px 8px; font-weight: 600; }
+.ops-section-head h2 { font-size: 13px; font-weight: 700; color: var(--admin-ink, #334155); text-transform: uppercase; letter-spacing: .04em; }
+.ops-unavail { font-size: 11px; color: var(--admin-muted, #94a3b8); background: var(--admin-soft, #f1f5f9); border-radius: 6px; padding: 2px 8px; font-weight: 600; }
 
 /* tiles */
 .ops-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
-.ops-tile { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 17px; position: relative; }
+.ops-tile { background: var(--admin-surface, #fff); border: 1px solid var(--admin-line, #e2e8f0); border-radius: 14px; padding: 16px 17px; position: relative; }
 .ops-tile.good { }
 .ops-tile.warning { border-color: #fde68a; background: #fffdf5; }
 .ops-tile.critical { border-color: #fecaca; background: #fef6f6; }
 .ops-tile-top { display: flex; align-items: center; justify-content: space-between; min-height: 18px; }
-.ops-tile-label { font-size: 11.5px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .03em; }
-.ops-tile-val { font-size: 28px; font-weight: 800; color: #0f172a; margin-top: 8px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.ops-tile-label { font-size: 11.5px; font-weight: 700; color: var(--admin-muted, #64748b); text-transform: uppercase; letter-spacing: .03em; }
+.ops-tile-val { font-size: 28px; font-weight: 800; color: var(--admin-ink, #0f172a); margin-top: 8px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .ops-tile-val.badge { font-size: 16px; text-transform: uppercase; letter-spacing: .04em; display: inline-block;
   background: #eef2ff; color: #4338ca; border-radius: 8px; padding: 4px 11px; margin-top: 10px; }
-.ops-tile-note { font-size: 12px; color: #94a3b8; margin-top: 5px; }
+.ops-tile-note { font-size: 12px; color: var(--admin-muted, #94a3b8); margin-top: 5px; }
 
 /* status pills */
 .ops-pill { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700;
@@ -348,16 +348,16 @@ const health = computed(() => {
 
 /* version chips */
 .ops-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
-.ops-verchip { display: inline-flex; align-items: center; gap: 7px; background: #fff; border: 1px solid #e2e8f0;
-  border-radius: 999px; padding: 5px 12px 5px 6px; font-size: 12px; color: #334155; font-weight: 600;
+.ops-verchip { display: inline-flex; align-items: center; gap: 7px; background: var(--admin-surface, #fff); border: 1px solid var(--admin-line, #e2e8f0);
+  border-radius: 999px; padding: 5px 12px 5px 6px; font-size: 12px; color: var(--admin-ink, #334155); font-weight: 600;
   font-variant-numeric: tabular-nums; }
-.ops-verchip-k { background: #f1f5f9; color: #64748b; border-radius: 999px; padding: 2px 8px; font-size: 10.5px;
+.ops-verchip-k { background: var(--admin-soft, #f1f5f9); color: var(--admin-muted, #64748b); border-radius: 999px; padding: 2px 8px; font-size: 10.5px;
   text-transform: uppercase; letter-spacing: .03em; }
 
 /* skeletons */
 .ops-skel-title { height: 13px; width: 140px; border-radius: 6px; background: #eef2f7; margin-bottom: 13px; }
-.ops-tile.ops-skel { height: 96px; background: linear-gradient(90deg, #f1f5f9 25%, #e9eef5 37%, #f1f5f9 63%);
-  background-size: 400% 100%; animation: shimmer 1.4s ease infinite; border-color: #eef2f7; }
+.ops-tile.ops-skel { height: 96px; background: linear-gradient(90deg, var(--admin-soft, #f1f5f9) 25%, #e9eef5 37%, var(--admin-soft, #f1f5f9) 63%);
+  background-size: 400% 100%; animation: shimmer 1.4s ease infinite; border-color: var(--admin-line, #eef2f7); }
 @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 
 @media (max-width: 640px) {

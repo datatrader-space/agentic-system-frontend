@@ -2,9 +2,9 @@
   <!-- Editor Step — Team / Sub-Agents (Phase 6.1). Assign OTHER of the user's agents as this agent's
        delegation team (the sub_agents M2M). Mirrors the Knowledge attach card: an id-list bound to
        sub_agent_ids, persisted with an immediate one-field PATCH. -->
-  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif]">
+  <div class="mx-auto w-full max-w-[1840px] px-6 pb-8 font-[Inter,system-ui,sans-serif] admin-subview">
     <div class="mb-4">
-      <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A]">Team &amp; Sub-Agents</h2>
+      <h2 class="text-[20px] font-bold tracking-tight text-[#0F172A] admin-section-title">Team &amp; Sub-Agents</h2>
       <p class="mt-0.5 text-[13.5px] text-[#64748B]">
         Give this agent a team to hand work to: the built-in agent types (general-purpose, Explore, Plan)
         and your other agents. It launches a teammate for a focused task and folds the result back. With
@@ -58,7 +58,7 @@
       <div class="mb-3 flex items-center justify-between gap-3 flex-wrap">
         <div class="relative flex-1 min-w-[200px] max-w-md">
           <Search :size="15" :stroke-width="2" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#98A2B3]" />
-          <input v-model="filter" :placeholder="isSuper ? 'Search built-in agents…' : 'Search your agents…'"
+          <input aria-label="Filter" v-model="filter" :placeholder="isSuper ? 'Search built-in agents…' : 'Search your agents…'"
                  class="w-full rounded-lg border border-[#E5E7EB] bg-white py-2 pl-8 pr-3 text-[13px] focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
         </div>
         <span class="text-[12px] font-semibold text-[#667085]">{{ selectedIds.length }} in team</span>

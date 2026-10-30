@@ -1,7 +1,7 @@
 <!-- Failed tool calls per day: the agent's own mistakes beside the environment's (a server down, a provider
      failing), and how many warned mistakes were made again. Only the first kind is something to learn from. -->
 <template>
-  <div class="chart-box" role="img" :aria-label="summary">
+  <div class="chart-box admin-subview" role="img" :aria-label="summary">
     <Bar :data="chartData" :options="options" />
   </div>
 </template>

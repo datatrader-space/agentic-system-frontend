@@ -1,6 +1,6 @@
 <!-- One agent's most-failing tools: its own mistakes with each, and the environment's failures. -->
 <template>
-  <div class="chart-box" :style="{ height: `${height}px` }" role="img" :aria-label="summary">
+  <div class="chart-box admin-subview" :style="{ height: `${height}px` }" role="img" :aria-label="summary">
     <Bar :data="chartData" :options="options" />
   </div>
 </template>

@@ -1,23 +1,23 @@
 <!-- Is the platform (or the one agent picked in the header) learning? Four figures against the previous window,
      runs by outcome and mistakes over time, and the agents that need a look. -->
 <template>
-  <div class="overview">
-    <div class="kpis">
-      <div v-for="kpi in kpis" :key="kpi.key" class="kpi" :data-kpi="kpi.key">
-        <span class="kpi-label">{{ kpi.label }}</span>
-        <strong class="kpi-value">{{ kpi.value }}</strong>
+  <div class="overview admin-subview">
+    <div class="kpis admin-metrics">
+      <div v-for="kpi in kpis" :key="kpi.key" class="kpi admin-metric" :data-kpi="kpi.key">
+        <span class="kpi-label admin-muted">{{ kpi.label }}</span>
+        <strong class="kpi-value admin-value">{{ kpi.value }}</strong>
         <span v-if="kpi.change" class="delta" :class="kpi.change.tone">{{ kpi.change.text }} <span class="sr-only">against the previous {{ days }} days</span></span>
-        <span class="kpi-note">{{ kpi.note }}</span>
+        <span class="kpi-note admin-muted">{{ kpi.note }}</span>
       </div>
     </div>
 
     <div class="chart-grid">
-      <section class="panel" aria-labelledby="ov-outcomes">
+      <section class="panel admin-surface" aria-labelledby="ov-outcomes">
         <div class="panel-header">
           <div class="panel-title-group">
             <span class="section-icon green"><Icon icon="lucide:circle-check-big" /></span>
             <div>
-              <h3 id="ov-outcomes">Runs by outcome</h3>
+              <h3 class="admin-section-title" id="ov-outcomes">Runs by outcome</h3>
               <p>Finished runs per day, with the share that succeeded. Runs a person stopped are left out.</p>
             </div>
           </div>
@@ -28,12 +28,12 @@
         </div>
       </section>
 
-      <section class="panel" aria-labelledby="ov-mistakes">
+      <section class="panel admin-surface" aria-labelledby="ov-mistakes">
         <div class="panel-header">
           <div class="panel-title-group">
             <span class="section-icon red"><Icon icon="lucide:circle-x" /></span>
             <div>
-              <h3 id="ov-mistakes">Mistakes and repeats</h3>
+              <h3 class="admin-section-title" id="ov-mistakes">Mistakes and repeats</h3>
               <p>Failed tool calls: the agent's own mistakes, which it can learn from, beside the environment's. The line is warned mistakes made again.</p>
             </div>
           </div>
@@ -45,12 +45,12 @@
       </section>
     </div>
 
-    <section v-if="!agentScoped" class="panel" aria-labelledby="ov-attention">
+    <section v-if="!agentScoped" class="panel admin-surface" aria-labelledby="ov-attention">
       <div class="panel-header">
         <div class="panel-title-group">
           <span class="section-icon blue"><Icon icon="lucide:bot" /></span>
           <div>
-            <h3 id="ov-attention">Agents</h3>
+            <h3 class="admin-section-title" id="ov-attention">Agents</h3>
             <p>Each agent's last {{ days }} days against the {{ days }} before. Open one to see its failing tools and mistakes.</p>
           </div>
         </div>

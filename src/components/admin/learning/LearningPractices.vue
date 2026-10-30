@@ -1,19 +1,19 @@
 <!-- Learned practices (instincts): the review queue a person judges, the ones learned recently, and whether
      the advice helps — measured against the conversations held out from it. -->
 <template>
-  <section class="panel" aria-labelledby="practices-title">
+  <section class="panel admin-subview admin-surface" aria-labelledby="practices-title">
     <div class="panel-header">
       <div class="panel-title-group">
         <span class="section-icon violet"><Icon icon="lucide:sparkles" /></span>
         <div>
-          <h2 id="practices-title">Learned practices</h2>
+          <h2 class="admin-section-title" id="practices-title">Learned practices</h2>
           <p>{{ formatNumber(instincts.total) }} in total · {{ formatNumber(instincts.multi_run_evidence) }} backed by more than one run.</p>
         </div>
       </div>
       <span class="source-label">agent.Instinct</span>
     </div>
 
-    <div class="subtabs" role="group" aria-label="Practice views">
+    <div class="subtabs admin-tabs" role="group" aria-label="Practice views">
       <button v-for="v in views" :key="v.key" type="button" class="subtab" :class="{ active: view === v.key }"
               :aria-pressed="view === v.key" :data-view="v.key" @click="view = v.key">
         {{ v.label }} <span class="count">{{ v.n }}</span>
@@ -36,7 +36,7 @@
             <div class="feed-meta">
               <span class="status-badge info">{{ instinct.domain }}</span>
               <strong>{{ Math.round((instinct.confidence || 0) * 100) }}% confidence</strong>
-              <span class="muted">{{ instinct.runs }} run{{ instinct.runs === 1 ? '' : 's' }} · {{ instinct.scope }}</span>
+              <span class="muted admin-muted">{{ instinct.runs }} run{{ instinct.runs === 1 ? '' : 's' }} · {{ instinct.scope }}</span>
             </div>
             <div class="change-row"><span>When</span><p>{{ instinct.trigger }}</p></div>
             <div class="change-row new"><span>Do</span><p>{{ instinct.action }}</p></div>
@@ -64,7 +64,7 @@
             <div class="feed-meta">
               <span class="status-badge" :class="instinct.status === 'active' ? 'success' : 'neutral'">{{ instinct.status }}</span>
               <strong>{{ Math.round((instinct.confidence || 0) * 100) }}% confidence</strong>
-              <span class="muted">{{ instinct.runs }} run{{ instinct.runs === 1 ? '' : 's' }} · {{ instinct.domain }}</span>
+              <span class="muted admin-muted">{{ instinct.runs }} run{{ instinct.runs === 1 ? '' : 's' }} · {{ instinct.domain }}</span>
             </div>
             <div class="change-row"><span>When</span><p>{{ instinct.trigger }}</p></div>
             <div class="change-row new"><span>Do</span><p>{{ instinct.action }}</p></div>
@@ -93,14 +93,14 @@
         <strong>No conclusive results yet</strong>
         <span>{{ holdout.accumulating || 0 }} instinct{{ (holdout.accumulating || 0) === 1 ? '' : 's' }} still accumulating. A result needs at least {{ MIN_ARM }} runs on each side.</span>
       </div>
-      <div v-else class="table-wrap">
-        <table class="data-table card-table">
+      <div v-else class="table-wrap admin-table-scroll">
+        <table class="data-table card-table admin-table">
           <thead><tr><th>Practice</th><th class="numeric">With advice</th><th class="numeric">Held out</th><th class="numeric">Difference</th></tr></thead>
           <tbody>
             <tr v-for="row in holdoutPage.visible" :key="row.instinct_id">
               <td class="card-title"><strong>{{ row.instinct_id }}</strong></td>
-              <td data-label="With advice" class="numeric">{{ percent(row.injected_success_rate) }} <span class="muted">/ {{ formatNumber(row.injected_n) }}</span></td>
-              <td data-label="Held out" class="numeric">{{ percent(row.held_out_success_rate) }} <span class="muted">/ {{ formatNumber(row.held_out_n) }}</span></td>
+              <td data-label="With advice" class="numeric">{{ percent(row.injected_success_rate) }} <span class="muted admin-muted">/ {{ formatNumber(row.injected_n) }}</span></td>
+              <td data-label="Held out" class="numeric">{{ percent(row.held_out_success_rate) }} <span class="muted admin-muted">/ {{ formatNumber(row.held_out_n) }}</span></td>
               <td data-label="Difference" class="numeric" :class="deltaClass(row.delta)">{{ signedPoints(row.delta) }}</td>
             </tr>
           </tbody>

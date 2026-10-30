@@ -6,18 +6,18 @@
      and whether it ran (GET /admin/observability/learning/). The window and agent filters apply to all tabs;
      the conversation filter narrows Memory and Pipeline. -->
 <template>
-  <div class="learning-page" data-testid="learning-monitor">
-    <header class="page-header">
+  <div class="learning-page admin-page" data-testid="learning-monitor">
+    <header class="page-header admin-page-header">
       <div class="page-heading">
         <div class="eyebrow"><Icon icon="lucide:brain-circuit" /> Continuous learning</div>
-        <h1>Learning Monitor</h1>
+        <h1 class="admin-page-title">Learning Monitor</h1>
         <p>Whether agents get better from their runs: how often they succeed, whether they repeat the mistakes they were warned about, and what they learned.</p>
       </div>
       <span v-if="board" class="updated-at"><Icon icon="lucide:clock-3" /> Updated {{ shortTime(board.generated_at) }}</span>
     </header>
 
-    <div class="filters" role="group" aria-label="Filters">
-      <div class="segmented" role="group" aria-label="Reporting window">
+    <div class="filters admin-toolbar" role="group" aria-label="Filters">
+      <div class="segmented admin-tabs" role="group" aria-label="Reporting window">
         <button v-for="d in WINDOWS" :key="d" type="button" :class="{ active: days === d }" :aria-pressed="days === d" @click="setDays(d)">{{ d }}d</button>
       </div>
       <label class="field" for="learning-agent">
@@ -39,20 +39,20 @@
       </button>
     </div>
 
-    <nav class="tabs" aria-label="Learning monitor sections">
+    <nav class="tabs admin-tabs" aria-label="Learning monitor sections">
       <button v-for="t in tabs" :key="t.key" type="button" class="tab" :class="{ active: tab === t.key }"
               :aria-current="tab === t.key ? 'page' : undefined" :data-tab="t.key" @click="tab = t.key">
         <Icon :icon="t.icon" />{{ t.label }}<span v-if="t.count != null" class="count" :title="t.hint">{{ t.count }}<span class="sr-only"> {{ t.hint }}</span></span>
       </button>
     </nav>
 
-    <div v-if="loading && !board && !snap" class="state-card" role="status">
+    <div v-if="loading && !board && !snap" class="state-card admin-surface" role="status">
       <span class="loader" aria-hidden="true"></span>
       <strong>Loading learning activity</strong>
       <span>Collecting runs, mistakes, memories and practices.</span>
     </div>
 
-    <div v-else-if="error && !board && !snap" class="state-card error-state" role="alert">
+    <div v-else-if="error && !board && !snap" class="state-card error-state admin-surface" role="alert">
       <Icon icon="lucide:circle-alert" />
       <strong>Learning activity could not be loaded</strong>
       <span>Check the API connection, then try again.</span>

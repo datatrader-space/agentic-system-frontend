@@ -1,9 +1,9 @@
 <template>
-  <div class="ag">
-    <header class="ag-hero">
+  <div class="ag admin-page">
+    <header class="ag-hero admin-page-header">
       <div class="ag-hero-copy">
         <div class="ag-eyebrow">Platform policy</div>
-        <h1>System Guardrails</h1>
+        <h1 class="admin-page-title">System Guardrails</h1>
         <p>
           Define the platform-wide safety floor inherited by every organization and agent.
           Lower tiers can only tighten these rules.
@@ -43,40 +43,40 @@
     </div>
 
     <template v-else>
-      <section class="ag-stats">
-        <div class="ag-stat-card">
+      <section class="ag-stats admin-metrics">
+        <div class="ag-stat-card admin-metric">
           <span class="ag-stat-icon blue">◇</span>
           <p>Approval ceiling</p>
           <strong>{{ riskLabel }}</strong>
         </div>
-        <div class="ag-stat-card">
+        <div class="ag-stat-card admin-metric">
           <span class="ag-stat-icon green">↗</span>
           <p>External writes</p>
           <strong>{{ pol.allow_external_write ? 'Allowed' : 'Blocked' }}</strong>
         </div>
-        <div class="ag-stat-card">
+        <div class="ag-stat-card admin-metric">
           <span class="ag-stat-icon violet">#</span>
           <p>Guardrails</p>
           <strong>{{ pol.guardrails.length }}</strong>
         </div>
-        <div class="ag-stat-card">
+        <div class="ag-stat-card admin-metric">
           <span class="ag-stat-icon red">!</span>
           <p>Blocked tools</p>
           <strong>{{ pol.forbidden_tools.length }}</strong>
         </div>
       </section>
 
-      <div class="ag-layout">
+      <div class="ag-layout admin-responsive-grid">
         <main class="ag-main">
-          <section class="ag-card">
+          <section class="ag-card admin-surface">
             <div class="ag-card-head">
               <div>
-                <h2>Approval Floor</h2>
+                <h2 class="admin-section-title">Approval Floor</h2>
                 <p>Baseline approval and external-write rules applied globally.</p>
               </div>
               <span class="ag-card-badge">Core</span>
             </div>
-            <div class="ag-control-grid">
+            <div class="ag-control-grid admin-responsive-grid">
               <label class="ag-field">
                 <span>Require approval for actions above</span>
                 <select v-model="pol.risk_ceiling" :disabled="!canEdit" @change="mark">
@@ -104,15 +104,15 @@
             </div>
           </section>
 
-          <section class="ag-card">
+          <section class="ag-card admin-surface">
             <div class="ag-card-head">
               <div>
-                <h2>Answer Assurance</h2>
+                <h2 class="admin-section-title">Answer Assurance</h2>
                 <p>Check what an agent says it did against what its tools actually returned, before the answer ships.</p>
               </div>
               <span class="ag-card-badge">Verification</span>
             </div>
-            <div class="ag-control-grid">
+            <div class="ag-control-grid admin-responsive-grid">
               <label class="ag-field ag-switch-row">
                 <span>
                   <b>Check actions against tool results</b>
@@ -130,15 +130,15 @@
             </div>
           </section>
 
-          <section class="ag-card">
+          <section class="ag-card admin-surface">
             <div class="ag-card-head">
               <div>
-                <h2>Tool-Call Budget</h2>
+                <h2 class="admin-section-title">Tool-Call Budget</h2>
                 <p>Anti-runaway limits enforced on every agent turn.</p>
               </div>
               <span class="ag-card-badge">Limits</span>
             </div>
-            <div class="ag-control-grid three">
+            <div class="ag-control-grid three admin-responsive-grid">
               <label class="ag-field">
                 <span>Soft budget</span>
                 <input type="number" min="1" v-model.number="pol.tool_call_budget" :disabled="!canEdit" @input="mark" />
@@ -159,10 +159,10 @@
             </div>
           </section>
 
-          <section class="ag-card" data-test="platform-llm-policy">
+          <section class="ag-card admin-surface" data-test="platform-llm-policy">
             <div class="ag-card-head">
               <div>
-                <h2>LLM Policy</h2>
+                <h2 class="admin-section-title">LLM Policy</h2>
                 <p>Platform ceilings for token, tool, and image budgets, and how conversation history is cached and compacted — the resolver enforces these across all agents.</p>
               </div>
               <span class="ag-card-badge">Platform</span>
@@ -176,10 +176,10 @@
             />
           </section>
 
-          <section class="ag-card">
+          <section class="ag-card admin-surface">
             <div class="ag-card-head">
               <div>
-                <h2>Behavioral Guardrails</h2>
+                <h2 class="admin-section-title">Behavioral Guardrails</h2>
                 <p>Non-negotiable rules injected into every agent system prompt.</p>
               </div>
               <span class="ag-card-badge">{{ pol.guardrails.length }} rules</span>
@@ -193,17 +193,17 @@
               <li v-if="!pol.guardrails.length" class="ag-empty-card">No behavioral guardrails configured.</li>
             </ul>
             <div v-if="canEdit" class="ag-add">
-              <input v-model="newGuardrail" placeholder="e.g. Never contact competitors" @keyup.enter="addGuardrail" />
+              <input aria-label="E.g. Never contact competitors" v-model="newGuardrail" placeholder="e.g. Never contact competitors" @keyup.enter="addGuardrail" />
               <button @click="addGuardrail">Add rule</button>
             </div>
           </section>
         </main>
 
         <aside class="ag-side">
-          <section class="ag-card compact">
+          <section class="ag-card compact admin-surface">
             <div class="ag-card-head">
               <div>
-                <h2>Blocked Tools</h2>
+                <h2 class="admin-section-title">Blocked Tools</h2>
                 <p>Tools no agent may ever run.</p>
               </div>
             </div>
@@ -214,15 +214,15 @@
               <span v-if="!pol.forbidden_tools.length" class="ag-empty-inline">None blocked.</span>
             </div>
             <div v-if="canEdit" class="ag-add stacked">
-              <input v-model="newForbidden" placeholder="TOOL_NAME" @keyup.enter="addForbidden" />
+              <input aria-label="TOOL_NAME" v-model="newForbidden" placeholder="TOOL_NAME" @keyup.enter="addForbidden" />
               <button @click="addForbidden">Block tool</button>
             </div>
           </section>
 
-          <section class="ag-card compact">
+          <section class="ag-card compact admin-surface">
             <div class="ag-card-head">
               <div>
-                <h2>Tool Permissions</h2>
+                <h2 class="admin-section-title">Tool Permissions</h2>
                 <p>Force ask, deny, or allow for specific tools.</p>
               </div>
             </div>
@@ -233,9 +233,9 @@
               <span v-if="!permTags.length" class="ag-empty-inline">All tools allowed by default.</span>
             </div>
             <div v-if="canEdit" class="ag-add stacked">
-              <input v-model="newTool" placeholder="TOOL_NAME" @keyup.enter="addToolPerm" />
+              <input aria-label="TOOL_NAME" v-model="newTool" placeholder="TOOL_NAME" @keyup.enter="addToolPerm" />
               <div class="ag-add-line">
-                <select v-model="newToolPerm">
+                <select aria-label="New Tool Perm" v-model="newToolPerm">
                   <option value="ask">Ask</option>
                   <option value="deny">Deny</option>
                   <option value="allow">Allow</option>
@@ -416,7 +416,7 @@ onMounted(load)
 .ag {
   min-height: 100%;
   padding: 4px 2px 44px;
-  color: #0f172a;
+  color: var(--admin-ink, #0f172a);
 }
 .ag-hero {
   display: flex;
@@ -424,11 +424,11 @@ onMounted(load)
   gap: 24px;
   align-items: flex-start;
   padding: 24px;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--admin-line, #dbe4f0);
   border-radius: 16px;
   background:
     linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(124, 58, 237, 0.06) 42%, rgba(255, 255, 255, 0.9)),
-    #fff;
+    var(--admin-surface, #fff);
   box-shadow: 0 16px 42px rgba(15, 23, 42, 0.07);
 }
 .ag-eyebrow {
@@ -449,7 +449,7 @@ onMounted(load)
 .ag-hero p {
   max-width: 700px;
   margin: 10px 0 0;
-  color: #475569;
+  color: var(--admin-muted, #475569);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -459,7 +459,7 @@ onMounted(load)
   gap: 10px;
   align-items: center;
   margin-top: 18px;
-  color: #64748b;
+  color: var(--admin-muted, #64748b);
   font-size: 12px;
   font-weight: 750;
 }
@@ -501,7 +501,7 @@ onMounted(load)
 .ag-save,
 .ag-add button {
   height: 40px;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--admin-line, #dbe4f0);
   border-radius: 10px;
   padding: 0 16px;
   font-size: 13px;
@@ -510,8 +510,8 @@ onMounted(load)
   transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
 }
 .ag-toggle {
-  background: #fff;
-  color: #0f172a;
+  background: var(--admin-surface, #fff);
+  color: var(--admin-ink, #0f172a);
 }
 .ag-toggle.on {
   color: #b91c1c;
@@ -563,7 +563,7 @@ onMounted(load)
 .ag-skeleton {
   min-height: 148px;
   border-radius: 14px;
-  background: linear-gradient(90deg, #f1f5f9 25%, #f8fafc 37%, #f1f5f9 63%);
+  background: linear-gradient(90deg, var(--admin-soft, #f1f5f9) 25%, var(--admin-soft, #f8fafc) 37%, var(--admin-soft, #f1f5f9) 63%);
   background-size: 400% 100%;
   animation: shimmer 1.4s ease infinite;
 }
@@ -579,8 +579,8 @@ onMounted(load)
 }
 .ag-stat-card,
 .ag-card {
-  border: 1px solid #dbe4f0;
-  background: #fff;
+  border: 1px solid var(--admin-line, #dbe4f0);
+  background: var(--admin-surface, #fff);
   box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
 }
 .ag-stat-card {
@@ -607,12 +607,12 @@ onMounted(load)
 .ag-stat-icon.red { background: #fef2f2; color: #dc2626; }
 .ag-stat-card p {
   margin: 0 0 4px;
-  color: #64748b;
+  color: var(--admin-muted, #64748b);
   font-size: 12px;
   font-weight: 800;
 }
 .ag-stat-card strong {
-  color: #071326;
+  color: var(--admin-ink, #071326);
   font-size: 20px;
   font-weight: 900;
 }
@@ -652,7 +652,7 @@ onMounted(load)
 }
 .ag-card-head p {
   margin: 5px 0 0;
-  color: #64748b;
+  color: var(--admin-muted, #64748b);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -678,20 +678,20 @@ onMounted(load)
   flex-direction: column;
   gap: 8px;
   min-width: 0;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--admin-line, #e2e8f0);
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--admin-soft, #f8fafc);
   padding: 14px;
 }
 .ag-field > span {
-  color: #334155;
+  color: var(--admin-ink, #334155);
   font-size: 12px;
   font-weight: 850;
 }
 .ag-field small {
   display: block;
   margin-top: 3px;
-  color: #64748b;
+  color: var(--admin-muted, #64748b);
   font-size: 11px;
   font-weight: 650;
   line-height: 1.4;
@@ -702,10 +702,10 @@ onMounted(load)
 .ag-add select {
   width: 100%;
   height: 38px;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--admin-line, #dbe4f0);
   border-radius: 9px;
-  background: #fff;
-  color: #0f172a;
+  background: var(--admin-surface, #fff);
+  color: var(--admin-ink, #0f172a);
   padding: 0 11px;
   font-size: 13px;
   font-weight: 700;
@@ -743,7 +743,7 @@ onMounted(load)
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--admin-surface, #fff);
   box-shadow: 0 1px 3px rgba(15, 23, 42, .18);
   transition: transform .16s ease;
 }
@@ -766,9 +766,9 @@ onMounted(load)
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--admin-line, #e2e8f0);
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--admin-soft, #f8fafc);
   padding: 12px;
 }
 .rule-dot {
@@ -786,7 +786,7 @@ onMounted(load)
 .ag-rule-list p {
   flex: 1;
   margin: 0;
-  color: #334155;
+  color: var(--admin-ink, #334155);
   font-size: 13px;
   font-weight: 700;
   line-height: 1.5;
@@ -798,7 +798,7 @@ onMounted(load)
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #94a3b8;
+  color: var(--admin-muted, #94a3b8);
   font-size: 18px;
   cursor: pointer;
 }
@@ -811,9 +811,9 @@ onMounted(load)
   display: block;
   border: 1px dashed #cbd5e1;
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--admin-soft, #f8fafc);
   padding: 16px;
-  color: #64748b;
+  color: var(--admin-muted, #64748b);
   font-size: 13px;
   font-weight: 750;
 }
@@ -833,8 +833,8 @@ onMounted(load)
   font-size: 12px;
   font-weight: 850;
   cursor: pointer;
-  background: #f1f5f9;
-  color: #334155;
+  background: var(--admin-soft, #f1f5f9);
+  color: var(--admin-ink, #334155);
 }
 .ag-chip.ask {
   background: #fff7ed;
