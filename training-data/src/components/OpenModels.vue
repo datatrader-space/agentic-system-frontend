@@ -3,7 +3,9 @@
 // and add one to this workspace as a base model for training. The backend decides what is shown and what may be added
 // (training_models_data/open_models.py); this page shows its answers as text only, never as HTML.
 import { computed, onUnmounted, ref } from 'vue';
-import { Search, Box, MessageSquareText, Image as ImageIcon, Lock, ExternalLink, Download, Heart, Plus, Trash2, Check, Scale } from 'lucide-vue-next';
+import { RefreshCw, Globe, ShieldCheck, Boxes, Search, Box, MessageSquareText, Image as ImageIcon, Lock, ExternalLink, Download, Heart, Plus, Trash2, Check, Scale } from 'lucide-vue-next';
+import DeploymentHeader from './DeploymentHeader.vue';
+import DeploymentMetrics from './DeploymentMetrics.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -43,11 +45,14 @@ function choose(name, value) { const which = filters[name]; if (which.value === 
 search();
 
 // ── the workspace's added models ─────────────────────────────────────────────────────────────────
-const added = ref(null); const listError = ref('');
+const added = ref(null); const listError = ref(''); const listing = ref(false);
 let timer = null; let alive = true;
 async function loadAdded() {
+  if (listing.value) return;
+  listing.value = true;
   try { const body = await openModelsApi.list(); added.value = body.models; mayAdd.value = mayAdd.value || !!body.may?.add; listError.value = ''; }
   catch (e) { listError.value = e.message; added.value = added.value || []; }
+  finally { listing.value = false; }
   clearTimeout(timer);
   if (alive && anyFetching(added.value)) timer = setTimeout(loadAdded, POLL_MS);
 }
@@ -78,37 +83,35 @@ async function remove() {
   } catch (e) { removeError.value = e.message; } finally { removeBusy.value = false; }
 }
 const cannotAdd = row => addRefusal(row, { mayAdd: mayAdd.value, gatedEnabled: gatedEnabled.value });
+const openMetrics = computed(() => [
+  { label: 'Added models', value: added.value?.length || 0, hint: 'In this workspace', icon: Boxes },
+  { label: 'Files ready', value: (added.value || []).filter(m => m.state === 'ready').length, hint: 'Fetched and available', icon: Check },
+  { label: 'Fetching', value: (added.value || []).filter(m => m.state === 'fetching').length, hint: 'Preparing model files', icon: Download },
+]);
+function moveChoice(event, name, options) {
+  let index = options.findIndex(item => item.value === filters[name].value);
+  if (event.key === 'Home') index = 0;
+  else if (event.key === 'End') index = options.length - 1;
+  else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') index = (index + 1) % options.length;
+  else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') index = (index - 1 + options.length) % options.length;
+  else return;
+  event.preventDefault(); choose(name, options[index].value);
+  event.currentTarget.parentElement.children[index]?.focus();
+}
 </script>
 
 <template>
   <div class="om-page">
-    <p class="om-intro">Find open models on Hugging Face that AADML can train or deploy. Only models whose licence allows commercial use, with safetensors weights and no code of their own, are shown.</p>
-
-    <form class="om-toolbar" role="search" @submit.prevent="search()">
-      <label class="om-search">
-        <span class="sr-only">Search Hugging Face models</span>
-        <Search :size="16" aria-hidden="true"/>
-        <input v-model="words" type="search" :maxlength="QUERY_LIMIT + 20" :placeholder="kind==='photo' ? 'Search photo models, e.g. segformer' : 'Search chat models, e.g. qwen or llama'" :aria-invalid="!!problem" aria-describedby="om-query-help">
-      </label>
-      <div class="om-segmented" role="radiogroup" aria-label="Kind of model">
-        <button v-for="k in KINDS" :key="k.value" type="button" role="radio" :aria-checked="kind===k.value" :class="{on: kind===k.value}" @click="choose('kind', k.value)">
-          <MessageSquareText v-if="k.value==='chat'" :size="15" aria-hidden="true"/><ImageIcon v-else :size="15" aria-hidden="true"/>{{ k.label }}</button>
-      </div>
-      <div class="om-segmented" role="radiogroup" aria-label="What it is for">
-        <button v-for="u in USES" :key="u.value" type="button" role="radio" :aria-checked="use===u.value" :class="{on: use===u.value}" @click="choose('use', u.value)">{{ u.label }}</button>
-      </div>
-      <UiButton type="submit" variant="primary" :disabled="searching"><span v-if="searching" class="om-spinner" aria-hidden="true"></span><Search v-else :size="15" aria-hidden="true"/>{{ searching ? 'Searching…' : 'Search' }}</UiButton>
-    </form>
-    <p id="om-query-help" class="om-help">{{ problem || 'Most downloaded first. Add a model to train from it in this workspace\'s projects, or to deploy it as is.' }}</p>
-    <p v-if="error" class="field-error" role="alert">{{ error }}</p>
-    <p class="sr-only" aria-live="polite">{{ said }}</p>
+    <DeploymentHeader title="Open Models" heading-id="open-heading" eyebrow="DISCOVER YOUR NEXT FOUNDATION." :icon="Globe" description="Find supported models on Hugging Face and add them to your workspace for training or deployment."/>
+    <DeploymentMetrics :items="openMetrics" :loaded="!!added && !listError"/>
+    <div class="models-info"><ShieldCheck :size="17" aria-hidden="true"/><p>Only supported models with commercial-use licences, safetensors weights, and no custom code are shown.</p></div>
 
     <section class="om-section" aria-labelledby="om-added">
-      <h2 id="om-added">Added to this workspace <span class="count">{{ added ? added.length : '' }}</span></h2>
-      <p v-if="listError" class="field-error" role="alert">{{ listError }}</p>
+      <div class="models-list-head"><div><h3 id="om-added">Workspace models <span class="models-count">{{ added ? added.length : '—' }}</span></h3><p>Models available to your workspace's training and deployment flows.</p></div><UiButton :disabled="listing" @click="loadAdded"><RefreshCw :size="14" aria-hidden="true"/> Refresh</UiButton></div>
+      <div v-if="listError" class="models-error" role="alert"><span>{{ listError }}</span><UiButton :disabled="listing" @click="loadAdded">Try again</UiButton></div>
       <p v-if="!added" class="muted">Loading…</p>
-      <p v-else-if="!added.length" class="muted">None yet. Add a model below and it is offered in the Train tab of this workspace's projects once its files are fetched.</p>
-      <ul v-else class="om-added">
+      <div v-else-if="!added.length && !listError" class="om-workspace-empty"><span class="model-row-icon"><Box :size="22" aria-hidden="true"/></span><div><h4>No open models added yet</h4><p>Discover a model below. After its files are fetched, it becomes available for its supported uses.</p></div></div>
+      <ul v-else-if="added.length" class="om-added">
         <li v-for="m in added" :key="m.id">
           <div class="om-added-name"><strong>{{ m.name }}</strong><small>{{ m.publisher }}, {{ m.kind === 'chat' ? 'chat' : 'photo' }}, {{ m.size }}, {{ bytesText(m.bytes) }}, commit {{ (m.revision || "").slice(0, 12) }}</small></div>
           <div class="om-added-licence"><Scale :size="14" aria-hidden="true"/>{{ m.licence_name }}</div>
@@ -124,8 +127,28 @@ const cannotAdd = row => addRefusal(row, { mayAdd: mayAdd.value, gatedEnabled: g
       </ul>
     </section>
 
+    <div class="models-list-head"><div><h3>Discover models</h3><p>Search the Hub by name, model family, and intended use.</p></div><span class="models-source-label"><Globe :size="13" aria-hidden="true"/> Hugging Face Hub</span></div>
+    <form class="om-toolbar" role="search" @submit.prevent="search()">
+      <label class="om-search">
+        <span class="sr-only">Search Hugging Face models</span>
+        <Search :size="16" aria-hidden="true"/>
+        <input v-model="words" type="search" :maxlength="QUERY_LIMIT + 20" :placeholder="kind==='photo' ? 'Search photo models, e.g. segformer' : 'Search chat models, e.g. qwen or llama'" :aria-invalid="!!problem" aria-describedby="om-query-help">
+      </label>
+      <div class="om-segmented" role="radiogroup" aria-label="Kind of model">
+        <button v-for="k in KINDS" :key="k.value" type="button" role="radio" :aria-checked="kind===k.value" :tabindex="kind===k.value ? 0 : -1" @keydown="moveChoice($event, 'kind', KINDS)" :class="{on: kind===k.value}" @click="choose('kind', k.value)">
+          <MessageSquareText v-if="k.value==='chat'" :size="15" aria-hidden="true"/><ImageIcon v-else :size="15" aria-hidden="true"/>{{ k.label }}</button>
+      </div>
+      <div class="om-segmented" role="radiogroup" aria-label="What it is for">
+        <button v-for="u in USES" :key="u.value" type="button" role="radio" :aria-checked="use===u.value" :tabindex="use===u.value ? 0 : -1" @keydown="moveChoice($event, 'use', USES)" :class="{on: use===u.value}" @click="choose('use', u.value)">{{ u.label }}</button>
+      </div>
+      <UiButton type="submit" variant="primary" :disabled="searching"><span v-if="searching" class="om-spinner" aria-hidden="true"></span><Search v-else :size="15" aria-hidden="true"/>{{ searching ? 'Searching…' : 'Search' }}</UiButton>
+    </form>
+    <p id="om-query-help" class="om-help">{{ problem || 'Most downloaded first. Add a model to train from it in this workspace\'s projects, or to deploy it as is.' }}</p>
+    <p v-if="error" class="field-error" role="alert">{{ error }}</p>
+    <p class="sr-only" aria-live="polite">{{ said }}</p>
+
     <section class="om-section" aria-labelledby="om-results" :aria-busy="searching">
-      <h2 id="om-results">On Hugging Face <span v-if="searched" class="count">{{ results.length }}</span></h2>
+      <div class="models-list-head"><h3 id="om-results">Search results <span v-if="searched" class="models-count">{{ results.length }}</span></h3><span class="models-source-label">Most downloaded first</span></div>
       <p v-if="leftOut" class="om-left-out">{{ leftOut }}</p>
       <p v-if="searching && !results.length" class="muted">Searching Hugging Face…</p>
       <div v-else-if="searched && !results.length && !error" class="om-empty">

@@ -5,7 +5,9 @@
 // is the backend's: what the person is charged (the Shared Cloud API per answered call, a Dedicated machine by the
 // second, both with AADML's markup). While no price per call is set, none is shown for the Shared Cloud API.
 import { computed, onMounted, ref, watch } from 'vue';
-import { ChartColumn, Info, LoaderCircle, RefreshCw } from 'lucide-vue-next';
+import { Activity, ChartColumn, ChevronDown, Info, LoaderCircle, RefreshCw } from 'lucide-vue-next';
+import DeploymentHeader from './DeploymentHeader.vue';
+import DeploymentMetrics from './DeploymentMetrics.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import {
@@ -63,11 +65,7 @@ const modelLabel = computed(() => (body.value ? `${body.value.model.name} ${body
 
 <template>
   <section class="cost" role="tabpanel" aria-labelledby="cost-heading" :aria-busy="loading">
-    <header class="cost-head">
-      <h2 id="cost-heading">Cost benchmark</h2>
-      <p>What 1,000 calls to one of your photo models would cost on each way of deploying it, with every assumption listed below the table.</p>
-    </header>
-
+    <DeploymentHeader title="Cost Benchmark" heading-id="cost-heading" eyebrow="PLAN YOUR COMPUTE WITH CONFIDENCE." :icon="ChartColumn" description="Compare deployment costs for your model, using expected traffic and measured or benchmark timings."/>
     <div v-if="listError" class="cost-error" role="alert">
       <span>{{ listError }}</span>
       <UiButton @click="loadModels"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
@@ -80,6 +78,7 @@ const modelLabel = computed(() => (body.value ? `${body.value.model.name} ${body
     </div>
 
     <template v-else>
+      <div class="deployment-section-heading"><h3>Configure your comparison</h3><p>Select a model and optionally enter your daily traffic.</p></div>
       <form class="cost-controls" novalidate @submit.prevent="compare">
         <div class="cost-field">
           <label for="cost-model">Model</label>
@@ -88,7 +87,7 @@ const modelLabel = computed(() => (body.value ? `${body.value.model.name} ${body
           </select>
         </div>
         <div class="cost-field cost-field--calls">
-          <label for="cost-calls">Your calls a day</label>
+          <label for="cost-calls">Expected calls per day</label>
           <input id="cost-calls" v-model="callsText" class="text-input" inputmode="numeric" autocomplete="off" placeholder="For example 5000"
                  :aria-invalid="callsProblem ? 'true' : 'false'" aria-describedby="cost-calls-help cost-calls-error"/>
           <p id="cost-calls-help" class="cost-help">Optional. Used for the cost at your traffic.</p>
@@ -106,9 +105,37 @@ const modelLabel = computed(() => (body.value ? `${body.value.model.name} ${body
       <p v-else-if="!body" class="cost-muted">Working out the costs…</p>
 
       <div v-if="body" class="cost-result" :class="{ refreshing: loading }">
+        <DeploymentMetrics :loaded="true" :items="[
+          { label: 'Deployment options', value: rows.length, hint: 'Included in this comparison', icon: ChartColumn },
+          { label: 'Expected daily calls', value: body.calls_per_day ? count(body.calls_per_day) : 'Not set', hint: body.calls_per_day ? 'Your traffic estimate' : 'Compare at full utilization', icon: Activity },
+          { label: 'Timing source', text: true, value: body.measured?.used ? 'Measured' : 'Benchmark', hint: body.measured?.used ? 'From successful model calls' : 'Per-machine benchmark timings', icon: Info },
+        ]"/>
         <p class="cost-basis"><Info :size="16" aria-hidden="true"/><span><strong>{{ body.project.name }}: {{ modelLabel }}.</strong> {{ measuredSummary(body) }}</span></p>
         <p v-if="body.no_machines" class="cost-warn" role="status">{{ body.no_machines }}</p>
 
+        <figure class="cost-chart">
+          <figcaption>
+            <span class="cost-chart-title">Cost {{ bars.unit }}</span>
+            <span class="cost-metrics" role="radiogroup" aria-label="Measure the bars show">
+              <button v-for="m in METRICS" :key="m.id" type="button" role="radio" :aria-checked="metric === m.id"
+                      :class="{ on: metric === m.id }" @click="pickMetric(m.id)">{{ m.label }}</button>
+            </span>
+          </figcaption>
+          <p class="sr-only" aria-live="polite">{{ chartSaid }}</p>
+          <ul class="cost-bars" aria-hidden="true">
+            <li v-for="b in bars.rows" :key="b.key" class="cost-bar-row">
+              <span class="cost-bar-name">{{ b.name }}<small>{{ b.machine }}</small></span>
+              <span v-if="b.value === null" class="cost-bar-track empty">{{ b.why }}</span>
+              <span v-else class="cost-bar-track">
+                <!-- The bar's length leaves 96px for its value at the tip, so the longest bar's label still fits. -->
+                <span class="cost-bar" :style="{ width: `calc(${b.share} * (100% - 96px) / 100)` }"></span>
+                <span class="cost-bar-value">{{ b.text }}</span>
+              </span>
+            </li>
+          </ul>
+        </figure>
+
+        <div class="deployment-section-heading"><h3>Detailed comparison</h3><p>All prices in USD. Capacity and traffic assumptions are shown for each option.</p></div>
         <div class="cost-table-wrap">
           <table class="cost-table">
             <caption class="sr-only">Cost of {{ modelLabel }} on each way of deploying it, in US dollars</caption>
@@ -148,32 +175,10 @@ const modelLabel = computed(() => (body.value ? `${body.value.model.name} ${body
           </table>
         </div>
 
-        <figure class="cost-chart">
-          <figcaption>
-            <span class="cost-chart-title">Cost {{ bars.unit }}</span>
-            <span class="cost-metrics" role="radiogroup" aria-label="Measure the bars show">
-              <button v-for="m in METRICS" :key="m.id" type="button" role="radio" :aria-checked="metric === m.id"
-                      :class="{ on: metric === m.id }" @click="pickMetric(m.id)">{{ m.label }}</button>
-            </span>
-          </figcaption>
-          <p class="sr-only" aria-live="polite">{{ chartSaid }}</p>
-          <ul class="cost-bars" aria-hidden="true">
-            <li v-for="b in bars.rows" :key="b.key" class="cost-bar-row">
-              <span class="cost-bar-name">{{ b.name }}<small>{{ b.machine }}</small></span>
-              <span v-if="b.value === null" class="cost-bar-track empty">{{ b.why }}</span>
-              <span v-else class="cost-bar-track">
-                <!-- The bar's length leaves 96px for its value at the tip, so the longest bar's label still fits. -->
-                <span class="cost-bar" :style="{ width: `calc(${b.share} * (100% - 96px) / 100)` }"></span>
-                <span class="cost-bar-value">{{ b.text }}</span>
-              </span>
-            </li>
-          </ul>
-        </figure>
-
-        <section class="cost-assumptions" aria-labelledby="cost-assumptions-heading">
-          <h3 id="cost-assumptions-heading">Assumptions</h3>
+        <details class="cost-assumptions" open>
+          <summary>Pricing assumptions <ChevronDown :size="16" aria-hidden="true"/></summary>
           <ul><li v-for="(line, i) in body.assumptions" :key="i">{{ line }}</li></ul>
-        </section>
+        </details>
       </div>
     </template>
   </section>

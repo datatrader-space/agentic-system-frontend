@@ -9,9 +9,13 @@
 // Backend: app_api.py workspace/dedicated/ (list, start) and workspace/dedicated/<id>/stop/.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
-  ArrowRight, BookOpen, Check, ChartColumn, ChartLine, Cloud, Code, Copy, Cpu, KeyRound, Layers, LoaderCircle,
-  Network, Plus, RefreshCw, Rocket, Server, Sparkles, Square, Video, Wallet, Zap,
+  Activity, ArrowRight, BookOpen, Check, ChartColumn, ChartLine, Cloud, Code, Copy, Cpu, KeyRound, Layers, LoaderCircle,
+  Network, Plus, RefreshCw, Rocket, Server, Sparkles, Square, Video, Wallet,
 } from 'lucide-vue-next';
+import '../deployments.css';
+import DeploymentHeader from './DeploymentHeader.vue';
+import DeploymentMetrics from './DeploymentMetrics.vue';
+import DeploymentToolbar from './DeploymentToolbar.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -94,6 +98,22 @@ const listTab = ref('deployed');
 const keysOpen = ref(false);
 const day = iso => (iso ? new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '');
 function openTab(id) { tab.value = id; }
+function moveTab(event) {
+  let index = TABS.findIndex(item => item.id === tab.value);
+  if (event.key === 'Home') index = 0;
+  else if (event.key === 'End') index = TABS.length - 1;
+  else if (event.key === 'ArrowRight') index = (index + 1) % TABS.length;
+  else if (event.key === 'ArrowLeft') index = (index - 1 + TABS.length) % TABS.length;
+  else return;
+  event.preventDefault();
+  openTab(TABS[index].id);
+  event.currentTarget.parentElement.children[index]?.focus();
+}
+const overviewMetrics = computed(() => [
+  { label: 'Successful calls', value: total.value, hint: 'Selected time range', icon: Activity },
+  { label: 'Deployed projects', value: deployed.value.length, hint: 'Staging or production', icon: Rocket },
+  { label: 'Not yet deployed', value: idle.value.length, hint: 'Projects not yet deployed', icon: Layers },
+]);
 function showDeployed() { listTab.value = 'deployed'; document.getElementById('ws-deploy-lists')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 
 // ── Dedicated deployments ──────────────────────────────────────────────────────────────────────────
@@ -101,6 +121,14 @@ function showDeployed() { listTab.value = 'deployed'; document.getElementById('w
 const ded = ref(null); const dedError = ref(''); const dedLoading = ref(false);
 const dedSaid = ref(''); const announce = ref('');
 const deployments = computed(() => ded.value?.deployments || []);
+const dedicatedQuery = ref(''); const dedicatedStatus = ref('');
+const dedicatedStates = computed(() => [...new Map(deployments.value.map(d => [d.state, { value: d.state, label: dedicatedState(d)[1] }])).values()]);
+const visibleDeployments = computed(() => deployments.value.filter(d => (!dedicatedStatus.value || d.state === dedicatedStatus.value) && [d.name, dedicatedSource(d).title, dedicatedSource(d).detail, d.instance_type].join(' ').toLowerCase().includes(dedicatedQuery.value.trim().toLowerCase())));
+const dedicatedMetrics = computed(() => [
+  { label: 'Live deployments', value: deployments.value.filter(d => d.state === 'live').length, hint: 'Serving your apps', icon: Activity },
+  { label: 'Starting', value: deployments.value.filter(d => d.state === 'starting').length, hint: 'Preparing infrastructure', icon: Server },
+  { label: 'Production', value: deployments.value.filter(d => d.kind === 'production' && ['live', 'starting'].includes(d.state)).length, hint: 'Active production machines', icon: Rocket },
+]);
 const options = computed(() => ded.value?.options || { projects: [], machines: [], kinds: [], open_models: [], open_machines: [] });
 const dedMay = computed(() => ded.value?.may || {});
 let pollTimer = null; let gone = false;
@@ -243,10 +271,10 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
 </script>
 
 <template>
-  <div class="studio ws-deployments">
+  <div class="studio ws-deployments deployments-workspace">
     <nav class="deploy-tabs" role="tablist" aria-label="Ways to deploy">
-      <!-- As Roboflow's, the tabs carry no tags; a tab not built yet opens a Coming soon panel. -->
-      <button v-for="t in TABS" :key="t.id" type="button" role="tab" :aria-selected="tab===t.id" :class="{active:tab===t.id}" :title="t.soon ? 'Coming soon' : undefined" @click="openTab(t.id)">
+      <!-- One keyboard tab stop; arrow keys switch between deployment views. -->
+      <button v-for="t in TABS" :key="t.id" type="button" role="tab" :id="`deployment-tab-${t.id}`" :aria-controls="`deployment-panel-${t.id}`" :tabindex="tab===t.id ? 0 : -1" @keydown="moveTab" :aria-selected="tab===t.id" :class="{active:tab===t.id}" :title="t.soon ? 'Coming soon' : undefined" @click="openTab(t.id)">
         <component :is="t.icon" :size="15"/> {{ t.name }}
       </button>
     </nav>
@@ -258,15 +286,11 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
         <UiButton @click="tab='overview'">Back to Overview</UiButton></div>
     </section>
 
-    <section v-else-if="tab==='dedicated'" class="dedicated" role="tabpanel" aria-labelledby="ded-heading" :aria-busy="dedLoading">
-      <div class="ded-head">
-        <div>
-          <h2 id="ded-heading">Dedicated deployments</h2>
-          <p>An approved model of a project, or an open model your workspace added, on a machine of its own, kept for your apps only.</p>
-        </div>
+    <section v-else-if="tab==='dedicated'" id="deployment-panel-dedicated" class="dedicated" role="tabpanel" aria-labelledby="ded-heading" :aria-busy="dedLoading">
+      <DeploymentHeader title="Dedicated Deployments" heading-id="ded-heading" eyebrow="RESERVED COMPUTE. RELIABLE INFERENCE." :icon="Server" description="Give your model a dedicated machine and an endpoint for your apps.">
         <UiButton variant="primary" :disabled="!ded" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New deployment</UiButton>
-      </div>
-
+      </DeploymentHeader>
+      <DeploymentMetrics :items="dedicatedMetrics" :loaded="!!ded"/>
       <p v-if="ded && ded.cost_note" class="ded-billing"><Wallet :size="16" aria-hidden="true"/><span>{{ ded.cost_note }}</span></p>
       <div v-if="dedSaid" class="notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ dedSaid }}</span></div>
       <div v-if="dedError" class="ded-error" role="alert">
@@ -274,6 +298,8 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
         <UiButton :disabled="dedLoading" @click="loadDedicated"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
       </div>
 
+      <DeploymentToolbar v-if="ded" title="Deployments" v-model:query="dedicatedQuery" v-model:status="dedicatedStatus" :states="dedicatedStates" :count="visibleDeployments.length" :total="deployments.length" :loading="dedLoading" @refresh="loadDedicated"/>
+      <div v-if="ded && deployments.length && !visibleDeployments.length" class="deployment-no-results" role="status"><h3>No matching deployments</h3><p>Try a different name, machine, or status.</p></div>
       <p v-if="!ded && !dedError" class="muted">Loading deployments…</p>
       <div v-else-if="ded && !deployments.length" class="list-empty">
         <span class="empty-icon"><Server :size="22" aria-hidden="true"/></span>
@@ -281,11 +307,11 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
         <p>Start one to give an approved model a machine of its own, with an address your apps call.</p>
         <div class="empty-actions"><UiButton variant="primary" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New deployment</UiButton></div>
       </div>
-      <div v-else-if="ded" class="table-wrap">
+      <div v-else-if="ded && visibleDeployments.length" class="table-wrap">
         <table class="ws-table ded-table">
           <thead><tr><th>Name</th><th>Source</th><th>Type</th><th>Machine</th><th>State</th><th>Last call</th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody>
-            <tr v-for="d in deployments" :key="d.id">
+            <tr v-for="d in visibleDeployments" :key="d.id">
               <td data-label="Name"><strong class="ded-name">{{ d.name }}</strong></td>
               <td data-label="Source"><span class="source-chip" :class="d.source">{{ dedicatedSource(d).label }}</span>
                 <span class="ded-source-title">{{ dedicatedSource(d).title }}</span><small>{{ dedicatedSource(d).detail }}</small></td>
@@ -310,29 +336,31 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
       <p class="sr-only" aria-live="polite">{{ announce }}</p>
     </section>
 
-    <StreamingTab v-else-if="tab==='streaming'"/>
+    <StreamingTab id="deployment-panel-streaming" v-else-if="tab==='streaming'"/>
 
-    <CostTab v-else-if="tab==='cost'"/>
+    <CostTab id="deployment-panel-cost" v-else-if="tab==='cost'"/>
 
-    <BatchTab v-else-if="tab==='batch'"/>
+    <BatchTab id="deployment-panel-batch" v-else-if="tab==='batch'"/>
 
-    <EdgeTab v-else-if="tab==='edge'" @navigate="id => emit('navigate', id)"/>
+    <EdgeTab id="deployment-panel-edge" v-else-if="tab==='edge'" @navigate="id => emit('navigate', id)"/>
 
-    <div v-else role="tabpanel">
+    <div v-else id="deployment-panel-overview" class="deployment-overview" role="tabpanel" :aria-busy="busy" aria-labelledby="overview-heading">
+      <DeploymentHeader title="Deployment Overview" heading-id="overview-heading" eyebrow="FROM MODEL TO PRODUCTION." :icon="ChartLine" description="Track inference activity and choose the right deployment for your models.">
+        <UiButton @click="emit('navigate', 'models')"><Network :size="15" aria-hidden="true"/> View models</UiButton>
+      </DeploymentHeader>
+      <DeploymentMetrics :items="overviewMetrics" :loaded="!!data"/>
       <p v-if="error" class="field-error" role="alert">{{ error }}</p>
 
       <section class="runs" :class="{ refreshing: busy && data }" aria-labelledby="runs-label">
-        <div class="runs-top">
+        <div class="runs-top"><div class="chart-heading"><h3>Inference activity</h3><p>Successful calls across your workspace</p></div>
           <div class="ranges" role="group" aria-label="Time range">
             <button v-for="[value, label] in RUN_RANGES" :key="value" type="button" :aria-pressed="range===value" :class="{active:range===value}" @click="range=value">{{ label }}</button>
           </div>
-          <span class="runs-note">From your apps' calls <button class="icon-only" type="button" :disabled="busy" aria-label="Refresh" title="Refresh" @click="load"><RefreshCw :size="14"/></button></span>
+          <UiButton :disabled="busy" aria-label="Refresh inference activity" @click="load"><RefreshCw :size="14" aria-hidden="true"/> Refresh</UiButton>
         </div>
-        <div class="runs-hero">
-          <span class="digits">{{ total }}</span><span class="bolt" aria-hidden="true"><Zap :size="22"/></span>
-        </div>
-        <p id="runs-label" class="runs-label">successful calls</p>
-        <div v-if="!data" class="chart-wait" aria-hidden="true"></div>
+        <p id="runs-label" class="sr-only">Successful calls over the selected time range</p>
+        <div v-if="!data && !error" class="chart-wait" aria-hidden="true"></div>
+        <div v-else-if="!data || !runs?.series?.length" class="inference-empty"><ChartLine :size="26" aria-hidden="true"/><h4>{{ error ? 'Inference activity unavailable' : 'No inference activity yet' }}</h4><p>{{ error ? 'Refresh to try loading your activity again.' : 'Successful calls will appear here when your apps start using a deployed model.' }}</p></div>
         <div v-else class="chart" tabindex="0" role="img" :aria-label="said"
              @pointermove="pointAt" @pointerleave="hover=null" @focus="step(0)" @blur="hover=null"
              @keydown.left.prevent="step(-1)" @keydown.right.prevent="step(1)">
@@ -365,6 +393,7 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
         <UiButton @click="emit('navigate', 'agent')"><Sparkles :size="15"/> Ask the AADML Agent</UiButton>
       </section>
 
+      <div class="deployment-section-heading"><h3>Deploy your way</h3><p>Choose the infrastructure that fits your workflow.</p></div>
       <section class="ways" aria-label="Ways to deploy">
         <button type="button" class="way" @click="showDeployed">
           <span class="way-icon"><Cloud :size="18"/></span>
@@ -381,6 +410,9 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
           <span><strong>Batch Processing</strong><small>Run a model over many photos of a project at once and download what it found.</small></span>
           <ArrowRight :size="16" class="way-go"/>
         </button>
+        <button type="button" class="way" @click="openTab('edge')"><span class="way-icon"><Cpu :size="18" aria-hidden="true"/></span><span><strong>Edge Devices</strong><small>Run approved models on your machines, with photos kept on your network.</small></span><ArrowRight :size="16" class="way-go" aria-hidden="true"/></button>
+        <button type="button" class="way" @click="openTab('streaming')"><span class="way-icon"><Video :size="18" aria-hidden="true"/></span><span><strong>Cloud Streaming</strong><small>Analyze video frames and download predictions from each stream.</small></span><ArrowRight :size="16" class="way-go" aria-hidden="true"/></button>
+        <button type="button" class="way" @click="openTab('cost')"><span class="way-icon"><ChartColumn :size="18" aria-hidden="true"/></span><span><strong>Cost Benchmark</strong><small>Compare compute costs using your model and expected traffic.</small></span><ArrowRight :size="16" class="way-go" aria-hidden="true"/></button>
       </section>
 
       <section class="improve">

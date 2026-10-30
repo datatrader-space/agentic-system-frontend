@@ -1,12 +1,12 @@
 <script setup>
 // The Edge Devices tab of the workspace Deployments page: run an approved model on one of the workspace's own machines
-// (TRAINING_OPEN_MODELS_PLAN.md section 5), as three steps that each say where the person is: add a machine, run a model
-// on it, call it from apps on the same network. Nothing is downloaded and nothing is run by hand but the one command of
+// (TRAINING_OPEN_MODELS_PLAN.md section 5), with a machine overview, deployment controls and an expandable connection
+// guide for apps on the same network. Nothing is downloaded and nothing is run by hand but the one command of
 // Your machines: the machine takes the model at its next poll and answers on its own network. Backend: machines_api.py
 // workspace/edge/, workspace/machines/ (the hosts a machine reaches, who may add one), workspace/machines/<id>/serve/,
 // workspace/machine-jobs/<id>/stop/; the release rules are edge.py's; what the model answers is ml/fmw_walls/serve/app.py.
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
-import { Check, Cloud, Copy, Cpu, EyeOff, KeyRound, Laptop, LoaderCircle, Lock, Play, Server, ShieldCheck, Square, Terminal } from 'lucide-vue-next';
+import { Activity, ArrowRight, Check, ChevronDown, Cloud, Copy, Cpu, EyeOff, KeyRound, Laptop, LoaderCircle, Lock, Network, Play, Plus, RefreshCw, Server, ShieldCheck, Square } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -49,10 +49,13 @@ const blockedChoices = computed(() => choices.value.filter(row => !row.may_serve
 const jobs = computed(() => data.value?.jobs || []);
 const running = computed(() => jobs.value.filter(isActive));
 const ended = computed(() => jobs.value.filter(j => !isActive(j)));
-const allMachines = computed(() => data.value?.machines || []);
+const allMachines = computed(() => (data.value?.machines || []).filter(m => m.state !== 'removed'));
 const available = computed(() => !!data.value?.available);
+const guideOpen = ref(false);
+const onlineMachines = computed(() => allMachines.value.filter(m => m.state === 'online'));
+const approvedChoices = computed(() => choices.value.filter(row => row.may_serve));
 const steps = computed(() => stepStates({ available: available.value, machines: allMachines.value, jobs: jobs.value }));
-const STATE_WORDS = { done: 'done', current: 'to do now', attention: 'needs a look', waiting: 'waiting' };
+const STATE_WORDS = { done: 'Complete', current: 'Next step', attention: 'Needs attention', waiting: 'Pending' };
 const hosts = computed(() => machinesInfo.value?.firewall_hosts || null);
 const mayManage = computed(() => !!machinesInfo.value?.may_manage);
 
@@ -136,8 +139,15 @@ const code = computed(() => edgeSnippet(language.value, callUrl.value));
 const ping = computed(() => pingCommand(host.value, callPort.value));
 const rule = computed(() => privateRule(callPort.value));
 const step3 = ref(null);
+async function goToStep(index) {
+  if (index === 2) guideOpen.value = true;
+  await nextTick();
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.getElementById(`edge-section-${index + 1}`)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+}
 async function callIt(job) {
   callJobId.value = job.id;
+  guideOpen.value = true;
   await nextTick();
   const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   step3.value?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
@@ -161,55 +171,44 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
   <section class="studio edge" role="tabpanel" aria-labelledby="edge-heading" :aria-busy="loading">
     <p class="visually-hidden" aria-live="polite">{{ said }}</p>
     <header class="edge-head">
-      <span class="edge-icon" aria-hidden="true"><Cpu :size="20"/></span>
-      <div>
-        <h2 id="edge-heading">Run models on your own machines</h2>
-        <p>Add a machine once, run an approved model on it, and your apps call it on your own network. {{ data?.photos || 'The photos you send it stay on your network: they never reach AADML.' }}</p>
+      <div class="edge-heading-group">
+        <span class="edge-icon" aria-hidden="true"><Cpu :size="23"/></span>
+        <div><span class="edge-eyebrow">YOUR INFRASTRUCTURE. YOUR CONTROL.</span><h2 id="edge-heading">Edge Devices</h2><p>Deploy approved models to your machines. Run inference on your own network.</p></div>
       </div>
+      <UiButton variant="primary" @click="emit('navigate', 'machines')"><Plus :size="16" aria-hidden="true"/> Add machine</UiButton>
     </header>
 
-    <p v-if="error" class="field-error" role="alert">{{ error }} <button type="button" class="link-button" @click="load">Try again</button></p>
+    <div class="edge-privacy"><ShieldCheck :size="17" aria-hidden="true"/><p>{{ data?.photos || 'The photos you send it stay on your network: they never reach AADML.' }}</p><span>Local inference</span></div>
+    <div v-if="error" class="edge-error" role="alert">{{ error }} <button type="button" class="link-button" @click="load">Try again</button></div>
     <div v-if="loading && !data" class="preview-loading" aria-label="Loading the Edge Devices tab"><div></div><div></div><div></div></div>
+    <template v-else>
+      <dl class="edge-metrics" aria-label="Edge deployment overview">
+        <div><dt><Server :size="16" aria-hidden="true"/> Connected machines</dt><dd>{{ data ? allMachines.length : '—' }}<span>{{ data ? `${onlineMachines.length} online` : 'Unavailable' }}</span></dd></div>
+        <div><dt><Activity :size="16" aria-hidden="true"/> Active deployments</dt><dd>{{ data ? running.length : '—' }}<span>{{ data ? `${callable.filter(j => j.health?.ok).length} healthy` : 'Unavailable' }}</span></dd></div>
+        <div><dt><ShieldCheck :size="16" aria-hidden="true"/> Approved models</dt><dd>{{ data ? approvedChoices.length : '—' }}<span>Ready to deploy</span></dd></div>
+      </dl>
 
-    <ol v-else class="edge-steps">
-      <!-- 1. Add a machine -->
-      <li :class="['edge-step', `is-${steps[0].state}`]">
-        <span class="step-mark" aria-hidden="true"><Check v-if="steps[0].state === 'done'" :size="16" :stroke-width="3"/><template v-else>1</template></span>
-        <div class="step-body">
-          <div class="step-head">
-            <h3 id="edge-step-1">Add a machine<span class="visually-hidden">, {{ STATE_WORDS[steps[0].state] }}</span></h3>
-            <p class="step-state" aria-live="polite">{{ steps[0].line }}</p>
-          </div>
-          <p class="step-lead">A Linux computer of yours, in your office, shop or server room. You run one Docker command on it, and AADML manages it from then on: nothing to install or update by hand.</p>
-          <MachineNeeds :hosts="hosts"/>
+      <nav class="edge-progress" aria-label="Edge deployment setup">
+        <a v-for="(item, index) in steps" :key="index" :href="`#edge-section-${index + 1}`" :class="['progress-item', `is-${item.state}`]" :aria-current="item.state === 'current' ? 'step' : undefined" @click.prevent="goToStep(index)">
+          <span class="step-mark"><Check v-if="item.state === 'done'" :size="14" aria-hidden="true"/><template v-else>{{ index + 1 }}</template></span>
+          <span><strong>{{ ['Connect a machine', 'Deploy a model', 'Connect your app'][index] }}</strong><small>{{ STATE_WORDS[item.state] }}</small></span><ArrowRight v-if="index < 2" :size="15" class="progress-arrow" aria-hidden="true"/>
+        </a>
+      </nav>
+
+      <div class="edge-workspace">
+        <section id="edge-section-1" class="edge-card machine-card" aria-labelledby="edge-step-1">
+          <div class="card-heading"><span class="card-icon"><Server :size="18" aria-hidden="true"/></span><div><h3 id="edge-step-1">Your machines</h3><p>Infrastructure in your workspace</p></div><UiBadge>{{ allMachines.length }}</UiBadge></div>
           <ul v-if="allMachines.length" class="edge-machines" aria-label="Machines of this workspace">
-            <li v-for="m in allMachines" :key="m.id">
-              <Server :size="16" aria-hidden="true"/>
-              <strong>{{ m.name }}</strong>
-              <UiBadge :tone="machineState(m)[0]">{{ machineState(m)[1] }}</UiBadge>
-              <span>{{ capabilityLine(m.capabilities) }}</span>
-            </li>
+            <li v-for="m in allMachines" :key="m.id"><div class="machine-row"><span class="machine-symbol"><Server :size="18" aria-hidden="true"/></span><strong>{{ m.name }}</strong><UiBadge :tone="machineState(m)[0]">{{ machineState(m)[1] }}</UiBadge></div><p>{{ capabilityLine(m.capabilities) }}</p></li>
           </ul>
-          <div class="step-actions">
-            <UiButton :variant="allMachines.length ? 'secondary' : 'primary'" @click="emit('navigate', 'machines')">
-              <Terminal :size="16" aria-hidden="true"/> {{ allMachines.length ? 'Open Your machines' : 'Get the command' }}
-            </UiButton>
-            <span class="step-hint">{{ machinesInfo && !mayManage ? 'An Admin of this workspace adds machines, on the Your machines page.' : 'The command is on the Your machines page, in Workspace settings. The machine appears there and here within a minute.' }}</span>
-          </div>
-        </div>
-      </li>
+          <div v-else class="machine-empty"><span class="empty-symbol"><Server :size="28" aria-hidden="true"/></span><h4>{{ data ? 'Connect your first machine' : 'Machines unavailable' }}</h4><p>{{ data ? 'Bring your own Linux machine. Connect it once with a Docker command, then manage deployments here.' : 'Try refreshing to load your workspace machines.' }}</p><UiButton @click="emit('navigate', 'machines')"><Plus :size="15" aria-hidden="true"/> Connect a machine</UiButton></div>
+          <p class="machine-state" :class="`is-${steps[0].state}`">{{ steps[0].line }}</p>
+          <div class="machine-footer"><UiButton @click="emit('navigate', 'machines')">Manage machines <ArrowRight :size="14" aria-hidden="true"/></UiButton><details class="requirements"><summary>Machine requirements <ChevronDown :size="14" aria-hidden="true"/></summary><MachineNeeds :hosts="hosts"/></details><p v-if="machinesInfo && !mayManage" class="step-hint">A workspace Admin connects new machines.</p></div>
+        </section>
 
-      <!-- 2. Run a model on it -->
-      <li :class="['edge-step', `is-${steps[1].state}`]">
-        <span class="step-mark" aria-hidden="true"><Check v-if="steps[1].state === 'done'" :size="16" :stroke-width="3"/><template v-else>2</template></span>
-        <div class="step-body">
-          <div class="step-head">
-            <h3 id="edge-step-2">Run a model on it<span class="visually-hidden">, {{ STATE_WORDS[steps[1].state] }}</span></h3>
-            <p class="step-state" aria-live="polite">{{ steps[1].line }}</p>
-          </div>
-          <p class="step-lead">Choose an approved model and a machine. The machine takes it at its next check, within a minute, and answers on the port you choose. Running it there releases the model outside AADML, so it needs the Train right and an approval for staging or production.</p>
-
-          <form v-if="available" class="panel edge-form" aria-labelledby="edge-step-2" @submit.prevent="start">
+        <section id="edge-section-2" class="edge-card deploy-card" aria-labelledby="edge-step-2">
+          <div class="card-heading"><span class="card-icon"><Play :size="18" aria-hidden="true"/></span><div><h3 id="edge-step-2">Deploy a model</h3><p>Choose what to run and where to run it</p></div></div>
+          <form v-if="available" class="edge-form" aria-labelledby="edge-step-2" @submit.prevent="start">
             <div class="form-grid">
               <label class="field-label">Model
                 <select v-model="picked" class="text-input">
@@ -219,7 +218,7 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
                   </option>
                 </select>
               </label>
-              <label class="field-label">Released for
+              <label class="field-label">Environment
                 <select v-model="environment" class="text-input" :disabled="!environments.length">
                   <option v-if="!environments.length" value="">Choose a model first</option>
                   <option v-for="e in environments" :key="e" :value="e">{{ ENVIRONMENT_LABELS[e] || e }}</option>
@@ -231,7 +230,7 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
                   <option v-for="m in machines" :key="m.id" :value="m.id">{{ m.name }}</option>
                 </select>
               </label>
-              <label class="field-label">Port on the machine
+              <label class="field-label">Inference port
                 <input v-model.number="port" class="text-input" type="number" min="1024" max="65535" inputmode="numeric" :aria-invalid="!!portError" aria-describedby="edge-port-help">
                 <span id="edge-port-help" class="field-help">{{ portError || `It answers at ${answerAt(port)}` }}</span>
               </label>
@@ -239,10 +238,11 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
             <p v-if="chosen && !chosen.may_serve" class="field-error">{{ whyNot(chosen) }}</p>
             <p v-if="chosen?.licence" class="edge-licence">{{ chosen.licence.text }}</p>
             <p v-if="serveError" class="field-error" role="alert">{{ serveError }}</p>
+            <div class="deploy-notice"><ShieldCheck :size="16" aria-hidden="true"/><p>Requires the Train right and a model approved for staging or production. Deployment starts at the machine’s next check, within a minute.</p></div>
             <div class="studio-actions">
               <UiButton type="submit" variant="primary" :disabled="!ready || busy">
                 <LoaderCircle v-if="busy" :size="16" class="spin" aria-hidden="true"/><Play v-else :size="16" aria-hidden="true"/>
-                {{ busy ? 'Sending…' : 'Run on the machine' }}
+                {{ busy ? 'Sending…' : 'Deploy model' }}
               </UiButton>
             </div>
             <details v-if="blockedChoices.length" class="edge-why">
@@ -254,9 +254,12 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
             <p v-if="data && !choices.length" class="step-hint">A model can run here once it is trained and approved for staging or production on the Models page. <button type="button" class="link-button" @click="emit('navigate', 'models')">Open Models</button></p>
           </form>
 
+          <div v-if="!available" class="deployment-unavailable"><Lock :size="22" aria-hidden="true"/><h4>Edge deployment is unavailable</h4><p>{{ steps[0].line }}</p></div>
+        </section>
+      </div>
           <section v-if="data" class="edge-jobs" aria-labelledby="edge-jobs-heading">
-            <h4 id="edge-jobs-heading">Models on your machines</h4>
-            <p v-if="!jobs.length" class="edge-empty">None yet. A model you start appears here with its state, its machine and its port.</p>
+            <div class="section-heading"><div><h3 id="edge-jobs-heading">Deployments <span class="deployment-count">{{ jobs.length }}</span></h3><p>Monitor models running on your edge machines.</p></div><UiButton :disabled="loading" @click="load"><RefreshCw :size="14" :class="{ spin: loading }" aria-hidden="true"/> Refresh</UiButton></div>
+            <div v-if="!jobs.length" class="edge-empty"><span class="empty-symbol"><Cpu :size="25" aria-hidden="true"/></span><div><h4>No edge deployments yet</h4><p>Deploy an approved model above to see its status, machine, and endpoint here.</p></div></div>
             <ul v-else class="edge-job-list">
               <li v-for="job in [...running, ...ended]" :key="job.id" class="panel edge-job">
                 <div class="edge-job-main">
@@ -264,7 +267,8 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
                     <strong>{{ job.model?.name }} {{ job.model?.version }}</strong>
                     <UiBadge :tone="jobState(job)[0]">{{ jobState(job)[1] }}</UiBadge>
                   </div>
-                  <p>{{ job.project.name }}, on {{ job.machine.name }}, port {{ job.port }}, released for {{ ENVIRONMENT_LABELS[job.environment] || job.environment }}.{{ isActive(job) && startedLine(job, now) ? ` ${startedLine(job, now)}.` : '' }}</p>
+                  <p class="job-project">{{ job.project.name }}<template v-if="isActive(job) && startedLine(job, now)"> � {{ startedLine(job, now) }}</template></p>
+                  <dl class="job-details"><div><dt>Machine</dt><dd>{{ job.machine.name }}</dd></div><div><dt>Environment</dt><dd>{{ ENVIRONMENT_LABELS[job.environment] || job.environment }}</dd></div><div><dt>Port</dt><dd><code>{{ job.port }}</code></dd></div></dl>
                   <p v-if="health(job)" class="edge-health">{{ health(job) }}</p>
                   <p v-if="job.failure" class="field-error">{{ job.failure }}</p>
                 </div>
@@ -275,19 +279,12 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
               </li>
             </ul>
           </section>
-        </div>
-      </li>
 
-      <!-- 3. Call it from your apps -->
-      <li :class="['edge-step', `is-${steps[2].state}`]">
-        <span class="step-mark" aria-hidden="true">3</span>
-        <div class="step-body">
-          <div class="step-head">
-            <h3 id="edge-step-3" ref="step3" tabindex="-1">Call it from your apps<span class="visually-hidden">, {{ STATE_WORDS[steps[2].state] }}</span></h3>
-            <p class="step-state" aria-live="polite">{{ steps[2].line }}</p>
-          </div>
-          <p class="step-lead">An app on the same network sends one photo to the machine and gets back what the model found. The call goes straight to the machine.</p>
-
+      <details id="edge-section-3" class="edge-card connection-guide" :open="guideOpen" @toggle="guideOpen = $event.target.open">
+        <summary><span class="card-icon"><Network :size="18" aria-hidden="true"/></span><span><strong>Connect your app</strong><small>Endpoints, code examples, and network configuration</small></span><ChevronDown :size="18" class="guide-chevron" aria-hidden="true"/></summary>
+        <div class="guide-content">
+          <h3 id="edge-step-3" ref="step3" tabindex="-1">Call a model on your network</h3>
+          <p class="step-lead">An app on the same network sends a photo directly to your machine and receives the prediction.</p>
           <figure class="edge-path" aria-label="How a call travels">
             <div class="path-node"><Laptop :size="18" aria-hidden="true"/><span><strong>Your app</strong>on your network</span></div>
             <div class="path-link"><span>photo in, answer out</span></div>
@@ -369,8 +366,8 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
           </details>
           <p v-if="copyError" class="field-error" role="alert">{{ copyError }}</p>
         </div>
-      </li>
-    </ol>
+      </details>
+    </template>
 
     <p class="edge-foot"><ShieldCheck :size="15" aria-hidden="true"/> Every model started or stopped on a machine is recorded in the workspace's Audit log.</p>
 
@@ -386,68 +383,14 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
 </template>
 
 <style scoped>
-.edge{max-width:1000px}
-.edge-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:26px}
-.edge-head h2{margin:0 0 6px}
-.edge-head p{max-width:70ch;color:#475569}
-.edge-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:var(--aadml-soft);color:var(--aadml-primary);flex-shrink:0}
-.link-button{background:none;border:0;color:var(--aadml-primary);font-weight:600;padding:0 4px;text-decoration:underline;min-height:24px}
+.edge{max-width:1240px;--edge-border:#e3e8ef;color:#17243b}
+.edge-head{display:flex;justify-content:space-between;align-items:center;gap:20px;margin:8px 0 24px}.edge-heading-group{display:flex;align-items:center;gap:15px}.edge-icon{display:grid;place-items:center;width:52px;height:52px;border:1px solid var(--aadml-outline);border-radius:14px;background:var(--aadml-tint);color:var(--aadml-primary)}.edge-eyebrow{display:block;font-size:10px;font-weight:650;letter-spacing:1.5px;color:#68768c;margin-bottom:5px}.edge-head h2{font-size:25px;letter-spacing:-.7px}.edge-head p{font-size:13px;color:#64748b;margin-top:5px}.edge-privacy{display:flex;align-items:center;gap:10px;padding:12px 16px;background:#f0f9f5;border:1px solid #d8ece1;border-radius:9px;color:#287452;margin-bottom:22px}.edge-privacy p{font-size:12px;color:#34654e;flex:1}.edge-privacy>span{font-size:10px;font-weight:600;white-space:nowrap;letter-spacing:.2px}.edge-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:0 0 22px}.edge-metrics>div{padding:19px 22px;background:white;border:1px solid var(--edge-border);border-radius:12px;box-shadow:0 2px 3px #182e4e03}.edge-metrics dt{display:flex;gap:9px;align-items:center;color:#617088;font-size:12px;font-weight:500}.edge-metrics dt svg{color:#8491a4}.edge-metrics dd{display:flex;align-items:baseline;gap:12px;margin:10px 0 0;font-size:29px;font-weight:650;letter-spacing:-1px;line-height:1.2}.edge-metrics dd span{font-size:11px;color:#64748b;font-weight:400;letter-spacing:0}.edge-progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin:0 0 24px;padding:15px 20px;background:#f4f6f9;border:1px solid #e8ecf1;border-radius:10px}.progress-item{display:flex;align-items:center;gap:10px;min-width:0;border-radius:4px}.progress-item strong{display:block;font-size:12px;font-weight:600}.progress-item small{display:block;font-size:10px;color:#64748b;margin-top:3px;text-transform:capitalize}.progress-arrow{margin-left:auto;color:#a0aabb}.step-mark{display:grid;place-items:center;width:28px;height:28px;flex-shrink:0;border:1px solid #d5dce6;border-radius:50%;font-size:11px;background:white;color:#738097}.is-done .step-mark{background:#e5f4eb;border-color:#c9e7d5;color:#24704c}.is-current .step-mark{background:var(--aadml-primary);border-color:var(--aadml-primary);color:white}.is-attention .step-mark{color:#9a5c0a;background:#fff6df;border-color:#eddbac}.edge-workspace{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.3fr);align-items:start;gap:22px}.edge-card{background:#fff;border:1px solid var(--edge-border);border-radius:13px;overflow:hidden;box-shadow:0 2px 4px #182e4e03;scroll-margin-top:24px}.card-heading{display:flex;align-items:center;gap:11px;padding:20px 22px;border-bottom:1px solid #edf0f4}.card-heading h3{font-size:14px;letter-spacing:-.15px}.card-heading p{font-size:11px;color:#778398;margin-top:3px}.card-heading>.badge{margin-left:auto}.card-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:#f3f6fb;color:var(--aadml-primary);flex-shrink:0}.edge-machines{list-style:none;margin:0;padding:8px 20px}.edge-machines li{padding:15px 0;border-bottom:1px solid #edf0f4}.edge-machines li:last-child{border:0}.machine-row{display:flex;align-items:center;gap:10px}.machine-row strong{font-size:12px;overflow-wrap:anywhere;min-width:0;flex:1}.machine-symbol{color:#7a8ba4}.edge-machines li p{font-size:11px;color:#748095;margin:7px 0 0 28px;overflow-wrap:anywhere}.machine-empty{text-align:center;padding:28px 24px 18px}.empty-symbol{display:inline-grid;place-items:center;width:52px;height:52px;border-radius:14px;border:1px dashed #d7dfec;background:#f8fafc;color:#8697af}.machine-empty h4{font-size:13px;margin:14px 0 7px}.machine-empty p{font-size:12px;color:#718096;max-width:32ch;margin:0 auto 17px}.machine-state{font-size:11px;padding:0 22px 16px;color:#65748a;overflow-wrap:anywhere}.machine-footer{border-top:1px solid #edf0f4;padding:16px 22px}.machine-footer>.button{width:100%}.requirements{margin-top:12px}.requirements summary{display:flex;align-items:center;justify-content:space-between;min-height:35px;font-size:11px;color:#64748b;cursor:pointer}.requirements[open] summary{margin-bottom:12px}.requirements :deep(.needs){grid-template-columns:1fr;gap:14px}.edge-form{padding:22px}.edge-form .form-grid{margin:0;display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:20px 16px}.edge-form .field-label{margin:0;font-size:12px;color:#34445c}.edge-form .text-input{min-height:43px;border-radius:8px;font-size:12px;background:#fff;border-color:#dbe2ec;margin-top:7px;width:100%;min-width:0}.field-help{display:block;font-size:10px;color:#7b8798;font-weight:400;margin-top:6px;overflow-wrap:anywhere}.deploy-notice{display:flex;gap:9px;align-items:flex-start;padding:12px;background:#f7f9fc;border:1px solid #e9edf4;border-radius:8px;margin-top:20px;color:#7788a2}.deploy-notice p{font-size:11px;line-height:1.6;color:#65748a}.edge-form .studio-actions{margin:18px 0 0;justify-content:flex-end}.edge-form .studio-actions .button{min-height:42px}.edge-licence,.step-hint{font-size:12px;color:#65748a;margin-top:10px}.edge-why{font-size:12px;color:#64748b;margin-top:14px}.edge-why summary{cursor:pointer;min-height:34px;color:var(--aadml-primary);overflow-wrap:anywhere}.edge-why li{margin:7px 0}.deployment-unavailable{text-align:center;padding:35px 24px;color:#7b89a0}.deployment-unavailable h4{font-size:14px;margin:12px 0 8px}.deployment-unavailable p{font-size:12px}.edge-jobs{margin:28px 0 24px}.section-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:15px}.section-heading h3{font-size:15px}.section-heading p{font-size:12px;color:#7c8799;margin-top:4px}.edge-empty{display:flex;gap:18px;align-items:center;padding:25px;border:1px dashed #d8e0ec;border-radius:12px;background:#fafbfd}.edge-empty h4{font-size:13px;margin:0 0 5px}.edge-empty p{font-size:12px;color:#7b8799}.edge-job-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}.edge .edge-job{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:19px 22px;border-radius:11px}.edge-job-main{min-width:0}.edge-job-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px}.edge-job p{font-size:12px;margin:6px 0 0;color:#64748b;overflow-wrap:anywhere}.edge-job .edge-health{font-size:11px}.edge-job-actions{display:flex;gap:8px;flex-wrap:wrap}.connection-guide{margin:0 0 20px}.connection-guide>summary{display:flex;align-items:center;gap:12px;padding:19px 22px;cursor:pointer;list-style:none}.connection-guide>summary::-webkit-details-marker{display:none}.connection-guide summary strong{font-size:13px;display:block}.connection-guide summary small{display:block;font-size:11px;color:#7c889b;margin-top:4px}.guide-chevron{margin-left:auto;color:#8491a6}.connection-guide[open] .guide-chevron{transform:rotate(180deg)}.guide-content{padding:24px;border-top:1px solid #edf0f4}.guide-content>h3{font-size:15px;margin-bottom:8px}.step-lead{font-size:12px;color:#64748b;margin:0 0 20px}.link-button{border:0;background:transparent;color:var(--aadml-primary);text-decoration:underline;min-height:32px}.edge-error{padding:14px 18px;background:#fff4f2;border:1px solid #f4d1cc;border-radius:9px;margin-bottom:16px;color:#a03829;font-size:12px}.edge :is(a,summary):focus-visible{outline:3px solid var(--aadml-outline);outline-offset:3px}.requirements[open] summary svg{transform:rotate(180deg)}
+@media(max-width:1050px){.edge-workspace{grid-template-columns:1fr 1.2fr}.edge-form .form-grid{grid-template-columns:1fr}.edge-metrics>div{padding:16px}.edge-metrics dd{gap:8px}}
+@media(max-width:760px){.edge-workspace{grid-template-columns:1fr}.edge-form .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.edge-head{align-items:flex-start}.edge-head p{max-width:35ch}.edge-eyebrow{font-size:8px}.edge-icon{display:none}.edge-metrics{gap:8px}.edge-metrics>div{padding:14px 12px}.edge-metrics dt{font-size:10px}.edge-metrics dt svg{display:none}.edge-metrics dd{flex-wrap:wrap;font-size:25px;gap:5px}.edge-metrics dd span{flex-basis:100%;font-size:10px}.edge-progress{padding:12px;gap:10px}.progress-item{gap:6px}.progress-item strong{font-size:10px}.progress-arrow{display:none}.progress-item small{font-size:9px}.edge-privacy>span{display:none}}
+@media(max-width:480px){.edge-head{gap:10px}.edge-head h2{font-size:22px}.edge-head>.button{font-size:11px;padding:9px}.edge-form .form-grid{grid-template-columns:1fr}.edge-progress{grid-template-columns:1fr}.progress-item{padding:3px}.progress-item>span:last-of-type{display:flex;gap:10px;align-items:center}.progress-item small{margin:0}.edge-empty{align-items:flex-start}.guide-content{padding:16px}.edge .edge-job{align-items:flex-start;flex-direction:column}.edge-privacy p{font-size:11px}.edge-head p{font-size:12px}}
 
-/* The steps: one rail, and a marker per step that says its state. */
-.edge-steps{list-style:none;margin:0;padding:0}
-.edge-step{position:relative;display:grid;grid-template-columns:34px minmax(0,1fr);gap:18px;padding-bottom:34px}
-.edge-step:not(:last-child)::before{content:"";position:absolute;left:16px;top:38px;bottom:4px;width:2px;background:#e3e6ed;border-radius:2px}
-.edge-step.is-done:not(:last-child)::before{background:#9fd7bd}
-.step-mark{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;font-weight:650;font-size:14px;border:2px solid #cfd5df;color:#5f6d82;background:#fff;z-index:1}
-.is-current .step-mark{background:var(--aadml-primary);border-color:var(--aadml-primary);color:#fff}
-.is-done .step-mark{background:#e7f5ee;border-color:#27765a;color:#1f6b4f}
-.is-attention .step-mark{background:#fef3c7;border-color:#b45309;color:#92400e}
-.step-body{min-width:0;padding-top:4px}
-.step-head{display:flex;align-items:baseline;justify-content:space-between;gap:6px 16px;flex-wrap:wrap;margin-bottom:6px}
-.step-head h3{font-size:16px;margin:0;color:#0f172a}
-.step-head h3:focus{outline:none}
-.step-head h3:focus-visible{outline:3px solid var(--aadml-outline);outline-offset:4px;border-radius:4px}
-.step-state{margin:0!important;font-size:12.5px;font-weight:550;color:#5f6d82!important}
-.is-done .step-state{color:#1f6b4f!important}
-.is-current .step-state{color:var(--aadml-primary-dark)!important}
-.is-attention .step-state{color:#92400e!important}
-.step-lead{max-width:72ch;color:#475569!important;margin:0 0 16px!important}
-.step-hint{font-size:12.5px;color:#5f6d82!important;margin:10px 0 0!important}
-.step-actions{display:flex;align-items:center;gap:10px 16px;flex-wrap:wrap;margin-top:18px}
-.step-actions .step-hint{margin:0!important;max-width:56ch}
-.step-actions .button,.studio-actions .button,.edge-job-actions .button{min-height:44px}
-
-.edge-machines{list-style:none;margin:18px 0 0;padding:0;display:grid;gap:8px}
-.edge-machines li{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;padding:10px 14px;border:1px solid #e3e6ed;border-radius:9px;background:#fff}
-.edge-machines svg{color:#5f6d82}
-.edge-machines strong{font-size:13px;color:#0f172a;overflow-wrap:anywhere}
-.edge-machines span:last-child{font-size:12px;color:#5f6d82}
-
-.edge-form{padding:22px}
-.edge-form .form-grid{margin:0}
-.edge-form .field-label{margin:0}
-.edge-form .text-input{min-height:44px}
-.field-help{display:block;font-weight:400;color:#5f6d82;margin-top:6px;font-size:12px}
-.edge-licence{font-size:12px;margin-top:12px}
-.edge-form .studio-actions{margin:18px 0 0}
-.edge-why{margin-top:16px;font-size:12.5px;color:#475569}
-.edge-why summary{cursor:pointer;color:var(--aadml-primary);font-weight:550;min-height:32px;display:flex;align-items:center;width:max-content;max-width:100%}
-.edge-why summary:focus-visible{outline:3px solid var(--aadml-outline);outline-offset:2px;border-radius:4px}
-.edge-why ul{margin:8px 0 0;padding-left:18px;display:grid;gap:6px}
-.edge-why strong{color:#0f172a;font-weight:600;margin-right:4px}
-
-.edge-jobs{margin-top:22px}
-.edge-jobs h4,.call-answer h4{font-size:13px;margin:0 0 10px;color:#0f172a}
-.edge-empty{font-size:12.5px;color:#5f6d82!important}
-.edge-job-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
-.edge-job{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px}
-.edge-job-main{min-width:0}
-.edge-job-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.edge-job p{margin:4px 0 0;color:#475569}
-.edge-health{font-size:12px}
-.edge-job-actions{display:flex;gap:8px;flex-wrap:wrap}
-
-/* Step 3 */
+.deployment-count{display:inline-block;font-size:10px;vertical-align:middle;border:1px solid #e3e8ef;border-radius:5px;padding:2px 6px;color:#75839a;margin-left:5px;font-weight:500}.job-details{display:flex;flex-wrap:wrap;gap:14px 28px;margin:14px 0 10px}.job-details>div{min-width:0}.job-details dt{font-size:10px;color:#7b8799;margin-bottom:4px}.job-details dd{font-size:12px;color:#34445c;margin:0;overflow-wrap:anywhere}.job-details code{font-size:11px;padding:2px 5px;background:#f3f5f8;border-radius:4px}
+/* App integration */
 .edge-path{display:grid;grid-template-columns:auto minmax(80px,1fr) auto;align-items:center;margin:0 0 18px;padding:16px 18px;border:1px solid #e3e6ed;border-radius:12px;background:var(--aadml-tint)}
 .path-node{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:#fff;border:1px solid #dbe3ef;color:var(--aadml-primary);min-width:0}
 .path-node span{display:flex;flex-direction:column;font-size:12px;color:#5f6d82;line-height:1.35;min-width:0}
@@ -521,11 +464,9 @@ onUnmounted(() => { gone = true; clearTimeout(pollTimer); clearTimeout(copiedTim
   .call-facts > li:nth-child(3){grid-column:auto}
 }
 @media(max-width:640px){
-  .edge-step{grid-template-columns:28px minmax(0,1fr);gap:12px}
-  .edge-step:not(:last-child)::before{left:13px;top:32px}
   .step-mark{width:28px;height:28px;font-size:13px}
   .edge-job{flex-direction:column;align-items:stretch}
-  .edge-job-actions .button,.edge-form .button,.step-actions .button{flex:1 1 auto;width:100%}
+  .edge-job-actions .button,.edge-form .button{flex:1 1 auto;width:100%}
   .edge-path{grid-template-columns:1fr;padding:14px}
   .path-link{width:2px;height:40px;margin:0 0 0 22px}
   .path-link::after{right:auto;left:-4px;top:auto;bottom:-7px;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid var(--aadml-primary);border-bottom:0}

@@ -1,0 +1,137 @@
+/* Workspace deployment views share one visual system. Scope every rule to this page. */
+.ws-deployments.deployments-workspace{max-width:1240px;--deployment-line:#e3e8ef;--deployment-ink:#17243b;--deployment-muted:#64748b}
+.ws-deployments.deployments-workspace .deploy-tabs{display:flex;gap:5px;padding:6px;margin:0 0 28px;border:1px solid #e3e8ef;border-radius:11px;background:#f0f3f8;overflow-x:auto;scrollbar-width:thin}
+.ws-deployments.deployments-workspace .deploy-tabs button{flex:1 0 auto;justify-content:center;min-height:44px;padding:10px 13px;border:1px solid transparent;border-radius:7px;font-size:12px;color:#67758d;transition:background-color .15s,color .15s}
+.ws-deployments.deployments-workspace .deploy-tabs button:hover{background:#e8edf5;color:#34445e}
+.ws-deployments.deployments-workspace .deploy-tabs button.active{background:#fff;border-color:#dfe6f1;color:var(--aadml-primary);box-shadow:0 1px 4px #182e4e09;font-weight:600}
+.ws-deployments.deployments-workspace :is(.dedicated,.batch,.streaming,.cost) .text-input{border-radius:8px;border-color:#dbe2ec;font-size:13px}
+.ws-deployments.deployments-workspace :is(.dedicated,.batch,.streaming,.cost) :is(.ded-billing,.bt-limit,.st-billing,.cost-basis){display:flex;align-items:flex-start;gap:10px;padding:13px 16px;border:1px solid #e3e8ef;border-radius:9px;background:#f4f7fb;font-size:12px;line-height:1.65;color:#60718a!important;margin:0 0 20px}
+.ws-deployments.deployments-workspace :is(.ded-billing,.bt-limit,.st-billing,.cost-basis)>svg{color:#7c8faa;margin-top:2px;flex-shrink:0}
+.ws-deployments.deployments-workspace :is(.list-empty,.bt-empty,.cost-empty){padding:45px 24px;background:#fff;border:1px dashed #d6dfec;border-radius:13px;text-align:center}
+.ws-deployments.deployments-workspace :is(.list-empty,.bt-empty,.cost-empty) p{font-size:13px;color:#758298;line-height:1.7;max-width:50ch}
+.ws-deployments.deployments-workspace :is(.list-empty,.bt-empty,.cost-empty) h3{font-size:16px;color:#24344c;margin:15px 0 8px}
+.ws-deployments.deployments-workspace :is(.empty-icon,.bt-empty-icon,.cost-empty-icon){width:54px;height:54px;border-radius:15px;border:1px dashed #d7dfec;background:#f7f9fc;color:#8497b2}
+.ws-deployments .deployment-no-results{padding:36px 20px;border:1px dashed #d6dfec;border-radius:12px;background:#fff;text-align:center}
+.ws-deployments .deployment-no-results h3{font-size:14px;color:#34445c}
+.ws-deployments .deployment-no-results p{font-size:12px;color:#758298;margin-top:7px}
+.ws-deployments.deployments-workspace :is(.table-wrap,.cost-table-wrap){border:1px solid #e3e8ef;border-radius:12px;background:#fff;overflow:auto;max-width:100%}
+.ws-deployments.deployments-workspace :is(.ws-table,.cost-table){width:100%;border-collapse:collapse;background:#fff}
+.ws-deployments.deployments-workspace :is(.ws-table,.cost-table) thead th{background:#f7f9fc;color:#76849a;padding:15px 18px;font-size:10px;letter-spacing:.5px;font-weight:600;text-transform:uppercase;white-space:normal;line-height:1.5;border-bottom:1px solid #e5eaf1}
+.ws-deployments.deployments-workspace :is(.ws-table,.cost-table) td{padding:19px 18px;font-size:12px;vertical-align:middle;border-bottom:1px solid #edf0f5;color:#43536c;overflow-wrap:anywhere}
+.ws-deployments.deployments-workspace :is(.ws-table,.cost-table) tbody th{padding:19px 18px;font-size:12px;color:#24344c;vertical-align:middle}
+.ws-deployments.deployments-workspace :is(.ws-table,.cost-table) tr:last-child>*{border-bottom:0}
+.ws-deployments.deployments-workspace :is(.ws-table,.cost-table) tbody tr:hover{background:#fafcff}
+.ws-deployments.deployments-workspace :is(.ws-table,.cost-table) small{font-size:11px;line-height:1.55;color:#7a879b}
+.ws-deployments.deployments-workspace .ws-table .row-actions{width:1%;white-space:nowrap}
+.ws-deployments.deployments-workspace :is(.ded-acts,.st-acts){flex-wrap:nowrap;gap:7px}
+.ws-deployments.deployments-workspace :is(.ded-acts,.st-acts) .button{font-size:11px;min-height:38px;padding:8px 11px}
+.ws-deployments.deployments-workspace .source-chip{font-size:9px;letter-spacing:.3px;border-radius:4px}
+.ws-deployments.deployments-workspace .ded-source-title{font-size:12px;margin-top:6px}
+.ws-deployments.deployments-workspace .kind-chip{font-size:10px;border-color:#e1e7ef;background:#f8fafc}
+.ws-deployments.deployments-workspace .kind-chip.production{background:var(--aadml-tint);border-color:var(--aadml-soft);color:var(--aadml-primary)}
+.ws-deployments.deployments-workspace .runs{padding:23px 25px 16px;background:#fff;border:1px solid #e3e8ef;border-radius:13px;box-shadow:0 2px 4px #182e4e03}
+.ws-deployments.deployments-workspace .runs-top{align-items:flex-start;margin-bottom:24px}
+.ws-deployments .inference-empty{display:flex;min-height:205px;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#8a9bb3;text-align:center;padding:20px}.ws-deployments .inference-empty h4{font-size:13px;color:#52637c;margin:0}.ws-deployments .inference-empty p{font-size:12px;color:#7b8799;max-width:50ch}
+.ws-deployments .chart-heading h3{font-size:14px;color:#24344c}
+.ws-deployments .chart-heading p{font-size:11px;color:#7c889b;margin-top:5px}
+.ws-deployments.deployments-workspace .ranges{gap:3px;padding:3px;background:#f2f5f9;border-radius:8px;margin-left:auto}
+.ws-deployments.deployments-workspace .ranges button{min-height:34px;font-size:11px;padding:6px 10px}
+.ws-deployments.deployments-workspace .ranges button.active{background:#fff;color:var(--aadml-primary);box-shadow:0 1px 3px #182e4e12}
+.ws-deployments.deployments-workspace .chart{height:205px;background:repeating-linear-gradient(to top,transparent 0,transparent calc(25% - 1px),#f0f3f8 calc(25% - 1px),#f0f3f8 25%);margin-bottom:29px}
+.ws-deployments.deployments-workspace .chart .area{opacity:.08}
+.ws-deployments.deployments-workspace .chart .line{stroke-width:2.5}
+.ws-deployments.deployments-workspace .as-table summary{min-height:32px;font-size:11px}
+.ws-deployments.deployments-workspace .ask{padding:15px 20px;margin:22px 0 26px;background:#f4f7fc;border-color:#e3e8ef;border-radius:10px}
+.ws-deployments.deployments-workspace .ask p{font-size:12px;color:#576982!important}
+.ws-deployments .deployment-section-heading{margin:26px 0 15px}
+.ws-deployments .deployment-section-heading h3{font-size:15px;color:#24344c}
+.ws-deployments .deployment-section-heading p{font-size:12px;margin-top:5px;color:#7b8799}
+.ws-deployments.deployments-workspace .ways{grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}
+.ws-deployments.deployments-workspace .way{position:relative;display:grid;grid-template-columns:38px minmax(0,1fr);align-items:start;gap:13px;padding:21px;border-color:#e3e8ef;border-radius:12px;min-height:140px;box-shadow:0 2px 3px #182e4e03}
+.ws-deployments.deployments-workspace .way:hover{border-color:var(--aadml-focus);box-shadow:0 4px 14px #182e4e09}
+.ws-deployments.deployments-workspace .way-icon{width:36px;height:36px;border-radius:9px;background:#f1f5fc}
+.ws-deployments.deployments-workspace .way strong{font-size:13px;line-height:1.5;margin:1px 12px 7px 0}
+.ws-deployments.deployments-workspace .way small{font-size:12px;color:#758298;line-height:1.7}
+.ws-deployments.deployments-workspace .way-go{position:absolute;right:15px;top:24px;width:13px}
+.ws-deployments.deployments-workspace .improve{margin:24px 0;padding:18px 20px;background:#fff;border-color:#e3e8ef}
+.ws-deployments.deployments-workspace .improve label{font-size:12px}
+.ws-deployments.deployments-workspace .improve .button{margin-left:auto;font-size:12px;min-height:40px}
+.ws-deployments.deployments-workspace .improve select{font-size:12px;min-height:40px;border-color:#dbe2ec}
+.ws-deployments.deployments-workspace .lists-head{border:0;align-items:center;margin-bottom:15px}
+.ws-deployments.deployments-workspace .list-tabs{padding:3px;border:1px solid #e3e8ef;border-radius:8px;background:#f0f3f8}
+.ws-deployments.deployments-workspace .list-tabs button{border:1px solid transparent;min-height:39px;font-size:12px;padding:8px 12px;border-radius:6px}
+.ws-deployments.deployments-workspace .list-tabs button.active{background:#fff;border-color:#dfe6f1;box-shadow:0 1px 3px #182e4e09}
+.ws-deployments.deployments-workspace .list-actions{padding-bottom:0}
+.ws-deployments.deployments-workspace .bt-list{display:grid;gap:14px;background:transparent;border:0}
+.ws-deployments.deployments-workspace .bt-row{grid-template-columns:minmax(150px,1fr) minmax(180px,1.25fr) minmax(95px,.6fr) auto;align-items:center;gap:20px;padding:23px;border:1px solid #e3e8ef;border-radius:12px;background:#fff;box-shadow:0 2px 4px #182e4e03}
+.ws-deployments.deployments-workspace .bt-row:last-child{border-bottom:1px solid #e3e8ef}
+.ws-deployments.deployments-workspace .bt-what{gap:6px}
+.ws-deployments.deployments-workspace .bt-what strong{font-size:13px}
+.ws-deployments.deployments-workspace .bt-what span{font-size:12px;color:#52637c}
+.ws-deployments.deployments-workspace .bt-what small{font-size:11px;color:#7a879b}
+.ws-deployments.deployments-workspace .bt-meter{height:8px;box-shadow:none;background:#edf1f7}
+.ws-deployments.deployments-workspace .bt-count{font-size:11px;margin-top:10px!important;color:#6f7f96!important}
+.ws-deployments.deployments-workspace .bt-acts .button{min-height:38px;padding:8px 11px;font-size:11px}
+.ws-deployments.deployments-workspace .bt-state small{font-size:11px}
+.ws-deployments.deployments-workspace .st-view{border-color:#d9e4f5;border-radius:13px;background:#fff;box-shadow:0 3px 10px #182e4e05;margin:22px 0}
+.ws-deployments.deployments-workspace .st-view-head{background:#f7f9fd;border-color:#e3e8ef;padding:20px 22px}
+.ws-deployments.deployments-workspace .st-readout{padding:24px;gap:24px}
+.ws-deployments.deployments-workspace .st-counts{border-radius:12px;background:#f5f8fd}
+.ws-deployments.deployments-workspace .st-num{font-weight:650;color:#24344c}
+.ws-deployments.deployments-workspace .st-view-foot{padding:16px 22px;border-top:1px solid #edf0f5}
+.ws-deployments.deployments-workspace .cost-controls{padding:23px;border-color:#e3e8ef;gap:16px 20px;border-radius:12px;margin-bottom:24px}
+.ws-deployments.deployments-workspace .cost-chart{padding:22px 24px;margin:22px 0 26px;border-color:#e3e8ef;border-radius:13px;box-shadow:0 2px 4px #182e4e03}
+.ws-deployments.deployments-workspace .cost-chart-title{font-size:14px;color:#24344c}
+.ws-deployments.deployments-workspace .cost-chart figcaption{margin-bottom:26px}
+.ws-deployments.deployments-workspace .cost-bars{gap:22px}
+.ws-deployments.deployments-workspace .cost-bar-name{font-size:12px;line-height:1.5;color:#52637b}
+.ws-deployments.deployments-workspace .cost-bar-name small{font-size:11px;color:#8491a5;margin-top:3px}
+.ws-deployments.deployments-workspace .cost-bar-track{min-height:32px;border-color:#e3e8ef}
+.ws-deployments.deployments-workspace .cost-bar{height:24px;border-radius:0 6px 6px 0}
+.ws-deployments.deployments-workspace .cost-bar-value{font-size:12px;font-weight:600;color:#34445c}
+.ws-deployments.deployments-workspace .cost-assumptions{padding:0;background:#fff;border:1px solid #e3e8ef;border-radius:12px;margin-top:22px}
+.ws-deployments.deployments-workspace .cost-assumptions summary{display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer;padding:19px 22px;font-size:13px;font-weight:600;color:#34445c;list-style:none;min-height:44px}
+.ws-deployments.deployments-workspace .cost-assumptions summary::-webkit-details-marker{display:none}
+.ws-deployments.deployments-workspace .cost-assumptions[open] summary svg{transform:rotate(180deg)}
+.ws-deployments.deployments-workspace .cost-assumptions ul{padding:0 24px 22px 40px;gap:10px}
+.ws-deployments.deployments-workspace .cost-assumptions li{font-size:12px;color:#718097;max-width:100ch}
+@media(max-width:1100px){
+  .ws-deployments.deployments-workspace .ways{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ws-deployments.deployments-workspace .bt-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .ws-deployments.deployments-workspace .bt-acts{justify-content:flex-end}
+}
+@media(max-width:760px){
+  .ws-deployments.deployments-workspace .deploy-tabs{margin-bottom:22px}
+  .ws-deployments.deployments-workspace .runs{padding:18px 16px 12px}
+  .ws-deployments.deployments-workspace .runs-top{gap:14px;margin-bottom:18px}
+  .ws-deployments.deployments-workspace .ranges{margin-left:0;flex-wrap:wrap}
+  .ws-deployments.deployments-workspace .ranges button{min-height:36px}
+  .ws-deployments.deployments-workspace .cost .deployment-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ws-deployments.deployments-workspace .cost .deployment-metrics>div:last-child{grid-column:1 / -1}
+  .ws-deployments.deployments-workspace .cost .deployment-metrics dd.metric-text{font-size:22px;overflow-wrap:normal}
+  .ws-deployments.deployments-workspace .cost-metrics{flex-wrap:wrap;gap:3px}
+  .ws-deployments.deployments-workspace .cost-metrics button{min-height:40px}
+  .ws-deployments.deployments-workspace .cost-chart{padding:18px 16px}
+  .ws-deployments.deployments-workspace .cost-controls{grid-template-columns:1fr;padding:18px;gap:16px}
+  .ws-deployments.deployments-workspace .cost-go{margin-top:0}
+  .ws-deployments.deployments-workspace .cost-table-wrap{border:0;background:transparent;overflow:visible}
+  .ws-deployments.deployments-workspace .cost-table tbody th{padding:15px 18px;background:#f7f9fc}
+  .ws-deployments.deployments-workspace .cost-table tr{border-color:#e3e8ef}
+}
+@media(max-width:650px){
+  .ws-deployments.deployments-workspace .ways{grid-template-columns:1fr}
+  .ws-deployments.deployments-workspace .way{min-height:0;padding:20px}
+  .ws-deployments.deployments-workspace .chart{height:160px}
+  .ws-deployments.deployments-workspace .bt-row{grid-template-columns:1fr;gap:17px;padding:20px}
+  .ws-deployments.deployments-workspace .bt-acts{justify-content:flex-start}
+  .ws-deployments.deployments-workspace .bt-acts .button{flex:1}
+  .ws-deployments.deployments-workspace .ws-table .row-actions{width:100%}
+  .ws-deployments.deployments-workspace :is(.ded-acts,.st-acts){flex-wrap:wrap;justify-content:flex-start}
+  .ws-deployments.deployments-workspace .lists-head{align-items:flex-start;gap:14px}
+  .ws-deployments.deployments-workspace .list-tabs{max-width:100%}
+  .ws-deployments.deployments-workspace .list-tabs button{font-size:11px;padding:8px}
+  .ws-deployments.deployments-workspace .improve{padding:16px}
+  .ws-deployments.deployments-workspace .improve select{flex-basis:100%;max-width:none}
+  .ws-deployments.deployments-workspace .improve .button{margin-left:0}
+}
+@media(prefers-reduced-motion:reduce){.ws-deployments.deployments-workspace .deploy-tabs button{transition:none}}

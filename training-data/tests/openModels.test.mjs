@@ -117,8 +117,8 @@ test('the page shows the Hub\'s words as text only and is mounted on the Models 
   assert.equal(/\bnotice\b/i.test(component.replace(/<style[\s\S]*<\/style>/, '')), false, 'say notification, never notice');
   const page = readFileSync(new URL('../src/components/WorkspaceModels.vue', import.meta.url), 'utf8');
   assert.match(page, /import OpenModels from '\.\/OpenModels\.vue';/);
-  assert.match(page, /\{ name: 'Open models', icon: Globe \}/);
-  assert.match(page, /<OpenModels v-else-if="active==='Open models'"\/>/);
+  assert.match(page, /\{[^}]*name: 'Open models', icon: Globe[^}]*\}/);
+  assert.match(page, /<OpenModels\b[^>]*v-else-if="active==='Open models'"[^>]*\/>/);
 });
 
 test('the workspace header goes with every call, so the backend answers for the workspace chosen in AADML', async () => {

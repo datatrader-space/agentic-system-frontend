@@ -3,7 +3,10 @@
 // models with trying one as it is published, and how often each project's deployed model was called. Every rule is
 // the backend's (app_api.py workspace/models/, published/<key>/…, workspace/deployments/).
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { Boxes, Box, WandSparkles, ChartNoAxesCombined, Plus, Upload, Search, Play, Square, X, Check, Code, Copy, Clock, KeyRound, Globe, Wallet } from 'lucide-vue-next';
+import { Activity, RefreshCw, ShieldCheck, Rocket, Boxes, Box, WandSparkles, ChartNoAxesCombined, Plus, Upload, Search, Play, Square, X, Check, Code, Copy, Clock, KeyRound, Globe, Wallet } from 'lucide-vue-next';
+import '../models-workspace.css';
+import DeploymentHeader from './DeploymentHeader.vue';
+import DeploymentMetrics from './DeploymentMetrics.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -16,19 +19,22 @@ import { workspaceApi, publishedApi, projectLink, trySteps, modelName, timeAgo }
 const emit = defineEmits(['create', 'navigate']);
 // "Ready-to-use models" are AADML's own: used as they are, never trained here (a base model a run trains from is in
 // its project's Train tab; the owner, 2026-10-28).
-const tabs = [{ name: 'My models', icon: Boxes }, { name: 'Ready-to-use models', icon: WandSparkles }, { name: 'Open models', icon: Globe }, { name: 'Usage', icon: ChartNoAxesCombined }];
+const tabs = [{ id: 'mine', name: 'My models', icon: Boxes }, { id: 'ready', name: 'Ready-to-use models', icon: WandSparkles }, { id: 'open', name: 'Open models', icon: Globe }, { id: 'usage', name: 'Usage', icon: ChartNoAxesCombined }];
 const active = ref('My models');
-const data = ref(null); const error = ref('');
+const data = ref(null); const error = ref(''); const loading = ref(false); const statusFilter = ref('');
 const words = ref(''); const project = ref(''); const kindFilter = ref(''); const familyFilter = ref('');
 
 async function load() {
+  if (loading.value) return;
+  loading.value = true;
   try { data.value = await workspaceApi.models(); error.value = ''; }
   catch (e) { error.value = e.message; data.value = data.value || { models: [], catalogue: [], may: { try: false } }; }
+  finally { loading.value = false; }
 }
 load();
 
 const projects = computed(() => [...new Map((data.value?.models || []).map(m => [m.project.ref, m.project.name])).entries()]);
-const models = computed(() => (data.value?.models || []).filter(m => (!project.value || m.project.ref === project.value)
+const models = computed(() => (data.value?.models || []).filter(m => (!project.value || m.project.ref === project.value) && (!statusFilter.value || m.state === statusFilter.value)
   && `${m.name} ${m.version} ${m.project.name} ${m.trains}`.toLowerCase().includes(words.value.trim().toLowerCase())));
 const kinds = computed(() => [...new Set(catalogue(data.value?.catalogue).map(row => row.kind))]);
 const shown = computed(() => catalogue(data.value?.catalogue, words.value, kindFilter.value, familyFilter.value));
@@ -37,7 +43,30 @@ const readyRows = computed(() => shown.value.filter(row => !row.coming));
 const comingRows = computed(() => shown.value.filter(row => row.coming));
 const familyName = row => ((row.family || 'vision') === 'llm' ? 'Chat' : 'Photo');
 const day = iso => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-watch(active, () => { words.value = ''; kindFilter.value = ''; familyFilter.value = ''; project.value = ''; if (active.value === 'Usage' && !usage.value) loadUsage(); });
+watch(active, () => { statusFilter.value = ''; words.value = ''; kindFilter.value = ''; familyFilter.value = ''; project.value = ''; if (active.value === 'Usage' && !usage.value) loadUsage(); });
+
+function moveTab(event) {
+  let index = tabs.findIndex(item => item.name === active.value);
+  if (event.key === 'Home') index = 0;
+  else if (event.key === 'End') index = tabs.length - 1;
+  else if (event.key === 'ArrowRight') index = (index + 1) % tabs.length;
+  else if (event.key === 'ArrowLeft') index = (index - 1 + tabs.length) % tabs.length;
+  else return;
+  event.preventDefault(); active.value = tabs[index].name;
+  event.currentTarget.parentElement.children[index]?.focus();
+}
+function clearFilters() { words.value = ''; project.value = ''; statusFilter.value = ''; kindFilter.value = ''; familyFilter.value = ''; }
+const registryStates = computed(() => [...new Map((data.value?.models || []).map(m => [m.state, m.state_label])).entries()]);
+const registryMetrics = computed(() => [
+  { label: 'Trained models', value: data.value?.models?.length || 0, hint: 'In the current registry view', icon: Boxes },
+  { label: 'Deployed versions', value: (data.value?.models || []).filter(m => m.live_in?.length).length, hint: 'Live in staging or production', icon: Rocket },
+  { label: 'Projects', value: projects.value.length, hint: 'With registered models', icon: Box },
+]);
+const catalogMetrics = computed(() => [
+  { label: 'Available now', value: catalogue(data.value?.catalogue).filter(row => !row.coming).length, hint: 'Published models to explore', icon: WandSparkles },
+  { label: 'Model tasks', value: kinds.value.length, hint: 'Across the full catalogue', icon: Boxes },
+  { label: 'Coming soon', value: catalogue(data.value?.catalogue).filter(row => row.coming).length, hint: 'Preview future capabilities', icon: Clock },
+]);
 
 // ── trying a published model ─────────────────────────────────────────────────────────────────────
 const trying = ref(null); const state = ref(null); const busy = ref(false); const said = ref(''); const tryError = ref('');
@@ -102,39 +131,58 @@ async function copyUse(text, what) {
 onUnmounted(() => clearTimeout(copiedTimer));
 
 // ── usage of the deployed models ─────────────────────────────────────────────────────────────────
-const usage = ref(null); const usageError = ref('');
+const usage = ref(null); const usageError = ref(''); const usageLoading = ref(false); const usageQuery = ref('');
 async function loadUsage() {
+  if (usageLoading.value) return;
+  usageLoading.value = true;
   try { usage.value = (await workspaceApi.deployments()).projects.filter(row => row.deployed || row.usage); usageError.value = ''; }
   catch (e) { usageError.value = e.message; usage.value = usage.value || []; }
+  finally { usageLoading.value = false; }
 }
 const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.label}: ${modelName(e.live.model)}`);
+const visibleUsage = computed(() => (usage.value || []).filter(row => `${row.project.name} ${liveModels(row).join(' ')}`.toLowerCase().includes(usageQuery.value.trim().toLowerCase())));
+const usageTotals = computed(() => (usage.value || []).reduce((sum, row) => ({ calls: sum.calls + (Number(row.usage?.calls) || 0), answered: sum.answered + (Number(row.usage?.answered) || 0) }), { calls: 0, answered: 0 }));
+const usageMetrics = computed(() => [
+  { label: 'Total calls', value: usageTotals.value.calls.toLocaleString(), hint: 'Last 7 days', icon: Activity },
+  { label: 'Successful calls', value: usageTotals.value.answered.toLocaleString(), hint: 'Predictions returned', icon: Check },
+  { label: 'Success rate', value: usageTotals.value.calls ? `${Math.round(1000 * usageTotals.value.answered / usageTotals.value.calls) / 10}%` : '—', hint: usageTotals.value.calls ? 'Across listed projects' : 'No calls in this period', icon: ChartNoAxesCombined },
+]);
+const usagePeak = computed(() => Math.max(1, ...(usage.value || []).map(row => Number(row.usage?.calls) || 0)));
+const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage?.calls || 0) - (a.usage?.calls || 0)).slice(0, 8));
 </script>
 
 <template>
-  <div class="models-workspace studio">
-    <nav class="models-tabs" aria-label="Models views"><button v-for="item in tabs" :key="item.name" :aria-pressed="active===item.name" @click="active=item.name"><component :is="item.icon" :size="17"/>{{ item.name }}</button></nav>
-    <p v-if="error" class="field-error" role="alert">{{ error }}</p>
+  <div class="models-workspace models-redesigned studio">
+    <nav class="models-tabs" role="tablist" aria-label="Models views"><button v-for="item in tabs" :key="item.id" type="button" role="tab" :id="`models-tab-${item.id}`" :aria-controls="`models-panel-${item.id}`" :aria-selected="active===item.name" :tabindex="active===item.name ? 0 : -1" @keydown="moveTab" @click="active=item.name"><component :is="item.icon" :size="16" aria-hidden="true"/>{{ item.name }}</button></nav>
+    <div v-if="error && active !== 'Open models' && active !== 'Usage'" class="models-error" role="alert"><span>{{ error }}</span><UiButton :disabled="loading" @click="load"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton></div>
 
-    <template v-if="active==='My models'">
+    <section v-if="active==='My models'" id="models-panel-mine" role="tabpanel" aria-labelledby="models-tab-mine" :aria-busy="loading">
+      <DeploymentHeader title="My Models" heading-id="registry-heading" eyebrow="YOUR MODELS. READY FOR WHAT'S NEXT." :icon="Boxes" description="Find trained versions, check their status, and move from testing to deployment.">
+        <UiButton variant="primary" @click="emit('create')"><Plus :size="16" aria-hidden="true"/> Create project</UiButton>
+      </DeploymentHeader>
+      <DeploymentMetrics :items="registryMetrics" :loaded="!!data && !error"/>
       <p v-if="!data" class="models-loading">Loading models…</p>
-      <section v-else-if="!data.models.length" class="models-empty">
+      <section v-else-if="!data.models.length && !error" class="models-empty">
         <span class="models-empty-icon"><Boxes :size="34"/></span>
         <h2>No trained models yet</h2>
         <p>A model is trained in a project from a frozen dataset version.<br class="wide-only"> Every model trained in a project you can see is listed here.</p>
         <div class="models-actions"><UiButton variant="primary" @click="emit('create')"><Plus :size="17"/>Create a project</UiButton><UiButton disabled title="Coming soon"><Upload :size="16"/>Upload weights · Coming soon</UiButton></div>
       </section>
-      <template v-else>
-        <div class="studio-actions">
+      <template v-else-if="data.models.length">
+        <div class="models-list-head"><div><h3>Model registry <span class="models-count">{{ models.length }} of {{ data.models.length }}</span></h3><p>Versions trained in projects you can access.</p></div><UiButton :disabled="loading" @click="load"><RefreshCw :size="14" aria-hidden="true"/> Refresh</UiButton></div>
+        <div class="studio-actions models-filterbar">
           <div class="search-field"><Search :size="16"/><input v-model="words" aria-label="Search models" placeholder="Search models…"></div>
           <select v-model="project" class="compact-select" aria-label="Project"><option value="">All projects</option><option v-for="[ref, name] in projects" :key="ref" :value="ref">{{ name }}</option></select>
-          <UiButton disabled title="Coming soon"><Upload :size="15"/>Upload weights · Coming soon</UiButton>
+          <select v-model="statusFilter" class="compact-select" aria-label="Model status"><option value="">All statuses</option><option v-for="[value, label] in registryStates" :key="value" :value="value">{{ label }}</option></select>
+          <UiButton v-if="words || project || statusFilter" @click="clearFilters">Clear filters</UiButton>
+          <span class="models-upload-note"><Upload :size="14" aria-hidden="true"/> Weight uploads coming soon</span>
         </div>
-        <div class="table-wrap">
+        <div v-if="models.length" class="table-wrap registry-table">
           <table class="ws-table">
             <thead><tr><th>Model</th><th>Project</th><th>State</th><th>Answers in</th><th>Trained</th><th><span class="sr-only">Open</span></th></tr></thead>
             <tbody>
               <tr v-for="m in models" :key="`${m.project.ref}-${m.number}`">
-                <td data-label="Model"><strong>{{ m.name }} {{ m.version }}</strong> <UiBadge v-if="m.smoke">Smoke test</UiBadge><small v-if="m.trains">{{ m.trains }}</small></td>
+                <td data-label="Model"><div class="model-name"><span class="model-row-icon"><Box :size="17" aria-hidden="true"/></span><strong>{{ m.name }} <span class="model-version">{{ m.version }}</span></strong></div> <UiBadge v-if="m.smoke">Smoke test</UiBadge><small v-if="m.trains">{{ m.trains }}</small></td>
                 <td data-label="Project">{{ m.project.name }}</td>
                 <td data-label="State"><UiBadge :tone="m.state==='rejected'?'neutral':'green'">{{ m.state_label }}</UiBadge></td>
                 <td data-label="Answers in"><template v-if="m.live_in.length"><UiBadge v-for="env in m.live_in" :key="env" tone="purple">{{ env === 'production' ? 'Production' : 'Staging' }}</UiBadge></template><span v-else class="muted">Not deployed</span></td>
@@ -144,12 +192,15 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
             </tbody>
           </table>
         </div>
-        <p v-if="!models.length" class="muted">No model matches your search.</p>
+        <div v-if="!models.length" class="models-no-results" role="status"><Search :size="23" aria-hidden="true"/><h3>No matching models</h3><p>Try a different model name, project, or status.</p><UiButton @click="clearFilters">Clear filters</UiButton></div>
         <p v-if="data.models.length>=data.shown" class="muted">The newest {{ data.shown }} models are shown.</p>
       </template>
-    </template>
+    </section>
 
-    <template v-else-if="active==='Ready-to-use models'">
+    <section v-else-if="active==='Ready-to-use models'" id="models-panel-ready" role="tabpanel" aria-labelledby="models-tab-ready" :aria-busy="loading">
+      <DeploymentHeader title="Ready-to-use Models" heading-id="catalog-heading" eyebrow="EXPLORE. TRY. INTEGRATE." :icon="WandSparkles" description="Explore AADML's published models. Try supported models or connect them to your apps."/>
+      <DeploymentMetrics :items="catalogMetrics" :loaded="!!data && !error"/>
+      <div class="models-info"><ShieldCheck :size="17" aria-hidden="true"/><p>Published models are used as provided. Models you train are managed in <button class="models-text-button" type="button" @click="active='My models'">My models</button>.</p></div>
       <section v-if="trying" id="try-published" class="panel try-panel" aria-live="polite">
         <header class="try-head"><div><h2>Try {{ trying.name }} as it is published</h2><p>No training here first: the published model answers your photo. It marks walls, windows and doors.</p></div>
           <button class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
@@ -187,10 +238,11 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
           <div><PredictionResult :answer="answer" :photo-url="photoUrl" :asking="asking" :least="Number(least)" waiting-text="Once its test server is ready, choose a photo: what the model finds is drawn on it."/></div>
         </div>
       </section>
-      <div class="studio-actions">
+      <div class="studio-actions models-filterbar">
         <div class="search-field"><Search :size="16"/><input v-model="words" aria-label="Search models" placeholder="Search models…"></div>
         <select v-model="familyFilter" class="compact-select" aria-label="Kind of model"><option value="">Photo and chat</option><option value="vision">Photo models</option><option value="llm">Chat models</option></select>
         <select v-model="kindFilter" class="compact-select" aria-label="Model task"><option value="">All tasks</option><option v-for="k in kinds" :key="k" :value="k">{{ k }}</option></select>
+        <UiButton v-if="words || familyFilter || kindFilter" @click="clearFilters">Clear filters</UiButton>
       </div>
       <p v-if="!data" class="models-loading">Loading models…</p>
       <template v-else>
@@ -212,8 +264,8 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
             </article>
           </div>
         </section>
-        <section v-if="comingRows.length" class="catalog-section" aria-labelledby="coming-soon">
-          <h2 id="coming-soon">Coming soon <span class="count">{{ comingRows.length }}</span></h2>
+        <details v-if="comingRows.length" class="coming-section">
+          <summary class="coming-summary"><span>Coming soon <span class="count">{{ comingRows.length }}</span></span><span>Explore upcoming models</span></summary>
           <p class="section-note">Listed so you can plan around them. They can't be used or tried yet.</p>
           <ul class="coming-grid">
             <li v-for="row in comingRows" :key="row.name" class="coming-card">
@@ -222,39 +274,47 @@ const liveModels = row => row.environments.filter(e => e.live).map(e => `${e.lab
               <p class="coming-meta">{{ row.publisher }}<br>{{ row.licence }}</p>
             </li>
           </ul>
-        </section>
+        </details>
       </template>
-      <p v-if="data&&!shown.length" class="muted">No models match your selection.</p>
+      <div v-if="data&&!shown.length&&!error" class="models-no-results" role="status"><Search :size="23" aria-hidden="true"/><h3>No matching models</h3><p>Try another name, model family, or task.</p><UiButton @click="clearFilters">Clear filters</UiButton></div>
       <p v-if="data&&!data.may.try" class="muted">Your role in this workspace reads only, so it starts no model here.</p>
-    </template>
+    </section>
 
-    <OpenModels v-else-if="active==='Open models'"/>
+    <OpenModels v-else-if="active==='Open models'" id="models-panel-open" role="tabpanel" aria-labelledby="models-tab-open"/>
 
-    <template v-else>
-      <p class="muted intro">Calls to each project's deployed model in the last 7 days. A project's own Models page has the full usage by app, environment and model version.</p>
-      <p v-if="usageError" class="field-error" role="alert">{{ usageError }}</p>
+    <section v-else id="models-panel-usage" role="tabpanel" aria-labelledby="models-tab-usage" :aria-busy="usageLoading">
+      <DeploymentHeader title="Model Usage" heading-id="usage-heading" eyebrow="UNDERSTAND YOUR INFERENCE ACTIVITY." :icon="ChartNoAxesCombined" description="Monitor calls and successful predictions across your projects over the last 7 days.">
+        <UiButton :disabled="usageLoading" @click="loadUsage"><RefreshCw :size="14" aria-hidden="true"/> Refresh usage</UiButton>
+      </DeploymentHeader>
+      <DeploymentMetrics :items="usageMetrics" :loaded="!!usage && !usageError"/>
+      <div v-if="usageError" class="models-error" role="alert"><span>{{ usageError }}</span><UiButton :disabled="usageLoading" @click="loadUsage">Try again</UiButton></div>
       <p v-if="!usage" class="models-loading">Loading usage…</p>
-      <section v-else-if="!usage.length" class="models-empty">
+      <section v-else-if="!usage.length && !usageError" class="models-empty">
         <span class="models-empty-icon"><ChartNoAxesCombined :size="34"/></span>
         <h2>No model is deployed yet</h2>
         <p>Calls appear here once an app asks a project's deployed model for predictions.</p>
       </section>
-      <div v-else class="table-wrap">
+      <template v-else-if="usage.length">
+        <div class="models-list-head"><div><h3>Usage by project</h3><p>Open a project for usage by app, environment, and model version.</p></div><label class="search-field"><Search :size="16" aria-hidden="true"/><input v-model="usageQuery" type="search" aria-label="Search usage" placeholder="Search projects…"/></label></div>
+        <figure v-if="usageBars.length && usageTotals.calls" class="usage-distribution"><figcaption>Call volume <span>Top {{ usageBars.length }} matching projects · last 7 days</span></figcaption><ol><li v-for="row in usageBars" :key="row.project.ref"><span class="usage-bar-name">{{ row.project.name }}</span><span class="usage-track"><span :style="{ width: `${100 * (row.usage?.calls || 0) / usagePeak}%` }"></span></span><strong>{{ (row.usage?.calls || 0).toLocaleString() }}<span class="sr-only"> calls</span></strong></li></ol></figure>
+        <div v-if="!visibleUsage.length" class="models-no-results" role="status"><h3>No matching projects</h3><p>Try another project or model name.</p><UiButton @click="usageQuery=''">Clear search</UiButton></div>
+        <div v-else class="table-wrap usage-table">
         <table class="ws-table">
           <thead><tr><th>Project</th><th>Answering now</th><th>Calls</th><th>Answered</th><th>Last call</th><th><span class="sr-only">Open</span></th></tr></thead>
           <tbody>
-            <tr v-for="row in usage" :key="row.project.ref">
+            <tr v-for="row in visibleUsage" :key="row.project.ref">
               <td data-label="Project"><strong>{{ row.project.name }}</strong></td>
               <td data-label="Answering now"><template v-if="liveModels(row).length"><span v-for="line in liveModels(row)" :key="line" class="line">{{ line }}</span></template><span v-else class="muted">Nothing live</span></td>
-              <td data-label="Calls">{{ row.usage?.calls ?? 0 }}</td>
-              <td data-label="Answered">{{ row.usage ? `${row.usage.answered} (${Math.round(100 * row.usage.answered / row.usage.calls)}%)` : '—' }}</td>
+              <td data-label="Calls">{{ (row.usage?.calls ?? 0).toLocaleString() }}</td>
+              <td data-label="Answered">{{ row.usage?.calls ? `${row.usage.answered.toLocaleString()} (${Math.round(1000 * row.usage.answered / row.usage.calls) / 10}%)` : '—' }}</td>
               <td data-label="Last call">{{ row.usage ? timeAgo(row.usage.last) : '—' }}</td>
               <td class="row-actions"><a class="button" :href="projectLink(row.project.ref,'models')">Open usage</a></td>
             </tr>
           </tbody>
         </table>
-      </div>
-    </template>
+        </div>
+      </template>
+    </section>
     <UiDialog class="use-dialog" :open="!!using" :title="using ? `Use ${using.name}` : ''" @close="using=null">
       <template v-if="using">
         <p class="dialog-description">Call {{ using.name }} from your own code. Each call is one photo, answered with what the model found.</p>

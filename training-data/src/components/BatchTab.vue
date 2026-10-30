@@ -4,7 +4,10 @@
 // Backend: training_models_data/batch_api.py (workspace/batches/, .../<id>/cancel/, .../<id>/results/).
 // The list is read when the tab opens, and again every 3 seconds while a batch is queued or running.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { Ban, Check, Download, Images, Info, Layers, LoaderCircle, Plus, RefreshCw } from 'lucide-vue-next';
+import { Activity, Ban, Check, Download, Images, Info, Layers, LoaderCircle, Plus, RefreshCw } from 'lucide-vue-next';
+import DeploymentHeader from './DeploymentHeader.vue';
+import DeploymentMetrics from './DeploymentMetrics.vue';
+import DeploymentToolbar from './DeploymentToolbar.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -17,6 +20,14 @@ import {
 const page = ref(null); const error = ref(''); const loading = ref(false);
 const said = ref(''); const announce = ref('');
 const batches = computed(() => page.value?.batches || []);
+const listQuery = ref(''); const listStatus = ref('');
+const listStates = computed(() => [...new Map(batches.value.map(b => [b.state, { value: b.state, label: batchState(b)[1] }])).values()]);
+const visibleBatches = computed(() => batches.value.filter(b => (!listStatus.value || b.state === listStatus.value) && [b.project.name, modelLabel(b.model)].join(' ').toLowerCase().includes(listQuery.value.trim().toLowerCase())));
+const batchMetrics = computed(() => [
+  { label: 'Active batches', value: batches.value.filter(isActive).length, hint: 'Queued or processing', icon: Activity },
+  { label: 'Completed batches', value: batches.value.filter(b => b.state === 'done').length, hint: 'Processing finished', icon: Check },
+  { label: 'Total batches', value: batches.value.length, hint: 'In this workspace', icon: Layers },
+]);
 const projects = computed(() => page.value?.options?.projects || []);
 const limit = computed(() => Number(page.value?.limit) || DEFAULT_LIMIT);
 const limitNote = computed(() => page.value?.limit_note || `A batch takes at most ${DEFAULT_LIMIT} photos for now.`);
@@ -125,14 +136,10 @@ function whenText(b) {
 
 <template>
   <section class="batch" role="tabpanel" aria-labelledby="batch-heading" :aria-busy="loading">
-    <div class="bt-head">
-      <div>
-        <h2 id="batch-heading">Batch processing</h2>
-        <p>Run one of a project's models over its photos, then download what it found in each one.</p>
-      </div>
-      <UiButton variant="primary" :disabled="!page" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New batch</UiButton>
-    </div>
-
+    <DeploymentHeader title="Batch Processing" heading-id="batch-heading" eyebrow="MANY PHOTOS. ONE WORKFLOW." :icon="Layers" description="Run a model across your project photos. Follow progress and download the predictions.">
+      <UiButton variant="primary" :disabled="!page || may.start === false" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New batch</UiButton>
+    </DeploymentHeader>
+    <DeploymentMetrics :items="batchMetrics" :loaded="!!page"/>
     <p class="bt-limit"><Info :size="17" aria-hidden="true"/><span>{{ limitNote }}</span></p>
     <p v-if="page && may.start === false && may.reason" class="bt-closed" role="status">{{ may.reason }}</p>
     <div v-if="said" class="notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ said }}</span></div>
@@ -141,6 +148,8 @@ function whenText(b) {
       <UiButton :disabled="loading" @click="load"><RefreshCw :size="14" aria-hidden="true"/> Try again</UiButton>
     </div>
 
+    <DeploymentToolbar v-if="page" title="Batches" v-model:query="listQuery" v-model:status="listStatus" :states="listStates" :count="visibleBatches.length" :total="batches.length" :loading="loading" @refresh="load"/>
+    <div v-if="page && batches.length && !visibleBatches.length" class="deployment-no-results" role="status"><h3>No matching batches</h3><p>Try a different project, model, or status.</p></div>
     <p v-if="!page && !error" class="bt-muted">Loading batches…</p>
     <div v-else-if="page && !batches.length" class="bt-empty">
       <span class="bt-empty-icon"><Layers :size="22" aria-hidden="true"/></span>
@@ -148,8 +157,8 @@ function whenText(b) {
       <p>Choose a model and a set of photos. The model looks at each photo and you get one file with every answer.</p>
       <UiButton variant="primary" :disabled="may.start === false" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New batch</UiButton>
     </div>
-    <ul v-else-if="page" class="bt-list" aria-label="Batches">
-      <li v-for="b in batches" :key="b.id" class="bt-row" :class="b.state">
+    <ul v-else-if="page && visibleBatches.length" class="bt-list" aria-label="Batches">
+      <li v-for="b in visibleBatches" :key="b.id" class="bt-row" :class="b.state">
         <div class="bt-what">
           <strong>{{ b.project.name }}</strong>
           <span>{{ modelLabel(b.model) }}</span>

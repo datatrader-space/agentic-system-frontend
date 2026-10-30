@@ -5,8 +5,11 @@
 // Every frame the model answers is charged as one photo call, from the balance of the person who started the stream.
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
-  Check, Download, FileVideo, LoaderCircle, Plus, Radio, RefreshCw, Square, Upload, Video, Wallet, X,
+  Activity, Check, Download, FileVideo, LoaderCircle, Plus, Radio, RefreshCw, Square, Upload, Video, Wallet, X,
 } from 'lucide-vue-next';
+import DeploymentHeader from './DeploymentHeader.vue';
+import DeploymentMetrics from './DeploymentMetrics.vue';
+import DeploymentToolbar from './DeploymentToolbar.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -20,6 +23,14 @@ import {
 const page = ref(null); const error = ref(''); const loading = ref(false);
 const said = ref(''); const announce = ref('');
 const streams = computed(() => page.value?.streams || []);
+const listQuery = ref(''); const listStatus = ref('');
+const listStates = computed(() => [...new Map(streams.value.map(s => [s.state, { value: s.state, label: streamState(s)[1] }])).values()]);
+const visibleStreams = computed(() => streams.value.filter(s => (!listStatus.value || s.state === listStatus.value) && [s.source, s.project.name, modelName(s.model)].join(' ').toLowerCase().includes(listQuery.value.trim().toLowerCase())));
+const streamMetrics = computed(() => [
+  { label: 'Active streams', value: streams.value.filter(isActive).length, hint: 'Queued or analyzing', icon: Activity },
+  { label: 'Frames processed', value: streams.value.reduce((total, s) => total + (Number(s.frames) || 0), 0).toLocaleString(), hint: 'Across listed streams', icon: FileVideo },
+  { label: 'Results available', value: streams.value.filter(s => s.has_results).length, hint: 'Ready to download', icon: Download },
+]);
 const options = computed(() => page.value?.options || { projects: [], fps: [1, 2], default_fps: 1, cap: null, upload: {} });
 const may = computed(() => page.value?.may || {});
 let gone = false; let listTimer = null; let viewTimer = null;
@@ -178,14 +189,10 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
 
 <template>
   <section class="streaming" role="tabpanel" aria-labelledby="st-heading" :aria-busy="loading">
-    <div class="st-head">
-      <div>
-        <h2 id="st-heading">Cloud streaming</h2>
-        <p>Point a photo model at a video. It answers 1 or 2 frames a second while the video plays, and every answer is kept in a file you can download.</p>
-      </div>
-      <UiButton variant="primary" :disabled="!page" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New stream</UiButton>
-    </div>
-
+    <DeploymentHeader title="Cloud Streaming" heading-id="st-heading" eyebrow="VIDEO IN. INSIGHTS OUT." :icon="Video" description="Analyze video at 1 or 2 frames per second. Monitor predictions and download results.">
+      <UiButton variant="primary" :disabled="!page || may.start === false" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New stream</UiButton>
+    </DeploymentHeader>
+    <DeploymentMetrics :items="streamMetrics" :loaded="!!page"/>
     <p v-if="page && page.cost_note" class="st-billing"><Wallet :size="16" aria-hidden="true"/><span>{{ page.cost_note }}</span></p>
     <div v-if="said" class="notice" role="status"><Check :size="16" aria-hidden="true"/><span>{{ said }}</span></div>
     <div v-if="error" class="st-error" role="alert">
@@ -243,6 +250,8 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
       </div>
     </section>
 
+    <DeploymentToolbar v-if="page" title="Streams" v-model:query="listQuery" v-model:status="listStatus" :states="listStates" :count="visibleStreams.length" :total="streams.length" :loading="loading" @refresh="load"/>
+    <div v-if="page && streams.length && !visibleStreams.length" class="deployment-no-results" role="status"><h3>No matching streams</h3><p>Try a different video, project, or status.</p></div>
     <p v-if="!page && !error" class="muted">Loading streams…</p>
     <div v-else-if="page && !streams.length" class="list-empty">
       <span class="empty-icon"><Video :size="22" aria-hidden="true"/></span>
@@ -250,11 +259,11 @@ onUnmounted(() => { gone = true; clearTimeout(listTimer); clearTimeout(viewTimer
       <p>Upload a video or give a stream address, and a model of one of your projects answers its frames as it plays.</p>
       <div class="empty-actions"><UiButton variant="primary" @click="openCreate"><Plus :size="15" aria-hidden="true"/> New stream</UiButton></div>
     </div>
-    <div v-else-if="page" class="table-wrap">
+    <div v-else-if="page && visibleStreams.length" class="table-wrap">
       <table class="ws-table st-table">
         <thead><tr><th>Video</th><th>Project and model</th><th>State</th><th>Frames</th><th>Started</th><th><span class="sr-only">Actions</span></th></tr></thead>
         <tbody>
-          <tr v-for="s in streams" :key="s.id" :class="{ open: viewing && viewing.id === s.id }">
+          <tr v-for="s in visibleStreams" :key="s.id" :class="{ open: viewing && viewing.id === s.id }">
             <td data-label="Video"><span class="st-src"><FileVideo v-if="s.source_kind === 'file'" :size="15" aria-hidden="true"/><Radio v-else :size="15" aria-hidden="true"/><strong>{{ s.source }}</strong></span>
               <small>{{ s.source_kind_label }}, {{ s.fps }} a second</small></td>
             <td data-label="Project and model">{{ s.project.name }}<small>{{ modelName(s.model) }}</small></td>
