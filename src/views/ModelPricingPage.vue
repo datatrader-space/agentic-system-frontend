@@ -33,6 +33,10 @@
           <div class="stat-value">{{ summary.usedRecentlyMissing }}</div>
           <div class="stat-label">Used recently · unpriced</div>
         </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ summary.dynamic }}</div>
+          <div class="stat-label">Variable pricing</div>
+        </div>
       </div>
 
       <!-- Filters -->
@@ -60,6 +64,8 @@
             <option value="all">All statuses</option>
             <option value="exact">Priced</option>
             <option value="rate_card">Published rate card</option>
+            <option value="dynamic">Variable pricing</option>
+            <option value="conditional">Needs verification</option>
             <option value="missing">Missing</option>
             <option value="local_free">Local / free</option>
           </select>
@@ -137,6 +143,8 @@
                            title="USD per generated image (image models)"
                            v-model="edits[m.id].image" /></td>
                 <td class="unit-rates">
+                  <p v-if="m.pricing?.pricing_formula" class="pricing-formula">{{ m.pricing.pricing_formula }}</p>
+                  <p v-if="m.pricing?.verification_reason" class="verification-note">{{ m.pricing.verification_reason }}</p>
                   <template v-if="m.pricing?.published_rates?.length">
                     <details v-if="m.pricing.published_rates.length > 1">
                       <summary>{{ m.pricing.published_rates.length }} published rates</summary>
@@ -145,10 +153,12 @@
                         <span v-if="rate.condition" class="muted"> — {{ rate.condition }}</span>
                       </p>
                     </details>
-                    <span v-else>${{ m.pricing.published_rates[0].amount }} / {{ unitLabel(m.pricing.published_rates[0].unit) }}</span>
+                    <span v-else>${{ m.pricing.published_rates[0].amount }} / {{ unitLabel(m.pricing.published_rates[0].unit) }}
+                      <span v-if="m.pricing.published_rates[0].condition" class="muted"> — {{ m.pricing.published_rates[0].condition }}</span>
+                    </span>
                     <p v-if="m.pricing_status === 'rate_card'" class="muted">Availability also depends on billing checks.</p>
                   </template>
-                  <span v-else class="muted">—</span>
+                  <span v-else-if="!m.pricing?.pricing_formula" class="muted">—</span>
                 </td>
                 <td><input class="cur" type="text" maxlength="8" v-model="edits[m.id].currency" /></td>
                 <td><input class="notes" type="text" placeholder="optional" v-model="edits[m.id].notes" /></td>
@@ -179,6 +189,7 @@
         Token columns are USD per 1,000,000 tokens; media rates show their own units. Published rate cards
         do not mean every setting is available to run. Saving creates a new active pricing version —
         historical request logs keep their original frozen cost. Local models stay free unless you price them.
+        Variable pricing follows the model and tools used. Prices marked Needs verification remain in the missing count.
       </p>
     </div>
   </div>
@@ -265,8 +276,8 @@ const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
   return models.value.filter((m) => {
     if (providerFilter.value !== 'all' && m.provider_type !== providerFilter.value) return false
-    if (statusFilter.value !== 'all' && m.pricing_status !== statusFilter.value) return false
-    if (onlyUsedMissing.value && !(m.used_recently && m.pricing_status === 'missing')) return false
+    if (statusFilter.value !== 'all' && !(statusFilter.value === 'missing' ? needsVerification(m) : m.pricing_status === statusFilter.value)) return false
+    if (onlyUsedMissing.value && !(m.used_recently && needsVerification(m))) return false
     if (q && !(`${m.model_id} ${m.display_name} ${m.provider_name}`.toLowerCase().includes(q))) return false
     return true
   })
@@ -285,9 +296,10 @@ const summary = computed(() => {
   const all = models.value
   return {
     total: all.length,
-    missing: all.filter((m) => m.pricing_status === 'missing').length,
+    missing: all.filter(needsVerification).length,
     priced: all.filter((m) => ['exact', 'rate_card'].includes(m.pricing_status)).length,
-    usedRecentlyMissing: all.filter((m) => m.used_recently && m.pricing_status === 'missing').length,
+    usedRecentlyMissing: all.filter((m) => m.used_recently && needsVerification(m)).length,
+    dynamic: all.filter((m) => m.pricing_status === 'dynamic').length,
   }
 })
 
@@ -310,23 +322,26 @@ function prevPage() { if (page.value > 1) page.value-- }
 function nextPage() { if (page.value < totalPages.value) page.value++ }
 
 function statusLabel(s) {
-  return { exact: 'Priced', rate_card: 'Published rate card', missing: 'Missing', local_free: 'Local · free' }[s] || s
+  return { exact: 'Priced', rate_card: 'Published rate card', dynamic: 'Variable pricing',
+    conditional: 'Needs verification', missing: 'Missing', local_free: 'Local · free' }[s] || s
 }
 
 function unitLabel(unit) {
   return { '1k_characters': '1,000 characters', token: 'token', million_tokens: '1M tokens', '1m_tokens': '1M tokens',
     second: 'second', minute: 'minute', image: 'image', generation: 'generation',
     megapixel: 'megapixel', megapixel_second: 'megapixel-second', video_token: 'video token',
-    '16_frames': '16 frames', step: 'training step', unit: 'provider unit' }[unit] || unit
+    '16_frames': '16 frames', '1k_calls': '1,000 calls', step: 'training step', unit: 'provider unit' }[unit] || unit
 }
 
 function isUnitOrCard(m) {
-  return Boolean(m.pricing?.cost_unit || m.pricing_status === 'rate_card')
+  return Boolean(m.pricing?.cost_unit || ['rate_card', 'dynamic', 'conditional'].includes(m.pricing_status))
 }
 
+function needsVerification(m) { return ['missing', 'conditional'].includes(m.pricing_status) }
+
 function rowClass(m) {
-  if (m.used_recently && m.pricing_status === 'missing') return 'row-used-missing'
-  if (m.pricing_status === 'missing') return 'row-missing'
+  if (m.used_recently && needsVerification(m)) return 'row-used-missing'
+  if (needsVerification(m)) return 'row-missing'
   return ''
 }
 
@@ -427,7 +442,7 @@ async function saveRow(m) {
 
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 1rem;
   margin-bottom: 1.25rem;
 }
@@ -524,6 +539,10 @@ async function saveRow(m) {
 .badge { padding: 0.15rem 0.5rem; border-radius: 6px; font-size: 0.7rem; font-weight: 700; }
 .st-exact { background: rgba(16, 185, 129, .14); color: #059669; }
 .st-rate_card { background: rgba(59, 130, 246, .12); color: #1d4ed8; }
+.st-dynamic { background: rgba(59, 130, 246, .12); color: #1d4ed8; }
+.st-conditional { background: rgba(245, 158, 11, .12); color: #92400e; }
+.pricing-formula { min-width: 240px; max-width: 420px; white-space: normal; }
+.verification-note { color: #92400e; min-width: 240px; max-width: 420px; white-space: normal; }
 .unit-rates { min-width: 180px; max-width: 360px; font-size: 12px; }
 .st-missing { background: rgba(245, 158, 11, .16); color: #b45309; }
 .st-local_free { background: rgba(14, 165, 233, .14); color: #0369a1; }

@@ -56,4 +56,30 @@ describe('Model pricing — published billing units', () => {
     expect(wrapper.text()).toContain('Not authorized')
     expect(wrapper.find('table').exists()).toBe(false)
   })
+
+  it('shows a variable billing rule without inventing a zero token rate', async () => {
+    const w = await mountPage([row(1, 'dynamic', {
+      pricing_formula: 'Billed at the rate of the model that actually serves the request.', published_rates: [],
+    })])
+    expect(w.find('tbody .badge').text()).toBe('Variable pricing')
+    expect(w.find('.pricing-formula').text()).toContain('model that actually serves')
+    expect(w.find('tbody input[type="number"]').element.value).toBe('')
+    expect(w.findAll('.stat-card')[1].find('.stat-value').text()).toBe('0')
+    expect(w.findAll('.stat-card')[4].find('.stat-value').text()).toBe('1')
+    await w.find('tbody input.notes').setValue('A note')
+    expect(w.find('button.btn-save').attributes('disabled')).toBeDefined()
+  })
+
+  it('keeps a conditional family/alias card in the missing counter and filter', async () => {
+    const w = await mountPage([row(1, 'conditional', {
+      verification_reason: 'The current alias target needs verification.',
+      published_rates: [{ label: 'Conditional input', amount: '0.30', unit: '1m_tokens' }],
+    })])
+    expect(w.find('tbody .badge').text()).toBe('Needs verification')
+    expect(w.find('.verification-note').text()).toContain('alias target')
+    expect(w.findAll('.stat-card')[1].find('.stat-value').text()).toBe('1')
+    expect(w.findAll('.stat-card')[2].find('.stat-value').text()).toBe('0')
+    await w.findAll('select')[1].setValue('missing')
+    expect(w.findAll('tbody tr')).toHaveLength(1)
+  })
 })
