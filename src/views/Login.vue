@@ -344,7 +344,9 @@ function goNext(fallback = '/dashboard') {
 }
 
 // State
-const isLogin = ref(route.path !== '/signup' && route.query.mode !== 'signup')
+// By route NAME: /signup/ (trailing slash, which nginx serves the same page for) matches the signup route with
+// route.path '/signup/', and a path test showed the sign-in form over the prerendered sign-up page.
+const isLogin = ref(route.name !== 'signup' && route.query.mode !== 'signup')
 const loading = ref(false)
 const error = ref(null)
 const success = ref(null)
