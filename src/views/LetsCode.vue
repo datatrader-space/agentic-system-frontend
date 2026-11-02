@@ -84,7 +84,7 @@
                       <span v-if="r.private" class="repo-priv"><Icon icon="lucide:lock" aria-hidden="true" />Private</span>
                     </div>
                     <div class="repo-meta">
-                      <span v-if="r.language">{{ r.language }}</span>
+                      <span v-if="r.language && r.language !== 'Unknown'">{{ r.language }}</span>
                       <span v-if="r.pushed_at">Updated {{ relativeTime(r.pushed_at) }}</span>
                     </div>
                   </div>
