@@ -273,7 +273,7 @@ import { useHitl } from '../composables/useHitl'
 import { useAgentTimeline } from '../composables/useAgentTimeline'
 import api from '../services/api'
 import { showMemorySavedToast } from '@/composables/useMemoryToast'
-import { fmtTokens, fmtCost } from '../composables/tokens'
+import { fmtTokens, fmtCost, shownCost } from '../composables/tokens'
 import { useVoiceInput } from '../composables/useVoiceInput'
 import { stopReasonBadge } from '../composables/stopReason'
 import { enhanceChatMedia } from '../utils/chatMedia'
@@ -499,7 +499,7 @@ function newAssistantMessage() {
 const sessionTokens = computed(() => messages.value.reduce((a, m) =>
   a + ((m.usage && m.usage.total_tokens) || (m.streaming && liveTokens.value && liveTokens.value.total) || 0), 0))
 const sessionCost = computed(() => messages.value.reduce((a, m) =>
-  a + ((m.usage && m.usage.cost_usd) || (m.streaming && liveTokens.value && liveTokens.value.cost) || 0), 0))
+  a + ((m.usage && shownCost(m.usage)) || (m.streaming && liveTokens.value && liveTokens.value.cost) || 0), 0))
 
 // Inspector view: one entry per assistant turn (with the preceding user prompt).
 const inspectorTurns = computed(() => {

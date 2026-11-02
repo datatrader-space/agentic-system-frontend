@@ -15,6 +15,7 @@
 // duration). No raw args, prompts, secrets, model internals, or private debug fields are read here.
 
 import { ref, computed } from 'vue'
+import { shownCost } from './tokens'
 
 const RICH_EVENT_TYPES = new Set([
   'agent_status',
@@ -188,7 +189,7 @@ export function useAgentTimeline() {
       tokens.value = {
         total, prompt, completion,
         cached: evt.cached_tokens != null ? evt.cached_tokens : (prev ? prev.cached : null),
-        cost: evt.cost_usd != null ? evt.cost_usd : (prev ? prev.cost : null),
+        cost: shownCost(evt) != null ? shownCost(evt) : (prev ? prev.cost : null),
         estimated: !!evt.estimated,
       }
       return true
@@ -202,7 +203,7 @@ export function useAgentTimeline() {
         tokens.value = {
           total, prompt, completion,
           cached: u.cached_tokens != null ? u.cached_tokens : null,
-          cost: u.cost_usd != null ? u.cost_usd : null,
+          cost: shownCost(u),
           estimated: false,
         }
       }

@@ -13,6 +13,7 @@ import { useArtifactsStore } from './useArtifactsStore'
 import { usePlanStore } from './usePlanStore'
 import { useVideoStore } from './useVideoStore'
 import { useAgentTimeline, isRichEvent } from '../composables/useAgentTimeline'
+import { shownCost } from '../composables/tokens'
 import { ensureNotifyPermission, notifyRunFinished } from '../composables/useRunNotifications'
 import { stripThinkBlocks, ThinkStreamFilter } from '../utils/thinkFilter'
 import { resumeStatusLine } from '../utils/resumeStatus'
@@ -302,7 +303,7 @@ export const useChatStore = defineStore('chat', {
       a + ((m.usage && m.usage.total_tokens)
            || (m.status === 'streaming' && _tl.tokens.value && _tl.tokens.value.total) || 0), 0),
     sessionCost: (s) => s.messages.reduce((a, m) =>
-      a + ((m.usage && m.usage.cost_usd)
+      a + ((m.usage && shownCost(m.usage))
            || (m.status === 'streaming' && _tl.tokens.value && _tl.tokens.value.cost) || 0), 0),
 
     //: True while the RUN is working, which is not the same as "this bubble is streaming". A Work run

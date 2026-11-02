@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fmtTokens, fmtCost, normalizeUsage } from './tokens'
+import { fmtTokens, fmtCost, normalizeUsage, shownCost } from './tokens'
 
 describe('tokens — formatting', () => {
   it('fmtTokens uses k-notation, dropping a trailing .0', () => {
@@ -30,5 +30,24 @@ describe('tokens — formatting', () => {
     const u2 = normalizeUsage({ input_tokens: 10, output_tokens: 5, total_tokens: 15 })
     expect(u2.total).toBe(15)
     expect(u2.prompt).toBe(10)
+  })
+})
+
+describe('tokens — the person is shown the price, not the provider cost (2026-11-02)', () => {
+  it('prefers price_usd / turn_price_usd and falls back to the cost', () => {
+    expect(shownCost({ cost_usd: 0.041, price_usd: 0.0492 })).toBe(0.0492)
+    expect(shownCost({ cost_usd: 0.041 })).toBe(0.041)
+    expect(shownCost({ cost_usd: 0.01, price_usd: 0.012, turn_cost_usd: 0.041, turn_price_usd: 0.0492 },
+      { turn: true })).toBe(0.0492)
+    expect(shownCost({ cost_usd: 0.01, turn_cost_usd: 0.041 }, { turn: true })).toBe(0.041)
+    expect(shownCost(null)).toBeNull()
+    expect(shownCost({ total_tokens: 3 })).toBeNull()
+  })
+
+  it('normalizeUsage shows the whole turn at its price', () => {
+    const u = normalizeUsage({ total_tokens: 900, cost_usd: 0.01, price_usd: 0.012, turn_total_tokens: 35900,
+      turn_cost_usd: 0.041, turn_price_usd: 0.0492 })
+    expect(u.cost).toBe(0.0492)
+    expect(normalizeUsage({ total_tokens: 900, cost_usd: 0.01, price_usd: 0.012 }).cost).toBe(0.012)
   })
 })

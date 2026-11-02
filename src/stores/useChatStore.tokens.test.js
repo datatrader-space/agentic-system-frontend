@@ -18,6 +18,15 @@ describe('useChatStore — session token totals', () => {
     expect(chat.sessionCost).toBeCloseTo(0.08, 5)
   })
 
+  it('the session total is the price the person paid when the backend sends it', () => {
+    const chat = useChatStore()
+    chat.messages = [
+      { id: 'a1', role: 'assistant', content: 'a', usage: { total_tokens: 10, cost_usd: 0.041, price_usd: 0.0492 } },
+      { id: 'a2', role: 'assistant', content: 'b', usage: { total_tokens: 10, cost_usd: 0.01 } },
+    ]
+    expect(chat.sessionCost).toBeCloseTo(0.0592, 6)
+  })
+
   it('ticks live from a streaming turn’s timeline tokens, then prefers exact usage', () => {
     const chat = useChatStore()
     // a prior completed turn with exact usage…

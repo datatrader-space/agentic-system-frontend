@@ -18,6 +18,18 @@ export function fmtCost(usd) {
   return '$' + v.toFixed(2)
 }
 
+// WHAT THE PERSON PAYS for a usage, not what the provider charged us. The backend sends `price_usd` (and
+// `turn_price_usd`) = provider cost x the markup beside each `cost_usd`; prices shown to people include the
+// markup (owner, 2026-10-27). Before this the footer read "$0.041" for a turn that charged $0.049 (live test,
+// 2026-11-02). `cost_usd` stays the fallback for a frame from a surface that does not send a price.
+export function shownCost(u, { turn = false } = {}) {
+  if (!u) return null
+  if (turn && u.turn_price_usd != null) return u.turn_price_usd
+  if (turn && u.turn_cost_usd != null) return u.turn_cost_usd
+  if (u.price_usd != null) return u.price_usd
+  return u.cost_usd != null ? u.cost_usd : null
+}
+
 // Normalise a usage object (from assistant_message_complete / token_usage) into display fields.
 export function normalizeUsage(u) {
   if (!u) return null
@@ -43,8 +55,7 @@ export function normalizeUsage(u) {
   if (!total) return null
   const cached = whole && u.turn_cached_tokens != null ? u.turn_cached_tokens
     : (u.cached_tokens != null ? u.cached_tokens : null)
-  const cost = whole && u.turn_cost_usd != null ? u.turn_cost_usd
-    : (u.cost_usd != null ? u.cost_usd : null)
+  const cost = shownCost(u, { turn: whole })
   return {
     total,
     prompt: prompt != null ? prompt : null,
