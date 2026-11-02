@@ -1,12 +1,12 @@
 # Local-build override — DEV ONLY, never used on the production host.
 #
-#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build frontend_blue
 #
 # Production deploys go through ./deploy.sh, which passes --no-build so a build
 # can never accidentally start on the server.
 
 services:
-  frontend:
+  frontend_blue:
     build:
       context: .
       dockerfile: Dockerfile

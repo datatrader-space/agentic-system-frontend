@@ -41,4 +41,9 @@ EXPOSE 80
 # nginx:alpine supports /etc/nginx/templates/*.template
 # It auto-runs envsubst on them at startup, outputting to /etc/nginx/conf.d/
 # BACKEND_URL must be set as an environment variable
-CMD ["nginx", "-g", "daemon off;"]
+#
+# worker_shutdown_timeout (ADM-1136): on deploy.sh's graceful stop (SIGQUIT) nginx stops taking new
+# connections and waits for open ones; a chat websocket never ends on its own, so without a limit it was
+# still waiting at docker's 30 s stop_grace_period and was killed (exit 137). It now closes what is left
+# at 20 s and exits cleanly. The host nginx has already moved new requests to the other colour.
+CMD ["nginx", "-g", "daemon off; worker_shutdown_timeout 20s;"]

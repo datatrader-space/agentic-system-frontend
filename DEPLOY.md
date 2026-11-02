@@ -43,7 +43,8 @@ what was removed — see [DEPLOYMENT_MIGRATION.md](DEPLOYMENT_MIGRATION.md).
 | List available images | `aws ecr describe-images --repository-name aadml-frontend --region us-west-1 --query 'sort_by(imageDetails,&imagePushedAt)[].imageTags' --output text` |
 | Deploy from the box directly | `./deploy.sh <sha>` in `/opt/aadml-frontend` |
 | See what's running | `grep IMAGE_TAG /opt/aadml-frontend/.deploy.env` |
-| Logs | `docker compose --env-file .deploy.env logs -f frontend` |
+| Logs | `docker compose --env-file .deploy.env logs -f frontend_blue frontend_green` |
+| Which colour serves | `docker ps --filter name=aadml-frontend --format '{{.Names}} {{.Status}}'` |
 
 A deploy is roughly **10 seconds** of downtime — the container swap plus the health
 gate.
@@ -173,7 +174,7 @@ GitHub runner IPs.
 no `node_modules`, no git clone:
 
 ```
-docker-compose.yml     pull-only compose file
+docker-compose.yml     pull-only compose file (blue and green, see below)
 deploy.sh              executable, LF line endings
 .deploy.env            chmod 600, ubuntu-owned
 ```
@@ -183,7 +184,6 @@ ECR_REGISTRY=627073650116.dkr.ecr.us-west-1.amazonaws.com
 ECR_REPOSITORY=aadml-frontend
 IMAGE_TAG=061b9d0        # rewritten by deploy.sh on every deploy
 BACKEND_URL=172.31.6.43:8000
-APP_PORT=8002
 ```
 
 The box needs the AWS CLI and `docker compose` v2. It authenticates to ECR through
@@ -194,6 +194,33 @@ the instance role — no AWS credentials on disk.
 on every deploy and mounted read-only into the new one. nginx falls back to it for
 `/assets/…` files this release does not have, so a tab opened before a deploy keeps
 loading its lazy pages. One release back only: each deploy replaces its contents.
+
+### Blue/green: no 502s on a deploy (ADM-1136)
+
+Two copies of the container: **blue** on `127.0.0.1:8002` and **green** on `127.0.0.1:8003`. One serves.
+`deploy.sh` starts the new release on the other, waits for its healthcheck, and only then stops the old one
+with nginx's graceful stop (`SIGQUIT`, `stop_grace_period: 30s`: it closes its listener and finishes what it
+has open). A release that fails its healthcheck is stopped and the old colour keeps serving.
+
+The single container before this was stopped and restarted in place, so for a few seconds per deploy nothing
+answered on 8002 and every request in flight was reset: each 502 aadml.com showed was a frontend deploy
+(checked 2 Nov 2026, minute by minute).
+
+The host nginx (`/etc/nginx/sites-available/sztax`, the `aadml.com` server only) sends to both ports and
+moves a request to the other one when a port refuses it:
+
+```nginx
+upstream aadml_frontend {
+    server 127.0.0.1:8002 max_fails=1 fail_timeout=5s;
+    server 127.0.0.1:8003 max_fails=1 fail_timeout=5s;
+}
+# in both `location /ws/` and `location /`:
+    proxy_pass http://aadml_frontend;
+    proxy_next_upstream error timeout http_502 http_503;
+    proxy_connect_timeout 3s;
+```
+
+Never `docker compose up -d` without a service name on the host: it would start both colours.
 
 **CI does not update these files on the host.** A change to `deploy.sh` or
 `docker-compose.yml` in this repo reaches the box only when it is copied to
