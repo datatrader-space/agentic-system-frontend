@@ -440,7 +440,11 @@ async function loadModels() {
   try {
     const { data } = await api.getLlmModels({ fields: 'picker' })   // ?fields=picker: every row, without the heavy metadata (not read here)
     const list = data?.results || data || []
-    models.value = list.filter(m => !m.is_embedding).map(m => ({ id: m.id, label: m.name || m.model_id }))
+    // Text models only: an embedding model or an image / video / audio generator cannot write code (the
+    // backend refuses such a pick too, unified/llm.py).
+    const notForCoding = m => m.is_embedding || m.can_generate_images || m.can_generate_video
+      || m.can_generate_audio || m.can_transcribe_audio
+    models.value = list.filter(m => !notForCoding(m)).map(m => ({ id: m.id, label: m.name || m.model_id }))
   } catch (e) { models.value = [] }
 }
 

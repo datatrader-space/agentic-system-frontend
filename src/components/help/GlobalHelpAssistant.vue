@@ -3,7 +3,7 @@
   <!-- Loaded the first time the assistant is opened, not on every page load (its code is not in the
        entry bundle). It then stays mounted so its conversation survives closing and reopening. -->
   <HelpAssistantWidget v-if="everOpened" ref="widget" v-model:open="state.open" :current-page="currentPage" />
-  <button class="gha-fab" :class="{ open: state.open, 'on-chat': onChatSurface }"
+  <button v-if="!onLetsCode" class="gha-fab" :class="{ open: state.open, 'on-chat': onChatSurface }"
           :aria-label="state.open ? 'Close AI Assistant' : 'Ask the AI Assistant'"
           @click="toggle">
     <Icon :icon="state.open ? 'lucide:x' : 'lucide:message-circle'" />
@@ -32,6 +32,9 @@ const currentPage = computed(() => route.name?.toString() || route.path || 'app'
 // agent is the one place it earns nothing. Hidden there only (CSS, so it costs no resize listener);
 // on every other page, and at every width above a phone, it behaves as before.
 const onChatSurface = computed(() => String(route.name || '').includes('chat'))
+// Let's Code's coding chat sits on the right at EVERY width, so the bubble covered its Send button on a desktop
+// too (seen live, 2026-11-02, ADM-1128). It is not shown there at all.
+const onLetsCode = computed(() => route.name === 'dashboard-lets-code')
 
 function toggle() { state.open ? close() : (state.open = true) }
 
