@@ -181,6 +181,7 @@ import { lazyComponent } from '@/utils/lazyComponent'
 let monacoNs = null
 // lazyComponent: an error state + one guarded reload when the chunk is stale (F-C1).
 const MonacoEditor = lazyComponent(async () => {
+  await import('@/utils/monacoWorkers')        // before the editor starts: it asks for its workers at once
   monacoNs = await import('monaco-editor')
   const mod = await import('monaco-editor-vue3')
   return mod.default || mod
