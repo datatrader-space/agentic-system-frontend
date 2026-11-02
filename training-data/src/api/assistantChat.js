@@ -16,7 +16,7 @@ const localId = prefix => `${prefix}-${Date.now()}-${(nextId += 1)}`;
 function lastAssistant(state) {
   const last = state.messages[state.messages.length - 1];
   if (last && last.role === 'assistant' && last.streaming) return last;
-  const fresh = { id: localId('a'), role: 'assistant', text: '', steps: [], streaming: true };
+  const fresh = { id: localId('a'), role: 'assistant', text: '', steps: [], cards: [], streaming: true };
   state.messages.push(fresh);
   return fresh;
 }
@@ -29,6 +29,9 @@ const STEP_LABELS = {
   TRAINING_RUN_START: 'Starting a training run', TRAINING_RUN_CONTROL: 'Changing a run',
   TRAINING_EVALUATION_START: 'Starting an evaluation', TRAINING_MODEL_APPROVE: 'Approving a model',
   TRAINING_DEPLOY: 'Deploying a model',
+  TRAINING_LABEL: 'Drawing first labels', TRAINING_LABEL_SOURCES: 'Listing the wall models',
+  TRAINING_LABEL_VIEW: 'Looking at a drawing', TRAINING_LABEL_FIX: 'Fixing a drawing',
+  TRAINING_LABEL_SUBMIT: 'Sending the labels to review', TRAINING_LABEL_REVIEW: 'Reading the labels waiting for review',
   TRAINING_CHAT_STATUS: 'Reading a chat project', TRAINING_CHAT_PREPARE: 'Preparing the chat examples',
   TRAINING_CHAT_DATASET_PUBLISH: 'Freezing a chat dataset version', TRAINING_CHAT_RUN_START: 'Starting a chat model training run',
   TRAINING_CHAT_RUN_CONTROL: 'Changing a chat model run', TRAINING_CHAT_EVALUATION_START: 'Starting a chat model evaluation',
@@ -38,6 +41,22 @@ const STEP_LABELS = {
 const squash = name => String(name || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
 const LABELS = Object.fromEntries(Object.entries({ ...STEP_LABELS, ASK_USER: 'Asking you', ANALYZE_MEDIA: 'Reading the photo' }).map(([k, v]) => [squash(k), v]));
 export const stepLabel = tool => LABELS[squash(tool)] || (tool ? `Using ${String(tool).toLowerCase().replace(/_/g, ' ')}` : 'Working');
+
+// A "labels" card as the page shows it: the labels drawn over their photos (each picture from the project's signed-in
+// preview address) and the assignment to open on the Annotate page. Anything else (another kind of action) is null.
+export function labelsCard(action) {
+  if (!action || action.kind !== 'training_labels' || !action.project) return null;
+  const project = String(action.project);
+  const enc = encodeURIComponent;
+  return {
+    key: String(action.target_id || ''), project, assignment: action.assignment ?? null, stage: String(action.stage || ''),
+    title: String(action.title || 'Labels'),
+    labels: (action.labels || []).filter(l => l && l.label).map(l => ({
+      id: String(l.label), file: String(l.file || ''), faults: (l.faults || []).map(String),
+      image: `/api/training-data/app/projects/${enc(project)}/labels/${enc(String(l.label))}/preview/` })),
+    review: `#project/${enc(project)}/annotate${action.assignment ? `/${action.assignment}` : ''}`,
+  };
+}
 
 // The person's own message, shown at once (before the server has it).
 // images: the photos sent with it, each { url, name } (a local preview while it is sent, the stored copy after).
@@ -84,6 +103,14 @@ export function applyEvent(state, evt) {
       state.running = true;
       if (!tool && !evt.label) break;
       lastAssistant(state).steps.push({ tool, label: tool ? '' : String(evt.label), state: 'running', error: '' });
+      break;
+    }
+    case 'chat_action': {
+      // A card the assistant's tool made for the person: the labels it drew (training_models_data agent_labelling.card).
+      const card = labelsCard(evt.action);
+      if (!card) break;
+      const message = lastAssistant(state);
+      message.cards = [...(message.cards || []).filter(c => c.key !== card.key), card];
       break;
     }
     case 'tool_result': {
@@ -146,7 +173,9 @@ function endTurn(state) {
 export function fromHistory(rows) {
   return (rows || []).filter(r => r && (r.role === 'user' || r.role === 'assistant') && String(r.content || '').trim())
     .map(r => ({ id: `h-${r.id}`, role: r.role, text: String(r.content), steps: [], streaming: false,
-                 images: (r.attachments || []).filter(a => a && a.isImage && a.url).map(a => ({ url: a.url, name: a.name || '' })) }));
+                 images: (r.attachments || []).filter(a => a && a.isImage && a.url).map(a => ({ url: a.url, name: a.name || '' })),
+                 // The cards kept with the answer (the server saves the turn's chat actions in model_info).
+                 cards: ((r.model_info || {}).chat_actions || []).map(labelsCard).filter(Boolean) }));
 }
 
 const listOf = body => (Array.isArray(body) ? body : body?.results || []);

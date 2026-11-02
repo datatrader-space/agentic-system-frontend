@@ -7,7 +7,7 @@
 // Photos go with a message (the + button, a drop or a paste): each is stored in the person's conversation and the
 // message names them by id, as AADML's chat does, so the agent sees exactly the photos sent with it.
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
-import { ArrowUp, Square, Check, X, Copy, ImagePlus, Loader2, CircleAlert, CircleCheck } from 'lucide-vue-next';
+import { ArrowUp, Square, Check, X, Copy, ImagePlus, Loader2, CircleAlert, CircleCheck, ExternalLink } from 'lucide-vue-next';
 import { safeMarkdown } from '../markdown.js';
 import { addUserMessage, applyEvent, assistantChat, emptyChat, fromHistory, stepLabel, titleFrom } from '../api/assistantChat.js';
 
@@ -172,6 +172,21 @@ defineExpose({ newChat, openConversation, focus: () => input.value?.focus() });
           </li>
         </ul>
         <div v-if="m.role === 'assistant' && m.text" class="msg-text md" v-html="safeMarkdown(m.text)"></div>
+        <!-- The labels the assistant drew, as it drew, looked at, fixed and sent them: each over its photo, and the
+             assignment to open on the Annotate page (agent_labelling.card). -->
+        <section v-for="c in (m.cards || [])" :key="c.key" class="labels-card" :aria-label="c.title">
+          <header class="labels-head"><strong>{{ c.title }}</strong>
+            <span v-if="c.assignment">Assignment {{ c.assignment }} · {{ c.labels.length }} photo{{ c.labels.length === 1 ? '' : 's' }}</span></header>
+          <ul class="labels-grid">
+            <li v-for="l in c.labels" :key="l.id">
+              <a :href="l.image" target="_blank" rel="noopener" :aria-label="`Open ${l.file || 'the photo'} with its label, full size`">
+                <img :src="l.image" :alt="`${l.file || 'Photo'}: the label drawn over the photo`" loading="lazy"></a>
+              <span class="labels-file">{{ l.file || 'Photo' }}</span>
+              <span v-if="l.faults.length" class="labels-fault"><CircleAlert :size="12" aria-hidden="true"/> {{ l.faults[0] }}</span>
+            </li>
+          </ul>
+          <a class="labels-open" :href="c.review"><ExternalLink :size="14" aria-hidden="true"/> Open in Review</a>
+        </section>
         <div v-if="m.role === 'user' && m.images?.length" class="msg-photos">
           <a v-for="(img, i) in m.images" :key="i" :href="img.url" target="_blank" rel="noopener"><img :src="img.url" :alt="img.name || 'Photo sent with the message'" loading="lazy"></a>
         </div>
@@ -297,6 +312,18 @@ defineExpose({ newChat, openConversation, focus: () => input.value?.focus() });
 .pending img{width:100%;height:100%;object-fit:cover;border-radius:8px;border:1px solid #e1e4ea;display:block}
 .pending button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:1px solid #fff;background:#1d2a3d;color:#fff;display:grid;place-items:center;padding:0}
 .pending button::after{content:'';position:absolute;inset:-11px}
+.labels-card{border:1px solid var(--aadml-outline);border-radius:12px;padding:12px 14px;margin-top:10px;background:#fff;display:flex;flex-direction:column;gap:10px;max-width:min(78ch,100%)}
+.labels-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.labels-head strong{font-size:13px;color:#1d2a3d}.labels-head span{font-size:12px;color:#4b5565}
+.labels-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.labels-grid li{display:flex;flex-direction:column;gap:4px;min-width:0}
+.labels-grid a{display:block;border-radius:8px;overflow:hidden;border:1px solid #e1e4ea}
+.labels-grid a:focus-visible,.labels-open:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.labels-grid img{width:100%;aspect-ratio:4/3;object-fit:contain;background:#f6f7f9;display:block}
+.labels-file{font-size:12px;color:#24324a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.labels-fault{font-size:12px;color:#b45309;display:flex;gap:4px;align-items:center}
+.labels-open{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:8px;background:#2563eb;color:#fff;font-size:13px;font-weight:600;text-decoration:none}
+.labels-open:hover{background:#1d4ed8}
 .msg-photos{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .msg-photos img{width:160px;height:120px;object-fit:cover;border-radius:10px;border:1px solid #e1e4ea;display:block}
 .send{width:44px;height:44px;border-radius:50%;border:0;display:grid;place-items:center;background:var(--accent);color:#fff;transition:background .15s}

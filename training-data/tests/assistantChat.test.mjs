@@ -101,3 +101,24 @@ test('photos go with the message they were sent with, and come back with it from
   assert.deepEqual(user.images, [{ url: '/media/chat/room.jpg', name: 'room.jpg' }]);
   assert.deepEqual(answer.images, []);
 });
+
+test('a labels card the assistant made is shown under its answer, and again after a reload', () => {
+  const action = { kind: 'training_labels', target_id: 'live-test-walls:1:drawn:a1', project: 'live-test-walls', assignment: 1,
+                   stage: 'drawn', title: 'First drawings', labels: [{ label: 'a1', file: 'room.jpg', faults: ['window 1 is outside wall 3'] }] };
+  const state = addUserMessage(emptyChat(7), 'Label 2 photos yourself.');
+  play(state, { type: 'tool_call', tool: 'TRAINING_LABEL' }, { type: 'chat_action', action }, { type: 'chat_action', action });
+  const [card] = state.messages[1].cards;
+  assert.equal(state.messages[1].cards.length, 1);                          // the same card twice is one card
+  assert.deepEqual([card.title, card.assignment, card.review], ['First drawings', 1, '#project/live-test-walls/annotate/1']);
+  assert.deepEqual(card.labels, [{ id: 'a1', file: 'room.jpg', faults: ['window 1 is outside wall 3'],
+                                   image: '/api/training-data/app/projects/live-test-walls/labels/a1/preview/' }]);
+  assert.equal(stepLabel('TRAINING_LABEL_VIEW'), 'Looking at a drawing');
+  const [again] = fromHistory([{ id: 9, role: 'assistant', content: 'Assignment 1 is in review.', model_info: { chat_actions: [action] } }]);
+  assert.equal(again.cards[0].review, '#project/live-test-walls/annotate/1');
+});
+
+test('another kind of chat action is not a labels card', () => {
+  const state = addUserMessage(emptyChat(7), 'Connect GitHub');
+  play(state, { type: 'chat_action', action: { kind: 'connect_service', target_id: 'github' } });
+  assert.deepEqual(state.messages[1]?.cards || [], []);
+});
