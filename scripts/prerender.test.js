@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, it, expect } from 'vitest'
-import { bootScript, criticalCss, escapeHtml, outputFile, pageHtml, pageStylesheets } from './prerender.mjs'
+import { bootScript, criticalCss, escapeHtml, latinFontFile, outputFile, pageHtml, pageStylesheets } from './prerender.mjs'
 
 const SHELL = `<!DOCTYPE html>
 <html lang="en">
@@ -160,6 +160,31 @@ describe('prerender', () => {
       expect(out.indexOf('<script>(function')).toBeLessThan(out.indexOf('<style>'))
       expect(out).toContain('<div id="app" data-prerendered><h1 class="hero">x</h1></div>')
       expect(readFileSync(path.join(dist, 'assets', 'index-b.css'), 'utf8')).toBe(css)
+    } finally {
+      rmSync(dist, { recursive: true, force: true })
+    }
+  })
+
+  it('preloads the Latin font with crossorigin, ahead of the stylesheets', () => {
+    const out = pageHtml(SHELL, { html: '<h1>x</h1>', meta: null, fonts: ['/assets/inter-latin-wght-normal-Ab_1.woff2'] })
+    const preload = '<link rel="preload" as="font" type="font/woff2" crossorigin href="/assets/inter-latin-wght-normal-Ab_1.woff2">'
+    expect(out).toContain(preload)
+    expect(out.indexOf(preload)).toBeLessThan(out.indexOf('<link rel="stylesheet"'))
+    expect(pageHtml(SHELL, { html: '<h1>x</h1>', meta: null })).not.toContain('rel="preload"')
+  })
+
+  it('finds the one Latin Inter file of the build, and refuses none or two', () => {
+    const dist = mkdtempSync(path.join(tmpdir(), 'prerender-font-'))
+    try {
+      mkdirSync(path.join(dist, 'assets'))
+      const put = (name) => writeFileSync(path.join(dist, 'assets', name), '')
+      put('inter-latin-ext-wght-normal-DO1Apj_S.woff2')
+      put('inter-cyrillic-wght-normal-DqGufNeO.woff2')
+      expect(() => latinFontFile(dist)).toThrow(/found 0/)
+      put('inter-latin-wght-normal-Dx4kXJAl.woff2')
+      expect(latinFontFile(dist)).toBe('/assets/inter-latin-wght-normal-Dx4kXJAl.woff2')
+      put('inter-latin-wght-normal-Other123.woff2')
+      expect(() => latinFontFile(dist)).toThrow(/found 2/)
     } finally {
       rmSync(dist, { recursive: true, force: true })
     }

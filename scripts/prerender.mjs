@@ -14,7 +14,7 @@
 //
 // The shell itself is kept as dist/app.html: nginx serves it for every other route of the app.
 // main.js mounts over the markup once the route has resolved (data-prerendered on #app tells it to).
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -25,15 +25,27 @@ const APP_ROOT = '<div id="app"></div>'
 // on CI's simulated phone the ~25 kB of render-blocking CSS was all that stood before the heading (LCP 3.1-3.5 s with
 // the HTML already in the response). The CSS files are left as they are (pruneSource: false): the app shares them.
 // The page's @font-face rules are inlined with it (Inter is self-hosted, its rules sit in index.css): left in the
-// late sheet, the font would start downloading only after it and the text would reflow when it swaps in. They are
-// not preloaded: the browser fetches only the unicode-range subset the page uses. The rest of the CSS still arrives
-// through each <link>, with a <noscript> fallback.
+// late sheet, the font would start downloading only after it and the text would reflow when it swaps in. Beasties
+// preloads none of them (that would be every unicode-range subset): the Latin file alone is preloaded, see
+// latinFontFile. The rest of the CSS still arrives through each <link>, with a <noscript> fallback.
 // The theme's colour variables sit under [data-theme=light] / [data-theme=dark], which the boot script sets only in
 // the browser: matched against the built page they would be dropped and the first paint would have no colours.
 export async function criticalCss(dist) {
   const { default: Beasties } = await import('beasties')
   return new Beasties({ path: dist, publicPath: '/', preload: 'media', pruneSource: false, inlineFonts: true, preloadFonts: false,
                         reduceInlineStyles: false, allowRules: [/\[data-theme=/], logLevel: 'warn' })
+}
+
+// The Latin subset of Inter (~48 kB), which every prerendered page's text uses. Found only once the CSS has
+// matched the page, the font arrived after the first paint on a cold visit: the text painted in the fallback, then
+// re-laid out larger when Inter swapped in, and Chrome counted that later paint as the LCP (live, /: first paint
+// 3.2 s, Inter 3.56 s, LCP 3.87 s). Preloaded, it downloads with the page.
+export const LATIN_FONT = /^inter-latin-wght-normal-[\w-]+\.woff2$/
+
+export function latinFontFile(dist) {
+  const files = readdirSync(path.join(dist, 'assets')).filter((name) => LATIN_FONT.test(name))
+  if (files.length !== 1) throw new Error(`expected one Latin Inter file in dist/assets, found ${files.length}`)
+  return `/assets/${files[0]}`
 }
 
 export function escapeHtml(value) {
@@ -95,7 +107,7 @@ export function pageStylesheets(manifest, modules, template) {
  * The shell with one page in it. `html` is the inside of #app, `meta` what the page's useMeta() set (null: the
  * shell's own title and description stay, as they do in the browser for a page without useMeta).
  */
-export function pageHtml(template, { html, meta, hideWhenSignedIn, hintKey, stylesheets = [] }) {
+export function pageHtml(template, { html, meta, hideWhenSignedIn, hintKey, stylesheets = [], fonts = [] }) {
   if (!template.includes(APP_ROOT)) throw new Error(`the template has no empty ${APP_ROOT}`)
   if (hideWhenSignedIn && !hintKey) throw new Error('hideWhenSignedIn needs the sign-in hint key')
   let out = template.replace(APP_ROOT, () => `<div id="app" data-prerendered>${html}</div>`)
@@ -107,6 +119,8 @@ export function pageHtml(template, { html, meta, hideWhenSignedIn, hintKey, styl
 
   let head = `<script>${bootScript({ hideWhenSignedIn, hintKey })}</script>`
   if (hideWhenSignedIn) head += '\n  <style>[data-signed-in] #app[data-prerendered]{visibility:hidden}</style>'
+  // A font is fetched in CORS mode, so its preload carries crossorigin or the browser downloads it twice.
+  for (const href of fonts) head += `\n  <link rel="preload" as="font" type="font/woff2" crossorigin href="${escapeHtml(href)}">`
   // Straight after the charset, ahead of the stylesheets: an inline script after a stylesheet waits for it.
   const charset = /<meta\s+charset=[^>]*>/i
   if (!charset.test(out)) throw new Error('the template has no <meta charset>')
@@ -152,6 +166,7 @@ async function main() {
   try {
     const entry = await import(pathToFileURL(path.join(ssrDir, 'entry-prerender.js')).href)
     const inliner = await criticalCss(dist)
+    const fonts = [latinFontFile(dist)]
     for (const route of entry.prerenderedRoutes) {
       const { html, meta, modules } = await entry.render(route.path)
       const file = path.join(dist, outputFile(route.path))
@@ -162,6 +177,7 @@ async function main() {
         hideWhenSignedIn: entry.redirectsSignedIn(route),
         hintKey: entry.SIGNED_IN_HINT_KEY,
         stylesheets: pageStylesheets(manifest, modules, template),
+        fonts,
       }))
       writeFileSync(file, page)
       console.log(`prerendered ${route.path.padEnd(10)} -> dist/${outputFile(route.path)} (${(html.length / 1000).toFixed(1)} kB markup, ${(page.length / 1000).toFixed(1)} kB page)`)
