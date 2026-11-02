@@ -98,7 +98,7 @@ onUnmounted(() => {
 
     <template v-if="stage === 1">
       <h3 ref="stageHeading" tabindex="-1">Prepare your machine</h3>
-      <p class="connection-lead">Use a Linux machine you control. You will run one Docker command in its terminal.</p>
+      <p class="connection-lead">Use a machine you control: Linux, Windows or an Intel Mac with Docker. You will run one Docker command in its terminal.</p>
       <div class="connection-requirements"><MachineNeeds :hosts="hosts.length ? hosts : null"/></div>
       <label class="connection-gpu"><input v-model="gpu" type="checkbox"><Cpu :size="17" aria-hidden="true"/><span><strong>This machine has an NVIDIA GPU</strong><small>Optional. Requires the NVIDIA driver and Container Toolkit.</small></span></label>
       <div class="connection-trust"><ShieldCheck :size="17" aria-hidden="true"/><p>The command gives AADML's machine agent access to Docker so it can manage job containers. Generate it only for a machine you are authorized to connect.</p></div>
@@ -107,7 +107,7 @@ onUnmounted(() => {
 
     <template v-else-if="stage === 2">
       <h3 ref="stageHeading" tabindex="-1">Run this on your machine</h3>
-      <p class="connection-lead">Copy the command into a terminal on your Linux machine where Docker works. Keep this setup open while it connects.</p>
+      <p class="connection-lead">Copy the command into a terminal on your machine where Docker works (on Windows or a Mac: with Docker Desktop running). Keep this setup open while it connects.</p>
       <div v-if="command" class="connection-terminal"><div><span><Terminal :size="14" aria-hidden="true"/> Docker · {{ gpu ? 'NVIDIA GPU' : 'CPU' }}</span><button type="button" @click="copy"><Check v-if="copied" :size="14" aria-hidden="true"/><Copy v-else :size="14" aria-hidden="true"/>{{ copied ? 'Copied' : 'Copy command' }}</button></div><pre tabindex="0" aria-label="Machine connection command"><code>{{ command }}</code></pre></div>
       <div v-else class="connection-notice" role="status">{{ expired ? 'This connection command has expired. Generate a new one to continue.' : 'The connection command could not be displayed. Close setup and try again.' }}</div>
       <p v-if="enrollment" class="connection-expiry" :class="{expired}">{{ expiryLine(enrollment.expires_at, now) }} The command is kept only while setup is open.</p>

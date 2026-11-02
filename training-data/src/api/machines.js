@@ -100,7 +100,7 @@ export const isActive = job => ['queued', 'running', 'uploaded'].includes(job?.s
 // model runs with 4 GB of memory and 2 processors (machines.payload); training is offered on 8 GB and 30 GB free disk
 // (machines.FIT_MEMORY_GB, FIT_DISK_GB); the GPU is given to a job through NVIDIA's container runtime.
 export const MACHINE_NEEDS = [
-  { id: 'docker', title: 'Linux with Docker 24 or newer', text: 'Docker Engine running, so that docker run works in a terminal on the machine.' },
+  { id: 'docker', title: 'Linux, Windows or an Intel Mac, with Docker 24 or newer', text: 'Linux: Docker Engine. Windows 10 or 11, or a Mac with an Intel processor: Docker Desktop (Linux containers). docker run must work in a terminal on the machine. Docker Desktop gives its Linux VM part of the memory: give it 8 GB or more to train.' },
   { id: 'cpu', title: 'A 64-bit Intel or AMD processor (x86-64)', text: 'ARM machines, such as a Raspberry Pi or an Apple silicon Mac, cannot run the images yet.' },
   { id: 'memory', title: '4 GB of free memory to run a model', text: 'To train on the machine as well: 8 GB of memory and 30 GB of free disk.' },
   { id: 'gpu', title: 'An NVIDIA GPU for training, if you have one', text: 'Optional. It needs the NVIDIA driver and the NVIDIA Container Toolkit. Running a model needs no GPU.' },
