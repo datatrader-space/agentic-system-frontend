@@ -1,6 +1,5 @@
 <template>
   <header
-    v-if="!isLoginPage"
     class="app-header"
     :class="{
       'header-scrolled': isScrolled
@@ -417,7 +416,6 @@ const showMobileMenu = ref(false)
 const isScrolled = ref(false)
 
 // Computed
-const isLoginPage = computed(() => route.path === '/login')
 
 // Public pages with dark theme
 const isDarkPage = computed(() => {

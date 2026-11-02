@@ -89,7 +89,8 @@ api.interceptors.response.use(
       // a public/login page, and skip the auth-check endpoint itself — the guard interprets that
       // response body directly ({authenticated:false} is a 200; a genuine 401 here still applies).
       if (error.response.status === 401) {
-        const path = window.location.pathname
+        // /login/ and /signup/ (trailing slash) are the same pages.
+        const path = window.location.pathname.replace(/(.)\/+$/, '$1')
         const onPublicPage = path === '/login' || path === '/signup' || path === '/' ||
           path.startsWith('/share/') || path.startsWith('/a/') || path.startsWith('/embed/')
         if (!onPublicPage) {

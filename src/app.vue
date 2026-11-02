@@ -201,11 +201,12 @@ const isBareChat = computed(() => route.path.startsWith('/a/') || route.path.sta
 
 // Marketing routes carry their own PublicLayout header+footer; standalone auth
 // pages render their own centered card. In both cases the legacy AppHeader must
-// not also render. (Login already self-hides via its own isLoginPage check.)
+// not also render. By route NAME: /login/ (trailing slash) is the login route with another path, and a path
+// test showed the header over it 3 s in (a 64px layout shift).
 const marketingRoutes = new Set([
   'landing', 'features', 'how-it-works', 'blog', 'blog-post',
   'pricing', 'about', 'contact', 'docs', 'docs-page',
-  'signup', 'forgot-password', 'reset-password', 'verify-email',
+  'login', 'signup', 'forgot-password', 'reset-password', 'verify-email',
 ])
 const isMarketingPage = computed(() => marketingRoutes.has(route.name))
 const showLegacyHeader = computed(() =>
@@ -276,7 +277,7 @@ onMounted(async () => {
   }
 
   // Load current user if authenticated
-  if (route.path !== '/login') {
+  if (route.name !== 'login') {
     await loadCurrentUser()
   }
 })
@@ -284,8 +285,8 @@ onMounted(async () => {
 // Entering a signed-in page with no user loaded (e.g. right after signing in): load it. Not on every
 // navigation between signed-out pages, where the answer is always "nobody" (it refetched /auth/me
 // on each click).
-watch(() => route.path, async (newPath) => {
-  if (newPath !== '/login' && !currentUser.value && route.meta.requiresAuth) {
+watch(() => route.path, async () => {
+  if (route.name !== 'login' && !currentUser.value && route.meta.requiresAuth) {
     await loadCurrentUser()
   }
 })
