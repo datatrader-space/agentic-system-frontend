@@ -138,14 +138,18 @@ describe('prerender', () => {
   it('inlines the CSS the page uses, loads the stylesheet without blocking, and leaves the CSS file as it was', async () => {
     const dist = mkdtempSync(path.join(tmpdir(), 'prerender-css-'))
     try {
-      const css = '[data-theme=light]{--ink:#111}[data-theme=dark]{--ink:#eee}.hero{color:red}.unused-rule{color:blue}'
+      const css = '@font-face{font-family:Inter;src:url(/assets/inter.woff2) format("woff2")}'
+        + '[data-theme=light]{--ink:#111}[data-theme=dark]{--ink:#eee}.hero{color:red;font-family:Inter}.unused-rule{color:blue}'
       mkdirSync(path.join(dist, 'assets'))
       writeFileSync(path.join(dist, 'assets', 'index-b.css'), css)
       const page = pageHtml(SHELL, { html: '<h1 class="hero">x</h1>', meta: null })
       const out = await (await criticalCss(dist)).process(page)
 
       const head = out.slice(0, out.indexOf('</head>'))
-      expect(head).toMatch(/<style>[^<]*\.hero\{color:red\}/)
+      expect(head).toMatch(/<style>[^<]*\.hero\{color:red;font-family:Inter\}/)
+      // The font starts downloading with the page, not after the late sheet; no preload of every subset.
+      expect(head).toContain('@font-face{font-family:Inter;src:url(/assets/inter.woff2)')
+      expect(out).not.toContain('rel="preload"')
       expect(head).not.toContain('unused-rule')
       // Set by the boot script in the browser only, so kept although nothing in the built page matches them.
       expect(head).toContain('[data-theme=light]{--ink:#111}')
