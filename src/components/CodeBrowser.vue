@@ -3,34 +3,32 @@
     <!-- Left Sidebar: File Tree -->
     <div class="sidebar" :style="{ width: sidebarWidth + 'px' }">
       <div class="sidebar-header">
-        <div class="sidebar-tabs">
-          <button 
-            @click="sidebarTab = 'files'" 
+        <div class="sidebar-tabs" role="tablist" aria-label="Browser views">
+          <button
+            type="button" role="tab" :aria-selected="sidebarTab === 'files' ? 'true' : 'false'"
+            @click="sidebarTab = 'files'"
             :class="{ active: sidebarTab === 'files' }"
             class="sidebar-tab">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
+            <Icon icon="lucide:folder" aria-hidden="true" />
             Files
           </button>
           <button
+            v-if="artifacts && artifacts.length"
+            type="button" role="tab" :aria-selected="sidebarTab === 'artifacts' ? 'true' : 'false'"
             @click="sidebarTab = 'artifacts'"
             :class="{ active: sidebarTab === 'artifacts' }"
             class="sidebar-tab">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-            </svg>
+            <Icon icon="lucide:database" aria-hidden="true" />
             Artifacts
           </button>
           <button
+            type="button" role="tab" :aria-selected="sidebarTab === 'scm' ? 'true' : 'false'"
             @click="sidebarTab = 'scm'"
             :class="{ active: sidebarTab === 'scm' }"
-            class="sidebar-tab" title="Source Control">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 3v12m0 0a3 3 0 103 3m-3-3a3 3 0 013 3m9-9a3 3 0 10-3-3m3 3a3 3 0 01-3-3m0 0H9a3 3 0 00-3 3" />
-            </svg>
-            Source Control
-            <span v-if="scmCount > 0" class="scm-tabcount">{{ scmCount }}</span>
+            class="sidebar-tab" title="Source control">
+            <Icon icon="lucide:git-branch" aria-hidden="true" />
+            Source control
+            <span v-if="scmCount > 0" class="scm-tabcount" :aria-label="`${scmCount} changes`">{{ scmCount }}</span>
           </button>
         </div>
       </div>
@@ -41,7 +39,9 @@
           <div class="search-box">
             <input
               v-model="fileSearch"
-              placeholder="Search files..."
+              type="search"
+              aria-label="Search files"
+              placeholder="Search files"
               class="search-input" />
           </div>
           <div class="tree-list">
@@ -54,21 +54,23 @@
                   v-for="r in searchResults"
                   :key="r.path"
                   class="tree-node search-hit"
-                  @click="openFile(r.path)">
+                  role="button" tabindex="0"
+                  @click="openFile(r.path)"
+                  @keydown.enter.prevent="openFile(r.path)">
                   <Icon class="node-iconify" :icon="iconFor(r)"
                         :style="iconColor(r) ? { color: iconColor(r) } : {}" />
                   <span class="node-name">{{ r.name }}</span>
                   <span class="node-path">{{ r.path }}</span>
-                  <span v-if="r.gitignored" class="node-gi" title="Gitignored — local-only, not committed">local-only</span>
+                  <span v-if="r.gitignored" class="node-gi" title="Gitignored: kept in your workspace only, never committed">local-only</span>
                 </div>
-                <div v-if="searchTruncated" class="empty">Showing first {{ searchResults.length }} matches — refine your search.</div>
+                <div v-if="searchTruncated" class="empty">Showing the first {{ searchResults.length }} matches. Type more of the name to narrow it down.</div>
               </div>
             </template>
             <!-- Lazy directory tree -->
             <template v-else>
-              <div v-if="loading" class="loading">Loading files...</div>
+              <div v-if="loading" class="loading">Loading files</div>
               <div v-else-if="!rootNodes.length" class="empty">No files found</div>
-              <div v-else>
+              <div v-else role="tree" aria-label="Repository files">
                 <FileTreeNode
                   v-for="file in rootNodes"
                   :key="file.path"
@@ -87,9 +89,11 @@
         <!-- Artifact Tree -->
         <div v-else class="artifact-tree">
           <div class="search-box">
-            <input 
-              v-model="artifactSearch" 
-              placeholder="Search artifacts..."
+            <input
+              v-model="artifactSearch"
+              type="search"
+              aria-label="Search artifacts"
+              placeholder="Search artifacts"
               class="search-input" />
           </div>
           <div class="tree-list">
@@ -108,7 +112,7 @@
       </div>
 
       <!-- Resize Handle -->
-      <div class="resize-handle" @mousedown="startResize"></div>
+      <div class="resize-handle" role="separator" aria-orientation="vertical" aria-label="Resize the file list" @mousedown="startResize"></div>
     </div>
 
     <!-- Center: Editor Panel -->
@@ -118,16 +122,19 @@
         <div
           v-for="tab in openTabs"
           :key="tab.id"
+          role="tab" tabindex="0" :aria-selected="activeTabId === tab.id ? 'true' : 'false'"
           @click="activeTabId = tab.id"
+          @keydown.enter.self="activeTabId = tab.id"
           :class="['tab', { active: activeTabId === tab.id }]">
-          <span class="tab-icon">{{ getFileIcon(tab.path) }}</span>
+          <Icon class="tab-icon" :icon="iconFor({ name: tab.name, type: 'file' })" aria-hidden="true"
+                :style="iconColor({ name: tab.name, type: 'file' }) ? { color: iconColor({ name: tab.name, type: 'file' }) } : {}" />
           <span class="tab-name">{{ tab.name }}</span>
-          <span v-if="isDirty(tab)" class="tab-dot" title="Unsaved changes">●</span>
-          <button @click.stop="closeTab(tab.id)" class="tab-close">×</button>
+          <span v-if="isDirty(tab)" class="tab-dot" title="Unsaved changes" aria-label="Unsaved changes"></span>
+          <button type="button" @click.stop="closeTab(tab.id)" class="tab-close" :aria-label="`Close ${tab.name}`"><Icon icon="lucide:x" /></button>
         </div>
         <div v-if="editable" class="tab-actions">
-          <button class="save-btn" :disabled="!activeTab || !isDirty(activeTab) || saving" @click="saveActive">
-            {{ saving ? 'Saving…' : 'Save' }}
+          <button type="button" class="save-btn" :disabled="!activeTab || !isDirty(activeTab) || saving" @click="saveActive">
+            {{ saving ? 'Saving' : 'Save' }}
           </button>
         </div>
       </div>
@@ -140,16 +147,15 @@
           :language="activeTab.language"
           :path="activeTab.path"
           :options="editorOptions"
+          :theme="monacoTheme"
           class="monaco-editor"
           @change="onEditorChange"
           @editorDidMount="onEditorMount"
         />
         <div v-else class="empty-editor">
-          <svg class="w-16 h-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          <p class="text-gray-500 font-medium">No file open</p>
-          <p class="text-sm text-gray-400 mt-1">Select a file from the sidebar to view</p>
+          <Icon icon="lucide:file-code" class="empty-editor-ic" aria-hidden="true" />
+          <p class="empty-editor-t">No file open</p>
+          <p class="empty-editor-s">Pick a file from the list to open it here.</p>
         </div>
       </div>
     </div>
@@ -183,6 +189,7 @@ import { Icon } from '@iconify/vue'
 import api from '../services/api'
 import { notify } from '@/composables/useNotify'
 import { confirm } from '@/composables/useConfirm'
+import { useTheme } from '@/composables/useTheme'
 import SourceControlPanel from '@/components/letscode/SourceControlPanel.vue'
 
 // Real per-extension file icons (colorful brand logos where available, lucide fallbacks otherwise).
@@ -215,9 +222,9 @@ function iconFor(file) {
   return EXT_ICON[ext] || 'lucide:file'
 }
 function iconColor(file) {
-  // directories get a warm folder color; files using a lucide (monochrome) icon get a neutral tint.
-  if (file.type === 'directory') return '#60a5fa'
-  return (iconFor(file).startsWith('lucide:')) ? '#94a3b8' : ''
+  // directories get the info blue; files using a lucide (monochrome) icon get a neutral tint.
+  if (file.type === 'directory') return 'var(--vm-sky)'
+  return (iconFor(file).startsWith('lucide:')) ? 'var(--vm-ink-faint)' : ''
 }
 
 const props = defineProps({
@@ -260,6 +267,11 @@ const openTabs = ref([])
 const activeTabId = ref(null)
 const saving = ref(false)
 
+// The editor follows the app theme (useTheme → <html data-theme>): light 'vs', dark 'vs-dark'.
+const { isDark } = useTheme()
+const monacoTheme = computed(() => (isDark.value ? 'vs-dark' : 'vs'))
+watch(monacoTheme, (t) => { try { monacoNs && monacoNs.editor.setTheme(t) } catch { /* editor not loaded */ } })
+
 // Editor options (readOnly unless `editable`)
 const editorOptions = computed(() => ({
   readOnly: !props.editable,
@@ -267,7 +279,7 @@ const editorOptions = computed(() => ({
   lineNumbers: 'on',
   scrollBeyondLastLine: false,
   automaticLayout: true,
-  theme: 'vs-dark',
+  theme: monacoTheme.value,
   fontSize: 14,
   wordWrap: 'on',
   folding: true,
@@ -308,7 +320,11 @@ function onKeydown(e) {
 // ── Inline diff decorations (proposed added lines highlighted green) ──
 let editorInst = null
 let decoIds = []
-function onEditorMount(ed) { editorInst = ed; applyDecorations() }
+function onEditorMount(ed) {
+  editorInst = ed
+  try { monacoNs && monacoNs.editor.setTheme(monacoTheme.value) } catch { /* noop */ }
+  applyDecorations()
+}
 function applyDecorations() {
   if (!editorInst || !monacoNs) return
   const ranges = (activeTab.value && props.decorations[activeTab.value.path]) || []
@@ -396,7 +412,7 @@ async function loadFiles() {
     const response = await api.getRepositoryFiles(props.systemId, props.repositoryId, { path: '' })
     rootNodes.value = (response.data.entries || response.data.files || []).map(makeNode)
   } catch (error) {
-    console.error('❌ Failed to load files:', error, error.response?.data)
+    console.error('Failed to load files:', error, error.response?.data)
     rootNodes.value = []
   } finally {
     loading.value = false
@@ -431,7 +447,7 @@ async function openFile(filePath) {
     activeTabId.value = newTab.id
   } catch (error) {
     console.error('Failed to load file:', error)
-    notify.error('Failed to load file: ' + error.message)
+    notify.error(error?.response?.data?.error || 'Could not open the file')
   }
 }
 
@@ -520,23 +536,6 @@ function formatArtifactCode(artifact) {
   return JSON.stringify(artifact, null, 2)
 }
 
-function getFileIcon(path) {
-  const ext = path.split('.').pop().toLowerCase()
-  const icons = {
-    'py': '🐍',
-    'js': '📜',
-    'vue': '💚',
-    'json': '📋',
-    'md': '📝',
-    'html': '🌐',
-    'css': '🎨',
-    'ts': '📘',
-    'yaml': '⚙️',
-    'sql': '🗄️'
-  }
-  return icons[ext] || '📄'
-}
-
 // Sidebar resize
 let isResizing = false
 function startResize(e) {
@@ -598,12 +597,21 @@ const FileTreeNode = {
     return () => h('div', {}, [
       h('div', {
         class: 'tree-node',
-        style: { paddingLeft: `${(props.level || 0) * 12}px`, cursor: 'pointer' },
-        onClick: handleClick
+        style: { paddingLeft: `${10 + (props.level || 0) * 12}px` },
+        role: 'treeitem',
+        tabindex: 0,
+        'aria-expanded': props.file.type === 'directory' ? String(!!props.file.expanded) : undefined,
+        onClick: handleClick,
+        onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick() } },
       }, [
         props.file.type === 'directory'
-          ? h('span', { class: 'node-expand' }, props.file.loading ? '⋯' : (props.file.expanded ? '▼' : '▶'))
-          : h('span', { class: 'node-expand' }),
+          ? h('span', { class: 'node-expand', 'aria-hidden': 'true' }, [
+              h(Icon, {
+                icon: props.file.loading ? 'lucide:loader-2' : (props.file.expanded ? 'lucide:chevron-down' : 'lucide:chevron-right'),
+                class: props.file.loading ? 'node-spin' : '',
+              }),
+            ])
+          : h('span', { class: 'node-expand', 'aria-hidden': 'true' }),
         h(Icon, {
           class: 'node-iconify',
           icon: iconFor(props.file),
@@ -611,7 +619,7 @@ const FileTreeNode = {
         }),
         h('span', { class: 'node-name' }, props.file.name),
         props.file.gitignored
-          ? h('span', { class: 'node-gi', title: 'Gitignored — local-only, not committed' }, 'local-only')
+          ? h('span', { class: 'node-gi', title: 'Gitignored: kept in your workspace only, never committed' }, 'local-only')
           : null,
       ]),
       ...renderChildren()
@@ -625,17 +633,20 @@ const ArtifactTreeNode = {
   setup(props, { emit }) {
     const getIcon = () => {
       const type = (props.artifact.type || '').toLowerCase()
-      if (type.includes('model')) return '🗃️'
-      if (type.includes('view')) return '👁️'
-      if (type.includes('serializer')) return '📦'
-      return '📄'
+      if (type.includes('model')) return 'lucide:database'
+      if (type.includes('view')) return 'lucide:eye'
+      if (type.includes('serializer')) return 'lucide:package'
+      return 'lucide:file'
     }
-    
+
     return () => h('div', {
       class: 'tree-node',
-      onClick: () => emit('select', props.artifact)
+      role: 'button',
+      tabindex: 0,
+      onClick: () => emit('select', props.artifact),
+      onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); emit('select', props.artifact) } },
     }, [
-      h('span', { class: 'node-icon' }, getIcon()),
+      h(Icon, { class: 'node-iconify', icon: getIcon(), 'aria-hidden': 'true' }),
       h('span', { class: 'node-name' }, props.artifact.name),
       h('span', { class: 'node-type' }, props.artifact.type)
     ])
@@ -645,23 +656,29 @@ const ArtifactTreeNode = {
 
 <style scoped>
 .code-browser {
+  --cb-on-solid: white;   /* text on the solid primary Save button: the same in both themes */
   display: flex;
   height: 100%;
-  background: #1e1e1e;
-  color: #d4d4d4;
+  min-width: 0;
+  background: var(--vm-surface);
+  color: var(--vm-ink-soft);
+  font-family: var(--vm-font-sans);
 }
 
 /* Sidebar */
 .sidebar {
   position: relative;
-  border-right: 1px solid #3c3c3c;
+  max-width: 45%;
+  flex: 0 0 auto;
+  border-right: 1px solid var(--vm-line);
   display: flex;
   flex-direction: column;
-  background: #252526;
+  background: var(--vm-surface-soft);
+  min-width: 0;
 }
 
 .sidebar-header {
-  border-bottom: 1px solid #3c3c3c;
+  border-bottom: 1px solid var(--vm-line);
 }
 
 .sidebar-tabs {
@@ -670,31 +687,36 @@ const ArtifactTreeNode = {
 
 .sidebar-tab {
   flex: 1;
-  padding: 10px;
+  min-width: 0;
+  padding: 10px 8px 8px;
   background: transparent;
-  color: #969696;
+  color: var(--vm-ink-soft);
   border: none;
+  border-bottom: 2px solid transparent;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  font-size: 13px;
-  transition: all 0.2s;
+  font: 600 12.5px var(--vm-font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  transition: color .15s, background-color .15s, border-color .15s;
 }
+.sidebar-tab :deep(svg) { width: 15px; height: 15px; flex: 0 0 auto; }
 
 .sidebar-tab:hover {
-  background: #2a2d2e;
+  color: var(--vm-ink);
+  background: color-mix(in srgb, var(--vm-ink) 4%, transparent);
 }
 
 .sidebar-tab.active {
-  background: #1e1e1e;
-  color: #ffffff;
-  border-bottom: 2px solid #007acc;
+  color: var(--vm-ink);
+  border-bottom-color: var(--vm-violet);
 }
 .scm-tabcount {
-  margin-left: 4px; background: #007acc; color: #fff; font-size: 9px; font-weight: 700;
-  border-radius: 8px; padding: 0 5px; line-height: 15px; min-width: 15px; text-align: center;
+  margin-left: 2px; background: var(--vm-violet); color: var(--cb-on-solid); font-size: 10px; font-weight: 700;
+  border-radius: 8px; padding: 0 5px; line-height: 16px; min-width: 16px; text-align: center;
 }
 
 .sidebar-content {
@@ -705,95 +727,68 @@ const ArtifactTreeNode = {
 
 .search-box {
   padding: 8px;
-  border-bottom: 1px solid #3c3c3c;
+  border-bottom: 1px solid var(--vm-line);
 }
 
 .search-input {
   width: 100%;
   padding: 6px 10px;
-  background: #3c3c3c;
-  border: 1px solid #454545;
-  border-radius: 4px;
-  color: #d4d4d4;
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-line-2);
+  border-radius: 6px;
+  color: var(--vm-ink);
   font-size: 13px;
 }
+.search-input::placeholder { color: var(--vm-ink-faint); }
 
 .search-input:focus {
   outline: none;
-  border-color: #007acc;
+  border-color: var(--vm-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--vm-focus) 20%, transparent);
 }
 
 .tree-list {
   padding: 4px 0;
 }
 
-.tree-node {
-  padding: 6px 12px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  transition: background 0.1s;
-}
-
-.tree-node:hover {
-  background: #2a2d2e;
-}
-
-.node-icon {
-  font-size: 14px;
-  margin-right: 4px;
-}
-
-.node-expand {
-  display: inline-block;
-  width: 12px;
-  font-size: 10px;
-  color: #858585;
-  margin-right: 4px;
-}
-
-.node-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .node-type {
   font-size: 11px;
-  color: #858585;
-  background: #3c3c3c;
-  padding: 2px 6px;
-  border-radius: 3px;
+  color: var(--vm-ink-soft);
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-line);
+  padding: 1px 6px;
+  border-radius: 4px;
 }
 
 .loading, .empty {
   padding: 20px;
   text-align: center;
-  color: #858585;
+  color: var(--vm-ink-faint);
   font-size: 13px;
+  line-height: 1.45;
 }
 
 /* Resize Handle */
 .resize-handle {
   position: absolute;
-  right: 0;
+  right: -2px;
   top: 0;
   bottom: 0;
-  width: 4px;
+  width: 5px;
   cursor: ew-resize;
   background: transparent;
+  z-index: 2;
+  transition: background-color .15s;
 }
 
 .resize-handle:hover {
-  background: #007acc;
+  background: var(--vm-violet);
 }
 
 /* Editor Panel */
 .editor-panel {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -801,8 +796,8 @@ const ArtifactTreeNode = {
 
 .tab-bar {
   display: flex;
-  background: #2d2d2d;
-  border-bottom: 1px solid #3c3c3c;
+  background: var(--vm-surface-soft);
+  border-bottom: 1px solid var(--vm-line);
   overflow-x: auto;
   overflow-y: hidden;
 }
@@ -810,29 +805,33 @@ const ArtifactTreeNode = {
 .tab {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: #2d2d2d;
-  color: #969696;
-  border-right: 1px solid #3c3c3c;
+  gap: 7px;
+  padding: 7px 8px 7px 12px;
+  background: transparent;
+  color: var(--vm-ink-soft);
+  border-right: 1px solid var(--vm-line);
+  border-bottom: 2px solid transparent;
   cursor: pointer;
   white-space: nowrap;
   font-size: 13px;
-  transition: all 0.1s;
+  transition: color .15s, background-color .15s;
 }
 
 .tab:hover {
-  background: #1e1e1e;
+  color: var(--vm-ink);
+  background: var(--vm-surface);
 }
 
 .tab.active {
-  background: #1e1e1e;
-  color: #ffffff;
-  border-bottom: 2px solid #007acc;
+  background: var(--vm-surface);
+  color: var(--vm-ink);
+  border-bottom-color: var(--vm-violet);
 }
 
 .tab-icon {
-  font-size: 14px;
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
 }
 
 .tab-name {
@@ -841,24 +840,28 @@ const ArtifactTreeNode = {
   text-overflow: ellipsis;
 }
 
-.tab-dot { color: #e2b341; font-size: 12px; line-height: 1; }
+.tab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--vm-amber); flex: 0 0 auto; }
 .tab-actions { margin-left: auto; display: flex; align-items: center; padding: 0 8px; }
-.save-btn { background: #2563EB; color: #fff; border: none; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
-.save-btn:hover:not(:disabled) { background: #1D4ED8; }
+.save-btn { background: var(--vm-violet); color: var(--cb-on-solid); border: none; border-radius: 6px; padding: 5px 12px; font: 600 12.5px var(--vm-font-sans); cursor: pointer; transition: background-color .15s, opacity .15s; }
+.save-btn:hover:not(:disabled) { background: var(--vm-violet-d); }
 .save-btn:disabled { opacity: .45; cursor: not-allowed; }
 .tab-close {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
   background: none;
   border: none;
-  color: #969696;
+  border-radius: 4px;
+  color: var(--vm-ink-faint);
   cursor: pointer;
-  font-size: 18px;
-  padding: 0 4px;
-  line-height: 1;
-  transition: color 0.1s;
+  transition: color .15s, background-color .15s;
 }
+.tab-close :deep(svg) { width: 14px; height: 14px; }
 
 .tab-close:hover {
-  color: #ffffff;
+  color: var(--vm-ink);
+  background: var(--vm-surface-soft);
 }
 
 .editor-container {
@@ -877,9 +880,15 @@ const ArtifactTreeNode = {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 4px;
   height: 100%;
-  color: #858585;
+  padding: 24px;
+  text-align: center;
+  color: var(--vm-ink-faint);
 }
+.empty-editor-ic { width: 40px; height: 40px; margin-bottom: 10px; color: var(--vm-ink-faint); }
+.empty-editor-t { margin: 0; font: 600 14px var(--vm-font-sans); color: var(--vm-ink-soft); }
+.empty-editor-s { margin: 0; font-size: 13px; color: var(--vm-ink-faint); }
 
 /* Scrollbar styling */
 .sidebar-content::-webkit-scrollbar,
@@ -890,18 +899,25 @@ const ArtifactTreeNode = {
 
 .sidebar-content::-webkit-scrollbar-track,
 .tab-bar::-webkit-scrollbar-track {
-  background: #1e1e1e;
+  background: transparent;
 }
 
 .sidebar-content::-webkit-scrollbar-thumb,
 .tab-bar::-webkit-scrollbar-thumb {
-  background: #424242;
+  background: var(--vm-line-2);
   border-radius: 5px;
 }
 
 .sidebar-content::-webkit-scrollbar-thumb:hover,
 .tab-bar::-webkit-scrollbar-thumb:hover {
-  background: #4e4e4e;
+  background: var(--vm-ink-faint);
+}
+
+@media (max-width: 640px) {
+  .sidebar-tab { min-height: 44px; font-size: 12px; }
+  .tab { min-height: 44px; }
+  .tab-close { width: 36px; height: 36px; }
+  .save-btn { min-height: 36px; }
 }
 </style>
 
@@ -917,12 +933,20 @@ const ArtifactTreeNode = {
   line-height: 1.3;
   cursor: pointer;
   white-space: nowrap;
+  color: var(--vm-ink-soft);
+  transition: background-color .1s;
 }
-.code-browser .tree-node:hover { background: #2a2d2e; }
+.code-browser .tree-node:hover { background: color-mix(in srgb, var(--vm-ink) 5%, transparent); }
+.code-browser .tree-node:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: -2px; border-radius: 4px; }
 .code-browser .node-iconify { width: 16px; height: 16px; flex: 0 0 auto; }
-.code-browser .node-expand { flex: 0 0 auto; display: inline-flex; justify-content: center; width: 12px; font-size: 10px; color: #858585; }
-.code-browser .node-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d4d4d4; }
-.code-browser .node-gi { flex: 0 0 auto; margin-left: 6px; font: 700 8.5px var(--vm-font-sans, sans-serif); letter-spacing: .02em; color: #94a3b8; background: rgba(148,163,184,.16); border-radius: 4px; padding: 1px 5px; text-transform: uppercase; }
-.code-browser .node-path { flex: 0 1 auto; min-width: 0; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: #6b7280; }
+.code-browser .node-expand { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 14px; color: var(--vm-ink-faint); }
+.code-browser .node-expand svg { width: 13px; height: 13px; }
+.code-browser .node-spin { animation: cb-node-spin 1s linear infinite; }
+@keyframes cb-node-spin { to { transform: rotate(360deg); } }
+.code-browser .node-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vm-ink); }
+.code-browser .node-gi { flex: 0 0 auto; margin-left: 6px; font: 600 10px var(--vm-font-sans); color: var(--vm-ink-soft); background: color-mix(in srgb, var(--vm-ink-faint) 16%, transparent); border-radius: 4px; padding: 1px 5px; }
+.code-browser .node-path { flex: 0 1 auto; min-width: 0; margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--vm-ink-faint); }
 .code-browser .search-hit .node-name { flex: 0 0 auto; }
+@media (max-width: 640px) { .code-browser .tree-node { min-height: 40px; } }
+@media (prefers-reduced-motion: reduce) { .code-browser .node-spin { animation: none; } }
 </style>

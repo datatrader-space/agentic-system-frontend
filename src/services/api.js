@@ -836,18 +836,8 @@ export default {
   getCrsArtifacts: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/artifacts/`),
   getCrsRelationships: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/crs/relationships/`),
 
-  // Coding workspace ("Let's Code", P1) — flag-gated on the backend (CODING_WORKSPACE_ENABLED)
-  startCodingTask: (systemId, repoId, prompt, modelId = null, agentId = null) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/start/`, { prompt, model_id: modelId, agent_id: agentId }),
-  listCodingTasks: (systemId, repoId) => api.get(`/systems/${systemId}/repositories/${repoId}/coding/tasks/`),
-  getCodingTask: (systemId, repoId, taskId) => api.get(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/`),
-  cancelCodingTask: (systemId, repoId, taskId) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/cancel/`),
-  discardCodingTask: (systemId, repoId, taskId) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/discard/`),
-  revertCodingFile: (systemId, repoId, taskId, path) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/revert-file/`, { path }),
-  revertCodingHunk: (systemId, repoId, taskId, path, hunk) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/revert-hunk/`, { path, hunk }),
-  exportCodingTask: (systemId, repoId, taskId) => api.post(`/systems/${systemId}/repositories/${repoId}/coding/tasks/${taskId}/export/`),
-
-  // Let's Code IDE — projects (clone GitHub repo → CRS pipeline; hides systems/repos)
-  unifiedConfig: (systemId = null) => api.get('/lets-code/unified-config/', systemId ? { params: { system: systemId } } : {}),   // { enabled, export_enabled, agent_id }
+  // Let's Code IDE — projects (clone GitHub repo → index pipeline; hides systems/repos)
+  unifiedConfig: (systemId = null) => api.get('/lets-code/unified-config/', systemId ? { params: { system: systemId } } : {}),   // { agent_id }
   listProjects: () => api.get('/lets-code/projects/', { noCache: true }),
   createProject: (data) => api.post('/lets-code/projects/', data),   // { github_url, name?, branch? }
   getProject: (repoId) => api.get(`/lets-code/projects/${repoId}/`, { noCache: true }),
