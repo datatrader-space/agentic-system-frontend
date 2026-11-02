@@ -1,7 +1,8 @@
 /* Inter, self-hosted (page-speed plan Phase 5 item 12). Generated from @fontsource-variable/inter@5.3.0
    wght.css with the family renamed to 'Inter', which every stylesheet in the app already names. It replaces
    the render-blocking Google Fonts stylesheet: no third-party request before first paint, font-display:swap,
-   and the browser downloads only the unicode ranges a page uses (latin for almost every page). */
+   and the browser downloads only the unicode ranges a page uses (latin for almost every page). Its metric-matched
+   fallback face, 'Inter Fallback', is in index.html: it must be known at the first paint. */
 /* inter-cyrillic-ext-wght-normal */
 @font-face {
   font-family: 'Inter';

@@ -276,11 +276,21 @@ onMounted(async () => {
     window.history.replaceState({}, '', window.location.pathname)
   }
 
-  // Load current user if authenticated
-  if (route.name !== 'login') {
+  // Load the current user. A signed-in page's guard has just confirmed the session. On a public page ask
+  // /auth/check first: it answers a signed-out visitor with a 200 (/auth/me answered 403, an error in the console
+  // on every visit), and the guard has often fetched it already (cached 60 s).
+  if (route.name !== 'login' && (route.meta.requiresAuth || await signedIn())) {
     await loadCurrentUser()
   }
 })
+
+const signedIn = async () => {
+  try {
+    return !!(await api.checkAuth()).data?.authenticated
+  } catch {
+    return false
+  }
+}
 
 // Entering a signed-in page with no user loaded (e.g. right after signing in): load it. Not on every
 // navigation between signed-out pages, where the answer is always "nobody" (it refetched /auth/me

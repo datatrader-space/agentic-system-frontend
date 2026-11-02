@@ -9,6 +9,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!-- Aadml type system (design.md §3): Inter as the single primary font. Self-hosted (src/assets/fonts/inter.css,
        imported by main.js), so no third-party stylesheet blocks the first paint. -->
+  <!-- 'Inter Fallback': what text is drawn in until Inter has loaded (--font-sans names it right after Inter).
+       Arial, scaled and given Inter's line metrics, so the text takes Inter's space and nothing moves when Inter
+       swaps in (a prerendered page's text paints before the font arrives on a cold visit: /pricing shifted 0.028,
+       and the swap was a second, later LCP). Here in the page, not in a stylesheet: it must be known at the first
+       paint, before the app's CSS has arrived. Measured in Chrome over the public pages' own text against Inter 4:
+       Inter is 1.0660x Arial's width at weight 400 and 1.0328x Arial Bold's at 800; its ascent and descent are
+       0.969em and 0.241em, restated per face as value / size-adjust; Inter has no line gap. A system without
+       Arial (Android) skips these faces and draws the next family. -->
+  <style>
+    @font-face { font-family: 'Inter Fallback'; font-weight: 100 500; src: local('Arial'), local('ArialMT');
+      size-adjust: 106.6%; ascent-override: 90.9%; descent-override: 22.61%; line-gap-override: 0%; }
+    @font-face { font-family: 'Inter Fallback'; font-weight: 600 900; src: local('Arial Bold'), local('Arial-BoldMT');
+      size-adjust: 103.28%; ascent-override: 93.82%; descent-override: 23.33%; line-gap-override: 0%; }
+  </style>
   <title>AADML — AI Agent Development & Management Layer</title>
   <meta name="description"
     content="Build, deploy, and manage AI agents that automate workflows with 50+ tools, multi-LLM routing, signals, and enterprise-grade security." />
