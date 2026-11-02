@@ -597,15 +597,21 @@ watch(() => formData.value.password, () => {
 }
 
 /* ===== Page Layout ===== */
+/* Its own scroller: html and body do not scroll (the app shell scrolls inside its panes), so a card taller than
+   the screen (a 375x667 phone: the social buttons, the sign-up link and the terms) could not be reached. The card
+   is centred with margin-block: auto, which centres it when there is room and, unlike align-items: center, never
+   cuts its top when there is not. */
 .login-page {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
   background: var(--bg-body);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 24px;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* Background Effects */
@@ -651,6 +657,7 @@ watch(() => formData.value.password, () => {
 .login-container {
   width: 100%;
   max-width: 1100px;
+  margin-block: auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 60px;
@@ -1249,8 +1256,15 @@ watch(() => formData.value.password, () => {
 }
 
 @media (max-width: 480px) {
+  /* The card starts at the top on a phone instead of being centred: on a slow link the browser paints the page
+     while its HTML is still arriving, and a centred card moved everything already shown each time it grew
+     (339 -> 617 -> 697 -> 744px at 60-250 kbps, a layout shift of about 0.18). From the top it only grows down. */
   .login-page {
     padding: 16px;
+  }
+
+  .login-container {
+    margin-block: 0;
   }
 
   .form-card {
