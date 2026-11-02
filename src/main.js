@@ -1,5 +1,5 @@
 import { studioChildRoutes } from './services/studioRoutes'
-import { createApp } from 'vue'
+import { createApp, createSSRApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 // import App from './App.vue'
@@ -571,8 +571,12 @@ router.onError(() => doneNavProgress())
 // A route chunk that no longer exists (deploy while the tab was open) reloads the target page once.
 installChunkReload(router)
 
-// Create app
-const app = createApp(App)
+// Create app. A prerendered page (scripts/prerender.mjs) is hydrated: the app adopts the markup already on screen
+// instead of replacing it with an identical tree, so the browser has nothing to paint again once the code has run
+// (that repaint was the page's Largest Contentful Paint on a slow phone, ADM-1079).
+const appRoot = document.getElementById('app')
+const prerendered = appRoot.hasAttribute('data-prerendered')
+const app = prerendered ? createSSRApp(App) : createApp(App)
 
 // State management (Pinia) — required by the v2 app shell
 app.use(createPinia())
@@ -616,14 +620,16 @@ app.provide('notify', (message, type = 'info') => {
 
 app.use(router)
 
-// A prerendered page (scripts/prerender.mjs) is already on screen. The app takes it over once the route has
-// resolved, auth check and page code included, so the page's own render replaces the identical markup in one step:
-// mounting at once would clear it to an empty page until then. Elements already on screen stay shown instead of
-// starting their scroll-reveal from hidden, and what the visitor typed meanwhile is kept.
-const appRoot = document.getElementById('app')
-if (appRoot.hasAttribute('data-prerendered')) {
+// A prerendered page is already on screen. The app takes it over once the route has resolved, auth check and page
+// code included, so it hydrates the page it renders: mounting at once would clear it to an empty page until then.
+// When the route ended elsewhere (a signed-in visitor sent on to /dashboard) the markup is another page's: it is
+// emptied and the app mounts afresh. Elements already on screen stay shown instead of starting their scroll-reveal
+// from hidden, and what the visitor typed meanwhile is kept.
+const prerenderedPage = router.resolve(location.pathname).name
+if (prerendered) {
   router.isReady().catch(() => { /* a failed first navigation still gets the app */ }).then(() => {
     try {
+      if (router.currentRoute.value.name !== prerenderedPage) appRoot.replaceChildren()
       keepOnScreenShown(() => takeOverPrerendered(appRoot, () => app.mount(appRoot)))
     } finally {
       // Also when the mount throws: a page hidden for a signed-in visitor must not stay hidden.

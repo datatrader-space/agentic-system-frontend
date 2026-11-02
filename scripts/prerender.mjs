@@ -107,10 +107,20 @@ export function pageStylesheets(manifest, modules, template) {
  * The shell with one page in it. `html` is the inside of #app, `meta` what the page's useMeta() set (null: the
  * shell's own title and description stay, as they do in the browser for a page without useMeta).
  */
-export function pageHtml(template, { html, meta, hideWhenSignedIn, hintKey, stylesheets = [], fonts = [] }) {
+export function pageHtml(template, { html, meta, hideWhenSignedIn, hintKey, stylesheets = [], fonts = [], teleports = {} }) {
   if (!template.includes(APP_ROOT)) throw new Error(`the template has no empty ${APP_ROOT}`)
   if (hideWhenSignedIn && !hintKey) throw new Error('hideWhenSignedIn needs the sign-in hint key')
   let out = template.replace(APP_ROOT, () => `<div id="app" data-prerendered>${html}</div>`)
+  // A <Teleport to="body"> is hydrated from body's FIRST child: Vue expects its "teleport start anchor" there and
+  // the content after it. Without it, hydration took #app itself for the teleport's content and removed the page.
+  // So the markup goes straight after <body>, with no whitespace in between. Only body is a target here.
+  const targets = Object.keys(teleports)
+  if (targets.some((t) => t !== 'body')) throw new Error(`teleport targets other than body: ${targets.join(', ')}`)
+  if (teleports.body) {
+    const body = /<body[^>]*>/i
+    if (!body.test(out)) throw new Error('the template has no <body>')
+    out = out.replace(body, (tag) => `${tag}${teleports.body}`)
+  }
   if (stylesheets.length) {
     // After the shell's own stylesheets, in the order Vite appends them at runtime.
     const links = stylesheets.map((href) => `  <link rel="stylesheet" crossorigin href="${escapeHtml(href)}">\n`).join('')
@@ -168,7 +178,7 @@ async function main() {
     const inliner = await criticalCss(dist)
     const fonts = [latinFontFile(dist)]
     for (const route of entry.prerenderedRoutes) {
-      const { html, meta, modules } = await entry.render(route.path)
+      const { html, meta, modules, teleports } = await entry.render(route.path)
       const file = path.join(dist, outputFile(route.path))
       mkdirSync(path.dirname(file), { recursive: true })
       const page = await inliner.process(pageHtml(template, {
@@ -178,6 +188,7 @@ async function main() {
         hintKey: entry.SIGNED_IN_HINT_KEY,
         stylesheets: pageStylesheets(manifest, modules, template),
         fonts,
+        teleports,
       }))
       writeFileSync(file, page)
       console.log(`prerendered ${route.path.padEnd(10)} -> dist/${outputFile(route.path)} (${(html.length / 1000).toFixed(1)} kB markup, ${(page.length / 1000).toFixed(1)} kB page)`)

@@ -2,13 +2,13 @@
   <!-- Top-of-viewport navigation progress bar. Appears only when a navigation takes longer than the
        show-delay (so cached/instant navigations never flash), trickles asymptotically, and completes
        with a quick fill + fade. Driven by router hooks in main.js via startNavProgress()/doneNavProgress(). -->
-  <div v-if="state.visible" class="nav-progress" role="progressbar" aria-label="Page loading">
+  <div v-if="mounted && state.visible" class="nav-progress" role="progressbar" aria-label="Page loading">
     <div class="nav-progress__bar" :style="{ width: state.progress + '%', opacity: state.fading ? 0 : 1 }"></div>
   </div>
 </template>
 
 <script>
-import { reactive } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 
 // Module-scope state: ONE bar for the whole app, controllable from plain JS (router hooks) without
 // any component wiring. The component just renders this.
@@ -58,7 +58,11 @@ export function doneNavProgress() {
 export default {
   name: 'NavProgress',
   setup() {
-    return { state }
+    // Drawn only once mounted: a prerendered page is hydrated (main.js) after its first navigation, whose bar can
+    // still be showing or fading then, while the server rendered none. Hydration must meet the server's markup.
+    const mounted = ref(false)
+    onMounted(() => { mounted.value = true })
+    return { state, mounted }
   },
 }
 </script>

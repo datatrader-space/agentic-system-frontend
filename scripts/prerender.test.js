@@ -165,6 +165,16 @@ describe('prerender', () => {
     }
   })
 
+  it("puts a body teleport's markup first in <body>, where hydration looks for it", () => {
+    const teleport = '<!--teleport start anchor--><!----><!--teleport anchor-->'
+    const out = pageHtml(SHELL, { html: '<h1>x</h1>', meta: null, teleports: { body: teleport } })
+    // Directly after the tag: body.firstChild must be the start anchor, not a whitespace text node.
+    expect(out).toContain(`<body>${teleport}`)
+    expect(out.indexOf(teleport)).toBeLessThan(out.indexOf('<div id="app" data-prerendered>'))
+    expect(pageHtml(SHELL, { html: '<h1>x</h1>', meta: null, teleports: {} })).toContain('<body>\n  <div id="app" data-prerendered>')
+    expect(() => pageHtml(SHELL, { html: '', meta: null, teleports: { '#modals': teleport } })).toThrow(/other than body/)
+  })
+
   it('preloads the Latin font with crossorigin, ahead of the stylesheets', () => {
     const out = pageHtml(SHELL, { html: '<h1>x</h1>', meta: null, fonts: ['/assets/inter-latin-wght-normal-Ab_1.woff2'] })
     const preload = '<link rel="preload" as="font" type="font/woff2" crossorigin href="/assets/inter-latin-wght-normal-Ab_1.woff2">'

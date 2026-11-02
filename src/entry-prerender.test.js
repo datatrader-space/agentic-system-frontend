@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-// Phase 6 (ADM-1079): the public pages are rendered at build time, and main.js replaces that markup with the
-// app's own first render. Both must be the same tree, or the swap shifts the layout (CLS is a CI gate).
+// Phase 6 (ADM-1079): the public pages are rendered at build time, and main.js hydrates that markup with the
+// app's own first render. Both must be the same tree, or hydration patches what differs (CLS is a CI gate).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
