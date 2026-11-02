@@ -84,9 +84,6 @@
         <label class="vp-field"><span>Goal and audience</span>
           <textarea rows="2" :value="(video.project.brief || {}).goal"
                     @change="video.patchProject({ brief: { ...(video.project.brief || {}), goal: $event.target.value } })"></textarea></label>
-        <label class="vp-field"><span>Spending limit per render without asking (USD, blank = always ask)</span>
-          <input type="number" min="0" step="0.5" :value="video.project.approved_cap_usd || ''"
-                 @change="video.patchProject({ approved_cap_usd: $event.target.value || null })" /></label>
         <p v-if="!scenes.length" class="vp-help">Plan your story in chat, or add your first scene below.</p>
         <ol class="vp-board">
           <li v-for="(s, i) in scenes" :key="s.scene_id" class="vp-board-row">
