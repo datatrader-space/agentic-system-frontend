@@ -3,6 +3,7 @@
   <WelcomeModal
     :show="welcomeOpen"
     :name="firstName"
+    :credit-note="creditNote"
     @create="onCreateAgent"
     @tour="onStartFromWelcome"
     @later="onLater"
@@ -27,6 +28,7 @@ import { useRoute, useRouter } from 'vue-router'
 import WelcomeModal from './WelcomeModal.vue'
 import TourSpotlight from './TourSpotlight.vue'
 import { useOnboarding } from '../../composables/useOnboarding'
+import api from '../../services/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,6 +36,33 @@ const ob = useOnboarding()
 const currentUser = inject('currentUser', ref(null))
 
 const welcomeOpen = ref(false)
+
+// THE STARTING CREDIT IS NOT EVERYONE'S. Only a Gmail address gets it, and only once the email is verified (owner,
+// 2026-11-02); every other domain starts at $0. The wallet API says which applies to this person, so the welcome and
+// the tour never promise $1 to someone who will not get it.
+const credit = ref(null)
+async function loadCredit() {
+  if (credit.value) return
+  try {
+    const { data } = await api.billingWallet()
+    credit.value = data?.starting_credit || { state: 'none' }
+  } catch {
+    credit.value = { state: 'none' }
+  }
+}
+const creditAmount = computed(() => `$${Number(credit.value?.amount_usd || 0).toFixed(0)}`)
+const creditNote = computed(() => {
+  const state = credit.value?.state
+  if (state === 'received') return `${creditAmount.value} to start`
+  if (state === 'after_verification') return `${creditAmount.value} after you verify your email`
+  return ''
+})
+const creditSentence = computed(() => {
+  const state = credit.value?.state
+  if (state === 'received') return ` Your account started with ${creditAmount.value}.`
+  if (state === 'after_verification') return ` You get ${creditAmount.value} once you verify your email.`
+  return ''
+})
 
 const firstName = computed(() => {
   const n = currentUser.value?.username || ''
@@ -44,7 +73,7 @@ const firstName = computed(() => {
 // `route` navigate there first so the highlighted chrome is on screen.
 //
 // ORDER MATTERS — it mirrors the real setup dependency chain:
-//   1. See your balance                            (everything paid runs on it; every account starts with $1)
+//   1. See your balance                            (everything paid runs on it; Gmail accounts start with $1)
 //   2. Create an agent                             (needs an active model)
 //   3. Chat with the agent                         (needs an agent)
 // …then the power features (Connectors / Workflows / Let's Code / Activity).
@@ -56,7 +85,11 @@ const steps = [
   {
     target: '[data-tour="balance"]', route: '/dashboard/billing',
     title: 'Step 1 — Your balance',
-    description: 'Everything AADML does that costs money (AI models, images, video, search, sandboxes, training) is paid from this balance. Every account starts with $1.',
+    // A getter, so the sentence about the starting credit follows the wallet API once it has answered.
+    get description() {
+      return 'Everything AADML does that costs money (AI models, images, video, search, sandboxes, training) is paid '
+        + 'from this balance.' + creditSentence.value
+    },
     howto: [
       'See what you have left at the top',
       'Top up with a preset or any amount; you pay on Stripe\'s secure page',
@@ -155,6 +188,9 @@ const steps = [
 
 const currentStep = computed(() => steps[ob.state.step] || null)
 
+// A tour replayed from the sidebar starts without the welcome, so it asks for the starting credit itself.
+watch(() => ob.state.active, (active) => { if (active) loadCredit() })
+
 // Navigate to the step's route (if any) before it's highlighted.
 watch(() => ob.state.step, (i) => {
   if (!ob.state.active) return
@@ -171,6 +207,7 @@ watch(
   () => [ob.state.hydrated, currentUser.value],
   () => {
     if (ob.state.hydrated && !ob.isTourCompleted() && currentUser.value && !ob.state.active) {
+      loadCredit()
       welcomeOpen.value = true
     }
   },
@@ -183,6 +220,7 @@ const onNext = () => {
 }
 
 const onStartFromWelcome = () => {
+  loadCredit()
   welcomeOpen.value = false
   ob.startTour()
   // Kick off any route navigation for step 0 (no-op for the centered welcome step).

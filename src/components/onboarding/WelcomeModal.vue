@@ -9,7 +9,7 @@
             This is your workspace for building AI agents that chat, run tools, automate workflows, and write code.
           </p>
           <ol class="wm-steps">
-            <li><span class="wm-num">1</span> Your <strong>balance</strong> pays for what you use ($1 to start)</li>
+            <li><span class="wm-num">1</span> Your <strong>balance</strong> pays for what you use<template v-if="creditNote"> ({{ creditNote }})</template></li>
             <li><span class="wm-num">2</span> Create an <strong>agent</strong> and pick its model</li>
             <li><span class="wm-num">3</span> Start <strong>chatting</strong> with your agent</li>
           </ol>
@@ -30,6 +30,8 @@ import BrandMark from '../common/BrandMark.vue'
 defineProps({
   show: { type: Boolean, default: false },
   name: { type: String, default: '' },
+  // The starting credit this person gets, from the wallet API ("$1 after you verify your email"); empty when none.
+  creditNote: { type: String, default: '' },
 })
 defineEmits(['create', 'tour', 'later'])
 </script>

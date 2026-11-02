@@ -428,7 +428,7 @@ const guides = [
 // `key` maps each step to its onboarding-status flag (GET /onboarding/status/ → done{}),
 // so completed steps are hidden. Keys match HUB_STEPS.
 const recommended = [
-  { key: 'billing', title: 'Top up your balance', copy: 'Your balance pays for AI models, media, search and training. Every account starts with $1.', action: 'Open Billing', icon: 'lucide:credit-card', route: '/dashboard/billing' },
+  { key: 'billing', title: 'Top up your balance', copy: 'Your balance pays for AI models, media, search and training. A Gmail account gets $1 once its email is verified.', action: 'Open Billing', icon: 'lucide:credit-card', route: '/dashboard/billing' },
   { key: 'agent', title: 'Create your first agent', copy: 'Build an agent and give it instructions to get started.', action: 'Create agent', icon: 'lucide:rocket', route: '/dashboard/agents/new' },
   { key: 'workflow', title: 'Build your first workflow', copy: 'Automate a process using steps, tools, and conditions.', action: 'Create workflow', icon: 'lucide:scan-line', route: '/dashboard/workflow-builder' },
   { key: 'first_run', title: 'Run your first agent', copy: 'Test your agent and view results in the Activity log.', action: 'Run now', icon: 'lucide:circle-play', route: '/dashboard/chat/new' },
