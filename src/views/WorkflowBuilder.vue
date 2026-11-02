@@ -850,7 +850,14 @@ let unmounted = false
 const RELIABILITY_TYPES = ['agent.run', 'action.channel', 'action.tool', 'action.http', 'action.script',
   'action.subworkflow', 'logic.foreach', 'logic.approval']
 const hasReliability = (t) => RELIABILITY_TYPES.includes(t)
-const subgraphOptions = computed(() => allGraphs.value.filter(g => String(g.id) !== String(graphId)))
+// A node saved without a canvas place (by the AADML MCP or the API, before the server filled one in) is dropped by
+// Vue Flow without a word, and the workflow showed "0 nodes" (ADM-1135). Such a node is laid out left to right.
+function placed(nodes) {
+  return nodes.map((n, i) => (Number.isFinite(n?.position?.x) && Number.isFinite(n?.position?.y)
+    ? n : { ...n, position: { x: i * 260, y: 120 } }))
+}
+// The builder opens a workflow by its pk or by the public id the AADML MCP hands out: never list itself (ADM-1135).
+const subgraphOptions = computed(() => allGraphs.value.filter(g => String(g.id) !== String(graphId) && String(g.public_id) !== String(graphId)))
 // [value, label] pairs for the action.script picker (SchemaForm enum optionsKey='scripts')
 const scriptOptions = computed(() => scripts.value.map(s => [s.id, s.name || s.file_path || `Script #${s.id}`]))
 
@@ -1636,7 +1643,7 @@ async function load() {
     const graphNodes = graph.nodes || []
     savedViewport = Number.isFinite(graph.viewport?.zoom) ? graph.viewport : null
     initialFitPending = true
-    setNodes(graphNodes.map(n => ({ ...n, data: hydrate(n.type, n.data || {}) })))
+    setNodes(placed(graphNodes).map(n => ({ ...n, data: hydrate(n.type, n.data || {}) })))
     setEdges(graph.edges || [])
     selected.value = null; selectedEdge.value = null
     loadToolNames()
@@ -1659,7 +1666,7 @@ async function resetChanges() {
   if (!(await confirm({ title: 'Discard unsaved changes?', message: 'Revert this workflow to the last saved version?', confirmText: 'Discard', danger: true }))) return
   const snap = savedSnapshot.value
   name.value = snap.name
-  setNodes((snap.graph.nodes || []).map(n => ({ ...n, data: hydrate(n.type, n.data || {}) })))
+  setNodes(placed(snap.graph.nodes || []).map(n => ({ ...n, data: hydrate(n.type, n.data || {}) })))
   setEdges(snap.graph.edges || [])
   if (snap.graph.viewport && setViewport) { try { setViewport(snap.graph.viewport) } catch {} }
   selected.value = null; selectedEdge.value = null
@@ -2051,7 +2058,7 @@ async function restoreVersion(v) {
     _absorb(data)
     // reload the canvas from the restored graph
     const graph = data.graph || {}
-    setNodes((graph.nodes || []).map(n => ({ ...n, data: hydrate(n.type, n.data || {}) })))
+    setNodes(placed(graph.nodes || []).map(n => ({ ...n, data: hydrate(n.type, n.data || {}) })))
     setEdges(graph.edges || [])
     if (graph.viewport && setViewport) { try { setViewport(graph.viewport) } catch {} }
     dirty.value = false
