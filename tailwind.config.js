@@ -35,6 +35,13 @@ export default {
         line: "rgba(15,23,42,.08)",
         "line-2": "rgba(15,23,42,.14)",
         "vm-border": "#E2E8F0",
+        // The theme tokens of style.css, which [data-theme="dark"] remaps. The fixed colours above stay as they
+        // are in dark; a page drawn on --vm-bg (the public pages) takes its text, cards and lines from these.
+        // A var() colour takes no /opacity modifier: use vm-glass for a see-through surface.
+        "vm-ink": { DEFAULT: "var(--vm-ink)", soft: "var(--vm-ink-soft)", faint: "var(--vm-ink-faint)" },
+        "vm-surface": "var(--vm-surface)",
+        "vm-glass": "var(--vm-glass)",
+        "vm-line": "var(--vm-line)",
       },
       fontFamily: {
         display: ['var(--font-display)', 'Inter', 'sans-serif'],

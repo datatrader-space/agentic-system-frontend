@@ -4,10 +4,10 @@
     <section class="relative overflow-hidden">
       <HeroBackdrop />
       <div class="relative z-10 mx-auto max-w-7xl px-4 pb-6 pt-16 text-center sm:px-6 lg:px-8 lg:pt-24">
-        <h1 v-reveal class="font-display text-4xl font-extrabold tracking-tight text-ink sm:text-5xl">
+        <h1 v-reveal class="font-display text-4xl font-extrabold tracking-tight text-vm-ink sm:text-5xl">
           Pay only for what you use
         </h1>
-        <p v-reveal class="mx-auto mt-4 max-w-xl text-lg text-ink-soft">
+        <p v-reveal class="mx-auto mt-4 max-w-xl text-lg text-vm-ink-soft">
           No plans, no subscriptions. Top up your balance and use every part of AADML: agents, chat, Video Studio and
           model training. Every account starts with ${{ startingCredit }} of credit.
         </p>
@@ -19,8 +19,8 @@
       <div class="grid items-stretch gap-6 md:grid-cols-3">
         <div v-for="step in steps" :key="step.title" v-reveal class="plan" :class="{ featured: step.featured }">
           <span class="step-ic" aria-hidden="true"><Icon :icon="step.icon" class="h-5 w-5" /></span>
-          <h3 class="mt-4 text-xl font-bold text-ink">{{ step.title }}</h3>
-          <p class="mt-2 text-sm leading-relaxed text-ink-soft">{{ step.text }}</p>
+          <h3 class="mt-4 text-xl font-bold text-vm-ink">{{ step.title }}</h3>
+          <p class="mt-2 text-sm leading-relaxed text-vm-ink-soft">{{ step.text }}</p>
         </div>
       </div>
       <div class="mt-8 text-center">
@@ -30,10 +30,10 @@
 
     <!-- What it covers -->
     <section class="mx-auto max-w-6xl px-4 pb-16 sm:px-6 lg:px-8">
-      <div class="rounded-2xl border border-line bg-surface p-8 shadow-s" v-reveal>
-        <h2 class="font-display text-2xl font-extrabold text-ink">One balance for everything</h2>
+      <div class="rounded-2xl border border-vm-line bg-vm-surface p-8 shadow-s" v-reveal>
+        <h2 class="font-display text-2xl font-extrabold text-vm-ink">One balance for everything</h2>
         <ul class="mt-5 grid gap-3 sm:grid-cols-2">
-          <li v-for="item in covers" :key="item" class="flex items-start gap-2.5 text-sm text-ink-soft">
+          <li v-for="item in covers" :key="item" class="flex items-start gap-2.5 text-sm text-vm-ink-soft">
             <Icon icon="lucide:check" class="mt-0.5 h-4 w-4 shrink-0 text-teal" />
             <span>{{ item }}</span>
           </li>
@@ -43,12 +43,12 @@
 
     <!-- Enterprise -->
     <section class="mx-auto max-w-6xl px-4 pb-16 sm:px-6 lg:px-8">
-      <div class="grid items-center gap-8 rounded-2xl border border-line bg-surface p-10 shadow-m md:grid-cols-2" v-reveal>
+      <div class="grid items-center gap-8 rounded-2xl border border-vm-line bg-vm-surface p-10 shadow-m md:grid-cols-2" v-reveal>
         <div>
-          <h2 class="font-display text-3xl font-extrabold text-ink">Enterprise</h2>
-          <p class="mt-3 text-ink-soft">Custom solutions for organizations that need maximum control and dedicated support.</p>
+          <h2 class="font-display text-3xl font-extrabold text-vm-ink">Enterprise</h2>
+          <p class="mt-3 text-vm-ink-soft">Custom solutions for organizations that need maximum control and dedicated support.</p>
           <ul class="mt-5 space-y-3">
-            <li v-for="item in enterprise" :key="item" class="flex items-center gap-3 text-ink-soft">
+            <li v-for="item in enterprise" :key="item" class="flex items-center gap-3 text-vm-ink-soft">
               <Icon icon="lucide:check-circle-2" class="h-5 w-5 text-violet" /> {{ item }}
             </li>
           </ul>
@@ -66,8 +66,8 @@
     <!-- FAQ -->
     <section class="mx-auto max-w-3xl px-4 pb-24 sm:px-6 lg:px-8">
       <div class="mb-10 text-center" v-reveal>
-        <h2 class="font-display text-3xl font-extrabold text-ink">Frequently asked questions</h2>
-        <p class="mt-3 text-ink-soft">How your balance works.</p>
+        <h2 class="font-display text-3xl font-extrabold text-vm-ink">Frequently asked questions</h2>
+        <p class="mt-3 text-vm-ink-soft">How your balance works.</p>
       </div>
       <div class="space-y-3">
         <button
@@ -80,10 +80,10 @@
           @click="toggleFaq(i)"
         >
           <span class="flex items-center justify-between gap-4">
-            <span class="font-semibold text-ink">{{ faq.question }}</span>
-            <Icon icon="lucide:chevron-down" class="h-5 w-5 shrink-0 text-ink-faint transition-transform" :class="{ 'rotate-180': activeFaq === i }" />
+            <span class="font-semibold text-vm-ink">{{ faq.question }}</span>
+            <Icon icon="lucide:chevron-down" class="h-5 w-5 shrink-0 text-vm-ink-faint transition-transform" :class="{ 'rotate-180': activeFaq === i }" />
           </span>
-          <span v-show="activeFaq === i" class="mt-3 block text-sm leading-relaxed text-ink-soft">{{ faq.answer }}</span>
+          <span v-show="activeFaq === i" class="mt-3 block text-sm leading-relaxed text-vm-ink-soft">{{ faq.answer }}</span>
         </button>
       </div>
     </section>

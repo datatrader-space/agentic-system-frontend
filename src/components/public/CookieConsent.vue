@@ -62,7 +62,7 @@ function decline() {
 .cc-text { flex: 1; min-width: 220px; font-size: .85rem; color: var(--vm-ink-soft); margin: 0; line-height: 1.5; }
 .cc-link { color: var(--vm-primary); text-decoration: none; font-weight: 600; }
 .cc-actions { display: flex; gap: 8px; }
-.cc-btn { padding: 9px 18px; border-radius: 10px; font-size: .85rem; font-weight: 600; cursor: pointer; border: 1px solid var(--vm-border); background: #fff; color: var(--vm-ink); }
+.cc-btn { padding: 9px 18px; border-radius: 10px; font-size: .85rem; font-weight: 600; cursor: pointer; border: 1px solid var(--vm-border); background: var(--vm-surface); color: var(--vm-ink); }
 .cc-btn.primary { color: #fff; background: var(--vm-g-brand); border: none; box-shadow: var(--vm-glow-p); }
 .cc-fade-enter-active, .cc-fade-leave-active { transition: opacity .25s, transform .25s; }
 .cc-fade-enter-from, .cc-fade-leave-to { opacity: 0; transform: translateY(12px); }

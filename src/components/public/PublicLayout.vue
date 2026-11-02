@@ -17,7 +17,7 @@
         <!-- Brand -->
         <router-link to="/" class="flex items-center gap-2.5" @click="closeMobile">
           <span class="pl-logo"><BrandMark /></span>
-          <span class="font-display text-lg font-extrabold tracking-tight text-ink">AADML</span>
+          <span class="font-display text-lg font-extrabold tracking-tight text-vm-ink">AADML</span>
         </router-link>
 
         <!-- Desktop nav -->
@@ -52,9 +52,9 @@
       <div v-if="mobileOpen" class="pl-overlay md:hidden" @click.self="closeMobile">
         <nav class="pl-drawer">
           <div class="mb-6 flex items-center justify-between">
-            <span class="font-display text-lg font-extrabold text-ink">AADML</span>
+            <span class="font-display text-lg font-extrabold text-vm-ink">AADML</span>
             <button class="pl-burger" aria-label="Close menu" @click="closeMobile">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-6 w-6 text-ink">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-6 w-6 text-vm-ink">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -90,14 +90,14 @@
           <div>
             <div class="flex items-center gap-2.5">
               <span class="pl-logo pl-logo-sm"><BrandMark /></span>
-              <span class="font-display text-base font-extrabold text-ink">AADML</span>
+              <span class="font-display text-base font-extrabold text-vm-ink">AADML</span>
             </div>
-            <p class="mt-4 max-w-xs text-sm leading-relaxed text-ink-soft">
+            <p class="mt-4 max-w-xs text-sm leading-relaxed text-vm-ink-soft">
               The Aadml OS for coding and knowledge work — code-aware, context-aware, and cost-aware automation. Self-hostable and built for teams.
             </p>
           </div>
           <div v-for="col in footerCols" :key="col.title">
-            <h4 class="text-xs font-semibold uppercase tracking-wider text-ink-faint">{{ col.title }}</h4>
+            <h4 class="text-xs font-semibold uppercase tracking-wider text-vm-ink-faint">{{ col.title }}</h4>
             <ul class="mt-4 space-y-2.5">
               <li v-for="l in col.links" :key="l.label">
                 <router-link v-if="l.to" :to="l.to" class="pl-foot-link">{{ l.label }}</router-link>
@@ -106,7 +106,7 @@
             </ul>
           </div>
         </div>
-        <div class="mt-12 flex flex-col items-center justify-between gap-4 border-t border-line pt-6 text-sm text-ink-faint sm:flex-row">
+        <div class="mt-12 flex flex-col items-center justify-between gap-4 border-t border-vm-line pt-6 text-sm text-vm-ink-faint sm:flex-row">
           <span>© {{ year }} AADML. All rights reserved.</span>
           <div class="flex gap-5">
             <router-link to="/docs" class="pl-foot-link">Docs</router-link>

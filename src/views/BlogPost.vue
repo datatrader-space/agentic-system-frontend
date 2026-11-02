@@ -5,14 +5,14 @@
       <header class="mt-6 text-center">
         <div class="flex items-center justify-center gap-3 text-sm">
           <span class="cat">{{ post.category }}</span>
-          <span class="text-ink-faint">{{ readLabel(post) }}</span>
+          <span class="text-vm-ink-faint">{{ readLabel(post) }}</span>
         </div>
-        <h1 class="mt-5 font-display text-4xl font-extrabold leading-tight tracking-tight text-ink">{{ post.title }}</h1>
-        <div class="mt-6 flex items-center justify-center gap-3 border-t border-line pt-6">
+        <h1 class="mt-5 font-display text-4xl font-extrabold leading-tight tracking-tight text-vm-ink">{{ post.title }}</h1>
+        <div class="mt-6 flex items-center justify-center gap-3 border-t border-vm-line pt-6">
           <img :src="avatarUrl" alt="" class="h-11 w-11 rounded-full" />
           <div class="text-left">
-            <div class="font-semibold text-ink">By {{ post.author || 'AADML Team' }}</div>
-            <div class="text-sm text-ink-faint">{{ post.date }}</div>
+            <div class="font-semibold text-vm-ink">By {{ post.author || 'AADML Team' }}</div>
+            <div class="text-sm text-vm-ink-faint">{{ post.date }}</div>
           </div>
         </div>
       </header>
@@ -29,15 +29,15 @@
       <div v-else class="post-body mt-10" v-html="bodyHtml"></div>
 
       <!-- Footer -->
-      <footer class="mt-12 flex flex-col gap-6 border-t border-line pt-8 sm:flex-row sm:items-start sm:justify-between">
+      <footer class="mt-12 flex flex-col gap-6 border-t border-vm-line pt-8 sm:flex-row sm:items-start sm:justify-between">
         <div v-if="post.tags?.length">
-          <h4 class="text-xs font-semibold uppercase tracking-wider text-ink-faint">Tags</h4>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-vm-ink-faint">Tags</h4>
           <div class="mt-3 flex flex-wrap gap-2">
             <span v-for="tag in post.tags" :key="tag" class="tag">#{{ tag }}</span>
           </div>
         </div>
         <div>
-          <h4 class="text-xs font-semibold uppercase tracking-wider text-ink-faint">Share</h4>
+          <h4 class="text-xs font-semibold uppercase tracking-wider text-vm-ink-faint">Share</h4>
           <div class="mt-3 flex gap-2">
             <button class="share" title="Copy link" @click="copyLink"><Icon icon="lucide:link" class="h-4 w-4" /></button>
             <a class="share" :href="shareX" target="_blank" rel="noopener" title="Share on X"><Icon icon="lucide:twitter" class="h-4 w-4" /></a>
@@ -49,14 +49,14 @@
 
     <!-- Related -->
     <section v-if="relatedPosts.length" class="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
-      <h3 class="mb-6 font-display text-2xl font-extrabold text-ink">You might also like</h3>
+      <h3 class="mb-6 font-display text-2xl font-extrabold text-vm-ink">You might also like</h3>
       <div class="grid gap-6 sm:grid-cols-3">
         <router-link v-for="r in relatedPosts" :key="r.slug" :to="`/blog/${r.slug}`" class="rel-card">
           <div class="h-36 w-full" :style="cardBg(r)"></div>
           <div class="p-5">
             <span class="cat">{{ r.category || 'Article' }}</span>
-            <h4 class="mt-2 line-clamp-2 font-bold text-ink">{{ r.title }}</h4>
-            <p class="mt-1 text-sm text-ink-faint">{{ r.date }}</p>
+            <h4 class="mt-2 line-clamp-2 font-bold text-vm-ink">{{ r.title }}</h4>
+            <p class="mt-1 text-sm text-vm-ink-faint">{{ r.date }}</p>
           </div>
         </router-link>
       </div>

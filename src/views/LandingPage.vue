@@ -6,15 +6,15 @@
       <div class="relative z-10 mx-auto max-w-7xl px-4 pb-16 pt-16 sm:px-6 lg:px-8 lg:pb-24 lg:pt-24">
       <div class="grid items-center gap-12 lg:grid-cols-2">
         <div v-reveal>
-          <span class="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-soft shadow-s">
+          <span class="inline-flex items-center gap-2 rounded-full border border-vm-line bg-vm-surface px-3.5 py-1.5 text-xs font-semibold text-vm-ink-soft shadow-s">
             <span class="vm-orb is-live"></span>
             Now shipping — Let’s Code Aadml IDE
           </span>
-          <h1 class="mt-6 font-display text-4xl font-extrabold leading-[1.08] tracking-tight text-ink sm:text-5xl lg:text-6xl">
+          <h1 class="mt-6 font-display text-4xl font-extrabold leading-[1.08] tracking-tight text-vm-ink sm:text-5xl lg:text-6xl">
             The Aadml OS for
             <span class="vm-grad-text">coding & knowledge work</span>
           </h1>
-          <p class="mt-6 max-w-xl text-lg leading-relaxed text-ink-soft">
+          <p class="mt-6 max-w-xl text-lg leading-relaxed text-vm-ink-soft">
             One platform where agents read your code, edit with reviewable diffs, run and verify, retrieve from your knowledge, and automate on a schedule — code-aware, context-aware, and cost-aware. Self-hostable and built for teams.
           </p>
           <div class="mt-8 flex flex-wrap gap-3">
@@ -26,7 +26,7 @@
             </router-link>
             <router-link to="/how-it-works" class="hero-btn-ghost">See how it works</router-link>
           </div>
-          <p class="mt-7 flex items-center gap-2 text-sm text-ink-faint">
+          <p class="mt-7 flex items-center gap-2 text-sm text-vm-ink-faint">
             <Icon icon="lucide:shield-check" class="h-5 w-5 text-teal" />
             Edits land as reviewable diffs — accept hunk-by-hunk, never silent writes.
           </p>
@@ -51,11 +51,11 @@
               <span v-if="typing" class="caret"></span>
             </div>
           </div>
-          <div class="pointer-events-none absolute -bottom-6 -right-4 hidden rounded-2xl border border-line bg-surface px-4 py-3 shadow-l sm:block" v-reveal>
-            <div class="flex items-center gap-2 text-sm font-semibold text-ink">
+          <div class="pointer-events-none absolute -bottom-6 -right-4 hidden rounded-2xl border border-vm-line bg-vm-surface px-4 py-3 shadow-l sm:block" v-reveal>
+            <div class="flex items-center gap-2 text-sm font-semibold text-vm-ink">
               <Icon icon="lucide:git-pull-request" class="h-4 w-4 text-violet" /> PR opened · 3 files
             </div>
-            <div class="mt-0.5 text-xs text-ink-faint">+128 −42 · verified ✓</div>
+            <div class="mt-0.5 text-xs text-vm-ink-faint">+128 −42 · verified ✓</div>
           </div>
         </div>
       </div>
@@ -63,13 +63,13 @@
     </section>
 
     <!-- ── Logo cloud ──────────────────────────────────────── -->
-    <section class="border-y border-line bg-surface/60">
+    <section class="border-y border-vm-line bg-vm-glass">
       <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <p class="text-center text-xs font-semibold uppercase tracking-[0.2em] text-ink-faint">
+        <p class="text-center text-xs font-semibold uppercase tracking-[0.2em] text-vm-ink-faint">
           Models from every major lab
         </p>
         <div class="mt-6 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
-          <span v-for="p in providers" :key="p" class="text-base font-semibold text-ink-faint transition-colors hover:text-ink">{{ p }}</span>
+          <span v-for="p in providers" :key="p" class="text-base font-semibold text-vm-ink-faint transition-colors hover:text-vm-ink">{{ p }}</span>
         </div>
       </div>
     </section>
@@ -77,8 +77,8 @@
     <!-- ── Feature bento ───────────────────────────────────── -->
     <section class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
       <div class="mx-auto max-w-2xl text-center" v-reveal>
-        <h2 class="font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">Everything an agent needs to ship work</h2>
-        <p class="mt-4 text-lg text-ink-soft">A complete, self-hostable platform — not a wrapper. Reason, retrieve, edit, run, and automate in one place.</p>
+        <h2 class="font-display text-3xl font-extrabold tracking-tight text-vm-ink sm:text-4xl">Everything an agent needs to ship work</h2>
+        <p class="mt-4 text-lg text-vm-ink-soft">A complete, self-hostable platform — not a wrapper. Reason, retrieve, edit, run, and automate in one place.</p>
       </div>
 
       <div class="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -90,8 +90,8 @@
           :class="{ 'sm:col-span-2': i === 0 }"
         >
           <span class="bento-icon"><Icon :icon="f.icon" class="h-6 w-6" /></span>
-          <h3 class="mt-5 text-lg font-bold text-ink">{{ f.title }}</h3>
-          <p class="mt-2 text-[0.95rem] leading-relaxed text-ink-soft">{{ f.desc }}</p>
+          <h3 class="mt-5 text-lg font-bold text-vm-ink">{{ f.title }}</h3>
+          <p class="mt-2 text-[0.95rem] leading-relaxed text-vm-ink-soft">{{ f.desc }}</p>
           <span v-if="f.badge" class="bento-badge">{{ f.badge }}</span>
         </article>
       </div>
@@ -102,17 +102,17 @@
     </section>
 
     <!-- ── How it works ────────────────────────────────────── -->
-    <section class="border-y border-line bg-g-warm">
+    <section class="border-y border-vm-line bg-g-warm">
       <div class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24">
         <div class="mx-auto max-w-2xl text-center" v-reveal>
-          <h2 class="font-display text-3xl font-extrabold tracking-tight text-ink sm:text-4xl">From prompt to pull request</h2>
-          <p class="mt-4 text-lg text-ink-soft">The agent decides when to answer, edit, run, or ask — you stay in control.</p>
+          <h2 class="font-display text-3xl font-extrabold tracking-tight text-vm-ink sm:text-4xl">From prompt to pull request</h2>
+          <p class="mt-4 text-lg text-vm-ink-soft">The agent decides when to answer, edit, run, or ask — you stay in control.</p>
         </div>
         <div class="mt-14 grid gap-6 md:grid-cols-3">
           <div v-for="(s, i) in steps" :key="s.title" v-reveal class="step">
             <span class="step-num">{{ i + 1 }}</span>
-            <h3 class="mt-4 text-lg font-bold text-ink">{{ s.title }}</h3>
-            <p class="mt-2 text-[0.95rem] leading-relaxed text-ink-soft">{{ s.desc }}</p>
+            <h3 class="mt-4 text-lg font-bold text-vm-ink">{{ s.title }}</h3>
+            <p class="mt-2 text-[0.95rem] leading-relaxed text-vm-ink-soft">{{ s.desc }}</p>
           </div>
         </div>
       </div>
@@ -120,10 +120,10 @@
 
     <!-- ── Stats ───────────────────────────────────────────── -->
     <section class="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
-      <div class="grid gap-8 rounded-2xl border border-line bg-surface p-10 shadow-m sm:grid-cols-4" v-reveal>
+      <div class="grid gap-8 rounded-2xl border border-vm-line bg-vm-surface p-10 shadow-m sm:grid-cols-4" v-reveal>
         <div v-for="st in stats" :key="st.label" class="text-center">
-          <div class="font-display text-4xl font-extrabold text-ink">{{ st.value }}</div>
-          <div class="mt-1 text-xs font-semibold uppercase tracking-wider text-ink-faint">{{ st.label }}</div>
+          <div class="font-display text-4xl font-extrabold text-vm-ink">{{ st.value }}</div>
+          <div class="mt-1 text-xs font-semibold uppercase tracking-wider text-vm-ink-faint">{{ st.label }}</div>
         </div>
       </div>
     </section>

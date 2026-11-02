@@ -12,12 +12,12 @@
         </div>
         <div v-reveal class="lg:pt-10">
           <div class="search">
-            <Icon icon="lucide:search" class="h-4 w-4 text-ink-faint" />
+            <Icon icon="lucide:search" class="h-4 w-4 text-vm-ink-faint" />
             <input v-model="query" type="text" placeholder="Search articles…" />
           </div>
         </div>
       </div>
-      <div class="mt-8 border-b border-line"></div>
+      <div class="mt-8 border-b border-vm-line"></div>
       </div>
     </section>
 
@@ -28,7 +28,7 @@
         <div class="vm-skel h-80 rounded-2xl"></div>
       </div>
 
-      <div v-else-if="!filtered.length" class="py-20 text-center text-ink-soft">No articles found.</div>
+      <div v-else-if="!filtered.length" class="py-20 text-center text-vm-ink-soft">No articles found.</div>
 
       <div v-else class="blog-grid">
         <!-- Featured -->

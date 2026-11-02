@@ -14,7 +14,7 @@
 
         <!-- Not published / unknown slug -->
         <div v-else-if="!doc" class="missing">
-          <Icon icon="lucide:file-question" class="mx-auto h-12 w-12 text-ink-faint" />
+          <Icon icon="lucide:file-question" class="mx-auto h-12 w-12 text-vm-ink-faint" />
           <h2>{{ error || 'Document not available' }}</h2>
           <p>
             This legal document hasn’t been published yet. If you need it, email

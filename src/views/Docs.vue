@@ -4,7 +4,7 @@
       <!-- ── Left: grouped nav ── -->
       <aside class="docs-side" :class="{ open: sidebarOpen }">
         <div class="side-search">
-          <Icon icon="lucide:search" class="h-4 w-4 text-ink-faint" />
+          <Icon icon="lucide:search" class="h-4 w-4 text-vm-ink-faint" />
           <input v-model="searchQuery" type="text" placeholder="Search documentation…" />
           <button class="side-close lg:hidden" @click="sidebarOpen = false" aria-label="Close"><Icon icon="lucide:x" class="h-5 w-5" /></button>
         </div>
@@ -57,7 +57,7 @@
 
         <!-- 404 -->
         <div v-else-if="!currentPage && currentSlug" class="missing">
-          <Icon icon="lucide:file-question" class="mx-auto h-12 w-12 text-ink-faint" />
+          <Icon icon="lucide:file-question" class="mx-auto h-12 w-12 text-vm-ink-faint" />
           <h2>Page not found</h2>
           <p>The page “<code>{{ currentSlug }}</code>” doesn’t exist yet.</p>
           <router-link to="/docs" class="text-violet font-semibold">← Back to docs</router-link>

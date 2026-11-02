@@ -4,13 +4,13 @@
     <section class="relative overflow-hidden">
       <HeroBackdrop />
       <div class="relative z-10 mx-auto max-w-7xl px-4 pb-10 pt-16 text-center sm:px-6 lg:px-8 lg:pt-24">
-        <span v-reveal class="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-soft shadow-s">
+        <span v-reveal class="inline-flex items-center gap-2 rounded-full border border-vm-line bg-vm-surface px-3.5 py-1.5 text-xs font-semibold text-vm-ink-soft shadow-s">
           <Icon icon="lucide:sparkles" class="h-4 w-4 text-violet" /> Platform capabilities
         </span>
-        <h1 v-reveal class="mx-auto mt-6 max-w-3xl font-display text-4xl font-extrabold leading-tight tracking-tight text-ink sm:text-5xl">
+        <h1 v-reveal class="mx-auto mt-6 max-w-3xl font-display text-4xl font-extrabold leading-tight tracking-tight text-vm-ink sm:text-5xl">
           One platform. Every capability an agent needs.
         </h1>
-        <p v-reveal class="mx-auto mt-5 max-w-2xl text-lg text-ink-soft">
+        <p v-reveal class="mx-auto mt-5 max-w-2xl text-lg text-vm-ink-soft">
           From a browser-based coding agent to webhook automation and multi-tenant governance — accurate to what ships today, with beta work clearly marked.
         </p>
       </div>
@@ -23,7 +23,7 @@
           <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-soft text-violet">
             <Icon :icon="group.icon" class="h-5 w-5" />
           </span>
-          <h2 class="font-display text-2xl font-extrabold tracking-tight text-ink">{{ group.title }}</h2>
+          <h2 class="font-display text-2xl font-extrabold tracking-tight text-vm-ink">{{ group.title }}</h2>
         </div>
         <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <article v-for="f in group.items" :key="f.title" class="feature-card">
@@ -31,8 +31,8 @@
               <span class="feature-icon"><Icon :icon="f.icon" class="h-5 w-5" /></span>
               <span class="status" :class="f.status === 'Beta' ? 'is-beta' : 'is-shipped'">{{ f.status }}</span>
             </div>
-            <h3 class="mt-4 font-bold text-ink">{{ f.title }}</h3>
-            <p class="mt-2 text-sm leading-relaxed text-ink-soft">{{ f.desc }}</p>
+            <h3 class="mt-4 font-bold text-vm-ink">{{ f.title }}</h3>
+            <p class="mt-2 text-sm leading-relaxed text-vm-ink-soft">{{ f.desc }}</p>
           </article>
         </div>
       </div>
@@ -40,10 +40,10 @@
 
     <!-- CTA -->
     <section class="mx-auto max-w-7xl px-4 pb-24 sm:px-6 lg:px-8">
-      <div class="flex flex-col items-center justify-between gap-6 rounded-2xl border border-line bg-surface p-10 text-center shadow-m sm:flex-row sm:text-left" v-reveal>
+      <div class="flex flex-col items-center justify-between gap-6 rounded-2xl border border-vm-line bg-vm-surface p-10 text-center shadow-m sm:flex-row sm:text-left" v-reveal>
         <div>
-          <h2 class="font-display text-2xl font-extrabold text-ink">See it on your own repo</h2>
-          <p class="mt-2 text-ink-soft">Start free, bring your own model keys, and self-host in minutes.</p>
+          <h2 class="font-display text-2xl font-extrabold text-vm-ink">See it on your own repo</h2>
+          <p class="mt-2 text-vm-ink-soft">Start free, bring your own model keys, and self-host in minutes.</p>
         </div>
         <div class="flex shrink-0 gap-3">
           <router-link to="/login" class="cta-primary">Get started</router-link>
