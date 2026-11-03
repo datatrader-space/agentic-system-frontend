@@ -294,9 +294,9 @@ kbd { border: 1px solid var(--vm-line-2); border-radius: 6px; padding: 4px 8px; 
 .tour-icon { width: 46px; height: 46px; border-radius: 11px; display: grid; place-items: center; flex: 0 0 auto; }
 .tour-icon svg { width: 23px; height: 23px; }
 .blue { background: var(--vm-surface-soft); color: var(--vm-link); }
-.green { background: #e8fbf2; color: var(--vm-green-ink); }
+.green { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 .violet { background: var(--vm-surface-soft); color: var(--vm-link); }
-.amber { background: #fff7ed; color: var(--vm-amber-ink); }
+.amber { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
 .tour-card h3 { font-size: 13px; line-height: 1.25; font-weight: 850; margin: 4px 0 8px; }
 .tour-meta { display: flex; align-items: center; gap: 18px; color: var(--vm-ink-soft); margin: 22px 0 14px; font-size: 11px; font-weight: 750; }
 .tour-meta span { display: inline-flex; align-items: center; gap: 6px; }

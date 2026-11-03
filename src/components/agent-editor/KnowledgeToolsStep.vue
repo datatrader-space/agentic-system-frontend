@@ -1181,7 +1181,7 @@ onBeforeUnmount(() => { stopFilePollers(); kbWs.close() })
 .add-btn-sm:hover:not(:disabled) { background: #1D4ED8; }
 .add-btn-sm:disabled { opacity: .5; cursor: not-allowed; }
 .icon-x { display: grid; place-items: center; height: 22px; width: 22px; border-radius: 6px; color: var(--admin-muted, var(--vm-ink-faint)); cursor: pointer; flex-shrink: 0; }
-.icon-x:hover { background: #FEECEB; color: var(--vm-red-ink); }
+.icon-x:hover { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .modal-close { display: grid; height: 36px; width: 36px; place-items: center; border: 1px solid var(--admin-line, var(--vm-line-2)); border-radius: 10px; color: var(--admin-muted, var(--vm-ink-soft)); background: var(--admin-surface, var(--vm-surface)); }
 .modal-close:hover { border-color: #CBD5E1; color: var(--admin-ink, var(--vm-ink)); }
 .modal-search { height: 38px; width: 100%; border: 1px solid var(--admin-line, var(--vm-line-2)); border-radius: 10px; background: var(--admin-surface, var(--vm-surface)); padding: 0 12px 0 38px; font-size: 13px; color: var(--admin-ink, var(--vm-ink)); outline: none; box-shadow: 0 1px 2px rgba(16,24,40,.03); }

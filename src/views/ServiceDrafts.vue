@@ -403,7 +403,7 @@ function formatDate(dateString) {
 }
 
 .btn-delete {
-  background: #fef2f2;
+  background: var(--vm-red-soft);
   color: var(--vm-red-ink);
 }
 

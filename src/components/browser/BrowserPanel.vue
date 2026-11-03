@@ -306,7 +306,7 @@ onBeforeUnmount(() => {
   background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
 .bl-ended { background: var(--vm-surface-2, var(--vm-surface-soft)); color: var(--vm-ink-soft, var(--vm-ink-faint)); }
 
-.bl-banner { display: flex; align-items: center; gap: 8px; padding: 9px 14px; font-size: 12.5px; background: #fffbeb; color: var(--vm-amber-ink); border-bottom: 1px solid #fde68a; }
+.bl-banner { display: flex; align-items: center; gap: 8px; padding: 9px 14px; font-size: 12.5px; background: var(--vm-amber-soft); color: var(--vm-amber-ink); border-bottom: 1px solid #fde68a; }
 .bl-banner svg { width: 16px; height: 16px; flex: 0 0 auto; }
 
 .bl-stage { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px; outline: none; display: flex; align-items: flex-start; justify-content: center;

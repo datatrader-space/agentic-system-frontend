@@ -250,7 +250,7 @@ function submitDecision(decision) {
 }
 .ipc-stalled {
   margin: 6px 0 0; padding: 6px 10px; border-radius: 8px; font-size: 12px; line-height: 17px;
-  color: var(--vm-amber-ink); background: #fffbeb; border: 1px solid #fde68a;
+  color: var(--vm-amber-ink); background: var(--vm-amber-soft); border: 1px solid #fde68a;
 }
 
 .pill-reconnect { background: var(--surf2); color: var(--ink3); }

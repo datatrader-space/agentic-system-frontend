@@ -889,7 +889,7 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
 }
 
 .legacy-icon.green {
-  background: #e7fbf1;
+  background: var(--vm-green-soft);
   color: var(--vm-green-ink);
 }
 
@@ -994,12 +994,12 @@ onMounted(() => { loadGuardrails(); ensureToolDefs(); loadAgentBudget() })
 .rules-secondary { height: 38px; border: 1px solid var(--admin-line, var(--vm-line-2)); border-radius: 9px; background: var(--admin-surface, var(--vm-surface)); padding: 0 20px; font-size: 13px; font-weight: 700; color: var(--admin-ink, var(--vm-ink-soft)); }
 .rules-secondary:hover { border-color: #CBD5E1; color: var(--admin-ink, var(--vm-ink)); }
 .policy-sec { font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--admin-muted, var(--vm-ink-faint)); margin-bottom: 10px; }
-.chip-x { display: inline-flex; align-items: center; gap: 5px; height: 24px; border: 0; border-radius: 6px; background: #FEF2F2; color: var(--vm-red-ink); padding: 0 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.chip-x { display: inline-flex; align-items: center; gap: 5px; height: 24px; border: 0; border-radius: 6px; background: var(--vm-red-soft); color: var(--vm-red-ink); padding: 0 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
 .chip-x:hover { background: var(--vm-red-soft); }
 .mini-add { display: grid; place-items: center; height: 30px; width: 32px; flex-shrink: 0; border: 1px solid var(--admin-line, var(--vm-line-2)); border-radius: 8px; background: var(--admin-surface, var(--vm-surface)); color: var(--vm-link); cursor: pointer; }
 .mini-add:hover { border-color: #2563EB; }
 .prev-chip { border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 700; }
-.perm-locked { display: inline-flex; align-items: center; gap: 5px; border-radius: 6px; background: #FEF2F2; color: var(--vm-red-ink); padding: 3px 9px; font-size: 11px; font-weight: 700; }
+.perm-locked { display: inline-flex; align-items: center; gap: 5px; border-radius: 6px; background: var(--vm-red-soft); color: var(--vm-red-ink); padding: 3px 9px; font-size: 11px; font-weight: 700; }
 .stat { border: 1px solid var(--admin-line, var(--vm-line-2)); border-radius: 10px; background: var(--vm-surface-soft); padding: 10px 12px; }
 .stat-k { font-size: 10.5px; font-weight: 700; color: var(--admin-muted, var(--vm-ink-faint)); text-transform: uppercase; letter-spacing: .03em; }
 .stat-v { margin-top: 3px; font-size: 18px; font-weight: 800; color: var(--admin-ink, var(--vm-ink)); }

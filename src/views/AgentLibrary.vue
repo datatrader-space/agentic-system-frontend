@@ -563,7 +563,7 @@ EmptyArt.props = ['search'];
 .badge.live { background: rgba(16, 185, 129, .12); color: var(--vm-green-ink); }
 .badge.paused { background: rgba(217, 119, 6, .13); color: var(--vm-amber-ink); }
 .badge.paused svg { width: 13px; height: 13px; }
-.paused-banner { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 11px 15px; border: 1px solid #fde68a; border-radius: 12px; background: #fffbeb; color: var(--vm-amber-ink); font-size: 13px; }
+.paused-banner { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 11px 15px; border: 1px solid #fde68a; border-radius: 12px; background: var(--vm-amber-soft); color: var(--vm-amber-ink); font-size: 13px; }
 .paused-banner > svg { width: 18px; height: 18px; flex-shrink: 0; }
 .resume-all { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; border: 0; border-radius: 9px; background: #b45309; color: #fff; padding: 7px 13px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .resume-all:disabled { opacity: .6; } .resume-all svg { width: 14px; height: 14px; }

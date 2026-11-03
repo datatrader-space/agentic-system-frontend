@@ -1046,7 +1046,7 @@ onUnmounted(() => {
 }
 
 .dropdown-item-danger:hover {
-  background: #fef2f2;
+  background: var(--vm-red-soft);
   color: var(--danger);
 }
 
@@ -1326,7 +1326,7 @@ onUnmounted(() => {
 }
 
 .mobile-logout:hover {
-  background: #fef2f2;
+  background: var(--vm-red-soft);
 }
 
 .mobile-logout svg {

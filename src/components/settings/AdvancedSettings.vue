@@ -65,7 +65,7 @@ const clearLocal = async () => {
 .row-label { font-size: 0.875rem; font-weight: 500; color: var(--vm-ink-soft); }
 .btn { padding: 8px 16px; font-size: 0.8125rem; font-weight: 500; color: var(--vm-ink-soft); background: var(--vm-surface); border: 1px solid var(--vm-line-2); border-radius: 9px; cursor: pointer; }
 .btn:hover { border-color: #c7d2fe; color: var(--vm-link); }
-.btn-danger { padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: var(--vm-red-ink); background: #fef2f2; border: 1px solid #fecaca; border-radius: 9px; cursor: pointer; }
+.btn-danger { padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: var(--vm-red-ink); background: var(--vm-red-soft); border: 1px solid #fecaca; border-radius: 9px; cursor: pointer; }
 .btn-danger:hover { background: var(--vm-red-soft); }
 .kv { display: flex; justify-content: space-between; padding: 7px 0; font-size: 0.8125rem; border-bottom: 1px solid var(--vm-line-2); }
 .kv:last-child { border-bottom: none; }

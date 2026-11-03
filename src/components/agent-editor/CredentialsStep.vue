@@ -288,7 +288,7 @@ onMounted(loadCredentials)
 .attach-btn:hover:not(:disabled) { background: var(--vm-surface-soft); border-color: #2563EB; }
 .attach-btn:disabled { opacity: .6; cursor: not-allowed; }
 .detach-btn { border: 1px solid #FDA29B; color: var(--vm-red-ink); background: var(--admin-surface, var(--vm-surface)); border-radius: 9px; padding: 7px 12px; font-size: 12.5px; font-weight: 650; }
-.detach-btn:hover:not(:disabled) { background: #FEF3F2; border-color: #F04438; }
+.detach-btn:hover:not(:disabled) { background: var(--vm-red-soft); border-color: #F04438; }
 .detach-btn:disabled { opacity: .6; cursor: not-allowed; }
 .page-btn, .page-num { display: grid; height: 32px; min-width: 32px; place-items: center; border-radius: 8px; font-size: 12.5px; font-weight: 650; }
 .page-btn:disabled { opacity: .4; }

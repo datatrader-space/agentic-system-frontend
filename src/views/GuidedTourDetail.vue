@@ -92,7 +92,7 @@ watchOwnRouteParam('slug', load)   // never on the way out (F-M1)
 .gtd-main { max-width: 760px; margin: 0 auto; }
 .gtd-head { display: flex; gap: 16px; align-items: flex-start; }
 .gtd-icon { display: grid; width: 52px; height: 52px; flex-shrink: 0; place-items: center; border-radius: 13px; } .gtd-icon svg { width: 26px; height: 26px; }
-.blue { background: var(--vm-surface-soft); color: var(--vm-link); } .violet { background: var(--vm-surface-soft); color: var(--vm-violet-ink); } .teal { background: #e7fbf6; color: var(--vm-teal-ink); } .amber { background: var(--vm-amber-soft); color: var(--vm-amber-ink); } .coral { background: #fff1ed; color: var(--vm-red-ink); }
+.blue { background: var(--vm-surface-soft); color: var(--vm-link); } .violet { background: var(--vm-surface-soft); color: var(--vm-violet-ink); } .teal { background: var(--vm-teal-soft); color: var(--vm-teal-ink); } .amber { background: var(--vm-amber-soft); color: var(--vm-amber-ink); } .coral { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .gtd-head h1 { margin: 0; font-size: 25px; font-weight: 850; }
 .gtd-head p { margin: 8px 0 0; color: var(--vm-ink-soft); font-size: 14.5px; line-height: 1.5; }
 .gtd-meta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 12px; color: var(--vm-ink-faint); font-size: 12.5px; font-weight: 600; }

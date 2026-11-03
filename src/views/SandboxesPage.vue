@@ -511,8 +511,8 @@ onMounted(reload)
   padding: 2px 7px;
   border-radius: 999px;
 }
-.exec-tag--safe { background: #e8f3ec; color: var(--vm-green-ink); }
-.exec-tag--live { background: #e8f3ec; color: var(--vm-green-ink); }
+.exec-tag--safe { background: var(--vm-green-soft); color: var(--vm-green-ink); }
+.exec-tag--live { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 .exec-tag--off { background: var(--vm-surface-soft); color: var(--vm-ink-faint); }
 .exec-option.is-stale { opacity: .68; cursor: default; }
 .exec-option-desc code {
@@ -645,9 +645,9 @@ onMounted(reload)
   font-weight: 750;
 }
 
-.sandbox-table .pill.running { background: #e6f7ee; color: var(--vm-green-ink); }
+.sandbox-table .pill.running { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 .sandbox-table .pill.paused  { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
-.sandbox-table .pill.failed  { background: #fdecec; color: var(--vm-red-ink); }
+.sandbox-table .pill.failed  { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .sandbox-table .pill.closed  { background: var(--vm-surface-soft); color: var(--vm-ink-faint); }
 
 .mini-bar {
@@ -745,7 +745,7 @@ onMounted(reload)
 }
 
 .close-btn:hover:not(:disabled) {
-  background: #fdecec;
+  background: var(--vm-red-soft);
   border-color: #f5c9c4;
 }
 

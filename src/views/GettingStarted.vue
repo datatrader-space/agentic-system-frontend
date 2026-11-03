@@ -703,10 +703,10 @@ const helpLinks = [
 }
 
 .violet { background: var(--vm-surface-soft); color: var(--vm-violet-ink); }
-.teal { background: #e7fbf6; color: var(--vm-teal-ink); }
+.teal { background: var(--vm-teal-soft); color: var(--vm-teal-ink); }
 .blue { background: var(--vm-surface-soft); color: var(--vm-link); }
-.purple { background: #fbebff; color: var(--vm-violet-ink); }
-.green { background: #e9fbf1; color: var(--vm-green-ink); }
+.purple { background: var(--vm-violet-soft); color: var(--vm-violet-ink); }
+.green { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 
 .template-card h3,
 .guide-card h3 {

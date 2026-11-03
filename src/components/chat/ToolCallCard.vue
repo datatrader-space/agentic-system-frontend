@@ -42,8 +42,8 @@ const verb = computed(() => {
 .tc-icon { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; flex-shrink: 0; }
 .tc-icon svg { width: 15px; height: 15px; }
 .tool-call.running { color: var(--vm-link); border-color: #c7d2fe; background: var(--vm-surface-soft); }
-.tool-call.done { color: var(--vm-green-ink); border-color: #bbf7d0; background: #f0fdf4; }
-.tool-call.error { color: var(--vm-red-ink); border-color: #fecaca; background: #fef2f2; }
+.tool-call.done { color: var(--vm-green-ink); border-color: #bbf7d0; background: var(--vm-green-soft); }
+.tool-call.error { color: var(--vm-red-ink); border-color: #fecaca; background: var(--vm-red-soft); }
 .tc-verb { color: inherit; }
 .tc-name {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

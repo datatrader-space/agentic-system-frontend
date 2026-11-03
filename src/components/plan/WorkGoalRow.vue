@@ -128,8 +128,8 @@ const verdictNote = computed(() => {
   background: var(--vm-surface, var(--vm-surface)); color: var(--vm-ink-soft, var(--vm-ink-soft));
   font-size: 10px; font-weight: 700; text-align: center;
 }
-.wg__pip.ok   { border-color: #bfe3c9; background: #f2fbf5; color: var(--vm-green-ink); }
-.wg__pip.bad  { border-color: #e8d8a8; background: #fdfaef; color: var(--vm-amber-ink); }
+.wg__pip.ok   { border-color: #bfe3c9; background: var(--vm-green-soft); color: var(--vm-green-ink); }
+.wg__pip.bad  { border-color: #e8d8a8; background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
 .wg__pip.live { border-color: var(--vm-violet-d, #6d5ef1); color: var(--vm-violet-d, var(--vm-link)); }
 /* Deliberately NOT the green `ok` treatment: its own check passed, the goal check did not confirm it. */
 .wg__pip.partial { border-color: var(--vm-line-2); background: var(--vm-surface-soft); color: var(--vm-ink-soft); }

@@ -670,10 +670,10 @@ function openChangelogEntry(c) {
 
 .blue { background: var(--vm-surface-soft); color: var(--vm-link); }
 .violet { background: var(--vm-surface-soft); color: var(--vm-link); }
-.teal { background: #e7fbf6; color: var(--vm-teal-ink); }
+.teal { background: var(--vm-teal-soft); color: var(--vm-teal-ink); }
 .orange { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
-.rose { background: #fff1f3; color: var(--vm-red-ink); }
-.green { background: #e9fbf1; color: var(--vm-green-ink); }
+.rose { background: var(--vm-red-soft); color: var(--vm-red-ink); }
+.green { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 .yellow { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
 .white { background: var(--vm-surface-soft); color: var(--vm-link); border: 1px solid var(--vm-line-2); }
 .dark { background: #111827; color: #fff; }
@@ -724,7 +724,7 @@ function openChangelogEntry(c) {
 .area-card .doc-file svg { width: 15px; height: 15px; }
 .area-diff { flex-shrink: 0; border-radius: 6px; padding: 3px 8px; font-size: 10px; font-style: normal; font-weight: 850; text-transform: capitalize; background: var(--vm-surface-soft); color: var(--vm-link); }
 .area-diff.beginner { background: var(--vm-green-soft); color: var(--vm-green-ink); }
-.area-diff.advanced { background: #fef2f2; color: var(--vm-red-ink); }
+.area-diff.advanced { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 @media (max-width: 720px) { .area-grid { grid-template-columns: 1fr; } }
 
 .hero-grid {

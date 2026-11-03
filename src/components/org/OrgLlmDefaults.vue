@@ -183,7 +183,7 @@ function finalSrc(row) { return props.preview?.sources?.[row.key] || '—' }
 .old-pv { flex: 1; color: var(--vm-ink-soft); }
 .old-pv em { font-style: normal; color: var(--vm-ink-faint); font-size: 11px; }
 .old-src { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #e2e8f0; color: var(--vm-ink-soft); }
-.old-src[data-src="org_policy"] { background: #ecfdf3; color: var(--vm-green-ink); }
+.old-src[data-src="org_policy"] { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 .old-src[data-src="platform_policy"], .old-src[data-src="platform_absolute"] { background: var(--vm-surface-soft); color: var(--vm-link); }
 .old-src[data-src="model_metadata"] { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
 .old-phint { margin: 4px 0 0; font-size: 11px; line-height: 1.5; color: var(--vm-ink-faint); }

@@ -299,5 +299,5 @@ onMounted(load)
 .chip { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 650; }
 .chip-blue { background: var(--vm-surface-soft); color: var(--vm-link); }
 .chip-amber { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
-.chip-green { background: #E6F7EE; color: var(--vm-green-ink); }
+.chip-green { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 </style>

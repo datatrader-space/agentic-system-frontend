@@ -355,7 +355,7 @@ input:focus, textarea:focus, select:focus { border-color: #635bff; box-shadow: 0
 .notice svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; color: var(--vm-link); }
 .notice code { background: var(--vm-surface); border: 1px solid var(--vm-line-2); border-radius: 6px; padding: 1px 6px; font-size: 11.5px; word-break: break-all; }
 .notice .copy { margin-left: 6px; border: 0; background: transparent; color: var(--vm-link); font-size: 12px; font-weight: 850; cursor: pointer; }
-.notice-warn { border-color: #fcd9a8; background: #fff8ee; color: var(--vm-amber-ink); margin-top: 0; margin-bottom: 14px; }
+.notice-warn { border-color: #fcd9a8; background: var(--vm-amber-soft); color: var(--vm-amber-ink); margin-top: 0; margin-bottom: 14px; }
 .check-row { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
 .check-row input { width: auto; }
 .check-row span { margin: 0; font-weight: 750; color: var(--vm-ink-soft); }

@@ -604,7 +604,7 @@ const handleSubmit = async () => {
   padding: 10px 12px;
   border: 1px solid #fcd34d;
   border-radius: 8px;
-  background: #fffbeb;
+  background: var(--vm-amber-soft);
 }
 .builtin-note {
   display: block;

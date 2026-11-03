@@ -116,7 +116,7 @@ defineExpose({ isValid, MAX_RULES, MAX_RULE_LEN })
   border: none; background: transparent; color: var(--vm-ink-faint); font-size: 1.1rem; line-height: 1;
   cursor: pointer; padding: 4px 6px; border-radius: 6px;
 }
-.remove:hover { color: var(--vm-red-ink); background: #fef2f2; }
+.remove:hover { color: var(--vm-red-ink); background: var(--vm-red-soft); }
 .add {
   align-self: flex-start; margin-top: 2px; padding: 5px 10px; font-size: 0.8rem; font-weight: 500;
   color: var(--vm-link); background: var(--vm-surface-soft); border: 1px solid var(--vm-line-2); border-radius: 8px; cursor: pointer;

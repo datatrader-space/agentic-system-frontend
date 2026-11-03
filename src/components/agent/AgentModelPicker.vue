@@ -445,7 +445,7 @@ watch(() => props.agentId, () => {
   text-align: left; cursor: pointer; }
 .amp-reset span:last-child { overflow: hidden; max-width: 104px; color: var(--vm-ink-faint); text-overflow: ellipsis; white-space: nowrap; }
 .amp-reset:hover { color: var(--vm-ink); }
-.amp-error { margin: 4px 5px 2px; padding: 7px 8px; border-radius: 7px; background: #fef2f2; color: var(--vm-red-ink); font-size: 11px; }
+.amp-error { margin: 4px 5px 2px; padding: 7px 8px; border-radius: 7px; background: var(--vm-red-soft); color: var(--vm-red-ink); font-size: 11px; }
 
 @media (max-width: 640px) {
   .amp-menu { max-width: min(272px, calc(100vw - 20px)); }

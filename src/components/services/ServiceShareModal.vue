@@ -291,8 +291,8 @@ onMounted(() => loadShares())
 .share-button:hover { background: #2563eb; }
 .share-button:disabled { background: #93c5fd; cursor: not-allowed; }
 .form-help { font-size: 12px; color: var(--vm-ink-faint); line-height: 1.5; }
-.error-msg { color: var(--vm-red-ink); font-size: 13px; padding: 6px 10px; background: #fef2f2; border-radius: 6px; }
-.success-msg { color: var(--vm-green-ink); font-size: 13px; padding: 6px 10px; background: #f0fdf4; border-radius: 6px; }
+.error-msg { color: var(--vm-red-ink); font-size: 13px; padding: 6px 10px; background: var(--vm-red-soft); border-radius: 6px; }
+.success-msg { color: var(--vm-green-ink); font-size: 13px; padding: 6px 10px; background: var(--vm-green-soft); border-radius: 6px; }
 
 /* Shares List */
 .shares-list { display: flex; flex-direction: column; gap: 8px; }
@@ -335,7 +335,7 @@ onMounted(() => loadShares())
   cursor: pointer;
   font-weight: 500;
 }
-.revoke-button:hover { background: #fef2f2; }
+.revoke-button:hover { background: var(--vm-red-soft); }
 .revoke-button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Utility */

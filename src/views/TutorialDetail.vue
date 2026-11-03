@@ -164,10 +164,10 @@ onMounted(load)
 .td-icon svg { width: 24px; height: 24px; }
 .blue { background: var(--vm-surface-soft); color: var(--vm-link); }
 .violet { background: var(--vm-surface-soft); color: var(--vm-violet-ink); }
-.teal { background: #e7fbf6; color: var(--vm-teal-ink); }
-.mint { background: #e7fbf1; color: var(--vm-green-ink); }
+.teal { background: var(--vm-teal-soft); color: var(--vm-teal-ink); }
+.mint { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 .amber { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
-.green { background: #e9fbf1; color: var(--vm-green-ink); }
+.green { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 .td-head h1 { margin: 0; font-size: 22px; font-weight: 850; }
 .td-head p { margin: 8px 0 0; color: var(--vm-ink-faint); font-size: 13.5px; line-height: 1.5; }
 .td-meta { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; color: var(--vm-ink-faint); font-size: 12px; font-weight: 700; }

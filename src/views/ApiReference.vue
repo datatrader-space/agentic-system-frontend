@@ -137,7 +137,7 @@ onMounted(async () => {
 .badge svg { width: 11px; height: 11px; }
 .stab-stable { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 .stab-beta { background: var(--vm-surface-soft); color: var(--vm-link); }
-.stab-deprecated { background: #fff1f3; color: var(--vm-red-ink); }
+.stab-deprecated { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .auth { background: var(--vm-surface-soft); color: var(--vm-ink-soft); }
 .auth.open { background: var(--vm-surface-soft); color: var(--vm-teal-ink); }
 .chev { width: 16px; height: 16px; color: var(--vm-ink-faint); }

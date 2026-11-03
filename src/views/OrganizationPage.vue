@@ -629,7 +629,7 @@ button, select { font: inherit; }
 .money { color: var(--vm-link); }
 .metric-icon.blue, .metric-icon.indigo { background: var(--vm-surface-soft); }
 .metric-icon.violet { background: var(--vm-surface-soft); }
-.metric-icon.money { background: #fff7ed; color: var(--vm-link); }
+.metric-icon.money { background: var(--vm-amber-soft); color: var(--vm-link); }
 .top-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: 12px; margin-bottom: 12px; }
 .card-grid { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
 .bottom-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 12px; }
@@ -1435,7 +1435,7 @@ dd { margin: 0; color: var(--vm-ink); font-size: 12px; font-weight: 750; }
 }
 .organization-page .state-banner.err {
   border-color: #f6cfcf;
-  background: #fff3f3;
+  background: var(--vm-red-soft);
   color: var(--vm-red-ink);
 }
 .organization-page .muted {

@@ -537,7 +537,7 @@ onMounted(load)
 }
 
 .ht-diff.advanced {
-  background: #fef2f2;
+  background: var(--vm-red-soft);
   color: var(--vm-red-ink);
 }
 
@@ -601,11 +601,11 @@ onMounted(load)
 .all,
 .blue { background: var(--vm-surface-soft); color: var(--vm-link); }
 .violet { background: var(--vm-surface-soft); color: var(--vm-link); }
-.teal { background: #e7fbf6; color: var(--vm-teal-ink); }
+.teal { background: var(--vm-teal-soft); color: var(--vm-teal-ink); }
 .orange { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
-.rose { background: #fff1f3; color: var(--vm-red-ink); }
-.green { background: #e9fbf1; color: var(--vm-green-ink); }
-.coral { background: #fff1ef; color: var(--vm-red-ink); }
+.rose { background: var(--vm-red-soft); color: var(--vm-red-ink); }
+.green { background: var(--vm-green-soft); color: var(--vm-green-ink); }
+.coral { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 
 @media (max-width: 1180px) {
   .ht-topic-grid,

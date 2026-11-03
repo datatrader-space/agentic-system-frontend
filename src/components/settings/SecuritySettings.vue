@@ -318,10 +318,10 @@ async function copy(text) {
 .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
 .btn-soft { padding: 8px 14px; font-size: 0.8125rem; font-weight: 600; color: var(--vm-link); background: var(--vm-surface-soft); border: 1px solid var(--vm-line-2); border-radius: 9px; cursor: pointer; }
 .btn-soft.sm { padding: 6px 10px; font-size: 0.75rem; }
-.btn-danger { padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: var(--vm-red-ink); background: #fef2f2; border: 1px solid #fecaca; border-radius: 9px; cursor: pointer; }
+.btn-danger { padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: var(--vm-red-ink); background: var(--vm-red-soft); border: 1px solid #fecaca; border-radius: 9px; cursor: pointer; }
 .btn-danger:hover { background: var(--vm-red-soft); }
 .chip { padding: 4px 11px; font-size: 0.75rem; font-weight: 500; border-radius: 999px; }
-.chip.ok { color: var(--vm-green-ink); background: #f0fdf4; }
+.chip.ok { color: var(--vm-green-ink); background: var(--vm-green-soft); }
 .chip.muted { color: var(--vm-ink-faint); background: var(--vm-surface-soft); }
 .setup { display: flex; flex-direction: column; gap: 10px; }
 .setup-step { font-size: 0.85rem; color: var(--vm-ink-soft); margin: 4px 0; }

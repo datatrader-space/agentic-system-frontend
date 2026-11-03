@@ -509,7 +509,7 @@ samp {
   --vm-teal-ink: #0F766E;      /* 5.1:1 on its tint (#0f9f8a was 3.2:1) */
   /* Accent TEXT (status words, method badges, links) at WCAG AA on white and on its own tint, and the tints. */
   --vm-green-ink: #047857;
-  --vm-amber-ink: #B45309;
+  --vm-amber-ink: #92400E;     /* 6:1 or more on its own tint (#B45309 was 4.4:1 on the paused badge) */
   --vm-red-ink: #B91C1C;
   --vm-violet-ink: #6D28D9;
   --vm-blue-soft: #EAF1FF;

@@ -104,7 +104,7 @@ onMounted(load)
 .tour-card { border: 1px solid var(--vm-line-2); border-radius: 14px; background: var(--vm-surface); padding: 18px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
 .tc-top { display: flex; align-items: center; justify-content: space-between; }
 .tc-icon { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 11px; } .tc-icon svg { width: 22px; height: 22px; }
-.blue { background: var(--vm-surface-soft); color: var(--vm-link); } .violet { background: var(--vm-surface-soft); color: var(--vm-violet-ink); } .teal { background: #e7fbf6; color: var(--vm-teal-ink); } .amber { background: var(--vm-amber-soft); color: var(--vm-amber-ink); } .coral { background: #fff1ed; color: var(--vm-red-ink); }
+.blue { background: var(--vm-surface-soft); color: var(--vm-link); } .violet { background: var(--vm-surface-soft); color: var(--vm-violet-ink); } .teal { background: var(--vm-teal-soft); color: var(--vm-teal-ink); } .amber { background: var(--vm-amber-soft); color: var(--vm-amber-ink); } .coral { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .status { border-radius: 6px; padding: 3px 9px; font-size: 10.5px; font-weight: 850; }
 .status.not_started { background: var(--vm-surface-soft); color: var(--vm-ink-faint); } .status.in_progress { background: var(--vm-surface-soft); color: var(--vm-link); } .status.completed { background: var(--vm-green-soft); color: var(--vm-green-ink); } .status.skipped { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
 .tc-title { display: block; margin-top: 14px; color: var(--vm-ink); font-size: 16px; font-weight: 850; text-decoration: none; } .tc-title:hover { color: var(--vm-link); }

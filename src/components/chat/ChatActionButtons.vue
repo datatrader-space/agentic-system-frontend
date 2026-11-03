@@ -372,7 +372,7 @@ onUnmounted(() => {
   background: var(--vm-surface); border: 1px solid var(--vm-line-2);
   box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
 }
-.ca-card.is-done { border-color: #bbf7d0; background: #f0fdf4; }
+.ca-card.is-done { border-color: #bbf7d0; background: var(--vm-green-soft); }
 
 .ca-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
 

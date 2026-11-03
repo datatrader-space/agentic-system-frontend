@@ -234,7 +234,7 @@ const continueChat = async () => {
 .sc-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .sc-tool { font-size: .72rem; padding: 3px 8px; border-radius: 999px; background: var(--vm-surface-soft);
   color: var(--vm-ink-soft); border: 1px solid var(--vm-line-2); }
-.sc-tool.failure { background: #fef2f2; color: var(--vm-red-ink); border-color: #fecaca; }
+.sc-tool.failure { background: var(--vm-red-soft); color: var(--vm-red-ink); border-color: #fecaca; }
 
 .sc-cites { margin: 10px 0 0; padding-left: 18px; font-size: .78rem; color: var(--vm-ink-faint); }
 .sc-cites a { color: var(--vm-link); }

@@ -989,8 +989,8 @@ const support = [
 
 .blue { background: var(--vm-surface-soft); color: var(--vm-link); }
 .violet { background: var(--vm-surface-soft); color: var(--vm-link); }
-.teal { background: #e8fbf7; color: var(--vm-teal-ink); }
-.coral { background: #fff1ed; color: var(--vm-red-ink); }
+.teal { background: var(--vm-teal-soft); color: var(--vm-teal-ink); }
+.coral { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 
 .section-title-row {
   display: flex;
@@ -1018,7 +1018,7 @@ const support = [
   padding: 11px 12px;
   border: 1px solid #bbf7d0;
   border-radius: 10px;
-  background: #f0fdf4;
+  background: var(--vm-green-soft);
   color: var(--vm-green-ink);
 }
 .all-set svg { width: 18px; height: 18px; flex-shrink: 0; }
@@ -1185,7 +1185,7 @@ const support = [
 }
 
 .next-step > span {
-  background: #eeeafe;
+  background: var(--vm-blue-soft);
   color: var(--vm-link);
 }
 

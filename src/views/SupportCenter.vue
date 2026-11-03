@@ -349,7 +349,7 @@ onMounted(() => {
 .rail-row > svg { width: 15px; height: 15px; color: var(--vm-ink-faint); }
 .blue { background: var(--vm-surface-soft); color: var(--vm-link); }
 .violet { background: var(--vm-surface-soft); color: var(--vm-violet-ink); }
-.teal { background: #e7fbf6; color: var(--vm-teal-ink); }
+.teal { background: var(--vm-teal-soft); color: var(--vm-teal-ink); }
 .tips ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .tips li { display: flex; align-items: center; gap: 9px; color: var(--vm-ink-soft); font-size: 12.5px; font-weight: 650; }
 .tips li svg { width: 15px; height: 15px; color: var(--vm-green-ink); }

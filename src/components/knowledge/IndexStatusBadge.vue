@@ -44,8 +44,8 @@ const title = computed(() => (props.status === 'failed' && props.error) ? props.
 .isb-label { letter-spacing: .01em; }
 .is-wait { background: var(--vm-surface-soft); color: var(--vm-ink-faint); }
 .is-busy { background: var(--vm-surface-soft); color: var(--vm-link); }
-.is-ok   { background: #ecfdf3; color: var(--vm-green-ink); }
-.is-err  { background: #fef2f2; color: var(--vm-red-ink); }
+.is-ok   { background: var(--vm-green-soft); color: var(--vm-green-ink); }
+.is-err  { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .isb-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor;
   animation: isb-pulse 1s ease-in-out infinite; }
 .isb-ico { font-weight: 900; }

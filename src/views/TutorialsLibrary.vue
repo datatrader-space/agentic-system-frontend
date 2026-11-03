@@ -762,7 +762,7 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   height: 24px;
 }
 
-.teal { background: #e7fbf6; color: var(--vm-teal-ink); }
+.teal { background: var(--vm-teal-soft); color: var(--vm-teal-ink); }
 .violet { background: var(--vm-surface-soft); color: var(--vm-link); }
 .blue { background: var(--vm-surface-soft); color: var(--vm-link); }
 

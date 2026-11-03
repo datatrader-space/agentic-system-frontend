@@ -368,7 +368,7 @@ onMounted(() => refresher.start({ immediate: false }))
 }
 
 .session-type.task {
-  background: #f3e5f5;
+  background: var(--vm-violet-soft);
   color: var(--vm-violet-ink);
 }
 
@@ -385,12 +385,12 @@ onMounted(() => refresher.start({ immediate: false }))
 }
 
 .session-status.success {
-  background: #e8f5e9;
+  background: var(--vm-green-soft);
   color: var(--vm-green-ink);
 }
 
 .session-status.failed {
-  background: #ffebee;
+  background: var(--vm-red-soft);
   color: var(--vm-red-ink);
 }
 
@@ -581,7 +581,7 @@ onMounted(() => refresher.start({ immediate: false }))
 }
 
 .error-section {
-  background: #ffebee;
+  background: var(--vm-red-soft);
   padding: 16px;
   border-radius: 8px;
 }
@@ -606,7 +606,7 @@ onMounted(() => refresher.start({ immediate: false }))
 }
 
 .final-answer-text {
-  background: #e8f5e9;
+  background: var(--vm-green-soft);
   padding: 12px;
   border-radius: 6px;
   line-height: 1.6;

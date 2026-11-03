@@ -1957,7 +1957,7 @@ select {
 .row-menu-fixed button:hover { background: var(--vm-surface-soft); }
 .row-menu-fixed button svg { width: 15px; height: 15px; }
 .row-menu-fixed button.danger { color: var(--vm-red-ink); }
-.row-menu-fixed button.danger:hover { background: #fef2f2; }
+.row-menu-fixed button.danger:hover { background: var(--vm-red-soft); }
 
 /* ── Modals (rename + members) ───────────────────────────────────────────── */
 .orgmod-backdrop {

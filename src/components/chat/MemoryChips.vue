@@ -192,7 +192,7 @@ const unretire = (c) => act(c, () => api.undoLearnedNotHelpful(c.id), (data) => 
 }
 .mc-btn:hover:not(:disabled) { background: var(--vm-blue-soft); }
 .mc-btn:disabled { opacity: .7; cursor: default; }
-.mc-btn.danger { border-color: #fecaca; background: #fef2f2; color: var(--vm-red-ink); }
+.mc-btn.danger { border-color: #fecaca; background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .mc-btn.plain { border-color: transparent; background: transparent; color: var(--vm-text-muted, var(--vm-ink-faint)); }
 .mc-note { font-size: .76rem; color: var(--vm-text-muted, var(--vm-ink-faint)); }
 .mc-err { flex-basis: 100%; font-size: .74rem; color: var(--vm-red-ink); }

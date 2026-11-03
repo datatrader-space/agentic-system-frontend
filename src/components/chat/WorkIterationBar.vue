@@ -130,8 +130,8 @@ const outcome = computed(() => {
 .iter-done { display: flex; flex-direction: column; gap: 2px; margin: 10px auto; max-width: 760px;
              padding: 10px 12px; border-radius: 10px; border: 1px solid var(--vm-border, var(--vm-line-2));
              background: var(--vm-surface, var(--vm-surface-soft)); }
-.iter-done.ok { border-color: #bfe3c9; background: #f2fbf5; }
-.iter-done.warn { border-color: #e8d8a8; background: #fdfaef; }
+.iter-done.ok { border-color: #bfe3c9; background: var(--vm-green-soft); }
+.iter-done.warn { border-color: #e8d8a8; background: var(--vm-amber-soft); }
 .iter-done-title { font-size: 13px; font-weight: 600; color: var(--vm-ink, var(--vm-ink)); }
 .iter-done-sub { font-size: 12px; color: var(--vm-muted, var(--vm-ink-faint)); }
 </style>

@@ -100,8 +100,8 @@ onMounted(load)
 .ic { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 12px; }
 .ic svg { width: 22px; height: 22px; }
 .t-blue { background: var(--vm-surface-soft); color: var(--vm-link); } .t-violet { background: var(--vm-surface-soft); color: var(--vm-violet-ink); }
-.t-emerald { background: #ecfdf5; color: var(--vm-green-ink); } .t-amber { background: #fffbeb; color: var(--vm-amber-ink); }
-.t-rose { background: #fff1f2; color: var(--vm-red-ink); } .t-cyan { background: var(--vm-surface-soft); color: var(--vm-teal-ink); }
+.t-emerald { background: var(--vm-green-soft); color: var(--vm-green-ink); } .t-amber { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
+.t-rose { background: var(--vm-red-soft); color: var(--vm-red-ink); } .t-cyan { background: var(--vm-surface-soft); color: var(--vm-teal-ink); }
 .scope { border-radius: 6px; padding: 3px 9px; font-size: 10.5px; font-weight: 850; text-transform: capitalize; }
 .scope.user { background: var(--vm-green-soft); color: var(--vm-green-ink); } .scope.admin { background: var(--vm-surface-soft); color: var(--vm-link); } .scope.system { background: var(--vm-surface-soft); color: var(--vm-ink-faint); }
 .card h3 { margin: 0 0 6px; font-size: 15px; font-weight: 800; color: var(--vm-ink); }

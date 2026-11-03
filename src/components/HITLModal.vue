@@ -911,7 +911,7 @@ watch(currentRequest, () => {
 .action-preview {
   margin: 0 0 18px 0;
   border: 1px solid #fde68a;
-  background: #fffbeb;
+  background: var(--vm-amber-soft);
   border-radius: 10px;
   overflow: hidden;
 }
@@ -1258,7 +1258,7 @@ watch(currentRequest, () => {
   margin-top: 10px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: #fef2f2;
+  background: var(--vm-red-soft);
   color: var(--vm-red-ink);
   font-size: 13px;
 }
@@ -1412,7 +1412,7 @@ watch(currentRequest, () => {
 
 .cred-row--done {
   border-color: #6ee7b7;
-  background: #f0fdf9;
+  background: var(--vm-green-soft);
 }
 
 .cred-row--skipped {
@@ -1422,7 +1422,7 @@ watch(currentRequest, () => {
 }
 
 .cred-row--already {
-  background: #f0fdf9;
+  background: var(--vm-green-soft);
   border-color: #6ee7b7;
   opacity: 0.8;
 }
@@ -1505,7 +1505,7 @@ watch(currentRequest, () => {
 }
 
 .cred-btn--reauth {
-  background: #fffbeb;
+  background: var(--vm-amber-soft);
   color: var(--vm-amber-ink);
 }
 
@@ -1523,7 +1523,7 @@ watch(currentRequest, () => {
 }
 
 .cred-btn--done {
-  background: #f0fdf4;
+  background: var(--vm-green-soft);
   color: var(--vm-green-ink);
 }
 
@@ -1566,7 +1566,7 @@ watch(currentRequest, () => {
 
 .scope-gap-notice {
   padding: 8px 12px;
-  background: #fff7ed;
+  background: var(--vm-amber-soft);
   border: 1px solid #fed7aa;
   border-radius: 6px;
   font-size: 12px;
@@ -1587,11 +1587,11 @@ watch(currentRequest, () => {
 
 .cred-row--pending {
   border-color: #fcd34d;
-  background: #fffbeb;
+  background: var(--vm-amber-soft);
 }
 
 .cred-btn--confirm {
-  background: #f0fdf4;
+  background: var(--vm-green-soft);
   color: var(--vm-green-ink);
   border: 1px solid #86efac;
 }
@@ -1640,7 +1640,7 @@ watch(currentRequest, () => {
 .cred-btn--manual:hover { background: var(--vm-blue-soft); }
 
 .cred-btn--reauth-small {
-  background: #fff7ed;
+  background: var(--vm-amber-soft);
   color: var(--vm-amber-ink);
   border: 1px solid #fed7aa;
   font-size: 11px;
@@ -1750,7 +1750,7 @@ watch(currentRequest, () => {
 }
 
 .cred-picker-row:hover {
-  background: #f0fdf4;
+  background: var(--vm-green-soft);
   border-color: #16a34a;
 }
 

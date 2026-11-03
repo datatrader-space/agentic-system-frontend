@@ -81,9 +81,9 @@ onMounted(load)
 .lp-icon { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 11px; }
 .lp-icon svg { width: 22px; height: 22px; }
 .blue { background: var(--vm-surface-soft); color: var(--vm-link); } .violet { background: var(--vm-surface-soft); color: var(--vm-violet-ink); }
-.teal { background: #e7fbf6; color: var(--vm-teal-ink); } .coral { background: #fff1ed; color: var(--vm-red-ink); }
+.teal { background: var(--vm-teal-soft); color: var(--vm-teal-ink); } .coral { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .diff { border-radius: 6px; padding: 3px 9px; font-size: 10.5px; font-weight: 850; text-transform: capitalize; }
-.diff.beginner { background: var(--vm-green-soft); color: var(--vm-green-ink); } .diff.intermediate { background: var(--vm-amber-soft); color: var(--vm-amber-ink); } .diff.advanced { background: #fff1f3; color: var(--vm-red-ink); }
+.diff.beginner { background: var(--vm-green-soft); color: var(--vm-green-ink); } .diff.intermediate { background: var(--vm-amber-soft); color: var(--vm-amber-ink); } .diff.advanced { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .lp-card h3 { margin: 14px 0 0; font-size: 16px; font-weight: 850; }
 .lp-card p { margin: 7px 0 0; color: var(--vm-ink-faint); font-size: 13px; line-height: 1.5; }
 .lp-meta { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; color: var(--vm-ink-faint); font-size: 12.5px; font-weight: 600; }

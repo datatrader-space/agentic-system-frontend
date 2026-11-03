@@ -473,7 +473,7 @@ watch(() => props.agentProfile?.id, fetchData)
 .adp-btn--back:hover { border-color: var(--adp-accent); color: var(--adp-accent); }
 .adp-btn--back svg { width: 14px; height: 14px; }
 .adp-btn--danger { padding: 6px; background: transparent; color: var(--vm-red-ink); border: 1px solid transparent; }
-.adp-btn--danger:hover { background: #fef2f2; border-color: #fecaca; }
+.adp-btn--danger:hover { background: var(--vm-red-soft); border-color: #fecaca; }
 .adp-btn--page { padding: 6px; background: var(--adp-surface); border: 1px solid var(--adp-border); color: var(--adp-text-secondary); }
 .adp-btn--page:hover:not(:disabled) { border-color: var(--adp-accent); color: var(--adp-accent); }
 .adp-btn--page:disabled { opacity: 0.3; cursor: default; }

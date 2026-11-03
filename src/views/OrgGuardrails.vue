@@ -263,13 +263,13 @@ onMounted(load)
 .ag-head p { margin: 6px 0 0; max-width: 740px; font-size: 13px; line-height: 1.55; color: var(--vm-ink-faint); }
 .ag-head-actions { display: flex; gap: 10px; align-items: center; }
 .ag-toggle { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 8px; padding: 9px 14px; font-size: 12.5px; font-weight: 750; cursor: pointer; }
-.ag-toggle.on { background: #ecfdf3; color: var(--vm-green-ink); }
-.ag-toggle.off { background: #fef2f2; color: var(--vm-red-ink); }
+.ag-toggle.on { background: var(--vm-green-soft); color: var(--vm-green-ink); }
+.ag-toggle.off { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .ag-toggle-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 .ag-save { border: 0; border-radius: 8px; padding: 9px 16px; font-size: 12.5px; font-weight: 750; cursor: pointer; background: #4f46e5; color: #fff; }
 .ag-save:disabled { opacity: .5; cursor: not-allowed; }
 .ag-note { border-radius: 10px; padding: 11px 14px; font-size: 12.5px; margin-bottom: 16px; background: var(--vm-surface-soft); color: var(--vm-ink-soft); }
-.ag-note.warn { background: #fffbeb; color: var(--vm-amber-ink); }
+.ag-note.warn { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
 .ag-loading { padding: 40px; text-align: center; color: var(--vm-ink-faint); }
 .ag-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .ag-card { border: 1px solid var(--vm-line-2); border-radius: 14px; background: var(--vm-surface); padding: 18px; box-shadow: 0 1px 3px rgba(16,24,40,.06); }
@@ -291,8 +291,8 @@ onMounted(load)
 .ag-chips { display: flex; flex-wrap: wrap; gap: 7px; }
 .ag-chip { height: 27px; border: 0; border-radius: 7px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 750; cursor: pointer; background: var(--vm-surface-soft); color: var(--vm-ink-soft); }
 .ag-chip.ask { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
-.ag-chip.deny { background: #fef2f2; color: var(--vm-red-ink); }
-.ag-chip.allow { background: #ecfdf3; color: var(--vm-green-ink); }
+.ag-chip.deny { background: var(--vm-red-soft); color: var(--vm-red-ink); }
+.ag-chip.allow { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 .ag-chip:disabled { cursor: default; opacity: .8; }
 .ag-empty { color: var(--vm-ink-faint); font-size: 12px; font-weight: 650; }
 .ag-add { display: flex; gap: 7px; margin-top: 12px; }

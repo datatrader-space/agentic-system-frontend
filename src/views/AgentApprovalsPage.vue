@@ -657,7 +657,7 @@ button, input, select { font: inherit; }
 }
 .notice { display: flex; gap: 14px; align-items: center; padding: 18px 20px; margin-bottom: 14px; }
 .notice strong { display: block; font-size: 13px; margin-bottom: 5px; }
-.notice.load-error { border-color: #fecaca; background: #fef2f2; }
+.notice.load-error { border-color: #fecaca; background: var(--vm-red-soft); }
 .notice.load-error > span { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .notice.load-error > div { flex: 1; }
 .notice.load-error .ghost:disabled { opacity: .6; cursor: not-allowed; }
@@ -701,8 +701,8 @@ select, input {
 }
 .tag-cloud svg { width: 12px; height: 12px; }
 .perm-chip.ask { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
-.perm-chip.deny { background: #fef2f2; color: var(--vm-red-ink); }
-.perm-chip.allow { background: #ecfdf3; color: var(--vm-green-ink); }
+.perm-chip.deny { background: var(--vm-red-soft); color: var(--vm-red-ink); }
+.perm-chip.allow { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 .perm-chip:disabled { opacity: .65; cursor: default; }
 .empty-tag { color: var(--admin-muted, var(--vm-ink-faint)); font-size: 11.5px; font-weight: 650; }
 /* Per-tool approval (Card 3) */

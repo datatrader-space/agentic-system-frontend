@@ -211,9 +211,9 @@ onMounted(() => {
 .sys-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .sys-label { font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--vm-ink-faint); }
 .sys-badge { padding: 2px 9px; font-size: 0.6875rem; font-weight: 600; border-radius: 999px; color: var(--vm-ink-soft); background: var(--vm-surface-soft); }
-.sys-badge.ok { color: var(--vm-green-ink); background: #f0fdf4; }
+.sys-badge.ok { color: var(--vm-green-ink); background: var(--vm-green-soft); }
 .sys-badge.warn { color: var(--vm-amber-ink); background: var(--vm-amber-soft); }
-.sys-badge.err { color: var(--vm-red-ink); background: #fef2f2; }
+.sys-badge.err { color: var(--vm-red-ink); background: var(--vm-red-soft); }
 .sys-name { font-size: 1.0625rem; font-weight: 700; color: var(--vm-ink); }
 .sys-type { font-size: 0.8125rem; color: var(--vm-ink-faint); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .sys-created { font-size: 0.75rem; color: var(--vm-ink-faint); margin-top: 2px; }

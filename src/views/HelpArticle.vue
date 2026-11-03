@@ -230,7 +230,7 @@ watch(() => route.hash, handleHash)
 .action-btn svg { width: 15px; height: 15px; }
 .ha-body { margin-top: 8px; }
 .ha-section { scroll-margin-top: 24px; border-radius: 12px; padding: 10px 14px; margin: 0 -14px; transition: background .3s ease, box-shadow .3s ease; }
-.ha-section.highlight { background: #fffbeb; box-shadow: inset 0 0 0 1px #fde68a; }
+.ha-section.highlight { background: var(--vm-amber-soft); box-shadow: inset 0 0 0 1px #fde68a; }
 .sec-h { display: flex; align-items: center; gap: 8px; margin: 22px 0 8px; font-size: 19px; font-weight: 800; }
 .anchor-link { color: #cbd5e1; display: inline-flex; }
 .anchor-link svg { width: 15px; height: 15px; }
@@ -284,7 +284,7 @@ watch(() => route.hash, handleHash)
 .r-icon { display: grid; width: 32px; height: 32px; flex-shrink: 0; place-items: center; border-radius: 8px; }
 .r-icon svg { width: 16px; height: 16px; }
 .blue { background: var(--vm-surface-soft); color: var(--vm-link); } .violet { background: var(--vm-surface-soft); color: var(--vm-violet-ink); }
-.teal { background: #e7fbf6; color: var(--vm-teal-ink); } .coral { background: #fff1ed; color: var(--vm-red-ink); }
+.teal { background: var(--vm-teal-soft); color: var(--vm-teal-ink); } .coral { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .tour-row { display: flex; min-width: 0; align-items: center; gap: 11px; padding: 8px 0; }
 .tour-row + .tour-row { border-top: 1px solid var(--vm-line-2); }
 .t-meta { min-width: 0; flex: 1; }

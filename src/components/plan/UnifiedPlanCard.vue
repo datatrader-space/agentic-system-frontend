@@ -169,7 +169,7 @@ const progressPct = computed(() => (total.value ? Math.round((completed.value / 
 .uplan__badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--muted, var(--vm-surface-soft)); white-space: nowrap; }
 .badge-pending_approval { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
 .badge-executing { background: var(--vm-surface-soft); color: var(--vm-link); }
-.badge-completed { background: #e3f6e8; color: var(--vm-green-ink); }
+.badge-completed { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 .badge-failed, .badge-rejected { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .badge-changes_requested { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
 /* Roadmap = strategic display artifact (distinct from execution states). */
@@ -222,9 +222,9 @@ const progressPct = computed(() => (total.value ? Math.round((completed.value / 
 .uplan__tier { display: inline-block; margin-left: 8px; font-size: 10px; font-weight: 700;
   letter-spacing: .04em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px;
   border: 1px solid transparent; vertical-align: middle; }
-.uplan__tier.tier-outcome { color: var(--vm-green-ink); background: #e4f6ee; border-color: #bfe6d6; }
+.uplan__tier.tier-outcome { color: var(--vm-green-ink); background: var(--vm-green-soft); border-color: #bfe6d6; }
 .uplan__tier.tier-artifact { color: var(--vm-link); background: var(--vm-surface-soft); border-color: #c6dbf5; }
-.uplan__tier.tier-semantic { color: var(--vm-violet-ink); background: #efe9fb; border-color: #ddd0f5; }
+.uplan__tier.tier-semantic { color: var(--vm-violet-ink); background: var(--vm-violet-soft); border-color: #ddd0f5; }
 .uplan__tier.tier-presence { color: var(--vm-amber-ink); background: var(--vm-amber-soft); border-color: #ecdcaf; }
 @media (prefers-color-scheme: dark) {
   .uplan__tier.tier-outcome { color: #3ddba0; background: #12291f; border-color: #1f4536; }

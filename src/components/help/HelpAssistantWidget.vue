@@ -334,7 +334,7 @@ defineExpose({ ask })
 .msg.user { align-self: flex-end; background: #4f46e5; color: #fff; border-radius: 14px 14px 4px 14px; padding: 9px 13px; }
 .msg.user p { margin: 0; font-size: 13.5px; line-height: 1.45; }
 .msg.bot { align-self: flex-start; background: var(--vm-surface-soft); border-radius: 14px 14px 14px 4px; padding: 12px 14px; max-width: 92%; }
-.msg.bot.err { background: #fef2f2; color: var(--vm-red-ink); } .msg.bot.err p { margin: 0; font-size: 13px; }
+.msg.bot.err { background: var(--vm-red-soft); color: var(--vm-red-ink); } .msg.bot.err p { margin: 0; font-size: 13px; }
 .answer { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--vm-ink); }
 /* Markdown inside the answer bubble */
 .md :first-child { margin-top: 0; } .md :last-child { margin-bottom: 0; }
