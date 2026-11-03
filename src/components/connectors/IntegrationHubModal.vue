@@ -52,7 +52,7 @@
                 <Icon icon="lucide:share-2" class="w-4 h-4" />
               </button>
               <template v-if="isInstalled(detailItem)">
-                <button @click="toggleDisable" :disabled="busy" class="px-3.5 py-2 rounded-lg text-[13px] font-semibold text-ink-soft bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50">
+                <button v-if="!signInExpired" @click="toggleDisable" :disabled="busy" class="px-3.5 py-2 rounded-lg text-[13px] font-semibold text-ink-soft bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50">
                   {{ current && current.enabled === false ? 'Enable' : 'Disable' }}
                 </button>
                 <button @click="uninstall" :disabled="busy" class="px-3.5 py-2 rounded-lg text-[13px] font-semibold text-red-600 bg-white border border-red-200 hover:bg-red-50 disabled:opacity-50">Disconnect</button>
@@ -90,8 +90,21 @@
                 </select>
               </div>
 
+              <!-- Signed in once, and the sign-in has expired with nothing to renew it (Google issued no
+                   refresh token): only signing in again brings it back, so that is the one action shown. -->
+              <div v-if="isInstalled(detailItem) && signInExpired" role="alert"
+                   class="rounded-xl border border-amber-200 bg-amber-50/60 p-5 text-center py-5">
+                <Icon icon="lucide:alert-triangle" class="w-6 h-6 text-amber-500 mx-auto" />
+                <p class="text-[13px] font-semibold text-amber-800 mt-2">Your sign-in to {{ detailItem.name }} has expired</p>
+                <p class="text-[12px] text-amber-800/80 mt-1">Agents cannot use {{ detailItem.name }} until you sign in again.</p>
+                <button @click="connectWithOAuth" :disabled="busy"
+                        class="mt-3 px-4 py-2 rounded-lg text-[13px] font-semibold text-white bg-slate-900 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 disabled:opacity-50 inline-flex items-center gap-2 cursor-pointer">
+                  <Icon icon="lucide:log-in" class="w-4 h-4" /> {{ busy ? 'Opening…' : 'Sign in again' }}
+                </button>
+              </div>
+
               <!-- Connected state -->
-              <div v-if="isInstalled(detailItem)" class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-5">
+              <div v-else-if="isInstalled(detailItem)" class="rounded-xl border border-emerald-200 bg-emerald-50/50 p-5">
                 <div class="flex items-center gap-2">
                   <Icon icon="lucide:check-circle" class="w-5 h-5 text-emerald-500" />
                   <p class="text-[13px] font-bold text-emerald-800">Connected to {{ detailItem.name }}</p>
@@ -466,6 +479,8 @@ const busy = ref(false)
 const services = ref({})
 // Status of the service whose detail page is open (drives the install/connected panel).
 const current = computed(() => (detailItem.value ? services.value[detailItem.value.id] : null))
+// "Enable" would only bring back a token that no longer works; the backend says when signing in again is the way.
+const signInExpired = computed(() => current.value?.status === 'expired')
 // Env-var prefix for the "OAuth not configured" hint (GITHUB / SLACK / ...).
 const envName = computed(() => (detailItem.value?.id || '').toUpperCase())
 const authMethods = computed(() => current.value?.auth_methods || ['oauth', 'pat'])
