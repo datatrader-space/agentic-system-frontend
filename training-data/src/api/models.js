@@ -32,19 +32,24 @@ export function catalogue(rows, words = '', kind = '', family = '') {
 // pypi.org); JavaScript and cURL call the address. The key is never filled in.
 export const USE_LANGUAGES = ['Python SDK', 'JavaScript', 'cURL'];
 export const SDK_INSTALL = 'pip install aadml-training';
-export function useSnippet(language, url, model) {
+// ``payload`` (a model on a platform server of its own, such as SAM 3): what to find, sent as the form field "payload".
+// ``call`` 'chat' (a workspace's open chat model): OpenAI's chat completions body, to the model's chat address.
+export function useSnippet(language, url, model, payload = null, call = '') {
+  if (call === 'chat') return chatSnippet(language, url);
+  const asked = payload ? JSON.stringify(payload) : '';
   if (language === 'Python SDK') {
     return `from aadml_training import Client
 
 client = Client(api_key="<your app key>")      # or set AADML_API_KEY
 
-result = client.run("${model}", "room.jpg")
+result = client.run("${model}", "room.jpg"${asked ? `, payload=${asked}` : ''})
 print(result)`;
   }
   if (language === 'JavaScript') {
     return `const form = new FormData();
 form.append('file', photo);                       // a File or Blob: JPEG, PNG or WebP
-
+${asked ? `form.append('payload', '${asked}');
+` : ''}
 const answer = await fetch('${url}', {
   method: 'POST',
   headers: { Authorization: 'Bearer <your app key>' },
@@ -55,7 +60,32 @@ console.log(await answer.json());`;
   }
   return `curl -X POST "${url}" \\
   -H "Authorization: Bearer <your app key>" \\
-  -F "file=@room.jpg"`;
+  -F "file=@room.jpg"${asked ? ` \\\n  -F 'payload=${asked}'` : ''}`;
+}
+
+function chatSnippet(language, url) {
+  const base = url.replace(/\/chat\/completions$/, '');
+  if (language === 'Python SDK') {
+    return `from openai import OpenAI                 # pip install openai
+
+client = OpenAI(api_key="<your app key>", base_url="${base}")
+
+answer = client.chat.completions.create(model="tgi", messages=[{"role": "user", "content": "Hello"}])
+print(answer.choices[0].message.content)`;
+  }
+  if (language === 'JavaScript') {
+    return `const answer = await fetch('${url}', {
+  method: 'POST',
+  headers: { Authorization: 'Bearer <your app key>', 'Content-Type': 'application/json' },
+  body: JSON.stringify({ messages: [{ role: 'user', content: 'Hello' }] }),
+});
+if (!answer.ok) throw new Error((await answer.json()).error.message);
+console.log((await answer.json()).choices[0].message.content);`;
+  }
+  return `curl -X POST "${url}" \\
+  -H "Authorization: Bearer <your app key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"messages": [{"role": "user", "content": "Hello"}]}'`;
 }
 
 // What one call to a ready-to-use model costs, as the "Use model" dialog says it: its price with the markup

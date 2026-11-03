@@ -1,6 +1,8 @@
 <script setup>
 // Auto Label for one batch (a real project). The models are the ones the old editor's "Start from walls that are
-// already there" offers (views._detect_sources): the published detectors, and the models trained in this project.
+// already there" offers (views._detect_sources): the published detectors, the models trained in this project, and the
+// foundation models (auto_label.py: SAM 3, the Training Assistant's vision model, and the two together), each with
+// whether its answer is shown as polygons or as masks (``labels``; the shapes are the same polygons, masks filled).
 // "Generate Preview" really asks the chosen model about the preview photos and draws what it finds (nothing is
 // saved). "Auto Label With This Model" gives the batch to this person and makes the model their choice for a photo
 // nobody has drawn on: each photo then opens in the editor with the model's walls as a head start, which the person
@@ -28,14 +30,10 @@ const pickedImages = computed(() => props.media.filter(m => picked.value.include
 const generating = computed(() => previews.value.some(p => p.state === 'asking' || p.state === 'waiting'));
 const colour = kind => props.state.classes.find(c => c.name === kind)?.color || '#8b5cf6';
 const label = s => `${s.mode ? `${s.mode}: ` : ''}${s.name}`;
-
-// The models the reference product also lists, which cannot run here yet: shown, marked Coming soon, never chosen.
-const COMING = [
-  { name: 'SAM 3 (Masks)', kind: 'Mask labels', what: 'SAM 3 with RLE compressed masks' },
-  { name: 'SAM 3 (Polygons)', kind: 'Polygon labels', what: 'SAM 3 with polygons' },
-  { name: 'GPT-6 Astra (Masks)', kind: 'Mask labels', what: 'GPT-6 Astra segments your classes with RLE compressed masks' },
-  { name: 'GPT-6 Astra + SAM 3 (Polygons)', kind: 'Polygon labels', what: 'GPT-6 Astra finds your classes, SAM 3 draws each mask' },
-];
+const labelKind = s => (s?.labels === 'masks' ? 'Mask labels' : 'Polygon labels');
+const origin = s => (s.research_only ? 'Research or evaluation only' : s.trained_here ? 'Trained in this project' : s.platform ? 'Foundation model' : 'Published model');
+// A mask is the same outline, filled: it is drawn more solid than a polygon.
+const fillOpacity = computed(() => (current.value?.labels === 'masks' ? 0.55 : 0.25));
 async function loadSources() {
   loading.value = true; error.value = '';
   try {
@@ -138,8 +136,8 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
       <div class="auto-main">
         <div class="auto-model">
           <button class="auto-current" :aria-expanded="pickerOpen" :disabled="loading||!sources.length" @click="pickerOpen=!pickerOpen">
-            <span><strong>{{ loading ? 'Loading the models…' : current ? label(current) : error ? 'The models could not be loaded' : 'No model is ready on this server yet' }}<code v-if="current" class="label-kind">Polygon labels</code></strong>
-              <small v-if="current">{{ current.research_only ? 'Research or evaluation only' : current.trained_here ? 'Trained in this project' : 'Published model' }} · Is this model useful? <ThumbsUp :size="12"/> <ThumbsDown :size="12"/> <em>Coming soon</em></small></span>
+            <span><strong>{{ loading ? 'Loading the models…' : current ? label(current) : error ? 'The models could not be loaded' : 'No model is ready on this server yet' }}<code v-if="current" class="label-kind">{{ labelKind(current) }}</code></strong>
+              <small v-if="current">{{ origin(current) }} · Is this model useful? <ThumbsUp :size="12"/> <ThumbsDown :size="12"/> <em>Coming soon</em></small></span>
             <ChevronUp v-if="pickerOpen" :size="18"/><ChevronDown v-else :size="18"/>
           </button>
           <UiButton variant="primary" :disabled="!current||busy||!media.length" @click="confirmOpen=true"><Zap :size="15"/> Auto Label With This Model</UiButton>
@@ -150,11 +148,10 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
           </div>
           <template v-if="tab!=='My Workflows'">
             <button v-for="s in (tab==='Foundation Models'?foundation:mine)" :key="s.id" :class="['auto-option',{active:s.id===chosen}]" @click="choose(s.id)">
-              <strong>{{ label(s) }} <code class="label-kind">Polygon labels</code></strong><UiBadge v-if="s.research_only" class="research-tag">Research or evaluation only</UiBadge>
+              <strong>{{ label(s) }} <code class="label-kind">{{ labelKind(s) }}</code></strong><UiBadge v-if="s.research_only" class="research-tag">Research or evaluation only</UiBadge>
               <span v-if="s.what">{{ s.what }}</span><span>{{ s.detail }}. If it is not running it is started first, which takes a moment.</span>
               <span v-if="s.licence">Licence: {{ s.licence }}. A label started from its answer says so, so that it can be left out later.</span>
             </button>
-            <template v-if="tab==='Foundation Models'"><div v-for="m in COMING" :key="m.name" class="auto-option soon" aria-disabled="true"><strong>{{ m.name }} <code class="label-kind">{{ m.kind }}</code> <UiBadge>Coming soon</UiBadge></strong><span>{{ m.what }}</span></div></template>
             <p v-if="tab==='My Models'&&!mine.length" class="auto-empty">No model of this project is registered yet. Train one on the Train page.</p>
           </template>
           <p v-else class="auto-empty">Workflows that chain models are coming soon.</p>
@@ -176,7 +173,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
           <div class="auto-row"><strong>Preview: {{ current ? label(current) : '' }}</strong><UiButton v-if="generating" @click="stop">Stop</UiButton><UiButton v-else @click="generate"><Zap :size="15"/> Generate again</UiButton></div>
           <figure v-for="p in previews" :key="p.image.id" class="auto-result">
             <div class="auto-stage"><img :src="p.image.url" :alt="p.image.name" @load="loaded(p,$event)">
-              <svg v-if="p.state==='ready'&&p.width" :viewBox="`0 0 ${p.width} ${p.height}`" preserveAspectRatio="none"><polygon v-for="(s,i) in p.shapes" :key="i" :points="s.points.map(q=>q.join(',')).join(' ')" :fill="colour(s.kind)" fill-opacity=".25" :stroke="colour(s.kind)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
+              <svg v-if="p.state==='ready'&&p.width" :viewBox="`0 0 ${p.width} ${p.height}`" preserveAspectRatio="none"><polygon v-for="(s,i) in p.shapes" :key="i" :points="s.points.map(q=>q.join(',')).join(' ')" :fill="colour(s.kind)" :fill-opacity="fillOpacity" :stroke="colour(s.kind)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
             </div>
             <figcaption>
               <span>{{ p.image.name }}</span>

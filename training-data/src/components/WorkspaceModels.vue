@@ -71,7 +71,10 @@ const catalogMetrics = computed(() => [
 // ── trying a published model ─────────────────────────────────────────────────────────────────────
 const trying = ref(null); const state = ref(null); const busy = ref(false); const said = ref(''); const tryError = ref('');
 const file = ref(null); const photoUrl = ref(''); const answer = ref(null); const asking = ref(false); const least = ref(0);
-const steps = computed(() => trySteps(state.value));
+// A model on a platform server of its own (``served: 'platform'``, SAM 3) has nothing to make ready: its GPU server is
+// started, then it answers. Each photo is charged by the second (state.price).
+const onPlatform = computed(() => (state.value?.served || trying.value?.served) === 'platform');
+const steps = computed(() => trySteps(state.value).filter(step => !onPlatform.value || step.key !== 'preparing'));
 async function loadState() {
   const key = trying.value?.key;
   if (!key) return;
@@ -117,7 +120,7 @@ function publishedBadge(row) {
 // Every call the model answers is charged per call to the app's maker (platform_api.py): the dialog says what a call costs.
 const using = ref(null); const language = ref(USE_LANGUAGES[0]); const copied = ref(''); const useError = ref('');
 const useUrl = computed(() => (using.value?.use ? `${location.origin}${using.value.use.path}` : ''));
-const useCode = computed(() => (useUrl.value ? useSnippet(language.value, useUrl.value, using.value.use.model) : ''));
+const useCode = computed(() => (useUrl.value ? useSnippet(language.value, useUrl.value, using.value.use.model, using.value.use.payload, using.value.use.call) : ''));
 const COPIED_WORDS = { install: 'the install command', code: 'the code', model: 'the model key' };
 let copiedTimer = null;
 function openUse(row) { using.value = row; copied.value = ''; useError.value = ''; }
@@ -129,6 +132,33 @@ async function copyUse(text, what) {
   } catch { useError.value = 'Copying was blocked by the browser. Select the text and copy it with Ctrl+C.'; }
 }
 onUnmounted(() => clearTimeout(copiedTimer));
+
+// ── the workspace's own open models (My models): Use and Try it on a server started when needed, Train in a project
+// The rows are the workspace's only (app_api.open_model_rows); trying one asks published/<key>/ like a platform model.
+const openRows = computed(() => data.value?.open_models || []);
+const chatLines = ref([]); const chatText = ref(''); const chatting = ref(false); const openAnswer = ref(null);
+function tryOpen(row) {
+  startTrying(row); chatLines.value = []; chatText.value = ''; openAnswer.value = null;
+  requestAnimationFrame(() => document.getElementById('try-open')?.scrollIntoView({ block: 'start' }));
+}
+async function sendChat() {
+  const text = chatText.value.trim();
+  if (!text || !trying.value) return;
+  chatLines.value.push({ role: 'user', content: text }); chatText.value = ''; chatting.value = true; tryError.value = '';
+  try {
+    const body = await publishedApi.chat(trying.value.key, { messages: chatLines.value.map(({ role, content }) => ({ role, content })) });
+    chatLines.value.push({ role: 'assistant', content: body.choices?.[0]?.message?.content || '' });
+  } catch (e) { tryError.value = e.message; chatLines.value.pop(); chatText.value = text; await loadState(); } finally { chatting.value = false; }
+}
+async function chooseOpen(event) {
+  const picked = event.target.files?.[0]; event.target.value = '';
+  tryError.value = '';
+  if (!picked) return;
+  if (!PHOTO_TYPES.includes(picked.type)) { tryError.value = 'Choose a JPEG, PNG or WebP photo.'; return; }
+  asking.value = true;
+  try { openAnswer.value = await publishedApi.predict(trying.value.key, picked); }
+  catch (e) { tryError.value = e.message; await loadState(); } finally { asking.value = false; }
+}
 
 // ── usage of the deployed models ─────────────────────────────────────────────────────────────────
 const usage = ref(null); const usageError = ref(''); const usageLoading = ref(false); const usageQuery = ref('');
@@ -161,6 +191,45 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
         <UiButton variant="primary" @click="emit('create')"><Plus :size="16" aria-hidden="true"/> Create project</UiButton>
       </DeploymentHeader>
       <DeploymentMetrics :items="registryMetrics" :loaded="!!data && !error"/>
+      <section v-if="openRows.length" class="catalog-section" aria-labelledby="open-mine">
+        <h2 id="open-mine">Open models of this workspace <span class="count">{{ openRows.length }}</span></h2>
+        <div class="model-catalog">
+          <article v-for="row in openRows" :key="row.key" class="panel catalog-card">
+            <div class="catalog-head"><Box :size="22" aria-hidden="true"/><UiBadge>{{ row.kind==='chat' ? 'Chat' : 'Photo' }}</UiBadge><UiBadge v-if="row.task">{{ row.task }}</UiBadge><UiBadge tone="green">Ready</UiBadge></div>
+            <h3>{{ row.name }}</h3>
+            <p class="model-meta">{{ row.publisher }} · {{ row.size }} · commit {{ (row.revision || '').slice(0, 12) }}</p>
+            <p class="licence-line"><span>Licence</span>{{ row.licence_name }}</p>
+            <div class="catalog-tags"><UiBadge v-if="row.may.use">Use</UiBadge><UiBadge v-if="row.may.train">Train</UiBadge></div>
+            <p v-if="row.may.train" class="model-meta">To train it, choose it as the base model in a project's Train tab.</p>
+            <div class="catalog-buttons">
+              <UiButton v-if="row.use" variant="primary" @click="openUse(row)"><Code :size="15" aria-hidden="true"/> Use model</UiButton>
+              <UiButton v-if="row.may.use" :disabled="!row.may.try" :title="!row.may.try ? 'Your role in this workspace reads only: it starts nothing.' : ''" @click="tryOpen(row)"><Play :size="15" aria-hidden="true"/> Try it</UiButton>
+            </div>
+          </article>
+        </div>
+      </section>
+      <section v-if="trying&&trying.repo" id="try-open" class="panel try-panel" aria-live="polite">
+        <header class="try-head"><div><h2>Try {{ trying.name }}</h2><p>Your workspace's own model, on a server started when it is needed. Each {{ trying.kind==='chat' ? 'answer' : 'photo' }} is charged by the second it takes<template v-if="state?.price"> ({{ state.price }})</template>.</p></div>
+          <button class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
+        <div v-if="said" class="notice" role="status"><Check :size="16"/><span>{{ said }}</span></div>
+        <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
+        <p v-if="!state" class="muted">Looking at where it stands…</p>
+        <template v-else>
+          <p v-if="state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>Its server is starting; this takes a few minutes.</p>
+          <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
+          <p v-if="ready" class="muted">Its server is ready. It stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
+          <div class="try-actions"><UiButton v-if="state.may.start" variant="primary" :disabled="busy" @click="act('start')"><Play :size="14"/> Start its server</UiButton></div>
+          <template v-if="trying.kind==='chat'">
+            <ol class="open-chat" aria-label="Conversation"><li v-for="(line, i) in chatLines" :key="i" :class="line.role"><strong>{{ line.role==='user' ? 'You' : trying.name }}</strong><span>{{ line.content }}</span></li></ol>
+            <form class="open-chat-ask" @submit.prevent="sendChat"><input v-model="chatText" class="text-input" :disabled="!ready||chatting" placeholder="Write a message…" aria-label="Your message"><UiButton type="submit" variant="primary" :disabled="!ready||chatting||!chatText.trim()">{{ chatting ? 'Waiting for the answer…' : 'Send' }}</UiButton></form>
+          </template>
+          <template v-else>
+            <label class="test-input" :class="{off:!ready}"><Upload :size="26"/><strong>{{ asking ? 'Asking the model…' : 'Choose a photo' }}</strong><span>JPEG, PNG or WebP, up to {{ state.max_mb }} MB. The photo is not kept.</span>
+              <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="!ready||asking" aria-label="Choose a photo to try" @change="chooseOpen"></label>
+            <details v-if="openAnswer" class="json" open><summary>Its answer (JSON)</summary><pre>{{ JSON.stringify(openAnswer.output, null, 2) }}</pre></details>
+          </template>
+        </template>
+      </section>
       <p v-if="!data" class="models-loading">Loading models…</p>
       <section v-else-if="!data.models.length && !error" class="models-empty">
         <span class="models-empty-icon"><Boxes :size="34"/></span>
@@ -201,8 +270,8 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
       <DeploymentHeader title="Ready-to-use Models" heading-id="catalog-heading" eyebrow="EXPLORE. TRY. INTEGRATE." :icon="WandSparkles" description="Explore AADML's published models. Try supported models or connect them to your apps."/>
       <DeploymentMetrics :items="catalogMetrics" :loaded="!!data && !error"/>
       <div class="models-info"><ShieldCheck :size="17" aria-hidden="true"/><p>Published models are used as provided. Models you train are managed in <button class="models-text-button" type="button" @click="active='My models'">My models</button>.</p></div>
-      <section v-if="trying" id="try-published" class="panel try-panel" aria-live="polite">
-        <header class="try-head"><div><h2>Try {{ trying.name }} as it is published</h2><p>No training here first: the published model answers your photo. It marks walls, windows and doors.</p></div>
+      <section v-if="trying&&!trying.repo" id="try-published" class="panel try-panel" aria-live="polite">
+        <header class="try-head"><div><h2>Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform">{{ trying.name }} finds the walls, windows and doors of your photo on AADML's GPU server. Each photo is charged by the second it takes<template v-if="state?.price"> ({{ state.price }})</template>.</p><p v-else>No training here first: the published model answers your photo. It marks walls, windows and doors.</p></div>
           <button class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
         <div v-if="said" class="notice" role="status"><Check :size="16"/><span>{{ said }}</span></div>
         <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
@@ -216,13 +285,14 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
             </ol>
             <p v-if="!state" class="muted">Looking at where it stands…</p>
             <template v-else>
-              <p v-if="state.phase==='preparing'||state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>{{ state.phase==='preparing' ? 'Being made ready' : 'Its test server is starting' }}<template v-if="state.since"> since {{ timeAgo(state.since) }}</template>.</p>
+              <p v-if="state.phase==='preparing'||state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>{{ state.phase==='preparing' ? 'Being made ready' : onPlatform ? 'Its GPU server is starting; this takes a few minutes' : 'Its test server is starting' }}<template v-if="state.since"> since {{ timeAgo(state.since) }}</template>.</p>
               <p v-if="state.phase==='failed'&&state.published?.failure_reason" class="field-error">{{ state.published.failure_reason }}</p>
               <details v-if="state.log" class="json"><summary>The end of its log</summary><pre>{{ state.log }}</pre></details>
               <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
-              <p v-if="ready" class="muted">Its test server is ready. {{ state.trial?.photos_tried || 0 }} photo{{ state.trial?.photos_tried===1?'':'s' }} tried. It stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
+              <p v-if="ready&&onPlatform" class="muted">Its GPU server is ready. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
+              <p v-else-if="ready" class="muted">Its test server is ready. {{ state.trial?.photos_tried || 0 }} photo{{ state.trial?.photos_tried===1?'':'s' }} tried. It stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
               <div class="try-actions">
-                <UiButton v-if="state.may.start" variant="primary" :disabled="busy" @click="act('start')"><Play :size="14"/> {{ state.published?.state==='ready' ? 'Start its test server' : 'Make it ready and start' }}</UiButton>
+                <UiButton v-if="state.may.start" variant="primary" :disabled="busy" @click="act('start')"><Play :size="14"/> {{ onPlatform ? 'Start its GPU server' : state.published?.state==='ready' ? 'Start its test server' : 'Make it ready and start' }}</UiButton>
                 <UiButton v-if="state.may.stop" :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop its test server</UiButton>
               </div>
               <label class="test-input" :class="{off:!ready}">
@@ -320,6 +390,8 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
         <p class="dialog-description">Call {{ using.name }} from your own code. Each call is one photo, answered with what the model found.</p>
         <p v-if="using.use.cost_note" class="use-cost"><Wallet :size="16" aria-hidden="true"/><span>{{ callCostText(using.use) }}</span></p>
         <p v-if="using.use.serving_note" class="use-cost"><Clock :size="16" aria-hidden="true"/><span>{{ using.use.serving_note }}</span></p>
+        <p v-if="using.use.payload_note" class="use-cost"><Code :size="16" aria-hidden="true"/><span>{{ using.use.payload_note }}</span></p>
+        <p v-if="using.use.grant_note" class="use-cost"><KeyRound :size="16" aria-hidden="true"/><span>{{ using.use.grant_note }}</span></p>
         <ol class="use-steps">
           <li>
             <h3><span class="use-step-no" aria-hidden="true">1</span>Choose your language</h3>
@@ -368,6 +440,11 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
 .section-note{margin:6px 0 0;font-size:13px;color:#5f6d82}
 .licence-line{display:flex;flex-direction:column;gap:2px;padding-top:6px;font-size:13px;color:#33415a}
 .licence-line span{font-size:12px;color:#6b778c}
+.open-chat{list-style:none;padding:0;margin:14px 0;display:grid;gap:10px;max-height:360px;overflow:auto}
+.open-chat li{display:grid;gap:3px;padding:10px 12px;border-radius:8px;background:#f5f7fa;font-size:13px;white-space:pre-wrap}
+.open-chat li.user{background:var(--aadml-tint)}
+.open-chat strong{font-size:12px;color:#5f6d82}
+.open-chat-ask{display:flex;gap:8px}.open-chat-ask .text-input{flex:1}
 .coming-grid{list-style:none;padding:0;margin:16px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;align-items:start}
 .coming-card{padding:14px 16px;border:1px dashed #cfd5e1;border-radius:10px;background:#fafbfc}
 .coming-head{display:flex;align-items:center;justify-content:space-between;gap:8px}

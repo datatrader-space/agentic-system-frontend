@@ -75,7 +75,7 @@ test('counts, sizes and uses read in plain words', () => {
 });
 
 test('an added model says where it stands', () => {
-  assert.deepEqual(stateBadge('ready'), ['green', 'Ready to train']);
+  assert.deepEqual(stateBadge('ready'), ['green', 'Ready']);
   assert.deepEqual(stateBadge('fetching'), ['purple', 'Being fetched']);
   assert.deepEqual(stateBadge('failed'), ['amber', 'Fetch failed']);
   assert.deepEqual(stateBadge('other'), ['neutral', 'Not added']);

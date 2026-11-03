@@ -66,9 +66,10 @@ export function usesText(uses = []) {
   return deploy ? 'Deploy as is' : '';
 }
 
-// An added model's state as a badge: [tone, words].
+// An added model's state as a badge: [tone, words]. A ready one is "Ready": what it is ready for (Use, Train) is said
+// beside it from its uses (My models, the owner, 2026-11-03).
 export function stateBadge(state) {
-  if (state === 'ready') return ['green', 'Ready to train'];
+  if (state === 'ready') return ['green', 'Ready'];
   if (state === 'fetching') return ['purple', 'Being fetched'];
   if (state === 'failed') return ['amber', 'Fetch failed'];
   return ['neutral', 'Not added'];

@@ -232,6 +232,8 @@ export const publishedApi = {
     form.append('file', file);
     return apiFetch(`${APP}/published/${enc(key)}/predict/`, { method: 'POST', body: form, timeoutMs: 180000 });
   },
+  // A workspace's open chat model: the conversation so far, its answer back (app_api.published_try_chat).
+  chat: (key, body) => apiFetch(`${APP}/published/${enc(key)}/chat/`, { method: 'POST', body, timeoutMs: 180000 }),
 };
 
 // The Deployments overview's time ranges, as the backend names them (app_api.py DEPLOYMENT_RANGES).
