@@ -17,7 +17,7 @@ vi.mock('../composables/useNotify', () => ({ notify: { error: vi.fn(), success: 
 import Billing from './Billing.vue'
 
 const wallet = (balance, extra = {}) => ({ data: {
-  wallet: { balance_usd: balance, balance_exact_usd: balance, held_usd: '0.00', available_usd: balance, exempt: false },
+  wallet: { balance_usd: balance, balance_exact_usd: balance, held_usd: '0.00', available_usd: balance },
   settings: { min_topup_usd: '5.00', max_topup_usd: '500.00', preset_amounts: [5, 10, 25, 50], low_balance_usd: '1.00' },
   payments_configured: true, topups: [], ...extra } })
 

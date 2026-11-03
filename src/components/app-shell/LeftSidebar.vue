@@ -99,7 +99,7 @@ const balanceLabel = ref('')
 onMounted(async () => {
   try {
     const { data } = await api.billingWallet()
-    balanceLabel.value = data?.wallet?.exempt ? 'Platform staff' : `Balance ${balanceText(data?.wallet?.balance_exact_usd)}`
+    balanceLabel.value = `Balance ${balanceText(data?.wallet?.balance_exact_usd)}`
   } catch (e) { balanceLabel.value = '' }
 })
 const logout = inject('logout', () => {})

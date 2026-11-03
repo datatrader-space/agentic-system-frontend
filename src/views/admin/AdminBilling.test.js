@@ -41,7 +41,7 @@ beforeEach(() => {
   api.billingAdminCharges.mockResolvedValue({ data: { charges: [charge], next_before: null } })
   api.billingAdminSettings.mockResolvedValue({ data: { settings: settings() } })
   api.billingAdminSaveSettings.mockResolvedValue({ data: { settings: settings() } })
-  api.billingAdminWallets.mockResolvedValue({ data: { wallets: [{ wallet_id: 1, user_id: 7, username: 'ben', email: 'ben@example.test', balance_usd: '0.00000017', held_usd: '2', exempt: false }], next_before: null } })
+  api.billingAdminWallets.mockResolvedValue({ data: { wallets: [{ wallet_id: 1, user_id: 7, username: 'ben', email: 'ben@example.test', balance_usd: '0.00000017', held_usd: '2' }], next_before: null } })
   api.billingAdminWallet.mockResolvedValue({ data: { user: { id: 7, username: 'ben', email: 'ben@example.test' }, wallet: { balance_usd: '0.00000017' }, entries: [charge], holds: [], next_before: null } })
   api.billingAdminPricingCoverage.mockResolvedValue({ data: { total: 3, missing: 1, models: [
     { provider_id: 1, model_id: 'paid', name: 'Paid model', status: 'priced', price: { per_item_usd: '0.01' } },

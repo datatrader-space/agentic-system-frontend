@@ -24,9 +24,8 @@
           <div v-if="Number(wallet.held_usd) > 0" class="sub">
             ${{ wallet.held_usd }} is set aside for work in progress, so ${{ wallet.available_usd }} is available.
           </div>
-          <div v-if="wallet.exempt" class="sub">As platform staff, your own usage is not charged.</div>
         </div>
-        <div v-if="!wallet.exempt && balanceState !== 'ok'" class="state-note" role="alert">
+        <div v-if="balanceState !== 'ok'" class="state-note" role="alert">
           <AlertTriangle :size="18" aria-hidden="true" />
           <span v-if="balanceState === 'empty'">
             Your balance is empty. Chats, agents, schedules and jobs that cost money are paused until you top up.

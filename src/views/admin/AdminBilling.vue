@@ -7,7 +7,7 @@
       </div>
       <span class="context-badge"><CircleDollarSign :size="14" aria-hidden="true" /> All amounts in USD</span>
     </header>
-    <div class="billing-note"><Info :size="15" aria-hidden="true" /><span>Prepaid billing · Paid API calls use provider cost × markup. Platform staff are exempt.</span></div>
+    <div class="billing-note"><Info :size="15" aria-hidden="true" /><span>Prepaid billing · Every paid call is charged to the person who made it at provider cost × markup, platform staff included.</span></div>
 
     <div class="tabs admin-tabs" role="tablist" aria-label="Billing">
       <button v-for="t in TABS" :id="`tab-${t.key}`" :key="t.key" class="tab" role="tab" type="button"
@@ -152,7 +152,7 @@
         <label class="field">
           <span>Starting credit for a new person ($)</span>
           <input v-model="form.starting_credit_usd" inputmode="decimal" />
-          <small>Given once per email address, after the email is verified. Platform staff get none.</small>
+          <small>Given once per inbox, to a gmail.com address, after the email is verified.</small>
           <em v-if="errors.starting_credit_usd" role="alert">{{ errors.starting_credit_usd }}</em>
         </label>
         <label class="field">
@@ -199,7 +199,7 @@
             <tbody>
               <tr v-for="w in wallets" :key="w.wallet_id">
                 <td><div class="person-cell"><span class="avatar" aria-hidden="true">{{ (w.username || '?').slice(0, 1).toUpperCase() }}</span><div><strong>{{ w.username }}</strong><div class="muted admin-muted">{{ w.email }}</div></div></div></td>
-                <td class="num" :class="{ neg: Number(w.balance_usd) <= 0 }">${{ w.balance_usd }}<span v-if="w.exempt" class="tag">staff</span></td>
+                <td class="num" :class="{ neg: Number(w.balance_usd) <= 0 }">${{ w.balance_usd }}</td>
                 <td class="num">${{ w.held_usd }}</td>
                 <td class="num"><button class="btn sm" type="button" @click="openWallet(w.user_id)" :aria-label="`Open wallet for ${w.username}`">View wallet <ArrowUpRight :size="14" aria-hidden="true" /></button></td>
               </tr>
