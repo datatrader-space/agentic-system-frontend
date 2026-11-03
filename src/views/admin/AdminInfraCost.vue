@@ -108,7 +108,7 @@
           </details>
 
           <template v-for="key in a.tag_keys" :key="key">
-            <h3 class="admin-section-title">By tag <code>{{ key }}</code><span v-if="a.own_tag && key === a.own_tag.key" class="muted admin-muted small"> (the whole account)</span></h3>
+            <h3 class="admin-section-title"><template v-if="key === 'REGION'">By region</template><template v-else>By tag <code>{{ key }}</code></template><span v-if="a.own_tag && key === a.own_tag.key" class="muted admin-muted small"> (the whole account)</span></h3>
             <table class="tbl admin-table">
               <thead><tr><th>{{ key }}</th><th class="r">Cost</th></tr></thead>
               <tbody>
