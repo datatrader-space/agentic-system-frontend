@@ -26,8 +26,6 @@ export default {
 
   'dashboard-tools': { label: 'Tools', parent: 'dashboard-home' },
   'dashboard-connectors': { label: 'Connectors', parent: 'dashboard-home' },
-  'dashboard-connections': { label: 'Connections', parent: 'dashboard-home' },
-  'dashboard-connection-docs': { label: 'Connection docs', parent: 'dashboard-connections' },
   'dashboard-integrations': { label: 'Integrations', parent: 'dashboard-home' },
   'dashboard-integrations-agent': { label: 'Agent', parent: 'dashboard-integrations', dynamic: true },
 
@@ -84,6 +82,8 @@ export default {
   'admin-guided-tours': { label: 'Guided tours', parent: 'admin-overview' },
   'admin-help-analytics': { label: 'Help analytics', parent: 'admin-overview' },
   'admin-builtin-agents': { label: 'Built-in agents', parent: 'admin-overview' },
+  'admin-oauth-providers': { label: 'OAuth providers', parent: 'admin-overview' },
+  'admin-oauth-provider-new': { label: 'Add OAuth provider', parent: 'admin-oauth-providers' },
   'admin-builtin-skills': { label: 'Built-in skills', parent: 'admin-overview' },
   'admin-issues': { label: 'Issues', parent: 'admin-overview' },
   'admin-learning-monitor': { label: 'Learning monitor', parent: 'admin-overview' },

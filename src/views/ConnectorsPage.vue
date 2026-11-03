@@ -60,7 +60,7 @@
                   <span class="add-menu-title">Register service</span>
                   <span class="add-menu-sub">From OpenAPI / Postman spec</span>
                 </button>
-                <button @click="openOAuthProvider" class="add-menu-item">
+                <button v-if="isPlatformAdmin" @click="openOAuthProvider" class="add-menu-item">
                   <span class="add-menu-title">Register OAuth Provider</span>
                   <span class="add-menu-sub">OAuth client and scopes flow</span>
                 </button>
@@ -381,7 +381,7 @@
       <div class="w-full max-w-xl h-full bg-white shadow-2xl flex flex-col">
         <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0">
           <div class="text-[13px] font-bold text-ink truncate">
-            {{ credModalConnector.name }} · credentials
+            {{ credModalConnector.vault ? 'Credential vault' : `${credModalConnector.name} · credentials` }}
             <span class="text-ink-faint font-medium">({{ scope === 'global' ? 'Global' : (scopeAgent?.name || 'Agent') }})</span>
           </div>
           <button @click="closeCredModal" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
@@ -617,7 +617,8 @@ function openRegisterService() {
 }
 function openOAuthProvider() {
   addMenuOpen.value = false
-  router.push('/dashboard/connectors/oauth-provider/new')
+  // A platform-wide provider is the admin's to add; only staff may create one on the server (ADM-1151).
+  router.push('/admin-dashboard/oauth-providers/new')
 }
 function onServiceRegistered() {
   showServiceReg.value = false
@@ -922,6 +923,12 @@ async function handleDisconnect(c) {
 
 function closeCredModal() {
   credModalConnector.value = null
+  // The vault opened from a link (?panel=credentials) does not reopen on a refresh once it is closed.
+  if (!props.compact && route.query.panel) {
+    const q = { ...route.query }
+    delete q.panel
+    router.replace({ path: route.path, query: q })
+  }
   loadConnectors()
 }
 
@@ -1132,6 +1139,8 @@ onMounted(() => {
     hubView.value = qTab === 'catalog' ? 'hub' : qTab
     showHub.value = true
   }
+  // Deep-link: ?panel=credentials opens the credential vault (the agent editor's "Manage Vault", ADM-1151).
+  if (!props.compact && route.query.panel === 'credentials') credModalConnector.value = { vault: true, name: 'Credential vault' }
   loadConnectorsBundle()
 })
 </script>

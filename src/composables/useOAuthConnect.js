@@ -1,6 +1,6 @@
 // Reusable OAuth "connect with your account" popup flow.
 //
-// Extracted from the original Connections.vue handler so the new Connectors page drives the exact same
+// Extracted from the retired Connections page's handler so the Connectors page drives the exact same
 // provider OAuth flow. Opens the provider authorize URL in a popup, then resolves when the callback
 // posts back `oauth-connection-result`.
 //

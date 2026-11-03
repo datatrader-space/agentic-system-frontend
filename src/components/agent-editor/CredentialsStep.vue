@@ -34,7 +34,7 @@
               </div>
               <p class="mt-1.5 text-[11.5px] font-medium text-[#64748B]">
                 Select credentials to attach to this agent. Need a new credential?
-                <button class="ml-1 inline-flex items-center gap-1 font-semibold text-[#2563EB]" @click="shell.openUserPage('/dashboard/connections?tab=credentials', go)">
+                <button class="ml-1 inline-flex items-center gap-1 font-semibold text-[#2563EB]" @click="shell.openUserPage('/dashboard/connectors?panel=credentials', go)">
                   Manage Vault <ExternalLink :size="11" />
                 </button>
               </p>

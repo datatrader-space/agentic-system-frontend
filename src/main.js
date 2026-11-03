@@ -88,8 +88,6 @@ const ServiceDrafts = () => import('./views/ServiceDrafts.vue')
 const OrgSettings = () => import('./views/OrgSettings.vue')
 const WorkspaceDashboard = () => import('./views/WorkspaceDashboard.vue')
 const InviteAccept = () => import('./views/InviteAccept.vue')
-const Connections = () => import('./views/Connections.vue')
-const ConnectionDocs = () => import('./views/ConnectionDocs.vue')
 const IntegrationGuide = () => import('./views/IntegrationGuide.vue')
 const PublicChat = () => import('./views/PublicChat.vue')
 const SharedConversation = () => import('./views/SharedConversation.vue')
@@ -301,13 +299,16 @@ const router = createRouter({
         { path: 'systems/:id', name: 'dashboard-system-detail', component: SystemDetail },
         { path: 'systems/:systemId/repositories/:repoId', name: 'dashboard-repository-detail', component: RepositoryPage },
         { path: 'services/register', name: 'dashboard-service-register', component: ServiceRegistration },
-        { path: 'connectors/oauth-provider/new', name: 'dashboard-oauth-provider-new', component: OAuthProviderRegistration },
+        // Registering an OAuth provider is a platform admin's job and lives in the admin dashboard (ADM-1151).
+        { path: 'connectors/oauth-provider/new', name: 'dashboard-oauth-provider-new', redirect: '/admin-dashboard/oauth-providers/new' },
         { path: 'services/wizard', name: 'dashboard-service-wizard', component: ServiceRegistration },
         { path: 'services/drafts', name: 'dashboard-service-drafts', component: ServiceDrafts },
         { path: 'workspace/:wsId', name: 'dashboard-workspace', component: WorkspaceDashboard },
         { path: 'workspace/:wsId/:tab', name: 'dashboard-workspace-tab', component: WorkspaceDashboard },
-        { path: 'connections', name: 'dashboard-connections', component: Connections },
-        { path: 'connections/docs', name: 'dashboard-connection-docs', component: ConnectionDocs },
+        // The old Connections page is retired (ADM-1151): connectors are on Connectors, OAuth providers in the admin
+        // dashboard. Old links and bookmarks still land somewhere useful; a ?tab=credentials link opens the vault.
+        { path: 'connections', name: 'dashboard-connections', redirect: to => ({ path: '/dashboard/connectors', query: to.query.tab === 'credentials' ? { panel: 'credentials' } : {} }) },
+        { path: 'connections/docs', name: 'dashboard-connection-docs', redirect: '/dashboard/connectors' },
         // The page moved under Integrations; old links and bookmarks keep working (the tab is kept).
         { path: 'integration-guide/:agentId?', name: 'dashboard-integration-guide',
           redirect: to => ({ path: to.params.agentId ? `/dashboard/integrations/agents/${to.params.agentId}` : '/dashboard/integrations', query: to.query }) },
@@ -346,6 +347,9 @@ const router = createRouter({
         // The platform's AI APIs (backend PAYMENTS_TOPUP_PLAN.md §7): the only place AI keys are set. Super admin only;
         // people never add keys of their own.
         { path: 'platform-apis', name: 'admin-platform-apis', component: () => import('./views/LLMSettings.vue') },
+        // The platform's OAuth providers: the sign-in apps connectors use (ADM-1151).
+        { path: 'oauth-providers', name: 'admin-oauth-providers', component: () => import('./views/admin/AdminOAuthProviders.vue') },
+        { path: 'oauth-providers/new', name: 'admin-oauth-provider-new', component: OAuthProviderRegistration },
         // The model every agent runs on for each job unless its owner picks another (PLATFORM_MODEL_DEFAULTS_PLAN.md).
         { path: 'model-defaults', name: 'admin-model-defaults', component: () => import('./views/admin/AdminModelDefaults.vue') },
         // The prepaid wallet: markup and top-up limits, people's balances, pricing coverage, revenue.
@@ -416,8 +420,8 @@ const router = createRouter({
     { path: '/org/:orgSlug/settings/:tab', name: 'org-settings-tab', redirect: to => `/dashboard/org/${to.params.orgSlug}/settings/${to.params.tab}` },
     { path: '/workspace/:wsId', name: 'workspace-dashboard', redirect: to => `/dashboard/workspace/${to.params.wsId}` },
     { path: '/workspace/:wsId/:tab', name: 'workspace-tab', redirect: to => `/dashboard/workspace/${to.params.wsId}/${to.params.tab}` },
-    { path: '/connections', name: 'connections', redirect: '/dashboard/connections' },
-    { path: '/docs/connections', name: 'connection-docs', redirect: '/dashboard/connections/docs' },
+    { path: '/connections', name: 'connections', redirect: '/dashboard/connectors' },
+    { path: '/docs/connections', name: 'connection-docs', redirect: '/dashboard/connectors' },
     { path: '/integration-guide/:agentId?', name: 'integration-guide', redirect: to => ({ path: to.params.agentId ? `/dashboard/integrations/agents/${to.params.agentId}` : '/dashboard/integrations', query: to.query }) },
     {
       path: '/invite/accept/:token',

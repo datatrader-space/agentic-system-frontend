@@ -30,11 +30,11 @@
           <button @click="router.push('/dashboard/connectors')">Open Connectors</button>
         </article>
       </div>
-      <button class="primary center" @click="router.push('/dashboard/connections')">View connections</button>
+      <button class="primary center" @click="router.push('/admin-dashboard/oauth-providers')">View OAuth providers</button>
     </section>
 
     <section v-else class="oauth-main">
-      <RouterLink to="/dashboard/connectors" class="back-link"><Icon icon="lucide:arrow-left" /> Back to Connectors</RouterLink>
+      <RouterLink to="/admin-dashboard/oauth-providers" class="back-link"><Icon icon="lucide:arrow-left" /> Back to OAuth providers</RouterLink>
       <header class="page-head">
         <div>
           <h1>Add OAuth Provider</h1>

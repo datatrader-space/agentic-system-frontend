@@ -380,13 +380,6 @@ const MCPIcon = {
   ])
 }
 
-const ConnectionsIcon = {
-  render: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-    h('path', { d: 'M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71' }),
-    h('path', { d: 'M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71' })
-  ])
-}
-
 const AgentLibraryIcon = {
   render: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
     h('path', { d: 'M12 2L2 7l10 5 10-5-10-5z' }),
@@ -448,7 +441,6 @@ const authLinks = [
   { to: '/agents', label: 'Agent Library', exact: true, iconComponent: AgentLibraryIcon },
   { to: '/services', label: 'Services', exact: true, iconComponent: ServicesIcon },
   { to: '/mcp', label: 'MCP', exact: true, iconComponent: MCPIcon, highlight: true },
-  { to: '/connections', label: 'Connections', exact: true, iconComponent: ConnectionsIcon },
   { to: '/workspaces', label: 'Workspaces', exact: true, iconComponent: MCPIcon, badge: 'New' }
 ]
 
