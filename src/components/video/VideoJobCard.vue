@@ -23,9 +23,9 @@
         </ul>
       </div>
       <p class="vjc-price" v-if="job.quote">
-        <template v-if="job.quote.pricing_status === 'unknown'">The provider publishes no price for this request; ${{ money(job.quote.max_usd) }} is held and the actual cost is charged.</template>
-        <template v-else-if="['estimated','range'].includes(job.quote.pricing_status)">About ${{ money(job.quote.estimate_usd) }}, at most ${{ money(job.quote.max_usd) }} (the provider's reported cost is charged).</template>
-        <template v-else>${{ money(job.quote.estimate_usd) }}</template>
+        <!-- The listed price is an estimate; the person pays what the provider bills (owner, 2026-11-03). -->
+        <template v-if="job.quote.pricing_status === 'unknown'">The provider publishes no price for this request; ${{ money(job.quote.max_usd) }} is held and you pay what the provider bills.</template>
+        <template v-else>About ${{ money(job.quote.estimate_usd) }}, an estimate: you pay what the provider bills.</template>
       </p>
       <!-- An estimate holds for a short time so the price stays current; the server refuses an expired one,
            so the card says so instead of offering a Generate that can only fail. -->

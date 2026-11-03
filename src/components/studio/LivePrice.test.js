@@ -9,4 +9,16 @@ describe('LivePrice', () => {
     expect(w.get('.lp-note').text()).toBe('Nothing is spent until you press Generate on its card.')
     w.unmount()
   })
+
+  it('says the price is an estimate, never "at most" (owner, 2026-11-03: the provider bills the final price)', () => {
+    let w = mount(LivePrice, { props: { price: { status: 'range', estimate: 0.13, most: 0.17 } } })
+    expect(w.get('.lp-est').text()).toBe('· an estimate: you pay what the provider bills')
+    expect(w.text()).not.toContain('at most')
+    w.unmount()
+    w = mount(LivePrice, { props: { price: { status: 'unknown', estimate: 0, most: 2 } } })
+    expect(w.get('strong').text()).toBe('No published price')
+    expect(w.text()).toContain('$2.00 is held')
+    expect(w.text()).not.toContain('at most')
+    w.unmount()
+  })
 })

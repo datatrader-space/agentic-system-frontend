@@ -37,6 +37,21 @@ describe('VideoJobCard', () => {
     expect(api.post).toHaveBeenCalledWith('/video/jobs/j1/start/', { accept: true })
   })
 
+  it('the price is an estimate and never a ceiling: the provider bills the final price (owner, 2026-11-03)', () => {
+    const ranged = { ...base, state: 'awaiting_authorization',
+                     quote: { estimate_usd: '0.30', max_usd: '0.50', pricing_status: 'range', adjustments: [] } }
+    let w = mount(VideoJobCard, { props: { job: ranged } })
+    expect(w.find('.vjc-price').text()).toBe('About $0.30, an estimate: you pay what the provider bills.')
+    expect(w.text()).not.toContain('at most')
+    w.unmount()
+    const unknown = { ...base, state: 'awaiting_authorization',
+                      quote: { estimate_usd: '0', max_usd: '2.000000', pricing_status: 'unknown', adjustments: [] } }
+    w = mount(VideoJobCard, { props: { job: unknown } })
+    expect(w.find('.vjc-price').text()).toBe(
+      'The provider publishes no price for this request; $2.00 is held and you pay what the provider bills.')
+    w.unmount()
+  })
+
   it('a media job is titled by what it makes and shows the model by the name the picker used', () => {
     const speech = { ...base, operation: 'speech', modality: 'audio', model: 'eleven_flash_v2', model_name: 'Eleven Flash v2',
                      state: 'ready', effective_config: { prompt: 'Welcome' }, references: [], actual_cost_usd: '0.002320' }

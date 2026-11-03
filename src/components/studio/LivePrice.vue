@@ -1,14 +1,15 @@
 <template>
   <p class="lp" role="status" aria-live="polite" data-test="live-price">
     <template v-if="loading"><span class="lp-dot" aria-hidden="true" />Working out the price…</template>
-    <template v-else-if="price"><strong>{{ price.status === 'unknown' ? 'No published price' : `About ${usd(price.estimate)}` }}</strong><span v-if="price.status === 'unknown'"> · at most {{ usd(price.most) }} is held</span><span v-else-if="price.most > price.estimate"> · at most {{ usd(price.most) }}</span><span class="lp-note">Nothing is spent until you press Generate on its card.</span></template>
+    <template v-else-if="price"><strong>{{ price.status === 'unknown' ? 'No published price' : `About ${usd(price.estimate)}` }}</strong><span v-if="price.status === 'unknown'"> · {{ usd(price.most) }} is held</span><span class="lp-est"> · an estimate: you pay what the provider bills</span><span class="lp-note">Nothing is spent until you press Generate on its card.</span></template>
     <template v-else-if="problem">{{ problem }}</template>
     <template v-else>{{ empty }}</template>
   </p>
 </template>
 <script setup>
 import { usd } from '../../utils/studioPrice'
-// The draft's price, from useLivePrice: worked out as the settings change, before anything is asked for.
+// The draft's price, from useLivePrice: worked out as the settings change, before anything is asked for. It is the
+// listed price, an estimate: the person pays what the provider bills (owner, 2026-11-03), so it is never "at most".
 defineProps({ price: Object, loading: Boolean, problem: String, empty: { type: String, default: 'Fill in the details to see the price.' } })
 </script>
 <style scoped>
