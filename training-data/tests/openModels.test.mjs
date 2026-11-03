@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   openModelsApi, cleanQuery, queryProblem, hubLink, shortCount, bytesText, usesText, stateBadge, anyFetching,
-  hiddenSummary, mergePage, resultsSaid, addRefusal, addedFor, KINDS, USES, QUERY_LIMIT,
+  hiddenSummary, mergePage, resultsSaid, addRefusal, addedFor, KINDS, USES, QUERY_LIMIT, quoteLines, quoteNote, modelBadge,
+  storageLine,
 } from '../src/api/openModels.js';
 
 function fakeStore() {
@@ -147,4 +148,56 @@ test('a model AADML only serves can be added; a gated one only once AADML\'s acc
   for (const text of [addRefusal(deployOnly, { mayAdd: true }), addedFor({ uses: ['deploy'] })]) {
     assert.equal(/cannot be trained/.test(text), false);
   }
+});
+
+test('the Add dialog asks the backend what adding costs, and shows its prices as they are', async () => {
+  const seen = await capture(async () => { await openModelsApi.quote('Qwen/Qwen2.5-0.5B-Instruct'); });
+  assert.equal(seen[0].url, '/api/training-data/app/open-models/quote/?repo=Qwen%2FQwen2.5-0.5B-Instruct');
+  assert.equal(seen[0].init.method ?? 'GET', 'GET');
+  // The prices are the backend's text, with the markup in: shown as given, never worked out on the page.
+  const quote = {
+    repo: 'Qwen/Qwen2.5-0.5B-Instruct', name: 'Qwen2.5-0.5B-Instruct', publisher: 'Qwen', licence: 'apache-2.0',
+    licence_name: 'Apache 2.0', size: '494M', bytes: 988_125_824,
+    price: { paid: true, fetch: { about: '$0.0053', at_most: '$0.07' }, storage: { per_day: '$0.0009' },
+             note: 'The fetch is charged for the time it really takes on ml.m5.large.' },
+  };
+  assert.deepEqual(quoteLines(quote), [
+    { label: 'Model', value: 'Qwen / Qwen2.5-0.5B-Instruct' },
+    { label: 'Licence', value: 'Apache 2.0' },
+    { label: 'Size', value: '494M, 942 MB' },
+    { label: 'Fetch', value: 'About $0.0053, up to $0.07 held' },
+    { label: 'Storage', value: '$0.0009 a day, charged a day in advance' },
+  ]);
+  assert.equal(quoteNote(quote), 'The fetch is charged for the time it really takes on ml.m5.large.');
+  const other = { ...quote, price: { ...quote.price, fetch: { about: '$9.99', at_most: '$12.00' }, storage: { per_day: '$1.23' } } };
+  assert.equal(quoteLines(other)[3].value, 'About $9.99, up to $12.00 held', 'the page shows what it is given, whatever it is');
+  assert.equal(quoteLines(other)[4].value, '$1.23 a day, charged a day in advance');
+  assert.deepEqual(quoteLines({ ...quote, price: { paid: false, note: 'Not charged.' } }).at(-1), { label: 'Cost', value: 'Not charged on this server' });
+  assert.deepEqual(quoteLines(null), []);
+  assert.equal(quoteNote({}), '');
+});
+
+test('an added model says its storage a day and whether it is paid', () => {
+  assert.deepEqual(modelBadge({ state: 'ready', unpaid: true }), ['amber', 'Unpaid']);
+  assert.deepEqual(modelBadge({ state: 'ready', unpaid: false }), ['green', 'Ready']);
+  assert.deepEqual(modelBadge({ state: 'fetching', unpaid: true }), ['purple', 'Being fetched']);
+  assert.equal(storageLine({ storage: { charged: true, paid: true, said: 'Storage $0.0009 a day, paid a day in advance.' } }),
+    'Storage $0.0009 a day, paid a day in advance.');
+  assert.equal(storageLine({ storage: { charged: false } }), '');
+  assert.equal(storageLine({}), '');
+});
+
+test('Add opens the app\'s own dialog with the backend\'s numbers, and My models shows the storage', () => {
+  const component = readFileSync(new URL('../src/components/OpenModels.vue', import.meta.url), 'utf8');
+  assert.match(component, /@click="askAdd\(row\)"/, 'Add on a card opens the dialog, it does not add');
+  assert.match(component, /openModelsApi\.quote\(row\.repo\)/);
+  assert.match(component, /<UiDialog :open="!!confirming"/);
+  assert.match(component, /v-for="line in quoteLines\(quote\)"/);
+  assert.match(component, />Cancel</);
+  assert.equal(/\$\{?\s*\(?\s*Number\(|toFixed\(/.test(component.replace(/<style[\s\S]*<\/style>/, '')), false, 'no price is worked out on the page');
+  const page = readFileSync(new URL('../src/components/WorkspaceModels.vue', import.meta.url), 'utf8');
+  assert.match(page, /storageLine\(row\)/);
+  assert.match(page, /modelBadge\(row\)/);
+  assert.match(page, /is charged by the second it takes<template v-if="state\?\.price">, \{\{ state\.price \}\}<\/template>\./);
+  assert.equal(/by the second it takes<template v-if="state\?\.price"> \(/.test(page), false);
 });

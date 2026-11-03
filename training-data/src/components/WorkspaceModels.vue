@@ -12,6 +12,7 @@ import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import PredictionResult from './PredictionResult.vue';
 import OpenModels from './OpenModels.vue';
+import { modelBadge, storageLine } from '../api/openModels.js';
 import { callCostText, catalogue, useSnippet, USE_LANGUAGES, SDK_INSTALL } from '../api/models.js';
 import { PHOTO_TYPES, percent } from '../api/trial.js';
 import { workspaceApi, publishedApi, projectLink, trySteps, modelName, timeAgo } from '../api/workspace.js';
@@ -195,21 +196,22 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
         <h2 id="open-mine">Open models of this workspace <span class="count">{{ openRows.length }}</span></h2>
         <div class="model-catalog">
           <article v-for="row in openRows" :key="row.key" class="panel catalog-card">
-            <div class="catalog-head"><Box :size="22" aria-hidden="true"/><UiBadge>{{ row.kind==='chat' ? 'Chat' : 'Photo' }}</UiBadge><UiBadge v-if="row.task">{{ row.task }}</UiBadge><UiBadge tone="green">Ready</UiBadge></div>
+            <div class="catalog-head"><Box :size="22" aria-hidden="true"/><UiBadge>{{ row.kind==='chat' ? 'Chat' : 'Photo' }}</UiBadge><UiBadge v-if="row.task">{{ row.task }}</UiBadge><UiBadge :tone="modelBadge(row)[0]">{{ modelBadge(row)[1] }}</UiBadge></div>
             <h3>{{ row.name }}</h3>
             <p class="model-meta">{{ row.publisher }} · {{ row.size }} · commit {{ (row.revision || '').slice(0, 12) }}</p>
             <p class="licence-line"><span>Licence</span>{{ row.licence_name }}</p>
+            <p v-if="storageLine(row)" :class="['model-meta', 'storage-line', { unpaid: row.unpaid }]"><Wallet :size="13" aria-hidden="true"/>{{ storageLine(row) }}</p>
             <div class="catalog-tags"><UiBadge v-if="row.may.use">Use</UiBadge><UiBadge v-if="row.may.train">Train</UiBadge></div>
             <p v-if="row.may.train" class="model-meta">To train it, choose it as the base model in a project's Train tab.</p>
             <div class="catalog-buttons">
-              <UiButton v-if="row.use" variant="primary" @click="openUse(row)"><Code :size="15" aria-hidden="true"/> Use model</UiButton>
+              <UiButton v-if="row.use && row.may.use" variant="primary" @click="openUse(row)"><Code :size="15" aria-hidden="true"/> Use model</UiButton>
               <UiButton v-if="row.may.use" :disabled="!row.may.try" :title="!row.may.try ? 'Your role in this workspace reads only: it starts nothing.' : ''" @click="tryOpen(row)"><Play :size="15" aria-hidden="true"/> Try it</UiButton>
             </div>
           </article>
         </div>
       </section>
       <section v-if="trying&&trying.repo" id="try-open" class="panel try-panel" aria-live="polite">
-        <header class="try-head"><div><h2>Try {{ trying.name }}</h2><p>Your workspace's own model, on a server started when it is needed. Each {{ trying.kind==='chat' ? 'answer' : 'photo' }} is charged by the second it takes<template v-if="state?.price"> ({{ state.price }})</template>.</p></div>
+        <header class="try-head"><div><h2>Try {{ trying.name }}</h2><p>Your workspace's own model, on a server started when it is needed. Each {{ trying.kind==='chat' ? 'answer' : 'photo' }} is charged by the second it takes<template v-if="state?.price">, {{ state.price }}</template>.</p></div>
           <button class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
         <div v-if="said" class="notice" role="status"><Check :size="16"/><span>{{ said }}</span></div>
         <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
@@ -271,7 +273,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
       <DeploymentMetrics :items="catalogMetrics" :loaded="!!data && !error"/>
       <div class="models-info"><ShieldCheck :size="17" aria-hidden="true"/><p>Published models are used as provided. Models you train are managed in <button class="models-text-button" type="button" @click="active='My models'">My models</button>.</p></div>
       <section v-if="trying&&!trying.repo" id="try-published" class="panel try-panel" aria-live="polite">
-        <header class="try-head"><div><h2>Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform">{{ trying.name }} finds the walls, windows and doors of your photo on AADML's GPU server. Each photo is charged by the second it takes<template v-if="state?.price"> ({{ state.price }})</template>.</p><p v-else>No training here first: the published model answers your photo. It marks walls, windows and doors.</p></div>
+        <header class="try-head"><div><h2>Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform">{{ trying.name }} finds the walls, windows and doors of your photo on AADML's GPU server. Each photo is charged by the second it takes<template v-if="state?.price">, {{ state.price }}</template>.</p><p v-else>No training here first: the published model answers your photo. It marks walls, windows and doors.</p></div>
           <button class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
         <div v-if="said" class="notice" role="status"><Check :size="16"/><span>{{ said }}</span></div>
         <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
@@ -520,6 +522,8 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
 .catalog-tags{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
 .catalog-card .button{margin-top:auto}
 .model-meta{font-size:12px!important;color:#5f6d82!important}
+.storage-line{display:flex;align-items:center;gap:6px}
+.models-workspace.models-redesigned .catalog-card .storage-line.unpaid{color:#93610b!important;font-weight:600}
 .badge--amber{color:#93610b;background:#fff4dc}
 .try-panel{margin-bottom:26px;border-color:var(--aadml-outline)}
 .try-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:12px}

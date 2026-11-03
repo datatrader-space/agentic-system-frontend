@@ -3,7 +3,7 @@
 // and add one to this workspace as a base model for training. The backend decides what is shown and what may be added
 // (training_models_data/open_models.py); this page shows its answers as text only, never as HTML.
 import { computed, onUnmounted, ref } from 'vue';
-import { RefreshCw, Globe, ShieldCheck, Boxes, Search, Box, MessageSquareText, Image as ImageIcon, Lock, ExternalLink, Download, Heart, Plus, Trash2, Check, Scale } from 'lucide-vue-next';
+import { RefreshCw, Globe, ShieldCheck, Boxes, Search, Box, MessageSquareText, Image as ImageIcon, Lock, ExternalLink, Download, Heart, Plus, Trash2, Check, Scale, Wallet } from 'lucide-vue-next';
 import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentMetrics from './DeploymentMetrics.vue';
 import UiButton from './UiButton.vue';
@@ -11,7 +11,7 @@ import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import {
   openModelsApi, KINDS, USES, QUERY_LIMIT, POLL_MS, queryProblem, hubLink, shortCount, bytesText, usesText, stateBadge,
-  anyFetching, hiddenSummary, mergePage, resultsSaid, addRefusal, addedFor,
+  anyFetching, hiddenSummary, mergePage, resultsSaid, addRefusal, addedFor, quoteLines, quoteNote, modelBadge, storageLine,
 } from '../api/openModels.js';
 
 const kind = ref('chat'); const use = ref('train'); const words = ref('');
@@ -59,15 +59,30 @@ async function loadAdded() {
 loadAdded();
 onUnmounted(() => { alive = false; clearTimeout(timer); });
 
+// Add opens a dialog with what adding costs: the backend's quote (the fetch, about and at most, and the storage a day,
+// with the markup in), never a price worked out here. Add in the dialog adds; Cancel adds nothing.
 const adding = ref(''); const cardError = ref({});
-async function add(row) {
-  adding.value = row.repo; cardError.value = { ...cardError.value, [row.repo]: '' };
+const confirming = ref(null); const quote = ref(null); const quoting = ref(false); const quoteError = ref(''); const addError = ref('');
+let quoted = 0;
+async function askAdd(row) {
+  confirming.value = row; quote.value = null; quoteError.value = ''; addError.value = ''; quoting.value = true;
+  const mine = ++quoted;
+  try { const body = await openModelsApi.quote(row.repo); if (mine === quoted) quote.value = body; }
+  catch (e) { if (mine === quoted) quoteError.value = e.message; }
+  finally { if (mine === quoted) quoting.value = false; }
+}
+function cancelAdd() { if (adding.value) return; quoted++; confirming.value = null; quote.value = null; quoting.value = false; }
+async function add() {
+  const row = confirming.value;
+  if (!row || !quote.value) return;
+  adding.value = row.repo; addError.value = ''; cardError.value = { ...cardError.value, [row.repo]: '' };
   try {
     const body = await openModelsApi.add(row.repo);
     row.added = { id: body.model.id, state: body.model.state, state_label: body.model.state_label };
     said.value = `${row.name} was added. ${body.model.state === 'fetching' ? 'Its files are being fetched.' : stateBadge(body.model.state)[1]}.`;
+    confirming.value = null; quote.value = null;
     await loadAdded();
-  } catch (e) { cardError.value = { ...cardError.value, [row.repo]: e.message }; said.value = e.message; }
+  } catch (e) { addError.value = e.message; said.value = e.message; }
   finally { adding.value = ''; }
 }
 
@@ -115,8 +130,9 @@ function moveChoice(event, name, options) {
         <li v-for="m in added" :key="m.id">
           <div class="om-added-name"><strong>{{ m.name }}</strong><small>{{ m.publisher }}, {{ m.kind === 'chat' ? 'chat' : 'photo' }}, {{ m.size }}, {{ bytesText(m.bytes) }}, commit {{ (m.revision || "").slice(0, 12) }}</small></div>
           <div class="om-added-licence"><Scale :size="14" aria-hidden="true"/>{{ m.licence_name }}</div>
-          <UiBadge :tone="stateBadge(m.state)[0]">{{ stateBadge(m.state)[1] }}</UiBadge>
+          <UiBadge :tone="modelBadge(m)[0]">{{ modelBadge(m)[1] }}</UiBadge>
           <p v-if="m.failure" class="om-failure">{{ m.failure }}</p>
+          <p v-if="storageLine(m)" :class="['om-note', 'om-storage', { unpaid: m.unpaid }]"><Wallet :size="13" aria-hidden="true"/>{{ storageLine(m) }}</p>
           <p v-if="addedFor(m)" class="om-note">{{ addedFor(m) }}</p>
           <p v-if="m.state==='ready' && m.kind==='photo' && (m.uses || []).includes('train')" class="om-note">Training from an added photo model opens when the photo trainer takes one.</p>
           <div class="om-added-actions">
@@ -173,7 +189,7 @@ function moveChoice(event, name, options) {
           <p v-if="row.gated" class="om-gated"><Lock :size="14" aria-hidden="true"/>{{ row.gated_note || 'Its publisher asks for its terms to be accepted before a download.' }}</p>
           <p class="om-uses">{{ usesText(row.uses) }}</p>
           <div class="om-card-actions">
-            <UiButton v-if="!row.added" variant="primary" :disabled="!!cannotAdd(row) || adding===row.repo" :title="cannotAdd(row)" :aria-describedby="cannotAdd(row) ? `why-${row.repo}` : undefined" @click="add(row)">
+            <UiButton v-if="!row.added" variant="primary" :disabled="!!cannotAdd(row) || adding===row.repo" :title="cannotAdd(row)" :aria-describedby="cannotAdd(row) ? `why-${row.repo}` : undefined" @click="askAdd(row)">
               <span v-if="adding===row.repo" class="om-spinner on-primary" aria-hidden="true"></span><Plus v-else :size="15" aria-hidden="true"/>{{ adding===row.repo ? 'Adding…' : 'Add to workspace' }}</UiButton>
             <span v-else class="om-added-mark"><Check :size="15" aria-hidden="true"/>Added</span>
             <a class="button" :href="hubLink(row.repo)" target="_blank" rel="noopener noreferrer" :aria-label="`${row.name} on Hugging Face (opens a new tab)`"><ExternalLink :size="14" aria-hidden="true"/>Hugging Face</a>
@@ -185,9 +201,29 @@ function moveChoice(event, name, options) {
       <div v-if="next" class="om-more"><UiButton :disabled="more" @click="search({ again: true })"><span v-if="more" class="om-spinner" aria-hidden="true"></span>{{ more ? 'Loading…' : 'Show more results' }}</UiButton></div>
     </section>
 
+    <UiDialog :open="!!confirming" :title="confirming ? `Add ${confirming.name}?` : ''" @close="cancelAdd">
+      <template v-if="confirming">
+        <p class="dialog-description">Adding it fetches its files into AADML's ML account and keeps them for this workspace. It is charged to your balance.</p>
+        <p v-if="quoting" class="muted" role="status"><span class="om-spinner" aria-hidden="true"></span> Reading what it costs…</p>
+        <p v-else-if="quoteError" class="field-error" role="alert">{{ quoteError }}</p>
+        <template v-else-if="quote">
+          <dl class="om-quote">
+            <div v-for="line in quoteLines(quote)" :key="line.label"><dt>{{ line.label }}</dt><dd>{{ line.value }}</dd></div>
+          </dl>
+          <p v-if="quote.licence_terms" class="om-quote-terms"><Scale :size="14" aria-hidden="true"/>{{ quote.licence_terms }}</p>
+          <p v-if="quoteNote(quote)" class="om-quote-note"><Wallet :size="15" aria-hidden="true"/><span>{{ quoteNote(quote) }}</span></p>
+        </template>
+        <p v-if="addError" class="field-error" role="alert">{{ addError }}</p>
+        <div class="om-dialog-actions">
+          <UiButton :disabled="!!adding" @click="cancelAdd">Cancel</UiButton>
+          <UiButton variant="primary" :disabled="!quote || quoting || !!adding" @click="add"><span v-if="adding" class="om-spinner on-primary" aria-hidden="true"></span>{{ adding ? 'Adding…' : 'Add' }}</UiButton>
+        </div>
+      </template>
+    </UiDialog>
+
     <UiDialog :open="!!removing" :title="removing ? `Remove ${removing.name}?` : ''" @close="removing=null">
       <template v-if="removing">
-        <p class="dialog-description">It is no longer offered in this workspace's Train tabs, and its fetched files are deleted. A model already trained from it keeps it: then it cannot be removed.</p>
+        <p class="dialog-description">It is no longer offered in this workspace's Train tabs, its fetched files are deleted and its storage is no longer charged. A model already trained from it keeps it: then it cannot be removed.</p>
         <p v-if="removeError" class="field-error" role="alert">{{ removeError }}</p>
         <div class="om-dialog-actions">
           <UiButton @click="removing=null">Keep it</UiButton>
@@ -247,6 +283,16 @@ function moveChoice(event, name, options) {
 .om-empty p{margin:0;font-size:13px}
 .om-more{display:flex;justify-content:center;margin-top:20px}
 .om-dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;flex-wrap:wrap}
+.om-quote{display:grid;grid-template-columns:minmax(0,max-content) minmax(0,1fr);gap:8px 16px;margin:14px 0 0;padding:12px 14px;border:1px solid #e3e6ed;border-radius:10px;background:#fafbfc}
+.om-quote div{display:contents}
+.om-quote dt{font-size:12px;color:#5f6d82}
+.om-quote dd{margin:0;font-size:13px;font-weight:600;color:#1d2a42;overflow-wrap:anywhere}
+.om-quote-terms{display:flex;gap:6px;align-items:flex-start;margin:10px 0 0;font-size:12px;line-height:1.5;color:#33415a}
+.om-quote-terms svg{flex-shrink:0;margin-top:2px;color:var(--aadml-primary)}
+.om-quote-note{display:flex;gap:8px;align-items:flex-start;margin:10px 0 0;padding:10px 12px;border-radius:9px;background:var(--aadml-soft);border:1px solid #dbe7fd;font-size:12px;line-height:1.5;color:#1d2a42}
+.om-quote-note svg{flex-shrink:0;margin-top:1px;color:var(--aadml-primary)}
+.om-storage{display:flex;align-items:center;gap:6px}
+.om-storage.unpaid{color:#93610b}
 .om-spinner{width:14px;height:14px;border-radius:50%;border:2px solid var(--aadml-soft);border-top-color:var(--aadml-primary);animation:om-spin 1s linear infinite;flex-shrink:0}
 .om-spinner.on-primary{border-color:#ffffff55;border-top-color:#fff}
 @keyframes om-spin{to{transform:rotate(360deg)}}
@@ -265,5 +311,7 @@ function moveChoice(event, name, options) {
   .om-added-licence{grid-column:1 / -1}
   .om-added-actions{grid-column:1 / -1}
   .om-grid{grid-template-columns:minmax(0,1fr)}
+  .om-quote{grid-template-columns:minmax(0,1fr)}
+  .om-dialog-actions > *{flex:1 1 auto;justify-content:center;min-height:44px}
 }
 </style>

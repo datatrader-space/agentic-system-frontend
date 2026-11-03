@@ -1,5 +1,5 @@
 // The workspace Models page's "Open models" tab (backend: training_models_data/open_models_api.py — open-models/,
-// workspace/open-models/, workspace/open-models/<id>/remove/). Search Hugging Face Hub for open models AADML can train
+// open-models/quote/, workspace/open-models/, workspace/open-models/<id>/remove/). Search Hugging Face Hub for open models AADML can train
 // or serve, and add one to the workspace as a base model for training. Every rule is the backend's (licence,
 // architecture, safetensors only, no code of its own, size); the checks here only say early what it would say.
 //
@@ -24,6 +24,8 @@ export const openModelsApi = {
   search: ({ q = '', kind = 'chat', use = 'train', cursor = '' } = {}) =>
     apiFetch(`${APP}/open-models/?${query({ q: cleanQuery(q), kind, use, cursor })}`, { timeoutMs: SLOW }),
   list: () => apiFetch(`${APP}/workspace/open-models/`, { timeoutMs: SLOW }),
+  // What adding a model costs, as the person pays it: worked out on the server (open_model_charges.py), never here.
+  quote: repo => apiFetch(`${APP}/open-models/quote/?${query({ repo })}`, { timeoutMs: SLOW }),
   add: repo => apiFetch(`${APP}/workspace/open-models/`, { method: 'POST', body: { repo }, timeoutMs: SLOW }),
   remove: id => apiFetch(`${APP}/workspace/open-models/${enc(id)}/remove/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
 };
@@ -111,4 +113,40 @@ export function mergePage(shown = [], page = []) {
 export function resultsSaid(count, more) {
   if (!count) return 'No model matches. Try other words, or switch between Photo and Chat.';
   return `${count} model${count === 1 ? '' : 's'} shown${more ? '; more can be loaded' : ''}.`;
+}
+
+// The Add dialog's lines, from the quote the backend gave (GET open-models/quote/): every price is the backend's text,
+// with the markup in, shown as it is; nothing is worked out here. [{label, value}], in the order they are shown.
+export function quoteLines(quote) {
+  if (!quote) return [];
+  const lines = [
+    { label: 'Model', value: [quote.publisher, quote.name].filter(Boolean).join(' / ') || quote.repo || '' },
+    { label: 'Licence', value: quote.licence_name || quote.licence || '' },
+    { label: 'Size', value: [quote.size, quote.bytes ? bytesText(quote.bytes) : ''].filter(Boolean).join(', ') },
+  ];
+  const price = quote.price || {};
+  if (price.paid) {
+    lines.push({ label: 'Fetch', value: `About ${price.fetch?.about}, up to ${price.fetch?.at_most} held` });
+    lines.push({ label: 'Storage', value: `${price.storage?.per_day} a day, charged a day in advance` });
+  } else if (price.paid === false) {
+    lines.push({ label: 'Cost', value: 'Not charged on this server' });
+  }
+  return lines.filter(line => line.value);
+}
+
+// What the dialog says under the lines: the backend's own words on how the fetch and the storage are charged.
+export function quoteNote(quote) {
+  return quote?.price?.note || '';
+}
+
+// An added model's badge, its storage counted: an unpaid one says so (it is kept, and not used until it is paid).
+export function modelBadge(model) {
+  if (model?.state === 'ready' && model?.unpaid) return ['amber', 'Unpaid'];
+  return stateBadge(model?.state);
+}
+
+// The storage line of an added model (My models, Workspace models): the backend's words, '' when it is not charged.
+export function storageLine(model) {
+  const storage = model?.storage;
+  return storage?.charged ? storage.said || '' : '';
 }
