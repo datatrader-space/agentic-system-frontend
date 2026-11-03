@@ -108,6 +108,16 @@
             </div>
           </Transition>
 
+          <!-- Verify your email first (ADM-1141): after sign-up, or when sign-in is refused for it. -->
+          <div v-if="verify.pending" class="verify-box" role="status">
+            <p>Didn't get the email? Check your spam folder, or send it again.</p>
+            <button type="button" class="verify-resend" :disabled="verify.sending" @click="resendLink">
+              <span v-if="verify.sending" class="btn-loader"></span>
+              <span v-else>Send the link again</span>
+            </button>
+            <p v-if="verify.sent" class="verify-sent">{{ verify.sent }}</p>
+          </div>
+
           <!-- Form -->
           <form v-if="!twoFA.active" @submit.prevent="handleSubmit" class="login-form">
             <!-- Name: asked at sign-up, so people are called by it instead of their e-mail address -->
@@ -356,6 +366,21 @@ const rememberMe = ref(false)
 const validationErrors = ref({})
 // Two-factor challenge: populated when login returns requires_2fa.
 const twoFA = ref({ active: false, token: '', code: '' })
+// AN ACCOUNT SIGNS IN ONLY ONCE ITS EMAIL IS VERIFIED (owner, 2026-11-02, ADM-1141). Sign-up sends the link and does
+// not sign the person in; a sign-in the server refuses for it says so here, with a way to get a new link.
+const verify = ref({ pending: false, email: '', sending: false, sent: '' })
+const resendLink = async () => {
+  verify.value.sending = true
+  verify.value.sent = ''
+  try {
+    const { data } = await api.resendVerification(verify.value.email)
+    verify.value.sent = data?.message || 'A new link is on its way.'
+  } catch (e) {
+    verify.value.sent = e.response?.data?.error || 'The link could not be sent. Please try again in a minute.'
+  } finally {
+    verify.value.sending = false
+  }
+}
 // Social providers that are actually configured on the backend (buttons enable only for these).
 const socialProviders = ref([])
 
@@ -449,6 +474,7 @@ const handleSubmit = async () => {
   error.value = null
   success.value = null
   validationErrors.value = {}
+  verify.value = { pending: false, email: '', sending: false, sent: '' }
 
   // Validate before submit
   if (!isLogin.value) {
@@ -496,21 +522,24 @@ const handleSubmit = async () => {
         }, 800)
       }
     } else {
-      // Register
+      // Register: the account is not signed in until its email is verified. Show where the link went, and
+      // switch to Sign in with the address filled in, ready for after the link is clicked.
       const response = await api.register(data)
 
       if (response.data.success) {
-        success.value = 'Account created successfully! Redirecting...'
-        localStorage.setItem('user', JSON.stringify(response.data.user))
-
-        setTimeout(() => {
-          goNext()
-        }, 800)
+        const email = formData.value.username
+        success.value = response.data.message || 'Check your inbox: we sent a link to verify your email.'
+        verify.value = { pending: true, email, sending: false, sent: '' }
+        isLogin.value = true
+        formData.value = { name: '', username: email, password: '' }
       }
     }
   } catch (err) {
     console.error('Auth error:', err)
     error.value = err.response?.data?.error || 'An error occurred. Please try again.'
+    if (err.response?.status === 403 && err.response?.data?.code === 'email_not_verified') {
+      verify.value = { pending: true, email: formData.value.username, sending: false, sent: '' }
+    }
   } finally {
     loading.value = false
   }
@@ -845,6 +874,57 @@ watch(() => formData.value.password, () => {
   background: rgba(16, 185, 129, 0.1);
   border: 1px solid rgba(16, 185, 129, 0.2);
   color: #6ee7b7;
+}
+
+/* Verify-your-email box: under the message, with the one action it needs. */
+.verify-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  margin: -12px 0 24px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(148, 163, 184, 0.08);
+  font-size: 0.875rem;
+}
+
+.verify-box p {
+  margin: 0;
+}
+
+.verify-resend {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: transparent;
+  color: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.verify-resend:hover:not(:disabled) {
+  background: rgba(148, 163, 184, 0.15);
+}
+
+.verify-resend:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.verify-resend:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.verify-sent {
+  opacity: 0.85;
 }
 
 .message-icon {

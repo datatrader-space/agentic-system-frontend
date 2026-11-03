@@ -7,14 +7,18 @@
 
     <div v-else-if="state === 'ok'" class="center">
       <div class="badge ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg></div>
-      <p class="msg">Your email is verified. You're all set.</p>
-      <router-link to="/dashboard" class="btn">Go to dashboard</router-link>
+      <p class="msg">Your email is verified. Sign in to continue.</p>
+      <router-link to="/login" class="btn">Sign in</router-link>
     </div>
 
     <div v-else class="center">
       <div class="badge err"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></div>
       <p class="msg">This verification link is invalid or has expired.</p>
-      <button class="btn ghost" :disabled="resending" @click="resend">
+      <label class="email-field">
+        <span>Your email</span>
+        <input v-model="email" type="email" autocomplete="email" placeholder="you@example.com" />
+      </label>
+      <button class="btn ghost" :disabled="resending || !email.trim()" @click="resend">
         <span v-if="resending" class="spin"></span><span v-else>Resend verification email</span>
       </button>
       <p v-if="resendMsg" class="hint">{{ resendMsg }}</p>
@@ -36,6 +40,8 @@ const route = useRoute()
 const state = ref('verifying') // verifying | ok | error
 const resending = ref(false)
 const resendMsg = ref('')
+// An account cannot sign in until it is verified (ADM-1141), so a new link is asked for by address, signed out.
+const email = ref(typeof route.query.email === 'string' ? route.query.email : '')
 
 const heading = computed(() => ({ verifying: 'Verifying email', ok: 'Email verified', error: 'Verification failed' }[state.value]))
 
@@ -54,10 +60,10 @@ async function resend() {
   resending.value = true
   resendMsg.value = ''
   try {
-    await api.resendVerification()
-    resendMsg.value = 'A new verification email has been sent.'
+    const { data } = await api.resendVerification(email.value.trim())
+    resendMsg.value = data?.message || 'A new verification email has been sent.'
   } catch (e) {
-    resendMsg.value = 'Sign in first, then resend from your account.'
+    resendMsg.value = e.response?.data?.error || 'The link could not be sent. Please try again in a minute.'
   } finally {
     resending.value = false
   }
@@ -68,6 +74,9 @@ async function resend() {
 .center { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; margin-top: 10px; }
 .msg { font-size: .95rem; color: var(--vm-ink-soft); }
 .hint { font-size: .82rem; color: var(--vm-ink-faint); }
+.email-field { display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 320px; text-align: left; font-size: .82rem; color: var(--vm-ink-soft); }
+.email-field input { min-height: 44px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--vm-border); background: var(--vm-surface); color: var(--vm-ink); font-size: 1rem; }
+.email-field input:focus-visible { outline: 2px solid var(--vm-primary); outline-offset: 1px; }
 .badge { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%; }
 .badge svg { width: 28px; height: 28px; }
 .badge.ok { color: #10b981; background: rgba(16,185,129,.12); }

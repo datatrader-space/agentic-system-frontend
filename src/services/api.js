@@ -781,7 +781,8 @@ export default {
 
   // Auth hardening (Track B): verification, password reset/change, 2FA
   verifyEmail: (token) => api.post('/auth/verify-email', { token }),
-  resendVerification: () => api.post('/auth/resend-verification'),
+  // Signed out (an unverified account cannot sign in): the address to send the link to. Signed in: nothing.
+  resendVerification: (email) => api.post('/auth/resend-verification', email ? { email } : {}),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (token, password) => api.post('/auth/reset-password', { token, password }),
   changePassword: (current_password, new_password) => api.post('/auth/change-password', { current_password, new_password }),
