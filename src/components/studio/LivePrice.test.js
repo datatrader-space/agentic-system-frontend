@@ -12,7 +12,9 @@ describe('LivePrice', () => {
 
   it('says the price is an estimate, never "at most" (owner, 2026-11-03: the provider bills the final price)', () => {
     let w = mount(LivePrice, { props: { price: { status: 'range', estimate: 0.13, most: 0.17 } } })
-    expect(w.get('.lp-est').text()).toBe('· an estimate: you pay what the provider bills')
+    // Its own line, like the note: a wrapped line must not start with a stray separator (live 2026-11-03).
+    expect(w.get('.lp-est').text()).toBe('An estimate: you pay what the provider bills.')
+    expect(w.text()).not.toContain('·')
     expect(w.text()).not.toContain('at most')
     w.unmount()
     w = mount(LivePrice, { props: { price: { status: 'unknown', estimate: 0, most: 2 } } })
