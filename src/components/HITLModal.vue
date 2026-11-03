@@ -756,11 +756,9 @@ watch(currentRequest, () => {
 
 @keyframes modalSlideIn {
   from {
-    transform: translateY(-20px);
     opacity: 0;
   }
   to {
-    transform: translateY(0);
     opacity: 1;
   }
 }
@@ -776,7 +774,6 @@ watch(currentRequest, () => {
 .hitl-modal--compact .response-section { margin-bottom: 0; }
 .hitl-modal--compact .choice-options { gap: 8px; }
 .hitl-modal--compact .option-button { padding: 11px 14px; }
-.hitl-modal--compact .option-button:hover { transform: none; }   /* no slide — feels jumpy in a small card */
 .hitl-modal--compact .choice-text-row { margin-top: 10px; }
 .hitl-modal--compact .modal-footer { padding: 8px 18px; background: transparent; border-top: none; }
 
@@ -815,8 +812,8 @@ watch(currentRequest, () => {
 .hitl-overlay--compact .hitl-modal.urgency-high { border-top: 3px solid #ef4444; }
 .hitl-overlay--compact .hitl-modal.urgency-medium { border-top: 3px solid #f59e0b; }
 @keyframes hitlDockUp {
-  from { transform: translateY(16px); opacity: 0; }
-  to   { transform: translateY(0); opacity: 1; }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* Urgency-based border colors */
@@ -1051,7 +1048,6 @@ watch(currentRequest, () => {
 
 .btn-approve:hover {
   background: #059669;
-  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
@@ -1062,7 +1058,6 @@ watch(currentRequest, () => {
 
 .btn-reject:hover {
   background: #dc2626;
-  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
@@ -1102,7 +1097,6 @@ watch(currentRequest, () => {
 }
 .btn-connect:hover {
   background: #4338ca;
-  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
 }
 .oauth-hint {
@@ -1167,7 +1161,6 @@ watch(currentRequest, () => {
 
 .btn-submit:hover:not(:disabled) {
   background: #2563eb;
-  transform: translateY(-1px);
 }
 
 .btn-submit:disabled {
@@ -1205,7 +1198,6 @@ watch(currentRequest, () => {
 .option-button:hover {
   border-color: #3b82f6;
   background: var(--vm-surface-soft);
-  transform: translateX(4px);
 }
 
 .option-title {

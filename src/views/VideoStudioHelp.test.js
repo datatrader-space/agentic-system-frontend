@@ -40,8 +40,8 @@ describe('VideoStudioHelp', () => {
     }
     expect(w.findAll('.toc-link')).toHaveLength(8)
     expect(w.findAll('.strip-step')).toHaveLength(6)
-    expect(w.text()).toContain('An estimate is valid for 15 minutes')
-    expect(w.text()).not.toMatch(/[→·]/)
+    expect(w.text()).toContain('The estimate card shows its expiry.')
+    expect(w.get('.doc').text()).not.toMatch(/[→·]/)
   })
 
   it('lists the models that fit each goal from the person\'s own list, with the reason, and says when none does', async () => {
@@ -76,7 +76,7 @@ describe('VideoStudioHelp', () => {
     await w.get('[data-test="help-try-ad"]').trigger('click')
     expect(video.task).toBe('story')
     expect(video.studioDraft).toContain('30-second ad')
-    expect(push).toHaveBeenCalledWith({ name: 'video-studio', query: { new: '1' } })
+    expect(push).toHaveBeenCalledWith({ name: 'video-studio-dashboard', query: { new: '1' } })
     expect(api.post).not.toHaveBeenCalled()
   })
 

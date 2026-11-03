@@ -8,11 +8,14 @@ import Marketing from './CreativeMarketing.vue'
 import Narrative from './CreativeNarrative.vue'
 import InputSlot from './InputSlot.vue'
 import api from '../../services/api'
+import { useChatStore } from '../../stores/useChatStore'
 const routeQuery = vi.hoisted(() => ({ project_id: 'p' }))
 vi.mock('vue-router',()=>({useRoute:()=>({query:routeQuery}),useRouter:()=>({push:vi.fn()})}))
-vi.mock('../../services/api',()=>({default:{get:vi.fn(),post:vi.fn(),patch:vi.fn(),put:vi.fn(),getStoryboard:vi.fn(),getCinemaControls:vi.fn(),getMediaRoutes:vi.fn(),getStudioRecipes:vi.fn(),runStudioRecipe:vi.fn()}}))
+vi.mock('../../services/api',()=>({default:{get:vi.fn(),post:vi.fn(),patch:vi.fn(),put:vi.fn(),getStoryboard:vi.fn(),getCinemaControls:vi.fn(),getMediaRoutes:vi.fn(),getStudioRecipes:vi.fn(),runStudioRecipe:vi.fn(),getMediaVoices:vi.fn(),getStudioQuote:vi.fn()}}))
 vi.mock('../../composables/useNotify',()=>({notify:{error:vi.fn(),success:vi.fn(),warning:vi.fn()}}))
-const setup = (component,kind) => mount(component,{props:{kind},global:{plugins:[createPinia()],stubs:{InputSlot:true,RouterLink:true}}})
+// The page's Studio session has its chat open (useStudioSession), so each request goes into that chat.
+const setup = (component,kind) => { const pinia = createPinia(); setActivePinia(pinia); useChatStore(pinia).conversationId = 'c1'; return mount(component,{props:{kind},global:{plugins:[pinia],stubs:{InputSlot:true,RouterLink:true}}}) }
+const inChat = page => ({ conversation_id: 'c1', studio_context: { page, preset: '', preset_title: '' } })
 const click = async (w,text) => { await w.findAll('button').find(b=>b.text()===text).trigger('click'); await flushPromises() }
 describe('Creative flow boundaries',()=>{
   beforeEach(()=>{
@@ -25,7 +28,7 @@ describe('Creative flow boundaries',()=>{
   it('exports the immutable saved timeline revision',async()=>{
     api.post.mockResolvedValue({data:{job_id:'export',operation:'export',state:'queued'}})
     const w=setup(Board,'editor'); await flushPromises(); await click(w,'Export saved timeline')
-    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/jobs/',{operation:'export',project_id:'p',params:{timeline_revision_id:7}})
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/jobs/',{operation:'export',project_id:'p',params:{timeline_revision_id:7},...inChat('editor')})
     expect(w.emitted('job')[0][0].job_id).toBe('export'); w.unmount()
   })
   it('shows the current storyboard on a conflicting keyframe choice without retrying',async()=>{
@@ -36,15 +39,16 @@ describe('Creative flow boundaries',()=>{
   it('reads a brand into an editable draft without saving it',async()=>{
     api.post.mockResolvedValue({data:{name:'Draft brand',website:'https://example.com',colors:['#fff'],images:[]}})
     const w=setup(Marketing,'ads'); await flushPromises(); await w.get('input[type="url"]').setValue('https://example.com'); await click(w,'Read website')
-    expect(w.text()).toContain('Review this draft'); expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/brands/read/',{url:'https://example.com'}); w.unmount()
+    expect(w.text()).toContain('Review this draft'); expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/brands/read/',{url:'https://example.com',...inChat('ads')}); w.unmount()
   })
   it('emits a separate approval proposal for every narration scene',async()=>{
     api.getMediaRoutes.mockResolvedValue({data:{routes:[{route_id:'r',name:'Speech',ready:true}]}})
-    api.get.mockImplementation(async path=>({data:path.includes('voices')?{voices:[{voice_id:'v',name:'Voice'}]}:{scenes:[]}}))
+    api.getMediaVoices.mockResolvedValue({data:{listed:true,voices:[{voice_id:'v',name:'Voice'}]}})
+    api.get.mockImplementation(async ()=>({data:{scenes:[]}}))
     api.post.mockResolvedValue({data:{jobs:[{job_id:'one',state:'awaiting_authorization'},{job_id:'two',state:'awaiting_authorization'}]}})
     const w=setup(Narrative,'explainer'); await flushPromises()
     // The model is chosen for the person while the page's first load runs, and its voices still come (live 2026-10-29).
-    expect(w.get('[data-test="media-route"]').element.value).toBe('r'); const voice=w.findAll('select').find(s=>s.text().includes('Choose voice')); await voice.setValue('v'); await click(w,'Review narration estimates')
+    expect(w.get('[data-test="media-route"]').element.value).toBe('r'); expect(api.getMediaVoices).toHaveBeenCalledWith(expect.objectContaining({route_id:'r'})); await w.get('input[type="radio"][value="v"]').setValue(true); await click(w,'Review narration estimates')
     expect(w.emitted('job').map(row=>row[0].job_id)).toEqual(['one','two']); expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/explainers/p/narrate/',{route_id:'r',voice_id:'v'}); w.unmount()
   })
   it('offers and sends exactly the seven supported overlay positions', async () => {
@@ -102,7 +106,7 @@ describe('Creative flow boundaries',()=>{
     await w.get('[data-field="brand_id"] select').setValue('b')
     await w.get('[data-field="product_id"] select').setValue('product-1')
     await click(w, 'Develop concepts')
-    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/ads/concepts/', { brand_id: 'b', platform: 'social', product_id: 'product-1', goal: 'awareness', notes: '', n: 3 })
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/ads/concepts/', { brand_id: 'b', platform: 'social', product_id: 'product-1', goal: 'awareness', notes: '', n: 3, ...inChat('ads') })
     w.unmount()
   })
   it('saves a new brand with a Library image as its first logo attachment', async () => {
@@ -137,7 +141,7 @@ describe('Creative flow boundaries',()=>{
 describe('Storyboard and Cinema make a video on the model, length and size chosen', () => {
   const video = { route_id: 89, name: 'Kling 3.0 Pro', connection: 'sajid openrouter', schema: { properties: { duration: { enum: [5, 10], default: 5 }, resolution: { enum: ['480p', '720p'] } } } }
   let pinia
-  const mountBoard = kind => { pinia = createPinia(); setActivePinia(pinia); return mount(Board, { props: { kind }, global: { plugins: [pinia], stubs: { InputSlot: true, RouterLink: true } } }) }
+  const mountBoard = kind => { pinia = createPinia(); setActivePinia(pinia); useChatStore(pinia).conversationId = 'c1'; return mount(Board, { props: { kind }, global: { plugins: [pinia], stubs: { InputSlot: true, RouterLink: true } } }) }
   beforeEach(() => {
     vi.clearAllMocks(); routeQuery.project_id = 'p'
     api.getCinemaControls.mockResolvedValue({ data: { controls: [] } })
@@ -158,7 +162,7 @@ describe('Storyboard and Cinema make a video on the model, length and size chose
     expect(w.get('[data-test="board-resolution"]').element.value).toBe('480p')
     await w.get('[data-test="board-duration"]').setValue('10')
     await click(w, 'Review scene estimate')
-    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/jobs/', { project_id: 'p', scene_id: 's', operation: 'generate', route_id: 89, prompt: 'A bottle', params: { duration: 10, resolution: '480p' } })
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/jobs/', { project_id: 'p', scene_id: 's', operation: 'generate', route_id: 89, prompt: 'A bottle', params: { duration: 10, resolution: '480p' }, ...inChat('storyboard') })
     w.unmount()
   })
   it('a finished keyframe or take is shown without a refresh', async () => {
@@ -241,7 +245,77 @@ describe('Storyboard and Cinema make a video on the model, length and size chose
     await w.get('textarea').setValue('A bottle of oil')
     expect(w.get('[data-test="board-resolution"]').element.value).toBe('480p')
     await click(w, 'Review shot estimate')
-    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/jobs/', { operation: 'generate', route_id: 89, prompt: 'A bottle of oil', cinema: {}, params: { duration: 5, resolution: '480p' } })
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/jobs/', { operation: 'generate', route_id: 89, prompt: 'A bottle of oil', cinema: {}, params: { duration: 5, resolution: '480p' }, ...inChat('cinema') })
     w.unmount()
+  })
+})
+
+// Manual pages keep their chat (a Manual page sends no chat message): the requests that make something carry the open
+// chat and the page, with the preset chosen there. Errors land at their field; a 429 says when to try again.
+describe('Manual Storyboard, Marketing and Explainer keep their chat', () => {
+  const mountIn = (component, kind, provide = {}) => { const pinia = createPinia(); setActivePinia(pinia); useChatStore(pinia).conversationId = 'c1'; return mount(component, { props: { kind }, global: { plugins: [pinia], provide, stubs: { InputSlot: true, RouterLink: true } } }) }
+  beforeEach(() => {
+    vi.clearAllMocks(); delete routeQuery.project_id
+    api.getCinemaControls.mockResolvedValue({ data: { controls: [] } })
+    api.getMediaRoutes.mockResolvedValue({ data: { routes: [{ route_id: 'r', name: 'Speech', ready: true }] } })
+    api.get.mockImplementation(async (path, opts) => ({ data: path === '/video/projects/' ? { projects: [] } : path === '/video/routes/' ? { routes: [{ route_id: 89, name: 'Kling', ready: true }] } : path === '/video/ads/options/' ? { platforms: [{ id: 'social', label: 'Social' }], goals: ['awareness'] } : path === '/video/brands/' ? { brands: [{ brand_id: 'b', name: 'Brand' }] } : path === '/video/ingredients/' ? { ingredients: [] } : path === '/video/explainers/p/' ? { scenes: [] } : {} }))
+  })
+  afterEach(() => { routeQuery.project_id = 'p' })
+  it('sends the preset chosen on the page with the request', async () => {
+    api.post.mockResolvedValue({ data: { concepts: [] } })
+    const look = { value: { id: 'ads-launch', title: 'Product launch' } }
+    const w = mountIn(Marketing, 'ads', { studioPreparedLook: look }); await flushPromises()
+    await w.get('[data-field="brand_id"] select').setValue('b'); await click(w, 'Develop concepts')
+    expect(api.post.mock.calls[0][1]).toMatchObject({ conversation_id: 'c1', studio_context: { page: 'ads', preset: 'ads-launch', preset_title: 'Product launch' } })
+    w.unmount()
+  })
+  it('the explainer plan carries the chat; a provider with no voice list takes a typed Voice ID', async () => {
+    api.getMediaVoices.mockResolvedValue({ data: { listed: false, voices: [] } })
+    api.post.mockImplementation(async path => ({ data: path === '/video/explainers/' ? { project_id: 'p' } : { jobs: [{ job_id: 'n1' }] } }))
+    const w = mountIn(Narrative, 'explainer'); await flushPromises()
+    await w.get('[data-field="topic"] textarea').setValue('Why the sky is blue'); await click(w, 'Plan explainer')
+    expect(api.post).toHaveBeenCalledWith('/video/explainers/', { topic: 'Why the sky is blue', title: '', audience: '', max_seconds: 90, aspect_ratio: '16:9', conversation_id: 'c1', studio_context: { page: 'explainer', preset: '', preset_title: '' } })
+    await w.get('[data-test="voice-id"]').setValue('  voice-123 '); await click(w, 'Review narration estimates')
+    expect(api.post).toHaveBeenLastCalledWith('/video/explainers/p/narrate/', { route_id: 'r', voice_id: 'voice-123' })
+    w.unmount()
+  })
+  it('the shorts transcript carries the chat; moments and the short follow it', async () => {
+    api.post.mockResolvedValue({ data: { job_id: 't1' } })
+    const w = mountIn(Narrative, 'shorts'); await flushPromises()
+    w.findComponent(InputSlot).vm.$emit('pick', [{ attachment_id: 'clip' }]); await flushPromises()
+    await click(w, 'Review transcription estimate')
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/shorts/transcribe/', { attachment_id: 'clip', route_id: 'r', language: '', conversation_id: 'c1', studio_context: { page: 'shorts', preset: '', preset_title: '' } })
+    w.unmount()
+  })
+  it('a model error is shown at the model menu; another field as a general message; a 429 says when to try again', async () => {
+    api.post.mockRejectedValueOnce({ response: { status: 400, data: { error: { code: 'not_verified', field: 'route_id', message: "This model's billing is still being checked." } } } })
+    const w = mountIn(Narrative, 'shorts'); await flushPromises()
+    w.findComponent(InputSlot).vm.$emit('pick', [{ attachment_id: 'clip' }]); await flushPromises()
+    await click(w, 'Review transcription estimate'); await flushPromises()
+    expect(w.get('.mrp[data-field="route_id"] .st-error').text()).toBe("This model's billing is still being checked.")
+    api.post.mockRejectedValueOnce({ response: { status: 429, data: { error: { code: 'rate_limited', field: 'request', message: 'Too many requests.', retry_after: 30 } } } })
+    await click(w, 'Review transcription estimate'); await flushPromises()
+    const general = w.findAll('p.st-error').map(p => p.text())
+    expect(general).toContain('Too many requests. Try again in 30 seconds.')
+    w.unmount()
+  })
+  it('a Cinema shot whose model must change a setting waits for the person to accept it, then sends the acceptance', async () => {
+    vi.useFakeTimers()
+    try {
+      api.getStudioQuote.mockResolvedValue({ data: { estimate_usd: '0.50', max_usd: '0.50', pricing_status: 'exact', reason: '', lines: [], adjustments: [{ field: 'duration', requested: 7, proposed: 5, reason: 'Kling renders 5, 10 s' }], needs_acceptance: true } })
+      api.post.mockResolvedValue({ data: { job_id: 'shot' } })
+      const w = mountIn(Board, 'cinema'); await flushPromises()
+      await w.get('[data-test="board-route"]').setValue('89'); await w.get('[data-field="prompt"] textarea').setValue('A bottle')
+      await vi.advanceTimersByTimeAsync(800); await flushPromises()
+      expect(api.getStudioQuote.mock.calls.at(-1)[0]).toMatchObject({ kind: 'video', route_id: 89, conversation_id: 'c1' })
+      expect(w.get('[data-test="live-price-adjustments"]').text()).toContain('Duration: you asked for 7; it would use 5 (Kling renders 5, 10 s).')
+      const button = () => w.findAll('button').find(b => b.text() === 'Review shot estimate')
+      expect(button().attributes('disabled')).toBeDefined()
+      await w.get('[data-test="live-price-accept"]').setValue(true)
+      expect(button().attributes('disabled')).toBeUndefined()
+      await button().trigger('click'); await flushPromises()
+      expect(api.post).toHaveBeenCalledExactlyOnceWith('/video/jobs/', { operation: 'generate', route_id: 89, prompt: 'A bottle', cinema: {}, params: {}, accept: ['duration'], conversation_id: 'c1', studio_context: { page: 'cinema', preset: '', preset_title: '' } })
+      w.unmount()
+    } finally { vi.useRealTimers() }
   })
 })

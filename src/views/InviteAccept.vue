@@ -245,7 +245,7 @@ p  { color: var(--vm-ink-faint); font-size: 14px; line-height: 1.6; margin: 0 0 
   color: #fff; font-size: 15px; font-weight: 600;
   cursor: pointer; transition: all 0.12s ease;
 }
-.btn-accept:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-accept:hover { opacity: 0.9; }
 .btn-accept:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-decline {
   padding: 12px 28px; border-radius: 10px;

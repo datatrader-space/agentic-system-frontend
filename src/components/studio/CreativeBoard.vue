@@ -1,11 +1,11 @@
 <template>
   <div class="creative-form">
     <label class="st-field" data-field="project_id">Project<select v-model="projectId" class="st-input" @change="open"><option value="">{{ kind === 'cinema' ? 'Standalone shot' : 'Choose project' }}</option><option v-for="p in projects" :key="p.project_id" :value="p.project_id">{{ p.title }}</option></select></label>
-    <CreativeError :error="error" locate />
-    <template v-if="!projectId && kind !== 'cinema'"><label class="st-field">New project title<input v-model="newTitle" class="st-input" /></label><button class="st-button" :disabled="busy || !newTitle.trim()" @click="createProject">Create project</button></template>
+    <CreativeError :error="shownError" locate />
+    <template v-if="!projectId && kind !== 'cinema'"><label class="st-field" data-field="title">New project title<input v-model="newTitle" class="st-input" /></label><button class="st-button" :disabled="busy || !newTitle.trim()" @click="createProject">Create project</button></template>
     <template v-if="projectId && kind !== 'editor'"><label class="st-field">New scene description<textarea v-model="newIntent" class="st-input" /></label><button class="st-button" :disabled="busy || !project || !newIntent.trim()" @click="addScene">Add scene</button></template>
     <template v-if="kind === 'editor' && projectId">
-      <p class="st-muted">Arrange your clips, sounds and images. Times are in milliseconds.</p>
+      <section class="ce-timeline" aria-label="Timeline overview"><header><h2>Your edit, in sequence.</h2><span>{{ videoClips.length }} clips · {{ sounds.length }} sounds</span></header><div class="ce-ruler"><span>Start</span><span>Sequence</span><span>End</span></div><div class="ce-lane" aria-label="Video track"><span>VIDEO</span><div v-for="(clip,i) in videoClips" :key="i" :style="{ flex: Math.max(1, (clip.out_ms || 5000) - (clip.in_ms || 0)) }"><b>Clip {{ i+1 }}</b><small>{{ clip.in_ms || 0 }}–{{ clip.out_ms || '?' }} ms</small></div><p v-if="!videoClips.length">Choose clips from Library to build the sequence.</p></div><div class="ce-lane ce-audio" aria-label="Audio track"><span>AUDIO</span><div v-for="(sound,i) in sounds" :key="i"><b>Sound {{ i+1 }}</b><small>Starts at {{ sound.start_ms || 0 }} ms</small></div><p v-if="!sounds.length">Your soundtrack appears here.</p></div></section><p class="st-muted">Arrange your clips, sounds and images below. Times are in milliseconds.</p>
       <InputSlot label="Video clips" :kinds="['video']" :limit="50" :allow-upload="false" @pick="addClips('video', $event)" />
       <div v-for="(clip,i) in videoClips" :key="i" class="creative-card">
         <span>Clip {{ i + 1 }}</span><button class="st-button" @click="move(i,-1)" :disabled="i === 0">Move earlier</button><button class="st-button" @click="videoClips.splice(i,1)">Remove</button>
@@ -22,13 +22,13 @@
     <template v-else>
       <label class="st-field" data-field="route_id">{{ projectId ? 'Keyframe model' : 'Video model' }}<select v-model="routeId" class="st-input" data-test="board-route"><option value="">Choose model</option><option v-for="r in routes" :key="r.route_id" :value="r.route_id" :disabled="!r.ready">{{ routeLabel(r) }}{{ r.ready === false ? ' — Not yet proven' : '' }}</option></select></label>
       <p v-if="routeSummary" class="st-muted" data-test="board-reference-summary">{{ routeSummary }}</p>
-      <label v-if="projectId" class="st-field">Keyframes per scene<input v-model.number="count" type="number" min="1" max="4" class="st-input" /></label>
+      <label v-if="projectId" class="st-field" data-field="n">Keyframes per scene<input v-model.number="count" type="number" min="1" max="4" class="st-input" /></label>
       <label v-if="projectId" class="st-field" data-field="video_route_id">Scene video model<select v-model="videoRouteId" class="st-input" data-test="board-video-route"><option value="">Choose model</option><option v-for="r in videoRoutes" :key="r.route_id" :value="r.route_id">{{ routeLabel(r) }}</option></select></label>
-      <div v-if="lengths.length || resolutions.length" class="creative-pair"><label v-if="lengths.length" class="st-field">Length<select v-model.number="duration" class="st-input" data-test="board-duration"><option v-for="s in lengths" :key="s" :value="s">{{ s }} seconds</option></select></label><label v-if="resolutions.length" class="st-field">Resolution<select v-model="resolution" class="st-input" data-test="board-resolution"><option v-for="r in resolutions" :key="r" :value="r">{{ r }}</option></select></label></div>
+      <div v-if="lengths.length || resolutions.length" class="creative-pair"><label v-if="lengths.length" class="st-field" data-field="duration">Length<select v-model.number="duration" class="st-input" data-test="board-duration"><option v-for="s in lengths" :key="s" :value="s">{{ s }} seconds</option></select></label><label v-if="resolutions.length" class="st-field" data-field="resolution">Resolution<select v-model="resolution" class="st-input" data-test="board-resolution"><option v-for="r in resolutions" :key="r" :value="r">{{ r }}</option></select></label></div>
       <template v-if="kind === 'cinema' && !projectId">
         <label class="st-field" data-field="prompt">Shot description<textarea v-model="prompt" class="st-input" /></label>
         <label v-for="control in controls" :key="control.control" class="st-field">{{ control.label }}<select v-model="cinema[control.control]" class="st-input"><option value="">Default</option><option v-for="v in control.values" :key="v.value" :value="v.value">{{ v.phrase }}</option></select></label>
-        <p>{{ cinemaPhrase }}</p><LivePrice v-bind="shotPrice" empty="Choose the model and describe the shot to see the price." /><button class="st-button" :disabled="busy || !routeId || !prompt.trim()" @click="prepareShot">Review shot estimate</button>
+        <p>{{ cinemaPhrase }}</p><LivePrice v-bind="shotPrice" v-model:accepted="shotQuote.accepted.value" empty="Choose the model and describe the shot to see the price." /><button class="st-button" :disabled="busy || !routeId || !prompt.trim() || shotQuote.blocked.value" @click="prepareShot">Review shot estimate</button>
       </template>
       <div v-for="scene in board?.scenes || []" :key="scene.scene_id" class="creative-card">
         <h2>{{ scene.order + 1 }}. {{ scene.title }}</h2><p>{{ scene.intent }}</p><p>{{ scene.cinema_phrase }}</p>
@@ -45,6 +45,7 @@
   </div>
 </template>
 <script setup>
+import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import MediaThumb from '../common/MediaThumb.vue'
 import { thumbnailFor } from '../../utils/mediaThumb'
@@ -58,6 +59,7 @@ import CreativeError from './CreativeError.vue'
 import { useCreativeForm } from '../../composables/useCreativeForm'
 import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
+import { modelAliases, studioError, useStudioChat } from './studioForm'
 const props = defineProps({ kind: String }), emit = defineEmits(['job']), route = useRoute()
 // What the chosen video model takes as references (the backend's per-model data), shown under the picker.
 const routeSummary = computed(() => routes.value.find(r => String(r.route_id) === String(routeId.value))?.inputs?.spec?.summary || '')
@@ -67,6 +69,11 @@ const newTitle = ref(''), newIntent = ref('')
 const captionCues = ref([])
 const transitions = [['cut','Cut'],['crossfade','Crossfade'],['fade_black','Fade through black'],['fade_white','Fade through white'],['wipe','Wipe'],['slide','Slide'],['dissolve','Dissolve']].map(([value, label]) => ({ value, label })), positions = ['top-left','top','top-right','center','bottom-left','bottom','bottom-right']
 const { busy, error, run } = useCreativeForm()
+// Each request carries the open chat and this page (a Manual page sends no chat message), so its results stay in the
+// chat. An error is shown at its field; the model the backend names ('model', 'model_id', 'route_id') is the menu of
+// the step that failed (the keyframe or shot model, or the scene video model).
+const { chatFields } = useStudioChat(() => props.kind), modelField = ref('route_id')
+const shownError = computed(() => studioError(error.value, ['project_id','title','route_id','video_route_id','n','duration','resolution','prompt'], modelAliases(modelField.value)))
 // A shot or a scene video is made on a video model: in a project, a model that starts from the scene's keyframe
 // (image to video); a standalone shot, one that makes video from words. Its own lengths and sizes are offered, the
 // cheapest size first, so nothing is quoted at a size the person did not choose (2026-10-28: $0.70 at 1080p).
@@ -157,18 +164,19 @@ onMounted(() => run(async alive => {
   await open()
 }))
 function sceneAction(scene, suffix, data, method = 'post') { return run(async alive => {
-  try { const result = await api[method](`/video/projects/${projectId.value}/scenes/${scene.scene_id}/${suffix}/`, data); if (alive()) { if (result.data.job_id) track(result.data); else board.value = result.data } }
+  try { const body = typeof data === 'function' ? await data() : data; const result = await api[method](`/video/projects/${projectId.value}/scenes/${scene.scene_id}/${suffix}/`, body); if (alive()) { if (result.data.job_id) track(result.data); else board.value = result.data } }
   catch (e) { if (alive() && e.response?.status === 409) { if (e.response.data.storyboard) board.value = e.response.data.storyboard; project.value = null; throw Error('Someone changed this project. Review the current storyboard before trying again.') } throw e }
 }) }
 function chooseFrame(s,f) { sceneAction(s,'keyframe',{ attachment_id: f.attachment_id, revision: board.value.revision }) }
-function keyframes(s) { sceneAction(s,'keyframes',{ route_id: routeId.value, n: count.value }) }
+function keyframes(s) { modelField.value = 'route_id'; sceneAction(s,'keyframes',async () => ({ route_id: routeId.value, n: count.value, conversation_id: (await chatFields()).conversation_id })) }
 function saveCinema(s) { sceneAction(s,'cinema',{ cinema: chosenCinema(s.cinema), revision: board.value.revision },'put') }
-function render(s) { run(async alive => { const { data } = await api.post('/video/jobs/',{ project_id: projectId.value, scene_id: s.scene_id, operation: 'generate', route_id: videoRouteId.value, prompt: s.intent, params: renderParams() }); if (alive()) track(data) }) }
+function render(s) { modelField.value = 'video_route_id'; run(async alive => { const { data } = await api.post('/video/jobs/',{ project_id: projectId.value, scene_id: s.scene_id, operation: 'generate', route_id: videoRouteId.value, prompt: s.intent, params: renderParams(), ...await chatFields() }); if (alive()) track(data) }) }
 function saveScene(s) { if (!project.value) return; run(async alive => { const scenes = (project.value.scenes || []).map(row => row.scene_id === s.scene_id ? { ...row, intent: s.intent } : row); const { data } = await patchScenes(scenes, alive); if (alive()) { project.value = data; await loadProject(alive) } }) }
-const { price: shotPriceValue, loading: shotPriceLoading, problem: shotPriceProblem } = useLivePrice(() => props.kind === 'cinema' && !projectId.value && routeId.value && prompt.value.trim()
-  ? { kind: 'video', route_id: routeId.value, prompt: prompt.value.trim(), cinema: chosenCinema(cinema.value), params: renderParams() } : null)
-const shotPrice = computed(() => ({ price: shotPriceValue.value, loading: shotPriceLoading.value, problem: shotPriceProblem.value }))
-function prepareShot() { run(async alive => { const { data } = await api.post('/video/jobs/',{ operation: 'generate', route_id: routeId.value, prompt: prompt.value, cinema: chosenCinema(cinema.value), params: renderParams() }); if (alive()) emit('job',data) }) }
+// The shot's price; adjustments the model needs are accepted here before the estimate is asked for, and sent with it.
+const shotQuote = useLivePrice(() => props.kind === 'cinema' && !projectId.value && routeId.value && prompt.value.trim()
+  ? { kind: 'video', route_id: routeId.value, prompt: prompt.value.trim(), cinema: chosenCinema(cinema.value), params: renderParams(), ...(chat.conversationId ? { conversation_id: chat.conversationId } : {}) } : null)
+const shotPrice = computed(() => ({ price: shotQuote.price.value, loading: shotQuote.loading.value, problem: shotQuote.problem.value, code: shotQuote.code.value }))
+function prepareShot() { if (shotQuote.blocked.value) return; modelField.value = 'route_id'; const accept = shotQuote.acceptFields.value; run(async alive => { const { data } = await api.post('/video/jobs/',{ operation: 'generate', route_id: routeId.value, prompt: prompt.value, cinema: chosenCinema(cinema.value), params: renderParams(), ...(accept.length ? { accept } : {}), ...await chatFields() }); if (alive()) emit('job',data) }) }
 function addClips(kind,items) { for (const item of items) { const id = item.attachment_id; if (kind === 'video') videoClips.value.push({ attachment_id: id, in_ms: 0, transition: { kind: 'cut', ms: 500 } }); if (kind === 'audio' && sounds.value.length < 8) sounds.value.push({ attachment_id: id, start_ms: 0, gain_db: 0, duck: false, mute_original: false }); if (kind === 'overlay' && overlays.value.length < 8) overlays.value.push({ attachment_id: id, position: 'top-right', scale: 0.18 }) } }
 function move(i,delta) { const clips = videoClips.value; [clips[i],clips[i+delta]] = [clips[i+delta],clips[i]] }
 function cleanTimelineItem(item) {
@@ -188,13 +196,17 @@ function saveTimeline() {
     if (alive()) revisionId.value = data.revision_id
   })
 }
-function exportTimeline() { run(async alive => { const { data } = await api.post('/video/jobs/',{ operation:'export', project_id:projectId.value, params:{ timeline_revision_id:revisionId.value } }); if (alive()) emit('job',data) }) }
+function exportTimeline() { run(async alive => { const { data } = await api.post('/video/jobs/',{ operation:'export', project_id:projectId.value, params:{ timeline_revision_id:revisionId.value }, ...await chatFields() }); if (alive()) emit('job',data) }) }
 async function patchScenes(scenes, alive) {
   try { return await api.patch(`/video/projects/${projectId.value}/`, { revision: board.value.revision, scenes }) }
   catch (e) { if (e.response?.status === 409) { await loadProject(alive); throw Error('Someone changed this project. Review the current storyboard before trying again.') } throw e }
 }
 // The model lists change with a project (keyframe pictures, scene videos): opened, as choosing one is.
-function createProject() { run(async alive => { const {data} = await api.post('/video/projects/',{ title:newTitle.value }); if (alive()) { projects.value.push(data); projectId.value = data.project_id; await open() } }) }
+function createProject() { run(async alive => { const {data} = await api.post('/video/projects/',{ title:newTitle.value, conversation_id:(await chatFields()).conversation_id }); if (alive()) { projects.value.push(data); projectId.value = data.project_id; await open() } }) }
 function addScene() { if (!project.value) return; run(async alive => { await patchScenes([...(project.value.scenes || []), { title:`Scene ${(project.value.scenes || []).length+1}`, intent:newIntent.value, planned_ms:5000 }], alive); if (alive()) { newIntent.value = ''; await loadProject(alive) } }) }
 function chooseTake(scene,take) { run(async alive => { await api.post('/video/selection/',{ project_id:projectId.value, scene_id:scene.scene_id, attachment_id:take.attachment_id, expected_revision:board.value.revision }); if (alive()) await loadProject(alive) }) }
+useStudioPreparedBrief(newIntent)
+useStudioPreparedBrief(prompt)
 </script>
+
+<style scoped>.ce-timeline{border:1px solid var(--vm-line);border-radius:10px;background:var(--vm-bg);padding:18px;overflow:hidden}.ce-timeline header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.ce-timeline h2{font-size:18px;font-weight:500}.ce-timeline header span,.ce-ruler{font-size:10px;color:var(--vm-ink-faint)}.ce-ruler{display:flex;justify-content:space-between;padding:16px 0 9px;margin-left:48px;border-bottom:1px solid var(--vm-line);margin-bottom:12px}.ce-lane{display:flex;gap:6px;align-items:stretch;min-height:62px;margin:8px 0;overflow:auto}.ce-lane>span{width:42px;flex-shrink:0;font-size:9px;color:var(--vm-ink-faint);align-self:center;letter-spacing:.08em}.ce-lane>div{min-width:90px;background:#2e4c65;border:1px solid #5f819d;border-radius:6px;padding:10px;font-size:11px;flex:1}.ce-lane small{display:block;font-size:9px;margin-top:6px;color:#a9c6de}.ce-lane p{font-size:11px;align-self:center;color:var(--vm-ink-faint)}.ce-audio>div{background:#343c60;border-color:#626e9a}.ce-lane b{font-weight:500}@media(max-width:680px){.ce-timeline{padding:13px}.ce-timeline header span{font-size:11px}}</style>

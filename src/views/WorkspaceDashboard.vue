@@ -801,7 +801,7 @@ onMounted(loadAll)
   border-radius: 12px; padding: 16px; text-decoration: none; color: inherit;
   transition: all 0.15s; cursor: pointer;
 }
-.resource-card:hover { background: var(--vm-surface); border-color: rgba(25,20,39,0.1); transform: translateY(-1px); }
+.resource-card:hover { background: var(--vm-surface); border-color: rgba(25,20,39,0.1); }
 .resource-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .resource-icon { font-size: 24px; }
 .resource-card-name { font-size: 14px; font-weight: 600; color: var(--vm-ink); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

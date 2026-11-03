@@ -363,7 +363,6 @@ const submitForm = () => {
 }
 
 .btn-submit:hover {
-  transform: translateY(-2px);
   box-shadow: 0 8px 30px var(--primary-glow);
 }
 
@@ -468,7 +467,6 @@ const submitForm = () => {
 .social-link:hover {
   background: var(--primary);
   border-color: var(--primary);
-  transform: translateY(-2px);
 }
 
 .social-link svg {

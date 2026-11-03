@@ -1,9 +1,9 @@
 <template>
   <div class="creative-form">
-    <CreativeError :error="error" locate />
+    <CreativeError :error="shownError" locate />
     <MediaRoutePicker v-model="routeId" :operation="kind === 'shorts' ? 'transcribe' : 'speech'" />
     <template v-if="kind === 'shorts'">
-      <InputSlot label="Source footage" :kinds="['video']" required :allow-upload="false" :items="source ? [source] : []" @pick="source = $event[0]; transcriptId = ''; moments = []" @remove="source = null; transcriptId = ''; moments = []" />
+      <InputSlot label="Source footage" data-field="references" :kinds="['video']" required :allow-upload="false" :items="source ? [source] : []" @pick="source = $event[0]; transcriptId = ''; moments = []" @remove="source = null; transcriptId = ''; moments = []" />
       <label class="st-field" data-field="language">Language (optional)<input v-model="language" class="st-input" /></label><button class="st-button primary" :disabled="busy || !source || !routeId" @click="transcribe">Review transcription estimate</button>
       <p v-if="transcriptId">Transcript: {{ transcriptState }}. Generate on its card in Results to continue.</p>
       <label class="st-field" data-field="n">Moment count<input v-model.number="count" type="number" min="1" max="6" class="st-input" /></label><button class="st-button" :disabled="busy || transcriptState !== 'ready'" @click="findMoments">Find moments</button>
@@ -16,7 +16,7 @@
       <button class="st-button" :disabled="busy || !topic.trim()" @click="plan">Plan explainer</button>
       <template v-if="projectId">
         <RouterLink :to="{ path:'/video-studio/storyboard', query:{ project_id:projectId } }" class="st-button">Choose scene pictures in Storyboard</RouterLink>
-        <label class="st-field" data-field="voice_id">Voice<select v-model="voiceId" class="st-input"><option value="">Choose voice</option><option v-for="v in voices" :key="v.voice_id || v.id" :value="v.voice_id || v.id">{{ v.name }}</option></select></label>
+        <VoicePicker v-model="voiceId" :route-id="routeId" />
         <button class="st-button" :disabled="busy || !routeId || !voiceId" @click="narrate">Review narration estimates</button><button class="st-button" :disabled="busy" @click="refreshStatus">Refresh scene status</button>
         <div v-for="s in scenes" :key="s.scene_id" class="creative-card"><h2>Scene {{ s.order + 1 }}</h2><p>{{ s.narration }}</p><p>Picture: {{ s.picture ? 'Ready' : 'Missing' }} · Narration: {{ s.narration_attachment_id ? 'Ready' : 'Missing' }}</p></div>
         <button class="st-button primary" :disabled="busy" @click="cut">Cut explainer (free)</button>
@@ -26,7 +26,8 @@
   </div>
 </template>
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
 import { useVideoStore } from '../../stores/useVideoStore'
@@ -34,30 +35,29 @@ import { useCreativeForm } from '../../composables/useCreativeForm'
 import CreativeError from './CreativeError.vue'
 import InputSlot from './InputSlot.vue'
 import MediaRoutePicker from './MediaRoutePicker.vue'
+import VoicePicker from './VoicePicker.vue'
+import { modelAliases, studioError, useStudioChat } from './studioForm'
 const props = defineProps({ kind:String }), emit = defineEmits(['job']), route = useRoute(), video = useVideoStore(), { busy,error,run } = useCreativeForm()
-const routeId = ref(''), voices = ref([]), voiceId = ref(''), source = ref(null), language = ref(''), transcriptId = ref(''), count = ref(3), moments = ref([]), aspect = ref(props.kind === 'shorts' ? '9:16' : '16:9'), captions = ref(true), resultProject = ref('')
+const routeId = ref(''), voiceId = ref(''), source = ref(null), language = ref(''), transcriptId = ref(''), count = ref(3), moments = ref([]), aspect = ref(props.kind === 'shorts' ? '9:16' : '16:9'), captions = ref(true), resultProject = ref('')
 const topic = ref(''), title = ref(''), audience = ref(''), maxSeconds = ref(90), projectId = ref(route.query.project_id || ''), scenes = ref([])
 const transcriptState = computed(() => video.jobs[transcriptId.value]?.state || 'waiting')
-// The shared model menu (live 2026-10-29: this one had no price and no model chosen); the voices follow the model.
+// The shared model menu (live 2026-10-29: this one had no price and no model chosen). The voices follow the model in
+// the shared VoicePicker: a provider that lists no voices (listed: false) takes a voice ID typed in instead.
 onMounted(() => run(async alive => { if (projectId.value) await status(alive) }))
-watch(routeId, loadVoices)
-// Not through run(): the menu chooses its model while the page's first load is still running, and run() drops a call
-// made while busy, so the voices never came. The newest model's answer wins.
-let voiceSeq = 0, gone = false
-onBeforeUnmount(() => { gone = true })
-async function loadVoices() {
-  if (props.kind !== 'explainer') return
-  const mine = ++voiceSeq; voiceId.value = ''; voices.value = []
-  if (!routeId.value) return
-  try { const {data} = await api.get('/video/media/voices/',{ params:{ route_id:routeId.value } }); if (!gone && mine === voiceSeq) voices.value = data.voices || [] }
-  catch (e) { if (!gone && mine === voiceSeq) error.value = e.response?.data?.error || { message: 'Could not load the voices.' } }
-}
-function transcribe() { run(async alive => { const {data} = await api.post('/video/shorts/transcribe/',{ attachment_id:source.value.attachment_id, route_id:routeId.value, language:language.value }); if (alive()) { transcriptId.value = data.job_id; moments.value = []; emit('job',data) } }) }
+watch(routeId, () => { voiceId.value = '' })
+// The transcript and the explainer project belong to the open chat (a Manual page sends no chat message, so the page
+// goes with them); shorts, moments, narration and the cut follow the chat of what they build on. An error is shown at
+// its field (the model the backend names 'model', 'model_id' or 'route_id' at the model menu), any other one as a
+// general message.
+const { chatFields } = useStudioChat(() => props.kind)
+const shownError = computed(() => studioError(error.value, ['route_id','voice_id','references','language','n','aspect_ratio','title','topic','audience','max_seconds'], { ...modelAliases('route_id'), attachment_id: 'references' }))
+function transcribe() { run(async alive => { const {data} = await api.post('/video/shorts/transcribe/',{ attachment_id:source.value.attachment_id, route_id:routeId.value, language:language.value, ...await chatFields() }); if (alive()) { transcriptId.value = data.job_id; moments.value = []; emit('job',data) } }) }
 function findMoments() { run(async alive => { const {data} = await api.post('/video/shorts/moments/',{ transcript_job_id:transcriptId.value, n:count.value }); if (alive()) moments.value = data.moments || [] }) }
 function makeShort(m) { run(async alive => { const duration = m.end_ms-m.start_ms; if (duration < 10000 || duration > 90000 || m.start_ms < 0) throw Error('Choose a moment lasting 10 to 90 seconds.'); const {data} = await api.post('/video/shorts/',{ transcript_job_id:transcriptId.value, start_ms:m.start_ms, end_ms:m.end_ms, title:m.title, aspect_ratio:aspect.value, captions:captions.value }); if (alive()) { resultProject.value = data.project.project_id; emit('job',data.export) } }) }
 async function status(alive) { const {data} = await api.get(`/video/explainers/${projectId.value}/`); if (alive()) scenes.value = data.scenes || [] }
 function refreshStatus() { run(status) }
-function plan() { run(async alive => { const {data} = await api.post('/video/explainers/',{ topic:topic.value, title:title.value, audience:audience.value, max_seconds:maxSeconds.value, aspect_ratio:aspect.value }); if (alive()) { projectId.value = data.project_id; await status(alive) } }) }
+function plan() { run(async alive => { const {data} = await api.post('/video/explainers/',{ topic:topic.value, title:title.value, audience:audience.value, max_seconds:maxSeconds.value, aspect_ratio:aspect.value, ...await chatFields() }); if (alive()) { projectId.value = data.project_id; await status(alive) } }) }
 function narrate() { run(async alive => { const {data} = await api.post(`/video/explainers/${projectId.value}/narrate/`,{ route_id:routeId.value, voice_id:voiceId.value }); if (alive()) for (const job of data.jobs || []) emit('job',job) }) }
 function cut() { run(async alive => { const {data} = await api.post(`/video/explainers/${projectId.value}/cut/`,{}); if (alive()) { resultProject.value = projectId.value; emit('job',data.export) } }) }
+useStudioPreparedBrief(topic, 'Topic')
 </script>

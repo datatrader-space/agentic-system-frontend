@@ -31,7 +31,8 @@
     </div>
     <div v-else-if="phase === 'create'" class="create" data-test="studio-create">
       <div class="create-inner">
-        <h2 class="create-title">What do you want to make?</h2>
+        <div class="dashboard-context"><span>Start with your agent</span><button type="button" :disabled="loading || chat.isBusy || video.busy || refreshing || !!chat.hitlRequests?.length" @click="newVideo">＋ New chat</button></div>
+        <div class="create-heading"><p class="create-eyebrow">YOUR CREATIVE WORKSPACE</p><h1 class="create-title">What do you want to make?</h1><p class="create-description">{{ agentMode ? 'Start with your idea. Your agent will help shape the rest.' : 'Choose a workflow, shape your brief, and set the details yourself.' }}</p></div>
         <div v-if="!hasVideoAgent" class="setup" data-test="studio-not-ready">
           <h2>Video Studio can’t render yet</h2>
           <p>No video model is set for the Video Studio agent. A platform admin sets it once, for everyone.</p>
@@ -58,8 +59,9 @@
               </template>
             </VideoComposerPanel>
           </fieldset>
+          <div class="dashboard-meta"><span>▱ Your creative workspace</span><span>Ctrl + Enter to send</span></div>
         </template>
-        <HomeFeatures />
+
       </div>
     </div>
 
@@ -126,9 +128,8 @@ import { useVideoStore } from '../stores/useVideoStore'
 import { useCanvasStore } from '../stores/useCanvasStore'
 import { notify } from '../composables/useNotify'
 import { usePoller } from '../composables/usePoller'
-import { lazyComponent } from '../utils/lazyComponent'
 import VideoComposerPanel from '../components/video/VideoComposerPanel.vue'
-const HomeFeatures = lazyComponent(() => import('../components/studio/HomeFeatures.vue'))
+
 import VideoJobsTray from '../components/video/VideoJobsTray.vue'
 import VideoPanel from '../components/video/VideoPanel.vue'
 import VideoLibrary from '../components/video/VideoLibrary.vue'
@@ -157,7 +158,7 @@ let sessionInFlight = false
 let disposed = false
 
 const scenes = computed(() => (video.project && video.project.scenes) || [])
-const title = computed(() => (video.project ? video.project.title || 'Untitled video' : 'Home'))
+const title = computed(() => (video.project ? video.project.title || 'Untitled video' : 'Dashboard'))
 const summary = computed(() => {
   if (!video.project) return ''
   const n = scenes.value.length
@@ -237,7 +238,7 @@ async function initialize() {
   if (route.query.project && hasVideoAgent.value) await openProject({ project_id: route.query.project })
   if (hasVideoAgent.value && video.queuedUse.length) await video.applyQueuedUse({ chat })
   if (route.query.new || route.query.project) {
-    router.replace({ path: '/video-studio', query: chat.conversationId ? { conversation: chat.conversationId } : {} })
+    router.replace({ path: '/video-studio/dashboard', query: chat.conversationId ? { conversation: chat.conversationId } : {} })
   }
 }
 // The built-in agent's card, kept in the chat store's agent list so a new chat opens with it.
@@ -273,7 +274,7 @@ async function openProject(p) {
   finally { openingProject.value = false }
 }
 function newVideo() {
-  if (chat.isBusy || video.busy || refreshing.value) return
+  if (chat.isBusy || video.busy || refreshing.value || chat.hitlRequests?.length) return
   chat.reset()
   if (studioAgentId) chat.setAgent(studioAgentId)
   video.reset()
@@ -281,7 +282,7 @@ function newVideo() {
   video.task = 'quick'
   video.routeId = ''
   mobileTab.value = 'agent'
-  router.replace({ path: '/video-studio', query: {} })
+  router.replace({ path: '/video-studio/dashboard', query: {} })
 }
 async function focusPrompt() {
   mobileTab.value = 'agent'
@@ -320,7 +321,7 @@ function composeEdit(event) {
 }
 watch(() => chat.conversationId, async (cid) => {
   if (loading.value || !cid || disposed) return
-  await router.replace({ path: '/video-studio', query: { conversation: cid } })
+  await router.replace({ path: '/video-studio/dashboard', query: { conversation: cid } })
   video.conversationId = cid
   await video.loadJobs(cid)
 })
@@ -338,7 +339,7 @@ onMounted(async () => {
   window.addEventListener('video-compose', composeEdit)
   await initialize()
   if (disposed) return
-  if (chat.conversationId && !route.query.conversation) router.replace({ path: '/video-studio', query: { conversation: chat.conversationId } })
+  if (chat.conversationId && !route.query.conversation) router.replace({ path: '/video-studio/dashboard', query: { conversation: chat.conversationId } })
   if (!disposed) sessionPoller.start({ immediate: false })
 })
 onBeforeUnmount(() => {
@@ -433,3 +434,18 @@ onBeforeUnmount(() => {
 }
 @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
 </style>
+
+<style scoped>.create-inner{width:min(1100px,100%);padding:44px 34px 30px;gap:26px;min-height:0}.create-title{text-align:left;font-size:36px;font-weight:550;letter-spacing:-.045em}.create-heading{padding-bottom:2px}.create-eyebrow{font-size:10px;letter-spacing:.15em;color:var(--vm-ink-faint);margin:0 0 13px}.create-description{color:var(--vm-ink-soft);font-size:13px;line-height:1.8;margin:13px 0 0}.create :deep(.vcp-mode){max-width:270px}.create :deep(.vcp-cards){gap:14px}.create :deep(.vcp-card){border-radius:10px}.create :deep(.vcp-box){border-radius:11px}.create :deep(.vcp-textarea){min-height:120px}.create :deep(.vcp-hint){font-size:12px;line-height:1.8}.create .prompt textarea{min-height:128px;padding:20px;font-size:15px}.studio .bar{padding:14px 30px;min-height:65px}.studio .bar h1{font-size:23px}.studio .bar{display:none}.studio:has(.stage) .bar{display:flex}@media(max-width:1023px){.create-inner{padding:26px 20px;gap:20px}.create-title{font-size:30px}.create-description{font-size:12px}.studio .bar{padding-left:20px}}@media(max-width:480px){.create-inner{padding:24px 15px}.create-title{font-size:27px}.create-eyebrow{font-size:9px}.create .prompt textarea{min-height:120px;font-size:16px;padding:15px}}
+</style>
+
+<style scoped>
+.create-inner{width:100%;max-width:1348px;padding:34px 34px 30px;gap:0;margin:0 auto}
+.dashboard-context{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;font-size:10px;color:#8ea7bd;min-height:32px}.dashboard-context button{min-height:36px;padding:8px 0;border:0;background:none;color:#bdd2ed;font:500 11px var(--vm-font-sans);cursor:pointer}
+.create-heading{text-align:center;margin-bottom:34px;padding:0}.create-title{text-align:center;font-size:38px;line-height:1.25;letter-spacing:-1.5px;font-weight:600}.create-eyebrow{font-size:9px;color:#7e92b7;letter-spacing:1.6px;margin-bottom:13px}.create-description{font-size:13px;line-height:1.8;color:#8d9fbc;margin-top:12px}
+.create .composer{padding:0}.create :deep(.vcp-mode-row){margin-bottom:23px}.create :deep(.vcp-hint){color:#8fa4c3;margin-bottom:18px}.create :deep(.vcp-box){border:1px solid #506b94;border-radius:12px;padding:17px 20px 18px;background:linear-gradient(135deg,#202e45,#1b2941);box-shadow:0 10px 40px #0002}.create :deep(.vcp-box:focus-within){border-color:#9abbf4;box-shadow:0 0 0 3px #7da7eb15,0 10px 40px #0002}
+.create .prompt textarea{min-height:165px;max-height:500px;resize:vertical;background:none;padding:5px 2px 22px;font-size:15px;line-height:1.8;color:#e0eaff}.create :deep(.vcp-bar){padding:0;gap:12px}.create :deep(.vcp-go){margin-left:auto}.create .send{min-height:40px;padding:10px 18px;background:#a6bce4;border-color:#a6bce4;color:#16263e;font-size:12px}.create .send:disabled{opacity:.45}.dashboard-meta{display:flex;justify-content:space-between;gap:20px;padding:12px 4px 0;font-size:10px;color:#6983a9}
+@media(max-width:1100px){.create-inner{padding:28px 28px 24px}.create-title{font-size:35px}}
+@media(max-width:680px){.create-inner{padding:20px 16px 24px}.dashboard-context{margin-bottom:16px}.create-title{font-size:29px;letter-spacing:-1.1px}.create-description{font-size:12px}.create-heading{margin-bottom:27px}.create :deep(.vcp-box){padding:14px}.create .prompt textarea{min-height:145px;font-size:16px}.dashboard-meta{font-size:9px}.dashboard-meta>span:last-child{display:none}}
+</style>
+
+<style scoped>.create :deep(.vcp-create){gap:0}.create :deep(.vcp-create>.vcp-hint){margin-top:0;padding-top:0;margin-bottom:16px;font-size:12px;line-height:1.9}.create :deep(.vcp-create>.vcp-cards){margin-bottom:23px}.create :deep(.vcp-create>.vcp-box){position:relative;bottom:auto}</style>

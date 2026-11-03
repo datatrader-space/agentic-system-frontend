@@ -1,3 +1,4 @@
+import { studioLooks } from './studioLooks'
 // Original AADML presets. Descriptions are composition instructions, not sample output media.
 const slot = (id, label, role = 'subject', required = false, limit = 1) => ({ id, label, role, required, limit, kinds: ['image'] })
 const preset = (id, feature, title, purpose, category, slots, settings, promptTemplate, variants) => ({ id, feature, title, purpose, category, slots, settings, promptTemplate, variants })
@@ -19,10 +20,12 @@ export const studioPresets = [
   preset('place-first', 'video', 'A sense of place', 'Establish the setting before the story begins.', 'Scenes', [], { duration: 5 }, 'Create a wide establishing shot of an original location. Show clear foreground, middle distance and background, with a restrained camera move and a consistent atmosphere.', ['A quiet coastal workshop at dawn.', 'A neighborhood market before opening.', 'A hillside observatory in soft evening light.']),
   preset('photo-breath', 'video', 'Let the photo breathe', 'Animate a photo without changing its main composition.', 'Scenes', [slot('opening', 'Your photo', 'first_frame', true)], { duration: 5 }, 'Animate {opening} with subtle environmental motion. Keep the main composition and subject identity stable. Avoid sudden movement, added people or invented lettering.', ['A light breeze with almost no camera move.', 'A subtle forward drift.', 'A gentle shift of light and shadow.']),
 ]
-export function presetsFor(feature) { return studioPresets.filter(preset => preset.feature === feature) }
+export function presetsFor(feature) { return [...studioPresets, ...studioLooks].filter(preset => preset.feature === feature) }
 export function composePreset(preset, values = {}, details = '', variant = 0) {
   if (!preset) return details.trim()
-  const text = preset.promptTemplate.replace(/\{([a-z]+)\}/g, (_, id) => {
+  const text = preset.promptTemplate.replace(/\{([^}]+)\}/g, (_, id) => {
+    const variable = preset.variables?.find(item => item.label.toLowerCase() === id.toLowerCase())
+    if (variable) return String(values[variable.id] ?? variable.default).trim() || variable.default
     const chosen = values[id] || []
     return chosen.length ? `the supplied ${preset.slots.find(slot => slot.id === id)?.label.toLowerCase() || 'reference'}` : 'the subject described below'
   })

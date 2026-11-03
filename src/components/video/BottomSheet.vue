@@ -72,5 +72,5 @@ onBeforeUnmount(() => { if (query) query.removeEventListener ? query.removeEvent
 .bs-close { min-width: 44px; min-height: 44px; border: none; background: transparent; font-size: 22px; cursor: pointer; color: var(--vm-ink-soft, #64748b); }
 .bs-body { overflow-y: auto; padding: 16px 18px 20px; display: grid; gap: 12px; }
 @media (prefers-reduced-motion: no-preference) { .bs-sheet { animation: bs-up .18s ease-out; } }
-@keyframes bs-up { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+@keyframes bs-up { from { opacity: .6; } to { opacity: 1; } }
 </style>

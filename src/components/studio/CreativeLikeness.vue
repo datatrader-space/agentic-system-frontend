@@ -24,6 +24,7 @@
   </form>
 </template>
 <script setup>
+import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
 import { computed, inject, reactive, ref } from 'vue'
 import api from '../../services/api'
 import ConsentStep from './ConsentStep.vue'
@@ -77,5 +78,6 @@ function prepare() {
   const names = Object.fromEntries(chosen.value.map(file => [file.attachment_id, file.name]))
   submit(s => api.prepareMediaJob({ operation: props.kind, route_id: routeId.value, request, references, ...s }), names)
 }
+useStudioPreparedBrief(prompt, 'Script')
 </script>
 <style scoped>.cl-note{font-size:12px;line-height:1.55}.cl-choice{display:grid;gap:8px;margin:0;padding:0;border:0;font-size:13px}.cl-choice legend{margin-bottom:6px;color:var(--vm-ink-soft)}.cl-choice label{display:flex;align-items:flex-start;gap:8px;min-height:36px;line-height:1.5;cursor:pointer}.cl-choice input{width:18px;height:18px;margin-top:1px;flex-shrink:0}@media(max-width:767px){.cl-choice label{min-height:44px}}</style>

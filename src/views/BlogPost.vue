@@ -67,7 +67,7 @@
       <div class="cta-box">
         <h2 class="font-display text-3xl font-extrabold text-white">Ready to transform your workflow?</h2>
         <p class="mx-auto mt-3 max-w-lg text-blue-100">Join the developers using AI agents to ship faster.</p>
-        <router-link to="/login" class="mt-7 inline-flex rounded-xl bg-white px-7 py-3 font-bold text-violet transition-transform hover:-translate-y-0.5">Get started free</router-link>
+        <router-link to="/login" class="mt-7 inline-flex rounded-xl bg-white px-7 py-3 font-bold text-violet transition-opacity hover:opacity-90">Get started free</router-link>
       </div>
     </section>
   </PublicLayout>
@@ -184,7 +184,7 @@ onMounted(loadPost)
   color: var(--vm-ink-soft); border: 1px solid var(--vm-border); background: var(--vm-surface);
   transition: all .15s;
 }
-.share:hover { color: #fff; background: var(--vm-primary); border-color: var(--vm-primary); transform: translateY(-2px); }
+.share:hover { color: #fff; background: var(--vm-primary); border-color: var(--vm-primary); }
 
 .rel-card {
   display: block; overflow: hidden; border-radius: 16px;
@@ -192,7 +192,7 @@ onMounted(loadPost)
   text-decoration: none; box-shadow: var(--vm-shadow-s);
   transition: transform .2s var(--vm-ease), box-shadow .2s, border-color .2s;
 }
-.rel-card:hover { transform: translateY(-4px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
+.rel-card:hover { box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
 
 .cta-box {
   border-radius: 26px; padding: 56px 32px; text-align: center;

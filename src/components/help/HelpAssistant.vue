@@ -149,7 +149,7 @@ watch(() => props.open, async (v) => {
 .ha-loading { display: grid; place-items: center; gap: 12px; padding: 36px 0; color: var(--vm-ink-faint); }
 .ha-loading .dot { display: inline-block; width: 8px; height: 8px; margin: 0 3px; border-radius: 50%; background: #c7d2fe; animation: bounce 1.2s infinite; }
 .ha-loading .dot:nth-child(2) { animation-delay: .15s; } .ha-loading .dot:nth-child(3) { animation-delay: .3s; }
-@keyframes bounce { 0%,80%,100% { transform: scale(.7); opacity: .5; } 40% { transform: scale(1); opacity: 1; } }
+@keyframes bounce { 0%,80%,100% { opacity: .5; } 40% { opacity: 1; } }
 .ha-loading p { margin: 0; font-size: 13px; }
 .ha-state { display: grid; place-items: center; gap: 10px; padding: 36px 0; color: var(--vm-ink-faint); } .ha-state svg { width: 30px; height: 30px; color: var(--vm-amber-ink); }
 .ha-answer { margin-top: 18px; }

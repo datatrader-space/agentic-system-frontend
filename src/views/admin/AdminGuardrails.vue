@@ -532,11 +532,6 @@ onMounted(load)
   cursor: not-allowed;
   box-shadow: none;
 }
-.ag-toggle:not(:disabled):hover,
-.ag-save:not(:disabled):hover,
-.ag-add button:hover {
-  transform: translateY(-1px);
-}
 .ag-banner {
   margin-top: 16px;
   border-radius: 12px;

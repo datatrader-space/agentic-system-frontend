@@ -8,7 +8,7 @@
       <section ref="panelEl" class="lib" :role="isPage ? 'region' : 'dialog'" :aria-modal="isPage ? undefined : 'true'"
                aria-labelledby="lib-title" tabindex="-1" data-test="video-library" @keydown.esc="!isPage && close()">
         <header class="lib-head">
-          <component :is="isPage ? 'h1' : 'h2'" id="lib-title">{{ isPage ? (initialTab === 'ingredients' ? 'Elements' : 'Library') : 'Library' }}</component>
+          <component :is="isPage ? 'h1' : 'h2'" id="lib-title">{{ isPage ? (initialTab === 'ingredients' ? 'Elements' : 'Your creative library.') : 'Library' }}</component>
           <p v-if="isPage" class="lib-lead">{{ initialTab === 'ingredients'
             ? 'Characters, products, places and styles you named, ready for any video.'
             : 'Every image, video, sound and document you uploaded or made in Video Studio.' }}</p>
@@ -38,13 +38,16 @@
             <!-- One project's files: its chats and what was linked to it (owner, 2026-10-20). -->
             <VideoChoice v-if="video.libraryProjects.length" class="lib-project" :model-value="lib.project" :options="projectOptions"
                          label="Project" :icon="PROJECT_ICON" drop="down" test-id="lib-project" @update:model-value="setProject" />
+            <!-- One look's files: those made in chats started from it ("See all" on a look). -->
+            <p v-if="lib.preset" class="lib-look" data-test="lib-look">Made with {{ lookTitle }}
+              <button type="button" class="lib-chip" data-test="lib-look-clear" @click="clearLook">Show all files</button></p>
             <label class="lib-field lib-search"><span class="lib-sr">Search the Library</span>
               <input type="search" :value="lib.q" placeholder="Search by name…" data-test="lib-search" @input="onSearch($event.target.value)" /></label>
           </div>
           <p v-if="lib.loading" class="lib-empty" role="status">Loading files...</p>
           <p v-if="lib.error" class="lib-error" role="alert">{{ lib.error }}</p>
           <p v-else-if="!lib.loading && !visibleItems.length" class="lib-empty">
-            {{ lib.q ? 'Nothing matches that search.' : 'Files and documents you upload or make in Video Studio appear here.' }}</p>
+            {{ lib.q ? 'Nothing matches that search.' : lib.preset ? 'Nothing made with this look yet.' : 'Files and documents you upload or make in Video Studio appear here.' }}</p>
           <ul class="lib-grid" aria-label="Files">
             <li v-for="it in visibleItems" :key="it.attachment_id" class="lib-card" :class="{ picked: picked.has(it.attachment_id) }"
                 :data-test="'lib-item'">
@@ -84,6 +87,9 @@
               </div>
               <div v-else class="lib-actions">
                 <button type="button" class="lib-btn primary" data-test="lib-use" @click="startUse(it)">Use</button>
+                <!-- What made it, back in the composer (nothing runs until Generate), and this file as an edit's base. -->
+                <button v-if="!isPicker && it.generation" type="button" class="lib-btn" data-test="lib-use-again" @click="useAgain(it)">Use again</button>
+                <button v-if="!isPicker && ['image', 'video'].includes(it.media_type)" type="button" class="lib-btn" data-test="lib-edit" @click="editItem(it)">Edit</button>
                 <label v-if="!isPicker && it.media_type !== 'audio'" class="lib-pick">
                   <input type="checkbox" :checked="picked.has(it.attachment_id)" :aria-label="'Select ' + it.title" @change="togglePick(it)" />
                   Select</label>
@@ -159,8 +165,9 @@
 
 <script setup>
 import { studioChatName } from '../../services/studioMessagePresentation'
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { studioLooks } from '../../services/studioLooks'
 import { useVideoStore } from '../../stores/useVideoStore'
 import { useChatStore } from '../../stores/useChatStore'
 import VideoChoice from './VideoChoice.vue'
@@ -172,8 +179,10 @@ const props = defineProps({
   mode: { type: String, default: 'drawer' },
   initialTab: { type: String, default: 'files' },
   allowedKinds: { type: Array, default: () => [] },
+  // The Library page opened from a look's "See all": only the files made with that look.
+  preset: { type: String, default: '' },
 })
-const emit = defineEmits(['pick', 'pick-element', 'close'])
+const emit = defineEmits(['pick', 'pick-element', 'close', 'clear-preset'])
 const isPicker = computed(() => props.mode === 'picker')
 const isPage = computed(() => props.mode === 'page')
 const router = useRouter()
@@ -234,6 +243,12 @@ function chatLink(it) {
 }
 function kindLabel(k) { return (kinds.find((x) => x.value === k) || { label: k }).label }
 function rolesFor(it) { return ROLES[it.media_type] || ROLES.image }
+const lookTitle = computed(() => studioLooks.find(look => look.id === lib.value.preset)?.title || 'this look')
+// Only the page is filtered by a look; the drawer and the picker always list every file.
+const lookFilter = () => (isPage.value ? props.preset || '' : '')
+// The page owns the look filter (it is in its address): it is asked to drop it, and the new address reloads the list.
+function clearLook() { if (isPage.value && props.preset) emit('clear-preset'); else video.loadLibrary({ preset: '' }) }
+watch(() => props.preset, () => { if (isPage.value) video.loadLibrary({ preset: lookFilter() }) })
 function setType(t) { video.library.type = t; video.loadLibrary() }
 function setSource(s) { video.library.source = s; video.loadLibrary() }
 function setProject(id) { video.library.project = id; video.loadLibrary() }
@@ -250,10 +265,24 @@ async function confirmUse(it) {
   if (isPage.value) {
     video.queueUse({ kind: 'file', item: it, role: useRole.value })
     usingId.value = ''
-    router.push({ name: 'video-studio' })
+    router.push({ name: 'video-studio-dashboard' })
     return
   }
   if (await video.useLibraryItem(it, useRole.value, { chat })) usingId.value = ''
+}
+// "Use again": the prompt and settings that made this file go back into the composer; it never runs or spends.
+function useAgain(it) {
+  if (!video.useAgain(it.generation)) return
+  if (isPage.value) router.push({ name: 'video-studio-dashboard' })
+  else leave()
+}
+// "Edit": the edit flow opens with this file as its base (Enhance for a video, Image edit for a picture).
+function editItem(it) {
+  window.dispatchEvent(new Event('studio-save-draft'))
+  const to = video.editFrom(it, { conversationId: isPage.value ? null : chat.conversationId })
+  if (!to) return
+  leave()
+  router.push(to)
 }
 function togglePick(it) {
   const next = new Set(picked.value)
@@ -280,7 +309,7 @@ async function useIngredient(ing) {
   if (isPicker.value) { emit('pick-element', ing); return }
   if (isPage.value) {
     video.queueUse({ kind: 'ingredient', ingredient: ing })
-    router.push({ name: 'video-studio' })
+    router.push({ name: 'video-studio-dashboard' })
     return
   }
   await video.useIngredient(ing, { chat })
@@ -292,7 +321,7 @@ async function saveEdit(ing) {
 async function remove(ing) { if (await video.deleteIngredient(ing.ingredient_id)) deletingId.value = '' }
 
 onMounted(async () => {
-  video.loadLibrary()
+  video.loadLibrary({ preset: lookFilter() })
   video.loadIngredients()
   video.loadLibraryProjects()
   await nextTick()
@@ -323,6 +352,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 .lib-tab.on { color: var(--vm-ink, #0f172a); border-bottom-color: var(--vm-violet, #4f46e5); }
 .lib-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 20px 24px; display: grid; gap: 14px; align-content: start; }
 .lib-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.lib-look { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; font-size: 13px; color: var(--vm-ink, #0f172a); }
 .lib-project :deep(.vch-pill) { min-height: 40px; border-radius: 8px; max-width: 240px; }
 .lib-types { display: flex; flex-wrap: wrap; gap: 2px; padding: 3px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; }
 .lib-chip { min-height: 34px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: var(--vm-ink-soft, #64748b);

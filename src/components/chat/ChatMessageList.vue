@@ -299,7 +299,7 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
   transition: transform .15s var(--vm-ease), box-shadow .15s, color .15s;
 }
 .jump-latest:hover {
-  transform: translateX(-50%) translateY(-1px);
+  transform: translateX(-50%);
   color: var(--vm-violet-d, var(--vm-link));
   box-shadow: var(--vm-shadow-m, 0 6px 18px rgba(16, 24, 40, 0.16));
 }
@@ -317,10 +317,10 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
   border: 2px solid var(--vm-surface, var(--vm-line-2));
 }
 
-.jump-fade-enter-active, .jump-fade-leave-active { transition: opacity .15s, transform .15s; }
+.jump-fade-enter-active, .jump-fade-leave-active { transition: opacity .15s; }
 .jump-fade-enter-from, .jump-fade-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(6px);
+  transform: translateX(-50%);
 }
 /* Phone: the thread gets the width back. 16px side padding on a 390px screen is 8% of it, and the
    28px top gap was sized for a desktop header that is no longer 22px tall here. */
@@ -354,7 +354,6 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
   transition: transform .15s var(--vm-ease), box-shadow .15s, color .15s;
 }
 .load-earlier-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
   box-shadow: var(--vm-shadow-s);
   color: var(--vm-violet-d, var(--vm-link));
 }

@@ -447,7 +447,7 @@ watch(() => [props.inline, agentId.value], ([inline, id]) => { if (inline && id)
 .di-head-r { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 .di-publish { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; font-size: 13px; color: #fff; padding: 9px 16px;
   border-radius: 12px; background: var(--vm-g-brand); box-shadow: var(--vm-shadow-s); transition: box-shadow .18s, transform .18s; }
-.di-publish:hover:not(:disabled) { box-shadow: var(--vm-glow-v); transform: translateY(-1px); }
+.di-publish:hover:not(:disabled) { box-shadow: var(--vm-glow-v); }
 .di-publish:disabled { opacity: .6; }
 .di-close { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; color: var(--vm-ink-faint); transition: background .15s, color .15s; }
 .di-close:hover { background: rgba(25,20,39,.06); color: var(--vm-ink); }
@@ -500,7 +500,7 @@ watch(() => [props.inline, agentId.value], ([inline, id]) => { if (inline && id)
 .di-iconbtn.sm { width: 32px; height: 32px; border-radius: 9px; }
 .di-btn { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; color: #fff; padding: 9px 15px; white-space: nowrap;
   border-radius: 12px; background: var(--vm-g-brand); box-shadow: var(--vm-shadow-s); transition: box-shadow .18s, transform .18s; flex: 0 0 auto; }
-.di-btn:hover:not(:disabled) { box-shadow: var(--vm-glow-v); transform: translateY(-1px); }
+.di-btn:hover:not(:disabled) { box-shadow: var(--vm-glow-v); }
 .di-btn:disabled { opacity: .55; }
 .di-btn.sm { font-size: 12px; padding: 7px 11px; border-radius: 10px; }
 .di-btn.grow { flex: 1; justify-content: center; }

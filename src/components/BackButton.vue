@@ -93,9 +93,6 @@ const handleBack = () => {
   transition: transform 0.15s ease;
 }
 
-.back-button:hover .back-icon {
-  transform: translateX(-2px);
-}
 
 .back-label {
   font-size: 0.8125rem;

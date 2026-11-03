@@ -630,7 +630,6 @@ const submit = () => {
   background: var(--vm-g-cool); border: none; border-radius: 12px; box-shadow: var(--vm-glow-v);
   transition: transform 0.18s var(--vm-ease);
 }
-.nac-cta:hover { transform: translateY(-2px); }
 .nac-ghost { font-size: 0.875rem; font-weight: 600; color: var(--vm-violet-d); }
 .nac-ghost:hover { text-decoration: underline; }
 
@@ -656,7 +655,6 @@ const submit = () => {
   transition: transform 0.18s var(--vm-ease), box-shadow 0.18s, color 0.18s, border-color 0.18s;
 }
 .chip:hover {
-  transform: translateY(-2px);
   border-color: transparent;
   color: var(--vm-violet-d);
   background: var(--vm-violet-soft);
@@ -736,7 +734,7 @@ const submit = () => {
   z-index: 40;
   animation: plus-in .14s var(--vm-ease2, cubic-bezier(.2,.8,.2,1));
 }
-@keyframes plus-in { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes plus-in { from { opacity: 0; } to { opacity: 1; } }
 .plus-list { display: flex; flex-direction: column; }
 .plus-item {
   display: flex; align-items: center; gap: 12px; width: 100%;
@@ -914,7 +912,6 @@ const submit = () => {
   box-shadow: var(--vm-glow-v);
   transition: transform 0.18s var(--vm-ease);
 }
-.composer-send:hover:not(:disabled) { transform: scale(1.08) rotate(-8deg); }
 .composer-send:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 .composer-send svg { width: 17px; height: 17px; }
 .phase-note {

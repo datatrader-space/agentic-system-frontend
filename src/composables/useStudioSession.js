@@ -68,5 +68,12 @@ export function useStudioSession(kind, { needsModel = true, page = kind } = {}) 
   watch(() => [ready.value, user.value?.id, chat.conversationId], ([opened, person, cid]) => { if (opened && person && cid) rememberStudioOrigin(person, 'conversation', cid, page) })
   onMounted(initialize)
   onBeforeUnmount(() => { disposed = true; sequence++; chat.studioMode = ''; chat.studioContext = null })
-  return { route, chat, video, ready, loading, error, initialize }
+  async function freshStart() {
+    if (chat.isBusy || video.busy || chat.hitlRequests.length || loading.value) return false
+    await router.replace({ path: route.path, query: { mode: video.studioMode } })
+    video.refs = []
+    await initialize()
+    return ready.value
+  }
+  return { route, chat, video, ready, loading, error, initialize, freshStart }
 }

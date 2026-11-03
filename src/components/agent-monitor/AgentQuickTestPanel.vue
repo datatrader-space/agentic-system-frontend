@@ -232,8 +232,8 @@ onBeforeUnmount(() => { try { conn?.close() } catch (e) { /* noop */ } })
   animation: qt-bounce 1.2s infinite ease-in-out;
 }
 @keyframes qt-bounce {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-  40% { transform: scale(1); opacity: 1; }
+  0%, 80%, 100% { opacity: 0.4; }
+  40% { opacity: 1; }
 }
 
 /* Rendered markdown inside assistant bubbles */

@@ -81,3 +81,24 @@ it('cleans Continue names and shows unknown origins as neutral Chat', async () =
   const { studioIcons } = await import('../../services/studioFeatures')
   expect(rows[2].get('path').attributes('d')).toBe(studioIcons.chat)
 })
+
+it('opens Continue rows on the Studio page they were made on, and the general Studio page when it is unknown', async () => {
+  get.mockImplementation(path => Promise.resolve({ data: path === '/video/chats/'
+    ? { results: [{ id: 41, name: 'A jingle', studio_feature: 'audio', updated_at: '2026-10-30' }, { id: 42, name: 'Something', studio_feature: '', updated_at: '2026-10-29' }] }
+    : path === '/video/projects/' ? { projects: [] }
+    : { items: [{ attachment_id: 7, title: 'Edited shot', media_type: 'image', studio_feature: 'edit', conversation_id: 41, created_at: '2026-10-28' },
+                { attachment_id: 8, title: 'Old clip', media_type: 'video', studio_feature: '', conversation_id: 42, created_at: '2026-10-27' },
+                { attachment_id: 9, title: 'Loose upload', media_type: 'image', studio_feature: '', created_at: '2026-10-26' }] } }))
+  wrapper = mount(HomeFeatures, { global: { stubs: { RouterLink } } }); await flushPromises()
+  const to = wrapper.findAllComponents(RouterLink).filter(link => link.element.closest('.hf-recent-grid')).map(link => link.props('to'))
+  expect(to).toEqual([
+    { path: '/video-studio/audio', query: { conversation: '41' } },
+    { path: '/video-studio/dashboard', query: { conversation: '42' } },
+    { path: '/video-studio/edit', query: { conversation: '41', results: '1' } },
+    { path: '/video-studio/dashboard', query: { conversation: '42' } },
+    { path: '/video-studio/library', query: {} },
+  ])
+  const rows = wrapper.findAll('.hf-recent-grid li')
+  expect(rows[2].get('small').text()).toBe('Image edit '+String.fromCharCode(183)+' Result')
+  expect(rows[3].get('small').text()).toBe('Result')   // no guessed page
+})

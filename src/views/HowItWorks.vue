@@ -290,7 +290,6 @@ const steps = ref([
 }
 
 .card-content:hover {
-  transform: translateY(-5px);
   border-color: var(--primary);
   box-shadow: var(--shadow-xl);
 }
@@ -471,7 +470,6 @@ const steps = ref([
 .tech-pill:hover {
   background: var(--primary-light);
   border-color: var(--primary);
-  transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
 
@@ -533,7 +531,6 @@ const steps = ref([
 }
 
 .btn-primary:hover {
-  transform: translateY(-3px);
   box-shadow: 0 8px 30px rgba(139, 92, 246, 0.5);
 }
 

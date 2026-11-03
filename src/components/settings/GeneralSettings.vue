@@ -170,7 +170,6 @@ const replayTour = () => {
   border: none; border-radius: 10px; box-shadow: var(--vm-glow-v, 0 6px 16px rgba(124,58,237,.28));
   transition: transform .15s var(--vm-ease, ease);
 }
-.tour-btn:hover { transform: translateY(-1px); }
 .field { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
 .field label { font-size: 0.8125rem; font-weight: 500; color: var(--vm-ink-soft, var(--vm-ink-soft)); }
 .field input { padding: 9px 12px; font-size: 0.875rem; color: var(--vm-ink, var(--vm-ink)); background: var(--vm-surface-soft, var(--vm-surface-soft)); border: 1px solid var(--vm-line, var(--vm-line-2)); border-radius: 9px; }

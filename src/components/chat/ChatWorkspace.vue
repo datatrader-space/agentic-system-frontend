@@ -696,7 +696,7 @@ watch(
   flex-shrink: 0;
   transition: transform 0.15s var(--vm-ease), box-shadow 0.15s, color 0.15s;
 }
-.header-btn:hover { transform: translateY(-1px); box-shadow: var(--vm-shadow-s); color: var(--vm-violet-d); }
+.header-btn:hover { box-shadow: var(--vm-shadow-s); color: var(--vm-violet-d); }
 .header-btn svg { width: 15px; height: 15px; }
 .icon-btn {
   width: 36px;
@@ -710,7 +710,7 @@ watch(
   cursor: pointer;
   transition: transform 0.15s var(--vm-ease), box-shadow 0.15s, color 0.15s;
 }
-.icon-btn:hover { transform: translateY(-1px); box-shadow: var(--vm-shadow-s); color: var(--vm-violet-d); }
+.icon-btn:hover { box-shadow: var(--vm-shadow-s); color: var(--vm-violet-d); }
 .icon-btn svg { width: 17px; height: 17px; }
 .more-wrap { position: relative; display: inline-flex; }
 /* Unread marker on the "…" button: artifacts produced while the panel was closed. */

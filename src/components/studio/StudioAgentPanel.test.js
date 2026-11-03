@@ -96,3 +96,28 @@ it('never adds page text, on the first message or after New clears the conversat
   expect(state.video.sendAgentMessage.mock.calls[0][0].prompt).toBe('First idea')
   expect(state.video.sendAgentMessage.mock.calls[2][0].prompt).toBe('A fresh idea')
 })
+
+it('sends the lower-cost preference as the typed studio_context.lower_cost field, not as text', async () => {
+  state.chat.studioContext = { page:'image', preset:'image-look-1', preset_title:'Softbox product portrait' }
+  let sent = null
+  state.video.sendAgentMessage.mockImplementation(async ({ chat }) => { sent = { ...chat.studioContext }; return true })
+  w = mount(StudioAgentPanel, { props:{ modelValue:'A bottle on ivory', label:'Image', ready:true }, global:{stubs} })
+  const toggle = w.get('[data-test="studio-lower-cost"]')
+  expect(toggle.attributes('aria-pressed')).toBe('false')
+  await toggle.trigger('click')
+  expect(toggle.attributes('aria-pressed')).toBe('true')
+  expect(w.emitted('update:modelValue')).toBeUndefined()   // no sentence is added to the message
+  await w.get('[data-test="studio-agent-send"]').trigger('click'); await flushPromises()
+  expect(state.video.sendAgentMessage).toHaveBeenCalledWith({ prompt:'A bottle on ivory', chat:state.chat })
+  expect(sent).toEqual({ page:'image', preset:'image-look-1', preset_title:'Softbox product portrait', lower_cost:true })
+  expect(state.chat.studioContext).toEqual({ page:'image', preset:'image-look-1', preset_title:'Softbox product portrait' })
+  await toggle.trigger('click'); await w.setProps({ modelValue:'Again' })
+  await w.get('[data-test="studio-agent-send"]').trigger('click'); await flushPromises()
+  expect(sent).toEqual({ page:'image', preset:'image-look-1', preset_title:'Softbox product portrait' })
+})
+
+it('shows no stock picture for a selected look', () => {
+  w = mount(StudioAgentPanel, { props:{ modelValue:'', label:'Image', ready:true, look:{ id:'image-look-1', title:'Softbox product portrait', poster:'/stock.jpg' } }, global:{stubs} })
+  expect(w.get('.sap-look').text()).toContain('Softbox product portrait')
+  expect(w.find('.sap-look img').exists()).toBe(false)
+})

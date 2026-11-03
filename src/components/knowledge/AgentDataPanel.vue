@@ -503,7 +503,7 @@ watch(() => props.agentProfile?.id, fetchData)
 .adp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .adp-card { background: var(--adp-surface); border: 1px solid var(--adp-border); border-radius: var(--adp-radius); padding: 20px; cursor: pointer; transition: all 0.2s ease; position: relative; overflow: hidden; }
 .adp-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--adp-accent), #818cf8); opacity: 0; transition: opacity 0.2s; }
-.adp-card:hover { border-color: var(--adp-accent); box-shadow: 0 4px 16px rgba(99, 102, 241, 0.1); transform: translateY(-1px); }
+.adp-card:hover { border-color: var(--adp-accent); box-shadow: 0 4px 16px rgba(99, 102, 241, 0.1); }
 .adp-card:hover::before { opacity: 1; }
 .adp-card__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .adp-card__type { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }

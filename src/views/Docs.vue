@@ -348,7 +348,7 @@ function scrollTo(id) {
 .welcome-lead { margin-top: 12px; font-size: 1.05rem; color: var(--vm-ink-soft); max-width: 640px; }
 .quick-grid { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .quick-card { display: flex; gap: 14px; align-items: center; border: 1px solid var(--vm-border); border-radius: 14px; background: var(--vm-surface); padding: 18px; text-decoration: none; transition: transform .2s var(--vm-ease), box-shadow .2s, border-color .2s; }
-.quick-card:hover { transform: translateY(-2px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
+.quick-card:hover { box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
 .quick-ico { font-size: 1.6rem; }
 .quick-card h3 { font-weight: 700; color: var(--vm-ink); }
 .quick-card p { font-size: .82rem; color: var(--vm-ink-soft); }
@@ -362,7 +362,7 @@ function scrollTo(id) {
 .pager { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--vm-border); display: flex; justify-content: space-between; gap: 16px; }
 .pager-link { display: flex; flex-direction: column; gap: 4px; padding: 14px 18px; border: 1px solid var(--vm-border); border-radius: 12px; text-decoration: none; transition: border-color .15s, transform .15s; max-width: 48%; }
 .pager-link.next { text-align: right; align-items: flex-end; margin-left: auto; }
-.pager-link:hover { border-color: var(--vm-primary); transform: translateY(-1px); }
+.pager-link:hover { border-color: var(--vm-primary); }
 .pager-cap { font-size: .72rem; color: var(--vm-ink-faint); text-transform: uppercase; letter-spacing: .05em; }
 .pager-title { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--vm-primary); }
 

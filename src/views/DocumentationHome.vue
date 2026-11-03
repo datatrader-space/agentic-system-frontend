@@ -679,7 +679,7 @@ function openChangelogEntry(c) {
 .dark { background: #111827; color: #fff; }
 
 .category-card.clickable { cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease, transform .12s ease; }
-.category-card.clickable:hover { border-color: #c7d2fe; box-shadow: 0 10px 26px rgba(37, 99, 235, .10); transform: translateY(-2px); }
+.category-card.clickable:hover { border-color: #c7d2fe; box-shadow: 0 10px 26px rgba(37, 99, 235, .10); }
 .category-card.active { border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb inset; }
 
 .category-load-row {

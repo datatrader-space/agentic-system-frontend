@@ -43,6 +43,23 @@ describe('Music proposals', () => {
     expect(api.prepareMediaJob.mock.calls[2][0].request).toEqual({prompt:'A bright ukulele loop',instrumental:true,duration:120})
     w.unmount()
   })
+  it.each(['model','model_id','route_id'])('a refusal of the model named %s lands at the model menu', async field => {
+    api.prepareMediaJob.mockRejectedValue({response:{data:{error:{field,code:'model_refused',message:'This model is not available.'}}}})
+    const w=await form(); await w.get('form').trigger('submit'); await flushPromises()
+    expect(w.findAll('[role="alert"]')).toHaveLength(1)
+    // It sits right after the model menu, before the brief.
+    expect(w.get('textarea').element.parentElement.previousElementSibling.textContent).toContain('This model is not available.')
+    w.unmount()
+  })
+  it('a request.prompt refusal lands beside the brief, and a field the form lacks is a general message with when to retry', async () => {
+    api.prepareMediaJob.mockRejectedValueOnce({response:{data:{error:{field:'request.prompt',message:'Artist names are refused.'}}}})
+    const w=await form(); await w.get('form').trigger('submit'); await flushPromises()
+    expect(w.get('textarea').element.parentElement.nextElementSibling.textContent).toContain('Artist names are refused.')
+    api.prepareMediaJob.mockRejectedValueOnce({response:{data:{error:{field:'request',code:'rate_limited',message:'Too many requests.',retry_after:30}}}})
+    await w.get('form').trigger('submit'); await flushPromises()
+    expect(w.get('[role="alert"]').text()).toBe('Too many requests. Try again in 30 seconds.')
+    w.unmount()
+  })
   it('names each model with its connection and price and chooses the first proven one (live 2026-10-29)', async () => {
     api.getMediaRoutes.mockResolvedValue({data:{routes:[
       {route_id:187,name:'Lyria 3 Clip',connection:'sajid openrouter',price_label:'$0.04 a piece',ready:true},

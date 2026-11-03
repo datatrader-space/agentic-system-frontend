@@ -8,7 +8,7 @@
        Send): the agent asks what it needs, picks every setting, and each paid step waits on a card. -->
   <section class="vcp" :class="['vcp-' + variant, 'is-' + video.kind, 'mode-' + video.studioMode]" :aria-label="boxLabel"
            data-test="video-composer-panel">
-    <StudioModeSwitch v-if="showMode" />
+    <div v-if="showMode" class="vcp-mode-row"><StudioModeSwitch /><span v-if="variant === 'create'" class="vcp-preserved">✓ Your brief stays with you when you switch modes.</span></div>
     <div v-if="variant === 'create' && showTasks && !isAgent && video.kind === 'video'" class="vcp-cards" :style="{ '--task-count': visibleTasks.length }" role="radiogroup"
          aria-label="What would you like to create?">
       <button v-for="t in visibleTasks" :key="t.value" type="button" role="radio" class="vcp-card"
@@ -85,6 +85,7 @@
 
         <!-- Every setting the chosen model offers, as a choice (owner, 2026-10-19). Below 1024px they open in a
              bottom sheet (plan 4.4). Values come from the model's declared outputs; nothing else is offered. -->
+        <span v-if="variant === 'create' && isAgent" class="vcp-reference-hint">Add an image, video or audio reference</span>
         <div v-if="!isAgent" ref="settingsWrap" class="vcp-pills-wrap" @keydown.esc="showSettings = false">
           <!-- In the agent column the choices fold behind one summary chip that opens a settings panel above the box
                (owner, 2026-10-20: compact); the create screen shows them all in the row. -->
@@ -243,9 +244,9 @@ const resolutionOptions = computed(() => o.value.resolutions.slice()
   .sort((x, y) => RES_ORDER.indexOf(x) - RES_ORDER.indexOf(y))
   .map((r) => ({ value: r, label: r, hint: RES_NAMES[r] || '' })))
 const can = computed(() => video.can)
-// Edit footage shows when some offered model can edit; the chosen task stays visible even when the model cannot do
-// it, so it is never switched behind the user.
-const visibleTasks = computed(() => tasks.filter((t) => t.value !== 'edit' || can.value.edit || video.task === 'edit' || !!video.editRoute))
+// Keep every creative goal discoverable. Selecting Edit never bypasses taskUnavailable,
+// reference validation or the existing compatible-model switch and approval flow.
+const visibleTasks = computed(() => tasks)
 // Edit footage on a model that cannot edit proposes one that can, through the model-switch notice (never silently).
 function chooseTask(value) {
   video.setTask(value)
@@ -592,4 +593,9 @@ defineExpose({ submit: onPrimary })
 /* The agent column keeps "+", the settings chip and the two actions on one row until it is very narrow. */
 @container (max-width: 360px) { .vcp-chat.mode-manual .vcp-go { flex: 1 1 100%; justify-content: flex-end; } }
 @media (prefers-reduced-motion: reduce) { .vcp * { transition: none !important; } }
+</style>
+
+<style scoped>
+.vcp-mode-row{display:flex;align-items:center;justify-content:space-between;gap:16px}.vcp-preserved{font-size:10px;color:#6983a9}.vcp-reference-hint{font-size:11px;color:#708bb0}.vcp-create :deep(.sm-switch){background:#1c2637;border-color:#44536c;padding:4px}.vcp-create :deep(.sm-switch button){min-height:39px;padding:10px 16px;font-size:13px;gap:8px}.vcp-create :deep(.sm-switch button[aria-checked=true]){background:#344f73;border-color:#6b85ad;color:#e0ebff}
+@media(max-width:680px){.vcp-mode-row{align-items:flex-start;flex-direction:column;gap:10px}.vcp-preserved{font-size:9px}.vcp-create :deep(.sm-switch){width:auto}.vcp-create :deep(.sm-switch button){min-height:44px}.vcp-reference-hint{font-size:10px;max-width:160px;line-height:1.6}}
 </style>

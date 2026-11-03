@@ -35,14 +35,21 @@ const starts = [
   { title: 'A character reference', preset: 'Character anchor', to: { path: '/video-studio/image', query: { preset: 'character-anchor' } } },
 ]
 const date = item => Date.parse(item.updated_at || item.created_at || '') || 0
-function origin(item, fallback) {
-  const feature = getStudioFeature(item.studio_feature || item.feature_id)
-  return feature && feature.status !== 'soon' ? feature : studioOrigin(user.value?.id, item.attachment_id ? 'attachment' : 'conversation', item.attachment_id || item.conversation_id || item.id) || getStudioFeature(fallback)
+// The Studio page a chat or result was made on: the server's studio_feature ('' when unknown), else this browser's
+// note of where it was opened. Unknown opens on the general Studio page (GENERAL), never a guessed one.
+const GENERAL = '/video-studio/dashboard'
+function origin(item) {
+  const feature = getStudioFeature(item.studio_feature)
+  return feature && feature.status !== 'soon' ? feature : studioOrigin(user.value?.id, item.attachment_id ? 'attachment' : 'conversation', item.attachment_id || item.conversation_id || item.id)
+}
+function resultLink(r, f) {
+  if (f) return { path: featureLink(f), query: r.conversation_id ? { conversation: String(r.conversation_id), results: '1' } : { results: '1' } }
+  return r.conversation_id ? { path: GENERAL, query: { conversation: String(r.conversation_id) } } : { path: '/video-studio/library', query: {} }
 }
 const recent = computed(() => [
-  ...chats.value.map(c => { const f = origin(c, null); return { key: `chat-${c.id}`, title: studioChatName(c.name), thumbnail: f ? c.thumbnail_url : '', icon: f?.icon || 'chat', page: f?.label || '', type: 'Chat', at: date(c), to: { path: f ? featureLink(f) : '/video-studio', query: { conversation: String(c.id) } } } }),
+  ...chats.value.map(c => { const f = origin(c); return { key: `chat-${c.id}`, title: studioChatName(c.name), thumbnail: f ? c.thumbnail_url : '', icon: f?.icon || 'chat', page: f?.label || '', type: 'Chat', at: date(c), to: { path: f ? featureLink(f) : GENERAL, query: { conversation: String(c.id) } } } }),
   ...projects.value.map(p => ({ key: `project-${p.project_id}`, title: p.title || 'Untitled project', thumbnail: p.thumbnail_url, icon: 'video', page: 'Video', type: 'Project', at: date(p), to: { path: '/video-studio', query: p.conversation_id ? { conversation: String(p.conversation_id) } : { project: String(p.project_id) } } })),
-  ...results.value.map(r => { const f = origin(r, r.media_type === 'image' ? 'image' : 'video'); return { key: `result-${r.attachment_id}`, title: r.title || r.filename || 'Generated result', thumbnail: r.thumbnail_url || (r.media_type === 'image' ? r.url : ''), icon: f.icon, page: f.label, type: 'Result', at: date(r), to: { path: featureLink(f), query: r.conversation_id ? { conversation: String(r.conversation_id), results: '1' } : { results: '1' } } } }),
+  ...results.value.map(r => { const f = origin(r); return { key: `result-${r.attachment_id}`, title: r.title || r.filename || 'Generated result', thumbnail: r.thumbnail_url || (r.media_type === 'image' ? r.url : ''), icon: f?.icon || (r.media_type === 'image' ? 'image' : 'video'), page: f?.label || '', type: 'Result', at: date(r), to: resultLink(r, f) } }),
 ].sort((a,b) => b.at - a.at).slice(0,6))
 let disposed = false, sequence = 0
 async function load() {

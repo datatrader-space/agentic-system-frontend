@@ -1,23 +1,25 @@
 <template>
   <form class="creative-form" @submit.prevent="prepare">
     <MediaRoutePicker v-model="routeId" operation="music" @routes="routes = $event" />
-    <CreativeError v-if="error?.field === 'route_id'" :error="error" />
+    <CreativeError v-if="shownError?.field === 'route_id'" :error="shownError" />
     <label class="st-field">Music brief<textarea v-model="prompt" class="st-input" required rows="5" /></label>
-    <CreativeError v-if="error?.field === 'prompt'" :error="error" />
+    <CreativeError v-if="shownError?.field === 'prompt'" :error="shownError" />
     <p v-if="length.fixed_seconds" class="st-muted cm-note" data-test="music-fixed-length">This model always makes {{ length.fixed_seconds }} seconds.</p>
     <label v-else class="st-field">{{ length.by_description ? 'About how long, in seconds (optional)' : 'Duration (seconds)' }}<input v-model.number="duration" class="st-input" type="number" :min="length.min || 3" :max="length.max || 600" :required="!length.by_description" :placeholder="length.by_description ? 'The model chooses' : ''" data-test="music-duration" /></label>
     <p v-if="length.by_description" class="st-muted cm-note">A full song with vocals and lyrics unless you choose Instrumental. The length is a request the model follows closely, not an exact cut.</p>
-    <CreativeError v-if="error?.field === 'duration'" :error="error" />
+    <CreativeError v-if="shownError?.field === 'duration'" :error="shownError" />
     <label><input v-model="instrumental" type="checkbox" /> Instrumental</label>
-    <CreativeError v-if="!['route_id','prompt','duration'].includes(error?.field)" :error="error" />
+    <CreativeError v-if="shownError && !shownError.field" :error="shownError" />
     <LivePrice v-bind="livePrice" empty="Choose the model and describe the music to see the price." />
     <button class="st-button primary" :disabled="busy || !routeId">Review music estimate</button>
   </form>
 </template>
 <script setup>
+import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
 import { computed, ref } from 'vue'
 import api from '../../services/api'
 import CreativeError from './CreativeError.vue'
+import { modelAliases, studioError } from './studioForm'
 import MediaRoutePicker from './MediaRoutePicker.vue'
 import LivePrice from './LivePrice.vue'
 import { useLivePrice } from '../../composables/useLivePrice'
@@ -26,6 +28,10 @@ const emit = defineEmits(['job']), routes = ref([]), routeId = ref(''), prompt =
 // The job goes through the page's Studio session like every creative page: it belongs to this chat, so My results
 // still shows it after a reload (it was sent with no chat and vanished on refresh, 2026-10-27).
 const { busy, error, submit } = useMediaJob(job => emit('job', job))
+// The model is named 'model', 'model_id' or 'route_id' by the backend: each lands on the model menu; 'request.prompt'
+// and 'request.duration' beside their fields; anything else (with when to try again) as a general message.
+const FIELDS = ['route_id', 'prompt', 'duration']
+const shownError = computed(() => studioError(error.value, FIELDS, modelAliases('route_id')))
 // How the chosen model takes a length (the backend's `length`): {min, max} seconds, {fixed_seconds}, or
 // {by_description, min, max} (written into the description). A model with no rule takes 3 to 600 seconds.
 // The menu is the shared one (UX pass, live 2026-10-29: this page's own menu had no price and no model chosen): each
@@ -47,5 +53,6 @@ function prepare() { submit(session => {
   const request = { prompt: prompt.value.trim(), instrumental: instrumental.value, ...(rule.fixed_seconds || seconds == null ? {} : { duration: seconds }) }
   return api.prepareMediaJob({ operation: 'music', route_id: routeId.value, request, ...session })
 }) }
+useStudioPreparedBrief(prompt)
 </script>
 <style scoped>.cm-note{font-size:12px;line-height:1.55}</style>

@@ -50,7 +50,7 @@ defineEmits(['open'])
   border: 1px solid var(--vm-line-2); box-shadow: var(--vm-shadow-s);
   transition: transform .15s var(--vm-ease2), box-shadow .15s, border-color .15s;
 }
-.iit-card:hover { transform: translateY(-2px); border-color: var(--vm-sky); box-shadow: var(--vm-shadow-m); }
+.iit-card:hover { border-color: var(--vm-sky); box-shadow: var(--vm-shadow-m); }
 .iit-logo { width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--vm-bg); border: 1px solid var(--vm-line); overflow: hidden; }
 .iit-fallback { font-weight: 800; color: var(--vm-ink-soft); }
 .iit-name { font-size: 13.5px; font-weight: 700; color: var(--vm-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

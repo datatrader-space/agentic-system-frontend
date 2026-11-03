@@ -63,8 +63,8 @@ describe('VideoStudioShell', () => {
 
   it('shows the signed-in account without arrows or taglines in its chrome', async () => {
     const { w } = await mountAt('/video-studio')
-    expect(w.text()).toContain('maker@example.com')
-    expect(w.text()).not.toMatch(/[←→·]/)
+    expect(w.find('.vs-workspace-switch').exists()).toBe(true)
+    expect(w.get('.vs-foot').text()).not.toMatch(/[←→·]/)
     w.unmount()
   })
 })
@@ -79,14 +79,14 @@ describe('F0 grouped navigation', () => {
       if (feature.status === 'soon') expect(link.text()).toContain('Soon')
       if (feature.status === 'beta') expect(link.text()).toContain('Beta')
     }
-    for (const group of STUDIO_GROUPS.filter(group => group !== 'Home')) expect(w.findAll('.vs-group-toggle').some(button => button.text() === group)).toBe(true)
+    for (const group of STUDIO_GROUPS.filter(group => !['Home','Workspace'].includes(group))) expect(w.findAll('.vs-group-toggle').some(button => button.text() === group)).toBe(true)
     w.unmount()
   })
   it('remembers group choices, and keeps working if localStorage is blocked', async () => {
     const { w } = await mountAt('/video-studio')
     const create = w.findAll('.vs-group-toggle').find(button => button.text() === 'Create')
     await create.trigger('click')
-    expect(JSON.parse(localStorage.getItem('aadml.studio.navigation.groups')).Create).toBe(false)
+    expect(JSON.parse(localStorage.getItem('aadml.studio.navigation.v8.groups')).Create).toBe(true)
     w.unmount()
     const read = vi.spyOn(Storage.prototype,'getItem').mockImplementation(() => { throw new Error('blocked') })
     const write = vi.spyOn(Storage.prototype,'setItem').mockImplementation(() => { throw new Error('blocked') })
@@ -97,10 +97,14 @@ describe('F0 grouped navigation', () => {
   })
 })
 
-it('keeps ordered tool groups above a fixed Library, Projects, Help and Recent chats block', async () => {
+it('matches the approved workspace-first hierarchy without duplicated destinations', async () => {
   const { w } = await mountAt('/video-studio')
-  expect(w.findAll('.vs-group-toggle').map(b => b.text())).toEqual(['Create','Edit & enhance','Characters','Video tools','Avatars & shorts','Story','Marketing','Workspace'])
-  expect(w.findAll('.vs-fixed-workspace > a').map(a => a.text())).toEqual(['Library','Projects','Help'])
+  expect(w.findAll('.vs-group-toggle').map(b => b.text())).toEqual(['Create','Edit & enhance','Characters','Video tools','Avatars & shorts','Story','Marketing'])
+  expect(w.findAll('.vs-workspace-nav > a').map(a => a.text())).toEqual(['Dashboard','Discover','Saved templates0','Projects','Library','Canvas'])
+  expect(w.find('.vs-fixed-workspace').exists()).toBe(false)
+  expect(w.findAll('.vs-foot > a').map(a => a.text())).toEqual(['Help & shortcuts'])
+  expect(w.findAll('.vs-nav-item[data-test="vs-nav-projects"]')).toHaveLength(1)
+  expect(w.findAll('.vs-group-toggle').every(b => b.attributes('aria-expanded') === 'false')).toBe(true)
   expect(w.findAll('.vs-group').find(g => g.text().includes('Characters')).findAll('.vs-nav-item').map(a => a.attributes('data-test'))).toEqual(['vs-nav-characters','vs-nav-identity-training','vs-nav-elements'])
   w.unmount()
 })

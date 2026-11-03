@@ -388,7 +388,6 @@ onMounted(load)
 .ht-topic-grid button:hover {
   border-color: #c7d2fe;
   box-shadow: 0 10px 24px rgba(37, 99, 235, .08);
-  transform: translateY(-1px);
 }
 
 .ht-topic-grid button.active {
@@ -496,7 +495,6 @@ onMounted(load)
 .ht-card:hover {
   border-color: #c7d2fe;
   box-shadow: 0 14px 30px rgba(37, 99, 235, .10);
-  transform: translateY(-2px);
 }
 
 .ht-card-top {

@@ -4,7 +4,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 const state = vi.hoisted(() => ({ chat: null, route: null, replace: vi.fn() }))
-const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), getVideoStudioAgent: vi.fn(), getAgent: vi.fn() }))
+const api = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), getVideoStudioAgent: vi.fn(), getAgent: vi.fn(), getStudioQuote: vi.fn() }))
 vi.mock('vue-router', () => ({ useRoute: () => state.route, useRouter: () => ({ replace: state.replace }) }))
 vi.mock('../stores/useChatStore', () => ({ useChatStore: () => state.chat }))
 vi.mock('../services/api', () => ({ default: api }))
@@ -12,11 +12,11 @@ vi.mock('../composables/useNotify', () => ({ notify: { warning: vi.fn(), error: 
 import VideoStudioGenerate from './VideoStudioGenerate.vue'
 import { useVideoStore } from '../stores/useVideoStore'
 import { clearStudioDraftMemory } from '../services/studioDraftMemory'
-import { presetsFor } from '../services/studioPresets'
+import { presetsFor, composePreset } from '../services/studioPresets'
 let wrapper, video
 const stubs = {
   StudioSettings: true,
-  StudioAgentPanel: { name: 'StudioAgentPanel', props: ['modelValue','preset','ready'], template: '<div data-test="agent-panel">{{ modelValue }}</div>' },
+  StudioAgentPanel: { name: 'StudioAgentPanel', props: ['modelValue','preset','ready'], template: '<div data-test="agent-panel"><textarea :value="modelValue" /></div>' },
   InputSlot: { name: 'InputSlot', props: ['label','items'], template: '<div>{{ label }}</div>' },
   PresetGallery: { name: 'PresetGallery', props: ['presets','selected'], template: '<div>Preset gallery</div>' },
   ResultsFeed: { name: 'ResultsFeed', props: ['kind','conversationId'], template: '<div>Session results</div>' },
@@ -35,6 +35,7 @@ beforeEach(() => {
   api.getVideoStudioAgent.mockResolvedValue({ data: { id: 900, video_model: 1, image_model: 11 } })
   api.get.mockImplementation(async path => ({ data: path === '/video/image-capabilities/' ? { models: [{ model_id: 11, name: 'Synthetic image model', shapes: ['1:1','3:4','16:9'], max_references: 4 }], default_model_id: 11 } : { routes: [{ route_id: 'r1', name: 'Synthetic video model', state: 'active', offered: ['image_to_video','first_last_frame','reference_to_video'], outputs: { durations: [5], aspect_ratios: ['16:9','1:1'], resolutions: ['720p'], audio: false } }], default_route_id: 'r1' } }))
   api.post.mockRejectedValue(new Error('Unexpected direct write'))
+  api.getStudioQuote.mockResolvedValue({ data: { estimate_usd: 0.04, max_usd: 0.04, pricing_status: 'exact' } })
   video = useVideoStore()
   vi.spyOn(video,'request'); vi.spyOn(video,'requestImage'); vi.spyOn(video,'start')
 })
@@ -44,7 +45,7 @@ async function render(kind = 'image', userId = null, mode = 'manual') {
   wrapper = mount(VideoStudioGenerate, { attachTo: document.body, props: { kind }, global: { stubs, provide: { studioUser: ref(userId ? { id: userId } : null) } } })
   await flushPromises(); if (mode) { video.setStudioMode(mode); await flushPromises() }; return wrapper
 }
-function pickRequired() { wrapper.findAllComponents({ name: 'InputSlot' })[0].vm.$emit('pick', [{ attachment_id: 42, title: 'Owned reference', media_type: 'image', url: '/owned.png' }]) }
+function pickRequired() { const slot = wrapper.findAllComponents({ name: 'InputSlot' })[0]; const item = { attachment_id: 42, title: 'Owned reference', media_type: 'image', url: '/owned.png' }; if (slot) slot.vm.$emit('pick', [item]); else video.addExistingRef(item, video.kind === 'image' ? 'subject' : 'first_frame') }
 
 describe('Image and Video pages: per-run approval boundary', () => {
   it.each(['image','video'])('blocks the %s request while its required slot is empty', async kind => {
@@ -65,7 +66,7 @@ describe('Image and Video pages: per-run approval boundary', () => {
     expect(prompt).toContain('supplied')
     expect(options[kind === 'image' ? 'imageRequest' : 'videoRequest'].references[0]).toEqual({ attachment_id: 42, role: kind === 'image' ? 'subject' : 'first_frame' })
     expect(video.start).not.toHaveBeenCalled(); expect(api.post).not.toHaveBeenCalled()
-    expect(state.replace).toHaveBeenCalledWith({ path: `/video-studio/${kind}`, query: { conversation: 'new-owned-chat' } })
+    expect(state.replace).toHaveBeenCalledWith({ path: `/video-studio/${kind}`, query: expect.objectContaining({ conversation: 'new-owned-chat', mode: 'manual', preset: presetsFor(kind)[0].id }) })
   })
 
   it('keeps inputs after a send failure, and choosing or shuffling a preset never sends', async () => {
@@ -116,12 +117,12 @@ describe('Studio draft isolation and recovery', () => {
   it('does not read another authenticated user draft', async () => {
     sessionStorage.setItem('aadml.studio.f0.other.image.draft', JSON.stringify({ details: 'Private other draft' }))
     await render('image', 'current')
-    expect(wrapper.get('textarea').element.value).toBe('')
+    expect(wrapper.get('.sg-manual textarea').element.value).toBe('')
   })
   it('restores only the current user draft and tolerates malformed stored lists', async () => {
     sessionStorage.setItem('aadml.studio.f0.current.image.draft', JSON.stringify({ details: 'Own direction', refs: {}, records: {} }))
     await render('image', 'current')
-    expect(wrapper.get('textarea').element.value).toBe('Own direction')
+    expect(wrapper.get('.sg-manual textarea').element.value).toBe('Own direction')
     wrapper.findComponent({ name: 'ResultsFeed' }).vm.$emit('recreate', { title: 'Image' })
     await flushPromises()
     expect(wrapper.text()).toContain('Review the creative direction')
@@ -141,7 +142,7 @@ describe('Responsive preset selection', () => {
   it.each(['image','video'])('returns from the %s preset sheet to its first required empty slot', async kind => {
     vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener() {}, removeEventListener() {} }))
     await render(kind)
-    expect(wrapper.get('.sg-preset-chip').text()).toBe(presetsFor(kind)[0].title)
+    expect(wrapper.get('[data-test="studio-agent-preset"]').element.value).toBe(presetsFor(kind)[0].id)
     expect(wrapper.findAllComponents({ name: 'PresetGallery' })).toHaveLength(0)
     await wrapper.get('[data-test="studio-preset-picker-open"]').trigger('click'); await flushPromises()
     const gallery = wrapper.findComponent({ name: 'PresetGallery' })
@@ -178,7 +179,7 @@ describe('Round 2 generator flow', () => {
     expect(wrapper.find('[data-test="studio-first-visit"]').exists()).toBe(false)
     expect(localStorage.getItem('aadml.studio.hint.person.image')).toBe('dismissed')
     wrapper.unmount(); await render('image','other',null)
-    expect(video.studioMode).toBe('agent'); expect(wrapper.find('[data-test="studio-first-visit"]').exists()).toBe(true)
+    expect(video.studioMode).toBe('agent'); expect(wrapper.find('[data-test="studio-first-visit"]').exists()).toBe(false)
   })
   it('writes an editable prompt through the existing chat path without generating, preserving references', async () => {
     await render('image'); pickRequired(); await flushPromises()
@@ -210,7 +211,7 @@ describe('Round 2 generator flow', () => {
     state.route.query = { useIn:'1', mode:'manual' }
     video.addExistingRef({ attachment_id: 99, title:'Handoff', media_type:'image' }, 'first_frame'); video.refs[0].studioSlot = 'opening'
     await render('video','person')
-    expect(wrapper.get('.sg-preset-chip').text()).toBe('Your own idea')
+    expect(wrapper.get('[data-test="studio-agent-preset"]').element.value).toBe('')
     expect(wrapper.findAllComponents({ name:'InputSlot' })[0].props('label')).toBe('Opening frame')
     expect(wrapper.findAllComponents({ name:'InputSlot' })[0].props('items')[0].attachment_id).toBe(99)
   })
@@ -246,34 +247,26 @@ it('keeps an unuploaded local file in tab memory when returning to the source pa
 })
 
 
-describe('Agent references beside the conversation', () => {
-  it.each(['image','video'])('moves %s inputs right in Agent mode and back into the Manual form without losing references', async kind => {
+describe('Agent attachments stay in the shared composer flow', () => {
+  it.each(['image','video'])('%s keeps references when changing modes, without an up-front reference form in Agent', async kind => {
     await render(kind, 'person', null)
-    expect(wrapper.find('.st-controls [data-test="studio-reference-inputs"]').exists()).toBe(false)
-    expect(wrapper.find('.st-output .st-reference-panel [data-test="studio-reference-inputs"]').exists()).toBe(true)
-    expect(wrapper.findAll('[data-test="studio-reference-inputs"]')).toHaveLength(1)
+    expect(wrapper.find('[data-test="studio-reference-inputs"]').exists()).toBe(false)
     pickRequired(); await flushPromises()
     const key = video.refs[0].key
     await wrapper.get('[data-test="studio-mode-manual"]').trigger('click'); await flushPromises()
-    expect(wrapper.find('.st-reference-panel').exists()).toBe(false)
-    expect(wrapper.find('.st-controls [data-test="studio-reference-inputs"]').exists()).toBe(true)
     expect(wrapper.findAllComponents({name:'InputSlot'})[0].props('items')[0].key).toBe(key)
     await wrapper.get('[data-test="studio-mode-agent"]').trigger('click'); await flushPromises()
-    expect(wrapper.find('.st-output [data-test="studio-reference-inputs"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="studio-reference-inputs"]').exists()).toBe(false)
     expect(video.refs[0].attachment_id).toBe(42)
     expect(video.request).not.toHaveBeenCalled(); expect(video.requestImage).not.toHaveBeenCalled(); expect(video.start).not.toHaveBeenCalled()
     expect(state.chat.sendMessage).not.toHaveBeenCalled(); expect(api.post).not.toHaveBeenCalled()
   })
-  it('on phones keeps chat first and focuses the required input below it after a preset choice', async () => {
+  it('on phones selecting a look focuses the Agent composer without a required-input detour', async () => {
     vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener() {}, removeEventListener() {} }))
     await render('image', 'person', null)
-    const conversation = wrapper.get('[data-test="agent-panel"]').element
-    const inputs = wrapper.get('.st-reference-panel').element
-    expect(conversation.compareDocumentPosition(inputs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    await wrapper.get('[data-test="studio-preset-picker-open"]').trigger('click'); await flushPromises()
-    wrapper.findComponent({name:'PresetGallery'}).vm.$emit('select',presetsFor('image')[0]); await flushPromises()
-    expect(document.activeElement).toBe(wrapper.get('.st-reference-panel [data-studio-required-empty="true"]').element)
-    expect(wrapper.findComponent({name:'PresetGallery'}).exists()).toBe(false)
+    await wrapper.get('[data-test="studio-agent-preset"]').setValue(presetsFor('image')[0].id); await flushPromises()
+    expect(document.activeElement).toBe(wrapper.get('[data-test="agent-panel"] textarea').element)
+    expect(wrapper.find('.st-reference-panel').exists()).toBe(false)
     expect(state.chat.sendMessage).not.toHaveBeenCalled()
   })
 })
@@ -338,5 +331,46 @@ describe('Manual helpers name the page and preset as the studio_context field', 
     expect(presentStudioMessage(request).content).toBe(type==='prompt'?'You asked for a prompt':'You asked for settings')
     expect(presentStudioMessage(reply,[request,reply]).content).toBe('The agent asked: Which product?')
     expect(video.requestImage).not.toHaveBeenCalled();expect(video.request).not.toHaveBeenCalled();expect(video.start).not.toHaveBeenCalled()
+  })
+})
+
+it('selects a look, names it in studio_context so the backend knows where the chat came from, and starts no work', async () => {
+  await render('image','person',null)
+  const look=presetsFor('image').find(p=>p.clientOnly)
+  await wrapper.get('[data-test="studio-agent-preset"]').setValue(look.id); await flushPromises()
+  expect(wrapper.findComponent({name:'StudioAgentPanel'}).props('modelValue')).toBe(composePreset(look))
+  expect(state.chat.studioContext).toEqual({page:'image', preset:look.id, preset_title:look.title})
+  expect(state.chat.sendMessage).not.toHaveBeenCalled();expect(video.start).not.toHaveBeenCalled();expect(api.post).not.toHaveBeenCalled()
+})
+
+describe('Image and Video pages: the live price', () => {
+  const settle = async () => { await new Promise(resolve => setTimeout(resolve, 760)); await flushPromises() }
+  it.each(['image','video'])('%s: shows the price of the draft and asks for it with the page settings', async kind => {
+    await render(kind); pickRequired(); await flushPromises(); await settle()
+    expect(api.getStudioQuote).toHaveBeenCalledWith(expect.objectContaining({ kind, references: [expect.objectContaining({ attachment_id: 42 })] }))
+    expect(wrapper.get('[data-test="live-price-amount"]').text()).toBe('About $0.04')
+    expect(wrapper.get('[data-test="studio-generate"]').attributes('disabled')).toBeUndefined()
+  })
+  it.each(['image','video'])('%s: Generate waits for "Accept these changes" when the model needs adjustments', async kind => {
+    api.getStudioQuote.mockResolvedValue({ data: { estimate_usd: 0.1, pricing_status: 'exact', needs_acceptance: true, adjustments: [{ field: 'duration', requested: 12, proposed: 8, reason: 'the model makes at most 8 s' }] } })
+    await render(kind); pickRequired(); await flushPromises(); await settle()
+    expect(wrapper.get('[data-test="live-price-adjustments"]').text()).toContain('you asked for 12; it would use 8')
+    expect(wrapper.get('[data-test="studio-generate"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.qb-reason').text()).toContain('Accept the changes')
+    await wrapper.get('[data-test="live-price-accept"]').setValue(true); await flushPromises()
+    expect(wrapper.get('[data-test="studio-generate"]').attributes('disabled')).toBeUndefined()
+  })
+  it.each(['image','video'])('%s: a model that cannot be charged for keeps Generate off', async kind => {
+    api.getStudioQuote.mockRejectedValue({ response: { data: { error: { code: 'not_priced', message: 'This model has no price.' } } } })
+    await render(kind); pickRequired(); await flushPromises(); await settle()
+    expect(wrapper.get('[data-test="live-price-problem"]').text()).toBe('This model has no price.')
+    expect(wrapper.get('[data-test="studio-generate"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.qb-reason').text()).toContain('cannot be charged for')
+    await wrapper.get('[data-test="studio-generate"]').trigger('click'); await flushPromises()
+    expect(video.request).not.toHaveBeenCalled(); expect(video.requestImage).not.toHaveBeenCalled()
+  })
+  it('Agent mode asks for no live price', async () => {
+    await render('image', null, 'agent'); await settle()
+    expect(api.getStudioQuote).not.toHaveBeenCalled()
   })
 })

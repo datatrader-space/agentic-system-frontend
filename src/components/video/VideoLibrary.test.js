@@ -14,6 +14,7 @@ vi.mock('../../stores/useChatStore', () => ({
 import api from '../../services/api'
 import VideoLibrary from './VideoLibrary.vue'
 import { useVideoStore } from '../../stores/useVideoStore'
+import { studioLooks, LOOK_ID } from '../../services/studioLooks'
 
 const ITEMS = [
   { attachment_id: 'img-1', source: 'uploaded', media_type: 'image', title: 'sneaker.png', url: '/s.png', created_at: '2026-10-19T10:00:00Z', ingredients: [] },
@@ -42,6 +43,28 @@ describe('VideoLibrary', () => {
     document.querySelector('[data-test="lib-preview"]').click()
     await flush()
     expect(document.querySelector('[data-test="media-viewer-chat"]').textContent).toBe('Image chat '+String.fromCharCode(183)+' Quiet tabletop')
+    w.unmount()
+  })
+
+  it('the page lists the files of one look when opened from its "See all", and "Show all files" asks to drop the filter', async () => {
+    const look = studioLooks.find((item) => LOOK_ID.test(item.id))
+    const w = mount(VideoLibrary, { props: { mode: 'page', preset: look.id }, attachTo: document.body, global: { stubs: { RouterLink: { props: ['to'], template: '<a><slot /></a>' } } } })
+    await flush()
+    expect(api.get).toHaveBeenCalledWith('/video/library/', { params: expect.objectContaining({ preset: look.id }) })
+    expect(w.get('[data-test="lib-look"]').text()).toContain(`Made with ${look.title}`)
+    await w.get('[data-test="lib-look-clear"]').trigger('click')
+    expect(w.emitted('clear-preset')).toHaveLength(1)
+    await w.setProps({ preset: '' }); await flush()
+    expect(api.get.mock.calls.filter((c) => c[0] === '/video/library/').at(-1)[1].params.preset).toBeUndefined()
+    expect(w.find('[data-test="lib-look"]').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('the drawer never keeps a look filter from the Library page', async () => {
+    video.library.preset = 'neon-noir'
+    const w = mount(VideoLibrary, { attachTo: document.body })
+    await flush()
+    expect(api.get.mock.calls.find((c) => c[0] === '/video/library/')[1].params.preset).toBeUndefined()
     w.unmount()
   })
 

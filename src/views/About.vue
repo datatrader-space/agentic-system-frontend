@@ -242,7 +242,6 @@ h2 {
 }
 
 .value-card:hover {
-  transform: translateY(-8px);
   box-shadow: 0 12px 24px rgba(102, 126, 234, 0.15);
 }
 
@@ -376,7 +375,6 @@ h2 {
 
 .btn-primary:hover {
   background: var(--vm-surface-soft);
-  transform: translateY(-2px);
 }
 
 .btn-secondary {

@@ -117,6 +117,21 @@ describe('Image edit', () => {
     expect(api.prepareMediaJob).toHaveBeenCalledExactlyOnceWith({ operation: 'edit_image', route_id: '7', request: { prompt: 'Make the mug blue' }, references: [{ attachment_id: 'img', role: 'edit_source' }], conversation_id: 'c1' })
     expect(api.uploadConversationFile).not.toHaveBeenCalled(); neverStarted(); w.unmount()
   })
+  it('"Edit" on a picture opens with it in "Image to edit" (the store’s edit_source)', async () => {
+    video.value = reactive({ project: null, refs: [{ key: 'pic1edit_source', role: 'edit_source', name: 'beach.png', url: '/beach.png', attachment_id: 'pic1', isVideo: false, thumbnail_url: '/beach-small.png' }] })
+    const w = mountIt(CreativeImageEdit); await flushPromises()
+    const slot = w.findAllComponents(MediaSlot).find(s => s.props('label') === 'Image to edit')
+    expect(slot.props('modelValue')).toEqual([{ attachment_id: 'pic1', name: 'beach.png', media_type: 'image', url: '/beach.png', thumbnail_url: '/beach-small.png' }])
+    await w.get('[data-test="edit-prompt"]').setValue('Add a sunset')
+    await w.get('form').trigger('submit'); await flushPromises()
+    expect(api.prepareMediaJob.mock.calls[0][0]).toMatchObject({ operation: 'edit_image', references: [{ attachment_id: 'pic1', role: 'edit_source' }] })
+    w.unmount()
+  })
+  it('a queued video is not taken as the image to edit', async () => {
+    video.value = reactive({ project: null, refs: [{ role: 'edit_source', name: 'clip.mp4', url: '/clip.mp4', attachment_id: 'v1', isVideo: true }] })
+    const w = mountIt(CreativeImageEdit); await flushPromises()
+    expect(w.findAllComponents(MediaSlot).find(s => s.props('label') === 'Image to edit').props('modelValue')).toEqual([]); w.unmount()
+  })
   it('hides the mask painter for a model that edits from the description alone (takes_mask: false)', async () => {
     api.getMediaRoutes.mockResolvedValue({ data: { routes: [{ route_id: 7, name: 'Nano Banana', ready: true, provider: 'openrouter', model: 'google/gemini-2.5-flash-image', takes_mask: false }] } })
     const w = mountIt(CreativeImageEdit); await flushPromises()
@@ -283,7 +298,7 @@ describe('Effects recipes', () => {
     expect(w.get('[data-test="recipe-resolution"]').element.value).toBe('720p')
     w.findAllComponents({ name: 'InputSlot' }).find(s => s.props('label') === 'Your video').vm.$emit('pick', [{ attachment_id: 'ad' }]); await flushPromises()
     await w.findAll('button').find(b => b.text() === 'Review recipe estimate').trigger('click'); await flushPromises()
-    expect(api.runStudioRecipe).toHaveBeenCalledExactlyOnceWith('remix-style', { route_id: '76', params: { resolution: '720p' }, slots: { video: 'ad' }, options: { style: 'a retro film look' } })
+    expect(api.runStudioRecipe).toHaveBeenCalledExactlyOnceWith('remix-style', { route_id: '76', params: { resolution: '720p' }, slots: { video: 'ad' }, options: { style: 'a retro film look' }, conversation_id: 'c1', studio_context: { page: 'ad-remix', preset: '', preset_title: '' } })
     w.unmount()
   })
   it('an image recipe runs on the chosen proven image model', async () => {
@@ -294,7 +309,7 @@ describe('Effects recipes', () => {
     expect(w.findAll('label').map(l => l.text())).toContain('Lightgolden hour')            // "light" said as "Light"
     w.findAllComponents({ name: 'InputSlot' }).find(s => s.props('label') === 'Photo').vm.$emit('pick', [{ attachment_id: 'photo' }]); await flushPromises()
     await w.findAll('button').find(b => b.text() === 'Review recipe estimate').trigger('click'); await flushPromises()
-    expect(api.runStudioRecipe).toHaveBeenCalledExactlyOnceWith('relight', { route_id: '7', slots: { image: 'photo' }, options: { light: 'golden hour' } })
+    expect(api.runStudioRecipe).toHaveBeenCalledExactlyOnceWith('relight', { route_id: '7', slots: { image: 'photo' }, options: { light: 'golden hour' }, conversation_id: 'c1', studio_context: { page: 'effects', preset: '', preset_title: '' } })
     w.unmount()
   })
 })

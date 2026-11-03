@@ -7,7 +7,7 @@ export const CREATIVE_STUDIO_PAGES = ['audio','music','characters','identity-tra
 export const STUDIO_GROUPS = ['Home', 'Create', 'Edit & enhance', 'Characters', 'Video tools', 'Avatars & shorts', 'Story', 'Marketing', 'Workspace']
 const entry = (id, group, label, path, status, phase, purpose, icon) => ({ id, group, label, route: `/video-studio${path ? '/' + path : ''}`, status, phase, purpose, icon })
 export const studioFeatures = shallowRef([
-  entry('home', 'Home', 'Home', '', 'live', 'F0', 'Start with an idea and continue your creative work.', 'home'),
+  entry('home', 'Home', 'Discover', '', 'live', 'F0', 'Choose a look or a tool. Your agent helps with the rest.', 'home'),
   entry('image', 'Create', 'Image', 'image', 'live', 'F0', 'Make a picture from a preset, your references and a few details.', 'image'),
   entry('video', 'Create', 'Video', 'video', 'live', 'F0', 'Turn an idea or opening image into a moving shot.', 'video'),
   entry('audio', 'Create', 'Voice & audio', 'audio', 'live', 'P0', 'Give a script a voice, make a sound effect or change a recorded voice.', 'audio'),

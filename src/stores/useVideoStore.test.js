@@ -149,7 +149,7 @@ describe('useVideoStore', () => {
       ? { project: null } : { versions } }))
     await video.loadProject('c1')
     await Promise.resolve()
-    expect(api.get).toHaveBeenCalledWith('/video/versions/', { params: { conversation_id: 'c1' } })
+    expect(api.get).toHaveBeenCalledWith('/video/versions/', { params: { conversation_id: 'c1', type: 'video', page: 1, page_size: 50 } })
     expect(video.versions).toHaveLength(2)
     expect(video.activeVideo.attachment_id).toBe('v1')
   })
@@ -159,7 +159,7 @@ describe('useVideoStore', () => {
     await video.loadProject('c1')
     api.get.mockClear()
     video.onFrame(job({ job_id: 'trim', operation: 'trim', state: 'ready', output: { url: '/t.mp4' } }))
-    expect(api.get).toHaveBeenCalledWith('/video/versions/', { params: { conversation_id: 'c1' } })
+    expect(api.get).toHaveBeenCalledWith('/video/versions/', { params: { conversation_id: 'c1', type: 'video', page: 1, page_size: 50 } })
   })
 
   it('switching model never changes settings or drops references without asking', async () => {
@@ -230,6 +230,20 @@ describe('useVideoStore', () => {
     await video.loadLibrary({ more: true })
     expect(video.library.items.map((i) => i.attachment_id)).toEqual(['a1', 'a2'])
     expect(video.library.hasMore).toBe(false)
+  })
+
+  it('the Library can be filtered to one look, and the filter stays while paging on', async () => {
+    api.get.mockResolvedValue({ data: { items: [{ attachment_id: 'a1' }], has_more: true } })
+    await video.loadLibrary({ preset: 'neon-noir' })
+    expect(api.get).toHaveBeenLastCalledWith('/video/library/', { params: expect.objectContaining({ preset: 'neon-noir', page: 1 }) })
+    await video.loadLibrary({ more: true })
+    expect(api.get).toHaveBeenLastCalledWith('/video/library/', { params: expect.objectContaining({ preset: 'neon-noir', page: 2 }) })
+    await video.loadLibrary({ preset: '' })
+    expect(api.get.mock.calls.at(-1)[1].params.preset).toBeUndefined()
+    // An id the backend would refuse is never sent: the whole Library is listed instead.
+    await video.loadLibrary({ preset: '../Bad id' })
+    expect(video.library.preset).toBe('')
+    expect(api.get.mock.calls.at(-1)[1].params.preset).toBeUndefined()
   })
 
   it('using a Library file links it to the project, then adds it to the composer', async () => {

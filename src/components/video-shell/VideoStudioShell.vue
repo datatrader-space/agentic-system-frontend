@@ -8,32 +8,35 @@
       <router-link to="/video-studio" class="vs-brand">
         <!-- The AADML mark: Video Studio is part of AADML (owner, 2026-10-20). -->
         <span class="vs-mark"><BrandMark /></span>
-        <span>Video Studio</span>
+        <span class="vs-brand-name">AADML<small>STUDIO</small></span><small class="vs-design-version" aria-label="Design version 8">08</small>
       </router-link>
       <button type="button" class="vs-nav-close" aria-label="Close Video Studio menu" @click="closeMenu(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
+      <WorkspaceSwitcher class="vs-workspace-switch"><template #trigger="{ workspace, organization }"><span class="vs-workspace-avatar">{{ (workspace?.name || 'AADML').charAt(0).toUpperCase() }}</span><span class="vs-workspace-copy"><b>{{ workspace?.name || 'AADML Studio' }}</b><small>{{ organization?.name || 'Personal workspace' }}</small></span><StudioNavIcon name="down" /></template></WorkspaceSwitcher>
       <div class="vs-nav-scroll">
-      <nav class="vs-nav" aria-label="Video Studio pages">
-        <div v-for="(group,index) in groups" :key="group.label" class="vs-group">
-          <button v-if="group.label !== 'Home'" type="button" class="vs-group-toggle" :aria-expanded="!!groupOpen[group.label]" :aria-controls="`vs-group-${index}`" @click="toggleGroup(group.label)"><span>{{ group.label }}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" :class="{ open: groupOpen[group.label] }" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg></button>
-          <div :id="`vs-group-${index}`" v-show="group.label === 'Home' || groupOpen[group.label]">
-            <router-link v-for="item in group.items" :key="item.id" :to="featureLink(item)" class="vs-nav-item" :class="{ active: isActive(item) }" :aria-current="isActive(item) ? 'page' : undefined" :data-test="'vs-nav-' + item.id">
-              <svg viewBox="0 0 24 24" class="vs-nav-ico" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="studioIcons[item.icon]" /></svg><span class="vs-nav-label">{{ item.label }}</span><span v-if="item.status !== 'live'" class="vs-status" :class="item.status">{{ item.status === 'soon' ? 'Soon' : 'Beta' }}</span>
-            </router-link>
-          </div>
-        </div>
-      </nav>
-      </div>
-      <div class="vs-fixed-workspace" aria-label="Your workspace">
-        <router-link v-for="item in workspace" :key="item.id" :to="featureLink(item)" class="vs-nav-item" :class="{ active: isActive(item) }" :aria-current="isActive(item) ? 'page' : undefined" :data-test="'vs-nav-' + item.id"><svg viewBox="0 0 24 24" class="vs-nav-ico" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path :d="studioIcons[item.icon]" /></svg><span class="vs-nav-label">{{ item.label }}</span></router-link>
-        <StudioRecentChats />
+        <nav class="vs-nav" aria-label="Video Studio pages">
+          <section class="vs-workspace-nav" aria-label="Workspace navigation">
+            <h2 class="vs-nav-section">WORKSPACE</h2>
+            <router-link v-for="item in workspaceTop" :key="item.id" :to="item.to" class="vs-nav-item" :class="{ active: item.active }" :aria-current="item.active ? 'page' : undefined" :data-test="'vs-nav-' + item.id"><StudioNavIcon :name="item.icon" class="vs-nav-ico" /><span class="vs-nav-label">{{ item.label }}</span></router-link>
+            <button type="button" class="vs-nav-item vs-history-link" data-test="studio-history-open" @click="openHistory"><StudioNavIcon name="clock" class="vs-nav-ico" /><span class="vs-nav-label">Chat history</span></button>
+            <router-link :to="{ path: '/video-studio', query: { view: 'looks', saved: '1' } }" class="vs-nav-item" :class="{active: !!route.query.saved}" :aria-current="route.query.saved ? 'page' : undefined"><StudioNavIcon name="heart" class="vs-nav-ico" /><span class="vs-nav-label">Saved templates</span><small>{{ savedLooks.ids.value.length }}</small></router-link>
+            <router-link v-for="item in workspace" :key="item.id" :to="featureLink(item)" class="vs-nav-item" :class="{active:isActive(item)}" :aria-current="isActive(item) ? 'page' : undefined" :data-test="'vs-nav-' + item.id"><StudioNavIcon :name="workspaceIcons[item.id]" class="vs-nav-ico" /><span class="vs-nav-label">{{ item.label }}</span></router-link>
+          </section>
+          <section class="vs-creative-nav" aria-label="Creative tools">
+            <div class="vs-nav-section vs-tools-heading"><h2>CREATIVE TOOLS</h2><button type="button" aria-label="Find a creative tool" @click="workspaceBar?.openSearch()"><StudioNavIcon name="search" /></button></div>
+            <div v-for="(group,index) in groups" :key="group.label" class="vs-group">
+              <button type="button" class="vs-group-toggle" :aria-expanded="!!groupOpen[group.label]" :aria-controls="`vs-group-${index}`" @click="toggleGroup(group.label)"><StudioNavIcon :name="group.icon" class="vs-nav-ico" /><span class="vs-nav-label">{{ group.label }}</span><StudioNavIcon name="down" class="vs-group-caret" :class="{open:groupOpen[group.label]}" /></button>
+              <div :id="`vs-group-${index}`" v-show="groupOpen[group.label]" class="vs-group-items">
+                <router-link v-for="item in group.items" :key="item.id" :to="featureLink(item)" class="vs-nav-item" :class="{active:isActive(item)}" :aria-current="isActive(item) ? 'page' : undefined" :data-test="'vs-nav-' + item.id"><StudioNavIcon :name="item.icon" class="vs-nav-ico" /><span class="vs-nav-label">{{ item.label }}</span><span v-if="item.status !== 'live'" class="vs-status" :class="item.status">{{ item.status === 'soon' ? 'Soon' : 'Beta' }}</span></router-link>
+              </div>
+            </div>
+          </section>
+          <StudioRecentChats class="vs-nav-recent" :limit="3" @history="openHistory" />
+        </nav>
       </div>
       <div class="vs-foot">
-        <router-link :to="backTo" class="vs-back" data-test="vs-back">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-               aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
-          <span>Back to AADML</span>
-        </router-link>
-        <p v-if="email" class="vs-user" :title="email">{{ email }}</p>
+        <button type="button" class="vs-nav-item vs-history-link" @click="designNotes?.showModal()"><StudioNavIcon name="layers" class="vs-nav-ico" /><span>Design notes</span></button>
+        <router-link to="/video-studio/help" class="vs-nav-item" :class="{active:route.path === '/video-studio/help'}" data-test="vs-nav-help"><StudioNavIcon name="info" class="vs-nav-ico" /><span>Help &amp; shortcuts</span></router-link>
+        <div class="vs-workspace-status"><span></span>Studio workspace<small>v8</small></div>
       </div>
     </aside>
 
@@ -44,8 +47,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
         </button>
       </div>
-      <router-view v-slot="{ Component }"><component :is="Component" :key="route.path" /></router-view>
+      <StudioWorkspaceBar ref="workspaceBar" :title="pageTitle" :user="user" @history="openHistory" /><div class="vs-route"><router-view v-slot="{ Component }"><component :is="Component" :key="route.path" /></router-view></div>
     </main>
+    <dialog ref="designNotes" class="vs-history-dialog" aria-labelledby="vs-design-title"><header><h2 id="vs-design-title">Design notes</h2><button type="button" class="st-button" aria-label="Close design notes" @click="designNotes.close()">×</button></header><p>Start with a creative goal or a ready-made look. Agent helps prepare the brief; Manual keeps the existing tool controls available. Review the actual estimate and approval card before generating media.</p><p>Template previews illustrate a direction. Your references, compatible models and approved settings determine the result.</p><a href="https://aadml-video-studio-concept-1030.sajid623942.chatgpt.site/#dashboard" target="_blank" rel="noopener">Approved design reference ↗</a><router-link :to="backTo" class="vs-back" data-test="vs-back">Back to AADML</router-link></dialog>
+    <dialog ref="historyDialog" class="vs-history-dialog" aria-labelledby="vs-history-title" @cancel.prevent="closeHistory()"><header><h2 id="vs-history-title">Chat history</h2><button type="button" class="st-button" aria-label="Close chat history" @click="closeHistory()">×</button></header><div v-if="historyOpen" @click="historyClick"><StudioRecentChats history /></div></dialog>
   </div>
 </template>
 
@@ -53,29 +58,46 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
-import { STUDIO_GROUPS, studioFeatures, studioIcons, featureLink, orderedFeatures, loadStudioFeatures } from '../../services/studioFeatures'
+import { STUDIO_GROUPS, studioFeatures, featureLink, orderedFeatures, loadStudioFeatures } from '../../services/studioFeatures'
 import BrandMark from '../common/BrandMark.vue'
+import WorkspaceSwitcher from '../layout/WorkspaceSwitcher.vue'
+import StudioNavIcon from './StudioNavIcon.vue'
+import StudioWorkspaceBar from './StudioWorkspaceBar.vue'
+import { provideStudioSavedLooks } from '../../composables/useStudioSavedLooks'
 import StudioRecentChats from './StudioRecentChats.vue'
 import { useChatStore } from '../../stores/useChatStore'
 
 const route = useRoute()
 const chat = useChatStore()
 const user = ref(null)
+const savedLooks = provideStudioSavedLooks(user)
+const pageTitle = computed(() => route.path.endsWith('/dashboard') ? 'Dashboard' : studioFeatures.value.find(f => f.route === route.path)?.label || 'Discover')
+const workspaceBar=ref(null), designNotes=ref(null)
 const menuOpen = ref(false), sidebar = ref(null), menuTrigger = ref(null)
+const historyDialog = ref(null), historyOpen = ref(false)
+let historyTrigger = null
+async function openHistory(event) { historyTrigger = event.currentTarget; historyOpen.value = true; await nextTick(); historyDialog.value?.showModal(); historyDialog.value?.querySelector('input')?.focus() }
+function closeHistory(restore = true) { historyDialog.value?.close(); historyOpen.value = false; if (restore) nextTick(() => historyTrigger?.focus()) }
+function historyClick(event) { if (event.target.closest('a')) closeHistory(false) }
 provide('studioUser', user)
 const media = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 1023px)') : null
 const mobile = ref(media?.matches ?? false)
 function mediaChanged(event) { mobile.value = event.matches; if (!event.matches) closeMenu() }
-const STORAGE = 'aadml.studio.navigation.groups'
+const STORAGE = 'aadml.studio.navigation.v8.groups'
 function readGroups() {
   let saved = {}
   try { saved = JSON.parse(localStorage.getItem(STORAGE) || '{}') || {} } catch { /* works without storage */ }
-  return Object.fromEntries(STUDIO_GROUPS.map(group => [group, typeof saved[group] === 'boolean' ? saved[group] : ['Home','Create','Workspace'].includes(group)]))
+  return Object.fromEntries(STUDIO_GROUPS.map(group => [group, typeof saved[group] === 'boolean' ? saved[group] : false]))
 }
 const groupOpen = ref(readGroups())
-const fixed = ['library','projects','help']
-const workspace = computed(() => fixed.map(id => studioFeatures.value.find(f => f.id === id)))
-const groups = computed(() => STUDIO_GROUPS.map(label => ({ label, items: orderedFeatures().filter(feature => feature.group === label && !fixed.includes(feature.id)) })).filter(group => group.items.length))
+const workspaceIcons = {projects:'folder',library:'library',canvas:'canvas'}
+const workspace = computed(() => ['projects','library','canvas'].map(id => studioFeatures.value.find(f => f.id === id)).filter(Boolean))
+const workspaceTop = computed(() => [
+  {id:'dashboard', label:'Dashboard',to:'/video-studio/dashboard',icon:'layers',active:route.path === '/video-studio/dashboard'},
+  {id:'home',label:'Discover',to:'/video-studio',icon:'grid',active:['/video-studio','/video-studio/'].includes(route.path) && !route.query.saved},
+])
+const groupIcons = {Create:'image','Edit & enhance':'effects',Characters:'person','Video tools':'video','Avatars & shorts':'effects',Story:'grid',Marketing:'effects'}
+const groups = computed(() => STUDIO_GROUPS.filter(label => groupIcons[label]).map(label => ({label,icon:groupIcons[label],items:orderedFeatures().filter(feature => feature.group === label)})))
 function toggleGroup(group) { groupOpen.value[group] = !groupOpen.value[group] }
 watch(groupOpen, value => { try { localStorage.setItem(STORAGE, JSON.stringify(value)) } catch { /* nonessential preference */ } }, { deep: true })
 function isActive(item) {
@@ -85,7 +107,7 @@ function isActive(item) {
 watch(() => route.fullPath, () => {
   menuOpen.value = false
   const current = studioFeatures.value.find(isActive)
-  if (current) groupOpen.value[current.group] = true
+  if (current && groupIcons[current.group]) groupOpen.value[current.group] = true
 }, { immediate: true })
 function closeMenu(restore = false) { menuOpen.value = false; if (restore && mobile.value) nextTick(() => menuTrigger.value?.focus()) }
 function trapMenu(event) {
@@ -125,16 +147,16 @@ onBeforeUnmount(() => { alive = false; document.body.classList.remove('vs-theme'
    names as style.css, so every component built on them re-skins. --vs-* are the few the Studio adds. */
 body.vs-theme {
   color-scheme: dark;
-  --vm-bg: #1E1F22;
-  --vm-surface: #25262A;
-  --vm-surface-soft: #2E2F34;
-  --vm-surface-2: #2E2F34;
-  --vm-border: #3A3B41;
-  --vm-line: #3A3B41;
-  --vm-line-2: #34353A;
-  --vm-ink: #EDEDEF;
-  --vm-ink-soft: #B3B4BA;
-  --vm-ink-faint: #8E8F96;
+  --vm-bg: #101216;
+  --vm-surface: #20252E;
+  --vm-surface-soft: #293449;
+  --vm-surface-2: #293449;
+  --vm-border: #3C4A60;
+  --vm-line: #3C4A60;
+  --vm-line-2: #303C50;
+  --vm-ink: #E0E8F4;
+  --vm-ink-soft: #A7B5CB;
+  --vm-ink-faint: #8295B0;
   --vm-violet: #3B82F6;
   --vm-violet-d: #2563EB;
   --vm-violet-soft: rgba(59, 130, 246, .16);
@@ -158,6 +180,8 @@ body.vs-theme {
   background: var(--vm-bg);
 }
 </style>
+
+
 
 <style scoped>
 .vs-fixed-workspace{flex:none;padding:10px 0;border-top:1px solid var(--vm-line-2)}.vs-fixed-workspace :deep(.vrc){max-height:165px;margin-top:12px}
@@ -201,3 +225,40 @@ body.vs-theme {
 }
 @media (prefers-reduced-motion: reduce) { .vs-sidebar, .vs-nav-item { transition: none; } }
 </style>
+
+<style scoped>
+.vs-brand-name{font-size:23px;letter-spacing:.03em;font-weight:650}.vs-brand-name small{display:block;margin-top:5px;font-size:8px;letter-spacing:.25em;color:var(--vm-ink-faint)}.vs-workspace-card{display:flex;align-items:center;gap:10px;margin:8px 0 18px;padding:12px 9px;border:1px solid var(--vm-line);border-radius:9px;background:var(--vm-surface)}.vs-workspace-card>span{display:grid;place-items:center;width:30px;height:30px;border-radius:5px;background:var(--vm-surface-2);font-size:12px}.vs-workspace-card b{display:block;font-size:10px;font-weight:500}.vs-workspace-card small{display:block;font-size:9px;color:var(--vm-ink-faint);margin-top:5px}.vs-route{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column}.vs-main{display:flex;flex-direction:column;--vs-bar-inset:0px}.vs-history-link{width:100%;border:0;background:none;font-family:inherit;text-align:left;cursor:pointer}.vs-history-dialog{width:min(700px,calc(100vw - 24px));max-height:85dvh;border:1px solid var(--vm-line);border-radius:12px;background:var(--vm-surface);color:var(--vm-ink);padding:20px;box-shadow:var(--vm-shadow-l)}.vs-history-dialog::backdrop{background:var(--vs-scrim)}.vs-history-dialog>header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.vs-history-dialog h2{font-size:22px;margin:0}.vs-history-dialog>div{overflow:auto;max-height:65dvh}.vs-history-dialog :deep(.vrc){max-height:none}
+@media(max-width:1023px){.vs-main{--vs-bar-inset:0px}.vs-topbar{top:6px}.vs-sidebar{padding-top:22px}}
+</style>
+
+<style scoped>
+/* Approved v8 sidebar: workspace destinations first, then compact creative groups. */
+.vs-sidebar{width:224px;padding:23px 13px 13px;background:#15161a;border-color:#30323b}
+.vs-brand{padding:0 10px 23px;margin:0;height:62px;min-height:62px;gap:9px;box-sizing:border-box}
+.vs-design-version{margin-left:auto;font-size:9px;border:1px solid #3c4252;border-radius:4px;background:#272b35;color:#9ca9c3;padding:4px 5px}
+.vs-brand-name{font-size:22px;letter-spacing:1px;font-weight:700;line-height:1}
+.vs-brand-name small{font-size:9px;letter-spacing:3.5px;color:#9ca5b7;margin-top:8px}
+.vs-workspace-switch{flex:none;margin-bottom:18px}
+.vs-workspace-switch :deep(.ws-trigger){width:100%;min-height:56px;padding:10px 9px;gap:10px;border:1px solid #353944;border-radius:8px;background:#202228;color:#eef0f4;box-shadow:none}
+.vs-workspace-avatar{width:28px;height:30px;flex:none;display:grid;place-items:center;border-radius:5px;background:#313b43;color:#c9d7ef;font-size:12px}
+.vs-workspace-copy{flex:1;min-width:0;text-align:left;line-height:1.4}
+.vs-workspace-copy b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;letter-spacing:-.1px;font-weight:600}
+.vs-workspace-copy small{display:block;margin-top:3px;font-size:10px;color:#8e98ac}
+.vs-workspace-switch :deep(.ws-trigger)>svg{width:13px;height:13px;color:#8d96a9;flex:none}
+.vs-nav-scroll{padding:0 2px 0 0;scrollbar-width:thin;scrollbar-color:#3d4652 transparent}
+.vs-nav{gap:0}.vs-nav-section{font-size:10px;font-weight:600;letter-spacing:1.2px;color:#777f91;padding:5px 11px 8px;margin:0;line-height:1.4}
+.vs-tools-heading{display:flex;align-items:center;justify-content:space-between;margin-top:15px;padding-bottom:8px}
+.vs-tools-heading h2{font:inherit;margin:0}.vs-tools-heading button{padding:0;border:0;background:none;color:#8c95a9;display:grid;place-items:center;min-height:24px;width:24px;cursor:pointer}.vs-tools-heading svg{width:14px;height:14px}
+.vs-nav-item{box-sizing:border-box;min-height:39px;padding:9px 11px;margin:2px 0;gap:11px;font-size:12px;line-height:18px;font-weight:400;border:1px solid transparent;color:#a8aebd;border-radius:6px}
+.vs-nav-item.active{background:#2b354c;border-color:#414f70;color:#d9e2ff}.vs-nav-item.active::before{display:none}.vs-nav-item.active .vs-nav-ico{color:#b1c7ff}.vs-nav-item:hover{background:#252935;color:#e2e7f2}
+.vs-nav-ico{width:17px;height:17px;color:#8f99ae}.vs-nav-item small{font-size:10px;color:#8c99b2}
+.vs-group+.vs-group{margin-top:2px}.vs-group-toggle{min-height:40px;padding:11px;gap:11px;font-size:12px;font-weight:400;color:#a9afbd;line-height:18px;border-radius:6px}
+.vs-group-toggle>.vs-nav-ico{width:16px;height:16px;color:#8c95a9}.vs-group-toggle>.vs-group-caret{width:12px;height:12px;opacity:.6;transform:none}.vs-group-toggle>.vs-group-caret.open{transform:rotate(180deg)}
+.vs-group-items .vs-nav-item{margin-left:21px;width:calc(100% - 24px);min-height:34px;padding:8px 10px;font-size:11px;gap:9px}.vs-group-items .vs-nav-ico{width:14px;height:14px}
+.vs-foot{flex:none;margin-top:12px;padding-top:10px;border-color:#343742}.vs-foot .vs-nav-item{font-size:11px;padding:7px 11px;min-height:39px}.vs-workspace-status{display:flex;align-items:center;gap:7px;font-size:10px;color:#858f9f;margin:13px 10px 2px}.vs-workspace-status>span{width:5px;height:5px;border-radius:50%;background:#8594ad}.vs-workspace-status small{margin-left:auto;font-size:9px;color:#9badc2}
+.vs-history-dialog>p{font-size:13px;line-height:1.8;margin-bottom:16px;color:var(--vm-ink-soft)}
+.vs-nav-recent{flex:none;padding:18px 8px 10px;border-top:1px solid #35465c;margin-top:17px;font-size:11px}
+@media(max-width:1023px){.vs-sidebar{width:min(224px,86vw);padding:23px 13px 13px}.vs-nav-item,.vs-group-toggle,.vs-group-items .vs-nav-item{min-height:44px}.vs-nav-close{top:23px}.vs-tools-heading button{width:44px;min-height:44px}}
+</style>
+
+<style scoped>@media(max-width:1023px){.vs-design-version{display:none}.vs-brand{padding-right:40px}}</style>

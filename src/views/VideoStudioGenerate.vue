@@ -1,13 +1,13 @@
 <template>
-  <StudioPage ref="page" :chat-expanded="isAgent && chatExpanded" :title="feature.label" :purpose="feature.purpose" :active-tab="tab" preset-picker @new="freshStart" :new-disabled="chat.isBusy || video.busy || !!chat.hitlRequests.length" @update:active-tab="tab = $event">
+  <StudioPage :feature="feature" :work-label="isAgent ? 'Preview' : 'Presets'" :agent-mode="isAgent" ref="page" :chat-expanded="isAgent && chatExpanded" :title="isAgent && selected ? selected.title : feature.label" :purpose="isAgent && selected ? selected.purpose : feature.purpose" :active-tab="tab" preset-picker @new="freshStart" :new-disabled="chat.isBusy || video.busy || !!chat.hitlRequests.length" @update:active-tab="tab = $event">
     <template #form="{ narrow }">
       <StudioModeSwitch />
-      <StudioFirstVisit :hidden="hintHidden" @dismiss="dismissHint" />
-      <div class="sg-preset"><span class="st-muted">Preset</span><strong class="sg-preset-chip">{{ selected?.title || 'Your own idea' }}</strong><button v-if="selected" type="button" class="st-button" aria-label="Clear preset" @click="selectedId = ''">Clear</button></div>
-      <BottomSheet v-if="narrow" ref="presetSheet" label="Change preset" :summary="selected?.title || 'Your own idea'" test-id="studio-preset-picker"><PresetGallery :presets="presets" :selected="selectedId" @select="choose" /></BottomSheet>
+      <StudioFirstVisit v-if="!isAgent" :hidden="hintHidden" @dismiss="dismissHint" />
+      <StudioPresetSelect :model-value="selectedId" :presets="presets" :disabled="chat.isBusy || video.busy" @update:model-value="selectPresetId" /><StudioLookDetails v-if="!isAgent && selected?.clientOnly" :look="selected" :disabled="chat.isBusy || video.busy" @apply="choose" />
+      <BottomSheet v-if="narrow && !isAgent" ref="presetSheet" label="Change preset" :summary="selected?.title || 'Your own idea'" test-id="studio-preset-picker"><PresetGallery :presets="presets" :selected="selectedId" @select="choose" /></BottomSheet>
       <p v-if="loading" class="st-status" role="status">Loading your models...</p><div v-if="error" class="st-error" role="alert">{{ error }}<button type="button" class="st-button" @click="initialize">Try again</button></div>
       <StudioReferenceInputs v-if="!isAgent" :groups="inputGroups" :unassigned="unassigned" @add-files="addFiles" @pick="pick" @remove="video.removeRef($event)" />
-      <StudioAgentPanel v-show="isAgent" ref="agentPanel" v-model="agentDraft" v-model:expanded="chatExpanded" :label="feature.label" :purpose="feature.purpose" :ready="ready" @approved="tab = 'results'" />
+      <StudioAgentPanel @new="freshStart" :look="selected" v-show="isAgent" ref="agentPanel" v-model="agentDraft" v-model:expanded="chatExpanded" :label="feature.label" :purpose="feature.purpose" :ready="ready" @approved="tab = 'results'" />
       <div v-show="!isAgent" class="sg-manual">
       <div class="sg-help"><button type="button" class="st-button" data-test="studio-write-prompt" :disabled="!ready || chat.isBusy || !!helper" @click="askHelper('prompt')">Write it for me</button><button type="button" class="st-button" data-test="studio-suggest-settings" :disabled="!ready || chat.isBusy || !!helper" @click="askHelper('settings')">Suggest settings</button></div>
       <p v-if="helper" class="st-status" role="status">{{ helper === 'prompt' ? 'Writing a direction for you to edit...' : 'Preparing settings for you to review...' }}<button type="button" class="st-button" @click="chat.stop(); helper = ''">Stop</button></p>
@@ -15,17 +15,21 @@
       <details :open="!selected || !!details"><summary class="sg-details">Add details{{ selected ? ' (optional)' : '' }}</summary><label class="st-field"><span>Creative direction</span><textarea v-model="details" class="st-input" rows="5" maxlength="8000" placeholder="Describe the subject, setting or changes you want." /></label></details>
       <p v-if="selected" class="st-muted sg-variant" role="status">Variation: {{ selected.variants[variant % selected.variants.length] }}</p>
       <StudioSettings :kind="kind" />
+      <LivePrice v-bind="livePrice" v-model:accepted="quote.accepted.value" :empty="draftProblem || 'Fill in the details to see the price.'" />
       </div>
       <p v-if="draftMessage" class="st-error" role="status">{{ draftMessage }}</p>
       <p v-if="formError" class="st-error" role="alert">{{ formError }}</p>
     </template>
-    <template v-if="isAgent" #references><StudioReferenceInputs :groups="inputGroups" :unassigned="unassigned" @add-files="addFiles" @pick="pick" @remove="video.removeRef($event)" /></template>
-    <template #presets><PresetGallery :presets="presets" :selected="selectedId" @select="choose" /></template>
+    <template #presets><template v-if="isAgent"><StudioLookPreview v-if="selected?.clientOnly" :look="selected" @select="choose" /><StudioCreativeCanvas v-else /></template><PresetGallery v-else :presets="presets" :selected="selectedId" @select="choose" /></template>
+    <template #looks><PresetGallery :presets="presets" :selected="selectedId" @select="choose" /></template>
+    <template #versions><StudioVersions /></template>
     <template #results><ResultsFeed v-if="ready" :kind="kind" :conversation-id="video.conversationId" :show-approvals="!isAgent" @approved="tab = 'results'" @recreate="recreate" /><p v-else class="st-status">Open this session to see its results.</p></template>
-    <template #quote><p v-if="isAgent" class="sg-agent-note st-muted">Send your idea to the agent. Review any price on its approval card.</p><QuoteBar v-else :summary="kind === 'image' ? `${video.image.n} image${Number(video.image.n) === 1 ? '' : 's'}` : `${video.settings.duration} s video`" :busy="submitting || video.busy || chat.isBusy" :disabled-reason="disabledReason" @shuffle="shuffle" @generate="generate" /></template>
+    <template #quote><p v-if="isAgent" class="sg-agent-note st-muted">Send your idea to the agent. Review any price on its approval card.</p><QuoteBar v-else :shuffle="(selected?.variants?.length || 0) > 1" :summary="kind === 'image' ? `${video.image.n} image${Number(video.image.n) === 1 ? '' : 's'}` : `${video.settings.duration} s video`" :busy="submitting || video.busy || chat.isBusy" :disabled-reason="disabledReason" @shuffle="shuffle" @generate="generate" /></template>
   </StudioPage>
 </template>
 <script setup>
+import { useStudioPresetRoute } from '../composables/useStudioPresetRoute'
+const syncPresetRoute = useStudioPresetRoute()
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useStudioSession } from '../composables/useStudioSession'
@@ -33,11 +37,19 @@ import { getStudioFeature } from '../services/studioFeatures'
 import { readStudioDraft, keepStudioDraft } from '../services/studioDraftMemory'
 import { plainText } from '../composables/useChatHistory'
 import { composePreset, presetsFor } from '../services/studioPresets'
+import { LOOK_ID } from '../services/studioLooks'
 import StudioPage from '../components/studio/StudioPage.vue'
+import StudioVersions from '../components/studio/StudioVersions.vue'
+import StudioPresetSelect from '../components/studio/StudioPresetSelect.vue'
+import StudioCreativeCanvas from '../components/studio/StudioCreativeCanvas.vue'
+import StudioLookPreview from '../components/studio/StudioLookPreview.vue'
+import StudioLookDetails from '../components/studio/StudioLookDetails.vue'
 import StudioReferenceInputs from '../components/studio/StudioReferenceInputs.vue'
 import { lazyComponent } from '../utils/lazyComponent'
 const PresetGallery = lazyComponent(() => import('../components/studio/PresetGallery.vue'))
 import QuoteBar from '../components/studio/QuoteBar.vue'
+import LivePrice from '../components/studio/LivePrice.vue'
+import { useLivePrice } from '../composables/useLivePrice'
 const ResultsFeed = lazyComponent(() => import('../components/studio/ResultsFeed.vue'))
 import StudioSettings from '../components/studio/StudioSettings.vue'
 import BottomSheet from '../components/video/BottomSheet.vue'
@@ -48,17 +60,24 @@ import { useStudioExperience } from '../composables/useStudioExperience'
 const props = defineProps({ kind: { type: String, required: true } })
 const router = useRouter(), route = useRoute(), { chat, video, ready, loading, error, initialize } = useStudioSession(props.kind)
 const user = inject('studioUser', ref(null))
-const { isAgent, hintHidden, dismissHint } = useStudioExperience(props.kind, route.query.useIn ? route.query.mode : null)
-const agentDraft = ref(route.query.preset ? `Use this preset: ${presetsFor(props.kind).find(p => p.id === route.query.preset)?.title || 'Your own idea'}.` : ''), agentPanel = ref(null), helper = ref(''), helperNote = ref('')
+const { isAgent, hintHidden, dismissHint } = useStudioExperience(props.kind, route.query.mode)
+const initialPreset = presetsFor(props.kind).find(p => p.id === route.query.preset)
+const agentDraft = ref(initialPreset ? (initialPreset.clientOnly ? composePreset(initialPreset) : `Use this preset: ${initialPreset.title}.`) : ''), agentPanel = ref(null), helper = ref(''), helperNote = ref('')
 const chatExpanded = ref(false)
-watch(isAgent, agent => { if (!agent) chatExpanded.value = false })
+watch(isAgent, agent => {
+  if (!agent) { chatExpanded.value = false; if (!selectedId.value && !route.query.useIn && !presetChosen.value) choose(presets.value[0]) }
+  else if (!agentDraft.value.trim() && (selected.value || details.value.trim())) agentDraft.value = composePreset(selected.value, values.value, details.value, variant.value)
+})
 let helperMessageCount = 0
 const feature = computed(() => getStudioFeature(props.kind))
 const presets = computed(() => presetsFor(props.kind))
-const selectedId = ref(route.query.useIn ? '' : presets.value.some(p => p.id === route.query.preset) ? route.query.preset : presets.value[0]?.id || ''), selected = computed(() => presets.value.find(preset => preset.id === selectedId.value))
-const presetSheet = ref(null)
-// What the agent is told about this page with every message (the backend keeps known ids only).
-const pageContext = () => ({ page: props.kind, ...(selected.value ? { preset: selected.value.id, preset_title: selected.value.title } : {}) })
+const selectedOverride = ref(null)
+const selectedId = ref(route.query.useIn ? '' : presets.value.some(p => p.id === route.query.preset) ? route.query.preset : ''), selected = computed(() => selectedOverride.value?.id === selectedId.value ? selectedOverride.value : presets.value.find(preset => preset.id === selectedId.value))
+const presetSheet = ref(null), presetChosen = ref(false)
+function selectPresetId(id) { presetChosen.value = true; if (id) choose(presets.value.find(item => item.id === id)); else { if (selected.value && agentDraft.value === composePreset(selected.value, values.value, details.value)) agentDraft.value = ''; selectedId.value = ''; formError.value = ''; syncPresetRoute('', video.studioMode) } }
+// What the agent is told about this page with every message and Manual request: the page, and the look or preset
+// it came from (a client-only look id too; the backend keeps any well-formed id and grants nothing for it).
+const pageContext = () => ({ page: props.kind, ...(selected.value && LOOK_ID.test(selected.value.id || '') ? { preset: selected.value.id, preset_title: String(selected.value.title || '').slice(0, 200) } : {}) })
 watch([ready, selectedId], ([isReady]) => { if (isReady) chat.studioContext = pageContext() }, { immediate: true })
 const details = ref(''), variant = ref(0), page = ref(null), tab = ref(route.query.results ? 'results' : 'presets'), submitting = ref(false), formError = ref(''), draftMessage = ref(''), records = ref([])
 // Without a preset, the slots follow what the model takes (Agent mode: the most any offered model takes). A count
@@ -80,7 +99,7 @@ const refsFor = slot => video.refs.filter(item => item.studioSlot === slot.id ||
 const inputGroups = computed(() => slots.value.map(slot => ({ ...slot, items: refsFor(slot) })))
 const unassigned = computed(() => video.refs.filter(item => !slots.value.some(slot => refsFor(slot).includes(item))))
 const values = computed(() => Object.fromEntries(slots.value.map(slot => [slot.id, refsFor(slot)])))
-const disabledReason = computed(() => {
+const draftProblem = computed(() => {
   if (loading.value) return 'Wait for your models to load.'
   if (error.value || !ready.value) return 'Open a working Studio session first.'
   const empty = slots.value.find(slot => slot.required && !refsFor(slot).length)
@@ -90,6 +109,25 @@ const disabledReason = computed(() => {
   if (video.pendingSwitch) return 'Review the model change before continuing.'
   if (video.unusableRefs.length) return `${video.unusableRefs[0].name}: this model ${video.unusableRefs[0].problem}. Remove the input or choose another model.`
   if (!selected.value && !details.value.trim()) return 'Choose a preset or add a creative direction.'
+  return ''
+})
+// The draft's price in Manual mode, worked out as its settings change (the same request the page sends, without
+// files not yet uploaded). Generate waits for "Accept these changes" when the model needs adjustments, and stays off
+// for a model that cannot be charged for ('not_priced'): such a model cannot be used.
+const quote = useLivePrice(() => {
+  if (isAgent.value || draftProblem.value) return null
+  const references = video.refs.filter(ref => ref.attachment_id).map(ref => ({ attachment_id: ref.attachment_id, role: ref.role }))
+  const conversation = chat.conversationId ? { conversation_id: chat.conversationId } : {}
+  if (props.kind === 'image') return { kind: 'image', model_id: video.image.modelId ? Number(video.image.modelId) : undefined, params: { aspect_ratio: video.image.aspect_ratio || undefined, n: Number(video.image.n) || 1 }, references, ...conversation }
+  return { kind: 'video', route_id: video.routeId || undefined, prompt: composePreset(selected.value, values.value, details.value, variant.value),
+    params: { duration: Number(video.settings.duration) || undefined, aspect_ratio: video.settings.aspect_ratio || undefined, resolution: video.settings.resolution || undefined, sound: video.options.audio ? !!video.settings.sound : undefined },
+    references: references.filter(ref => ref.role !== 'edit_source'), ...conversation }
+})
+const livePrice = computed(() => ({ price: quote.price.value, loading: quote.loading.value, problem: quote.problem.value, code: quote.code.value }))
+const disabledReason = computed(() => {
+  if (draftProblem.value || isAgent.value) return draftProblem.value
+  if (quote.code.value === 'not_priced') return 'This model cannot be charged for, so it cannot be used. Choose another model.'
+  if (quote.blocked.value) return 'Accept the changes the model needs, or change the settings, to continue.'
   return ''
 })
 async function freshStart() {
@@ -103,13 +141,15 @@ async function freshStart() {
 function addFiles(slot, files) { for (const file of files) { video.addRef(file, slot.role); video.refs[video.refs.length - 1].studioSlot = slot.id } }
 function pick(slot, items) { for (const item of items) { video.addExistingRef(item, slot.role); const ref = video.refs.find(ref => ref.attachment_id === item.attachment_id && ref.role === slot.role); if (ref) { ref.studioSlot = slot.id; ref.thumbnail_url = item.thumbnail_url } } }
 async function choose(preset) {
-  selectedId.value = preset.id; variant.value = 0; formError.value = ''
+  if (!preset || chat.isBusy || video.busy) return
+  presetChosen.value = true
+  selectedOverride.value = preset.clientOnly ? preset : null; selectedId.value = preset.id; syncPresetRoute(preset.id, video.studioMode); variant.value = 0; formError.value = ''
   // Presets suggest supported values only; picking one never silently changes a model or drops inputs.
   const target = props.kind === 'image' ? video.image : video.settings
   const allowed = props.kind === 'image' ? { aspect_ratio: video.imageShapes } : { duration: video.options.durations, aspect_ratio: video.options.aspectRatios }
   for (const [key,value] of Object.entries(preset.settings)) if (allowed[key]?.includes(value)) target[key] = value
   presetSheet.value?.hide()
-  if (isAgent.value) agentDraft.value = `Use this preset: ${preset.title}.`
+  if (isAgent.value) agentDraft.value = preset.clientOnly ? composePreset(preset, values.value, details.value) : `Use this preset: ${preset.title}.`
   await nextTick(); page.value?.focusInputs()
 }
 // Text assistance uses the existing chat path in Manual mode. Only allowlisted settings are applied;
@@ -177,7 +217,7 @@ watch(() => chat.isBusy, (busy, was) => { if (was && !busy) finishHelper() })
 watch(() => video.sessionImages.map(item => item.attachment_id).join('|'), (now, was) => { if (now && now !== was && props.kind === 'image') tab.value = 'results' })
 // A new queued/running/ready job is evidence of a server-side approval or the recorded session exception.
 watch(() => video.jobsFor(video.conversationId).filter(j => ['queued','running','ready'].includes(j.state)).map(j => `${j.job_id}:${j.state}`).join('|'), (now, was) => { if (now && now !== was) tab.value = 'results' })
-function shuffle() { if (selected.value) variant.value = (variant.value + 1 + Math.floor(Math.random() * (selected.value.variants.length - 1))) % selected.value.variants.length }
+function shuffle() { if ((selected.value?.variants?.length || 0) > 1) variant.value = (variant.value + 1 + Math.floor(Math.random() * (selected.value.variants.length - 1))) % selected.value.variants.length }
 function cleanRefs(refs) { return refs.filter(ref => ref.attachment_id).map(ref => ({ attachment_id: ref.attachment_id, title: ref.name || ref.title || 'Reference', media_type: ref.isVideo ? 'video' : 'image', role: ref.role, studioSlot: ref.studioSlot })) }
 function snapshot(refs = video.refs) { return { agentDraft: agentDraft.value, preset: selectedId.value, details: details.value, variant: variant.value, image: { modelId: video.image.modelId, aspect_ratio: video.image.aspect_ratio, n: video.image.n }, settings: { ...video.settings }, routeId: video.routeId, refs: cleanRefs(refs), localFiles: refs.filter(ref => !ref.attachment_id).length } }
 async function generate() {

@@ -1,6 +1,6 @@
 <template>
   <div class="creative-form">
-    <CreativeError :error="error" locate />
+    <CreativeError :error="shownError" locate />
     <template v-if="kind !== 'ads'">
       <label class="st-field" data-field="recipe_id">Recipe<select v-model="recipeId" class="st-input" @change="resetRecipe"><option value="">Choose recipe</option><option v-for="r in recipes" :key="r.id" :value="r.id" :disabled="!r.ready">{{ r.title }}{{ r.ready ? '' : ' — Not yet proven' }}</option></select></label>
       <template v-if="recipe">
@@ -39,6 +39,7 @@
   </div>
 </template>
 <script setup>
+import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../services/api'
@@ -48,11 +49,20 @@ import MediaRoutePicker from './MediaRoutePicker.vue'
 import MediaMonitor from './MediaMonitor.vue'
 import CreativeError from './CreativeError.vue'
 import { useCreativeForm } from '../../composables/useCreativeForm'
+import { modelAliases, studioError, useStudioChat } from './studioForm'
 const props = defineProps({ kind:String }), emit = defineEmits(['job']), router = useRouter(), { busy,error,run } = useCreativeForm()
 // The server's field and slot names ("on_screen_text", "light") said in words on the page.
 const WORDS = { voice: 'How the brand speaks', audience: 'Who it is for', hook: 'Hook (the first two seconds)', angle: 'Why it works', cta: 'Call to action', visual: 'What the camera sees', on_screen_text: 'On-screen text', planned_ms: 'Length (milliseconds)', image: 'Photo', video: 'Your video' }
 const words = key => WORDS[key] || String(key || '').replace(/[_-]+/g, ' ').replace(/^./, c => c.toUpperCase())
 const recipes = ref([]), recipeId = ref(''), slots = ref({}), options = ref({}), recipe = computed(() => recipes.value.find(r => r.id === recipeId.value))
+// Each request carries the open chat and this page (a Manual page sends no chat message), so its results stay in the
+// chat. An error is shown at its field: the model the backend names ('model', 'model_id', 'route_id') at the model
+// menu, 'references' at the recipe's first file; any other field as a general message.
+const { chatFields } = useStudioChat(() => props.kind)
+const shownError = computed(() => {
+  const slotFields = (recipe.value?.slots || []).map(s => `slots.${s.name}`)
+  return studioError(error.value, ['recipe_id','route_id',...slotFields,'brand_id','url','platform','goal','product_id','notes','n'], { ...modelAliases('route_id'), ...(slotFields[0] ? { references: slotFields[0] } : {}) })
+})
 // An image recipe runs on a media model the person chooses; a video recipe uses the Studio's video model.
 const monitor = inject('studioMonitor', '')
 const monitorItems = computed(() => (recipe.value?.slots || []).filter(s => slots.value[s.name]).map(s => ({ ...slots.value[s.name], media_type: slots.value[s.name].media_type || s.media_type, url: slots.value[s.name].url || slots.value[s.name].thumbnail_url, name: slots.value[s.name].title || slots.value[s.name].filename || s.name, role: s.name })))
@@ -88,8 +98,8 @@ async function loadVideoRoutes() {
   } catch { if (mine === videoSeq) error.value = { message: 'Could not load the models.' } }
   finally { if (mine === videoSeq) videoLoading.value = false }
 }
-function prepareRecipe() { run(async alive => { if (recipe.value.slots.some(s => s.required && !slots.value[s.name])) throw Error('Fill every required media slot.'); const { data } = await api.runStudioRecipe(recipeId.value,{ ...(mediaRecipe.value ? { route_id:recipeRoute.value } : { route_id:videoRouteId.value, ...(resolution.value ? { params:{ resolution:resolution.value } } : {}) }), slots:Object.fromEntries(Object.entries(slots.value).map(([k,v]) => [k,v.attachment_id])), options:options.value }); if (alive()) emit('job',data) }) }
-function readBrand() { run(async alive => { const {data} = await api.post('/video/brands/read/',{ url:website.value }); if (alive()) { draft.value = data; colors.value = (data.colors || []).join(', ') } }) }
+function prepareRecipe() { run(async alive => { if (recipe.value.slots.some(s => s.required && !slots.value[s.name])) throw Error('Fill every required media slot.'); const { data } = await api.runStudioRecipe(recipeId.value,{ ...(mediaRecipe.value ? { route_id:recipeRoute.value } : { route_id:videoRouteId.value, ...(resolution.value ? { params:{ resolution:resolution.value } } : {}) }), slots:Object.fromEntries(Object.entries(slots.value).map(([k,v]) => [k,v.attachment_id])), options:options.value, ...await chatFields() }); if (alive()) emit('job',data) }) }
+function readBrand() { run(async alive => { const {data} = await api.post('/video/brands/read/',{ url:website.value, ...await chatFields() }); if (alive()) { draft.value = data; colors.value = (data.colors || []).join(', ') } }) }
 function addBrandImages(items) {
   if (!draft.value) return
   const images = draft.value.images || (draft.value.images = [])
@@ -100,6 +110,7 @@ function addBrandImages(items) {
 }
 function saveBrand() { run(async alive => { const d = draft.value; const {data} = await api.post('/video/brands/',{ name:d.name, description:d.description, traits:{ colors:colors.value.split(',').map(v => v.trim()).filter(Boolean), website:d.website, tagline:d.tagline, voice:d.voice, audience:d.audience }, attachment_ids:(d.images || []).map(i => i.attachment_id) }); if (alive()) { brands.value.push(data); brandId.value = data.brand_id || data.id; draft.value = null } }) }
 const brief = () => ({ brand_id:brandId.value, platform:platform.value, ...(productId.value ? { product_id:productId.value } : {}) })
-function concepts() { run(async alive => { const {data} = await api.post('/video/ads/concepts/',{ ...brief(), goal:goal.value, notes:notes.value, n:count.value }); if (alive()) drafts.value = data.concepts || [] }) }
-function makeProject(concept) { run(async alive => { const normalized = { ...concept, scenes:concept.scenes.map(s => ({ ...s, planned_ms:Number(s.planned_ms) })) }; normalized.total_ms = normalized.scenes.reduce((sum,s) => sum+s.planned_ms,0); const {data} = await api.post('/video/ads/projects/',{ ...brief(), concept:normalized }); if (alive()) router.push({ path:'/video-studio/storyboard', query:{ project_id:data.project_id } }) }) }
+function concepts() { run(async alive => { const {data} = await api.post('/video/ads/concepts/',{ ...brief(), goal:goal.value, notes:notes.value, n:count.value, ...await chatFields() }); if (alive()) drafts.value = data.concepts || [] }) }
+function makeProject(concept) { run(async alive => { const normalized = { ...concept, scenes:concept.scenes.map(s => ({ ...s, planned_ms:Number(s.planned_ms) })) }; normalized.total_ms = normalized.scenes.reduce((sum,s) => sum+s.planned_ms,0); const {data} = await api.post('/video/ads/projects/',{ ...brief(), concept:normalized, ...await chatFields() }); if (alive()) router.push({ path:'/video-studio/storyboard', query:{ project_id:data.project_id } }) }) }
+useStudioPreparedBrief(notes)
 </script>

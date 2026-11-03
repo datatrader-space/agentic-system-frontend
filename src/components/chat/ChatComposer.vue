@@ -699,7 +699,7 @@ const onKeydown = (e) => {
   z-index: 40;
   animation: plus-in .14s var(--vm-ease2, cubic-bezier(.2,.8,.2,1));
 }
-@keyframes plus-in { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes plus-in { from { opacity: 0; } to { opacity: 1; } }
 .plus-list { display: flex; flex-direction: column; }
 .plus-item {
   display: flex; align-items: center; gap: 12px; width: 100%;
@@ -818,7 +818,6 @@ const onKeydown = (e) => {
 }
 .action-btn svg { width: 17px; height: 17px; }
 .action-btn.send { color: #fff; background: var(--vm-g-cool); box-shadow: var(--vm-glow-v); }
-.action-btn.send:hover:not(:disabled) { transform: scale(1.08) rotate(-8deg); }
 .action-btn.send:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 .action-btn.stop { color: #fff; background: var(--vm-ink); }
 .action-btn.stop:hover { filter: brightness(1.15); }

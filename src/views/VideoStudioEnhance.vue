@@ -1,10 +1,10 @@
 <template>
-  <StudioPage :chat-expanded="isAgent && chatExpanded" title="Enhance" :purpose="feature.purpose" :active-tab="tab" @update:active-tab="tab = $event">
+  <StudioPage :feature="feature" work-label="Preview" @new="newChat" :new-disabled="chat.isBusy || video.busy || !!chat.hitlRequests?.length" ref="page" :agent-mode="isAgent" :chat-expanded="isAgent && chatExpanded" title="Enhance" :purpose="feature.purpose" :active-tab="tab" @update:active-tab="tab = $event">
     <template #form>
-      <StudioModeSwitch /><StudioFirstVisit :hidden="hintHidden" @dismiss="dismissHint" />
+      <StudioModeSwitch /><StudioPresetSelect :model-value="lookId" :presets="lookPresets" :disabled="chat.isBusy || video.busy" @update:model-value="chooseLook" /><StudioFirstVisit v-if="!isAgent" :hidden="hintHidden" @dismiss="dismissHint" />
       <p v-if="loading" class="st-status" role="status">Opening your session...</p><div v-if="error" class="st-error" role="alert">{{ error }}<button type="button" class="st-button" @click="initialize">Try again</button></div>
-      <InputSlot label="Source video" required :kinds="['video']" :limit="1" :allow-upload="false" :items="source ? [source] : []" @pick="pick" @remove="source = null" />
-      <StudioAgentPanel v-show="isAgent" v-model="agentDraft" v-model:expanded="chatExpanded" label="Enhance" :purpose="feature.purpose" :ready="ready" @approved="tab = 'results'" />
+      <InputSlot v-if="!isAgent" label="Source video" required :kinds="['video']" :limit="1" :allow-upload="false" :items="source ? [source] : []" @pick="pick" @remove="source = null" />
+      <StudioAgentPanel @new="newChat" :look="look" v-show="isAgent" v-model="agentDraft" v-model:expanded="chatExpanded" label="Enhance" :purpose="feature.purpose" :ready="ready" @approved="tab = 'results'" />
       <div v-show="!isAgent" class="se-manual">
       <div class="se-tools" role="group" aria-label="Tools"><button v-for="tool in tools" :key="tool.id" type="button" class="st-button" :aria-pressed="operation === tool.id" :class="{ primary: operation === tool.id }" @click="chooseTool(tool)">{{ tool.label }}</button></div>
       <div v-if="operation === 'trim'" class="se-fields"><label class="st-field">Start (seconds)<input v-model.number="start" class="st-input" type="number" min="0" step="0.1" /></label><label class="st-field">End (seconds)<input v-model.number="end" class="st-input" type="number" min="0.1" step="0.1" /></label></div>
@@ -17,12 +17,17 @@
       </div>
       <p v-if="formError" class="st-error" role="alert">{{ formError }}</p>
     </template>
-    <template #presets><div class="se-intro"><h2>A finishing pass, one edit at a time</h2><p class="st-muted">Choose footage from your Library, then trim, reframe, retime or caption it for free, or upscale or extend it on a paid model. The original stays in the Library.</p><ul><li v-for="tool in tools" :key="tool.id"><button type="button" class="se-tool" @click="chooseTool(tool)"><strong>{{ tool.label }}</strong><span>{{ tool.purpose }}</span><span class="st-pill">{{ tool.paid ? 'Paid, estimate first' : 'Free local edit' }}</span></button></li></ul></div></template>
+    <template #looks><PresetGallery :presets="lookPresets" :selected="lookId" @select="chooseLook($event)" /></template>
+    <template #presets><template v-if="isAgent"><StudioLookPreview v-if="look" :look="look" @select="chooseLook($event)" /><StudioCreativeCanvas v-else /></template><div v-show="!isAgent" class="se-intro"><h2>A finishing pass, one edit at a time</h2><p class="st-muted">Choose footage from your Library, then trim, reframe, retime or caption it for free, or upscale or extend it on a paid model. The original stays in the Library.</p><ul><li v-for="tool in tools" :key="tool.id"><button type="button" class="se-tool" @click="chooseTool(tool)"><strong>{{ tool.label }}</strong><span>{{ tool.purpose }}</span><span class="st-pill">{{ tool.paid ? 'Paid, estimate first' : 'Free local edit' }}</span></button></li></ul></div></template>
+    <template #versions><StudioVersions /></template>
     <template #results><ResultsFeed v-if="ready" kind="enhance" :conversation-id="video.conversationId" @recreate="recreate" /></template>
     <template #quote><p v-if="isAgent" class="se-note st-muted">Ask the agent about your edit. Review any paid proposal on its card.</p><QuoteBar v-else :summary="`${currentTool?.label || 'Edit'} video`" :price-usd="currentTool?.paid ? null : 0" :shuffle="false" :action-label="currentTool?.paid ? 'Review estimate' : 'Apply edit'" :busy="busy || paidBusy" :disabled-reason="disabledReason" @generate="apply" /></template>
   </StudioPage>
 </template>
 <script setup>
+import { useStudioPresetRoute } from '../composables/useStudioPresetRoute'
+const syncPresetRoute = useStudioPresetRoute()
+import { useStudioToolDraft } from '../composables/useStudioToolDraft'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import api from '../services/api'
 import { routeOptionLabel } from '../utils/studioPrice'
@@ -31,9 +36,15 @@ import LivePrice from '../components/studio/LivePrice.vue'
 import { getStudioFeature } from '../services/studioFeatures'
 import { useStudioSession } from '../composables/useStudioSession'
 import StudioPage from '../components/studio/StudioPage.vue'
+import StudioVersions from '../components/studio/StudioVersions.vue'
 import StudioModeSwitch from '../components/studio/StudioModeSwitch.vue'
 import StudioFirstVisit from '../components/studio/StudioFirstVisit.vue'
 import StudioAgentPanel from '../components/studio/StudioAgentPanel.vue'
+import { presetsFor, composePreset } from '../services/studioPresets'
+import StudioPresetSelect from '../components/studio/StudioPresetSelect.vue'
+import StudioCreativeCanvas from '../components/studio/StudioCreativeCanvas.vue'
+import StudioLookPreview from '../components/studio/StudioLookPreview.vue'
+import PresetGallery from '../components/studio/PresetGallery.vue'
 import { useStudioExperience } from '../composables/useStudioExperience'
 import { useSessionProject } from '../composables/useSessionProject'
 import InputSlot from '../components/studio/InputSlot.vue'
@@ -43,9 +54,9 @@ import { useMediaJob } from '../composables/useMediaJob'
 import { useVideoStore } from '../stores/useVideoStore'
 import { lazyComponent } from '../utils/lazyComponent'
 const ResultsFeed = lazyComponent(() => import('../components/studio/ResultsFeed.vue'))
-const { route, chat, video, ready, loading, error, initialize } = useStudioSession('video', { needsModel: false, page: 'enhance' })
-const { isAgent, hintHidden, dismissHint } = useStudioExperience('enhance', route?.query?.useIn ? route.query.mode : null)
-const agentDraft = ref(''), chatExpanded = ref(false)
+const { route, chat, video, ready, loading, error, initialize, freshStart } = useStudioSession('video', { needsModel: false, page: 'enhance' })
+const { isAgent, hintHidden, dismissHint } = useStudioExperience('enhance', route?.query?.mode)
+const page = ref(null), agentDraft = ref(''), chatExpanded = ref(false)
 watch(isAgent, agent => { if (!agent) chatExpanded.value = false })
 const feature = getStudioFeature('enhance'), tab = ref('presets'), operation = ref('trim'), busy = ref(false), formError = ref('')
 const queued = video.refs.find(ref => ref.role === 'edit_source' && ref.attachment_id)
@@ -139,6 +150,13 @@ function recreate(item) {
   if (!record) { formError.value = 'Choose the source and set this edit again before applying.'; return }
   operation.value = record.operation; source.value = record.source; start.value = record.start; end.value = record.end; aspect.value = record.aspect; factor.value = record.factor; cues.value = record.cues.map(cue => ({ ...cue })); tab.value = 'presets'
 }
+const lookPresets = presetsFor('enhance')
+const lookId = ref(lookPresets.some(p => p.id === route?.query?.preset) ? route.query.preset : '')
+const look = computed(() => lookPresets.find(p => p.id === lookId.value))
+function chooseLook(value) { if (chat.isBusy || video.busy) return; const preset = typeof value === 'string' ? lookPresets.find(p => p.id === value) : value; lookId.value = preset?.id || ''; syncPresetRoute(preset?.id, video.studioMode); if (preset) agentDraft.value = composePreset(preset); if (isAgent.value) page.value?.focusInputs() }
+if (look.value) agentDraft.value = composePreset(look.value)
+async function newChat() { if (await freshStart()) { agentDraft.value = ''; lookId.value = ''; tab.value = 'presets' } }
+useStudioToolDraft('enhance', agentDraft, lookId)
 </script>
 <style scoped>
 .se-manual{display:grid;gap:18px}.se-note{padding:16px;font-size:12px}.se-cost{font-size:12px;line-height:1.55}.se-tools{display:flex;flex-wrap:wrap;gap:7px}.se-tools button{font-size:12px;padding:8px 10px}.se-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.se-captions{display:grid;gap:14px}.se-cue{display:grid;gap:10px;padding:12px;border:1px solid var(--vm-line);border-radius:6px}.se-intro{display:grid;gap:15px;max-width:850px}.se-intro ul{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:0;margin:12px 0 0;list-style:none}.se-tool{display:flex;flex-direction:column;align-items:flex-start;gap:12px;width:100%;height:100%;min-height:180px;padding:22px;border:1px solid var(--vm-line);border-radius:7px;background:var(--vm-surface);color:var(--vm-ink);font:inherit;text-align:left;cursor:pointer}.se-tool:hover{background:var(--vm-surface-2)}.se-tool strong{font-size:18px;font-weight:600}.se-tool>span:not(.st-pill){color:var(--vm-ink-soft);font-size:13px}.se-tool .st-pill{margin-top:auto}@media(max-width:767px){.se-intro ul{gap:10px}.se-tool{padding:14px}.se-tool strong{font-size:16px}.se-tool>span:not(.st-pill){font-size:16px}}

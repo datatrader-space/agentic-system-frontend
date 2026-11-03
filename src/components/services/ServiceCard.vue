@@ -1,6 +1,6 @@
 <template>
   <div
-    class="service-card group bg-white rounded-[16px] shadow-sm border border-slate-200/60 hover:-translate-y-1 hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col"
+    class="service-card group bg-white rounded-[16px] shadow-sm border border-slate-200/60 hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col"
     :class="{ 'opacity-60 grayscale-[50%]': !service.enabled }"
     @click="$emit('click', service)"
   >

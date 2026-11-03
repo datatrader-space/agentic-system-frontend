@@ -362,7 +362,7 @@ defineExpose({ ask })
 .typing { display: flex; gap: 4px; padding: 2px 0; }
 .typing span { width: 7px; height: 7px; border-radius: 50%; background: #c7d2fe; animation: b 1.2s infinite; }
 .typing span:nth-child(2) { animation-delay: .15s; } .typing span:nth-child(3) { animation-delay: .3s; }
-@keyframes b { 0%,80%,100% { transform: scale(.6); opacity: .5; } 40% { transform: scale(1); opacity: 1; } }
+@keyframes b { 0%,80%,100% { opacity: .5; } 40% { opacity: 1; } }
 .hw-input { flex-shrink: 0; display: flex; align-items: flex-end; gap: 8px; padding: 12px; border-top: 1px solid var(--vm-line-2); }
 .hw-input textarea { flex: 1; border: 1px solid var(--vm-line-2); border-radius: 11px; padding: 9px 12px; font-size: 13.5px; font-family: inherit; resize: none; max-height: 110px; outline: none; }
 .hw-input textarea:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, .12); }
@@ -370,6 +370,6 @@ defineExpose({ ask })
 .hw-send:disabled { opacity: .5; } .hw-send svg { width: 17px; height: 17px; }
 .spin { animation: spin 1s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } }
 .hw-enter-active, .hw-leave-active { transition: opacity .18s ease, transform .18s ease; }
-.hw-enter-from, .hw-leave-to { opacity: 0; transform: translateY(12px); }
+.hw-enter-from, .hw-leave-to { opacity: 0; }
 @media (max-width: 520px) { .hw { right: 12px; left: 12px; bottom: 80px; width: auto; height: min(70vh, 560px); } }
 </style>

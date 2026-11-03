@@ -52,7 +52,7 @@
               <Icon icon="lucide:check-circle-2" class="h-5 w-5 text-violet" /> {{ item }}
             </li>
           </ul>
-          <router-link to="/contact" class="mt-7 inline-flex rounded-xl bg-ink px-7 py-3 font-semibold text-white transition-transform hover:-translate-y-0.5">
+          <router-link to="/contact" class="mt-7 inline-flex rounded-xl bg-ink px-7 py-3 font-semibold text-white transition-opacity hover:opacity-90">
             Contact sales
           </router-link>
         </div>

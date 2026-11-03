@@ -51,6 +51,16 @@ describe('VideoComposerPanel', () => {
     expect(w.find('[data-test="video-estimate"]').text()).toContain('Plan the story')
   })
 
+  it('shows Edit footage as a goal but blocks an estimate when no available model can edit', async () => {
+    api.get.mockResolvedValue({data:{routes:[ROUTE],default_route_id:7}})
+    const w=await mounted()
+    await w.get('[data-test="video-task-edit"]').trigger('click')
+    expect(useVideoStore().task).toBe('edit')
+    expect(w.get('[data-test="video-estimate"]').attributes('disabled')).toBeDefined()
+    await w.get('[data-test="video-estimate"]').trigger('click')
+    expect(api.post).not.toHaveBeenCalled();w.unmount()
+  })
+
   it('lets keyboard users choose the next workflow', async () => {
     const w = await mounted('')
     await w.find('[data-test="video-task-quick"]').trigger('keydown', { key: 'ArrowRight' })

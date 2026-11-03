@@ -74,7 +74,6 @@ defineEmits(['create', 'tour', 'later'])
   background: var(--vm-g-cool, linear-gradient(90deg,#0ea5e9,#7c3aed)); border: none; border-radius: 13px;
   box-shadow: var(--vm-glow-v, 0 8px 20px rgba(124,58,237,.35)); transition: transform .16s var(--vm-ease, ease);
 }
-.wm-primary:hover { transform: translateY(-2px); }
 .wm-secondary {
   padding: 12px 18px; font-size: 0.9375rem; font-weight: 700; cursor: pointer;
   color: var(--vm-violet-d, var(--vm-violet-ink)); background: var(--vm-violet-soft, var(--vm-surface-soft));
@@ -87,7 +86,7 @@ defineEmits(['create', 'tour', 'later'])
 }
 .wm-later:hover { color: var(--vm-ink-soft, var(--vm-ink-soft)); }
 
-@keyframes wmPop { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes wmPop { from { opacity: 0; } to { opacity: 1; } }
 .wm-fade-enter-active, .wm-fade-leave-active { transition: opacity .2s ease; }
 .wm-fade-enter-from, .wm-fade-leave-to { opacity: 0; }
 </style>

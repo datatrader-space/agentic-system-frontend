@@ -263,15 +263,14 @@ watch(() => props.step, () => findTarget(), { deep: true })
   border-radius: 10px; padding: 8px 16px; box-shadow: var(--vm-glow-v, 0 6px 16px rgba(124,58,237,.3));
   transition: transform .15s var(--vm-ease, ease);
 }
-.tour-next:hover { transform: translateY(-1px); }
 .tour-count {
   position: absolute; top: 16px; right: 18px;
   font-size: 0.6875rem; font-weight: 700; color: var(--vm-ink-faint, var(--vm-ink-faint));
 }
 
 @keyframes tourPop {
-  from { opacity: 0; transform: translateY(6px) scale(.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 .tour-card.centered { animation: none; }
 </style>

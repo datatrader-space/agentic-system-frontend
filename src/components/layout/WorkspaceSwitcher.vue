@@ -12,9 +12,11 @@
       @click="toggle"
       @keydown.down.prevent="openFromKeyboard"
     >
+      <slot name="trigger" :workspace="activeWorkspace" :organization="activeOrg">
       <span class="ws-trigger-icon" :style="{ color: wsColor }"><Building2 v-if="activeWorkspace" :size="17" /><User v-else :size="17" /></span>
       <span class="ws-trigger-copy"><span class="ws-name">{{ activeWorkspaceName || 'Personal mode' }}</span><span class="ws-context">{{ activeOrg?.name || 'Personal account' }}</span></span>
       <ChevronDown class="ws-caret" :size="15" aria-hidden="true" />
+      </slot>
     </button>
 
     <Teleport to="body">
@@ -360,7 +362,7 @@ onUnmounted(() => {
 .ws-dropdown-content{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:0 6px 6px}.ws-personal-mode{padding:0 0 7px;margin-bottom:5px;border-bottom:1px solid #edf0f5}.ws-item{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;padding:8px 10px;border:0;border-radius:7px;background:none;color:#344155;font:inherit;font-size:12px;text-align:left;cursor:pointer;transition:background .12s}.ws-item:hover{background:#f4f6f9}.ws-item--active{background:#eff4ff;color:#2563eb}.ws-item--active:hover{background:#e8f0ff}.ws-item-icon{display:grid;place-items:center;flex-shrink:0;width:28px;height:28px;border:1px solid #e4e9f1;border-radius:7px;background:#fff;font-size:12px;font-weight:600}.ws-personal-icon{background:#f3f6fc;color:#697c99;border-color:transparent}.ws-item--active .ws-personal-icon{background:#e1ebff;color:#2563eb}.ws-item-copy{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}.ws-item-name{display:block;overflow-wrap:anywhere;white-space:normal;line-height:1.4;font-weight:500}.ws-item-description{font-size:10px;line-height:1.4;color:#8b96a8;font-weight:400}.ws-check{flex-shrink:0;color:#2563eb}
 .ws-org-group{padding:5px 0}.ws-org-group+.ws-org-group{border-top:1px solid #edf0f5;margin-top:4px}.ws-org-label{display:flex;align-items:flex-start;gap:6px;padding:9px 10px 7px;min-width:0;color:#8792a3;font-size:10px;line-height:1.5;font-weight:500}.ws-org-icon{flex-shrink:0;margin-top:1px}.ws-org-name{min-width:0;flex:1;overflow-wrap:anywhere}.ws-personal-badge{flex-shrink:0;border:1px solid #e7ebf2;background:#f8fafc;border-radius:4px;padding:0 5px;font-size:9px;color:#8090a7;font-weight:400}.ws-group-empty{margin:6px 10px 10px;font-size:11px;color:#94a3b8}.ws-empty{padding:16px 10px;margin:0;font-size:12px;line-height:1.6;color:#8290a4}.ws-empty p{margin:0 0 6px}.ws-loading{display:flex;align-items:center;gap:9px;padding:20px 10px;font-size:12px;color:#8290a4}.ws-spinner{width:15px;height:15px;border:2px solid #e2eaff;border-top-color:#2563eb;border-radius:50%;animation:ws-spin .7s linear infinite}@keyframes ws-spin{to{transform:rotate(360deg)}}
 .ws-footer{flex-shrink:0;border-top:1px solid #edf0f5;padding:6px;background:#fcfcfd}.ws-footer-link{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border:0;border-radius:6px;background:none;color:#69788e;font:inherit;font-size:12px;line-height:1.4;font-weight:400;text-align:left;text-decoration:none;cursor:pointer}.ws-footer-link svg{flex-shrink:0}.ws-footer-link:hover:not(:disabled){background:#f0f3f8;color:#253b5c}.ws-footer-link:disabled{opacity:.4;cursor:default}.ws-dropdown button:focus-visible,.ws-dropdown a:focus-visible{outline:2px solid #2563eb;outline-offset:-2px}
-.ws-dropdown-enter-active,.ws-dropdown-leave-active{transition:opacity .14s,transform .14s}.ws-dropdown-enter-from,.ws-dropdown-leave-to{opacity:0;transform:translateY(-4px)}
+.ws-dropdown-enter-active,.ws-dropdown-leave-active{transition:opacity .14s,transform .14s}.ws-dropdown-enter-from,.ws-dropdown-leave-to{opacity:0}
 @media(prefers-reduced-motion:reduce){.ws-dropdown-enter-active,.ws-dropdown-leave-active{transition:none}}
 
 /* --- Create Modal --- */
@@ -380,7 +382,7 @@ onUnmounted(() => {
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
 }
 .ws-modal-enter-active, .ws-modal-leave-active { transition: all 0.2s ease; }
-.ws-modal-enter-from, .ws-modal-leave-to { opacity: 0; transform: scale(0.94); }
+.ws-modal-enter-from, .ws-modal-leave-to { opacity: 0; }
 
 .ws-modal-title { font-size: 17px; font-weight: 850; color: #0f172a; margin: 0 0 20px; }
 .ws-form-group { margin-bottom: 16px; }

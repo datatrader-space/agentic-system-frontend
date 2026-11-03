@@ -67,5 +67,4 @@ const save = () => {
 .actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 14px; }
 .saved-note { font-size: 0.8125rem; color: var(--vm-green-ink); }
 .save-btn { padding: 9px 20px; font-size: 0.875rem; font-weight: 600; color: #fff; background: linear-gradient(135deg, #6366f1, #2563EB); border: none; border-radius: 9px; cursor: pointer; }
-.save-btn:hover { transform: translateY(-1px); }
 </style>

@@ -280,7 +280,7 @@ onUnmounted(() => scrollEl.value?.removeEventListener('scroll', onScroll))
   box-shadow: var(--vm-glow-p);
   transition: transform .18s var(--vm-ease), box-shadow .18s;
 }
-.pl-btn-primary:hover { transform: translateY(-1px); box-shadow: var(--vm-glow-v); }
+.pl-btn-primary:hover { box-shadow: var(--vm-glow-v); }
 
 /* ── Burger ── */
 .pl-burger {

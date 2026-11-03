@@ -565,7 +565,7 @@ watch(() => props.systemId, () => {
 }
 
 .typing-indicator span {
-  @apply w-2 h-2 bg-purple-400 rounded-full animate-bounce;
+  @apply w-2 h-2 bg-purple-400 rounded-full animate-pulse;
 }
 
 .typing-indicator span:nth-child(2) {

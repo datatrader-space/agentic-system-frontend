@@ -16,7 +16,7 @@
 .dot:nth-child(2) { animation-delay: 0.2s; }
 .dot:nth-child(3) { animation-delay: 0.4s; }
 @keyframes blink {
-  0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
-  40% { opacity: 1; transform: translateY(-3px); }
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
 }
 </style>

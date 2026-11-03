@@ -3,7 +3,7 @@ import { afterEach, describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PresetGallery from './PresetGallery.vue'
 import source from './PresetGallery.vue?raw'
-const presets = [{ id: 'a', title: 'A quiet object', purpose: 'A product study', feature: 'image', category: 'Product' }, { id: 'b', title: 'A gentle move', purpose: 'A slow shot', feature: 'video', category: 'Camera', previewUrl: '/synthetic-preview.mp4' }]
+const presets = [{ id: 'a', title: 'A quiet object', purpose: 'A product study', feature: 'image', category: 'Product' }, { id: 'b', title: 'A gentle move', purpose: 'A slow shot', feature: 'video', category: 'Camera', clientOnly: true }]
 afterEach(() => vi.unstubAllGlobals())
 describe('PresetGallery', () => {
   it('filters and selects original presets with native keyboard-accessible buttons', async () => {
@@ -15,15 +15,13 @@ describe('PresetGallery', () => {
     await w.get('input').setValue('no matching preset'); expect(w.get('[role="status"]').text()).toContain('No presets match')
     w.unmount()
   })
-  it('never plays previews for reduced motion, and starts one only on hover otherwise', async () => {
-    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener() {}, removeEventListener() {} }))
-    let w = mount(PresetGallery, { props: { presets } })
-    await w.findAll('.pg-card')[1].trigger('mouseenter'); expect(w.find('video').exists()).toBe(false); w.unmount()
-    vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }))
-    w = mount(PresetGallery, { props: { presets } })
-    expect(w.find('video').exists()).toBe(false)
-    await w.findAll('.pg-card')[1].trigger('focus'); expect(w.get('video').attributes('preload')).toBe('none')
-    await w.findAll('.pg-card')[1].trigger('blur'); expect(w.find('video').exists()).toBe(false)
+  it("shows a look's own results through StudioLookMedia, no stock media, and never submits on hover", async () => {
+    const w = mount(PresetGallery, { props: { presets }, global: { stubs: { StudioLookMedia: { props: ['look'], template: '<div data-test="motion-player">{{ look.title }}</div>' } } } })
+    expect(w.get('[data-test="motion-player"]').text()).toBe('A gentle move')
+    expect(w.findAll('[data-test="motion-player"]')).toHaveLength(1)
+    expect(w.find('img').exists()).toBe(false); expect(w.find('video').exists()).toBe(false)
+    await w.findAll('.pg-card')[1].trigger('mouseenter')
+    expect(w.emitted('select')).toBeUndefined()
     w.unmount()
   })
   it('keeps honest loading, error and disabled-preview states', async () => {

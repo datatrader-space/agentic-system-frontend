@@ -927,5 +927,5 @@ onMounted(() => {
 }
 .btn-cancel:hover { color: var(--vm-ink); }
 .ws-modal-enter-active, .ws-modal-leave-active { transition: all 0.2s ease; }
-.ws-modal-enter-from, .ws-modal-leave-to { opacity: 0; transform: scale(0.94); }
+.ws-modal-enter-from, .ws-modal-leave-to { opacity: 0; }
 </style>

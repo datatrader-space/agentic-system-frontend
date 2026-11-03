@@ -1,14 +1,16 @@
 <template>
   <section :id="chatId" class="sap" :class="{ 'sap-expanded': expanded }" aria-label="Studio agent" @keydown.esc="collapse">
-    <header class="sap-head"><h2>{{ label }} agent</h2><button type="button" class="sap-expand" data-test="studio-agent-expand" :aria-label="expanded ? 'Collapse chat' : 'Expand chat'" :title="expanded ? 'Collapse chat (Esc)' : 'Expand chat'" :aria-expanded="expanded ? 'true' : 'false'" :aria-controls="chatId" @click="emit('update:expanded', !expanded)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="expanded ? 'M4 10h6V4m10 10h-6v6M10 10 3 3m11 11 7 7' : 'M8 3H3v5m13 13h5v-5M3 3l7 7m11 11-7-7'" /></svg></button></header>
-    <div class="sap-scroll">
+    <header class="sap-head"><h2>{{ label }} agent</h2><button type="button" class="sap-new" aria-label="New chat" title="New chat" :disabled="chat.isBusy || video.busy || !!chat.hitlRequests.length" @click="emit('new')">↻</button><button type="button" class="sap-expand" data-test="studio-agent-expand" :aria-label="expanded ? 'Collapse chat' : 'Expand chat'" :title="expanded ? 'Collapse chat (Esc)' : 'Expand chat'" :aria-expanded="expanded ? 'true' : 'false'" :aria-controls="chatId" @click="emit('update:expanded', !expanded)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="expanded ? 'M4 10h6V4m10 10h-6v6M10 10 3 3m11 11 7 7' : 'M8 3H3v5m13 13h5v-5M3 3l7 7m11 11-7-7'" /></svg></button></header>
+    <div ref="scroll" class="sap-scroll" role="log" :aria-label="`${label} agent conversation`" aria-live="polite" aria-relevant="additions text">
       <p v-if="!chat.messages.length" class="sap-intro">{{ intro }}</p>
+      <div v-if="look && !chat.messages.length" class="sap-look"><div><strong>{{ look.title }}</strong><p>Your prepared direction is editable below. Add references with +.</p></div></div>
       <div v-if="chat.messages.length" class="sap-messages"><ChatMessageList :present-message="message => presentStudioMessage(message, chat.messages)" :prepare-edit="prepareStudioEdit" /></div>
       <VideoJobsTray :conversation-id="chat.conversationId" in-studio />
       <HITLModal v-if="chat.hitlRequests.length" inline :requests="chat.hitlRequests" show-stop @respond="respond" @dismiss="chat.dismissHitl" @skip="chat.skipHitl" @stop="chat.stop" />
       <p v-if="chat.error" class="st-error" role="alert">{{ chat.error }}</p>
     </div>
     <div class="sap-composer">
+      <details class="sap-more"><summary>More controls</summary><p>Keep the direction and request a cheaper draft where a compatible model is available. The agent shows the model, tradeoffs and price before generation.</p><button type="button" class="st-button" data-test="studio-lower-cost" :aria-pressed="lowerCost ? 'true' : 'false'" :disabled="sending || chat.isBusy" @click="lowerCost = !lowerCost">{{ lowerCost ? '✓ Lower-cost draft preferred' : 'Prefer a lower-cost draft' }}</button></details>
       <VideoComposerPanel variant="chat" :show-mode="false" :show-tasks="false" :draft="modelValue">
         <label class="sap-prompt"><span class="st-sr">Message the {{ label }} agent</span><textarea ref="input" class="sap-input" :value="modelValue" rows="2" maxlength="8000" placeholder="What do you want to make?" @input="$emit('update:modelValue', $event.target.value)" @keydown.enter="onEnter" /></label>
         <template #actions><button v-if="chat.isBusy" type="button" class="st-button sap-stop" @click="chat.stop()"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1" /></svg>Stop</button><button v-else type="button" class="st-button sap-send" data-test="studio-agent-send" :disabled="!ready || sending || (!modelValue.trim() && !video.refs.length)" @click="send"><span>Send</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button></template>
@@ -27,13 +29,15 @@ import VideoComposerPanel from '../video/VideoComposerPanel.vue'
 import VideoJobsTray from '../video/VideoJobsTray.vue'
 import VideoLibrary from '../video/VideoLibrary.vue'
 import HITLModal from '../HITLModal.vue'
-const props = defineProps({ modelValue: { type: String, default: '' }, label: String, purpose: String, ready: Boolean, expanded: Boolean, intro: { type: String, default: 'Describe your idea or choose a preset. Use + to attach references.' } })
-const emit = defineEmits(['update:modelValue','update:expanded','approved'])
-const chat = useChatStore(), video = useVideoStore(), sending = ref(false), input = ref(null)
+const props = defineProps({ modelValue: { type: String, default: '' }, look: Object, label: String, purpose: String, ready: Boolean, expanded: Boolean, intro: { type: String, default: 'Describe your idea or choose a preset. Use + to attach references.' } })
+const emit = defineEmits(['new','update:modelValue','update:expanded','approved'])
+const chat = useChatStore(), video = useVideoStore(), sending = ref(false), input = ref(null), lowerCost = ref(false)
 watch(() => props.modelValue, async () => {
   await nextTick()
   if (input.value) { input.value.style.height = 'auto'; input.value.style.height = `${Math.min(180, Math.max(76, input.value.scrollHeight))}px` }
 }, { immediate: true })
+const scroll = ref(null)
+watch(() => [chat.messages.length, chat.messages.at(-1)?.content, chat.hitlRequests.length, chat.isBusy], async () => { await nextTick(); if (scroll.value) scroll.value.scrollTop = scroll.value.scrollHeight })
 const chatId = `studio-agent-${useId()}`
 function collapse(event) {
   if (props.expanded && !event.defaultPrevented && !event.target?.closest?.('[role="menu"],[role="dialog"]')) {
@@ -43,15 +47,18 @@ function collapse(event) {
 async function send() {
   if (!props.ready || sending.value || chat.isBusy || (!props.modelValue.trim() && !video.refs.length)) return
   sending.value = true
-  // The page and preset travel as the message's studio_context field (set by the page), never as text.
+  // The page and preset travel as the message's studio_context field (set by the page), never as text; the
+  // lower-cost preference is its typed lower_cost field, on every message sent while it is on.
+  const pageContext = chat.studioContext, cheaper = lowerCost.value
+  if (cheaper) chat.studioContext = { ...(pageContext || {}), lower_cost: true }
   try { if (await video.sendAgentMessage({ prompt: props.modelValue, chat })) emit('update:modelValue', '') }
-  finally { sending.value = false }
+  finally { if (cheaper && chat.studioContext?.lower_cost) chat.studioContext = pageContext; sending.value = false }
 }
 function respond(event) { chat.respondHitl(event); if (event.response_value === true || event.response_value?.approved === true) emit('approved') }
 function onEnter(event) { if (!event.shiftKey && !event.isComposing) { event.preventDefault(); send() } }
 defineExpose({ focus() { input.value?.focus() } })
 </script>
-<style scoped>.sap{display:flex;flex-direction:column;flex:1;gap:14px;min-width:0;min-height:300px}.sap-scroll{display:flex;flex-direction:column;flex:1;gap:14px;min-height:0;overflow:auto;overscroll-behavior:contain}.sap-composer{flex-shrink:0;margin-top:auto}.sap-intro{flex-shrink:0;display:grid;gap:7px;font-size:13px;line-height:1.6;color:var(--vm-ink-soft)}.sap-messages{flex:1;min-height:140px;overflow:hidden;overflow-wrap:anywhere}.sap-prompt{display:block;min-width:0}.sap-input{display:block;width:100%;min-width:0;min-height:76px;max-height:180px;overflow-y:auto;padding:14px 14px 8px;border:0;border-radius:10px 10px 0 0;resize:none;background:transparent;color:var(--vm-ink);font:400 14px/1.6 var(--vm-font-sans)}.sap-input::placeholder{color:var(--vm-ink-soft)}.sap .sap-input:focus,.sap .sap-input:focus-visible{outline:none;box-shadow:none}.sap-send{min-height:36px;padding:7px 12px;border-color:transparent;border-radius:7px;background:var(--vm-violet-d);color:#fff}.sap-send:hover:not(:disabled){background:var(--vm-violet)}.sap-send:disabled{opacity:1;border-color:transparent;background:var(--vm-surface);color:var(--vm-ink-faint);cursor:not-allowed}.sap-stop{min-height:36px;padding:7px 12px;border-radius:7px}.sap-stop svg{width:12px;height:12px}.sap-send svg{width:16px;height:16px}@media(max-width:1023px){.sap{flex:none;height:clamp(300px,50dvh,520px)}}@media(max-width:767px){.sap-input{font-size:16px}.sap-send,.sap-stop{min-height:44px}}.sap :deep(.hitl-overlay--inline){position:static;display:block;padding:0;background:transparent}.sap :deep(.hitl-modal){width:100%;min-width:0;max-height:none}.sap :deep(.modal-body){max-height:400px}
+<style scoped>.sap-look{display:flex;gap:10px;padding:11px;border:1px solid var(--vm-line);border-radius:8px;flex-shrink:0;background:var(--vm-bg)}.sap-look strong{font-size:12px;font-weight:500}.sap-look p{font-size:11px;line-height:1.7;color:var(--vm-ink-soft);margin-top:6px}.sap{display:flex;flex-direction:column;flex:1;gap:14px;min-width:0;min-height:300px}.sap-scroll{display:flex;flex-direction:column;flex:1;gap:14px;min-height:0;overflow:auto;overscroll-behavior:contain}.sap-composer{flex-shrink:0;margin-top:auto}.sap-intro{flex-shrink:0;display:grid;gap:7px;font-size:13px;line-height:1.6;color:var(--vm-ink-soft)}.sap-messages{flex:1;min-height:140px;overflow:hidden;overflow-wrap:anywhere}.sap-prompt{display:block;min-width:0}.sap-input{display:block;width:100%;min-width:0;min-height:76px;max-height:180px;overflow-y:auto;padding:14px 14px 8px;border:0;border-radius:10px 10px 0 0;resize:none;background:transparent;color:var(--vm-ink);font:400 14px/1.6 var(--vm-font-sans)}.sap-input::placeholder{color:var(--vm-ink-soft)}.sap .sap-input:focus,.sap .sap-input:focus-visible{outline:none;box-shadow:none}.sap-send{min-height:36px;padding:7px 12px;border-color:transparent;border-radius:7px;background:var(--vm-violet-d);color:#fff}.sap-send:hover:not(:disabled){background:var(--vm-violet)}.sap-send:disabled{opacity:1;border-color:transparent;background:var(--vm-surface);color:var(--vm-ink-faint);cursor:not-allowed}.sap-stop{min-height:36px;padding:7px 12px;border-radius:7px}.sap-stop svg{width:12px;height:12px}.sap-send svg{width:16px;height:16px}@media(max-width:1023px){.sap{flex:none;height:clamp(300px,50dvh,520px)}}@media(max-width:767px){.sap-input{font-size:16px}.sap-send,.sap-stop{min-height:44px}}.sap :deep(.hitl-overlay--inline){position:static;display:block;padding:0;background:transparent}.sap :deep(.hitl-modal){width:100%;min-width:0;max-height:none}.sap :deep(.modal-body){max-height:400px}
 /* Adapt the shared transcript to this narrow Studio panel only. */
 .sap :deep(.msg-list-inner){padding:4px 0 12px}
 .sap :deep(.msg){max-width:none;margin:0 0 16px;padding:0;gap:8px}
@@ -77,3 +84,7 @@ defineExpose({ focus() { input.value?.focus() } })
 .sap-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0}.sap-head h2{margin:0;font-size:13px;font-weight:600;color:var(--vm-ink)}.sap-expand{display:grid;place-items:center;width:32px;height:32px;flex-shrink:0;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--vm-ink-soft);cursor:pointer}.sap-expand svg{width:17px;height:17px}.sap-expand:hover{background:var(--vm-surface-2);color:var(--vm-ink)}.sap-expand[aria-expanded=true]{border-color:var(--vm-line);background:var(--vm-surface-2);color:var(--vs-accent-ink)}.sap-expand:focus-visible{outline:2px solid var(--vs-accent-ink);outline-offset:2px}
 @media(max-width:1023px){.sap.sap-expanded{height:max(300px,50dvh,calc(100dvh - 400px))}.sap-expand{width:44px;height:44px}}
 </style>
+
+<style scoped>.sap-more{margin-bottom:10px;font-size:11px;color:var(--vm-ink-faint)}.sap-more summary{cursor:pointer;padding:6px 0}.sap-more p{line-height:1.7;margin:6px 0 10px}.sap-more .st-button{font-size:11px;min-height:34px}@media(max-width:767px){.sap-more summary{min-height:36px;padding:9px 0}}</style>
+
+<style scoped>.sap-new{margin-left:auto;flex:none;min-width:32px;min-height:32px;padding:5px;border:0;background:none;color:var(--vm-ink-soft);font-size:18px;cursor:pointer}.sap-new+.sap-expand{margin-left:0}@media(max-width:680px){.sap-new{min-width:44px;min-height:44px}}</style>

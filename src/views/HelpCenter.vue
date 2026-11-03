@@ -699,7 +699,6 @@ const support = [
 .topic-card.clickable:hover {
   border-color: #b9c9ff;
   box-shadow: 0 10px 24px rgba(37, 99, 235, .08);
-  transform: translateY(-1px);
 }
 
 .popular-row {
@@ -916,7 +915,6 @@ const support = [
   border-color: #b9c9ff;
   background: var(--vm-surface);
   box-shadow: 0 10px 24px rgba(37, 99, 235, .08);
-  transform: translateY(-1px);
 }
 
 .library-card h3 {

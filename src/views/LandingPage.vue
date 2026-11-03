@@ -227,7 +227,7 @@ onUnmounted(() => { timers.forEach(clearTimeout); timers = [] })
   background: var(--vm-g-brand); box-shadow: var(--vm-glow-p);
   transition: transform .18s var(--vm-ease), box-shadow .18s;
 }
-.hero-btn-primary:hover { transform: translateY(-2px); box-shadow: var(--vm-glow-v); }
+.hero-btn-primary:hover { box-shadow: var(--vm-glow-v); }
 
 .hero-btn-ghost {
   display: inline-flex; align-items: center; gap: 8px;
@@ -236,7 +236,7 @@ onUnmounted(() => { timers.forEach(clearTimeout); timers = [] })
   background: var(--vm-surface); border: 1px solid var(--vm-border); box-shadow: var(--vm-shadow-s);
   transition: transform .18s var(--vm-ease), border-color .18s;
 }
-.hero-btn-ghost:hover { transform: translateY(-2px); border-color: var(--vm-primary); }
+.hero-btn-ghost:hover { border-color: var(--vm-primary); }
 
 /* Terminal */
 .terminal {
@@ -280,7 +280,7 @@ onUnmounted(() => { timers.forEach(clearTimeout); timers = [] })
   box-shadow: var(--vm-shadow-s);
   transition: transform .22s var(--vm-ease), box-shadow .22s, border-color .22s;
 }
-.bento:hover { transform: translateY(-4px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.35); }
+.bento:hover { box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.35); }
 .bento-icon {
   display: inline-flex; align-items: center; justify-content: center;
   width: 48px; height: 48px; border-radius: 13px;
@@ -317,7 +317,6 @@ onUnmounted(() => { timers.forEach(clearTimeout); timers = [] })
   font-weight: 700; text-decoration: none; color: var(--vm-primary); background: #fff;
   transition: transform .18s var(--vm-ease);
 }
-.cta-btn-light:hover { transform: translateY(-2px); }
 .cta-btn-outline {
   display: inline-flex; padding: 13px 28px; border-radius: 13px;
   font-weight: 700; text-decoration: none; color: #fff;

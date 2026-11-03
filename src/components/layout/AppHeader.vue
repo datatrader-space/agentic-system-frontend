@@ -647,7 +647,6 @@ onUnmounted(() => {
   transition: transform var(--transition-fast);
 }
 
-.logo-link:hover { transform: translateY(-1px); }
 
 .logo-wrapper {
   position: relative;
@@ -840,7 +839,6 @@ onUnmounted(() => {
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
 }
 
@@ -850,9 +848,6 @@ onUnmounted(() => {
   transition: transform var(--transition-fast);
 }
 
-.btn-primary:hover .btn-icon {
-  transform: translateX(3px);
-}
 
 /* ===== User Section ===== */
 .user-section {

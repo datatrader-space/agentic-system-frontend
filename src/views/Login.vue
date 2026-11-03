@@ -1192,7 +1192,6 @@ watch(() => formData.value.password, () => {
 }
 
 .submit-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
   box-shadow: 0 6px 30px var(--primary-glow);
 }
 
@@ -1221,9 +1220,6 @@ watch(() => formData.value.password, () => {
   transition: transform var(--transition);
 }
 
-.submit-btn:hover:not(:disabled) .btn-arrow {
-  transform: translateX(4px);
-}
 
 /* Divider */
 .divider {

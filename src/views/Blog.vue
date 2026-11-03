@@ -213,7 +213,7 @@ function subscribe() { notify.success(`Subscribed: ${email.value}`); email.value
 
 /* Featured */
 .featured { grid-column: 1; display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; border-radius: 20px; border: 1px solid var(--vm-border); background: var(--vm-surface); box-shadow: var(--vm-shadow-s); text-decoration: none; transition: transform .2s var(--vm-ease), box-shadow .2s, border-color .2s; }
-.featured:hover { transform: translateY(-3px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
+.featured:hover { box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
 .featured-img { min-height: 340px; }
 .featured-body { padding: 30px; display: flex; flex-direction: column; }
 .meta-row { display: flex; align-items: center; gap: 12px; }
@@ -245,7 +245,7 @@ function subscribe() { notify.success(`Subscribed: ${email.value}`); email.value
 /* Card grid */
 .cards { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 8px; }
 .post-card { display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; border: 1px solid var(--vm-border); background: var(--vm-surface); box-shadow: var(--vm-shadow-s); text-decoration: none; transition: transform .2s var(--vm-ease), box-shadow .2s, border-color .2s; }
-.post-card:hover { transform: translateY(-4px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
+.post-card:hover { box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
 .card-img { height: 180px; }
 .card-body { padding: 20px; display: flex; flex-direction: column; flex: 1; }
 .card-title { margin-top: 8px; font-size: 1.1rem; font-weight: 700; line-height: 1.3; color: var(--vm-ink); }

@@ -1173,7 +1173,6 @@ onMounted(() => {
   padding: 9px 16px; border-radius: 12px; background: var(--vm-g-brand); color: #fff;
   font: 700 13px var(--vm-font-sans); box-shadow: var(--vm-glow-v); transition: transform .15s var(--vm-ease);
 }
-.add-btn:hover { transform: translateY(-1px); }
 /* Secondary to "Add connector": same row, quieter weight — skills are a sibling of connectors here. */
 .skills-btn {
   display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--vm-line); cursor: pointer;
@@ -1215,7 +1214,7 @@ onMounted(() => {
   width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 12px; border: 1px solid transparent;
   border-radius: 15px; cursor: pointer; transition: background .15s var(--vm-ease2), box-shadow .15s, transform .15s var(--vm-ease2), border-color .15s;
 }
-.conn-row:hover { background: var(--vm-surface); box-shadow: var(--vm-shadow-s); transform: translateX(2px); }
+.conn-row:hover { background: var(--vm-surface); box-shadow: var(--vm-shadow-s); }
 .conn-row.active { background: var(--vm-surface); border-color: rgba(124,58,237,.3); box-shadow: var(--vm-shadow-m); }
 .row-text { min-width: 0; flex: 1; text-align: left; display: flex; flex-direction: column; }
 .row-name { font-size: 13px; font-weight: 700; color: var(--vm-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

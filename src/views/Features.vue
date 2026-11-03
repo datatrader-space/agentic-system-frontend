@@ -132,7 +132,7 @@ const groups = [
   box-shadow: var(--vm-shadow-s);
   transition: transform .2s var(--vm-ease), box-shadow .2s, border-color .2s;
 }
-.feature-card:hover { transform: translateY(-3px); box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
+.feature-card:hover { box-shadow: var(--vm-shadow-m); border-color: rgba(37,99,235,.3); }
 .feature-icon {
   display: inline-flex; align-items: center; justify-content: center;
   width: 42px; height: 42px; border-radius: 12px;
@@ -150,7 +150,6 @@ const groups = [
   font-weight: 600; color: #fff; text-decoration: none; background: var(--vm-g-brand);
   box-shadow: var(--vm-glow-p); transition: transform .18s var(--vm-ease);
 }
-.cta-primary:hover { transform: translateY(-2px); }
 .cta-ghost {
   display: inline-flex; padding: 12px 24px; border-radius: 12px;
   font-weight: 600; color: var(--vm-ink); text-decoration: none;

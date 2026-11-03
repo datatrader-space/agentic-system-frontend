@@ -1,7 +1,8 @@
 <template>
   <div class="studio-jobs">
     <p v-if="error" class="st-error" role="alert">{{ error }}</p>
-    <VideoJobCard v-for="job in rows" :key="job.job_id" :job="job" in-studio />
+    <VideoJobCard v-for="job in rows" :key="job.job_id" :job="job" in-studio @open="open(job, $event)" />
+    <MediaViewer v-if="previewItems.length" :items="previewItems" v-model:index="previewIndex" @close="previewJob = null" @leave="previewJob = null" />
   </div>
 </template>
 <script setup>
@@ -10,7 +11,14 @@ import api from '../../services/api'
 import { useVideoStore } from '../../stores/useVideoStore'
 import { usePoller } from '../../composables/usePoller'
 import VideoJobCard from '../video/VideoJobCard.vue'
+import { lazyComponent } from '../../utils/lazyComponent'
+const MediaViewer = lazyComponent(() => import('../video/MediaViewer.vue'))
+const previewJob = ref(null), previewIndex = ref(0)
+// A job's result and the other pictures of the same request (extra_outputs), in that order.
+const previewItems = computed(() => { const job = previewJob.value; if (!job) return []; const kind = job.modality || (job.operation === 'frame' ? 'image' : 'video'); return [job.output, ...(job.extra_outputs || [])].filter(x => x?.url).map(x => ({ ...x, media_type: kind })) })
+function open(job, index) { previewJob.value = job; previewIndex.value = Number.isInteger(index) ? index : 0 }
 const props = defineProps({ ids: { type: Array, default: () => [] } })
+watch(() => props.ids, () => { previewJob.value = null })
 const emit = defineEmits(['settled'])
 const video = useVideoStore(), error = ref('')
 const rows = computed(() => props.ids.map(id => video.jobs[id]).filter(Boolean))

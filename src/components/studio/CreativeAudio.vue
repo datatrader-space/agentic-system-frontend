@@ -29,7 +29,8 @@
   </form>
 </template>
 <script setup>
-import { computed, inject, ref } from 'vue'
+import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
+import { computed, inject, ref, watch } from 'vue'
 import api from '../../services/api'
 import CreativeError from './CreativeError.vue'
 import ConsentStep from './ConsentStep.vue'
@@ -81,6 +82,9 @@ function prepare() {
   const names = Object.fromEntries(recording.value.map(file => [file.attachment_id, file.name]))
   submit(s => api.prepareMediaJob({ ...draft.value, ...s }), names)
 }
+const selectedLook = useStudioPreparedBrief(script, 'Script')
+watch(selectedLook, look => { const workflow = { 'audio-look-1': 'speech', 'audio-look-2': 'sound', 'audio-look-3': 'voice_change' }[look?.id]; if (workflow) choose(workflow) }, { immediate: true })
+useStudioPreparedBrief(sound, 'Sound')
 </script>
 <style scoped>
 .ca-tabs{display:flex;gap:3px;padding:3px;border:1px solid var(--vm-line);border-radius:8px;background:var(--vm-surface-2)}.ca-tabs button{flex:1;min-height:36px;padding:6px 8px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--vm-ink-soft);font:500 13px var(--vm-font-sans);cursor:pointer}.ca-tabs button[aria-selected=true]{background:var(--vm-surface);border-color:var(--vm-line);color:var(--vm-ink)}.ca-purpose,.ca-count{font-size:12px;line-height:1.55}.ca-check{display:flex;align-items:center;gap:8px;min-height:36px;font-size:13px;cursor:pointer}.ca-check input{width:18px;height:18px}@media(max-width:767px){.ca-tabs button{min-height:44px}.ca-check{min-height:44px}}

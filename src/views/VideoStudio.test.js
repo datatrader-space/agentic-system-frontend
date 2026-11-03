@@ -99,7 +99,7 @@ describe('Video Studio', () => {
     expect(state.post).toHaveBeenCalledWith('/video/projects/p1/open/', { conversation_id: 'c1' })
     expect(state.video.project.project_id).toBe('p1')
     expect(state.video.loadVersions).toHaveBeenCalled()
-    expect(state.replace).toHaveBeenCalledWith({ path: '/video-studio', query: { conversation: 'c1' } })
+    expect(state.replace).toHaveBeenCalledWith({ path: '/video-studio/dashboard', query: { conversation: 'c1' } })
   })
 
   // Owner, 2026-10-20: a project is never put into whichever chat happened to be open; ?project= (a project not yet
@@ -161,7 +161,7 @@ describe('Video Studio', () => {
 
   it('opens Home with Agent selected and both composer modes available', async () => {
     await render()
-    expect(wrapper.get('h1').text()).toBe('Home')
+    expect(wrapper.get('h1').text()).toBe('Dashboard')
     expect(wrapper.findAll('[data-test="studio-prompt"]')).toHaveLength(1)
     expect(wrapper.findAll('[data-test="studio-start"]')).toHaveLength(0)
     expect(wrapper.findComponent({ name: 'VideoComposerPanel' }).props('showMode')).toBe(true)

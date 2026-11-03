@@ -20,6 +20,7 @@
   </form>
 </template>
 <script setup>
+import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
 import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
 import api from '../../services/api'
 import { routeOptionLabel } from '../../utils/studioPrice'
@@ -64,6 +65,7 @@ function prepare() {
   const references = mode.value === 'swap' ? subject.value.map(f => ({ attachment_id: f.attachment_id, role: 'subject' })) : []
   submit(s => api.prepareVideoJob({ operation: 'change', route_id: routeId.value, base_attachment_id: source.value[0].attachment_id, prompt: prompt.value.trim(), references, ...s }))
 }
+useStudioPreparedBrief(prompt)
 </script>
 <style scoped>
 .cw-modes{display:flex;gap:3px;padding:3px;border:1px solid var(--vm-line);border-radius:8px;background:var(--vm-surface-2)}.cw-modes button{flex:1;min-height:36px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--vm-ink-soft);font:500 13px var(--vm-font-sans);cursor:pointer}.cw-modes button[aria-checked=true]{background:var(--vm-surface);border-color:var(--vm-line);color:var(--vm-ink)}.cw-note{font-size:12px;line-height:1.55}.cw-block{padding:10px 12px;border:1px solid var(--vm-line);border-radius:7px}.cw-inline{padding:0;border:0;background:none;font:inherit}@media(max-width:767px){.cw-modes button{min-height:44px}}

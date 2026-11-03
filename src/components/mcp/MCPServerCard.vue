@@ -1,6 +1,6 @@
 <template>
   <div
-    class="mcp-server-card group bg-white rounded-[16px] shadow-sm hover:-translate-y-1 hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col relative border overflow-hidden"
+    class="mcp-server-card group bg-white rounded-[16px] shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer flex flex-col relative border overflow-hidden"
     :class="[
       server.enabled ? 'border-slate-200/80' : 'border-slate-200/40 opacity-70 grayscale-[30%]',
       circuitBreakerStatus === 'OPEN' ? 'ring-1 ring-red-400 border-red-200' : ''

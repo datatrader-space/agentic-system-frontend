@@ -69,7 +69,7 @@ watch(widget, askPending)
   box-shadow: 0 18px 35px rgba(37, 99, 235, .28);
   transition: transform .15s ease, box-shadow .15s ease;
 }
-.gha-fab:hover { transform: translateY(-2px); box-shadow: 0 22px 40px rgba(37, 99, 235, .34); }
+.gha-fab:hover { box-shadow: 0 22px 40px rgba(37, 99, 235, .34); }
 .gha-fab.open { background: #475569; box-shadow: 0 14px 28px rgba(15, 23, 42, .25); }
 .gha-fab svg { width: 25px; height: 25px; }
 @media (max-width: 520px) { .gha-fab { right: 16px; bottom: 18px; } }

@@ -32,14 +32,14 @@
       <template v-if="expired">
         <p class="vjc-warn" data-test="video-estimate-expired">This estimate has expired. Get a new one to see the current price.</p>
         <div class="vjc-actions">
-          <button type="button" class="vjc-btn primary" data-test="video-reestimate" @click="reestimate">Get a new estimate</button>
+          <button type="button" class="vjc-btn primary" data-test="video-reestimate" :disabled="pending" @click="reestimate">Get a new estimate</button>
         </div>
       </template>
-      <div v-else class="vjc-actions">
-        <button type="button" class="vjc-btn primary" data-test="video-generate" :disabled="pending" @click="go">
+      <div v-else-if="allows('start') || allows('decline')" class="vjc-actions">
+        <button v-if="allows('start')" type="button" class="vjc-btn primary" data-test="video-generate" :disabled="pending" @click="go">
           {{ adjustments.length ? 'Accept changes and generate' : 'Generate' }}
         </button>
-        <button type="button" class="vjc-btn" :disabled="pending" @click="decline">Decline</button>
+        <button v-if="allows('decline')" type="button" class="vjc-btn" data-test="video-decline" :disabled="pending" @click="decline">Decline</button>
       </div>
     </template>
 
@@ -53,8 +53,8 @@
       <p v-if="job.state === 'provider_status_unknown'" class="vjc-warn">
         The provider is not answering about this render right now. It is still tracked; nothing is lost.
       </p>
-      <div class="vjc-actions" v-if="paid">
-        <button type="button" class="vjc-btn" @click="video.stopWaiting(job)">Stop waiting</button>
+      <div class="vjc-actions" v-if="allows('stop')">
+        <button type="button" class="vjc-btn" data-test="video-stop" :disabled="pending" @click="act('stop')">Stop waiting</button>
       </div>
     </template>
 
@@ -65,6 +65,15 @@
       <audio v-else-if="job.modality === 'audio'" :src="job.output.url" controls preload="metadata" />
       <MediaThumb v-else-if="!job.modality || job.modality === 'image'" class="vjc-video" :item="{ ...job.output, media_type: 'image' }" :src="job.output.url" :alt="job.operation === 'frame' ? 'Saved frame' : (job.effective_config && job.effective_config.prompt) || 'The result'" />
       <a v-else :href="job.output.url" target="_blank" rel="noopener noreferrer">Open {{ job.modality }} result</a>
+      <!-- The other pictures of the same request (extra_outputs), beside the first one. -->
+      <ul v-if="extras.length" class="vjc-extras" :aria-label="`${extras.length} more result${extras.length > 1 ? 's' : ''}`" data-test="video-job-extras">
+        <li v-for="(x, i) in extras" :key="x.attachment_id">
+          <button v-if="inStudio" type="button" class="vjc-extra" :aria-label="`Open result ${i + 2}`" @click="emit('open', i + 1)">
+            <MediaThumb :item="{ ...x, media_type: extraKind }" :src="x.url" alt="" /></button>
+          <a v-else class="vjc-extra" :href="x.url" target="_blank" rel="noopener noreferrer" :aria-label="`Open result ${i + 2}`">
+            <MediaThumb :item="{ ...x, media_type: extraKind }" :src="x.url" alt="" /></a>
+        </li>
+      </ul>
       <div class="vjc-actions">
         <button v-if="isVideo" type="button" class="vjc-btn primary" @click="openPanel">{{ inStudio ? 'View result' : 'Open in Video Studio' }}</button>
         <span v-if="job.actual_cost_usd" class="vjc-cost">Cost ${{ money(job.actual_cost_usd) }}</span>
@@ -77,6 +86,9 @@
     <template v-else>
       <div class="vjc-actions"><button type="button" class="vjc-btn" @click="video.dismiss(job.job_id)">Dismiss</button></div>
     </template>
+    <div v-if="otherActions.length" class="vjc-actions" data-test="video-job-other-actions">
+      <button v-for="a in otherActions" :key="a" type="button" class="vjc-btn" :disabled="pending" @click="act(a)">{{ actionLabel(a) }}</button>
+    </div>
   </article>
 </template>
 
@@ -108,7 +120,15 @@ const STATES = { awaiting_authorization: 'Estimate', queued: 'Queued', submittin
 const opLabel = computed(() => OPS[props.job.operation] || KINDS[props.job.modality] || 'Video')
 const stateLabel = computed(() => STATES[props.job.state] || props.job.state)
 const terminal = computed(() => ['ready', 'failed', 'cancelled'].includes(props.job.state))
-const paid = computed(() => ['generate', 'change', 'extend'].includes(props.job.operation))
+// What the person may do is the server's call (job.allowed_actions): no list, no buttons.
+const allowed = computed(() => (Array.isArray(props.job.allowed_actions) ? props.job.allowed_actions : []))
+const allows = (action) => allowed.value.includes(action)
+const KNOWN = ['start', 'decline', 'stop']
+const otherActions = computed(() => allowed.value.filter((a) => !KNOWN.includes(a) && /^[a-z][a-z_]{0,31}$/.test(a)))
+const actionLabel = (a) => { const t = a.replace(/_/g, ' '); return t.charAt(0).toUpperCase() + t.slice(1) }
+const extras = computed(() => (props.job.state === 'ready' && Array.isArray(props.job.extra_outputs)
+  ? props.job.extra_outputs.filter((x) => x && x.attachment_id && x.url) : []))
+const extraKind = computed(() => props.job.modality || (props.job.operation === 'frame' ? 'image' : 'video'))
 const isVideo = computed(() => props.job.modality ? props.job.modality === 'video' : props.job.operation !== 'frame')
 const stateClass = computed(() => ({ ok: props.job.state === 'ready', bad: props.job.state === 'failed',
                                      wait: props.job.state === 'awaiting_authorization' }))
@@ -135,16 +155,13 @@ function money(v) {
   const n = Number(v || 0)
   return n >= 0.1 ? n.toFixed(2) : n.toFixed(3).replace(/0$/, '')
 }
-async function go() {
-  if (pending.value) return
+async function act(action) {
+  if (pending.value || !allows(action)) return null
   pending.value = true
-  try { await video.start(props.job, true) } finally { pending.value = false }
+  try { return await video.jobAction(props.job, action) } finally { pending.value = false }
 }
-async function decline() {
-  if (pending.value) return
-  pending.value = true
-  try { await video.decline(props.job) } finally { pending.value = false }
-}
+const go = () => act('start')
+const decline = () => act('decline')
 function openPanel() {
   if (props.inStudio) {
     video.previewAttachmentId = props.job.output?.attachment_id || null
@@ -166,7 +183,7 @@ const expired = computed(() => {
 // with the settings the person already chose.
 async function reestimate() {
   const prompt = (props.job.effective_config && props.job.effective_config.prompt) || ''
-  await video.decline(props.job)
+  if (allows('decline')) await act('decline')
   if (prompt) window.dispatchEvent(new CustomEvent('video-compose', { detail: { text: prompt } }))
 }
 const elapsed = computed(() => {
@@ -207,4 +224,9 @@ const elapsed = computed(() => {
 .vjc-btn:disabled { opacity: .55; cursor: not-allowed; }
 .vjc-btn:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: 2px; }
 .vjc-video { width: 100%; max-height: 320px; border-radius: 4px; background: #000; }
+.vjc-extras { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+.vjc-extra { display: block; width: 100%; aspect-ratio: 1; padding: 0; border: 1px solid var(--vm-line, #e5e7eb); border-radius: 4px; overflow: hidden;
+  background: var(--vm-surface-2, #f1f5f9); cursor: pointer; }
+.vjc-extra :deep(img), .vjc-extra :deep(video) { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vjc-extra:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: 2px; }
 </style>

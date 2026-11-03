@@ -301,7 +301,6 @@ watch(slug, async (next) => {
 }
 .legal-more-card:hover {
   border-color: var(--vm-primary);
-  transform: translateY(-1px);
   box-shadow: var(--vm-shadow-s);
 }
 .legal-more-title { display: block; font-weight: 650; color: var(--vm-ink); }

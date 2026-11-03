@@ -195,7 +195,6 @@ function formatDate(dateString) {
 
 .btn-new:hover {
   background: #2563EB;
-  transform: translateY(-1px);
   box-shadow: 0 4px 6px rgba(139, 92, 246, 0.2);
 }
 
@@ -261,7 +260,6 @@ function formatDate(dateString) {
 
 .btn-primary:hover {
   background: #2563EB;
-  transform: translateY(-1px);
 }
 
 /* Drafts Grid */
@@ -282,7 +280,6 @@ function formatDate(dateString) {
 .draft-card:hover {
   border-color: #2563EB;
   box-shadow: 0 4px 12px rgba(139, 92, 246, 0.1);
-  transform: translateY(-2px);
 }
 
 .draft-header {

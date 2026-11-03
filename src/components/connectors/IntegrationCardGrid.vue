@@ -88,7 +88,7 @@ defineEmits(['open', 'install'])
   background: var(--vm-surface); border: 1px solid var(--vm-line-2);
   box-shadow: var(--vm-shadow-s); transition: transform .15s var(--vm-ease2), box-shadow .15s, border-color .15s;
 }
-.icg-card:hover { transform: translateY(-2px); border-color: var(--vm-sky); box-shadow: var(--vm-shadow-m); }
+.icg-card:hover { border-color: var(--vm-sky); box-shadow: var(--vm-shadow-m); }
 .icg-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .icg-card-id { display: flex; align-items: center; gap: 11px; min-width: 0; }
 .icg-logo { width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--vm-bg); border: 1px solid var(--vm-line); }
@@ -108,7 +108,6 @@ defineEmits(['open', 'install'])
 .icg-btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   font: 700 12.5px var(--vm-font-sans); padding: 8px 12px; border-radius: 11px; cursor: pointer; border: 1px solid transparent; transition: all .15s; }
 .icg-btn.primary { color: #fff; background: var(--vm-g-brand); box-shadow: var(--vm-glow-v); }
-.icg-btn.primary:hover { transform: translateY(-1px); }
 .icg-btn.ghost { color: var(--vm-ink-soft); background: var(--vm-bg); border-color: var(--vm-line-2); }
 .icg-btn.ghost:hover:not(:disabled) { background: var(--vm-surface); }
 .icg-btn:disabled { cursor: not-allowed; opacity: .6; }

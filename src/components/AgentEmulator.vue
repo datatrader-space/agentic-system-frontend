@@ -219,7 +219,7 @@
               <svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4"><rect x="7" y="7" width="10" height="10" rx="2" /></svg>
             </button>
             <button v-else @click="send" :disabled="!input.trim()"
-                    class="w-9 h-9 flex items-center justify-center text-white rounded-xl disabled:opacity-40 shrink-0 transition hover:scale-105"
+                    class="w-9 h-9 flex items-center justify-center text-white rounded-xl disabled:opacity-40 shrink-0 transition"
                     style="background:linear-gradient(120deg,#2563EB,#0EA5E9)" title="Send">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z" /></svg>
             </button>

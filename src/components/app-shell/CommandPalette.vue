@@ -213,6 +213,6 @@ kbd {
 .cmdk-enter-active, .cmdk-leave-active { transition: opacity .2s var(--vm-ease2); }
 .cmdk-enter-active .cmdk, .cmdk-leave-active .cmdk { transition: transform .25s var(--vm-ease), opacity .2s; }
 .cmdk-enter-from, .cmdk-leave-to { opacity: 0; }
-.cmdk-enter-from .cmdk, .cmdk-leave-to .cmdk { transform: translateY(-12px) scale(.97); opacity: 0; }
+.cmdk-enter-from .cmdk, .cmdk-leave-to .cmdk { opacity: 0; }
 </style>
 

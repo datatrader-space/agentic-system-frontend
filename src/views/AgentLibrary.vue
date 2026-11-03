@@ -101,8 +101,6 @@
           :class="themeOf(i)"
           :style="{ animationDelay: (i * 70 + 80) + 'ms' }"
           @click="editAgent(agent.id)"
-          @mousemove="tilt"
-          @mouseleave="untilt"
         >
           <span class="halo"></span>
           <div class="accent"></div>
@@ -266,17 +264,6 @@ const iconOf = (agent) => {
 // Cosmetic "coverage" derived from real tool count (8–100%).
 const capability = (agent) => Math.max(8, Math.min(100, (agent.tools_count || 0) * 10));
 
-/* ---- 3D tilt (respects reduced motion) ---- */
-const reduced = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const tilt = (e) => {
-    if (reduced) return;
-    const c = e.currentTarget;
-    const r = c.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width - 0.5;
-    const y = (e.clientY - r.top) / r.height - 0.5;
-    c.style.transform = `translateY(-6px) rotateX(${-y * 6}deg) rotateY(${x * 8}deg)`;
-};
-const untilt = (e) => { e.currentTarget.style.transform = ''; };
 
 // The owner filter counts as a filter for the no-match state (`hasFilters`), so "Clear filters" has to
 // reset it too — otherwise the button left the list still filtered and the empty state still showing.
@@ -505,8 +492,6 @@ EmptyArt.props = ['search'];
 .sub { color: var(--vm-ink-soft); font-size: 15px; margin-top: 8px; max-width: 48ch; }
 
 .cta { border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 9px; padding: 12px 20px; border-radius: var(--vm-r); background: var(--vm-g-brand); color: #fff; font-family: var(--vm-font-sans); font-size: 14px; font-weight: 700; box-shadow: var(--vm-glow-v); transition: transform .2s var(--vm-ease); }
-.cta:hover { transform: translateY(-2px) scale(1.02); }
-.cta:active { transform: scale(.97); }
 .cta .i { width: 17px; height: 17px; }
 
 .ghost-btn { border: 1.5px solid var(--vm-line-2); background: transparent; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: var(--vm-r); color: var(--vm-ink-soft); font-weight: 700; font-size: 13px; transition: .2s var(--vm-ease); }
@@ -516,7 +501,7 @@ EmptyArt.props = ['search'];
 /* stats */
 .stats { display: flex; gap: 12px; flex-wrap: wrap; margin: 22px 0 26px; }
 .stat { flex: 1; min-width: 140px; position: relative; overflow: hidden; padding: 15px 17px; border-radius: var(--vm-r); border: 1px solid var(--vm-line); background: var(--vm-glass-strong); backdrop-filter: blur(12px); transition: transform .3s var(--vm-ease), box-shadow .3s; }
-.stat:hover { transform: translateY(-3px); box-shadow: var(--vm-shadow-m); }
+.stat:hover { box-shadow: var(--vm-shadow-m); }
 .stat .badge-ic { position: absolute; right: 13px; top: 13px; width: 18px; height: 18px; opacity: .45; }
 .stat .k { font-family: var(--vm-font-display); font-size: 28px; font-weight: 800; line-height: 1; }
 .stat .l { font-size: 12px; color: var(--vm-ink-faint); font-weight: 600; margin-top: 6px; }
@@ -555,7 +540,6 @@ EmptyArt.props = ['search'];
 
 .card-top { display: flex; align-items: flex-start; justify-content: space-between; }
 .tile { width: 54px; height: 54px; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: var(--vm-shadow-m); transition: transform .4s var(--vm-ease); animation: vmFloat 5s ease-in-out infinite; }
-.card:hover .tile { transform: scale(1.08) rotate(-4deg); }
 .tile :deep(svg) { width: 26px; height: 26px; }
 .tile.v { background: var(--vm-g-brand); } .tile.p { background: var(--vm-g-warm); } .tile.t { background: var(--vm-g-teal); }
 
@@ -615,7 +599,7 @@ EmptyArt.props = ['search'];
 
 /* add-new card */
 .card.add { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; min-height: 320px; border: 2px dashed var(--vm-line-2); background: transparent; backdrop-filter: none; box-shadow: none; color: var(--vm-ink-faint); }
-.card.add:hover { border-color: var(--vm-violet); background: rgba(124, 58, 237, .04); transform: translateY(-4px); box-shadow: none; }
+.card.add:hover { border-color: var(--vm-violet); background: rgba(124, 58, 237, .04); box-shadow: none; }
 .card.add .plus { width: 56px; height: 56px; border-radius: 50%; background: var(--vm-g-brand); color: #fff; display: flex; align-items: center; justify-content: center; box-shadow: var(--vm-glow-v); }
 .card.add .plus :deep(svg) { width: 26px; height: 26px; }
 .card.add b { font-family: var(--vm-font-display); font-size: 16px; color: var(--vm-ink); }
@@ -698,7 +682,6 @@ EmptyArt.props = ['search'];
 }
 .cta:hover {
   background: #1d4ed8;
-  transform: translateY(-1px);
 }
 .ghost-btn,
 .b-cfg,
@@ -728,7 +711,6 @@ EmptyArt.props = ['search'];
   backdrop-filter: none;
 }
 .stat:hover {
-  transform: none;
   box-shadow: 0 8px 22px rgba(15, 23, 42, .035);
 }
 .stat::after {
@@ -809,7 +791,6 @@ EmptyArt.props = ['search'];
   transform-style: flat;
 }
 .card:hover {
-  transform: translateY(-1px);
   border-color: #cfdbea;
   box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
 }
@@ -837,9 +818,6 @@ EmptyArt.props = ['search'];
 .tile :deep(svg) {
   width: 21px;
   height: 21px;
-}
-.card:hover .tile {
-  transform: none;
 }
 .badge {
   padding: 4px 9px;
@@ -916,7 +894,6 @@ EmptyArt.props = ['search'];
 .card.add:hover {
   border-color: #2563eb;
   background: var(--vm-surface-soft);
-  transform: translateY(-1px);
 }
 .card.add .plus {
   width: 46px;

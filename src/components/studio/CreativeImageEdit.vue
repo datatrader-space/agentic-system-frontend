@@ -25,6 +25,7 @@
   </form>
 </template>
 <script setup>
+import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
 import { computed, inject, ref, watch } from 'vue'
 import api from '../../services/api'
 import CreativeError from './CreativeError.vue'
@@ -33,13 +34,18 @@ import MediaRoutePicker from './MediaRoutePicker.vue'
 import LivePrice from './LivePrice.vue'
 import { useLivePrice } from '../../composables/useLivePrice'
 import { useChatStore } from '../../stores/useChatStore'
+import { useVideoStore } from '../../stores/useVideoStore'
 import MediaSlot from './MediaSlot.vue'
 import { useMediaJob } from '../../composables/useMediaJob'
 import { useStudioUpload } from '../../composables/useStudioUpload'
 const emit = defineEmits(['job'])
 const monitor = inject('studioMonitor', '')
 const shapes = ['1:1', '4:3', '3:4', '16:9', '9:16']
-const routes = ref([]), routeId = ref(''), source = ref([]), prompt = ref(''), aspectRatio = ref(''), brush = ref(40), mode = ref('paint'), painted = ref(false), size = ref({ width: 0, height: 0 }), canvas = ref(null)
+// "Edit" on a picture (useVideoStore.editFrom) queues it as the store's edit_source: the page starts with it in
+// "Image to edit", as Enhance does for a video.
+const video = useVideoStore()
+const queued = (video.refs || []).find(item => item.role === 'edit_source' && item.attachment_id && !item.isVideo)
+const routes = ref([]), routeId = ref(''), source = ref(queued ? [{ attachment_id: queued.attachment_id, name: queued.name || 'Image', media_type: 'image', url: queued.url || '', thumbnail_url: queued.thumbnail_url || queued.url || '' }] : []), prompt = ref(''), aspectRatio = ref(''), brush = ref(40), mode = ref('paint'), painted = ref(false), size = ref({ width: 0, height: 0 }), canvas = ref(null)
 const { busy, error, submit } = useMediaJob(job => emit('job', job))
 const { upload, error: uploadError } = useStudioUpload()
 watch(source, () => { painted.value = false })
@@ -66,6 +72,7 @@ function prepare() {
     return api.prepareMediaJob({ operation: 'edit_image', route_id: routeId.value, request: { prompt: prompt.value.trim(), ...(aspectRatio.value ? { aspect_ratio: aspectRatio.value } : {}) }, references, ...s })
   })
 }
+useStudioPreparedBrief(prompt)
 </script>
 <style scoped>
 .ie-tools{display:grid;gap:10px;padding:12px;border:1px solid var(--vm-line);border-radius:7px}.ie-modes{display:flex;gap:3px;padding:3px;border:1px solid var(--vm-line);border-radius:7px;background:var(--vm-surface-2)}.ie-modes button{flex:1;min-height:34px;border:1px solid transparent;border-radius:5px;background:transparent;color:var(--vm-ink-soft);font:500 13px var(--vm-font-sans);cursor:pointer}.ie-modes button[aria-checked=true]{background:var(--vm-surface);border-color:var(--vm-line);color:var(--vm-ink)}.ie-size input{width:100%;accent-color:var(--vm-violet)}.ie-actions{display:flex;flex-wrap:wrap;gap:6px}.ie-note{font-size:12px;line-height:1.55}.ie-preview{display:block;max-width:100%;max-height:70vh;margin:0 auto;border-radius:6px}@media(max-width:767px){.ie-modes button{min-height:44px}}

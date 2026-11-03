@@ -45,6 +45,7 @@
   </div>
 </template>
 <script setup>
+import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
 import { computed, inject, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
@@ -88,6 +89,7 @@ async function remove(item) {
   } catch (e) { error.value = e.response?.data?.error || { message: 'Could not delete the identity.' } }
   finally { busy.value = false }
 }
+useStudioPreparedBrief(prompt)
 </script>
 <style scoped>
 .ci-h{font-size:14px}.ci-note{font-size:12px;line-height:1.55}.ci-rows{display:grid;gap:8px;margin:0;padding:0;list-style:none}.ci-row-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.ci-actions{display:flex;flex-wrap:wrap;gap:6px}.ci-confirm{display:grid;gap:8px;padding:10px;border:1px solid var(--vs-warn-line);border-radius:6px;font-size:13px}.ci code{font-size:12px}

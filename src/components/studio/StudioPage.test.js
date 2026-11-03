@@ -3,8 +3,31 @@ import { afterEach, describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import StudioPage from './StudioPage.vue'
 import source from './StudioPage.vue?raw'
+vi.mock('./StudioProjectPicker.vue',()=>({default:{template:'<button>Add to project</button>'}}))
 afterEach(() => vi.unstubAllGlobals())
 describe('StudioPage', () => {
+  it.each([false,true])('all workspace sections remain reachable with mobile=%s', async mobile => {
+    vi.stubGlobal('matchMedia', () => ({ matches: mobile, addEventListener() {}, removeEventListener() {} }))
+    const w=mount(StudioPage,{props:{title:'Tool',agentMode:true},slots:{form:'<textarea />',presets:'Preview content',looks:'Looks content',results:'Results content',versions:'Versions content'}})
+    for (const [index,key] of ['presets','looks','results','versions'].entries()) {
+      const selector=mobile?'.st-mobile-tabs button':'.st-tabs button'
+      await w.findAll(selector)[index+(mobile?1:0)].trigger('click')
+      await w.setProps({activeTab:key})
+      expect(w.findAll('[role="tabpanel"]')[index].isVisible()).toBe(true)
+    }
+    w.unmount()
+  })
+  it('returns from mobile looks to the editable agent brief without submitting', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener() {}, removeEventListener() {} }))
+    const w = mount(StudioPage, { attachTo: document.body, props: { title: 'Video', agentMode: true }, slots: { form: '<textarea aria-label="Idea"></textarea>', presets: 'Preview', looks: 'Looks', results: 'Results' } })
+    await w.findAll('.st-mobile-tabs button')[2].trigger('click')
+    expect(w.classes()).toContain('st-mobile-output')
+    await w.vm.focusInputs()
+    expect(w.classes()).not.toContain('st-mobile-output')
+    expect(document.activeElement).toBe(w.get('textarea').element)
+    expect(w.emitted('new')).toBeUndefined()
+    w.unmount()
+  })
   it('keeps inputs, a pinned action slot and accessible results tabs in one shell', async () => {
     const w = mount(StudioPage, { props: { title: 'Image', purpose: 'Make an image' }, slots: { form: '<input aria-label="Creative brief" />', quote: '<button>Prepare</button>', presets: '<p>Preset cards</p>', results: '<p>Session results</p>' } })
     expect(w.get('h1').text()).toBe('Image')

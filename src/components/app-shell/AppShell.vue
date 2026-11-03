@@ -327,7 +327,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   cursor: pointer;
   transition: transform 0.15s var(--vm-ease), box-shadow 0.15s;
 }
-.bar-btn:hover { transform: translateY(-1px); box-shadow: var(--vm-shadow-s); color: var(--vm-ink); }
+.bar-btn:hover { box-shadow: var(--vm-shadow-s); color: var(--vm-ink); }
 .bar-btn svg { width: 18px; height: 18px; }
 /* The hamburger is only needed below lg (sidebar is inline at lg) */
 .nav-toggle { display: flex; }

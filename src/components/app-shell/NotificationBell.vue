@@ -212,5 +212,5 @@ onBeforeUnmount(() => {
 .nb-foot { padding: 8px; border-top: 1px solid var(--vm-line-2); text-align: center; }
 .nb-more { border: 0; background: transparent; color: var(--vm-link); font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .nb-pop-enter-active, .nb-pop-leave-active { transition: opacity .15s, transform .15s; }
-.nb-pop-enter-from, .nb-pop-leave-to { opacity: 0; transform: translateY(8px); }
+.nb-pop-enter-from, .nb-pop-leave-to { opacity: 0; }
 </style>

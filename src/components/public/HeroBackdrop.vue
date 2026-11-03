@@ -59,8 +59,8 @@
   background: radial-gradient(circle, rgba(20, 184, 166, .32), transparent 62%);
   animation: hbFloatB 26s ease-in-out infinite;
 }
-@keyframes hbFloatA { 50% { transform: translate(7vw, 5vw) scale(1.16); } }
-@keyframes hbFloatB { 50% { transform: translate(-6vw, 6vw) scale(1.12); } }
+@keyframes hbFloatA { 50% { transform: none; } }
+@keyframes hbFloatB { 50% { transform: none; } }
 
 /* Small drifting orbs for depth. */
 .hb-orb {
@@ -73,9 +73,9 @@
 .o1 { width: 16vw; height: 16vw; left: 12%; top: 8%;  background: radial-gradient(circle, rgba(59,130,246,.5), transparent 70%); animation: hbDrift1 18s ease-in-out infinite; }
 .o2 { width: 12vw; height: 12vw; right: 16%; top: 24%; background: radial-gradient(circle, rgba(20,184,166,.45), transparent 70%); animation: hbDrift2 22s ease-in-out infinite; }
 .o3 { width: 10vw; height: 10vw; left: 42%; top: 40%; background: radial-gradient(circle, rgba(99,102,241,.4), transparent 70%); animation: hbDrift3 16s ease-in-out infinite; }
-@keyframes hbDrift1 { 50% { transform: translate(3vw, 4vw); } }
-@keyframes hbDrift2 { 50% { transform: translate(-4vw, 3vw); } }
-@keyframes hbDrift3 { 50% { transform: translate(2vw, -3vw); } }
+@keyframes hbDrift1 { 50% { transform: none; } }
+@keyframes hbDrift2 { 50% { transform: none; } }
+@keyframes hbDrift3 { 50% { transform: none; } }
 
 /* Fade the whole backdrop into the page background at the bottom so it blends. */
 .hb-fade {

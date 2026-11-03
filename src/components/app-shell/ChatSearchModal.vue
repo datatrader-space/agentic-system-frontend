@@ -136,5 +136,5 @@ function newChat() {
 .csm-enter-active, .csm-leave-active { transition: opacity .2s var(--vm-ease2); }
 .csm-enter-active .csm, .csm-leave-active .csm { transition: transform .25s var(--vm-ease), opacity .2s; }
 .csm-enter-from, .csm-leave-to { opacity: 0; }
-.csm-enter-from .csm, .csm-leave-to .csm { transform: translateY(-12px) scale(.97); opacity: 0; }
+.csm-enter-from .csm, .csm-leave-to .csm { opacity: 0; }
 </style>

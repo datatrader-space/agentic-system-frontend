@@ -5,11 +5,11 @@
        the product: change the page when the product changes. -->
   <section class="help" aria-labelledby="help-title" data-test="video-studio-help">
     <header class="help-head">
-      <h1 id="help-title">Help</h1>
-      <p class="help-lead">What you can make in Video Studio, and how to make it.</p>
+      <h1 id="help-title">A little guidance goes a long way.</h1>
+      <p class="help-lead">Start with a goal, choose a look, and create with your Studio agent.</p>
     </header>
 
-    <div class="help-body">
+    <div class="help-start"><article v-for="step in starterSteps" :key="step.number"><small>{{ step.number }}</small><h2>{{ step.title }}</h2><p>{{ step.text }}</p><RouterLink :to="step.to">{{ step.link }} ↗</RouterLink></article></div><div class="help-body">
       <nav class="toc" aria-label="On this page">
         <p class="toc-title">On this page</p>
         <ul>
@@ -176,8 +176,8 @@
             <li><strong>An estimate is free.</strong> It shows the price on a card before anything renders.</li>
             <li><strong>Only Generate spends.</strong> It holds the estimated amount against your organization's budget; when
               the provider reports the real cost, that is what is charged.</li>
-            <li><strong>A failed render costs nothing</strong>: its hold is released.</li>
-            <li><strong>An estimate is valid for 15 minutes.</strong> After that, press Get a new estimate on its card to see
+            <li><strong>Check the job card after a failure.</strong> It shows the run status and charging outcome. A retry prepares a new proposal.</li>
+            <li><strong>The estimate card shows its expiry.</strong> After that, press Get a new estimate on its card to see
               the current price.</li>
             <li><strong>Over budget, nothing starts.</strong> If a render would pass your organization's spending limit, it
               does not start and nothing is spent.</li>
@@ -204,6 +204,15 @@
 </template>
 
 <script setup>
+const starterSteps=[
+ {number:'01',title:'Choose your starting point',text:'Pick a creative tool from the sidebar, or start from a visual preset.',to:'/video-studio',link:'Explore tools'},
+ {number:'02',title:'Make it yours',text:'Edit the creative direction, choose settings and add your references.',to:'/video-studio/dashboard',link:'Open Dashboard'},
+ {number:'03',title:'Review with confidence',text:'Inspect compatible settings and the actual estimate before approving a generation.',to:'/video-studio/dashboard',link:'Start with your agent'},
+ {number:'04',title:'Follow the process',text:'Follow current-conversation jobs from the header queue. Your conversation keeps the context.',to:'/video-studio/dashboard',link:'Continue creating'},
+ {number:'05',title:'Recover and refine',text:'Review a result or failed job, keep useful work and ask your agent for the next change.',to:'/video-studio/projects',link:'Open projects'},
+ {number:'06',title:'Carry it forward',text:'Use a result in another tool, reuse an Element or download completed media from Library.',to:'/video-studio/library',link:'Open Library'},
+]
+
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../services/api'
@@ -345,14 +354,14 @@ const recipes = [
 function tryIt(r) {
   video.setTask(r.task)
   video.studioDraft = r.prompt
-  router.push({ name: 'video-studio', query: { new: '1' } })
+  router.push({ name: 'video-studio-dashboard', query: { new: '1' } })
 }
 
 const trouble = [
   { q: 'A file I added is flagged', a: 'The chosen model cannot use it in that role. Press the model suggested under the file to switch, change the file\'s role, or remove it.' },
   { q: 'Get estimate is greyed out', a: 'Write a prompt first. If a model change is waiting, press Switch and apply or keep the current model. A flagged file also has to be fixed or removed.' },
-  { q: 'The estimate expired', a: 'Estimates last 15 minutes. Press Get a new estimate on the card to see the current price.' },
-  { q: 'The render failed', a: 'Nothing was charged: the hold is released. Try again, or pick another model for it.' },
+  { q: 'The estimate expired', a: 'Check the expiry on the estimate card. Press Get a new estimate to see the current price.' },
+  { q: 'The render failed', a: 'Check the job card for its status and charging outcome. Ask the agent to review the failure before trying again.' },
   { q: 'The render did not start: over the limit', a: 'Your organization\'s spending limit would be passed. Nothing was spent. Ask your organization admin to raise it, or wait for the next period.' },
   { q: 'No model does what I need', a: 'Change the task or the settings, or pick another model: every model the platform offers for the task is in the list.' },
   { q: 'Words in the video are misspelled', a: 'Video models draw letters badly. Remove the words from the prompt and add them as a caption instead.' },
@@ -485,4 +494,7 @@ onMounted(async () => {
 }
 @media (pointer: coarse) { .btn, .toc-link { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+</style>
+
+<style scoped>.help-head{padding:30px 32px 22px;border-bottom:0}.help-head h1{font-size:30px;font-weight:550;letter-spacing:-.04em}.help-lead{font-size:13px}.help-start{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:0 32px 28px}.help-start article{padding:22px;background:var(--vm-surface);border:1px solid var(--vm-line);border-radius:10px}.help-start small{font-size:9px;letter-spacing:.1em;color:var(--vs-accent-ink)}.help-start h2{font-size:17px;font-weight:500;line-height:1.5;margin:13px 0 10px}.help-start p{font-size:12px;line-height:1.8;color:var(--vm-ink-soft)}.help-start a{display:inline-block;margin-top:16px;font-size:11px;color:var(--vs-accent-ink)}@media(max-width:800px){.help-head{padding:23px 16px}.help-head h1{font-size:25px}.help-start{grid-template-columns:1fr;padding:0 16px 20px;gap:10px}.help-start article{padding:17px}}
 </style>

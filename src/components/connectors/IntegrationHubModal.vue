@@ -1107,12 +1107,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   padding: 20px;
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
-  transition: border-color .15s, box-shadow .15s, transform .15s;
+  transition: border-color .15s, box-shadow .15s;
 }
 .catalog-card:hover {
   border-color: #BFDBFE;
   box-shadow: 0 10px 26px rgba(15, 23, 42, .08);
-  transform: translateY(-1px);
 }
 .catalog-card-head {
   display: flex;

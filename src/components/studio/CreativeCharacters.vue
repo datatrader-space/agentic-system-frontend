@@ -42,6 +42,7 @@
   </div>
 </template>
 <script setup>
+import { useStudioPreparedBrief } from '../../composables/useStudioPreparedBrief'
 import { computed, inject, onMounted, reactive, ref } from 'vue'
 import api from '../../services/api'
 import ConsentStep from './ConsentStep.vue'
@@ -78,6 +79,7 @@ async function save() {
   } catch (e) { error.value = e.response?.data?.error || { message: 'Could not save the character.' } }
   finally { busy.value = false }
 }
+useStudioPreparedBrief(details, 'Character')
 </script>
 <style scoped>
 .cc-steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;margin:0;padding:0;list-style:none}.cc-steps button{display:flex;align-items:center;gap:6px;width:100%;min-height:40px;padding:6px;border:1px solid var(--vm-line);border-radius:6px;background:var(--vm-surface);color:var(--vm-ink-soft);font:500 12px var(--vm-font-sans);text-align:left;cursor:pointer}.cc-steps button[aria-current=step]{border-color:var(--vm-violet);color:var(--vm-ink);background:var(--vm-violet-soft)}.cc-num{display:grid;place-items:center;width:20px;height:20px;flex-shrink:0;border-radius:50%;background:var(--vm-surface-2);font-size:11px}.cc-traits{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.cc-note{font-size:12px;line-height:1.55}.cc-saved{padding:0}@media(max-width:767px){.cc-steps button{min-height:44px}}

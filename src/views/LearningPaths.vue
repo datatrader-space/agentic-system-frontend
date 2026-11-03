@@ -76,7 +76,7 @@ onMounted(load)
 .search-link svg { width: 15px; height: 15px; }
 .lp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .lp-card { display: block; border: 1px solid var(--vm-line-2); border-radius: 14px; background: var(--vm-surface); padding: 20px; text-decoration: none; color: inherit; box-shadow: 0 1px 2px rgba(15,23,42,.04); transition: border-color .15s, box-shadow .15s, transform .15s; }
-.lp-card:hover { border-color: #b9c9ff; box-shadow: 0 12px 28px rgba(37,99,235,.10); transform: translateY(-2px); }
+.lp-card:hover { border-color: #b9c9ff; box-shadow: 0 12px 28px rgba(37,99,235,.10); }
 .lp-top { display: flex; align-items: center; justify-content: space-between; }
 .lp-icon { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 11px; }
 .lp-icon svg { width: 22px; height: 22px; }

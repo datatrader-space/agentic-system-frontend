@@ -9,9 +9,17 @@
 import { defineStore } from 'pinia'
 import { thumbnailFor } from '../utils/mediaThumb'
 import api from '../services/api'
+import { LOOK_ID } from '../services/studioLooks'
 import { notify } from '../composables/useNotify'
 
 const TERMINAL = new Set(['ready', 'failed', 'cancelled'])
+// Versions are read 50 at a time, newest first (GET /video/versions/); "Load older versions" asks for the next page.
+const VERSIONS_PAGE_SIZE = 50
+const blankVersions = () => ({ page: 0, hasMore: false, loading: false, error: '', activeAttachmentId: null })
+// The newest read of each version list wins: a late answer for an earlier conversation or page is dropped.
+const versionReads = { video: 0, image: 0 }
+// The job actions the server names in `allowed_actions` (POST /video/jobs/<id>/<action>/): a plain word only.
+const JOB_ACTION = /^[a-z][a-z_]{0,31}$/
 // Agent or Manual (VIDEO_STUDIO_AGENT_FLOW_PLAN.md D15), remembered per person in this browser. Agent is the default.
 const MODE_KEY = 'aadml.studio.mode'
 function savedMode() {
@@ -148,6 +156,11 @@ export const useVideoStore = defineStore('video', {
     conversationId: null,
     project: null,
     versions: [],
+    // The open chat's image versions (the Image page's Versions tab), kept apart from the video takes above so a
+    // picture never becomes the active video.
+    imageVersions: [],
+    // Paging and read state of each version list: { page, hasMore, loading, error, activeAttachmentId }.
+    versionsMeta: { video: blankVersions(), image: blankVersions() },
     panelOpen: false,
     panelTab: 'preview',
     previewAttachmentId: null,
@@ -158,7 +171,7 @@ export const useVideoStore = defineStore('video', {
     // The Library: every file the user uploaded or generated, in any chat, and their named Ingredients
     // (VIDEO_STUDIO_AGENT_FLOW_PLAN.md D4).
     libraryOpen: false,
-    library: { items: [], page: 1, hasMore: false, loading: false, error: '', type: 'all', source: 'all', q: '', project: '' },
+    library: { items: [], page: 1, hasMore: false, loading: false, error: '', type: 'all', source: 'all', q: '', project: '', preset: '' },
     // The person's video projects, for the Library's project filter: [{ project_id, title }].
     libraryProjects: [],
     ingredients: [],
@@ -472,16 +485,42 @@ export const useVideoStore = defineStore('video', {
         if (job.project_id && this.project && String(this.project.project_id) === String(job.project_id)) {
           this.loadProject(job.conversation_id)
         } else if (String(job.conversation_id || '') === String(this.conversationId || '')) {
-          this.loadVersions()
+          if (job.modality === 'image') { if (this.versionsMeta.image.page) this.loadVersions({ type: 'image' }) }
+          else this.loadVersions()
         }
       }
     },
-    async loadJobs(conversationId) {
-      if (!conversationId) return
+    // One page of the person's jobs, newest first: of one conversation, or of all their chats when none is named.
+    // Returns { jobs, page, hasMore }; throws when the read fails.
+    async fetchJobs({ conversationId = null, page = 1 } = {}) {
+      const params = { page }
+      if (conversationId) params.conversation_id = conversationId
+      const res = await api.get('/video/jobs/', { params })
+      const data = (res && res.data) || {}
+      return { jobs: data.jobs || [], page: data.page || page, hasMore: !!data.has_more }
+    },
+    // A conversation's jobs into the store. A reopened chat follows `has_more` to its first job so no older result
+    // is lost; `{ pages: 1 }` reads only the newest page (a background refresh). Returns false when a read failed.
+    async loadJobs(conversationId, { pages = Infinity } = {}) {
+      if (!conversationId) return false
       try {
-        const res = await api.get('/video/jobs/', { params: { conversation_id: conversationId } })
-        for (const j of res.data.jobs || []) this._put(j)
-      } catch { /* the chat still works without the cards */ }
+        let page = 1
+        for (;;) {
+          const res = await this.fetchJobs({ conversationId, page })
+          for (const j of res.jobs) this._put(j)
+          if (!res.hasMore || !res.jobs.length || page >= pages) return true
+          page = res.page + 1
+        }
+      } catch { return false /* the chat still works without the cards */ }
+    },
+    // One of the actions the server allows on this job right now (job.allowed_actions). Nothing else is sent.
+    async jobAction(job, action) {
+      if (!job || !job.job_id || !JOB_ACTION.test(String(action || '')) || !(job.allowed_actions || []).includes(action)) return null
+      if (action === 'start') return this.start(job, true)
+      if (action === 'decline') return this.decline(job)
+      if (action === 'stop') return this.stopWaiting(job)
+      try { return this._put((await api.post(`/video/jobs/${job.job_id}/${action}/`, {})).data) }
+      catch (e) { notify.error(errText(e, 'That could not be done. Try again.')); return null }
     },
 
     /**
@@ -742,14 +781,17 @@ export const useVideoStore = defineStore('video', {
         this.libraryProjects = []
       }
     },
-    async loadLibrary({ more = false } = {}) {
+    // `preset`: only the files made in chats started from that look (a look id the backend accepts; anything else
+    // lists every file). Left out, the filter already set stays, so "Load more" and the other filters keep it.
+    async loadLibrary({ more = false, preset } = {}) {
       const lib = this.library
+      if (preset !== undefined) lib.preset = typeof preset === 'string' && LOOK_ID.test(preset) ? preset : ''
       const page = more ? lib.page + 1 : 1
       lib.loading = true
       lib.error = ''
       try {
         const res = await api.get('/video/library/', { params: {
-          type: lib.type, source: lib.source, q: lib.q || undefined, project_id: lib.project || undefined, page, limit: 40 } })
+          type: lib.type, source: lib.source, q: lib.q || undefined, project_id: lib.project || undefined, preset: lib.preset || undefined, page, limit: 40 } })
         lib.items = more ? [...lib.items, ...(res.data.items || [])] : (res.data.items || [])
         lib.page = page
         lib.hasMore = !!res.data.has_more
@@ -854,15 +896,39 @@ export const useVideoStore = defineStore('video', {
       }
       return true
     },
-    async loadVersions() {
+    // The open chat's versions, newest first: video takes (a project's takes when one is open) or, with
+    // `{ type: 'image' }`, its pictures. Both reads are paged the same way ({versions, page, page_size, has_more,
+    // active_attachment_id}); `{ more: true }` adds the next older page. A failed read sets the list's
+    // `error` (shown as an error, never as an empty list).
+    async loadVersions({ type = 'video', more = false } = {}) {
+      const kind = type === 'image' ? 'image' : 'video'
+      const key = kind === 'image' ? 'imageVersions' : 'versions'
+      const projectId = kind === 'video' ? (this.project?.project_id || null) : null
+      const conversationId = this.conversationId || null
+      const meta = this.versionsMeta[kind]
+      const page = more ? (meta.page || 1) + 1 : 1
+      const read = ++versionReads[kind]
+      const stillCurrent = () => read === versionReads[kind] && (this.conversationId || null) === conversationId
+        && (kind === 'image' || (this.project?.project_id || null) === projectId)
+      if (!projectId && !conversationId) { this[key] = []; this.versionsMeta[kind] = blankVersions(); return }
+      this.versionsMeta[kind] = { ...meta, loading: true, error: '' }
       try {
-        const res = this.project
-          ? await api.get(`/video/projects/${this.project.project_id}/versions/`)
-          : this.conversationId
-            ? await api.get('/video/versions/', { params: { conversation_id: this.conversationId } })
-            : null
-        this.versions = (res && res.data.versions) || []
-      } catch { this.versions = [] }
+        const res = projectId
+          ? await api.get(`/video/projects/${projectId}/versions/`, { params: { page, page_size: VERSIONS_PAGE_SIZE } })
+          : await api.get('/video/versions/', { params: { conversation_id: conversationId, type: kind, page, page_size: VERSIONS_PAGE_SIZE } })
+        if (!stillCurrent()) return
+        const data = (res && res.data) || {}
+        const rows = data.versions || []
+        const seen = new Set(more ? this[key].map((v) => String(v.attachment_id)) : [])
+        this[key] = more ? [...this[key], ...rows.filter((v) => !seen.has(String(v.attachment_id)))] : rows
+        const active = data.active_attachment_id ?? (this[key].find((v) => v.is_active) || {}).attachment_id ?? null
+        this.versionsMeta[kind] = { page: data.page || page, hasMore: !!data.has_more, loading: false, error: '', activeAttachmentId: active }
+      } catch {
+        if (!stillCurrent()) return
+        if (!more) this[key] = []
+        this.versionsMeta[kind] = { ...this.versionsMeta[kind], loading: false,
+          error: more ? 'Could not load older versions. Try again.' : 'Could not load versions. Try again.' }
+      }
     },
     async pin(item, role, conversationId) {
       if (!this.project) return
@@ -880,20 +946,71 @@ export const useVideoStore = defineStore('video', {
         this.project = res.data
       } catch { /* unchanged */ }
     },
-    // Restore: moves the selection only — no render, no cost (plan F16).
-    async restore(version, { conversationId, sceneId } = {}) {
+    // Restore: moves the active pointer only, for an image or a video: no render, no cost (plan F16).
+    async restore(version, { conversationId, sceneId, type } = {}) {
+      const kind = type === 'image' || version.media_type === 'image' ? 'image' : 'video'
+      const key = kind === 'image' ? 'imageVersions' : 'versions'
+      const label = version.version ? `Version v${version.version}` : 'That version'
       try {
-        await api.post('/video/selection/', {
+        const res = await api.post('/video/selection/', {
           attachment_id: version.attachment_id, conversation_id: conversationId || undefined,
-          project_id: this.project ? this.project.project_id : undefined, scene_id: sceneId || undefined,
+          ...(kind === 'video' ? { project_id: this.project ? this.project.project_id : undefined, scene_id: sceneId || undefined } : {}),
         })
-        this.previewAttachmentId = null
-        if (this.project) await this.loadProject(conversationId)
-        else await this.loadVersions()
-        notify.success(`Version v${version.version} is now the active video.`)
+        const data = (res && res.data) || {}
+        if (data.ok === false) throw new Error('refused')
+        const active = data.active_attachment_id || version.attachment_id
+        this[key] = this[key].map((v) => ({ ...v, is_active: String(v.attachment_id) === String(active) }))
+        this.versionsMeta[kind] = { ...this.versionsMeta[kind], activeAttachmentId: active }
+        if (kind === 'video') {
+          this.previewAttachmentId = null
+          if (this.project) await this.loadProject(conversationId)
+        }
+        notify.success(`${label} is now the active ${kind}.`)
+        return true
       } catch (e) {
         notify.error(errText(e, 'Could not restore that version.'))
+        return false
       }
+    },
+    // "Use again": a result's prompt and settings back into the composer (and the Manual form's store settings).
+    // It never runs or spends anything: the person still presses Generate and approves the priced card.
+    useAgain(generation) {
+      if (!generation || typeof generation !== 'object') return false
+      const prompt = String(generation.prompt || '').slice(0, 8000)
+      const s = generation.settings || {}
+      if (generation.modality === 'image') {
+        this.setKind('image')
+        const model = this.image.models.find((m) => String(m.model_id) === String(generation.model || ''))
+        if (model) this.image.modelId = String(model.model_id)
+        if (s.aspect_ratio) this.image.aspect_ratio = String(s.aspect_ratio)
+        if (Number(s.n) > 0) this.image.n = Number(s.n)
+      } else if (generation.modality === 'video') {
+        this.setKind('video')
+        const route = generation.route_id != null ? findRoute(this.routes, generation.route_id) : null
+        if (route) this.routeId = String(generation.route_id)
+        const o = optionsFor(this.route)
+        const fits = (list, v) => !list.length || list.map(String).includes(String(v))
+        if (s.aspect_ratio && fits(o.aspectRatios, s.aspect_ratio)) this.settings.aspect_ratio = String(s.aspect_ratio)
+        if (s.duration && fits(o.durations, s.duration)) this.settings.duration = Number(s.duration)
+        if (s.resolution && fits(o.resolutions, s.resolution)) this.settings.resolution = String(s.resolution)
+        const sound = s.sound ?? s.audio
+        if (typeof sound === 'boolean') this.settings.sound = sound
+      }
+      this.studioDraft = prompt
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('video-compose', { detail: { text: prompt, generation } }))
+      return true
+    },
+    // "Edit": this result becomes the base of the edit flow (base_attachment_id = its attachment_id). Returns where
+    // that flow is: Enhance for a video, Image edit for a picture. Nothing is sent or spent.
+    editFrom(item, { conversationId } = {}) {
+      if (!item || !item.attachment_id) return null
+      const kind = item.media_type === 'video' ? 'video' : 'image'
+      this.refs = []
+      this.addExistingRef({ ...item, media_type: kind }, 'edit_source')
+      const ref = this.refs.find((r) => r.attachment_id === item.attachment_id)
+      if (ref) { ref.base_attachment_id = item.attachment_id; ref.thumbnail_url = item.thumbnail_url }
+      return { path: kind === 'video' ? '/video-studio/enhance' : '/video-studio/edit',
+               query: { ...(conversationId ? { conversation: String(conversationId) } : {}), useIn: '1', mode: this.studioMode } }
     },
     openPanel(tab) {
       this.panelOpen = true
@@ -907,6 +1024,8 @@ export const useVideoStore = defineStore('video', {
       this.pendingSwitch = null
       this.project = null
       this.versions = []
+      this.imageVersions = []
+      this.versionsMeta = { video: blankVersions(), image: blankVersions() }
       this.refs = []
       this.previewAttachmentId = null
       this.compareAttachmentId = null

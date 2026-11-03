@@ -127,6 +127,6 @@ watch(() => props.collapsed, dismiss)
 .profile-menu-group{padding:3px 0}.profile-menu-group+.profile-menu-group{border-top:1px solid var(--vm-line-2);margin-top:4px;padding-top:7px}
 .profile-menu-item{display:flex;align-items:center;gap:11px;width:100%;min-height:34px;box-sizing:border-box;padding:8px 9px;border:0;border-radius:7px;background:transparent;color:inherit;font:400 13px/1.35 Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;text-align:left;cursor:pointer}
 .profile-menu-item:hover,.profile-menu-item:focus-visible{background:var(--vm-surface-soft);outline:none}.profile-menu-item svg{flex-shrink:0}.menu-trailing{margin-left:auto;color:var(--vm-ink-faint)}.logout-item:hover,.logout-item:focus-visible{color:var(--vm-red-ink);background:var(--vm-red-soft)}.submenu-back{font-weight:600}.profile-menu-note{padding:8px 10px;margin:0;font-size:11px;line-height:1.5;color:var(--vm-ink-faint)}
-@keyframes profile-appear{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes profile-appear{from{opacity:0;}to{opacity:1;}}
 @media(prefers-reduced-motion:reduce){.profile-popup{animation:none}.profile-trigger,.profile-chevron{transition:none}}
 </style>
