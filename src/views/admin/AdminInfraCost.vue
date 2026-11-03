@@ -136,7 +136,8 @@ const OWN = '#4f46e5'
 const SHARED = '#0d9488'
 
 const data = ref(null)
-const month = ref('')
+// The current month (UTC, as the API counts months) until the API answers, so the picker never shows an empty month.
+const month = ref(new Date().toISOString().slice(0, 7))
 const loading = ref(true)
 const refreshing = ref(false)
 const loadError = ref('')
@@ -200,7 +201,7 @@ function chartSummary(a) {
 
 const usd = (v) => `$${Number(v ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 function when(s) { return new Date(s).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) }
-function monthLabel(m) { const [y, mo] = m.split('-').map(Number); return new Date(Date.UTC(y, mo - 1, 1)).toLocaleString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }) }
+function monthLabel(m) { if (!/^\d{4}-\d{2}$/.test(m || '')) return m || ''; const [y, mo] = m.split('-').map(Number); return new Date(Date.UTC(y, mo - 1, 1)).toLocaleString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }) }
 function minutes(s) { const m = Math.ceil(s / 60); return `${m} minute${m === 1 ? '' : 's'}` }
 function hours(s) { const h = Math.round(s / 3600); return h >= 1 ? `${h} hour${h === 1 ? '' : 's'}` : minutes(s) }
 
