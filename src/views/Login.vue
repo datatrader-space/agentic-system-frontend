@@ -623,6 +623,16 @@ watch(() => formData.value.password, () => {
   /* Using global theme variables from style.css */
   --radius: 12px;
   --transition: 200ms ease;
+  /* Link text on the card. The brand blue (#2563EB) is 2.8:1 on the dark card (#1f2937), under the 4.5:1 text needs
+     (WCAG AA), so the dark theme (the default) uses a lighter blue of the same family: #60A5FA is 5.8:1, its hover
+     #93C5FD 8.1:1. The light theme keeps the brand blue (4.7:1 on #f3f4f6) and darkens on hover (6.1:1). */
+  --login-link: #60A5FA;
+  --login-link-hover: #93C5FD;
+}
+
+:global([data-theme="light"]) .login-page {
+  --login-link: #2563EB;
+  --login-link-hover: #1D4ED8;
 }
 
 /* ===== Page Layout ===== */
@@ -977,13 +987,13 @@ watch(() => formData.value.password, () => {
 
 .forgot-link {
   font-size: 0.8125rem;
-  color: var(--primary);
+  color: var(--login-link);
   cursor: pointer;
   transition: color var(--transition);
 }
 
 .forgot-link:hover {
-  color: #60A5FA;
+  color: var(--login-link-hover);
 }
 
 .input-wrapper {
@@ -1016,7 +1026,7 @@ watch(() => formData.value.password, () => {
 }
 
 .input-focused .input-icon {
-  color: var(--primary);
+  color: var(--login-link);
 }
 
 .input-wrapper input {
@@ -1076,7 +1086,7 @@ watch(() => formData.value.password, () => {
 }
 
 .link-btn:hover {
-  color: var(--primary);
+  color: var(--login-link);
 }
 
 /* Password Strength */
@@ -1282,14 +1292,14 @@ watch(() => formData.value.password, () => {
 .toggle-link {
   background: none;
   border: none;
-  color: var(--primary);
+  color: var(--login-link);
   font-weight: 600;
   cursor: pointer;
   transition: color var(--transition);
 }
 
 .toggle-link:hover {
-  color: var(--primary-light);
+  color: var(--login-link-hover);
 }
 
 /* Terms */
@@ -1308,7 +1318,7 @@ watch(() => formData.value.password, () => {
 }
 
 .terms-text a:hover {
-  color: var(--primary);
+  color: var(--login-link);
 }
 
 /* ===== Transitions ===== */
