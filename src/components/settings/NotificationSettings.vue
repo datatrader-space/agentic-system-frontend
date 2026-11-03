@@ -58,18 +58,18 @@ onMounted(load)
 
 <style scoped>
 .ns { max-width: 720px; }
-.ns-head h2 { margin: 0; font-size: 18px; font-weight: 800; color: #0f172a; }
-.ns-head p { margin: 6px 0 20px; color: #64748b; font-size: 13px; line-height: 1.5; }
-.ns-loading { color: #94a3b8; font-size: 13px; padding: 20px 0; }
+.ns-head h2 { margin: 0; font-size: 18px; font-weight: 800; color: var(--vm-ink); }
+.ns-head p { margin: 6px 0 20px; color: var(--vm-ink-faint); font-size: 13px; line-height: 1.5; }
+.ns-loading { color: var(--vm-ink-faint); font-size: 13px; padding: 20px 0; }
 .ns-list { display: flex; flex-direction: column; gap: 4px; }
-.ns-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 4px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
+.ns-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 4px; border-bottom: 1px solid var(--vm-line-2); cursor: pointer; }
 .ns-row:last-child { border-bottom: 0; }
 .ns-info { display: flex; flex-direction: column; gap: 2px; }
-.ns-title { font-size: 14px; font-weight: 700; color: #0f172a; }
-.ns-desc { font-size: 12.5px; color: #64748b; }
+.ns-title { font-size: 14px; font-weight: 700; color: var(--vm-ink); }
+.ns-desc { font-size: 12.5px; color: var(--vm-ink-faint); }
 .ns-toggle { position: relative; width: 44px; height: 24px; flex-shrink: 0; border: 0; border-radius: 999px; background: #e2e8f0; cursor: pointer; transition: background .15s; }
 .ns-toggle.on { background: #4f46e5; }
 .ns-toggle:disabled { opacity: .6; }
-.ns-knob { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.2); transition: transform .15s; }
+.ns-knob { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: var(--vm-surface); box-shadow: 0 1px 2px rgba(16,24,40,.2); transition: transform .15s; }
 .ns-knob.on { transform: translateX(20px); }
 </style>

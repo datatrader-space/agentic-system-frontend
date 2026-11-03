@@ -96,30 +96,30 @@ defineExpose({ isValid, MAX_RULES, MAX_RULE_LEN })
 <style scoped>
 .agent-rules-editor { display: flex; flex-direction: column; gap: 8px; }
 .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.title { font-size: 0.9rem; font-weight: 600; color: #0f172a; margin: 0; }
-.muted { font-weight: 400; color: #94a3b8; font-size: 0.8rem; }
-.hint { font-size: 0.75rem; color: #64748b; margin: 2px 0 0; }
-.count { font-size: 0.75rem; color: #94a3b8; white-space: nowrap; }
-.count.over { color: #dc2626; }
+.title { font-size: 0.9rem; font-weight: 600; color: var(--vm-ink); margin: 0; }
+.muted { font-weight: 400; color: var(--vm-ink-faint); font-size: 0.8rem; }
+.hint { font-size: 0.75rem; color: var(--vm-ink-faint); margin: 2px 0 0; }
+.count { font-size: 0.75rem; color: var(--vm-ink-faint); white-space: nowrap; }
+.count.over { color: var(--vm-red-ink); }
 .rules-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .rule-row { display: flex; align-items: flex-start; gap: 8px; }
-.num { font-size: 0.8rem; color: #94a3b8; padding-top: 8px; min-width: 18px; }
+.num { font-size: 0.8rem; color: var(--vm-ink-faint); padding-top: 8px; min-width: 18px; }
 .input-wrap { flex: 1; }
 .rule-input {
-  width: 100%; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 8px;
-  font-size: 0.85rem; color: #0f172a;
+  width: 100%; padding: 6px 10px; border: 1px solid var(--vm-line-2); border-radius: 8px;
+  font-size: 0.85rem; color: var(--vm-ink);
 }
 .rule-input:focus { outline: none; border-color: #c7d2fe; box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
 .rule-input.invalid { border-color: #fca5a5; }
-.error { font-size: 0.72rem; color: #dc2626; margin: 3px 0 0; }
+.error { font-size: 0.72rem; color: var(--vm-red-ink); margin: 3px 0 0; }
 .remove {
-  border: none; background: transparent; color: #94a3b8; font-size: 1.1rem; line-height: 1;
+  border: none; background: transparent; color: var(--vm-ink-faint); font-size: 1.1rem; line-height: 1;
   cursor: pointer; padding: 4px 6px; border-radius: 6px;
 }
-.remove:hover { color: #dc2626; background: #fef2f2; }
+.remove:hover { color: var(--vm-red-ink); background: #fef2f2; }
 .add {
   align-self: flex-start; margin-top: 2px; padding: 5px 10px; font-size: 0.8rem; font-weight: 500;
-  color: #4f46e5; background: #eef2ff; border: 1px solid #e0e7ff; border-radius: 8px; cursor: pointer;
+  color: var(--vm-link); background: var(--vm-surface-soft); border: 1px solid var(--vm-line-2); border-radius: 8px; cursor: pointer;
 }
 .add:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

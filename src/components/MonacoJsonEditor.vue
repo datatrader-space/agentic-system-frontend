@@ -232,7 +232,7 @@ function handleUpdate(path, value) {
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 0.9375rem;
   line-height: 1.8;
-  color: #858585;
+  color: var(--vm-ink-faint);
 }
 
 .editor-content {
@@ -254,7 +254,7 @@ function handleUpdate(path, value) {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #f48771;
+  color: var(--vm-red-ink);
   font-size: 0.8125rem;
 }
 

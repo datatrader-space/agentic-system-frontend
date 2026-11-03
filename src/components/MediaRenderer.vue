@@ -284,7 +284,7 @@ onUnmounted(() => {
 }
 
 .media-carousel::-webkit-scrollbar-track {
-    background: #f3e8ff;
+    background: var(--vm-violet-soft);
     border-radius: 3px;
 }
 

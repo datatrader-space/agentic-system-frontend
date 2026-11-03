@@ -1049,11 +1049,11 @@ onBeforeUnmount(() => {
 .emu-prose :deep(ul), .emu-prose :deep(ol) { margin: 0.25rem 0; padding-left: 1.1rem; }
 .emu-prose :deep(li) { margin: 0.1rem 0; }
 .emu-prose :deep(h1), .emu-prose :deep(h2), .emu-prose :deep(h3) { font-weight: 700; margin: 0.4rem 0 0.2rem; }
-.emu-prose :deep(code) { background: #f1f5f9; padding: 0.05rem 0.3rem; border-radius: 0.25rem; font-size: 0.8em; }
+.emu-prose :deep(code) { background: var(--vm-surface-soft); padding: 0.05rem 0.3rem; border-radius: 0.25rem; font-size: 0.8em; }
 .emu-prose :deep(pre) { background: #0f172a; color: #e2e8f0; padding: 0.6rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.4rem 0; }
 .emu-prose :deep(pre code) { background: transparent; color: inherit; padding: 0; }
-.emu-prose :deep(a) { color: #4f46e5; text-decoration: underline; }
+.emu-prose :deep(a) { color: var(--vm-link); text-decoration: underline; }
 .emu-prose :deep(table) { border-collapse: collapse; font-size: 0.8em; }
-.emu-prose :deep(th), .emu-prose :deep(td) { border: 1px solid #e2e8f0; padding: 0.2rem 0.4rem; }
-.emu-prose :deep(blockquote) { border-left: 3px solid #c7d2fe; padding-left: 0.5rem; color: #64748b; margin: 0.3rem 0; }
+.emu-prose :deep(th), .emu-prose :deep(td) { border: 1px solid var(--vm-line-2); padding: 0.2rem 0.4rem; }
+.emu-prose :deep(blockquote) { border-left: 3px solid #c7d2fe; padding-left: 0.5rem; color: var(--vm-ink-faint); margin: 0.3rem 0; }
 </style>

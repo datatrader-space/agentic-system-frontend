@@ -36,19 +36,19 @@ const verb = computed(() => {
   margin: 6px 0;
   font-size: 0.8125rem;
   border-radius: 9px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border: 1px solid var(--vm-line-2);
+  background: var(--vm-surface-soft);
 }
 .tc-icon { display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; flex-shrink: 0; }
 .tc-icon svg { width: 15px; height: 15px; }
-.tool-call.running { color: #4f46e5; border-color: #c7d2fe; background: #eef2ff; }
-.tool-call.done { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
-.tool-call.error { color: #dc2626; border-color: #fecaca; background: #fef2f2; }
+.tool-call.running { color: var(--vm-link); border-color: #c7d2fe; background: var(--vm-surface-soft); }
+.tool-call.done { color: var(--vm-green-ink); border-color: #bbf7d0; background: #f0fdf4; }
+.tool-call.error { color: var(--vm-red-ink); border-color: #fecaca; background: #fef2f2; }
 .tc-verb { color: inherit; }
 .tc-name {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.75rem;
-  color: #0f172a;
+  color: var(--vm-ink);
   background: rgba(15, 23, 42, 0.06);
   padding: 1px 6px;
   border-radius: 5px;

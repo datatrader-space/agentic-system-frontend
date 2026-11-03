@@ -74,7 +74,7 @@ export default {
 
 .entities-section h5 {
   margin: 0 0 12px 0;
-  color: #666;
+  color: var(--vm-ink-faint);
 }
 
 .entities-grid {
@@ -85,7 +85,7 @@ export default {
 
 .entity-card {
   padding: 12px;
-  border: 2px solid #e0e0e0;
+  border: 2px solid var(--vm-line-2);
   border-radius: 6px;
   background: white;
 }
@@ -119,43 +119,43 @@ export default {
 }
 
 .entity-role-badge {
-  background: #f0f0f0;
+  background: var(--vm-surface-soft);
   padding: 2px 8px;
   border-radius: 3px;
   font-size: 0.8em;
-  color: #666;
+  color: var(--vm-ink-faint);
 }
 
 .entity-location {
   font-family: monospace;
   font-size: 0.85em;
-  color: #666;
+  color: var(--vm-ink-faint);
   margin-bottom: 8px;
 }
 
 .entity-relationships {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--vm-line-2);
   font-size: 0.85em;
 }
 
 .rel-section {
   margin: 4px 0;
-  color: #666;
+  color: var(--vm-ink-faint);
 }
 
 .no-docs {
   text-align: center;
   padding: 40px;
-  color: #666;
+  color: var(--vm-ink-faint);
 }
 
 .btn {
   padding: 6px 12px;
   border: 1px solid #007bff;
   background: white;
-  color: #007bff;
+  color: var(--vm-link);
   border-radius: 4px;
   cursor: pointer;
 }

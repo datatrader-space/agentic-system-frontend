@@ -188,18 +188,18 @@ function toggle() {
 }
 
 .ellipsis {
-  color: #808080;
+  color: var(--vm-ink-faint);
   margin-left: 0.25rem;
 }
 
 .item-count {
-  color: #808080;
+  color: var(--vm-ink-faint);
   font-size: 0.75rem;
   margin-left: 0.5rem;
 }
 
 .value-string {
-  color: #ce9178;
+  color: var(--vm-amber-ink);
 }
 
 .value-number {
@@ -207,11 +207,11 @@ function toggle() {
 }
 
 .value-boolean {
-  color: #569cd6;
+  color: var(--vm-link);
 }
 
 .value-null {
-  color: #569cd6;
+  color: var(--vm-link);
 }
 
 .primitive {

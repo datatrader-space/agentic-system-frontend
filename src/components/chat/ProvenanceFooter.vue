@@ -37,7 +37,7 @@ const title = computed(() => {
   margin-top: 8px; font-size: 12px; font-weight: 500;
 }
 .provenance .ico { width: 13px; height: 13px; flex-shrink: 0; }
-.tone-sourced { color: #4f46e5; }   /* KB / tool — grounded */
-.tone-warn { color: #b45309; }      /* conflicting sources */
-.tone-none { color: #94a3b8; }      /* no external source */
+.tone-sourced { color: var(--vm-link); }   /* KB / tool — grounded */
+.tone-warn { color: var(--vm-amber-ink); }      /* conflicting sources */
+.tone-none { color: var(--vm-ink-faint); }      /* no external source */
 </style>

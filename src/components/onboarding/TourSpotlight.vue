@@ -209,8 +209,8 @@ watch(() => props.step, () => findTarget(), { deep: true })
   width: 340px;
   max-width: calc(100vw - 32px);
   padding: 18px 18px 16px;
-  background: var(--vm-surface, #fff);
-  border: 1.5px solid var(--vm-line, #e7eaf0);
+  background: var(--vm-surface, var(--vm-surface));
+  border: 1.5px solid var(--vm-line, var(--vm-line-2));
   border-radius: 16px;
   box-shadow: var(--vm-shadow-l, 0 20px 50px rgba(15, 23, 42, .25));
   animation: tourPop .28s var(--vm-ease, cubic-bezier(.2,.8,.2,1)) both;
@@ -227,14 +227,14 @@ watch(() => props.step, () => findTarget(), { deep: true })
 
 .tour-title {
   font-family: var(--vm-font-display, inherit);
-  font-size: 1.0625rem; font-weight: 700; color: var(--vm-ink, #0f172a); margin: 0 0 6px;
+  font-size: 1.0625rem; font-weight: 700; color: var(--vm-ink, var(--vm-ink)); margin: 0 0 6px;
 }
-.tour-desc { font-size: 0.875rem; line-height: 1.5; color: var(--vm-ink-soft, #475569); margin: 0 0 12px; }
+.tour-desc { font-size: 0.875rem; line-height: 1.5; color: var(--vm-ink-soft, var(--vm-ink-soft)); margin: 0 0 12px; }
 
 .tour-howto { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 7px; }
 .tour-howto li {
   display: flex; align-items: flex-start; gap: 9px;
-  font-size: 0.8125rem; line-height: 1.4; color: var(--vm-ink, #0f172a);
+  font-size: 0.8125rem; line-height: 1.4; color: var(--vm-ink, var(--vm-ink));
 }
 .tour-howto .hn {
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
@@ -242,18 +242,18 @@ watch(() => props.step, () => findTarget(), { deep: true })
   font-size: 0.6875rem; font-weight: 700; color: #fff;
   background: var(--vm-g-brand, linear-gradient(135deg,#7c3aed,#0ea5e9));
 }
-.tour-howto :deep(strong), .tour-howto :deep(b) { font-weight: 700; color: var(--vm-violet-d, #6d28d9); }
+.tour-howto :deep(strong), .tour-howto :deep(b) { font-weight: 700; color: var(--vm-violet-d, var(--vm-violet-ink)); }
 
 .tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .tour-nav { display: flex; align-items: center; gap: 8px; }
 .tour-skip {
-  font-size: 0.8125rem; font-weight: 600; color: var(--vm-ink-faint, #94a3b8);
+  font-size: 0.8125rem; font-weight: 600; color: var(--vm-ink-faint, var(--vm-ink-faint));
   background: none; border: none; cursor: pointer; padding: 6px 2px;
 }
-.tour-skip:hover { color: var(--vm-ink-soft, #475569); }
+.tour-skip:hover { color: var(--vm-ink-soft, var(--vm-ink-soft)); }
 .tour-back {
-  font-size: 0.8125rem; font-weight: 600; color: var(--vm-ink-soft, #475569); cursor: pointer;
-  background: var(--vm-glass-strong, #f1f5f9); border: 1px solid var(--vm-line, #e7eaf0);
+  font-size: 0.8125rem; font-weight: 600; color: var(--vm-ink-soft, var(--vm-ink-soft)); cursor: pointer;
+  background: var(--vm-glass-strong, var(--vm-surface-soft)); border: 1px solid var(--vm-line, var(--vm-line-2));
   border-radius: 10px; padding: 8px 14px;
 }
 .tour-back:hover { background: var(--vm-bg, #e2e8f0); }
@@ -266,7 +266,7 @@ watch(() => props.step, () => findTarget(), { deep: true })
 .tour-next:hover { transform: translateY(-1px); }
 .tour-count {
   position: absolute; top: 16px; right: 18px;
-  font-size: 0.6875rem; font-weight: 700; color: var(--vm-ink-faint, #94a3b8);
+  font-size: 0.6875rem; font-weight: 700; color: var(--vm-ink-faint, var(--vm-ink-faint));
 }
 
 @keyframes tourPop {

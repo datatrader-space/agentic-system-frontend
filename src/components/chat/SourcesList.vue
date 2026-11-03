@@ -36,15 +36,15 @@ const open = ref(false)
 <style scoped>
 .sources { margin-top: 8px; }
 .sources-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
-  color: #64748b; background: none; border: none; cursor: pointer; padding: 2px 0; }
-.sources-toggle:hover { color: #4f46e5; }
+  color: var(--vm-ink-faint); background: none; border: none; cursor: pointer; padding: 2px 0; }
+.sources-toggle:hover { color: var(--vm-link); }
 .ico { width: 13px; height: 13px; } .chev { width: 13px; height: 13px; transition: transform .15s; }
 .chev.open { transform: rotate(180deg); }
-.sources-list { list-style: none; margin: 6px 0 0; padding: 8px 10px; background: #f8fafc;
-  border: 1px solid #e2e8f0; border-radius: 8px; }
+.sources-list { list-style: none; margin: 6px 0 0; padding: 8px 10px; background: var(--vm-surface-soft);
+  border: 1px solid var(--vm-line-2); border-radius: 8px; }
 .src { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; padding: 3px 0; flex-wrap: wrap; }
-.src-n { font-weight: 700; color: #4f46e5; }
-.src-title { color: #334155; font-weight: 500; text-decoration: none; }
-a.src-title:hover { color: #4f46e5; text-decoration: underline; }
-.src-meta { color: #94a3b8; font-size: 11.5px; }
+.src-n { font-weight: 700; color: var(--vm-link); }
+.src-title { color: var(--vm-ink-soft); font-weight: 500; text-decoration: none; }
+a.src-title:hover { color: var(--vm-link); text-decoration: underline; }
+.src-meta { color: var(--vm-ink-faint); font-size: 11.5px; }
 </style>

@@ -840,7 +840,7 @@ const getActionSuccessRate = (action) => {
   justify-content: space-between;
   align-items: center;
   padding: 24px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--vm-line-2);
 }
 
 .modal-header h2 {
@@ -854,13 +854,13 @@ const getActionSuccessRate = (action) => {
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   padding: 8px;
   line-height: 1;
 }
 
 .close-button:hover {
-  color: #1f2937;
+  color: var(--vm-ink);
 }
 
 .modal-body {
@@ -874,8 +874,8 @@ const getActionSuccessRate = (action) => {
   justify-content: space-between;
   align-items: center;
   padding: 16px 24px;
-  border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
+  border-top: 1px solid var(--vm-line-2);
+  background: var(--vm-surface-soft);
 }
 
 .section {
@@ -886,7 +886,7 @@ const getActionSuccessRate = (action) => {
   font-size: 18px;
   font-weight: 600;
   margin-bottom: 16px;
-  color: #1f2937;
+  color: var(--vm-ink);
 }
 
 /* Info Grid */
@@ -900,14 +900,14 @@ const getActionSuccessRate = (action) => {
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   text-transform: uppercase;
   margin-bottom: 4px;
 }
 
 .info-item p {
   margin: 0;
-  color: #1f2937;
+  color: var(--vm-ink);
 }
 
 /* Stats Grid */
@@ -918,8 +918,8 @@ const getActionSuccessRate = (action) => {
 }
 
 .stat-card {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--vm-surface-soft);
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
   padding: 16px;
   text-align: center;
@@ -928,13 +928,13 @@ const getActionSuccessRate = (action) => {
 .stat-value {
   font-size: 32px;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--vm-ink);
   margin-bottom: 4px;
 }
 
 .stat-label {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   text-transform: uppercase;
 }
 
@@ -962,13 +962,13 @@ const getActionSuccessRate = (action) => {
 }
 
 .action-group {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
   overflow: hidden;
 }
 
 .action-group-header {
-  background: #f9fafb;
+  background: var(--vm-surface-soft);
   padding: 12px 16px;
   cursor: pointer;
   display: flex;
@@ -978,16 +978,16 @@ const getActionSuccessRate = (action) => {
 }
 
 .action-group-header:hover {
-  background: #f3f4f6;
+  background: var(--vm-surface-soft);
 }
 
 .action-group-title {
   font-weight: 600;
-  color: #1f2937;
+  color: var(--vm-ink);
 }
 
 .action-count {
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   font-weight: 400;
   margin-left: 8px;
 }
@@ -1002,7 +1002,7 @@ const getActionSuccessRate = (action) => {
 
 .action-item {
   padding: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--vm-line-2);
   border-radius: 6px;
   margin-bottom: 8px;
   background: white;
@@ -1021,7 +1021,7 @@ const getActionSuccessRate = (action) => {
 
 .action-name {
   font-weight: 600;
-  color: #1f2937;
+  color: var(--vm-ink);
 }
 
 .http-method-badge {
@@ -1032,15 +1032,15 @@ const getActionSuccessRate = (action) => {
   text-transform: uppercase;
 }
 
-.method-get { background: #dbeafe; color: #1e40af; }
-.method-post { background: #d1fae5; color: #065f46; }
-.method-put { background: #fef3c7; color: #92400e; }
-.method-patch { background: #fce7f3; color: #831843; }
-.method-delete { background: #fee2e2; color: #991b1b; }
+.method-get { background: var(--vm-blue-soft); color: var(--vm-link); }
+.method-post { background: var(--vm-green-soft); color: var(--vm-green-ink); }
+.method-put { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
+.method-patch { background: var(--vm-red-soft); color: var(--vm-ink); }
+.method-delete { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 
 .action-description {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   margin: 4px 0;
 }
 
@@ -1048,19 +1048,19 @@ const getActionSuccessRate = (action) => {
   display: flex;
   gap: 8px;
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--vm-ink-faint);
   margin-top: 8px;
 }
 
 .expand-button {
-  background: #f3f4f6;
+  background: var(--vm-surface-soft);
   border: none;
   border-radius: 4px;
   width: 24px;
   height: 24px;
   cursor: pointer;
   font-weight: 700;
-  color: #6b7280;
+  color: var(--vm-ink-faint);
 }
 
 .expand-button:hover {
@@ -1071,7 +1071,7 @@ const getActionSuccessRate = (action) => {
 .action-details {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--vm-line-2);
 }
 
 .detail-section {
@@ -1081,7 +1081,7 @@ const getActionSuccessRate = (action) => {
 .detail-section h5 {
   font-size: 14px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--vm-ink);
   margin-bottom: 8px;
 }
 
@@ -1093,30 +1093,30 @@ const getActionSuccessRate = (action) => {
 
 .parameter-item {
   padding: 12px;
-  background: #f9fafb;
+  background: var(--vm-surface-soft);
   border-radius: 6px;
   font-size: 14px;
 }
 
 .parameter-name {
   font-weight: 600;
-  color: #1f2937;
+  color: var(--vm-ink);
 }
 
 .parameter-type {
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   font-size: 12px;
   margin-left: 8px;
 }
 
 .parameter-description {
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   font-size: 13px;
   margin: 4px 0 0 0;
 }
 
 .parameter-default {
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   font-size: 12px;
   margin: 4px 0 0 0;
 }
@@ -1132,7 +1132,7 @@ const getActionSuccessRate = (action) => {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
-  background: #f9fafb;
+  background: var(--vm-surface-soft);
   padding: 12px;
   border-radius: 6px;
 }
@@ -1144,12 +1144,12 @@ const getActionSuccessRate = (action) => {
 }
 
 .stat-item .stat-label {
-  color: #6b7280;
+  color: var(--vm-ink-faint);
 }
 
 .stat-item .stat-value {
   font-weight: 600;
-  color: #1f2937;
+  color: var(--vm-ink);
 }
 
 /* Knowledge Base */
@@ -1161,9 +1161,9 @@ const getActionSuccessRate = (action) => {
 
 .knowledge-item {
   padding: 16px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
-  background: #f9fafb;
+  background: var(--vm-surface-soft);
 }
 
 .knowledge-header {
@@ -1173,7 +1173,7 @@ const getActionSuccessRate = (action) => {
 .knowledge-type {
   font-size: 12px;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   text-transform: uppercase;
 }
 
@@ -1181,11 +1181,11 @@ const getActionSuccessRate = (action) => {
   margin: 4px 0 0 0;
   font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--vm-ink);
 }
 
 .knowledge-content {
-  color: #374151;
+  color: var(--vm-ink-soft);
   font-size: 14px;
   line-height: 1.6;
   margin: 8px 0;
@@ -1206,15 +1206,15 @@ const getActionSuccessRate = (action) => {
   padding: 4px 12px;
   border-radius: 12px;
   font-size: 12px;
-  color: #374151;
+  color: var(--vm-ink-soft);
 }
 
 /* Status Badge */
 .status-badge-active {
   padding: 4px 12px;
   border-radius: 12px;
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--vm-green-soft);
+  color: var(--vm-green-ink);
   font-size: 14px;
   font-weight: 600;
 }
@@ -1222,8 +1222,8 @@ const getActionSuccessRate = (action) => {
 .status-badge-inactive {
   padding: 4px 12px;
   border-radius: 12px;
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--vm-surface-soft);
+  color: var(--vm-ink-faint);
   font-size: 14px;
   font-weight: 600;
 }
@@ -1245,7 +1245,7 @@ const getActionSuccessRate = (action) => {
 
 .btn-secondary {
   background: white;
-  color: #374151;
+  color: var(--vm-ink-soft);
   border: 1px solid #d1d5db;
   padding: 10px 20px;
   border-radius: 6px;
@@ -1254,7 +1254,7 @@ const getActionSuccessRate = (action) => {
 }
 
 .btn-secondary:hover {
-  background: #f9fafb;
+  background: var(--vm-surface-soft);
 }
 
 .btn-danger {
@@ -1272,8 +1272,8 @@ const getActionSuccessRate = (action) => {
 }
 
 .btn-share {
-  background: #e0e7ff;
-  color: #4338ca;
+  background: var(--vm-blue-soft);
+  color: var(--vm-link);
   border: none;
   padding: 10px 20px;
   border-radius: 6px;
@@ -1295,7 +1295,7 @@ const getActionSuccessRate = (action) => {
 }
 
 .btn-sm:hover {
-  background: #f9fafb;
+  background: var(--vm-surface-soft);
 }
 
 /* Loading & Error States */
@@ -1307,7 +1307,7 @@ const getActionSuccessRate = (action) => {
 }
 
 .spinner {
-  border: 4px solid #f3f4f6;
+  border: 4px solid var(--vm-line-2);
   border-top: 4px solid #3b82f6;
   border-radius: 50%;
   width: 40px;
@@ -1343,23 +1343,23 @@ const getActionSuccessRate = (action) => {
 }
 
 .text-gray-400 {
-  color: #9ca3af;
+  color: var(--vm-ink-faint);
 }
 
 .text-gray-500 {
-  color: #6b7280;
+  color: var(--vm-ink-faint);
 }
 
 .text-red-600 {
-  color: #dc2626;
+  color: var(--vm-red-ink);
 }
 
 .text-green-600 {
-  color: #16a34a;
+  color: var(--vm-green-ink);
 }
 
 .text-blue-600 {
-  color: #2563eb;
+  color: var(--vm-link);
 }
 
 .hover\:underline:hover {
@@ -1386,7 +1386,7 @@ const getActionSuccessRate = (action) => {
 }
 
 .oauth-status-loading {
-  color: #9ca3af;
+  color: var(--vm-ink-faint);
   font-style: italic;
 }
 
@@ -1406,7 +1406,7 @@ const getActionSuccessRate = (action) => {
 
 .oauth-expiry {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--vm-ink-faint);
 }
 
 .oauth-actions {
@@ -1436,7 +1436,7 @@ const getActionSuccessRate = (action) => {
   padding: 10px 12px;
   border: 1px solid #c7d2fe;
   border-radius: 10px;
-  background: #eef2ff;
+  background: var(--vm-surface-soft);
 }
 .enrich-repair-row {
   display: flex;
@@ -1447,7 +1447,7 @@ const getActionSuccessRate = (action) => {
 .enrich-repair-text {
   font-size: 12px;
   font-weight: 500;
-  color: #3730a3;
+  color: var(--vm-ink);
 }
 .enrich-repair-bar {
   flex: 1;

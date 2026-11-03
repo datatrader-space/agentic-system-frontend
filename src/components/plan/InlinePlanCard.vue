@@ -243,14 +243,14 @@ function submitDecision(decision) {
 
 .ipc-attempt {
   margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; line-height: 16px;
-  font-weight: 600; color: #92400e; background: #fef3c7; border: 1px solid #fde68a; white-space: nowrap;
+  font-weight: 600; color: var(--vm-amber-ink); background: var(--vm-amber-soft); border: 1px solid #fde68a; white-space: nowrap;
 }
 .ipc-fixing {
-  margin: 6px 0 0; font-size: 12px; line-height: 17px; color: var(--vm-ink-soft, #475569);
+  margin: 6px 0 0; font-size: 12px; line-height: 17px; color: var(--vm-ink-soft, var(--vm-ink-soft));
 }
 .ipc-stalled {
   margin: 6px 0 0; padding: 6px 10px; border-radius: 8px; font-size: 12px; line-height: 17px;
-  color: #92400e; background: #fffbeb; border: 1px solid #fde68a;
+  color: var(--vm-amber-ink); background: #fffbeb; border: 1px solid #fde68a;
 }
 
 .pill-reconnect { background: var(--surf2); color: var(--ink3); }
@@ -272,7 +272,7 @@ li.completed .ipc-ic { border-color: var(--done); background: var(--done); color
 li.blocked .ipc-ic { border-color: var(--blk); background: var(--blk-bg); color: var(--blk); }
 li.failed .ipc-ic { border-color: var(--fail); background: var(--fail); color: #fff; }
 li.skipped .ipc-ic { border-color: var(--ink3); color: var(--ink3); }
-li.milestone .ipc-ic { border: 0; border-radius: 6px; background: #ede9fe; color: #6d28d9; width: auto; padding: 1px 6px; font-size: 10.5px; }
+li.milestone .ipc-ic { border: 0; border-radius: 6px; background: var(--vm-blue-soft); color: var(--vm-violet-ink); width: auto; padding: 1px 6px; font-size: 10.5px; }
 .ipc-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .ipc-label { color: var(--ink); }
 li.completed .ipc-label, li.skipped .ipc-label { color: var(--ink2); }

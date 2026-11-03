@@ -56,17 +56,17 @@ function onDrag(e) {
 
 <style scoped>
 .otree-row { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 6px; cursor: grab; font-size: 12px; }
-.otree-row:hover { background: #f5f3ff; }
-.otree-caret { width: 14px; flex-shrink: 0; font-size: 9px; color: #94a3b8; }
+.otree-row:hover { background: var(--vm-surface-soft); }
+.otree-caret { width: 14px; flex-shrink: 0; font-size: 9px; color: var(--vm-ink-faint); }
 .otree-dot { cursor: default; color: #cbd5e1; }
-.otree-key { font-family: ui-monospace, Menlo, monospace; font-weight: 600; color: #334155; flex-shrink: 0; }
-.otree-type { font-size: 8.5px; font-weight: 700; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: #f1f5f9; color: #94a3b8; flex-shrink: 0; }
-.otree-type.t-string { color: #15803d; background: #f0fdf4; }
-.otree-type.t-number { color: #1d4ed8; background: #eff6ff; }
-.otree-type.t-boolean { color: #b45309; background: #fffbeb; }
-.otree-type.t-array, .otree-type.t-object { color: #7c3aed; background: #f5f3ff; }
-.otree-val { color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
-.otree-first { flex-shrink: 0; font-size: 9px; font-weight: 700; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 1px 5px; }
-.otree-first:hover { background: #d1fae5; }
-.otree-children { margin-left: 12px; border-left: 1px dashed #e2e8f0; padding-left: 4px; }
+.otree-key { font-family: ui-monospace, Menlo, monospace; font-weight: 600; color: var(--vm-ink-soft); flex-shrink: 0; }
+.otree-type { font-size: 8.5px; font-weight: 700; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; background: var(--vm-surface-soft); color: var(--vm-ink-faint); flex-shrink: 0; }
+.otree-type.t-string { color: var(--vm-green-ink); background: #f0fdf4; }
+.otree-type.t-number { color: var(--vm-link); background: var(--vm-surface-soft); }
+.otree-type.t-boolean { color: var(--vm-amber-ink); background: #fffbeb; }
+.otree-type.t-array, .otree-type.t-object { color: var(--vm-violet-ink); background: var(--vm-surface-soft); }
+.otree-val { color: var(--vm-ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.otree-first { flex-shrink: 0; font-size: 9px; font-weight: 700; color: var(--vm-green-ink); background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 4px; padding: 1px 5px; }
+.otree-first:hover { background: var(--vm-green-soft); }
+.otree-children { margin-left: 12px; border-left: 1px dashed var(--vm-line-2); padding-left: 4px; }
 </style>

@@ -55,8 +55,8 @@ watch(() => browser.timeline.length, async () => {
 </script>
 
 <style scoped>
-.bs { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-top: 1px solid var(--vm-line-2, #e5e7eb);
-  background: var(--vm-surface, #fff); }
+.bs { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-top: 1px solid var(--vm-line-2, var(--vm-line-2));
+  background: var(--vm-surface, var(--vm-surface)); }
 .bs-track { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 4px 2px;
   scrollbar-width: thin; border-radius: 8px; outline: none; }
 .bs-track:focus-visible { box-shadow: 0 0 0 2px rgba(37, 99, 235, .35); }
@@ -68,9 +68,9 @@ watch(() => browser.timeline.length, async () => {
 .bs-mark.pic.bad { background: #ef4444; }
 .bs-mark.on { background: var(--vm-violet, #2563eb); height: 24px; box-shadow: 0 0 0 3px rgba(37, 99, 235, .2); }
 .bs-mark:focus-visible { outline: 2px solid var(--vm-violet, #2563eb); outline-offset: 2px; }
-.bs-count { flex: 0 0 auto; font-size: 11.5px; color: var(--vm-ink-soft, #64748b); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bs-count { flex: 0 0 auto; font-size: 11.5px; color: var(--vm-ink-soft, var(--vm-ink-faint)); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bs-live { flex: 0 0 auto; font-size: 10.5px; font-weight: 800; letter-spacing: .08em; padding: 4px 9px; border-radius: 9999px; cursor: pointer;
-  border: 1px solid var(--vm-line-2, #cbd5e1); background: var(--vm-surface, #fff); color: var(--vm-ink-soft, #64748b); }
+  border: 1px solid var(--vm-line-2, #cbd5e1); background: var(--vm-surface, var(--vm-surface)); color: var(--vm-ink-soft, var(--vm-ink-faint)); }
 .bs-live.on { background: #0f172a; border-color: #0f172a; color: #fff; }
 .bs-live:focus-visible { outline: 2px solid var(--vm-violet, #2563eb); outline-offset: 2px; }
 

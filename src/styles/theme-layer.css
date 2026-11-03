@@ -1,0 +1,250 @@
+/* ============================================================================================
+   THEME LAYER (2026-11-03). The dashboard's colour variables follow <html data-theme>, but most of
+   what is drawn did not: the app canvas, the sidebar, the notification bell, the workspace switcher
+   and ~2,000 fixed light Tailwind classes (bg-white, text-slate-900, text-[#98A2B3] ...). In dark mode
+   that drew light text on white panels and dark headings on a dark page (1.05:1).
+
+   This layer maps those fixed light colours onto the theme, in one place, so every page follows the
+   theme without editing each one. Selectors start with :root[data-theme=...] (specificity 0,3,0), so
+   they win over a utility (0,1,0) and a scoped component rule (0,2,0). New code should use the
+   theme tokens (vm-* / var(--vm-*)) directly; this layer is for what was written before them.
+
+   Light mode: secondary text that was under WCAG AA 4.5:1 (#94A3B8 2.6:1, #98A2B3 2.5:1, #8a94a4,
+   #6f7b8e) is raised to #5B6B85 (4.9 to 5.4:1 on every light surface).
+   ============================================================================================ */
+/* ---- dark: canvas and app shell ---- */
+:root[data-theme="dark"] .app-light-theme { background: var(--vm-bg); color: var(--vm-ink); }
+:root[data-theme="dark"] .sidebar, :root[data-theme="dark"] .sidebar-footer { background: #0F1729; border-color: rgba(255,255,255,.09); color: #CBD5E1; }
+:root[data-theme="dark"] .sidebar .nav-section { color: #94A3B8; }
+:root[data-theme="dark"] .sidebar .nav-section.is-collapsed { background: rgba(255,255,255,.09); }
+:root[data-theme="dark"] .sidebar .collapse-toggle { color: #94A3B8; }
+:root[data-theme="dark"] .sidebar .collapse-toggle:hover, :root[data-theme="dark"] .nb-btn:hover { background: rgba(255,255,255,.06); color: #E5E7EB; }
+:root[data-theme="dark"] .nb-btn { color: #CBD5E1; }
+:root[data-theme="dark"] .nb-btn svg { color: #94A3B8; }
+:root[data-theme="dark"] .nb-badge { background: rgba(239,68,68,.18); color: #FCA5A5; }
+:root[data-theme="dark"] .nb.collapsed .nb-badge { border-color: #0F1729; }
+:root[data-theme="dark"] .ws-context, :root[data-theme="dark"] .ws-caret { color: #94A3B8; }
+:root[data-theme="dark"] .ws-trigger-icon { background: #1E293B; border-color: rgba(255,255,255,.12); }
+:root[data-theme="dark"] .sidebar .brand-text { color: #E5E7EB; }
+:root[data-theme="dark"] .sidebar .brand-v { color: #60A5FA; }
+:root[data-theme="dark"] .sidebar .nav-item { color: #CBD5E1; }
+:root[data-theme="dark"] .sidebar .nav-item:hover { background: rgba(255,255,255,.06); color: #F1F5F9; }
+:root[data-theme="dark"] .sidebar .nav-item.active { background: rgba(37,99,235,.18); border-color: rgba(96,165,250,.35); color: #93C5FD; }
+:root[data-theme="dark"] .sidebar .nav-icon { color: #94A3B8; }
+:root[data-theme="dark"] .sidebar .nav-item.active .nav-icon { color: #93C5FD; }
+:root[data-theme="dark"] .sidebar .nav-badge { background: #1E293B; color: #CBD5E1; }
+:root[data-theme="dark"] .sidebar .nav-chevron { color: #94A3B8; }
+/* ---- dark: surfaces ---- */
+:root[data-theme="dark"] .bg-white,
+:root[data-theme="dark"] .bg-\[\#FFFFFF\],
+:root[data-theme="dark"] .bg-\[\#fff\],
+:root[data-theme="dark"] .bg-surface { background-color: var(--vm-surface); }
+:root[data-theme="dark"] .bg-slate-50,
+:root[data-theme="dark"] .bg-gray-50,
+:root[data-theme="dark"] .bg-\[\#F8FAFC\],
+:root[data-theme="dark"] .bg-\[\#F9FAFB\],
+:root[data-theme="dark"] .bg-\[\#f8fbff\],
+:root[data-theme="dark"] .bg-\[\#F8FBFF\],
+:root[data-theme="dark"] .bg-surface-soft { background-color: #0F1729; }
+:root[data-theme="dark"] .bg-slate-100,
+:root[data-theme="dark"] .bg-gray-100,
+:root[data-theme="dark"] .bg-\[\#F2F4F7\],
+:root[data-theme="dark"] .bg-\[\#F1F5F9\],
+:root[data-theme="dark"] .bg-\[\#EFF4FF\],
+:root[data-theme="dark"] .bg-\[\#EAF0FF\] { background-color: #1E293B; }
+:root[data-theme="dark"] .bg-slate-200,
+:root[data-theme="dark"] .bg-gray-200 { background-color: #273449; }
+/* ---- dark: text ---- */
+:root[data-theme="dark"] .text-slate-900,
+:root[data-theme="dark"] .text-gray-900,
+:root[data-theme="dark"] .text-slate-800,
+:root[data-theme="dark"] .text-gray-800,
+:root[data-theme="dark"] .text-ink,
+:root[data-theme="dark"] .text-\[\#0F172A\],
+:root[data-theme="dark"] .text-\[\#344054\],
+:root[data-theme="dark"] .text-\[\#334155\],
+:root[data-theme="dark"] .text-\[\#101828\],
+:root[data-theme="dark"] .text-\[\#1D2939\] { color: #E5E7EB; }
+:root[data-theme="dark"] .text-slate-700,
+:root[data-theme="dark"] .text-gray-700,
+:root[data-theme="dark"] .text-slate-600,
+:root[data-theme="dark"] .text-gray-600,
+:root[data-theme="dark"] .text-ink-soft,
+:root[data-theme="dark"] .text-\[\#475569\],
+:root[data-theme="dark"] .text-\[\#475467\],
+:root[data-theme="dark"] .text-\[\#52627A\] { color: #CBD5E1; }
+:root[data-theme="dark"] .text-slate-500,
+:root[data-theme="dark"] .text-gray-500,
+:root[data-theme="dark"] .text-slate-400,
+:root[data-theme="dark"] .text-gray-400,
+:root[data-theme="dark"] .text-ink-faint,
+:root[data-theme="dark"] .text-\[\#64748B\],
+:root[data-theme="dark"] .text-\[\#98A2B3\],
+:root[data-theme="dark"] .text-\[\#667085\],
+:root[data-theme="dark"] .text-\[\#94A3B8\],
+:root[data-theme="dark"] .text-\[\#667994\] { color: #94A3B8; }
+:root[data-theme="dark"] .text-\[\#2563EB\],
+:root[data-theme="dark"] .text-blue-600,
+:root[data-theme="dark"] .text-blue-700,
+:root[data-theme="dark"] .text-\[\#2457F5\] { color: #60A5FA; }
+/* ---- dark: lines ---- */
+:root[data-theme="dark"] .border-slate-100,
+:root[data-theme="dark"] .border-slate-200,
+:root[data-theme="dark"] .border-slate-300,
+:root[data-theme="dark"] .border-gray-100,
+:root[data-theme="dark"] .border-gray-200,
+:root[data-theme="dark"] .border-gray-300,
+:root[data-theme="dark"] .border-\[\#E5E7EB\],
+:root[data-theme="dark"] .border-\[\#F2F4F7\],
+:root[data-theme="dark"] .border-\[\#DDE6F2\],
+:root[data-theme="dark"] .border-\[\#F1F5F9\],
+:root[data-theme="dark"] .border-\[\#D8E2F0\],
+:root[data-theme="dark"] .border-\[\#E6EDF7\],
+:root[data-theme="dark"] .border-\[\#EEF1F4\],
+:root[data-theme="dark"] .border-\[\#EDF2F9\],
+:root[data-theme="dark"] .border-\[\#EAECF0\],
+:root[data-theme="dark"] .border-\[\#dfe7f2\],
+:root[data-theme="dark"] .border-line,
+:root[data-theme="dark"] .border-line-2,
+:root[data-theme="dark"] .divide-slate-100,
+:root[data-theme="dark"] .divide-slate-200,
+:root[data-theme="dark"] .divide-gray-100,
+:root[data-theme="dark"] .divide-gray-200 { border-color: rgba(255,255,255,.12); }
+/* ---- light: secondary text at WCAG AA ---- */
+:root[data-theme="light"] .text-slate-400,
+:root[data-theme="light"] .text-gray-400,
+:root[data-theme="light"] .text-ink-faint,
+:root[data-theme="light"] .text-\[\#98A2B3\],
+:root[data-theme="light"] .text-\[\#94A3B8\],
+:root[data-theme="light"] .text-\[\#667994\] { color: #5B6B85; }
+:root[data-theme="light"] .ws-context, :root[data-theme="light"] .sidebar .nav-section, :root[data-theme="light"] .sidebar .collapse-toggle { color: #5B6B85; }
+
+/* ---- dark: the workspace switcher, and shared component class names whose scoped CSS fixes a light colour ---- */
+:root[data-theme="dark"] .ws-trigger { background: #111827; border-color: rgba(255,255,255,.12); color: #E5E7EB; }
+:root[data-theme="dark"] .ws-trigger:hover { background: #1E293B; }
+:root[data-theme="dark"] .ws-name { color: #E5E7EB; }
+:root[data-theme="dark"] .sp-section-label, :root[data-theme="dark"] .tms__opt { color: #94A3B8; }
+:root[data-theme="dark"] .bc-current { color: #CBD5E1; }
+:root[data-theme="dark"] :is(.card, .panel, .form-panel, .rail-card, .skel-card, .pane, .create-card, .page-loader__card, .cgs-panel,
+  .conn-toolbar, .catalog-shell, .catalog-info, .hub-header, .budget-table, .line-panel, .when-panel, .coming-soon) {
+  background: var(--vm-surface); border-color: rgba(255,255,255,.12); color: #CBD5E1; }
+:root[data-theme="dark"] :is(.schedules-page, .budgets-page, .connectors-container, .lib) { background: var(--vm-bg); }
+:root[data-theme="dark"] .wf-attn--clear { background: rgba(16,185,129,.12); }
+/* :not(#_) lifts this over a page's own scoped heading colour (0,2,1 there). */
+:root[data-theme="dark"] :is(h1, h2, h3, h4):not(#_) { color: #E5E7EB; }
+:root[data-theme="dark"] :is(.muted, .muted-row, .empty-cell, .scope-hint, .wf-ops__sub, .wf-ops__back) { color: #94A3B8; }
+:root[data-theme="dark"] :is(.text-indigo-600, .text-indigo-700) { color: #818CF8; }
+:root[data-theme="dark"] :is(.bg-green-50, .bg-emerald-50) { background-color: rgba(16,185,129,.12); }
+:root[data-theme="dark"] :is(.bg-amber-50, .bg-yellow-50, .bg-orange-50) { background-color: rgba(245,158,11,.12); }
+:root[data-theme="dark"] :is(.bg-red-50, .bg-rose-50) { background-color: rgba(239,68,68,.12); }
+:root[data-theme="dark"] :is(.bg-blue-50, .bg-indigo-50) { background-color: rgba(37,99,235,.14); }
+:root[data-theme="dark"] :is(.text-green-700, .text-emerald-700, .text-green-600, .text-emerald-600) { color: #34D399; }
+:root[data-theme="dark"] :is(.text-amber-700, .text-amber-600, .text-orange-600, .text-yellow-700) { color: #FBBF24; }
+:root[data-theme="dark"] :is(.text-red-700, .text-red-600, .text-rose-600) { color: #F87171; }
+:root[data-theme="dark"] :is(.bg-slate-300, .bg-gray-300) { background-color: #334155; }
+
+/* ---- light: muted and status text at WCAG AA ---- */
+:root[data-theme="light"] :is(.muted, .muted-row, .empty-cell, .scope-hint) { color: #5B6B85; }
+:root[data-theme="light"] .text-amber-600 { color: #B45309; }
+:root[data-theme="light"] p.orange { color: #B45309; }
+:root[data-theme="light"] p.green { color: #047857; }
+:root[data-theme="light"] .nb-badge { color: #B42318; }
+
+/* ---- dark: brand blue as TEXT (#2563EB is 3.4:1 on the dark surfaces) ---- */
+:root[data-theme="dark"] :is(.link, .link-action, .cgs-link, .ct-tab.on, p.blue, .template-btn, .as-name, .bc-link, .breadcrumb a) { color: #60A5FA; }
+:root[data-theme="dark"] p.violet { color: #A78BFA; }
+/* ---- dark: the integration hub (skills and connectors) modal ---- */
+:root[data-theme="dark"] .hub-modal { background: var(--vm-surface); color: #CBD5E1; }
+:root[data-theme="dark"] .hub-modal :is(strong, h1, h2, h3, h4, h5):not(#_) { color: #E5E7EB; }
+:root[data-theme="dark"] .hub-modal :is(p, li, span.cgs-type-sub, .hub-subtitle, .scope-label, .de-sub) { color: #94A3B8; }
+/* ---- light: the status words on the budgets page, at WCAG AA ---- */
+:root[data-theme="light"] .budgets-page :is(.green, .orange, .amber):not(#_) { color: #047857; }
+:root[data-theme="light"] .budgets-page .orange:not(#_) { color: #B45309; }
+
+/* ---- status words at WCAG AA (Tailwind's -600 greens and teals are 3.5:1 on their own tints) ---- */
+:root[data-theme="light"] :is(.text-emerald-600, .text-green-600, .text-\[\#04996f\], .text-\[\#059669\], .run-status.success):not(#_) { color: #047857; }
+:root[data-theme="light"] .lib .chip.t:not(#_) { color: #0F766E; }
+:root[data-theme="light"] .text-slate-500:not(#_), :root[data-theme="light"] .text-gray-500:not(#_) { color: var(--vm-ink-faint); }
+:root[data-theme="dark"] :is(.text-emerald-600, .text-green-600, .text-emerald-700, .text-green-700, .text-\[\#067647\], .text-\[\#027A48\], .run-status.success):not(#_) { color: #34D399; }
+:root[data-theme="dark"] .lib .chip.t:not(#_) { color: #5EEAD4; background: rgba(20,184,166,.16); }
+:root[data-theme="dark"] .lib .chip.v:not(#_) { color: #93C5FD; }
+/* ---- dark: brand blue as text, per page (active tabs, eyebrows, plain links) ---- */
+:root[data-theme="dark"] :is(.text-blue-600, .text-blue-700, .text-\[\#2563EB\], .text-\[\#2563eb\], p.blue):not(#_) { color: var(--vm-link); }
+:root[data-theme="dark"] .lib :is(.eyebrow, button.on):not(#_) { color: #93C5FD; }
+:root[data-theme="dark"] .assets-page :is(button.active, .badge):not(#_) { color: #93C5FD; }
+:root[data-theme="dark"] .activity-page button.active:not(#_) { color: #93C5FD; }
+:root[data-theme="dark"] :is(.organization-page, .help-page) a:not([class*="bg-"]):not(.btn):not(#_) { color: var(--vm-link); }
+:root[data-theme="dark"] p.violet:not(#_) { color: #A78BFA; }
+
+/* ---- dark: translucent light fills and lines (bg-slate-50/50 ...) ---- */
+:root[data-theme="dark"] .bg-slate-50\/50,
+:root[data-theme="dark"] .bg-slate-50\/30,
+:root[data-theme="dark"] .bg-slate-50\/60,
+:root[data-theme="dark"] .bg-slate-50\/40,
+:root[data-theme="dark"] .bg-slate-50\/80,
+:root[data-theme="dark"] .bg-gray-50\/60,
+:root[data-theme="dark"] .bg-gray-50\/50 { background-color: rgba(255,255,255,.03) !important; }
+:root[data-theme="dark"] .bg-slate-100\/80,
+:root[data-theme="dark"] .bg-slate-100\/50,
+:root[data-theme="dark"] .bg-gray-100\/80,
+:root[data-theme="dark"] .bg-slate-200\/50 { background-color: rgba(255,255,255,.06) !important; }
+:root[data-theme="dark"] .bg-white\/60 { background-color: rgba(17,24,39,.6) !important; }
+:root[data-theme="dark"] .border-slate-200\/60,
+:root[data-theme="dark"] .border-slate-200\/50,
+:root[data-theme="dark"] .border-slate-200\/80,
+:root[data-theme="dark"] .border-slate-200\/70,
+:root[data-theme="dark"] .border-slate-200\/40,
+:root[data-theme="dark"] .border-white\/40,
+:root[data-theme="dark"] .border-white\/70 { border-color: rgba(255,255,255,.12) !important; }
+
+/* ---- dark: the budgets page sets its status colours with !important ---- */
+:root[data-theme="dark"] .budgets-page :is(.green):not(#_) { color: #34D399 !important; }
+:root[data-theme="dark"] .budgets-page :is(.blue):not(#_) { color: #60A5FA !important; }
+:root[data-theme="dark"] .budgets-page :is(.violet):not(#_) { color: #A78BFA !important; }
+:root[data-theme="dark"] .budgets-page :is(.red):not(#_) { color: #F87171 !important; }
+:root[data-theme="dark"] .budgets-page :is(.orange, .amber):not(#_) { color: #FBBF24 !important; }
+/* ---- dark: the skills and connectors catalogue's security callout ---- */
+:root[data-theme="dark"] .catalog-security { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.12); color: #CBD5E1; }
+:root[data-theme="dark"] .catalog-security :is(strong, p):not(#_) { color: #CBD5E1; }
+/* ---- every theme: the error toast (white on #FF5252 is 3.2:1; #DC2626 is 4.8:1) ---- */
+:root .Vue-Toastification__toast.Vue-Toastification__toast--error { background-color: #DC2626; }
+
+/* ---- the skills and connectors catalogue's tab counts (4.3:1 in both themes) ---- */
+:root[data-theme="light"] .hub-tab-count:not(#_) { color: var(--vm-ink-soft); }
+:root[data-theme="dark"] .hub-tab-count:not(#_) { background: rgba(255,255,255,.08); color: #CBD5E1; }
+/* ---- dark: the budgets page's icon circles and usage track keep pastel light fills ---- */
+:root[data-theme="dark"] .budgets-page :is(.metric-icon, .scope-icon):not(#_) { background: rgba(255,255,255,.06); }
+:root[data-theme="dark"] .budgets-page .usage:not(#_) { background: rgba(255,255,255,.12); }
+
+/* ---- the same arbitrary-hex classes written in lower case (class names are case-sensitive) ---- */
+:root[data-theme="dark"] .bg-\[\#ffffff\] { background-color: var(--vm-surface); }
+:root[data-theme="dark"] .bg-\[\#f8fafc\],
+:root[data-theme="dark"] .bg-\[\#f8fbff\],
+:root[data-theme="dark"] .bg-\[\#f9fafb\] { background-color: #0F1729; }
+:root[data-theme="dark"] .bg-\[\#eaf0ff\],
+:root[data-theme="dark"] .bg-\[\#eff4ff\],
+:root[data-theme="dark"] .bg-\[\#f1f5f9\],
+:root[data-theme="dark"] .bg-\[\#f2f4f7\] { background-color: #1E293B; }
+:root[data-theme="dark"] .text-\[\#0f172a\],
+:root[data-theme="dark"] .text-\[\#1d2939\] { color: #E5E7EB; }
+:root[data-theme="dark"] .text-\[\#52627a\] { color: #CBD5E1; }
+:root[data-theme="dark"] .text-\[\#64748b\],
+:root[data-theme="dark"] .text-\[\#94a3b8\],
+:root[data-theme="dark"] .text-\[\#98a2b3\] { color: #94A3B8; }
+:root[data-theme="dark"] .text-\[\#2457f5\],
+:root[data-theme="dark"] .text-\[\#2563eb\] { color: #60A5FA; }
+:root[data-theme="dark"] .border-\[\#d8e2f0\],
+:root[data-theme="dark"] .border-\[\#dde6f2\],
+:root[data-theme="dark"] .border-\[\#e5e7eb\],
+:root[data-theme="dark"] .border-\[\#e6edf7\],
+:root[data-theme="dark"] .border-\[\#eaecf0\],
+:root[data-theme="dark"] .border-\[\#edf2f9\],
+:root[data-theme="dark"] .border-\[\#eef1f4\],
+:root[data-theme="dark"] .border-\[\#f1f5f9\],
+:root[data-theme="dark"] .border-\[\#f2f4f7\] { border-color: rgba(255,255,255,.12); }
+:root[data-theme="light"] .text-\[\#94a3b8\],
+:root[data-theme="light"] .text-\[\#98a2b3\] { color: #5B6B85; }
+.text-\[\#027a48\] { color: #34D399; }
+.text-\[\#2563eb\] { color: var(--vm-link); }
+:root[data-theme="dark"] :is(.bg-\[\#eef4ff\], .bg-\[\#EEF4FF\], .bg-\[\#eaf0ff\]) { background-color: var(--vm-blue-soft); }
+:root[data-theme="dark"] :is(.hover\:bg-\[\#e3edff\]:hover, .hover\:bg-\[\#E3EDFF\]:hover) { background-color: var(--vm-primary-hover-soft); }

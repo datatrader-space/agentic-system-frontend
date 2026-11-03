@@ -211,15 +211,15 @@ onMounted(async () => {
   font-size: 24px; margin: 0 auto 16px;
   background: rgba(255,255,255,0.05);
 }
-.invite-icon--success { background: rgba(16,185,129,0.15); color: #34d399; }
-.invite-icon--error   { background: rgba(239,68,68,0.15); color: #f87171; }
-.invite-icon--expired { background: rgba(251,146,60,0.15); color: #fb923c; }
+.invite-icon--success { background: rgba(16,185,129,0.15); color: var(--vm-green-ink); }
+.invite-icon--error   { background: rgba(239,68,68,0.15); color: var(--vm-red-ink); }
+.invite-icon--expired { background: rgba(251,146,60,0.15); color: var(--vm-amber-ink); }
 h2 { color: #f9fafb; font-size: 22px; font-weight: 700; margin: 0 0 12px; }
-p  { color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 0 0 8px; }
+p  { color: var(--vm-ink-faint); font-size: 14px; line-height: 1.6; margin: 0 0 8px; }
 .invite-detail { font-size: 15px; color: #d1d5db; }
 .role-chip {
   display: inline-block;
-  background: rgba(139,92,246,0.15); color: #60A5FA;
+  background: rgba(139,92,246,0.15); color: var(--vm-link);
   padding: 2px 10px; border-radius: 20px;
   font-size: 13px; font-weight: 600;
 }
@@ -250,10 +250,10 @@ p  { color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 0 0 8px; }
 .btn-decline {
   padding: 12px 28px; border-radius: 10px;
   background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-  color: #9ca3af; font-size: 14px; font-weight: 500;
+  color: var(--vm-ink-faint); font-size: 14px; font-weight: 500;
   cursor: pointer; transition: all 0.12s ease;
 }
-.btn-decline:hover { background: rgba(239,68,68,0.1); color: #f87171; border-color: rgba(239,68,68,0.2); }
+.btn-decline:hover { background: rgba(239,68,68,0.1); color: var(--vm-red-ink); border-color: rgba(239,68,68,0.2); }
 .btn-primary {
   display: inline-block;
   padding: 10px 24px; border-radius: 10px; border: none;
@@ -270,7 +270,7 @@ p  { color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 0 0 8px; }
   cursor: pointer; text-decoration: none;
   margin-top: 16px;
 }
-.invite-expires { color: #6b7280; font-size: 12px; margin-top: 20px; }
+.invite-expires { color: var(--vm-ink-faint); font-size: 12px; margin-top: 20px; }
 .spinner-lg {
   width: 36px; height: 36px; border-radius: 50%;
   border: 3px solid rgba(139,92,246,0.2);

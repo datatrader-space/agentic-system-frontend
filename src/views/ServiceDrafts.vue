@@ -169,12 +169,12 @@ function formatDate(dateString) {
 .page-header h1 {
   margin: 0 0 0.5rem 0;
   font-size: 2rem;
-  color: #1e293b;
+  color: var(--vm-ink);
 }
 
 .subtitle {
   margin: 0;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 1rem;
 }
 
@@ -214,7 +214,7 @@ function formatDate(dateString) {
   width: 40px;
   height: 40px;
   margin: 0 auto 1rem;
-  border: 4px solid #f1f5f9;
+  border: 4px solid var(--vm-line-2);
   border-top-color: #2563EB;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -239,13 +239,13 @@ function formatDate(dateString) {
 
 .empty-state h2 {
   margin: 0 0 0.5rem 0;
-  color: #1e293b;
+  color: var(--vm-ink);
   font-size: 1.5rem;
 }
 
 .empty-state p {
   margin: 0 0 2rem 0;
-  color: #64748b;
+  color: var(--vm-ink-faint);
 }
 
 .btn-primary {
@@ -273,7 +273,7 @@ function formatDate(dateString) {
 
 .draft-card {
   background: white;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--vm-line-2);
   border-radius: 12px;
   overflow: hidden;
   transition: all 0.2s;
@@ -291,7 +291,7 @@ function formatDate(dateString) {
   align-items: center;
   padding: 1.25rem;
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--vm-line-2);
 }
 
 .draft-icon {
@@ -307,13 +307,13 @@ function formatDate(dateString) {
 }
 
 .status-badge.draft {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--vm-amber-soft);
+  color: var(--vm-amber-ink);
 }
 
 .status-badge.complete {
-  background: #dbeafe;
-  color: #1e40af;
+  background: var(--vm-blue-soft);
+  color: var(--vm-link);
 }
 
 .draft-body {
@@ -323,12 +323,12 @@ function formatDate(dateString) {
 .draft-body h3 {
   margin: 0 0 0.5rem 0;
   font-size: 1.125rem;
-  color: #1e293b;
+  color: var(--vm-ink);
 }
 
 .draft-description {
   margin: 0 0 1rem 0;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 0.875rem;
   line-height: 1.5;
   display: -webkit-box;
@@ -347,19 +347,19 @@ function formatDate(dateString) {
   display: flex;
   align-items: center;
   gap: 0.375rem;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 0.875rem;
 }
 
 .meta-item svg {
   width: 16px;
   height: 16px;
-  color: #94a3b8;
+  color: var(--vm-ink-faint);
 }
 
 .progress-bar {
   height: 4px;
-  background: #f1f5f9;
+  background: var(--vm-surface-soft);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -374,7 +374,7 @@ function formatDate(dateString) {
   display: flex;
   gap: 0.5rem;
   padding: 1rem 1.25rem;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--vm-line-2);
 }
 
 .btn-resume,
@@ -404,11 +404,11 @@ function formatDate(dateString) {
 
 .btn-delete {
   background: #fef2f2;
-  color: #dc2626;
+  color: var(--vm-red-ink);
 }
 
 .btn-delete:hover {
-  background: #fee2e2;
+  background: var(--vm-red-soft);
 }
 
 .btn-resume svg,

@@ -339,23 +339,23 @@ onMounted(() => {
   height: 34px;
   flex-shrink: 0;
   border-radius: 9px;
-  color: #64748b;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  color: var(--vm-ink-faint);
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-line-2);
   transition: all 0.12s;
 }
 .ws-icon-btn:hover {
-  color: #1D4ED8;
+  color: var(--vm-link);
   border-color: #ddd6fe;
-  background: #f5f3ff;
+  background: var(--vm-surface-soft);
 }
 .ws-input {
   width: 100%;
   padding: 8px 12px;
   font-size: 13px;
-  color: #0f172a;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  color: var(--vm-ink);
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
   outline: none;
 }

@@ -581,7 +581,7 @@ onUnmounted(() => {
 }
 
 .app-header.header-dark .logo-text-sub {
-  color: #9ca3af;
+  color: var(--vm-ink-faint);
 }
 
 .app-header.header-dark .nav-link {
@@ -594,7 +594,7 @@ onUnmounted(() => {
 }
 
 .app-header.header-dark .nav-link-active {
-  color: #60A5FA;
+  color: var(--vm-link);
   background: rgba(139, 92, 246, 0.15);
 }
 
@@ -757,7 +757,7 @@ onUnmounted(() => {
 }
 
 .nav-link-highlight.nav-link-active {
-  background: #f5f3ff;
+  background: var(--vm-surface-soft);
 }
 
 .nav-link-icon {

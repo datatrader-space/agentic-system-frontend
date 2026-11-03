@@ -53,7 +53,7 @@ const dot = computed(() => {
 /* A preview in the chat's top corner. `.chat-workspace` is the positioned ancestor; the offset clears the
    chat header. It sits over the chat's empty margin on a wide window and shrinks as that margin does. */
 .blc { position: absolute; top: 72px; right: 18px; z-index: 6; width: 300px; padding: 0; display: flex; flex-direction: column;
-  border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 12px; overflow: hidden; background: var(--vm-surface, #fff); color: var(--vm-ink, #0f172a);
+  border: 1px solid var(--vm-line-2, var(--vm-line-2)); border-radius: 12px; overflow: hidden; background: var(--vm-surface, var(--vm-surface)); color: var(--vm-ink, var(--vm-ink));
   text-align: left; cursor: pointer; box-shadow: var(--vm-shadow-m, 0 8px 24px rgba(15, 23, 42, .12)); }
 .blc:hover { border-color: var(--vm-violet, #2563eb); }
 .blc.on { border-color: var(--vm-violet, #2563eb); }
@@ -61,7 +61,7 @@ const dot = computed(() => {
 .blc:focus-visible { outline: 2px solid var(--vm-violet, #2563eb); outline-offset: 2px; }
 
 .blc-thumb { flex: 0 0 auto; width: 100%; aspect-ratio: 16 / 10; display: grid; place-items: center; overflow: hidden;
-  background: var(--vm-surface-2, #f1f5f9); color: var(--vm-ink-soft, #64748b); }
+  background: var(--vm-surface-2, var(--vm-surface-soft)); color: var(--vm-ink-soft, var(--vm-ink-faint)); }
 .blc-thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top left; display: block; }
 .blc-thumb svg { width: 34px; height: 34px; }
 
@@ -71,9 +71,9 @@ const dot = computed(() => {
 .blc-expand svg { width: 15px; height: 15px; }
 .blc:hover .blc-expand { background: var(--vm-violet, #2563eb); }
 
-.blc-text { flex: 0 0 auto; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 9px; border-top: 1px solid var(--vm-line-2, #e5e7eb); min-width: 0; }
+.blc-text { flex: 0 0 auto; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 9px; border-top: 1px solid var(--vm-line-2, var(--vm-line-2)); min-width: 0; }
 .blc-title { font-size: 13.5px; font-weight: 700; white-space: nowrap; }
-.blc-line { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--vm-ink-soft, #64748b); }
+.blc-line { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--vm-ink-soft, var(--vm-ink-faint)); }
 .blc-state { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .blc-site { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .blc-site::before { content: "·"; margin-right: 8px; }

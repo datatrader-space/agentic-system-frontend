@@ -54,7 +54,7 @@ defineEmits(['open'])
 .iit-logo { width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--vm-bg); border: 1px solid var(--vm-line); overflow: hidden; }
 .iit-fallback { font-weight: 800; color: var(--vm-ink-soft); }
 .iit-name { font-size: 13.5px; font-weight: 700; color: var(--vm-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.iit-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #059669; margin-top: 2px; }
+.iit-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: var(--vm-green-ink); margin-top: 2px; }
 .iit-chev { width: 16px; height: 16px; color: var(--vm-ink-faint); flex-shrink: 0; }
 </style>
 

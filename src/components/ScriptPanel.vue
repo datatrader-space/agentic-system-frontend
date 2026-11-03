@@ -233,7 +233,7 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
 .sp-icon {
     width: 18px;
     height: 18px;
-    color: #a5b4fc;
+    color: var(--vm-link);
 }
 
 .sp-title {
@@ -249,16 +249,16 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
     font-weight: 500;
 }
 
-.sp-phase-generating { background: #1e3a5f; color: #60a5fa; }
+.sp-phase-generating { background: #1e3a5f; color: var(--vm-link); }
 .sp-phase-review { background: #422006; color: #fbbf24; }
-.sp-phase-executing { background: #064e3b; color: #34d399; }
+.sp-phase-executing { background: #064e3b; color: var(--vm-green-ink); }
 .sp-phase-completed { background: #064e3b; color: #6ee7b7; }
 .sp-phase-failed { background: #450a0a; color: #fca5a5; }
 
 .sp-close-btn {
     background: none;
     border: none;
-    color: #9ca3af;
+    color: var(--vm-ink-faint);
     font-size: 24px;
     cursor: pointer;
     padding: 4px 8px;
@@ -290,7 +290,7 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
 
 .sp-hint {
     font-size: 13px;
-    color: #9ca3af;
+    color: var(--vm-ink-faint);
     margin-bottom: 12px;
 }
 
@@ -384,7 +384,7 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
 
 .sp-meta {
     font-size: 12px;
-    color: #9ca3af;
+    color: var(--vm-ink-faint);
 }
 
 /* Code block */
@@ -401,7 +401,7 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
     padding: 8px 12px;
     background: #1f2937;
     font-size: 12px;
-    color: #9ca3af;
+    color: var(--vm-ink-faint);
     border-bottom: 1px solid #374151;
 }
 
@@ -411,7 +411,7 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
     gap: 4px;
     font-size: 12px;
     cursor: pointer;
-    color: #a5b4fc;
+    color: var(--vm-link);
 }
 
 .sp-edit-toggle input { accent-color: #6366f1; }
@@ -459,12 +459,12 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
 
 .sp-terminal-static { max-height: 200px; }
 
-.sp-term-line { color: #adbac7; white-space: pre-wrap; word-break: break-all; }
-.sp-term-err { color: #f47067; }
+.sp-term-line { color: var(--vm-ink-faint); white-space: pre-wrap; word-break: break-all; }
+.sp-term-err { color: var(--vm-red-ink); }
 
 .sp-term-cursor {
     display: inline-block;
-    color: #6366f1;
+    color: var(--vm-link);
     animation: blink 1s step-end infinite;
 }
 
@@ -492,7 +492,7 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
     right: 0;
     top: -18px;
     font-size: 11px;
-    color: #a5b4fc;
+    color: var(--vm-link);
 }
 
 /* Result banner */
@@ -524,7 +524,7 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
 .sp-details summary {
     cursor: pointer;
     font-size: 12px;
-    color: #9ca3af;
+    color: var(--vm-ink-faint);
     padding: 6px 0;
     font-weight: 500;
 }
@@ -560,7 +560,7 @@ const phaseLabel = computed(() => phaseLabels[script.phase] || script.phase);
 
 .sp-status-text {
     font-size: 13px;
-    color: #9ca3af;
+    color: var(--vm-ink-faint);
 }
 
 /* Generate section */

@@ -105,7 +105,7 @@ export default {
 .profile-section {
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--vm-line-2);
 }
 
 .profile-section:last-child {
@@ -132,7 +132,7 @@ export default {
 .info-item label {
   font-weight: 600;
   font-size: 0.9em;
-  color: #666;
+  color: var(--vm-ink-faint);
 }
 
 .badge {
@@ -168,7 +168,7 @@ export default {
   display: flex;
   justify-content: space-between;
   padding: 8px 12px;
-  background: #f8f9fa;
+  background: var(--vm-surface-soft);
   border-radius: 4px;
   border-left: 3px solid #007bff;
 }
@@ -178,12 +178,12 @@ export default {
 }
 
 .artifact-count {
-  color: #007bff;
+  color: var(--vm-link);
   font-weight: 700;
 }
 
 .link {
-  color: #007bff;
+  color: var(--vm-link);
   text-decoration: none;
 }
 
@@ -194,6 +194,6 @@ export default {
 .no-profile {
   text-align: center;
   padding: 40px;
-  color: #666;
+  color: var(--vm-ink-faint);
 }
 </style>

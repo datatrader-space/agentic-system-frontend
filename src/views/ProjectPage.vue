@@ -284,8 +284,8 @@ watch(() => route.params.id, (id) => { if (id && (!route.name || route.name === 
 .pp-card { border: 1px solid var(--vm-line); border-radius: 16px; background: var(--vm-surface); padding: 18px 20px; display: flex; flex-direction: column; gap: 10px; }
 .pp-card-head { display: flex; align-items: center; gap: 10px; }
 .pp-card h2 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--vm-ink); }
-.pp-saved { font-size: 12px; color: #15803d; }
-.pp-count { font-size: 12px; color: var(--vm-ink-faint, #8a8fa3); font-variant-numeric: tabular-nums; }
+.pp-saved { font-size: 12px; color: var(--vm-green-ink); }
+.pp-count { font-size: 12px; color: var(--vm-ink-faint, var(--vm-ink-faint)); font-variant-numeric: tabular-nums; }
 .pp-help { margin: 0; font-size: 13px; color: var(--vm-ink-soft); max-width: 65ch; }
 .pp-textarea { width: 100%; min-height: 120px; resize: vertical; padding: 10px 12px; border: 1px solid var(--vm-line); border-radius: 12px; background: var(--vm-glass, transparent); color: var(--vm-ink); font: 400 14px/1.5 var(--vm-font-sans); }
 .pp-textarea:focus, .pp-name-input:focus { outline: 2px solid var(--vm-violet, #7c3aed); outline-offset: 0; }
@@ -296,10 +296,10 @@ watch(() => route.params.id, (id) => { if (id && (!route.name || route.name === 
 .pp-chat { display: flex; justify-content: space-between; gap: 12px; padding: 10px 8px; border-radius: 10px; text-decoration: none; color: var(--vm-ink); }
 .pp-chat:hover { background: var(--vm-glass-strong); }
 .pp-chat-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
-.pp-chat-meta { flex-shrink: 0; font-size: 12px; color: var(--vm-ink-faint, #8a8fa3); }
-.pp-more { align-self: flex-start; border: 0; background: transparent; padding: 6px 8px; border-radius: 8px; font: 600 12.5px var(--vm-font-sans); color: var(--vm-violet-d, #6d28d9); cursor: pointer; }
+.pp-chat-meta { flex-shrink: 0; font-size: 12px; color: var(--vm-ink-faint, var(--vm-ink-faint)); }
+.pp-more { align-self: flex-start; border: 0; background: transparent; padding: 6px 8px; border-radius: 8px; font: 600 12.5px var(--vm-font-sans); color: var(--vm-violet-d, var(--vm-violet-ink)); cursor: pointer; }
 .pp-more:hover { background: var(--vm-glass-strong); }
-.pp-upload { margin-left: auto; position: relative; border-radius: 10px; padding: 6px 12px; border: 1px solid var(--vm-line); font: 600 12.5px var(--vm-font-sans); color: var(--vm-violet-d, #6d28d9); cursor: pointer; }
+.pp-upload { margin-left: auto; position: relative; border-radius: 10px; padding: 6px 12px; border: 1px solid var(--vm-line); font: 600 12.5px var(--vm-font-sans); color: var(--vm-violet-d, var(--vm-violet-ink)); cursor: pointer; }
 .pp-upload:hover { background: var(--vm-glass-strong); }
 .pp-upload:focus-within { outline: 2px solid var(--vm-violet, #7c3aed); outline-offset: 1px; }
 .pp-upload.busy { opacity: .6; cursor: default; }
@@ -309,11 +309,11 @@ watch(() => route.params.id, (id) => { if (id && (!route.name || route.name === 
 .pp-file:hover { background: var(--vm-glass-strong); }
 .pp-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--vm-ink); }
 .pp-pill { flex-shrink: 0; font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--vm-glass-strong); color: var(--vm-ink-soft); }
-.pp-pill.is-ready { background: #dcfce7; color: #166534; }
-.pp-pill.is-failed { background: #fee2e2; color: #991b1b; }
+.pp-pill.is-ready { background: var(--vm-green-soft); color: var(--vm-green-ink); }
+.pp-pill.is-failed { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .pp-link { flex-shrink: 0; border: 0; background: transparent; padding: 4px 6px; border-radius: 6px; font: 600 12px var(--vm-font-sans); color: var(--vm-ink-soft); cursor: pointer; }
 .pp-link:hover { background: var(--vm-glass-strong); color: var(--vm-ink); }
-.pp-link.danger { color: #b91c1c; }
+.pp-link.danger { color: var(--vm-red-ink); }
 .pp-confirm { display: inline-flex; gap: 2px; flex-shrink: 0; }
 @media (max-width: 480px) { .pp { padding: 20px 16px 48px; } .pp-head { flex-wrap: wrap; } }
 </style>

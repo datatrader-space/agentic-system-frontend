@@ -328,8 +328,8 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   gap: 24px;
   min-height: 100%;
   padding: 32px 32px 54px;
-  background: #f8fbff;
-  color: #0f172a;
+  background: var(--vm-surface-soft);
+  color: var(--vm-ink);
 }
 
 .tutorials-main {
@@ -358,7 +358,7 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
 .section-row p,
 .rail-card > p {
   margin: 7px 0 0;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 13px;
 }
 
@@ -367,11 +367,11 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   height: 38px;
   align-items: center;
   gap: 9px;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--vm-line-2);
   border-radius: 9px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 0 16px;
-  color: #334155;
+  color: var(--vm-ink-soft);
   font-size: 12.5px;
   font-weight: 850;
   box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
@@ -380,15 +380,15 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
 .demo-btn svg {
   width: 15px;
   height: 15px;
-  color: #2563eb;
+  color: var(--vm-link);
 }
 
 .filter-panel,
 .content-panel,
 .rail-card {
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 12px;
-  background: #fff;
+  background: var(--vm-surface);
   box-shadow: 0 8px 22px rgba(15, 23, 42, .04);
 }
 
@@ -401,16 +401,16 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   align-items: center;
   gap: 12px;
   height: 40px;
-  border: 1px solid #d8e2f0;
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 0 12px 0 16px;
 }
 
 .tutorial-search svg {
   width: 17px;
   height: 17px;
-  color: #94a3b8;
+  color: var(--vm-ink-faint);
 }
 
 .tutorial-search input {
@@ -418,21 +418,21 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   flex: 1;
   border: 0;
   outline: 0;
-  color: #0f172a;
+  color: var(--vm-ink);
   font-size: 13px;
   font-weight: 650;
 }
 
 .tutorial-search input::placeholder {
-  color: #8b9bb1;
+  color: var(--vm-ink-faint);
 }
 
 .tutorial-search kbd {
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--vm-line-2);
   border-radius: 6px;
-  background: #f8fafc;
+  background: var(--vm-surface-soft);
   padding: 3px 8px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11px;
   font-weight: 850;
 }
@@ -447,11 +447,11 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
 .filter-row select,
 .level-pill {
   height: 36px;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 0 14px;
-  color: #334155;
+  color: var(--vm-ink-soft);
   font-size: 12px;
   font-weight: 850;
 }
@@ -507,7 +507,7 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
 .section-row h2,
 .rail-card h2 {
   margin: 0;
-  color: #0f172a;
+  color: var(--vm-ink);
   font-size: 15px;
   font-weight: 850;
 }
@@ -515,7 +515,7 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
 .section-row button {
   border: 0;
   background: transparent;
-  color: #2563eb;
+  color: var(--vm-link);
   font-size: 12px;
   font-weight: 850;
 }
@@ -532,9 +532,9 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
 .tutorial-card,
 .path-card {
   overflow: hidden;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 9px;
-  background: #fff;
+  background: var(--vm-surface);
 }
 
 .series-art,
@@ -579,7 +579,7 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   place-items: center;
   border-radius: 999px;
   background: rgba(255, 255, 255, .92);
-  color: #2563eb;
+  color: var(--vm-link);
   box-shadow: 0 12px 24px rgba(37, 99, 235, .18);
 }
 
@@ -609,7 +609,7 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   place-items: center;
   border-radius: 9px;
   background: rgba(255, 255, 255, .86);
-  color: #0faaa5;
+  color: var(--vm-teal-ink);
 }
 
 .node svg {
@@ -631,7 +631,7 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
 .path-card h3,
 .learning-row h3 {
   margin: 0;
-  color: #0f172a;
+  color: var(--vm-ink);
   font-size: 13px;
   font-weight: 850;
 }
@@ -641,7 +641,7 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
 .path-card p,
 .learning-row p {
   margin: 7px 0 13px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11.5px;
   line-height: 1.5;
 }
@@ -654,14 +654,14 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   font-weight: 850;
 }
 
-.beginner { color: #10b981; }
-.intermediate { color: #f59e0b; }
-.advanced { color: #7c3aed; }
+.beginner { color: var(--vm-green-ink); }
+.intermediate { color: var(--vm-amber-ink); }
+.advanced { color: var(--vm-violet-ink); }
 
 .card-body > span {
   display: block;
   margin-bottom: 7px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11px;
   font-weight: 750;
 }
@@ -688,10 +688,10 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   width: 40px;
   height: 40px;
   place-items: center;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 999px;
-  background: #f3f7ff;
-  color: #334155;
+  background: var(--vm-surface-soft);
+  color: var(--vm-ink-soft);
   box-shadow: 0 8px 18px rgba(15, 23, 42, .08);
 }
 
@@ -762,9 +762,9 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   height: 24px;
 }
 
-.teal { background: #e7fbf6; color: #0faaa5; }
-.violet { background: #f2efff; color: #4f46e5; }
-.blue { background: #eef4ff; color: #2563eb; }
+.teal { background: #e7fbf6; color: var(--vm-teal-ink); }
+.violet { background: var(--vm-surface-soft); color: var(--vm-link); }
+.blue { background: var(--vm-surface-soft); color: var(--vm-link); }
 
 .path-card > div {
   min-width: 0;
@@ -776,7 +776,7 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   align-items: center;
   gap: 12px;
   margin: 12px 0 9px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11px;
   font-weight: 800;
 }
@@ -789,7 +789,7 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
 
 .path-meta b {
   margin-left: auto;
-  color: #334155;
+  color: var(--vm-ink-soft);
 }
 
 .tutorials-rail {
@@ -837,9 +837,9 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   align-items: center;
   gap: 12px;
   margin-top: 10px;
-  border: 1px solid #e5ebf3;
+  border: 1px solid var(--vm-line-2);
   border-radius: 9px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 10px;
   text-align: left;
 }
@@ -861,21 +861,21 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
 }
 
 .recommend-row strong {
-  color: #0f172a;
+  color: var(--vm-ink);
   font-size: 12px;
   font-weight: 850;
 }
 
 .recommend-row small {
   margin-top: 3px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11px;
 }
 
 .recommend-row > svg {
   width: 15px;
   height: 15px;
-  color: #94a3b8;
+  color: var(--vm-ink-faint);
 }
 
 .tips-card ul {
@@ -890,7 +890,7 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 12px;
   font-weight: 750;
 }
@@ -898,7 +898,7 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
 .tips-card li svg {
   width: 15px;
   height: 15px;
-  color: #10b981;
+  color: var(--vm-green-ink);
 }
 
 .tips-card a {
@@ -906,11 +906,11 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
   height: 34px;
   align-items: center;
   gap: 8px;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 0 13px;
-  color: #334155;
+  color: var(--vm-ink-soft);
   font-size: 12px;
   font-weight: 850;
   text-decoration: none;
@@ -919,7 +919,7 @@ const tips = ['Start with beginner tutorials', 'Practice in the sandbox', 'Build
 .tips-card a svg {
   width: 13px;
   height: 13px;
-  color: #2563eb;
+  color: var(--vm-link);
 }
 
 .chat-fab {

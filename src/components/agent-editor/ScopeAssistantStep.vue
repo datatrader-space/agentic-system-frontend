@@ -154,10 +154,10 @@ async function apply() {
 </script>
 
 <style scoped>
-.field { width: 100%; border: 1px solid var(--admin-line, #D0D5DD); border-radius: 9px; padding: 9px 11px; font-size: 13px; color: var(--admin-ink, #0F172A); background: var(--admin-surface, #fff); outline: none; }
+.field { width: 100%; border: 1px solid var(--admin-line, #D0D5DD); border-radius: 9px; padding: 9px 11px; font-size: 13px; color: var(--admin-ink, var(--vm-ink)); background: var(--admin-surface, var(--vm-surface)); outline: none; }
 .field:focus { border-color: #2563EB; box-shadow: 0 0 0 3px #EAF0FF; }
 .btn-primary { display: inline-flex; align-items: center; gap: 7px; border: 0; border-radius: 10px; background: #2563EB; padding: 9px 16px; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; }
 .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
-.btn-outline { border: 1px solid var(--admin-line, #E5E7EB); border-radius: 10px; background: var(--admin-surface, #fff); padding: 9px 14px; font-size: 13px; font-weight: 600; color: var(--admin-ink, #344054); cursor: pointer; }
+.btn-outline { border: 1px solid var(--admin-line, var(--vm-line-2)); border-radius: 10px; background: var(--admin-surface, var(--vm-surface)); padding: 9px 14px; font-size: 13px; font-weight: 600; color: var(--admin-ink, var(--vm-ink-soft)); cursor: pointer; }
 .btn-outline:disabled { opacity: .5; }
 </style>

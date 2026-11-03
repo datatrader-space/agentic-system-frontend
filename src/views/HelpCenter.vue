@@ -453,8 +453,8 @@ const support = [
   gap: 28px;
   min-height: 100%;
   padding: 34px 34px 56px;
-  background: #f8fbff;
-  color: #0f172a;
+  background: var(--vm-surface-soft);
+  color: var(--vm-ink);
 }
 
 .help-main {
@@ -482,7 +482,7 @@ const support = [
 .start-panel header p,
 .rail-card > p {
   margin: 7px 0 0;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 13px;
 }
 
@@ -491,11 +491,11 @@ const support = [
   height: 34px;
   align-items: center;
   gap: 8px;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--vm-line-2);
   border-radius: 9px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 0 14px;
-  color: #334155;
+  color: var(--vm-ink-soft);
   font-size: 12px;
   font-weight: 800;
   box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
@@ -504,7 +504,7 @@ const support = [
 .whats-new svg {
   width: 15px;
   height: 15px;
-  color: #4f46e5;
+  color: var(--vm-link);
 }
 
 .help-search {
@@ -514,7 +514,7 @@ const support = [
   height: 50px;
   border: 1px solid #b9c9ff;
   border-radius: 9px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 0 14px 0 18px;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, .04);
 }
@@ -522,7 +522,7 @@ const support = [
 .help-search svg {
   width: 18px;
   height: 18px;
-  color: #94a3b8;
+  color: var(--vm-ink-faint);
 }
 
 .help-search input {
@@ -530,21 +530,21 @@ const support = [
   min-width: 0;
   border: 0;
   outline: 0;
-  color: #0f172a;
+  color: var(--vm-ink);
   font-size: 14px;
   font-weight: 600;
 }
 
 .help-search input::placeholder {
-  color: #94a3b8;
+  color: var(--vm-ink-faint);
 }
 
 .help-search kbd {
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--vm-line-2);
   border-radius: 6px;
-  background: #f8fafc;
+  background: var(--vm-surface-soft);
   padding: 3px 8px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11px;
   font-weight: 800;
 }
@@ -562,9 +562,9 @@ const support = [
   top: calc(100% + 8px);
   z-index: 40;
   overflow: hidden;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 12px;
-  background: #fff;
+  background: var(--vm-surface);
   box-shadow: 0 18px 44px rgba(15, 23, 42, .14);
 }
 
@@ -574,15 +574,15 @@ const support = [
   align-items: center;
   gap: 12px;
   border: 0;
-  border-bottom: 1px solid #f1f5f9;
-  background: #fff;
+  border-bottom: 1px solid var(--vm-line-2);
+  background: var(--vm-surface);
   padding: 11px 14px;
   text-align: left;
   cursor: pointer;
 }
 
 .search-result:hover {
-  background: #f6f9ff;
+  background: var(--vm-surface-soft);
 }
 
 .res-icon {
@@ -606,7 +606,7 @@ const support = [
 
 .res-text strong {
   display: block;
-  color: #0f172a;
+  color: var(--vm-ink);
   font-size: 13px;
   font-weight: 800;
   overflow: hidden;
@@ -617,7 +617,7 @@ const support = [
 .res-text small {
   display: block;
   margin-top: 2px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11.5px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -627,9 +627,9 @@ const support = [
 .res-kind {
   flex-shrink: 0;
   border-radius: 6px;
-  background: #f1f5f9;
+  background: var(--vm-surface-soft);
   padding: 3px 8px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 10px;
   font-weight: 850;
   text-transform: uppercase;
@@ -642,16 +642,16 @@ const support = [
   align-items: center;
   gap: 8px;
   border: 0;
-  background: #f8fbff;
+  background: var(--vm-surface-soft);
   padding: 12px 14px;
-  color: #2563eb;
+  color: var(--vm-link);
   font-size: 12.5px;
   font-weight: 800;
   cursor: pointer;
 }
 
 .search-all:hover {
-  background: #eef4ff;
+  background: var(--vm-surface-soft);
 }
 
 .search-all svg {
@@ -665,7 +665,7 @@ const support = [
   gap: 8px;
   padding: 26px 16px;
   text-align: center;
-  color: #64748b;
+  color: var(--vm-ink-faint);
 }
 
 .search-empty svg {
@@ -682,7 +682,7 @@ const support = [
 .did-you-mean {
   border: 0;
   background: transparent;
-  color: #2563eb;
+  color: var(--vm-link);
   font-size: 13px;
   cursor: pointer;
 }
@@ -711,17 +711,17 @@ const support = [
 }
 
 .popular-row span {
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 12.5px;
 }
 
 .popular-row button {
   height: 31px;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--vm-line-2);
   border-radius: 999px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 0 16px;
-  color: #334155;
+  color: var(--vm-ink-soft);
   font-size: 12px;
   font-weight: 800;
   box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
@@ -729,9 +729,9 @@ const support = [
 
 .start-panel,
 .howto-panel {
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 14px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 18px;
   box-shadow: 0 8px 22px rgba(15, 23, 42, .04);
 }
@@ -784,9 +784,9 @@ const support = [
   gap: 8px;
   border: 0;
   border-radius: 9px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 0 16px;
-  color: #1e3a8a;
+  color: var(--vm-ink);
   font-size: 12px;
   font-weight: 850;
   text-decoration: none;
@@ -799,7 +799,7 @@ const support = [
 }
 
 .checklist-card {
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 10px;
   padding: 18px;
 }
@@ -813,7 +813,7 @@ const support = [
 }
 
 .checklist-head span {
-  color: #94a3b8;
+  color: var(--vm-ink-faint);
   font-size: 12px;
   font-weight: 700;
 }
@@ -830,7 +830,7 @@ const support = [
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #475569;
+  color: var(--vm-ink-soft);
   font-size: 12.5px;
   font-weight: 700;
 }
@@ -840,7 +840,7 @@ const support = [
   width: 14px;
   height: 14px;
   place-items: center;
-  color: #b5c0cf;
+  color: var(--vm-ink-faint);
 }
 
 .checklist-card li.done span {
@@ -882,9 +882,9 @@ const support = [
 }
 
 .library-section {
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 13px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 16px 18px 18px;
   box-shadow: 0 8px 22px rgba(15, 23, 42, .04);
 }
@@ -902,9 +902,9 @@ const support = [
   min-height: 74px;
   align-items: center;
   gap: 14px;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 9px;
-  background: #fbfdff;
+  background: var(--vm-bg);
   padding: 12px 14px;
   color: inherit;
   text-decoration: none;
@@ -914,21 +914,21 @@ const support = [
 
 .library-card:hover {
   border-color: #b9c9ff;
-  background: #fff;
+  background: var(--vm-surface);
   box-shadow: 0 10px 24px rgba(37, 99, 235, .08);
   transform: translateY(-1px);
 }
 
 .library-card h3 {
   margin: 0;
-  color: #0f172a;
+  color: var(--vm-ink);
   font-size: 13px;
   font-weight: 850;
 }
 
 .library-card p {
   margin: 5px 0 0;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11.5px;
   line-height: 1.45;
 }
@@ -936,7 +936,7 @@ const support = [
 .library-card > svg {
   width: 15px;
   height: 15px;
-  color: #94a3b8;
+  color: var(--vm-ink-faint);
 }
 
 .topic-card {
@@ -944,9 +944,9 @@ const support = [
   min-height: 72px;
   align-items: center;
   gap: 14px;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 9px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 14px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
 }
@@ -955,7 +955,7 @@ const support = [
 .tutorial-body h3,
 .next-step h3 {
   margin: 0;
-  color: #0f172a;
+  color: var(--vm-ink);
   font-size: 13px;
   font-weight: 850;
 }
@@ -964,7 +964,7 @@ const support = [
 .tutorial-body p,
 .next-step p {
   margin: 5px 0 0;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11.5px;
   line-height: 1.45;
 }
@@ -987,10 +987,10 @@ const support = [
   height: 20px;
 }
 
-.blue { background: #eef4ff; color: #2563eb; }
-.violet { background: #f2efff; color: #4f46e5; }
-.teal { background: #e8fbf7; color: #0faaa5; }
-.coral { background: #fff1ed; color: #f15b3d; }
+.blue { background: var(--vm-surface-soft); color: var(--vm-link); }
+.violet { background: var(--vm-surface-soft); color: var(--vm-link); }
+.teal { background: #e8fbf7; color: var(--vm-teal-ink); }
+.coral { background: #fff1ed; color: var(--vm-red-ink); }
 
 .section-title-row {
   display: flex;
@@ -1004,7 +1004,7 @@ const support = [
 .link-action {
   border: 0;
   background: transparent;
-  color: #2563eb;
+  color: var(--vm-link);
   font-size: 12px;
   font-weight: 850;
   text-decoration: none;
@@ -1019,7 +1019,7 @@ const support = [
   border: 1px solid #bbf7d0;
   border-radius: 10px;
   background: #f0fdf4;
-  color: #15803d;
+  color: var(--vm-green-ink);
 }
 .all-set svg { width: 18px; height: 18px; flex-shrink: 0; }
 .all-set p { margin: 0; font-size: 12.5px; font-weight: 700; }
@@ -1033,9 +1033,9 @@ const support = [
 
 .tutorial-card {
   overflow: hidden;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 9px;
-  background: #fff;
+  background: var(--vm-surface);
   box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
 }
 
@@ -1060,7 +1060,7 @@ const support = [
   place-items: center;
   border-radius: 999px;
   background: rgba(255, 255, 255, .86);
-  color: #2563eb;
+  color: var(--vm-link);
   box-shadow: 0 10px 24px rgba(37, 99, 235, .15);
 }
 
@@ -1118,13 +1118,13 @@ const support = [
 }
 
 .level.beginner {
-  background: #dff8ef;
-  color: #059669;
+  background: var(--vm-green-soft);
+  color: var(--vm-green-ink);
 }
 
 .level.intermediate {
-  background: #fff5d9;
-  color: #b7791f;
+  background: var(--vm-amber-soft);
+  color: var(--vm-amber-ink);
 }
 
 .howto-panel {
@@ -1144,11 +1144,11 @@ const support = [
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 0 12px;
-  color: #334155;
+  color: var(--vm-ink-soft);
   font-size: 12px;
   font-weight: 800;
   text-align: left;
@@ -1157,7 +1157,7 @@ const support = [
 .guide-list svg {
   width: 15px;
   height: 15px;
-  color: #94a3b8;
+  color: var(--vm-ink-faint);
 }
 
 .help-rail {
@@ -1168,9 +1168,9 @@ const support = [
 }
 
 .rail-card {
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 13px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 18px;
   box-shadow: 0 8px 22px rgba(15, 23, 42, .04);
 }
@@ -1178,7 +1178,7 @@ const support = [
 .next-step {
   display: flex;
   gap: 14px;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 9px;
   padding: 14px;
   margin-top: 14px;
@@ -1186,7 +1186,7 @@ const support = [
 
 .next-step > span {
   background: #eeeafe;
-  color: #4f46e5;
+  color: var(--vm-link);
 }
 
 .next-step button {
@@ -1213,9 +1213,9 @@ const support = [
   width: 100%;
   align-items: center;
   gap: 12px;
-  border: 1px solid #e5ebf3;
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 10px;
   color: inherit;
   text-decoration: none;
@@ -1237,28 +1237,28 @@ const support = [
 }
 
 .support-row strong {
-  color: #0f172a;
+  color: var(--vm-ink);
   font-size: 12px;
   font-weight: 850;
 }
 
 .support-row small {
   margin-top: 2px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11.5px;
 }
 
 .support-row > svg {
   width: 15px;
   height: 15px;
-  color: #94a3b8;
+  color: var(--vm-ink-faint);
 }
 
 .assistant-card button {
   margin-top: 14px;
-  border: 1px solid #dbe4f0;
-  background: #f8fbff;
-  color: #334155;
+  border: 1px solid var(--vm-line-2);
+  background: var(--vm-surface-soft);
+  color: var(--vm-ink-soft);
 }
 
 .chat-fab {

@@ -476,7 +476,7 @@ samp {
   --vm-bg: #F8FBFF;            /* page background */
   --vm-ink: #0F172A;           /* text strong */
   --vm-ink-soft: #334155;      /* text normal */
-  --vm-ink-faint: #64748B;     /* text muted */
+  --vm-ink-faint: #5B6B85;     /* text muted (4.9:1 or more on every light surface; #64748B was 4.4:1 on --vm-surface-soft) */
   --vm-surface: #FFFFFF;       /* cards / panels */
   --vm-surface-soft: #F3F7FD;  /* subtle filled areas */
   --vm-border: #DFE7F2;        /* hairline borders */
@@ -501,6 +501,21 @@ samp {
   --vm-primary: #2563EB;
   --vm-primary-d: #1D4ED8;
   --vm-primary-soft: #EEF4FF;
+  /* Brand blue as TEXT and the tints around it; the dark theme redefines them (theme-layer, 2026-11-03). */
+  --vm-link: #2563EB;
+  --vm-primary-hover-soft: #E3EDFF;
+  --vm-primary-line: #BCD0F7;
+  --vm-teal-soft: #E3F8F4;
+  --vm-teal-ink: #0F766E;      /* 5.1:1 on its tint (#0f9f8a was 3.2:1) */
+  /* Accent TEXT (status words, method badges, links) at WCAG AA on white and on its own tint, and the tints. */
+  --vm-green-ink: #047857;
+  --vm-amber-ink: #B45309;
+  --vm-red-ink: #B91C1C;
+  --vm-violet-ink: #6D28D9;
+  --vm-blue-soft: #EAF1FF;
+  --vm-green-soft: #E7F8EF;
+  --vm-amber-soft: #FEF6E4;
+  --vm-red-soft: #FDECEC;
   --vm-accent: #14B8A6;
   --vm-accent-soft: #E3F8F4;
   --vm-success: #12B76A;
@@ -542,8 +557,8 @@ samp {
 [data-theme="dark"] {
   --vm-bg: #0B1220;            /* page background */
   --vm-ink: #E5E7EB;           /* main text */
-  --vm-ink-soft: #94A3B8;      /* secondary text */
-  --vm-ink-faint: #64748B;     /* muted text */
+  --vm-ink-soft: #CBD5E1;      /* secondary text (12:1 on the dark surface) */
+  --vm-ink-faint: #94A3B8;     /* muted text (6.9:1; #64748B was 3.7:1, under WCAG AA) */
   --vm-surface: #111827;       /* cards / panels */
   --vm-surface-soft: #1E293B;  /* subtle filled areas */
   --vm-border: #1F2937;        /* hairline borders */
@@ -552,6 +567,19 @@ samp {
 
   --vm-violet-soft: rgba(37, 99, 235, .16);   /* primary tint on dark */
   --vm-primary-soft: rgba(37, 99, 235, .16);
+  --vm-link: #60A5FA;           /* 7:1 on the dark surface (#2563EB is 3.4:1) */
+  --vm-primary-hover-soft: rgba(37, 99, 235, .26);
+  --vm-primary-line: rgba(96, 165, 250, .45);
+  --vm-teal-soft: rgba(20, 184, 166, .16);
+  --vm-teal-ink: #5EEAD4;
+  --vm-green-ink: #34D399;
+  --vm-amber-ink: #FBBF24;
+  --vm-red-ink: #F87171;
+  --vm-violet-ink: #A78BFA;
+  --vm-blue-soft: rgba(37, 99, 235, .16);
+  --vm-green-soft: rgba(16, 185, 129, .14);
+  --vm-amber-soft: rgba(245, 158, 11, .14);
+  --vm-red-soft: rgba(239, 68, 68, .14);
   --vm-accent-soft: rgba(20, 184, 166, .16);
 
   --vm-line: rgba(255, 255, 255, .09);
@@ -731,22 +759,22 @@ samp {
   box-shadow: var(--vm-shadow-m) !important;
 }
 .app-shell :where(.border-gray-200, .border-slate-200, .border-\[\#E5E7EB\]) {
-  border-color: #dfe7f2 !important;
+  border-color: var(--vm-line) !important;
 }
 .app-shell :where(.bg-slate-50, .bg-slate-50\/40, .bg-slate-50\/60, .bg-gray-50) {
-  background-color: #f8fbff !important;
+  background-color: var(--vm-bg) !important;
 }
 .app-shell :where(.text-violet-600, .text-violet-700, .text-indigo-600, .text-indigo-700) {
-  color: #2563eb !important;
+  color: var(--vm-link) !important;
 }
 .app-shell :where(.bg-violet-50, .bg-indigo-50) {
-  background-color: #eef4ff !important;
+  background-color: var(--vm-violet-soft) !important;
 }
 .app-shell :where(.hover\:bg-violet-100:hover, .hover\:bg-indigo-100:hover) {
-  background-color: #e3edff !important;
+  background-color: var(--vm-primary-hover-soft) !important;
 }
 .app-shell :where(.hover\:border-violet-300:hover, .hover\:border-indigo-300:hover) {
-  border-color: #bcd0f7 !important;
+  border-color: var(--vm-primary-line) !important;
 }
 .app-shell :where(.bg-violet-600, .bg-indigo-600) {
   background-color: #2563eb !important;
@@ -758,8 +786,8 @@ samp {
   background: #2563eb !important;
 }
 .app-shell :where(.bg-g-teal) {
-  background: #e3f8f4 !important;
-  color: #0f9f8a !important;
+  background: var(--vm-teal-soft) !important;
+  color: var(--vm-teal-ink) !important;
 }
 .app-shell :where(.shadow-glow-v, .shadow-glow-p) {
   box-shadow: 0 8px 18px rgba(37, 99, 235, .18) !important;
@@ -781,9 +809,9 @@ samp {
   background-color: #1d4ed8 !important;
 }
 :where(.text-violet-600, .text-violet-700, .text-indigo-600, .text-indigo-700, .text-purple-600, .text-purple-700):not(pre):not(code) {
-  color: #2563eb !important;
+  color: var(--vm-link) !important;
 }
 :where(.bg-violet-50, .bg-indigo-50, .bg-purple-50):not(pre):not(code) {
-  background-color: #eef4ff !important;
+  background-color: var(--vm-violet-soft) !important;
 }
 

@@ -80,9 +80,9 @@ defineProps({
 
 .page-loader__card {
   min-height: 238px;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 10px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 22px;
   box-shadow: 0 8px 22px rgba(15, 23, 42, .035);
 }

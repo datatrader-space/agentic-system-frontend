@@ -117,16 +117,16 @@ watch(() => props.collapsed, dismiss)
 </template>
 
 <style scoped>
-.profile-trigger{display:flex;align-items:center;gap:10px;width:100%;min-width:0;margin-top:6px;padding:10px 9px;border:1px solid #e3e8f0;border-radius:10px;background:#fff;color:#334155;text-align:left;font:inherit;cursor:pointer;transition:background .15s}
-.profile-trigger:hover,.profile-trigger.is-open{background:#f0f3f8}.profile-trigger:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.profile-trigger{display:flex;align-items:center;gap:10px;width:100%;min-width:0;margin-top:6px;padding:10px 9px;border:1px solid var(--vm-line-2);border-radius:10px;background:var(--vm-surface);color:var(--vm-ink-soft);text-align:left;font:inherit;cursor:pointer;transition:background .15s}
+.profile-trigger:hover,.profile-trigger.is-open{background:var(--vm-surface-soft)}.profile-trigger:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
 .profile-avatar{display:grid;place-items:center;flex-shrink:0;width:32px;height:32px;border-radius:50%;background:#2563eb;color:#fff;font-size:12px;font-weight:600}
-.profile-identity{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px;line-height:1.2}.profile-identity strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:550;color:#1e293b}.profile-identity>span{font-size:11px;color:#718096}
-.profile-chevron{flex-shrink:0;color:#94a3b8;transition:transform .15s}.profile-chevron.rotated{transform:rotate(180deg)}.is-collapsed{justify-content:center;padding:7px 0;border-color:transparent;background:transparent}
-.profile-popup{position:fixed;z-index:1000;box-sizing:border-box;overflow-y:auto;padding:6px;border:1px solid #dedfe3;border-radius:14px;background:#fff;box-shadow:0 12px 32px #0f172a1a,0 2px 6px #0f172a0d;color:#26282c;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;text-align:left;animation:profile-appear .12s ease-out}
-.profile-menu-account{padding:7px 9px 8px;overflow-wrap:anywhere;font-size:12px;color:#808187;line-height:1.4}
-.profile-menu-group{padding:3px 0}.profile-menu-group+.profile-menu-group{border-top:1px solid #e7e7e9;margin-top:4px;padding-top:7px}
+.profile-identity{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px;line-height:1.2}.profile-identity strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:550;color:var(--vm-ink)}.profile-identity>span{font-size:11px;color:var(--vm-ink-faint)}
+.profile-chevron{flex-shrink:0;color:var(--vm-ink-faint);transition:transform .15s}.profile-chevron.rotated{transform:rotate(180deg)}.is-collapsed{justify-content:center;padding:7px 0;border-color:transparent;background:transparent}
+.profile-popup{position:fixed;z-index:1000;box-sizing:border-box;overflow-y:auto;padding:6px;border:1px solid var(--vm-line-2);border-radius:14px;background:var(--vm-surface);box-shadow:0 12px 32px #0f172a1a,0 2px 6px #0f172a0d;color:var(--vm-ink);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;text-align:left;animation:profile-appear .12s ease-out}
+.profile-menu-account{padding:7px 9px 8px;overflow-wrap:anywhere;font-size:12px;color:var(--vm-ink-faint);line-height:1.4}
+.profile-menu-group{padding:3px 0}.profile-menu-group+.profile-menu-group{border-top:1px solid var(--vm-line-2);margin-top:4px;padding-top:7px}
 .profile-menu-item{display:flex;align-items:center;gap:11px;width:100%;min-height:34px;box-sizing:border-box;padding:8px 9px;border:0;border-radius:7px;background:transparent;color:inherit;font:400 13px/1.35 Inter,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;text-align:left;cursor:pointer}
-.profile-menu-item:hover,.profile-menu-item:focus-visible{background:#f2f2f3;outline:none}.profile-menu-item svg{flex-shrink:0}.menu-trailing{margin-left:auto;color:#96979c}.logout-item:hover,.logout-item:focus-visible{color:#b42335;background:#fff1f3}.submenu-back{font-weight:600}.profile-menu-note{padding:8px 10px;margin:0;font-size:11px;line-height:1.5;color:#85868b}
+.profile-menu-item:hover,.profile-menu-item:focus-visible{background:var(--vm-surface-soft);outline:none}.profile-menu-item svg{flex-shrink:0}.menu-trailing{margin-left:auto;color:var(--vm-ink-faint)}.logout-item:hover,.logout-item:focus-visible{color:var(--vm-red-ink);background:#fff1f3}.submenu-back{font-weight:600}.profile-menu-note{padding:8px 10px;margin:0;font-size:11px;line-height:1.5;color:var(--vm-ink-faint)}
 @keyframes profile-appear{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.profile-popup{animation:none}.profile-trigger,.profile-chevron{transition:none}}
 </style>

@@ -298,7 +298,7 @@ function formatDate(d) {
 
 .badge-period, .badge-count {
   background: rgba(139, 92, 246, 0.1);
-  color: #2563EB;
+  color: var(--vm-link);
   padding: 0.2rem 0.6rem;
   border-radius: 6px;
   font-size: 0.75rem;
@@ -326,8 +326,8 @@ function formatDate(d) {
 .security-grid { display: flex; flex-wrap: wrap; gap: 1rem; }
 .stat-mini { flex: 1; min-width: 120px; text-align: center; }
 .stat-mini-value { font-size: 2rem; font-weight: 800; display: block; }
-.stat-mini-value.success { color: #10b981; }
-.stat-mini-value.danger { color: #ef4444; }
+.stat-mini-value.success { color: var(--vm-green-ink); }
+.stat-mini-value.danger { color: var(--vm-red-ink); }
 .stat-mini-label { color: var(--text-muted); font-size: 0.8rem; }
 
 .alert-box {

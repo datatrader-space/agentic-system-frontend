@@ -718,7 +718,7 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   max-width: 100%;
   margin: 2px 0 6px;
   padding: 9px 14px 9px 12px;
-  border: 1px solid var(--vm-line, #e5e7eb);
+  border: 1px solid var(--vm-line, var(--vm-line-2));
   border-radius: 14px;
   background: var(--vm-surface, rgba(255, 255, 255, .72));
   font-size: 0.8125rem;
@@ -745,7 +745,7 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 
 /* The label sweeps rather than blinks. Blinking says "broken"; a slow sweep says "working". */
 .prep-label {
-  color: var(--vm-text-muted, #6b7280);
+  color: var(--vm-text-muted, var(--vm-ink-faint));
   background: linear-gradient(90deg,
               var(--vm-text-muted, #6b7280) 0%,
               var(--vm-text-muted, #6b7280) 35%,
@@ -772,7 +772,7 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
     animation: none;
     background: none;
     -webkit-text-fill-color: currentColor;
-    color: var(--vm-text-muted, #6b7280);
+    color: var(--vm-text-muted, var(--vm-ink-faint));
   }
 }
 
@@ -782,7 +782,7 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   gap: 12px;
   margin-top: 8px;
 }
-.error-text { font-size: 0.8125rem; color: #dc2626; }
+.error-text { font-size: 0.8125rem; color: var(--vm-red-ink); }
 .retry-btn {
   display: inline-flex;
   align-items: center;
@@ -790,14 +790,14 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   padding: 5px 12px;
   font-size: 0.8125rem;
   font-weight: 500;
-  color: #475569;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  color: var(--vm-ink-soft);
+  background: var(--vm-surface);
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s;
 }
-.retry-btn:hover { border-color: #c7d2fe; color: #4f46e5; }
+.retry-btn:hover { border-color: #c7d2fe; color: var(--vm-link); }
 .retry-btn svg { width: 14px; height: 14px; }
 
 .longanswer-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
@@ -808,17 +808,17 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   padding: 5px 12px;
   font-size: 0.8125rem;
   font-weight: 500;
-  color: #4f46e5;
-  background: #eef2ff;
-  border: 1px solid #e0e7ff;
+  color: var(--vm-link);
+  background: var(--vm-surface-soft);
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s;
 }
-.longanswer-btn:hover:not(:disabled) { border-color: #c7d2fe; background: #e0e7ff; }
+.longanswer-btn:hover:not(:disabled) { border-color: #c7d2fe; background: var(--vm-blue-soft); }
 .longanswer-btn:disabled { opacity: 0.6; cursor: default; }
 .longanswer-btn svg { width: 14px; height: 14px; }
-.longanswer-err { font-size: 0.8125rem; color: #dc2626; }
+.longanswer-err { font-size: 0.8125rem; color: var(--vm-red-ink); }
 
 /* AI response actions stay visible (not hover-only). User-message actions remain hover-only below. */
 .msg-actions { margin-top: 6px; opacity: 1; transition: opacity 0.15s; }
@@ -830,31 +830,31 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   justify-content: center;
   width: 28px;
   height: 28px;
-  color: #94a3b8;
+  color: var(--vm-ink-faint);
   background: transparent;
   border: none;
   border-radius: 7px;
   cursor: pointer;
   transition: all 0.15s;
 }
-.msg-action:hover { background: #f1f5f9; color: #475569; }
+.msg-action:hover { background: var(--vm-surface-soft); color: var(--vm-ink-soft); }
 .msg-action svg { width: 15px; height: 15px; }
-.msg-action.active { color: var(--vm-violet-d, #4f46e5); }
+.msg-action.active { color: var(--vm-violet-d, var(--vm-link)); }
 
 /* Thumbs-down detail sheet — inline under the message actions, never a blocking dialog. */
 .fb-sheet { margin-top: 8px; padding: 12px 14px; border-radius: 12px; max-width: 480px;
-  border: 1px solid #e2e8f0; background: #f8fafc; }
+  border: 1px solid var(--vm-line-2); background: var(--vm-surface-soft); }
 .fb-head { display: flex; align-items: center; justify-content: space-between; font-size: .8rem;
-  font-weight: 600; color: #334155; margin-bottom: 9px; }
-.fb-skip { background: none; border: 0; padding: 0; cursor: pointer; font-size: .76rem; color: #64748b; }
-.fb-skip:hover { color: #334155; }
+  font-weight: 600; color: var(--vm-ink-soft); margin-bottom: 9px; }
+.fb-skip { background: none; border: 0; padding: 0; cursor: pointer; font-size: .76rem; color: var(--vm-ink-faint); }
+.fb-skip:hover { color: var(--vm-ink-soft); }
 .fb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.fb-chip { padding: 5px 10px; border-radius: 999px; border: 1px solid #cbd5e1; background: #fff;
-  color: #475569; font-size: .75rem; cursor: pointer; transition: all .12s; }
+.fb-chip { padding: 5px 10px; border-radius: 999px; border: 1px solid #cbd5e1; background: var(--vm-surface);
+  color: var(--vm-ink-soft); font-size: .75rem; cursor: pointer; transition: all .12s; }
 .fb-chip:hover { border-color: #94a3b8; }
 .fb-chip.on { background: var(--vm-violet-d, #4f46e5); border-color: var(--vm-violet-d, #4f46e5); color: #fff; }
 .fb-note { width: 100%; margin-top: 9px; padding: 7px 9px; border-radius: 8px; border: 1px solid #cbd5e1;
-  font: inherit; font-size: .78rem; resize: vertical; color: #334155; background: #fff; }
+  font: inherit; font-size: .78rem; resize: vertical; color: var(--vm-ink-soft); background: var(--vm-surface); }
 .fb-submit { margin-top: 8px; padding: 6px 14px; border: 0; border-radius: 8px;
   background: var(--vm-violet-d, #4f46e5); color: #fff; font-size: .78rem; font-weight: 600; cursor: pointer; }
 
@@ -872,7 +872,7 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   margin-top: 5px;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--vm-violet-d, #4f46e5);
+  color: var(--vm-violet-d, var(--vm-link));
   background: transparent;
   border: none;
   cursor: pointer;
@@ -890,8 +890,8 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   font-size: 0.9375rem;
   font-family: inherit;
   line-height: 1.5;
-  color: var(--vm-ink, #0f172a);
-  background: #fff;
+  color: var(--vm-ink, var(--vm-ink));
+  background: var(--vm-surface);
   outline: none;
   resize: none;
   box-shadow: 0 0 0 4px rgba(14, 165, 233, .12);
@@ -899,10 +899,10 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 .user-edit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .ue-cancel, .ue-save {
   font-size: 0.8125rem; font-weight: 600; padding: 6px 14px; border-radius: 9px; cursor: pointer;
-  border: 1px solid var(--vm-line, #e2e8f0);
+  border: 1px solid var(--vm-line, var(--vm-line-2));
 }
-.ue-cancel { background: #fff; color: #475569; }
-.ue-cancel:hover { background: #f8fafc; }
+.ue-cancel { background: var(--vm-surface); color: var(--vm-ink-soft); }
+.ue-cancel:hover { background: var(--vm-surface-soft); }
 .ue-save { background: var(--vm-g-brand); color: #fff; border-color: transparent; }
 .ue-save:disabled { opacity: .5; cursor: not-allowed; }
 
@@ -913,7 +913,7 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 .bubble.assistant :deep(h2),
 .bubble.assistant :deep(h3) {
   margin: 22px 0 9px;
-  color: var(--vm-ink, #0f172a);
+  color: var(--vm-ink, var(--vm-ink));
   font-weight: 650;
   line-height: 1.3;
   letter-spacing: -0.02em;
@@ -927,18 +927,18 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 .bubble.assistant :deep(ul),
 .bubble.assistant :deep(ol) { margin: 2px 0 14px; padding-left: 24px; }
 .bubble.assistant :deep(li) { margin: 5px 0; padding-left: 2px; }
-.bubble.assistant :deep(li::marker) { color: #64748b; }
+.bubble.assistant :deep(li::marker) { color: var(--vm-ink-faint); }
 .bubble.assistant :deep(blockquote) {
   margin: 4px 0 14px;
   padding: 2px 0 2px 14px;
-  color: #475569;
+  color: var(--vm-ink-soft);
   border-left: 3px solid #cbd5e1;
 }
 .bubble.assistant :deep(blockquote p) { margin-bottom: 7px; }
 .bubble.assistant :deep(hr) {
   margin: 20px 0;
   border: 0;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--vm-line-2);
 }
 .bubble.assistant :deep(code) {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -971,7 +971,7 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 }
 .bubble.assistant :deep(.code-lang) {
   font: 500 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: #94a3b8;
+  color: var(--vm-ink-faint);
   text-transform: lowercase;
 }
 .bubble.assistant :deep(.code-block > pre) { margin: 0; border-radius: 0; }
@@ -994,22 +994,22 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 .bubble.assistant :deep(.code-copy:focus-visible) { opacity: 1; }
 .bubble.assistant :deep(.code-copy:hover) { background: rgba(148, 163, 184, 0.3); color: #f1f5f9; }
 .bubble.assistant :deep(.code-copy.is-copied) {
-  color: #34d399;
+  color: var(--vm-green-ink);
   border-color: rgba(52, 211, 153, 0.45);
   background: rgba(52, 211, 153, 0.12);
   opacity: 1;
 }
 /* Theme colours with the light values as fallbacks: fixed light-theme colours were near-black on a dark theme
    (Video Studio, the app's dark mode), so bold words and headings could not be read (owner, 2026-10-20). */
-.bubble.assistant :deep(strong) { font-weight: 600; color: var(--vm-ink, #0f172a); }
-.bubble.assistant :deep(a) { color: var(--vs-accent-ink, #4f46e5); text-decoration: underline; }
+.bubble.assistant :deep(strong) { font-weight: 600; color: var(--vm-ink, var(--vm-ink)); }
+.bubble.assistant :deep(a) { color: var(--vs-accent-ink, var(--vm-link)); text-decoration: underline; }
 
 /* Tables (GFM). The wrapper scrolls sideways, so a wide table keeps readable columns on a narrow screen. */
 .bubble.assistant :deep(.md-table) {
   max-width: 100%;
   overflow-x: auto;
   margin: 4px 0 12px;
-  border: 1px solid var(--vm-line-2, #e2e8f0);
+  border: 1px solid var(--vm-line-2, var(--vm-line-2));
   border-radius: 10px;
 }
 .bubble.assistant :deep(table) {
@@ -1028,24 +1028,24 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 .bubble.assistant :deep(.math-src) {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.85em;
-  color: var(--vm-ink-2, #475569);
+  color: var(--vm-ink-2, var(--vm-ink-soft));
 }
 .bubble.assistant :deep(thead th) {
-  background: var(--vm-surface-2, #f8fafc);
-  color: var(--vm-ink, #0f172a);
+  background: var(--vm-surface-2, var(--vm-surface-soft));
+  color: var(--vm-ink, var(--vm-ink));
   font-weight: 600;
   text-align: left;
 }
 .bubble.assistant :deep(th),
 .bubble.assistant :deep(td) {
   padding: 8px 12px;
-  border-bottom: 1px solid var(--vm-line-2, #e2e8f0);
-  border-right: 1px solid var(--vm-line-2, #e2e8f0);
+  border-bottom: 1px solid var(--vm-line-2, var(--vm-line-2));
+  border-right: 1px solid var(--vm-line-2, var(--vm-line-2));
   vertical-align: top;
 }
 .bubble.assistant :deep(th:last-child),
 .bubble.assistant :deep(td:last-child) { border-right: none; }
 .bubble.assistant :deep(tbody tr:last-child td) { border-bottom: none; }
-.bubble.assistant :deep(tbody tr:nth-child(even)) { background: var(--vm-surface-2, #fafbfc); }
+.bubble.assistant :deep(tbody tr:nth-child(even)) { background: var(--vm-surface-2, var(--vm-surface-soft)); }
 .bubble.assistant :deep(table code) { background: rgba(15, 23, 42, 0.06); }
 </style>

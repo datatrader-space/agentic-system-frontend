@@ -159,48 +159,48 @@ const progressPct = computed(() => (total.value ? Math.round((completed.value / 
 </template>
 
 <style scoped>
-.uplan { border: 1px solid var(--border, #e2e2e5); border-radius: 10px; padding: 12px 14px;
-  background: var(--surface, #fff); display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.uplan { border: 1px solid var(--border, var(--vm-line-2)); border-radius: 10px; padding: 12px 14px;
+  background: var(--surface, var(--vm-surface)); display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
 .uplan__head { display: flex; align-items: center; gap: 8px; }
 .uplan__toggle { display: flex; align-items: center; gap: 6px; background: none; border: 0;
   cursor: pointer; padding: 0; font: inherit; color: inherit; font-weight: 600; flex: 1; text-align: left; }
 .uplan__caret { transition: transform .15s ease; display: inline-block; }
 .uplan__caret.open { transform: rotate(90deg); }
-.uplan__badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--muted, #eef); white-space: nowrap; }
-.badge-pending_approval { background: #fff3cd; color: #7a5b00; }
-.badge-executing { background: #e0f0ff; color: #0b5cad; }
-.badge-completed { background: #e3f6e8; color: #1a7f3c; }
-.badge-failed, .badge-rejected { background: #fde2e1; color: #a1281f; }
-.badge-changes_requested { background: #fdebd0; color: #92510a; }
+.uplan__badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--muted, var(--vm-surface-soft)); white-space: nowrap; }
+.badge-pending_approval { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
+.badge-executing { background: var(--vm-surface-soft); color: var(--vm-link); }
+.badge-completed { background: #e3f6e8; color: var(--vm-green-ink); }
+.badge-failed, .badge-rejected { background: var(--vm-red-soft); color: var(--vm-red-ink); }
+.badge-changes_requested { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
 /* Roadmap = strategic display artifact (distinct from execution states). */
-.badge-roadmap { background: #ede9fe; color: #6d28d9; }
+.badge-roadmap { background: var(--vm-blue-soft); color: var(--vm-violet-ink); }
 .uplan__steps.is-roadmap { counter-reset: none; }
 .uplan__step.is-milestone .uplan__stepicon {
-  font-size: 11px; font-weight: 700; color: #6d28d9;
-  background: #ede9fe; border-radius: 6px; padding: 1px 5px; min-width: 22px; text-align: center;
+  font-size: 11px; font-weight: 700; color: var(--vm-violet-ink);
+  background: var(--vm-blue-soft); border-radius: 6px; padding: 1px 5px; min-width: 22px; text-align: center;
 }
 .uplan__step.is-milestone { opacity: 1; }   /* no execution dimming/current-step highlight */
-.uplan__ver { font-size: 12px; color: var(--muted-fg, #888); }
-.uplan__summary { margin: 0; color: var(--muted-fg, #555); }
+.uplan__ver { font-size: 12px; color: var(--muted-fg, var(--vm-ink-faint)); }
+.uplan__summary { margin: 0; color: var(--muted-fg, var(--vm-ink-soft)); }
 .uplan__progress { display: flex; align-items: center; gap: 8px; }
-.uplan__bar { flex: 1; height: 6px; background: var(--muted, #eee); border-radius: 3px; overflow: hidden; }
+.uplan__bar { flex: 1; height: 6px; background: var(--muted, var(--vm-surface-soft)); border-radius: 3px; overflow: hidden; }
 .uplan__fill { height: 100%; background: var(--accent, #3b82f6); transition: width .3s ease; }
-.uplan__count { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted-fg, #666); }
+.uplan__count { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted-fg, var(--vm-ink-faint)); }
 .uplan__steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .uplan__step { display: flex; align-items: flex-start; gap: 8px; padding: 3px 4px; border-radius: 6px; }
-.uplan__step.current { background: var(--muted, #f3f6ff); }
-.uplan__step.step-completed .uplan__stepicon { color: #1a7f3c; }
-.uplan__step.step-failed .uplan__stepicon { color: #a1281f; }
+.uplan__step.current { background: var(--muted, var(--vm-surface-soft)); }
+.uplan__step.step-completed .uplan__stepicon { color: var(--vm-green-ink); }
+.uplan__step.step-failed .uplan__stepicon { color: var(--vm-red-ink); }
 .uplan__steptxt { display: flex; flex-direction: column; gap: 2px; }
-.uplan__stepfail { font-size: 12px; color: #a1281f; }
+.uplan__stepfail { font-size: 12px; color: var(--vm-red-ink); }
 .uplan__detailstoggle { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px;
   background: none; border: 0; cursor: pointer; padding: 0; font: inherit; font-size: 12px;
-  color: var(--muted-fg, #666); font-weight: 600; }
+  color: var(--muted-fg, var(--vm-ink-faint)); font-weight: 600; }
 .uplan__detailscaret { transition: transform .15s ease; display: inline-block; font-size: 10px; }
 .uplan__detailscaret.open { transform: rotate(90deg); }
-.uplan__stepdetails { font-size: 12.5px; color: var(--muted-fg, #555); line-height: 1.45;
-  background: var(--muted, #f7f7fa); padding: 6px 8px; border-radius: 6px; margin-top: 2px; white-space: pre-wrap; }
-.uplan__note { font-size: 12.5px; color: var(--muted-fg, #555); background: var(--muted, #f7f7fa);
+.uplan__stepdetails { font-size: 12.5px; color: var(--muted-fg, var(--vm-ink-soft)); line-height: 1.45;
+  background: var(--muted, var(--vm-surface-soft)); padding: 6px 8px; border-radius: 6px; margin-top: 2px; white-space: pre-wrap; }
+.uplan__note { font-size: 12.5px; color: var(--muted-fg, var(--vm-ink-soft)); background: var(--muted, var(--vm-surface-soft));
   padding: 6px 8px; border-radius: 6px; margin: 0; }
 .uplan__revise textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--border, #ccc);
   border-radius: 6px; padding: 6px; font: inherit; resize: vertical; }
@@ -211,7 +211,7 @@ const progressPct = computed(() => (total.value ? Math.round((completed.value / 
 .btn-reject { background: #a1281f; color: #fff; }
 .btn-revise { background: var(--muted, #e6e6ea); color: inherit; }
 .btn:focus-visible, .uplan__toggle:focus-visible { outline: 2px solid var(--accent, #3b82f6); outline-offset: 2px; }
-.uplan__ro { font-size: 12px; color: var(--muted-fg, #888); margin: 0; }
+.uplan__ro { font-size: 12px; color: var(--muted-fg, var(--vm-ink-faint)); margin: 0; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
   overflow: hidden; clip: rect(0 0 0 0); border: 0; }
 @media (prefers-reduced-motion: reduce) { .uplan__caret, .uplan__fill, .uplan__detailscaret { transition: none; } }
@@ -222,14 +222,14 @@ const progressPct = computed(() => (total.value ? Math.round((completed.value / 
 .uplan__tier { display: inline-block; margin-left: 8px; font-size: 10px; font-weight: 700;
   letter-spacing: .04em; text-transform: uppercase; padding: 1px 7px; border-radius: 999px;
   border: 1px solid transparent; vertical-align: middle; }
-.uplan__tier.tier-outcome { color: #0b7a4b; background: #e4f6ee; border-color: #bfe6d6; }
-.uplan__tier.tier-artifact { color: #1d5fb8; background: #e6effb; border-color: #c6dbf5; }
-.uplan__tier.tier-semantic { color: #7a53c9; background: #efe9fb; border-color: #ddd0f5; }
-.uplan__tier.tier-presence { color: #8a6d1a; background: #f7efd9; border-color: #ecdcaf; }
+.uplan__tier.tier-outcome { color: var(--vm-green-ink); background: #e4f6ee; border-color: #bfe6d6; }
+.uplan__tier.tier-artifact { color: var(--vm-link); background: var(--vm-surface-soft); border-color: #c6dbf5; }
+.uplan__tier.tier-semantic { color: var(--vm-violet-ink); background: #efe9fb; border-color: #ddd0f5; }
+.uplan__tier.tier-presence { color: var(--vm-amber-ink); background: var(--vm-amber-soft); border-color: #ecdcaf; }
 @media (prefers-color-scheme: dark) {
   .uplan__tier.tier-outcome { color: #3ddba0; background: #12291f; border-color: #1f4536; }
-  .uplan__tier.tier-artifact { color: #7fb0f5; background: #142033; border-color: #26364f; }
-  .uplan__tier.tier-semantic { color: #b9a4f0; background: #211a33; border-color: #38305a; }
+  .uplan__tier.tier-artifact { color: var(--vm-link); background: #142033; border-color: #26364f; }
+  .uplan__tier.tier-semantic { color: var(--vm-violet-ink); background: #211a33; border-color: #38305a; }
   .uplan__tier.tier-presence { color: #e2c266; background: #2a2410; border-color: #493d18; }
 }
 </style>

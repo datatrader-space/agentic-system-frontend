@@ -42,10 +42,10 @@ const title = computed(() => (props.status === 'failed' && props.error) ? props.
 .isb { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700;
   padding: 2px 8px; border-radius: 999px; line-height: 1.6; white-space: nowrap; }
 .isb-label { letter-spacing: .01em; }
-.is-wait { background: #eef2f7; color: #64748b; }
-.is-busy { background: #eff6ff; color: #1d4ed8; }
-.is-ok   { background: #ecfdf3; color: #067647; }
-.is-err  { background: #fef2f2; color: #dc2626; }
+.is-wait { background: var(--vm-surface-soft); color: var(--vm-ink-faint); }
+.is-busy { background: var(--vm-surface-soft); color: var(--vm-link); }
+.is-ok   { background: #ecfdf3; color: var(--vm-green-ink); }
+.is-err  { background: #fef2f2; color: var(--vm-red-ink); }
 .isb-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor;
   animation: isb-pulse 1s ease-in-out infinite; }
 .isb-ico { font-weight: 900; }

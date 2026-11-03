@@ -96,7 +96,7 @@ const go = (key) => {
 }
 .settings--usage {
   padding: 34px 28px 48px;
-  background: #f8fbff;
+  background: var(--vm-surface-soft);
 }
 .settings-header {
   max-width: 1100px;
@@ -106,8 +106,8 @@ const go = (key) => {
   justify-content: space-between;
   gap: 16px;
 }
-.settings-h1 { font-size: 1.5rem; font-weight: 700; color: #0f172a; margin: 0; }
-.settings-sub { font-size: 0.875rem; color: #64748b; margin: 4px 0 0; }
+.settings-h1 { font-size: 1.5rem; font-weight: 700; color: var(--vm-ink); margin: 0; }
+.settings-sub { font-size: 0.875rem; color: var(--vm-ink-faint); margin: 4px 0 0; }
 .usage-menu-anchor {
   position: sticky;
   top: 14px;
@@ -129,10 +129,10 @@ const go = (key) => {
   height: 38px;
   min-width: 150px;
   padding: 0 13px 0 38px;
-  border: 1px solid #d9e3f0;
+  border: 1px solid var(--vm-line-2);
   border-radius: 10px;
-  background: #fff;
-  color: #0f172a;
+  background: var(--vm-surface);
+  color: var(--vm-ink);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -175,9 +175,9 @@ const go = (key) => {
   right: 0;
   width: 220px;
   padding: 8px;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 12px;
-  background: #fff;
+  background: var(--vm-surface);
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
 }
 .settings-menu button {
@@ -185,15 +185,15 @@ const go = (key) => {
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #475569;
+  color: var(--vm-ink-soft);
   cursor: pointer;
   padding: 10px 12px;
   text-align: left;
   font-size: 0.875rem;
   font-weight: 650;
 }
-.settings-menu button:hover { background: #f1f5f9; color: #0f172a; }
-.settings-menu button.active { background: #eef2ff; color: #3156e9; }
+.settings-menu button:hover { background: var(--vm-surface-soft); color: var(--vm-ink); }
+.settings-menu button.active { background: var(--vm-surface-soft); color: var(--vm-link); }
 
 .settings-grid {
   max-width: 1100px;

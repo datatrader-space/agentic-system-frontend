@@ -540,12 +540,12 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.btn-secondary { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--admin-line, #E5E7EB); background: var(--admin-surface, #fff); border-radius: 10px; padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--admin-ink, #344054); cursor: pointer; transition: border-color .15s, color .15s; }
-.btn-secondary:hover:not(:disabled) { border-color: #cdd5e0; color: var(--admin-ink, #0F172A); }
+.btn-secondary { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--admin-line, var(--vm-line-2)); background: var(--admin-surface, var(--vm-surface)); border-radius: 10px; padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--admin-ink, var(--vm-ink-soft)); cursor: pointer; transition: border-color .15s, color .15s; }
+.btn-secondary:hover:not(:disabled) { border-color: #cdd5e0; color: var(--admin-ink, var(--vm-ink)); }
 .btn-secondary:disabled { opacity: .5; cursor: not-allowed; }
 .btn-primary { display: inline-flex; align-items: center; gap: 7px; border: none; background: #2563EB; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; color: #fff; cursor: pointer; box-shadow: 0 1px 2px rgba(37,99,235,.25); transition: background .15s; }
 .btn-primary:hover:not(:disabled) { background: #1D4ED8; }
 .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
-.btn-icon { display: grid; place-items: center; height: 36px; width: 36px; border: 1px solid var(--admin-line, #E5E7EB); background: var(--admin-surface, #fff); border-radius: 10px; color: var(--admin-muted, #475569); cursor: pointer; }
-.btn-icon:hover { border-color: #cdd5e0; color: var(--admin-ink, #0F172A); }
+.btn-icon { display: grid; place-items: center; height: 36px; width: 36px; border: 1px solid var(--admin-line, var(--vm-line-2)); background: var(--admin-surface, var(--vm-surface)); border-radius: 10px; color: var(--admin-muted, var(--vm-ink-soft)); cursor: pointer; }
+.btn-icon:hover { border-color: #cdd5e0; color: var(--admin-ink, var(--vm-ink)); }
 </style>

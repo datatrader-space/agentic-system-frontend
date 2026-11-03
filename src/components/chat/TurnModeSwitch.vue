@@ -86,17 +86,17 @@ function hint(mode) {
 
 <style scoped>
 .tms { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px;
-       background: var(--surf2, #f2f4f7); border: 1px solid var(--line, #e3e6ea); }
+       background: var(--surf2, var(--vm-surface-soft)); border: 1px solid var(--line, var(--vm-line-2)); }
 .tms__opt { border: 0; background: transparent; border-radius: 999px; padding: 5px 20px;
             font-size: 13px; line-height: 18px; font-weight: 500; cursor: pointer;
-            color: var(--ink2, #667085); transition: background .15s ease, color .15s ease; }
-.tms__opt:hover:not(.is-on) { color: var(--ink, #111827); }
-.tms__opt.is-on { background: var(--surf, #fff); color: var(--ink, #111827); font-weight: 600;
+            color: var(--ink2, var(--vm-ink-faint)); transition: background .15s ease, color .15s ease; }
+.tms__opt:hover:not(.is-on) { color: var(--ink, var(--vm-ink)); }
+.tms__opt.is-on { background: var(--surf, var(--vm-surface)); color: var(--ink, var(--vm-ink)); font-weight: 600;
                   box-shadow: 0 1px 2px rgba(16, 24, 40, .08); }
 /* A PIN AND A READOUT MUST NOT LOOK THE SAME. Pinned is the solid, committed state; on Auto the same
    highlight is drawn lighter and dashed, so "the model chose Work" never reads as "you chose Work". */
-.tms__opt.is-on:not(.is-pinned) { font-weight: 500; color: var(--ink2, #667085);
-                                  box-shadow: none; border: 1px dashed var(--line, #d7dbe0); }
+.tms__opt.is-on:not(.is-pinned) { font-weight: 500; color: var(--ink2, var(--vm-ink-faint));
+                                  box-shadow: none; border: 1px dashed var(--line, var(--vm-line-2)); }
 .tms--auto { background: transparent; }
 .tms--sm { padding: 2px; }
 .tms--sm .tms__opt { padding: 3px 12px; font-size: 12px; line-height: 17px; }

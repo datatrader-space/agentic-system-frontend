@@ -302,8 +302,8 @@ const helpLinks = [
   gap: 16px;
   min-height: 100%;
   padding: 28px 30px 54px;
-  background: #f8fbff;
-  color: #0f172a;
+  background: var(--vm-surface-soft);
+  color: var(--vm-ink);
 }
 
 .started-main {
@@ -325,9 +325,9 @@ const helpLinks = [
 .templates-card,
 .guided-card,
 .rail-card {
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 10px;
-  background: #fff;
+  background: var(--vm-surface);
   box-shadow: 0 8px 22px rgba(15, 23, 42, .035);
 }
 
@@ -352,7 +352,7 @@ const helpLinks = [
 .team-head p {
   max-width: 520px;
   margin: 10px 0 0;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 13px;
   line-height: 1.55;
 }
@@ -388,9 +388,9 @@ const helpLinks = [
 }
 
 .secondary {
-  border: 1px solid #dbe4f0;
-  background: #fff;
-  color: #334155;
+  border: 1px solid var(--vm-line-2);
+  background: var(--vm-surface);
+  color: var(--vm-ink-soft);
 }
 
 .welcome-art {
@@ -415,7 +415,7 @@ const helpLinks = [
 .wide-card {
   position: absolute;
   top: 34px;
-  border: 1px solid #e3eafd;
+  border: 1px solid var(--vm-line-2);
   border-radius: 12px;
   background: rgba(255, 255, 255, .86);
   box-shadow: 0 16px 32px rgba(37, 99, 235, .11);
@@ -431,7 +431,7 @@ const helpLinks = [
 .mini-card svg {
   width: 22px;
   height: 22px;
-  color: #3b82f6;
+  color: var(--vm-link);
 }
 
 .mini-card i {
@@ -500,7 +500,7 @@ const helpLinks = [
 .section-head.compact button {
   border: 0;
   background: transparent;
-  color: #2563eb;
+  color: var(--vm-link);
   padding: 0;
 }
 
@@ -513,7 +513,7 @@ const helpLinks = [
 }
 
 .overall-progress span {
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 12px;
   font-weight: 750;
 }
@@ -537,7 +537,7 @@ const helpLinks = [
 .setup-list {
   margin-top: 12px;
   overflow: hidden;
-  border: 1px solid #edf2f7;
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
 }
 
@@ -547,7 +547,7 @@ const helpLinks = [
   align-items: center;
   gap: 10px;
   min-height: 42px;
-  border-top: 1px solid #edf2f7;
+  border-top: 1px solid var(--vm-line-2);
   padding: 7px 10px;
 }
 
@@ -569,35 +569,35 @@ const helpLinks = [
 }
 
 .status-icon.completed {
-  background: #e3f9ee;
-  color: #10b981;
+  background: var(--vm-green-soft);
+  color: var(--vm-green-ink);
 }
 
 .status-icon.progress {
-  background: #eef4ff;
-  color: #2563eb;
+  background: var(--vm-surface-soft);
+  color: var(--vm-link);
 }
 
 .status-icon.idle {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--vm-surface-soft);
+  color: var(--vm-ink-faint);
 }
 
 .setup-row b {
-  color: #475569;
+  color: var(--vm-ink-soft);
   font-size: 13px;
 }
 
 .setup-row h3 {
   margin: 0;
-  color: #0f172a;
+  color: var(--vm-ink);
   font-size: 12px;
   font-weight: 850;
 }
 
 .setup-row p {
   margin: 3px 0 0;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11px;
 }
 
@@ -610,24 +610,24 @@ const helpLinks = [
 }
 
 .status-pill.completed {
-  background: #dff8ef;
-  color: #059669;
+  background: var(--vm-green-soft);
+  color: var(--vm-green-ink);
 }
 
 .status-pill.progress {
-  background: #eef4ff;
-  color: #2563eb;
+  background: var(--vm-surface-soft);
+  color: var(--vm-link);
 }
 
 .status-pill.idle {
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--vm-surface-soft);
+  color: var(--vm-ink-soft);
 }
 
 .row-arrow {
   width: 15px;
   height: 15px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
 }
 
 .checklist-footer {
@@ -635,7 +635,7 @@ const helpLinks = [
   align-items: center;
   gap: 16px;
   margin-top: 10px;
-  border: 1px solid #edf2f7;
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
   padding: 10px 12px;
 }
@@ -646,20 +646,20 @@ const helpLinks = [
 
 .checklist-footer strong {
   display: block;
-  color: #0f172a;
+  color: var(--vm-ink);
   font-size: 12px;
 }
 
 .checklist-footer p {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11.5px;
 }
 
 .checklist-footer button {
   border: 0;
   background: transparent;
-  color: #2563eb;
+  color: var(--vm-link);
 }
 
 .template-grid,
@@ -675,7 +675,7 @@ const helpLinks = [
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr);
   gap: 10px;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
   padding: 10px;
 }
@@ -702,16 +702,16 @@ const helpLinks = [
   height: 17px;
 }
 
-.violet { background: #f2efff; color: #7c3aed; }
-.teal { background: #e7fbf6; color: #0faaa5; }
-.blue { background: #eef4ff; color: #2563eb; }
-.purple { background: #fbebff; color: #a855f7; }
-.green { background: #e9fbf1; color: #10b981; }
+.violet { background: var(--vm-surface-soft); color: var(--vm-violet-ink); }
+.teal { background: #e7fbf6; color: var(--vm-teal-ink); }
+.blue { background: var(--vm-surface-soft); color: var(--vm-link); }
+.purple { background: #fbebff; color: var(--vm-violet-ink); }
+.green { background: #e9fbf1; color: var(--vm-green-ink); }
 
 .template-card h3,
 .guide-card h3 {
   margin: 0;
-  color: #0f172a;
+  color: var(--vm-ink);
   font-size: 12px;
   font-weight: 850;
 }
@@ -719,7 +719,7 @@ const helpLinks = [
 .template-card p,
 .guide-card p {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 10.8px;
   line-height: 1.35;
 }
@@ -737,10 +737,10 @@ const helpLinks = [
   height: 27px;
   align-self: end;
   margin-top: 4px;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--vm-line-2);
   border-radius: 6px;
-  background: #fff;
-  color: #2563eb;
+  background: var(--vm-surface);
+  color: var(--vm-link);
   font-size: 11px;
   font-weight: 850;
 }
@@ -750,7 +750,7 @@ const helpLinks = [
   align-items: center;
   gap: 4px;
   margin-top: 11px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 10.5px;
   font-weight: 750;
 }
@@ -826,7 +826,7 @@ const helpLinks = [
 }
 
 .progress-ring span {
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 10px;
   font-weight: 800;
 }
@@ -844,7 +844,7 @@ const helpLinks = [
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #475569;
+  color: var(--vm-ink-soft);
   font-size: 12px;
   font-weight: 750;
 }
@@ -853,23 +853,23 @@ const helpLinks = [
   width: 16px;
   height: 16px;
   border-radius: 999px;
-  background: #e3f9ee;
-  color: #10b981;
+  background: var(--vm-green-soft);
+  color: var(--vm-green-ink);
   padding: 3px;
 }
 
 .progress-card li:nth-child(2) svg {
-  background: #eef4ff;
-  color: #3156e9;
+  background: var(--vm-surface-soft);
+  color: var(--vm-link);
 }
 
 .progress-card li:nth-child(3) svg {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--vm-surface-soft);
+  color: var(--vm-ink-faint);
 }
 
 .progress-card li span {
-  color: #2563eb;
+  color: var(--vm-link);
 }
 
 .progress-card p {
@@ -880,9 +880,9 @@ const helpLinks = [
 .schedule {
   width: 100%;
   margin-top: 14px;
-  border: 1px solid #dbe4f0;
-  background: #fff;
-  color: #2563eb;
+  border: 1px solid var(--vm-line-2);
+  background: var(--vm-surface);
+  color: var(--vm-link);
 }
 
 .rail-row {
@@ -892,16 +892,16 @@ const helpLinks = [
   align-items: center;
   gap: 10px;
   margin-top: 10px;
-  border: 1px solid #e5ebf3;
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 8px 10px;
   text-align: left;
 }
 
 .rail-row > span:first-child {
-  background: #eef4ff;
-  color: #2563eb;
+  background: var(--vm-surface-soft);
+  color: var(--vm-link);
 }
 
 .rail-row > span:nth-child(2) {
@@ -914,7 +914,7 @@ const helpLinks = [
 }
 
 .rail-row strong {
-  color: #0f172a;
+  color: var(--vm-ink);
   font-size: 12px;
   font-weight: 850;
   line-height: 1.2;
@@ -922,7 +922,7 @@ const helpLinks = [
 
 .rail-row small {
   margin-top: 2px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11px;
   line-height: 1.25;
 }
@@ -931,7 +931,7 @@ const helpLinks = [
   width: 14px;
   height: 14px;
   justify-self: end;
-  color: #64748b;
+  color: var(--vm-ink-faint);
 }
 
 .team-head {
@@ -964,18 +964,18 @@ const helpLinks = [
   display: flex;
   gap: 10px;
   margin-top: 18px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 11.5px;
 }
 
 .contact-row svg {
   width: 16px;
   height: 16px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
 }
 
 .contact-row b {
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-weight: 750;
 }
 

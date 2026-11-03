@@ -115,12 +115,12 @@ const outcome = computed(() => {
 .iter-line { flex: 1; height: 1px; background: var(--vm-border, #e3e3ea); }
 .iter-chip {
   font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
-  color: var(--vm-muted, #6b6b76); background: var(--vm-surface, #f6f6f9);
-  border: 1px solid var(--vm-border, #e3e3ea); border-radius: 999px; padding: 3px 10px; white-space: nowrap;
+  color: var(--vm-muted, var(--vm-ink-faint)); background: var(--vm-surface, var(--vm-surface-soft));
+  border: 1px solid var(--vm-border, var(--vm-line-2)); border-radius: 999px; padding: 3px 10px; white-space: nowrap;
 }
 
 .iter-live { display: flex; align-items: center; gap: 8px; margin: 8px auto; max-width: 760px;
-             font-size: 13px; color: var(--vm-muted, #6b6b76); }
+             font-size: 13px; color: var(--vm-muted, var(--vm-ink-faint)); }
 .iter-pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--vm-violet, #6d5cff);
               animation: iterpulse 1.4s ease-in-out infinite; }
 .iter-live-text { font-weight: 500; }
@@ -128,10 +128,10 @@ const outcome = computed(() => {
 @media (prefers-reduced-motion: reduce) { .iter-pulse { animation: none; opacity: 1; } }
 
 .iter-done { display: flex; flex-direction: column; gap: 2px; margin: 10px auto; max-width: 760px;
-             padding: 10px 12px; border-radius: 10px; border: 1px solid var(--vm-border, #e3e3ea);
-             background: var(--vm-surface, #f6f6f9); }
+             padding: 10px 12px; border-radius: 10px; border: 1px solid var(--vm-border, var(--vm-line-2));
+             background: var(--vm-surface, var(--vm-surface-soft)); }
 .iter-done.ok { border-color: #bfe3c9; background: #f2fbf5; }
 .iter-done.warn { border-color: #e8d8a8; background: #fdfaef; }
-.iter-done-title { font-size: 13px; font-weight: 600; color: var(--vm-ink, #1d1d22); }
-.iter-done-sub { font-size: 12px; color: var(--vm-muted, #6b6b76); }
+.iter-done-title { font-size: 13px; font-weight: 600; color: var(--vm-ink, var(--vm-ink)); }
+.iter-done-sub { font-size: 12px; color: var(--vm-muted, var(--vm-ink-faint)); }
 </style>

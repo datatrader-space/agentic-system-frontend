@@ -155,15 +155,15 @@ const replayTour = () => {
 
 <style scoped>
 .panel { display: flex; flex-direction: column; gap: 16px; }
-.card { background: var(--vm-surface, #fff); border: 1px solid var(--vm-line, #e7eaf0); border-radius: 14px; padding: 20px; }
-.card-title { font-size: 1rem; font-weight: 600; color: var(--vm-ink, #0f172a); margin: 0 0 2px; }
-.card-sub { font-size: 0.8125rem; color: var(--vm-ink-faint, #94a3b8); margin: 0 0 16px; }
+.card { background: var(--vm-surface, var(--vm-surface)); border: 1px solid var(--vm-line, var(--vm-line-2)); border-radius: 14px; padding: 20px; }
+.card-title { font-size: 1rem; font-weight: 600; color: var(--vm-ink, var(--vm-ink)); margin: 0 0 2px; }
+.card-sub { font-size: 0.8125rem; color: var(--vm-ink-faint, var(--vm-ink-faint)); margin: 0 0 16px; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.row-label { font-size: 0.875rem; font-weight: 500; color: var(--vm-ink-soft, #334155); }
-.row-hint { font-size: 0.75rem; color: var(--vm-ink-faint, #94a3b8); margin-top: 2px; }
-.seg { display: inline-flex; padding: 3px; background: var(--vm-surface-soft, #f1f5f9); border-radius: 9px; }
-.seg-btn { padding: 6px 14px; font-size: 0.8125rem; font-weight: 500; color: var(--vm-ink-faint, #64748b); background: transparent; border: none; border-radius: 7px; cursor: pointer; transition: .15s; }
-.seg-btn.active { background: var(--vm-surface, #fff); color: var(--vm-primary, #4f46e5); box-shadow: var(--vm-shadow-s, 0 1px 3px rgba(0,0,0,0.08)); }
+.row-label { font-size: 0.875rem; font-weight: 500; color: var(--vm-ink-soft, var(--vm-ink-soft)); }
+.row-hint { font-size: 0.75rem; color: var(--vm-ink-faint, var(--vm-ink-faint)); margin-top: 2px; }
+.seg { display: inline-flex; padding: 3px; background: var(--vm-surface-soft, var(--vm-surface-soft)); border-radius: 9px; }
+.seg-btn { padding: 6px 14px; font-size: 0.8125rem; font-weight: 500; color: var(--vm-ink-faint, var(--vm-ink-faint)); background: transparent; border: none; border-radius: 7px; cursor: pointer; transition: .15s; }
+.seg-btn.active { background: var(--vm-surface, var(--vm-surface)); color: var(--vm-primary, var(--vm-link)); box-shadow: var(--vm-shadow-s, 0 1px 3px rgba(0,0,0,0.08)); }
 .tour-btn {
   flex-shrink: 0; padding: 9px 16px; font-size: 0.8125rem; font-weight: 600; cursor: pointer;
   color: #fff; background: var(--vm-g-cool, linear-gradient(90deg,#0ea5e9,#7c3aed));
@@ -172,16 +172,16 @@ const replayTour = () => {
 }
 .tour-btn:hover { transform: translateY(-1px); }
 .field { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
-.field label { font-size: 0.8125rem; font-weight: 500; color: var(--vm-ink-soft, #475569); }
-.field input { padding: 9px 12px; font-size: 0.875rem; color: var(--vm-ink, #0f172a); background: var(--vm-surface-soft, #f8fafc); border: 1px solid var(--vm-line, #e2e8f0); border-radius: 9px; }
-.field input[readonly] { color: var(--vm-ink-faint, #64748b); cursor: default; }
+.field label { font-size: 0.8125rem; font-weight: 500; color: var(--vm-ink-soft, var(--vm-ink-soft)); }
+.field input { padding: 9px 12px; font-size: 0.875rem; color: var(--vm-ink, var(--vm-ink)); background: var(--vm-surface-soft, var(--vm-surface-soft)); border: 1px solid var(--vm-line, var(--vm-line-2)); border-radius: 9px; }
+.field input[readonly] { color: var(--vm-ink-faint, var(--vm-ink-faint)); cursor: default; }
 .name-row { display: flex; gap: 8px; }
 .name-row input { flex: 1; min-width: 0; }
 .save-btn { padding: 9px 16px; font-size: 0.8125rem; font-weight: 600; color: #fff; background: var(--vm-primary, #4f46e5); border: none; border-radius: 9px; cursor: pointer; }
 .save-btn:disabled { opacity: .5; cursor: default; }
-.field-hint { font-size: 0.75rem; color: var(--vm-ink-faint, #94a3b8); }
-.field-ok { font-size: 0.75rem; color: #067647; }
-.field-err { font-size: 0.75rem; color: #d92d20; }
+.field-hint { font-size: 0.75rem; color: var(--vm-ink-faint, var(--vm-ink-faint)); }
+.field-ok { font-size: 0.75rem; color: var(--vm-green-ink); }
+.field-err { font-size: 0.75rem; color: var(--vm-red-ink); }
 .row.toggle { cursor: pointer; gap: 16px; margin-top: 12px; }
 .row.toggle .row-hint { max-width: 560px; }
 .switch { width: 38px; height: 22px; flex-shrink: 0; accent-color: var(--vm-primary, #4f46e5); cursor: pointer; }

@@ -390,18 +390,18 @@ onMounted(loadMonitoring)
 </script>
 
 <style scoped>
-.metric-card, .panel { border: 1px solid var(--admin-line, #E5E7EB); border-radius: 12px; background: var(--admin-surface, #fff); box-shadow: 0 1px 3px rgba(16,24,40,.06); }
+.metric-card, .panel { border: 1px solid var(--admin-line, var(--vm-line-2)); border-radius: 12px; background: var(--admin-surface, var(--vm-surface)); box-shadow: 0 1px 3px rgba(16,24,40,.06); }
 .metric-card { padding: 18px; min-height: 118px; }
 .panel { padding: 18px; }
-.mini-btn { display: inline-flex; height: 30px; min-width: 108px; align-items: center; justify-content: center; white-space: nowrap; border: 1px solid var(--admin-line, #E5E7EB); border-radius: 7px; background: var(--admin-surface, #fff); padding: 0 14px; font-size: 11.5px; font-weight: 700; line-height: 1; color: var(--admin-muted, #475569); }
-.wide-btn { display: inline-flex; height: 36px; align-items: center; justify-content: center; white-space: nowrap; border: 1px solid var(--admin-line, #E5E7EB); border-radius: 8px; background: var(--admin-surface, #fff); padding: 0 14px; font-size: 12.5px; font-weight: 700; color: var(--admin-ink, #344054); }
-.icon-btn { display: grid; height: 38px; width: 42px; place-items: center; border: 1px solid var(--admin-line, #E5E7EB); border-radius: 8px; background: var(--admin-surface, #fff); color: var(--admin-muted, #475569); }
+.mini-btn { display: inline-flex; height: 30px; min-width: 108px; align-items: center; justify-content: center; white-space: nowrap; border: 1px solid var(--admin-line, var(--vm-line-2)); border-radius: 7px; background: var(--admin-surface, var(--vm-surface)); padding: 0 14px; font-size: 11.5px; font-weight: 700; line-height: 1; color: var(--admin-muted, var(--vm-ink-soft)); }
+.wide-btn { display: inline-flex; height: 36px; align-items: center; justify-content: center; white-space: nowrap; border: 1px solid var(--admin-line, var(--vm-line-2)); border-radius: 8px; background: var(--admin-surface, var(--vm-surface)); padding: 0 14px; font-size: 12.5px; font-weight: 700; color: var(--admin-ink, var(--vm-ink-soft)); }
+.icon-btn { display: grid; height: 38px; width: 42px; place-items: center; border: 1px solid var(--admin-line, var(--vm-line-2)); border-radius: 8px; background: var(--admin-surface, var(--vm-surface)); color: var(--admin-muted, var(--vm-ink-soft)); }
 .status-pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 800; }
-.publish-row { display: grid; grid-template-columns: 142px minmax(0, 1fr); align-items: center; min-height: 34px; border-bottom: 1px solid var(--admin-line, #EEF2F6); font-size: 12.5px; color: var(--admin-muted, #64748B); }
-.publish-row strong { font-weight: 700; color: var(--admin-muted, #475569); }
-.control { height: 34px; width: 100%; border: 1px solid var(--admin-line, #D9E0EA); border-radius: 8px; background: var(--admin-surface, #fff); padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--admin-ink, #344054); outline: none; }
+.publish-row { display: grid; grid-template-columns: 142px minmax(0, 1fr); align-items: center; min-height: 34px; border-bottom: 1px solid var(--admin-line, var(--vm-line-2)); font-size: 12.5px; color: var(--admin-muted, var(--vm-ink-faint)); }
+.publish-row strong { font-weight: 700; color: var(--admin-muted, var(--vm-ink-soft)); }
+.control { height: 34px; width: 100%; border: 1px solid var(--admin-line, var(--vm-line-2)); border-radius: 8px; background: var(--admin-surface, var(--vm-surface)); padding: 0 12px; font-size: 12.5px; font-weight: 600; color: var(--admin-ink, var(--vm-ink-soft)); outline: none; }
 .send-btn { display: grid; height: 40px; width: 40px; place-items: center; border-radius: 10px; background: #4F46E5; color: #fff; }
 .dot { height: 7px; width: 7px; border-radius: 999px; }
 button { transition: border-color .15s, background .15s, color .15s; }
-button:hover { border-color: #BFD0FF; color: #2563EB; }
+button:hover { border-color: #BFD0FF; color: var(--vm-link); }
 </style>

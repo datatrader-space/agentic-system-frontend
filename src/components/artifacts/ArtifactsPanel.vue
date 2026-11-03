@@ -314,82 +314,82 @@ function dayLabel(iso) {
 </script>
 
 <style scoped>
-.af-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--vm-surface, #fff); }
-.af-toolbar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--vm-line-2, #e5e7eb); flex-wrap: wrap; }
-.af-search { flex: 1; min-width: 120px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; padding: 6px 10px; font-size: 13px; background: transparent; color: inherit; }
-.af-sel { border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; padding: 6px 8px; font-size: 12.5px; background: transparent; color: inherit; }
-.af-check { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--vm-ink-soft, #475569); cursor: pointer; white-space: nowrap; }
-.af-icon { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 8px; background: transparent; color: var(--vm-ink-soft, #64748b); cursor: pointer; }
+.af-panel { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--vm-surface, var(--vm-surface)); }
+.af-toolbar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--vm-line-2, var(--vm-line-2)); flex-wrap: wrap; }
+.af-search { flex: 1; min-width: 120px; border: 1px solid var(--vm-line-2, var(--vm-line-2)); border-radius: 8px; padding: 6px 10px; font-size: 13px; background: transparent; color: inherit; }
+.af-sel { border: 1px solid var(--vm-line-2, var(--vm-line-2)); border-radius: 8px; padding: 6px 8px; font-size: 12.5px; background: transparent; color: inherit; }
+.af-check { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--vm-ink-soft, var(--vm-ink-soft)); cursor: pointer; white-space: nowrap; }
+.af-icon { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--vm-line-2, var(--vm-line-2)); border-radius: 8px; background: transparent; color: var(--vm-ink-soft, var(--vm-ink-faint)); cursor: pointer; }
 .af-icon:disabled { opacity: .5; cursor: not-allowed; }
 .af-icon svg { width: 15px; height: 15px; }
 
 .af-list-wrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px; }
-.af-note { padding: 32px 20px; text-align: center; font-size: 13px; color: var(--vm-ink-soft, #64748b); line-height: 1.55; }
-.af-dim { color: var(--vm-ink-dim, #94a3b8); }
-.af-retry { margin-left: 8px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 7px; background: transparent; padding: 3px 9px; font-size: 12px; cursor: pointer; color: inherit; }
+.af-note { padding: 32px 20px; text-align: center; font-size: 13px; color: var(--vm-ink-soft, var(--vm-ink-faint)); line-height: 1.55; }
+.af-dim { color: var(--vm-ink-dim, var(--vm-ink-faint)); }
+.af-retry { margin-left: 8px; border: 1px solid var(--vm-line-2, var(--vm-line-2)); border-radius: 7px; background: transparent; padding: 3px 9px; font-size: 12px; cursor: pointer; color: inherit; }
 .af-list { list-style: none; margin: 0; padding: 0; }
-.af-day { position: sticky; top: 0; z-index: 1; padding: 6px 8px 4px; background: var(--vm-surface, #fff); font-size: 10.5px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: var(--vm-ink-dim, #94a3b8); }
+.af-day { position: sticky; top: 0; z-index: 1; padding: 6px 8px 4px; background: var(--vm-surface, var(--vm-surface)); font-size: 10.5px; font-weight: 800; letter-spacing: .4px; text-transform: uppercase; color: var(--vm-ink-dim, var(--vm-ink-faint)); }
 /* The rail: one continuous line down the timeline, so the sequence reads as a sequence. */
 .af-tl { position: relative; }
 .af-tl::before { content: ''; position: absolute; left: 41px; top: 0; bottom: 0; width: 1px; background: var(--vm-line-2, #e5e7eb); }
 .af-tl:last-child::before { bottom: 50%; }
 .af-tl:first-of-type::before { top: 50%; }
-.af-time { position: relative; z-index: 1; flex: 0 0 34px; font-size: 10px; font-variant-numeric: tabular-nums; color: var(--vm-ink-dim, #94a3b8); text-align: right; }
+.af-time { position: relative; z-index: 1; flex: 0 0 34px; font-size: 10px; font-variant-numeric: tabular-nums; color: var(--vm-ink-dim, var(--vm-ink-faint)); text-align: right; }
 .af-order svg { width: 15px; height: 15px; }
 .af-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: none; border-radius: 10px; background: transparent; text-align: left; cursor: pointer; color: inherit; }
-.af-row:hover { background: var(--vm-surface-2, #f1f5f9); }
-.af-row.on { background: var(--vm-violet-soft, #eef2ff); }
+.af-row:hover { background: var(--vm-surface-2, var(--vm-surface-soft)); }
+.af-row.on { background: var(--vm-violet-soft, var(--vm-surface-soft)); }
 .af-ext { position: relative; z-index: 1; flex: 0 0 auto; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; font-size: 9.5px; font-weight: 700; letter-spacing: .3px; box-shadow: 0 0 0 3px var(--vm-surface, #fff); }
 .af-info { min-width: 0; flex: 1; display: block; }
 .af-name { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.af-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; font-size: 11px; color: var(--vm-ink-soft, #64748b); }
+.af-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; font-size: 11px; color: var(--vm-ink-soft, var(--vm-ink-faint)); }
 .af-badge { font-size: 9.5px; font-weight: 700; padding: 1px 6px; border-radius: 10px; text-transform: uppercase; letter-spacing: .3px; }
-.af-ver { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 6px; background: #e2e8f0; color: #475569; }
+.af-ver { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 6px; background: #e2e8f0; color: var(--vm-ink-soft); }
 .af-expiry { font-size: 12px; }
-.k-script { background: #dcfce7; color: #15803d; }
-.k-design { background: #fae8ff; color: #a21caf; }
-.k-upload { background: #dbeafe; color: #1d4ed8; }
-.k-output { background: #fef3c7; color: #b45309; }
-.k-gen { background: #ede9fe; color: #6d28d9; }
-.af-more { display: block; width: calc(100% - 12px); margin: 8px 6px; padding: 7px; border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 9px; background: transparent; font-size: 12.5px; font-weight: 600; cursor: pointer; color: inherit; }
+.k-script { background: var(--vm-green-soft); color: var(--vm-green-ink); }
+.k-design { background: var(--vm-violet-soft); color: var(--vm-violet-ink); }
+.k-upload { background: var(--vm-blue-soft); color: var(--vm-link); }
+.k-output { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
+.k-gen { background: var(--vm-blue-soft); color: var(--vm-violet-ink); }
+.af-more { display: block; width: calc(100% - 12px); margin: 8px 6px; padding: 7px; border: 1px solid var(--vm-line-2, var(--vm-line-2)); border-radius: 9px; background: transparent; font-size: 12.5px; font-weight: 600; cursor: pointer; color: inherit; }
 
 /* The detail pane owns a real, bounded share of the panel: a flex-basis with its own min-height:0 so the
    preview inside can scroll. Without the floor the <pre> could not scroll — the panel clipped it instead. */
-.af-detail { flex: 1 1 55%; min-height: 180px; max-height: 60%; display: flex; flex-direction: column; border-top: 1px solid var(--vm-line-2, #e5e7eb); }
+.af-detail { flex: 1 1 55%; min-height: 180px; max-height: 60%; display: flex; flex-direction: column; border-top: 1px solid var(--vm-line-2, var(--vm-line-2)); }
 .af-detail-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; }
 .af-detail-title { min-width: 0; display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
 .af-rename { flex: 1; min-width: 0; border: 1px solid var(--vm-violet-d, #4f46e5); border-radius: 7px; padding: 3px 7px; font-size: 13px; font-weight: 600; background: transparent; color: inherit; }
-.af-run { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 0 12px 8px; font-size: 11px; color: var(--vm-ink-soft, #64748b); }
+.af-run { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; padding: 0 12px 8px; font-size: 11px; color: var(--vm-ink-soft, var(--vm-ink-faint)); }
 .af-run-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 9999px; font-weight: 700; font-size: 10.5px; }
 .af-run-chip svg { width: 12px; height: 12px; }
-.af-run-chip.cloud { background: #e0f2fe; color: #0369a1; }
-.af-run-chip.local { background: #dcfce7; color: #15803d; }
+.af-run-chip.cloud { background: var(--vm-surface-soft); color: var(--vm-link); }
+.af-run-chip.local { background: var(--vm-green-soft); color: var(--vm-green-ink); }
 .af-run-time { font-weight: 700; font-variant-numeric: tabular-nums; }
 .af-run-exit { font-variant-numeric: tabular-nums; }
-.af-run-exit.bad { color: #b91c1c; font-weight: 700; }
-.af-rerun { padding: 0 12px 8px; border-top: 1px dashed var(--vm-line-2, #e5e7eb); margin-top: 4px; padding-top: 8px; }
-.af-rerun-err { margin: 0; font-size: 11.5px; color: #b91c1c; line-height: 1.45; }
+.af-run-exit.bad { color: var(--vm-red-ink); font-weight: 700; }
+.af-rerun { padding: 0 12px 8px; border-top: 1px dashed var(--vm-line-2, var(--vm-line-2)); margin-top: 4px; padding-top: 8px; }
+.af-rerun-err { margin: 0; font-size: 11.5px; color: var(--vm-red-ink); line-height: 1.45; }
 .af-note-tight { padding: 4px 0; font-size: 11.5px; }
 .af-out { margin-top: 6px; max-height: 160px; }
-.af-out.err { color: #b91c1c; }
+.af-out.err { color: var(--vm-red-ink); }
 .af-preview { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 12px 8px; }
 /* The list gives up space to the detail pane rather than pushing it off the bottom. */
 .af-list-wrap { flex: 1 1 45%; }
 .af-img { max-width: 100%; border-radius: 8px; display: block; }
 /* Scrolls in BOTH axes inside the preview pane: long scripts scroll vertically, wide lines horizontally,
    and neither stretches the panel. */
-.af-code { margin: 0; padding: 10px; border-radius: 8px; background: var(--vm-surface-2, #f8fafc); font-size: 11.5px; line-height: 1.5; white-space: pre; overflow: auto; max-width: 100%; }
-.af-trunc { margin: 6px 0 0; font-size: 11.5px; color: var(--vm-ink-dim, #94a3b8); }
+.af-code { margin: 0; padding: 10px; border-radius: 8px; background: var(--vm-surface-2, var(--vm-surface-soft)); font-size: 11.5px; line-height: 1.5; white-space: pre; overflow: auto; max-width: 100%; }
+.af-trunc { margin: 6px 0 0; font-size: 11.5px; color: var(--vm-ink-dim, var(--vm-ink-faint)); }
 .af-versions { padding: 0 12px 8px; font-size: 12px; }
 .af-vlist { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
 .af-vlist li { display: flex; align-items: center; gap: 8px; font-size: 11.5px; }
 .af-vnum { font-weight: 700; }
-.af-link { border: none; background: transparent; padding: 0; font-size: 12px; font-weight: 600; color: var(--vm-violet-d, #4f46e5); cursor: pointer; text-decoration: none; }
-.af-actions { display: flex; gap: 7px; padding: 9px 12px; border-top: 1px solid var(--vm-line-2, #e5e7eb); flex-wrap: wrap; }
-.af-btn { border: 1px solid var(--vm-line-2, #e5e7eb); border-radius: 9px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; background: transparent; color: inherit; cursor: pointer; text-decoration: none; }
+.af-link { border: none; background: transparent; padding: 0; font-size: 12px; font-weight: 600; color: var(--vm-violet-d, var(--vm-link)); cursor: pointer; text-decoration: none; }
+.af-actions { display: flex; gap: 7px; padding: 9px 12px; border-top: 1px solid var(--vm-line-2, var(--vm-line-2)); flex-wrap: wrap; }
+.af-btn { border: 1px solid var(--vm-line-2, var(--vm-line-2)); border-radius: 9px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; background: transparent; color: inherit; cursor: pointer; text-decoration: none; }
 .af-btn:disabled { opacity: .5; cursor: not-allowed; }
 .af-btn.primary { background: var(--vm-violet-d, #4f46e5); border-color: transparent; color: #fff; }
-.af-btn.danger { color: #b91c1c; }
+.af-btn.danger { color: var(--vm-red-ink); }
 
 @media (prefers-color-scheme: dark) {
   .af-code { background: #262c38; }

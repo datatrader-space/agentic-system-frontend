@@ -278,8 +278,8 @@ onBeforeUnmount(() => clearTimeout(pollTimer))
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .banner { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 12px; font-size: .92rem; border: 1px solid; }
-.banner.ok { color: #047857; background: rgba(18,183,106,.1); border-color: rgba(18,183,106,.3); }
-.banner.warn { color: #b45309; background: rgba(247,144,9,.12); border-color: rgba(247,144,9,.3); }
+.banner.ok { color: var(--vm-green-ink); background: rgba(18,183,106,.1); border-color: rgba(18,183,106,.3); }
+.banner.warn { color: var(--vm-amber-ink); background: rgba(247,144,9,.12); border-color: rgba(247,144,9,.3); }
 .banner.info { color: var(--vm-primary); background: var(--vm-primary-soft); border-color: rgba(37,99,235,.25); }
 
 .balance-card { display: flex; flex-direction: column; gap: 14px; }
@@ -289,8 +289,8 @@ onBeforeUnmount(() => clearTimeout(pollTimer))
 .balance-card.low { border-color: rgba(247,144,9,.45); }
 .balance-card.empty { border-color: rgba(240,68,56,.45); }
 .state-note { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px; font-size: .9rem; line-height: 1.5; }
-.low .state-note { color: #b45309; background: rgba(247,144,9,.1); }
-.empty .state-note { color: #b42318; background: rgba(240,68,56,.08); }
+.low .state-note { color: var(--vm-amber-ink); background: rgba(247,144,9,.1); }
+.empty .state-note { color: var(--vm-red-ink); background: rgba(240,68,56,.08); }
 .state-note svg { flex: none; margin-top: 2px; }
 
 .topup { display: flex; flex-direction: column; gap: 16px; }
@@ -332,7 +332,7 @@ onBeforeUnmount(() => clearTimeout(pollTimer))
 .entry:first-child { border-top: 0; }
 .ic { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--vm-surface-soft); color: var(--vm-ink-soft); }
 .ic.topup, .ic.starting_credit { background: rgba(18,183,106,.12); color: var(--vm-green); }
-.ic.refund, .ic.dispute { background: rgba(247,144,9,.12); color: #b45309; }
+.ic.refund, .ic.dispute { background: rgba(247,144,9,.12); color: var(--vm-amber-ink); }
 .desc { color: var(--vm-ink); font-size: .92rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meta { color: var(--vm-ink-soft); font-size: .8rem; margin-top: 2px; }
 .meta a { color: var(--vm-primary); text-decoration: none; }

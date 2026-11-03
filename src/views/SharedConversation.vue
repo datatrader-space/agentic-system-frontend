@@ -192,57 +192,57 @@ const continueChat = async () => {
    `html, body { overflow: hidden }` is global, so without this the conversation is unreadable
    past the first screen. `.sc-head` is deliberately not sticky — it would anchor to this
    container while the app's own 64px header sits above it, and the two would overlap. */
-.sc-page { background: #f8fafc; color: #0f172a; overflow-y: auto; overflow-x: hidden; }
-.sc-state { max-width: 640px; margin: 0 auto; padding: 96px 24px; text-align: center; color: #475569; }
-.sc-404 { font-size: 1.35rem; margin: 0 0 8px; color: #0f172a; }
+.sc-page { background: var(--vm-surface-soft); color: var(--vm-ink); overflow-y: auto; overflow-x: hidden; }
+.sc-state { max-width: 640px; margin: 0 auto; padding: 96px 24px; text-align: center; color: var(--vm-ink-soft); }
+.sc-404 { font-size: 1.35rem; margin: 0 0 8px; color: var(--vm-ink); }
 .sc-cta { display: inline-block; margin-top: 18px; padding: 10px 18px; border-radius: 10px;
   background: #4f46e5; color: #fff; text-decoration: none; font-weight: 600; font-size: .875rem; }
 
-.sc-head { border-bottom: 1px solid #e2e8f0; background: #fff; }
+.sc-head { border-bottom: 1px solid var(--vm-line-2); background: var(--vm-surface); }
 .sc-head-inner { max-width: 860px; margin: 0 auto; padding: 18px 24px; display: flex;
   align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .sc-title { margin: 0; font-size: 1.1rem; font-weight: 650; }
-.sc-sub { margin: 3px 0 0; font-size: .8rem; color: #64748b; }
+.sc-sub { margin: 3px 0 0; font-size: .8rem; color: var(--vm-ink-faint); }
 .sc-head-actions { display: flex; gap: 8px; }
 
 .sc-btn { padding: 9px 16px; border-radius: 10px; font-size: .83rem; font-weight: 600;
   cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
 .sc-btn.primary { background: #4f46e5; color: #fff; border: 0; }
 .sc-btn.primary:disabled { opacity: .6; cursor: default; }
-.sc-btn.ghost { background: #fff; color: #334155; border: 1px solid #cbd5e1; }
-.sc-btn.ghost:hover { background: #f1f5f9; }
+.sc-btn.ghost { background: var(--vm-surface); color: var(--vm-ink-soft); border: 1px solid #cbd5e1; }
+.sc-btn.ghost:hover { background: var(--vm-surface-soft); }
 
 .sc-thread { max-width: 860px; margin: 0 auto; padding: 28px 24px 8px; }
 .sc-msg { margin-bottom: 26px; }
 .sc-role { font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
-  color: #94a3b8; margin-bottom: 6px; }
-.sc-msg.user .sc-body { background: #eef2ff; border-radius: 12px; padding: 12px 14px; }
+  color: var(--vm-ink-faint); margin-bottom: 6px; }
+.sc-msg.user .sc-body { background: var(--vm-surface-soft); border-radius: 12px; padding: 12px 14px; }
 .sc-body { font-size: .93rem; line-height: 1.65; overflow-wrap: anywhere; }
 .sc-body :deep(pre) { background: #0f172a; color: #e2e8f0; padding: 12px 14px; border-radius: 10px;
   overflow-x: auto; font-size: .82rem; }
 .sc-body :deep(code) { font-size: .86em; }
 .sc-body :deep(table) { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; }
-.sc-body :deep(td), .sc-body :deep(th) { border: 1px solid #e2e8f0; padding: 6px 10px; font-size: .85rem; }
+.sc-body :deep(td), .sc-body :deep(th) { border: 1px solid var(--vm-line-2); padding: 6px 10px; font-size: .85rem; }
 .sc-body :deep(img) { max-width: 100%; border-radius: 8px; }
 
 .sc-attach { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-.sc-attach-img { max-width: 200px; max-height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; }
-.sc-attach-file { font-size: .8rem; color: #4f46e5; }
+.sc-attach-img { max-width: 200px; max-height: 200px; border-radius: 8px; border: 1px solid var(--vm-line-2); }
+.sc-attach-file { font-size: .8rem; color: var(--vm-link); }
 .sc-media { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-.sc-media img { max-width: 320px; border-radius: 10px; border: 1px solid #e2e8f0; }
+.sc-media img { max-width: 320px; border-radius: 10px; border: 1px solid var(--vm-line-2); }
 
 .sc-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.sc-tool { font-size: .72rem; padding: 3px 8px; border-radius: 999px; background: #f1f5f9;
-  color: #475569; border: 1px solid #e2e8f0; }
-.sc-tool.failure { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.sc-tool { font-size: .72rem; padding: 3px 8px; border-radius: 999px; background: var(--vm-surface-soft);
+  color: var(--vm-ink-soft); border: 1px solid var(--vm-line-2); }
+.sc-tool.failure { background: #fef2f2; color: var(--vm-red-ink); border-color: #fecaca; }
 
-.sc-cites { margin: 10px 0 0; padding-left: 18px; font-size: .78rem; color: #64748b; }
-.sc-cites a { color: #4f46e5; }
+.sc-cites { margin: 10px 0 0; padding-left: 18px; font-size: .78rem; color: var(--vm-ink-faint); }
+.sc-cites a { color: var(--vm-link); }
 
-.sc-foot { max-width: 860px; margin: 0 auto; padding: 24px 24px 64px; border-top: 1px solid #e2e8f0; }
-.sc-foot-lead { font-size: .85rem; color: #475569; margin: 0 0 14px; }
+.sc-foot { max-width: 860px; margin: 0 auto; padding: 24px 24px 64px; border-top: 1px solid var(--vm-line-2); }
+.sc-foot-lead { font-size: .85rem; color: var(--vm-ink-soft); margin: 0 0 14px; }
 .sc-foot-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.sc-disclaimer { margin: 20px 0 0; font-size: .73rem; color: #94a3b8; line-height: 1.6; }
+.sc-disclaimer { margin: 20px 0 0; font-size: .73rem; color: var(--vm-ink-faint); line-height: 1.6; }
 
 @media (max-width: 600px) {
   .sc-head-inner { padding: 14px 16px; }

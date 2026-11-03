@@ -374,7 +374,7 @@ const steps = ref([
 
 .check-list li::before {
   content: '✓';
-  color: #10b981;
+  color: var(--vm-green-ink);
   font-weight: bold;
 }
 
@@ -422,10 +422,10 @@ const steps = ref([
   color: #d1d5db;
 }
 
-.timestamp { color: #6b7280; min-width: 80px; }
-.log-info { color: #60a5fa; font-weight: bold; min-width: 80px; }
-.log-success { color: #10b981; font-weight: bold; min-width: 80px; }
-.log-process { color: #2563EB; font-weight: bold; min-width: 100px; }
+.timestamp { color: var(--vm-ink-faint); min-width: 80px; }
+.log-info { color: var(--vm-link); font-weight: bold; min-width: 80px; }
+.log-success { color: var(--vm-green-ink); font-weight: bold; min-width: 80px; }
+.log-process { color: var(--vm-link); font-weight: bold; min-width: 100px; }
 
 /* Typing Animation */
 .typing .cursor {

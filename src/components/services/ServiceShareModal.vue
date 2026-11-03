@@ -224,7 +224,7 @@ onMounted(() => loadShares())
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--vm-line-2);
 }
 
 .modal-header h2 { margin: 0; font-size: 20px; font-weight: 600; }
@@ -232,9 +232,9 @@ onMounted(() => loadShares())
 .close-button {
   background: none; border: none;
   font-size: 20px; cursor: pointer;
-  color: #6b7280; padding: 8px; line-height: 1;
+  color: var(--vm-ink-faint); padding: 8px; line-height: 1;
 }
-.close-button:hover { color: #1f2937; }
+.close-button:hover { color: var(--vm-ink); }
 
 .modal-body {
   flex: 1;
@@ -247,8 +247,8 @@ onMounted(() => loadShares())
   justify-content: space-between;
   align-items: center;
   padding: 12px 24px;
-  border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
+  border-top: 1px solid var(--vm-line-2);
+  background: var(--vm-surface-soft);
 }
 
 .section { margin-bottom: 24px; }
@@ -256,7 +256,7 @@ onMounted(() => loadShares())
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 12px;
-  color: #1f2937;
+  color: var(--vm-ink);
 }
 
 /* Share Form */
@@ -290,9 +290,9 @@ onMounted(() => loadShares())
 }
 .share-button:hover { background: #2563eb; }
 .share-button:disabled { background: #93c5fd; cursor: not-allowed; }
-.form-help { font-size: 12px; color: #6b7280; line-height: 1.5; }
-.error-msg { color: #dc2626; font-size: 13px; padding: 6px 10px; background: #fef2f2; border-radius: 6px; }
-.success-msg { color: #16a34a; font-size: 13px; padding: 6px 10px; background: #f0fdf4; border-radius: 6px; }
+.form-help { font-size: 12px; color: var(--vm-ink-faint); line-height: 1.5; }
+.error-msg { color: var(--vm-red-ink); font-size: 13px; padding: 6px 10px; background: #fef2f2; border-radius: 6px; }
+.success-msg { color: var(--vm-green-ink); font-size: 13px; padding: 6px 10px; background: #f0fdf4; border-radius: 6px; }
 
 /* Shares List */
 .shares-list { display: flex; flex-direction: column; gap: 8px; }
@@ -301,8 +301,8 @@ onMounted(() => loadShares())
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--vm-surface-soft);
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
 }
 .share-info { display: flex; flex-direction: column; gap: 6px; }
@@ -322,13 +322,13 @@ onMounted(() => loadShares())
   font-size: 11px;
   font-weight: 600;
 }
-.perm-use { background: #e0f2fe; color: #0369a1; }
-.perm-manage { background: #fef3c7; color: #92400e; }
-.perm-admin { background: #fce7f3; color: #9d174d; }
+.perm-use { background: var(--vm-surface-soft); color: var(--vm-link); }
+.perm-manage { background: var(--vm-amber-soft); color: var(--vm-amber-ink); }
+.perm-admin { background: var(--vm-red-soft); color: var(--vm-red-ink); }
 .revoke-button {
   padding: 6px 14px;
   background: transparent;
-  color: #dc2626;
+  color: var(--vm-red-ink);
   border: 1px solid #fca5a5;
   border-radius: 6px;
   font-size: 13px;
@@ -344,13 +344,13 @@ onMounted(() => loadShares())
   align-items: center;
   gap: 8px;
   padding: 16px;
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   font-size: 14px;
 }
 .empty-state { justify-content: center; }
 .spinner-sm {
   width: 16px; height: 16px;
-  border: 2px solid #e5e7eb;
+  border: 2px solid var(--vm-line-2);
   border-top-color: #3b82f6;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
@@ -359,8 +359,8 @@ onMounted(() => loadShares())
 
 .btn-secondary {
   padding: 8px 16px;
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--vm-surface-soft);
+  color: var(--vm-ink-soft);
   border: 1px solid #d1d5db;
   border-radius: 6px;
   cursor: pointer;

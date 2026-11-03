@@ -510,8 +510,8 @@ onMounted(async () => {
   margin-bottom: 18px;
 }
 /* Same heading scale as the catalog tab so switching tabs doesn't shift the eye. */
-.skills-head h3 { margin: 0; font-size: 15px; font-weight: 800; color: #0F172A; }
-.skills-head p { margin: 6px 0 0; max-width: 62ch; font-size: 12.5px; color: #64748B; }
+.skills-head h3 { margin: 0; font-size: 15px; font-weight: 800; color: var(--vm-ink); }
+.skills-head p { margin: 6px 0 0; max-width: 62ch; font-size: 12.5px; color: var(--vm-ink-faint); }
 .skills-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 @media (max-width: 1180px) { .skills-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 720px)  { .skills-grid { grid-template-columns: 1fr; } }

@@ -99,7 +99,7 @@ defineEmits(['open', 'install'])
 
 .icg-pill { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; font-size: 10px; font-weight: 700; padding: 4px 9px; border-radius: 999px; }
 .icg-pill.soon { color: var(--vm-ink-faint); background: var(--vm-bg); border: 1px solid var(--vm-line); }
-.icg-pill.on { color: #059669; background: rgba(16,185,129,.12); }
+.icg-pill.on { color: var(--vm-green-ink); background: rgba(16,185,129,.12); }
 
 .icg-desc { font-size: 12.5px; color: var(--vm-ink-soft); line-height: 1.5; min-height: 38px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

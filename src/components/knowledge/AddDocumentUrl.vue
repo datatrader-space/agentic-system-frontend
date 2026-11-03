@@ -95,13 +95,13 @@ async function poll(id) {
 
 <style scoped>
 .adu { display: flex; flex-direction: column; gap: 6px; }
-.adu-lbl { font-size: 12.5px; font-weight: 650; color: #344054; }
+.adu-lbl { font-size: 12.5px; font-weight: 650; color: var(--vm-ink-soft); }
 .adu-row { display: flex; gap: 8px; }
-.adu-input { flex: 1; min-width: 0; height: 36px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px; font-size: 12.5px; }
+.adu-input { flex: 1; min-width: 0; height: 36px; border: 1px solid var(--vm-line-2); border-radius: 8px; padding: 0 10px; font-size: 12.5px; }
 .adu-btn { border: 0; border-radius: 8px; padding: 0 14px; background: #4f46e5; color: #fff; font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .adu-btn:disabled { opacity: .5; cursor: not-allowed; }
-.adu-hint { font-size: 11px; color: #98a2b3; margin: 0; }
+.adu-hint { font-size: 11px; color: var(--vm-ink-faint); margin: 0; }
 .adu-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 .adu-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; }
-.adu-name { color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adu-name { color: var(--vm-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

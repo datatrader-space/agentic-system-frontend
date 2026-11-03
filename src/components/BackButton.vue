@@ -68,22 +68,22 @@ const handleBack = () => {
 
 .back-button--default {
   background: rgba(0, 0, 0, 0.04);
-  color: #374151;
+  color: var(--vm-ink-soft);
 }
 
 .back-button--default:hover {
   background: rgba(0, 0, 0, 0.08);
-  color: #111827;
+  color: var(--vm-ink);
 }
 
 .back-button--ghost {
   background: transparent;
-  color: #6b7280;
+  color: var(--vm-ink-faint);
 }
 
 .back-button--ghost:hover {
   background: rgba(0, 0, 0, 0.04);
-  color: #111827;
+  color: var(--vm-ink);
 }
 
 .back-icon {

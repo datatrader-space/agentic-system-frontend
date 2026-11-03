@@ -134,13 +134,13 @@ const onKeydown = (e) => {
 .eff {
   display: flex; align-items: center; gap: 8px;
   width: 100%; min-height: 36px; padding: 7px 10px;
-  color: #292929; font-size: 12.5px; font-weight: 500; line-height: 1;
+  color: var(--vm-ink); font-size: 12.5px; font-weight: 500; line-height: 1;
 }
 
-.eff-ic { width: 15px; height: 15px; flex: 0 0 auto; color: #878787; }
+.eff-ic { width: 15px; height: 15px; flex: 0 0 auto; color: var(--vm-ink-faint); }
 .eff-label { font-weight: 570; }
-.eff-value { margin-left: auto; color: #858585; font-size: 11.5px; white-space: nowrap; }
-.eff.is-set .eff-value { color: #2563eb; }
+.eff-value { margin-left: auto; color: var(--vm-ink-faint); font-size: 11.5px; white-space: nowrap; }
+.eff.is-set .eff-value { color: var(--vm-link); }
 
 .eff-track {
   position: relative; display: flex; align-items: center; justify-content: space-between;

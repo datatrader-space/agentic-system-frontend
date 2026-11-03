@@ -189,28 +189,28 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.nb-btn{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:38px;box-sizing:border-box;border:1px solid transparent;border-radius:8px;padding:8px 12px;background:transparent;color:#536177;font:450 13px/20px var(--font-sans);cursor:pointer}.nb-btn:hover{background:#edf1f7;color:#1f3048}.nb-btn svg{width:18px;height:18px;flex-shrink:0;color:#748299}.nb-label{flex:1;text-align:left}.nb-badge{display:grid;place-items:center;flex-shrink:0;min-width:19px;height:19px;padding:0 5px;border-radius:6px;background:#feecee;color:#d13c50;font-size:10px;font-weight:550;line-height:1}.nb.collapsed .nb-btn{justify-content:center;padding-inline:0}.nb.collapsed .nb-badge{position:absolute;top:3px;right:1px;min-width:15px;height:15px;padding:0 3px;border:2px solid #f8fafc;border-radius:99px;font-size:9px;background:#ef4444;color:white}.nb-btn:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.nb-btn{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:38px;box-sizing:border-box;border:1px solid transparent;border-radius:8px;padding:8px 12px;background:transparent;color:var(--vm-ink-soft);font:450 13px/20px var(--font-sans);cursor:pointer}.nb-btn:hover{background:var(--vm-surface-soft);color:var(--vm-ink)}.nb-btn svg{width:18px;height:18px;flex-shrink:0;color:var(--vm-ink-faint)}.nb-label{flex:1;text-align:left}.nb-badge{display:grid;place-items:center;flex-shrink:0;min-width:19px;height:19px;padding:0 5px;border-radius:6px;background:#feecee;color:var(--vm-red-ink);font-size:10px;font-weight:550;line-height:1}.nb.collapsed .nb-btn{justify-content:center;padding-inline:0}.nb.collapsed .nb-badge{position:absolute;top:3px;right:1px;min-width:15px;height:15px;padding:0 3px;border:2px solid var(--vm-line-2);border-radius:99px;font-size:9px;background:#ef4444;color:white}.nb-btn:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
 
-.nb-panel { position: fixed; left: 16px; bottom: 78px; z-index: 121; width: 360px; max-width: calc(100vw - 32px); max-height: 66vh; display: flex; flex-direction: column; background: #fff; border: 1px solid #e5ebf3; border-radius: 14px; box-shadow: 0 24px 60px rgba(15,23,42,.24); overflow: hidden; }
-.nb-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 15px; border-bottom: 1px solid #eef2f7; }
-.nb-head strong { font-size: 14px; font-weight: 800; color: #0f172a; }
-.nb-mark { border: 0; background: transparent; color: #4f46e5; font-size: 12px; font-weight: 700; cursor: pointer; }
+.nb-panel { position: fixed; left: 16px; bottom: 78px; z-index: 121; width: 360px; max-width: calc(100vw - 32px); max-height: 66vh; display: flex; flex-direction: column; background: var(--vm-surface); border: 1px solid var(--vm-line-2); border-radius: 14px; box-shadow: 0 24px 60px rgba(15,23,42,.24); overflow: hidden; }
+.nb-head { display: flex; align-items: center; justify-content: space-between; padding: 13px 15px; border-bottom: 1px solid var(--vm-line-2); }
+.nb-head strong { font-size: 14px; font-weight: 800; color: var(--vm-ink); }
+.nb-mark { border: 0; background: transparent; color: var(--vm-link); font-size: 12px; font-weight: 700; cursor: pointer; }
 /* The panel is height-capped, so the list is the scroll region; `contain` stops the wheel from
    chaining into the page behind once it bottoms out. */
 .nb-list { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
-.nb-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 16px; color: #94a3b8; font-size: 13px; }
+.nb-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 16px; color: var(--vm-ink-faint); font-size: 13px; }
 .nb-empty svg { width: 26px; height: 26px; }
-.nb-item { display: flex; align-items: flex-start; gap: 10px; width: 100%; border: 0; border-bottom: 1px solid #f4f6fa; background: transparent; padding: 12px 15px; text-align: left; cursor: pointer; }
-.nb-item:hover { background: #fafbff; }
-.nb-item.unread { background: #f5f8ff; }
+.nb-item { display: flex; align-items: flex-start; gap: 10px; width: 100%; border: 0; border-bottom: 1px solid var(--vm-line-2); background: transparent; padding: 12px 15px; text-align: left; cursor: pointer; }
+.nb-item:hover { background: var(--vm-surface-soft); }
+.nb-item.unread { background: var(--vm-surface-soft); }
 .nb-dot { margin-top: 6px; width: 8px; height: 8px; border-radius: 50%; background: transparent; flex-shrink: 0; }
 .nb-dot.on { background: #4f46e5; }
 .nb-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.nb-title { font-size: 13px; font-weight: 700; color: #0f172a; }
-.nb-text { font-size: 12px; color: #64748b; line-height: 1.4; }
-.nb-time { font-size: 11px; color: #a3adba; margin-top: 2px; }
-.nb-foot { padding: 8px; border-top: 1px solid #eef2f7; text-align: center; }
-.nb-more { border: 0; background: transparent; color: #4f46e5; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.nb-title { font-size: 13px; font-weight: 700; color: var(--vm-ink); }
+.nb-text { font-size: 12px; color: var(--vm-ink-faint); line-height: 1.4; }
+.nb-time { font-size: 11px; color: var(--vm-ink-faint); margin-top: 2px; }
+.nb-foot { padding: 8px; border-top: 1px solid var(--vm-line-2); text-align: center; }
+.nb-more { border: 0; background: transparent; color: var(--vm-link); font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .nb-pop-enter-active, .nb-pop-leave-active { transition: opacity .15s, transform .15s; }
 .nb-pop-enter-from, .nb-pop-leave-to { opacity: 0; transform: translateY(8px); }
 </style>

@@ -431,14 +431,14 @@ onMounted(loadDashboard)
 .empty-cell {
   padding: 28px 16px;
   text-align: center;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 13px;
 }
 .activity-page {
   min-height: 100%;
   padding: 28px 32px 38px;
-  background: #f8fbff;
-  color: #10182f;
+  background: var(--vm-surface-soft);
+  color: var(--vm-ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -467,12 +467,12 @@ select {
   line-height: 1.12;
   font-weight: 850;
   letter-spacing: 0;
-  color: #071225;
+  color: var(--vm-ink);
 }
 
 .activity-header p {
   margin-top: 8px;
-  color: #52637d;
+  color: var(--vm-ink-soft);
   font-size: 14px;
   font-weight: 500;
 }
@@ -485,9 +485,9 @@ select {
 .pager button,
 .table-footer select,
 .mini-action {
-  border: 1px solid #dbe4f0;
-  background: #fff;
-  color: #17233c;
+  border: 1px solid var(--vm-line-2);
+  background: var(--vm-surface);
+  color: var(--vm-ink);
   box-shadow: 0 1px 2px rgba(15, 23, 42, .035);
 }
 
@@ -505,13 +505,13 @@ select {
 .help-btn svg {
   width: 16px;
   height: 16px;
-  color: #52637d;
+  color: var(--vm-ink-soft);
 }
 
 .activity-tabs {
   display: flex;
   gap: 33px;
-  border-bottom: 1px solid #dfe7f2;
+  border-bottom: 1px solid var(--vm-line-2);
   margin-bottom: 0;
 }
 
@@ -520,13 +520,13 @@ select {
   border: 0;
   border-bottom: 3px solid transparent;
   background: transparent;
-  color: #52637d;
+  color: var(--vm-ink-soft);
   font-size: 14px;
   font-weight: 800;
 }
 
 .activity-tabs button.active {
-  color: #245af4;
+  color: var(--vm-link);
   border-bottom-color: #245af4;
 }
 
@@ -534,9 +534,9 @@ select {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 278px;
   gap: 22px;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 16px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 20px 20px 18px;
   box-shadow: 0 14px 34px rgba(15, 23, 42, .055);
 }
@@ -579,7 +579,7 @@ select {
 }
 
 .filter-btn svg:first-child {
-  color: #53657d;
+  color: var(--vm-ink-soft);
 }
 
 .filter-btn select {
@@ -589,7 +589,7 @@ select {
   outline: 0;
   appearance: none;
   background: transparent;
-  color: #17233c;
+  color: var(--vm-ink);
   font-size: 13px;
   font-weight: 800;
 }
@@ -622,13 +622,13 @@ select {
 .export-note {
   margin: -12px 0 16px;
   font-size: 12px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   text-align: right;
 }
 
 .table-frame {
   overflow: hidden;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 12px;
 }
 
@@ -641,9 +641,9 @@ table {
 th {
   height: 48px;
   padding: 0 18px;
-  background: #f8fafc;
-  border-bottom: 1px solid #dfe7f2;
-  color: #64748b;
+  background: var(--vm-surface-soft);
+  border-bottom: 1px solid var(--vm-line-2);
+  color: var(--vm-ink-faint);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: .06em;
@@ -661,8 +661,8 @@ th:nth-child(6) { width: 16%; }
 td {
   height: 55px;
   padding: 0 18px;
-  border-bottom: 1px solid #edf2f8;
-  color: #23334f;
+  border-bottom: 1px solid var(--vm-line-2);
+  color: var(--vm-ink);
   font-size: 13px;
   font-weight: 650;
   vertical-align: middle;
@@ -681,7 +681,7 @@ tbody tr:last-child td {
 .sort-head svg {
   width: 14px;
   height: 14px;
-  color: #071225;
+  color: var(--vm-ink);
 }
 
 .agent-cell {
@@ -700,14 +700,14 @@ tbody tr:last-child td {
 }
 
 .agent-cell strong {
-  color: #10182f;
+  color: var(--vm-ink);
   font-size: 13px;
   font-weight: 850;
 }
 
 .agent-cell small {
   margin-top: 3px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 12px;
   font-weight: 600;
 }
@@ -733,8 +733,8 @@ tbody tr:last-child td {
 .agent-icon.green { background: #13a978; }
 .agent-icon.orange { background: #f97316; }
 .agent-icon.white {
-  border: 1px solid #dbe4f0;
-  background: #fff;
+  border: 1px solid var(--vm-line-2);
+  background: var(--vm-surface);
 }
 
 .run-status {
@@ -752,7 +752,7 @@ tbody tr:last-child td {
 }
 
 .run-status.success {
-  color: #04996f;
+  color: var(--vm-green-ink);
 }
 
 .run-status.success i {
@@ -760,7 +760,7 @@ tbody tr:last-child td {
 }
 
 .run-status.failed {
-  color: #dc2626;
+  color: var(--vm-red-ink);
 }
 
 .run-status.failed i {
@@ -805,7 +805,7 @@ tbody tr:last-child td {
 .audit-list {
   display: grid;
   gap: 10px;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 12px;
   padding: 12px;
 }
@@ -815,7 +815,7 @@ tbody tr:last-child td {
   grid-template-columns: 36px minmax(0, 1fr) max-content;
   align-items: center;
   gap: 12px;
-  border: 1px solid #e7edf5;
+  border: 1px solid var(--vm-line-2);
   border-radius: 10px;
   padding: 12px;
 }
@@ -826,14 +826,14 @@ tbody tr:last-child td {
 }
 
 .audit-row strong {
-  color: #10182f;
+  color: var(--vm-ink);
   font-size: 13px;
   font-weight: 850;
 }
 
 .audit-row small,
 .audit-row time {
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 12px;
 }
 
@@ -851,7 +851,7 @@ tbody tr:last-child td {
   align-items: center;
   gap: 18px;
   padding: 18px 18px 0;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 13px;
   font-weight: 650;
 }
@@ -866,7 +866,7 @@ tbody tr:last-child td {
   min-width: 31px;
   height: 31px;
   border-radius: 8px;
-  color: #23334f;
+  color: var(--vm-ink);
   font-size: 13px;
   font-weight: 800;
 }
@@ -899,21 +899,21 @@ tbody tr:last-child td {
 
 .inspect-card {
   align-self: start;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 14px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 26px 20px 20px;
 }
 
 .inspect-card h2 {
-  color: #10182f;
+  color: var(--vm-ink);
   font-size: 15px;
   font-weight: 850;
 }
 
 .inspect-card > p {
   margin-top: 9px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 13px;
   line-height: 1.45;
 }
@@ -938,19 +938,19 @@ tbody tr:last-child td {
   height: 17px;
 }
 
-.inspect-step .blue { background: #dbeafe; color: #2563eb; }
-.inspect-step .red { background: #fee2e2; color: #ef4444; }
-.inspect-step .slate { background: #eaf0ff; color: #2563eb; }
+.inspect-step .blue { background: var(--vm-blue-soft); color: var(--vm-link); }
+.inspect-step .red { background: var(--vm-red-soft); color: var(--vm-red-ink); }
+.inspect-step .slate { background: var(--vm-surface-soft); color: var(--vm-link); }
 
 .inspect-step h3 {
-  color: #10182f;
+  color: var(--vm-ink);
   font-size: 13px;
   font-weight: 850;
 }
 
 .inspect-step p {
   margin-top: 7px;
-  color: #64748b;
+  color: var(--vm-ink-faint);
   font-size: 12px;
   line-height: 1.45;
 }

@@ -124,18 +124,18 @@ const verdictNote = computed(() => {
 .wg__pips { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: middle; }
 .wg__pip {
   min-width: 17px; height: 17px; line-height: 15px; padding: 0 4px;
-  border-radius: 999px; border: 1px solid var(--vm-line-2, #e4e8ee);
-  background: var(--vm-surface, #fff); color: var(--vm-ink-soft, #5b6472);
+  border-radius: 999px; border: 1px solid var(--vm-line-2, var(--vm-line-2));
+  background: var(--vm-surface, var(--vm-surface)); color: var(--vm-ink-soft, var(--vm-ink-soft));
   font-size: 10px; font-weight: 700; text-align: center;
 }
-.wg__pip.ok   { border-color: #bfe3c9; background: #f2fbf5; color: #1d7a3d; }
-.wg__pip.bad  { border-color: #e8d8a8; background: #fdfaef; color: #8a6d1f; }
-.wg__pip.live { border-color: var(--vm-violet-d, #6d5ef1); color: var(--vm-violet-d, #6d5ef1); }
+.wg__pip.ok   { border-color: #bfe3c9; background: #f2fbf5; color: var(--vm-green-ink); }
+.wg__pip.bad  { border-color: #e8d8a8; background: #fdfaef; color: var(--vm-amber-ink); }
+.wg__pip.live { border-color: var(--vm-violet-d, #6d5ef1); color: var(--vm-violet-d, var(--vm-link)); }
 /* Deliberately NOT the green `ok` treatment: its own check passed, the goal check did not confirm it. */
-.wg__pip.partial { border-color: #d7dce3; background: #f6f8fa; color: #5b6472; }
+.wg__pip.partial { border-color: var(--vm-line-2); background: var(--vm-surface-soft); color: var(--vm-ink-soft); }
 
-.wg { border: 1px solid var(--border, #e3e6ea); border-radius: 10px; padding: 12px 14px;
-      background: var(--surface, #fff); margin: 8px 0; font-size: 13px; }
+.wg { border: 1px solid var(--border, var(--vm-line-2)); border-radius: 10px; padding: 12px 14px;
+      background: var(--surface, var(--vm-surface)); margin: 8px 0; font-size: 13px; }
 .wg--done { border-color: #b7e0c2; }
 .wg--failed { border-color: #e8c7c7; }
 .wg__head { display: flex; align-items: center; gap: 8px; }
@@ -144,18 +144,18 @@ const verdictNote = computed(() => {
 @keyframes wgpulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
 @media (prefers-reduced-motion: reduce) { .wg__dot--live { animation: none } }
 .wg__state { font-weight: 600; }
-.wg__count { color: var(--muted, #6b7280); }
+.wg__count { color: var(--muted, var(--vm-ink-faint)); }
 .wg__spacer { flex: 1 1 auto; }
-.wg__btn { border: 1px solid var(--border, #e3e6ea); background: transparent; border-radius: 6px;
+.wg__btn { border: 1px solid var(--border, var(--vm-line-2)); background: transparent; border-radius: 6px;
            padding: 3px 9px; cursor: pointer; font-size: 12px; }
-.wg__btn:hover:not(:disabled) { background: var(--hover, #f4f6f8); }
+.wg__btn:hover:not(:disabled) { background: var(--hover, var(--vm-surface-soft)); }
 .wg__btn:disabled { opacity: .5; cursor: default; }
 .wg__outcome { margin: 8px 0 6px; }
-.wg__bar { height: 4px; border-radius: 2px; background: var(--track, #eef1f4); overflow: hidden; }
+.wg__bar { height: 4px; border-radius: 2px; background: var(--track, var(--vm-surface-soft)); overflow: hidden; }
 .wg__fill { height: 100%; background: #2f7bed; transition: width .3s ease; }
-.wg__verdict { margin: 8px 0 0; color: var(--muted, #6b7280); }
+.wg__verdict { margin: 8px 0 0; color: var(--muted, var(--vm-ink-faint)); }
 .wg__findings { margin: 6px 0 0; padding-left: 18px; }
 .wg__findings li { margin: 2px 0; }
-.wg__fix { color: var(--muted, #6b7280); }
-.wg__constraints { margin: 6px 0 0; color: var(--muted, #6b7280); font-size: 12px; }
+.wg__fix { color: var(--muted, var(--vm-ink-faint)); }
+.wg__constraints { margin: 6px 0 0; color: var(--muted, var(--vm-ink-faint)); font-size: 12px; }
 </style>

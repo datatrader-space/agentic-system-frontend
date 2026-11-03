@@ -223,9 +223,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 }
 .route-skeleton__card {
   min-height: 238px;
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--vm-line-2);
   border-radius: 10px;
-  background: #fff;
+  background: var(--vm-surface);
   padding: 22px;
   box-shadow: 0 8px 22px rgba(15, 23, 42, .035);
 }
@@ -346,13 +346,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   justify-content: center;
   width: 28px;
   flex-shrink: 0;
-  background: #ffffff;
+  background: var(--vm-surface);
   border: none;
-  border-left: 1px solid #e7eaf0;
-  color: #64748b;
+  border-left: 1px solid var(--vm-line-2);
+  color: var(--vm-ink-faint);
   cursor: pointer;
 }
-.reopen-right:hover { background: #f1f5f9; color: #0f172a; }
+.reopen-right:hover { background: var(--vm-surface-soft); color: var(--vm-ink); }
 .reopen-right svg { width: 18px; height: 18px; }
 @media (min-width: 1280px) {
   .reopen-right { display: flex; }

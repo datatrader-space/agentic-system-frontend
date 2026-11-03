@@ -137,22 +137,22 @@ onBeforeUnmount(() => {
   transition: top .25s ease, left .25s ease, width .25s ease, height .25s ease;
 }
 .gt-card {
-  position: fixed; pointer-events: auto; background: #fff; border-radius: 14px;
+  position: fixed; pointer-events: auto; background: var(--vm-surface); border-radius: 14px;
   box-shadow: 0 20px 50px rgba(15, 23, 42, .3); padding: 16px 18px; max-width: 92vw;
 }
 .gt-card.centered { top: 50%; left: 50%; width: 380px; transform: translate(-50%, -50%); }
 .gt-head { display: flex; align-items: center; justify-content: space-between; }
-.gt-count { font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; color: #6366f1; }
-.gt-x { border: 0; background: transparent; color: #94a3b8; cursor: pointer; } .gt-x svg { width: 16px; height: 16px; }
+.gt-count { font-size: 11px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; color: var(--vm-link); }
+.gt-x { border: 0; background: transparent; color: var(--vm-ink-faint); cursor: pointer; } .gt-x svg { width: 16px; height: 16px; }
 .gt-title { margin: 8px 0 0; font-size: 16px; font-weight: 850; }
-.gt-body { margin: 7px 0 0; color: #475569; font-size: 13.5px; line-height: 1.55; }
-.gt-hint { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; color: #4f46e5; font-size: 12px; font-weight: 700; }
+.gt-body { margin: 7px 0 0; color: var(--vm-ink-soft); font-size: 13.5px; line-height: 1.55; }
+.gt-hint { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; color: var(--vm-link); font-size: 12px; font-weight: 700; }
 .gt-hint svg, .gt-missing svg { width: 14px; height: 14px; }
-.gt-missing { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; color: #94a3b8; font-size: 11.5px; }
+.gt-missing { display: flex; align-items: center; gap: 6px; margin: 10px 0 0; color: var(--vm-ink-faint); font-size: 11.5px; }
 .gt-actions { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
 .gt-spacer { flex: 1; }
 .gt-btn { height: 34px; border-radius: 9px; padding: 0 14px; font-size: 12.5px; font-weight: 800; cursor: pointer; border: 1px solid transparent; }
 .gt-btn.primary { background: #4f46e5; color: #fff; }
-.gt-btn.ghost { background: #fff; border-color: #dbe4f0; color: #334155; }
-.gt-btn.link { background: transparent; color: #64748b; }
+.gt-btn.ghost { background: var(--vm-surface); border-color: var(--vm-line-2); color: var(--vm-ink-soft); }
+.gt-btn.link { background: transparent; color: var(--vm-ink-faint); }
 </style>

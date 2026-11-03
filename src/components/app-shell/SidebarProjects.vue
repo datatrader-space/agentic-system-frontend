@@ -284,9 +284,9 @@ watch(() => chat.conversationId, (id, prev) => {
 .sp { padding: 0; }
 .sp-head { display: flex; align-items: center; gap: 2px; }
 .sp-head.collapsed { justify-content: center; }
-.sp-section{display:flex;align-items:center;gap:12px;flex:1;min-width:0;min-height:39px;box-sizing:border-box;padding:9px 12px;border:1px solid transparent;border-radius:8px;background:transparent;color:#536177;font:450 13px/20px var(--font-sans);cursor:pointer;text-align:left;transition:background .15s,color .15s}.sp-section:hover{background:#edf1f7;color:#1f3048}.sp-section[aria-expanded="true"]{color:#205bd5;background:#eef3fc}.sp-section.collapsed{justify-content:center;padding:10px 0;min-height:40px}.sp-icon-main{width:18px;height:18px;flex-shrink:0;color:#748299;stroke-width:1.7}.sp-section[aria-expanded="true"] .sp-icon-main{color:#2563eb}.sp-section-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sp-chev{width:13px;height:13px;flex-shrink:0;color:#8c98aa;transition:transform .15s}.sp-chev:not(.open){transform:rotate(-90deg)}
-.sp-body { display:flex;flex-direction:column;gap:2px;margin:5px 0 5px 20px;padding-left:8px;border-left:1px solid #dfe5ef; }
-.sp-create { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--vm-violet-d, #6d28d9); font: 450 12px/1.5 var(--font-sans); cursor: pointer; text-align: left; }
+.sp-section{display:flex;align-items:center;gap:12px;flex:1;min-width:0;min-height:39px;box-sizing:border-box;padding:9px 12px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--vm-ink-soft);font:450 13px/20px var(--font-sans);cursor:pointer;text-align:left;transition:background .15s,color .15s}.sp-section:hover{background:var(--vm-surface-soft);color:var(--vm-ink)}.sp-section[aria-expanded="true"]{color:var(--vm-link);background:var(--vm-surface-soft)}.sp-section.collapsed{justify-content:center;padding:10px 0;min-height:40px}.sp-icon-main{width:18px;height:18px;flex-shrink:0;color:var(--vm-ink-faint);stroke-width:1.7}.sp-section[aria-expanded="true"] .sp-icon-main{color:var(--vm-link)}.sp-section-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sp-chev{width:13px;height:13px;flex-shrink:0;color:var(--vm-ink-faint);transition:transform .15s}.sp-chev:not(.open){transform:rotate(-90deg)}
+.sp-body { display:flex;flex-direction:column;gap:2px;margin:5px 0 5px 20px;padding-left:8px;border-left:1px solid var(--vm-line-2); }
+.sp-create { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--vm-violet-d, var(--vm-violet-ink)); font: 450 12px/1.5 var(--font-sans); cursor: pointer; text-align: left; }
 .sp-create svg { width: 15px; height: 15px; }
 .sp-create:hover { background: var(--vm-glass-strong); }
 .sp-section:focus-visible, .sp-create:focus-visible { outline: 2px solid var(--vm-violet, #7c3aed); outline-offset: 1px; }
@@ -301,13 +301,13 @@ watch(() => chat.conversationId, (id, prev) => {
 .sp-row:hover .sp-main, .sp-row.active .sp-main { color: var(--vm-ink); }
 .sp-folder { width: 16px; height: 16px; flex-shrink: 0; }
 .sp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sp-more { width: 26px; height: 26px; margin-right: 4px; border: 0; border-radius: 8px; background: transparent; color: var(--vm-ink-faint, #8a8fa3); cursor: pointer; opacity: 0; font-size: 15px; line-height: 1; }
+.sp-more { width: 26px; height: 26px; margin-right: 4px; border: 0; border-radius: 8px; background: transparent; color: var(--vm-ink-faint, var(--vm-ink-faint)); cursor: pointer; opacity: 0; font-size: 15px; line-height: 1; }
 .sp-row:hover .sp-more, .sp-row.open .sp-more, .sp-more:focus-visible { opacity: 1; }
 .sp-menu, .sp-confirm { margin: 2px 6px 6px; padding: 4px; border: 1px solid var(--vm-line); border-radius: 12px; background: var(--vm-surface); box-shadow: var(--vm-shadow-m); display: flex; flex-direction: column; }
 .sp-menu button, .sp-actions button { border: 0; background: transparent; text-align: left; padding: 7px 10px; border-radius: 8px; font: 500 12.5px var(--vm-font-sans); color: var(--vm-ink); cursor: pointer; }
 .sp-menu button:hover, .sp-actions button:hover { background: var(--vm-glass-strong); }
-.sp-menu .danger, .sp-actions .danger { color: #c2410c; }
-.sp-menu-label { padding: 6px 10px 2px; font-size: 11px; font-weight: 700; color: var(--vm-ink-faint, #8a8fa3); }
+.sp-menu .danger, .sp-actions .danger { color: var(--vm-amber-ink); }
+.sp-menu-label { padding: 6px 10px 2px; font-size: 11px; font-weight: 700; color: var(--vm-ink-faint, var(--vm-ink-faint)); }
 .sp-confirm { padding: 10px; gap: 8px; }
 .sp-confirm p { margin: 0; font-size: 12.5px; color: var(--vm-ink); }
 .sp-check { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--vm-ink-soft); }
@@ -316,8 +316,8 @@ watch(() => chat.conversationId, (id, prev) => {
 .sp-inline.grow { flex: 1; }
 .sp-input { width: 100%; padding: 6px 9px; border: 1px solid var(--vm-line); border-radius: 9px; background: var(--vm-surface); color: var(--vm-ink); font: 500 13px var(--vm-font-sans); }
 .sp-input:focus { outline: 2px solid var(--vm-violet, #7c3aed); outline-offset: 0; }
-.sp-more-link { border: 0; background: transparent; padding: 6px 10px; font: 600 12px var(--vm-font-sans); color: var(--vm-violet-d, #6d28d9); cursor: pointer; text-align: left; border-radius: 8px; }
+.sp-more-link { border: 0; background: transparent; padding: 6px 10px; font: 600 12px var(--vm-font-sans); color: var(--vm-violet-d, var(--vm-violet-ink)); cursor: pointer; text-align: left; border-radius: 8px; }
 .sp-more-link:hover { background: var(--vm-glass-strong); }
-.sp-more-link.inner { color: var(--vm-ink-faint, #8a8fa3); font-weight: 500; padding: 5px 10px; }
+.sp-more-link.inner { color: var(--vm-ink-faint, var(--vm-ink-faint)); font-weight: 500; padding: 5px 10px; }
 .sp-main:focus-visible, .sp-more-link:focus-visible { outline: 2px solid var(--vm-violet, #7c3aed); outline-offset: 1px; }
 </style>

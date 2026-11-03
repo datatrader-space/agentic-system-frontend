@@ -43,9 +43,9 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.back { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid #e5ebf3; border-radius: 9px; background: #fff; color: #334155; font-size: 13px; font-weight: 700; cursor: pointer; }
-.back:hover { border-color: #c7d2fe; color: #4f46e5; }
-.edit { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 13px; border: 1px solid #e5ebf3; border-radius: 9px; background: #fff; color: #334155; font-size: 13px; font-weight: 700; cursor: pointer; }
-.edit:hover { border-color: #c7d2fe; color: #4f46e5; }
+.back { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid var(--vm-line-2); border-radius: 9px; background: var(--vm-surface); color: var(--vm-ink-soft); font-size: 13px; font-weight: 700; cursor: pointer; }
+.back:hover { border-color: #c7d2fe; color: var(--vm-link); }
+.edit { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 13px; border: 1px solid var(--vm-line-2); border-radius: 9px; background: var(--vm-surface); color: var(--vm-ink-soft); font-size: 13px; font-weight: 700; cursor: pointer; }
+.edit:hover { border-color: #c7d2fe; color: var(--vm-link); }
 .back svg, .edit svg { width: 15px; height: 15px; }
 </style>

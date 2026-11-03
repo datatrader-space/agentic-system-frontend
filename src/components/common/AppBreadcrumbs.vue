@@ -65,14 +65,14 @@ const { crumbs } = useBreadcrumbs()
   min-height: 24px; /* comfortable tap target on mobile */
 }
 .bc-link {
-  color: #2563eb;
+  color: var(--vm-link);
   text-decoration: none;
   font-weight: 700;
   padding: 2px 2px;
   border-radius: 4px;
 }
 .bc-link:hover { text-decoration: underline; }
-.bc-current { color: #64748b; }
+.bc-current { color: var(--vm-ink-faint); }
 .bc-sep {
   width: 13px;
   height: 13px;

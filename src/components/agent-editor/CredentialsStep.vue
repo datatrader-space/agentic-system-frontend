@@ -282,15 +282,15 @@ onMounted(loadCredentials)
 </script>
 
 <style scoped>
-.control { height: 36px; border: 1px solid var(--admin-line, #D9E0EA); border-radius: 8px; background: var(--admin-surface, #fff); padding: 0 12px; font-size: 12px; font-weight: 500; color: var(--admin-ink, #344054); outline: none; box-shadow: 0 1px 2px rgba(16,24,40,.03); }
+.control { height: 36px; border: 1px solid var(--admin-line, var(--vm-line-2)); border-radius: 8px; background: var(--admin-surface, var(--vm-surface)); padding: 0 12px; font-size: 12px; font-weight: 500; color: var(--admin-ink, var(--vm-ink-soft)); outline: none; box-shadow: 0 1px 2px rgba(16,24,40,.03); }
 .control:focus { border-color: #2563EB; box-shadow: 0 0 0 3px #EAF0FF; }
-.attach-btn { border: 1px solid #9DB7F8; color: #155EEF; background: var(--admin-surface, #fff); border-radius: 9px; padding: 7px 14px; font-size: 12.5px; font-weight: 650; }
-.attach-btn:hover:not(:disabled) { background: #EFF4FF; border-color: #2563EB; }
+.attach-btn { border: 1px solid #9DB7F8; color: var(--vm-link); background: var(--admin-surface, var(--vm-surface)); border-radius: 9px; padding: 7px 14px; font-size: 12.5px; font-weight: 650; }
+.attach-btn:hover:not(:disabled) { background: var(--vm-surface-soft); border-color: #2563EB; }
 .attach-btn:disabled { opacity: .6; cursor: not-allowed; }
-.detach-btn { border: 1px solid #FDA29B; color: #B42318; background: var(--admin-surface, #fff); border-radius: 9px; padding: 7px 12px; font-size: 12.5px; font-weight: 650; }
+.detach-btn { border: 1px solid #FDA29B; color: var(--vm-red-ink); background: var(--admin-surface, var(--vm-surface)); border-radius: 9px; padding: 7px 12px; font-size: 12.5px; font-weight: 650; }
 .detach-btn:hover:not(:disabled) { background: #FEF3F2; border-color: #F04438; }
 .detach-btn:disabled { opacity: .6; cursor: not-allowed; }
 .page-btn, .page-num { display: grid; height: 32px; min-width: 32px; place-items: center; border-radius: 8px; font-size: 12.5px; font-weight: 650; }
 .page-btn:disabled { opacity: .4; }
-.page-btn:hover:not(:disabled), .page-num:hover { background: var(--admin-soft, #F1F5F9); }
+.page-btn:hover:not(:disabled), .page-num:hover { background: var(--admin-soft, var(--vm-surface-soft)); }
 </style>

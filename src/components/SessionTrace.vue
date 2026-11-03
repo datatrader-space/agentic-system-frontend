@@ -258,7 +258,7 @@ onMounted(() => refresher.start({ immediate: false }))
 
 .header h2 {
   margin: 0;
-  color: #2c3e50;
+  color: var(--vm-ink);
   font-size: 1.125rem;
 }
 
@@ -282,7 +282,7 @@ onMounted(() => refresher.start({ immediate: false }))
 
 .filter-select {
   padding: 6px 10px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--vm-line-2);
   border-radius: 6px;
   background: white;
   cursor: pointer;
@@ -324,7 +324,7 @@ onMounted(() => refresher.start({ immediate: false }))
 .loading, .empty-state {
   text-align: center;
   padding: 40px;
-  color: #7f8c8d;
+  color: var(--vm-ink-faint);
 }
 
 .sessions-list {
@@ -334,7 +334,7 @@ onMounted(() => refresher.start({ immediate: false }))
 
 .session-card {
   background: white;
-  border: 1px solid #e1e8ed;
+  border: 1px solid var(--vm-line-2);
   border-radius: 8px;
   padding: 16px;
   cursor: pointer;
@@ -363,18 +363,18 @@ onMounted(() => refresher.start({ immediate: false }))
 }
 
 .session-type.chat {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: var(--vm-surface-soft);
+  color: var(--vm-link);
 }
 
 .session-type.task {
   background: #f3e5f5;
-  color: #7b1fa2;
+  color: var(--vm-violet-ink);
 }
 
 .session-type.hybrid {
-  background: #fff3e0;
-  color: #f57c00;
+  background: var(--vm-amber-soft);
+  color: var(--vm-amber-ink);
 }
 
 .session-status {
@@ -386,28 +386,28 @@ onMounted(() => refresher.start({ immediate: false }))
 
 .session-status.success {
   background: #e8f5e9;
-  color: #2e7d32;
+  color: var(--vm-green-ink);
 }
 
 .session-status.failed {
   background: #ffebee;
-  color: #c62828;
+  color: var(--vm-red-ink);
 }
 
 .session-status.running {
-  background: #fff9c4;
-  color: #f57f17;
+  background: var(--vm-green-soft);
+  color: var(--vm-amber-ink);
 }
 
 .session-time {
   margin-left: auto;
   font-size: 12px;
-  color: #95a5a6;
+  color: var(--vm-ink-faint);
 }
 
 .user-request {
   margin: 0 0 12px 0;
-  color: #2c3e50;
+  color: var(--vm-ink);
   font-size: 14px;
 }
 
@@ -416,7 +416,7 @@ onMounted(() => refresher.start({ immediate: false }))
   flex-wrap: wrap;
   gap: 10px;
   font-size: 12px;
-  color: #7f8c8d;
+  color: var(--vm-ink-faint);
 }
 
 @media (min-width: 640px) {
@@ -460,12 +460,12 @@ onMounted(() => refresher.start({ immediate: false }))
   justify-content: space-between;
   align-items: center;
   padding: 20px;
-  border-bottom: 1px solid #e1e8ed;
+  border-bottom: 1px solid var(--vm-line-2);
 }
 
 .modal-header h3 {
   margin: 0;
-  color: #2c3e50;
+  color: var(--vm-ink);
 }
 
 .close-btn {
@@ -473,7 +473,7 @@ onMounted(() => refresher.start({ immediate: false }))
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: #95a5a6;
+  color: var(--vm-ink-faint);
   padding: 0;
   width: 32px;
   height: 32px;
@@ -484,8 +484,8 @@ onMounted(() => refresher.start({ immediate: false }))
 }
 
 .close-btn:hover {
-  background: #f5f5f5;
-  color: #2c3e50;
+  background: var(--vm-surface-soft);
+  color: var(--vm-ink);
 }
 
 .session-details {
@@ -498,7 +498,7 @@ onMounted(() => refresher.start({ immediate: false }))
 
 .detail-section h4 {
   margin: 0 0 12px 0;
-  color: #2c3e50;
+  color: var(--vm-ink);
   font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
@@ -513,7 +513,7 @@ onMounted(() => refresher.start({ immediate: false }))
 }
 
 .request-text {
-  background: #f8f9fa;
+  background: var(--vm-surface-soft);
   padding: 12px;
   border-radius: 6px;
   margin: 0;
@@ -526,7 +526,7 @@ onMounted(() => refresher.start({ immediate: false }))
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
-  background: #f8f9fa;
+  background: var(--vm-surface-soft);
   border-radius: 6px;
   margin-bottom: 8px;
   font-size: 13px;
@@ -551,7 +551,7 @@ onMounted(() => refresher.start({ immediate: false }))
 }
 
 .step-duration {
-  color: #7f8c8d;
+  color: var(--vm-ink-faint);
   font-size: 12px;
 }
 
@@ -562,8 +562,8 @@ onMounted(() => refresher.start({ immediate: false }))
 }
 
 .tool-badge {
-  background: #e3f2fd;
-  color: #1976d2;
+  background: var(--vm-surface-soft);
+  color: var(--vm-link);
   padding: 6px 12px;
   border-radius: 16px;
   font-size: 12px;
@@ -572,7 +572,7 @@ onMounted(() => refresher.start({ immediate: false }))
 
 .artifact-item {
   display: block;
-  background: #f5f5f5;
+  background: var(--vm-surface-soft);
   padding: 8px 12px;
   border-radius: 4px;
   font-size: 12px;
@@ -588,7 +588,7 @@ onMounted(() => refresher.start({ immediate: false }))
 
 .error-message {
   margin: 0;
-  color: #c62828;
+  color: var(--vm-red-ink);
   font-size: 13px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -596,7 +596,7 @@ onMounted(() => refresher.start({ immediate: false }))
 
 .plan-text, .context-text {
   margin: 0;
-  background: #f5f5f5;
+  background: var(--vm-surface-soft);
   padding: 12px;
   border-radius: 4px;
   font-size: 12px;

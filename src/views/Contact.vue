@@ -402,8 +402,8 @@ const submitForm = () => {
   transition: 0.3s;
 }
 
-.icon-box.email { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
-.icon-box.location { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+.icon-box.email { background: rgba(59, 130, 246, 0.15); color: var(--vm-link); }
+.icon-box.location { background: rgba(16, 185, 129, 0.15); color: var(--vm-green-ink); }
 .icon-box.hours { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
 
 .icon-box svg {

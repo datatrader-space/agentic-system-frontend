@@ -124,30 +124,30 @@ function closeDock() {
 </script>
 
 <style scoped>
-.dock { min-width: 0; height: 100%; min-height: 0; background: var(--vm-surface, #fff); border-left: 1px solid var(--vm-line-2, #e5e7eb); }
+.dock { min-width: 0; height: 100%; min-height: 0; background: var(--vm-surface, var(--vm-surface)); border-left: 1px solid var(--vm-line-2, var(--vm-line-2)); }
 .dock-box { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 /* Expanded: over the chat, above its header and the floating help button, below our own dialogs (the
    take-control question and approval cards must stay on top of it). `!important` because the chat gives
    the docked pane an inline width, which means nothing once it is drawn over the page. */
 .dock.expanded { position: fixed; inset: 0; z-index: 1500; width: auto !important; height: auto; flex: none !important;
   border-left: none; background: rgba(15, 23, 42, .55); display: grid; place-items: center; padding: 20px; }
-.dock.expanded .dock-box { width: min(1480px, 100%); height: 100%; background: var(--vm-surface, #fff); border-radius: 14px; overflow: hidden;
+.dock.expanded .dock-box { width: min(1480px, 100%); height: 100%; background: var(--vm-surface, var(--vm-surface)); border-radius: 14px; overflow: hidden;
   box-shadow: 0 24px 64px rgba(15, 23, 42, .35); }
 .dock-x.after-expand { margin-left: 2px; }
 @media (max-width: 640px) { .dock.expanded { padding: 0; } .dock.expanded .dock-box { border-radius: 0; } }
-.dock-return { margin-left: auto; font-size: 12px; color: var(--vm-ink-soft, #64748b); }
+.dock-return { margin-left: auto; font-size: 12px; color: var(--vm-ink-soft, var(--vm-ink-faint)); }
 .dock-return + .dock-x { margin-left: 0; }
-.dock-tabs { overflow-x: auto; flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--vm-line-2, #e5e7eb); }
-.dock-tab { min-height: 44px; flex-shrink: 0; position: relative; display: inline-flex; align-items: center; gap: 6px; border: none; background: transparent; border-radius: 9px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; color: var(--vm-ink-soft, #64748b); cursor: pointer; }
-.dock-tab:hover { background: var(--vm-surface-2, #f1f5f9); }
-.dock-tab.on { background: var(--vm-violet-soft, #eef2ff); color: var(--vm-violet-d, #4f46e5); }
+.dock-tabs { overflow-x: auto; flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--vm-line-2, var(--vm-line-2)); }
+.dock-tab { min-height: 44px; flex-shrink: 0; position: relative; display: inline-flex; align-items: center; gap: 6px; border: none; background: transparent; border-radius: 9px; padding: 6px 12px; font-size: 12.5px; font-weight: 700; color: var(--vm-ink-soft, var(--vm-ink-faint)); cursor: pointer; }
+.dock-tab:hover { background: var(--vm-surface-2, var(--vm-surface-soft)); }
+.dock-tab.on { background: var(--vm-violet-soft, var(--vm-surface-soft)); color: var(--vm-violet-d, var(--vm-link)); }
 .dock-badge { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 9999px; background: var(--vm-violet-d, #4f46e5); color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; }
-.dock-x, .dock-expand { margin-left: auto; display: grid; place-items: center; min-width: 44px; width: 44px; height: 44px; flex-shrink: 0; border: none; background: transparent; border-radius: 8px; color: var(--vm-ink-soft, #64748b); cursor: pointer; }
+.dock-x, .dock-expand { margin-left: auto; display: grid; place-items: center; min-width: 44px; width: 44px; height: 44px; flex-shrink: 0; border: none; background: transparent; border-radius: 8px; color: var(--vm-ink-soft, var(--vm-ink-faint)); cursor: pointer; }
 .dock-x:focus-visible, .dock-tab:focus-visible { outline: 2px solid var(--vm-violet-d, #4f46e5); outline-offset: -2px; }
 @media (max-width: 480px) { .dock-return { display: none; } }
-.dock-x:hover, .dock-expand:hover { background: var(--vm-surface-2, #f1f5f9); }
+.dock-x:hover, .dock-expand:hover { background: var(--vm-surface-2, var(--vm-surface-soft)); }
 .dock-x svg, .dock-expand svg { width: 15px; height: 15px; }
-.dock-expand[aria-pressed="true"] { color: var(--vm-violet-d, #4f46e5); }
+.dock-expand[aria-pressed="true"] { color: var(--vm-violet-d, var(--vm-link)); }
 .dock-body { flex: 1 1 auto; min-height: 0; position: relative; }
 .dock-pane { height: 100%; min-height: 0; }
 </style>

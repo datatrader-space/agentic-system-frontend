@@ -67,31 +67,31 @@ async function select(opt) {
 <style scoped>
 .amp { position: relative; display: inline-block; }
 .amp-btn { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 9999px;
-  border: 1px solid #e5e7eb; background: #fff; font-size: 0.72rem; font-weight: 600; color: #374151; cursor: pointer; }
-.amp-btn:hover { background: #f9fafb; }
-.amp-on { border-color: #99f6e4; background: #f0fdfa; color: #0f766e; }
+  border: 1px solid var(--vm-line-2); background: var(--vm-surface); font-size: 0.72rem; font-weight: 600; color: var(--vm-ink-soft); cursor: pointer; }
+.amp-btn:hover { background: var(--vm-surface-soft); }
+.amp-on { border-color: #99f6e4; background: var(--vm-surface-soft); color: var(--vm-teal-ink); }
 .amp-dot { width: 7px; height: 7px; border-radius: 9999px; }
 .amp-dot-manual { background: #9ca3af; }
 .amp-dot-auto { background: #14b8a6; }
 .amp-dot-plan { background: #6366f1; }
-.amp-caret { width: 13px; height: 13px; color: #9ca3af; transition: transform .15s; }
+.amp-caret { width: 13px; height: 13px; color: var(--vm-ink-faint); transition: transform .15s; }
 .amp-caret-open { transform: rotate(180deg); }
 .amp-backdrop { position: fixed; inset: 0; z-index: 40; }
 .amp-menu { position: absolute; right: 0; z-index: 50; width: 268px;
-  background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.12); padding: 6px; }
+  background: var(--vm-surface); border: 1px solid var(--vm-line-2); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,.12); padding: 6px; }
 .amp-menu-down { top: calc(100% + 6px); }
 .amp-menu-up { bottom: calc(100% + 6px); }   /* opens upward from a composer bottom bar */
-.amp-head { font-size: 0.62rem; text-transform: uppercase; letter-spacing: .06em; color: #9ca3af; padding: 6px 8px 4px; }
+.amp-head { font-size: 0.62rem; text-transform: uppercase; letter-spacing: .06em; color: var(--vm-ink-faint); padding: 6px 8px 4px; }
 .amp-item { width: 100%; display: flex; align-items: flex-start; gap: 9px; padding: 8px; border: 0; background: transparent;
   border-radius: 8px; text-align: left; cursor: pointer; }
-.amp-item:hover { background: #f3f4f6; }
-.amp-item-active { background: #f0fdfa; }
+.amp-item:hover { background: var(--vm-surface-soft); }
+.amp-item-active { background: var(--vm-surface-soft); }
 .amp-item:disabled { opacity: .5; cursor: default; }
 .amp-item-icon { font-size: 0.95rem; line-height: 1.2; }
 .amp-item-body { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.amp-item-title { font-size: 0.78rem; font-weight: 600; color: #1f2937; }
-.amp-item-desc { font-size: 0.68rem; color: #6b7280; }
-.amp-check { width: 15px; height: 15px; color: #14b8a6; margin-top: 2px; }
-.amp-error { font-size: 0.68rem; color: #dc2626; padding: 4px 8px; }
+.amp-item-title { font-size: 0.78rem; font-weight: 600; color: var(--vm-ink); }
+.amp-item-desc { font-size: 0.68rem; color: var(--vm-ink-faint); }
+.amp-check { width: 15px; height: 15px; color: var(--vm-teal-ink); margin-top: 2px; }
+.amp-error { font-size: 0.68rem; color: var(--vm-red-ink); padding: 4px 8px; }
 .amp-sep { height: 1px; margin: 4px 8px; background: #ececec; }
 </style>

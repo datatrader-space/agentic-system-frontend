@@ -284,8 +284,8 @@ const close = () => emit('close')
 <style scoped>
 .sh-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(15, 23, 42, .55);
   display: flex; align-items: center; justify-content: center; padding: 24px; }
-.sh-card { width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto; background: var(--surface, #fff);
-  color: var(--text, #0f172a); border-radius: 16px; box-shadow: 0 24px 64px rgba(2, 6, 23, .35); }
+.sh-card { width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto; background: var(--surface, var(--vm-surface));
+  color: var(--text, var(--vm-ink)); border-radius: 16px; box-shadow: 0 24px 64px rgba(2, 6, 23, .35); }
 .sh-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px 8px; }
 .sh-title { margin: 0; font-size: 1.05rem; font-weight: 650; }
 .sh-x { background: none; border: 0; font-size: 1.5rem; line-height: 1; cursor: pointer; color: inherit;
@@ -307,7 +307,7 @@ const close = () => emit('close')
 .sh-mode-text small { font-size: .78rem; opacity: .66; line-height: 1.45; }
 
 .sh-advanced-toggle { margin: 12px 0 0; background: none; border: 0; padding: 0; cursor: pointer;
-  font-size: .8rem; color: #6366f1; font-weight: 550; }
+  font-size: .8rem; color: var(--vm-link); font-weight: 550; }
 .sh-advanced { display: grid; gap: 10px; margin-top: 12px; padding: 12px 14px; border-radius: 12px;
   background: rgba(100, 116, 139, .08); }
 .sh-check { display: flex; gap: 9px; align-items: flex-start; font-size: .83rem; cursor: pointer; }
@@ -315,7 +315,7 @@ const close = () => emit('close')
 .sh-check small { display: block; opacity: .6; font-size: .76rem; margin-top: 2px; line-height: 1.4; }
 .sh-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: .83rem; }
 .sh-field select { padding: 5px 8px; border-radius: 8px; border: 1px solid rgba(100, 116, 139, .35);
-  background: var(--surface, #fff); color: inherit; font: inherit; font-size: .82rem; }
+  background: var(--surface, var(--vm-surface)); color: inherit; font: inherit; font-size: .82rem; }
 
 .sh-primary { margin-top: 16px; width: 100%; padding: 11px; border: 0; border-radius: 11px;
   background: #6366f1; color: #fff; font-weight: 600; font-size: .9rem; cursor: pointer; }
@@ -341,7 +341,7 @@ const close = () => emit('close')
 .sh-ghost { padding: 8px 12px; border-radius: 9px; border: 1px solid rgba(100, 116, 139, .28);
   background: transparent; color: inherit; font-size: .8rem; cursor: pointer; }
 .sh-ghost:hover { background: rgba(100, 116, 139, .1); }
-.sh-ghost.danger { color: #dc2626; border-color: rgba(220, 38, 38, .35); }
+.sh-ghost.danger { color: var(--vm-red-ink); border-color: rgba(220, 38, 38, .35); }
 .sh-ghost:disabled { opacity: .5; cursor: default; }
 .sh-note { margin: 10px 0 0; font-size: .74rem; opacity: .55; line-height: 1.5; }
 </style>

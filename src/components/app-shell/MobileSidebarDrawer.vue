@@ -43,10 +43,10 @@ const layout = useLayoutStore()
   justify-content: center;
   width: 34px;
   height: 34px;
-  background: #ffffff;
+  background: var(--vm-surface);
   border: none;
   border-radius: 9px;
-  color: #475569;
+  color: var(--vm-ink-soft);
   cursor: pointer;
 }
 .drawer-close svg { width: 18px; height: 18px; }

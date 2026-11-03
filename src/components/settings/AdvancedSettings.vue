@@ -56,20 +56,20 @@ const clearLocal = async () => {
 
 <style scoped>
 .panel { display: flex; flex-direction: column; gap: 16px; }
-.card { background: #fff; border: 1px solid #e7eaf0; border-radius: 14px; padding: 20px; }
+.card { background: var(--vm-surface); border: 1px solid var(--vm-line-2); border-radius: 14px; padding: 20px; }
 .card.danger { border-color: #fecaca; }
-.card-title { font-size: 1rem; font-weight: 600; color: #0f172a; margin: 0 0 2px; }
-.card.danger .card-title { color: #dc2626; }
-.card-sub { font-size: 0.8125rem; color: #94a3b8; margin: 0 0 16px; line-height: 1.5; }
+.card-title { font-size: 1rem; font-weight: 600; color: var(--vm-ink); margin: 0 0 2px; }
+.card.danger .card-title { color: var(--vm-red-ink); }
+.card-sub { font-size: 0.8125rem; color: var(--vm-ink-faint); margin: 0 0 16px; line-height: 1.5; }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.row-label { font-size: 0.875rem; font-weight: 500; color: #334155; }
-.btn { padding: 8px 16px; font-size: 0.8125rem; font-weight: 500; color: #475569; background: #fff; border: 1px solid #e2e8f0; border-radius: 9px; cursor: pointer; }
-.btn:hover { border-color: #c7d2fe; color: #4f46e5; }
-.btn-danger { padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; border-radius: 9px; cursor: pointer; }
-.btn-danger:hover { background: #fee2e2; }
-.kv { display: flex; justify-content: space-between; padding: 7px 0; font-size: 0.8125rem; border-bottom: 1px solid #f1f5f9; }
+.row-label { font-size: 0.875rem; font-weight: 500; color: var(--vm-ink-soft); }
+.btn { padding: 8px 16px; font-size: 0.8125rem; font-weight: 500; color: var(--vm-ink-soft); background: var(--vm-surface); border: 1px solid var(--vm-line-2); border-radius: 9px; cursor: pointer; }
+.btn:hover { border-color: #c7d2fe; color: var(--vm-link); }
+.btn-danger { padding: 8px 16px; font-size: 0.8125rem; font-weight: 600; color: var(--vm-red-ink); background: #fef2f2; border: 1px solid #fecaca; border-radius: 9px; cursor: pointer; }
+.btn-danger:hover { background: var(--vm-red-soft); }
+.kv { display: flex; justify-content: space-between; padding: 7px 0; font-size: 0.8125rem; border-bottom: 1px solid var(--vm-line-2); }
 .kv:last-child { border-bottom: none; }
-.kv span:first-child { color: #94a3b8; }
-.kv span:last-child { color: #334155; font-weight: 500; }
+.kv span:first-child { color: var(--vm-ink-faint); }
+.kv span:last-child { color: var(--vm-ink-soft); font-weight: 500; }
 </style>
 

@@ -265,12 +265,12 @@ onBeforeUnmount(() => { try { conn?.close() } catch (e) { /* noop */ } })
 }
 .qt-md :deep(pre code) { background: none; padding: 0; color: inherit; }
 .qt-md :deep(strong) { font-weight: 600; }
-.qt-md :deep(a) { color: #2563eb; text-decoration: underline; }
+.qt-md :deep(a) { color: var(--vm-link); text-decoration: underline; }
 .qt-md :deep(blockquote) {
   margin: 0 0 8px;
   padding-left: 10px;
   border-left: 3px solid #cbd5e1;
-  color: var(--admin-muted, #475569);
+  color: var(--admin-muted, var(--vm-ink-soft));
 }
 
 /* Tables (GFM) — scroll horizontally rather than overflow the panel */
@@ -280,26 +280,26 @@ onBeforeUnmount(() => { try { conn?.close() } catch (e) { /* noop */ } })
   border-spacing: 0;
   margin: 4px 0 10px;
   font-size: 0.92em;
-  border: 1px solid var(--admin-line, #e2e8f0);
+  border: 1px solid var(--admin-line, var(--vm-line-2));
   border-radius: 10px;
   overflow: hidden;
   display: table;
 }
 .qt-md :deep(thead th) {
-  background: var(--admin-soft, #f8fafc);
-  color: var(--admin-ink, #0f172a);
+  background: var(--admin-soft, var(--vm-surface-soft));
+  color: var(--admin-ink, var(--vm-ink));
   font-weight: 600;
   text-align: left;
 }
 .qt-md :deep(th),
 .qt-md :deep(td) {
   padding: 6px 10px;
-  border-bottom: 1px solid var(--admin-line, #e2e8f0);
-  border-right: 1px solid var(--admin-line, #e2e8f0);
+  border-bottom: 1px solid var(--admin-line, var(--vm-line-2));
+  border-right: 1px solid var(--admin-line, var(--vm-line-2));
   vertical-align: top;
 }
 .qt-md :deep(th:last-child),
 .qt-md :deep(td:last-child) { border-right: none; }
 .qt-md :deep(tbody tr:last-child td) { border-bottom: none; }
-.qt-md :deep(tbody tr:nth-child(even)) { background: var(--admin-soft, #fafbfc); }
+.qt-md :deep(tbody tr:nth-child(even)) { background: var(--admin-soft, var(--vm-surface-soft)); }
 </style>

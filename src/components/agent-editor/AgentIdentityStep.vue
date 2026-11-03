@@ -193,6 +193,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.field { width: 100%; border: 1px solid var(--admin-line, #D0D5DD); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; color: var(--admin-ink, #0F172A); background: var(--admin-surface, #fff); outline: none; transition: box-shadow .15s, border-color .15s; }
+.field { width: 100%; border: 1px solid var(--admin-line, #D0D5DD); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; color: var(--admin-ink, var(--vm-ink)); background: var(--admin-surface, var(--vm-surface)); outline: none; transition: box-shadow .15s, border-color .15s; }
 .field:focus { border-color: #2563EB; box-shadow: 0 0 0 3px #EAF0FF; }
 </style>

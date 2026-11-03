@@ -636,9 +636,9 @@ defineExpose({ open, openUrl, close });
 .fv-chip { background:var(--fv-hover); color:var(--fv-muted); }
 .fv-iconbtn { color:var(--fv-muted); border-radius:.5rem; padding:.375rem; transition:color .15s, background .15s; }
 .fv-iconbtn:hover:not(:disabled) { color:var(--fv-strong); background:var(--fv-hover); }
-.fv-accent { background:rgba(59,130,246,.14); color:#2563eb; }
+.fv-accent { background:rgba(59,130,246,.14); color:var(--vm-link); }
 .fv-dark .fv-accent { color:#93c5fd; }
-.fv-accent-btn { background:rgba(59,130,246,.14); color:#2563eb; border:1px solid rgba(59,130,246,.28); }
+.fv-accent-btn { background:rgba(59,130,246,.14); color:var(--vm-link); border:1px solid rgba(59,130,246,.28); }
 .fv-accent-btn:hover:not(:disabled) { background:rgba(59,130,246,.22); }
 .fv-dark .fv-accent-btn { color:#93c5fd; }
 
@@ -649,7 +649,7 @@ defineExpose({ open, openUrl, close });
 .fv-md :deep(h2) { font-size:1.35em; }
 .fv-md :deep(h3) { font-size:1.15em; }
 .fv-md :deep(p) { margin:.7em 0; }
-.fv-md :deep(a) { color:#3b82f6; text-decoration:underline; text-underline-offset:2px; }
+.fv-md :deep(a) { color:var(--vm-link); text-decoration:underline; text-underline-offset:2px; }
 .fv-md :deep(:is(ul,ol)) { margin:.7em 0; padding-left:1.5em; }
 .fv-md :deep(li) { margin:.3em 0; }
 .fv-md :deep(strong) { color:var(--fv-strong); font-weight:700; }

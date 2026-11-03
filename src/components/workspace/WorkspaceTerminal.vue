@@ -146,7 +146,7 @@ export default {
   padding: 2px 8px;
   border-radius: 10px;
   background: rgba(34,197,94,0.15);
-  color: #22c55e;
+  color: var(--vm-green-ink);
   font-weight: 500;
 }
 .terminal-actions {
@@ -181,14 +181,14 @@ export default {
   align-items: flex-start;
 }
 .output-line.command .line-content {
-  color: #58a6ff;
+  color: var(--vm-link);
   font-weight: 600;
 }
 .output-line.output .line-content {
   color: rgba(255,255,255,0.75);
 }
 .output-line.error .line-content {
-  color: #f87171;
+  color: var(--vm-red-ink);
 }
 .line-prefix {
   flex-shrink: 0;
@@ -198,10 +198,10 @@ export default {
   user-select: none;
 }
 .output-line.command .line-prefix {
-  color: #58a6ff;
+  color: var(--vm-link);
 }
 .output-line.error .line-prefix {
-  color: #f87171;
+  color: var(--vm-red-ink);
 }
 .line-content {
   margin: 0;
@@ -233,7 +233,7 @@ export default {
   border-top: 1px solid rgba(255,255,255,0.06);
 }
 .input-prompt {
-  color: #22c55e;
+  color: var(--vm-green-ink);
   font-size: 13px;
   font-weight: 700;
   flex-shrink: 0;
@@ -264,7 +264,7 @@ export default {
   transition: all 0.15s;
 }
 .send-btn:hover:not(:disabled) {
-  color: #22c55e;
+  color: var(--vm-green-ink);
   background: rgba(34,197,94,0.1);
 }
 .send-btn:disabled {

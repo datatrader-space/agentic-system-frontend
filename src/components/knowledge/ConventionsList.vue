@@ -68,7 +68,7 @@ export default {
 .convention-item {
   margin-bottom: 24px;
   padding-bottom: 24px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--vm-line-2);
 }
 
 .convention-item:last-child {
@@ -81,7 +81,7 @@ export default {
 
 .convention-category {
   margin-bottom: 12px;
-  color: #666;
+  color: var(--vm-ink-faint);
 }
 
 .badge {
@@ -98,13 +98,13 @@ export default {
 
 .rules-section h5, .examples-section h5 {
   margin: 0 0 12px 0;
-  color: #666;
+  color: var(--vm-ink-faint);
   font-size: 1em;
 }
 
 .rule-item {
   padding: 12px;
-  background: #f8f9fa;
+  background: var(--vm-surface-soft);
   border-left: 3px solid #007bff;
   border-radius: 4px;
   margin-bottom: 8px;
@@ -129,7 +129,7 @@ export default {
 
 .rule-rationale {
   margin-top: 8px;
-  color: #666;
+  color: var(--vm-ink-faint);
   font-size: 0.9em;
 }
 
@@ -141,28 +141,28 @@ export default {
 
 .example-item {
   padding: 8px;
-  background: #f8f9fa;
+  background: var(--vm-surface-soft);
   border-radius: 4px;
   font-size: 0.9em;
 }
 
 .example-location {
   font-family: monospace;
-  color: #666;
+  color: var(--vm-ink-faint);
   font-size: 0.85em;
 }
 
 .no-conventions {
   text-align: center;
   padding: 40px;
-  color: #666;
+  color: var(--vm-ink-faint);
 }
 
 .btn {
   padding: 6px 12px;
   border: 1px solid #007bff;
   background: white;
-  color: #007bff;
+  color: var(--vm-link);
   border-radius: 4px;
   cursor: pointer;
 }

@@ -135,7 +135,7 @@
 <style scoped>
 .about-page {
   min-height: 100vh;
-  background: #f9fafb;
+  background: var(--vm-surface-soft);
 }
 
 .page-header {
@@ -169,7 +169,7 @@ section {
 h2 {
   font-size: 2.5rem;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--vm-ink);
   text-align: center;
   margin-bottom: 3rem;
 }
@@ -180,7 +180,7 @@ h2 {
 
 .lead {
   font-size: 1.5rem;
-  color: #4b5563;
+  color: var(--vm-ink-soft);
   line-height: 1.8;
   max-width: 900px;
   margin: 0 auto;
@@ -199,7 +199,7 @@ h2 {
 }
 
 .story-content p {
-  color: #4b5563;
+  color: var(--vm-ink-soft);
   font-size: 1.125rem;
   line-height: 1.8;
   margin-bottom: 1.5rem;
@@ -254,12 +254,12 @@ h2 {
 .value-card h3 {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--vm-ink);
   margin-bottom: 1rem;
 }
 
 .value-card p {
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   line-height: 1.6;
 }
 
@@ -290,18 +290,18 @@ h2 {
 .team-member h3 {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--vm-ink);
   margin-bottom: 0.5rem;
 }
 
 .role {
-  color: #667eea;
+  color: var(--vm-link);
   font-weight: 600;
   margin-bottom: 1rem;
 }
 
 .bio {
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   line-height: 1.6;
   font-size: 0.875rem;
 }
@@ -323,12 +323,12 @@ h2 {
 .stat-number {
   font-size: 3rem;
   font-weight: 800;
-  color: #667eea;
+  color: var(--vm-link);
   margin-bottom: 0.5rem;
 }
 
 .stat-label {
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   font-size: 1rem;
 }
 
@@ -371,11 +371,11 @@ h2 {
 
 .btn-primary {
   background: white;
-  color: #1f2937;
+  color: var(--vm-ink);
 }
 
 .btn-primary:hover {
-  background: #f3f4f6;
+  background: var(--vm-surface-soft);
   transform: translateY(-2px);
 }
 

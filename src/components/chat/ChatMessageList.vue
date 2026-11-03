@@ -290,9 +290,9 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  border: 1px solid var(--vm-line-2, #e4e8ee);
-  background: var(--vm-surface, #fff);
-  color: var(--vm-ink-soft, #5b6472);
+  border: 1px solid var(--vm-line-2, var(--vm-line-2));
+  background: var(--vm-surface, var(--vm-surface));
+  color: var(--vm-ink-soft, var(--vm-ink-soft));
   box-shadow: var(--vm-shadow-s, 0 2px 10px rgba(16, 24, 40, 0.12));
   cursor: pointer;
   z-index: 3;
@@ -300,7 +300,7 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
 }
 .jump-latest:hover {
   transform: translateX(-50%) translateY(-1px);
-  color: var(--vm-violet-d, #6d5ef1);
+  color: var(--vm-violet-d, var(--vm-link));
   box-shadow: var(--vm-shadow-m, 0 6px 18px rgba(16, 24, 40, 0.16));
 }
 .jump-latest:focus-visible { outline: 2px solid var(--vm-accent, #3a5bd9); outline-offset: 2px; }
@@ -309,12 +309,12 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
   stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
 /* Something arrived while they were reading further up. */
-.jump-latest.unread { border-color: var(--vm-violet-d, #6d5ef1); color: var(--vm-violet-d, #6d5ef1); }
+.jump-latest.unread { border-color: var(--vm-violet-d, #6d5ef1); color: var(--vm-violet-d, var(--vm-link)); }
 .jump-dot {
   position: absolute; top: 1px; right: 1px;
   width: 9px; height: 9px; border-radius: 50%;
   background: var(--vm-violet-d, #6d5ef1);
-  border: 2px solid var(--vm-surface, #fff);
+  border: 2px solid var(--vm-surface, var(--vm-line-2));
 }
 
 .jump-fade-enter-active, .jump-fade-leave-active { transition: opacity .15s, transform .15s; }
@@ -346,9 +346,9 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
   font-size: 0.8125rem;
   font-weight: 600;
   font-family: inherit;
-  color: var(--vm-ink-soft, #5b6472);
-  background: var(--vm-surface, #fff);
-  border: 1px solid var(--vm-line-2, #e4e8ee);
+  color: var(--vm-ink-soft, var(--vm-ink-soft));
+  background: var(--vm-surface, var(--vm-surface));
+  border: 1px solid var(--vm-line-2, var(--vm-line-2));
   border-radius: 9999px;
   cursor: pointer;
   transition: transform .15s var(--vm-ease), box-shadow .15s, color .15s;
@@ -356,13 +356,13 @@ defineExpose({ scrollToBottom, atBottom, hasNew })
 .load-earlier-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: var(--vm-shadow-s);
-  color: var(--vm-violet-d, #6d5ef1);
+  color: var(--vm-violet-d, var(--vm-link));
 }
 .load-earlier-btn:disabled { opacity: .6; cursor: default; }
 .load-earlier-btn:focus-visible { outline: 2px solid var(--vm-accent, #3a5bd9); outline-offset: 2px; }
 
 /* The approval that started a plan: a quiet event line, not a speech bubble. */
 .msg-approval { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 4px 0 10px;
-  font-size: 12.5px; color: var(--text-secondary, #6b7280); }
-.msg-approval svg { width: 14px; height: 14px; color: var(--success, #16a34a); }
+  font-size: 12.5px; color: var(--text-secondary, var(--vm-ink-faint)); }
+.msg-approval svg { width: 14px; height: 14px; color: var(--success, var(--vm-green-ink)); }
 </style>

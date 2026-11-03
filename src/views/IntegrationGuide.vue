@@ -391,5 +391,5 @@ const CodeBlock = {
 </script>
 
 <style scoped>
-.kbd { font-size: 0.7rem; background: #f3f4f6; padding: 0.05rem 0.3rem; border-radius: 0.25rem; }
+.kbd { font-size: 0.7rem; background: var(--vm-surface-soft); padding: 0.05rem 0.3rem; border-radius: 0.25rem; }
 </style>

@@ -70,7 +70,7 @@ export default {
 .guide-item {
   margin-bottom: 32px;
   padding-bottom: 24px;
-  border-bottom: 2px solid #e0e0e0;
+  border-bottom: 2px solid var(--vm-line-2);
 }
 
 .guide-item:last-child {
@@ -79,11 +79,11 @@ export default {
 
 .guide-item h4 {
   margin: 0 0 8px 0;
-  color: #333;
+  color: var(--vm-ink);
 }
 
 .guide-description {
-  color: #666;
+  color: var(--vm-ink-faint);
   margin-bottom: 16px;
 }
 
@@ -93,7 +93,7 @@ export default {
 
 .steps-section h5, .reference-section h5 {
   margin: 0 0 12px 0;
-  color: #666;
+  color: var(--vm-ink-faint);
   font-size: 1em;
 }
 
@@ -105,7 +105,7 @@ export default {
 
 .step-item {
   padding: 16px;
-  background: #f8f9fa;
+  background: var(--vm-surface-soft);
   border-left: 4px solid #007bff;
   border-radius: 6px;
 }
@@ -143,7 +143,7 @@ export default {
 .step-note {
   margin: 8px 0;
   padding: 8px 12px;
-  background: #fff3cd;
+  background: var(--vm-amber-soft);
   border-left: 3px solid #ffc107;
   border-radius: 4px;
   font-size: 0.9em;
@@ -163,7 +163,7 @@ code {
 
 .reference-link {
   padding: 12px;
-  background: #e7f3ff;
+  background: var(--vm-surface-soft);
   border: 1px solid #007bff;
   border-radius: 4px;
   font-family: monospace;
@@ -172,14 +172,14 @@ code {
 .no-guides {
   text-align: center;
   padding: 40px;
-  color: #666;
+  color: var(--vm-ink-faint);
 }
 
 .btn {
   padding: 6px 12px;
   border: 1px solid #007bff;
   background: white;
-  color: #007bff;
+  color: var(--vm-link);
   border-radius: 4px;
   cursor: pointer;
 }

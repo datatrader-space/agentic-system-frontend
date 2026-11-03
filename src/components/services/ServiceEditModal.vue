@@ -432,7 +432,7 @@ const handleSubmit = async () => {
   justify-content: space-between;
   align-items: center;
   padding: 24px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--vm-line-2);
 }
 
 .modal-header h2 {
@@ -446,13 +446,13 @@ const handleSubmit = async () => {
   border: none;
   font-size: 24px;
   cursor: pointer;
-  color: #6b7280;
+  color: var(--vm-ink-faint);
   padding: 8px;
   line-height: 1;
 }
 
 .close-button:hover {
-  color: #1f2937;
+  color: var(--vm-ink);
 }
 
 .modal-body {
@@ -466,8 +466,8 @@ const handleSubmit = async () => {
   justify-content: flex-end;
   gap: 12px;
   padding: 16px 24px;
-  border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
+  border-top: 1px solid var(--vm-line-2);
+  background: var(--vm-surface-soft);
 }
 
 /* Form Styles */
@@ -479,7 +479,7 @@ const handleSubmit = async () => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #374151;
+  color: var(--vm-ink-soft);
   margin-bottom: 6px;
 }
 
@@ -510,7 +510,7 @@ const handleSubmit = async () => {
 .form-hint {
   margin-top: 4px;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--vm-ink-faint);
 }
 
 .form-checkbox {
@@ -553,7 +553,7 @@ const handleSubmit = async () => {
 .btn-secondary {
   padding: 10px 20px;
   background: white;
-  color: #374151;
+  color: var(--vm-ink-soft);
   border: 1px solid #d1d5db;
   border-radius: 6px;
   font-weight: 600;
@@ -562,7 +562,7 @@ const handleSubmit = async () => {
 }
 
 .btn-secondary:hover {
-  background: #f9fafb;
+  background: var(--vm-surface-soft);
 }
 
 /* OAuth2 Advanced Options */
@@ -573,19 +573,19 @@ const handleSubmit = async () => {
 .advanced-toggle {
   background: none;
   border: none;
-  color: #6B7280;
+  color: var(--vm-ink-faint);
   cursor: pointer;
   font-size: 13px;
   padding: 4px 0;
 }
 .advanced-toggle:hover {
-  color: #374151;
+  color: var(--vm-ink-soft);
 }
 
 .advanced-fields {
   margin-top: 8px;
   padding: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--vm-line-2);
   border-radius: 6px;
   display: flex;
   flex-direction: column;
@@ -597,7 +597,7 @@ const handleSubmit = async () => {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #374151;
+  color: var(--vm-ink-soft);
   cursor: pointer;
 }
 .builtin-toggle {
@@ -612,6 +612,6 @@ const handleSubmit = async () => {
   font-size: 12px;
   font-weight: 400;
   line-height: 1.45;
-  color: #92400e;
+  color: var(--vm-amber-ink);
 }
 </style>

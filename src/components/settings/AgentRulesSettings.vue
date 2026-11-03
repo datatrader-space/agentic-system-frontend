@@ -48,24 +48,24 @@ const save = () => {
 
 <style scoped>
 .panel { display: flex; flex-direction: column; gap: 16px; }
-.card { background: #fff; border: 1px solid #e7eaf0; border-radius: 14px; padding: 20px; }
-.card-title { font-size: 1rem; font-weight: 600; color: #0f172a; margin: 0 0 2px; }
-.card-sub { font-size: 0.8125rem; color: #94a3b8; margin: 0 0 16px; line-height: 1.5; }
+.card { background: var(--vm-surface); border: 1px solid var(--vm-line-2); border-radius: 14px; padding: 20px; }
+.card-title { font-size: 1rem; font-weight: 600; color: var(--vm-ink); margin: 0 0 2px; }
+.card-sub { font-size: 0.8125rem; color: var(--vm-ink-faint); margin: 0 0 16px; line-height: 1.5; }
 .rules-input {
   width: 100%;
   padding: 12px 14px;
   font-size: 0.875rem;
   font-family: inherit;
   line-height: 1.6;
-  color: #0f172a;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  color: var(--vm-ink);
+  background: var(--vm-surface-soft);
+  border: 1px solid var(--vm-line-2);
   border-radius: 10px;
   resize: vertical;
 }
 .rules-input:focus { outline: none; border-color: #c7d2fe; box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
 .actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 14px; }
-.saved-note { font-size: 0.8125rem; color: #16a34a; }
+.saved-note { font-size: 0.8125rem; color: var(--vm-green-ink); }
 .save-btn { padding: 9px 20px; font-size: 0.875rem; font-weight: 600; color: #fff; background: linear-gradient(135deg, #6366f1, #2563EB); border: none; border-radius: 9px; cursor: pointer; }
 .save-btn:hover { transform: translateY(-1px); }
 </style>
