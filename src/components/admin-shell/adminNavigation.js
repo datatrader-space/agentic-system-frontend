@@ -24,6 +24,7 @@ export const adminItems = [
   { to: '/admin-dashboard/trace-waterfall', label: 'Trace Waterfall', icon: ['M3 3v18h18', 'M7 8h6', 'M7 12h10', 'M7 16h4'] },
   { to: '/admin-dashboard/eval-snapshot', label: 'Eval Snapshot', icon: ['M3 3v18h18', 'M7 16l4-4 3 3 5-6'] },
   { to: '/admin-dashboard/learning', label: 'Learning Monitor', icon: ['M12 3 2 8l10 5 10-5z', 'M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5', 'M22 8v6'] },
+  { to: '/admin-dashboard/infra-cost', label: 'Infrastructure cost', icon: ['M2 4h20v6H2z', 'M2 14h20v6H2z', 'M6 7h.01', 'M6 17h.01'] },
   { to: '/admin-dashboard/cost', label: 'Cost per Org', icon: ['M3 3v18h18', 'M7 16v-5', 'M12 16V8', 'M17 16v-3'] },
   { to: '/admin-dashboard/speed-cache', label: 'Speed & Cache', icon: ['M13 2 3 14h9l-1 8 10-12h-9l1-8z'] },
   { to: '/admin-dashboard/registry-governance', label: 'Registry Governance', icon: ['M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z', 'M9 12l2 2 4-4'] },
@@ -72,6 +73,7 @@ export const adminGroups = [
     "paths": [
       "billing",
       "model-pricing",
+      "infra-cost",
       "cost"
     ]
   },
@@ -111,6 +113,7 @@ export const adminDescriptions = {
   "help-analytics": "Search, feedback, and content gaps",
   "billing": "Usage, prepaid wallets, and revenue",
   "model-pricing": "Provider model prices and coverage",
+  "infra-cost": "What AWS charged both accounts",
   "cost": "Organization spend and attribution",
   "operations": "Platform health and subsystem status",
   "llm-context": "Context assembly, retention, and costs",

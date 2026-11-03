@@ -14,7 +14,7 @@ describe('Admin overview',()=>{
     expect(wrapper.text()).toContain('$0.00000017')
     expect(wrapper.text()).toContain('Users in report')
     expect(wrapper.text()).not.toContain('Active Users')
-    expect(wrapper.findAll('.ov-tool')).toHaveLength(29)
+    expect(wrapper.findAll('.ov-tool')).toHaveLength(30)
     await wrapper.get('input[type=search]').setValue('prepaid')
     expect(wrapper.findAll('.ov-tool')).toHaveLength(1)
     expect(wrapper.get('.ov-tool').attributes('href')).toBe('/admin-dashboard/billing')

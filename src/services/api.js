@@ -813,6 +813,9 @@ export default {
   billingAdminCharges: (params = {}) => api.get('/billing/admin/charges/', { params, noCache: true }),
   billingAdminSpendSummary: (params = {}) => api.get('/billing/admin/spend-summary/', { params, noCache: true }),
   billingAdminChargesCsv: (params = {}) => api.get('/billing/admin/charges.csv', { params, responseType: 'blob', noCache: true }),
+  // What AWS charged both accounts in a month (?month=YYYY-MM); Refresh is rate-limited on the server (429).
+  billingAdminInfraCost: (month) => api.get('/billing/admin/infra-cost/', { params: month ? { month } : {}, noCache: true }),
+  billingAdminInfraCostRefresh: (month) => api.post('/billing/admin/infra-cost/refresh/', { month }),
 
   // Web analytics — admin reports (Track D)
   analyticsOverview: (days = 30) => api.get('/analytics/admin/overview/', { params: { days } }),

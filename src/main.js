@@ -350,6 +350,8 @@ const router = createRouter({
         { path: 'model-defaults', name: 'admin-model-defaults', component: () => import('./views/admin/AdminModelDefaults.vue') },
         // The prepaid wallet: markup and top-up limits, people's balances, pricing coverage, revenue.
         { path: 'billing', name: 'admin-billing', component: () => import('./views/admin/AdminBilling.vue') },
+        // What AWS charged the AADML account and the ML account, by service and tag (backend billing/services/infra_cost.py).
+        { path: 'infra-cost', name: 'admin-infra-cost', component: () => import('./views/admin/AdminInfraCost.vue') },
         { path: 'llm-context', name: 'admin-llm-context', component: LLMContextDashboard },
         { path: 'conversation-steps', name: 'admin-conversation-steps', component: () => import('./views/admin/AdminConversationSteps.vue') },
         { path: 'training-data', name: 'admin-training-data', component: () => import('./views/TrainingDataPage.vue') },
