@@ -867,13 +867,13 @@ watch(() => formData.value.password, () => {
 .message-error {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
+  color: #b91c1c;     /* 4.5:1 or more on this light page; the old #fca5a5 was barely readable */
 }
 
 .message-success {
   background: rgba(16, 185, 129, 0.1);
   border: 1px solid rgba(16, 185, 129, 0.2);
-  color: #6ee7b7;
+  color: #047857;     /* 4.5:1 or more on this light page; the old #6ee7b7 was barely readable */
 }
 
 /* Verify-your-email box: under the message, with the one action it needs. */
