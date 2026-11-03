@@ -69,6 +69,13 @@
             <!-- Lazy directory tree -->
             <template v-else>
               <div v-if="loading" class="loading">Loading files</div>
+              <div v-else-if="treeError" class="tree-error" role="alert">
+                <Icon icon="lucide:cloud-off" class="tree-error-ic" aria-hidden="true" />
+                <p class="tree-error-t">{{ treeError }}</p>
+                <button type="button" class="tree-error-retry" :disabled="loading" @click="loadFiles">
+                  <Icon icon="lucide:refresh-cw" aria-hidden="true" /> Try again
+                </button>
+              </div>
               <div v-else-if="!rootNodes.length" class="empty">No files found</div>
               <div v-else role="tree" aria-label="Repository files">
                 <FileTreeNode
@@ -261,6 +268,7 @@ const fileSearch = ref('')
 const artifactSearch = ref('')
 const rootNodes = ref([])             // lazy tree: top-level entries; dirs load children on expand
 const loading = ref(false)
+const treeError = ref('')             // why the files could not be listed (e.g. the project's sandbox is off)
 const searchResults = ref([])         // flat results when the search box is non-empty
 const searching = ref(false)
 const searchTruncated = ref(false)
@@ -367,6 +375,8 @@ async function expandDir(node) {
     } catch (e) {
       console.error('Failed to load directory:', node.path, e)
       node.children = []
+      node.expanded = false
+      notify.error(e?.response?.data?.error || 'Could not open this folder')
     } finally {
       node.loading = false
     }
@@ -409,12 +419,15 @@ const filteredArtifacts = computed(() => {
 // Methods
 async function loadFiles() {
   loading.value = true
+  treeError.value = ''
   try {
     const response = await api.getRepositoryFiles(props.systemId, props.repositoryId, { path: '' })
     rootNodes.value = (response.data.entries || response.data.files || []).map(makeNode)
   } catch (error) {
     console.error('Failed to load files:', error, error.response?.data)
     rootNodes.value = []
+    // A Let's Code project's files are in its sandbox: when that is off or cannot start, say so (ADM-1128).
+    treeError.value = error?.response?.data?.error || 'The files could not be loaded.'
   } finally {
     loading.value = false
   }
@@ -768,6 +781,35 @@ const ArtifactTreeNode = {
   font-size: 13px;
   line-height: 1.45;
 }
+
+.tree-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 16px;
+  text-align: center;
+}
+.tree-error-ic { width: 22px; height: 22px; color: var(--vm-ink-faint); }
+.tree-error-t { margin: 0; font-size: 13px; line-height: 1.5; color: var(--vm-ink-soft); max-width: 32ch; }
+.tree-error-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--vm-line);
+  border-radius: 6px;
+  background: var(--vm-surface);
+  color: var(--vm-ink);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease;
+}
+.tree-error-retry:hover:not(:disabled) { border-color: var(--vm-ink-faint); }
+.tree-error-retry:focus-visible { outline: 2px solid var(--vm-focus); outline-offset: 2px; }
+.tree-error-retry:disabled { opacity: 0.6; cursor: default; }
+.tree-error-retry :deep(svg) { width: 14px; height: 14px; }
 
 /* Resize Handle */
 .resize-handle {

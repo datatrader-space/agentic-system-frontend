@@ -10,7 +10,7 @@
     </div>
 
     <div v-if="loading && !loaded" class="scm-empty">Loading changes…</div>
-    <div v-else-if="error" class="scm-empty err">{{ error }}</div>
+    <div v-else-if="error" class="scm-empty err" role="alert">{{ error }}</div>
     <div v-else-if="status.clean" class="scm-empty">
       <Icon icon="lucide:check-circle-2" /> No changes. The working tree is clean.
     </div>
@@ -29,6 +29,11 @@
           </button>
         </div>
       </template>
+      <p class="scm-foot">
+        <Icon icon="lucide:clock" aria-hidden="true" />
+        These changes are in this project's sandbox. Changes you have not exported are kept for 3 days after
+        you last use the project.
+      </p>
     </div>
 
     <!-- inline diff for the clicked file -->
@@ -38,6 +43,7 @@
         <button type="button" class="scm-diff-x" title="Close the diff" aria-label="Close the diff" @click="closeDiff"><Icon icon="lucide:x" /></button>
       </div>
       <div v-if="diffLoading" class="scm-note">Loading diff…</div>
+      <div v-else-if="diff.error" class="scm-note err" role="alert">{{ diff.error }}</div>
       <div v-else-if="diff.redacted" class="scm-note"><Icon icon="lucide:lock" aria-hidden="true" /> Protected file. Its values are hidden for safety.</div>
       <div v-else-if="diff.binary" class="scm-note">Binary file. There is no preview.</div>
       <div v-else-if="!diff.diff_text" class="scm-note">No textual changes.</div>
@@ -86,7 +92,7 @@ async function load() {
     })
     emit('count', (status.changes.length + status.untracked.length))
   } catch (e) {
-    error.value = 'Could not load source control status.'
+    error.value = e?.response?.data?.error || 'Could not load source control status.'
   } finally {
     loaded.value = true
     loading.value = false
@@ -104,7 +110,7 @@ async function openDiff(it) {
     Object.assign(diff, data)
   } catch (e) {
     diff.diff_text = ''
-    diff.error = true
+    diff.error = e?.response?.data?.error || 'Could not load the diff.'
   } finally {
     diffLoading.value = false
   }
@@ -164,6 +170,9 @@ defineExpose({ refresh: load })
 .scm-diff-x:hover { background: var(--vm-surface); color: var(--vm-ink); }
 .scm-note { display: flex; align-items: center; gap: 6px; padding: 12px; color: var(--vm-ink-soft); }
 .scm-note :deep(svg) { width: 13px; height: 13px; flex: 0 0 auto; }
+.scm-note.err { color: var(--vm-danger); }
+.scm-foot { display: flex; align-items: flex-start; gap: 6px; margin: 8px 12px 12px; font-size: 12px; line-height: 1.5; color: var(--vm-ink-soft); }
+.scm-foot :deep(svg) { width: 12px; height: 12px; flex: 0 0 auto; margin-top: 3px; }
 .scm-diff-body { overflow: auto; background: var(--vm-surface-soft); flex: 1 1 auto; min-height: 0; padding: 4px 0; }
 .dl { padding: 0 10px; font: 11.5px/1.5 var(--vm-font-mono); white-space: pre; }
 .dl.ctx { color: var(--vm-ink-soft); }

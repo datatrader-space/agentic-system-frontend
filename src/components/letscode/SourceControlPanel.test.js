@@ -48,4 +48,26 @@ describe('SourceControlPanel', () => {
     await flushPromises()
     expect(w.text().toLowerCase()).toContain('clean')
   })
+
+  it("says why when the project's sandbox cannot be used", async () => {
+    const api = (await import('@/services/api')).default
+    api.getSourceControlStatus.mockRejectedValueOnce({
+      response: { status: 503, data: { error: 'Sandboxes are switched off on this deployment.', sandbox_unavailable: true } },
+    })
+    const w = mount(SourceControlPanel, { props: { systemId: 5, repoId: 4 } })
+    await flushPromises()
+    expect(w.find('[role="alert"]').text()).toBe('Sandboxes are switched off on this deployment.')
+  })
+
+  it('a diff that cannot load says so, not "no changes", and the 3-day note is shown', async () => {
+    const api = (await import('@/services/api')).default
+    api.getSourceControlDiff.mockRejectedValueOnce({ response: { status: 503, data: { error: 'Sandbox is starting.' } } })
+    const w = mount(SourceControlPanel, { props: { systemId: 5, repoId: 4 } })
+    await flushPromises()
+    expect(w.text()).toContain('kept for 3 days')
+    await w.findAll('.scm-row')[0].trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('Sandbox is starting.')
+    expect(w.text()).not.toContain('No textual changes')
+  })
 })
