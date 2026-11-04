@@ -641,6 +641,76 @@ export const useVideoStore = defineStore('video', {
         this.busy = false
       }
     },
+    /**
+     * Manual mode makes the job itself (owner, 2026-11-04: "Manual go directly", ADM-1170): the person's own words,
+     * model, settings and references go to `POST /video/jobs/` (a video) or `POST /video/media/jobs/` (pictures, on the
+     * model's proven Studio route). The job comes back waiting on its card with its price; nothing is spent until
+     * Generate there. No agent turn is involved. Returns the job, or null with the reason told.
+     */
+    async requestDirect({ prompt, chat, studioContext = null }) {
+      if (this.busy) return null
+      const text = (prompt || '').trim()
+      if (!text) return null
+      if (this.pendingSwitch) { notify.warning('Apply the model change or keep the current model first.'); return null }
+      if (this.unusableRefs.length) {
+        notify.warning(`${this.unusableRefs[0].name}: this model ${this.unusableRefs[0].problem}. Remove it or choose another model.`)
+        return null
+      }
+      this.busy = true
+      try {
+        const cid = await chat.ensureConversation()
+        if (!cid) return null
+        const references = await this._uploadRefs(cid)
+        const base = references.find((r) => r.role === 'edit_source')
+        const body = {
+          operation: base ? 'change' : 'generate', route_id: this.routeId || undefined, prompt: text,
+          params: { duration: Number(this.settings.duration) || undefined, aspect_ratio: this.settings.aspect_ratio || undefined,
+                    resolution: this.settings.resolution || undefined, sound: this.options.audio ? !!this.settings.sound : undefined },
+          references: references.filter((r) => r.role !== 'edit_source').map((r) => ({ attachment_id: r.attachment_id, role: r.role })),
+          base_attachment_id: base ? base.attachment_id : undefined,
+          conversation_id: cid, ...(studioContext ? { studio_context: studioContext } : {}),
+        }
+        const job = this._put((await api.post('/video/jobs/', body)).data)
+        this.refs = []
+        return job
+      } catch (e) {
+        notify.error(errText(e, 'The request could not be prepared. Nothing was started.'))
+        return null
+      } finally {
+        this.busy = false
+      }
+    },
+    async requestImageDirect({ prompt, chat, studioContext = null }) {
+      if (this.busy) return null
+      const text = (prompt || '').trim()
+      if (!text) return null
+      if (this.unusableRefs.length) {
+        notify.warning(`${this.unusableRefs[0].name}: this model ${this.unusableRefs[0].problem}. Remove it or choose another model.`)
+        return null
+      }
+      const routeId = this.imageModel && this.imageModel.route_id
+      if (!routeId) { notify.warning('This image model is not ready for Manual mode yet. Choose another model.'); return null }
+      this.busy = true
+      try {
+        const cid = await chat.ensureConversation()
+        if (!cid) return null
+        const references = (await this._uploadRefs(cid)).map((r) => ({ attachment_id: r.attachment_id,
+          role: IMAGE_ROLES.includes(r.role) ? r.role : 'subject' }))
+        const body = {
+          operation: 'image', route_id: routeId,
+          request: { prompt: text, n: Number(this.image.n) || 1, aspect_ratio: this.image.aspect_ratio || undefined },
+          references, conversation_id: cid, ...(studioContext ? { studio_context: studioContext } : {}),
+        }
+        const job = this._put((await api.post('/video/media/jobs/', body)).data)
+        this.refs = []
+        return job
+      } catch (e) {
+        notify.error(errText(e, 'The request could not be prepared. Nothing was started.'))
+        return null
+      } finally {
+        this.busy = false
+      }
+    },
     // The images made in this chat, newest first (generated only: an upload is not a result).
     async loadSessionImages(conversationId) {
       if (!conversationId) { this.sessionImages = []; return }

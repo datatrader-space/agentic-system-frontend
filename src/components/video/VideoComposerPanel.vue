@@ -419,7 +419,8 @@ async function onPrimary() {
       video.panelTab = isImage.value ? 'images' : video.task === 'story' ? 'storyboard' : 'preview'
     }
     if (isImage.value) {
-      const sent = await video.requestImage({ prompt: text, chat })
+      // Manual makes the job itself (owner, 2026-11-04: "Manual go directly"); it waits on its card with its price.
+      const sent = await video.requestImageDirect({ prompt: text, chat, studioContext: chat.studioContext })
       if (sent) { video.panelTab = 'images'; clearSent(text); emit('done') }
       return
     }
@@ -428,7 +429,7 @@ async function onPrimary() {
       if (ok) { clearSent(text); emit('done') }
       return
     }
-    const sent = await video.request({ prompt: text, chat })
+    const sent = await video.requestDirect({ prompt: text, chat, studioContext: chat.studioContext })
     if (sent) { clearSent(text); emit('done') }
   } finally { preparing.value = false }
 }

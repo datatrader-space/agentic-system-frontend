@@ -236,8 +236,10 @@ async function generate() {
   submitting.value = true; formError.value = ''
   const prompt = composePreset(selected.value, values.value, details.value, variant.value), refs = [...video.refs], record = { ...snapshot(refs), at: new Date().toISOString() }
   try {
-    // Existing paid-request paths only; image session approval follows the owner exception F-D7a.
-    const sent = props.kind === 'image' ? await video.requestImage({ prompt, chat }) : await video.request({ prompt, chat })
+    // Manual makes the job itself (owner, 2026-11-04: "Manual go directly"): it waits on its card with its price, and
+    // nothing is spent until Generate there. The agent is not asked.
+    const studioContext = chat.studioContext || pageContext()
+    const sent = props.kind === 'image' ? await video.requestImageDirect({ prompt, chat, studioContext }) : await video.requestDirect({ prompt, chat, studioContext })
     if (!sent) { formError.value = 'The request was not sent. Check the inputs and try again.'; return }
     records.value.unshift({ ...record, refs: cleanRefs(refs), prompt })
     draftSent()

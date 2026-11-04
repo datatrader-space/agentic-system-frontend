@@ -35,11 +35,11 @@ beforeEach(() => {
     openConversation: vi.fn(async id => { state.chat.conversationId = id }), sendMessage: vi.fn().mockResolvedValue(true),
   })
   api.getVideoStudioAgent.mockResolvedValue({ data: { id: 900, video_model: 1, image_model: 11 } })
-  api.get.mockImplementation(async path => ({ data: path === '/video/image-capabilities/' ? { models: [{ model_id: 11, name: 'Synthetic image model', shapes: ['1:1','3:4','16:9'], max_references: 4 }], default_model_id: 11 } : { routes: [{ route_id: 'r1', name: 'Synthetic video model', state: 'active', offered: ['image_to_video','first_last_frame','reference_to_video'], outputs: { durations: [5], aspect_ratios: ['16:9','1:1'], resolutions: ['720p'], audio: false } }], default_route_id: 'r1' } }))
+  api.get.mockImplementation(async path => ({ data: path === '/video/image-capabilities/' ? { models: [{ model_id: 11, route_id: 501, name: 'Synthetic image model', shapes: ['1:1','3:4','16:9'], max_references: 4 }], default_model_id: 11 } : { routes: [{ route_id: 'r1', name: 'Synthetic video model', state: 'active', offered: ['image_to_video','first_last_frame','reference_to_video'], outputs: { durations: [5], aspect_ratios: ['16:9','1:1'], resolutions: ['720p'], audio: false } }], default_route_id: 'r1' } }))
   api.post.mockRejectedValue(new Error('Unexpected direct write'))
   api.getStudioQuote.mockResolvedValue({ data: { estimate_usd: 0.04, max_usd: 0.04, pricing_status: 'exact' } })
   video = useVideoStore()
-  vi.spyOn(video,'request'); vi.spyOn(video,'requestImage'); vi.spyOn(video,'start')
+  vi.spyOn(video,'request'); vi.spyOn(video,'requestImage'); vi.spyOn(video,'requestDirect'); vi.spyOn(video,'requestImageDirect'); vi.spyOn(video,'start')
 })
 afterEach(() => { wrapper?.unmount(); document.body.innerHTML = ''; vi.unstubAllGlobals() })
 async function render(kind = 'image', userId = null, mode = 'manual') {
@@ -58,29 +58,34 @@ describe('Image and Video pages: per-run approval boundary', () => {
     expect(video.request).not.toHaveBeenCalled(); expect(video.requestImage).not.toHaveBeenCalled(); expect(api.post).not.toHaveBeenCalled()
   })
 
-  it.each(['image','video'])('sends %s through the existing store request and leaves spending to its card', async kind => {
+  it.each(['image','video'])('makes the %s job itself, waiting on its card, and leaves spending to the card', async kind => {
+    // Owner 2026-11-04 ("Manual go directly", ADM-1170): Manual creates the job; no agent turn, nothing started.
+    api.post.mockResolvedValueOnce({ data: { job_id: 'j1', state: 'awaiting_authorization', conversation_id: 'new-owned-chat', modality: kind } })
     await render(kind); pickRequired(); await flushPromises()
     await wrapper.get('[data-test="studio-generate"]').trigger('click'); await flushPromises()
-    const action = kind === 'image' ? video.requestImage : video.request
-    expect(action).toHaveBeenCalledOnce(); expect(action).toHaveBeenCalledWith({ prompt: expect.any(String), chat: state.chat })
-    expect(state.chat.ensureConversation).toHaveBeenCalledOnce()
-    const [prompt, options] = state.chat.sendMessage.mock.calls[0]
-    expect(prompt).toContain('supplied')
-    expect(options[kind === 'image' ? 'imageRequest' : 'videoRequest'].references[0]).toEqual({ attachment_id: 42, role: kind === 'image' ? 'subject' : 'first_frame' })
-    expect(video.start).not.toHaveBeenCalled(); expect(api.post).not.toHaveBeenCalled()
+    expect(state.chat.sendMessage).not.toHaveBeenCalled()
+    expect(video.request).not.toHaveBeenCalled(); expect(video.requestImage).not.toHaveBeenCalled()
+    expect(api.post).toHaveBeenCalledOnce()
+    const [url, body] = api.post.mock.calls[0]
+    expect(url).toBe(kind === 'image' ? '/video/media/jobs/' : '/video/jobs/')
+    expect(body.conversation_id).toBe('new-owned-chat')
+    expect(body.references[0]).toEqual({ attachment_id: 42, role: kind === 'image' ? 'subject' : 'first_frame' })
+    if (kind === 'image') { expect(body.operation).toBe('image'); expect(body.route_id).toBe(501); expect(body.request.prompt).toContain('supplied') }
+    else { expect(body.operation).toBe('generate'); expect(body.prompt).toContain('supplied') }
+    expect(video.jobs.j1.state).toBe('awaiting_authorization')
+    expect(video.start).not.toHaveBeenCalled()
     expect(state.replace).toHaveBeenCalledWith({ path: `/video-studio/${kind}`, query: expect.objectContaining({ conversation: 'new-owned-chat', mode: 'manual', preset: presetsFor(kind)[0].id }) })
   })
 
   it('keeps inputs after a send failure, and choosing or shuffling a preset never sends', async () => {
     await render('image'); pickRequired(); await flushPromises()
-    state.chat.sendMessage.mockResolvedValueOnce(false)
-    await wrapper.get('[data-test="studio-generate"]').trigger('click'); await flushPromises()
+    await wrapper.get('[data-test="studio-generate"]').trigger('click'); await flushPromises()   // the server refuses
     expect(video.refs).toHaveLength(1)
     expect(wrapper.get('[role="alert"]').text()).toContain('not sent')
-    const calls = video.requestImage.mock.calls.length
+    const calls = video.requestImageDirect.mock.calls.length, posts = api.post.mock.calls.length
     wrapper.findComponent({ name: 'PresetGallery' }).vm.$emit('select', presetsFor('image')[3]); await flushPromises()
     await wrapper.get('[aria-label="Shuffle preset variation"]').trigger('click')
-    expect(video.requestImage).toHaveBeenCalledTimes(calls); expect(api.post).not.toHaveBeenCalled()
+    expect(video.requestImageDirect).toHaveBeenCalledTimes(calls); expect(api.post).toHaveBeenCalledTimes(posts)
   })
 
   it('opens with the Studio agent only, never walking the whole agent library', async () => {
@@ -405,8 +410,9 @@ describe('Image and Video drafts on this device', () => {
     await render('image', 'person'); pickRequired(); await flushPromises()
     await wrapper.get('.sg-manual textarea').setValue('A teapot to generate'); await flushPromises()
     expect(studioKeys()).toHaveLength(1)
+    api.post.mockResolvedValueOnce({ data: { job_id: 'j2', state: 'awaiting_authorization', conversation_id: 'new-owned-chat', modality: 'image' } })
     await wrapper.get('[data-test="studio-generate"]').trigger('click'); await flushPromises()
-    expect(video.requestImage).toHaveBeenCalledOnce(); expect(studioKeys()).toEqual([])
+    expect(video.requestImageDirect).toHaveBeenCalledOnce(); expect(studioKeys()).toEqual([])
   })
   it('removes the draft when New chat starts fresh', async () => {
     await render('image', 'person')

@@ -246,7 +246,7 @@ describe('studio project preparation', () => {
   it('saves quick clips as projects before requesting an estimate', async () => {
     const video = useVideoStore()
     const project = vi.spyOn(video, 'createProject').mockResolvedValue({ project_id: 'p1' })
-    const request = vi.spyOn(video, 'request').mockResolvedValue(true)
+    const request = vi.spyOn(video, 'requestDirect').mockResolvedValue({ job_id: 'j1', state: 'awaiting_authorization' })
     const wrapper = mount(VideoComposerPanel, { props: { draft: 'Product reveal', ensureProject: true } })
     await wrapper.get('[data-test="video-estimate"]').trigger('click')
     await new Promise((resolve) => setTimeout(resolve, 0))
@@ -342,16 +342,19 @@ describe('VideoComposerPanel image mode', () => {
     expect(video.image.modelId).toBe('21')
   })
 
-  it('Create image sends the request to the agent with the person\'s settings', async () => {
+  it('Create image makes the image job itself with the person’s settings (Manual, no agent turn)', async () => {
+    // Owner 2026-11-04 ("Manual go directly", ADM-1170).
     const w = await mounted('my candle on black stone')
     const video = useVideoStore()
+    const direct = vi.spyOn(video, 'requestImageDirect').mockResolvedValue({ job_id: 'j1', state: 'awaiting_authorization' })
     video.setKind('image')
     Object.assign(video.image, { modelId: '21', aspect_ratio: '9:16', n: 2 })
     await w.vm.$nextTick()
     await w.get('[data-test="image-create"]').trigger('click')
     await new Promise((r) => setTimeout(r, 0))
-    expect(chatMock.sendMessage).toHaveBeenCalledWith('my candle on black stone', {
-      imageRequest: { model_id: 21, aspect_ratio: '9:16', n: 2, references: [] }, imageMode: true })
+    expect(direct).toHaveBeenCalledOnce()
+    expect(direct.mock.calls[0][0].prompt).toBe('my candle on black stone')
+    expect(chatMock.sendMessage).not.toHaveBeenCalled()
     expect(video.panelTab).toBe('images')
     expect(w.emitted('done')).toHaveLength(1)
   })
@@ -369,7 +372,7 @@ describe('the box empties once a request is sent', () => {
   it('even when the create screen is gone before it hears "done"', async () => {
     const video = useVideoStore()
     video.studioDraft = 'my candle'
-    vi.spyOn(video, 'requestImage').mockResolvedValue(true)
+    vi.spyOn(video, 'requestImageDirect').mockResolvedValue({ job_id: 'j1' })
     const w = await mounted('my candle')
     video.setKind('image')
     await w.vm.$nextTick()

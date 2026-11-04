@@ -36,7 +36,9 @@ const localOps = ['trim','crop','retime','caption']
 // Enhance also upscales and extends (paid, on their cards); the other pages show every job but the local edits.
 const enhanceOps = [...localOps, 'upscale', 'extend']
 const jobs = computed(() => !props.conversationId ? [] : video.jobsFor(props.conversationId).filter(job => props.kind === 'enhance' ? enhanceOps.includes(job.operation) : !localOps.includes(job.operation)))
-const pending = computed(() => props.kind === 'image' ? [] : jobs.value.filter(job => job.state !== 'ready').slice().reverse())
+// Jobs not finished yet, with their cards (a waiting estimate has its Generate there). On the Image page, the
+// picture jobs Manual makes itself (owner, 2026-11-04: "Manual go directly"); their results come as images.
+const pending = computed(() => jobs.value.filter(job => job.state !== 'ready' && (props.kind !== 'image' || job.modality === 'image')).slice().reverse())
 // What made a job's result, for "Use again": the server's `generation` when it sends one, else read off the job.
 function generationOf(job) {
   if (job.generation) return job.generation
