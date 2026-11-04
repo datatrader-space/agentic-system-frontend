@@ -43,6 +43,13 @@ test('failures carry the status and only the server short message', async () => 
   await assert.rejects(apiFetch('/x', { store: memory(), fetchImpl: async () => { throw new TypeError('redirect'); } }), { code: 'network' });
 });
 
+test("the server's own code is kept apart from how the request failed", async () => {
+  await assert.rejects(apiFetch('/x', { store: memory(), fetchImpl: async () => reply('{"error":"A GPU is starting.","code":"starting"}', 503) }),
+    e => e.code === 'server' && e.serverCode === 'starting' && e.message === 'A GPU is starting.');
+  await assert.rejects(apiFetch('/x', { store: memory(), fetchImpl: async () => reply('{"error":"No."}', 409) }),
+    e => e.serverCode === undefined);
+});
+
 test('workspace comes only from the AADML selection; a stale saved name is not shown', () => {
   assert.deepEqual(activeWorkspace(ws), { id: '7', name: 'Northrays Vision' });
   assert.equal(activeWorkspace(memory()), null);

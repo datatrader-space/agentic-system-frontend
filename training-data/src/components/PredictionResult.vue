@@ -55,7 +55,7 @@ const seconds = ms => (ms === null || ms === undefined ? '—' : ms < 1000 ? `${
         </tbody></table>
     </div>
     <p v-if="answer.warnings?.length" class="test-meta">Notes from the model: {{ answer.warnings.join(', ') }}.</p>
-    <p class="test-meta">Answered by {{ answer.model?.name }} {{ answer.model?.version }} on its {{ answer.served_by==='staging' ? 'staging endpoint' : 'test server' }}.</p>
+    <p class="test-meta">Answered by {{ answer.model?.name }} {{ answer.model?.version }} on its {{ answer.served_by==='staging' ? 'staging endpoint' : 'test server' }}.<template v-if="answer.charged"> Charged {{ answer.charged }}.</template></p>
     <details class="json"><summary>The answer as shown (JSON{{ shown.hidden ? ', filtered by the slider' : '' }})</summary><pre>{{ JSON.stringify({ ...shown, hidden: undefined }, null, 2) }}</pre></details>
   </template>
 </template>

@@ -83,11 +83,22 @@ async function loadState() {
 }
 // While it is being made ready or its test server starts, it is asked about again 3 s after each answer.
 let timer = null; let alive = true;
-function follow() { clearTimeout(timer); timer = alive && ['preparing', 'starting'].includes(state.value?.phase) ? setTimeout(async () => { await loadState(); follow(); }, 3000) : null; }
+// An Economy model (SAM 3) whose GPU is starting is followed too, every 5 s, until a GPU runs.
+const gpu = computed(() => (onPlatform.value ? state.value?.economy?.capacity || null : null));
+function follow() {
+  clearTimeout(timer);
+  const starting = ['preparing', 'starting'].includes(state.value?.phase);
+  const waking = state.value?.phase === 'ready' && (gpu.value === 'waking' || (gpu.value === 'zero' && held.value));
+  timer = alive && (starting || waking) ? setTimeout(async () => { await loadState(); follow(); }, starting ? 3000 : 5000) : null;
+}
 // What an action said stays while the model is where the action left it: "is starting" goes once it is ready.
 let saidFor = '';
 watch(() => state.value?.phase, now => { follow(); if (said.value && now !== saidFor) said.value = ''; });
-function forget() { if (photoUrl.value) URL.revokeObjectURL(photoUrl.value); photoUrl.value = ''; file.value = null; answer.value = null; }
+// A photo chosen while no GPU ran was not sent (the backend asked for a GPU and charged nothing): it is held here and
+// sent once a GPU runs.
+const held = ref(null);
+watch(gpu, now => { follow(); if (now === 'warm' && held.value && !asking.value) { const photo = held.value; held.value = null; ask(photo); } });
+function forget() { if (photoUrl.value) URL.revokeObjectURL(photoUrl.value); photoUrl.value = ''; file.value = null; answer.value = null; held.value = null; }
 onUnmounted(() => { alive = false; clearTimeout(timer); forget(); });
 function startTrying(row) {
   forget(); trying.value = row; state.value = null; said.value = ''; tryError.value = ''; least.value = 0; loadState();
@@ -107,9 +118,16 @@ async function choose(event) {
   if (!PHOTO_TYPES.includes(picked.type)) { tryError.value = 'Choose a JPEG, PNG or WebP photo.'; return; }
   if (picked.size > (state.value?.max_mb || 15) * 1024 * 1024) { tryError.value = `The photo is larger than ${state.value?.max_mb || 15} MB.`; return; }
   forget(); file.value = picked; photoUrl.value = URL.createObjectURL(picked);
-  asking.value = true;
+  await ask(picked);
+}
+async function ask(picked) {
+  asking.value = true; tryError.value = '';
   try { answer.value = await publishedApi.predict(trying.value.key, picked); }
-  catch (e) { tryError.value = e.message; await loadState(); } finally { asking.value = false; }
+  catch (e) {
+    if (e.serverCode === 'starting' && onPlatform.value) held.value = picked;
+    else tryError.value = e.message;
+    await loadState(); follow();
+  } finally { asking.value = false; }
 }
 const ready = computed(() => state.value?.phase === 'ready');
 function publishedBadge(row) {
@@ -291,7 +309,10 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
               <p v-if="state.phase==='failed'&&state.published?.failure_reason" class="field-error">{{ state.published.failure_reason }}</p>
               <details v-if="state.log" class="json"><summary>The end of its log</summary><pre>{{ state.log }}</pre></details>
               <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
-              <p v-if="ready&&onPlatform" class="muted">Its GPU server is ready. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
+              <p v-if="ready&&onPlatform&&held" class="waiting" role="status"><span class="spinner" aria-hidden="true"></span>No GPU was running, so one is starting for your photo (a few minutes). The photo is sent as soon as it is up; nothing is charged until it is answered.</p>
+              <p v-else-if="ready&&onPlatform&&gpu==='waking'" class="waiting" role="status"><span class="spinner" aria-hidden="true"></span>Its GPU is starting; this takes a few minutes.</p>
+              <p v-else-if="ready&&onPlatform&&gpu==='zero'" class="muted">No GPU is running now: the first photo starts one (a few minutes), then each answer takes seconds. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
+              <p v-else-if="ready&&onPlatform" class="muted">Its GPU is running. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
               <p v-else-if="ready" class="muted">Its test server is ready. {{ state.trial?.photos_tried || 0 }} photo{{ state.trial?.photos_tried===1?'':'s' }} tried. It stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
               <div class="try-actions">
                 <UiButton v-if="state.may.start" variant="primary" :disabled="busy" @click="act('start')"><Play :size="14"/> {{ onPlatform ? 'Start its GPU server' : state.published?.state==='ready' ? 'Start its test server' : 'Make it ready and start' }}</UiButton>

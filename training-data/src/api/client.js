@@ -72,6 +72,9 @@ export async function apiFetch(path, { method = 'GET', body, fetchImpl = fetch, 
     const message = typeof data?.error === 'string' ? data.error : typeof nested?.message === 'string' ? nested.message
       : typeof data?.detail === 'string' ? data.detail : 'The request was refused.';
     const refused = new ApiError(response.status, response.status === 401 ? 'auth' : response.status === 403 ? 'forbidden' : 'server', message.slice(0, 300), data?.field ?? nested?.field);
+    // The server's own code for what happened (e.g. 'starting' when a GPU is being started for the call), kept apart
+    // from ``code``, which says only how the request failed.
+    if (typeof data?.code === 'string') refused.serverCode = data.code.slice(0, 40);
     // A refused file or list names each bad line: {line, error}, at most 50, each shown as text.
     if (Array.isArray(data?.errors)) refused.errors = data.errors.slice(0, 50).map(e => ({ line: Number(e?.line) || 0, error: String(e?.error ?? '').slice(0, 200) }));
     throw refused;
