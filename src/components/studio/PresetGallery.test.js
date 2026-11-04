@@ -24,6 +24,16 @@ describe('PresetGallery', () => {
     expect(w.emitted('select')).toBeUndefined()
     w.unmount()
   })
+  it('gives a preset with no result yet one compact row, not a large stand-in drawing', () => {
+    const w = mount(PresetGallery, { props: { presets, selected: 'a' }, global: { stubs: { StudioLookMedia: true } } })
+    const [plain, look] = w.findAll('.pg-art')
+    expect(plain.classes()).toContain('pg-art-plain')
+    expect(plain.get('svg').attributes('viewBox')).toBe('0 0 24 24')
+    expect(plain.text()).toContain('Image preset')
+    expect(plain.text()).toContain('Selected')
+    expect(look.classes()).not.toContain('pg-art-plain')
+    w.unmount()
+  })
   it('keeps honest loading, error and disabled-preview states', async () => {
     const w = mount(PresetGallery, { props: { presets, loading: true } })
     expect(w.text()).toContain('Loading presets')

@@ -414,7 +414,8 @@ a.lib-btn { display: inline-flex; align-items: center; text-decoration: none; }
 .lib-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .lib button:focus-visible, .lib input:focus-visible, .lib select:focus-visible, .lib textarea:focus-visible { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
 @media (max-width: 1023px) { .lib-backdrop.page .lib-head { padding-left: calc(12px + var(--vs-bar-inset, 0px)); } }
-@media (pointer: coarse) { .lib-btn, .lib-chip, .lib-pick, .lib-field input, .lib-field select { min-height: 44px; } }
+@media (pointer: coarse) { .lib-btn, .lib-chip, .lib-pick, .lib-field input, .lib-field select { min-height: 44px; }
+  .lib-chat { display: flex; align-items: center; min-height: 44px; } }
 @media (max-width: 640px) {
   .lib-body { padding: 12px 16px 20px; }
   .lib-field input, .lib-field select, .lib-field textarea { font-size: 16px; }

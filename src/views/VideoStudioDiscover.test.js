@@ -40,6 +40,14 @@ describe('Discover is the goal-first Studio landing', () => {
     expect(wrapper.get('[data-test="discover-look-image-look-1"]').attributes('href')).toContain('/video-studio/image?preset=image-look-1&mode=agent')
     expect(api.post).not.toHaveBeenCalled()
   })
+  it('counts the tool filter from the catalogue and describes looks without promising stock examples', async () => {
+    await open()
+    await wrapper.findAll('.discover-views button')[1].trigger('click')
+    const select = wrapper.get('select[aria-label="Filter looks by creative tool"]')
+    const toolOptions = select.findAll('option').length - 1
+    expect(select.get('option').text()).toBe(`All ${toolOptions} tools`)
+    expect(wrapper.text()).not.toContain('moving examples')
+  })
   it('preserves a legacy conversation bookmark by opening the existing Dashboard session path', async () => {
     const router = await open()
     await router.replace('/video-studio?conversation=owned-fixture')
