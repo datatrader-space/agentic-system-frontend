@@ -10,6 +10,7 @@ import DeploymentMetrics from './DeploymentMetrics.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
+import PipelineResult from './PipelineResult.vue';
 import PredictionResult from './PredictionResult.vue';
 import OpenModels from './OpenModels.vue';
 import { modelBadge, storageLine } from '../api/openModels.js';
@@ -166,6 +167,8 @@ onUnmounted(() => clearTimeout(copiedTimer));
 // The rows are the workspace's only (app_api.open_model_rows); trying one asks published/<key>/ like a platform model.
 const openRows = computed(() => data.value?.open_models || []);
 const chatLines = ref([]); const chatText = ref(''); const chatting = ref(false); const openAnswer = ref(null);
+const openPhotoUrl = ref('');
+onUnmounted(() => { if (openPhotoUrl.value) URL.revokeObjectURL(openPhotoUrl.value); });
 function tryOpen(row) {
   startTrying(row); chatLines.value = []; chatText.value = ''; openAnswer.value = null;
   requestAnimationFrame(() => document.getElementById('try-open')?.scrollIntoView({ block: 'start' }));
@@ -184,6 +187,8 @@ async function chooseOpen(event) {
   tryError.value = '';
   if (!picked) return;
   if (!PHOTO_TYPES.includes(picked.type)) { tryError.value = 'Choose a JPEG, PNG or WebP photo.'; return; }
+  if (openPhotoUrl.value) URL.revokeObjectURL(openPhotoUrl.value);
+  openAnswer.value = null; openPhotoUrl.value = URL.createObjectURL(picked);
   asking.value = true;
   try { openAnswer.value = await publishedApi.predict(trying.value.key, picked); }
   catch (e) { tryError.value = e.message; await loadState(); } finally { asking.value = false; }
@@ -256,7 +261,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
           <template v-else>
             <label class="test-input" :class="{off:!ready}"><Upload :size="26"/><strong>{{ asking ? 'Asking the model…' : 'Choose a photo' }}</strong><span>JPEG, PNG or WebP, up to {{ state.max_mb }} MB. The photo is not kept.</span>
               <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="!ready||asking" aria-label="Choose a photo to try" @change="chooseOpen"></label>
-            <details v-if="openAnswer" class="json" open><summary>Its answer (JSON)</summary><pre>{{ JSON.stringify(openAnswer.output, null, 2) }}</pre></details>
+            <PipelineResult v-if="openAnswer" :answer="openAnswer" :photo-url="openPhotoUrl"/>
           </template>
         </template>
       </section>
