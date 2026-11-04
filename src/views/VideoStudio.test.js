@@ -220,6 +220,20 @@ describe('Video Studio', () => {
     expect(submitSpy).not.toHaveBeenCalled()
   })
 
+  it('keeps phone Return as a newline on Dashboard and sends only through the explicit action', async () => {
+    const original = window.matchMedia
+    window.matchMedia = () => ({ matches:true, addEventListener() {}, removeEventListener() {} })
+    try {
+      await render()
+      await wrapper.get('[data-test="studio-prompt"]').trigger('keydown', { key:'Enter' })
+      expect(state.video.sendAgentMessage).not.toHaveBeenCalled()
+      expect(state.video.studioDraft).toBe('A product reveal')
+      await wrapper.get('[data-test="studio-send-message"]').trigger('click')
+      await flushPromises()
+      expect(state.video.sendAgentMessage).toHaveBeenCalledOnce()
+    } finally { window.matchMedia = original }
+  })
+
   it('prevents switching sessions while the assistant is working', async () => {
     state.chat.conversationId = 'saved-session'
     await render()

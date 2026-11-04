@@ -307,12 +307,13 @@ async function sendMessage() {
 // Enter sends to the agent and Shift+Enter is a new line.
 function onPromptKey(e) {
   if (e.key !== 'Enter' || e.isComposing) return
-  // Agent mode is a chat on both screens: Enter sends, Shift+Enter is a new line.
+  // Keep phone Return consistent with the tool chats; submission stays on Send.
   if (phase.value === 'create' && !agentMode.value) {
     if (e.ctrlKey || e.metaKey) { e.preventDefault(); composerEl.value?.submit() }
     return
   }
-  if (!e.shiftKey) { e.preventDefault(); sendMessage() }
+  const touchKeyboard = window.matchMedia?.('(pointer: coarse)').matches
+  if (!e.shiftKey && (!touchKeyboard || e.ctrlKey || e.metaKey)) { e.preventDefault(); sendMessage() }
 }
 // "Edit scene" on the canvas starts the request in the composer.
 function composeEdit(event) {

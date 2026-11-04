@@ -26,3 +26,7 @@ Scope and risk: medium. Frontend presentation and keyboard interaction inside Vi
 ## Release and rollback
 
 Use the existing main-branch GitHub Actions build/test/security/performance gates and automatic deploy. Do not bypass CI or deploy from the workstation. Rollback is a normal revert followed by the same gated deployment, or the existing deployment workflow with the previously successful image tag 9cf7507. Post-deploy checks must verify the current bundle and actual mobile/desktop layout, navigation, templates and chat. Exact results will be appended after the run.
+
+## Dashboard keyboard consistency follow-up
+
+Final review found Dashboard still submitted phone Return while tool chat inserted a newline. Applied the same coarse-pointer rule to the existing Dashboard composer; Manual Ctrl/Cmd+Enter estimate behavior is unchanged. Dashboard regression: 25 tests passed. This small logic follow-up uses the same gated production build/CI release; final live verification is pending the latest deployment. No backend changes.
