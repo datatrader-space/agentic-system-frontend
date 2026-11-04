@@ -1,9 +1,9 @@
 <template>
   <StudioPage :feature="feature" :work-label="isAgent ? 'Preview' : 'Presets'" :agent-mode="isAgent" ref="page" :chat-expanded="isAgent && chatExpanded" :title="isAgent && selected ? selected.title : feature.label" :purpose="isAgent && selected ? selected.purpose : feature.purpose" :active-tab="tab" preset-picker @new="freshStart" :new-disabled="chat.isBusy || video.busy || !!chat.hitlRequests.length" @update:active-tab="tab = $event">
     <template #form="{ narrow }">
-      <StudioModeSwitch />
+      <div class="st-tool-options"><StudioModeSwitch /><StudioPresetSelect :model-value="selectedId" :presets="presets" :disabled="chat.isBusy || video.busy" @update:model-value="selectPresetId" /></div>
       <StudioFirstVisit v-if="!isAgent" :hidden="hintHidden" @dismiss="dismissHint" />
-      <StudioPresetSelect :model-value="selectedId" :presets="presets" :disabled="chat.isBusy || video.busy" @update:model-value="selectPresetId" /><StudioLookDetails v-if="!isAgent && selected?.clientOnly" :look="selected" :disabled="chat.isBusy || video.busy" :settings="pageSettings" @apply="choose" />
+      <StudioLookDetails v-if="!isAgent && selected?.clientOnly" :look="selected" :disabled="chat.isBusy || video.busy" :settings="pageSettings" @apply="choose" />
       <BottomSheet v-if="narrow && !isAgent" ref="presetSheet" label="Change preset" :summary="selected?.title || 'Your own idea'" test-id="studio-preset-picker"><PresetGallery :presets="presets" :selected="selectedId" @select="choose" /></BottomSheet>
       <p v-if="loading" class="st-status" role="status">Loading your models...</p><div v-if="error" class="st-error" role="alert">{{ error }}<button type="button" class="st-button" @click="initialize">Try again</button></div>
       <StudioReferenceInputs v-if="!isAgent" :groups="inputGroups" :unassigned="unassigned" @add-files="addFiles" @pick="pick" @remove="video.removeRef($event)" />

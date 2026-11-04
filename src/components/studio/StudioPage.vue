@@ -1,9 +1,9 @@
 <template>
   <section class="st-page" :class="{ 'st-chat-expanded': chatExpanded, 'st-page-agent': agentMode, 'st-mobile-output': mobilePane === 'output' }" :aria-labelledby="titleId">
     <header class="st-page-head"><div class="st-title-block"><span v-if="feature" class="st-title-icon"><StudioNavIcon :name="feature.icon" /></span><div><span v-if="feature" class="st-title-category">{{ feature.group }}</span><h1 :id="titleId">{{ title }}</h1><p class="st-muted">{{ purpose }}</p></div></div><slot name="header"><StudioProjectPicker v-if="agentMode" /><button v-else-if="presetPicker" type="button" class="st-button" :disabled="newDisabled" @click="emit('new')">{{ agentMode ? 'New chat' : 'New' }}</button></slot></header>
-    <nav v-if="agentMode && narrow" class="st-mobile-tabs" role="tablist" aria-label="Workspace sections"><button v-for="(item,index) in mobileTabs" :key="item.key" type="button" role="tab" :aria-selected="mobilePane === 'create' ? item.key === 'create' : item.key === activeTab" :tabindex="(mobilePane === 'create' ? item.key === 'create' : item.key === activeTab) ? 0 : -1" @click="selectMobile(item.key)" @keydown="moveMobile($event,index)">{{ item.label }}</button></nav>
+    <nav v-if="agentMode && narrow" class="st-mobile-tabs" role="tablist" aria-label="Workspace sections"><button v-for="(item,index) in mobileTabs" :key="item.key" type="button" role="tab" :id="`${titleId}-mobile-${item.key}-tab`" :aria-controls="item.key === 'create' ? `${titleId}-chat` : `${titleId}-${item.key}`" :aria-selected="mobilePane === 'create' ? item.key === 'create' : item.key === activeTab" :tabindex="(mobilePane === 'create' ? item.key === 'create' : item.key === activeTab) ? 0 : -1" @click="selectMobile(item.key)" @keydown="moveMobile($event,index)">{{ item.label }}</button></nav>
     <div class="st-page-body">
-      <aside class="st-controls" aria-label="Inputs and settings"><div ref="form" class="st-form" tabindex="-1"><slot name="form" :narrow="narrow" /></div><div v-if="!agentMode" class="st-quote"><slot name="quote" /></div></aside>
+      <aside :id="`${titleId}-chat`" class="st-controls" aria-label="Inputs and settings"><div ref="form" class="st-form" tabindex="-1"><slot name="form" :narrow="narrow" /></div><div v-if="!agentMode" class="st-quote"><slot name="quote" /></div></aside>
       <section class="st-output" aria-label="Presets and results">
         <div v-if="$slots.references" ref="references" class="st-reference-panel" role="region" aria-label="Reference inputs"><slot name="references" /></div>
         <h2 v-if="narrow && presetPicker && !agentMode" class="st-results-heading">My results</h2>
@@ -11,7 +11,7 @@
           <button v-for="(tab, i) in tabs" :key="tab.key" type="button" role="tab" :id="`${titleId}-${tab.key}-tab`" :aria-controls="`${titleId}-${tab.key}`" :aria-selected="activeTab === tab.key" :tabindex="activeTab === tab.key ? 0 : -1" :class="{ active: activeTab === tab.key }" @click="emit('update:activeTab', tab.key)" @keydown="moveTab($event, i)">{{ tab.label }}</button>
         </div>
         <div v-if="narrow && presetPicker && !agentMode" class="st-output-body" aria-label="My results"><slot name="results" /></div>
-        <template v-else><div v-for="tab in tabs" :key="tab.key" v-show="activeTab === tab.key" :id="`${titleId}-${tab.key}`" role="tabpanel" :aria-labelledby="`${titleId}-${tab.key}-tab`" class="st-output-body"><slot :name="tab.key" /></div></template>
+        <template v-else><div v-for="tab in tabs" :key="tab.key" v-show="activeTab === tab.key" :id="`${titleId}-${tab.key}`" role="tabpanel" :aria-labelledby="narrow && agentMode ? `${titleId}-mobile-${tab.key}-tab` : `${titleId}-${tab.key}-tab`" class="st-output-body"><slot :name="tab.key" /></div></template>
       </section>
     </div>
   </section>
@@ -32,7 +32,7 @@ function mediaChanged(event) { narrow.value = event.matches }
 media?.addEventListener?.('change', mediaChanged)
 onBeforeUnmount(() => media?.removeEventListener?.('change', mediaChanged))
 const tabs = computed(() => [{ key: 'presets', label: props.workLabel }, ...(slots.looks ? [{ key: 'looks', label: 'Looks' }] : []), { key: 'results', label: 'My results' }, ...(slots.versions ? [{ key: 'versions', label: 'Versions' }] : [])])
-const mobileTabs = computed(() => [{ key: 'create', label: 'Create' }, ...tabs.value.map(tab => ({ ...tab, label: tab.key === 'presets' ? 'Preview' : tab.key === 'results' ? 'Results' : tab.label }))])
+const mobileTabs = computed(() => [{ key: 'create', label: 'Chat' }, ...tabs.value.map(tab => ({ ...tab, label: tab.key === 'presets' ? 'Preview' : tab.key === 'results' ? 'Results' : tab.label }))])
 function selectMobile(key) { mobilePane.value = key === 'create' ? 'create' : 'output'; if (key !== 'create') emit('update:activeTab', key) }
 function moveMobile(event,index) { if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return; event.preventDefault(); const next = event.key === 'Home' ? 0 : event.key === 'End' ? mobileTabs.value.length - 1 : (index + (event.key === 'ArrowLeft' ? -1 : 1) + mobileTabs.value.length) % mobileTabs.value.length; selectMobile(mobileTabs.value[next].key); event.currentTarget.parentElement.querySelectorAll('button')[next]?.focus() }
 function moveTab(event, index) {
@@ -58,7 +58,7 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
 
 <style scoped>
 @media(max-width:1023px){.st-page-agent :deep(.sap-scroll){min-height:0}.st-page-agent .st-form{overscroll-behavior:contain}}
-@media(max-width:1023px) and (max-height:700px){.st-page-agent .st-form{overflow-y:auto;display:block}.st-page-agent .st-form>:deep(.sps){margin-block:12px}.st-page-agent :deep(.sap),.st-page-agent :deep(.sap.sap-expanded){height:330px;min-height:330px;max-height:none;flex:none}.st-page-agent .st-page-head{min-height:38px}.st-page-agent .st-page-head h1{font-size:20px}.st-mobile-tabs button{min-height:40px}.st-page-agent{gap:10px}}
+
 </style>
 
 <style scoped>
@@ -72,4 +72,49 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
 @media(max-width:1260px){.st-page-body{grid-template-columns:320px minmax(0,1fr)}.st-page{padding-inline:26px}}
 @media(max-width:1023px){.st-page{padding:18px 16px;gap:16px}.st-title-icon{width:40px;height:40px}.st-page-head h1{font-size:24px}.st-title-category{font-size:8px}.st-page-head{min-height:60px}.st-page-agent .st-page-body{display:flex}.st-page-body{grid-template-columns:minmax(0,1fr)}.st-page-agent .st-form{padding:16px}.st-page-agent :deep(.sm-switch button){min-height:44px}.st-output-body{padding:16px}}
 @media(max-width:480px){.st-page{padding:14px 12px 12px}.st-title-block{gap:10px}.st-title-icon{width:36px;height:36px}.st-title-icon svg{width:18px;height:18px}.st-page-head h1{font-size:21px}.st-page-head p{font-size:11px}.st-page-agent .st-form{padding:12px}}
+</style>
+
+<style scoped>
+@media(max-width:1023px){
+ .st-page-agent{flex:1 1 0;height:auto;min-height:0;gap:8px;padding:10px 12px max(8px,env(safe-area-inset-bottom))}
+ .st-page-agent .st-page-head{min-height:44px;gap:8px}
+ .st-page-agent .st-page-head h1{font-size:19px;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+ .st-page-agent .st-title-category{display:none}
+ .st-page-agent .st-title-icon{width:30px;height:30px}
+ .st-page-agent .st-title-block{gap:8px}
+ .st-page-agent .st-page-head :deep(.spp-trigger){font-size:11px;padding:8px;flex:none}
+ .st-mobile-tabs{gap:2px;padding:0;min-height:44px;scrollbar-width:none}
+ .st-mobile-tabs button{font-size:12px;min-height:44px;padding:8px 10px;flex:1}
+ .st-page-agent .st-controls{border:0;background:transparent;border-radius:0}
+ .st-page-agent .st-form{display:flex;flex:1;min-height:0;gap:8px;padding:0;overflow:hidden}
+ .st-page-agent .st-form>:deep(.sm-switch){width:auto;align-self:flex-start;padding:2px}
+ .st-page-agent .st-form>:deep(.sm-switch button){min-height:44px;padding:7px 18px}
+ .st-page-agent .st-form>:deep(.sps){gap:8px}
+ .st-page-agent :deep(.st-tool-options){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center}
+ .st-page-agent :deep(.st-tool-options .sm-switch){width:100%;padding:2px}
+ .st-page-agent :deep(.st-tool-options .sm-switch button){padding:7px 8px;font-size:12px;gap:5px}
+ .st-page-agent :deep(.st-tool-options .sm-switch svg){width:13px;height:13px}
+ .st-page-agent :deep(.st-tool-options .sps>span){display:none}
+ .st-page-agent :deep(.sap),.st-page-agent :deep(.sap.sap-expanded){flex:1 1 0;height:auto;min-height:0;max-height:none;gap:6px}
+ .st-page-agent :deep(.sap-head){min-height:44px}
+ .st-page-agent :deep(.sap-scroll){flex:1 1 0;min-height:0}
+ .st-page-agent :deep(.sap-composer){padding:0;background:transparent;border:0}
+ .st-page-agent :deep(.sap-more){margin-bottom:4px}
+ .st-page-agent :deep(.sap-more summary){min-height:44px;padding:12px 2px;font-size:12px}
+ .st-page-agent :deep(.sap-more[open]){max-height:140px;overflow:auto}
+ .st-page-agent :deep(.sap-input){min-height:62px;max-height:110px;padding:10px 12px 4px;font-size:16px}
+ .st-page-agent :deep(.sap .vcp-chips){max-height:90px;overflow:auto}
+ .st-page-agent :deep(.sap .vcp-box){background:#202e45;border-color:#506b94}
+ .st-page-agent .st-output{min-height:0}
+}
+@media(max-width:1023px) and (max-height:700px){
+ .st-page-agent{gap:4px;padding-block:4px}
+ .st-page-agent .st-page-head{display:none}
+ .st-page-agent .st-title-icon{display:none}
+ .st-page-agent .st-form{gap:4px}
+ .st-page-agent:has(.sap-input:focus) .st-page-head{display:none}
+ .st-page-agent .st-form:has(.sap-input:focus)>:deep(.st-tool-options){display:none}
+ .st-page-agent :deep(.sap-intro){font-size:12px;line-height:1.5}
+ .st-page-agent :deep(.sap-more summary){min-height:36px;padding-block:8px}
+}
 </style>

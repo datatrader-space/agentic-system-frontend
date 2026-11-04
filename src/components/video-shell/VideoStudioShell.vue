@@ -2,7 +2,7 @@
   <!-- Video Studio's own dashboard inside the AADML app (owner, 2026-10-19): its own side navigation, like the
        admin dashboard. Below 1024px the navigation is a drawer: the menu button opens it; picking a page, tapping
        outside or Escape closes it. -->
-  <div class="vs-shell" @keydown.esc="closeMenu(true)">
+  <div class="vs-shell" :class="{ 'vs-keyboard-open': keyboardOpen }" :style="{ '--studio-visible-height': viewportHeight }" @keydown.esc="closeMenu(true)">
     <div v-if="menuOpen" class="vs-backdrop" aria-hidden="true" @click="closeMenu(true)"></div>
     <aside ref="sidebar" :inert="mobile && !menuOpen ? '' : undefined" :aria-hidden="mobile && !menuOpen ? 'true' : undefined" @keydown.tab="trapMenu" id="vs-sidebar" class="vs-sidebar" :class="{ open: menuOpen }" aria-label="Video Studio" data-test="video-studio-nav">
       <router-link to="/video-studio" class="vs-brand">
@@ -69,9 +69,11 @@ import { provideStudioTemplates } from '../../composables/useStudioTemplates'
 import { clearStudioDrafts } from '../../services/studioDrafts'
 import StudioRecentChats from './StudioRecentChats.vue'
 import { useChatStore } from '../../stores/useChatStore'
+import { useStudioViewport } from '../../composables/useStudioViewport'
 
 const route = useRoute()
 const chat = useChatStore()
+const { height: viewportHeight, keyboardOpen } = useStudioViewport()
 const user = ref(null)
 const savedLooks = provideStudioSavedLooks(user)
 const myTemplates = provideStudioTemplates(user)
@@ -269,3 +271,19 @@ body.vs-theme {
 </style>
 
 <style scoped>@media(max-width:1023px){.vs-design-version{display:none}.vs-brand{padding-right:40px}}</style>
+
+<style scoped>
+@media(max-width:1023px){
+ .vs-shell{height:var(--studio-visible-height,100dvh)}
+ .vs-sidebar{width:min(280px,86vw);padding:16px 12px 10px}
+ .vs-brand{height:54px;min-height:54px;padding-bottom:14px}
+ .vs-nav-close{top:12px;right:8px}
+ .vs-workspace-switch{margin-bottom:12px}
+ .vs-foot{padding-top:6px;margin-top:8px}
+ .vs-workspace-status{margin-block:8px 0}
+ .vs-keyboard-open :deep(.st-page-agent .st-page-head){display:none}
+ .vs-keyboard-open :deep(.st-page-agent .st-form>.st-tool-options){display:none}
+ .vs-keyboard-open :deep(.st-page-agent){gap:4px;padding-block:4px}
+ .vs-keyboard-open :deep(.sap-more summary){min-height:36px;padding-block:8px}
+}
+</style>

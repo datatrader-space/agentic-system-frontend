@@ -1,6 +1,6 @@
 <template>
   <section class="discover st-workspace" aria-labelledby="discover-title" data-test="studio-discover">
-    <header class="discover-heading"><div class="discover-eyebrow">DISCOVER YOUR CREATIVE STUDIO</div><h1 id="discover-title">What will you create next?</h1><p>Choose a look or a tool. Your agent helps with the rest.</p><RouterLink class="st-button primary" to="/video-studio/dashboard">✧ Ask your Studio agent →</RouterLink></header>
+    <header class="discover-heading"><div class="discover-eyebrow">DISCOVER YOUR CREATIVE STUDIO</div><h1 id="discover-title">What will you create next?</h1><p>Choose a look or a tool. Your agent helps with the rest.</p><RouterLink class="st-button primary" to="/video-studio/dashboard" aria-label="Ask your Studio agent"><span class="discover-agent-label">✧ Ask your Studio agent →</span><span class="discover-agent-short" aria-hidden="true">✧ Ask agent</span></RouterLink></header>
     <nav class="discover-views" aria-label="Discover views"><button v-for="view in views" :key="view.id" type="button" :aria-pressed="active === view.id" :class="{ active: active === view.id }" @click="active = view.id">{{ view.label }} <span>{{ view.id === 'tools' ? features.length : studioLooks.length }}</span></button></nav>
     <div class="discover-toolbar"><div><h2>{{ active === 'tools' ? 'All tools' : 'Choose a look. Make it yours.' }}</h2><p>{{ active === 'tools' ? 'A page for each part of your creative workflow.' : 'Each look is a prepared prompt and the references it needs. Open one and make it yours.' }}</p></div><div v-if="active === 'tools'" class="discover-mode"><span>Open creative tools in</span><StudioModeSwitch /></div></div>
     <div class="discover-controls"><div class="discover-filters" role="group" aria-label="Filter features"><button v-for="name in active === 'tools' ? ['All features', ...categories] : ['All', ...lookCategories]" :key="name" type="button" :aria-pressed="(active === 'tools' ? category : lookCategory) === name" @click="active === 'tools' ? category = name : lookCategory = name">{{ name }}</button></div><div class="discover-search-row"><label class="discover-search"><span class="st-sr">Search {{ active === 'tools' ? 'features' : 'looks' }}</span><input v-model="query" type="search" :placeholder="active === 'tools' ? 'Search tools, features or what you want to do…' : 'Find a look or style…'" /></label><span>{{ active === 'tools' ? sections.reduce((total,section) => total + section.items.length,0) + ' tools' : shownLooks.length + ' looks' }}</span></div></div>
@@ -99,3 +99,62 @@ const lookGroups=computed(()=>{
 <style scoped>.discover-look-options{display:flex;justify-content:flex-end;gap:12px;margin-bottom:24px}.discover-look-options label{display:grid;gap:6px;font-size:10px;color:#91a2bd;min-width:170px}.discover-look-options select{width:100%;min-width:0;padding:10px 12px;border:1px solid #424e62;border-radius:7px;background:#222b3b;color:#d6e2f4;font:500 12px var(--vm-font-sans)}.discover-look-group{margin-bottom:32px}.discover-look-group>h2{font-size:22px;margin-bottom:18px;font-weight:500;letter-spacing:-.6px}.discover-looks.featured{grid-template-columns:repeat(3,minmax(0,1fr))}.discover-looks.featured :deep(.slm){aspect-ratio:16/10}.discover-looks.featured .discover-look h3{font-size:20px}.discover-looks.featured .discover-look>div:last-child{padding:20px}@media(max-width:680px){.discover-look-options{flex-direction:column;align-items:stretch;gap:10px}.discover-look-options label{min-width:0}.discover-look-options select{font-size:16px;min-height:44px}.discover-looks.featured{grid-template-columns:1fr}.discover-look-group>h2{font-size:20px}}</style>
 
 <style scoped>.discover-mine{scroll-margin-top:16px}.discover-mine:focus{outline:none}.discover-mine:focus-visible{outline:2px solid var(--vs-accent-ink);outline-offset:4px}.discover-mine>h2{display:flex;align-items:center;gap:10px}.discover-mine-count{font-size:11px;border-radius:5px;background:var(--vm-surface-2);padding:3px 6px;color:var(--vm-ink-soft)}.discover-mine-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;list-style:none;margin:0;padding:0}.discover-mine-card{display:flex;flex-direction:column;gap:8px;min-width:0;padding:16px;border:1px solid var(--vm-line);border-radius:10px;background:var(--vm-surface)}.discover-mine-card small{font-size:10px;color:var(--vs-accent-ink)}.discover-mine-card h3{font-size:17px;letter-spacing:-.03em;overflow-wrap:anywhere}.discover-mine-card>p{flex:1;font-size:12px;line-height:1.8;color:var(--vm-ink-soft);overflow-wrap:anywhere}.discover-mine-actions{display:flex;flex-wrap:wrap;gap:8px;padding-top:12px;border-top:1px solid var(--vm-line-2)}.discover-mine-rename{display:grid;gap:10px}.discover-mine-rename .discover-mine-actions{border-top:0;padding-top:0}@media(max-width:1023px){.discover-mine-list{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:680px){.discover-mine-list{grid-template-columns:1fr}.discover-mine-actions .st-button{min-height:44px;flex:1}.discover-mine-rename input{font-size:16px}}</style>
+
+<style scoped>
+.discover-agent-short{display:none}
+/* Phones lead with useful choices instead of a screen of repeated introductions. */
+@media(max-width:680px){
+ .discover{padding:16px 14px 28px}
+ .discover-heading{margin-bottom:12px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;align-items:center}
+ .discover-eyebrow{display:none}
+ .discover-heading h1{font-size:23px;letter-spacing:-.7px;line-height:1.25}
+ .discover-heading p{grid-column:1/-1;grid-row:2;font-size:12px;line-height:1.6}
+ .discover-heading .st-button{font-size:12px;min-height:44px;padding:8px 10px;white-space:nowrap}
+ .discover-agent-label{display:none}.discover-agent-short{display:inline}
+ .discover-views{margin-bottom:12px;gap:22px}
+ .discover-views button{min-height:44px;padding-block:10px;font-size:12px}
+ .discover-toolbar{margin:0 0 12px;gap:8px}
+ .discover-toolbar>div:first-child{display:none}
+ .discover-mode{width:100%;justify-content:space-between;gap:8px}
+ .discover-mode>span{font-size:11px}
+ .discover-mode :deep(.sm-switch){width:auto}
+ .discover-mode :deep(.sm-switch button){min-height:44px;padding:7px 12px}
+ .discover-controls{padding:0 0 12px;margin-bottom:16px;border-top:0}
+ .discover-filters{margin-bottom:8px;gap:3px}
+ .discover-filters button{min-height:44px;padding:8px 10px;font-size:12px}
+ .discover-search-row{display:flex;flex-direction:row;align-items:center;gap:10px}
+ .discover-search{flex:1;min-width:0}
+ .discover-search-row>span{display:none}
+ .discover-search input{min-height:44px;font-size:16px}
+ .discover-section{margin-bottom:20px}
+ .discover-section-title{margin-bottom:10px}
+ .discover-section-title h2{font-size:16px}
+ .discover-tools,.discover-section[data-count="2"] .discover-tools,.discover-section[data-count="4"] .discover-tools{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .discover-tool{min-height:154px;padding:12px;gap:0}
+ .discover-tool>div{gap:8px;min-height:30px;flex-wrap:wrap;align-content:flex-start}
+ .discover-tool svg{width:28px;height:28px;padding:5px;flex:none}
+ .discover-tool h3{font-size:13px;line-height:1.4;flex:1;min-width:0}
+ .discover-arrow{display:none}
+ .discover-tool p{font-size:11px;line-height:1.6;margin:10px 0 12px}
+ .discover-tool footer{font-size:10px;padding-top:8px}
+ .discover-tool footer small{display:none}
+ .discover-look-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+ .discover-look-options select{padding:10px 7px;font-size:14px}
+ .discover-look-group>h2{font-size:18px;margin-bottom:12px}
+}
+@media(max-width:359px){.discover-tool{padding:10px}.discover-tool>div{gap:6px}.discover-tool h3{font-size:12px}}
+</style>
+
+<style scoped>
+@media(max-width:680px){
+ .discover-looks,.discover-looks.featured{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 10px}
+ .discover-look>div:last-child,.discover-looks.featured .discover-look>div:last-child{padding:12px}
+ .discover-look h3,.discover-looks.featured .discover-look h3{font-size:14px;line-height:1.4;letter-spacing:-.2px;margin:6px 0}
+ .discover-look h3>span{display:none}
+ .discover-look p{font-size:11px;line-height:1.6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+ .discover-look footer{margin-top:10px;padding-top:8px;font-size:10px}
+ .discover-look footer>span{display:none}
+ .discover-save{top:6px;right:6px}
+ .discover-looks.featured :deep(.slm){aspect-ratio:4/3}
+}
+</style>

@@ -1,8 +1,8 @@
 <template>
   <StudioPage :feature="feature" @new="newChat" :new-disabled="chat.isBusy || video.busy || !!chat.hitlRequests?.length" :agent-mode="isAgent" ref="page" :chat-expanded="isAgent && chatExpanded" :title="isAgent && selected ? selected.title : feature.label" :purpose="isAgent && selected ? selected.purpose : feature.purpose" :active-tab="tab" :work-label="isAgent ? 'Preview' : hasMonitor ? 'Preview' : 'Workspace'" @update:active-tab="tab = $event">
     <template #form>
-      <StudioModeSwitch />
-      <StudioPresetSelect :model-value="selectedId" :presets="presets" :disabled="chat.isBusy || video.busy" @update:model-value="choosePreset" />
+      <div class="st-tool-options"><StudioModeSwitch /><StudioPresetSelect :model-value="selectedId" :presets="presets" :disabled="chat.isBusy || video.busy" @update:model-value="choosePreset" /></div>
+
       <p v-if="loading" class="st-status" role="status">Checking availability…</p>
       <p v-if="failure" class="st-error" role="alert">{{ failure }} <button type="button" class="st-button" @click="load">Try again</button></p>
       <div v-if="availability && !availability.ready" class="sc-blocked" role="status" data-test="studio-not-ready">

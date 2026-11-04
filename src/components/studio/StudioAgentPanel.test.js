@@ -121,3 +121,17 @@ it('shows no stock picture for a selected look', () => {
   expect(w.get('.sap-look').text()).toContain('Softbox product portrait')
   expect(w.find('.sap-look img').exists()).toBe(false)
 })
+
+
+it('keeps phone Return for a newline and submits only with Send or an explicit keyboard shortcut', async () => {
+  const original = window.matchMedia
+  window.matchMedia = () => ({ matches: true })
+  try {
+    w = mount(StudioAgentPanel, { props:{ modelValue:'Synthetic mobile brief', label:'Video', ready:true }, global:{stubs} })
+    await w.get('textarea').trigger('keydown', { key:'Enter' })
+    expect(state.video.sendAgentMessage).not.toHaveBeenCalled()
+    await w.get('[data-test="studio-agent-send"]').trigger('click')
+    await flushPromises()
+    expect(state.video.sendAgentMessage).toHaveBeenCalledOnce()
+  } finally { window.matchMedia = original }
+})

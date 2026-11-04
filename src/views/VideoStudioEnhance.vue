@@ -1,7 +1,7 @@
 <template>
   <StudioPage :feature="feature" work-label="Preview" @new="newChat" :new-disabled="chat.isBusy || video.busy || !!chat.hitlRequests?.length" ref="page" :agent-mode="isAgent" :chat-expanded="isAgent && chatExpanded" title="Enhance" :purpose="feature.purpose" :active-tab="tab" @update:active-tab="tab = $event">
     <template #form>
-      <StudioModeSwitch /><StudioPresetSelect :model-value="lookId" :presets="lookPresets" :disabled="chat.isBusy || video.busy" @update:model-value="chooseLook" /><StudioFirstVisit v-if="!isAgent" :hidden="hintHidden" @dismiss="dismissHint" />
+      <div class="st-tool-options"><StudioModeSwitch /><StudioPresetSelect :model-value="lookId" :presets="lookPresets" :disabled="chat.isBusy || video.busy" @update:model-value="chooseLook" /></div><StudioFirstVisit v-if="!isAgent" :hidden="hintHidden" @dismiss="dismissHint" />
       <p v-if="loading" class="st-status" role="status">Opening your session...</p><div v-if="error" class="st-error" role="alert">{{ error }}<button type="button" class="st-button" @click="initialize">Try again</button></div>
       <InputSlot v-if="!isAgent" label="Source video" required :kinds="['video']" :limit="1" :allow-upload="false" :items="source ? [source] : []" @pick="pick" @remove="source = null" />
       <StudioAgentPanel @new="newChat" :look="look" v-show="isAgent" v-model="agentDraft" v-model:expanded="chatExpanded" label="Enhance" :purpose="feature.purpose" :ready="ready" @approved="tab = 'results'" />

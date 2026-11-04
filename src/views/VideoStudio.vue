@@ -449,3 +449,24 @@ onBeforeUnmount(() => {
 </style>
 
 <style scoped>.create :deep(.vcp-create){gap:0}.create :deep(.vcp-create>.vcp-hint){margin-top:0;padding-top:0;margin-bottom:16px;font-size:12px;line-height:1.9}.create :deep(.vcp-create>.vcp-cards){margin-bottom:23px}.create :deep(.vcp-create>.vcp-box){position:relative;bottom:auto}</style>
+
+<style scoped>
+@media(max-width:680px){
+ .create-inner{min-height:0;padding:14px 14px 22px}
+ .dashboard-context{margin-bottom:8px;min-height:44px}
+ .dashboard-context button{min-height:44px}
+ .create-heading{text-align:left;margin-bottom:18px}
+ .create-eyebrow{display:none}
+ .create-title{text-align:left;font-size:25px;letter-spacing:-.8px}
+ .create-description{margin-top:8px;font-size:12px;line-height:1.6}
+ .create :deep(.vcp-mode-row){margin-bottom:12px;gap:6px}
+ .create :deep(.vcp-preserved){display:none}
+ .create :deep(.vcp-create>.vcp-hint){font-size:12px;line-height:1.6;margin-bottom:12px}
+ .create :deep(.vcp-box){padding:12px}
+ .create .prompt textarea{min-height:100px;padding-bottom:12px;resize:none}
+ .create :deep(.vcp-reference-hint){display:none}
+ .create :deep(.vcp-bar){flex-wrap:nowrap;gap:8px}
+ .create .send{min-height:44px}
+ .dashboard-meta{padding-top:10px}
+}
+</style>
