@@ -70,6 +70,10 @@
                   <path d="M6 3h8l4 4v14H6z" /><path d="M14 3v4h4" /></svg>
                 <span class="lib-doc-ext">{{ (it.ext || 'file').toUpperCase() }}</span>
               </span>
+              <!-- Select sits on the picture, so every card's buttons are one row in the same place. -->
+              <label v-if="!isPicker && !['audio', 'document'].includes(it.media_type) && usingId !== it.attachment_id" class="lib-pick">
+                <input type="checkbox" :checked="picked.has(it.attachment_id)" :aria-label="'Select ' + it.title" @change="togglePick(it)" />
+                <span aria-hidden="true">Select</span></label>
               <span class="lib-name" :title="it.title">{{ it.title }}</span>
               <span class="lib-meta">{{ it.source === 'generated' ? 'Made with AI' : 'Uploaded' }}, {{ day(it.created_at) }}{{ it.size_bytes ? ', ' + size(it.size_bytes) : '' }}</span>
               <!-- The chat it came from, one click away (owner, 2026-10-20). -->
@@ -90,9 +94,6 @@
                 <!-- What made it, back in the composer (nothing runs until Generate), and this file as an edit's base. -->
                 <button v-if="!isPicker && it.generation" type="button" class="lib-btn" data-test="lib-use-again" @click="useAgain(it)">Use again</button>
                 <button v-if="!isPicker && ['image', 'video'].includes(it.media_type)" type="button" class="lib-btn" data-test="lib-edit" @click="editItem(it)">Edit</button>
-                <label v-if="!isPicker && it.media_type !== 'audio'" class="lib-pick">
-                  <input type="checkbox" :checked="picked.has(it.attachment_id)" :aria-label="'Select ' + it.title" @change="togglePick(it)" />
-                  Select</label>
               </div>
             </li>
           </ul>
@@ -363,8 +364,12 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
 .lib-search { flex: 1 1 200px; max-width: 360px; }
 .lib-field input, .lib-field select, .lib-field textarea { width: 100%; min-height: 40px; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--vm-line, #e5e7eb);
   border-radius: 6px; background: var(--vm-surface-2, #fff); color: var(--vm-ink, #0f172a); font: inherit; font-size: 13.5px; font-weight: 400; }
-.lib-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 18px 14px; }
-.lib-card { display: grid; gap: 6px; min-width: 0; align-content: start; }
+.lib-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 22px 16px; }
+/* A column whose buttons sit at the bottom: cards in one row line their buttons up whatever text is above. */
+.lib-card { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lib-card > .lib-actions, .lib-card > .lib-use { margin-top: auto; padding-top: 6px; }
+.lib-card > .lib-actions { flex-wrap: nowrap; }
+.lib-card > .lib-actions .lib-btn { flex: 1 1 auto; justify-content: center; min-height: 34px; padding: 0 10px; font-size: 12.5px; }
 .lib-card.picked .lib-thumb { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
 .lib-thumb { width: 100%; aspect-ratio: 16/10; object-fit: cover; border-radius: 4px; background: #000; display: grid; place-items: center; color: #a7a8ae; font-size: 12px; }
 .lib-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -396,7 +401,9 @@ a.lib-btn { display: inline-flex; align-items: center; text-decoration: none; }
 .lib-btn.danger { background: #c53030; color: #fff; border-color: transparent; }
 .lib-btn.wide { width: 100%; }
 .lib-btn:disabled { opacity: .45; cursor: not-allowed; }
-.lib-pick { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: 12.5px; color: var(--vm-ink-soft, #64748b); cursor: pointer; }
+.lib-pick { position: absolute; top: 8px; left: 8px; z-index: 2; display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 9px; border: 1px solid #ffffff40; border-radius: 6px; background: #0b111bcc; font-size: 12px; color: #e6edf8; cursor: pointer; }
+.lib-card.picked .lib-pick { background: var(--vm-violet-d, #4f46e5); border-color: transparent; }
+.lib-pick:focus-within { outline: 2px solid var(--vm-violet, #4f46e5); outline-offset: 2px; }
 .lib-pick input { width: 16px; height: 16px; accent-color: var(--vm-violet-d, #4f46e5); }
 .lib-save { position: sticky; bottom: 0; display: grid; gap: 10px; padding: 14px; border: 1px solid var(--vm-line, #e5e7eb); border-radius: 8px;
   background: var(--vm-surface, #fff); box-shadow: var(--vm-shadow-m, 0 8px 22px rgba(15, 23, 42, .08)); }
@@ -420,6 +427,7 @@ a.lib-btn { display: inline-flex; align-items: center; text-decoration: none; }
   .lib-body { padding: 12px 16px 20px; }
   .lib-field input, .lib-field select, .lib-field textarea { font-size: 16px; }
   .lib-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 10px; }
+  .lib-card > .lib-actions { flex-wrap: wrap; }
   .lib-search { max-width: none; }
 }
 @media (prefers-reduced-motion: reduce) { .lib * { transition: none !important; } }

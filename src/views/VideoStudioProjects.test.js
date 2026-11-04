@@ -5,7 +5,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../services/api', () => ({ default: { get: vi.fn().mockResolvedValue({ data: { projects: [
-  { project_id: 'p-apple', title: 'apple', aspect_ratio: '9:16', updated_at: '2026-10-20T12:53:00Z', conversation_id: 2876 },
+  { project_id: 'p-apple', title: 'apple', aspect_ratio: '9:16', updated_at: '2026-10-20T12:53:00Z', conversation_id: 2876, thumbnail_url: '/api/library/v1/thumbnail/' },
   { project_id: 'p-pear', title: 'pear', aspect_ratio: '1:1', updated_at: '2026-10-19T10:00:00Z', conversation_id: null },
 ] } }), post: vi.fn().mockResolvedValue({data:{project_id:'new'}}) } }))
 
@@ -20,6 +20,18 @@ describe('VideoStudioProjects', () => {
     await flush(); await flush()
     const to = w.findAll('[data-test="vsp-project"]').map((a) => JSON.parse(a.attributes('data-to')))
     expect(to).toEqual([{ name: 'video-studio-dashboard', query: { conversation: '2876' } }, { name: 'video-studio-dashboard', query: { project: 'p-pear' } }])
+  })
+  it("shows a project's own video picture, and its shape with a note when it has none or the picture fails", async () => {
+    const w = mount(VideoStudioProjects, { global: { stubs: { RouterLink: { props: ['to'], template: '<a><slot /></a>' } } } })
+    await flush(); await flush()
+    const [apple, pear] = w.findAll('[data-test="vsp-project"]')
+    expect(apple.get('[data-test="vsp-thumbnail"]').attributes('src')).toBe('/api/library/v1/thumbnail/')
+    expect(apple.text()).not.toContain('No video yet')
+    expect(pear.find('[data-test="vsp-thumbnail"]').exists()).toBe(false)
+    expect(pear.text()).toContain('No video yet')
+    await apple.get('img').trigger('error')
+    expect(apple.find('img').exists()).toBe(false)
+    expect(apple.text()).toContain('No video yet')
   })
 })
 

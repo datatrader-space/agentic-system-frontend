@@ -25,7 +25,11 @@
                opening a project made a new, empty chat every time). -->
           <router-link :to="{ name: 'video-studio-dashboard', query: p.conversation_id ? { conversation: String(p.conversation_id) } : { project: p.project_id } }"
                        class="vsp-card" data-test="vsp-project">
-            <span class="vsp-frame" aria-hidden="true"><span class="vsp-shape" :style="{ '--ar': ratio(p.aspect_ratio) }"></span></span>
+            <!-- The project's own video (its active version's picture, from the server); none yet: its shape and a note. -->
+            <span class="vsp-frame" :class="{ 'has-thumb': p.thumbnail_url && !noThumb.has(p.project_id) }" aria-hidden="true">
+              <img v-if="p.thumbnail_url && !noThumb.has(p.project_id)" :src="p.thumbnail_url" alt="" class="vsp-thumb" loading="lazy" data-test="vsp-thumbnail" @error="thumbFailed(p)" />
+              <template v-else><span class="vsp-shape" :style="{ '--ar': ratio(p.aspect_ratio) }"></span><small class="vsp-novideo">No video yet</small></template>
+            </span>
             <strong class="vsp-name">{{ p.title || 'Untitled video' }}</strong>
             <span class="vsp-meta">{{ p.aspect_ratio ? p.aspect_ratio + ', ' : '' }}edited {{ day(p.updated_at) }}</span>
           </router-link>
@@ -49,6 +53,9 @@ const shown = computed(() => {
   const t = q.value.trim().toLowerCase()
   return t ? projects.value.filter((p) => String(p.title || '').toLowerCase().includes(t)) : projects.value
 })
+// A picture that will not load falls back to the shape, never a broken image.
+const noThumb = ref(new Set())
+function thumbFailed(p) { noThumb.value = new Set(noThumb.value).add(p.project_id) }
 function day(iso) { return iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '' }
 function ratio(ar) {
   const m = /^(\d+):(\d+)$/.exec(ar || '')
@@ -89,7 +96,12 @@ onMounted(load)
 .vsp-card { display: grid; gap: 6px; color: inherit; text-decoration: none; border-radius: 4px; }
 .vsp-frame { display: grid; place-items: center; aspect-ratio: 16 / 10; border-radius: 4px; background: #000; transition: background-color .15s; }
 .vsp-card:hover .vsp-frame { background: #0b0b0c; box-shadow: inset 0 0 0 1px var(--vm-line); }
-.vsp-shape { height: 62%; aspect-ratio: var(--ar, 1.7778); max-width: 80%; border: 1px solid #5b5c63; border-radius: 2px; box-sizing: border-box; }
+.vsp-frame { position: relative; overflow: hidden; }
+.vsp-frame.has-thumb { background: #000; }
+.vsp-thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.vsp-novideo { position: absolute; left: 12px; bottom: 10px; font-size: 11px; color: var(--vm-ink-soft); }
+.vsp-name { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.vsp-shape { height: 46%; aspect-ratio: var(--ar, 1.7778); max-width: 80%; border: 1px solid #5b5c63; border-radius: 2px; box-sizing: border-box; }
 .vsp-name { margin-top: 2px; font-size: 13.5px; font-weight: 500; overflow-wrap: anywhere; }
 .vsp-meta { font-size: 12px; color: var(--vm-ink-soft); font-variant-numeric: tabular-nums; }
 .vsp a:focus-visible, .vsp input:focus-visible, .vsp button:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 2px; }

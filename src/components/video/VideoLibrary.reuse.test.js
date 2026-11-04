@@ -70,3 +70,15 @@ it('Edit opens the edit flow with this file as the base', async () => {
   expect(api.post).not.toHaveBeenCalled()
   w.unmount()
 })
+
+it('puts Select on the picture and keeps the buttons in one row at the bottom of each card', async () => {
+  const w = mount(VideoLibrary, { props: { mode: 'page' }, global: { stubs: { RouterLink: true } } })
+  await flush()
+  const card = w.findAll('[data-test="lib-item"]')[0]
+  const pick = card.get('.lib-pick')
+  expect(pick.element.parentElement).toBe(card.element)
+  expect(card.get('.lib-actions').find('.lib-pick').exists()).toBe(false)
+  await pick.get('input').setValue(true)
+  expect(card.classes()).toContain('picked')
+  w.unmount()
+})
