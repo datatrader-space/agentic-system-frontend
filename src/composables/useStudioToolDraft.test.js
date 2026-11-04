@@ -8,14 +8,45 @@ import { clearStudioDrafts, studioDraftKey, keepLocalDraft, STUDIO_DRAFT_MAX_AGE
 const state=vi.hoisted(()=>({route:null}))
 vi.mock('vue-router',()=>({useRoute:()=>state.route}))
 beforeEach(()=>{localStorage.clear();state.route=reactive({query:{}})})
-function setup(user=ref({id:'one'})){
+function setup(user=ref({id:'one'}),initial={}){
   const t={user,draft:null,selected:null,api:null}
-  const Child=defineComponent({setup(){t.draft=ref('');t.selected=ref('');t.api=useStudioToolDraft('music',t.draft,t.selected);return()=>h('textarea',{value:t.draft.value})}})
+  const Child=defineComponent({setup(){t.draft=ref(initial.draft||'');t.selected=ref(initial.preset||'');t.api=useStudioToolDraft('music',t.draft,t.selected);return()=>h('textarea',{value:t.draft.value})}})
   t.Parent=defineComponent({setup(){provide('studioUser',user);return()=>h(Child)}})
   t.w=mount(t.Parent)
   return t
 }
 const key=(conversation='')=>studioDraftKey('one','music',conversation)
+
+it('keeps an explicit template when the initial signed-in identity arrives after page setup',async()=>{
+  state.route.query={preset:'music-look-2',mode:'agent'}
+  keepLocalDraft(key(),{agentDraft:'Older saved direction',preset:'music-look-1'})
+  const user=ref(null),t=setup(user,{draft:'Prepared direction from the selected look',preset:'music-look-2'})
+  user.value={id:'one'};await nextTick()
+  expect(t.selected.value).toBe('music-look-2')
+  expect(t.draft.value).toBe('Prepared direction from the selected look')
+  t.w.unmount()
+})
+
+it('restores only the first signed-in person\'s saved draft after asynchronous identity hydration',async()=>{
+  keepLocalDraft(key(),{agentDraft:'My saved direction',preset:'music-look-1'})
+  keepLocalDraft(studioDraftKey('two','music',''),{agentDraft:'Another account text',preset:'music-look-3'})
+  const user=ref(null),t=setup(user)
+  user.value={id:'one'};await nextTick()
+  expect(t.draft.value).toBe('My saved direction')
+  expect(t.selected.value).toBe('music-look-1')
+  t.w.unmount()
+})
+
+it('does not treat sign-out followed by a different sign-in as first identity hydration',async()=>{
+  state.route.query={preset:'music-look-2'}
+  const user=ref({id:'one'}),t=setup(user,{draft:'Private customized direction',preset:'music-look-2'})
+  user.value=null;await nextTick()
+  expect(t.draft.value).toBe('');expect(t.selected.value).toBe('')
+  keepLocalDraft(studioDraftKey('two','music',''),{agentDraft:'Other saved text',preset:'music-look-3'})
+  user.value={id:'two'};await nextTick()
+  expect(t.draft.value).toBe('');expect(t.selected.value).toBe('')
+  t.w.unmount()
+})
 
 it('keeps unsent text on this device and brings it back after a remount (a reload or a closed tab)',async()=>{
   const t=setup();t.draft.value='My unsent direction';t.selected.value='music-look-1';await nextTick()
