@@ -1,16 +1,19 @@
 <template>
   <StudioPage :feature="feature" @new="newChat" :new-disabled="chat.isBusy || video.busy || !!chat.hitlRequests?.length" :agent-mode="isAgent" ref="page" :chat-expanded="isAgent && chatExpanded" :title="isAgent && selected ? selected.title : feature.label" :purpose="isAgent && selected ? selected.purpose : feature.purpose" :active-tab="tab" :work-label="isAgent ? 'Preview' : hasMonitor ? 'Preview' : 'Workspace'" @update:active-tab="tab = $event">
     <template #form>
-      <div class="st-tool-options"><StudioModeSwitch /><StudioPresetSelect :model-value="selectedId" :presets="presets" :disabled="chat.isBusy || video.busy" @update:model-value="choosePreset" /></div>
+      <div class="st-tool-setup">
+        <div class="st-tool-options"><StudioModeSwitch /><StudioPresetSelect :model-value="selectedId" :presets="presets" :disabled="chat.isBusy || video.busy" @update:model-value="choosePreset" /></div>
 
       <p v-if="loading" class="st-status" role="status">Checking availability…</p>
       <p v-if="failure" class="st-error" role="alert">{{ failure }} <button type="button" class="st-button" @click="load">Try again</button></p>
-      <div v-if="availability && !availability.ready" class="sc-blocked" role="status" data-test="studio-not-ready">
+      <details v-if="availability && !availability.ready" class="sc-blocked" :open="!isAgent" role="status" data-test="studio-not-ready">
+        <summary>{{ isAgent ? 'Generation setup needed' : 'Tool setup needed' }}</summary>
         <p>{{ availability.reason }}</p>
         <p v-if="providerNeeded" class="st-muted">The platform's models for this are added by a platform administrator.</p>
-      </div>
+      </details>
       <p v-if="templateMessage" class="st-error" role="alert" data-test="studio-template-message">{{ templateMessage }}</p>
       <p v-if="session.error.value" class="st-error" role="alert">{{ session.error.value }} <button type="button" class="st-button" @click="session.initialize">Try again</button></p>
+            </div>
       <StudioAgentPanel @new="newChat" @sent="toolDraft.forget()" :look="selected" v-show="isAgent" v-model="agentDraft" v-model:expanded="chatExpanded" :label="feature.label" :purpose="feature.purpose" :ready="session.ready.value" @approved="tab = 'results'" />
       <div v-show="!isAgent" class="sc-manual" data-test="studio-manual">
         <template v-if="availability?.ready">
@@ -160,4 +163,10 @@ watch([() => myTemplates.ready.value, () => route.query.template], async ([liste
 </script>
 <style scoped>
 .sc-manual{display:grid;gap:18px}.sc-blocked{display:grid;gap:6px;padding:12px;border:1px solid var(--vm-line);border-radius:7px;background:var(--vm-surface-2);font-size:13px;line-height:1.55}.sc-note{padding:16px 24px;font-size:12px;line-height:1.6}.sc-monitor{min-width:0}@media(max-width:767px){.sc-note{padding:12px 16px}}
+</style>
+<style scoped>
+.sc-blocked{display:block;padding:0;flex-shrink:0;overflow:auto}
+.sc-blocked summary{min-height:44px;padding:10px 12px;cursor:pointer;font-weight:500}
+.sc-blocked[open] summary{border-bottom:1px solid var(--vm-line);margin-bottom:10px}
+.sc-blocked p{padding:0 12px 12px;font-size:12px;line-height:1.6}
 </style>

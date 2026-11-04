@@ -29,6 +29,19 @@ beforeEach(() => {
 })
 
 describe('Creative suite readiness', () => {
+  it('keeps setup information compact in Agent and open in Manual without bypassing readiness', async () => {
+    api.getStudioFeatures.mockResolvedValue(notReady('lipsync'))
+    const w = mountPage('lipsync'); await flushPromises()
+    const notice = w.get('[data-test="studio-not-ready"]')
+    expect(notice.element.tagName).toBe('DETAILS')
+    expect(notice.attributes('open')).toBeUndefined()
+    expect(notice.get('summary').text()).toBe('Generation setup needed')
+    await w.get('[data-test="studio-mode-manual"]').trigger('click')
+    expect(notice.attributes('open')).toBeDefined()
+    expect(notice.text()).toContain('No proven model is configured.')
+    expect(api.post).not.toHaveBeenCalled()
+    w.unmount()
+  })
   it.each(CREATIVE_STUDIO_PAGES)('%s fails closed without provider readiness', async id => {
     api.getStudioFeatures.mockResolvedValue(notReady(id))
     const w = mountPage(id); await flushPromises()

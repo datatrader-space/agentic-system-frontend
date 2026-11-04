@@ -1,3 +1,4 @@
+.st-tool-setup{display:flex;flex-direction:column;gap:14px;flex-shrink:0;min-width:0;min-height:0}
 /* F0 components use only the shipped Studio tokens. */
 .st-tool-options{display:flex;flex-direction:column;gap:14px;flex-shrink:0;min-width:0}
 .st-page,.st-workspace{color:var(--vm-ink);font-family:var(--vm-font-sans);font-size:14px;line-height:1.55;min-width:0}

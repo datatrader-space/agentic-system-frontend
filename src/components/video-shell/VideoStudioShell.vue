@@ -282,7 +282,7 @@ body.vs-theme {
  .vs-foot{padding-top:6px;margin-top:8px}
  .vs-workspace-status{margin-block:8px 0}
  .vs-keyboard-open :deep(.st-page-agent .st-page-head){display:none}
- .vs-keyboard-open :deep(.st-page-agent .st-form>.st-tool-options){display:none}
+ .vs-keyboard-open :deep(.st-page-agent .st-form .st-tool-options){display:none}
  .vs-keyboard-open :deep(.st-page-agent){gap:4px;padding-block:4px}
  .vs-keyboard-open :deep(.sap-more summary){min-height:36px;padding-block:8px}
 }

@@ -103,6 +103,8 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
  .st-page-agent :deep(.sap-more summary){min-height:44px;padding:12px 2px;font-size:12px}
  .st-page-agent :deep(.sap-more[open]){max-height:140px;overflow:auto}
  .st-page-agent :deep(.sap-input){min-height:62px;max-height:110px;padding:10px 12px 4px;font-size:16px}
+ .st-page-agent :deep(.sap-send),.st-page-agent :deep(.sap-stop){min-height:44px}
+ .st-page-agent :deep(.sap .vcp-plus){min-width:44px;width:44px;min-height:44px;height:44px}
  .st-page-agent :deep(.sap .vcp-chips){max-height:90px;overflow:auto}
  .st-page-agent :deep(.sap .vcp-box){background:#202e45;border-color:#506b94}
  .st-page-agent .st-output{min-height:0}
@@ -113,8 +115,29 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
  .st-page-agent .st-title-icon{display:none}
  .st-page-agent .st-form{gap:4px}
  .st-page-agent:has(.sap-input:focus) .st-page-head{display:none}
- .st-page-agent .st-form:has(.sap-input:focus)>:deep(.st-tool-options){display:none}
+ .st-page-agent .st-form:has(.sap-input:focus) :deep(.st-tool-options){display:none}
  .st-page-agent :deep(.sap-intro){font-size:12px;line-height:1.5}
  .st-page-agent :deep(.sap-more summary){min-height:36px;padding-block:8px}
+}
+</style>
+
+<style scoped>
+/* A landscape phone has room beside the conversation, not above it. */
+@media(min-width:600px) and (max-width:1023px) and (max-height:500px){
+ .st-page-agent .st-form{display:grid;grid-template-columns:190px minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:8px;align-items:stretch}
+ .st-page-agent .st-form>:deep(.st-tool-setup){grid-column:1;grid-row:1;min-height:0;height:100%;max-height:100%;overflow:auto}
+ .st-page-agent :deep(.st-tool-options){display:flex;flex-direction:column;align-items:stretch}
+ .st-page-agent .st-form>:deep(.sap){grid-column:2;grid-row:1;align-self:stretch;height:100%;overflow:hidden}
+ .st-page-agent.st-chat-expanded .st-form{display:flex}
+}
+@media(max-width:1023px){
+ .st-page-agent :deep(.st-tool-setup){gap:8px}
+ .st-page-agent.st-chat-expanded :deep(.st-tool-setup){height:auto;max-height:20%;overflow:auto}
+ .st-page-agent.st-chat-expanded :deep(.st-tool-setup:not(:has([role="alert"]))){display:none}
+ .st-page-agent.st-chat-expanded .st-page-head,.st-page-agent.st-chat-expanded .st-mobile-tabs{display:none}
+ .st-page-agent.st-chat-expanded :deep(.st-tool-options),.st-page-agent.st-chat-expanded :deep(.sc-blocked){display:none}
+}
+@media(max-width:599px) and (max-height:480px){
+ .st-page-agent:has(.sap-input:focus) :deep(.sap-head),.st-page-agent .st-form:has(.sap-input:focus) :deep(.sc-blocked){display:none}
 }
 </style>

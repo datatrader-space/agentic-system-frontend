@@ -30,3 +30,13 @@ Use the existing main-branch GitHub Actions build/test/security/performance gate
 ## Dashboard keyboard consistency follow-up
 
 Final review found Dashboard still submitted phone Return while tool chat inserted a newline. Applied the same coarse-pointer rule to the existing Dashboard composer; Manual Ctrl/Cmd+Enter estimate behavior is unchanged. Dashboard regression: 25 tests passed. This small logic follow-up uses the same gated production build/CI release; final live verification is pending the latest deployment. No backend changes.
+
+## Samsung / Apple viewport follow-up
+
+The owner's follow-up explicitly requested Samsung and Apple viewports. The installed Playwright device catalogue supplies Galaxy S24 360x780 (landscape 780x360), iPhone SE (3rd gen) 375x667, iPhone 17 402x681 (landscape 756x352), and iPhone 17 Pro Max 440x763. These are browser viewport presets, not physical-hardware or Safari-engine certification.
+
+Live landscape testing found an additional clipping case when a generation-readiness notice was present. The follow-up keeps that notice as a compact, expandable explanation in Agent (open by default in Manual), puts setup and notices in a separate scrolling column on landscape phones, and makes Expand chat free the mobile tabs/settings space. Session failures remain visible and all readiness/approval controls are unchanged. Send and attach stay at least 44px on landscape phones too.
+
+Local checks at an actual measured 780x360 viewport, including two backend-unavailable alerts, showed Send within both the viewport and its chat container. Expanded chat also fits (Send bottom about 350px, container bottom 356px). Affected regressions: 173 passed / 5 files, including a new test that setup remains disclosed and no API mutation occurs. Production Vite build passed in 2m 42s. Final CI and exact live device checks follow the gated deployment; they must not be inferred from pre-release measurements.
+
+CI for 0194d5f passed all jobs and deployed successfully (run 41825685569). Its live desktop pass covered Dashboard + all 26 destinations and workspace tabs / mode switching for every creative page; an Effects browser-control timeout passed on explicit retry. Mobile checks are saved incrementally under outputs/studio-live-qa-2026-11-04.json; unfinished / timed-out checks are retained and must be retried before final signoff. The first rapid multi-viewport measurements were stale while resize events were pending: do not use them as device validation. Later checks wait for resize and record actual dimensions and clipping boundaries.

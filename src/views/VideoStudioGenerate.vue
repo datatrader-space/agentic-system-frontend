@@ -1,12 +1,17 @@
 <template>
   <StudioPage :feature="feature" :work-label="isAgent ? 'Preview' : 'Presets'" :agent-mode="isAgent" ref="page" :chat-expanded="isAgent && chatExpanded" :title="isAgent && selected ? selected.title : feature.label" :purpose="isAgent && selected ? selected.purpose : feature.purpose" :active-tab="tab" preset-picker @new="freshStart" :new-disabled="chat.isBusy || video.busy || !!chat.hitlRequests.length" @update:active-tab="tab = $event">
     <template #form="{ narrow }">
-      <div class="st-tool-options"><StudioModeSwitch /><StudioPresetSelect :model-value="selectedId" :presets="presets" :disabled="chat.isBusy || video.busy" @update:model-value="selectPresetId" /></div>
+      <div class="st-tool-setup">
+        <div class="st-tool-options"><StudioModeSwitch /><StudioPresetSelect :model-value="selectedId" :presets="presets" :disabled="chat.isBusy || video.busy" @update:model-value="selectPresetId" /></div>
       <StudioFirstVisit v-if="!isAgent" :hidden="hintHidden" @dismiss="dismissHint" />
       <StudioLookDetails v-if="!isAgent && selected?.clientOnly" :look="selected" :disabled="chat.isBusy || video.busy" :settings="pageSettings" @apply="choose" />
       <BottomSheet v-if="narrow && !isAgent" ref="presetSheet" label="Change preset" :summary="selected?.title || 'Your own idea'" test-id="studio-preset-picker"><PresetGallery :presets="presets" :selected="selectedId" @select="choose" /></BottomSheet>
       <p v-if="loading" class="st-status" role="status">Loading your models...</p><div v-if="error" class="st-error" role="alert">{{ error }}<button type="button" class="st-button" @click="initialize">Try again</button></div>
       <StudioReferenceInputs v-if="!isAgent" :groups="inputGroups" :unassigned="unassigned" @add-files="addFiles" @pick="pick" @remove="video.removeRef($event)" />
+      <p v-if="draftMessage" class="st-error" role="status">{{ draftMessage }}</p>
+      <p v-if="templateMessage" class="st-error" role="alert" data-test="studio-template-message">{{ templateMessage }}</p>
+      <p v-if="formError" class="st-error" role="alert">{{ formError }}</p>
+      </div>
       <StudioAgentPanel @new="freshStart" @sent="draftSent" :look="selected" v-show="isAgent" ref="agentPanel" v-model="agentDraft" v-model:expanded="chatExpanded" :label="feature.label" :purpose="feature.purpose" :ready="ready" @approved="tab = 'results'" />
       <div v-show="!isAgent" class="sg-manual">
       <div class="sg-help"><button type="button" class="st-button" data-test="studio-write-prompt" :disabled="!ready || chat.isBusy || !!helper" @click="askHelper('prompt')">Write it for me</button><button type="button" class="st-button" data-test="studio-suggest-settings" :disabled="!ready || chat.isBusy || !!helper" @click="askHelper('settings')">Suggest settings</button></div>
@@ -17,9 +22,6 @@
       <StudioSettings :kind="kind" />
       <LivePrice v-bind="livePrice" v-model:accepted="quote.accepted.value" :empty="draftProblem || 'Fill in the details to see the price.'" />
       </div>
-      <p v-if="draftMessage" class="st-error" role="status">{{ draftMessage }}</p>
-      <p v-if="templateMessage" class="st-error" role="alert" data-test="studio-template-message">{{ templateMessage }}</p>
-      <p v-if="formError" class="st-error" role="alert">{{ formError }}</p>
     </template>
     <template #presets><template v-if="isAgent"><StudioLookPreview v-if="selected?.clientOnly" :look="selected" :settings="pageSettings" @select="choose" /><StudioCreativeCanvas v-else /></template><PresetGallery v-else :presets="presets" :selected="selectedId" @select="choose" /></template>
     <template #looks><PresetGallery :presets="presets" :selected="selectedId" @select="choose" /></template>
