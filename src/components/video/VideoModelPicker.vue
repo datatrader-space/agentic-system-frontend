@@ -117,11 +117,14 @@ function ownKey(r) {
   if (isImage.value) return mixed.value && !!r.own_key
   return mixed.value && (r.connections || []).some((c) => c.connection && c.connection !== 'AADML')
 }
-function usable(r) { return isImage.value || (r.state === 'active' && (r.offered || []).length > 0) }
+// An image model billing would refuse (no published price, or billing still being checked) is SHOWN, disabled, with
+// the backend's reason, never hidden (owner, 2026-11-03: hidden things are forgotten and never fixed).
+function usable(r) { return isImage.value ? r.usable !== false : (r.state === 'active' && (r.offered || []).length > 0) }
 
 const RES = ['480p', '540p', '720p', '768p', '1080p', '2K', '4K']
 // An image model in plain words: its shapes, how many reference images it takes, its price when known.
 function describeImage(r) {
+  if (r.usable === false) return r.unavailable_reason || 'Not available now'
   const sh = r.shapes || []
   // The shapes a video starts from (16:9, 9:16) are named first: an image here is often a video's opening shot.
   const video = ['16:9', '9:16'].filter((x) => sh.includes(x))
@@ -129,7 +132,10 @@ function describeImage(r) {
     : video.length ? `${sh.length} shapes, including ${video.join(' and ')}` : `${sh.length} shapes: ${sh.join(', ')}`]
   const n = Number(r.max_references || 0)
   parts.push(n ? `up to ${n} reference image${n === 1 ? '' : 's'}` : 'from words only')
-  if (r.price_per_image) parts.push(`$${Number(r.price_per_image).toFixed(3)} an image`)
+  // Billing's own words (the price the person pays, a range when the provider bills by its settings), else the list price.
+  if (r.price_label && !r.price_label.startsWith('priced by')) parts.push(`${r.price_label} an image`)
+  else if (r.price_label) parts.push('priced per token, known once made')
+  else if (r.price_per_image) parts.push(`$${Number(r.price_per_image).toFixed(3)} an image`)
   return parts.join(', ')
 }
 // What the model does, in plain words: what it starts from, its clip lengths, its best resolution, sound.

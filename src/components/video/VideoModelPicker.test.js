@@ -124,6 +124,24 @@ describe('VideoModelPicker for images', () => {
     expect(video.image.modelId).toBe('22')
     w.unmount()
   })
+
+  it('a model billing would refuse is shown, disabled, with the reason, never hidden (owner, 2026-11-03)', async () => {
+    video.image.models.push({ model_id: 23, model: 'openai/gpt-image-2.5-flare', name: 'GPT Image 2.5 Flare', maker: 'OpenAI',
+      shapes: ['1:1'], max_references: 0, price_per_image: null, usable: false, price_label: '',
+      unavailable_reason: 'Not available now: no published price, so it cannot be held or charged.' })
+    video.image.models[0].price_label = 'about $0.047'
+    const pick = vi.spyOn(video, 'pickImageModel')
+    const w = mount(VideoModelPicker, { props: { kind: 'image' }, attachTo: document.body })
+    await w.get('[data-test="image-model"]').trigger('click')
+    const off = w.get('[data-test="image-model-23"]')
+    expect(off.text()).toContain('Not available now: no published price')
+    expect(off.attributes('aria-disabled')).toBe('true')
+    expect(off.classes()).toContain('off')
+    await off.trigger('click')
+    expect(pick).not.toHaveBeenCalled()
+    expect(w.get('[data-test="image-model-21"]').text()).toContain('about $0.047 an image')   // billing's own price
+    w.unmount()
+  })
 })
 
 
