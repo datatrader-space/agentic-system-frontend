@@ -427,9 +427,10 @@ a.lib-btn { display: inline-flex; align-items: center; text-decoration: none; }
   .lib-body { padding: 12px 16px 20px; }
   .lib-field input, .lib-field select, .lib-field textarea { font-size: 16px; }
   .lib-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 10px; }
-  /* Two even columns on a phone: a third button takes half a row, not the whole card. */
+  /* On a phone: Use fills the first row, the others share the row below, each label on one line. */
   .lib-card > .lib-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .lib-card > .lib-actions .lib-btn { padding: 0 6px; }
+  .lib-card > .lib-actions .lib-btn { padding: 0 4px; font-size: 12px; white-space: nowrap; }
+  .lib-card > .lib-actions .lib-btn.primary { grid-column: 1 / -1; }
   .lib-search { max-width: none; }
 }
 @media (prefers-reduced-motion: reduce) { .lib * { transition: none !important; } }
