@@ -2,8 +2,10 @@
   <!-- The open video jobs of this conversation, just above the composer. Finished renders are posted into
        the chat by the server; this tray keeps the estimates waiting for a decision and the renders in
        flight in view. State changes are announced politely for screen readers. -->
-  <div v-if="visible.length" class="vjt" data-test="video-jobs-tray">
+  <div v-if="visible.length || openPlans.length" class="vjt" data-test="video-jobs-tray">
     <div class="vjt-live" aria-live="polite" role="status">{{ announcement }}</div>
+    <!-- A storyboard plan waiting or being made is ONE card for all its scenes (ADM-1146, ADM-1170). -->
+    <VideoPlanCard v-for="p in openPlans" :key="p.plan_id" :plan="p" />
     <VideoJobCard v-for="j in visible" :key="j.job_id" :job="j" :in-studio="inStudio" @open="emit('open')" />
   </div>
 </template>
@@ -12,6 +14,7 @@
 import { computed, ref, watch } from 'vue'
 import { useVideoStore } from '../../stores/useVideoStore'
 import VideoJobCard from './VideoJobCard.vue'
+import VideoPlanCard from './VideoPlanCard.vue'
 
 const props = defineProps({ conversationId: { type: [String, Number], default: null }, inStudio: { type: Boolean, default: false } })
 const emit = defineEmits(['open'])
@@ -21,8 +24,12 @@ const video = useVideoStore()
 // results that could not be posted to a chat (a job with no conversation). A failure is SUPERSEDED once a newer job
 // starts in this chat: the person asked again, so the old reason no longer stands above the box (owner, 2026-10-20:
 // a refused render's card stayed after the retry had rendered).
+// The plans still waiting for the person or being made. Their scene jobs are shown inside the plan's card, never as
+// cards of their own (each has its own Generate, which would bypass the plan's one approval).
+const openPlans = computed(() => (video.plansFor?.(props.conversationId) || []).filter(p => ['waiting', 'approved'].includes(p.state)))
 const visible = computed(() => {
-  const jobs = video.jobsFor(props.conversationId)          // oldest first
+  const inPlan = new Set(openPlans.value.map(p => String(p.plan_id)))
+  const jobs = video.jobsFor(props.conversationId).filter(j => !(j.plan_id && inPlan.has(String(j.plan_id))))   // oldest first
   return jobs.filter((j, i) => {
     if (j.state === 'failed') return !jobs.slice(i + 1).length
     return !['ready', 'cancelled'].includes(j.state) || (j.state === 'ready' && !j.conversation_id)

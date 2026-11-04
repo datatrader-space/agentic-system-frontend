@@ -1034,7 +1034,7 @@ watch(currentRequest, () => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: all 0.2s;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s, box-shadow 0.2s, transform 0.2s;
 }
 
 .btn-icon {
@@ -1192,7 +1192,7 @@ watch(currentRequest, () => {
   padding: 16px;
   text-align: left;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s, box-shadow 0.2s, transform 0.2s;
 }
 
 .option-button:hover {
@@ -1479,7 +1479,7 @@ watch(currentRequest, () => {
   font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
 .cred-btn--connect {

@@ -1984,6 +1984,11 @@ export const useChatStore = defineStore('chat', {
         }
         return
       }
+      // A storyboard plan (ADM-1146): one approval card for every scene, mirrored by the video store.
+      if (t === 'video_plan') {
+        try { useVideoStore().onPlanFrame(msg) } catch { /* the chat continues without the card */ }
+        return
+      }
       // Inline plan artifact (INLINE_PLAN_ARTIFACT_PLAN.md): a pushed, exact-version plan snapshot.
       // Owned entirely by the plan store — it carries no chat content/usage. Scope to THIS window's
       // conversation (the frame is broadcast to the user group with conversation_id inside). The store

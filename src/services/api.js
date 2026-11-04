@@ -269,6 +269,7 @@ export default {
   prepareVideoJob: data => api.post('/video/jobs/', data),
   getMediaVoices: params => api.get('/video/media/voices/', { params }),
   recordLikenessConsent: data => api.post('/video/consents/', data),
+  listLikenessConsents: () => api.get('/video/consents/'),
   revokeLikenessConsent: attachmentId => api.delete('/video/consents/', { params: { attachment_id: attachmentId } }),
   getStudioElements: () => api.get('/video/ingredients/'),
   getCharacterTraits: () => api.get('/video/characters/traits/'),

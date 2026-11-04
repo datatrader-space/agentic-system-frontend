@@ -151,6 +151,8 @@ export const useVideoStore = defineStore('video', {
     capsLoadedFor: null,
     // Jobs by id (mirrors the server) and the conversation they belong to.
     jobs: {},
+    // Storyboard plans by id (ADM-1146): one approval for every scene, shown as one card (ADM-1170).
+    plans: {},
     busy: false,
     // The open project and the panel. conversationId is the chat they were loaded for.
     conversationId: null,
@@ -237,6 +239,9 @@ export const useVideoStore = defineStore('video', {
         return r ? { id: String(r.route_id), name: r.name, kind: 'video' } : null
       }
     },
+    plansFor: (state) => (conversationId) => Object.values(state.plans)
+      .filter((p) => String(p.conversation_id || '') === String(conversationId || ''))
+      .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))),
     jobsFor: (state) => (conversationId) => Object.values(state.jobs)
       .filter((j) => String(j.conversation_id || '') === String(conversationId || ''))
       .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))),
@@ -477,6 +482,25 @@ export const useVideoStore = defineStore('video', {
       }
       return this.jobs[job.job_id]
     },
+    _putPlan(plan) {
+      if (!plan || !plan.plan_id) return plan
+      this.plans = { ...this.plans, [plan.plan_id]: { ...(this.plans[plan.plan_id] || {}), ...plan } }
+      return this.plans[plan.plan_id]
+    },
+    // A `video_plan` frame: the plan as its card shows it, pushed on every change (ADM-1146).
+    onPlanFrame(data) { this._putPlan(data) },
+    // A conversation's plans, so a page opened again shows its plan card. Errors leave the cards as they were.
+    async loadPlans(conversationId) {
+      if (!conversationId) return false
+      try { for (const p of ((await api.get('/video/plans/', { params: { conversation_id: conversationId } })).data?.plans || [])) this._putPlan(p); return true }
+      catch { return false }
+    },
+    // The plan's own actions only (start = the one Generate for every scene, decline, stop), as the server allows.
+    async planAction(plan, action) {
+      if (!plan || !plan.plan_id || !['start', 'decline', 'stop'].includes(action) || !(plan.allowed_actions || []).includes(action)) return null
+      try { return this._putPlan((await api.post(`/video/plans/${plan.plan_id}/${action}/`, {})).data) }
+      catch (e) { notify.error(errText(e, 'That could not be done. Try again.')); return null }
+    },
     onFrame(data) {
       const prev = this.jobs[data.job_id]
       const job = this._put(data)
@@ -503,6 +527,8 @@ export const useVideoStore = defineStore('video', {
     // is lost; `{ pages: 1 }` reads only the newest page (a background refresh). Returns false when a read failed.
     async loadJobs(conversationId, { pages = Infinity } = {}) {
       if (!conversationId) return false
+      // A full read also reads its plan cards (not awaited: independent); a background beat reads jobs only.
+      if (pages === Infinity) this.loadPlans(conversationId)
       try {
         let page = 1
         for (;;) {

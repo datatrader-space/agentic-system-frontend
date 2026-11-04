@@ -1,5 +1,5 @@
 <template>
-  <label class="sps"><span>Preset</span><select :value="modelValue" :disabled="disabled" aria-label="Agent preset" data-test="studio-agent-preset" @change="emit('update:modelValue', $event.target.value)"><option value="">Your own idea</option><option v-for="preset in presets" :key="preset.id" :value="preset.id">{{ preset.title }}</option></select></label>
+  <label class="sps"><span>Preset</span><select :value="modelValue" :disabled="disabled" aria-label="Preset" data-test="studio-agent-preset" @change="emit('update:modelValue', $event.target.value)"><option value="">Your own idea</option><option v-for="preset in presets" :key="preset.id" :value="preset.id">{{ preset.title }}</option></select></label>
 </template>
 <script setup>
 defineProps({ modelValue: { type: String, default: '' }, presets: { type: Array, default: () => [] }, disabled: Boolean })

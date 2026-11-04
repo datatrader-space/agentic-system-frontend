@@ -10,10 +10,10 @@
       <Teleport to="body">
         <div v-if="open" class="bs-backdrop" @click.self="hide">
           <section ref="sheetEl" class="bs-sheet" role="dialog" aria-modal="true" :aria-label="label"
-                   :data-test="testId" tabindex="-1" @keydown.esc.prevent="hide">
+                   :data-test="testId" tabindex="-1" @keydown.esc.prevent="hide" @keydown.tab="trapTab">
             <header class="bs-head">
               <h2 class="bs-title">{{ label }}</h2>
-              <button type="button" class="bs-close" aria-label="Close" @click="hide">×</button>
+              <button type="button" class="bs-close" aria-label="Close" @click="hide"><span aria-hidden="true">×</span></button>
             </header>
             <div class="bs-body"><slot :sheet="true" /></div>
           </section>
@@ -39,21 +39,38 @@ const sheetEl = ref(null)
 const query = typeof window !== 'undefined' && window.matchMedia
   ? window.matchMedia(`(max-width: ${props.breakpoint - 1}px)`) : null
 const narrow = ref(!!(query && query.matches))
-function onChange(e) { narrow.value = e.matches; if (!e.matches) open.value = false }
+function onChange(e) { narrow.value = e.matches; if (!e.matches) { open.value = false; lockPage(false) } }
 
+// While open: Tab stays inside the sheet and the page behind it does not scroll (ADM-1170, Web Interface Guidelines).
+const FOCUSABLE = 'button:not([disabled]), select:not([disabled]), input:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+function trapTab(event) {
+  const items = [...(sheetEl.value?.querySelectorAll(FOCUSABLE) || [])]
+  if (!items.length) return
+  const first = items[0], last = items[items.length - 1], active = document.activeElement
+  if (event.shiftKey && (active === first || active === sheetEl.value)) { event.preventDefault(); last.focus() }
+  else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus() }
+}
+let previousOverflow = null
+function lockPage(on) {
+  if (typeof document === 'undefined') return
+  if (on && previousOverflow === null) { previousOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden' }
+  else if (!on && previousOverflow !== null) { document.body.style.overflow = previousOverflow; previousOverflow = null }
+}
 async function show() {
   open.value = true
+  lockPage(true)
   await nextTick()
   const first = sheetEl.value && sheetEl.value.querySelector('button, select, input, textarea, [tabindex]:not([tabindex="-1"])')
   ;(first || sheetEl.value)?.focus()
 }
 function hide() {
   open.value = false
+  lockPage(false)
   nextTick(() => triggerEl.value?.focus())
 }
 defineExpose({ hide, show })
 onMounted(() => { if (query) query.addEventListener ? query.addEventListener('change', onChange) : query.addListener(onChange) })
-onBeforeUnmount(() => { if (query) query.removeEventListener ? query.removeEventListener('change', onChange) : query.removeListener(onChange) })
+onBeforeUnmount(() => { lockPage(false); if (query) query.removeEventListener ? query.removeEventListener('change', onChange) : query.removeListener(onChange) })
 </script>
 
 <style scoped>
@@ -70,7 +87,7 @@ onBeforeUnmount(() => { if (query) query.removeEventListener ? query.removeEvent
   border-bottom: 1px solid var(--vm-line-2, #e5e7eb); }
 .bs-title { margin: 0; font-size: 15px; color: var(--vm-ink, #0f172a); }
 .bs-close { min-width: 44px; min-height: 44px; border: none; background: transparent; font-size: 22px; cursor: pointer; color: var(--vm-ink-soft, #64748b); }
-.bs-body { overflow-y: auto; padding: 16px 18px 20px; display: grid; gap: 12px; }
+.bs-body { overflow-y: auto; overscroll-behavior: contain; padding: 16px 18px 20px; display: grid; gap: 12px; }
 @media (prefers-reduced-motion: no-preference) { .bs-sheet { animation: bs-up .18s ease-out; } }
 @keyframes bs-up { from { opacity: .6; } to { opacity: 1; } }
 </style>

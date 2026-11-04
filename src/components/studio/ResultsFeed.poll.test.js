@@ -16,7 +16,8 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.clearAllMocks()
   state.chat = reactive({ hitlRequests: [], isBusy: false, error: '', respondHitl: vi.fn() })
-  state.video = reactive({ sessionImages: [], jobs: {}, jobsFor() { return [] }, _put: vi.fn() })
+  // A job of the session being made: the background read backs up its frames (ADM-1170: only then).
+  state.video = reactive({ sessionImages: [], jobs: {}, inFlight: [{ job_id: 'r', state: 'running' }], jobsFor() { return this.inFlight }, _put: vi.fn() })
   state.get.mockResolvedValue({ data: { jobs: [] } })
 })
 afterEach(() => { wrapper?.unmount(); wrapper = null; vi.useRealTimers() })
@@ -47,5 +48,14 @@ describe('ResultsFeed background refresh', () => {
     wrapper.unmount(); wrapper = null
     await vi.advanceTimersByTimeAsync(60000)
     expect(state.get.mock.calls.length).toBe(calls)
+  })
+
+  it('does not poll a video session whose jobs are all waiting or finished (ADM-1170)', async () => {
+    state.video.inFlight = [{ job_id: 'w', state: 'awaiting_authorization' }, { job_id: 'd', state: 'ready' }]
+    wrapper = mount(ResultsFeed, { props: { kind: 'video', conversationId: 'c1' }, global: { stubs } })
+    await flushPromises()
+    expect(state.get).toHaveBeenCalledTimes(1)                          // the first read
+    await vi.advanceTimersByTimeAsync(24000)
+    expect(state.get).toHaveBeenCalledTimes(1)
   })
 })

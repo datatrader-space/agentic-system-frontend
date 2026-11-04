@@ -795,7 +795,7 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   border: 1px solid var(--vm-line-2);
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 .retry-btn:hover { border-color: #c7d2fe; color: var(--vm-link); }
 .retry-btn svg { width: 14px; height: 14px; }
@@ -813,7 +813,7 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   border: 1px solid var(--vm-line-2);
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 .longanswer-btn:hover:not(:disabled) { border-color: #c7d2fe; background: var(--vm-blue-soft); }
 .longanswer-btn:disabled { opacity: 0.6; cursor: default; }
@@ -835,7 +835,7 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
   border: none;
   border-radius: 7px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 .msg-action:hover { background: var(--vm-surface-soft); color: var(--vm-ink-soft); }
 .msg-action svg { width: 15px; height: 15px; }
@@ -850,7 +850,7 @@ a.user-attach-file:hover { opacity: 1; border-bottom-color: rgba(255,255,255,.8)
 .fb-skip:hover { color: var(--vm-ink-soft); }
 .fb-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .fb-chip { padding: 5px 10px; border-radius: 999px; border: 1px solid #cbd5e1; background: var(--vm-surface);
-  color: var(--vm-ink-soft); font-size: .75rem; cursor: pointer; transition: all .12s; }
+  color: var(--vm-ink-soft); font-size: .75rem; cursor: pointer; transition: background-color .12s, border-color .12s, color .12s, opacity .12s, box-shadow .12s, transform .12s; }
 .fb-chip:hover { border-color: #94a3b8; }
 .fb-chip.on { background: var(--vm-violet-d, #4f46e5); border-color: var(--vm-violet-d, #4f46e5); color: #fff; }
 .fb-note { width: 100%; margin-top: 9px; padding: 7px 9px; border-radius: 8px; border: 1px solid #cbd5e1;

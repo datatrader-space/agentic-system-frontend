@@ -36,4 +36,26 @@ describe('BottomSheet', () => {
     expect(document.querySelector('[data-test="x"]')).toBe(null)
     w.unmount()
   })
+
+  it('keeps Tab inside the open sheet and the page still while it is open (ADM-1170)', async () => {
+    viewport(true)
+    document.body.style.overflow = 'auto'
+    const w = mount(BottomSheet, { attachTo: document.body, props: { label: 'Preset', testId: 'p' },
+                                   slots: { default: '<button id="a">A</button><button id="b">B</button>' } })
+    await w.get('[data-test="p-open"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(document.body.style.overflow).toBe('hidden')
+    const sheet = document.querySelector('[data-test="p"]')
+    const buttons = [...sheet.querySelectorAll('button')]
+    buttons[buttons.length - 1].focus()
+    sheet.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(buttons[0])                       // wraps to the first, never leaves
+    buttons[0].focus()
+    sheet.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(buttons[buttons.length - 1])
+    sheet.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(document.body.style.overflow).toBe('auto')                    // restored on close
+    w.unmount()
+  })
 })

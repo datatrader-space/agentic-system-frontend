@@ -19,7 +19,7 @@ describe('jobs', () => {
       jobs: [{ job_id: `j${params.page}`, conversation_id: 'c1', state: 'ready', created_at: `2026-10-0${4 - params.page}T00:00:00Z` }],
       page: params.page, page_size: 1, has_more: params.page < 3 } }))
     expect(await video.loadJobs('c1')).toBe(true)
-    expect(api.get.mock.calls.map(([url, o]) => [url, o.params])).toEqual([
+    expect(api.get.mock.calls.filter(([url]) => url === '/video/jobs/').map(([url, o]) => [url, o.params])).toEqual([
       ['/video/jobs/', { page: 1, conversation_id: 'c1' }], ['/video/jobs/', { page: 2, conversation_id: 'c1' }], ['/video/jobs/', { page: 3, conversation_id: 'c1' }]])
     expect(video.jobsFor('c1').map((j) => j.job_id)).toEqual(['j3', 'j2', 'j1'])
   })

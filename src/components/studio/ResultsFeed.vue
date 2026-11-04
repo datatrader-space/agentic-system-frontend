@@ -86,7 +86,12 @@ async function refresh(opts) {
 }
 watch(() => props.conversationId, () => { sequence++; loading.value = false; error.value = ''; viewIndex.value = -1; if (props.kind === 'image') video.sessionImages = []; fetching = false; refresh() }, { immediate: true })
 watch(() => chat.isBusy, (now, was) => { if (was && !now) refresh() })
-const poller = usePoller(() => (chat.isBusy ? undefined : refresh({ background: true })), { interval: 8000 })
+// Video results arrive as `video_job` frames; the background read only backs them up while a job of this session is
+// being made. A job waiting for a decision, or finished, changes only by the person's action (ADM-1170: it was read
+// every 8 s whatever the state). Images made by the agent are not jobs, so the Image page keeps its beat.
+const WAITING_OR_DONE = new Set(['awaiting_authorization', 'ready', 'failed', 'cancelled'])
+const inFlight = () => video.jobsFor(props.conversationId).some(j => !WAITING_OR_DONE.has(j.state))
+const poller = usePoller(() => (chat.isBusy || (props.kind !== 'image' && !inFlight()) ? undefined : refresh({ background: true })), { interval: 8000 })
 poller.start({ immediate: false })
 onBeforeUnmount(() => { disposed = true; sequence++; poller.stop() })
 defineExpose({ refresh })

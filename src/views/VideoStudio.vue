@@ -472,3 +472,5 @@ onBeforeUnmount(() => {
  .dashboard-meta{padding-top:10px}
 }
 </style>
+
+<style scoped>/* A phone keeps the composer and the conversation: the workspace line said nothing (ADM-1170). */@media(max-width:680px){.dashboard-meta{display:none}}</style>

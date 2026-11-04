@@ -142,12 +142,29 @@ onMounted(async () => {
   // The grading-suite palette goes on <body> so what the Studio opens over itself (bottom sheets, the Library
   // drawer, approval dialogs, notifications) takes it too.
   document.body.classList.add('vs-theme')
+  // The browser's own parts (scrollbars, form controls, a phone's address bar) in the Studio's dark look, restored
+  // on leaving (ADM-1170; Web Interface Guidelines: color-scheme on <html>, theme-color matching the page).
+  previousScheme = document.documentElement.style.colorScheme
+  document.documentElement.style.colorScheme = 'dark'
+  themeMeta = document.querySelector('meta[name="theme-color"]')
+  addedMeta = !themeMeta
+  if (addedMeta) { themeMeta = document.createElement('meta'); themeMeta.name = 'theme-color'; document.head.appendChild(themeMeta) }
+  previousTheme = themeMeta.getAttribute('content')
+  themeMeta.setAttribute('content', '#101216')
   media?.addEventListener?.('change', mediaChanged)
   // The navigation shows each page's status as the server reports it for this person.
   loadStudioFeatures().catch(() => { /* the plan's status stays shown */ })
   try { const response = await api.checkAuth(); if (alive) user.value = response.data?.user || null } catch { /* the page still works */ }
 })
-onBeforeUnmount(() => { alive = false; document.body.classList.remove('vs-theme'); media?.removeEventListener?.('change', mediaChanged); if (overflowLocked) document.body.style.overflow = previousOverflow })
+let previousScheme = '', themeMeta = null, addedMeta = false, previousTheme = null
+function restoreBrowserTheme() {
+  document.documentElement.style.colorScheme = previousScheme || ''
+  if (!themeMeta) return
+  if (addedMeta) themeMeta.remove()
+  else if (previousTheme == null) themeMeta.removeAttribute('content')
+  else themeMeta.setAttribute('content', previousTheme)
+}
+onBeforeUnmount(() => { alive = false; document.body.classList.remove('vs-theme'); restoreBrowserTheme(); media?.removeEventListener?.('change', mediaChanged); if (overflowLocked) document.body.style.overflow = previousOverflow })
 </script>
 
 <style>

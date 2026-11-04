@@ -1,7 +1,7 @@
 <template>
   <section :id="chatId" class="sap" :class="{ 'sap-expanded': expanded }" aria-label="Studio agent" @keydown.esc="collapse">
     <header class="sap-head"><h2>{{ label }} agent</h2><button type="button" class="sap-new" aria-label="New chat" title="New chat" :disabled="chat.isBusy || video.busy || !!chat.hitlRequests.length" @click="emit('new')">↻</button><button type="button" class="sap-expand" data-test="studio-agent-expand" :aria-label="expanded ? 'Collapse chat' : 'Expand chat'" :title="expanded ? 'Collapse chat (Esc)' : 'Expand chat'" :aria-expanded="expanded ? 'true' : 'false'" :aria-controls="chatId" @click="emit('update:expanded', !expanded)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="expanded ? 'M4 10h6V4m10 10h-6v6M10 10 3 3m11 11 7 7' : 'M8 3H3v5m13 13h5v-5M3 3l7 7m11 11-7-7'" /></svg></button></header>
-    <div ref="scroll" class="sap-scroll" role="log" :aria-label="`${label} agent conversation`" aria-live="polite" aria-relevant="additions text">
+    <div ref="scroll" class="sap-scroll" role="log" :aria-label="`${label} agent conversation`" aria-live="polite" aria-relevant="additions">
       <p v-if="!chat.messages.length" class="sap-intro">{{ intro }}</p>
       <div v-if="look && !chat.messages.length" class="sap-look"><div><strong>{{ look.title }}</strong><p>Your prepared direction is editable below. Add references with +.</p></div></div>
       <div v-if="chat.messages.length" class="sap-messages"><ChatMessageList :present-message="message => presentStudioMessage(message, chat.messages)" :prepare-edit="prepareStudioEdit" /></div>
