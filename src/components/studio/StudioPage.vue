@@ -141,3 +141,16 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
  .st-page-agent:has(.sap-input:focus) :deep(.sap-head),.st-page-agent .st-form:has(.sap-input:focus) :deep(.sc-blocked){display:none}
 }
 </style>
+
+<style scoped>
+/* Long prompts and attached references yield space to the Send row on a short phone screen. */
+@media(max-width:1023px){
+ .st-page-agent :deep(.sap-composer){display:flex;flex-direction:column;flex:0 1 auto;min-height:0;max-height:75%}
+ .st-page-agent :deep(.sap-more){flex:0 1 auto;min-height:36px;overflow:auto}
+ .st-page-agent :deep(.sap .vcp-chat){display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+ .st-page-agent :deep(.sap .vcp-box){display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+ .st-page-agent :deep(.sap-prompt){flex:1 1 auto;min-height:48px;overflow:auto}
+ .st-page-agent :deep(.sap .vcp-chips){flex:0 1 auto;min-height:0;overflow:auto}
+ .st-page-agent :deep(.sap .vcp-bar){flex:none}
+}
+</style>

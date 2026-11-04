@@ -56,3 +56,11 @@ The Samsung/iPhone viewport pass also showed Discover still used its tall tablet
 Local measured checks: iPhone SE 320x568 first card spans y407..537 (fully visible); Samsung landscape 780x360 first tool begins at y264 instead of the previous y638, with no horizontal overflow. Discover regressions: 12 passed. Exact final release build remains gated by CI.
 
 Template-hydration commit was rebased safely over unrelated remote training-data commit c0d6652 (no training-data changes made by this task). Final hydration commit d99e7f4 passed CI and deployed successfully (run 41832884711). Template catalogue retries and final screenshots will use the deployed hydration fix; no historical failed attempt is being silently counted as a pass.
+
+## Long restored prompt in landscape
+
+The final device pass reproduced Send clipping on a landscape lip-sync page after the hydration fix correctly restored a longer prepared prompt. The composer now has a bounded, flexible height; its prompt and reference list can scroll/shrink while the Send row keeps its space. This applies only to the shared Studio Agent panel below 1024px, not Manual pricing/approval controls or the rest of the platform.
+
+Local measured case: 756x352, 1,620-character synthetic unsent text, two session/availability error notices: Send bottom 339px, chat bottom 348px, Send height 44px. No external media uploaded or submitted. Composer regressions: 41 passed / 3 files. Final exact production build remains gated by CI.
+
+The public catalogue retry after d99e7f4 produced 69 successful unique template entries with preserved selector, non-empty editable brief, no horizontal overflow and reachable Send on a measured 360x780 viewport. Failed earlier attempts remain in the raw evidence; latest-per-template summary is outputs/studio-live-template-summary-2026-11-04.json. Some avatar/lip-sync pages explicitly report no proven generation model; preparing their agent brief is verified, their paid generation is not. The compact Discover release 658eda0 passed all CI jobs and deployed successfully (run 41833874048).
