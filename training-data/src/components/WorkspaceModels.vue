@@ -98,6 +98,16 @@ watch(() => state.value?.phase, now => { follow(); if (said.value && now !== sai
 // sent once a GPU runs.
 const held = ref(null);
 watch(gpu, now => { follow(); if (now === 'warm' && held.value && !asking.value) { const photo = held.value; held.value = null; ask(photo); } });
+// While a photo is held and no GPU is on its way (zero, not waking: the backend's request for one can be refused while
+// the endpoint is still being scaled down), the photo is sent again every 30 s: each try asks for a GPU again, and is
+// charged nothing until it is answered.
+let heldSince = 0;
+watch(held, now => { heldSince = now ? Date.now() : 0; });
+watch(state, () => {
+  if (held.value && gpu.value === 'zero' && !asking.value && Date.now() - heldSince >= 30000) {
+    heldSince = Date.now(); ask(held.value);
+  }
+});
 function forget() { if (photoUrl.value) URL.revokeObjectURL(photoUrl.value); photoUrl.value = ''; file.value = null; answer.value = null; held.value = null; }
 onUnmounted(() => { alive = false; clearTimeout(timer); forget(); });
 function startTrying(row) {
