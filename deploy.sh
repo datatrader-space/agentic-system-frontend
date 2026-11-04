@@ -148,7 +148,18 @@ if wait_healthy "$TARGET_CONTAINER"; then
     docker stop --time 30 "$LIVE" >/dev/null
     [[ "$LIVE" != "$LEGACY" ]] || docker rm "$LEGACY" >/dev/null
   fi
+  # Keep only this release and the one before it (the instant rollback the stopped colour still uses). Every deploy
+  # used to leave its image behind: on 2026-11-04 the 19 GB disk held 383 images and a deploy failed with "no space
+  # left on device" (ADM-1158). Older releases can be pulled again from ECR. Only after a healthy swap, never on a
+  # failed one; an image still in use by a container is refused by docker and kept.
+  RELEASES="${ECR_REGISTRY}/${ECR_REPOSITORY:-aadml-frontend}"
+  removed=0
+  for old in $(docker images "$RELEASES" --format '{{.Tag}}' | grep -vxF -e "$NEW_TAG" -e "${PREV_TAG:-$NEW_TAG}"); do
+    docker rmi "${RELEASES}:${old}" >/dev/null 2>&1 && removed=$((removed + 1))
+  done
   docker image prune -f >/dev/null
+  kept="$NEW_TAG"; [[ -z "$PREV_TAG" || "$PREV_TAG" == "$NEW_TAG" ]] || kept="${kept} and ${PREV_TAG}"
+  echo "==> removed ${removed} old release image(s); kept ${kept}; disk $(df -h / | awk 'NR==2{print $5}') used"
   exit 0
 fi
 
