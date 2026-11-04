@@ -10,10 +10,9 @@
       <p v-if="chat.error" class="st-error" role="alert">{{ chat.error }}</p>
     </div>
     <div class="sap-composer">
-      <details class="sap-more"><summary>More controls</summary><p>Keep the direction and request a cheaper draft where a compatible model is available. The agent shows the model, tradeoffs and price before generation.</p><button type="button" class="st-button" data-test="studio-lower-cost" :aria-pressed="lowerCost ? 'true' : 'false'" :disabled="sending || chat.isBusy" @click="lowerCost = !lowerCost">{{ lowerCost ? '✓ Lower-cost draft preferred' : 'Prefer a lower-cost draft' }}</button></details>
       <VideoComposerPanel variant="chat" :show-mode="false" :show-tasks="false" :draft="modelValue">
         <label class="sap-prompt"><span class="st-sr">Message the {{ label }} agent</span><textarea ref="input" class="sap-input" :value="modelValue" rows="2" maxlength="8000" placeholder="What do you want to make?" @input="$emit('update:modelValue', $event.target.value)" @keydown.enter="onEnter" /></label>
-        <template #actions><button v-if="chat.isBusy" type="button" class="st-button sap-stop" @click="chat.stop()"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1" /></svg>Stop</button><button v-else type="button" class="st-button sap-send" data-test="studio-agent-send" :disabled="!ready || sending || (!modelValue.trim() && !video.refs.length)" @click="send"><span>Send</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button></template>
+        <template #actions><button type="button" class="sap-cheaper" data-test="studio-lower-cost" :aria-pressed="lowerCost ? 'true' : 'false'" title="Prefer a lower-cost draft: the agent keeps your direction and shows the model, its tradeoffs and the price before anything is made." :disabled="sending || chat.isBusy" @click="lowerCost = !lowerCost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.3 4.5 3-2 3-4.5 3-4.5-1.3-4.5-3" /></svg><span>Lower cost</span></button><button v-if="chat.isBusy" type="button" class="st-button sap-stop" @click="chat.stop()"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1" /></svg>Stop</button><button v-else type="button" class="st-button sap-send" data-test="studio-agent-send" :disabled="!ready || sending || (!modelValue.trim() && !video.refs.length)" @click="send"><span>Send</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m-6 6 6-6 6 6" /></svg></button></template>
       </VideoComposerPanel>
     </div>
     <VideoLibrary v-if="video.libraryOpen" />
@@ -32,9 +31,11 @@ import HITLModal from '../HITLModal.vue'
 const props = defineProps({ modelValue: { type: String, default: '' }, look: Object, label: String, purpose: String, ready: Boolean, expanded: Boolean, intro: { type: String, default: 'Describe your idea or choose a preset. Use + to attach references.' } })
 const emit = defineEmits(['new','update:modelValue','update:expanded','approved','sent'])
 const chat = useChatStore(), video = useVideoStore(), sending = ref(false), input = ref(null), lowerCost = ref(false)
+// One line to start on a phone, so the conversation keeps the screen (ADM-1170: it opened at 76px).
+const minInput = () => (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 1023px)').matches ? 48 : 76)
 watch(() => props.modelValue, async () => {
   await nextTick()
-  if (input.value) { input.value.style.height = 'auto'; input.value.style.height = `${Math.min(180, Math.max(76, input.value.scrollHeight))}px` }
+  if (input.value) { input.value.style.height = 'auto'; input.value.style.height = `${Math.min(180, Math.max(minInput(), input.value.scrollHeight))}px` }
 }, { immediate: true })
 const scroll = ref(null)
 watch(() => [chat.messages.length, chat.messages.at(-1)?.content, chat.hitlRequests.length, chat.isBusy], async () => { await nextTick(); if (scroll.value) scroll.value.scrollTop = scroll.value.scrollHeight })
@@ -89,6 +90,7 @@ defineExpose({ focus() { input.value?.focus() } })
 @media(max-width:1023px){.sap.sap-expanded{height:max(300px,50dvh,calc(100dvh - 400px))}.sap-expand{width:44px;height:44px}}
 </style>
 
-<style scoped>.sap-more{margin-bottom:10px;font-size:11px;color:var(--vm-ink-faint)}.sap-more summary{cursor:pointer;padding:6px 0}.sap-more p{line-height:1.7;margin:6px 0 10px}.sap-more .st-button{font-size:11px;min-height:34px}@media(max-width:767px){.sap-more summary{min-height:36px;padding:9px 0}}</style>
+<style scoped>/* The lower-cost preference, beside Send: it was the only thing inside "More controls" (ADM-1170). */
+.sap-cheaper{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 10px;border:1px solid var(--vm-line);border-radius:8px;background:transparent;color:var(--vm-ink-soft);font:500 12px var(--vm-font-sans);cursor:pointer;transition:background-color .15s,color .15s,border-color .15s}.sap-cheaper svg{width:15px;height:15px}.sap-cheaper:hover{background:var(--vm-surface-2);color:var(--vm-ink)}.sap-cheaper[aria-pressed=true]{border-color:var(--vs-accent-ink);background:var(--vm-surface-2);color:var(--vs-accent-ink)}.sap-cheaper:focus-visible{outline:2px solid var(--vs-accent-ink);outline-offset:2px}.sap-cheaper:disabled{opacity:.5;cursor:not-allowed}@media(max-width:1023px){.sap-cheaper{min-height:44px;min-width:44px}}@media(max-width:400px){.sap-cheaper span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.sap-cheaper{padding:6px 12px}}</style>
 
-<style scoped>.sap-new{margin-left:auto;flex:none;min-width:32px;min-height:32px;padding:5px;border:0;background:none;color:var(--vm-ink-soft);font-size:18px;cursor:pointer}.sap-new+.sap-expand{margin-left:0}@media(max-width:680px){.sap-new{min-width:44px;min-height:44px}}</style>
+<style scoped>.sap-new{margin-left:auto;flex:none;min-width:32px;min-height:32px;padding:5px;border:0;background:none;color:var(--vm-ink-soft);font-size:18px;cursor:pointer}.sap-new+.sap-expand{margin-left:0}@media(max-width:1023px){.sap-new{min-width:44px;min-height:44px}}</style>

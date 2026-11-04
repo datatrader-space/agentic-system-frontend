@@ -20,14 +20,15 @@
       <details :open="!selected || !!details"><summary class="sg-details">Add details{{ selected ? ' (optional)' : '' }}</summary><label class="st-field"><span>Creative direction</span><textarea v-model="details" class="st-input" rows="5" maxlength="8000" placeholder="Describe the subject, setting or changes you want." /></label></details>
       <p v-if="selected" class="st-muted sg-variant" role="status">Variation: {{ selected.variants[variant % selected.variants.length] }}</p>
       <StudioSettings :kind="kind" />
-      <LivePrice v-bind="livePrice" v-model:accepted="quote.accepted.value" :empty="draftProblem || 'Fill in the details to see the price.'" />
+      <!-- What is missing is said once, in the bottom bar next to Generate (ADM-1170: it was said here and there). -->
+      <LivePrice v-bind="livePrice" v-model:accepted="quote.accepted.value" :empty="draftProblem ? '' : 'Fill in the details to see the price.'" />
       </div>
     </template>
     <template #presets><template v-if="isAgent"><StudioLookPreview v-if="selected?.clientOnly" :look="selected" :settings="pageSettings" @select="choose" /><StudioCreativeCanvas v-else /></template><PresetGallery v-else :presets="presets" :selected="selectedId" @select="choose" /></template>
     <template #looks><PresetGallery :presets="presets" :selected="selectedId" @select="choose" /></template>
     <template #versions><StudioVersions /></template>
     <template #results><ResultsFeed v-if="ready" :kind="kind" :conversation-id="video.conversationId" :show-approvals="!isAgent" @approved="tab = 'results'" @recreate="recreate" /><p v-else class="st-status">Open this session to see its results.</p></template>
-    <template #quote><p v-if="isAgent" class="sg-agent-note st-muted">Send your idea to the agent. Review any price on its approval card.</p><QuoteBar v-else :shuffle="(selected?.variants?.length || 0) > 1" :summary="kind === 'image' ? `${video.image.n} image${Number(video.image.n) === 1 ? '' : 's'}` : `${video.settings.duration} s video`" :busy="submitting || video.busy || chat.isBusy" :disabled-reason="disabledReason" @shuffle="shuffle" @generate="generate" /></template>
+    <template #quote><p v-if="isAgent" class="sg-agent-note st-muted">Send your idea to the agent. Review any price on its approval card.</p><QuoteBar v-else :shuffle="(selected?.variants?.length || 0) > 1" :summary="kind === 'image' ? `${video.image.n} image${Number(video.image.n) === 1 ? '' : 's'}` : `${video.settings.duration} s video`" :busy="submitting || video.busy || chat.isBusy" :price-label="barPrice" :disabled-reason="disabledReason" @shuffle="shuffle" @generate="generate" /></template>
   </StudioPage>
 </template>
 <script setup>
@@ -55,6 +56,7 @@ const PresetGallery = lazyComponent(() => import('../components/studio/PresetGal
 import QuoteBar from '../components/studio/QuoteBar.vue'
 import LivePrice from '../components/studio/LivePrice.vue'
 import { useLivePrice } from '../composables/useLivePrice'
+import { priceAmount } from '../utils/studioPrice'
 const ResultsFeed = lazyComponent(() => import('../components/studio/ResultsFeed.vue'))
 import StudioSettings from '../components/studio/StudioSettings.vue'
 import BottomSheet from '../components/video/BottomSheet.vue'
@@ -129,6 +131,9 @@ const quote = useLivePrice(() => {
     references: references.filter(ref => ref.role !== 'edit_source'), ...conversation }
 })
 const livePrice = computed(() => ({ price: quote.price.value, loading: quote.loading.value, problem: quote.problem.value, code: quote.code.value }))
+// The bottom bar shows the same live price next to Generate (ADM-1170: it said "shown on the approval card" while the
+// price was already known above it). Until a draft is complete it says what to do instead.
+const barPrice = computed(() => quote.loading.value ? 'Working out the price…' : quote.price.value ? priceAmount(quote.price.value) : draftProblem.value ? '' : 'Fill in the details to see the price.')
 const disabledReason = computed(() => {
   if (draftProblem.value || isAgent.value) return draftProblem.value
   if (quote.code.value === 'not_priced') return 'This model cannot be charged for, so it cannot be used. Choose another model.'

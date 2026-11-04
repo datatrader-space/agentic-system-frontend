@@ -76,7 +76,7 @@ const draft = computed(() => {
 })
 const chat = useChatStore()
 const quote = useLivePrice(() => missing.value ? null : { kind: 'media', ...draft.value, ...(chat.conversationId ? { conversation_id: chat.conversationId } : {}) })
-const livePrice = computed(() => ({ price: quote.price.value, loading: quote.loading.value, problem: quote.problem.value }))
+const livePrice = computed(() => ({ price: quote.price.value, loading: quote.loading.value, problem: quote.problem.value, code: quote.code.value }))
 function prepare() {
   if (missing.value) return
   const names = Object.fromEntries(recording.value.map(file => [file.attachment_id, file.name]))

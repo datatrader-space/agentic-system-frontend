@@ -186,7 +186,8 @@ async function refreshSession({ background = false } = {}) {
   if (!background) refreshing.value = true
   try {
     // Independent reads: one round, not two.
-    await Promise.all([video.loadJobs(chat.conversationId), video.loadProject(chat.conversationId)])
+    // A background beat reads the newest page only (ADM-1170: it re-read every page every 8 s).
+    await Promise.all([(background ? video.loadJobs(chat.conversationId, { pages: 1 }) : video.loadJobs(chat.conversationId)), video.loadProject(chat.conversationId)])
   } finally {
     sessionInFlight = false
     if (!background) refreshing.value = false

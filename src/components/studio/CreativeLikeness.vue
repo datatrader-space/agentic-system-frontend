@@ -7,7 +7,7 @@
       <label v-if="!files.audio.length" class="st-field" data-field="prompt">Script<textarea v-model="prompt" class="st-input" rows="5" placeholder="What the presenter says." data-test="likeness-script" /></label>
       <label v-else class="st-field" data-field="prompt">How the presenter comes across<textarea v-model="direction" class="st-input" rows="2" placeholder="Looks at the camera, warm and calm." data-test="likeness-direction" /><span class="st-muted cl-note">The presenter speaks the voice track; some models also need this short direction.</span></label>
       <label v-if="!files.audio.length && voices.length" class="st-field" data-field="voice_id">Voice<select v-model="voiceId" class="st-input" data-test="likeness-voice-choice"><option value="">Choose a voice</option><option v-for="v in voices" :key="v">{{ v }}</option></select></label>
-      <label v-else-if="!files.audio.length" class="st-field" data-field="voice_id">Voice ID<input v-model.trim="voiceId" class="st-input" maxlength="64" placeholder="The avatar provider's voice that reads the script" data-test="likeness-voice" /></label>
+      <label v-else-if="!files.audio.length" class="st-field" data-field="voice_id">Voice ID (optional)<input v-model.trim="voiceId" class="st-input" maxlength="64" placeholder="Leave empty for the model's own voice" data-test="likeness-voice" /></label>
     </template>
     <template v-else-if="kind === 'motion'">
       <fieldset v-if="orientations.length" class="cl-choice" data-field="character_orientation"><legend>Follow the orientation of</legend>
@@ -63,7 +63,9 @@ const missing = computed(() => {
   const empty = page.value.slots.find(slot => slot.required && !files[slot.id].length)
   if (empty) return `Add the ${empty.label.toLowerCase()}.`
   if (props.kind === 'avatar' && !files.audio.length && !prompt.value.trim()) return 'Write the script or add a voice track.'
-  if (props.kind === 'avatar' && !files.audio.length && !voiceId.value) return 'Give the voice ID that reads the script.'
+  // A voice is needed only when the model names its voices (a list to choose from); otherwise its own voice reads
+  // the script (ADM-1170: HeyGen has no voice list here, so a required ID made the page unusable).
+  if (props.kind === 'avatar' && !files.audio.length && voices.value.length && !voiceId.value) return 'Choose the voice that reads the script.'
   if (props.kind === 'avatar' && files.audio.length && !direction.value.trim()) return 'Say in a few words how the presenter comes across.'
   if (props.kind === 'motion' && orientations.value.length && !orientation.value) return 'Choose whose orientation to follow.'
   if (props.kind === 'lipsync' && needs.value.prompt && !direction.value.trim()) return 'Say in a few words how the person comes across.'
@@ -72,7 +74,7 @@ const missing = computed(() => {
 function prepare() {
   if (missing.value) return
   const references = chosen.value.map(file => ({ attachment_id: file.attachment_id, role: file.apiRole }))
-  const request = props.kind === 'avatar' ? (files.audio.length ? { prompt: direction.value.trim() } : { prompt: prompt.value.trim(), voice_id: voiceId.value })
+  const request = props.kind === 'avatar' ? (files.audio.length ? { prompt: direction.value.trim() } : { prompt: prompt.value.trim(), ...(voiceId.value ? { voice_id: voiceId.value } : {}) })
     : props.kind === 'motion' ? { ...(prompt.value.trim() ? { prompt: prompt.value.trim() } : {}), ...(orientations.value.length ? { character_orientation: orientation.value } : {}) }
     : props.kind === 'lipsync' && needs.value.prompt ? { prompt: direction.value.trim() } : {}
   const names = Object.fromEntries(chosen.value.map(file => [file.attachment_id, file.name]))

@@ -99,9 +99,6 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
  .st-page-agent :deep(.sap-head){min-height:44px}
  .st-page-agent :deep(.sap-scroll){flex:1 1 0;min-height:0}
  .st-page-agent :deep(.sap-composer){padding:0;background:transparent;border:0}
- .st-page-agent :deep(.sap-more){margin-bottom:4px}
- .st-page-agent :deep(.sap-more summary){min-height:44px;padding:12px 2px;font-size:12px}
- .st-page-agent :deep(.sap-more[open]){max-height:140px;overflow:auto}
  .st-page-agent :deep(.sap-input){min-height:62px;max-height:110px;padding:10px 12px 4px;font-size:16px}
  .st-page-agent :deep(.sap-send),.st-page-agent :deep(.sap-stop){min-height:44px}
  .st-page-agent :deep(.sap .vcp-plus){min-width:44px;width:44px;min-height:44px;height:44px}
@@ -117,7 +114,6 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
  .st-page-agent:has(.sap-input:focus) .st-page-head{display:none}
  .st-page-agent .st-form:has(.sap-input:focus) :deep(.st-tool-options){display:none}
  .st-page-agent :deep(.sap-intro){font-size:12px;line-height:1.5}
- .st-page-agent :deep(.sap-more summary){min-height:36px;padding-block:8px}
 }
 </style>
 
@@ -146,11 +142,35 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
 /* Long prompts and attached references yield space to the Send row on a short phone screen. */
 @media(max-width:1023px){
  .st-page-agent :deep(.sap-composer){display:flex;flex-direction:column;flex:0 1 auto;min-height:0;max-height:75%}
- .st-page-agent :deep(.sap-more){flex:0 1 auto;min-height:36px;overflow:auto}
  .st-page-agent :deep(.sap .vcp-chat){display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
  .st-page-agent :deep(.sap .vcp-box){display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
  .st-page-agent :deep(.sap-prompt){flex:1 1 auto;min-height:48px;overflow:auto}
  .st-page-agent :deep(.sap .vcp-chips){flex:0 1 auto;min-height:0;overflow:auto}
  .st-page-agent :deep(.sap .vcp-bar){flex:none}
+}
+</style>
+
+<style scoped>
+/* Phone layout of an agent page (ADM-1170, phone QA 2026-11-04: the chrome above the first message took about 45% of
+   the screen). The top bar already names the page, so there is no title row: the section tabs and the project button
+   share one row, and the agent's New chat / Expand buttons sit at the end of the Agent | Manual row. The h1 stays for
+   screen readers (the page is labelled by it). */
+@media(max-width:1023px){
+ .st-page-agent{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr)}
+ .st-page-agent>.st-mobile-tabs{grid-column:1;grid-row:1;min-width:0}
+ .st-page-agent>.st-page-head{grid-column:2;grid-row:1;min-height:44px;padding:0;align-items:center;justify-content:flex-end}
+ .st-page-agent>.st-page-body{grid-column:1/-1;grid-row:2;min-height:0}
+ .st-page-agent>.st-page-head .st-title-block{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+ .st-page-agent>.st-page-head :deep(.spp-label){display:none}
+ .st-page-agent>.st-page-head :deep(.spp-trigger){display:grid;place-items:center;min-width:44px;min-height:44px;padding:0}
+ .st-page-agent>.st-page-head :deep(.spp-trigger svg){width:20px;height:20px;margin:0}
+ .st-page-agent .st-form:has(.st-tool-options){position:relative}
+ .st-page-agent .st-form:has(.st-tool-options) :deep(.st-tool-options){padding-right:96px}
+ .st-page-agent .st-form:has(.st-tool-options) :deep(.sap-head){position:absolute;top:0;right:0;z-index:2;min-height:44px;gap:4px}
+ .st-page-agent .st-form :deep(.sap-head h2){position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+ .st-page-agent.st-chat-expanded .st-form :deep(.sap-head){position:static;justify-content:flex-end}
+ /* Manual: the fixed bottom bar must not cover the end of the form and results (a later block reset the room). */
+ .st-page:not(.st-page-agent){padding-bottom:calc(140px + env(safe-area-inset-bottom))}
+ .st-quote{padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
 }
 </style>

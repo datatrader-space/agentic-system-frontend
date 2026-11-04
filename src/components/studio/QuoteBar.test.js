@@ -24,4 +24,9 @@ describe('QuoteBar', () => {
     await w.setProps({ priceUsd: 0 }); expect(w.text()).toContain('Free local edit')
     w.unmount()
   })
+  it('shows the live price beside Generate when the page gives one (ADM-1170)', () => {
+    const w = mount(QuoteBar, { props: { summary: '5 s video', priceLabel: 'About $0.50' } })
+    expect(w.get('[data-test="studio-quote-price"]').text()).toBe('About $0.50')
+    expect(w.text()).not.toContain('approval card')
+  })
 })

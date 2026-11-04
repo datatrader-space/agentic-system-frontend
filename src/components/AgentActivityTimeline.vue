@@ -68,7 +68,9 @@
                   :note="stepVerdicts[step.stepId].note || ''"
                 />
               </span>
-              <span v-if="step.durationMs != null && !publicSafe" class="agent-step-dur">{{ fmtDuration(step.durationMs) }}</span>
+              <!-- A step's time only from one second up: "Analyzing your request 25ms" told the reader nothing
+                   (ADM-1170, phone QA 2026-11-04). The debug view below keeps every timing. -->
+              <span v-if="step.durationMs != null && step.durationMs >= 1000 && !publicSafe" class="agent-step-dur">{{ fmtDuration(step.durationMs) }}</span>
             </div>
             <!-- Only safe, backend-provided fields. No raw args/prompts/internals. On the public tier
                  (publicSafe) we refuse to render reason/next_action even if the backend accidentally sent
@@ -100,7 +102,7 @@
       </button>
 
       <!-- Fallback: a live status arrived before any row exists (back-compat / flag edge cases). -->
-      <div v-else-if="running && statusLabel && !isComplete" class="agent-status-line">
+      <div v-else-if="running && statusLabel && !isComplete && !visibleSteps.length" class="agent-status-line">
         <span class="agent-spinner" aria-hidden="true"></span>
         <span class="agent-status-label">{{ statusLabel }}</span>
       </div>

@@ -1,13 +1,14 @@
 <template>
   <div class="qb" data-test="studio-quote-bar">
-    <div class="qb-summary"><strong>{{ summary }}</strong><span>{{ priceUsd == null ? 'Price shown on the approval card before anything is spent' : priceUsd === 0 ? 'Free local edit' : `$${Number(priceUsd).toFixed(3)}` }}</span></div>
+    <div class="qb-summary"><strong>{{ summary }}</strong><span data-test="studio-quote-price">{{ priceLabel || (priceUsd == null ? 'Price shown on the approval card before anything is spent' : priceUsd === 0 ? 'Free local edit' : `$${Number(priceUsd).toFixed(3)}`) }}</span></div>
     <p v-if="disabledReason" :id="reasonId" class="qb-reason" role="status">{{ disabledReason }}</p>
-    <div class="qb-actions"><button v-if="shuffle" type="button" class="st-button qb-shuffle" aria-label="Shuffle preset variation" :disabled="busy" @click="emit('shuffle')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6h3l12 12h3M17 14l4 4-4 4M3 18h3l4-4M14 10l4-4h3M17 2l4 4-4 4" /></svg></button><button type="button" class="st-button qb-generate" :class="{ primary: !busy && !disabledReason }" data-test="studio-generate" :disabled="busy || !!disabledReason" :aria-describedby="disabledReason ? reasonId : undefined" @click="emit('generate')">{{ busy ? 'Preparing request...' : actionLabel }}</button></div>
+    <div class="qb-actions"><button v-if="shuffle" type="button" class="st-button qb-shuffle" aria-label="Shuffle preset variation" :disabled="busy" @click="emit('shuffle')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 6h3l12 12h3M17 14l4 4-4 4M3 18h3l4-4M14 10l4-4h3M17 2l4 4-4 4" /></svg></button><button type="button" class="st-button qb-generate" :class="{ primary: !busy && !disabledReason }" data-test="studio-generate" :disabled="busy || !!disabledReason" :aria-describedby="disabledReason ? reasonId : undefined" @click="emit('generate')">{{ busy ? 'Preparing request…' : actionLabel }}</button></div>
   </div>
 </template>
 <script setup>
 import { useId } from 'vue'
-defineProps({ summary: { type: String, required: true }, priceUsd: { type: Number, default: null }, disabledReason: { type: String, default: '' }, busy: Boolean, shuffle: { type: Boolean, default: true }, actionLabel: { type: String, default: 'Generate' } })
+// priceLabel: the live quote in words (Manual Image/Video, ADM-1170); it replaces "shown on the approval card".
+defineProps({ summary: { type: String, required: true }, priceUsd: { type: Number, default: null }, priceLabel: { type: String, default: '' }, disabledReason: { type: String, default: '' }, busy: Boolean, shuffle: { type: Boolean, default: true }, actionLabel: { type: String, default: 'Generate' } })
 const emit = defineEmits(['generate','shuffle'])
 const reasonId = `quote-reason-${useId()}`
 </script>

@@ -21,7 +21,7 @@
 </template>
 <script setup>
 import { computed } from 'vue'
-import { usd } from '../../utils/studioPrice'
+import { priceAmount, usd } from '../../utils/studioPrice'
 // The draft's price, from useLivePrice: worked out as the settings change, before anything is asked for. It is the
 // listed price, an estimate: the person pays what the provider bills (owner, 2026-11-03), so it is never "at most".
 // A price that depends on the settings the provider uses is shown as its published range. unknown: why it is known
@@ -29,12 +29,7 @@ import { usd } from '../../utils/studioPrice'
 const props = defineProps({ price: Object, loading: Boolean, problem: String, code: { type: String, default: '' }, accepted: Boolean, empty: { type: String, default: 'Fill in the details to see the price.' } })
 const emit = defineEmits(['update:accepted'])
 const refused = computed(() => props.code === 'not_priced')
-const amount = computed(() => {
-  const p = props.price
-  if (p.status === 'unknown') return 'No published price'
-  if (p.status === 'estimated' && p.most != null && p.most > p.estimate) return `About ${usd(p.estimate)} to ${usd(p.most)}`
-  return `About ${usd(p.estimate)}`
-})
+const amount = computed(() => priceAmount(props.price))
 const held = computed(() => props.price?.status === 'unknown' && props.price.most > 0)
 const unknownReason = computed(() => { const r = String(props.price?.reason || '').trim(); return r ? `${r[0].toUpperCase()}${r.slice(1)}${/[.!?]$/.test(r) ? '' : '.'}` : 'This model publishes no price before it runs; the cost is known once it is made.' })
 const word = key => { const s = String(key || '').replace(/[_-]+/g, ' ').trim(); return s ? s[0].toUpperCase() + s.slice(1) : 'Setting' }

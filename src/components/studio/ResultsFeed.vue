@@ -1,11 +1,11 @@
 <template>
   <div class="rf" data-test="studio-results-feed">
-    <p v-if="loading" class="st-status" role="status">Loading this session...</p><div v-if="error" class="st-error" role="alert">{{ error }} <button type="button" class="st-button" @click="refresh">Try again</button></div>
+    <p v-if="loading" class="st-status" role="status">Loading this session…</p><div v-if="error" class="st-error" role="alert">{{ error }} <button type="button" class="st-button" @click="refresh">Try again</button></div>
     <HITLModal v-if="showApprovals && chat.hitlRequests.length" :requests="chat.hitlRequests" inline :show-stop="!chat.isBusy" @respond="respond" @dismiss="chat.dismissHitl" @skip="chat.skipHitl" @stop="chat.stop" />
     <p v-if="chat.isBusy" class="st-status" role="status">The agent is preparing your request. Any paid run will ask for approval here.<button type="button" class="st-button" @click="chat.stop()">Stop</button></p>
     <p v-if="chat.error" class="st-error" role="alert">{{ chat.error }}</p>
     <VideoJobCard v-for="job in pending" :key="job.job_id" :job="job" in-studio />
-    <div v-if="!loading && !error && !items.length && !pending.length && !chat.isBusy && !chat.hitlRequests.length" class="st-empty"><strong>No results in this session yet</strong>Choose a preset and fill its inputs. Generate prepares a request. Review the price on its card; image session approval follows your choice on that card.</div>
+    <div v-if="!loading && !error && !items.length && !pending.length && !chat.isBusy && !chat.hitlRequests.length" class="st-empty"><strong>No results in this session yet</strong>What you make here appears in this list.</div>
     <ul v-if="items.length" class="rf-grid" aria-label="Session results"><li v-for="item in items" :key="item.attachment_id" class="rf-card">
       <!-- The server's small picture (a video's frame); the whole file only opens in the viewer on click. -->
       <button type="button" class="rf-preview" :aria-label="`Preview ${item.title}`" @click="viewIndex = items.indexOf(item)"><MediaThumb v-if="['image','video'].includes(item.media_type)" :item="item" :src="item.media_type === 'image' ? item.url : ''" alt="" /><span v-else><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 4h18v16H3zM3 16l5-5 4 4 3-3 6 6"/></svg>Open {{ item.media_type }} preview</span></button>
@@ -41,7 +41,7 @@ const pending = computed(() => props.kind === 'image' ? [] : jobs.value.filter(j
 function generationOf(job) {
   if (job.generation) return job.generation
   const c = job.effective_config || {}
-  return { job_id: job.job_id, operation: job.operation, modality: job.modality || 'video', route_id: job.route_id ?? null, model: job.model || '', model_name: job.model_name || '', prompt: c.prompt || '', settings: c, references: job.references || [], base_attachment_id: null, created_at: job.created_at }
+  return { job_id: job.job_id, operation: job.operation, modality: job.modality || 'video', route_id: job.route_id ?? null, model: job.model || '', model_name: job.model_name || '', prompt: c.prompt || '', settings: c, references: job.references || [], base_attachment_id: job.base_attachment_id ?? null, created_at: job.created_at }
 }
 // A job's result, then the other pictures of the same request (extra_outputs) beside it.
 function jobItems(job) {
@@ -57,7 +57,7 @@ function edit(item) { window.dispatchEvent(new Event('studio-save-draft')); cons
 const user = inject('studioUser', ref(null))
 watch(() => [user.value?.id, items.value], ([person, rows]) => { if (person) for (const item of rows) rememberStudioOrigin(person, 'attachment', item.attachment_id, props.kind) }, { immediate: true })
 let sequence = 0, disposed = false, fetching = false
-// A background poll (`{ background: true }`) never shows "Loading this session..." nor replaces the results with
+// A background poll (`{ background: true }`) never shows "Loading this session…" nor replaces the results with
 // an error: it only refreshes them. Clicks and session changes still show both.
 async function refresh(opts) {
   const background = opts?.background === true

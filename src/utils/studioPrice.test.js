@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { routeOptionLabel, usd } from './studioPrice'
+import { priceAmount, routeOptionLabel, usd } from './studioPrice'
 
 describe('studioPrice', () => {
   it('says money in cents, a third digit only when it says something', () => {
@@ -9,5 +9,11 @@ describe('studioPrice', () => {
     expect(routeOptionLabel({ name: 'FLUX Video Edit', connection: 'sajid openrouter', price_label: '$0.09 for 3 s' })).toBe('FLUX Video Edit · sajid openrouter · $0.09 for 3 s')
     // A route with no connection label reads as the platform, never its provider (owner, 2026-10-29).
     expect(routeOptionLabel({ model: 'acme/x', provider: 'fal' })).toBe('acme/x · AADML')
+  })
+  it('says a live price one way for the price card and the bottom bar (ADM-1170)', () => {
+    expect(priceAmount(null)).toBe('')
+    expect(priceAmount({ status: 'exact', estimate: 0.5 })).toBe('About $0.50')
+    expect(priceAmount({ status: 'estimated', estimate: 0.55, most: 0.88 })).toBe('About $0.55 to $0.88')
+    expect(priceAmount({ status: 'unknown', estimate: 0, most: 1 })).toBe('No published price')
   })
 })

@@ -43,7 +43,7 @@ const quote = useLivePrice(() => {
   const rule = length.value, seconds = duration.value === '' || duration.value == null ? null : Number(duration.value)
   return { kind: 'media', operation: 'music', route_id: routeId.value, request: { prompt: prompt.value.trim(), instrumental: instrumental.value, ...(rule.fixed_seconds || seconds == null ? {} : { duration: seconds }) } }
 })
-const livePrice = computed(() => ({ price: quote.price.value, loading: quote.loading.value, problem: quote.problem.value }))
+const livePrice = computed(() => ({ price: quote.price.value, loading: quote.loading.value, problem: quote.problem.value, code: quote.code.value }))
 function prepare() { submit(session => {
   if (!routes.value.some(route => String(route.route_id) === routeId.value && route.ready)) throw Error('Choose a proven model.')
   const rule = length.value, seconds = duration.value === '' || duration.value == null ? null : Number(duration.value)

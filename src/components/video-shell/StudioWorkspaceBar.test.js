@@ -34,7 +34,7 @@ it('the jobs queue reads the account list only when opened and shows recent jobs
   const { useChatStore } = await import('../../stores/useChatStore'), { useVideoStore } = await import('../../stores/useVideoStore')
   useChatStore().conversationId='open';useVideoStore()._put({job_id:'here',conversation_id:'open',state:'ready'})
   expect(api.get).not.toHaveBeenCalled()
-  await w.get('[aria-label="Open jobs for this conversation"]').trigger('click');await flushPromises()
+  await w.get('[data-test="swb-jobs"]').trigger('click');await flushPromises()
   expect(api.get).toHaveBeenCalledWith('/video/jobs/',{params:{page:1}})
   expect(w.get('[data-test="swb-recent"]').findAll('.card').map(c=>c.text())).toEqual(['elsewhere'])
   await w.get('[data-test="swb-recent-more"]').trigger('click');await flushPromises()
@@ -47,7 +47,16 @@ it('the jobs queue reads the account list only when opened and shows recent jobs
 })
 it('a failed account jobs read says so with Try again',async()=>{
   api.get.mockRejectedValue(new Error('down'))
-  const w=render();await w.get('[aria-label="Open jobs for this conversation"]').trigger('click');await flushPromises()
+  const w=render();await w.get('[data-test="swb-jobs"]').trigger('click');await flushPromises()
   expect(w.get('[data-test="swb-recent"] [role="alert"]').text()).toContain('could not be loaded')
+  w.unmount()
+})
+
+it('the jobs button names no count when there are no jobs (ADM-1170: "0 jobs")', async () => {
+  const w=render()
+  const button=w.get('[data-test="swb-jobs"]')
+  expect(button.text()).toContain('Jobs')
+  expect(button.text()).not.toContain('0 jobs')
+  expect(button.attributes('aria-label')).toBe('Jobs')
   w.unmount()
 })

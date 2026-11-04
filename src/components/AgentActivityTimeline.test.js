@@ -279,4 +279,18 @@ describe('a Work iteration finishing is not the run finishing', () => {
     expect(w.text()).not.toContain('Working')
     expect(w.find('.agent-spinner').exists()).toBe(false)
   })
+
+  // ADM-1170, phone QA 2026-11-04: "Analyzing your request 25ms" and "Working out how to do this" twice.
+  it('shows a step time only from one second up, and the status line only before any row exists', () => {
+    const quick = { ...builderStep, stepId: 'Q', label: 'Analyzing your request', durationMs: 25 }
+    const working = { ...builderStep, stepId: 'W', label: 'Working out how to do this', status: 'running', durationMs: null }
+    const w = mount(AgentActivityTimeline, {
+      props: { steps: [quick, working], running: true, isComplete: false, statusLabel: 'Working out how to do this' },
+    })
+    expect(w.text()).not.toContain('25ms')
+    expect(w.text().split('Working out how to do this').length - 1).toBe(1)
+    expect(w.find('.agent-status-line').exists()).toBe(false)
+    const slow = mount(AgentActivityTimeline, { props: { steps: [builderStep], running: false, isComplete: true } })
+    return expandRows(slow).then(() => expect(slow.find('.agent-step-dur').exists()).toBe(true))
+  })
 })

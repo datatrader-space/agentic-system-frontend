@@ -284,6 +284,5 @@ body.vs-theme {
  .vs-keyboard-open :deep(.st-page-agent .st-page-head){display:none}
  .vs-keyboard-open :deep(.st-page-agent .st-form .st-tool-options){display:none}
  .vs-keyboard-open :deep(.st-page-agent){gap:4px;padding-block:4px}
- .vs-keyboard-open :deep(.sap-more summary){min-height:36px;padding-block:8px}
 }
 </style>
