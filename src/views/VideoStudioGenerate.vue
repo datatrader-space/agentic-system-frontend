@@ -3,11 +3,11 @@
     <template #form="{ narrow }">
       <StudioModeSwitch />
       <StudioFirstVisit v-if="!isAgent" :hidden="hintHidden" @dismiss="dismissHint" />
-      <StudioPresetSelect :model-value="selectedId" :presets="presets" :disabled="chat.isBusy || video.busy" @update:model-value="selectPresetId" /><StudioLookDetails v-if="!isAgent && selected?.clientOnly" :look="selected" :disabled="chat.isBusy || video.busy" @apply="choose" />
+      <StudioPresetSelect :model-value="selectedId" :presets="presets" :disabled="chat.isBusy || video.busy" @update:model-value="selectPresetId" /><StudioLookDetails v-if="!isAgent && selected?.clientOnly" :look="selected" :disabled="chat.isBusy || video.busy" :settings="pageSettings" @apply="choose" />
       <BottomSheet v-if="narrow && !isAgent" ref="presetSheet" label="Change preset" :summary="selected?.title || 'Your own idea'" test-id="studio-preset-picker"><PresetGallery :presets="presets" :selected="selectedId" @select="choose" /></BottomSheet>
       <p v-if="loading" class="st-status" role="status">Loading your models...</p><div v-if="error" class="st-error" role="alert">{{ error }}<button type="button" class="st-button" @click="initialize">Try again</button></div>
       <StudioReferenceInputs v-if="!isAgent" :groups="inputGroups" :unassigned="unassigned" @add-files="addFiles" @pick="pick" @remove="video.removeRef($event)" />
-      <StudioAgentPanel @new="freshStart" :look="selected" v-show="isAgent" ref="agentPanel" v-model="agentDraft" v-model:expanded="chatExpanded" :label="feature.label" :purpose="feature.purpose" :ready="ready" @approved="tab = 'results'" />
+      <StudioAgentPanel @new="freshStart" @sent="draftSent" :look="selected" v-show="isAgent" ref="agentPanel" v-model="agentDraft" v-model:expanded="chatExpanded" :label="feature.label" :purpose="feature.purpose" :ready="ready" @approved="tab = 'results'" />
       <div v-show="!isAgent" class="sg-manual">
       <div class="sg-help"><button type="button" class="st-button" data-test="studio-write-prompt" :disabled="!ready || chat.isBusy || !!helper" @click="askHelper('prompt')">Write it for me</button><button type="button" class="st-button" data-test="studio-suggest-settings" :disabled="!ready || chat.isBusy || !!helper" @click="askHelper('settings')">Suggest settings</button></div>
       <p v-if="helper" class="st-status" role="status">{{ helper === 'prompt' ? 'Writing a direction for you to edit...' : 'Preparing settings for you to review...' }}<button type="button" class="st-button" @click="chat.stop(); helper = ''">Stop</button></p>
@@ -18,9 +18,10 @@
       <LivePrice v-bind="livePrice" v-model:accepted="quote.accepted.value" :empty="draftProblem || 'Fill in the details to see the price.'" />
       </div>
       <p v-if="draftMessage" class="st-error" role="status">{{ draftMessage }}</p>
+      <p v-if="templateMessage" class="st-error" role="alert" data-test="studio-template-message">{{ templateMessage }}</p>
       <p v-if="formError" class="st-error" role="alert">{{ formError }}</p>
     </template>
-    <template #presets><template v-if="isAgent"><StudioLookPreview v-if="selected?.clientOnly" :look="selected" @select="choose" /><StudioCreativeCanvas v-else /></template><PresetGallery v-else :presets="presets" :selected="selectedId" @select="choose" /></template>
+    <template #presets><template v-if="isAgent"><StudioLookPreview v-if="selected?.clientOnly" :look="selected" :settings="pageSettings" @select="choose" /><StudioCreativeCanvas v-else /></template><PresetGallery v-else :presets="presets" :selected="selectedId" @select="choose" /></template>
     <template #looks><PresetGallery :presets="presets" :selected="selectedId" @select="choose" /></template>
     <template #versions><StudioVersions /></template>
     <template #results><ResultsFeed v-if="ready" :kind="kind" :conversation-id="video.conversationId" :show-approvals="!isAgent" @approved="tab = 'results'" @recreate="recreate" /><p v-else class="st-status">Open this session to see its results.</p></template>
@@ -35,6 +36,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useStudioSession } from '../composables/useStudioSession'
 import { getStudioFeature } from '../services/studioFeatures'
 import { readStudioDraft, keepStudioDraft } from '../services/studioDraftMemory'
+import { studioDraftKey, readLocalDraft, keepLocalDraft, dropLocalDraft } from '../services/studioDrafts'
+import { useStudioTemplates, templateLook } from '../composables/useStudioTemplates'
 import { plainText } from '../composables/useChatHistory'
 import { composePreset, presetsFor } from '../services/studioPresets'
 import { LOOK_ID } from '../services/studioLooks'
@@ -136,6 +139,7 @@ async function freshStart() {
   await router.replace({ path: route.path, query: {} })
   await initialize()
   selectedId.value = ''; details.value = ''; agentDraft.value = ''; video.refs = []; tab.value = 'presets'; formError.value = ''; leaving = false
+  forgetLocal(); templateMessage.value = ''
   await nextTick(); page.value?.focusInputs()
 }
 function addFiles(slot, files) { for (const file of files) { video.addRef(file, slot.role); video.refs[video.refs.length - 1].studioSlot = slot.id } }
@@ -229,6 +233,7 @@ async function generate() {
     const sent = props.kind === 'image' ? await video.requestImage({ prompt, chat }) : await video.request({ prompt, chat })
     if (!sent) { formError.value = 'The request was not sent. Check the inputs and try again.'; return }
     records.value.unshift({ ...record, refs: cleanRefs(refs), prompt })
+    draftSent()
     tab.value = 'results'
   } catch { formError.value = 'Could not prepare the request. Nothing was started by this page.' }
   finally { submitting.value = false }
@@ -264,7 +269,10 @@ let restoredKey = '', leaving = false
 watch([ready, draftKey], ([isReady, key]) => {
   if (!isReady || !key || key === restoredKey) return
   restoredKey = key
-  try { const stored = JSON.parse(sessionStorage.getItem(key) || 'null'); if (stored) { restore(stored); records.value = Array.isArray(stored.records) ? stored.records.filter(record => record && typeof record === 'object' && typeof record.at === 'string').slice(0,30) : [] } } catch { /* blocked storage never blocks the page */ }
+  let stored = null
+  try { stored = JSON.parse(sessionStorage.getItem(key) || 'null'); if (stored) { restore(stored); records.value = Array.isArray(stored.records) ? stored.records.filter(record => record && typeof record === 'object' && typeof record.at === 'string').slice(0,30) : [] } } catch { /* blocked storage never blocks the page */ }
+  // A reload in a new tab (or after the tab was closed): the text and settings kept on this device.
+  if (!stored && !route.query.useIn) { const kept = readLocalDraft(localKey.value); if (kept) restore(kept) }
   const memory = readStudioDraft(key)
   if (memory && !route.query.useIn) { restore(memory); video.refs = memory.transientRefs.map(item => ({ ...item })); draftMessage.value = '' }
   if (route.query.useIn) selectedId.value = ''
@@ -276,8 +284,63 @@ function saveDraft() {
   if (!ready.value || !draftKey.value) return
   keepStudioDraft(draftKey.value, { ...snapshot(), transientRefs: video.refs.map(item => ({ ...item })) })
   try { sessionStorage.setItem(draftKey.value, JSON.stringify({ ...snapshot(), records: records.value.slice(0,30) })) } catch { /* in-memory draft still works */ }
+  keepLocal()
 }
+// The device copy (services/studioDrafts.js): text and plain settings only, never references, files or URLs. A sent
+// draft is removed and is not written again until the person changes it.
+const localKey = computed(() => studioDraftKey(user.value?.id, props.kind, route.query.conversation))
+// Every key this draft was written under since it was last sent or cleared: a send can move the chat to its new
+// conversation (a new key) while the draft is still being written.
+const localWritten = new Set()
+let sentText = null
+const localSnapshot = () => ({ agentDraft: agentDraft.value, preset: selectedId.value || '', details: details.value, variant: variant.value,
+  image: { modelId: video.image.modelId ?? '', aspect_ratio: video.image.aspect_ratio, n: Number(video.image.n) || 1 },
+  settings: { duration: video.settings.duration, aspect_ratio: video.settings.aspect_ratio, resolution: video.settings.resolution, sound: !!video.settings.sound }, routeId: video.routeId ?? '' })
+function keepLocal() {
+  if (!localKey.value) return
+  const snap = localSnapshot(), text = JSON.stringify(snap)
+  if (sentText !== null && text === sentText) return
+  sentText = null
+  if (agentDraft.value.trim() || details.value.trim()) { keepLocalDraft(localKey.value, snap); localWritten.add(localKey.value) }
+  else dropLocalDraft(localKey.value)
+}
+function forgetLocal() { dropLocalDraft(localKey.value, ...localWritten); localWritten.clear() }
+function draftSent() { forgetLocal(); sentText = JSON.stringify(localSnapshot()) }
 watch(() => [agentDraft.value, selectedId.value, details.value, variant.value, video.image, video.settings, video.routeId, video.refs, records.value], saveDraft, { deep: true })
+// The settings saved with "Save as my template": this page's current ones.
+const pageSettings = computed(() => props.kind === 'image'
+  ? { aspect_ratio: video.image.aspect_ratio, n: Number(video.image.n) || 1 }
+  : { duration: Number(video.settings.duration) || undefined, aspect_ratio: video.settings.aspect_ratio, resolution: video.settings.resolution, sound: !!video.settings.sound })
+// "Use" on one of My templates opens this page with ?template=<id>: its prompt, texts and the settings this page
+// supports fill the form, as a look's prepared brief does. Nothing is sent, run or spent.
+const myTemplates = useStudioTemplates(), templateMessage = ref('')
+let usedTemplate = ''
+watch([ready, () => myTemplates.ready.value, () => route.query.template], async ([isReady, listed, id]) => {
+  if (!id) { usedTemplate = ''; return }
+  if (!isReady || !listed || usedTemplate === String(id)) return
+  usedTemplate = String(id)
+  const template = myTemplates.find(id)
+  if (!template || template.page !== props.kind) templateMessage.value = 'This template is not on your account, or it is for another page.'
+  else { templateMessage.value = ''; await useTemplate(template) }
+  await router.replace({ path: route.path, query: { ...route.query, template: undefined, ...(template && template.page === props.kind ? { preset: presets.value.some(p => p.id === template.base_look && p.clientOnly) ? template.base_look : undefined } : {}) } })
+}, { immediate: true })
+async function useTemplate(template) {
+  const base = presets.value.find(p => p.id === template.base_look && p.clientOnly)
+  if (base) await choose(templateLook(template, base)); else selectPresetId('')
+  const kept = template.settings || {}
+  if (props.kind === 'image') {
+    if (video.imageShapes.includes(kept.aspect_ratio)) video.image.aspect_ratio = kept.aspect_ratio
+    if ([1,2,3,4].includes(kept.n)) video.image.n = kept.n
+  } else {
+    if (video.options.durations.includes(kept.duration)) video.settings.duration = kept.duration
+    if (video.options.aspectRatios.includes(kept.aspect_ratio)) video.settings.aspect_ratio = kept.aspect_ratio
+    if ((video.options.resolutions || []).includes(kept.resolution)) video.settings.resolution = kept.resolution
+    if (typeof kept.sound === 'boolean' && video.options.audio) video.settings.sound = kept.sound
+  }
+  agentDraft.value = template.prompt
+  details.value = base ? '' : template.prompt
+  await nextTick(); page.value?.focusInputs()
+}
 
 </script>
 <style scoped>

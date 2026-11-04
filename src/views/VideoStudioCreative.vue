@@ -9,8 +9,9 @@
         <p>{{ availability.reason }}</p>
         <p v-if="providerNeeded" class="st-muted">The platform's models for this are added by a platform administrator.</p>
       </div>
+      <p v-if="templateMessage" class="st-error" role="alert" data-test="studio-template-message">{{ templateMessage }}</p>
       <p v-if="session.error.value" class="st-error" role="alert">{{ session.error.value }} <button type="button" class="st-button" @click="session.initialize">Try again</button></p>
-      <StudioAgentPanel @new="newChat" :look="selected" v-show="isAgent" v-model="agentDraft" v-model:expanded="chatExpanded" :label="feature.label" :purpose="feature.purpose" :ready="session.ready.value" @approved="tab = 'results'" />
+      <StudioAgentPanel @new="newChat" @sent="toolDraft.forget()" :look="selected" v-show="isAgent" v-model="agentDraft" v-model:expanded="chatExpanded" :label="feature.label" :purpose="feature.purpose" :ready="session.ready.value" @approved="tab = 'results'" />
       <div v-show="!isAgent" class="sc-manual" data-test="studio-manual">
         <template v-if="availability?.ready">
           <CreativeMusic v-if="featureId === 'music'" @job="addJob" />
@@ -55,7 +56,8 @@ import { useStudioToolDraft } from '../composables/useStudioToolDraft'
 import { computed, onBeforeUnmount, provide, ref, useId, watch } from 'vue'
 import { getStudioFeature, loadStudioFeatures } from '../services/studioFeatures'
 import { useStudioSession } from '../composables/useStudioSession'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useStudioTemplates, templateLook } from '../composables/useStudioTemplates'
 import { presetsFor, composePreset } from '../services/studioPresets'
 import { LOOK_ID } from '../services/studioLooks'
 import StudioPresetSelect from '../components/studio/StudioPresetSelect.vue'
@@ -93,8 +95,10 @@ const presets = computed(() => presetsFor(props.featureId))
 const selectedId = ref(presets.value.some(p => p.id === route.query.preset) ? route.query.preset : '')
 const preparedLook = ref(null)
 provide('studioPreparedLook', preparedLook)
-const selected = computed(() => presets.value.find(p => p.id === selectedId.value))
-function choosePreset(value) { if (chat.isBusy || video.busy) return; const preset = typeof value === 'string' ? presets.value.find(p => p.id === value) : value; selectedId.value = preset?.id || ''; preparedLook.value = preset || null; syncPresetRoute(preset?.id, video.studioMode); if (preset) agentDraft.value = composePreset(preset); if (isAgent.value) page.value?.focusInputs() }
+// A template used here keeps its look's id with its own texts.
+const selectedOverride = ref(null)
+const selected = computed(() => selectedOverride.value && selectedOverride.value.id === selectedId.value ? selectedOverride.value : presets.value.find(p => p.id === selectedId.value))
+function choosePreset(value) { if (chat.isBusy || video.busy) return; const preset = typeof value === 'string' ? presets.value.find(p => p.id === value) : value; selectedOverride.value = null; selectedId.value = preset?.id || ''; preparedLook.value = preset || null; syncPresetRoute(preset?.id, video.studioMode); if (preset) agentDraft.value = composePreset(preset); if (isAgent.value) page.value?.focusInputs() }
 if (selected.value) { agentDraft.value = composePreset(selected.value); preparedLook.value = selected.value }
 const hasMonitor = computed(() => MONITOR_PAGES.includes(props.featureId))
 // The pages that make pictures list image versions; every other page lists video takes.
@@ -130,8 +134,29 @@ watch(() => session.ready.value && chat.conversationId, cid => { if (cid) video.
 watch(() => props.featureId, () => { ids.value = []; tab.value = 'presets'; load() }, { immediate: true })
 onBeforeUnmount(() => { sequence++ })
 // A fresh chat starts without the previous look: neither the chosen preset nor the prepared look is sent again.
-async function newChat() { if (await session.freshStart()) { agentDraft.value = ''; selectedId.value = ''; preparedLook.value = null; chat.studioContext = pageContext(); tab.value = 'presets' } }
-useStudioToolDraft(props.featureId, agentDraft, selectedId)
+async function newChat() { if (await session.freshStart()) { agentDraft.value = ''; selectedId.value = ''; selectedOverride.value = null; preparedLook.value = null; templateMessage.value = ''; toolDraft.forget(); chat.studioContext = pageContext(); tab.value = 'presets' } }
+const toolDraft = useStudioToolDraft(props.featureId, agentDraft, selectedId)
+// "Use" on one of My templates opens this page with ?template=<id>: its prompt fills the agent's message and its
+// texts fill the look's fields and the Manual form, as a look's prepared brief does. Nothing is sent, run or spent.
+const myTemplates = useStudioTemplates(), templateMessage = ref('')
+const router = useRouter()
+let usedTemplate = ''
+watch([() => myTemplates.ready.value, () => route.query.template], async ([listed, id]) => {
+  if (!id) { usedTemplate = ''; return }
+  if (!listed || usedTemplate === String(id)) return
+  usedTemplate = String(id)
+  const template = myTemplates.find(id)
+  const base = template ? presets.value.find(p => p.id === template.base_look) : null
+  if (!template || template.page !== props.featureId) templateMessage.value = 'This template is not on your account, or it is for another page.'
+  else if (chat.isBusy || video.busy) templateMessage.value = 'Finish or stop the current request, then use the template again.'
+  else {
+    templateMessage.value = ''
+    const look = templateLook(template, base)
+    selectedOverride.value = base ? look : null; selectedId.value = base?.id || ''; preparedLook.value = look; agentDraft.value = template.prompt
+    if (isAgent.value) page.value?.focusInputs()
+  }
+  await router.replace({ path: route.path, query: { ...route.query, template: undefined, preset: selectedId.value || undefined } })
+}, { immediate: true })
 </script>
 <style scoped>
 .sc-manual{display:grid;gap:18px}.sc-blocked{display:grid;gap:6px;padding:12px;border:1px solid var(--vm-line);border-radius:7px;background:var(--vm-surface-2);font-size:13px;line-height:1.55}.sc-note{padding:16px 24px;font-size:12px;line-height:1.6}.sc-monitor{min-width:0}@media(max-width:767px){.sc-note{padding:12px 16px}}

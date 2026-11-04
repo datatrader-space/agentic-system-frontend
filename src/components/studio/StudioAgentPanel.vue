@@ -30,7 +30,7 @@ import VideoJobsTray from '../video/VideoJobsTray.vue'
 import VideoLibrary from '../video/VideoLibrary.vue'
 import HITLModal from '../HITLModal.vue'
 const props = defineProps({ modelValue: { type: String, default: '' }, look: Object, label: String, purpose: String, ready: Boolean, expanded: Boolean, intro: { type: String, default: 'Describe your idea or choose a preset. Use + to attach references.' } })
-const emit = defineEmits(['new','update:modelValue','update:expanded','approved'])
+const emit = defineEmits(['new','update:modelValue','update:expanded','approved','sent'])
 const chat = useChatStore(), video = useVideoStore(), sending = ref(false), input = ref(null), lowerCost = ref(false)
 watch(() => props.modelValue, async () => {
   await nextTick()
@@ -51,7 +51,7 @@ async function send() {
   // lower-cost preference is its typed lower_cost field, on every message sent while it is on.
   const pageContext = chat.studioContext, cheaper = lowerCost.value
   if (cheaper) chat.studioContext = { ...(pageContext || {}), lower_cost: true }
-  try { if (await video.sendAgentMessage({ prompt: props.modelValue, chat })) emit('update:modelValue', '') }
+  try { if (await video.sendAgentMessage({ prompt: props.modelValue, chat })) { emit('update:modelValue', ''); emit('sent') } }
   finally { if (cheaper && chat.studioContext?.lower_cost) chat.studioContext = pageContext; sending.value = false }
 }
 function respond(event) { chat.respondHitl(event); if (event.response_value === true || event.response_value?.approved === true) emit('approved') }

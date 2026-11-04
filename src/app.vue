@@ -158,6 +158,7 @@ import { useRouter, useRoute } from 'vue-router'
 import api from './services/api'
 import { lazyComponent } from './utils/lazyComponent'
 import ConfirmDialog from './components/ConfirmDialog.vue'
+import { clearStudioDrafts } from './services/studioDrafts'
 import NavProgress from './components/app-shell/NavProgress.vue'
 import { useTheme } from './composables/useTheme'
 import { identify } from './composables/useAnalytics'
@@ -309,6 +310,9 @@ const handleLogout = async () => {
     
     // Clear all frontend state
     currentUser.value = null
+
+    // Unsent Studio drafts are named first: they must go even if the wipe below is ever narrowed.
+    clearStudioDrafts()
     
     // Clear ALL localStorage (not just 'user')
     localStorage.clear()
@@ -328,6 +332,7 @@ const handleLogout = async () => {
     
     // Even if backend logout fails, clear frontend state
     currentUser.value = null
+    clearStudioDrafts()
     localStorage.clear()
     sessionStorage.clear()
     

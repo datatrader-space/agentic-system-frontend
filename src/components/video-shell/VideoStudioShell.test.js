@@ -7,7 +7,9 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 
-vi.mock('../../services/api', () => ({ default: { checkAuth: vi.fn(() => Promise.resolve({ data: { user: { email: 'maker@example.com' } } })), getStudioFeatures: vi.fn(() => Promise.resolve({ data: { features: [] } })) } }))
+vi.mock('../../services/api', () => ({ default: { checkAuth: vi.fn(() => Promise.resolve({ data: { user: { email: 'maker@example.com' } } })), getStudioFeatures: vi.fn(() => Promise.resolve({ data: { features: [] } })),
+  get: vi.fn(path => Promise.resolve({ data: path === '/video/templates/' ? { templates: [{ id: 1, page: 'image', title: 'One', prompt: 'p' }, { id: 2, page: 'music', title: 'Two', prompt: 'q' }] } : { favorite_looks: ['image-look-1'] } })) } }))
+import api from '../../services/api'
 
 import VideoStudioShell from './VideoStudioShell.vue'
 import { STUDIO_GROUPS, studioFeatures, featureLink } from '../../services/studioFeatures'
@@ -100,11 +102,25 @@ describe('F0 grouped navigation', () => {
 it('matches the approved workspace-first hierarchy without duplicated destinations', async () => {
   const { w } = await mountAt('/video-studio')
   expect(w.findAll('.vs-group-toggle').map(b => b.text())).toEqual(['Create','Edit & enhance','Characters','Video tools','Avatars & shorts','Story','Marketing'])
-  expect(w.findAll('.vs-workspace-nav > a').map(a => a.text())).toEqual(['Dashboard','Discover','Saved templates0','Projects','Library','Canvas'])
+  expect(w.findAll('.vs-workspace-nav > a').map(a => a.text())).toEqual(['Dashboard','Discover','Saved templates0','My templates0','Projects','Library','Canvas'])
   expect(w.find('.vs-fixed-workspace').exists()).toBe(false)
   expect(w.findAll('.vs-foot > a').map(a => a.text())).toEqual(['Help & shortcuts'])
   expect(w.findAll('.vs-nav-item[data-test="vs-nav-projects"]')).toHaveLength(1)
   expect(w.findAll('.vs-group-toggle').every(b => b.attributes('aria-expanded') === 'false')).toBe(true)
   expect(w.findAll('.vs-group').find(g => g.text().includes('Characters')).findAll('.vs-nav-item').map(a => a.attributes('data-test'))).toEqual(['vs-nav-characters','vs-nav-identity-training','vs-nav-elements'])
   w.unmount()
+})
+
+it('counts My templates in the sidebar and links to them next to Saved templates', async () => {
+  // jsdom has no dialog methods; a signed-in person makes the workspace bar close its dialogs.
+  const close = HTMLDialogElement.prototype.close
+  HTMLDialogElement.prototype.close = function () {}
+  api.checkAuth.mockResolvedValueOnce({ data: { user: { id: 41, email: 'maker@example.com' } } })
+  const { w } = await mountAt('/video-studio?view=looks&saved=1#my-templates')
+  expect(api.get).toHaveBeenCalledWith('/video/templates/')
+  const mine = w.get('[data-test="vs-nav-my-templates"]')
+  expect(mine.text()).toBe('My templates2'); expect(mine.attributes('href')).toBe('/video-studio?view=looks&saved=1#my-templates')
+  expect(mine.attributes('aria-current')).toBe('page')
+  expect(w.get('[data-test="vs-nav-saved"]').text()).toBe('Saved templates1'); expect(w.get('[data-test="vs-nav-saved"]').attributes('aria-current')).toBeUndefined()
+  w.unmount(); HTMLDialogElement.prototype.close = close
 })

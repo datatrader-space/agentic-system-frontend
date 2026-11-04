@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { reactive, ref } from 'vue'
+import { defineComponent, h, provide, reactive, ref } from 'vue'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
@@ -13,6 +13,8 @@ import VideoStudioGenerate from './VideoStudioGenerate.vue'
 import { useVideoStore } from '../stores/useVideoStore'
 import { clearStudioDraftMemory } from '../services/studioDraftMemory'
 import { presetsFor, composePreset } from '../services/studioPresets'
+import { studioDraftKey, keepLocalDraft } from '../services/studioDrafts'
+import { provideStudioTemplates } from '../composables/useStudioTemplates'
 let wrapper, video
 const stubs = {
   StudioSettings: true,
@@ -372,5 +374,86 @@ describe('Image and Video pages: the live price', () => {
   it('Agent mode asks for no live price', async () => {
     await render('image', null, 'agent'); await settle()
     expect(api.getStudioQuote).not.toHaveBeenCalled()
+  })
+})
+
+// Unsent drafts survive a reload on the same device (localStorage): text and plain settings only.
+describe('Image and Video drafts on this device', () => {
+  const localKey = (person, kind, conversation = '') => studioDraftKey(person, kind, conversation)
+  const studioKeys = () => Object.keys(localStorage).filter(key => key.startsWith('aadml.studio.draft.'))
+  it('brings back the text and settings after the tab was closed, without references', async () => {
+    await render('image', 'person'); pickRequired(); await flushPromises()
+    await wrapper.get('.sg-manual textarea').setValue('An unsent teapot idea'); video.image.aspect_ratio = '3:4'; await flushPromises()
+    const stored = localStorage.getItem(localKey('person', 'image'))
+    expect(stored).toContain('An unsent teapot idea'); expect(stored).not.toContain('attachment_id'); expect(stored).not.toContain('owned.png')
+    // A new tab on the same page: no tab copy, no files in memory.
+    wrapper.unmount(); sessionStorage.clear(); clearStudioDraftMemory(); video.refs = []; video.image.aspect_ratio = '1:1'; state.route.query = {}
+    await render('image', 'person')
+    expect(wrapper.get('.sg-manual textarea').element.value).toBe('An unsent teapot idea')
+    expect(video.image.aspect_ratio).toBe('3:4'); expect(video.refs).toHaveLength(0)
+    expect(video.requestImage).not.toHaveBeenCalled()
+  })
+  it('removes the draft when it is sent to the agent', async () => {
+    await render('image', 'person', 'agent')
+    const panel = wrapper.findComponent({ name: 'StudioAgentPanel' })
+    panel.vm.$emit('update:modelValue', 'Ask the agent for a teapot'); await flushPromises()
+    expect(studioKeys()).toEqual([localKey('person', 'image')])
+    panel.vm.$emit('update:modelValue', ''); panel.vm.$emit('sent'); await flushPromises()
+    expect(studioKeys()).toEqual([])
+  })
+  it('removes the draft when Generate sends it', async () => {
+    await render('image', 'person'); pickRequired(); await flushPromises()
+    await wrapper.get('.sg-manual textarea').setValue('A teapot to generate'); await flushPromises()
+    expect(studioKeys()).toHaveLength(1)
+    await wrapper.get('[data-test="studio-generate"]').trigger('click'); await flushPromises()
+    expect(video.requestImage).toHaveBeenCalledOnce(); expect(studioKeys()).toEqual([])
+  })
+  it('removes the draft when New chat starts fresh', async () => {
+    await render('image', 'person')
+    await wrapper.get('.sg-manual textarea').setValue('Before a new chat'); await flushPromises()
+    expect(studioKeys()).toHaveLength(1)
+    wrapper.findComponent({ name: 'StudioAgentPanel' }).vm.$emit('new'); await flushPromises()
+    expect(studioKeys()).toEqual([]); expect(wrapper.get('.sg-manual textarea').element.value).toBe('')
+  })
+  it('drops a draft older than 7 days', async () => {
+    keepLocalDraft(localKey('person', 'image'), { details: 'Too old' }, Date.now() - 8 * 24 * 60 * 60 * 1000)
+    await render('image', 'person')
+    expect(wrapper.get('.sg-manual textarea').element.value).toBe(''); expect(studioKeys()).toEqual([])
+  })
+})
+
+// "Use" on one of My templates opens the page with ?template=<id>: the page is filled in, nothing is sent.
+describe('Using one of My templates', () => {
+  const look = presetsFor('image').find(item => item.id === 'image-look-1')
+  const texts = Object.fromEntries(look.variables.map((field, i) => [field.label, i === 0 ? 'My blue teapot' : field.default]))
+  const prompt = composePreset({ ...look, variants: [], variables: look.variables.map(field => ({ ...field, default: texts[field.label] })) })
+  async function renderWithTemplates(query) {
+    const base = api.get.getMockImplementation()
+    api.get.mockImplementation(async path => path === '/video/templates/' ? { data: { templates: [{ id: 7, page: 'image', base_look: 'image-look-1', title: 'Blue teapot', prompt, variables: texts, settings: { aspect_ratio: '3:4', n: 2 } }, { id: 8, page: 'video', base_look: '', title: 'Elsewhere', prompt: 'x', variables: {}, settings: {} }] } } : base(path))
+    state.route.path = '/video-studio/image'; state.route.query = query
+    const user = ref({ id: 'person' })
+    const Host = defineComponent({ setup() { provide('studioUser', user); provideStudioTemplates(user); return () => h(VideoStudioGenerate, { kind: 'image' }) } })
+    wrapper = mount(Host, { attachTo: document.body, global: { stubs } })
+    await flushPromises()
+  }
+  it('fills the agent message, the look\'s texts and the supported settings, and sends nothing', async () => {
+    await renderWithTemplates({ template: '7', mode: 'agent' })
+    expect(wrapper.findComponent({ name: 'StudioAgentPanel' }).props('modelValue')).toBe(prompt)
+    expect(video.image.aspect_ratio).toBe('3:4'); expect(video.image.n).toBe(2)
+    expect(state.route.query.template).toBeUndefined(); expect(state.route.query.preset).toBe('image-look-1')
+    expect(state.chat.sendMessage).not.toHaveBeenCalled(); expect(api.post).not.toHaveBeenCalled(); expect(video.requestImage).not.toHaveBeenCalled()
+  })
+  it('fills the Manual look fields with the template texts', async () => {
+    await renderWithTemplates({ template: '7', mode: 'manual' })
+    expect(wrapper.findAll('.sld-fields input')[0].element.value).toBe('My blue teapot')
+    expect(state.chat.sendMessage).not.toHaveBeenCalled()
+  })
+  it('says so when the template is not this person\'s or is for another page', async () => {
+    await renderWithTemplates({ template: '99', mode: 'agent' })
+    expect(wrapper.get('[data-test="studio-template-message"]').text()).toContain('not on your account')
+    expect(wrapper.findComponent({ name: 'StudioAgentPanel' }).props('modelValue')).toBe('')
+    wrapper.unmount()
+    await renderWithTemplates({ template: '8', mode: 'agent' })
+    expect(wrapper.get('[data-test="studio-template-message"]').text()).toContain('another page')
   })
 })

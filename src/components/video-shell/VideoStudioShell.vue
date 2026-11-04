@@ -18,7 +18,8 @@
             <h2 class="vs-nav-section">WORKSPACE</h2>
             <router-link v-for="item in workspaceTop" :key="item.id" :to="item.to" class="vs-nav-item" :class="{ active: item.active }" :aria-current="item.active ? 'page' : undefined" :data-test="'vs-nav-' + item.id"><StudioNavIcon :name="item.icon" class="vs-nav-ico" /><span class="vs-nav-label">{{ item.label }}</span></router-link>
             <button type="button" class="vs-nav-item vs-history-link" data-test="studio-history-open" @click="openHistory"><StudioNavIcon name="clock" class="vs-nav-ico" /><span class="vs-nav-label">Chat history</span></button>
-            <router-link :to="{ path: '/video-studio', query: { view: 'looks', saved: '1' } }" class="vs-nav-item" :class="{active: !!route.query.saved}" :aria-current="route.query.saved ? 'page' : undefined"><StudioNavIcon name="heart" class="vs-nav-ico" /><span class="vs-nav-label">Saved templates</span><small>{{ savedLooks.ids.value.length }}</small></router-link>
+            <router-link :to="{ path: '/video-studio', query: { view: 'looks', saved: '1' } }" class="vs-nav-item" :class="{active: !!route.query.saved && route.hash !== '#my-templates'}" :aria-current="route.query.saved && route.hash !== '#my-templates' ? 'page' : undefined" data-test="vs-nav-saved"><StudioNavIcon name="heart" class="vs-nav-ico" /><span class="vs-nav-label">Saved templates</span><small>{{ savedLooks.ids.value.length }}</small></router-link>
+            <router-link :to="{ path: '/video-studio', query: { view: 'looks', saved: '1' }, hash: '#my-templates' }" class="vs-nav-item" :class="{active: !!route.query.saved && route.hash === '#my-templates'}" :aria-current="route.query.saved && route.hash === '#my-templates' ? 'page' : undefined" data-test="vs-nav-my-templates"><StudioNavIcon name="layers" class="vs-nav-ico" /><span class="vs-nav-label">My templates</span><small>{{ myTemplates.templates.value.length }}</small></router-link>
             <router-link v-for="item in workspace" :key="item.id" :to="featureLink(item)" class="vs-nav-item" :class="{active:isActive(item)}" :aria-current="isActive(item) ? 'page' : undefined" :data-test="'vs-nav-' + item.id"><StudioNavIcon :name="workspaceIcons[item.id]" class="vs-nav-ico" /><span class="vs-nav-label">{{ item.label }}</span></router-link>
           </section>
           <section class="vs-creative-nav" aria-label="Creative tools">
@@ -64,6 +65,8 @@ import WorkspaceSwitcher from '../layout/WorkspaceSwitcher.vue'
 import StudioNavIcon from './StudioNavIcon.vue'
 import StudioWorkspaceBar from './StudioWorkspaceBar.vue'
 import { provideStudioSavedLooks } from '../../composables/useStudioSavedLooks'
+import { provideStudioTemplates } from '../../composables/useStudioTemplates'
+import { clearStudioDrafts } from '../../services/studioDrafts'
 import StudioRecentChats from './StudioRecentChats.vue'
 import { useChatStore } from '../../stores/useChatStore'
 
@@ -71,6 +74,10 @@ const route = useRoute()
 const chat = useChatStore()
 const user = ref(null)
 const savedLooks = provideStudioSavedLooks(user)
+const myTemplates = provideStudioTemplates(user)
+// Unsent drafts belong to the person who wrote them: when the signed-in person changes or signs out, that person's
+// drafts on this browser are removed (sign-out in app.vue also removes them).
+watch(() => user.value?.id, (id, previous) => { if (previous && String(id || '') !== String(previous)) clearStudioDrafts(String(previous)) })
 const pageTitle = computed(() => route.path.endsWith('/dashboard') ? 'Dashboard' : studioFeatures.value.find(f => f.route === route.path)?.label || 'Discover')
 const workspaceBar=ref(null), designNotes=ref(null)
 const menuOpen = ref(false), sidebar = ref(null), menuTrigger = ref(null)
