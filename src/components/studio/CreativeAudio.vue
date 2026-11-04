@@ -13,7 +13,7 @@
     </template>
     <template v-else-if="kind === 'sound'">
       <label class="st-field" data-field="prompt">Sound<textarea v-model="sound" class="st-input" rows="4" required placeholder="Rain on a tin roof, steady, with distant thunder." data-test="audio-sound" /></label>
-      <label class="st-field" data-field="duration">Length in seconds (optional)<input v-model.number="duration" class="st-input" type="number" min="0.5" max="30" step="0.5" placeholder="The model chooses" /></label>
+      <label class="st-field" data-field="duration">Length in seconds<input v-model.number="duration" class="st-input" type="number" min="0.5" max="30" step="0.5" required /></label>
     </template>
     <template v-else>
       <MediaSlot v-model="recording" label="Recording" field="references" :kinds="['audio']" required hint="The words and timing of this recording are kept; only the voice changes." />
@@ -49,7 +49,7 @@ const kinds = [
   { id: 'sound', label: 'Sound effect', purpose: 'A sound from a short description, up to 30 seconds.', monitor: 'Describe the sound. It appears in My results once you choose Generate on its card.' },
   { id: 'voice_change', label: 'Voice change', purpose: 'Your recording spoken again in another voice. Needs the consent of the person heard.', monitor: 'Add the recording to change; you can play it here before asking for an estimate.' },
 ]
-const kind = ref('speech'), routeId = ref(''), script = ref(''), voiceId = ref(''), language = ref(''), sound = ref(''), duration = ref(null), recording = ref([]), removeNoise = ref(false)
+const kind = ref('speech'), routeId = ref(''), script = ref(''), voiceId = ref(''), language = ref(''), sound = ref(''), duration = ref(5), recording = ref([]), removeNoise = ref(false)
 const current = computed(() => kinds.find(k => k.id === kind.value))
 const { busy, error, consent, submit, cancelConsent } = useMediaJob(job => emit('job', job))
 function choose(id) { if (kind.value !== id) { kind.value = id; routeId.value = ''; voiceId.value = ''; cancelConsent() } }
@@ -62,7 +62,8 @@ function move(event, index) {
 const missing = computed(() => {
   if (!routeId.value) return 'Choose a model that is proven for this.'
   if (kind.value === 'speech') return !script.value.trim() ? 'Write the script.' : !voiceId.value ? 'Choose a voice.' : language.value && !/^[a-z]{2}$/.test(language.value) ? 'The language is two lowercase letters, such as en.' : ''
-  if (kind.value === 'sound') return !sound.value.trim() ? 'Describe the sound.' : duration.value != null && duration.value !== '' && (duration.value < 0.5 || duration.value > 30) ? 'A sound effect is 0.5 to 30 seconds.' : ''
+  // A length is needed: sound effects are priced by the second, so without one there is no price (ADM-1170).
+  if (kind.value === 'sound') return !sound.value.trim() ? 'Describe the sound.' : !(Number(duration.value) >= 0.5 && Number(duration.value) <= 30) ? 'Give a length of 0.5 to 30 seconds.' : ''
   return !recording.value.length ? 'Add the recording.' : !voiceId.value ? 'Choose the new voice.' : ''
 })
 // What Review estimate sends, and what the price line quotes as it changes (UX pass, 2026-10-28).

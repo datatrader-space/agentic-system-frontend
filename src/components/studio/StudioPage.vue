@@ -45,6 +45,8 @@ function moveTab(event, index) {
 defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobilePane.value !== 'create') { mobilePane.value = 'create'; await nextTick() } const target = props.chatExpanded || props.agentMode ? (form.value?.querySelector('textarea') || form.value) : references.value?.querySelector('[data-studio-required-empty="true"]') || form.value?.querySelector('[data-studio-required-empty="true"]') || form.value; target?.scrollIntoView?.({ block: 'center' }); target?.focus() } })
 </script>
 <style scoped>
+/* One style block (ADM-1170). The rules keep the order of the eight blocks they came from, so the cascade is
+   unchanged; the phone layout of an agent page and the Manual bar's room are the last section and win. */
 .st-page{display:flex;flex-direction:column;height:100%;min-height:0;background:var(--vm-bg)}.st-page-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-shrink:0;min-height:76px;padding:14px 24px 14px calc(24px + var(--vs-bar-inset,0px));border-bottom:1px solid var(--vm-line-2)}.st-page-head p{margin-top:5px;max-width:65ch;font-size:13px}.st-page-body{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);flex:1;min-height:0}.st-controls{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--vm-line-2);background:var(--vm-surface)}.st-form{display:flex;flex-direction:column;gap:20px;flex:1;min-height:0;overflow-y:auto;padding:24px;outline:0}.st-quote{flex-shrink:0;border-top:1px solid var(--vm-line);background:var(--vm-surface)}.st-output{display:flex;flex-direction:column;min-width:0;min-height:0}.st-tabs{display:flex;gap:24px;flex-shrink:0;padding:0 24px;border-bottom:1px solid var(--vm-line-2)}.st-tabs button{min-height:52px;border:0;border-bottom:2px solid transparent;background:none;color:var(--vm-ink-soft);font:500 13px var(--vm-font-sans);cursor:pointer}.st-tabs button.active{border-bottom-color:var(--vm-violet);color:var(--vm-ink)}.st-output-body{flex:1;min-height:0;overflow:auto;padding:24px}
 .st-reference-panel{flex-shrink:0;min-width:0;max-height:min(45vh,420px);overflow:auto;padding:20px 24px;border-bottom:1px solid var(--vm-line-2);background:var(--vm-surface)}
 .st-results-heading{padding:16px 24px;border-bottom:1px solid var(--vm-line-2)}
@@ -54,27 +56,14 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
 .st-mobile-tabs{display:none}.st-page-agent .st-form{padding:18px;gap:14px;overflow:hidden}.st-page-agent .st-controls{background:var(--vm-surface)}.st-page-agent :deep(.sap){min-height:0;height:100%;gap:14px}.st-page-agent :deep(.sap-scroll){min-height:120px}.st-page-agent :deep(.sap-intro){font-size:13px;line-height:1.8}.st-page-agent :deep(.sap-composer){padding-bottom:2px}
 @media(max-width:1023px){.st-page-agent{flex:1;height:100%;min-height:0;padding-bottom:0}.st-page-agent .st-page-head{min-height:62px;padding-block:14px}.st-page-agent .st-page-head p{display:none}.st-page-agent .st-page-body{flex:1;min-height:0;overflow:hidden}.st-page-agent .st-controls{flex:1;min-height:0;overflow:hidden}.st-page-agent .st-form{flex:1;min-height:0;overflow:hidden;padding:14px}.st-page-agent .st-output{display:none;flex:1;min-height:0;overflow:auto}.st-page-agent .st-output-body{flex:1;min-height:0;overflow:auto}.st-page-agent.st-mobile-output .st-output{display:flex}.st-page-agent.st-mobile-output .st-controls{display:none}.st-page-agent .st-tabs{display:none}.st-page-agent :deep(.sap),.st-page-agent :deep(.sap.sap-expanded){flex:1;min-height:0;height:100%;max-height:none}.st-page-agent :deep(.sap-scroll){min-height:90px}.st-mobile-tabs{display:flex;flex-shrink:0;gap:5px;overflow:auto;padding:8px 14px;border-bottom:1px solid var(--vm-line)}.st-mobile-tabs button{min-height:44px;padding:10px 13px;border:1px solid transparent;border-radius:7px;background:none;color:var(--vm-ink-soft);font:500 12px var(--vm-font-sans);white-space:nowrap}.st-mobile-tabs button[aria-selected=true]{border-color:var(--vm-line);background:var(--vm-surface-2);color:var(--vm-ink)}.st-page-agent.st-chat-expanded .st-output{display:none}.st-page-agent.st-chat-expanded.st-mobile-output .st-output{display:flex}}
 @media(max-width:480px){.st-page-agent .st-form{padding:12px;gap:12px}.st-page-agent .st-page-head h1{font-size:21px}.st-page-agent :deep(.sap-input){max-height:130px}}
-</style>
-
-<style scoped>
 @media(max-width:1023px){.st-page-agent :deep(.sap-scroll){min-height:0}.st-page-agent .st-form{overscroll-behavior:contain}}
-
-</style>
-
-<style scoped>
 .st-page{padding:26px 30px 22px;gap:22px}.st-page-head{border:0;padding:0;min-height:75px;align-items:center}.st-page-head h1{font-size:27px;font-weight:550;letter-spacing:-.04em}.st-page-head p{font-size:12px;color:var(--vm-ink-soft);margin-top:9px}.st-page-body{gap:22px;grid-template-columns:minmax(300px,360px) minmax(0,1fr)}.st-controls,.st-output{border:1px solid var(--vm-line);border-radius:11px;overflow:hidden}.st-output{background:#182232}.st-tabs{background:var(--vm-surface-2);gap:21px;padding-inline:22px}.st-tabs button{min-height:52px;font-size:12px}.st-page-agent .st-form{padding:18px}.st-output-body{padding:22px}.st-chat-expanded .st-page-body{grid-template-columns:minmax(0,1fr)}
 @media(max-width:1023px){.st-page{padding:18px 16px;gap:16px}.st-page-head{padding:0;min-height:55px}.st-page-head h1{font-size:24px}.st-page-agent .st-page-head{padding:0;min-height:48px}.st-page-agent{height:100%;padding-bottom:12px}.st-page-body{gap:15px}.st-mobile-tabs{padding:0 0 8px;gap:3px;border:0}.st-mobile-tabs button{padding:9px 10px}.st-page-agent .st-page-body{gap:0}.st-page-agent .st-form{padding:14px}.st-page-agent .st-output-body{padding:16px}.st-output{min-height:0}.st-page-agent .st-controls{border-top:1px solid var(--vm-line)}}
 @media(max-width:480px){.st-page{padding:14px 12px 12px}.st-page-agent .st-form{padding:12px}.st-page-head h1{font-size:23px}.st-page-head p{font-size:11px}.st-mobile-tabs button{font-size:11px;padding-inline:9px}.st-page-head .st-button{font-size:11px}}
-</style>
-
-<style scoped>
 .st-page{padding:27px 38px 22px;gap:26px}.st-page-head{min-height:84px}.st-title-block{display:flex;align-items:center;gap:14px;min-width:0}.st-title-icon{width:46px;height:46px;display:grid;place-items:center;flex:none;background:#2b354c;border:1px solid #414f70;border-radius:10px;color:#c7d6fb}.st-title-icon svg{width:22px;height:22px}.st-title-category{display:block;font-size:9px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:#9ba6bc;margin-bottom:6px}.st-page-head h1{font-size:28px;line-height:1.2;font-weight:600;letter-spacing:-.8px}.st-page-head p{font-size:12px;line-height:1.8;margin-top:10px}.st-page-body{grid-template-columns:366px minmax(0,1fr);gap:23px}.st-controls{background:#202329;border-color:#3a414f}.st-output{background:#141e2a;border-color:#3a414f}.st-tabs{background:#26334b;border-color:#435169}.st-output-body{padding:22px}.st-page-agent .st-form{padding:18px 20px}.st-page-agent :deep(.sm-switch){width:100%;background:#151d29;border-color:#3a4353;padding:3px}.st-page-agent :deep(.sm-switch button){flex:1;font-size:12px;min-height:36px}.st-page-agent :deep(.sm-switch button[aria-checked=true]){background:#354c70;border-color:#5a7096;color:#d9e5ff}.st-page-agent :deep(.sap-composer){background:#292d35;border-color:#414a59}.st-chat-expanded .st-page-body{grid-template-columns:1fr}
 @media(max-width:1260px){.st-page-body{grid-template-columns:320px minmax(0,1fr)}.st-page{padding-inline:26px}}
 @media(max-width:1023px){.st-page{padding:18px 16px;gap:16px}.st-title-icon{width:40px;height:40px}.st-page-head h1{font-size:24px}.st-title-category{font-size:8px}.st-page-head{min-height:60px}.st-page-agent .st-page-body{display:flex}.st-page-body{grid-template-columns:minmax(0,1fr)}.st-page-agent .st-form{padding:16px}.st-page-agent :deep(.sm-switch button){min-height:44px}.st-output-body{padding:16px}}
 @media(max-width:480px){.st-page{padding:14px 12px 12px}.st-title-block{gap:10px}.st-title-icon{width:36px;height:36px}.st-title-icon svg{width:18px;height:18px}.st-page-head h1{font-size:21px}.st-page-head p{font-size:11px}.st-page-agent .st-form{padding:12px}}
-</style>
-
-<style scoped>
 @media(max-width:1023px){
  .st-page-agent{flex:1 1 0;height:auto;min-height:0;gap:8px;padding:10px 12px max(8px,env(safe-area-inset-bottom))}
  .st-page-agent .st-page-head{min-height:44px;gap:8px}
@@ -115,9 +104,6 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
  .st-page-agent .st-form:has(.sap-input:focus) :deep(.st-tool-options){display:none}
  .st-page-agent :deep(.sap-intro){font-size:12px;line-height:1.5}
 }
-</style>
-
-<style scoped>
 /* A landscape phone has room beside the conversation, not above it. */
 @media(min-width:600px) and (max-width:1023px) and (max-height:500px){
  .st-page-agent .st-form{display:grid;grid-template-columns:190px minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:8px;align-items:stretch}
@@ -136,9 +122,6 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
 @media(max-width:599px) and (max-height:480px){
  .st-page-agent:has(.sap-input:focus) :deep(.sap-head),.st-page-agent .st-form:has(.sap-input:focus) :deep(.sc-blocked){display:none}
 }
-</style>
-
-<style scoped>
 /* Long prompts and attached references yield space to the Send row on a short phone screen. */
 @media(max-width:1023px){
  .st-page-agent :deep(.sap-composer){display:flex;flex-direction:column;flex:0 1 auto;min-height:0;max-height:75%}
@@ -148,9 +131,6 @@ defineExpose({ async focusInputs() { if (props.agentMode && narrow.value && mobi
  .st-page-agent :deep(.sap .vcp-chips){flex:0 1 auto;min-height:0;overflow:auto}
  .st-page-agent :deep(.sap .vcp-bar){flex:none}
 }
-</style>
-
-<style scoped>
 /* Phone layout of an agent page (ADM-1170, phone QA 2026-11-04: the chrome above the first message took about 45% of
    the screen). The top bar already names the page, so there is no title row: the section tabs and the project button
    share one row, and the agent's New chat / Expand buttons sit at the end of the Agent | Manual row. The h1 stays for

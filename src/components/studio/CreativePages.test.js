@@ -90,6 +90,22 @@ describe('Voice & audio', () => {
   })
 })
 
+describe('Voice & audio: sound effects', () => {
+  it('sends a length with every sound effect, 5 s unless changed, so it can be priced (ADM-1170)', async () => {
+    const w = mountIt(CreativeAudio); await flushPromises()
+    await w.get('[data-test="audio-sound"]').trigger('click'); await flushPromises()
+    await w.get('textarea[data-test="audio-sound"]').setValue('Rain on a tin roof')
+    const length = w.get('[data-field="duration"] input')
+    expect(Number(length.element.value)).toBe(5)
+    await length.setValue('')
+    expect(w.get('[data-test="audio-prepare"]').attributes('disabled')).toBeDefined()
+    await length.setValue('8')
+    await w.get('form').trigger('submit'); await flushPromises()
+    expect(api.prepareMediaJob.mock.calls[0][0].request).toEqual({ prompt: 'Rain on a tin roof', duration: 8 })
+    w.unmount()
+  })
+})
+
 describe('Files from the Library', () => {
   it("links a file from another chat to the session's project, unpinned, and sends that project with the job", async () => {
     api.get.mockResolvedValue({ data: { project: null } })
