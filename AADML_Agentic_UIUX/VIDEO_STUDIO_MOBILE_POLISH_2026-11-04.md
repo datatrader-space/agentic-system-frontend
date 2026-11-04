@@ -48,3 +48,11 @@ On the live 6ac9f77 build, direct template links for audio, music, editing and e
 Cause: useStudioToolDraft treated the shell's initial asynchronous user hydration (null to the already authenticated person) as an account switch and unconditionally cleared the prepared public preset. The helper now distinguishes that first hydration from subsequent account changes. An explicit validated route preset survives first hydration; with no explicit preset only the authenticated person's own saved draft can restore. Sign-out, direct account changes and sign-out followed by another sign-in still clear text and selection. No server auth or tenant rules change, and no backend engine is missing for this defect.
 
 Validation: 126 passed / 5 affected files, including new positive hydration tests and negative account-switch / logout-then-other-account tests. The exact production build remains gated by CI before deployment. Live failing template attempts are retained in outputs/studio-live-template-qa-2026-11-04.json; all 69 must be retried against the hydration fix before claiming catalogue success. The Samsung/Apple layout release 6ac9f77 itself passed all CI jobs and deployed (run 41830666973).
+
+## Compact Discover at device extremes
+
+The Samsung/iPhone viewport pass also showed Discover still used its tall tablet layout on landscape phones, and the smallest iPhone wrapped the mode label onto a second row. The final CSS-only adjustment places the landscape view/mode controls on one row and categories/search on another, uses compact tool cards, and trims redundant introduction text on short narrow phones. Features, filters, mode controls and search remain available.
+
+Local measured checks: iPhone SE 320x568 first card spans y407..537 (fully visible); Samsung landscape 780x360 first tool begins at y264 instead of the previous y638, with no horizontal overflow. Discover regressions: 12 passed. Exact final release build remains gated by CI.
+
+Template-hydration commit was rebased safely over unrelated remote training-data commit c0d6652 (no training-data changes made by this task). Final hydration commit d99e7f4 passed CI and deployed successfully (run 41832884711). Template catalogue retries and final screenshots will use the deployed hydration fix; no historical failed attempt is being silently counted as a pass.
