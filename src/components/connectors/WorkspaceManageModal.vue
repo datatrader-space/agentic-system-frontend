@@ -204,7 +204,10 @@ const wsServerUrl = computed(() => {
 })
 // One-time prerequisite for the Python path: the `agent_runtime` module ships in this package, so it must
 // be pip-installed before the run command works. (The Docker path pulls the image instead — no pip needed.)
-const pipInstallCommand = 'pip install darrxscale-workspace-agent==1.1.0'
+// 1.2.0 (ADM-1129, ADM-335): long commands keep the PC connected, results survive a reconnect, background commands.
+// `-U` so a computer that already has an older agent is upgraded. Keep in step with the backend's
+// LATEST_WORKSPACE_AGENT_VERSION (agent/workspace_consumer.py), which tells an older agent an update exists.
+const pipInstallCommand = 'pip install -U darrxscale-workspace-agent==1.2.0'
 // --workspace is REQUIRED: without it the agent defaults to `/workspace` (which becomes an empty
 // `E:\workspace` on Windows), so file tools can't see the user's code. The placeholder makes users
 // aware they must point it at their project directory — see the note rendered under Step 2.
