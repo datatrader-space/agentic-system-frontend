@@ -17,6 +17,7 @@ import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentMetrics from './DeploymentMetrics.vue';
 import DeploymentToolbar from './DeploymentToolbar.vue';
 import UiButton from './UiButton.vue';
+import MachinePicker from './MachinePicker.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import StreamingTab from './StreamingTab.vue';
@@ -174,6 +175,17 @@ const offeredOpen = computed(() => deployableOpenModels(openModels.value));
 const chosenOpen = computed(() => offeredOpen.value.find(m => String(m.id) === String(form.value.open_model)) || null);
 const machinesShown = computed(() => dedicatedMachinesFor(options.value, form.value.source, chosenOpen.value));
 const chosenMachine = computed(() => machinesShown.value.find(m => m.instance_type === form.value.instance_type) || null);
+// The machines of this form in the picker's shape (MachinePicker): GPU or CPU, then one from a list.
+const loadDedMachines = computed(() => {
+  const listed = machinesShown.value.map(m => ({
+    key: m.instance_type, kind: m.gpu === false ? 'cpu' : 'gpu', gpu_name: m.gpu_name || m.instance_type,
+    memory_gb: m.memory_gb ?? '', data_center: m.data_center || '', soc2: !!m.soc2, stock_text: m.stock_text || '',
+    files_here: !!m.files_here, usd_per_hour: m.charged_usd_per_hour, usd_per_second: m.usd_per_second || (Number(m.charged_usd_per_hour) / 3600),
+  }));
+  const gpuOnly = form.value.source === 'open_model' ? chosenOpen.value?.gpu_only || '' : '';
+  return () => Promise.resolve({ machines: listed, gpu_only: gpuOnly,
+    note: 'You are charged by the second it runs, from your balance. A location without the model\'s files copies them first.' });
+});
 const chosenKind = computed(() => options.value.kinds.find(k => k.value === form.value.kind) || null);
 const costLine = computed(() => dedicatedCostSummary(chosenMachine.value, form.value.kind, chosenKind.value?.idle_minutes || 60));
 const mayStart = computed(() => dedMay.value[`start_${form.value.kind}`] === true);
@@ -557,20 +569,11 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
           </div>
         </div>
 
-        <fieldset class="ded-field">
-          <legend>Machine</legend>
-          <div class="ded-cards">
-            <label v-for="m in machinesShown" :key="m.instance_type" class="ded-card" :class="{chosen: form.instance_type===m.instance_type}">
-              <input v-model="form.instance_type" type="radio" name="ded-machine" :value="m.instance_type">
-              <span><strong><Zap v-if="m.gpu" :size="14" aria-hidden="true"/><Cpu v-else :size="14" aria-hidden="true"/> {{ machineLabel(m) }}</strong>
-                <small>{{ machineKind(m) }}</small><small>{{ machineCost(m) }}</small></span>
-            </label>
-          </div>
+        <div class="ded-field">
+          <MachinePicker v-model="form.instance_type" :load="loadDedMachines" legend="Machine"/>
           <p v-if="form.source==='open_model' && machinesShown.length" class="ded-help">Only machines with room for this model are listed.</p>
-          <p v-if="form.source==='open_model' && chosenOpen?.gpu_only" class="ded-help">{{ chosenOpen.gpu_only }}</p>
-          <p v-if="!machinesShown.length" class="ded-help">No machine can be chosen right now.</p>
           <p v-if="fieldErrors.instance_type" class="field-error" role="alert">{{ fieldErrors.instance_type }}</p>
-        </fieldset>
+        </div>
 
         <p v-if="costLine" class="ded-cost" aria-live="polite">{{ costLine }}</p>
         <p v-if="formError" class="field-error" role="alert">{{ formError }}</p>
