@@ -44,27 +44,27 @@
       </div>
       <ChatMessageList v-else>
         <template #after-message="{ message }">
-          <div v-if="cards[message.id]" class="uac-cards">
+          <div v-if="message.lcCard" class="uac-cards">
             <ProposedChangesCard
-              v-if="cards[message.id].task && (cards[message.id].task.diff_text || (cards[message.id].task.diff_summary && cards[message.id].task.diff_summary.files))"
-              :task="cards[message.id].task" :busy="cards[message.id].busy" :exporting="cards[message.id].exporting"
-              @accept="onExport(cards[message.id])" @keep="onKeep(cards[message.id])" @discard="onDiscard(cards[message.id])"
-              @copy="onCopy(cards[message.id])"
-              @revert-file="onRevertFile(cards[message.id], $event)" @revert-hunk="onRevertHunk(cards[message.id], $event)"
+              v-if="message.lcCard.task && (message.lcCard.task.diff_text || (message.lcCard.task.diff_summary && message.lcCard.task.diff_summary.files))"
+              :task="message.lcCard.task" :busy="message.lcCard.busy" :exporting="message.lcCard.exporting"
+              @accept="onExport(message.lcCard)" @keep="onKeep(message.lcCard)" @discard="onDiscard(message.lcCard)"
+              @copy="onCopy(message.lcCard)"
+              @revert-file="onRevertFile(message.lcCard, $event)" @revert-hunk="onRevertHunk(message.lcCard, $event)"
             />
-            <div v-if="cards[message.id].resolved" class="ai-resolved" :class="{ err: cards[message.id].resolved === 'error' }"
-                 :role="cards[message.id].resolved === 'error' ? 'alert' : null">
-              <Icon :icon="{ exported: 'lucide:git-pull-request', discarded: 'lucide:trash-2', error: 'lucide:circle-alert' }[cards[message.id].resolved] || 'lucide:check'" />
-              {{ resolvedLabel(cards[message.id]) }}
-              <a v-if="cards[message.id].task && cards[message.id].task.pr_url" :href="cards[message.id].task.pr_url" target="_blank" rel="noopener">View PR</a>
+            <div v-if="message.lcCard.resolved" class="ai-resolved" :class="{ err: message.lcCard.resolved === 'error' }"
+                 :role="message.lcCard.resolved === 'error' ? 'alert' : null">
+              <Icon :icon="{ exported: 'lucide:git-pull-request', discarded: 'lucide:trash-2', error: 'lucide:circle-alert' }[message.lcCard.resolved] || 'lucide:check'" />
+              {{ resolvedLabel(message.lcCard) }}
+              <a v-if="message.lcCard.task && message.lcCard.task.pr_url" :href="message.lcCard.task.pr_url" target="_blank" rel="noopener">View PR</a>
             </div>
-            <div v-if="cards[message.id].preview" class="ai-preview">
+            <div v-if="message.lcCard.preview" class="ai-preview">
               <Icon icon="lucide:monitor-play" aria-hidden="true" />
-              <span class="ai-preview-text">The app is running on port {{ cards[message.id].preview.port }}</span>
-              <button type="button" class="ai-preview-open" :disabled="cards[message.id].preview.opening" @click="openPreview(cards[message.id])">
-                {{ cards[message.id].preview.opening ? 'Opening…' : 'Open preview' }}
+              <span class="ai-preview-text">The app is running on port {{ message.lcCard.preview.port }}</span>
+              <button type="button" class="ai-preview-open" :disabled="message.lcCard.preview.opening" @click="openPreview(message.lcCard)">
+                {{ message.lcCard.preview.opening ? 'Opening…' : 'Open preview' }}
               </button>
-              <span v-if="cards[message.id].preview.error" class="ai-preview-err" role="alert">{{ cards[message.id].preview.error }}</span>
+              <span v-if="message.lcCard.preview.error" class="ai-preview-err" role="alert">{{ message.lcCard.preview.error }}</span>
             </div>
           </div>
         </template>
@@ -124,7 +124,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Icon } from '@iconify/vue'
 import { useVoiceInput } from '@/composables/useVoiceInput'
 import api from '@/services/api'
@@ -153,8 +153,9 @@ const focused = ref(false)
 const historyOpen = ref(false)
 const loadingHistory = ref(false)
 const conversations = ref([])
-// Let's Code's cards, by the assistant message they belong to: { task, busy, exporting, resolved, preview }.
-const cards = reactive({})
+// Let's Code's card for an answer ({ task, busy, exporting, resolved, error, preview }) is kept ON that message
+// (`lcCard`), never in a map by its id: the chat store swaps a message's id for its saved row's id when
+// `message_saved` arrives, and a card filed under the old id vanished (production 2026-11-06, proposal 23).
 const activity = []
 const lastUserPrompt = ref('')
 
@@ -171,17 +172,18 @@ const voice = useVoiceInput({
 const { permissionRequests, handlePermissionEvent, respondPermission } =
   usePermission((obj) => chat.sendRaw(obj), () => chat.conversationId)
 
-function lastAssistantId() {
-  for (let i = chat.messages.length - 1; i >= 0; i--) if (chat.messages[i].role === 'assistant') return chat.messages[i].id
+function lastAssistant() {
+  for (let i = chat.messages.length - 1; i >= 0; i--) if (chat.messages[i].role === 'assistant') return chat.messages[i]
   return null
 }
-function cardFor(id) {
-  if (id == null) return null
-  if (!cards[id]) cards[id] = { task: null, busy: false, exporting: false, resolved: '', preview: null }
-  return cards[id]
+function cardFor(message) {
+  if (!message) return null
+  if (!message.lcCard) message.lcCard = { task: null, busy: false, exporting: false, resolved: '', error: '', preview: null }
+  return message.lcCard
 }
 function cardByDiff(diffId) {
-  return Object.values(cards).find((c) => c.task && c.task.proposed_diff_id === diffId) || null
+  const m = chat.messages.find((x) => x.lcCard && x.lcCard.task && x.lcCard.task.proposed_diff_id === diffId)
+  return m ? m.lcCard : null
 }
 
 // Frames only a project turn sends. Everything else (the stream, the steps, approvals) is the shared chat's.
@@ -194,12 +196,12 @@ function onProjectFrame(d) {
     return false
   }
   if (t === 'lets_code_preview') {
-    const c = cardFor(lastAssistantId())
+    const c = cardFor(lastAssistant())
     if (c) c.preview = { port: d.port, opening: false, error: '' }
     scrollDown(); return true
   }
   if (t === 'proposed_diff') {
-    const c = cardFor(lastAssistantId())
+    const c = cardFor(lastAssistant())
     if (c) {
       c.task = { proposed_diff_id: d.proposed_diff_id, diff_text: d.diff_text || '', diff_summary: d.diff_summary || {},
                  export_enabled: d.can_export !== false, pr_url: '' }
@@ -260,7 +262,6 @@ function onKeydown(e) {
 function newChat() {
   if (chat.isBusy) chat.stop()
   chat.reset()
-  for (const k of Object.keys(cards)) delete cards[k]
   historyOpen.value = false
   nextTick(() => inputEl.value && inputEl.value.focus())
 }
@@ -279,7 +280,6 @@ function toggleHistory() {
 async function openConversation(c) {
   historyOpen.value = false
   if (String(c.id) === String(chat.conversationId)) return
-  for (const k of Object.keys(cards)) delete cards[k]
   await chat.openConversation(c.id)
   chat.repoId = Number(props.repoId)                     // a chat of this project stays on this project's socket
   if (agentId.value) chat.selectedAgentId = String(agentId.value)

@@ -35,7 +35,7 @@
             <!-- Tool-approval: show EXACTLY what will run before approving -->
             <div v-if="actionPreview" class="action-preview">
               <div class="action-preview__label">
-                {{ currentRequest.payload?.tool_name || 'Action' }}
+                {{ currentRequest.payload?.tool_label || currentRequest.payload?.tool_name || 'Action' }}
                 <span v-if="currentRequest.payload?.risk_summary" class="action-preview__risk">{{ currentRequest.payload.risk_summary }}</span>
               </div>
               <pre class="action-preview__cmd">{{ actionPreview }}</pre>
@@ -436,9 +436,11 @@ const heldBecause = computed(() => {
   return String(p.held_because || '').trim().replace(/\.+$/, '');
 });
 
-// Title line — for tool approvals, keep it short ("Approve SSH_EXEC?") since the command shows below.
+// Title line — for tool approvals, short, in words: "Approve this step: Running a command", never the tool's name
+// ("Approve CODE_RUN_COMMAND?", owner 2026-11-06). The name is only the fallback for a card from an older server.
 const approvalTitle = computed(() => {
   const p = currentRequest.value?.payload;
+  if (p?.kind === 'tool_approval' && p.tool_label) return `Approve this step: ${p.tool_label}`;
   if (p?.kind === 'tool_approval' && p.tool_name) return `Approve ${p.tool_name}?`;
   if (p?.kind === 'oauth_connect') return `${p.provider || 'This service'} needs your authorization`;
   return currentRequest.value?.summary || '';

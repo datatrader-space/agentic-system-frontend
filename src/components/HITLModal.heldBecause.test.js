@@ -50,4 +50,11 @@ describe('why an approval card is asking', () => {
     const w = mountCard({ ...approval({ held_because: 'x' }), payload: { kind: 'other', held_because: 'x' } })
     expect(w.find('[data-test="hitl-held-because"]').exists()).toBe(false)
   })
+
+  it('names the step in words, never by the tool name, when the server gives a label', () => {
+    // "Approve CODE_RUN_COMMAND?" (owner, 2026-11-06).
+    const w = mountCard(approval({ tool_name: 'CODE_RUN_COMMAND', tool_label: 'Running a command', preview: 'npm test' }))
+    expect(w.text()).toContain('Approve this step: Running a command')
+    expect(w.text()).not.toContain('CODE_RUN_COMMAND')
+  })
 })
