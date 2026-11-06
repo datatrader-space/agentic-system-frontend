@@ -567,6 +567,7 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
             </label>
           </div>
           <p v-if="form.source==='open_model' && machinesShown.length" class="ded-help">Only machines with room for this model are listed.</p>
+          <p v-if="form.source==='open_model' && chosenOpen?.gpu_only" class="ded-help">{{ chosenOpen.gpu_only }}</p>
           <p v-if="!machinesShown.length" class="ded-help">No machine can be chosen right now.</p>
           <p v-if="fieldErrors.instance_type" class="field-error" role="alert">{{ fieldErrors.instance_type }}</p>
         </fieldset>

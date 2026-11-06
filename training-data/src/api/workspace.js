@@ -121,7 +121,7 @@ export function dedicatedMachinesFor(options, source, openModel) {
 // What a machine is, in a few words: its processors and whether it has a graphics card.
 export function machineKind(machine) {
   if (!machine) return '';
-  if (machine.gpu_name) return [`${machine.memory_gb} GB GPU`, machine.stock_text, machine.files_here ? 'its files are here' : 'copies its files first'].filter(Boolean).join(', ');
+  if (machine.gpu_name) return [`${machine.memory_gb} GB ${machine.gpu ? 'GPU' : 'CPU'}`, machine.soc2 ? 'SOC 2' : 'not SOC 2', machine.stock_text, machine.files_here ? 'its files are here' : 'copies its files first'].filter(Boolean).join(', ');
   const cpus = machine.cpus ? `${machine.cpus} CPUs` : '';
   return machine.gpu ? [cpus, '1 GPU'].filter(Boolean).join(', ') : cpus;
 }
