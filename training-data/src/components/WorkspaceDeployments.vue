@@ -26,7 +26,7 @@ import EdgeTab from './EdgeTab.vue';
 import {
   workspaceApi, projectLink, environmentState, modelName, timeAgo, RUN_RANGES, API_REFERENCE, runsChart, runsDay,
   DEDICATED_NAME_RULE, dedicatedNameProblem, machineCost, dedicatedCostSummary, dedicatedModels, missingApproval,
-  dedicatedState, anyStarting, DEDICATED_HOST, DEDICATED_SOURCES, deployableOpenModels, dedicatedMachinesFor, machineKind,
+  dedicatedState, anyStarting, DEDICATED_HOST, DEDICATED_SOURCES, deployableOpenModels, dedicatedMachinesFor, machineKind, machineLabel,
   openModelLine, missingOpenModel, dedicatedSource, useLanguages, useInstall, usesInstall, useSnippet,
 } from '../api/workspace.js';
 
@@ -317,7 +317,7 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
                 <span class="ded-source-title">{{ dedicatedSource(d).title }}</span><small>{{ dedicatedSource(d).detail }}</small></td>
               <td data-label="Type"><span class="kind-chip" :class="d.kind">{{ d.kind_label || kindLabel(d.kind) }}</span>
                 <small v-if="d.kind==='development' && d.idle_minutes">Stops after {{ d.idle_minutes }} minutes without a call</small></td>
-              <td data-label="Machine"><code>{{ d.instance_type }}</code><small v-if="machineOf(d.instance_type)">{{ machineKind(machineOf(d.instance_type)) }}</small></td>
+              <td data-label="Machine"><code>{{ d.machine_label || d.instance_type }}</code><small v-if="machineOf(d.instance_type)">{{ machineKind(machineOf(d.instance_type)) }}</small></td>
               <td data-label="State">
                 <UiBadge :tone="dedicatedState(d)[0]"><LoaderCircle v-if="d.state==='starting'" class="spin" :size="12" aria-hidden="true"/>{{ dedicatedState(d)[1] }}</UiBadge>
                 <small v-if="d.state==='failed' && d.failure_reason" class="failed-why">{{ d.failure_reason }}</small>
@@ -562,7 +562,7 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
           <div class="ded-cards">
             <label v-for="m in machinesShown" :key="m.instance_type" class="ded-card" :class="{chosen: form.instance_type===m.instance_type}">
               <input v-model="form.instance_type" type="radio" name="ded-machine" :value="m.instance_type">
-              <span><strong><Zap v-if="m.gpu" :size="14" aria-hidden="true"/><Cpu v-else :size="14" aria-hidden="true"/> {{ m.instance_type }}</strong>
+              <span><strong><Zap v-if="m.gpu" :size="14" aria-hidden="true"/><Cpu v-else :size="14" aria-hidden="true"/> {{ machineLabel(m) }}</strong>
                 <small>{{ machineKind(m) }}</small><small>{{ machineCost(m) }}</small></span>
             </label>
           </div>

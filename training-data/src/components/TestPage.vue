@@ -6,6 +6,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { Check, Gauge, Play, Square, Upload, X } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
+import MachinePicker from './MachinePicker.vue';
 import PredictionResult from './PredictionResult.vue';
 import { trialApi, PHOTO_TYPES, percent } from '../api/trial.js';
 
@@ -13,6 +14,9 @@ const props = defineProps({ projectRef: { type: String, required: true } });
 const emit = defineEmits(['navigate']);
 
 const models = ref(null); const chosen = ref(null); const state = ref(null);
+// The GPU and location the test server starts on (MachinePicker); the server reads the choice again.
+const machine = ref('');
+const loadMachines = computed(() => { const ref_ = props.projectRef, number = chosen.value; return () => trialApi.machines(ref_, number); });
 const error = ref(''); const notice = ref(''); const busy = ref(false);
 const file = ref(null); const photoUrl = ref(''); const answer = ref(null); const asking = ref(false); const photoError = ref('');
 const least = ref(0);
@@ -39,7 +43,7 @@ watch(chosen, () => { state.value = null; answer.value = null; notice.value = ''
 
 async function act(action) {
   busy.value = true; error.value = ''; notice.value = '';
-  try { const now = await trialApi.act(props.projectRef, chosen.value, action); notice.value = now.said; state.value = now; }
+  try { const now = await trialApi.act(props.projectRef, chosen.value, action, action === 'start' ? machine.value : ''); notice.value = now.said; state.value = now; }
   catch (e) { error.value = e.message; await loadState(); } finally { busy.value = false; }
 }
 
@@ -94,9 +98,10 @@ const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '
           <template v-else>
             <p v-if="state.trial?.state==='failed'" class="test-error">The last test server failed: {{ state.trial.failure_reason }}</p>
             <p v-else-if="state.trial?.state==='stopped'&&state.trial.failure_reason" class="test-meta">The last test server stopped: {{ state.trial.failure_reason }}</p>
-            <p>To try a photo, the model needs its test server: a process on this server. Nothing starts until you press Start; starting it stops any other test server of this project, and it stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
+            <p>To try a photo, the model needs its test server, on a GPU you choose below. Nothing starts until you press Start; starting it stops any other test server of this project, and it stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
             <p v-if="state.refused" class="test-error">{{ state.refused }}</p>
-            <UiButton variant="primary" :disabled="busy||!state.may.start" @click="act('start')"><Play :size="14"/> Start test server</UiButton>
+            <MachinePicker v-if="state.may.start" v-model="machine" :load="loadMachines" :disabled="busy"/>
+            <UiButton variant="primary" :disabled="busy||!state.may.start||!machine" @click="act('start')"><Play :size="14"/> Start test server</UiButton>
           </template>
           <p v-if="state?.staging_down" class="test-meta">Its staging endpoint is not answering and is being started again.</p>
         </div>

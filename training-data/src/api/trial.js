@@ -8,7 +8,8 @@ const base = ref => `/training-data/app/projects/${enc(ref)}`;
 export const trialApi = {
   models: ref => apiFetch(`${base(ref)}/test/`, { timeoutMs: 60000 }),
   state: (ref, number) => apiFetch(`${base(ref)}/models/${enc(number)}/try/`, { timeoutMs: 60000 }),
-  act: (ref, number, action) => apiFetch(`${base(ref)}/models/${enc(number)}/try/${action}/`, { method: 'POST', body: {}, timeoutMs: 60000 }),
+  act: (ref, number, action, machine = '') => apiFetch(`${base(ref)}/models/${enc(number)}/try/${action}/`, { method: 'POST', body: machine ? { machine } : {}, timeoutMs: 60000 }),
+  machines: (ref, number) => apiFetch(`${base(ref)}/models/${enc(number)}/try/machines/`, { timeoutMs: 60000 }),
   // A model on a CPU can take a while on a large photo.
   predict: (ref, number, file) => {
     const form = new FormData();

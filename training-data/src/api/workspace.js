@@ -64,17 +64,21 @@ const monthly = machine => machine.charged_usd_per_month ?? machine.usd_per_mont
 // What a machine costs, as its radio card says it.
 export function machineCost(machine) {
   if (!machine) return '';
-  return `${usdText(hourly(machine))} an hour, about ${usdText(monthly(machine), true)} a month`;
+  const second = machine.usd_per_second ? `, $${Number(machine.usd_per_second).toFixed(6)} a second` : '';
+  return `${usdText(hourly(machine))} an hour${second}, about ${usdText(monthly(machine), true)} a month`;
 }
+
+// What a machine is called: a RunPod GPU by its name and location (placement.py), any other by its type.
+export const machineLabel = machine => (machine?.gpu_name ? `${machine.gpu_name} in ${machine.data_center}` : machine?.instance_type || '');
 
 // The line above "Start deployment": what the choice costs, when it stops, and that it is billed from the balance.
 export function dedicatedCostSummary(machine, kind, idleMinutes = 60) {
   if (!machine) return '';
   const hour = usdText(hourly(machine));
   if (kind === 'development') {
-    return `${machine.instance_type} costs ${hour} an hour while it is on, billed by the second from your balance. It stops itself after ${idleMinutes} minutes without a call.`;
+    return `${machineLabel(machine)} costs ${hour} an hour while it is on, billed by the second from your balance. It stops itself after ${idleMinutes} minutes without a call.`;
   }
-  return `${machine.instance_type} costs ${hour} an hour, about ${usdText(monthly(machine), true)} a month, billed by the second from your balance until you stop it.`;
+  return `${machineLabel(machine)} costs ${hour} an hour, about ${usdText(monthly(machine), true)} a month, billed by the second from your balance until you stop it.`;
 }
 
 // The models of a project that may run as a deployment of this kind: those with the approval the kind needs.
@@ -117,6 +121,7 @@ export function dedicatedMachinesFor(options, source, openModel) {
 // What a machine is, in a few words: its processors and whether it has a graphics card.
 export function machineKind(machine) {
   if (!machine) return '';
+  if (machine.gpu_name) return [`${machine.memory_gb} GB GPU`, machine.stock_text, machine.files_here ? 'its files are here' : 'copies its files first'].filter(Boolean).join(', ');
   const cpus = machine.cpus ? `${machine.cpus} CPUs` : '';
   return machine.gpu ? [cpus, '1 GPU'].filter(Boolean).join(', ') : cpus;
 }
@@ -225,7 +230,9 @@ console.log(await answer.json());`;
 
 export const publishedApi = {
   state: key => apiFetch(`${APP}/published/${enc(key)}/`, { timeoutMs: SLOW }),
-  act: (key, action) => apiFetch(`${APP}/published/${enc(key)}/${action}/`, { method: 'POST', body: {}, timeoutMs: SLOW }),
+  // ``machine``: the GPU and location chosen (MachinePicker); the server reads it again before starting.
+  act: (key, action, machine = '') => apiFetch(`${APP}/published/${enc(key)}/${action}/`, { method: 'POST', body: machine ? { machine } : {}, timeoutMs: SLOW }),
+  machines: key => apiFetch(`${APP}/published/${enc(key)}/machines/`, { timeoutMs: SLOW }),
   // A model on a CPU can take a while on a large photo.
   predict: (key, file) => {
     const form = new FormData();

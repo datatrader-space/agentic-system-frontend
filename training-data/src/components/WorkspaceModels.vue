@@ -8,6 +8,7 @@ import '../models-workspace.css';
 import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentMetrics from './DeploymentMetrics.vue';
 import UiButton from './UiButton.vue';
+import MachinePicker from './MachinePicker.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import PipelineResult from './PipelineResult.vue';
@@ -71,6 +72,9 @@ const catalogMetrics = computed(() => [
 
 // ── trying a published model ─────────────────────────────────────────────────────────────────────
 const trying = ref(null); const state = ref(null); const busy = ref(false); const said = ref(''); const tryError = ref('');
+// The GPU and location the person picks before a start (MachinePicker); the server reads the choice again.
+const machine = ref('');
+const loadMachines = computed(() => { const key = trying.value?.key; return () => publishedApi.machines(key); });
 const file = ref(null); const photoUrl = ref(''); const answer = ref(null); const asking = ref(false); const least = ref(0);
 // A model on a platform server of its own (``served: 'platform'``, SAM 3) has nothing to make ready: its GPU server is
 // started, then it answers. Each photo is charged by the second (state.price).
@@ -118,7 +122,7 @@ function startTrying(row) {
 function close() { trying.value = null; state.value = null; clearTimeout(timer); forget(); load(); }
 async function act(action) {
   busy.value = true; tryError.value = ''; said.value = '';
-  try { const now = await publishedApi.act(trying.value.key, action); said.value = now.said; saidFor = now.phase; state.value = now; }
+  try { const now = await publishedApi.act(trying.value.key, action, action === 'start' ? machine.value : ''); said.value = now.said; saidFor = now.phase; state.value = now; }
   catch (e) { tryError.value = e.message; await loadState(); } finally { busy.value = false; }
 }
 async function choose(event) {
@@ -288,8 +292,10 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
               <p v-else-if="ready&&onPlatform&&gpu==='zero'" class="muted">No GPU is running now: the first photo starts one (a few minutes), then each answer takes seconds. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
               <p v-else-if="ready&&onPlatform" class="muted">Its GPU is running. It is shared, and stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
               <p v-else-if="ready" class="muted">Its test server is ready. {{ state.trial?.photos_tried || 0 }} photo{{ state.trial?.photos_tried===1?'':'s' }} tried. It stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
+              <MachinePicker v-if="state.may.start" v-model="machine" :load="loadMachines" :disabled="busy"/>
+              <p v-else-if="state.running_on" class="muted running-on">Runs on {{ state.running_on.gpu_name }} ({{ state.running_on.memory_gb }} GB) in {{ state.running_on.data_center }}, ${{ state.running_on.usd_per_hour }} an hour.</p>
               <div class="try-actions">
-                <UiButton v-if="state.may.start" variant="primary" :disabled="busy" @click="act('start')"><Play :size="14"/> {{ onPlatform ? 'Start its GPU server' : state.published?.state==='ready' ? 'Start its test server' : 'Make it ready and start' }}</UiButton>
+                <UiButton v-if="state.may.start" variant="primary" :disabled="busy||!machine" @click="act('start')"><Play :size="14"/> {{ onPlatform ? 'Start its GPU server' : state.published?.state==='ready' ? 'Start its test server' : 'Make it ready and start' }}</UiButton>
                 <UiButton v-if="state.may.stop" :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop its test server</UiButton>
               </div>
               <label class="test-input" :class="{off:!ready}">
@@ -359,7 +365,9 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
             <p v-if="state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>Its server is starting; this takes a few minutes.</p>
             <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
             <p v-if="ready" class="muted">Its server is ready. It stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
-            <div class="try-actions"><UiButton v-if="state.may.start" variant="primary" :disabled="busy" @click="act('start')"><Play :size="14"/> Start its server</UiButton></div>
+            <MachinePicker v-if="state.may.start" v-model="machine" :load="loadMachines" :disabled="busy"/>
+            <p v-else-if="state.running_on" class="muted running-on">Runs on {{ state.running_on.gpu_name }} ({{ state.running_on.memory_gb }} GB) in {{ state.running_on.data_center }}, ${{ state.running_on.usd_per_hour }} an hour.</p>
+            <div class="try-actions"><UiButton v-if="state.may.start" variant="primary" :disabled="busy||!machine" @click="act('start')"><Play :size="14"/> Start its server</UiButton></div>
             <template v-if="trying.kind==='chat'">
               <ol class="open-chat" aria-label="Conversation"><li v-for="(line, i) in chatLines" :key="i" :class="line.role"><strong>{{ line.role==='user' ? 'You' : trying.name }}</strong><span>{{ line.content }}</span></li></ol>
               <form class="open-chat-ask" @submit.prevent="sendChat"><input v-model="chatText" class="text-input" :disabled="!ready||chatting" placeholder="Write a message…" aria-label="Your message"><UiButton type="submit" variant="primary" :disabled="!ready||chatting||!chatText.trim()">{{ chatting ? 'Waiting for the answer…' : 'Send' }}</UiButton></form>
