@@ -311,8 +311,11 @@ function onEvent(d) {
     m.streaming = false; sending.value = false; scrollDown(); return
   }
   if (t === 'tool_result') {
-    const m = ensureStreamingAssistant(); (m.tools = m.tools || []).push({ name: d.tool_name || d.tool || 'tool', ok: d.status !== 'error' })
-    emit('activity', [`tool: ${d.tool_name || d.tool || ''}`]); scrollDown(); return
+    // The LABEL the backend sends ("Running a command"), never the tool's name: the chat printed
+    // CODE_RUN_COMMAND and TOOLSEARCH (owner, 2026-11-06). `success` is the frame's own outcome field.
+    const label = d.label || 'Used a tool'
+    const m = ensureStreamingAssistant(); (m.tools = m.tools || []).push({ name: label, ok: d.success !== false && d.status !== 'error' })
+    emit('activity', [label]); scrollDown(); return
   }
   if (t === 'tool_call') { return }
 

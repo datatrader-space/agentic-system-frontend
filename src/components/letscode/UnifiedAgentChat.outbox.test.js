@@ -66,6 +66,23 @@ describe('UnifiedAgentChat outbox', () => {
     w.unmount()
   })
 
+  it('names a tool by its label, never by its name', async () => {
+    const Chat = (await import('./UnifiedAgentChat.vue')).default
+    const w = mount(Chat, { props: { systemId: 5, repoId: 14, crsReady: true }, global: { stubs } })
+    await flushPromises()
+    const ws = FakeSocket.instances[0]
+    ws.open()
+    w.vm.send('run it')
+    ws.onmessage({ data: JSON.stringify({ type: 'tool_result', tool: 'CODE_RUN_COMMAND', label: 'Running a command', success: true }) })
+    ws.onmessage({ data: JSON.stringify({ type: 'tool_result', tool: 'TOOLSEARCH', success: true }) })
+    await flushPromises()
+    expect(w.text()).toContain('Running a command')
+    expect(w.text()).toContain('Used a tool')
+    expect(w.text()).not.toContain('CODE_RUN_COMMAND')
+    expect(w.text()).not.toContain('TOOLSEARCH')
+    w.unmount()
+  })
+
   it('sends at once on an open socket, and only once', async () => {
     const Chat = (await import('./UnifiedAgentChat.vue')).default
     const w = mount(Chat, { props: { systemId: 5, repoId: 14, crsReady: true }, global: { stubs } })
