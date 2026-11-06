@@ -41,6 +41,8 @@ export const llmApi = {
   publish: (ref, body) => post(`${llm(ref)}/datasets/`, body),
   training: ref => apiFetch(`${llm(ref)}/training/`),
   startTraining: (ref, body) => post(`${llm(ref)}/training/`, body),
+  // The GPUs and locations a run of this dataset version can train on now (its base model's size decides).
+  trainingMachines: (ref, version) => apiFetch(`${llm(ref)}/training/machines/${query({ dataset_version: version })}`),
   trainingRun: (ref, number) => apiFetch(`${llm(ref)}/training/runs/${number}/`),
   trainingMove: (ref, number, move) => post(`${llm(ref)}/training/runs/${number}/${move}/`, {}),
   models: ref => apiFetch(`${llm(ref)}/models/`),

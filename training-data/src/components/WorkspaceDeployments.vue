@@ -176,6 +176,7 @@ const chosenOpen = computed(() => offeredOpen.value.find(m => String(m.id) === S
 const machinesShown = computed(() => dedicatedMachinesFor(options.value, form.value.source, chosenOpen.value));
 const chosenMachine = computed(() => machinesShown.value.find(m => m.instance_type === form.value.instance_type) || null);
 // The machines of this form in the picker's shape (MachinePicker): GPU or CPU, then one from a list.
+const dedPicker = ref(null);
 const loadDedMachines = computed(() => {
   const listed = machinesShown.value.map(m => ({
     key: m.instance_type, kind: m.gpu === false ? 'cpu' : 'gpu', gpu_name: m.gpu_name || m.instance_type,
@@ -505,7 +506,7 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
     </UiDialog>
 
     <UiDialog class="ded-dialog" :open="creating" title="New deployment" @close="creating=false">
-      <form class="ded-form" novalidate @submit.prevent="startDeployment">
+      <form class="ded-form" novalidate @submit.prevent="dedPicker ? dedPicker.confirm(startDeployment) : startDeployment()">
         <p class="dialog-description">Choose a model and a machine for it. Nothing starts until you press Start deployment.</p>
 
         <fieldset v-if="sources.length > 1" class="ded-field">
@@ -570,7 +571,7 @@ onUnmounted(() => { gone = true; stopPolling(); clearTimeout(copiedTimer); });
         </div>
 
         <div class="ded-field">
-          <MachinePicker v-model="form.instance_type" :load="loadDedMachines" legend="Machine"/>
+          <MachinePicker ref="dedPicker" v-model="form.instance_type" :load="loadDedMachines" legend="Machine"/>
           <p v-if="form.source==='open_model' && machinesShown.length" class="ded-help">Only machines with room for this model are listed.</p>
           <p v-if="fieldErrors.instance_type" class="field-error" role="alert">{{ fieldErrors.instance_type }}</p>
         </div>

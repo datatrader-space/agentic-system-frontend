@@ -12,6 +12,8 @@ export async function loadTraining(store) {
 
 export const trainApi = {
   start: (ref, body) => apiFetch(`${base(ref)}/runs/`, { method: 'POST', body }),
+  // The GPUs and locations a run can train on now (placement.py; training is GPU only).
+  machines: ref => apiFetch(`${base(ref)}/runs/machines/`),
   run: (ref, number) => apiFetch(`${base(ref)}/runs/${enc(number)}/`),
   act: (ref, number, action) => apiFetch(`${base(ref)}/runs/${enc(number)}/${action}/`, { method: 'POST', body: {} }),
 };

@@ -16,6 +16,8 @@ const emit = defineEmits(['navigate']);
 const models = ref(null); const chosen = ref(null); const state = ref(null);
 // The GPU and location the test server starts on (MachinePicker); the server reads the choice again.
 const machine = ref('');
+const picker = ref(null);
+const startOn = () => (picker.value ? picker.value.confirm(() => act('start')) : act('start'));
 const loadMachines = computed(() => { const ref_ = props.projectRef, number = chosen.value; return () => trialApi.machines(ref_, number); });
 const error = ref(''); const notice = ref(''); const busy = ref(false);
 const file = ref(null); const photoUrl = ref(''); const answer = ref(null); const asking = ref(false); const photoError = ref('');
@@ -100,8 +102,8 @@ const when = iso => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '
             <p v-else-if="state.trial?.state==='stopped'&&state.trial.failure_reason" class="test-meta">The last test server stopped: {{ state.trial.failure_reason }}</p>
             <p>To try a photo, the model needs its test server, on a GPU you choose below. Nothing starts until you press Start; starting it stops any other test server of this project, and it stops by itself after {{ state.idle_minutes }} minutes without a photo.</p>
             <p v-if="state.refused" class="test-error">{{ state.refused }}</p>
-            <MachinePicker v-if="state.may.start" v-model="machine" :load="loadMachines" :disabled="busy"/>
-            <UiButton variant="primary" :disabled="busy||!state.may.start||!machine" @click="act('start')"><Play :size="14"/> Start test server</UiButton>
+            <MachinePicker v-if="state.may.start" ref="picker" v-model="machine" :load="loadMachines" :disabled="busy"/>
+            <UiButton variant="primary" :disabled="busy||!state.may.start||!machine" @click="startOn"><Play :size="14"/> Start test server</UiButton>
           </template>
           <p v-if="state?.staging_down" class="test-meta">Its staging endpoint is not answering and is being started again.</p>
         </div>

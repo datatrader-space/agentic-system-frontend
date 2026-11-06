@@ -6,6 +6,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Play, RefreshCw, X, RotateCw, ArrowLeft } from 'lucide-vue-next';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
+import MachinePicker from './MachinePicker.vue';
 import { llmApi, trainingOverrides, configSummary } from '../api/llm.js';
 import { ago } from '../api/training.js';
 import './llm.css';
@@ -14,6 +15,10 @@ const props = defineProps({ project: Object });
 const emit = defineEmits(['navigate']);
 const page = ref(null); const error = ref(''); const told = ref(''); const busy = ref(false); const opened = ref(null);
 const form = ref({ version: '', method: 'sft', config: '', runtime: 3600, parent: '', epochs: '', max_steps: '', learning_rate: '', rank: '' });
+// The GPU and location the run trains on (MachinePicker; training is GPU only), offered for the version chosen.
+const compute = ref('');
+const picker = ref(null);
+const loadMachines = computed(() => { const ref_ = props.project.ref, version = form.value.version; return () => llmApi.trainingMachines(ref_, version); });
 let timer = null;
 
 const version = computed(() => page.value?.versions.find(v => v.number === Number(form.value.version)));
@@ -48,6 +53,7 @@ async function start() {
       dataset_version: Number(form.value.version), method: form.value.method, config: form.value.config,
       max_runtime_seconds: Number(form.value.runtime), parent: form.value.parent ? Number(form.value.parent) : undefined,
       overrides: trainingOverrides(form.value), idempotency_key: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`,
+      ...(compute.value ? { compute: compute.value } : {}),
     });
     told.value = `Run ${run.number} is started. Its state and progress are in the list below.`;   // not a state that goes stale
     Object.assign(form.value, { epochs: '', max_steps: '', learning_rate: '', rank: '' });   // a change was for that run only
@@ -102,7 +108,8 @@ onUnmounted(() => clearTimeout(timer));
             <label class="field-label">LoRA rank<input v-model="form.rank" class="text-input" type="number" min="1" max="256" placeholder="as configured"></label>
           </div>
         </details>
-        <div class="dialog-actions"><UiButton variant="primary" :disabled="busy || !form.version || !form.config" @click="start"><Play :size="15" /> {{ busy ? 'Starting…' : 'Start training' }}</UiButton></div>
+        <MachinePicker v-if="form.version" ref="picker" v-model="compute" :load="loadMachines" legend="GPU it trains on"/>
+        <div class="dialog-actions"><UiButton variant="primary" :disabled="busy || !form.version || !form.config || !compute" @click="picker ? picker.confirm(start) : start()"><Play :size="15" /> {{ busy ? 'Starting…' : 'Start training' }}</UiButton></div>
       </section>
       <section v-else-if="page" class="panel"><p>Only the project's Owner starts a training run. Every run is listed below.</p></section>
 
