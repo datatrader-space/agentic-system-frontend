@@ -7,7 +7,8 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 vi.mock('@/services/api', () => ({
   default: { getLlmModels: vi.fn(() => Promise.resolve({ data: [] })),
-             unifiedConfig: vi.fn(() => Promise.resolve({ data: {} })) },
+             unifiedConfig: vi.fn(() => Promise.resolve({ data: {} })),
+             getProjectPreview: vi.fn(() => Promise.resolve({ data: { url: 'https://3000-abcdefgh12345678.proxy.x' } })) },
 }))
 vi.mock('@/composables/useNotify', () => ({ notify: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
 vi.mock('@/composables/useMemoryToast', () => ({ showMemorySavedToast: vi.fn() }))
@@ -92,6 +93,29 @@ describe('UnifiedAgentChat outbox', () => {
     w.vm.send('hello')
     ws.open()                                   // a second open event must not resend it
     expect(ws.sent.filter((m) => m.type === 'chat_message')).toHaveLength(1)
+    w.unmount()
+  })
+
+  it('offers the app the agent left running, signed for the person only when they open it', async () => {
+    const api = (await import('@/services/api')).default
+    const Chat = (await import('./UnifiedAgentChat.vue')).default
+    const w = mount(Chat, { props: { systemId: 5, repoId: 14, crsReady: true }, global: { stubs } })
+    await flushPromises()
+    const ws = FakeSocket.instances[0]
+    ws.open()
+    w.vm.send('run the app')
+    ws.onmessage({ data: JSON.stringify({ type: 'lets_code_preview', repo_id: 14, port: 3000 }) })
+    await flushPromises()
+    expect(w.text()).toContain('The app is running on port 3000')
+    expect(api.getProjectPreview).not.toHaveBeenCalled()
+    const win = { opener: {}, location: { href: '' }, close: vi.fn() }
+    const open = vi.spyOn(window, 'open').mockReturnValue(win)
+    await w.find('.ai-preview-open').trigger('click')
+    await flushPromises()
+    expect(api.getProjectPreview).toHaveBeenCalledWith(14, 3000)
+    expect(win.opener).toBe(null)
+    expect(win.location.href).toBe('https://3000-abcdefgh12345678.proxy.x')
+    open.mockRestore()
     w.unmount()
   })
 })

@@ -82,6 +82,15 @@
             <a v-if="m.task && m.task.pr_url" :href="m.task.pr_url" target="_blank" rel="noopener">View PR</a>
           </div>
 
+          <div v-if="m.preview" class="ai-preview">
+            <Icon icon="lucide:monitor-play" aria-hidden="true" />
+            <span class="ai-preview-text">The app is running on port {{ m.preview.port }}</span>
+            <button type="button" class="ai-preview-open" :disabled="m.preview.opening" @click="openPreview(m)">
+              {{ m.preview.opening ? 'Opening…' : 'Open preview' }}
+            </button>
+            <span v-if="m.preview.error" class="ai-preview-err" role="alert">{{ m.preview.error }}</span>
+          </div>
+
           <TokenUsage v-if="!m.streaming && m.usage" :usage="m.usage" class="ai-usage" />
         </div>
       </div>
@@ -319,6 +328,14 @@ function onEvent(d) {
   }
   if (t === 'tool_call') { return }
 
+  // The app the agent left running (CODE_SERVE). The link is signed for the person when they click, never sent here.
+  if (t === 'lets_code_preview') {
+    const m = lastAssistant() || { role: 'assistant', text: '', tools: [] }
+    if (!messages.value.includes(m)) messages.value.push(m)
+    m.preview = { port: d.port, opening: false, error: '' }
+    scrollDown(); return
+  }
+
   // ── Proposed-diff lifecycle ──
   if (t === 'proposed_diff') {
     const task = {
@@ -448,6 +465,23 @@ function onRevertHunk(m, payload) {
 function onExport(m) {
   m.exporting = true; wsSend({ type: 'diff_export', proposed_diff_id: m.task.proposed_diff_id })
 }
+async function openPreview(m) {
+  // Opened before the request so the browser treats it as the click's own window, not a popup.
+  const win = window.open('', '_blank')
+  if (win) win.opener = null
+  m.preview.opening = true; m.preview.error = ''
+  try {
+    const { data } = await api.getProjectPreview(props.repoId, m.preview.port)
+    if (win) win.location.href = data.url
+    else window.open(data.url, '_blank', 'noopener')
+  } catch (e) {
+    if (win) win.close()
+    m.preview.error = e?.response?.data?.error || 'The preview could not be opened. Try again.'
+  } finally {
+    m.preview.opening = false
+  }
+}
+
 async function onCopy(m) {
   try { await navigator.clipboard.writeText(m.task.diff_text || ''); notify.success('Patch copied') }
   catch { notify.error('Could not copy') }
@@ -635,6 +669,14 @@ defineExpose({ send })
 .ai-resolved { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--vm-ink-soft); margin-top: 8px; }
 .ai-resolved :deep(svg) { width: 14px; height: 14px; }
 .ai-resolved a { color: var(--vm-violet); margin-left: 6px; }
+.ai-preview { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--vm-line); border-radius: 10px; background: var(--vm-surface); font-size: 12.5px; color: var(--vm-ink-soft); }
+.ai-preview :deep(svg) { width: 15px; height: 15px; color: var(--vm-violet); flex: 0 0 auto; }
+.ai-preview-text { flex: 1 1 auto; min-width: 0; }
+.ai-preview-open { min-height: 32px; padding: 0 12px; border: none; border-radius: 8px; background: var(--vm-violet); color: var(--uac-on-solid); font: 600 12.5px var(--vm-font-sans); cursor: pointer; transition: filter .15s; }
+.ai-preview-open:hover:not(:disabled) { filter: brightness(1.08); }
+.ai-preview-open:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 2px; }
+.ai-preview-open:disabled { opacity: .6; cursor: progress; }
+.ai-preview-err { flex-basis: 100%; color: var(--vm-red-ink); }
 .ai-usage { margin-top: 8px; }
 
 /* ── Composer (single container) ── */

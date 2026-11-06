@@ -849,6 +849,7 @@ export default {
   getProject: (repoId) => api.get(`/lets-code/projects/${repoId}/`, { noCache: true }),
   deleteProject: (repoId) => api.delete(`/lets-code/projects/${repoId}/`),
   retryProject: (repoId) => api.post(`/lets-code/projects/${repoId}/retry/`),
+  getProjectPreview: (repoId, port) => api.get(`/lets-code/projects/${repoId}/preview/`, { params: { port }, noCache: true }),   // { url } signed now
   getProjectBranches: (repoId) => api.get(`/lets-code/projects/${repoId}/branches/`, { noCache: true }),
   switchProjectBranch: (repoId, branch) => api.post(`/lets-code/projects/${repoId}/switch-branch/`, { branch }),
 
