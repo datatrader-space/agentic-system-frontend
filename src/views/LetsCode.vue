@@ -123,7 +123,7 @@
         <div class="ide-left">
           <div class="ide-editor">
             <PipelineStepper v-if="!ready" :project="active" :log="pipelineLog" :retrying="retryingId === active.repo_id" @retry="retryProject(active)" />
-            <CodeBrowser v-else :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :decorations="proposalDecorations" />
+            <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :decorations="proposalDecorations" />
           </div>
           <div v-if="ready" class="ide-bottom" :class="{ collapsed: bottomCollapsed }">
             <BottomPanel :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" />
@@ -167,6 +167,7 @@ const projects = ref([])
 const projectsLoading = ref(true)
 const active = ref(null)
 const browserKey = ref(0)
+const codeBrowser = ref(null)
 const bottomCollapsed = ref(false)
 const pipelineLog = ref([])
 const activity = ref([])
@@ -400,11 +401,16 @@ async function removeProject(p) {
   catch (e) { notify.error(e?.response?.data?.error || 'Could not remove the project') }
 }
 
-function onChanged() { browserKey.value++ }                         // refresh editor after accept/discard
+// After a change is kept, discarded or reverted: the files, Source control and open tabs reload in place.
+function onChanged() { codeBrowser.value?.refresh?.() }
 function onActivity(lines) { if (Array.isArray(lines)) activity.value = lines }
 
 // Inline decorations: map a proposal's diff → per-file added-line ranges for the editor.
-function onProposal(task) { proposalDecorations.value = task ? decorationsFromDiff(task) : {} }
+// A turn proposed a change: highlight its lines and show the files it wrote at once.
+function onProposal(task) {
+  proposalDecorations.value = task ? decorationsFromDiff(task) : {}
+  if (task) codeBrowser.value?.refresh?.()
+}
 function decorationsFromDiff(task) {
   const text = task?.diff_text || ''
   if (!text) return {}

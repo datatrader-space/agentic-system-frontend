@@ -52,8 +52,9 @@
               @copy="onCopy(cards[message.id])"
               @revert-file="onRevertFile(cards[message.id], $event)" @revert-hunk="onRevertHunk(cards[message.id], $event)"
             />
-            <div v-if="cards[message.id].resolved" class="ai-resolved">
-              <Icon :icon="cards[message.id].resolved === 'exported' ? 'lucide:git-pull-request' : (cards[message.id].resolved === 'discarded' ? 'lucide:trash-2' : 'lucide:check')" />
+            <div v-if="cards[message.id].resolved" class="ai-resolved" :class="{ err: cards[message.id].resolved === 'error' }"
+                 :role="cards[message.id].resolved === 'error' ? 'alert' : null">
+              <Icon :icon="{ exported: 'lucide:git-pull-request', discarded: 'lucide:trash-2', error: 'lucide:circle-alert' }[cards[message.id].resolved] || 'lucide:check'" />
               {{ resolvedLabel(cards[message.id]) }}
               <a v-if="cards[message.id].task && cards[message.id].task.pr_url" :href="cards[message.id].task.pr_url" target="_blank" rel="noopener">View PR</a>
             </div>
@@ -214,7 +215,7 @@ function onProjectFrame(d) {
   if (t === 'proposed_diff_resolved') {
     const c = cardByDiff(d.proposed_diff_id)
     if (c) {
-      c.busy = false; c.exporting = false; c.resolved = d.outcome
+      c.busy = false; c.exporting = false; c.resolved = d.outcome; c.error = d.error || ''
       if (d.pr_url) c.task.pr_url = d.pr_url
       if (d.outcome === 'discarded') c.task = { ...c.task, diff_text: '', diff_summary: {} }
     }
@@ -313,7 +314,8 @@ async function onCopy(c) {
   catch { notify.error('Could not copy') }
 }
 function resolvedLabel(c) {
-  return { accepted: 'Kept locally', discarded: 'Discarded', exported: 'PR opened', error: 'Action failed' }[c.resolved] || c.resolved
+  if (c.resolved === 'error') return c.error || 'The action did not complete.'
+  return { accepted: 'Kept locally', discarded: 'Discarded', exported: 'PR opened' }[c.resolved] || c.resolved
 }
 
 async function openPreview(c) {
@@ -411,6 +413,7 @@ defineExpose({ send })
 .ai-resolved { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--vm-ink-soft); }
 .ai-resolved :deep(svg) { width: 14px; height: 14px; }
 .ai-resolved a { color: var(--vm-violet); margin-left: 6px; }
+.ai-resolved.err { color: var(--vm-red-ink); }
 .ai-preview { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--vm-line); border-radius: 10px; background: var(--vm-surface); font-size: 12.5px; color: var(--vm-ink-soft); }
 .ai-preview :deep(svg) { width: 15px; height: 15px; color: var(--vm-violet); flex: 0 0 auto; }
 .ai-preview-text { flex: 1 1 auto; min-width: 0; }

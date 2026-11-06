@@ -90,7 +90,7 @@
 
         <!-- Source Control -->
         <div v-else-if="sidebarTab === 'scm'" class="scm-pane">
-          <SourceControlPanel :system-id="systemId" :repo-id="repositoryId" @count="scmCount = $event" @open-diff="openDiff" />
+          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" @count="scmCount = $event" @open-diff="openDiff" />
         </div>
 
         <!-- Artifact Tree -->
@@ -494,6 +494,32 @@ async function loadFiles() {
     loading.value = false
   }
 }
+
+// What the agent changed shows at once, as in VS Code: the tree reloads with the same folders open, Source control
+// reloads, and an open file without unsaved edits shows its new content (a remount closed every tab).
+const scmPanel = ref(null)
+async function refresh() {
+  const open = new Set()
+  const walk = (nodes) => { for (const n of nodes || []) if (n.type === 'directory' && n.expanded) { open.add(n.path); walk(n.children) } }
+  walk(rootNodes.value)
+  await loadFiles()
+  const reopen = async (nodes) => {
+    for (const n of nodes || []) {
+      if (n.type === 'directory' && open.has(n.path)) { await expandDir(n); await reopen(n.children) }
+    }
+  }
+  await reopen(rootNodes.value)
+  try { scmPanel.value?.refresh?.() } catch { /* the Source control tab is not open */ }
+  for (const tab of openTabs.value) {
+    if (tab.type !== 'file' || isDirty(tab)) continue
+    try {
+      const { data } = await api.getFileContent(props.systemId, props.repositoryId, tab.path)
+      tab.content = data.content
+      tab.original = data.content
+    } catch { /* a file the change removed keeps its last content in its tab */ }
+  }
+}
+defineExpose({ refresh })
 
 async function openFile(filePath) {
   // Check if already open

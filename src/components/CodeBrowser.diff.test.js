@@ -27,6 +27,27 @@ async function browser() {
   return w
 }
 
+describe('CodeBrowser: refresh after a change', () => {
+  it('reloads the tree with the same folders open and an open file shows its new content', async () => {
+    const api = (await import('../services/api')).default
+    api.getRepositoryFiles.mockImplementation((_s, _r, { path }) => Promise.resolve({ data: { entries: path === ''
+      ? [{ name: 'src', path: 'src', type: 'directory' }]
+      : [{ name: 'page.tsx', path: 'src/page.tsx', type: 'file' }] } }))
+    api.getFileContent = vi.fn(() => Promise.resolve({ data: { content: 'v1' } }))
+    const w = await browser()
+    const st = w.vm.$.setupState
+    await st.expandDir(st.rootNodes[0])
+    await st.openFile('src/page.tsx')
+    api.getFileContent.mockResolvedValue({ data: { content: 'v2' } })
+    await w.vm.refresh()
+    await flushPromises()
+    expect(st.rootNodes[0].expanded).toBe(true)
+    expect(st.rootNodes[0].children.map((c) => c.path)).toEqual(['src/page.tsx'])
+    expect(st.openTabs.find((t) => t.path === 'src/page.tsx').content).toBe('v2')
+    w.unmount()
+  })
+})
+
 describe('CodeBrowser: a change opens as a diff tab', () => {
   it('shows the last commit beside the file now, in a "(changes)" tab', async () => {
     const api = (await import('../services/api')).default

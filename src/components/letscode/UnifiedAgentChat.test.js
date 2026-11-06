@@ -101,6 +101,20 @@ describe('UnifiedAgentChat on the shared chat', () => {
     w.unmount()
   })
 
+  it('says why an action failed, with an error mark, never a check', async () => {
+    const w = await mountChat()
+    chat.messages = [{ id: 'a1', role: 'assistant', content: 'done' }]
+    chat.surfaceHandler({ type: 'proposed_diff', proposed_diff_id: 9, diff_text: 'diff --git a/x b/x' })
+    chat.surfaceHandler({ type: 'proposed_diff_resolved', proposed_diff_id: 9, outcome: 'error', error: 'No changes to export.' })
+    await flushPromises()
+    const line = w.find('.ai-resolved')
+    expect(line.classes()).toContain('err')
+    expect(line.attributes('role')).toBe('alert')
+    expect(line.text()).toContain('No changes to export.')
+    expect(line.text()).not.toContain('Action failed')
+    w.unmount()
+  })
+
   it('sends diff actions on the project socket', async () => {
     const w = await mountChat()
     chat.messages = [{ id: 'a1', role: 'assistant', content: 'done' }]
