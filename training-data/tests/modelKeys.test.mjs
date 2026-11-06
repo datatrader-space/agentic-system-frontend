@@ -43,5 +43,9 @@ test('a workspace model row: name and tags on top, notes, then manage and use ac
   assert.match(list, /<div class="om-row-manage">[\s\S]*Hugging Face<\/a>[\s\S]*Remove<\/UiButton>/);
   assert.match(list, /<div class="om-row-use">[\s\S]*Try it<\/UiButton>[\s\S]*Use model<\/UiButton>/);
   assert.match(list, /\.om-added-actions\{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between/);
-  assert.match(list, /\.om-added-actions \.button\{min-height:44px\}/, 'touch targets on phones');
+  // The shared stylesheet owns these buttons' height (its selector outranks the component's): 44px on phones.
+  const sheet = read('../src/models-workspace.css');
+  const phone = sheet.slice(sheet.indexOf('@media(max-width:650px){'));
+  assert.match(phone, /\.models-workspace\.models-redesigned \.om-added-actions \.button\{min-height:44px\}/, 'touch targets on phones');
+  assert.equal(/\.om-added-actions \.button\{min-height/.test(list), false, 'no component height the stylesheet overrides');
 });

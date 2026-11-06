@@ -290,7 +290,7 @@ function moveChoice(event, name, options) {
 .om-added-licence{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#33415a}
 .om-added-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-left:44px;padding-top:12px;border-top:1px solid #eef0f4}
 .om-row-manage,.om-row-use{display:flex;flex-wrap:wrap;gap:8px}
-.om-added-actions .button{min-height:38px;padding:7px 12px}
+.om-added-actions .button{padding:7px 12px}
 .om-failure,.om-note{margin:0;font-size:12px;line-height:1.5}
 .om-failure{color:#b52f40}
 .om-note{color:#5f6d82}
@@ -347,7 +347,6 @@ function moveChoice(event, name, options) {
   .om-row-use{order:-1;width:100%}
   .om-row-use > *,.om-row-manage > *{flex:1 1 0;justify-content:center}
   .om-row-manage{width:100%}
-  .om-added-actions .button{min-height:44px}
   .om-grid{grid-template-columns:minmax(0,1fr)}
   .om-quote{grid-template-columns:minmax(0,1fr)}
   .om-dialog-actions > *{flex:1 1 auto;justify-content:center;min-height:44px}

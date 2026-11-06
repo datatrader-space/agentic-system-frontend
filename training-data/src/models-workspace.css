@@ -150,6 +150,7 @@
   .models-workspace.models-redesigned .om-segmented{flex-basis:100%}
   .models-workspace.models-redesigned .om-segmented button{flex:1;justify-content:center}
   .models-workspace.models-redesigned .om-toolbar>.button{width:100%;margin:0;min-height:44px}
+  .models-workspace.models-redesigned .om-added-actions .button{min-height:44px}
   .models-workspace.models-redesigned .om-added li{padding:18px}
   .models-workspace.models-redesigned .om-workspace-empty{align-items:flex-start;padding:20px}
   .models-workspace.models-redesigned .try-panel{padding:18px}
