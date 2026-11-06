@@ -38,6 +38,8 @@
           @edit="chat.editAndResend(m.id, prepareEdit ? prepareEdit(m, $event) : $event)"
           @feedback="(value, detail) => chat.setFeedback(m.id, value, detail)"
         />
+        <!-- A surface's own cards for this message (Let's Code: the proposed diff, the running app's preview). -->
+        <slot name="after-message" :message="m" />
         <!-- Inline live plan artifact — the ONLY plan UI in chat. Rendered at its durable anchor,
              keyed by plan_id, in exact chronological place. Updates in place from pushed plan_event
              frames; no polling, no detached card. -->

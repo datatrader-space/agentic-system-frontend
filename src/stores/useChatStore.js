@@ -108,6 +108,12 @@ export const useChatStore = defineStore('chat', {
     studioMode: '',
     // The Video Studio page this message is sent from ({page, preset?, preset_title?, helper?}), set by the page.
     studioContext: null,
+    // A surface's own frames (Let's Code: the diff card, the permission card, the app preview). Called with each
+    // frame before the chat handles it; returning true means the surface consumed it.
+    surfaceHandler: null,
+    // Let's Code: the project a NEW chat is bound to, set only while the project page is open. Never read from
+    // `repoId`, which also holds the repository of an old project chat opened from the main chat's history.
+    newChatRepoId: null,
     // DEEP RESEARCH mode (per-turn signal, sticky in the composer) + the DEPTH the user picked.
     // The depth is a COST decision, so it is the user's and not the model's: it sets how many independent
     // sub-questions one research fan-out may open and how many source pages each of those must read. Sent
@@ -898,7 +904,8 @@ export const useChatStore = defineStore('chat', {
         return null
       }
       try {
-        const res = await api.startAgentChat(this.selectedAgentId, null, this.newChatProjectId)
+        // A project chat (Let's Code) is bound to its repository; every other chat has none.
+        const res = await api.startAgentChat(this.selectedAgentId, this.newChatRepoId || null, this.newChatProjectId)
         const d = res.data || {}
         this.conversationId = String(d.conversation_id ?? d.profile_id ?? '')
         this.repoId = d.repository_id || 0
@@ -1429,6 +1436,13 @@ export const useChatStore = defineStore('chat', {
     },
 
     // Full teardown — ONLY for logout / app unmount. Closes the socket for good (no reconnect).
+    // Send a frame on this chat's socket as it is (a surface's own action, e.g. Let's Code's diff actions). Held
+    // and sent when the socket opens, like a message.
+    sendRaw(obj) {
+      if (!this._conn) this._connect()
+      this._conn._send(obj)
+    },
+
     disconnect() {
       this._teardown(true)
     },
@@ -1957,6 +1971,9 @@ export const useChatStore = defineStore('chat', {
       this._lastFrameAt = Date.now()
       const t = msg?.type
       if (t === 'ping') return   // server keepalive heartbeat — nothing to render
+      if (this.surfaceHandler) {
+        try { if (this.surfaceHandler(msg)) return } catch (_e) { /* a surface's card must never break the chat */ }
+      }
       // WORK-MODE ITERATIONS ARRIVE OVER THE USER GROUP, WHICH CARRIES EVERY OPEN TAB.
       //
       // Iteration 1 of a Work run executes on this socket; every later iteration runs in a Celery

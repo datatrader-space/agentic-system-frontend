@@ -9,7 +9,6 @@ vi.mock('@/services/api', () => ({
         branch: 'main', clean: false,
         changes: [{ path: 'app.py', status: 'modified' }],
         untracked: [{ path: 'new.py', status: 'untracked' }],
-        local_only: [{ path: '.env', status: 'untracked', gitignored: true, protected: true }],
       },
     })),
     getSourceControlDiff: vi.fn(() => Promise.resolve({
@@ -21,28 +20,25 @@ vi.mock('@/services/api', () => ({
 import SourceControlPanel from './SourceControlPanel.vue'
 
 describe('SourceControlPanel', () => {
-  it('renders change groups with badges and loads a diff on click', async () => {
+  it('lists the changes, never gitignored files, and opens a clicked change as a diff in the editor', async () => {
     const w = mount(SourceControlPanel, { props: { systemId: 5, repoId: 4 } })
     await flushPromises()
     const text = w.text()
     expect(text).toContain('main')              // branch
     expect(text).toContain('app.py')            // modified (Changes)
     expect(text).toContain('new.py')            // untracked
-    expect(text).toContain('.env')              // local-only
-    expect(text).toContain('secret')            // protected tag on .env
+    expect(text).not.toContain('Local-only')    // gitignored files are not listed (owner 2026-11-06)
     // emits the committable change count (changes + untracked = 2)
     expect(w.emitted('count')[0][0]).toBe(2)
-    // click app.py → diff renders with +/- lines
+    // click app.py → the editor is asked to open its side-by-side diff
     await w.findAll('.scm-row')[0].trigger('click')
-    await flushPromises()
-    expect(w.text()).toContain('+x = 2')
-    expect(w.text()).toContain('-x = 1')
+    expect(w.emitted('open-diff')[0][0]).toEqual({ path: 'app.py', status: 'modified' })
   })
 
   it('shows a clean state', async () => {
     const api = (await import('@/services/api')).default
     api.getSourceControlStatus.mockResolvedValueOnce({
-      data: { branch: 'main', clean: true, changes: [], untracked: [], local_only: [] },
+      data: { branch: 'main', clean: true, changes: [], untracked: [] },
     })
     const w = mount(SourceControlPanel, { props: { systemId: 5, repoId: 4 } })
     await flushPromises()
@@ -59,15 +55,9 @@ describe('SourceControlPanel', () => {
     expect(w.find('[role="alert"]').text()).toBe('Sandboxes are switched off on this deployment.')
   })
 
-  it('a diff that cannot load says so, not "no changes", and the 3-day note is shown', async () => {
-    const api = (await import('@/services/api')).default
-    api.getSourceControlDiff.mockRejectedValueOnce({ response: { status: 503, data: { error: 'Sandbox is starting.' } } })
+  it('says how long changes are kept', async () => {
     const w = mount(SourceControlPanel, { props: { systemId: 5, repoId: 4 } })
     await flushPromises()
     expect(w.text()).toContain('kept for 3 days')
-    await w.findAll('.scm-row')[0].trigger('click')
-    await flushPromises()
-    expect(w.text()).toContain('Sandbox is starting.')
-    expect(w.text()).not.toContain('No textual changes')
   })
 })

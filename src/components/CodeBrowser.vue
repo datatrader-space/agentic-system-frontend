@@ -90,7 +90,7 @@
 
         <!-- Source Control -->
         <div v-else-if="sidebarTab === 'scm'" class="scm-pane">
-          <SourceControlPanel :system-id="systemId" :repo-id="repositoryId" @count="scmCount = $event" />
+          <SourceControlPanel :system-id="systemId" :repo-id="repositoryId" @count="scmCount = $event" @open-diff="openDiff" />
         </div>
 
         <!-- Artifact Tree -->
@@ -133,7 +133,8 @@
           @click="activeTabId = tab.id"
           @keydown.enter.self="activeTabId = tab.id"
           :class="['tab', { active: activeTabId === tab.id }]">
-          <Icon class="tab-icon" :icon="iconFor({ name: tab.name, type: 'file' })" aria-hidden="true"
+          <Icon v-if="tab.type === 'diff'" class="tab-icon" icon="lucide:file-diff" aria-hidden="true" />
+          <Icon v-else class="tab-icon" :icon="iconFor({ name: tab.name, type: 'file' })" aria-hidden="true"
                 :style="iconColor({ name: tab.name, type: 'file' }) ? { color: iconColor({ name: tab.name, type: 'file' }) } : {}" />
           <span class="tab-name">{{ tab.name }}</span>
           <span v-if="isDirty(tab)" class="tab-dot" title="Unsaved changes" aria-label="Unsaved changes"></span>
@@ -148,8 +149,27 @@
 
       <!-- Monaco Editor -->
       <div class="editor-container">
+        <!-- A change from Source control: side by side, the last commit on the left and the file now on the right,
+             as VS Code shows it. Read-only: edits are made in the file's own tab. -->
+        <template v-if="activeTab && activeTab.type === 'diff'">
+          <div v-if="activeTab.loading" class="empty-editor"><p class="empty-editor-s">Loading the changes…</p></div>
+          <div v-else-if="activeTab.note" class="empty-editor" role="status">
+            <Icon :icon="activeTab.noteIcon || 'lucide:file-diff'" class="empty-editor-ic" aria-hidden="true" />
+            <p class="empty-editor-t">{{ activeTab.path }}</p>
+            <p class="empty-editor-s">{{ activeTab.note }}</p>
+          </div>
+          <MonacoDiffEditor
+            v-else
+            :value="activeTab.modified"
+            :original="activeTab.originalText"
+            :language="activeTab.language"
+            :theme="monacoTheme"
+            :options="diffOptions"
+            class="monaco-editor"
+          />
+        </template>
         <MonacoEditor
-          v-if="activeTab"
+          v-else-if="activeTab"
           :value="activeTab.content"
           :language="activeTab.language"
           :path="activeTab.path"
@@ -192,6 +212,13 @@ const MonacoEditor = lazyComponent(async () => {
   monacoNs = await import('monaco-editor')
   const mod = await import('monaco-editor-vue3')
   return mod.default || mod
+})
+// The same lazy load, for a change's side-by-side diff (Source control).
+const MonacoDiffEditor = lazyComponent(async () => {
+  await import('@/utils/monacoWorkers')
+  monacoNs = await import('monaco-editor')
+  const mod = await import('monaco-editor-vue3')
+  return mod.DiffEditor
 })
 import { Icon } from '@iconify/vue'
 import api from '../services/api'
@@ -294,6 +321,41 @@ const editorOptions = computed(() => ({
   folding: true,
   renderWhitespace: 'selection'
 }))
+
+const diffOptions = computed(() => ({
+  readOnly: true,
+  originalEditable: false,
+  renderSideBySide: true,
+  automaticLayout: true,
+  minimap: { enabled: false },
+  scrollBeyondLastLine: false,
+  fontSize: 14,
+  wordWrap: 'on',
+}))
+
+// A change from Source control opens as its own tab ("app.py (changes)"), like VS Code's diff editor.
+async function openDiff({ path }) {
+  const existing = openTabs.value.find(t => t.type === 'diff' && t.path === path)
+  if (existing) { activeTabId.value = existing.id; return }
+  const tab = {
+    id: Date.now(), type: 'diff', path, name: `${path.split('/').pop()} (changes)`,
+    language: detectLanguage(path), loading: true, note: '', noteIcon: '', originalText: '', modified: '',
+  }
+  openTabs.value.push(tab)
+  activeTabId.value = tab.id
+  const live = openTabs.value.find(t => t.id === tab.id)
+  try {
+    const { data } = await api.getSourceControlDiff(props.systemId, props.repositoryId, path)
+    if (data.redacted) { live.note = 'This file holds secrets, so its values are not shown.'; live.noteIcon = 'lucide:lock' }
+    else if (data.binary) { live.note = 'Binary file. There is no text to compare.' }
+    else if (data.original === undefined && data.modified === undefined) { live.note = 'The changes cannot be shown for this file.' }
+    else { live.originalText = data.original || ''; live.modified = data.modified || '' }
+  } catch (e) {
+    live.note = e?.response?.data?.error || 'The changes could not be loaded.'
+  } finally {
+    live.loading = false
+  }
+}
 
 function isDirty(tab) {
   return props.editable && tab && tab.type === 'file' && tab.original !== undefined && tab.content !== tab.original
