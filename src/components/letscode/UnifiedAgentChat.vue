@@ -210,8 +210,24 @@ let ws = null
 let autoReconnect = true
 let reconnectTimer = null
 
+// What the person sent before the socket was open. It used to be dropped without a word: the message showed
+// in the chat with Stop running, and the server never received it (prod 2026-11-06, repo 14, sent ~1 s after
+// the project opened). Held here and sent the moment the socket opens.
+const outbox = []
+
 function wsSend(obj) {
-  try { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)) } catch (e) { /* noop */ }
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    try { ws.send(JSON.stringify(obj)); return } catch (e) { /* falls through to the outbox */ }
+  }
+  outbox.push(obj)
+  if (autoReconnect) connect()        // not after the chat was closed (unmount turns autoReconnect off)
+}
+
+function flushOutbox() {
+  while (outbox.length && ws && ws.readyState === WebSocket.OPEN) {
+    const obj = outbox.shift()
+    try { ws.send(JSON.stringify(obj)) } catch (e) { outbox.unshift(obj); return }
+  }
 }
 
 // HITL (approval / ask_user) — only show cards for THIS conversation.
@@ -262,6 +278,7 @@ function connect() {
     // still be loading here; the unifiedConfig fetch also fires a prewarm once it resolves.
     if (agentId.value) wsSend({ type: 'agent_prewarm', agent_id: agentId.value })
     if (conversationId.value) wsSend({ type: 'resume', conversation_id: conversationId.value })
+    flushOutbox()
   }
   ws.onclose = () => {
     connected.value = false; ws = null
@@ -456,7 +473,7 @@ async function loadAgentForProject() {
     const { data } = await api.unifiedConfig(props.systemId)
     if (data?.agent_id) {
       agentId.value = data.agent_id
-      // agentId resolved after the socket opened → prewarm now (wsSend no-ops if the WS isn't open).
+      // agentId resolved after the socket opened → prewarm now (held in the outbox if the WS isn't open yet).
       wsSend({ type: 'agent_prewarm', agent_id: agentId.value })
     }
   } catch (e) { /* picker just stays hidden until an agent exists */ }
