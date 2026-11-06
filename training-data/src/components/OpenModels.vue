@@ -144,18 +144,26 @@ function moveChoice(event, name, options) {
       <div v-else-if="!added.length && !listError" class="om-workspace-empty"><span class="model-row-icon"><Box :size="22" aria-hidden="true"/></span><div><h4>No open models added yet</h4><p>Discover a model below. After its files are fetched, it becomes available for its supported uses.</p></div></div>
       <ul v-else-if="added.length" class="om-added">
         <li v-for="m in added" :key="m.id">
-          <div class="om-added-name"><strong>{{ m.name }}</strong><small>{{ m.publisher }}, {{ m.kind === 'chat' ? 'chat' : 'photo' }}, {{ m.size }}, {{ bytesText(m.bytes) }}, commit {{ (m.revision || "").slice(0, 12) }}</small></div>
-          <div class="om-added-licence"><Scale :size="14" aria-hidden="true"/>{{ m.licence_name }}</div>
-          <UiBadge :tone="modelBadge(m)[0]">{{ modelBadge(m)[1] }}</UiBadge>
-          <p v-if="m.failure" class="om-failure">{{ m.failure }}</p>
-          <p v-if="storageLine(m)" :class="['om-note', 'om-storage', { unpaid: m.unpaid }]"><Wallet :size="13" aria-hidden="true"/>{{ storageLine(m) }}</p>
-          <p v-if="addedFor(m)" class="om-note">{{ addedFor(m) }}</p>
-          <p v-if="m.state==='ready' && m.kind==='photo' && (m.uses || []).includes('train')" class="om-note">Training from an added photo model opens when the photo trainer takes one.</p>
+          <div class="om-row-head">
+            <span class="model-row-icon" aria-hidden="true"><MessageSquareText v-if="m.kind==='chat'" :size="18"/><ImageIcon v-else :size="18"/></span>
+            <div class="om-added-name"><strong>{{ m.name }}</strong><small>{{ m.publisher }} · {{ m.kind === 'chat' ? 'Chat' : 'Photo' }} · {{ m.size }} · {{ bytesText(m.bytes) }} · commit {{ (m.revision || "").slice(0, 12) }}</small></div>
+            <div class="om-row-tags"><span class="om-added-licence"><Scale :size="14" aria-hidden="true"/>{{ m.licence_name }}</span><UiBadge :tone="modelBadge(m)[0]">{{ modelBadge(m)[1] }}</UiBadge></div>
+          </div>
+          <div class="om-row-notes">
+            <p v-if="m.failure" class="om-failure">{{ m.failure }}</p>
+            <p v-if="storageLine(m)" :class="['om-note', 'om-storage', { unpaid: m.unpaid }]"><Wallet :size="13" aria-hidden="true"/>{{ storageLine(m) }}</p>
+            <p v-if="addedFor(m)" class="om-note">{{ addedFor(m) }}</p>
+            <p v-if="m.state==='ready' && m.kind==='photo' && (m.uses || []).includes('train')" class="om-note">Training from an added photo model opens when the photo trainer takes one.</p>
+          </div>
           <div class="om-added-actions">
-            <UiButton v-if="usableOf(m)?.use && usableOf(m).may.use" variant="primary" @click="emit('use', usableOf(m))"><Code :size="14" aria-hidden="true"/>Use model</UiButton>
-            <UiButton v-if="usableOf(m)?.may.use" :disabled="!usableOf(m).may.try" :title="!usableOf(m).may.try ? 'Your role in this workspace reads only: it starts nothing.' : ''" @click="emit('try', usableOf(m))"><Play :size="14" aria-hidden="true"/>Try it</UiButton>
-            <a class="button" :href="hubLink(m.repo)" target="_blank" rel="noopener noreferrer" :aria-label="`${m.name} on Hugging Face (opens a new tab)`"><ExternalLink :size="14" aria-hidden="true"/></a>
-            <UiButton v-if="mayAdd" :disabled="m.state==='fetching'" :title="m.state==='fetching' ? 'It can be removed once its fetch has ended.' : ''" @click="askRemove(m)"><Trash2 :size="14" aria-hidden="true"/>Remove</UiButton>
+            <div class="om-row-manage">
+              <a class="button" :href="hubLink(m.repo)" target="_blank" rel="noopener noreferrer" :aria-label="`${m.name} on Hugging Face (opens a new tab)`"><ExternalLink :size="14" aria-hidden="true"/>Hugging Face</a>
+              <UiButton v-if="mayAdd" :disabled="m.state==='fetching'" :title="m.state==='fetching' ? 'It can be removed once its fetch has ended.' : ''" @click="askRemove(m)"><Trash2 :size="14" aria-hidden="true"/>Remove</UiButton>
+            </div>
+            <div class="om-row-use">
+              <UiButton v-if="usableOf(m)?.may.use" :disabled="!usableOf(m).may.try" :title="!usableOf(m).may.try ? 'Your role in this workspace reads only: it starts nothing.' : ''" @click="emit('try', usableOf(m))"><Play :size="14" aria-hidden="true"/>Try it</UiButton>
+              <UiButton v-if="usableOf(m)?.use && usableOf(m).may.use" variant="primary" @click="emit('use', usableOf(m))"><Code :size="14" aria-hidden="true"/>Use model</UiButton>
+            </div>
           </div>
         </li>
       </ul>
@@ -269,15 +277,21 @@ function moveChoice(event, name, options) {
 .om-section > h2{display:flex;align-items:center;gap:10px;font-size:16px;margin:0 0 12px}
 .om-left-out{margin:0 0 14px;font-size:12px;color:#5f6d82;max-width:90ch}
 .om-added{list-style:none;margin:0;padding:0;border:1px solid #e3e6ed;border-radius:12px;background:#fff}
-.om-added li{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:8px 16px;padding:12px 16px;border-bottom:1px solid #eef0f4}
+.om-added li{display:flex;flex-direction:column;gap:12px;padding:18px 20px;border-bottom:1px solid #eef0f4}
 .om-added li:last-child{border-bottom:0}
-.om-added-name{min-width:0}
+.om-row-head{display:flex;align-items:flex-start;gap:12px}
+.om-row-head .model-row-icon{flex-shrink:0}
+.om-added-name{min-width:0;flex:1}
+.om-row-tags{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.om-row-notes{display:flex;flex-direction:column;gap:4px;padding-left:44px}
+.om-row-notes:empty{display:none}
 .om-added-name strong{display:block;font-size:14px;overflow-wrap:anywhere}
 .om-added-name small{display:block;font-size:12px;color:#5f6d82;margin-top:2px}
-.om-added-licence{display:flex;align-items:center;gap:6px;font-size:12px;color:#33415a}
-.om-added-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}
-.om-added-actions .button{min-height:36px;padding:6px 10px}
-.om-failure,.om-note{grid-column:1 / -1;margin:0;font-size:12px}
+.om-added-licence{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#33415a}
+.om-added-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-left:44px;padding-top:12px;border-top:1px solid #eef0f4}
+.om-row-manage,.om-row-use{display:flex;flex-wrap:wrap;gap:8px}
+.om-added-actions .button{min-height:38px;padding:7px 12px}
+.om-failure,.om-note{margin:0;font-size:12px;line-height:1.5}
 .om-failure{color:#b52f40}
 .om-note{color:#5f6d82}
 .om-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px}
@@ -326,9 +340,14 @@ function moveChoice(event, name, options) {
   .om-segmented{display:flex;flex:1 1 100%}
   .om-segmented button{flex:1 1 0;justify-content:center;min-width:0;padding:7px 6px}
   .om-toolbar > .button{flex:1 1 100%;justify-content:center;min-height:44px}
-  .om-added li{grid-template-columns:minmax(0,1fr) auto}
-  .om-added-licence{grid-column:1 / -1}
-  .om-added-actions{grid-column:1 / -1;justify-content:flex-start}
+  .om-added li{padding:16px}
+  .om-row-head{flex-wrap:wrap}
+  .om-row-tags{flex-basis:100%;justify-content:flex-start;padding-left:44px}
+  .om-row-notes,.om-added-actions{padding-left:0;margin-left:0}
+  .om-row-use{order:-1;width:100%}
+  .om-row-use > *,.om-row-manage > *{flex:1 1 0;justify-content:center}
+  .om-row-manage{width:100%}
+  .om-added-actions .button{min-height:44px}
   .om-grid{grid-template-columns:minmax(0,1fr)}
   .om-quote{grid-template-columns:minmax(0,1fr)}
   .om-dialog-actions > *{flex:1 1 auto;justify-content:center;min-height:44px}

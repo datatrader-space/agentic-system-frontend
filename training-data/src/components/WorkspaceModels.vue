@@ -16,7 +16,7 @@ import PredictionResult from './PredictionResult.vue';
 import OpenModels from './OpenModels.vue';
 import { callCostText, catalogue, useSnippet, USE_LANGUAGES, SDK_INSTALL } from '../api/models.js';
 import { PHOTO_TYPES, percent } from '../api/trial.js';
-import { workspaceApi, publishedApi, projectLink, trySteps, modelName, timeAgo } from '../api/workspace.js';
+import { workspaceApi, publishedApi, modelKeysApi, projectLink, trySteps, modelName, timeAgo } from '../api/workspace.js';
 
 const emit = defineEmits(['create', 'navigate']);
 // "Ready-to-use models" are AADML's own: used as they are, never trained here (a base model a run trains from is in
@@ -156,9 +156,42 @@ function publishedBadge(row) {
 const using = ref(null); const language = ref(USE_LANGUAGES[0]); const copied = ref(''); const useError = ref('');
 const useUrl = computed(() => (using.value?.use ? `${location.origin}${using.value.use.path}` : ''));
 const useCode = computed(() => (useUrl.value ? useSnippet(language.value, useUrl.value, using.value.use.model, using.value.use.payload, using.value.use.call) : ''));
-const COPIED_WORDS = { install: 'the install command', code: 'the code', model: 'the model key' };
+const COPIED_WORDS = { install: 'the install command', code: 'the code', model: 'the model key', key: 'the API key' };
 let copiedTimer = null;
-function openUse(row) { using.value = row; copied.value = ''; useError.value = ''; }
+function openUse(row) { using.value = row; copied.value = ''; useError.value = ''; startKeys(row); }
+
+// ── an API key for this model, made here (backend model_keys.py): the person names an app and gets its key once ──
+const keys = ref(null); const keysError = ref(''); const appName = ref(''); const making = ref(false);
+const newKey = ref(null); const revoking = ref(null); const revokingBusy = ref(false);
+let keysFor = '';
+async function loadKeys() {
+  const model = keysFor;
+  try { const body = await modelKeysApi.list(model); if (model === keysFor) { keys.value = body; keysError.value = ''; } }
+  catch (e) { if (model === keysFor) { keys.value = keys.value || { keys: [], may: { make: false } }; keysError.value = e.message; } }
+}
+function startKeys(row) {
+  keysFor = row.use?.model || ''; keys.value = null; keysError.value = ''; newKey.value = null; revoking.value = null;
+  appName.value = `${row.name} app`.slice(0, 120);
+  if (keysFor) loadKeys();
+}
+async function makeKey() {
+  const name = appName.value.trim();
+  if (!name || making.value) return;
+  making.value = true; keysError.value = ''; newKey.value = null;
+  try { const body = await modelKeysApi.make(keysFor, name); newKey.value = { key: body.key, name: body.app.name }; await loadKeys(); }
+  catch (e) { keysError.value = e.message; } finally { making.value = false; }
+}
+async function revokeKey() {
+  if (!revoking.value || revokingBusy.value) return;
+  revokingBusy.value = true; keysError.value = '';
+  try {
+    await modelKeysApi.revoke(revoking.value.id);
+    if (newKey.value?.name === revoking.value.name) newKey.value = null;
+    revoking.value = null; await loadKeys();
+  } catch (e) { keysError.value = e.message; } finally { revokingBusy.value = false; }
+}
+// The key is shown once: closing the dialog forgets it.
+watch(using, now => { if (!now) { newKey.value = null; revoking.value = null; keysFor = ''; } });
 // "Copied" shows on the button that was used and is read out once; it goes back to "Copy" after 2 seconds.
 async function copyUse(text, what) {
   try {
@@ -419,11 +452,39 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
     </section>
     <UiDialog class="use-dialog" :open="!!using" :title="using ? `Use ${using.name}` : ''" @close="using=null">
       <template v-if="using">
-        <p class="dialog-description">Call {{ using.name }} from your own code. Each call is one photo, answered with what the model found.</p>
+        <p class="dialog-description">Call {{ using.name }} from your own code. {{ using.use.call==='chat' ? 'Each call is one chat completion, answered with the model\'s reply.' : 'Each call is one photo, answered with what the model found.' }}</p>
         <p v-if="using.use.cost_note" class="use-cost"><Wallet :size="16" aria-hidden="true"/><span>{{ callCostText(using.use) }}</span></p>
         <p v-if="using.use.serving_note" class="use-cost"><Clock :size="16" aria-hidden="true"/><span>{{ using.use.serving_note }}</span></p>
         <p v-if="using.use.payload_note" class="use-cost"><Code :size="16" aria-hidden="true"/><span>{{ using.use.payload_note }}</span></p>
         <p v-if="using.use.grant_note" class="use-cost"><KeyRound :size="16" aria-hidden="true"/><span>{{ using.use.grant_note }}</span></p>
+        <section class="use-key" aria-labelledby="use-key-heading">
+          <h3 id="use-key-heading"><KeyRound :size="16" aria-hidden="true"/>API key</h3>
+          <p v-if="!keys" class="muted">Looking for your keys…</p>
+          <template v-else>
+            <form v-if="keys.may.make" class="use-key-form" @submit.prevent="makeKey">
+              <label class="field-label">App name<input v-model="appName" class="text-input" maxlength="120" autocomplete="off" :aria-invalid="!!keysError" aria-describedby="use-key-help"></label>
+              <UiButton type="submit" variant="primary" :disabled="making || !appName.trim()"><KeyRound :size="15" aria-hidden="true"/>{{ making ? 'Generating…' : 'Generate API key' }}</UiButton>
+            </form>
+            <p id="use-key-help" class="use-key-help">{{ keys.may.make ? (using.repo ? `The key calls ${using.name} only, and each call is charged to you.` : 'The key calls AADML\'s ready-to-use models, and each call is charged to you.') : 'Your role in this workspace reads only: it makes no API key.' }}</p>
+            <p v-if="keysError" class="field-error" role="alert">{{ keysError }}</p>
+            <div v-if="newKey" class="use-new-key" role="status">
+              <div class="use-new-key-value"><code>{{ newKey.key }}</code><button type="button" class="copy-chip" :aria-label="copied==='key' ? 'API key copied' : 'Copy the API key'" @click="copyUse(newKey.key,'key')"><Check v-if="copied==='key'" :size="15" aria-hidden="true"/><Copy v-else :size="15" aria-hidden="true"/>{{ copied==='key' ? 'Copied' : 'Copy' }}</button></div>
+              <p>The key of "{{ newKey.name }}". Copy it now: it is shown only once. AADML keeps only its fingerprint.</p>
+            </div>
+            <ul v-if="keys.keys.length" class="use-key-list" aria-label="Your API keys for this model">
+              <li v-for="item in keys.keys" :key="item.id">
+                <template v-if="revoking && revoking.id===item.id">
+                  <span class="use-key-ask">Revoke "{{ item.name }}"? Apps using its key stop working at once.</span>
+                  <span class="use-key-buttons"><UiButton :disabled="revokingBusy" @click="revoking=null">Cancel</UiButton><UiButton variant="danger" :disabled="revokingBusy" @click="revokeKey">{{ revokingBusy ? 'Revoking…' : 'Revoke key' }}</UiButton></span>
+                </template>
+                <template v-else>
+                  <span class="use-key-name"><strong>{{ item.name }}</strong><small><code>{{ item.hint || 'No key' }}</code> · made {{ timeAgo(item.created_at) }} · {{ item.calls ? `${item.calls.toLocaleString()} call${item.calls===1?'':'s'}` : 'not used yet' }}</small></span>
+                  <UiButton :aria-label="`Revoke the key of ${item.name}`" @click="revoking=item">Revoke</UiButton>
+                </template>
+              </li>
+            </ul>
+          </template>
+        </section>
         <ol class="use-steps">
           <li>
             <h3><span class="use-step-no" aria-hidden="true">1</span>Choose your language</h3>
@@ -449,8 +510,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
         </ol>
         <dl class="use-facts">
           <div><dt>Model key</dt><dd><code>{{ using.use.model }}</code><button type="button" class="copy-icon" :aria-label="copied==='model' ? 'Model key copied' : 'Copy the model key'" @click="copyUse(using.use.model,'model')"><Check v-if="copied==='model'" :size="14" aria-hidden="true"/><Copy v-else :size="14" aria-hidden="true"/></button></dd></div>
-          <div><dt>App key</dt><dd><KeyRound :size="14" aria-hidden="true"/>Make one on a project's Deploy page, under Connected apps.</dd></div>
-          <div><dt>Licence</dt><dd>{{ using.licence }}</dd></div>
+          <div><dt>Licence</dt><dd>{{ using.licence || using.licence_name }}</dd></div>
         </dl>
         <p class="sr-only" aria-live="polite">{{ copied ? `Copied ${COPIED_WORDS[copied]}.` : '' }}</p>
         <p v-if="useError" class="field-error" role="alert">{{ useError }}</p>
@@ -505,7 +565,29 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
 .use-code{position:relative;min-width:0}
 .use-code .code-block{margin:0;min-height:0;max-height:300px;overflow:auto;padding:52px 22px 20px;white-space:pre;font-size:12.5px;line-height:1.7}
 .use-code .code-block:focus-visible{outline:3px solid var(--aadml-outline);outline-offset:2px}
-.use-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:22px 0 0}
+.use-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:22px 0 0}
+.use-key{margin:18px 0 0;padding:16px;border:1px solid #dbe3f0;border-radius:12px;background:#f8fafd}
+.use-key h3{display:flex;align-items:center;gap:8px;margin:0 0 12px;font-size:14px;color:#1d2a42}
+.use-key h3 svg{color:#2563eb}
+.use-key-form{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.use-key-form .field-label{flex:1 1 240px;margin:0}
+.use-key-form .text-input{width:100%}
+.use-key-help{margin:8px 0 0;font-size:12.5px;color:#475569;line-height:1.5}
+.use-new-key{margin-top:12px;padding:12px;border:1px solid #bbf7d0;border-radius:10px;background:#f0fdf4}
+.use-new-key-value{display:flex;align-items:center;gap:10px;min-width:0}
+.use-new-key-value code{flex:1;min-width:0;padding:8px 10px;border-radius:7px;background:#fff;border:1px solid #d1e7d8;font-size:12.5px;overflow-wrap:anywhere;color:#14532d}
+.use-new-key p{margin:8px 0 0;font-size:12.5px;color:#166534;line-height:1.5}
+.use-key-list{list-style:none;margin:12px 0 0;padding:0;border:1px solid #e3e6ed;border-radius:10px;background:#fff}
+.use-key-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-bottom:1px solid #eef0f4;flex-wrap:wrap}
+.use-key-list li:last-child{border-bottom:0}
+.use-key-name{display:flex;flex-direction:column;gap:2px;min-width:0}
+.use-key-name strong{font-size:13.5px;color:#1d2a42;overflow-wrap:anywhere}
+.use-key-name small{font-size:12px;color:#5f6d82}
+.use-key-name code{font-size:12px}
+.use-key-ask{font-size:13px;color:#7f1d1d;flex:1 1 220px}
+.use-key-buttons{display:flex;gap:8px}
+.use-key-buttons .button--danger{background:#b91c1c;border-color:#b91c1c;color:#fff}
+.use-key-buttons .button--danger:hover:not(:disabled){background:#991b1b;border-color:#991b1b;color:#fff}
 .use-facts > div{padding:12px 14px;border:1px solid #e3e6ed;border-radius:9px;min-width:0}
 .use-facts dt{font-size:12px;color:#6b778c;margin-bottom:6px}
 .use-facts dd{margin:0;display:flex;align-items:flex-start;gap:6px;font-size:13px;color:#22304a;overflow-wrap:anywhere;line-height:1.45}
@@ -518,6 +600,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
 @media (prefers-reduced-motion: reduce){.segmented button,.copy-chip{transition:none}}
 @media (max-width:640px){
   .use-facts{grid-template-columns:1fr}
+  .use-key-form .button,.use-key-list .button,.use-new-key .copy-chip{min-height:44px}.use-key-form .button{width:100%}
   .use-steps li > :not(h3){margin-left:0}
   .catalog-buttons{grid-template-columns:1fr}
   .segmented{display:flex;flex-wrap:nowrap}

@@ -243,6 +243,14 @@ export const publishedApi = {
   chat: (key, body) => apiFetch(`${APP}/published/${enc(key)}/chat/`, { method: 'POST', body, timeoutMs: 180000 }),
 };
 
+// API keys made in a model's Use dialog (backend model_keys.py): an app named by the person, with one key for that
+// model. The key itself comes back once, from ``make``; the list holds its hint only.
+export const modelKeysApi = {
+  list: model => apiFetch(`${APP}/workspace/model-keys/?${query({ model })}`),
+  make: (model, name) => apiFetch(`${APP}/workspace/model-keys/`, { method: 'POST', body: { model, name } }),
+  revoke: id => apiFetch(`${APP}/workspace/model-keys/${enc(id)}/revoke/`, { method: 'POST', body: {} }),
+};
+
 // The Deployments overview's time ranges, as the backend names them (app_api.py DEPLOYMENT_RANGES).
 export const RUN_RANGES = [['1w', '1W'], ['2w', '2W'], ['1m', '1M'], ['all', 'All Time']];
 export const API_REFERENCE = '/dashboard/help-center/api-reference';
