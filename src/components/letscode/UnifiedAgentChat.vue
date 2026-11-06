@@ -63,7 +63,7 @@
           <div v-if="displayText(m.text)" class="ai-text md">
             <div class="md-body" v-html="renderMarkdown(m.text)"></div><span v-if="m.streaming" class="caret">▍</span>
           </div>
-          <div v-else-if="m.streaming && !(m.steps && m.steps.length)" class="ai-working"><span class="vm-spin"></span> Working…</div>
+          <div v-else-if="m.streaming && !(m.steps && m.steps.length)" class="ai-working" role="status" aria-live="polite"><span class="vm-spin"></span> {{ m.status || 'Working…' }}</div>
 
           <div v-for="(tr, j) in (m.tools || [])" :key="j" class="ai-tool">
             <Icon icon="lucide:wrench" /> <span class="tn">{{ tr.name }}</span>
@@ -246,6 +246,7 @@ function onPermissionRespond({ card, choice }) {
   if (card?.capability === 'reveal_secret') return
   if (String(decided).startsWith('allow') && lastUserPrompt.value) {
     sending.value = true
+    messages.value.push({ role: 'assistant', text: '', streaming: true, tools: [], status: 'Thinking…' })
     wsSend({ type: 'chat_message', message: lastUserPrompt.value, conversation_id: conversationId.value,
              model_id: modelId.value || null, agentId: agentId.value || null, coding_mode: codingMode.value })
   }
@@ -295,6 +296,9 @@ function onEvent(d) {
 
   if (t === 'conversation_created') { conversationId.value = d.conversation_id; return }
   if (t === 'assistant_typing') { ensureStreamingAssistant(); return }
+  // What the turn is doing before its first step or word ("Opening the project's sandbox…"): one passing line,
+  // replaced by the next status, never kept in the transcript.
+  if (t === 'agent_status') { if (sending.value) ensureStreamingAssistant().status = d.label || ''; return }
   if (t === 'memory_saved') { showMemorySavedToast(d); return }
   if (t === 'agent_progress') {
     const m = ensureStreamingAssistant(); (m.steps = m.steps || []).push(d.label || d.phase || '…'); scrollDown(); return
@@ -340,7 +344,15 @@ function onEvent(d) {
     else notify.success(`Change ${d.outcome}`)
     emit('proposal', null); emit('changed'); return
   }
-  if (t === 'error') { notify.error(d.error || 'Error'); sending.value = false }
+  if (t === 'error') {
+    notify.error(d.error || 'Error'); sending.value = false
+    // The reply the turn would have written never comes: drop an empty "Thinking…" placeholder, end any other.
+    const m = lastAssistant()
+    if (m && m.streaming) {
+      m.streaming = false
+      if (!m.text && !(m.steps && m.steps.length) && !m.task) messages.value.splice(messages.value.indexOf(m), 1)
+    }
+  }
 }
 
 function send(text) {
@@ -348,6 +360,9 @@ function send(text) {
   if (!msg || !props.crsReady) return
   lastUserPrompt.value = msg                    // remembered so a permission 'allow' can auto-continue
   messages.value.push({ role: 'user', text: msg })
+  // Shown AT ONCE, not when the first event comes back: the turn can spend seconds waking the project's
+  // sandbox before its first step, and the chat looked frozen (owner, 2026-11-06).
+  messages.value.push({ role: 'assistant', text: '', streaming: true, tools: [], status: 'Thinking…' })
   input.value = ''
   sending.value = true
   wsSend({ type: 'chat_message', message: msg, conversation_id: conversationId.value,

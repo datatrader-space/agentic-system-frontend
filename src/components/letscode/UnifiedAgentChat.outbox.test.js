@@ -46,6 +46,26 @@ describe('UnifiedAgentChat outbox', () => {
     w.unmount()
   })
 
+  it('shows Thinking… at once, then the turn\'s status, and drops it on an error', async () => {
+    // The chat showed nothing for seconds while the project's sandbox woke (owner, 2026-11-06).
+    const Chat = (await import('./UnifiedAgentChat.vue')).default
+    const w = mount(Chat, { props: { systemId: 5, repoId: 14, crsReady: true }, global: { stubs } })
+    await flushPromises()
+    const ws = FakeSocket.instances[0]
+    ws.open()
+    w.vm.send('fix the header')
+    await flushPromises()
+    expect(w.text()).toContain('Thinking…')
+    ws.onmessage({ data: JSON.stringify({ type: 'agent_status', phase: 'using_tools', label: "Opening the project's sandbox…" }) })
+    await flushPromises()
+    expect(w.text()).toContain("Opening the project's sandbox…")
+    ws.onmessage({ data: JSON.stringify({ type: 'error', error: 'boom' }) })
+    await flushPromises()
+    expect(w.text()).not.toContain("Opening the project's sandbox…")
+    expect(w.text()).not.toContain('Thinking…')
+    w.unmount()
+  })
+
   it('sends at once on an open socket, and only once', async () => {
     const Chat = (await import('./UnifiedAgentChat.vue')).default
     const w = mount(Chat, { props: { systemId: 5, repoId: 14, crsReady: true }, global: { stubs } })
