@@ -119,7 +119,20 @@ test('the page shows the Hub\'s words as text only and is mounted on the Models 
   const page = readFileSync(new URL('../src/components/WorkspaceModels.vue', import.meta.url), 'utf8');
   assert.match(page, /import OpenModels from '\.\/OpenModels\.vue';/);
   assert.match(page, /\{[^}]*name: 'Open models', icon: Globe[^}]*\}/);
-  assert.match(page, /<OpenModels\b[^>]*v-else-if="active==='Open models'"[^>]*\/>/);
+  assert.match(page, /<OpenModels\b[^>]*v-else-if="active==='Open models'"[^>]*:usable="openRows" @use="openUse" @try="tryOpen" @changed="load">/);
+});
+
+test('a workspace\'s open models are listed once, on the Open models tab, with Use model and Try it there', () => {
+  const page = readFileSync(new URL('../src/components/WorkspaceModels.vue', import.meta.url), 'utf8');
+  const mine = page.slice(page.indexOf(`v-if="active==='My models'"`), page.indexOf(`v-else-if="active==='Ready-to-use models'"`));
+  assert.equal(/openRows|Open models of this workspace|id="try-open"/.test(mine), false, 'My models shows trained models only');
+  const open = page.slice(page.indexOf('<OpenModels v-else-if'), page.indexOf('</OpenModels>'));
+  assert.match(open, /<template #trying>\s*<section v-if="trying&&trying\.repo" id="try-open"/, 'the Try panel is on the Open models tab');
+  const component = readFileSync(new URL('../src/components/OpenModels.vue', import.meta.url), 'utf8');
+  assert.match(component, /<slot name="trying"\/>/);
+  assert.match(component, /v-if="usableOf\(m\)\?\.use && usableOf\(m\)\.may\.use"[^>]*@click="emit\('use', usableOf\(m\)\)"/);
+  assert.match(component, /v-if="usableOf\(m\)\?\.may\.use" :disabled="!usableOf\(m\)\.may\.try"[^>]*@click="emit\('try', usableOf\(m\)\)"/);
+  assert.match(component, /new Map\(props\.usable\.map\(row => \[row\.id, row\]\)\)/, 'a row is matched by the added model\'s id only');
 });
 
 test('the workspace header goes with every call, so the backend answers for the workspace chosen in AADML', async () => {
@@ -187,7 +200,7 @@ test('an added model says its storage a day and whether it is paid', () => {
   assert.equal(storageLine({}), '');
 });
 
-test('Add opens the app\'s own dialog with the backend\'s numbers, and My models shows the storage', () => {
+test('Add opens the app\'s own dialog with the backend\'s numbers, and the workspace list shows the storage', () => {
   const component = readFileSync(new URL('../src/components/OpenModels.vue', import.meta.url), 'utf8');
   assert.match(component, /@click="askAdd\(row\)"/, 'Add on a card opens the dialog, it does not add');
   assert.match(component, /openModelsApi\.quote\(row\.repo\)/);
@@ -195,9 +208,9 @@ test('Add opens the app\'s own dialog with the backend\'s numbers, and My models
   assert.match(component, /v-for="line in quoteLines\(quote\)"/);
   assert.match(component, />Cancel</);
   assert.equal(/\$\{?\s*\(?\s*Number\(|toFixed\(/.test(component.replace(/<style[\s\S]*<\/style>/, '')), false, 'no price is worked out on the page');
+  assert.match(component, /storageLine\(m\)/);
+  assert.match(component, /modelBadge\(m\)/);
   const page = readFileSync(new URL('../src/components/WorkspaceModels.vue', import.meta.url), 'utf8');
-  assert.match(page, /storageLine\(row\)/);
-  assert.match(page, /modelBadge\(row\)/);
   assert.match(page, /is charged by the second it takes<template v-if="state\?\.price">, \{\{ state\.price \}\}<\/template>\./);
   assert.equal(/by the second it takes<template v-if="state\?\.price"> \(/.test(page), false);
 });

@@ -13,7 +13,6 @@ import UiDialog from './UiDialog.vue';
 import PipelineResult from './PipelineResult.vue';
 import PredictionResult from './PredictionResult.vue';
 import OpenModels from './OpenModels.vue';
-import { modelBadge, storageLine } from '../api/openModels.js';
 import { callCostText, catalogue, useSnippet, USE_LANGUAGES, SDK_INSTALL } from '../api/models.js';
 import { PHOTO_TYPES, percent } from '../api/trial.js';
 import { workspaceApi, publishedApi, projectLink, trySteps, modelName, timeAgo } from '../api/workspace.js';
@@ -163,7 +162,7 @@ async function copyUse(text, what) {
 }
 onUnmounted(() => clearTimeout(copiedTimer));
 
-// ── the workspace's own open models (My models): Use and Try it on a server started when needed, Train in a project
+// ── the workspace's own open models (the Open models tab's list): Use and Try it on a server started when needed
 // The rows are the workspace's only (app_api.open_model_rows); trying one asks published/<key>/ like a platform model.
 const openRows = computed(() => data.value?.open_models || []);
 const chatLines = ref([]); const chatText = ref(''); const chatting = ref(false); const openAnswer = ref(null);
@@ -225,46 +224,6 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
         <UiButton variant="primary" @click="emit('create')"><Plus :size="16" aria-hidden="true"/> Create project</UiButton>
       </DeploymentHeader>
       <DeploymentMetrics :items="registryMetrics" :loaded="!!data && !error"/>
-      <section v-if="openRows.length" class="catalog-section" aria-labelledby="open-mine">
-        <h2 id="open-mine">Open models of this workspace <span class="count">{{ openRows.length }}</span></h2>
-        <div class="model-catalog">
-          <article v-for="row in openRows" :key="row.key" class="panel catalog-card">
-            <div class="catalog-head"><Box :size="22" aria-hidden="true"/><UiBadge>{{ row.kind==='chat' ? 'Chat' : 'Photo' }}</UiBadge><UiBadge v-if="row.task">{{ row.task }}</UiBadge><UiBadge :tone="modelBadge(row)[0]">{{ modelBadge(row)[1] }}</UiBadge></div>
-            <h3>{{ row.name }}</h3>
-            <p class="model-meta">{{ row.publisher }} · {{ row.size }} · commit {{ (row.revision || '').slice(0, 12) }}</p>
-            <p class="licence-line"><span>Licence</span>{{ row.licence_name }}</p>
-            <p v-if="storageLine(row)" :class="['model-meta', 'storage-line', { unpaid: row.unpaid }]"><Wallet :size="13" aria-hidden="true"/>{{ storageLine(row) }}</p>
-            <div class="catalog-tags"><UiBadge v-if="row.may.use">Use</UiBadge><UiBadge v-if="row.may.train">Train</UiBadge></div>
-            <p v-if="row.may.train" class="model-meta">To train it, choose it as the base model in a project's Train tab.</p>
-            <div class="catalog-buttons">
-              <UiButton v-if="row.use && row.may.use" variant="primary" @click="openUse(row)"><Code :size="15" aria-hidden="true"/> Use model</UiButton>
-              <UiButton v-if="row.may.use" :disabled="!row.may.try" :title="!row.may.try ? 'Your role in this workspace reads only: it starts nothing.' : ''" @click="tryOpen(row)"><Play :size="15" aria-hidden="true"/> Try it</UiButton>
-            </div>
-          </article>
-        </div>
-      </section>
-      <section v-if="trying&&trying.repo" id="try-open" class="panel try-panel" aria-live="polite">
-        <header class="try-head"><div><h2>Try {{ trying.name }}</h2><p>Your workspace's own model, on a server started when it is needed. Each {{ trying.kind==='chat' ? 'answer' : 'photo' }} is charged by the second it takes<template v-if="state?.price">, {{ state.price }}</template>.</p></div>
-          <button class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
-        <div v-if="said" class="notice" role="status"><Check :size="16"/><span>{{ said }}</span></div>
-        <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
-        <p v-if="!state" class="muted">Looking at where it stands…</p>
-        <template v-else>
-          <p v-if="state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>Its server is starting; this takes a few minutes.</p>
-          <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
-          <p v-if="ready" class="muted">Its server is ready. It stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
-          <div class="try-actions"><UiButton v-if="state.may.start" variant="primary" :disabled="busy" @click="act('start')"><Play :size="14"/> Start its server</UiButton></div>
-          <template v-if="trying.kind==='chat'">
-            <ol class="open-chat" aria-label="Conversation"><li v-for="(line, i) in chatLines" :key="i" :class="line.role"><strong>{{ line.role==='user' ? 'You' : trying.name }}</strong><span>{{ line.content }}</span></li></ol>
-            <form class="open-chat-ask" @submit.prevent="sendChat"><input v-model="chatText" class="text-input" :disabled="!ready||chatting" placeholder="Write a message…" aria-label="Your message"><UiButton type="submit" variant="primary" :disabled="!ready||chatting||!chatText.trim()">{{ chatting ? 'Waiting for the answer…' : 'Send' }}</UiButton></form>
-          </template>
-          <template v-else>
-            <label class="test-input" :class="{off:!ready}"><Upload :size="26"/><strong>{{ asking ? 'Asking the model…' : 'Choose a photo' }}</strong><span>JPEG, PNG or WebP, up to {{ state.max_mb }} MB. The photo is not kept.</span>
-              <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="!ready||asking" aria-label="Choose a photo to try" @change="chooseOpen"></label>
-            <PipelineResult v-if="openAnswer" :answer="openAnswer" :photo-url="openPhotoUrl"/>
-          </template>
-        </template>
-      </section>
       <p v-if="!data" class="models-loading">Loading models…</p>
       <section v-else-if="!data.models.length && !error" class="models-empty">
         <span class="models-empty-icon"><Boxes :size="34"/></span>
@@ -388,7 +347,32 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
       <p v-if="data&&!data.may.try" class="muted">Your role in this workspace reads only, so it starts no model here.</p>
     </section>
 
-    <OpenModels v-else-if="active==='Open models'" id="models-panel-open" role="tabpanel" aria-labelledby="models-tab-open"/>
+    <OpenModels v-else-if="active==='Open models'" id="models-panel-open" role="tabpanel" aria-labelledby="models-tab-open" :usable="openRows" @use="openUse" @try="tryOpen" @changed="load">
+      <template #trying>
+        <section v-if="trying&&trying.repo" id="try-open" class="panel try-panel" aria-live="polite">
+          <header class="try-head"><div><h2>Try {{ trying.name }}</h2><p>Your workspace's own model, on a server started when it is needed. Each {{ trying.kind==='chat' ? 'answer' : 'photo' }} is charged by the second it takes<template v-if="state?.price">, {{ state.price }}</template>.</p></div>
+            <button class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
+          <div v-if="said" class="notice" role="status"><Check :size="16"/><span>{{ said }}</span></div>
+          <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
+          <p v-if="!state" class="muted">Looking at where it stands…</p>
+          <template v-else>
+            <p v-if="state.phase==='starting'" class="waiting"><span class="spinner" aria-hidden="true"></span>Its server is starting; this takes a few minutes.</p>
+            <p v-if="state.refused" class="field-error">{{ state.refused }}</p>
+            <p v-if="ready" class="muted">Its server is ready. It stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
+            <div class="try-actions"><UiButton v-if="state.may.start" variant="primary" :disabled="busy" @click="act('start')"><Play :size="14"/> Start its server</UiButton></div>
+            <template v-if="trying.kind==='chat'">
+              <ol class="open-chat" aria-label="Conversation"><li v-for="(line, i) in chatLines" :key="i" :class="line.role"><strong>{{ line.role==='user' ? 'You' : trying.name }}</strong><span>{{ line.content }}</span></li></ol>
+              <form class="open-chat-ask" @submit.prevent="sendChat"><input v-model="chatText" class="text-input" :disabled="!ready||chatting" placeholder="Write a message…" aria-label="Your message"><UiButton type="submit" variant="primary" :disabled="!ready||chatting||!chatText.trim()">{{ chatting ? 'Waiting for the answer…' : 'Send' }}</UiButton></form>
+            </template>
+            <template v-else>
+              <label class="test-input" :class="{off:!ready}"><Upload :size="26"/><strong>{{ asking ? 'Asking the model…' : 'Choose a photo' }}</strong><span>JPEG, PNG or WebP, up to {{ state.max_mb }} MB. The photo is not kept.</span>
+                <input type="file" accept="image/jpeg,image/png,image/webp" :disabled="!ready||asking" aria-label="Choose a photo to try" @change="chooseOpen"></label>
+              <PipelineResult v-if="openAnswer" :answer="openAnswer" :photo-url="openPhotoUrl"/>
+            </template>
+          </template>
+        </section>
+      </template>
+    </OpenModels>
 
     <section v-else id="models-panel-usage" role="tabpanel" aria-labelledby="models-tab-usage" :aria-busy="usageLoading">
       <DeploymentHeader title="Model Usage" heading-id="usage-heading" eyebrow="UNDERSTAND YOUR INFERENCE ACTIVITY." :icon="ChartNoAxesCombined" description="Monitor calls and successful predictions across your projects over the last 7 days.">

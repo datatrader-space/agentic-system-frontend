@@ -2,8 +2,11 @@
 // The workspace Models page's "Open models" tab: search Hugging Face Hub for open models AADML can train or serve,
 // and add one to this workspace as a base model for training. The backend decides what is shown and what may be added
 // (training_models_data/open_models.py); this page shows its answers as text only, never as HTML.
-import { computed, onUnmounted, ref } from 'vue';
-import { RefreshCw, Globe, ShieldCheck, Boxes, Search, Box, MessageSquareText, Image as ImageIcon, Lock, ExternalLink, Download, Heart, Plus, Trash2, Check, Scale, Wallet } from 'lucide-vue-next';
+// Use model and Try it of an added model are the Models page's (WorkspaceModels.vue): it passes the workspace's ready
+// open models (``usable``, app_api.open_model_rows, with their ``may`` flags), and its Try panel goes in the ``trying``
+// slot under this list.
+import { computed, onUnmounted, ref, watch } from 'vue';
+import { Code, Play, RefreshCw, Globe, ShieldCheck, Boxes, Search, Box, MessageSquareText, Image as ImageIcon, Lock, ExternalLink, Download, Heart, Plus, Trash2, Check, Scale, Wallet } from 'lucide-vue-next';
 import DeploymentHeader from './DeploymentHeader.vue';
 import DeploymentMetrics from './DeploymentMetrics.vue';
 import UiButton from './UiButton.vue';
@@ -13,6 +16,12 @@ import {
   openModelsApi, KINDS, USES, QUERY_LIMIT, POLL_MS, queryProblem, hubLink, shortCount, bytesText, usesText, stateBadge,
   anyFetching, hiddenSummary, mergePage, resultsSaid, addRefusal, addedFor, quoteLines, quoteNote, modelBadge, storageLine,
 } from '../api/openModels.js';
+
+const props = defineProps({ usable: { type: Array, default: () => [] } });
+const emit = defineEmits(['use', 'try', 'changed']);
+// The Models page's row of an added model, by its id: present only once it is ready in this workspace.
+const usableById = computed(() => new Map(props.usable.map(row => [row.id, row])));
+const usableOf = m => usableById.value.get(m.id) || null;
 
 const kind = ref('chat'); const use = ref('train'); const words = ref('');
 const results = ref([]); const next = ref(''); const hidden = ref({}); const reasons = ref({});
@@ -57,6 +66,13 @@ async function loadAdded() {
   if (alive && anyFetching(added.value)) timer = setTimeout(loadAdded, POLL_MS);
 }
 loadAdded();
+// When a model becomes ready, is removed or is added, the Models page reloads its rows (Use model, Try it).
+let readySeen = null;
+watch(added, now => {
+  const ready = (now || []).filter(m => m.state === 'ready').map(m => m.id).sort().join(',');
+  if (readySeen !== null && ready !== readySeen) emit('changed');
+  readySeen = ready;
+});
 onUnmounted(() => { alive = false; clearTimeout(timer); });
 
 // Add opens a dialog with what adding costs: the backend's quote (the fetch, about and at most, and the storage a day,
@@ -136,12 +152,15 @@ function moveChoice(event, name, options) {
           <p v-if="addedFor(m)" class="om-note">{{ addedFor(m) }}</p>
           <p v-if="m.state==='ready' && m.kind==='photo' && (m.uses || []).includes('train')" class="om-note">Training from an added photo model opens when the photo trainer takes one.</p>
           <div class="om-added-actions">
+            <UiButton v-if="usableOf(m)?.use && usableOf(m).may.use" variant="primary" @click="emit('use', usableOf(m))"><Code :size="14" aria-hidden="true"/>Use model</UiButton>
+            <UiButton v-if="usableOf(m)?.may.use" :disabled="!usableOf(m).may.try" :title="!usableOf(m).may.try ? 'Your role in this workspace reads only: it starts nothing.' : ''" @click="emit('try', usableOf(m))"><Play :size="14" aria-hidden="true"/>Try it</UiButton>
             <a class="button" :href="hubLink(m.repo)" target="_blank" rel="noopener noreferrer" :aria-label="`${m.name} on Hugging Face (opens a new tab)`"><ExternalLink :size="14" aria-hidden="true"/></a>
             <UiButton v-if="mayAdd" :disabled="m.state==='fetching'" :title="m.state==='fetching' ? 'It can be removed once its fetch has ended.' : ''" @click="askRemove(m)"><Trash2 :size="14" aria-hidden="true"/>Remove</UiButton>
           </div>
         </li>
       </ul>
     </section>
+    <slot name="trying"/>
 
     <div class="models-list-head"><div><h3>Discover models</h3><p>Search the Hub by name, model family, and intended use.</p></div><span class="models-source-label"><Globe :size="13" aria-hidden="true"/> Hugging Face Hub</span></div>
     <form class="om-toolbar" role="search" @submit.prevent="search()">
@@ -256,7 +275,7 @@ function moveChoice(event, name, options) {
 .om-added-name strong{display:block;font-size:14px;overflow-wrap:anywhere}
 .om-added-name small{display:block;font-size:12px;color:#5f6d82;margin-top:2px}
 .om-added-licence{display:flex;align-items:center;gap:6px;font-size:12px;color:#33415a}
-.om-added-actions{display:flex;gap:6px}
+.om-added-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px}
 .om-added-actions .button{min-height:36px;padding:6px 10px}
 .om-failure,.om-note{grid-column:1 / -1;margin:0;font-size:12px}
 .om-failure{color:#b52f40}
@@ -309,7 +328,7 @@ function moveChoice(event, name, options) {
   .om-toolbar > .button{flex:1 1 100%;justify-content:center;min-height:44px}
   .om-added li{grid-template-columns:minmax(0,1fr) auto}
   .om-added-licence{grid-column:1 / -1}
-  .om-added-actions{grid-column:1 / -1}
+  .om-added-actions{grid-column:1 / -1;justify-content:flex-start}
   .om-grid{grid-template-columns:minmax(0,1fr)}
   .om-quote{grid-template-columns:minmax(0,1fr)}
   .om-dialog-actions > *{flex:1 1 auto;justify-content:center;min-height:44px}
