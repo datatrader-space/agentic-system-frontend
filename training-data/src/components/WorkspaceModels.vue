@@ -402,7 +402,8 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
             <p v-if="ready" class="muted">Its server is ready. It stops by itself after {{ state.idle_minutes }} minutes without a call.</p>
             <MachinePicker v-if="state.may.start" ref="picker" v-model="machine" :load="loadMachines" :disabled="busy"/>
             <p v-else-if="state.running_on" class="muted running-on">Runs on {{ state.running_on.gpu_name }} ({{ state.running_on.memory_gb }} GB) in {{ state.running_on.data_center }}, ${{ state.running_on.usd_per_hour }} an hour.</p>
-            <div class="try-actions"><UiButton v-if="state.may.start" variant="primary" :disabled="busy||!machine" @click="startOn"><Play :size="14"/> Start its server</UiButton></div>
+            <div class="try-actions"><UiButton v-if="state.may.start" variant="primary" :disabled="busy||!machine" @click="startOn"><Play :size="14"/> Start its server</UiButton>
+              <UiButton v-if="state.may.stop" :disabled="busy" @click="act('stop')"><Square :size="14"/> Stop its server</UiButton></div>
             <template v-if="trying.kind==='chat'">
               <ol class="open-chat" aria-label="Conversation"><li v-for="(line, i) in chatLines" :key="i" :class="line.role"><strong>{{ line.role==='user' ? 'You' : trying.name }}</strong><span>{{ line.content }}</span></li></ol>
               <form class="open-chat-ask" @submit.prevent="sendChat"><input v-model="chatText" class="text-input" :disabled="!ready||chatting" placeholder="Write a message…" aria-label="Your message"><UiButton type="submit" variant="primary" :disabled="!ready||chatting||!chatText.trim()">{{ chatting ? 'Waiting for the answer…' : 'Send' }}</UiButton></form>
