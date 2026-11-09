@@ -148,6 +148,21 @@ describe('SourceControlPanel', () => {
     expect(w.emitted('changed')).toBeUndefined()
   })
 
+  it('after a failed first load, a refresh shows "Loading", never a clean working tree it has not read', async () => {
+    api.getSourceControlStatus.mockRejectedValueOnce({ response: { status: 502, data: '<html>502</html>' } })
+    const w = await mountPanel()
+    expect(w.text()).toContain('Could not load source control status.')
+    let resolve
+    api.getSourceControlStatus.mockReturnValueOnce(new Promise((r) => { resolve = r }))
+    w.vm.refresh()
+    await w.vm.$nextTick()
+    expect(w.text()).toContain('Loading changes')
+    expect(w.text()).not.toContain('working tree is clean')
+    resolve(dirty())
+    await flushPromises()
+    expect(w.text()).toContain('app.py')
+  })
+
   it('waits while the sandbox starts and then shows the changes', async () => {
     vi.useFakeTimers()
     try {

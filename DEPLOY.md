@@ -216,9 +216,15 @@ upstream aadml_frontend {
 }
 # in both `location /ws/` and `location /`:
     proxy_pass http://aadml_frontend;
-    proxy_next_upstream error timeout http_502 http_503;
+    proxy_next_upstream error timeout http_502;
     proxy_connect_timeout 3s;
 ```
+
+**Never `http_503` in `proxy_next_upstream` (ADM-1181, 9 Nov 2026).** A 503 here is the backend's own answer
+(for example "the project's sandbox is starting, retry after N seconds"), not a dead container. With `http_503`
+listed, nginx counted that answer as a failure of the serving colour, retried on the stopped one (refused), and
+then had no live upstream: the browser got a 502 instead of the 503, and every aadml.com request answered 502
+for `fail_timeout` (5 s). It happened after each Let's Code turn, when the parked sandbox answered 503.
 
 Never `docker compose up -d` without a service name on the host: it would start both colours.
 

@@ -13,7 +13,7 @@
     <div v-if="waiting" class="scm-empty" role="status" aria-live="polite">
       <Icon icon="lucide:loader" class="spin muted" aria-hidden="true" /> The project's sandbox is starting. Trying again in {{ waiting }}s…
     </div>
-    <div v-else-if="loading && !loaded" class="scm-empty">Loading changes…</div>
+    <div v-else-if="loading && !fetched" class="scm-empty">Loading changes…</div>
     <div v-else-if="error" class="scm-empty err" role="alert">{{ error }}</div>
 
     <template v-else>
@@ -93,7 +93,9 @@ const emit = defineEmits(['count', 'open-diff', 'changed'])
 const status = reactive({ branch: '', default_branch: '', on_default: false, unpushed: 0, on_remote: false,
                           clean: true, changes: [], untracked: [] })
 const loading = ref(false)
-const loaded = ref(false)
+// True once a status has been read. Until then the panel shows "Loading", never the empty default state: after
+// a failed first load, a refresh flashed "No branch · The working tree is clean" (live test 2026-11-09).
+const fetched = ref(false)
 const error = ref('')
 const waiting = ref(0)
 const selected = ref('')
@@ -136,10 +138,10 @@ async function load() {
     const { data } = await whileSandboxStarts(() => api.getSourceControlStatus(props.systemId, props.repoId),
       { onWaiting: (s) => { waiting.value = s }, isCancelled: () => gone })
     apply(data)
+    fetched.value = true
   } catch (e) {
     error.value = e?.response?.data?.error || 'Could not load source control status.'
   } finally {
-    loaded.value = true
     loading.value = false
   }
 }
