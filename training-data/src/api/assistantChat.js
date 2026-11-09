@@ -36,6 +36,27 @@ const STEP_LABELS = {
   TRAINING_CHAT_DATASET_PUBLISH: 'Freezing a chat dataset version', TRAINING_CHAT_RUN_START: 'Starting a chat model training run',
   TRAINING_CHAT_RUN_CONTROL: 'Changing a chat model run', TRAINING_CHAT_EVALUATION_START: 'Starting a chat model evaluation',
   TRAINING_CHAT_MODEL_APPROVE: 'Approving a chat model', TRAINING_CHAT_DEPLOY: 'Deploying a chat model',
+  // Every other Training tool, named in words (live test 2026-11-09: "Using training data use", "Using training
+  // library"). A tool added later and not named here still reads "Using <its name>".
+  TRAINING_DATA_USE: 'Reading what the project data may be used for', TRAINING_LIBRARY: 'Looking in your Training library',
+  TRAINING_PHOTOS_ADD: 'Adding photos to a project', TRAINING_AUDIT: 'Reading the activity log',
+  TRAINING_BATCH_LIST: 'Listing the batch processing jobs', TRAINING_BATCH_START: 'Running a model over the photos',
+  TRAINING_BATCH_CANCEL: 'Cancelling a batch processing job', TRAINING_LABEL_ACCEPT: 'Accepting labels',
+  TRAINING_LABEL_SEND_BACK: 'Sending labels back', TRAINING_CONNECTED_APPS: 'Reading the connected apps',
+  TRAINING_COSTS: 'Reading the costs', TRAINING_COST_BENCHMARK: 'Estimating what calls would cost',
+  TRAINING_DEDICATED_LIST: 'Listing the dedicated deployments', TRAINING_DEDICATED_START: 'Starting a dedicated deployment',
+  TRAINING_DEDICATED_STOP: 'Stopping a dedicated deployment', TRAINING_DEPLOYMENTS: 'Reading the deployments',
+  TRAINING_EDGE_SERVE: 'Running a model on your machine', TRAINING_MACHINES_LIST: 'Listing your machines',
+  TRAINING_MACHINE_JOB_STOP: 'Stopping a job on your machine', TRAINING_MEMBERS: 'Reading the workspace members',
+  TRAINING_MODELS_CATALOG: 'Reading the model catalogue', TRAINING_NOTIFICATIONS: 'Reading your notifications',
+  TRAINING_OPEN_MODELS: 'Listing your open models', TRAINING_OPEN_MODEL_SEARCH: 'Searching Hugging Face',
+  TRAINING_OPEN_MODEL_ADD: 'Adding an open model', TRAINING_OPEN_MODEL_REMOVE: 'Removing an open model',
+  TRAINING_PROJECT_CREATE: 'Creating a project', TRAINING_PROJECT_DUPLICATE: 'Copying a project',
+  TRAINING_PROJECT_RENAME: 'Renaming a project', TRAINING_PROJECT_TRASH: 'Moving a project to the trash',
+  TRAINING_TRASH: 'Reading the trash', TRAINING_TRASH_RESTORE: 'Restoring from the trash',
+  TRAINING_STREAM_LIST: 'Listing the video streams', TRAINING_STREAM_START: 'Running a model on a video',
+  TRAINING_STREAM_STOP: 'Stopping a video stream', TRAINING_TRY: 'Trying a model on a photo',
+  TRAINING_VISION_EVENTS: 'Reading the vision events',
 };
 // Tool names reach the page in more than one spelling (ToolSearch, toolsearch, ASK_USER): compared without case or _.
 const squash = name => String(name || '').replace(/[^a-z0-9]/gi, '').toUpperCase();

@@ -75,6 +75,8 @@ test('a tool is named in words whatever its spelling', () => {
   assert.equal(stepLabel('toolsearch'), 'Looking up a tool');
   assert.equal(stepLabel('ToolSearch'), 'Looking up a tool');
   assert.equal(stepLabel('USE_SKILL'), 'Loading a skill');                 // it read "Using use skill" (2026-11-09)
+  assert.equal(stepLabel('TRAINING_DATA_USE'), 'Reading what the project data may be used for');   // "Using training data use"
+  assert.equal(stepLabel('TRAINING_LIBRARY'), 'Looking in your Training library');
   assert.equal(stepLabel('ask_user'), 'Asking you');
   assert.equal(stepLabel('ANALYZE_MEDIA'), 'Reading the photo');
   assert.equal(stepLabel('TRAINING_CHAT_STATUS'), 'Reading a chat project');
