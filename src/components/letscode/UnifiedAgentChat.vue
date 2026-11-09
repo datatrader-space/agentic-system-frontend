@@ -53,9 +53,7 @@
             <div v-if="message.lcCard.preview" class="ai-preview">
               <Icon icon="lucide:monitor-play" aria-hidden="true" />
               <span class="ai-preview-text">The app is running on port {{ message.lcCard.preview.port }}</span>
-              <button type="button" class="ai-preview-open" :disabled="message.lcCard.preview.opening" @click="openPreview(message.lcCard)">
-                {{ message.lcCard.preview.opening ? 'Opening…' : 'Open preview' }}
-              </button>
+              <button type="button" class="ai-preview-open" @click="openPreview(message.lcCard)">Open preview</button>
               <span v-if="message.lcCard.preview.error" class="ai-preview-err" role="alert">{{ message.lcCard.preview.error }}</span>
             </div>
           </div>
@@ -182,7 +180,7 @@ function onProjectFrame(d) {
   }
   if (t === 'lets_code_preview') {
     const c = cardFor(lastAssistant())
-    if (c) c.preview = { port: d.port, opening: false, error: '' }
+    if (c) c.preview = { port: d.port, error: '' }
     scrollDown(); return true
   }
   if (t === 'lets_code_changes') {
@@ -277,21 +275,14 @@ function changesText(ch) {
   return others > 0 ? `${head} · ${others} more ${others === 1 ? 'change' : 'changes'} not committed` : head
 }
 
-async function openPreview(c) {
-  // Opened before the request so the browser treats it as the click's own window, not a popup.
-  const win = window.open('', '_blank')
+function openPreview(c) {
+  // AADML's preview page, not a sandbox link: every visit (and every reload) gets a fresh signed link, after AADML has
+  // woken the sandbox and started the app again when it had stopped (views/LetsCodePreview.vue, owner 2026-11-09).
+  // No 'noopener' feature: with it window.open always returns null, and a blocked tab could not be told apart.
+  c.preview.error = ''
+  const win = window.open(`/preview/lets-code/${props.repoId}/${c.preview.port}`, '_blank')
   if (win) win.opener = null
-  c.preview.opening = true; c.preview.error = ''
-  try {
-    const { data } = await api.getProjectPreview(props.repoId, c.preview.port)
-    if (win) win.location.href = data.url
-    else window.open(data.url, '_blank', 'noopener')
-  } catch (e) {
-    if (win) win.close()
-    c.preview.error = e?.response?.data?.error || 'The preview could not be opened. Try again.'
-  } finally {
-    c.preview.opening = false
-  }
+  else c.preview.error = 'Your browser blocked the new tab. Allow pop-ups for AADML and try again.'
 }
 
 async function loadAgent() {
@@ -379,9 +370,8 @@ defineExpose({ send })
 .ai-preview :deep(svg) { width: 15px; height: 15px; color: var(--vm-violet); flex: 0 0 auto; }
 .ai-preview-text { flex: 1 1 auto; min-width: 0; }
 .ai-preview-open { min-height: 32px; padding: 0 12px; border: none; border-radius: 8px; background: var(--vm-violet); color: var(--uac-on-solid); font: 600 12.5px var(--vm-font-sans); cursor: pointer; transition: filter .15s; }
-.ai-preview-open:hover:not(:disabled) { filter: brightness(1.08); }
+.ai-preview-open:hover { filter: brightness(1.08); }
 .ai-preview-open:focus-visible { outline: 2px solid var(--vm-violet); outline-offset: 2px; }
-.ai-preview-open:disabled { opacity: .6; cursor: progress; }
 .ai-preview-err { flex-basis: 100%; color: var(--vm-red-ink); }
 
 /* ── Composer ── */

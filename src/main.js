@@ -207,6 +207,10 @@ const router = createRouter({
       component: VerifyEmail,
       meta: { requiresAuth: false, public: true }
     },
+    // AADML's preview page for a Let's Code app: signed-in only (a signed-out visit returns here after sign-in), and
+    // every visit asks for a fresh link to the person's OWN project's app (owner, 2026-11-09).
+    { path: '/preview/lets-code/:repoId/:port', name: 'lets-code-preview',
+      component: () => import('./views/LetsCodePreview.vue'), meta: { requiresAuth: true } },
     {
       // v2 chat-first dashboard: AppShell wraps all /dashboard/* children.
       // Existing top-level routes (/services, /mcp, …) stay alive until Phase 5.
