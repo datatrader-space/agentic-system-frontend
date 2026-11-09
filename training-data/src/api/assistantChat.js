@@ -62,7 +62,9 @@ const STEP_LABELS = {
 const squash = name => String(name || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
 const LABELS = Object.fromEntries(Object.entries({ ...STEP_LABELS, ASK_USER: 'Asking you', ANALYZE_MEDIA: 'Reading the photo',
   // As the main chat names them (agent/services/streaming/labels.py); live test 2026-11-09 showed "Using use skill".
-  USE_SKILL: 'Loading a skill', LIST_SKILLS: 'Looking at its skills' }).map(([k, v]) => [squash(k), v]));
+  USE_SKILL: 'Loading a skill', LIST_SKILLS: 'Looking at its skills', LOAD_TOOL_RESULT_REF: 'Reading an earlier result',
+  MEMORY_READ: 'Reading its notes', MEMORY_WRITE: 'Saving a note', MEMORY_EDIT: 'Changing a note',
+  SEARCH_CONVERSATIONS: 'Searching your earlier chats' }).map(([k, v]) => [squash(k), v]));
 export const stepLabel = tool => LABELS[squash(tool)] || (tool ? `Using ${String(tool).toLowerCase().replace(/_/g, ' ')}` : 'Working');
 
 // A "labels" card as the page shows it: the labels drawn over their photos (each picture from the project's signed-in
