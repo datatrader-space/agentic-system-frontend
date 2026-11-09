@@ -138,7 +138,23 @@ const openSteps = reactive({});
 const shownSteps = m => (openSteps[m.id] ? m.steps : m.steps.slice(-STEPS_SHOWN));
 
 const isQuestion = a => a.response_type === 'choice' || a.response_type === 'text';
-const approvalTitle = a => a.summary || stepLabel(a.payload?.tool_name || a.payload?.tool) || 'The assistant asks before this step.';
+// A tool's approval is named by its step in words ("Creating a project"), never by the tool's name: the summary reads
+// "Approve running the tool “TRAINING_PROJECT_CREATE”?" (live test 2026-11-09). What it acts on comes from its
+// arguments. A question keeps its own words.
+const toolOf = a => a.payload?.tool_name || a.payload?.tool || '';
+const isToolApproval = a => !isQuestion(a) && a.payload?.kind === 'tool_approval' && !!toolOf(a);
+const approvalTitle = a => (isToolApproval(a) ? stepLabel(toolOf(a))
+  : a.summary || stepLabel(toolOf(a)) || 'The assistant asks before this step.');
+const argWords = value => (Array.isArray(value) ? value.map(String).join(', ') : typeof value === 'object' && value !== null
+  ? Object.entries(value).map(([k, v]) => `${k}: ${v}`).join(', ') : String(value));
+const approvalDetail = a => {
+  if (!isToolApproval(a)) return '';
+  const args = a.payload?.tool_args || {};
+  const said = Object.entries(args).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+    .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${argWords(v).slice(0, 160)}`);
+  const why = a.payload?.held_because ? `Asked because ${String(a.payload.held_because).replace(/\.$/, '')}.` : '';
+  return [said.join('; '), why].filter(Boolean).join(' ');
+};
 const approvalCost = a => a.payload?.cost_text || a.payload?.estimated_cost || '';
 const isEmpty = computed(() => !chat.messages.length && !chat.approvals.length && !chat.plan);
 watch(isEmpty, value => emit('empty', value), { immediate: true });
@@ -201,6 +217,7 @@ defineExpose({ newChat, openConversation, focus: () => input.value?.focus() });
       <div v-for="a in chat.approvals" :key="a.request_id" class="approval" role="group" :aria-label="`${isQuestion(a) ? 'Question' : 'Approval'}: ${approvalTitle(a)}`">
         <strong>{{ isQuestion(a) ? 'The assistant asks you' : 'The assistant asks before it does this' }}</strong>
         <p>{{ approvalTitle(a) }}</p>
+        <p v-if="approvalDetail(a)" class="approval-detail">{{ approvalDetail(a) }}</p>
         <p v-if="approvalCost(a)" class="approval-cost">{{ approvalCost(a) }}</p>
         <!-- A question with choices: one button per choice (AADML's chat sends the option's id), and a free answer
              when the assistant allows one. A question that wants words: a text box. Only a yes/no is Approve/Reject. -->
@@ -286,6 +303,7 @@ defineExpose({ newChat, openConversation, focus: () => input.value?.focus() });
 .approval{border:1px solid var(--aadml-outline);background:var(--aadml-tint, #f5f8ff);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;max-width:min(78ch,100%)}
 .approval strong{font-size:13px;color:#1d2a3d}.approval p{margin:0;font-size:13px;color:#24324a}
 .approval-cost{font-weight:600}
+.approval-detail{font-size:13px;line-height:1.5;color:#475467;word-break:break-word}
 .choices{display:flex;flex-direction:column;gap:8px}
 .choice{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--aadml-outline);background:#fff;border-radius:8px;padding:10px 12px;min-height:44px;font-size:13px;color:#1d2a3d}
 .choice:hover:not(:disabled){background:var(--aadml-soft)}
