@@ -1,7 +1,9 @@
 <script setup>
 // Where a model runs or trains (backend: training_models_data/placement.py; agentic-docs/MACHINE_CHOICE_PLAN.md).
-// Auto (the default): at Start the machines free now are read again and the cheapest that can run the model is shown
-// to the person, who approves it or cancels (owner, 2026-11-06); nothing starts without that approval, and nothing is
+// Auto (the default): at Start the machines free now are read again and the cheapest that can run the model in the
+// location its files are already in is shown (owner, 2026-11-09: a new location needs a new volume, which RunPod
+// refuses below a $5 balance; another location is chosen by hand) to the person, who approves it or cancels (owner,
+// 2026-11-06); nothing starts without that approval, and nothing is
 // ever swapped for another machine on its own. Or the person chooses GPU or CPU (a CPU only for a small model;
 // otherwise the reason it runs on a GPU only) and one machine from the list. The server reads every choice again
 // before anything starts. A page calls ``confirm(start)`` instead of ``start()``.
@@ -29,6 +31,8 @@ const counts = computed(() => ({
   cpu: (machines.value || []).filter(m => m.kind === 'cpu').length,
 }));
 const chosen = computed(() => (machines.value || []).find(m => m.key === props.modelValue) || null);
+// Auto's find: the cheapest machine where the files already are (the list comes that location first, cheapest first).
+const autoFind = () => (machines.value || []).find(m => m.files_here) || null;
 
 async function read() {
   loading.value = true; error.value = '';
@@ -36,7 +40,7 @@ async function read() {
     const found = await props.load();
     machines.value = found.machines || []; note.value = found.note || ''; gpuOnly.value = found.gpu_only || '';
     const still = kind.value !== 'auto' && machines.value.find(m => m.key === props.modelValue);
-    const first = still || machines.value[0];
+    const first = still || (kind.value === 'auto' ? autoFind() : machines.value[0]);
     if (kind.value !== 'auto') kind.value = first?.kind || 'gpu';
     emit('update:modelValue', first?.key || '');
   } catch (e) { error.value = e.message; machines.value = machines.value || []; }
@@ -48,16 +52,21 @@ watch(() => props.load, read);
 function pickKind(next) {
   if (next === kind.value || (next !== 'auto' && !counts.value[next])) return;
   kind.value = next; pending.value = null; said.value = '';
-  emit('update:modelValue', ofKind.value[0]?.key || '');
+  emit('update:modelValue', (next === 'auto' ? autoFind() : ofKind.value[0])?.key || '');
 }
 // What the page's Start does: a machine the person chose starts at once; Auto first reads what is free now, takes the
-// cheapest that can run the model and asks the person to approve it.
+// cheapest that can run the model where its files are and asks the person to approve it.
 async function confirm(run) {
   said.value = '';
   if (kind.value !== 'auto') return run();
   await read();
-  const found = (machines.value || [])[0];
-  if (!found) { said.value = 'Auto found no machine that can run this model free now. Nothing was started.'; return undefined; }
+  const found = autoFind();
+  if (!found) {
+    said.value = (machines.value || []).length
+      ? 'No machine that can run this model is free now where its files are. Choose GPU or CPU and pick one in another location, or try again in a few minutes. Nothing was started.'
+      : 'Auto found no machine that can run this model free now. Nothing was started.';
+    return undefined;
+  }
   emit('update:modelValue', found.key);
   pending.value = { machine: found, run };
   return undefined;
@@ -100,7 +109,7 @@ defineExpose({ read, confirm });
       </div>
       <p v-if="gpuOnly" class="machine-gpu-only" role="note">{{ gpuOnly }}</p>
 
-      <p v-if="kind === 'auto'" class="machine-auto">At Start, the cheapest machine free now that can run this model is found and shown to you; it starts only when you approve it.</p>
+      <p v-if="kind === 'auto'" class="machine-auto">At Start, the cheapest machine free now that can run this model, where its files already are, is found and shown to you; it starts only when you approve it.</p>
       <template v-else>
         <label class="machine-select-label" :for="`machine-${uid}`">{{ kind === 'cpu' ? 'CPU machine' : 'GPU machine' }}</label>
         <select :id="`machine-${uid}`" class="compact-select machine-select" :value="modelValue"
