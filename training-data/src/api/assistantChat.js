@@ -29,7 +29,7 @@ const STEP_LABELS = {
   TRAINING_RUN_START: 'Starting a training run', TRAINING_RUN_CONTROL: 'Changing a run',
   TRAINING_EVALUATION_START: 'Starting an evaluation', TRAINING_MODEL_APPROVE: 'Approving a model',
   TRAINING_DEPLOY: 'Deploying a model',
-  TRAINING_LABEL: 'Drawing first labels', TRAINING_LABEL_SOURCES: 'Listing the wall models',
+  TRAINING_LABEL: 'Drawing first labels', TRAINING_LABEL_SOURCES: 'Listing the models that can label',
   TRAINING_LABEL_VIEW: 'Looking at a drawing', TRAINING_LABEL_FIX: 'Fixing a drawing',
   TRAINING_LABEL_SUBMIT: 'Sending the labels to review', TRAINING_LABEL_REVIEW: 'Reading the labels waiting for review',
   TRAINING_CHAT_STATUS: 'Reading a chat project', TRAINING_CHAT_PREPARE: 'Preparing the chat examples',
@@ -39,7 +39,9 @@ const STEP_LABELS = {
 };
 // Tool names reach the page in more than one spelling (ToolSearch, toolsearch, ASK_USER): compared without case or _.
 const squash = name => String(name || '').replace(/[^a-z0-9]/gi, '').toUpperCase();
-const LABELS = Object.fromEntries(Object.entries({ ...STEP_LABELS, ASK_USER: 'Asking you', ANALYZE_MEDIA: 'Reading the photo' }).map(([k, v]) => [squash(k), v]));
+const LABELS = Object.fromEntries(Object.entries({ ...STEP_LABELS, ASK_USER: 'Asking you', ANALYZE_MEDIA: 'Reading the photo',
+  // As the main chat names them (agent/services/streaming/labels.py); live test 2026-11-09 showed "Using use skill".
+  USE_SKILL: 'Loading a skill', LIST_SKILLS: 'Looking at its skills' }).map(([k, v]) => [squash(k), v]));
 export const stepLabel = tool => LABELS[squash(tool)] || (tool ? `Using ${String(tool).toLowerCase().replace(/_/g, ' ')}` : 'Working');
 
 // A "labels" card as the page shows it: the labels drawn over their photos (each picture from the project's signed-in
