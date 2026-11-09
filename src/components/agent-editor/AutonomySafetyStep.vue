@@ -48,8 +48,9 @@
           <div class="capabilities-block">
             <p class="mb-3 text-[11px] font-bold uppercase tracking-wide text-[#94A3B8]">Controls &amp; limits</p>
             <div class="capability-grid">
-              <!-- Code Execution (was "Code Mode") -->
-              <div class="capability-card rounded-xl border transition-colors" :class="codeModeEnabled ? 'border-violet-300 bg-gradient-to-r from-violet-50 to-indigo-50' : 'border-[#E5E7EB] bg-white'">
+              <!-- Code Execution (was "Code Mode"). Not offered for the Let's Code Coding Agent: its one file system is the
+                   project's sandbox, and the server ignores the switch for it (ADM-1188). -->
+              <div v-if="!isCodingAgent" class="capability-card rounded-xl border transition-colors" :class="codeModeEnabled ? 'border-violet-300 bg-gradient-to-r from-violet-50 to-indigo-50' : 'border-[#E5E7EB] bg-white'">
                 <div class="flex items-center justify-between gap-3">
                   <div class="flex items-center gap-3">
                     <span class="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-600">
@@ -724,6 +725,8 @@ const planningMinSteps = computed({
   set: (value) => _setLimit('planning_min_steps', value),
 })
 // Advanced execution controls (mapped from the legacy "Code Mode" / "Builder Mode" fields).
+// The shared Let's Code Coding Agent (built-in key `lets-code`) works only in a project's sandbox.
+const isCodingAgent = computed(() => !!props.agent.is_builtin_agent && props.agent.builtin_key === 'lets-code')
 const codeModeEnabled = computed({
   get: () => !!props.agent.code_mode_enabled,
   set: (value) => { props.agent.code_mode_enabled = value },

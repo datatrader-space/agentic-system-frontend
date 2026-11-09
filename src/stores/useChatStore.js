@@ -831,7 +831,12 @@ export const useChatStore = defineStore('chat', {
         // Hydrate + reconcile any plans anchored in the loaded history so the inline cards render on
         // open (durable-anchor path). No-op when the feature is off (no plan_artifacts present).
         this._hydratePlanAnchors(id)
-        this.repoId = data.repository?.id || data.repository_id || 0
+        // The conversation's repository picks the socket (a Let's Code project chat → /ws/chat/repository/<id>/,
+        // where the turn gets the project's CODE_* tools). The backend serializes it as a bare PK, like
+        // agent_profile below; reading `.id` of that number lost it, so a reopened project chat went to the plain
+        // agent socket and the agent said its "Code Mode" was off (prod conv 3200, 2026-11-09, ADM-1188).
+        const repo = data.repository
+        this.repoId = Number((repo && typeof repo === 'object' ? repo.id : repo) || data.repository_id || 0)
         // Backend serializes agent_profile as a bare PK (integer), with the human name
         // exposed separately as agent_profile_name — so read the id directly (older code
         // expected a nested object, which left selectedAgentId unset and hid the mode pill).

@@ -19,7 +19,7 @@ vi.mock('../services/api', () => ({
 vi.mock('../services/chatService', () => ({
   ChatConnection: class {
     constructor(cid) { this.conversationId = cid; this.repoId = 0 }
-    connect() {}
+    connect(repo) { this.connectedTo = repo }
     setConversation(c) { this.conversationId = c }
     prewarm() {}
     sendIfOpen() {}
@@ -104,6 +104,26 @@ describe('openConversation — retry after a failed load (F-C3)', () => {
     h.pending.get('9').resolve(conv('9', 'x'))
     await p
   })
+})
+
+describe('a project chat opens on its project socket (ADM-1188)', () => {
+  // Prod conv 3200, 2026-11-09: the server sends `repository` as a bare id; reading `.id` of it lost the project, the
+  // reopened Let's Code chat joined /ws/chat/agent/, and the turn had no CODE_* tools ("Code Mode isn't enabled").
+  for (const [label, data, want] of [
+    ['a bare id, as the server sends it', { repository: 16 }, 16],
+    ['an object', { repository: { id: 16 } }, 16],
+    ['repository_id', { repository_id: 16 }, 16],
+    ['no repository (an ordinary chat)', { repository: null }, 0],
+  ]) {
+    it(`reads ${label}`, async () => {
+      const chat = useChatStore()
+      const p = chat.openConversation('11')
+      h.pending.get('11').resolve({ data: { id: 11, messages: [], ...data } })
+      await p
+      expect(chat.repoId).toBe(want)
+      expect(chat._conn.connectedTo).toBe(want)
+    })
+  }
 })
 
 describe('reconnect recovery stops on a chat switch (F-C3)', () => {

@@ -152,6 +152,18 @@ describe('rendering a step does not edit the draft', () => {
 })
 
 describe('AutonomySafetyStep', () => {
+  it('offers Code Execution to an agent, and not to the Let\'s Code Coding Agent (ADM-1188)', async () => {
+    const normal = mount(AutonomySafetyStep, { props: { agent: reactive({ id: 1, name: 'A' }) }, global: { stubs } })
+    await flushPromises()
+    expect(normal.text()).toContain('Code Execution')
+    const coding = mount(AutonomySafetyStep, {
+      props: { agent: reactive({ id: 2, name: 'Coding Agent', is_builtin_agent: true, builtin_key: 'lets-code' }) },
+      global: { stubs },
+    })
+    await flushPromises()
+    expect(coding.text()).not.toContain('Code Execution')
+  })
+
   it('confirms a saved spending limit (notify was used without being imported)', async () => {
     api.createBudget.mockResolvedValue({ data: { id: 4 } })
     const w = mount(AutonomySafetyStep, { props: { agent: reactive({ id: 1, name: 'A' }) }, global: { stubs } })
