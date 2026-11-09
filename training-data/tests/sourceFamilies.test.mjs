@@ -43,3 +43,12 @@ test('the Masks / Polygons switch moves between the two sources of one family', 
   assert.equal(idFor(single, 'masks'), 'm2');
   assert.equal(familyOfId(groups, 'vision-boxes'), null);       // an id no longer offered belongs to no row
 });
+
+test('only a model on a server that is started says it may take a moment to start', async () => {
+  const { startsServer } = await import('../src/sourceFamilies.js');
+  assert.equal(startsServer({ id: 'sam3' }), true);
+  assert.equal(startsServer({ id: 'vision-sam3:openai/gpt-6.1-terra' }), true);      // SAM 3 is started for the pair
+  assert.equal(startsServer({ id: 'vision:google/gemini-4-argon' }), false);
+  assert.equal(startsServer({ id: 'vision-masks:openai/gpt-6.1-terra' }), false);
+  assert.equal(startsServer({ id: 'm2' }), true);
+});

@@ -65,3 +65,9 @@ export function idFor(family, labels) {
 export function waysOf(family) {
   return ['polygons', 'masks'].filter(way => family?.ids?.[way]);
 }
+
+// Whether a source runs on a server that is started when it is down (SAM 3, a published or trained model), so the
+// page says it may take a moment; a vision model alone is an outside AI provider's and is never "started".
+export function startsServer(source) {
+  return !/^vision(-masks)?:/.test(String(source?.id || ''));
+}

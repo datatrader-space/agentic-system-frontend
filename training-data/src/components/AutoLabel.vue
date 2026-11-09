@@ -11,6 +11,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { ArrowLeft, ArrowRight, Image as ImageIcon, Plus, Zap, Check, Trash2, Sparkles, Wallet, Maximize2, RotateCcw, SlidersHorizontal } from 'lucide-vue-next';
 import ModelSourcePicker from './ModelSourcePicker.vue';
+import { startsServer } from '../sourceFamilies.js';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
@@ -155,7 +156,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
           <summary><SlidersHorizontal :size="16" aria-hidden="true"/> Advanced</summary>
           <dl v-if="current">
             <dt>Model</dt><dd>{{ label(current) }}</dd>
-            <dt>Where it runs and its cost</dt><dd>{{ current.detail }}. If it is not running it is started first, which takes a moment.</dd>
+            <dt>Where it runs and its cost</dt><dd>{{ current.detail }}.<template v-if="startsServer(current)"> If it is not running it is started first, which takes a moment.</template></dd>
             <template v-if="current.licence"><dt>Licence</dt><dd>{{ current.licence }}. A label started from its answer says so, so that it can be left out later.</dd></template>
           </dl>
           <p v-else class="auto-help">Choose a model to see where it runs and what it costs.</p>

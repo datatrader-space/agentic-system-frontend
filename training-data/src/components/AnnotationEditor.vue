@@ -6,6 +6,7 @@ import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
 import RoomArt from './RoomArt.vue';
 import ModelSourcePicker from './ModelSourcePicker.vue';
+import { startsServer } from '../sourceFamilies.js';
 import { batchColumn } from '../previewState.js';
 import { api as liveApi, fromBackend, toBackend, classesOf } from '../api/annotate.js';
 import { split as splitShape, contains, crosses, box as boxCorners, tidyUp, whole, corners as cornersOf, bestMatch } from '../geometry.js';
@@ -271,7 +272,7 @@ function addTag(){if(live.value){const v=tag.value.trim();tag.value='';if(!v)ret
       <template v-if="meta?.detect?.sources?.length">
         <ModelSourcePicker v-model="detectPick" :sources="meta.detect.sources" inline/>
         <div v-if="pickedSource" class="detect-run">
-          <p><span v-if="pickedSource.what">{{ pickedSource.what }} </span>{{ pickedSource.detail }}. If it is not running it is started first, which takes a moment.<template v-if="pickedSource.licence"> Licence: {{ pickedSource.licence }}. A label started from its answer says so, so that it can be left out later.</template></p>
+          <p><span v-if="pickedSource.what">{{ pickedSource.what }} </span>{{ pickedSource.detail }}.<template v-if="startsServer(pickedSource)"> If it is not running it is started first, which takes a moment.</template><template v-if="pickedSource.licence"> Licence: {{ pickedSource.licence }}. A label started from its answer says so, so that it can be left out later.</template></p>
           <UiButton variant="primary" :disabled="!!pickedSource.unavailable" @click="runDetect(pickedSource.id)"><Sparkles :size="15"/> Find objects</UiButton>
         </div>
       </template>
