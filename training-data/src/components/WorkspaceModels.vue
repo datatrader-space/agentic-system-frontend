@@ -304,7 +304,7 @@ const usageBars = computed(() => [...visibleUsage.value].sort((a, b) => (b.usage
       <DeploymentMetrics :items="catalogMetrics" :loaded="!!data && !error"/>
       <div class="models-info"><ShieldCheck :size="17" aria-hidden="true"/><p>Published models are used as provided. Models you train are managed in <button class="models-text-button" type="button" @click="active='My models'">My models</button>.</p></div>
       <section v-if="trying&&!trying.repo" id="try-published" class="panel try-panel" aria-live="polite">
-        <header class="try-head"><div><h2>Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform">{{ trying.name }} finds the walls, windows and doors of your photo on AADML's GPU server. Each photo is charged by the second it takes<template v-if="state?.price">, {{ state.price }}</template>.</p><p v-else>No training here first: the published model answers your photo. It marks walls, windows and doors.</p></div>
+        <header class="try-head"><div><h2>Try {{ trying.name }}{{ onPlatform ? '' : ' as it is published' }}</h2><p v-if="onPlatform">{{ trying.name }} finds the walls, windows and doors of your photo on AADML's GPU server. Each photo is charged by the second it takes<template v-if="state?.price">, {{ state.price }}</template>.</p><p v-else>No training here first: the published model answers your photo. It marks {{ trying.marks || 'walls, windows and doors' }}.</p></div>
           <button class="icon-button" aria-label="Close trying this model" @click="close"><X :size="18"/></button></header>
         <div v-if="said" class="notice" role="status"><Check :size="16"/><span>{{ said }}</span></div>
         <p v-if="tryError" class="field-error" role="alert">{{ tryError }}</p>
