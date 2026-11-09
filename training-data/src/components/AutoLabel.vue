@@ -216,7 +216,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
     </div>
     <footer class="auto-bar">
       <span class="auto-bar-state" role="status"><strong>{{ stateWords[0] }}</strong><small>{{ stateWords[1] }}</small></span>
-      <span v-if="current" class="auto-credits" :title="current.detail"><Wallet :size="15" aria-hidden="true"/> Paid from your balance</span>
+      <span v-if="current" class="auto-cost" :title="current.detail"><Wallet :size="15" aria-hidden="true"/> Paid from your balance</span>
       <UiButton v-if="generating" @click="stop">Stop</UiButton>
       <UiButton v-else :disabled="!current||!!current?.unavailable||!picked.length" @click="generate"><RotateCcw v-if="previews.length" :size="15"/><Zap v-else :size="15"/> {{ previews.length ? 'Run Again' : 'Generate Preview' }}</UiButton>
       <UiButton variant="primary" :disabled="!current||!!current?.unavailable||busy||!media.length" @click="confirmOpen=true"><Check :size="15"/> Label Batch <ArrowRight :size="15"/></UiButton>
@@ -301,9 +301,9 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
 .auto-bar-state{flex:1;min-width:0;display:flex;flex-direction:column}
 .auto-bar-state strong{font-size:14px;font-weight:600;color:#16213a}
 .auto-bar-state small{font-size:12px;color:#5b6b82;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.auto-credits{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border-radius:8px;background:#f2f4f7;color:#344054;font-size:13px;cursor:help}
+.auto-cost{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 10px;border-radius:8px;background:#f2f4f7;color:#344054;font-size:13px;cursor:help}
 @media(max-width:1100px){.auto-body{grid-template-columns:1fr}.auto-side{border-right:0;border-bottom:1px solid #e0e3eb}}
 @media(max-width:640px){.auto-head{padding:16px}.auto-side{padding:16px}.auto-main{padding:14px 16px}.auto-canvas{min-height:260px;padding:10px}
-  .auto-bar{flex-wrap:wrap;padding:12px 16px}.auto-bar-state{flex-basis:100%}.auto-bar .button{flex:1}.auto-credits{order:-1}.auto-strip-count{margin-left:0}}
+  .auto-bar{flex-wrap:wrap;padding:12px 16px}.auto-bar-state{flex-basis:100%}.auto-bar .button{flex:1}.auto-cost{order:-1}.auto-strip-count{margin-left:0}}
 @media(prefers-reduced-motion:reduce){.auto-switch span,.auto-switch span::after{transition:none}}
 </style>

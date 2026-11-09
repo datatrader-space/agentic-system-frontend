@@ -344,7 +344,8 @@ export function bytesText(bytes) {
 }
 
 // The AADML pages a Workspace Settings entry opens, outside this page. The others are pages or dialogs of their own.
-export const SETTINGS_PAGES = { 'Plan & Billing': '/dashboard/billing', 'Credit Usage': '/dashboard/settings/usage' };
+// Named as AADML names them (owner, 2026-11-09: there are no plans and no credits; usage is charged to the balance).
+export const SETTINGS_PAGES = { 'Billing': '/dashboard/billing', 'Usage': '/dashboard/settings/usage' };
 
 // A workflow of AADML's builder: its own page there, and where new ones are made.
 export const workflowLink = id => `/dashboard/workflow-builder/${enc(id)}`;
