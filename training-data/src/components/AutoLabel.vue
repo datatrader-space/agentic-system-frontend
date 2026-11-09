@@ -9,7 +9,7 @@
 // nobody has drawn on: each photo then opens in the editor with the model's walls as a head start, which the person
 // checks and sends to review — the same rule as the old editor; a model never makes a label by itself.
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
-import { ArrowLeft, ArrowRight, Image as ImageIcon, Plus, Zap, Check, Trash2, Sparkles, Coins, Maximize2, RotateCcw, SlidersHorizontal } from 'lucide-vue-next';
+import { ArrowLeft, ArrowRight, Image as ImageIcon, Plus, Zap, Check, Trash2, Sparkles, Wallet, Maximize2, RotateCcw, SlidersHorizontal } from 'lucide-vue-next';
 import ModelSourcePicker from './ModelSourcePicker.vue';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
@@ -204,7 +204,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
     </div>
     <footer class="auto-bar">
       <span class="auto-bar-state" role="status"><strong>{{ stateWords[0] }}</strong><small>{{ stateWords[1] }}</small></span>
-      <span v-if="current" class="auto-credits" :title="current.detail"><Coins :size="15" aria-hidden="true"/> Uses Credits</span>
+      <span v-if="current" class="auto-credits" :title="current.detail"><Wallet :size="15" aria-hidden="true"/> Paid from your balance</span>
       <UiButton v-if="generating" @click="stop">Stop</UiButton>
       <UiButton v-else :disabled="!current||!!current?.unavailable||!picked.length" @click="generate"><RotateCcw v-if="previews.length" :size="15"/><Zap v-else :size="15"/> {{ previews.length ? 'Run Again' : 'Generate Preview' }}</UiButton>
       <UiButton variant="primary" :disabled="!current||!!current?.unavailable||busy||!media.length" @click="confirmOpen=true"><Check :size="15"/> Label Batch <ArrowRight :size="15"/></UiButton>

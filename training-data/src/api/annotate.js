@@ -7,6 +7,8 @@ import { apiFetch } from './client.js';
 const enc = encodeURIComponent;
 const base = ref => `/training-data/app/projects/${enc(ref)}`;
 const json = (path, method = 'GET', body) => apiFetch(path, method === 'GET' ? {} : { method, body });
+// How long a model may take to draw one photo (detect, below).
+export const DETECT_MS = 240000;
 
 // The kinds the backend's labels hold (labels.py: wall, window, door), coloured as the sample classes were.
 export const CLASSES = [{ name: 'wall', color: '#8b5cf6' }, { name: 'window', color: '#10b981' }, { name: 'door', color: '#f59e0b' }];
@@ -144,7 +146,10 @@ export const api = {
   renameUpload: (ref, id, name) => json(`${base(ref)}/uploads/${enc(id)}/`, 'PATCH', { name }),
   invite: (ref, body) => json(`${base(ref)}/invite/`, 'POST', body),
   editor: (ref, photo, review, start) => json(`${base(ref)}/photos/${enc(photo)}/editor/${review ? `?review=${enc(review)}` : start ? `?start=${enc(start)}` : ''}`),
-  detect: (ref, photo, source) => json(`${base(ref)}/photos/${enc(photo)}/detect/`, 'POST', { source }),
+  // One photo through a vision model and then SAM 3 takes longer than the usual 15 s (aadml.com, 2026-11-09: GPT-6.1
+  // Terra + SAM 3 was cut off and the page said "took too long" while the server was still drawing). Under the site's
+  // 300 s limit on a request; a model still being started answers "waiting" at once instead.
+  detect: (ref, photo, source) => apiFetch(`${base(ref)}/photos/${enc(photo)}/detect/`, { method: 'POST', body: { source }, timeoutMs: DETECT_MS }),
   detectPreference: (ref, detect) => json(`${base(ref)}/detect-preference/`, 'POST', { detect }),
   detectSources: ref => json(`${base(ref)}/detect-preference/`),
   addClass: (ref, body) => json(`${base(ref)}/classes/`, 'POST', body),
