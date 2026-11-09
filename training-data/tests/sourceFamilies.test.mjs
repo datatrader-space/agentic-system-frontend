@@ -52,3 +52,18 @@ test('only a model on a server that is started says it may take a moment to star
   assert.equal(startsServer({ id: 'vision-masks:openai/gpt-6.1-terra' }), false);
   assert.equal(startsServer({ id: 'm2' }), true);
 });
+
+test('the AI is asked for every class at first; an unticked one stays out, and a class added later is asked for', async () => {
+  const kept = new Map();
+  globalThis.localStorage = { getItem: k => kept.get(k) ?? null, setItem: (k, v) => kept.set(k, String(v)) };
+  const { askedClasses, keepAskedClasses } = await import('../src/api/annotate.js');
+  const names = ['wall', 'window', 'door'];
+  assert.deepEqual(askedClasses('p1', names), names);
+  keepAskedClasses('p1', names, ['door']);                                    // wall and window unticked
+  assert.deepEqual(askedClasses('p1', [...names, 'sofa']), ['door', 'sofa']); // sofa, added later, is asked for
+  assert.deepEqual(askedClasses('p2', names), names);                         // another project keeps its own
+  globalThis.localStorage = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } };
+  assert.deepEqual(askedClasses('p1', names), names);                         // a browser that keeps nothing asks all
+  keepAskedClasses('p1', names, ['door']);                                    // and does not fail
+  delete globalThis.localStorage;
+});

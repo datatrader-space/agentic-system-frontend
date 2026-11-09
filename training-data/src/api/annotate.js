@@ -10,6 +10,20 @@ const json = (path, method = 'GET', body) => apiFetch(path, method === 'GET' ? {
 // How long a model may take to draw one photo (detect, below).
 export const DETECT_MS = 240000;
 
+// The classes a person asks the AI for in a project (owner, 2026-11-09: wall, window and door stay in a walls project,
+// and unticked the models do not look for them). Kept in this browser, per project, as the classes left OUT, so a class
+// added later is asked for. Every read and write survives a browser that keeps nothing (private window).
+const skippedKey = ref => `aadml.autolabel.skipped.${ref}`;
+export function askedClasses(ref, names) {
+  let skipped = [];
+  try { skipped = JSON.parse(localStorage.getItem(skippedKey(ref)) || '[]'); } catch { skipped = []; }
+  const asked = names.filter(name => !skipped.includes(name));
+  return asked.length ? asked : [...names];
+}
+export function keepAskedClasses(ref, names, asked) {
+  try { localStorage.setItem(skippedKey(ref), JSON.stringify(names.filter(name => !asked.includes(name)))); } catch { /* not kept */ }
+}
+
 // The kinds the backend's labels hold (labels.py: wall, window, door), coloured as the sample classes were.
 export const CLASSES = [{ name: 'wall', color: '#8b5cf6' }, { name: 'window', color: '#10b981' }, { name: 'door', color: '#f59e0b' }];
 // The editor draws in 600 × 300 units stretched over the photo; the backend keeps photo pixels.
@@ -149,7 +163,8 @@ export const api = {
   // One photo through a vision model and then SAM 3 takes longer than the usual 15 s (aadml.com, 2026-11-09: GPT-6.1
   // Terra + SAM 3 was cut off and the page said "took too long" while the server was still drawing). Under the site's
   // 300 s limit on a request; a model still being started answers "waiting" at once instead.
-  detect: (ref, photo, source) => apiFetch(`${base(ref)}/photos/${enc(photo)}/detect/`, { method: 'POST', body: { source }, timeoutMs: DETECT_MS }),
+  detect: (ref, photo, source, classes) => apiFetch(`${base(ref)}/photos/${enc(photo)}/detect/`,
+    { method: 'POST', body: classes ? { source, classes } : { source }, timeoutMs: DETECT_MS }),
   detectPreference: (ref, detect) => json(`${base(ref)}/detect-preference/`, 'POST', { detect }),
   detectSources: ref => json(`${base(ref)}/detect-preference/`),
   addClass: (ref, body) => json(`${base(ref)}/classes/`, 'POST', body),

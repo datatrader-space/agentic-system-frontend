@@ -15,7 +15,7 @@ import { startsServer } from '../sourceFamilies.js';
 import UiButton from './UiButton.vue';
 import UiBadge from './UiBadge.vue';
 import UiDialog from './UiDialog.vue';
-import { api, classesOf } from '../api/annotate.js';
+import { api, classesOf, askedClasses, keepAskedClasses } from '../api/annotate.js';
 import { tidyUp } from '../geometry.js';
 
 const props = defineProps({ batch: Object, state: Object, media: Array, busy: Boolean });
@@ -59,6 +59,16 @@ onMounted(loadSources);
 // The project's classes (label_classes.py). Wall, window and door are what a walls model learns; a class added here is
 // label-only. The Owner and a Data preparer change the list; everyone else reads it.
 const canChange = computed(() => !!props.state.canChangeClasses);
+// The classes the AI is asked for (owner, 2026-11-09): every class at first; unticked, the models do not look for it,
+// and it stays in the project. Kept per project in this browser; the editor reads the same choice.
+const classNames = computed(() => props.state.classes.map(c => c.name));
+const asked = ref(askedClasses(props.state.ref, classNames.value));
+watch(classNames, names => { asked.value = askedClasses(props.state.ref, names); });
+function toggleAsked(name) {
+  const now = asked.value.includes(name) ? asked.value.filter(n => n !== name) : [...asked.value, name];
+  if (!now.length) return;                          // at least one class is always asked for
+  asked.value = now; keepAskedClasses(props.state.ref, classNames.value, now); previews.value = [];
+}
 const adding = ref(null); const classBusy = ref(false); const classError = ref(''); const newName = ref(null);
 const PALETTE = ['#ef4444', '#0ea5e9', '#ec4899', '#84cc16', '#f97316', '#14b8a6', '#6366f1', '#a855f7'];
 function startAdd() {
@@ -93,7 +103,7 @@ async function generate() {
 async function ask(preview) {
   while (!stopped) {
     try {
-      const body = await api.detect(props.state.ref, preview.image.id, chosen.value);
+      const body = await api.detect(props.state.ref, preview.image.id, chosen.value, asked.value);
       if (body.state === 'waiting') {
         preview.state = 'waiting'; preview.now = `${body.title}: ${body.now}${body.seconds ? ` (${body.seconds} s)` : ''}`;
         await new Promise(resolve => timers.push(setTimeout(resolve, 4000)));
@@ -133,7 +143,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
         <p v-else-if="current?.what" class="auto-what">{{ current.what }}</p>
 
         <h3 class="auto-gap">Classes <UiBadge>{{ state.classes.length }}</UiBadge></h3>
-        <p class="auto-help">Every model is asked for these classes. Wall, window and door are what a walls model learns; a class you add is label-only.</p>
+        <p class="auto-help">Tick the classes the AI looks for. Wall, window and door stay in this project because its walls model learns them; untick them to look only for the others. A class you add is label-only.</p>
         <div class="auto-classes">
           <form v-if="adding" class="auto-class adding" @submit.prevent="saveAdd">
             <input ref="newName" v-model="adding.name" class="text-input class-name" placeholder="Class name" aria-label="New class name" maxlength="40" @keydown.esc.prevent="adding=null">
@@ -145,6 +155,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
             <input class="text-input class-name" :value="c.name" readonly :aria-label="`Class ${c.name}`">
             <label class="class-colour" :style="{background:c.color}" :title="canChange?`Change the colour of ${c.name}`:c.name"><input type="color" :value="c.color" :disabled="!canChange||classBusy" :aria-label="`Colour of ${c.name}`" @change="saveClass(c,{color:$event.target.value})"></label>
             <input class="text-input class-desc" :value="c.description" :readonly="!canChange" placeholder="Visual description of the class" :aria-label="`Visual description of ${c.name}`" maxlength="300" @change="saveClass(c,{description:$event.target.value})">
+            <label class="auto-ask" :title="asked.includes(c.name) ? `The AI looks for ${c.name}` : `The AI does not look for ${c.name}`"><input type="checkbox" :checked="asked.includes(c.name)" :disabled="asked.length===1&&asked.includes(c.name)" :aria-label="`Ask the AI for ${c.name}`" @change="toggleAsked(c.name)"> Ask the AI</label>
             <div class="auto-class-meta"><UiBadge :class="c.trained?'':'label-only'">{{ c.trained ? 'Trained' : 'Label only' }}</UiBadge><button v-if="canChange&&!c.trained" class="icon-button" :disabled="classBusy" :aria-label="`Remove class ${c.name}`" :title="`Remove class ${c.name}`" @click="removeClass(c)"><Trash2 :size="15"/></button></div>
           </div>
         </div>
@@ -241,6 +252,7 @@ function start() { confirmOpen.value = false; emit('autolabel', chosen.value); }
 .auto-class{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 10px;align-items:center;padding:12px;border-bottom:1px solid #eef0f4}.auto-class.adding{background:var(--aadml-tint)}.class-name{grid-column:1;grid-row:1}.class-desc{grid-column:1;grid-row:2}.class-colour{grid-column:2;grid-row:1;justify-self:center;position:relative;width:18px;height:18px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #d0d5dd;cursor:pointer}.class-colour input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}.class-colour input:disabled{cursor:default}.auto-class-meta{grid-column:2;grid-row:2;display:flex;align-items:center;gap:2px}.auto-class-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px}.label-only{background:#fef3c7;color:#92400e}
 .auto-class:last-child{border-bottom:0}
 .auto-class .text-input{padding:9px 11px;font-size:13px;width:100%;min-width:0}.auto-class .class-name{font-weight:500;color:#16213a;background:#fff}
+.auto-ask{grid-column:1/-1;display:inline-flex;align-items:center;gap:8px;min-height:32px;font-size:13px;color:#344054;cursor:pointer}.auto-ask input{width:16px;height:16px;accent-color:var(--aadml-primary);cursor:pointer}.auto-ask input:disabled{cursor:not-allowed}
 .auto-add{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 4px;border:0;background:none;color:var(--aadml-primary);font-size:14px;font-weight:500;cursor:pointer}
 .auto-add:disabled{color:#98a2b3;cursor:default}
 .auto-add:focus-visible{outline:2px solid var(--aadml-focus);outline-offset:2px;border-radius:6px}
