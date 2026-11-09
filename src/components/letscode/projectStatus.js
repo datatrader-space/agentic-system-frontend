@@ -2,7 +2,8 @@
 // (phase, failed_step, clone_ready, error_message) into what the page shows.
 //
 // phase ∈ queued | cloning | indexing | switching | ready | error
-// failed_step ∈ 'clone' | 'index' | '' (set when phase === 'error')
+// failed_step ∈ 'clone' | 'index' | 'lost' | '' (set when phase === 'error'). 'lost': a new project (no GitHub
+// repository, is_new) whose sandbox copy was deleted; it cannot be cloned back (ADM-1183).
 
 const LABELS = {
   queued: 'Queued',
@@ -15,6 +16,7 @@ const LABELS = {
 
 /** Short status word for a project (pill text). */
 export function phaseLabel(p) {
+  if (p?.is_new && p?.phase === 'cloning') return 'Starting'      // a new project has nothing to clone
   return LABELS[p?.phase] || 'Preparing'
 }
 
@@ -32,14 +34,15 @@ export function isReady(p) {
   return !!p && p.phase === 'ready' && !!p.clone_ready
 }
 
-/** The step a failed project stopped at: 'clone' or 'index'. */
+/** The step a failed project stopped at: 'clone' (or 'lost', shown on the first step) or 'index'. */
 export function failedStep(p) {
-  if (p?.failed_step === 'clone' || p?.failed_step === 'index') return p.failed_step
+  if (p?.failed_step === 'clone' || p?.failed_step === 'index' || p?.failed_step === 'lost') return p.failed_step
   return p?.clone_ready ? 'index' : 'clone'
 }
 
 const STEPS = [
   { key: 'clone', label: 'Clone', detail: 'Copy the repository into your workspace' },
+  // A new project's first step (no repository to copy).
   { key: 'index', label: 'Index', detail: 'Read the code so the agent can find its way around' },
   { key: 'ready', label: 'Ready', detail: 'The editor and the coding agent open' },
 ]
@@ -57,7 +60,7 @@ export function pipelineSteps(p) {
   if (phase === 'ready') {
     doneUpTo = 2
   } else if (phase === 'error') {
-    failedAt = failedStep(p) === 'clone' ? 0 : 1
+    failedAt = failedStep(p) === 'index' ? 1 : 0
     doneUpTo = failedAt - 1
   } else if (phase === 'indexing' || phase === 'switching') {
     doneUpTo = 0; currentAt = 1
@@ -73,10 +76,11 @@ export function pipelineSteps(p) {
     if (i === failedAt) state = 'failed'
     else if (i === currentAt) state = 'current'
     else if (i <= doneUpTo) state = 'done'
-    let detail = s.detail
+    let { label, detail } = s
+    if (s.key === 'clone' && p?.is_new) { label = 'Start'; detail = 'Create an empty project in your workspace' }
     if (s.key === 'clone' && phase === 'queued' && state === 'current') detail = 'Waiting for a free worker'
     if (s.key === 'index' && phase === 'switching' && state === 'current') detail = `Checking out ${p?.branch || 'the branch'} and indexing it again`
-    return { ...s, detail, state }
+    return { ...s, label, detail, state }
   })
 }
 

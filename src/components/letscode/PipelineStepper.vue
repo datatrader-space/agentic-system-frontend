@@ -25,10 +25,15 @@
       <div v-if="failed" class="ps-fail" role="alert">
         <Icon icon="lucide:circle-alert" class="ps-fail-ic" />
         <div class="ps-fail-body">
-          <p class="ps-fail-h">{{ failedLabel }} failed</p>
+          <p class="ps-fail-h">{{ lost ? 'The project\'s files are gone' : `${failedLabel} failed` }}</p>
           <p class="ps-fail-msg">{{ project.error_message || 'The step stopped without a reason. Retry to run it again.' }}</p>
         </div>
-        <button type="button" class="ps-retry" :disabled="retrying" @click="$emit('retry')">
+        <!-- A lost new project cannot be retried into its old files: starting again empty is the person's choice. -->
+        <button v-if="lost" type="button" class="ps-retry" :disabled="retrying" @click="$emit('retry', { startEmpty: true })">
+          <Icon :icon="retrying ? 'lucide:loader-2' : 'lucide:file-plus'" :class="{ spin: retrying }" />
+          {{ retrying ? 'Starting' : 'Start again empty' }}
+        </button>
+        <button v-else type="button" class="ps-retry" :disabled="retrying" @click="$emit('retry')">
           <Icon :icon="retrying ? 'lucide:loader-2' : 'lucide:rotate-cw'" :class="{ spin: retrying }" />
           {{ retrying ? 'Retrying' : 'Retry' }}
         </button>
@@ -57,6 +62,7 @@ defineEmits(['retry'])
 const steps = computed(() => pipelineSteps(props.project))
 const failedStepObj = computed(() => steps.value.find((s) => s.state === 'failed') || null)
 const failed = computed(() => !!failedStepObj.value)
+const lost = computed(() => props.project.phase === 'error' && props.project.failed_step === 'lost')
 const failedLabel = computed(() => failedStepObj.value?.label || 'A step')
 const current = computed(() => steps.value.find((s) => s.state === 'current') || null)
 
@@ -66,6 +72,7 @@ const title = computed(() => {
   return `Preparing ${props.project.name || 'your project'}`
 })
 const subtitle = computed(() => {
+  if (lost.value) return 'It was never published to GitHub, so there is no copy to bring back.'
   if (failed.value) return 'Read the reason below, then retry the step.'
   return 'The editor and the coding agent open when every step is done.'
 })

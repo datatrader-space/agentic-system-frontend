@@ -21,6 +21,7 @@ vi.mock('@/services/api', () => ({
     commitSourceControl: vi.fn(),
     pushSourceControl: vi.fn(),
     openPullRequest: vi.fn(),
+    publishProject: vi.fn(),
   },
 }))
 vi.mock('@/composables/useNotify', () => ({ notify: { success: vi.fn(), error: vi.fn() } }))
@@ -161,6 +162,67 @@ describe('SourceControlPanel', () => {
     resolve(dirty())
     await flushPromises()
     expect(w.text()).toContain('app.py')
+  })
+
+  describe('a new project with no GitHub repository (ADM-1183)', () => {
+    const local = (over = {}) => dirty({ branch: 'main', default_branch: '', on_default: false, on_remote: false,
+      has_remote: false, has_commit: false, unpushed: 0, ...over })
+    const mountNew = async () => {
+      const w = mount(SourceControlPanel, { props: { systemId: 5, repoId: 4, projectName: 'shop' }, global: { stubs: { Icon: true } } })
+      await flushPromises()
+      return w
+    }
+
+    it('commits on main with no branch field, says to commit before publishing, and warns the files live only in the sandbox', async () => {
+      api.getSourceControlStatus.mockResolvedValueOnce(local())
+      api.commitSourceControl.mockResolvedValueOnce(local({ has_commit: true, clean: true, changes: [], untracked: [] }))
+      const w = await mountNew()
+      expect(w.find('#scm-branch').exists()).toBe(false)
+      expect(w.find('form.scm-commit button[type="submit"]').text()).toContain('Commit')
+      expect(w.find('form.scm-publish').exists()).toBe(false)
+      expect(w.text()).toContain('Commit your changes, then publish the project to GitHub.')
+      expect(w.find('.scm-foot.warn').text()).toContain('only in its sandbox')
+      await w.find('#scm-message').setValue('First version')
+      await w.find('form.scm-commit').trigger('submit')
+      await flushPromises()
+      expect(api.commitSourceControl).toHaveBeenCalledWith(5, 4, { message: 'First version' })
+      expect(w.find('form.scm-publish').exists()).toBe(true)
+      expect(w.text()).not.toContain('Push')
+      expect(w.text()).not.toContain('Open pull request')
+    })
+
+    it('publishes with the project name and Private by default, then is an ordinary GitHub project', async () => {
+      api.getSourceControlStatus.mockResolvedValueOnce(local({ has_commit: true, clean: true, changes: [], untracked: [] }))
+      api.publishProject.mockResolvedValueOnce(dirty({ branch: 'main', default_branch: 'main', on_default: true, has_remote: true,
+        has_commit: true, on_remote: true, clean: true, changes: [], untracked: [],
+        published: { url: 'https://github.com/ada/shop', branch: 'main', private: true } }))
+      const w = await mountNew()
+      expect(w.find('#scm-repo').attributes('placeholder')).toBe('shop')
+      expect(w.find('#scm-private').element.checked).toBe(true)
+      await w.find('form.scm-publish').trigger('submit')
+      await flushPromises()
+      expect(api.publishProject).toHaveBeenCalledWith(5, 4, { name: 'shop', private: true })
+      expect(w.emitted('published')[0][0]).toEqual({ url: 'https://github.com/ada/shop', branch: 'main', private: true })
+      expect(w.find('form.scm-publish').exists()).toBe(false)
+      expect(w.find('.scm-foot.warn').exists()).toBe(false)
+    })
+
+    it('shows why publishing failed, and offers Push when the repository was made but the push failed', async () => {
+      api.getSourceControlStatus.mockResolvedValueOnce(local({ has_commit: true, clean: true, changes: [], untracked: [] }))
+      api.publishProject.mockRejectedValueOnce({ response: { status: 409, data: {
+        error: 'The repository was created (https://github.com/ada/shop) but the push failed: network. Press Push to try again.',
+        code: 'PUSH_FAILED', ...local({ has_remote: true, has_commit: true, clean: true, changes: [], untracked: [],
+          unpushed: 1, default_branch: '' }).data } } })
+      const w = await mountNew()
+      await w.find('#scm-repo').setValue('shop-app')
+      await w.find('#scm-private').setValue(false)
+      await w.find('form.scm-publish').trigger('submit')
+      await flushPromises()
+      expect(api.publishProject).toHaveBeenCalledWith(5, 4, { name: 'shop-app', private: false })
+      expect(w.find('.scm-note.err').text()).toContain('push failed')
+      expect(w.find('form.scm-publish').exists()).toBe(false)
+      expect(w.text()).toContain('Push 1 commit')
+    })
   })
 
   it('waits while the sandbox starts and then shows the changes', async () => {

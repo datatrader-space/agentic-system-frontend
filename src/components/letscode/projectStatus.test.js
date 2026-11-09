@@ -33,6 +33,18 @@ describe('Let\'s Code project status', () => {
     expect(failedStep({ phase: 'error', clone_ready: true })).toBe('index')
   })
 
+  it('a new project starts instead of cloning, and a lost one fails on its first step (ADM-1183)', () => {
+    const steps = pipelineSteps({ phase: 'cloning', is_new: true })
+    expect(steps[0].label).toBe('Start')
+    expect(steps[0].detail).toBe('Create an empty project in your workspace')
+    expect(pipelineSteps({ phase: 'cloning' })[0].label).toBe('Clone')
+    expect(phaseLabel({ phase: 'cloning', is_new: true })).toBe('Starting')
+    expect(phaseLabel({ phase: 'cloning' })).toBe('Cloning')
+    // A lost copy keeps clone_ready from before, and still fails on the first step, not on Index.
+    expect(states({ phase: 'error', failed_step: 'lost', clone_ready: true, is_new: true }))
+      .toEqual(['failed', 'pending', 'pending'])
+  })
+
   it('turns a clone URL into the repository page', () => {
     expect(githubWebUrl('https://github.com/o/r.git')).toBe('https://github.com/o/r')
   })

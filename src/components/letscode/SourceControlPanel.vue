@@ -1,7 +1,8 @@
 <template>
   <!-- VS Code–style Source Control over the project's repository. The agent edits the files; this is where the
        person sees every change (click one for its side-by-side diff, `open-diff`), discards a file, commits,
-       pushes and opens a pull request (owner, 2026-11-09). Gitignored files are not listed. -->
+       pushes and opens a pull request (owner, 2026-11-09). A new project with no GitHub repository commits on
+       its own branch and is published from here (ADM-1183). Gitignored files are not listed. -->
   <div class="scm">
     <div class="scm-head">
       <span class="scm-branch" :title="status.branch"><Icon icon="lucide:git-branch" aria-hidden="true" /> {{ status.branch || 'No branch' }}</span>
@@ -31,6 +32,24 @@
           <Icon icon="lucide:check" aria-hidden="true" /> {{ action === 'commit' ? 'Committing…' : (status.on_default ? 'Commit to new branch' : 'Commit') }}
         </button>
       </form>
+
+      <!-- A new project: GitHub enters only here, when the person publishes it. -->
+      <form v-if="!status.has_remote && status.has_commit" class="scm-publish" @submit.prevent="publish">
+        <p class="scm-publish-h"><Icon icon="lucide:github" aria-hidden="true" /> Publish to GitHub</p>
+        <label class="scm-label" for="scm-repo">Repository name</label>
+        <input id="scm-repo" v-model="repoName" class="scm-input" type="text" spellcheck="false" autocomplete="off"
+               :placeholder="projectName || 'my-project'" :disabled="busy" />
+        <label class="scm-check">
+          <input id="scm-private" v-model="isPrivate" type="checkbox" :disabled="busy" />
+          Private repository
+        </label>
+        <button type="submit" class="scm-btn primary" :disabled="busy">
+          <Icon icon="lucide:upload-cloud" aria-hidden="true" /> {{ action === 'publish' ? 'Publishing…' : 'Publish to GitHub' }}
+        </button>
+      </form>
+      <p v-else-if="!status.has_remote && !status.has_commit && loaded" class="scm-note">
+        Commit your changes, then publish the project to GitHub.
+      </p>
 
       <!-- After a commit: push the branch, then open a pull request. -->
       <div v-if="canPush || canOpenPr || prUrl" class="scm-sync">
@@ -66,12 +85,17 @@
             </div>
           </div>
         </template>
-        <p class="scm-foot">
+        <p v-if="status.has_remote" class="scm-foot">
           <Icon icon="lucide:clock" aria-hidden="true" />
           These changes are in this project's sandbox. Changes you have not pushed are kept for 3 days after
           you last use the project.
         </p>
       </div>
+      <p v-if="loaded && !status.has_remote" class="scm-foot warn">
+        <Icon icon="lucide:triangle-alert" aria-hidden="true" />
+        This project is only in its sandbox, which is deleted 3 days after you last use the project. Publish it
+        to GitHub to keep a copy.
+      </p>
     </template>
   </div>
 </template>
@@ -87,21 +111,26 @@ import { whileSandboxStarts } from '@/utils/sandboxStarting'
 const props = defineProps({
   systemId: { type: [String, Number], required: true },
   repoId: { type: [String, Number], required: true },
+  // The project's name: the repository name Publish suggests.
+  projectName: { type: String, default: '' },
 })
-const emit = defineEmits(['count', 'open-diff', 'changed'])
+const emit = defineEmits(['count', 'open-diff', 'changed', 'published'])
 
 const status = reactive({ branch: '', default_branch: '', on_default: false, unpushed: 0, on_remote: false,
-                          clean: true, changes: [], untracked: [] })
+                          has_remote: true, has_commit: true, clean: true, changes: [], untracked: [] })
 const loading = ref(false)
 // True once a status has been read. Until then the panel shows "Loading", never the empty default state: after
 // a failed first load, a refresh flashed "No branch · The working tree is clean" (live test 2026-11-09).
 const fetched = ref(false)
+const loaded = computed(() => fetched.value)
+const repoName = ref('')
+const isPrivate = ref(true)
 const error = ref('')
 const waiting = ref(0)
 const selected = ref('')
 const message = ref('')
 const branch = ref('')
-const action = ref('')            // 'commit' | 'push' | 'pr' | 'discard' while one runs
+const action = ref('')            // 'commit' | 'push' | 'pr' | 'discard' | 'publish' while one runs
 const actionError = ref('')
 const prUrl = ref('')
 let gone = false
@@ -126,6 +155,7 @@ function apply(data) {
   Object.assign(status, {
     branch: data.branch || '', default_branch: data.default_branch || '', on_default: !!data.on_default,
     unpushed: data.unpushed || 0, on_remote: !!data.on_remote, clean: !!data.clean,
+    has_remote: data.has_remote !== false, has_commit: data.has_commit !== false,
     changes: data.changes || [], untracked: data.untracked || [],
   })
   emit('count', status.changes.length + status.untracked.length)
@@ -155,10 +185,22 @@ async function run(kind, call, done) {
     if (done) done(data)
     emit('changed')
   } catch (e) {
-    actionError.value = e?.response?.data?.error || 'That did not work. Try again.'
+    const data = e?.response?.data
+    actionError.value = data?.error || 'That did not work. Try again.'
+    // Some refusals carry the state that changed anyway (a repository created whose push failed): show it.
+    if (data && typeof data === 'object' && 'clean' in data) { apply(data); emit('changed') }
   } finally {
     action.value = ''
   }
+}
+
+function publish() {
+  if (busy.value) return
+  const name = (repoName.value.trim() || props.projectName || '').trim()
+  run('publish', () => api.publishProject(props.systemId, props.repoId, { name, private: isPrivate.value }), (data) => {
+    notify.success('Published to GitHub')
+    emit('published', data.published || {})
+  })
 }
 
 function commit() {
@@ -239,6 +281,12 @@ defineExpose({ refresh: load })
 .scm-pr:hover { text-decoration: underline; }
 .scm-pr :deep(svg) { width: 13px; height: 13px; }
 .scm-note { margin: 6px 10px 0; font-size: 12px; line-height: 1.45; }
+.scm-publish { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-bottom: 1px solid var(--vm-line); }
+.scm-publish-h { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 2px; font-weight: 700; font-size: 12.5px; color: var(--vm-ink); }
+.scm-publish-h :deep(svg) { width: 14px; height: 14px; }
+.scm-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--vm-ink-soft); cursor: pointer; }
+.scm-check input { width: 15px; height: 15px; accent-color: var(--vm-violet); }
+.scm-foot.warn { color: color-mix(in srgb, var(--vm-amber) 55%, var(--vm-ink)); }
 .scm-note.err { color: var(--vm-red-ink); }
 
 .scm-list { overflow: auto; flex: 0 1 auto; }

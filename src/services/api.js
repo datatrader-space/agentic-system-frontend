@@ -509,6 +509,9 @@ export default {
     api.post(`/systems/${systemId}/repositories/${repoId}/source-control/push/`, {}),
   openPullRequest: (systemId, repoId, body) =>       // { title, body }
     api.post(`/systems/${systemId}/repositories/${repoId}/source-control/pull-request/`, body),
+  // A new project: create a repository on the person's GitHub and push the committed history (ADM-1183).
+  publishProject: (systemId, repoId, body) =>        // { name, private }
+    api.post(`/systems/${systemId}/repositories/${repoId}/source-control/publish/`, body),
 
   // Knowledge
   getKnowledge: (systemId) => api.get(`/systems/${systemId}/knowledge/`),
@@ -854,10 +857,10 @@ export default {
   // Let's Code IDE — projects (clone GitHub repo → index pipeline; hides systems/repos)
   unifiedConfig: (systemId = null) => api.get('/lets-code/unified-config/', systemId ? { params: { system: systemId } } : {}),   // { agent_id }
   listProjects: () => api.get('/lets-code/projects/', { noCache: true }),
-  createProject: (data) => api.post('/lets-code/projects/', data),   // { github_url, name?, branch? }
+  createProject: (data) => api.post('/lets-code/projects/', data),   // clone { github_url, name?, branch? } or new { name }
   getProject: (repoId) => api.get(`/lets-code/projects/${repoId}/`, { noCache: true }),
   deleteProject: (repoId) => api.delete(`/lets-code/projects/${repoId}/`),
-  retryProject: (repoId) => api.post(`/lets-code/projects/${repoId}/retry/`),
+  retryProject: (repoId, body = {}) => api.post(`/lets-code/projects/${repoId}/retry/`, body),   // { start_empty } for a lost new project
   getProjectPreview: (repoId, port) => api.get(`/lets-code/projects/${repoId}/preview/`, { params: { port }, noCache: true }),   // { url } signed now
   getProjectBranches: (repoId) => api.get(`/lets-code/projects/${repoId}/branches/`, { noCache: true }),
   switchProjectBranch: (repoId, branch) => api.post(`/lets-code/projects/${repoId}/switch-branch/`, { branch }),

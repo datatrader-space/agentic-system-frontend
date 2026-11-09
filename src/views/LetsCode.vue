@@ -6,7 +6,7 @@
         <header class="lc-head">
           <div class="lc-head-text">
             <h1 class="lc-title">Let's Code</h1>
-            <p class="lc-sub">Clone a GitHub repository and work on it with the coding agent.</p>
+            <p class="lc-sub">Start a new project or clone a GitHub repository, and build it with the coding agent.</p>
           </div>
           <div v-if="ghAccount && !ghNotConnected" class="lc-account">
             <span class="lc-account-name"><Icon icon="lucide:github" aria-hidden="true" /> GitHub: <b>{{ ghAccount }}</b></span>
@@ -21,17 +21,33 @@
           <section class="lc-col" aria-labelledby="lc-projects-h">
             <h2 id="lc-projects-h" class="lc-col-h">Your projects</h2>
 
+            <!-- A new project needs no GitHub repository: it is published from Source control when the person wants. -->
+            <form class="lc-new" @submit.prevent="createNewProject">
+              <label class="lc-new-label" for="lc-new-name">New project</label>
+              <div class="lc-new-row">
+                <input id="lc-new-name" v-model="newName" class="lc-new-input" type="text" spellcheck="false" autocomplete="off"
+                       placeholder="my-app" maxlength="100" :disabled="creating" :aria-invalid="!!newError" aria-describedby="lc-new-hint" />
+                <button type="submit" class="lc-btn primary" :disabled="creating || !newName.trim()">
+                  <Icon :icon="creating ? 'lucide:loader-2' : 'lucide:plus'" :class="{ spin: creating }" />
+                  {{ creating ? 'Creating' : 'Create' }}
+                </button>
+              </div>
+              <p v-if="newError" id="lc-new-hint" class="lc-new-err" role="alert">{{ newError }}</p>
+              <p v-else id="lc-new-hint" class="lc-new-hint">Starts empty. No GitHub repository needed; publish it later from Source control.</p>
+            </form>
+
             <ul v-if="projectsLoading" class="lc-list" aria-busy="true" aria-label="Loading projects">
               <li v-for="n in 3" :key="n" class="lc-skel-row"><span class="lc-skel w40"></span><span class="lc-skel w15"></span><span class="lc-skel w12 pill"></span></li>
             </ul>
 
-            <p v-else-if="!projects.length" class="lc-empty">No projects yet. Clone a repository to start.</p>
+            <p v-else-if="!projects.length" class="lc-empty">No projects yet. Start a new one above, or clone a repository.</p>
 
             <ul v-else class="lc-list">
               <li v-for="p in projects" :key="p.repo_id" class="proj" :class="{ failed: isFailed(p) }" @click="openProject(p)">
                 <div class="proj-row">
                   <button type="button" class="proj-name" :title="`Open ${p.name}`" @click.stop="openProject(p)">{{ p.name }}</button>
                   <span v-if="p.branch" class="proj-branch"><Icon icon="lucide:git-branch" aria-hidden="true" />{{ p.branch }}</span>
+                  <span v-if="p.is_new" class="proj-local" title="Not on GitHub yet: publish it from Source control">Not on GitHub</span>
                   <StatusPill :project="p" class="proj-pill" />
                   <button v-if="!isFailed(p)" type="button" class="proj-del" :aria-label="`Remove ${p.name}`" title="Remove project" @click.stop="removeProject(p)">
                     <Icon icon="lucide:trash-2" />
@@ -40,8 +56,9 @@
                 <div v-if="isFailed(p)" class="proj-fail" @click.stop>
                   <p class="proj-fail-msg"><Icon icon="lucide:circle-alert" aria-hidden="true" />{{ p.error_message || 'Preparing stopped without a reason. Retry to run it again.' }}</p>
                   <div class="proj-fail-actions">
-                    <button type="button" class="lc-btn" :disabled="retryingId === p.repo_id" @click="retryProject(p)">
-                      <Icon :icon="retryingId === p.repo_id ? 'lucide:loader-2' : 'lucide:rotate-cw'" :class="{ spin: retryingId === p.repo_id }" /> Retry
+                    <button type="button" class="lc-btn" :disabled="retryingId === p.repo_id" @click="retryProject(p, { startEmpty: p.failed_step === 'lost' })">
+                      <Icon :icon="retryingId === p.repo_id ? 'lucide:loader-2' : (p.failed_step === 'lost' ? 'lucide:file-plus' : 'lucide:rotate-cw')" :class="{ spin: retryingId === p.repo_id }" />
+                      {{ p.failed_step === 'lost' ? 'Start again empty' : 'Retry' }}
                     </button>
                     <button type="button" class="lc-btn danger" @click="removeProject(p)"><Icon icon="lucide:trash-2" /> Remove</button>
                   </div>
@@ -105,7 +122,10 @@
       <div class="ide-bar">
         <button type="button" class="ide-back" @click="closeProject"><Icon icon="lucide:chevron-left" /> Projects</button>
         <span class="ide-proj" :title="active.name">{{ active.name }}</span>
-        <label class="ide-branch" :class="{ off: switchingBranch || !ready }">
+        <span v-if="active.is_new" class="ide-branch off" title="Branches come with GitHub: publish the project from Source control">
+          <Icon icon="lucide:git-branch" aria-hidden="true" /> {{ active.branch || 'main' }}
+        </span>
+        <label v-else class="ide-branch" :class="{ off: switchingBranch || !ready }">
           <span class="sr-only">Branch</span>
           <Icon icon="lucide:git-branch" aria-hidden="true" />
           <select :value="active.branch" :disabled="switchingBranch || !ready" @change="onSwitchBranch($event.target.value)">
@@ -122,8 +142,8 @@
       <div ref="ideMainEl" class="ide-main">
         <div class="ide-left">
           <div class="ide-editor">
-            <PipelineStepper v-if="!ready" :project="active" :log="pipelineLog" :retrying="retryingId === active.repo_id" @retry="retryProject(active)" />
-            <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" />
+            <PipelineStepper v-if="!ready" :project="active" :log="pipelineLog" :retrying="retryingId === active.repo_id" @retry="(o) => retryProject(active, o)" />
+            <CodeBrowser v-else ref="codeBrowser" :key="browserKey" :repository-id="Number(active.repo_id)" :system-id="Number(active.system_id)" :editable="true" :project-name="active.name" @published="onPublished" />
           </div>
           <div v-if="ready" class="ide-bottom" :class="{ collapsed: bottomCollapsed }">
             <BottomPanel :pipeline-log="pipelineLog" :activity="activity" :collapsed="bottomCollapsed" @toggle="bottomCollapsed = !bottomCollapsed" />
@@ -226,6 +246,26 @@ const repos = ref([])
 const repoQuery = ref('')
 const cloningUrl = ref('')
 
+// ── New project (no GitHub repository, ADM-1183) ──
+const newName = ref('')
+const newError = ref('')
+const creating = ref(false)
+
+async function createNewProject() {
+  const name = newName.value.trim()
+  if (!name || creating.value) return
+  creating.value = true
+  newError.value = ''
+  try {
+    const { data } = await api.createProject({ name })
+    newName.value = ''
+    await loadProjects()
+    openProject(data)
+  } catch (e) {
+    newError.value = e?.response?.data?.error || 'Could not create the project'
+  } finally { creating.value = false }
+}
+
 const filteredRepos = computed(() => {
   const q = repoQuery.value.trim().toLowerCase()
   if (!q) return repos.value
@@ -315,7 +355,7 @@ function closeWs() { ws.close() }
 
 async function loadBranches() {
   branches.value = []
-  if (!active.value) return
+  if (!active.value || active.value.is_new) return      // branches come with GitHub
   try { const { data } = await api.getProjectBranches(active.value.repo_id); branches.value = data.branches || [] }
   catch { branches.value = [] }
 }
@@ -367,12 +407,20 @@ function closeProject() {
   loadProjects()
 }
 
-async function retryProject(p) {
+async function retryProject(p, { startEmpty = false } = {}) {
   if (retryingId.value) return
+  if (startEmpty) {
+    const ok = await confirm({
+      title: `Start ${p.name} again empty?`,
+      message: 'Its files are gone and cannot be brought back. The project starts again with no files.',
+      confirmText: 'Start again empty', cancelText: 'Cancel', danger: true,
+    })
+    if (!ok) return
+  }
   retryingId.value = p.repo_id
   try {
-    const { data } = await api.retryProject(p.repo_id)
-    notify.info(`Retrying ${p.name}`)
+    const { data } = await api.retryProject(p.repo_id, startEmpty ? { start_empty: true } : {})
+    notify.info(startEmpty ? `Starting ${p.name} again` : `Retrying ${p.name}`)
     if (active.value && active.value.repo_id === p.repo_id) {
       applyStatus(data)
       pollStatus(); connectWs()
@@ -390,12 +438,23 @@ async function retryProject(p) {
 async function removeProject(p) {
   const ok = await confirm({
     title: 'Remove project?',
-    message: `Remove "${p.name}" and its copy in your workspace? The GitHub repository is not affected.`,
+    message: p.is_new
+      ? `Remove "${p.name}"? It is not on GitHub, so its files are deleted for good.`
+      : `Remove "${p.name}" and its copy in your workspace? The GitHub repository is not affected.`,
     confirmText: 'Remove', cancelText: 'Cancel', danger: true,
   })
   if (!ok) return
   try { await api.deleteProject(p.repo_id); notify.success('Project removed'); await loadProjects() }
   catch (e) { notify.error(e?.response?.data?.error || 'Could not remove the project') }
+}
+
+// Published to GitHub from Source control: the project now has its GitHub address and branches.
+async function onPublished() {
+  if (!active.value) return
+  try { const { data } = await api.getProject(active.value.repo_id); active.value = { ...active.value, ...data } }
+  catch { /* the next status update brings it */ }
+  loadBranches()
+  loadProjects()
 }
 
 // A turn changed files: the tree, Source control and open tabs reload in place.
@@ -463,6 +522,19 @@ onBeforeUnmount(() => {
 [data-theme="dark"] .proj:hover .proj-name { color: color-mix(in srgb, var(--vm-violet) 55%, var(--vm-ink)); }
 .proj-branch { flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 4px; font: 12.5px var(--vm-font-mono); color: var(--vm-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .proj-branch :deep(svg) { width: 13px; height: 13px; flex: 0 0 auto; color: var(--vm-ink-faint); }
+.proj-local { flex: 0 0 auto; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--vm-line-2); font-size: 11.5px; font-weight: 600; color: var(--vm-ink-soft); white-space: nowrap; }
+/* New project: the same field look as the repository search. */
+.lc-new { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.lc-new-label { font-size: 13px; font-weight: 600; color: var(--vm-ink); }
+.lc-new-row { display: flex; gap: 8px; }
+.lc-new-input { flex: 1; min-width: 0; min-height: 40px; padding: 0 12px; background: var(--vm-surface); border: 1px solid var(--vm-line-2); border-radius: var(--vm-r); font: 14px var(--vm-font-mono); color: var(--vm-ink); outline: none; transition: border-color .15s, box-shadow .15s; }
+.lc-new-input::placeholder { color: var(--vm-ink-faint); }
+.lc-new-input:focus { border-color: var(--vm-focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--vm-focus) 22%, transparent); }
+.lc-new-input[aria-invalid="true"] { border-color: var(--vm-danger); }
+.lc-new .lc-btn { min-height: 40px; }
+.lc-new-hint, .lc-new-err { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--vm-ink-soft); }
+.lc-new-err { color: var(--vm-danger); }
+@media (max-width: 640px) { .lc-new-input { font-size: 16px; min-height: 44px; } .lc-new .lc-btn { min-height: 44px; } }
 .proj-pill { margin-left: auto; }
 .proj-del { flex: 0 0 auto; display: grid; place-items: center; width: 32px; height: 32px; border: none; border-radius: 8px; background: transparent; color: var(--vm-ink-faint); cursor: pointer; transition: color .15s, background-color .15s; }
 .proj-del:hover { color: var(--vm-danger); background: color-mix(in srgb, var(--vm-danger) 8%, transparent); }

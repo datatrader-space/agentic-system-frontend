@@ -90,7 +90,7 @@
 
         <!-- Source Control -->
         <div v-else-if="sidebarTab === 'scm'" class="scm-pane">
-          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" @count="scmCount = $event" @open-diff="openDiff" @changed="refreshAfterScm" />
+          <SourceControlPanel ref="scmPanel" :system-id="systemId" :repo-id="repositoryId" :project-name="projectName" @count="scmCount = $event" @open-diff="openDiff" @changed="refreshAfterScm" @published="emit('published', $event)" />
         </div>
 
         <!-- Artifact Tree -->
@@ -282,8 +282,16 @@ const props = defineProps({
   editable: {
     type: Boolean,
     default: false
+  },
+  // The project's name: the repository name Source control's Publish suggests for a new project (ADM-1183).
+  projectName: {
+    type: String,
+    default: ''
   }
 })
+// A new project was published to GitHub from Source control: the page reloads the project (its GitHub address,
+// its branches).
+const emit = defineEmits(['published'])
 
 // State
 const sidebarTab = ref('files')
