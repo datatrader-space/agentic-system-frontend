@@ -152,7 +152,9 @@
         <!-- A change from Source control: side by side, the last commit on the left and the file now on the right,
              as VS Code shows it. Read-only: edits are made in the file's own tab. -->
         <template v-if="activeTab && activeTab.type === 'diff'">
-          <div v-if="activeTab.loading" class="empty-editor"><p class="empty-editor-s">Loading the changes…</p></div>
+          <div v-if="activeTab.loading" class="empty-editor" role="status" aria-live="polite">
+            <p class="empty-editor-s">{{ activeTab.waiting ? `The project's sandbox is starting. Trying again in ${activeTab.waiting}s…` : 'Loading the changes…' }}</p>
+          </div>
           <div v-else-if="activeTab.note" class="empty-editor" role="status">
             <Icon :icon="activeTab.noteIcon || 'lucide:file-diff'" class="empty-editor-ic" aria-hidden="true" />
             <p class="empty-editor-t">{{ activeTab.path }}</p>
@@ -350,10 +352,13 @@ async function loadDiffInto(live) {
   live.note = ''
   live.noteIcon = ''
   try {
-    const { data } = await whileSandboxStarts(() => api.getSourceControlDiff(props.systemId, props.repositoryId, live.path), _wait)
+    const { data } = await whileSandboxStarts(() => api.getSourceControlDiff(props.systemId, props.repositoryId, live.path),
+      { onWaiting: (s) => { live.waiting = s }, isCancelled: () => unmounted })
     if (data.redacted) { live.note = 'This file holds secrets, so its values are not shown.'; live.noteIcon = 'lucide:lock' }
     else if (data.binary) { live.note = 'Binary file. There is no text to compare.' }
     else if (data.original === undefined && data.modified === undefined) { live.note = 'The changes cannot be shown for this file.' }
+    // Discarded or committed since the tab opened: say so instead of two identical sides.
+    else if ((data.original || '') === (data.modified || '')) { live.note = 'This file has no changes now.'; live.noteIcon = 'lucide:check-circle-2' }
     else { live.originalText = data.original || ''; live.modified = data.modified || '' }
   } catch (e) {
     live.note = e?.response?.data?.error || 'The changes could not be loaded.'

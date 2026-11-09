@@ -61,6 +61,42 @@ describe('CodeBrowser: refresh after a change', () => {
     w.unmount()
   })
 
+  it('says a file has no changes now after it was discarded, instead of two identical sides', async () => {
+    const api = (await import('../services/api')).default
+    api.getRepositoryFiles.mockImplementation(() => Promise.resolve({ data: { entries: [] } }))
+    api.getSourceControlDiff.mockResolvedValueOnce({ data: { path: 'a.py', original: 'x = 1\n', modified: 'x = 2\n' } })
+    const w = await browser()
+    await w.vm.$.setupState.openDiff({ path: 'a.py' })
+    await flushPromises()
+    api.getSourceControlDiff.mockResolvedValueOnce({ data: { path: 'a.py', original: 'x = 1\n', modified: 'x = 1\n' } })
+    await w.vm.refresh()
+    await flushPromises()
+    expect(w.text()).toContain('This file has no changes now.')
+    expect(w.find('.monaco-stub').exists()).toBe(false)
+    w.unmount()
+  })
+
+  it('says the sandbox is starting while a diff waits for it', async () => {
+    vi.useFakeTimers()
+    try {
+      const api = (await import('../services/api')).default
+      api.getRepositoryFiles.mockImplementation(() => Promise.resolve({ data: { entries: [] } }))
+      api.getSourceControlDiff
+        .mockRejectedValueOnce({ response: { status: 503, headers: { 'retry-after': '9' }, data: { code: 'RUNNER_STARTING' } } })
+        .mockResolvedValueOnce({ data: { path: 'a.py', original: 'x = 1\n', modified: 'x = 2\n' } })
+      const w = await browser()
+      w.vm.$.setupState.openDiff({ path: 'a.py' })
+      await flushPromises()
+      expect(w.text()).toContain('Trying again in 9s')
+      await vi.advanceTimersByTimeAsync(9000)
+      await flushPromises()
+      expect(w.find('.monaco-stub').text()).toBe('x = 1\n|x = 2\n|python')
+      w.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('"View changes" from the chat opens the Source control list', async () => {
     const w = await browser()
     w.vm.showSourceControl()

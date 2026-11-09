@@ -40,7 +40,7 @@
     <div ref="scrollEl" class="uac-stream" role="log" aria-label="Coding agent conversation" aria-live="polite" aria-relevant="additions">
       <div v-if="!chat.messages.length" class="uac-empty">
         <Icon icon="lucide:sparkles" aria-hidden="true" />
-        <p>Describe a change or ask about the code. The agent reads, edits and runs it in the project's sandbox, and shows every change as a diff for you to keep or discard.</p>
+        <p>Describe a change or ask about the code. The agent reads, edits and runs it in the project's sandbox. Review its changes in Source control, then commit, push or discard them.</p>
       </div>
       <ChatMessageList v-else>
         <template #after-message="{ message }">
