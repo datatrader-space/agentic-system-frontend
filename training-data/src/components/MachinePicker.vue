@@ -23,6 +23,7 @@ const kind = ref('auto');
 const pending = ref(null);              // Auto's find, waiting for the person's approval: { machine, run }
 const said = ref('');
 const uid = Math.random().toString(36).slice(2, 9);
+const NONE_HERE = 'No machine that can run this model is free now where its files are. Choose GPU or CPU and pick one in another location, or try again in a few minutes. Nothing was started.';
 
 const ofKind = computed(() => (kind.value === 'auto' ? (machines.value || [])
   : (machines.value || []).filter(m => (m.kind || 'gpu') === kind.value)));
@@ -43,6 +44,9 @@ async function read() {
     const first = still || (kind.value === 'auto' ? autoFind() : machines.value[0]);
     if (kind.value !== 'auto') kind.value = first?.kind || 'gpu';
     emit('update:modelValue', first?.key || '');
+    // Auto with nothing where the files are: Start stays off, and the reason is said (aadml.com, 2026-11-09: it was
+    // only greyed out).
+    said.value = kind.value === 'auto' && !first && machines.value.length ? NONE_HERE : '';
   } catch (e) { error.value = e.message; machines.value = machines.value || []; }
   finally { loading.value = false; }
 }
@@ -51,8 +55,10 @@ watch(() => props.load, read);
 // Switching GPU / CPU chooses the cheapest of that kind (the list comes cheapest first, the files' location first).
 function pickKind(next) {
   if (next === kind.value || (next !== 'auto' && !counts.value[next])) return;
-  kind.value = next; pending.value = null; said.value = '';
-  emit('update:modelValue', (next === 'auto' ? autoFind() : ofKind.value[0])?.key || '');
+  kind.value = next; pending.value = null;
+  const first = next === 'auto' ? autoFind() : ofKind.value[0];
+  said.value = next === 'auto' && !first && (machines.value || []).length ? NONE_HERE : '';
+  emit('update:modelValue', first?.key || '');
 }
 // What the page's Start does: a machine the person chose starts at once; Auto first reads what is free now, takes the
 // cheapest that can run the model where its files are and asks the person to approve it.
@@ -62,8 +68,7 @@ async function confirm(run) {
   await read();
   const found = autoFind();
   if (!found) {
-    said.value = (machines.value || []).length
-      ? 'No machine that can run this model is free now where its files are. Choose GPU or CPU and pick one in another location, or try again in a few minutes. Nothing was started.'
+    said.value = (machines.value || []).length ? NONE_HERE
       : 'Auto found no machine that can run this model free now. Nothing was started.';
     return undefined;
   }
